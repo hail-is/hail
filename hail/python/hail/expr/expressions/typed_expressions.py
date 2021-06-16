@@ -345,6 +345,34 @@ class CollectionExpression(Expression):
         assert isinstance(self._type, tarray)
         return array_map
 
+    @typecheck_method(f=func_spec(1, expr_any))
+    def starmap(self, f):
+        """Transform each element of a collection.
+
+        Parameters
+        ----------
+        f : function ( (arg) -> :class:`.Expression`)
+            Function to transform each element of the collection.
+
+        Returns
+        -------
+        :class:`.CollectionExpression`.
+            Collection where each element has been transformed according to `f`.
+        """
+
+        def transform_ir(array, name, body):
+            a = ir.ToArray(ir.StreamMap(ir.ToStream(array), name, body))
+            if isinstance(self.dtype, tset):
+                a = ir.ToSet(ir.ToStream(a))
+            return a
+
+        array_map = hl.array(self)._ir_lambda_method(transform_ir, f, self._type.element_type, lambda t: self._type.__class__(t))
+
+        if isinstance(self._type, tset):
+            return hl.set(array_map)
+        assert isinstance(self._type, tarray)
+        return array_map
+
     def length(self):
         """Returns the size of a collection.
 
