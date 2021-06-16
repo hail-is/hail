@@ -14,86 +14,54 @@ object FoldConstants {
       foldConstants(ctx, ir)
     }
 
-  def mainMethod(ctx: ExecuteContext, ir : BaseIR): Row = {
-    println(Pretty(ir))
+  def foldConstants(ctx: ExecuteContext, ir : BaseIR): BaseIR = {
+
     val constantSubTrees = Memo.empty[Unit]
-    val usesAndDefs = ComputeUsesAndDefs(ir)
+
     val constantRefs = Set[String]()
     visitIR(ir, constantRefs, constantSubTrees)
-    val parents = ParentPointers(ir)
+
     val constants = ArrayBuffer[IR]()
     val bindings = ArrayBuffer[(String,IR)]()
     getConstantIRsAndRefs(ir, constantSubTrees, constants, bindings)
     val constantsIS = constants.toIndexedSeq
+
     val bindingsIS = bindings.toIndexedSeq
     val constantTuple = MakeTuple.ordered(constantsIS)
     val letWrapped = bindingsIS.foldRight[IR](constantTuple){ case ((name, binding), accum) => Let(name, binding, accum)}
     val compiled = CompileAndEvaluate[Any](ctx, letWrapped)
-    return compiled.asInstanceOf[Row]
-  }
+    val rowCompiled = compiled.asInstanceOf[Row]
+    val constDict = getIRConstantMapping(rowCompiled, constantsIS)
+    val productIR = replaceConstantTrees(ir, constDict)
 
-  private def foldConstants(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
-    RewriteBottomUp(ir, {
-      case _: Ref |
-           _: In |
-           _: RelationalRef |
-           _: RelationalLet |
-           _: ApplySeeded |
-           _: UUID4 |
-           _: ApplyAggOp |
-           _: ApplyScanOp |
-           _: AggLet |
-           _: Begin |
-           _: MakeNDArray |
-           _: NDArrayShape |
-           _: NDArrayReshape |
-           _: NDArrayConcat |
-           _: NDArraySlice |
-           _: NDArrayFilter |
-           _: NDArrayMap |
-           _: NDArrayMap2 |
-           _: NDArrayReindex |
-           _: NDArrayAgg |
-           _: NDArrayWrite |
-           _: NDArrayMatMul |
-           _: Die => None
-      case ir: IR if ir.typ.isInstanceOf[TStream] => None
-      case ir: IR if !IsConstant(ir) &&
-        Interpretable(ir) &&
-        ir.children.forall {
-          case c: IR => IsConstant(c)
-          case _ => false
-        } =>
-        try {
-          Some(Literal.coerce(ir.typ, Interpret.alreadyLowered(ctx, ir)))
-        } catch {
-          case _: HailException => None
-        }
-      case _ => None
-    })
-
+    productIR
   }
 
   def visitIR(baseIR: BaseIR, constantRefs: Set[String], memo: Memo[Unit]): Option[Set[String]] = {
 
     baseIR match {
       case Ref(name, _) => {
-        if (constantRefs.contains(name)) return Some(Set())
-        else return Some(Set(name))
+        if (constantRefs.contains(name)) Some(Set())
+        else Some(Set(name))
       }
       case let@Let(name, value, body) => {
         val valueDeps = visitIR(value, constantRefs, memo)
-        if (!valueDeps.isEmpty) {
-          val bodyConstantRefs = if (valueDeps.get.isEmpty) {
+        val bodyConstantRefs = if (!valueDeps.isEmpty) {
+          if (valueDeps.get.isEmpty) {
             constantRefs + name
           }
           else constantRefs
-          val bodyDeps = visitIR(body, bodyConstantRefs, memo)
-          val nodeDeps = bodyDeps.map(bD => valueDeps.get ++ (bD - name))
-          nodeDeps.map(nD => if (nD.isEmpty) memo.bind(let, ()))
-          return nodeDeps
         }
-        return valueDeps
+        else constantRefs
+
+        val bodyDeps = visitIR(body, bodyConstantRefs, memo)
+
+        val nodeDeps = bodyDeps.flatMap(bD =>
+          valueDeps.map(vD => vD ++ (bD - name)))
+//          if (valueDeps.isEmpty)  bD
+//          else valueDeps.get ++ (bD - name)
+        nodeDeps.foreach(nD => if (nD.isEmpty) memo.bind(let, ()))
+        nodeDeps
       }
       case _ => {
         val childrenDeps = baseIR.children.map { child => visitIR(child, constantRefs, memo) }
@@ -105,7 +73,7 @@ object FoldConstants {
         }.foldLeft(Set[String]())((accum, elem) => elem ++ accum)
         baseIR match {
           case ir: IR =>
-            if (nodeDeps.isEmpty && ir.typ.isRealizable && !badIRs(ir)) {
+            if (nodeDeps.isEmpty && ir.typ.isRealizable && !badIRs(ir) && !IsConstant(ir)) {
               memo.bind(ir, ())
               return Some(nodeDeps)
             }
@@ -118,8 +86,6 @@ object FoldConstants {
       }
     }
   }
-
-
 
   def badIRs(baseIR: BaseIR): Boolean = {
     baseIR.isInstanceOf[ApplySeeded] || baseIR.isInstanceOf[UUID4] || baseIR.isInstanceOf[In]||
@@ -134,7 +100,7 @@ object FoldConstants {
       case let@Let(name, value, body) => {
         if (constantSubTrees.contains(value)) {
           refs += ((name, value))
-          constants += let
+          constants += value
         }
         else getConstantIRsAndRefs(value, constantSubTrees, constants, refs)
         getConstantIRsAndRefs(body, constantSubTrees, constants, refs)
@@ -142,4 +108,33 @@ object FoldConstants {
       case _ => ir.children.foreach(child => getConstantIRsAndRefs(child, constantSubTrees, constants, refs))
     }
   }
+  def getIRConstantMapping(constantsCompiled: Row, constantTrees: IndexedSeq[IR]): Memo[IR] = {
+    val constDict = Memo.empty[IR]
+    val constantCompiledSeq = (0 until constantsCompiled.length).map(idx => constantsCompiled(idx))
+    constantTrees.zip(constantCompiledSeq).foreach { case (constantTree, constantCompiled) =>
+      constDict.bind(constantTree, Literal.coerce(constantTree.typ, constantCompiled))
+    }
+    constDict
+  }
+
+
+  def replaceConstantTrees(baseIR: BaseIR, constDict: Memo[IR]): BaseIR = {
+    if (constDict.contains(baseIR)) (constDict.get(baseIR).get)
+    else baseIR.mapChildren{child =>
+      if (constDict.contains(child)) constDict.get(child).get
+      else replaceConstantTrees(child, constDict)
+    }
+  }
+//  def replaceConstantSubTrees(baseIR: BaseIR, constDict: Memo[IR]): BaseIR = {
+//    val replaceConstantSubTreeHelper = (child : BaseIR, constDict: Memo[IR]) => {
+//      if (constDict.contains(child)) return (constDict.get(baseIR).get)
+//      else baseIR.children.foreach(child => child.mapChildren(replaceConstantSubTreeHelper))
+//    }
+//    if (constDict.contains(baseIR)) return (constDict.get(baseIR).get)
+//    baseIR.mapChildren(replaceConstantSubTreeHelper)
+//
+//    }
+
+
 }
+
