@@ -51,7 +51,10 @@ class FoldConstantsSuite extends HailSuite {
     val oppIR = ApplyBinaryPrimOp(Add(), i4, i8)
     val refOppIR = ApplyBinaryPrimOp(Add(), refIR, i8)
 
-    val ir = MakeStream.unify(FastIndexedSeq(12, 2, 4, 8, 6).zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("lk" -> (if (n == null) NA(TInt32) else I32(n)), "l" -> I32(idx)))})
+    val MakeStreamIR = MakeStream.unify(FastIndexedSeq(12, 2, 4, 8, 6).zipWithIndex.map
+                       { case (n, idx) => MakeStruct(FastIndexedSeq("lk" -> (if (n == null)
+                         NA(TInt32) else I32(n)), "l" -> I32(idx)))})
+
     val streamFoldBodyIR = ApplyBinaryPrimOp(Add(), vRefIR, refOppIR)
     val letIR = Let(ref, i4, refOppIR)
     val streamMapIR = StreamMap(range, ref, refOppIR)
@@ -72,24 +75,32 @@ class FoldConstantsSuite extends HailSuite {
         "element",
         ApplyComparisonOp(LT(TInt32, TInt32), Ref("element", TInt32), ApplySeeded("rand_norm", Seq(F64(0d), F64(0d)), 0L, TFloat64))))
 
-    val oppTest = FoldConstants.findConstantSubTrees(oppIR)
-    assert(oppTest.contains(oppIR))
+    val makeTupleSeededIR = MakeTuple.ordered(Seq(ToArray(StreamRange(I32(3), I32(8), I32(1))), ApplySeeded("rand_norm", Seq(F64(0d),
+                             F64(0d)), 0L, TFloat64), Let("y", I32(4), Let ("x", ApplyBinaryPrimOp(Add(), I32(3), Ref("y", TInt32)),
+                               MakeTuple.ordered(Seq(ApplyBinaryPrimOp(Add(), Ref("x", TInt32), Ref("y", TInt32))))))))
 
-    val letTest = FoldConstants.findConstantSubTrees(letIR)
-    assert(letTest.contains(letIR))
+    val randLetIR = Let("y", ApplySeeded("rand_norm", Seq(F64(0d), F64(0d)), 0L, TFloat64),
+                    Let("x", ApplyBinaryPrimOp(Add(), I32(1), I32(2)) ,
+                      ApplyBinaryPrimOp(Add(), ApplyBinaryPrimOp(Add(), Ref("x", TInt32), 1),
+                        ApplyBinaryPrimOp(Multiply(),Ref("x", TInt32), Ref("y", TInt32)))))
+//    val oppTest = FoldConstants.findConstantSubTrees(oppIR)
+//    assert(oppTest.contains(oppIR))
+//
+//    val letTest = FoldConstants.findConstantSubTrees(letIR)
+//    assert(letTest.contains(letIR))
+//
+//    val streamMapTest = FoldConstants.findConstantSubTrees(streamMapIR)
+//    assert(streamMapTest.contains(streamMapIR))
+//
+//    val streamFoldTest = FoldConstants.findConstantSubTrees(streamFoldLetIR)
+//    assert(streamFoldTest.contains(streamFoldLetIR))
+//
+//    val zipTest = FoldConstants.findConstantSubTrees(letZipIR)
+//    assert(zipTest.contains(letZipIR))
+//
+//    val streamFold2Test = FoldConstants.findConstantSubTrees(streamFold2IR)
+//    assert(streamFold2Test.contains(streamFold2IR))
 
-    val streamMapTest = FoldConstants.findConstantSubTrees(streamMapIR)
-    assert(streamMapTest.contains(streamMapIR))
-
-    val streamFoldTest = FoldConstants.findConstantSubTrees(streamFoldLetIR)
-    assert(streamFoldTest.contains(streamFoldLetIR))
-
-    val zipTest = FoldConstants.findConstantSubTrees(letZipIR)
-    assert(zipTest.contains(letZipIR))
-
-    val streamFold2Test = FoldConstants.findConstantSubTrees(streamFold2IR)
-    assert(streamFold2Test.contains(streamFold2IR))
-
-    println(FoldConstants.mainMethod(ctx, streamFoldLetIR))
+    println(FoldConstants.mainMethod(ctx, randLetIR))
   }
 }
