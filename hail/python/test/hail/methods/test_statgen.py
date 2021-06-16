@@ -461,6 +461,27 @@ class Tests(unittest.TestCase):
 
     logreg_functions = [hl.logistic_regression_rows, hl._logistic_regression_rows_nd] if backend_name == "spark" else [hl._logistic_regression_rows_nd]
 
+
+    def test_weighted_linear_regression(self):
+        covariates = hl.import_table(resource('regressionLinear.cov'),
+                                     key='Sample',
+                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
+        pheno = hl.import_table(resource('regressionLinear.pheno'),
+                                key='Sample',
+                                missing='0',
+                                types={'Pheno': hl.tfloat})
+
+        mt = hl.import_vcf(resource('regressionLinear.vcf'))
+        mt = mt.add_col_index()
+
+        for linreg_function in self.linreg_functions:
+            # coalesce is temporary, saving me from dealing with missingness fully.
+            ht = linreg_function(y=hl.coalesce(pheno[mt.s].Pheno, 1.0),
+                                 x=mt.GT.n_alt_alleles(),
+                                 covariates=[1.0] + list(covariates[mt.s].values()),
+                                 weights=mt.col_idx)
+
+
     # comparing to R:
     # x = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
     # y = c(0, 0, 1, 1, 1, 1, 0, 0, 1, 1)

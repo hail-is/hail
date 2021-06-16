@@ -461,7 +461,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=[], pass
         y_arrays_per_group = [ht[sample_field_name].map(lambda sample_struct: [sample_struct[y_name] for y_name in one_y_field_name_set]) for one_y_field_name_set in y_field_name_groups]
 
         if weight_field_name_groups == [[]]:
-            weight_arrays_per_group = hl.empty_array(hl.tarray(hl.tfloat64))
+            weight_arrays_per_group = hl.empty_array(hl.tarray(hl.tarray(hl.tfloat64)))
         else:
             weight_arrays_per_group = [ht[sample_field_name].map(lambda sample_struct: [sample_struct[weight_name] for weight_name in one_weight_field_name_set]) for one_weight_field_name_set in weight_field_name_groups]
 
@@ -486,6 +486,9 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=[], pass
                                                                 hl.nd.array(sample_indices_and_weight_arrays[0].map(lambda idx:
                                                                                                                sample_indices_and_weight_arrays[1][idx])))
         cov_nds = kept_samples.map(lambda group: hl.nd.array(group.map(lambda idx: ht.cov_arrays[idx])))
+
+        sqrt_weights = weight_nds.map(lambda weight_nd: weight_nd.map(lambda e: hl.sqrt(e)))
+        scaled_y_nds = hl.zip(y_nds, sqrt_weights).map(lambda y_and_sqrt_weight: y_and_sqrt_weight[0] * y_and_sqrt_weight[1])
 
         k = builtins.len(covariates)
         ns = kept_samples.map(lambda one_sample_set: hl.len(one_sample_set))
