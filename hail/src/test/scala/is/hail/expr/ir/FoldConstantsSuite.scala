@@ -83,6 +83,8 @@ class FoldConstantsSuite extends HailSuite {
                     Let("x", ApplyBinaryPrimOp(Add(), I32(1), I32(2)) ,
                       ApplyBinaryPrimOp(Add(), ApplyBinaryPrimOp(Add(), Ref("x", TInt32), 1),
                         ApplyBinaryPrimOp(Multiply(),Ref("x", TInt32), Ref("y", TInt32)))))
+    val absIR = Apply("abs", Seq(), Seq(I32(-5)), TInt32)
+
 //    val oppTest = FoldConstants.findConstantSubTrees(oppIR)
 //    assert(oppTest.contains(oppIR))
 //
@@ -101,6 +103,6 @@ class FoldConstantsSuite extends HailSuite {
 //    val streamFold2Test = FoldConstants.findConstantSubTrees(streamFold2IR)
 //    assert(streamFold2Test.contains(streamFold2IR))
 
-    println(FoldConstants.mainMethod(ctx, randLetIR))
+    println(FoldConstants(ctx, absIR))
   }
 }
