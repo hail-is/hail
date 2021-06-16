@@ -5,6 +5,7 @@ import is.hail.expr.ir.analyses.ParentPointers
 import is.hail.types.virtual.{TArray, TNDArray, TStream, TStruct, TTuple, TVoid}
 import is.hail.utils.{FastIndexedSeq, HailException}
 import org.apache.spark.sql.Row
+import is.hail.utils._
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -15,7 +16,8 @@ object FoldConstants {
     }
 
   def foldConstants(ctx: ExecuteContext, ir : BaseIR): BaseIR = {
-
+    println("fold constants start")
+    println(Pretty(ir))
     val constantSubTrees = Memo.empty[Unit]
 
     val constantRefs = Set[String]()
@@ -29,11 +31,14 @@ object FoldConstants {
     val bindingsIS = bindings.toIndexedSeq
     val constantTuple = MakeTuple.ordered(constantsIS)
     val letWrapped = bindingsIS.foldRight[IR](constantTuple){ case ((name, binding), accum) => Let(name, binding, accum)}
-    val compiled = CompileAndEvaluate[Any](ctx, letWrapped)
+    println("Some line")
+    println(Pretty(letWrapped))
+    val compiled = CompileAndEvaluate[Any](ctx, letWrapped, optimize = false)
     val rowCompiled = compiled.asInstanceOf[Row]
     val constDict = getIRConstantMapping(rowCompiled, constantsIS)
     val productIR = replaceConstantTrees(ir, constDict)
-
+    log.info("Fold constants end")
+    log.info(Pretty(productIR))
     productIR
   }
 
@@ -64,7 +69,10 @@ object FoldConstants {
         nodeDeps
       }
       case _ => {
-        val childrenDeps = baseIR.children.map { child => visitIR(child, constantRefs, memo) }
+        val childrenDeps = baseIR.children.map {
+          child =>
+            visitIR(child, constantRefs, memo)
+        }
         val allConstantChildren = childrenDeps.forall(child => !child.isEmpty)
         if (!allConstantChildren) return None
         val constChildrenDeps = childrenDeps.map(child => child.get)
@@ -89,7 +97,11 @@ object FoldConstants {
 
   def badIRs(baseIR: BaseIR): Boolean = {
     baseIR.isInstanceOf[ApplySeeded] || baseIR.isInstanceOf[UUID4] || baseIR.isInstanceOf[In]||
-      baseIR.isInstanceOf[TailLoop] || baseIR.typ == TVoid
+      baseIR.isInstanceOf[TailLoop] || baseIR.typ == TVoid || baseIR.isInstanceOf[InitOp] ||
+      baseIR.isInstanceOf[SeqOp] || baseIR.isInstanceOf[CombOp] || baseIR.isInstanceOf[ResultOp] ||
+      baseIR.isInstanceOf[CombOpValue] || baseIR.isInstanceOf[AggStateValue] ||
+      baseIR.isInstanceOf[InitFromSerializedValue] || baseIR.isInstanceOf[SerializeAggs] ||
+      baseIR.isInstanceOf[DeserializeAggs]
   }
 
   def getConstantIRsAndRefs(ir: BaseIR, constantSubTrees: Memo[Unit], constants : ArrayBuffer[IR],
