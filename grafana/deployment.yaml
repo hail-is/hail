@@ -29,7 +29,7 @@ spec:
             secretName: ssl-config-grafana
       containers:
        - name: grafana
-         image: grafana/grafana:7.3.7
+         image: grafana/grafana:8.0.2
          env:
 {% if deploy %}
           - name: GF_SERVER_DOMAIN
