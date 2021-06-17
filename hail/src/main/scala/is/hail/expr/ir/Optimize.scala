@@ -8,7 +8,7 @@ object Optimize {
     if (noisy)
       log.info(s"optimize $context: before: IR size ${ IRSize(ir0) }: \n" + Pretty(ir0, elideLiterals = true))
 
-    var ir = ir0
+    var ir = ir0.noSharing
     var last: BaseIR = null
     var iter = 0
     val maxIter = HailContext.get.optimizerIterations

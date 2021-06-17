@@ -78,12 +78,17 @@ class ExecutionTimer(val rootName: String) {
     parent.children += child
     stack.push(child)
     val start = System.nanoTime()
-    val result: T = block
-    val end = System.nanoTime()
-    child.finish(end - start)
-    stack.pop()
+    val result = try {
+      val result: T = block
+      result
+    } finally {
+      val end = System.nanoTime()
+      child.finish(end - start)
+      stack.pop()
+    }
     result
   }
+
 
   def finish(): Unit = {
     if (finished)
