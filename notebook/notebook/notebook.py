@@ -22,7 +22,7 @@ from gear import (
     web_maybe_authenticated_user,
     web_authenticated_developers_only,
     check_csrf_token,
-    monitor_endpoint,
+    monitor_endpoints_middleware,
 )
 from web_common import sass_compile, setup_aiohttp_jinja2, setup_common_static_routes, set_message, render_template
 
@@ -491,7 +491,6 @@ async def get_error(request, userdata):
 
 
 @routes.get('/workshop-admin')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def workshop_admin(request, userdata):
     dbpool = request.app['dbpool']
@@ -506,7 +505,6 @@ async def workshop_admin(request, userdata):
 
 @routes.post('/workshop-admin-create')
 @check_csrf_token
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def create_workshop(request, userdata):  # pylint: disable=unused-argument
     dbpool = request.app['dbpool']
@@ -540,7 +538,6 @@ INSERT INTO workshops (name, image, cpu, memory, password, active, token) VALUES
 
 @routes.post('/workshop-admin-update')
 @check_csrf_token
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def update_workshop(request, userdata):  # pylint: disable=unused-argument
     app = request.app
@@ -574,7 +571,6 @@ UPDATE workshops SET name = %s, image = %s, cpu = %s, memory = %s, password = %s
 
 @routes.post('/workshop-admin-delete')
 @check_csrf_token
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def delete_workshop(request, userdata):  # pylint: disable=unused-argument
     app = request.app
@@ -605,7 +601,6 @@ workshop_routes = web.RouteTableDef()
 
 @workshop_routes.get('')
 @workshop_routes.get('/')
-@monitor_endpoint
 @web_maybe_authenticated_workshop_guest
 async def workshop_get_index(request, userdata):
     page_context = {'notebook_service': 'workshop'}
@@ -613,7 +608,6 @@ async def workshop_get_index(request, userdata):
 
 
 @workshop_routes.get('/login')
-@monitor_endpoint
 @web_maybe_authenticated_workshop_guest
 async def workshop_get_login(request, userdata):
     if userdata:
@@ -624,7 +618,6 @@ async def workshop_get_login(request, userdata):
 
 
 @workshop_routes.post('/login')
-@monitor_endpoint
 @check_csrf_token
 async def workshop_post_login(request):
     session = await aiohttp_session.get_session(request)
@@ -662,7 +655,6 @@ WHERE name = %s AND password = %s AND active = 1;
 
 @workshop_routes.post('/logout')
 @check_csrf_token
-@monitor_endpoint
 @web_authenticated_workshop_guest_only(redirect=True)
 async def workshop_post_logout(request, userdata):
     app = request.app
@@ -686,7 +678,6 @@ async def workshop_post_logout(request, userdata):
 
 
 @workshop_routes.get('/resources')
-@monitor_endpoint
 @web_maybe_authenticated_workshop_guest
 async def workshop_get_faq(request, userdata):
     page_context = {'notebook_service': 'workshop'}
@@ -694,7 +685,6 @@ async def workshop_get_faq(request, userdata):
 
 
 @workshop_routes.get('/notebook')
-@monitor_endpoint
 @web_authenticated_workshop_guest_only()
 async def workshop_get_notebook(request, userdata):
     return await _get_notebook('workshop', request, userdata)
@@ -702,14 +692,12 @@ async def workshop_get_notebook(request, userdata):
 
 @workshop_routes.post('/notebook')
 @check_csrf_token
-@monitor_endpoint
 @web_authenticated_workshop_guest_only(redirect=False)
 async def workshop_post_notebook(request, userdata):
     return await _post_notebook('workshop', request, userdata)
 
 
 @workshop_routes.get('/auth/{requested_notebook_token}')
-@monitor_endpoint
 @web_authenticated_workshop_guest_only(redirect=False)
 async def workshop_get_auth(request, userdata):
     return await _get_auth(request, userdata)
@@ -717,21 +705,18 @@ async def workshop_get_auth(request, userdata):
 
 @workshop_routes.post('/notebook/delete')
 @check_csrf_token
-@monitor_endpoint
 @web_authenticated_workshop_guest_only(redirect=False)
 async def workshop_delete_notebook(request, userdata):
     return await _delete_notebook('workshop', request, userdata)
 
 
 @workshop_routes.get('/notebook/wait')
-@monitor_endpoint
 @web_authenticated_workshop_guest_only(redirect=False)
 async def workshop_wait_websocket(request, userdata):
     return await _wait_websocket('workshop', request, userdata)
 
 
 @workshop_routes.get('/error')
-@monitor_endpoint
 @web_maybe_authenticated_user
 async def workshop_get_error(request, userdata):
     return await _get_error('workshop', request, userdata)
@@ -753,7 +738,7 @@ async def on_cleanup(app):
 
 
 def init_app(routes):
-    app = web.Application()
+    app = web.Application(middlewares=[monitor_endpoints_middleware])
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
     setup_aiohttp_jinja2(app, 'notebook')
