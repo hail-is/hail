@@ -24,18 +24,26 @@ object FoldConstants {
     val bindings = ArrayBuffer[(String,IR)]()
     getConstantIRsAndRefs(ir, constantSubTrees, constants, bindings)
     val constantsIS = constants.toIndexedSeq
-
+    assert(constants.forall(x => x.typ.isRealizable))
     val bindingsIS = bindings.toIndexedSeq
     val constantTuple = MakeTuple.ordered(constantsIS)
     val letWrapped = bindingsIS.foldRight[IR](constantTuple){ case ((name, binding), accum) => Let(name, binding, accum)}
 //    println("Some line")
 //    println(Pretty(letWrapped))
-    val compiled = CompileAndEvaluate[Any](ctx, letWrapped, optimize = false)
-    val rowCompiled = compiled.asInstanceOf[Row]
-    val constDict = getIRConstantMapping(rowCompiled, constantsIS)
-    val productIR = replaceConstantTrees(ir, constDict)
-    log.info("Fold constants end")
-    log.info(Pretty(productIR))
+    val productIR = try {
+      val compiled = CompileAndEvaluate[Any](ctx, letWrapped, optimize = false)
+      val rowCompiled = compiled.asInstanceOf[Row]
+      val constDict = getIRConstantMapping(rowCompiled, constantsIS)
+      replaceConstantTrees(ir, constDict)
+    }
+    catch {
+      case _: HailException | _: NumberFormatException => {
+        log.info("Error raised during fold constants, aborting")
+        ir
+      }
+    }
+//    log.info("Fold constants end")
+//    log.info(Pretty(productIR))
     productIR
   }
 
@@ -60,7 +68,7 @@ object FoldConstants {
 
         val nodeDeps = bodyDeps.flatMap(bD =>
           valueDeps.map(vD => vD ++ (bD - name)))
-        nodeDeps.foreach(nD => if (nD.isEmpty) memo.bind(let, ()))
+        nodeDeps.foreach(nD => if (nD.isEmpty && let.typ.isRealizable) memo.bind(let, ()))
         nodeDeps
       }
       case _ => {
@@ -76,13 +84,12 @@ object FoldConstants {
         }.foldLeft(Set[String]())((accum, elem) => elem ++ accum)
         baseIR match {
           case ir: IR =>
-            if (nodeDeps.isEmpty && ir.typ.isRealizable && !badIRs(ir) && !IsConstant(ir) ) {
+            if (nodeDeps.isEmpty && ir.typ.isRealizable && !badIRs(ir)) {
               memo.bind(ir, ())
-              return Some(nodeDeps)
+               Some(nodeDeps)
             }
-            else if (!badIRs(ir))
-              return Some(nodeDeps)
-            else return None
+            else if (!badIRs(ir)) Some(nodeDeps)
+            else  None
 
           case _ => None
         }
@@ -96,13 +103,17 @@ object FoldConstants {
       baseIR.isInstanceOf[SeqOp] || baseIR.isInstanceOf[CombOp] || baseIR.isInstanceOf[ResultOp] ||
       baseIR.isInstanceOf[CombOpValue] || baseIR.isInstanceOf[AggStateValue] ||
       baseIR.isInstanceOf[InitFromSerializedValue] || baseIR.isInstanceOf[SerializeAggs] ||
-      baseIR.isInstanceOf[DeserializeAggs] || baseIR.isInstanceOf[Die]
+      baseIR.isInstanceOf[DeserializeAggs] || baseIR.isInstanceOf[Die]|| baseIR.isInstanceOf[AggLet] ||
+      baseIR.isInstanceOf[ApplyAggOp] || baseIR.isInstanceOf[ApplyScanOp] || baseIR.isInstanceOf[RelationalRef] ||
+      baseIR.isInstanceOf[RelationalLet] || baseIR.isInstanceOf[WriteValue]  || baseIR.isInstanceOf[WritePartition] ||
+      baseIR.isInstanceOf[WriteMetadata]
+
   }
 
   def getConstantIRsAndRefs(ir: BaseIR, constantSubTrees: Memo[Unit], constants : ArrayBuffer[IR],
                                   refs : ArrayBuffer[(String,IR)]) : Unit  = {
     ir match {
-      case ir: IR if constantSubTrees.contains(ir) => constants += ir
+      case ir: IR if constantSubTrees.contains(ir) && !IsConstant(ir) => constants += ir
 
       case let@Let(name, value, body) => {
         if (constantSubTrees.contains(value)) {
