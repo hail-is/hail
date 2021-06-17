@@ -88,7 +88,6 @@ class SIntervalPointerSettable(
     cb.assign(includesEnd, pt.includesEnd(a.load()))
   }
 
-  // FIXME orderings should take emitcodes/iemitcodes
   def isEmpty(cb: EmitCodeBuilder): Code[Boolean] = {
     val gt = cb.emb.ecb.getOrderingFunction(st.pointType, CodeOrdering.Gt())
     val gteq = cb.emb.ecb.getOrderingFunction(st.pointType, CodeOrdering.Gteq())

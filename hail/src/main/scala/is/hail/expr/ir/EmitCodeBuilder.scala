@@ -181,11 +181,15 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     _invoke[T](callee, args: _*)
   }
 
-  // FIXME: this should be invokeSCode and should allocate/destructure a tuple when more than one code is present
+  // FIXME: this should be invokeSCode
   def invokePCode(callee: EmitMethodBuilder[_], args: Param*): SCode = {
     val st = callee.emitReturnType.asInstanceOf[PCodeParamType].st
-    assert(st.nCodes == 1, st)
-    st.fromCodes(FastIndexedSeq(_invoke(callee, args: _*))).asInstanceOf[SCode]
+    if (st.nCodes == 1)
+      st.fromCodes(FastIndexedSeq(_invoke(callee, args: _*)))
+    else {
+      val tup = newLocal("invokepcode_tuple", _invoke(callee, args: _*))(callee.asmTuple.ti)
+      st.fromCodes(callee.asmTuple.loadElementsAny(tup))
+    }
   }
 
   // for debugging

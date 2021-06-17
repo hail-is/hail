@@ -76,6 +76,8 @@ class ClassesBytes(classesBytes: Array[(String, Array[Byte])]) extends Serializa
 }
 
 class AsmTuple[C](val cb: ClassBuilder[C], val fields: IndexedSeq[Field[_]], val ctor: MethodBuilder[C]) {
+  val ti: TypeInfo[_] = cb.ti
+
   def newTuple(elems: IndexedSeq[Code[_]]): Code[C] = Code.newInstance(cb, ctor, elems)
 
   def loadElementsAny(t: Value[_]): IndexedSeq[Code[_]] = fields.map(_.get(coerce[C](t) ))
@@ -108,18 +110,29 @@ class ModuleBuilder() {
 
   def tupleClass(fieldTypes: IndexedSeq[TypeInfo[_]]): AsmTuple[_] = {
     tuples.getOrElseUpdate(fieldTypes, {
-      val cb = genClass[AnyRef]("Tuple")
+      val kb = genClass[Unit](s"Tuple${fieldTypes.length}")
       val fields = fieldTypes.zipWithIndex.map { case (ti, i) =>
-        cb.newField(s"_$i")(ti)
+        kb.newField(s"_$i")(ti)
       }
-      val ctor = cb.newMethod("<init>", fieldTypes, UnitInfo)
+      val ctor = kb.newMethod("<init>", fieldTypes, UnitInfo)
       ctor.emitWithBuilder { cb =>
+        // FIXME, maybe a more elegant way to do this?
+        val L = new lir.Block()
+        L.append(
+          lir.methodStmt(INVOKESPECIAL,
+            "java/lang/Object",
+            "<init>",
+            "()V",
+            false,
+            UnitInfo,
+            FastIndexedSeq(lir.load(ctor._this.asInstanceOf[LocalRef[_]].l))))
+        cb += new VCode(L, L, null)
         fields.zipWithIndex.foreach { case (f, i) =>
             cb += f.putAny(ctor._this, ctor.getArg(i + 1)(f.ti).get)
         }
         Code._empty
       }
-      new AsmTuple(cb, fields, ctor)
+      new AsmTuple(kb, fields, ctor)
     })
   }
 
