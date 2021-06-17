@@ -296,8 +296,7 @@ class Let(IR):
             return {}
 
 
-class
-        AggLet(IR):
+class AggLet(IR):
     @typecheck_method(name=str, value=IR, body=IR, is_scan=bool)
     def __init__(self, name, value, body, is_scan):
         super().__init__(value, body)

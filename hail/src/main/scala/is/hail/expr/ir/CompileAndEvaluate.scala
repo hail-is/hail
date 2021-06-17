@@ -27,6 +27,8 @@ object CompileAndEvaluate {
     optimize: Boolean = true
   ): Either[Unit, (PTuple, Long)] = {
     val ir = LoweringPipeline.relationalLowerer(optimize).apply(ctx, ir0).asInstanceOf[IR]
+    println("trying to compile")
+    println(Pretty(ir0))
 
     if (ir.typ == TVoid)
       // void is not really supported by IR utilities
