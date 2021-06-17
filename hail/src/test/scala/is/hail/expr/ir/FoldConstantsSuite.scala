@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.HailSuite
 import is.hail.TestUtils.assertEvalsTo
-import is.hail.types.virtual.{TArray, TFloat64, TInt32, TTuple}
+import is.hail.types.virtual.{TArray, TBoolean, TFloat32, TFloat64, TInt32, TTuple}
 import is.hail.utils.{FastIndexedSeq, FastSeq}
 import org.apache.spark.sql.Row
 import org.scalatest.testng.TestNGSuite
@@ -83,7 +83,18 @@ class FoldConstantsSuite extends HailSuite {
                     Let("x", ApplyBinaryPrimOp(Add(), I32(1), I32(2)) ,
                       ApplyBinaryPrimOp(Add(), ApplyBinaryPrimOp(Add(), Ref("x", TInt32), 1),
                         ApplyBinaryPrimOp(Multiply(),Ref("x", TInt32), Ref("y", TInt32)))))
+
     val absIR = Apply("abs", Seq(), Seq(I32(-5)), TInt32)
+
+    val boolIR =
+      //MakeTuple.ordered(Seq(
+      ApplySpecial("toFloat32OrMissing", Seq(),
+        Seq(Str("nan")), TFloat32)
+//      Apply("isnan", Seq(), Seq(ApplySpecial("toFloat32OrMissing", Seq(),
+//        Seq(Str("+nan")), TFloat32)), TBoolean),
+//      Apply("isnan", Seq(), Seq(ApplySpecial("toFloat32OrMissing", Seq(),
+//        Seq(Str("-nan")), TFloat32)), TBoolean)
+//    ))
 
 //    val oppTest = FoldConstants.findConstantSubTrees(oppIR)
 //    assert(oppTest.contains(oppIR))
@@ -102,7 +113,7 @@ class FoldConstantsSuite extends HailSuite {
 //
 //    val streamFold2Test = FoldConstants.findConstantSubTrees(streamFold2IR)
 //    assert(streamFold2Test.contains(streamFold2IR))
-
-    println(FoldConstants(ctx, absIR))
+    print(CompileAndEvaluate(ctx, boolIR, false))
+    //println(FoldConstants(ctx, boolIR))
   }
 }
