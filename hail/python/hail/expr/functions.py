@@ -3613,6 +3613,33 @@ def map(f: Callable, collection):
     """
     return collection.map(f)
 
+@typecheck(f=anyfunc,
+           collection=expr_oneof(expr_set(), expr_array(), expr_ndarray()))
+def starmap(f: Callable, collection):
+    """Transform each element of a collection of tuples.
+
+    Examples
+    --------
+
+    >>> a = ['The', 'quick', 'brown', 'fox']
+
+    >>> hl.eval(hl.map(lambda x: hl.len(x), a))
+    [3, 5, 5, 3]
+
+    Parameters
+    ----------
+    f : function ( (arg) -> :class:`.Expression`)
+        Function to transform each element of the collection.
+    collection : :class:`.ArrayExpression` or :class:`.SetExpression`
+        Collection expression.
+
+    Returns
+    -------
+    :class:`.ArrayExpression` or :class:`.SetExpression`.
+        Collection where each element has been transformed by `f`.
+    """
+    return collection.starmap(f)
+
 
 @typecheck(x=expr_oneof(expr_set(), expr_array(), expr_dict(), expr_str, expr_tuple(), expr_struct()))
 def len(x) -> Int32Expression:
