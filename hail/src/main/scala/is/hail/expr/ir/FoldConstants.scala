@@ -1,11 +1,8 @@
 package is.hail.expr.ir
 
-import is.hail.expr.ir.Bindings.empty
-import is.hail.expr.ir.analyses.ParentPointers
-import is.hail.types.virtual.{TArray, TNDArray, TStream, TStruct, TTuple, TVoid}
-import is.hail.utils.{FastIndexedSeq, HailException}
-import org.apache.spark.sql.Row
+import is.hail.types.virtual.TVoid
 import is.hail.utils._
+import org.apache.spark.sql.Row
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -16,8 +13,8 @@ object FoldConstants {
     }
 
   def foldConstants(ctx: ExecuteContext, ir : BaseIR): BaseIR = {
-    println("fold constants start")
-    println(Pretty(ir))
+//    println("fold constants start")
+//    println(Pretty(ir))
     val constantSubTrees = Memo.empty[Unit]
 
     val constantRefs = Set[String]()
@@ -31,8 +28,8 @@ object FoldConstants {
     val bindingsIS = bindings.toIndexedSeq
     val constantTuple = MakeTuple.ordered(constantsIS)
     val letWrapped = bindingsIS.foldRight[IR](constantTuple){ case ((name, binding), accum) => Let(name, binding, accum)}
-    println("Some line")
-    println(Pretty(letWrapped))
+//    println("Some line")
+//    println(Pretty(letWrapped))
     val compiled = CompileAndEvaluate[Any](ctx, letWrapped, optimize = false)
     val rowCompiled = compiled.asInstanceOf[Row]
     val constDict = getIRConstantMapping(rowCompiled, constantsIS)
@@ -63,8 +60,6 @@ object FoldConstants {
 
         val nodeDeps = bodyDeps.flatMap(bD =>
           valueDeps.map(vD => vD ++ (bD - name)))
-//          if (valueDeps.isEmpty)  bD
-//          else valueDeps.get ++ (bD - name)
         nodeDeps.foreach(nD => if (nD.isEmpty) memo.bind(let, ()))
         nodeDeps
       }
@@ -81,7 +76,7 @@ object FoldConstants {
         }.foldLeft(Set[String]())((accum, elem) => elem ++ accum)
         baseIR match {
           case ir: IR =>
-            if (nodeDeps.isEmpty && ir.typ.isRealizable && !badIRs(ir) && !IsConstant(ir)) {
+            if (nodeDeps.isEmpty && ir.typ.isRealizable && !badIRs(ir) && !IsConstant(ir) ) {
               memo.bind(ir, ())
               return Some(nodeDeps)
             }
@@ -101,7 +96,7 @@ object FoldConstants {
       baseIR.isInstanceOf[SeqOp] || baseIR.isInstanceOf[CombOp] || baseIR.isInstanceOf[ResultOp] ||
       baseIR.isInstanceOf[CombOpValue] || baseIR.isInstanceOf[AggStateValue] ||
       baseIR.isInstanceOf[InitFromSerializedValue] || baseIR.isInstanceOf[SerializeAggs] ||
-      baseIR.isInstanceOf[DeserializeAggs]
+      baseIR.isInstanceOf[DeserializeAggs] || baseIR.isInstanceOf[Die]
   }
 
   def getConstantIRsAndRefs(ir: BaseIR, constantSubTrees: Memo[Unit], constants : ArrayBuffer[IR],
@@ -132,21 +127,8 @@ object FoldConstants {
 
   def replaceConstantTrees(baseIR: BaseIR, constDict: Memo[IR]): BaseIR = {
     if (constDict.contains(baseIR)) (constDict.get(baseIR).get)
-    else baseIR.mapChildren{child =>
-      if (constDict.contains(child)) constDict.get(child).get
-      else replaceConstantTrees(child, constDict)
+    else baseIR.mapChildren{child => replaceConstantTrees(child, constDict)
     }
   }
-//  def replaceConstantSubTrees(baseIR: BaseIR, constDict: Memo[IR]): BaseIR = {
-//    val replaceConstantSubTreeHelper = (child : BaseIR, constDict: Memo[IR]) => {
-//      if (constDict.contains(child)) return (constDict.get(baseIR).get)
-//      else baseIR.children.foreach(child => child.mapChildren(replaceConstantSubTreeHelper))
-//    }
-//    if (constDict.contains(baseIR)) return (constDict.get(baseIR).get)
-//    baseIR.mapChildren(replaceConstantSubTreeHelper)
-//
-//    }
-
-
 }
 
