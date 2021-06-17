@@ -347,11 +347,17 @@ class CollectionExpression(Expression):
 
     @typecheck_method(f=anyfunc)
     def starmap(self, f):
-        """Transform each element of a collection.
+        """Transform each element of a collection of tuples.
+
+        Examples
+        --------
+
+        >>> hl.eval(hl.array([(1, 2), (2, 3)]).starmap(lambda x, y: x+y))
+        [3, 5]
 
         Parameters
         ----------
-        f : function ( (arg) -> :class:`.Expression`)
+        f : function ( (*args) -> :class:`.Expression`)
             Function to transform each element of the collection.
 
         Returns
@@ -360,23 +366,7 @@ class CollectionExpression(Expression):
             Collection where each element has been transformed according to `f`.
         """
 
-        def transform_ir(array, name, body):
-            a = ir.ToArray(ir.StreamMap(ir.ToStream(array), name, body))
-            import pdb; pdb.set_trace()
-            if isinstance(self.dtype, tset):
-                a = ir.ToSet(ir.ToStream(a))
-            return a
-
-        # Problem: f expects more than one argument. Need to construct a new f that calls this f.
-        element_type = self._type.element_type
-        import pdb; pdb.set_trace()
-
-        array_map = hl.array(self)._ir_lambda_method(transform_ir, f, element_type, lambda t: self._type.__class__(t))
-
-        if isinstance(self._type, tset):
-            return hl.set(array_map)
-        assert isinstance(self._type, tarray)
-        return array_map
+        return self.map(lambda e: f(*e))
 
     def length(self):
         """Returns the size of a collection.
