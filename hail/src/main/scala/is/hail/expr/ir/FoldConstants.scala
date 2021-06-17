@@ -41,11 +41,7 @@ object FoldConstants {
           case c: IR => IsConstant(c)
           case _ => false
         } =>
-        try {
           Some(Literal.coerce(ir.typ, Interpret.alreadyLowered(ctx, ir)))
-        } catch {
-          case _: HailException => None
-        }
       case _ => None
     })
 }

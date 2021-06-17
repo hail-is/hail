@@ -14,7 +14,7 @@ from hail.expr.types import HailType, tint32, tint64, tfloat32, \
     tndarray, tlocus, tinterval, is_numeric
 import hail.ir as ir
 from hail.typecheck import typecheck, typecheck_method, func_spec, oneof, \
-    identity, nullable, tupleof, sliceof, dictof
+    identity, nullable, tupleof, sliceof, dictof, anyfunc
 from hail.utils.java import Env, warning
 from hail.utils.linkedlist import LinkedList
 from hail.utils.misc import wrap_to_list, wrap_to_tuple, get_nice_field_error, get_nice_attr_error
@@ -345,7 +345,7 @@ class CollectionExpression(Expression):
         assert isinstance(self._type, tarray)
         return array_map
 
-    @typecheck_method(f=func_spec(1, expr_any))
+    @typecheck_method(f=anyfunc)
     def starmap(self, f):
         """Transform each element of a collection.
 
@@ -362,11 +362,16 @@ class CollectionExpression(Expression):
 
         def transform_ir(array, name, body):
             a = ir.ToArray(ir.StreamMap(ir.ToStream(array), name, body))
+            import pdb; pdb.set_trace()
             if isinstance(self.dtype, tset):
                 a = ir.ToSet(ir.ToStream(a))
             return a
 
-        array_map = hl.array(self)._ir_lambda_method(transform_ir, f, self._type.element_type, lambda t: self._type.__class__(t))
+        # Problem: f expects more than one argument. Need to construct a new f that calls this f.
+        element_type = self._type.element_type
+        import pdb; pdb.set_trace()
+
+        array_map = hl.array(self)._ir_lambda_method(transform_ir, f, element_type, lambda t: self._type.__class__(t))
 
         if isinstance(self._type, tset):
             return hl.set(array_map)

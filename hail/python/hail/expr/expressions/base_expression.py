@@ -621,6 +621,8 @@ class Expression(object):
     def _ir_lambda_method(self, irf, f, input_type, ret_type_f, *args):
         args = (to_expr(arg)._ir for arg in args)
         new_id = Env.get_uid()
+
+        import pdb; pdb.set_trace()
         lambda_result = to_expr(
             f(expressions.construct_variable(new_id, input_type, self._indices, self._aggregations)))
 
