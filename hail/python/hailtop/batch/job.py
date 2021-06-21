@@ -188,7 +188,8 @@ class Job:
         Parameters
         ----------
         storage:
-            Units are in bytes if `storage` is an :obj:`int`.
+            Units are in bytes if `storage` is an :obj:`int`. If `None`, use the
+            default storage size (0 Gi).
 
         Returns
         -------
@@ -230,7 +231,8 @@ class Job:
         Parameters
         ----------
         memory:
-            Units are in bytes if `memory` is an :obj:`int`.
+            Units are in bytes if `memory` is an :obj:`int`. If `None`,
+            use the default value for the :class:.
 
         Returns
         -------
@@ -268,7 +270,9 @@ class Job:
         Parameters
         ----------
         cores:
-            Units are in cpu if `cores` is numeric.
+            Units are in cpu if `cores` is numeric. If `None`,
+            use the default value of 1 cpu for the
+            :class:`.ServiceBackend`.
 
         Returns
         -------
@@ -334,6 +338,7 @@ class Job:
         ----------
         timeout:
             Maximum amount of time for a job to run before being killed.
+            If `None`, there is no timeout.
 
         Returns
         -------
