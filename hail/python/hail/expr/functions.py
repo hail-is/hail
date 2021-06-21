@@ -3617,7 +3617,7 @@ def map(f: Callable, collection):
 @typecheck(f=anyfunc,
            collection=expr_oneof(expr_set(), expr_array(), expr_ndarray()))
 def starmap(f: Callable, collection):
-    """Transform each element of a collection of tuples.
+    r"""Transform each element of a collection of tuples.
 
     Examples
     --------

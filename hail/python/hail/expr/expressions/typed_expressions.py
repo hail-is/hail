@@ -347,7 +347,7 @@ class CollectionExpression(Expression):
 
     @typecheck_method(f=anyfunc)
     def starmap(self, f):
-        """Transform each element of a collection of tuples.
+        r"""Transform each element of a collection of tuples.
 
         Examples
         --------
