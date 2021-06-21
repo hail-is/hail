@@ -3,12 +3,12 @@
 1000_Genomes_HighCov_autosomes
 ==============================
 
-*  **Versions:** NYGC_30x
+*  **Versions:** NYGC_30x_phased, NYGC_30x_unphased
 *  **Reference genome builds:** GRCh38
 *  **Type:** :class:`hail.MatrixTable`
 
-Schema (NYGC_30x, GRCh38)
-~~~~~~~~~~~~~~~~~~~~~~~~~
+Schema (NYGC_30x_unphased, GRCh38)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: text
 
@@ -31,6 +31,18 @@ Schema (NYGC_30x, GRCh38)
         'Population': str
         'Superpopulation': str
         'sample_qc': struct {
+            dp_stats: struct {
+                mean: float64,
+                stdev: float64,
+                min: float64,
+                max: float64
+            },
+            gq_stats: struct {
+                mean: float64,
+                stdev: float64,
+                min: float64,
+                max: float64
+            },
             call_rate: float64,
             n_called: int64,
             n_not_called: int64,
@@ -58,52 +70,19 @@ Schema (NYGC_30x, GRCh38)
         'qual': float64
         'filters': set<str>
         'info': struct {
-            AC: array<int32>,
-            AC_AFR: array<int32>,
-            AC_AMR: array<int32>,
-            AC_EAS: array<int32>,
-            AC_EUR: array<int32>,
-            AC_Het: array<int32>,
-            AC_Het_AFR: array<int32>,
-            AC_Het_AMR: array<int32>,
-            AC_Het_EAS: array<int32>,
-            AC_Het_EUR: array<int32>,
-            AC_Het_SAS: array<int32>,
-            AC_Hom: array<int32>,
-            AC_Hom_AFR: array<int32>,
-            AC_Hom_AMR: array<int32>,
-            AC_Hom_EAS: array<int32>,
-            AC_Hom_EUR: array<int32>,
-            AC_Hom_SAS: array<int32>,
-            AC_SAS: array<int32>,
-            AF: array<float64>,
-            AF_AFR: array<float64>,
-            AF_AMR: array<float64>,
-            AF_EAS: array<float64>,
-            AF_EUR: array<float64>,
-            AF_SAS: array<float64>,
+            AC: int32,
+            AF: float64,
             AN: int32,
-            AN_AFR: int32,
-            AN_AMR: int32,
-            AN_EAS: int32,
-            AN_EUR: int32,
-            AN_SAS: int32,
             BaseQRankSum: float64,
             ClippingRankSum: float64,
             DP: int32,
             DS: bool,
             END: int32,
             FS: float64,
-            HWE: array<float64>,
-            HWE_AFR: array<float64>,
-            HWE_AMR: array<float64>,
-            HWE_EAS: array<float64>,
-            HWE_EUR: array<float64>,
-            HWE_SAS: array<float64>,
             HaplotypeScore: float64,
             InbreedingCoeff: float64,
-            MLEAC: array<int32>,
-            MLEAF: array<float64>,
+            MLEAC: int32,
+            MLEAF: float64,
             MQ: float64,
             MQ0: int32,
             MQRankSum: float64,
@@ -116,39 +95,92 @@ Schema (NYGC_30x, GRCh38)
             VQSLOD: float64,
             VariantType: str,
             culprit: str,
+            AN_EUR: int32,
+            AN_EAS: int32,
+            AN_AMR: int32,
+            AN_SAS: int32,
+            AN_AFR: int32,
+            AC_EUR: int32,
+            AC_EAS: int32,
+            AC_AMR: int32,
+            AC_SAS: int32,
+            AC_AFR: int32,
+            AC_Hom_EUR: int32,
+            AC_Hom_EAS: int32,
+            AC_Hom_AMR: int32,
+            AC_Hom_SAS: int32,
+            AC_Hom_AFR: int32,
+            AC_Hom: int32,
+            AC_Het_EUR: int32,
+            AC_Het_EAS: int32,
+            AC_Het_AMR: int32,
+            AC_Het_SAS: int32,
+            AC_Het_AFR: int32,
+            AC_Het: int32,
+            AF_EUR: float64,
+            AF_EAS: float64,
+            AF_AMR: float64,
+            AF_SAS: float64,
+            AF_AFR: float64,
+            HWE_EUR: float64,
+            HWE_EAS: float64,
+            HWE_AMR: float64,
+            HWE_SAS: float64,
+            HWE_AFR: float64,
+            HWE: float64,
+            ExcHet_EUR: float64,
+            ExcHet_EAS: float64,
+            ExcHet_AMR: float64,
+            ExcHet_SAS: float64,
+            ExcHet_AFR: float64,
+            ExcHet: float64,
+            ME: float64,
             AN_EUR_unrel: int32,
             AN_EAS_unrel: int32,
             AN_AMR_unrel: int32,
             AN_SAS_unrel: int32,
             AN_AFR_unrel: int32,
-            AC_EUR_unrel: array<int32>,
-            AC_EAS_unrel: array<int32>,
-            AC_AMR_unrel: array<int32>,
-            AC_SAS_unrel: array<int32>,
-            AC_AFR_unrel: array<int32>,
-            AC_Hom_EUR_unrel: array<int32>,
-            AC_Hom_EAS_unrel: array<int32>,
-            AC_Hom_AMR_unrel: array<int32>,
-            AC_Hom_SAS_unrel: array<int32>,
-            AC_Hom_AFR_unrel: array<int32>,
-            AC_Het_EUR_unrel: array<int32>,
-            AC_Het_EAS_unrel: array<int32>,
-            AC_Het_AMR_unrel: array<int32>,
-            AC_Het_SAS_unrel: array<int32>,
-            AC_Het_AFR_unrel: array<int32>,
-            AF_EUR_unrel: array<float64>,
-            AF_EAS_unrel: array<float64>,
-            AF_AMR_unrel: array<float64>,
-            AF_SAS_unrel: array<float64>,
-            AF_AFR_unrel: array<float64>,
-            ExcHet_EAS: array<float64>,
-            ExcHet_AMR: array<float64>,
-            ExcHet_EUR: array<float64>,
-            ExcHet_AFR: array<float64>,
-            ExcHet_SAS: array<float64>,
-            ExcHet: array<float64>
+            AC_EUR_unrel: int32,
+            AC_EAS_unrel: int32,
+            AC_AMR_unrel: int32,
+            AC_SAS_unrel: int32,
+            AC_AFR_unrel: int32,
+            AC_Hom_EUR_unrel: int32,
+            AC_Hom_EAS_unrel: int32,
+            AC_Hom_AMR_unrel: int32,
+            AC_Hom_SAS_unrel: int32,
+            AC_Hom_AFR_unrel: int32,
+            AC_Het_EUR_unrel: int32,
+            AC_Het_EAS_unrel: int32,
+            AC_Het_AMR_unrel: int32,
+            AC_Het_SAS_unrel: int32,
+            AC_Het_AFR_unrel: int32,
+            AF_EUR_unrel: float64,
+            AF_EAS_unrel: float64,
+            AF_AMR_unrel: float64,
+            AF_SAS_unrel: float64,
+            AF_AFR_unrel: float64,
+            HWE_EUR_unrel: float64,
+            HWE_EAS_unrel: float64,
+            HWE_AMR_unrel: float64,
+            HWE_SAS_unrel: float64,
+            HWE_AFR_unrel: float64
         }
+        'a_index': int32
+        'was_split': bool
         'variant_qc': struct {
+            dp_stats: struct {
+                mean: float64,
+                stdev: float64,
+                min: float64,
+                max: float64
+            },
+            gq_stats: struct {
+                mean: float64,
+                stdev: float64,
+                min: float64,
+                max: float64
+            },
             AC: array<int32>,
             AF: array<float64>,
             AN: int32,
@@ -164,7 +196,18 @@ Schema (NYGC_30x, GRCh38)
         }
     ----------------------------------------
     Entry fields:
+        'AB': float64
+        'AD': array<int32>
+        'DP': int32
+        'GQ': int32
         'GT': call
+        'MIN_DP': int32
+        'MQ0': int32
+        'PGT': call
+        'PID': str
+        'PL': array<int32>
+        'RGQ': int32
+        'SB': array<int32>
     ----------------------------------------
     Column key: ['s']
     Row key: ['locus', 'alleles']
