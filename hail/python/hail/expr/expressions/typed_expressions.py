@@ -357,7 +357,7 @@ class CollectionExpression(Expression):
 
         Parameters
         ----------
-        f : function ( (``*``args) -> :class:`.Expression`)
+        f : function ( (\*args) -> :class:`.Expression`)
             Function to transform each element of the collection.
 
         Returns
