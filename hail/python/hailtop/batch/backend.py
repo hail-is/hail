@@ -1,34 +1,47 @@
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, TypeVar, Generic
 import sys
 import abc
 import os
 import subprocess as sp
 import uuid
 import time
+import functools
 import copy
 from shlex import quote as shq
 import webbrowser
 import warnings
+from concurrent.futures import ThreadPoolExecutor
 
 from hailtop.config import get_deploy_config, get_user_config
-from hailtop.utils import is_google_registry_domain, parse_docker_image_reference
+from hailtop.utils import is_google_registry_domain, parse_docker_image_reference, async_to_blocking, bounded_gather, tqdm
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
 import hailtop.batch_client.client as bc
 from hailtop.batch_client.client import BatchClient
+from hailtop.aiotools import RouterAsyncFS, LocalAsyncFS, AsyncFS
+from hailtop.aiogoogle import GoogleStorageAsyncFS
 
 from . import resource, batch, job as _job  # pylint: disable=unused-import
 from .exceptions import BatchException
 
 
-class Backend(abc.ABC):
+RunningBatchType = TypeVar('RunningBatchType')
+"""
+The type of value returned by :py:meth:`.Backend._run`. The value returned by some backends
+enables the user to monitor the asynchronous execution of a Batch.
+"""
+
+SelfType = TypeVar('SelfType')
+
+
+class Backend(abc.ABC, Generic[RunningBatchType]):
     """
     Abstract class for backends.
     """
     _DEFAULT_SHELL = '/bin/bash'
 
     @abc.abstractmethod
-    def _run(self, batch, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs):
+    def _run(self, batch, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs) -> RunningBatchType:
         """
         Execute a batch.
 
@@ -36,7 +49,12 @@ class Backend(abc.ABC):
         -------
         This method should not be called directly. Instead, use :meth:`.batch.Batch.run`.
         """
-        return
+        raise NotImplementedError()
+
+    @property
+    @abc.abstractmethod
+    def _fs(self) -> AsyncFS:
+        raise NotImplementedError()
 
     # pylint: disable=R0201
     def close(self):
@@ -45,14 +63,14 @@ class Backend(abc.ABC):
         """
         return
 
-    def __enter__(self):
+    def __enter__(self: SelfType) -> SelfType:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
 
-class LocalBackend(Backend):
+class LocalBackend(Backend[None]):
     """
     Backend that executes batches on a local computer.
 
@@ -95,13 +113,18 @@ class LocalBackend(Backend):
             flags += f' -v {gsa_key_file}:/gsa-key/key.json'
 
         self._extra_docker_run_flags = flags
+        self.__fs: AsyncFS = LocalAsyncFS(ThreadPoolExecutor())
+
+    @property
+    def _fs(self):
+        return self.__fs
 
     def _run(self,
              batch: 'batch.Batch',
              dry_run: bool,
              verbose: bool,
              delete_scratch_on_exit: bool,
-             **backend_kwargs):  # pylint: disable=R0915
+             **backend_kwargs) -> None:  # pylint: disable=R0915
         """
         Execute a batch.
 
@@ -214,7 +237,7 @@ class LocalBackend(Backend):
 
             for job in batch._jobs:
                 if isinstance(job, _job.PythonJob):
-                    job._compile(tmpdir, tmpdir)
+                    async_to_blocking(job._compile(tmpdir, tmpdir))
 
                 os.makedirs(f'{tmpdir}/{job._job_id}/', exist_ok=True)
 
@@ -288,8 +311,11 @@ class LocalBackend(Backend):
 
         return _get_random_name()
 
+    def close(self):
+        async_to_blocking(self._fs.close())
 
-class ServiceBackend(Backend):
+
+class ServiceBackend(Backend[bc.Batch]):
     """Backend that executes batches on Hail's Batch Service on Google Cloud.
 
     Examples
@@ -328,6 +354,10 @@ class ServiceBackend(Backend):
     remote_tmpdir:
         Temporary data will be stored in this google cloud storage folder. Cannot be used with
         bucket.
+    google_project:
+        If specified, the project to use when authenticating with Google
+        Storage. Google Storage is used to transfer serialized values between
+        this computer and the cloud machines that execute Python jobs.
 
     """
 
@@ -335,7 +365,8 @@ class ServiceBackend(Backend):
                  *args,
                  billing_project: Optional[str] = None,
                  bucket: Optional[str] = None,
-                 remote_tmpdir: Optional[str] = None
+                 remote_tmpdir: Optional[str] = None,
+                 google_project: Optional[str] = None
                  ):
         if len(args) > 2:
             raise TypeError(f'ServiceBackend() takes 2 positional arguments but {len(args)} were given')
@@ -361,6 +392,8 @@ class ServiceBackend(Backend):
                 'or run `hailctl config set batch/billing_project '
                 'MY_BILLING_PROJECT`')
         self._batch_client = BatchClient(billing_project)
+        self.__fs: AsyncFS = RouterAsyncFS('file', [LocalAsyncFS(ThreadPoolExecutor()),
+                                                    GoogleStorageAsyncFS(project=google_project)])
 
         if remote_tmpdir is None:
             if bucket is None:
@@ -382,6 +415,10 @@ class ServiceBackend(Backend):
             remote_tmpdir += '/'
         self.remote_tmpdir = remote_tmpdir
 
+    @property
+    def _fs(self):
+        return self.__fs
+
     def close(self):
         """
         Close the connection with the Batch Service.
@@ -392,6 +429,7 @@ class ServiceBackend(Backend):
         end of your script.
         """
         self._batch_client.close()
+        async_to_blocking(self._fs.close())
 
     def _run(self,
              batch: 'batch.Batch',
@@ -403,7 +441,7 @@ class ServiceBackend(Backend):
              disable_progress_bar: bool = False,
              callback: Optional[str] = None,
              token: Optional[str] = None,
-             **backend_kwargs):  # pylint: disable-msg=too-many-statements
+             **backend_kwargs) -> bc.Batch:  # pylint: disable-msg=too-many-statements
         """Execute a batch.
 
         Warning
@@ -433,7 +471,20 @@ class ServiceBackend(Backend):
         token:
             If not `None`, a string used for idempotency of batch submission.
         """
+        return async_to_blocking(
+            self._async_run(batch, dry_run, verbose, delete_scratch_on_exit, wait, open, disable_progress_bar, callback, token, **backend_kwargs))
 
+    async def _async_run(self,
+                         batch: 'batch.Batch',
+                         dry_run: bool,
+                         verbose: bool,
+                         delete_scratch_on_exit: bool,
+                         wait: bool = True,
+                         open: bool = False,
+                         disable_progress_bar: bool = False,
+                         callback: Optional[str] = None,
+                         token: Optional[str] = None,
+                         **backend_kwargs):  # pylint: disable-msg=too-many-statements
         if backend_kwargs:
             raise ValueError(f'ServiceBackend does not support any of these keywords: {backend_kwargs}')
 
@@ -509,16 +560,22 @@ class ServiceBackend(Backend):
                 jobs_to_command[j] = write_cmd
                 n_jobs_submitted += 1
 
-        for job in batch._jobs:
-            if isinstance(job, _job.PythonJob):
-                if job._image is None:
-                    version = sys.version_info
-                    if version.major != 3 or version.minor not in (6, 7, 8):
-                        raise BatchException(
-                            f"You must specify 'image' for Python jobs if you are using a Python version other than 3.6, 3.7, or 3.8 (you are using {version})")
-                    job._image = f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
-                job._compile(local_tmpdir, batch_remote_tmpdir)
+        pyjobs = [j for j in batch._jobs if isinstance(j, _job.PythonJob)]
+        for job in pyjobs:
+            if job._image is None:
+                version = sys.version_info
+                if version.major != 3 or version.minor not in (6, 7, 8):
+                    raise BatchException(
+                        f"You must specify 'image' for Python jobs if you are using a Python version other than 3.6, 3.7, or 3.8 (you are using {version})")
+                job._image = f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
 
+        with tqdm(total=len(pyjobs), desc='upload python functions', disable=disable_progress_bar) as pbar:
+            async def compile_job(job):
+                await job._compile(local_tmpdir, batch_remote_tmpdir)
+                pbar.update(1)
+            await bounded_gather(*[functools.partial(compile_job, j) for j in pyjobs], parallelism=150)
+
+        for job in tqdm(batch._jobs, desc='create job objects', disable=disable_progress_bar):
             inputs = [x for r in job._inputs for x in copy_input(r)]
 
             outputs = [x for r in job._internal_outputs for x in copy_internal_output(r)]
