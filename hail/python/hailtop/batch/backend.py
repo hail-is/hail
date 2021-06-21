@@ -26,6 +26,11 @@ from .exceptions import BatchException
 
 
 RunningBatchType = TypeVar('RunningBatchType')
+"""
+The type of value returned by :py:meth:`.Backend._run`. The value returned by some backends
+enables the user to monitor the asynchronous execution of a Batch.
+"""
+
 SelfType = TypeVar('SelfType')
 
 
