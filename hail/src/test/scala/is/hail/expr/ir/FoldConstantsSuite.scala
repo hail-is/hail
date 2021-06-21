@@ -67,7 +67,8 @@ class FoldConstantsSuite extends HailSuite {
                         Coalesce(FastSeq(Ref(vRef, TInt32), Ref("val", TInt32)))),
                         MakeStruct(FastSeq((ref, Ref(ref, TInt32)), (vRef, Ref(vRef, TInt32)))))))
 
-    val originalIR = ToArray(
+
+    val toArrayStreamFilterIR = ToArray(
       StreamFilter(
         StreamMap(
           range,
@@ -92,6 +93,13 @@ class FoldConstantsSuite extends HailSuite {
                       ApplyBinaryPrimOp(Add(), I32(2), ArrayRef(Ref("x", TArray(TInt32)), I32(30)))))
 
 
+
+
+
+    (FoldConstants(ctx, toArrayStreamFilterIR))
+  //  println(FoldConstants(ctx, makeTupleSeededIR))
+    //  println(FoldConstants(ctx, randLetIR))
+
 //    ))
 
 //    val oppTest = FoldConstants.findConstantSubTrees(oppIR)
@@ -111,7 +119,7 @@ class FoldConstantsSuite extends HailSuite {
 //
 //    val streamFold2Test = FoldConstants.findConstantSubTrees(streamFold2IR)
 //    assert(streamFold2Test.contains(streamFold2IR))
-    print(CompileAndEvaluate(ctx, errorIR))
+    //print(CompileAndEvaluate(ctx, errorIR))
     //println(FoldConstants(ctx, boolIR))
   }
 }
