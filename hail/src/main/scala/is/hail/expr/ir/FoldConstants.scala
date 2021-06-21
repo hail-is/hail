@@ -13,13 +13,9 @@ object FoldConstants {
     }
 
   def foldConstants(ctx: ExecuteContext, ir : BaseIR): BaseIR = {
-    println("fold constants start")
-    println(Pretty(ir))
     val constantSubTrees = Memo.empty[Unit]
-
     val constantRefs = Set[String]()
     visitIR(ir, constantRefs, constantSubTrees)
-
     val constants = ArrayBuffer[IR]()
     val bindings = ArrayBuffer[(String,IR)]()
     getConstantIRsAndRefs(ir, constantSubTrees, constants, bindings)
@@ -28,8 +24,6 @@ object FoldConstants {
     val bindingsIS = bindings.toIndexedSeq
     val constantTuple = MakeTuple.ordered(constantsIS)
     val letWrapped = bindingsIS.foldRight[IR](constantTuple){ case ((name, binding), accum) => Let(name, binding, accum)}
-    println("Some line")
-    println(Pretty(letWrapped))
     val productIR = try {
       val compiled = CompileAndEvaluate[Any](ctx, letWrapped, optimize = false)
       val rowCompiled = compiled.asInstanceOf[Row]
@@ -42,8 +36,6 @@ object FoldConstants {
         ir
       }
     }
-    println("Fold constants end")
-    println(Pretty(productIR))
     productIR
   }
 
