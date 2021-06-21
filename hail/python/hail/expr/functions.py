@@ -25,7 +25,7 @@ from hail.expr.types import (HailType, hail_type, tint32, tint64, tfloat32,
 from hail.genetics.reference_genome import reference_genome_type, ReferenceGenome
 import hail.ir as ir
 from hail.typecheck import (typecheck, nullable, anytype, enumeration, tupleof,
-                            func_spec, oneof, arg_check, args_check)
+                            func_spec, oneof, arg_check, args_check, anyfunc)
 from hail.utils.java import Env, warning
 from hail.utils.misc import plural
 
@@ -3621,14 +3621,14 @@ def starmap(f: Callable, collection):
     Examples
     --------
 
-    >>> a = ['The', 'quick', 'brown', 'fox']
+    >>> a = [(1, 5), (3, 2), (7, 8)]
 
-    >>> hl.eval(hl.map(lambda x: hl.len(x), a))
-    [3, 5, 5, 3]
+    >>> hl.eval(hl.starmap(lambda x, y: hl.if_else(x < y, x, y), a))
+    [1, 2, 7]
 
     Parameters
     ----------
-    f : function ( (arg) -> :class:`.Expression`)
+    f : function ( (*arg) -> :class:`.Expression`)
         Function to transform each element of the collection.
     collection : :class:`.ArrayExpression` or :class:`.SetExpression`
         Collection expression.
