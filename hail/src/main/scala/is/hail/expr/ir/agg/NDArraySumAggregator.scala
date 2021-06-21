@@ -86,11 +86,11 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
     cb.ifx(!leftNdValue.sameShape(rightNdValue, cb),
       cb += Code._fatal[Unit]("Can't sum ndarrays of different shapes."))
 
-    SNDArray.forEachIndex(cb, leftNdValue.shapes(cb), "ndarray_sum_addvalues") { case (cb, indices) =>
-      val newElement = SCode.add(cb, leftNdValue.loadElement(indices, cb), rightNdValue.loadElement(indices, cb), true)
-      val leftAddr = leftNdValue.asInstanceOf[SNDArrayPointerSettable].a
-      ndTyp.setElement(cb, region, indices, leftAddr, newElement, deepCopy = true)
-    }
+    SNDArray.coiterate(cb, region, FastIndexedSeq((leftNdValue.get, "left"), (rightNdValue.get, "right")), {
+      case Seq(l, r) =>
+        val newElement = SCode.add(cb, l, r, true)
+        cb.assign(l, newElement.copyToRegion(cb, region, leftNdValue.st.elementType))
+    })
   }
 
   protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
