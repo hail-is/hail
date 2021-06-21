@@ -103,7 +103,7 @@ object SNDArray {
         def store(cb: EmitCodeBuilder, v: SCode): Unit = pt.storeAtAddress(cb, pos(0), region, v, deepCopy)
         def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(pos.last)
       }
-      val indexToDim = Map(indices.indices.map(i => indices(i) -> i): _*)
+      val indexToDim = indices.zipWithIndex.toMap
       ArrayInfo(array, strides, pos, elt, indexToDim, name)
     }
 
