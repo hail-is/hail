@@ -26,6 +26,12 @@ def _add_resource_to_set(resource_set, resource, include_rg=True):
             resource_set.add(resource_file)
 
 
+def opt_str(x):
+    if x is None:
+        return x
+    return str(x)
+
+
 class Job:
     """
     Object representing a single job to execute.
@@ -144,7 +150,7 @@ class Job:
     def env(self, variable: str, value: str):
         self._env[variable] = value
 
-    def storage(self, storage: Union[str, int]) -> 'Job':
+    def storage(self, storage: Optional[Union[str, int]]) -> 'Job':
         """
         Set the job's storage size.
 
@@ -189,10 +195,10 @@ class Job:
         Same job object with storage set.
         """
 
-        self._storage = str(storage)
+        self._storage = opt_str(storage)
         return self
 
-    def memory(self, memory: Union[str, int]) -> 'Job':
+    def memory(self, memory: Optional[Union[str, int]]) -> 'Job':
         """
         Set the job's memory requirements.
 
@@ -231,10 +237,10 @@ class Job:
         Same job object with memory requirements set.
         """
 
-        self._memory = str(memory)
+        self._memory = opt_str(memory)
         return self
 
-    def cpu(self, cores: Union[str, int, float]) -> 'Job':
+    def cpu(self, cores: Optional[Union[str, int, float]]) -> 'Job':
         """
         Set the job's CPU requirements.
 
@@ -269,7 +275,7 @@ class Job:
         Same job object with CPU requirements set.
         """
 
-        self._cpu = str(cores)
+        self._cpu = opt_str(cores)
         return self
 
     def always_run(self, always_run: bool = True) -> 'Job':
@@ -308,7 +314,7 @@ class Job:
         self._always_run = always_run
         return self
 
-    def timeout(self, timeout: Union[float, int]) -> 'Job':
+    def timeout(self, timeout: Optional[Union[float, int]]) -> 'Job':
         """
         Set the maximum amount of time this job can run for.
 
