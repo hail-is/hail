@@ -3629,7 +3629,7 @@ def starmap(f: Callable, collection):
 
     Parameters
     ----------
-    f : function ( (*arg) -> :class:`.Expression`)
+    f : function ( (``*``args) -> :class:`.Expression`)
         Function to transform each element of the collection.
     collection : :class:`.ArrayExpression` or :class:`.SetExpression`
         Collection expression.
