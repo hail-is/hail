@@ -102,7 +102,7 @@ class SIndexablePointerSettable(
     val iv = cb.newLocal("pcindval_i", i)
     IEmitCode(cb,
       isElementMissing(iv),
-      pt.elementType.loadCheapPCode(cb, pt.loadElement(a, length, iv))) // FIXME loadElement should take elementsAddress
+      pt.elementType.loadCheapSCode(cb, pt.loadElement(a, length, iv))) // FIXME loadElement should take elementsAddress
   }
 
   def isElementMissing(i: Code[Int]): Code[Boolean] = pt.isElementMissing(a, i)
@@ -125,7 +125,7 @@ class SIndexablePointerSettable(
           cb.ifx(isElementMissing(idx),
             {}, // do nothing,
             {
-              val elt = et.loadCheapPCode(cb, et.loadFromNested(elementPtr))
+              val elt = et.loadCheapSCode(cb, et.loadFromNested(elementPtr))
               f(cb, idx, elt)
             })
           cb.assign(idx, idx + 1)

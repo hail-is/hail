@@ -169,7 +169,7 @@ object MathFunctions extends RegistryFunctions {
 
     registerWrappedScalaFunction1("entropy", TString, TFloat64, null)(thisClass, "irentropy")
 
-    registerPCode4("fisher_exact_test", TInt32, TInt32, TInt32, TInt32, fetStruct.virtualType,
+    registerSCode4("fisher_exact_test", TInt32, TInt32, TInt32, TInt32, fetStruct.virtualType,
       (_, _, _, _, _) => fetStruct.sType
     ) { case (r, cb, rt, a: SInt32Code, b: SInt32Code, c: SInt32Code, d: SInt32Code) =>
       val res = cb.newLocal[Array[Double]]("fisher_exact_test_res",
@@ -187,7 +187,7 @@ object MathFunctions extends RegistryFunctions {
       ), deepCopy = false)
     }
 
-    registerPCode4("chi_squared_test", TInt32, TInt32, TInt32, TInt32, chisqStruct.virtualType,
+    registerSCode4("chi_squared_test", TInt32, TInt32, TInt32, TInt32, chisqStruct.virtualType,
       (_, _, _, _, _) => chisqStruct.sType
     ) { case (r, cb, rt, a: SInt32Code, b: SInt32Code, c: SInt32Code, d: SInt32Code) =>
       val res = cb.newLocal[Array[Double]]("chi_squared_test_res",
@@ -203,7 +203,7 @@ object MathFunctions extends RegistryFunctions {
       ), deepCopy = false)
     }
 
-    registerPCode5("contingency_table_test", TInt32, TInt32, TInt32, TInt32, TInt32, chisqStruct.virtualType,
+    registerSCode5("contingency_table_test", TInt32, TInt32, TInt32, TInt32, TInt32, chisqStruct.virtualType,
       (_, _, _, _, _, _) => chisqStruct.sType
     ) { case (r, cb, rt, a: SInt32Code, b: SInt32Code, c: SInt32Code, d: SInt32Code, mcc: SInt32Code) =>
       val res = cb.newLocal[Array[Double]]("contingency_table_test_res",
@@ -220,7 +220,7 @@ object MathFunctions extends RegistryFunctions {
       ), deepCopy = false)
     }
 
-    registerPCode3("hardy_weinberg_test", TInt32, TInt32, TInt32, hweStruct.virtualType,
+    registerSCode3("hardy_weinberg_test", TInt32, TInt32, TInt32, hweStruct.virtualType,
       (_, _, _, _) => hweStruct.sType
     ) { case (r, cb, rt, nHomRef: SInt32Code, nHet: SInt32Code, nHomVar: SInt32Code) =>
       val res = cb.newLocal[Array[Double]]("hardy_weinberg_test_res",

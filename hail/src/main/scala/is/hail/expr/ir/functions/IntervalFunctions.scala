@@ -53,13 +53,13 @@ object IntervalFunctions extends RegistryFunctions {
         }
     }
 
-    registerPCode1("includesStart", TInterval(tv("T")), TBoolean, (_: Type, x: SType) =>
+    registerSCode1("includesStart", TInterval(tv("T")), TBoolean, (_: Type, x: SType) =>
       SBoolean
     ) {
       case (r, cb, rt, interval: SIntervalCode) => primitive(interval.includesStart())
     }
 
-    registerPCode1("includesEnd", TInterval(tv("T")), TBoolean, (_: Type, x: SType) =>
+    registerSCode1("includesEnd", TInterval(tv("T")), TBoolean, (_: Type, x: SType) =>
       SBoolean
     ) {
       case (r, cb, rt, interval: SIntervalCode) => primitive(interval.includesEnd())
@@ -87,7 +87,7 @@ object IntervalFunctions extends RegistryFunctions {
         }
     }
 
-    registerPCode1("isEmpty", TInterval(tv("T")), TBoolean, (_: Type, pt: SType) => SBoolean) {
+    registerSCode1("isEmpty", TInterval(tv("T")), TBoolean, (_: Type, pt: SType) => SBoolean) {
       case (r, cb, rt, interval: SIntervalCode) =>
         val empty = EmitCodeBuilder.scopedCode(r.mb) { cb =>
           val intv = interval.memoize(cb, "interval")
@@ -96,7 +96,7 @@ object IntervalFunctions extends RegistryFunctions {
         primitive(empty)
     }
 
-    registerPCode2("overlaps", TInterval(tv("T")), TInterval(tv("T")), TBoolean, (_: Type, i1t: SType, i2t: SType) => SBoolean) {
+    registerSCode2("overlaps", TInterval(tv("T")), TInterval(tv("T")), TBoolean, (_: Type, i1t: SType, i2t: SType) => SBoolean) {
       case (r, cb, rt, int1: SIntervalCode, int2: SIntervalCode) =>
         val overlap = EmitCodeBuilder.scopedCode(r.mb) { cb =>
           val interval1 = int1.memoize(cb, "interval1")

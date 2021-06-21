@@ -71,14 +71,14 @@ class SIntervalPointerSettable(
   def loadStart(cb: EmitCodeBuilder): IEmitCode =
     IEmitCode(cb,
       !(pt.startDefined(a)),
-      pt.pointType.loadCheapPCode(cb, pt.loadStart(a)))
+      pt.pointType.loadCheapSCode(cb, pt.loadStart(a)))
 
   def startDefined(cb: EmitCodeBuilder): Code[Boolean] = pt.startDefined(a)
 
   def loadEnd(cb: EmitCodeBuilder): IEmitCode =
     IEmitCode(cb,
       !(pt.endDefined(a)),
-      pt.pointType.loadCheapPCode(cb, pt.loadEnd(a)))
+      pt.pointType.loadCheapSCode(cb, pt.loadEnd(a)))
 
   def endDefined(cb: EmitCodeBuilder): Code[Boolean] = pt.endDefined(a)
 

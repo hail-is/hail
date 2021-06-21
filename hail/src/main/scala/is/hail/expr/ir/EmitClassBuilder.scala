@@ -507,12 +507,12 @@ class EmitClassBuilder[C](
     val codeArgsInfo = argsInfo.flatMap {
       case CodeParamType(ti) => FastIndexedSeq(ti)
       case t: EmitParamType => t.codeTupleTypes
-      case PCodeParamType(pt) => pt.codeTupleTypes()
+      case SCodeParamType(pt) => pt.codeTupleTypes()
     }
     val (codeReturnInfo, asmTuple) = returnInfo match {
       case CodeParamType(ti) => ti -> null
-      case PCodeParamType(pt) if pt.nCodes == 1 => pt.codeTupleTypes().head -> null
-      case PCodeParamType(pt) =>
+      case SCodeParamType(pt) if pt.nCodes == 1 => pt.codeTupleTypes().head -> null
+      case SCodeParamType(pt) =>
         val asmTuple = modb.tupleClass(pt.codeTupleTypes())
         asmTuple.ti -> asmTuple
       case t: EmitParamType =>
@@ -818,10 +818,10 @@ class EmitMethodBuilder[C](
     }
   }
 
-  def getPCodeParam(emitIndex: Int): SCode = {
+  def getSCodeParam(emitIndex: Int): SCode = {
     assert(mb.isStatic || emitIndex != 0)
     val static = (!mb.isStatic).toInt
-    val _st = emitParamTypes(emitIndex - static).asInstanceOf[PCodeParamType].st
+    val _st = emitParamTypes(emitIndex - static).asInstanceOf[SCodeParamType].st
     assert(_st.isRealizable)
 
     val ts = _st.codeTupleTypes()
@@ -847,9 +847,9 @@ class EmitMethodBuilder[C](
         { region: Value[Region] =>
           val emitCode = EmitCode.fromI(this) { cb =>
             if (required) {
-              IEmitCode.present(cb, sct.loadToPCode(cb, region, field.load()))
+              IEmitCode.present(cb, sct.loadToSCode(cb, region, field.load()))
             } else {
-              IEmitCode(cb, mb.getArg[Boolean](codeIndex + 1).get, sct.loadToPCode(cb, null, field.load()))
+              IEmitCode(cb, mb.getArg[Boolean](codeIndex + 1).get, sct.loadToSCode(cb, null, field.load()))
             }
           }
 
@@ -864,7 +864,7 @@ class EmitMethodBuilder[C](
           }
         }
 
-      case PCodeEmitParamType(et) =>
+      case SCodeEmitParamType(et) =>
         val fd = cb.memoizeField(getEmitParam(emitIndex, null), s"storeEmitParam_$emitIndex")
         _ => fd
     }
@@ -886,9 +886,9 @@ class EmitMethodBuilder[C](
 
         val emitCode = EmitCode.fromI(this) { cb =>
           if (required) {
-            IEmitCode.present(cb, sct.loadToPCode(cb, r, mb.getArg(codeIndex)(sct.ti).get))
+            IEmitCode.present(cb, sct.loadToSCode(cb, r, mb.getArg(codeIndex)(sct.ti).get))
           } else {
-            IEmitCode(cb, mb.getArg[Boolean](codeIndex + 1).get, sct.loadToPCode(cb, null, mb.getArg(codeIndex)(sct.ti).get))
+            IEmitCode(cb, mb.getArg[Boolean](codeIndex + 1).get, sct.loadToSCode(cb, null, mb.getArg(codeIndex)(sct.ti).get))
           }
         }
 
@@ -902,7 +902,7 @@ class EmitMethodBuilder[C](
           override def get(cb: EmitCodeBuilder): SCode = emitCode.toI(cb).get(cb)
         }
 
-      case PCodeEmitParamType(et) =>
+      case SCodeEmitParamType(et) =>
         val ts = et.st.codeTupleTypes()
 
         new EmitValue {
@@ -962,7 +962,7 @@ class EmitMethodBuilder[C](
 
   def voidWithBuilder(f: (EmitCodeBuilder) => Unit): Unit = emit(EmitCodeBuilder.scopedVoid(this)(f))
 
-  def emitPCode(f: (EmitCodeBuilder) => SCode): Unit = {
+  def emitSCode(f: (EmitCodeBuilder) => SCode): Unit = {
     emit(EmitCodeBuilder.scopedCode(this) { cb =>
       val res = f(cb)
       if (res.st.nCodes == 1)

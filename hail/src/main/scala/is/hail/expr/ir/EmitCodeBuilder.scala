@@ -137,13 +137,13 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
               s"\n  expected ${ cpt.ti }" +
               s"\n  all param types: ${expectedArgs}-")
           FastIndexedSeq(c)
-        case (PCodeParam(pc), pcpt: PCodeParamType) =>
+        case (SCodeParam(pc), pcpt: SCodeParamType) =>
           if (pc.st != pcpt.st)
             throw new RuntimeException(s"invoke ${ callee.mb.methodName }: arg $i: type mismatch:" +
               s"\n  got ${ pc.st }" +
               s"\n  expected ${ pcpt.st }")
           pc.makeCodeTuple(this)
-        case (EmitParam(ec), PCodeEmitParamType(et)) =>
+        case (EmitParam(ec), SCodeEmitParamType(et)) =>
           if (!ec.emitType.equalModuloRequired(et)) {
             throw new RuntimeException(s"invoke ${callee.mb.methodName}: arg $i: type mismatch:" +
               s"\n  got ${ec.st}" +
@@ -181,9 +181,8 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     _invoke[T](callee, args: _*)
   }
 
-  // FIXME: this should be invokeSCode
-  def invokePCode(callee: EmitMethodBuilder[_], args: Param*): SCode = {
-    val st = callee.emitReturnType.asInstanceOf[PCodeParamType].st
+  def invokeSCode(callee: EmitMethodBuilder[_], args: Param*): SCode = {
+    val st = callee.emitReturnType.asInstanceOf[SCodeParamType].st
     if (st.nCodes == 1)
       st.fromCodes(FastIndexedSeq(_invoke(callee, args: _*)))
     else {

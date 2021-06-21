@@ -54,7 +54,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
       UnitInfo) { mb =>
 
       mb.voidWithBuilder { cb =>
-        val arg = mb.getPCodeParam(1)
+        val arg = mb.getSCodeParam(1)
           .memoize(cb, "encoder_method_arg")
         val out = mb.getCodeParam[OutputBuffer](2)
         _buildEncoder(cb, arg, out)
@@ -65,7 +65,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   final def buildDecoder(t: Type, kb: EmitClassBuilder[_]): StagedDecoder = {
     val mb = buildDecoderMethod(t: Type, kb);
     { (cb: EmitCodeBuilder, r: Code[Region], ib: Code[InputBuffer]) =>
-      cb.invokePCode(mb, r, ib)
+      cb.invokeSCode(mb, r, ib)
     }
   }
 
@@ -76,7 +76,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
       FastIndexedSeq[ParamType](typeInfo[Region], classInfo[InputBuffer]),
       st.paramType) { mb =>
 
-      mb.emitPCode { cb =>
+      mb.emitSCode { cb =>
         val region: Value[Region] = mb.getCodeParam[Region](1)
         val in: Value[InputBuffer] = mb.getCodeParam[InputBuffer](2)
         val sc = _buildDecoder(cb, t, region, in)
@@ -204,7 +204,7 @@ object EType {
       mb.voidWithBuilder { cb =>
         val addr: Code[Long] = mb.getCodeParam[Long](1)
         val out: Code[OutputBuffer] = mb.getCodeParam[OutputBuffer](2)
-        val pc = pt.loadCheapPCode(cb, addr)
+        val pc = pt.loadCheapSCode(cb, addr)
         val f = et.buildEncoder(pc.st, mb.ecb)
         f(cb, pc, out)
       }

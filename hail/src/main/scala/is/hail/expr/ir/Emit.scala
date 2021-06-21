@@ -335,7 +335,7 @@ case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A, 
     cb.define(Lafter)
   }
 
-  def consumePCode(cb: EmitCodeBuilder, ifMissing: => SCode, ifPresent: (A) => SCode): SCode = {
+  def consumeSCode(cb: EmitCodeBuilder, ifMissing: => SCode, ifPresent: (A) => SCode): SCode = {
     val Lafter = CodeLabel()
     cb.define(Lmissing)
     val missingValue = ifMissing
@@ -401,7 +401,7 @@ class EmitCode(private val start: CodeLabel, private val iec: IEmitCode) {
 
   lazy val emitType: EmitType = iec.emitType
 
-  def emitParamType: PCodeEmitParamType = emitType.paramType
+  def emitParamType: SCodeEmitParamType = emitType.paramType
 
   def st: SType = iec.value.st
 
@@ -812,7 +812,7 @@ class Emit[C](
         presentPC(mb.addLiteral(x, typeWithReq))
       case x@UUID4(_) =>
         val pt = PCanonicalString()
-        presentPC(pt.loadCheapPCode(cb, pt.
+        presentPC(pt.loadCheapSCode(cb, pt.
           allocateAndStoreString(mb, region, Code.invokeScalaObject0[String](
             Class.forName("is.hail.expr.ir.package$"), "uuid4"))))
       case x@Literal(t, v) =>
@@ -964,7 +964,7 @@ class Emit[C](
           val arrayAddress = cb.newLocal[Long]("array_addr", outputPType.allocate(region, numElements))
           cb += outputPType.stagedInitialize(arrayAddress, numElements)
           cb += Region.setMemory(outputPType.firstElementOffset(arrayAddress), numElements.toL * elementSize, 0.toByte)
-          outputPType.loadCheapPCode(cb, arrayAddress)
+          outputPType.loadCheapSCode(cb, arrayAddress)
         }
 
       case x@ArrayRef(a, i, s) =>
@@ -1059,7 +1059,7 @@ class Emit[C](
 
           def lessThan(cb: EmitCodeBuilder, region: Value[Region], l: Code[_], r: Code[_]): Code[Boolean] = {
             cb.emb.ecb.getOrdering(sct.loadedSType, sct.loadedSType)
-              .ltNonnull(cb, sct.loadToPCode(cb, region, l), sct.loadToPCode(cb, region, r))
+              .ltNonnull(cb, sct.loadToSCode(cb, region, l), sct.loadToSCode(cb, region, r))
           }
 
           sorter.sort(cb, region, lessThan)
@@ -1084,11 +1084,11 @@ class Emit[C](
           val sorter = new ArraySorter(EmitRegion(mb, region), vab)
 
           def lessThan(cb: EmitCodeBuilder, region: Value[Region], l: Code[_], r: Code[_]): Code[Boolean] = {
-            val lk = EmitCode.fromI(cb.emb)(cb => sct.loadToPCode(cb, region, l)
+            val lk = EmitCode.fromI(cb.emb)(cb => sct.loadToSCode(cb, region, l)
               .asBaseStruct.memoize(cb, "lt_l")
               .loadField(cb, 0))
 
-            val rk = EmitCode.fromI(cb.emb)(cb => sct.loadToPCode(cb, region, r)
+            val rk = EmitCode.fromI(cb.emb)(cb => sct.loadToSCode(cb, region, r)
               .asBaseStruct.memoize(cb, "lt_r")
               .loadField(cb, 0))
 
@@ -1132,10 +1132,10 @@ class Emit[C](
           val sorter = new ArraySorter(EmitRegion(mb, region), sortedElts)
 
           def lt(cb: EmitCodeBuilder, region: Value[Region], l: Code[_], r: Code[_]): Code[Boolean] = {
-            val lk = EmitCode.fromI(cb.emb)(cb => sct.loadToPCode(cb, region, l)
+            val lk = EmitCode.fromI(cb.emb)(cb => sct.loadToSCode(cb, region, l)
               .asBaseStruct.memoize(cb, "lt_l")
               .loadField(cb, 0))
-            val rk = EmitCode.fromI(cb.emb)(cb => sct.loadToPCode(cb, region, r)
+            val rk = EmitCode.fromI(cb.emb)(cb => sct.loadToSCode(cb, region, r)
               .asBaseStruct.memoize(cb, "lt_r")
               .loadField(cb, 0))
             cb.emb.ecb.getOrdering(lk.st, rk.st)
@@ -1301,7 +1301,7 @@ class Emit[C](
                 }
               })
 
-              xP.constructByCopyingArray(shapeValues, stridesSettables, memoData.pc.asIndexable, cb, region)
+              xP.constructByCopyingArray(shapeValues, stridesSettables, memoData.sc.asIndexable, cb, region)
             }
           }
         }
@@ -1316,7 +1316,7 @@ class Emit[C](
           val childStrides = pndVal.strides(cb)
 
           val pndAddr = SingleCodeSCode.fromSCode(cb, pndVal, region)
-          val dataArray = childPType.dataType.loadCheapPCode(cb, childPType.dataPArrayPointer(pndAddr.code.asInstanceOf[Code[Long]]))
+          val dataArray = childPType.dataType.loadCheapSCode(cb, childPType.dataPArrayPointer(pndAddr.code.asInstanceOf[Code[Long]]))
 
           val newShape = indexMap.map { childIndex =>
             if (childIndex < childPType.nDims) childShape(childIndex) else const(1L)
@@ -1903,7 +1903,7 @@ class Emit[C](
             (cb: EmitCodeBuilder) => cb += pt.setFieldMissing(addr, j))
         }
 
-        presentPC(pt.loadCheapPCode(cb, addr))
+        presentPC(pt.loadCheapSCode(cb, addr))
       case x@ApplySeeded(fn, args, seed, rt) =>
         val codeArgs = args.map(a => EmitCode.fromI(cb.emb)(emitInNewBuilder(_, a)))
         val impl = x.implementation
@@ -2104,7 +2104,7 @@ class Emit[C](
 
         val resPType = PCanonicalBinary()
         // FIXME: server needs to send uuid for the successful partition
-        val boff = cb.memoize(resPType.loadCheapPCode(cb, resPType.allocate(region, 0)), "shuffleWriteBOff")
+        val boff = cb.memoize(resPType.loadCheapSCode(cb, resPType.allocate(region, 0)), "shuffleWriteBOff")
         val baddr = SingleCodeSCode.fromSCode(cb, boff, region)
         cb += resPType.storeLength(baddr.code.asInstanceOf[Code[Long]], 0)
         presentPC(boff)
@@ -2462,7 +2462,7 @@ class Emit[C](
         EmitCode.fromI(mb) { cb =>
           val emitArgs = args.map(a => EmitCode.fromI(cb.emb)(emitI(a, _))).toFastIndexedSeq
           IEmitCode.multiMapEmitCodes(cb, emitArgs) { codeArgs =>
-            cb.invokePCode(meth, FastIndexedSeq[Param](CodeParam(region)) ++ codeArgs.map(pc => pc: Param): _*)
+            cb.invokeSCode(meth, FastIndexedSeq[Param](CodeParam(region)) ++ codeArgs.map(pc => pc: Param): _*)
           }
         }
       case x@ApplySpecial(_, typeArgs, args, rt) =>
@@ -2518,8 +2518,8 @@ class Emit[C](
 
     sort.emitWithBuilder[Boolean] { cb =>
       val region = sort.getCodeParam[Region](1)
-      val leftEC = cb.memoize(EmitCode.present(sort, elemSCT.loadToPCode(cb, region, sort.getCodeParam(2)(elemSCT.ti))), "sort_leftEC")
-      val rightEC = cb.memoize(EmitCode.present(sort, elemSCT.loadToPCode(cb, region, sort.getCodeParam(3)(elemSCT.ti))), "sort_rightEC")
+      val leftEC = cb.memoize(EmitCode.present(sort, elemSCT.loadToSCode(cb, region, sort.getCodeParam(2)(elemSCT.ti))), "sort_leftEC")
+      val rightEC = cb.memoize(EmitCode.present(sort, elemSCT.loadToSCode(cb, region, sort.getCodeParam(3)(elemSCT.ti))), "sort_rightEC")
 
       if (leftRightComparatorNames.nonEmpty) {
         assert(leftRightComparatorNames.length == 2)

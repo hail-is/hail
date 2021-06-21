@@ -684,7 +684,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.union(lookup(path).required)
         requiredness.fromPType(spec.encodedType.decodedPType(rt))
       case In(_, t) => t match {
-        case PCodeEmitParamType(et) => requiredness.fromPType(et.canonicalPType)
+        case SCodeEmitParamType(et) => requiredness.fromPType(et.canonicalPType)
         case SingleCodeEmitParamType(required, StreamSingleCodeType(_, eltType)) => requiredness.fromPType(PCanonicalStream(eltType, required)) // fixme hacky
         case SingleCodeEmitParamType(required, PTypeReferenceSingleCodeType(pt)) => requiredness.fromPType(pt.setRequired(required))
         case SingleCodeEmitParamType(required, _) => requiredness.union(required)

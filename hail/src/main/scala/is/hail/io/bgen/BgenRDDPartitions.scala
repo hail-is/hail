@@ -517,7 +517,7 @@ object CompileDecoder {
             val dataOffset = cb.newLocal[Int]("bgen_add_entries_offset", const(settings.nSamples + 10) + i * 2)
             val d0 = data(dataOffset) & 0xff
             val d1 = data(dataOffset + 1) & 0xff
-            val pc = entryType.loadCheapPCode(cb, memoTyp.loadElement(memoizedEntryData, settings.nSamples, (d0 << 8) | d1))
+            val pc = entryType.loadCheapSCode(cb, memoTyp.loadElement(memoizedEntryData, settings.nSamples, (d0 << 8) | d1))
             cb.goto(Lpresent)
             val iec = IEmitCode(Lmissing, Lpresent, pc, false)
             pushElement(cb, iec)

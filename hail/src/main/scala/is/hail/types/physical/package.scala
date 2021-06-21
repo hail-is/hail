@@ -7,7 +7,7 @@ import is.hail.types.physical.stypes.{SCode, SValue}
 import scala.language.implicitConversions
 
 package object physical {
-  implicit def pvalueToPCode(pv: SValue): SCode = pv.get
+  implicit def sValueToSCode(sv: SValue): SCode = sv.get
 
   def typeToTypeInfo(t: PType): TypeInfo[_] = t match {
     case _: PInt32 => typeInfo[Int]

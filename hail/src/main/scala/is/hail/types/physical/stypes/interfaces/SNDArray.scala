@@ -99,7 +99,7 @@ object SNDArray {
         val pt: PType = array.st.pType.elementType
 
         // FIXME: need to use `pos` of smallest index var
-        def get: SCode = pt.loadCheapPCode(cb, pt.loadFromNested(pos(0)))
+        def get: SCode = pt.loadCheapSCode(cb, pt.loadFromNested(pos(0)))
         def store(cb: EmitCodeBuilder, v: SCode): Unit = pt.storeAtAddress(cb, pos(0), region, v, deepCopy)
         def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(pos.last)
       }

@@ -94,13 +94,13 @@ object LocusFunctions extends RegistryFunctions {
   def registerAll() {
     val locusClass = Locus.getClass
 
-    registerPCode1("contig", tlocus("T"), TString,
+    registerSCode1("contig", tlocus("T"), TString,
       (_: Type, x: SType) => x.asInstanceOf[SLocus].contigType) {
       case (r, cb, rt, locus: SLocusCode) =>
         locus.contig(cb)
     }
 
-    registerPCode1("position", tlocus("T"), TInt32, (_: Type, x: SType) => SInt32) {
+    registerSCode1("position", tlocus("T"), TInt32, (_: Type, x: SType) => SInt32) {
       case (r, cb, rt, pc: SLocusCode) =>
         val locus = pc.memoize(cb, "locus_position_locus")
         primitive(locus.position(cb))
@@ -115,7 +115,7 @@ object LocusFunctions extends RegistryFunctions {
     registerLocusCode("inXNonPar") { locus => inX(locus) && !inPar(locus) }
     registerLocusCode("inYNonPar") { locus => inY(locus) && !inPar(locus) }
 
-    registerPCode2("min_rep", tlocus("T"), TArray(TString), TStruct("locus" -> tv("T"), "alleles" -> TArray(TString)), {
+    registerSCode2("min_rep", tlocus("T"), TArray(TString), TStruct("locus" -> tv("T"), "alleles" -> TArray(TString)), {
       (returnType: Type, _: SType, _: SType) => {
         val locusPT = PCanonicalLocus(returnType.asInstanceOf[TStruct].field("locus").typ.asInstanceOf[TLocus].rg, true)
         PCanonicalStruct("locus" -> locusPT, "alleles" -> PCanonicalArray(PCanonicalString(true), true)).sType
@@ -130,7 +130,7 @@ object LocusFunctions extends RegistryFunctions {
         emitVariant(cb, r.region, variantTuple, rt)
     }
 
-    registerPCode2("locus_windows_per_contig", TArray(TArray(TFloat64)), TFloat64, TTuple(TArray(TInt32), TArray(TInt32)), {
+    registerSCode2("locus_windows_per_contig", TArray(TArray(TFloat64)), TFloat64, TTuple(TArray(TInt32), TArray(TInt32)), {
       (_: Type, _: SType, _: SType) =>
         PCanonicalTuple(false, PCanonicalArray(PInt32(true), true), PCanonicalArray(PInt32(true), true)).sType
     }) {
@@ -230,7 +230,7 @@ object LocusFunctions extends RegistryFunctions {
           ), deepCopy = false)
     }
 
-    registerPCode1("Locus", TString, tlocus("T"), {
+    registerSCode1("Locus", TString, tlocus("T"), {
       (returnType: Type, _: SType) => PCanonicalLocus(returnType.asInstanceOf[TLocus].rg).sType
     }) {
       case (r, cb, SCanonicalLocusPointer(rt: PCanonicalLocus), str: SStringCode) =>
@@ -241,7 +241,7 @@ object LocusFunctions extends RegistryFunctions {
           rt)
     }
 
-    registerPCode2("Locus", TString, TInt32, tlocus("T"), {
+    registerSCode2("Locus", TString, TInt32, tlocus("T"), {
       (returnType: Type, _: SType, _: SType) => PCanonicalLocus(returnType.asInstanceOf[TLocus].rg).sType
     }) {
       case (r, cb, SCanonicalLocusPointer(rt: PCanonicalLocus), contig, pos) =>
@@ -251,7 +251,7 @@ object LocusFunctions extends RegistryFunctions {
         rt.constructFromPositionAndString(cb, r.region, contigMemo.asString.loadString(), posMemo.asInt.intCode(cb))
     }
 
-    registerPCode1("LocusAlleles", TString, tvariant("T"), {
+    registerSCode1("LocusAlleles", TString, tvariant("T"), {
       (returnType: Type, _: SType) => {
         val lTyp = returnType.asInstanceOf[TStruct].field("locus").typ.asInstanceOf[TLocus]
         PCanonicalStruct("locus" -> PCanonicalLocus(lTyp.rg, true), "alleles" -> PCanonicalArray(PCanonicalString(true), true)).sType
@@ -348,7 +348,7 @@ object LocusFunctions extends RegistryFunctions {
         }
     }
 
-    registerPCode1("globalPosToLocus", TInt64, tlocus("T"), {
+    registerSCode1("globalPosToLocus", TInt64, tlocus("T"), {
       (returnType: Type, _: SType) =>
         PCanonicalLocus(returnType.asInstanceOf[TLocus].rg).sType
     }) {
@@ -358,7 +358,7 @@ object LocusFunctions extends RegistryFunctions {
         rt.constructFromPositionAndString(cb, r.region, locus.invoke[String]("contig"), locus.invoke[Int]("position"))
     }
 
-    registerPCode1("locusToGlobalPos", tlocus("T"), TInt64, (_: Type, _: SType) => SInt64) {
+    registerSCode1("locusToGlobalPos", tlocus("T"), TInt64, (_: Type, _: SType) => SInt64) {
       case (r, cb, rt, locus: SLocusCode) =>
         val locusObject = locus.memoize(cb, "locus_to_global_pos")
           .getLocusObj(cb)

@@ -62,7 +62,7 @@ class StagedInternalNodeBuilder(maxSize: Int, keyType: PType, annotationType: PT
   }
 
   def allocate(cb: EmitCodeBuilder): Unit = {
-    node.store(cb, pType.loadCheapPCode(cb, pType.allocate(region)))
+    node.store(cb, pType.loadCheapSCode(cb, pType.allocate(region)))
     ab.create(cb, pType.fieldOffset(node.a, "children"))
   }
 

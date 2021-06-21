@@ -142,7 +142,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
       cb.whileLoop(i < count(n),
         {
           f(cb, EmitCode(Code._empty, bufferType.isElementMissing(buffer(n), i),
-            elemType.loadCheapPCode(cb, bufferType.loadElement(buffer(n), capacity(n), i))))
+            elemType.loadCheapSCode(cb, bufferType.loadElement(buffer(n), capacity(n), i))))
           cb.assign(i, i + 1)
         })
     }
@@ -209,7 +209,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
       foreachNode(cb, n) { cb =>
         cb += ob.writeBoolean(true)
         cb.assign(b, buffer(n))
-        bufferEType.buildPrefixEncoder(cb, bufferType.loadCheapPCode(cb, b).memoize(cb, "sbll_serialize_v"), ob, count(n))
+        bufferEType.buildPrefixEncoder(cb, bufferType.loadCheapSCode(cb, b).memoize(cb, "sbll_serialize_v"), ob, count(n))
       }
       cb += ob.writeBoolean(false)
     }

@@ -105,7 +105,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
         cb.ifx(isFieldDefined(dstAddr, f.index),
           {
             val fieldAddr = cb.newLocal[Long]("pcbs_dpcopy_field", fieldOffset(dstAddr, f.index))
-            dstFieldType.storeAtAddress(cb, fieldAddr, region, dstFieldType.loadCheapPCode(cb, dstFieldType.loadFromNested(fieldAddr)), deepCopy = true)
+            dstFieldType.storeAtAddress(cb, fieldAddr, region, dstFieldType.loadCheapSCode(cb, dstFieldType.loadFromNested(fieldAddr)), deepCopy = true)
           })
       }
     }
@@ -156,7 +156,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
 
   def sType: SBaseStructPointer = SBaseStructPointer(setRequired(false).asInstanceOf[PCanonicalBaseStruct])
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructPointerCode = new SBaseStructPointerCode(sType, addr)
+  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructPointerCode = new SBaseStructPointerCode(sType, addr)
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {

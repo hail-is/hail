@@ -167,7 +167,7 @@ object UtilFunctions extends RegistryFunctions {
   def registerAll() {
     val thisClass = getClass
 
-    registerPCode4("valuesSimilar", tv("T"), tv("U"), TFloat64, TBoolean, TBoolean, {
+    registerSCode4("valuesSimilar", tv("T"), tv("U"), TFloat64, TBoolean, TBoolean, {
       case (_: Type, _: SType, _: SType, _: SType, _: SType) => SBoolean
     }) {
       case (er, cb, rt, l, r, tol, abs) =>
@@ -182,10 +182,10 @@ object UtilFunctions extends RegistryFunctions {
       (n * (n + 1)) / 2
     }
 
-    registerPCode1("toInt32", TBoolean, TInt32, (_: Type, _: SType) => SInt32) { case (_, cb, _, x) => primitive(x.asBoolean.boolCode(cb).toI) }
-    registerPCode1("toInt64", TBoolean, TInt64, (_: Type, _: SType) => SInt64) { case (_, cb, _, x) => primitive(x.asBoolean.boolCode(cb).toI.toL) }
-    registerPCode1("toFloat32", TBoolean, TFloat32, (_: Type, _: SType) => SFloat32) { case (_, cb, _, x) => primitive(x.asBoolean.boolCode(cb).toI.toF) }
-    registerPCode1("toFloat64", TBoolean, TFloat64, (_: Type, _: SType) => SFloat64) { case (_, cb, _, x) => primitive(x.asBoolean.boolCode(cb).toI.toD) }
+    registerSCode1("toInt32", TBoolean, TInt32, (_: Type, _: SType) => SInt32) { case (_, cb, _, x) => primitive(x.asBoolean.boolCode(cb).toI) }
+    registerSCode1("toInt64", TBoolean, TInt64, (_: Type, _: SType) => SInt64) { case (_, cb, _, x) => primitive(x.asBoolean.boolCode(cb).toI.toL) }
+    registerSCode1("toFloat32", TBoolean, TFloat32, (_: Type, _: SType) => SFloat32) { case (_, cb, _, x) => primitive(x.asBoolean.boolCode(cb).toI.toF) }
+    registerSCode1("toFloat64", TBoolean, TFloat64, (_: Type, _: SType) => SFloat64) { case (_, cb, _, x) => primitive(x.asBoolean.boolCode(cb).toI.toD) }
 
     for ((name, t, rpt, ct) <- Seq[(String, Type, SType, ClassTag[_])](
       ("Boolean", TBoolean, SBoolean, implicitly[ClassTag[Boolean]]),
@@ -195,7 +195,7 @@ object UtilFunctions extends RegistryFunctions {
       ("Float32", TFloat32, SFloat32, implicitly[ClassTag[Float]])
     )) {
       val ctString: ClassTag[String] = implicitly[ClassTag[String]]
-      registerPCode1(s"to$name", TString, t, (_: Type, _: SType) => rpt) {
+      registerSCode1(s"to$name", TString, t, (_: Type, _: SType) => rpt) {
         case (r, cb, rt, x: SStringCode) =>
           val s = x.loadString()
           primitive(rt.virtualType, Code.invokeScalaObject1(thisClass, s"parse$name", s)(ctString, ct))
@@ -293,7 +293,7 @@ object UtilFunctions extends RegistryFunctions {
       }
     }
 
-    registerPCode2("format", TString, tv("T", "tuple"), TString, (_: Type, _: SType, _: SType) => PCanonicalString().sType) {
+    registerSCode2("format", TString, tv("T", "tuple"), TString, (_: Type, _: SType, _: SType) => PCanonicalString().sType) {
       case (r, cb, SStringPointer(rt: PCanonicalString), format, args) =>
         val javaObjArgs = Code.checkcast[Row](scodeToJavaValue(cb, r.region, args))
         val formatted = Code.invokeScalaObject2[String, Row, String](thisClass, "format", format.asString.loadString(), javaObjArgs)

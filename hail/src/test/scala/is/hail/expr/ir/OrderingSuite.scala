@@ -39,8 +39,8 @@ class OrderingSuite extends HailSuite {
     implicit val x = op.rtti
     val fb = EmitFunctionBuilder[Region, Long, Long, op.ReturnType](ctx, "lifted")
     fb.emitWithBuilder { cb =>
-      val cv1 = t.loadCheapPCode(cb, fb.getCodeParam[Long](2))
-      val cv2 = t.loadCheapPCode(cb, fb.getCodeParam[Long](3))
+      val cv1 = t.loadCheapSCode(cb, fb.getCodeParam[Long](2))
+      val cv2 = t.loadCheapSCode(cb, fb.getCodeParam[Long](3))
       fb.ecb.getOrderingFunction(cv1.st, cv2.st, op)
           .apply(cb, EmitCode.present(cb.emb, cv1), EmitCode.present(cb.emb, cv2))
     }
@@ -58,9 +58,9 @@ class OrderingSuite extends HailSuite {
       val fb = EmitFunctionBuilder[Region, Boolean, Long, Boolean, Long, op.ReturnType](ctx, "lifted")
       fb.emitWithBuilder { cb =>
         val m1 = fb.getCodeParam[Boolean](2)
-        val cv1 = t.loadCheapPCode(cb, fb.getCodeParam[Long](3))
+        val cv1 = t.loadCheapSCode(cb, fb.getCodeParam[Long](3))
         val m2 = fb.getCodeParam[Boolean](4)
-        val cv2 = t.loadCheapPCode(cb, fb.getCodeParam[Long](5))
+        val cv2 = t.loadCheapSCode(cb, fb.getCodeParam[Long](5))
         val ev1 = EmitCode(Code._empty, m1, cv1)
         val ev2 = EmitCode(Code._empty, m2, cv2)
         fb.ecb.getOrderingFunction(ev1.st, ev2.st, op)
@@ -460,8 +460,8 @@ class OrderingSuite extends HailSuite {
 
         val bs = new BinarySearch(fb.apply_method, pset.sType, EmitType(pset.elementType.sType, true), keyOnly = false)
         fb.emitWithBuilder(cb =>
-          bs.getClosestIndex(cb, pset.loadCheapPCode(cb, cset),
-            EmitCode.fromI(fb.apply_method)(cb => IEmitCode.present(cb, pt.loadCheapPCode(cb, pTuple.loadField(cetuple, 0))))))
+          bs.getClosestIndex(cb, pset.loadCheapSCode(cb, cset),
+            EmitCode.fromI(fb.apply_method)(cb => IEmitCode.present(cb, pt.loadCheapSCode(cb, pTuple.loadField(cetuple, 0))))))
 
         val asArray = SafeIndexedSeq(pArray, soff)
 
@@ -500,8 +500,8 @@ class OrderingSuite extends HailSuite {
 
         val m = ptuple.isFieldMissing(cktuple, 0)
         fb.emitWithBuilder(cb =>
-          bs.getClosestIndex(cb, pDict.loadCheapPCode(cb, cdict),
-            EmitCode.fromI(fb.apply_method)(cb => IEmitCode.present(cb, pDict.keyType.loadCheapPCode(cb, ptuple.loadField(cktuple, 0))))))
+          bs.getClosestIndex(cb, pDict.loadCheapSCode(cb, cdict),
+            EmitCode.fromI(fb.apply_method)(cb => IEmitCode.present(cb, pDict.keyType.loadCheapSCode(cb, ptuple.loadField(cktuple, 0))))))
 
         val asArray = SafeIndexedSeq(PCanonicalArray(pDict.elementType), soff)
 

@@ -77,7 +77,7 @@ abstract class CodeOrdering {
 
   def reversed: Boolean = false
 
-  final def checkedPCode[T](cb: EmitCodeBuilder, arg1: SCode, arg2: SCode, context: String,
+  final def checkedSCode[T](cb: EmitCodeBuilder, arg1: SCode, arg2: SCode, context: String,
     f: (EmitCodeBuilder, SCode, SCode) => Code[T])(implicit ti: TypeInfo[T]): Code[T] = {
     if (arg1.st != type1)
       throw new RuntimeException(s"CodeOrdering: $context: type mismatch (left)\n  generated: $type1\n  argument:  ${ arg1.st }")
@@ -89,8 +89,8 @@ abstract class CodeOrdering {
       FastIndexedSeq(arg1.st.paramType, arg2.st.paramType), ti) { mb =>
 
       mb.emitWithBuilder[T] { cb =>
-        val arg1 = mb.getPCodeParam(1)
-        val arg2 = mb.getPCodeParam(2)
+        val arg1 = mb.getSCodeParam(1)
+        val arg2 = mb.getSCodeParam(2)
         f(cb, arg1, arg2)
       }
     }
@@ -119,27 +119,27 @@ abstract class CodeOrdering {
 
 
   final def compareNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Int] = {
-    checkedPCode(cb, x, y, "compareNonnull", _compareNonnull)
+    checkedSCode(cb, x, y, "compareNonnull", _compareNonnull)
   }
 
   final def ltNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
-    checkedPCode(cb, x, y, "ltNonnull", _ltNonnull)
+    checkedSCode(cb, x, y, "ltNonnull", _ltNonnull)
   }
 
   final def lteqNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
-    checkedPCode(cb, x, y, "lteqNonnull", _lteqNonnull)
+    checkedSCode(cb, x, y, "lteqNonnull", _lteqNonnull)
   }
 
   final def gtNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
-    checkedPCode(cb, x, y, "gtNonnull", _gtNonnull)
+    checkedSCode(cb, x, y, "gtNonnull", _gtNonnull)
   }
 
   final def gteqNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
-    checkedPCode(cb, x, y, "gteqNonnull", _gteqNonnull)
+    checkedSCode(cb, x, y, "gteqNonnull", _gteqNonnull)
   }
 
   final def equivNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
-    checkedPCode(cb, x, y, "equivNonnull", _equivNonnull)
+    checkedSCode(cb, x, y, "equivNonnull", _equivNonnull)
   }
 
   final def lt(cb: EmitCodeBuilder, x: EmitCode, y: EmitCode, missingEqual: Boolean): Code[Boolean] = {
