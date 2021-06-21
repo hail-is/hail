@@ -86,14 +86,12 @@ class FoldConstantsSuite extends HailSuite {
 
     val absIR = Apply("abs", Seq(), Seq(I32(-5)), TInt32)
 
-    val boolIR =
-      //MakeTuple.ordered(Seq(
-      ApplySpecial("toFloat32OrMissing", Seq(),
-        Seq(Str("nan")), TFloat32)
-//      Apply("isnan", Seq(), Seq(ApplySpecial("toFloat32OrMissing", Seq(),
-//        Seq(Str("+nan")), TFloat32)), TBoolean),
-//      Apply("isnan", Seq(), Seq(ApplySpecial("toFloat32OrMissing", Seq(),
-//        Seq(Str("-nan")), TFloat32)), TBoolean)
+    val errorIR = Let("x", ToArray(StreamRange(0, 10, 1)),
+                      If(ApplyComparisonOp(LT(TInt32, TInt32), ArrayLen(Ref("x", TArray(TInt32))), I32(1)),
+                      ApplyBinaryPrimOp(Add(), I32(3), ArrayRef(Ref("x", TArray(TInt32)), I32(30))),
+                      ApplyBinaryPrimOp(Add(), I32(2), ArrayRef(Ref("x", TArray(TInt32)), I32(30)))))
+
+
 //    ))
 
 //    val oppTest = FoldConstants.findConstantSubTrees(oppIR)
@@ -113,7 +111,7 @@ class FoldConstantsSuite extends HailSuite {
 //
 //    val streamFold2Test = FoldConstants.findConstantSubTrees(streamFold2IR)
 //    assert(streamFold2Test.contains(streamFold2IR))
-    print(CompileAndEvaluate(ctx, boolIR, false))
+    print(CompileAndEvaluate(ctx, errorIR))
     //println(FoldConstants(ctx, boolIR))
   }
 }
