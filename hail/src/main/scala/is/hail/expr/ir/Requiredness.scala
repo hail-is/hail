@@ -479,7 +479,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
 
       case _: NA => requiredness.union(false)
       case Literal(t, a) => requiredness.unionLiteral(a)
-      case EncodedLiteral(codec, value) => requiredness.fromPType(codec.decodedPType())
+      case EncodedLiteral(codec, value) => requiredness.fromPType(codec.decodedPType().setRequired(true))
 
       case Coalesce(values) =>
         val reqs = values.map(lookup)

@@ -44,7 +44,7 @@ case class TableNativeWriter(
   codecSpecJSONStr: String = null
 ) extends TableWriter {
 
-  override def canLowerEfficiently: Boolean = true
+  override def canLowerEfficiently: Boolean = !stageLocally
 
   override def lower(ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
     val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)

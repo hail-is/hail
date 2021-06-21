@@ -70,7 +70,7 @@ case class MatrixNativeWriter(
 ) extends MatrixWriter {
   def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = mv.write(ctx, path, overwrite, stageLocally, codecSpecJSONStr, partitions, partitionsTypeStr, checkpointFile)
 
-  override def canLowerEfficiently: Boolean = true
+  override def canLowerEfficiently: Boolean = !stageLocally && checkpointFile == null
 
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
     ctx: ExecuteContext, tablestage: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
