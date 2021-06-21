@@ -14,7 +14,7 @@ from hail.expr.types import HailType, tint32, tint64, tfloat32, \
     tndarray, tlocus, tinterval, is_numeric
 import hail.ir as ir
 from hail.typecheck import typecheck, typecheck_method, func_spec, oneof, \
-    identity, nullable, tupleof, sliceof, dictof
+    identity, nullable, tupleof, sliceof, dictof, anyfunc
 from hail.utils.java import Env, warning
 from hail.utils.linkedlist import LinkedList
 from hail.utils.misc import wrap_to_list, wrap_to_tuple, get_nice_field_error, get_nice_attr_error
@@ -344,6 +344,29 @@ class CollectionExpression(Expression):
             return hl.set(array_map)
         assert isinstance(self._type, tarray)
         return array_map
+
+    @typecheck_method(f=anyfunc)
+    def starmap(self, f):
+        r"""Transform each element of a collection of tuples.
+
+        Examples
+        --------
+
+        >>> hl.eval(hl.array([(1, 2), (2, 3)]).starmap(lambda x, y: x+y))
+        [3, 5]
+
+        Parameters
+        ----------
+        f : function ( (\*args) -> :class:`.Expression`)
+            Function to transform each element of the collection.
+
+        Returns
+        -------
+        :class:`.CollectionExpression`.
+            Collection where each element has been transformed according to `f`.
+        """
+
+        return self.map(lambda e: f(*e))
 
     def length(self):
         """Returns the size of a collection.

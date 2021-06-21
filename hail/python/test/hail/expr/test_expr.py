@@ -2429,6 +2429,9 @@ class Tests(unittest.TestCase):
         fm = hl.flatmap(lambda x: hl.set(hl.range(0, x.length()).map(lambda i: x[i])), {"ABC", "AAa", "BD"})
         self.assertEqual(hl.eval(fm), {'A', 'a', 'B', 'C', 'D'})
 
+    def test_starmap(self):
+        self.assertEqual(hl.eval(hl.array([(1, 2), (2, 3)]).starmap(lambda x,y: x+y)), [3, 5])
+
     def test_array_corr(self):
         x1 = [random.uniform(-10, 10) for x in range(10)]
         x2 = [random.uniform(-10, 10) for x in range(10)]
