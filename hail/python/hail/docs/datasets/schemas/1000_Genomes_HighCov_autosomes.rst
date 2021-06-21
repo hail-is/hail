@@ -8,7 +8,7 @@
 *  **Type:** :class:`hail.MatrixTable`
 
 Schema (NYGC_30x_unphased, GRCh38)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: text
 
