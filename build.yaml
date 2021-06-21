@@ -3014,7 +3014,7 @@ steps:
 
       # checkout new ci repo
       cd /io
-      git clone https://$TOKEN@github.com/hail-ci-test/$REPO_NAME.git
+      retry git clone https://$TOKEN@github.com/hail-ci-test/$REPO_NAME.git
       cd $REPO_NAME
 
       mkdir -p ./ci/test ./hail/
