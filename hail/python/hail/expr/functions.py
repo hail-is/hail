@@ -4510,7 +4510,7 @@ def _sort_by(collection, less_than):
         collection._aggregations)
 
 
-@typecheck(collection=expr_array(),
+@typecheck(collection=expr_oneof(expr_array(), expr_dict(), expr_set()),
            key=nullable(func_spec(1, expr_any)),
            reverse=expr_bool)
 def sorted(collection,
@@ -4538,8 +4538,8 @@ def sorted(collection,
 
     Parameters
     ----------
-    collection : :class:`.ArrayExpression`
-        Array to sort.
+    collection : :class:`.ArrayExpression` or :class:`.SetExpression` or :class:`.DictExpression`
+        Collection to sort.
     key: function ( (arg) -> :class:`.Expression`), optional
         Function to evaluate for each element to compute sort key.
     reverse : :class:`.BooleanExpression`
@@ -4550,6 +4550,9 @@ def sorted(collection,
     :class:`.ArrayExpression`
         Sorted array.
     """
+
+    if not isinstance(collection, ArrayExpression):
+        collection = hl.array(collection)
 
     def comp(left, right):
         return (hl.case()
