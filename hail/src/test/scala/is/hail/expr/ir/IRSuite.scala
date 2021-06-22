@@ -1423,24 +1423,24 @@ class IRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val na = NA(TArray(TInt32))
-    //assertEvalsTo(LowerBoundOnOrderedCollection(na, I32(0), onKey = false), null)
+    assertEvalsTo(LowerBoundOnOrderedCollection(na, I32(0), onKey = false), null)
 
     val awoutna = MakeArray(FastIndexedSeq(I32(0), I32(2), I32(4)), TArray(TInt32))
     val awna = MakeArray(FastIndexedSeq(I32(0), I32(2), I32(4), NA(TInt32)), TArray(TInt32))
     val awdups = MakeArray(FastIndexedSeq(I32(0), I32(0), I32(2), I32(4), I32(4), NA(TInt32)), TArray(TInt32))
     assertAllEvalTo(
       (LowerBoundOnOrderedCollection(awoutna, I32(-1), onKey = false), 0),
-        (LowerBoundOnOrderedCollection(awoutna, I32(0), onKey = false), 0) //,
-//        (LowerBoundOnOrderedCollection(awoutna, I32(1), onKey = false), 1),
-//        (LowerBoundOnOrderedCollection(awoutna, I32(2), onKey = false), 1),
-//        (LowerBoundOnOrderedCollection(awoutna, I32(3), onKey = false), 2),
-//        (LowersBoundOnOrderedCollection(awoutna, I32(4), onKey = false), 2),
-//        (LowerBoundOnOrderedCollection(awoutna, I32(5), onKey = false), 3),
-//        (LowerBoundOnOrderedCollection(awoutna, NA(TInt32), onKey = false), 3),
-//        (LowerBoundOnOrderedCollection(awna, NA(TInt32), onKey = false), 3),
-//        (LowerBoundOnOrderedCollection(awna, I32(5), onKey = false), 3),
-//        (LowerBoundOnOrderedCollection(awdups, I32(0), onKey = false), 0),
-//        (LowerBoundOnOrderedCollection(awdups, I32(4), onKey = false), 3)
+        (LowerBoundOnOrderedCollection(awoutna, I32(0), onKey = false), 0),
+        (LowerBoundOnOrderedCollection(awoutna, I32(1), onKey = false), 1),
+        (LowerBoundOnOrderedCollection(awoutna, I32(2), onKey = false), 1),
+        (LowerBoundOnOrderedCollection(awoutna, I32(3), onKey = false), 2),
+        (LowerBoundOnOrderedCollection(awoutna, I32(4), onKey = false), 2),
+        (LowerBoundOnOrderedCollection(awoutna, I32(5), onKey = false), 3),
+        (LowerBoundOnOrderedCollection(awoutna, NA(TInt32), onKey = false), 3),
+        (LowerBoundOnOrderedCollection(awna, NA(TInt32), onKey = false), 3),
+        (LowerBoundOnOrderedCollection(awna, I32(5), onKey = false), 3),
+        (LowerBoundOnOrderedCollection(awdups, I32(0), onKey = false), 0),
+        (LowerBoundOnOrderedCollection(awdups, I32(4), onKey = false), 3)
     )
   }
 

@@ -13,6 +13,7 @@ object FoldConstants {
     }
 
   def foldConstants(ctx: ExecuteContext, ir : BaseIR): BaseIR = {
+
     val constantSubTrees = Memo.empty[Unit]
     val constantRefs = Set[String]()
     visitIR(ir, constantRefs, constantSubTrees)
@@ -76,11 +77,11 @@ object FoldConstants {
         }.foldLeft(Set[String]())((accum, elem) => elem ++ accum)
         baseIR match {
           case ir: IR =>
-            if (nodeDeps.isEmpty && ir.typ.isRealizable && !badIRs(ir)) {
+            if (nodeDeps.isEmpty && ir.typ.isRealizable && !neverConstantIRs(ir)) {
               memo.bind(ir, ())
                Some(nodeDeps)
             }
-            else if (!badIRs(ir)) Some(nodeDeps)
+            else if (!neverConstantIRs(ir)) Some(nodeDeps)
             else  None
 
           case _ => None
@@ -89,16 +90,34 @@ object FoldConstants {
     }
   }
 
-  def badIRs(baseIR: BaseIR): Boolean = {
-    baseIR.isInstanceOf[ApplySeeded] || baseIR.isInstanceOf[UUID4] || baseIR.isInstanceOf[In]||
-      baseIR.isInstanceOf[TailLoop] || baseIR.typ == TVoid || baseIR.isInstanceOf[InitOp] ||
-      baseIR.isInstanceOf[SeqOp] || baseIR.isInstanceOf[CombOp] || baseIR.isInstanceOf[ResultOp] ||
-      baseIR.isInstanceOf[CombOpValue] || baseIR.isInstanceOf[AggStateValue] ||
-      baseIR.isInstanceOf[InitFromSerializedValue] || baseIR.isInstanceOf[SerializeAggs] ||
-      baseIR.isInstanceOf[DeserializeAggs] || baseIR.isInstanceOf[Die]|| baseIR.isInstanceOf[AggLet] ||
-      baseIR.isInstanceOf[ApplyAggOp] || baseIR.isInstanceOf[ApplyScanOp] || baseIR.isInstanceOf[RelationalRef] ||
-      baseIR.isInstanceOf[RelationalLet] || baseIR.isInstanceOf[WriteValue]  || baseIR.isInstanceOf[WritePartition] ||
-      baseIR.isInstanceOf[WriteMetadata]
+  def neverConstantIRs(baseIR: BaseIR): Boolean = {
+    baseIR match {
+      case _: ApplySeeded |
+          _: UUID4 |
+          _: In |
+          _: TailLoop |
+          _: InitOp |
+          _: SeqOp |
+          _: CombOp |
+          _: ResultOp |
+          _: CombOpValue |
+          _: AggStateValue |
+          _: InitFromSerializedValue |
+          _: SerializeAggs |
+          _: DeserializeAggs |
+          _: Die |
+          _: AggLet |
+          _: ApplyAggOp |
+          _: ApplyScanOp |
+          _: RelationalRef |
+          _: RelationalLet |
+          _: WriteValue |
+          _: WritePartition |
+          _: WriteMetadata |
+          _: Begin => true
+      case ir: IR if ir.typ == TVoid => true
+      case _ => false
+    }
 
   }
 
@@ -134,4 +153,3 @@ object FoldConstants {
     }
   }
 }
-
