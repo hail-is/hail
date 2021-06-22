@@ -3586,22 +3586,26 @@ def zip_with_index(a, index_first=True):
 @typecheck(f=anyfunc,
            collections=expr_oneof(expr_set(), expr_array(), expr_ndarray()))
 def map(f: Callable, *collections):
-    """Transform each element of a collection.
+    r"""Transform each element of a collection.
 
     Examples
     --------
 
     >>> a = ['The', 'quick', 'brown', 'fox']
+    >>> b = [2, 4, 6, 8]
 
     >>> hl.eval(hl.map(lambda x: hl.len(x), a))
     [3, 5, 5, 3]
 
+    >>> hl.eval(hl.map(lambda s, n: hl.len(s) + n, a, b))
+    [5, 9, 11, 11]
+
     Parameters
     ----------
-    f : function ( (arg) -> :class:`.Expression`)
+    f : function ( (\*arg) -> :class:`.Expression`)
         Function to transform each element of the collection.
-    collection : :class:`.ArrayExpression` or :class:`.SetExpression`
-        Collection expression.
+    \*collections : :class:`.ArrayExpression` or :class:`.SetExpression`
+        A single collection expression or multiple array expressions.
 
     Returns
     -------
@@ -3613,7 +3617,6 @@ def map(f: Callable, *collections):
         return collections[0].map(f)
     else:
         return hl.zip(*collections).starmap(f)
-
 
 
 @typecheck(f=anyfunc,
