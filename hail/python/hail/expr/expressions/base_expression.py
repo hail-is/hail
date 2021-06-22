@@ -4,7 +4,7 @@ import numpy as np
 import hail
 import hail as hl
 from hail.expr import expressions
-from hail.expr.types import HailType, is_numeric, is_compound, tint32, \
+from hail.expr.types import HailType, is_numeric, is_compound, is_setlike, tint32, \
     tint64, tfloat32, tfloat64, tstr, tbool, tarray, \
     tndarray, tset, tdict, tstruct, ttuple, tinterval, \
     tlocus, tcall, from_numpy
@@ -162,7 +162,7 @@ def impute_type(x):
             raise ExpressionException("Hail does not support heterogeneous arrays: "
                                       "found list with elements of types {} ".format(list(ts)))
         return tarray(unified_type)
-    elif isinstance(x, set):
+    elif is_setlike(x):
         if len(x) == 0:
             raise ExpressionException("Cannot impute type of empty set. Use 'hl.empty_set' to create an empty set.")
         ts = {impute_type(element) for element in x}
