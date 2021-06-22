@@ -116,7 +116,7 @@ class IndexWriterArrayBuilder(name: String, maxSize: Int, sb: SettableBuilder, r
   def create(cb: EmitCodeBuilder, dest: Code[Long]): Unit = {
     cb.assign(aoff, arrayType.allocate(region, maxSize))
     cb += arrayType.stagedInitialize(aoff, maxSize)
-    arrayType.storeAtAddress(cb, dest, region, arrayType.loadCheapPCode(cb, aoff), deepCopy = false)
+    arrayType.storeAtAddress(cb, dest, region, arrayType.loadCheapSCode(cb, aoff), deepCopy = false)
     cb.assign(len, 0)
   }
 
@@ -136,7 +136,7 @@ class IndexWriterArrayBuilder(name: String, maxSize: Int, sb: SettableBuilder, r
     loadChild(cb, len)
     cb.assign(len, len + 1)
   }
-  def loadChild(cb: EmitCodeBuilder, idx: Code[Int]): Unit = elt.store(cb, eltType.loadCheapPCode(cb, arrayType.loadElement(aoff, idx)))
+  def loadChild(cb: EmitCodeBuilder, idx: Code[Int]): Unit = elt.store(cb, eltType.loadCheapSCode(cb, arrayType.loadElement(aoff, idx)))
   def getLoadedChild: SBaseStructValue = elt
 }
 
@@ -244,9 +244,9 @@ object StagedIndexWriter {
       .voidWithBuilder(cb => siw.init(cb, cb.emb.getCodeParam[String](1)))
     fb.emb.voidWithBuilder { cb =>
       siw.add(cb,
-        IEmitCode(cb, false, keyType.loadCheapPCode(cb, fb.getCodeParam[Long](1))),
+        IEmitCode(cb, false, keyType.loadCheapSCode(cb, fb.getCodeParam[Long](1))),
         fb.getCodeParam[Long](2),
-        IEmitCode(cb, false, annotationType.loadCheapPCode(cb, fb.getCodeParam[Long](3))))
+        IEmitCode(cb, false, annotationType.loadCheapSCode(cb, fb.getCodeParam[Long](3))))
     }
     cb.newEmitMethod("close", FastIndexedSeq[ParamType](), typeInfo[Unit])
       .voidWithBuilder(siw.close)

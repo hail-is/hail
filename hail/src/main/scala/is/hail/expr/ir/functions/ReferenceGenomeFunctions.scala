@@ -15,19 +15,19 @@ object ReferenceGenomeFunctions extends RegistryFunctions {
   def rgCode(mb: EmitMethodBuilder[_], rg: ReferenceGenome): Code[ReferenceGenome] = mb.getReferenceGenome(rg)
 
   def registerAll() {
-    registerPCode1t("isValidContig", Array(LocusFunctions.tlocus("R")), TString, TBoolean, (_: Type, _: SType) => SBoolean) {
+    registerSCode1t("isValidContig", Array(LocusFunctions.tlocus("R")), TString, TBoolean, (_: Type, _: SType) => SBoolean) {
       case (r, cb, Seq(tlocus: TLocus), _, contig) =>
         val scontig = contig.asString.loadString()
         primitive(rgCode(r.mb, tlocus.asInstanceOf[TLocus].rg).invoke[String, Boolean]("isValidContig", scontig))
     }
 
-    registerPCode2t("isValidLocus", Array(LocusFunctions.tlocus("R")), TString, TInt32, TBoolean, (_: Type, _: SType, _: SType) => SBoolean) {
+    registerSCode2t("isValidLocus", Array(LocusFunctions.tlocus("R")), TString, TInt32, TBoolean, (_: Type, _: SType, _: SType) => SBoolean) {
       case (r, cb, Seq(tlocus: TLocus), _, contig, pos) =>
         val scontig = contig.asString.loadString()
         primitive(rgCode(r.mb, tlocus.rg).invoke[String, Int, Boolean]("isValidLocus", scontig, pos.asInt.intCode(cb)))
     }
 
-    registerPCode4t("getReferenceSequenceFromValidLocus",
+    registerSCode4t("getReferenceSequenceFromValidLocus",
       Array(LocusFunctions.tlocus("R")),
       TString, TInt32, TInt32, TInt32, TString,
       (_: Type, _: SType, _: SType, _: SType, _: SType) => SStringPointer(PCanonicalString())) {
@@ -41,7 +41,7 @@ object ReferenceGenomeFunctions extends RegistryFunctions {
             after.asInt.intCode(cb)))
     }
 
-    registerPCode1t("contigLength", Array(LocusFunctions.tlocus("R")), TString, TInt32, (_: Type, _: SType) => SInt32) {
+    registerSCode1t("contigLength", Array(LocusFunctions.tlocus("R")), TString, TInt32, (_: Type, _: SType) => SInt32) {
       case (r, cb, Seq(tlocus: TLocus), _, contig) =>
         val scontig = contig.asString.loadString()
         primitive(rgCode(r.mb, tlocus.rg).invoke[String, Int]("contigLength", scontig))

@@ -32,7 +32,7 @@ class EShuffle(override val required: Boolean) extends EType {
     val barray = cb.newLocal[Long]("barray", bT.allocate(region, len))
     cb += bT.storeLength(barray, len)
     cb += in.readBytes(region, bT.bytesAddress(barray), len)
-    new SCanonicalShufflePointerCode(SCanonicalShufflePointer(shuffleType), bT.loadCheapPCode(cb, barray))
+    new SCanonicalShufflePointerCode(SCanonicalShufflePointer(shuffleType), bT.loadCheapSCode(cb, barray))
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {

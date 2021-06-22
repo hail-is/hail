@@ -52,7 +52,7 @@ trait AggregatorState {
     cb += t.storeLength(addr, lazyBuffer.invoke[Int]("length"))
     cb += lazyBuffer.invoke[Long, Unit]("copyToAddress", t.bytesAddress(addr))
 
-    t.loadCheapPCode(cb, addr)
+    t.loadCheapSCode(cb, addr)
   }
 }
 
@@ -142,18 +142,18 @@ abstract class AbstractTypedRegionBackedAggState(val ptype: PType) extends Regio
   }
 
   def get(cb: EmitCodeBuilder): IEmitCode = {
-    IEmitCode(cb, storageType.isFieldMissing(off, 0), ptype.loadCheapPCode(cb, storageType.loadField(off, 0)))
+    IEmitCode(cb, storageType.isFieldMissing(off, 0), ptype.loadCheapSCode(cb, storageType.loadField(off, 0)))
   }
 
   def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
     newState(cb, off)
-    storageType.storeAtAddress(cb, off, region, storageType.loadCheapPCode(cb, src), deepCopy = true)
+    storageType.storeAtAddress(cb, off, region, storageType.loadCheapSCode(cb, src), deepCopy = true)
   }
 
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
     val codecSpec = TypedCodecSpec(storageType, codec)
     val enc = codecSpec.encodedType.buildEncoder(storageType.sType, kb)
-    (cb, ob: Value[OutputBuffer]) => enc(cb, storageType.loadCheapPCode(cb, off), ob)
+    (cb, ob: Value[OutputBuffer]) => enc(cb, storageType.loadCheapSCode(cb, off), ob)
   }
 
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {

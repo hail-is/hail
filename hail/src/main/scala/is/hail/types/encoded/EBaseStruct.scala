@@ -132,7 +132,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     val pt = decodedPType(t)
     val addr = cb.newLocal[Long]("base_struct_dec_addr", region.allocate(pt.alignment, pt.byteSize))
     _buildInplaceDecoder(cb, pt, region, addr, in)
-    pt.loadCheapPCode(cb, addr)
+    pt.loadCheapSCode(cb, addr)
   }
 
   override def _buildInplaceDecoder(cb: EmitCodeBuilder, pt: PType, region: Value[Region], addr: Value[Long], in: Value[InputBuffer]): Unit = {

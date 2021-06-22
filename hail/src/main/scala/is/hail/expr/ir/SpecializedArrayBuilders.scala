@@ -65,7 +65,7 @@ class StagedArrayBuilder(val elt: SingleCodeType, val eltRequired: Boolean, mb: 
 
   def loadFromIndex(cb: EmitCodeBuilder, r: Value[Region], i: Code[Int]): IEmitCode = {
     val idx = cb.newLocal[Int]("loadFromIndex_idx", i)
-    IEmitCode(cb, isMissing(idx), elt.loadToPCode(cb, r, apply(idx)))
+    IEmitCode(cb, isMissing(idx), elt.loadToSCode(cb, r, apply(idx)))
   }
 }
 

@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder, EmitParamType, PCodeEmitParamType}
+import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder, EmitParamType, SCodeEmitParamType}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.concrete.SNDArrayPointerSettable
@@ -40,7 +40,7 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
       val nextNDInput = seqOpMethod.getEmitParam(1, null) // no streams here
       nextNDInput.toI(cb).consume(cb, {}, { case nextNDArrayPCode: SNDArrayCode =>
         val nextNDPV = nextNDArrayPCode.memoize(cb, "ndarray_sum_seqop_next")
-        val statePV = state.storageType.loadCheapPCode(cb, state.off).asBaseStruct.memoize(cb, "ndarray_sum_seq_op_state")
+        val statePV = state.storageType.loadCheapSCode(cb, state.off).asBaseStruct.memoize(cb, "ndarray_sum_seq_op_state")
         statePV.loadField(cb, ndarrayFieldNumber).consume(cb,
           {
             cb += (state.region.getNewRegion(Region.TINY))
@@ -61,11 +61,11 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
     val combOpMethod = cb.emb.genEmitMethod[Unit]("ndarray_sum_aggregator_comb_op")
 
     combOpMethod.voidWithBuilder { cb =>
-      val rightPV = other.storageType.loadCheapPCode(cb, other.off).asBaseStruct.memoize(cb, "ndarray_sum_comb_op_right")
+      val rightPV = other.storageType.loadCheapSCode(cb, other.off).asBaseStruct.memoize(cb, "ndarray_sum_comb_op_right")
       rightPV.loadField(cb, ndarrayFieldNumber).consume(cb, {},
         { rightNDPC =>
           val rightNdValue = rightNDPC.asNDArray.memoize(cb, "right_ndarray_sum_agg")
-          val leftPV = state.storageType.loadCheapPCode(cb, state.off).asBaseStruct.memoize(cb, "ndarray_sum_comb_op_left")
+          val leftPV = state.storageType.loadCheapSCode(cb, state.off).asBaseStruct.memoize(cb, "ndarray_sum_comb_op_left")
           leftPV.loadField(cb, ndarrayFieldNumber).consume(cb,
             {
               state.storeNonmissing(cb, rightNdValue)

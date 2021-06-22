@@ -21,7 +21,7 @@ case class SCanonicalShufflePointer(pType: PCanonicalShuffle) extends SShuffle {
   lazy val binarySType = SBinaryPointer(pType.representation)
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
-    new SCanonicalShufflePointerCode(this, pType.representation.loadCheapPCode(cb, pType.store(cb, region, value, deepCopy)))
+    new SCanonicalShufflePointerCode(this, pType.representation.loadCheapSCode(cb, pType.store(cb, region, value, deepCopy)))
   }
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
@@ -46,7 +46,7 @@ object SCanonicalShufflePointerSettable {
       "PCanonicalShuffleSettableOff",
       pt.representation.allocate(region, Wire.ID_SIZE))
     cb.append(pt.representation.store(off, bytes))
-    pt.loadCheapPCode(cb, off).memoize(cb, "scanonicalshuffle_fromarraybytes").asInstanceOf[SCanonicalShufflePointerSettable]
+    pt.loadCheapSCode(cb, off).memoize(cb, "scanonicalshuffle_fromarraybytes").asInstanceOf[SCanonicalShufflePointerSettable]
   }
 }
 
@@ -66,7 +66,7 @@ class SCanonicalShufflePointerSettable(val st: SCanonicalShufflePointer, val shu
   def storeFromBytes(cb: EmitCodeBuilder, region: Value[Region], bytes: Value[Array[Byte]]): Unit = {
     val addr = cb.newLocal[Long]("bytesAddr", st.pType.representation.allocate(region, bytes.length()))
     cb += st.pType.representation.store(addr, bytes)
-    shuffle.store(cb, st.pType.representation.loadCheapPCode(cb, addr))
+    shuffle.store(cb, st.pType.representation.loadCheapSCode(cb, addr))
   }
 }
 

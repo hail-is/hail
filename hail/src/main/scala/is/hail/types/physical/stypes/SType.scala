@@ -2,7 +2,7 @@ package is.hail.types.physical.stypes
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitSettable, PCodeEmitParamType, PCodeParamType}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitSettable, SCodeEmitParamType, SCodeParamType}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.PType
 import is.hail.types.physical.stypes.interfaces.SStream
@@ -52,7 +52,7 @@ trait SType {
 
   def canonicalPType(): PType
 
-  def paramType: PCodeParamType = PCodeParamType(this)
+  def paramType: SCodeParamType = SCodeParamType(this)
 
   def asIdent: String = canonicalPType().asIdent
 
@@ -73,7 +73,7 @@ trait SType {
 case class EmitType(st: SType, required: Boolean) {
   def virtualType: Type = st.virtualType
 
-  def paramType: PCodeEmitParamType = PCodeEmitParamType(this)
+  def paramType: SCodeEmitParamType = SCodeEmitParamType(this)
 
   def canonicalPType: PType = st.canonicalPType().setRequired(required)
 

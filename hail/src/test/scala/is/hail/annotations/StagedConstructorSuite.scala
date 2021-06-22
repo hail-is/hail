@@ -436,7 +436,7 @@ class StagedConstructorSuite extends HailSuite {
           val fb = EmitFunctionBuilder[Region, Long, Long](ctx, "deep_copy")
           fb.emitWithBuilder[Long](cb => t.store(cb,
             fb.apply_method.getCodeParam[Region](1),
-            t.loadCheapPCode(cb, fb.apply_method.getCodeParam[Long](2)),
+            t.loadCheapSCode(cb, fb.apply_method.getCodeParam[Long](2)),
               deepCopy = true))
           val copyF = fb.resultWithIndex()(ctx.fs, 0, region)
           val newOff = copyF(region, src)
@@ -505,7 +505,7 @@ class StagedConstructorSuite extends HailSuite {
       val f1 = EmitFunctionBuilder[Long](ctx, "stagedCopy1")
       f1.emitWithBuilder { cb =>
         val region = f1.partitionRegion
-        t2.constructFromFields(cb, region, FastIndexedSeq(EmitCode.present(cb.emb, t2.types(0).loadCheapPCode(cb, v1))), deepCopy = false).a
+        t2.constructFromFields(cb, region, FastIndexedSeq(EmitCode.present(cb.emb, t2.types(0).loadCheapSCode(cb, v1))), deepCopy = false).a
       }
       val cp1 = f1.resultWithIndex()(ctx.fs, 0, r)()
       assert(SafeRow.read(t2, cp1) == Row(value))
@@ -513,7 +513,7 @@ class StagedConstructorSuite extends HailSuite {
       val f2 = EmitFunctionBuilder[Long](ctx, "stagedCopy2")
       f2.emitWithBuilder { cb =>
         val region = f2.partitionRegion
-        t1.constructFromFields(cb, region, FastIndexedSeq(EmitCode.present(cb.emb, t2.types(0).loadCheapPCode(cb, v1))), deepCopy = false).a
+        t1.constructFromFields(cb, region, FastIndexedSeq(EmitCode.present(cb.emb, t2.types(0).loadCheapSCode(cb, v1))), deepCopy = false).a
       }
       val cp2 = f2.resultWithIndex()(ctx.fs, 0, r)()
       assert(SafeRow.read(t1, cp2) == Row(value))

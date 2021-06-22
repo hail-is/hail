@@ -323,7 +323,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       cb.ifx(isElementDefined(dstAddress, currentIdx),
         {
           cb.assign(currentElementAddress, elementOffset(dstAddress, len, currentIdx))
-          this.elementType.storeAtAddress(cb, currentElementAddress, region, this.elementType.loadCheapPCode(cb, this.elementType.loadFromNested(currentElementAddress)), true)
+          this.elementType.storeAtAddress(cb, currentElementAddress, region, this.elementType.loadCheapSCode(cb, this.elementType.loadFromNested(currentElementAddress)), true)
         }))
   }
 
@@ -379,7 +379,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   def sType: SIndexablePointer = SIndexablePointer(setRequired(false).asInstanceOf[PCanonicalArray])
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): SIndexablePointerCode = new SIndexablePointerCode(sType, addr)
+  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SIndexablePointerCode = new SIndexablePointerCode(sType, addr)
 
   def storeContentsAtAddress(cb: EmitCodeBuilder, addr: Value[Long], region: Value[Region], indexable: SIndexableValue, deepCopy: Boolean): Unit = {
     val length = indexable.loadLength()
