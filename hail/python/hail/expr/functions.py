@@ -25,7 +25,7 @@ from hail.expr.types import (HailType, hail_type, tint32, tint64, tfloat32,
 from hail.genetics.reference_genome import reference_genome_type, ReferenceGenome
 import hail.ir as ir
 from hail.typecheck import (typecheck, nullable, anytype, enumeration, tupleof,
-                            func_spec, oneof, arg_check, args_check, anyfunc)
+                            func_spec, oneof, arg_check, args_check, anyfunc, sequenceof)
 from hail.utils.java import Env, warning
 from hail.utils.misc import plural
 
@@ -3583,9 +3583,9 @@ def zip_with_index(a, index_first=True):
     return enumerate(a, index_first=index_first)
 
 
-@typecheck(f=func_spec(1, expr_any),
-           collection=expr_oneof(expr_set(), expr_array(), expr_ndarray()))
-def map(f: Callable, collection):
+@typecheck(f=anyfunc,
+           collections=expr_oneof(expr_set(), expr_array(), expr_ndarray()))
+def map(f: Callable, *collections):
     """Transform each element of a collection.
 
     Examples
@@ -3608,7 +3608,12 @@ def map(f: Callable, collection):
     :class:`.ArrayExpression` or :class:`.SetExpression`.
         Collection where each element has been transformed by `f`.
     """
-    return collection.map(f)
+
+    if builtins.len(collections) == 1:
+        return collections[0].map(f)
+    else:
+        return hl.zip(*collections).starmap(f)
+
 
 
 @typecheck(f=anyfunc,
