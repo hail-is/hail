@@ -262,9 +262,9 @@ def get_obj_metadata(obj):
     elif isinstance(obj, StructExpression):
         return 'StructExpression', StructExpression, struct_error(obj), True
     elif isinstance(obj, ArrayStructExpression):
-        return 'ArrayStructExpression', StructExpression, struct_error(obj), True
+        return 'ArrayStructExpression', ArrayStructExpression, struct_error(obj), True
     elif isinstance(obj, SetStructExpression):
-        return 'SetStructExpression', StructExpression, struct_error(obj), True
+        return 'SetStructExpression', SetStructExpression, struct_error(obj), True
     else:
         raise NotImplementedError(obj)
 
