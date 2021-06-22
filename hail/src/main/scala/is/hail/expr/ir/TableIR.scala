@@ -1270,6 +1270,7 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
   require(n >= 0)
   require(nPartitions > 0)
   private val nPartitionsAdj = math.max(math.min(n, nPartitions), 1)
+//  println(s"nPartitionAdj = $nPartitionsAdj nPartitions = $nPartitions")
   val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableRange = {

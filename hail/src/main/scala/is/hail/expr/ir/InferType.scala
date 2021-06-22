@@ -67,7 +67,7 @@ object InferType {
       case ApplyUnaryPrimOp(op, v) =>
         UnaryOp.getReturnType(op, v.typ)
       case ApplyComparisonOp(op, l, r) =>
-        assert(l.typ == r.typ)
+        assert(l.typ == r.typ, s"${l.typ}   ${r.typ}")
         op match {
           case _: Compare => TInt32
           case _ => TBoolean
