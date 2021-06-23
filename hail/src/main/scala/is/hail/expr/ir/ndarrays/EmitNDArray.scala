@@ -554,7 +554,7 @@ object EmitNDArray {
 
       override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = {
         val offset = counters.foldLeft[Code[Long]](const(0L)){ (a, b) => a + b}
-        val loaded = elementType.loadCheapPCode(cb, firstDataAddress + offset)
+        val loaded = elementType.loadCheapSCode(cb, firstDataAddress + offset)
         val memoLoaded = loaded.memoize(cb, "temp_memo")
         memoLoaded.get
       }
