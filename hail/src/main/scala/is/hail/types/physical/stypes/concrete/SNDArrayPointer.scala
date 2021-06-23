@@ -17,6 +17,8 @@ case class SNDArrayPointer(pType: PCanonicalNDArray) extends SNDArray {
 
   override def elementType: SType = pType.elementType.sType
 
+  override def elementPType: PType = pType.elementType
+
   lazy val virtualType: Type = pType.virtualType
 
   override def castRename(t: Type): SType = SNDArrayPointer(pType.deepRename(t))

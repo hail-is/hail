@@ -2,7 +2,7 @@ package is.hail.expr.ir.ndarrays
 
 import is.hail.annotations.Region
 import is.hail.expr.ir._
-import is.hail.types.physical.{PCanonicalArray, PCanonicalNDArray, PInt64, PNumeric}
+import is.hail.types.physical.{PCanonicalArray, PCanonicalNDArray, PFloat32, PFloat32Required, PFloat64, PFloat64Required, PInt32, PInt32Required, PInt64, PInt64Required, PNumeric, PType}
 import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayCode}
 import is.hail.types.physical.stypes.{SCode, SType}
 import is.hail.utils._
@@ -32,12 +32,12 @@ object EmitNDArray {
       x match {
         case NDArrayMap(child, elemName, body) => {
           deforest(child).map(cb) { childProducer =>
-            val elemRef = cb.emb.newEmitField("ndarray_map_element_name", childProducer.elementType, required = true)
+            val elemRef = cb.emb.newEmitField("ndarray_map_element_name", childProducer.elementType.sType, required = true)
             val bodyEnv = env.bind(elemName, elemRef)
             val bodyEC = EmitCode.fromI(cb.emb)(cb => emitI(body, cb, env = bodyEnv))
 
             new NDArrayProducer {
-              override def elementType: SType = bodyEC.st
+              override def elementType: PType = bodyEC.st.canonicalPType()
 
               override val shape: IndexedSeq[Value[Long]] = childProducer.shape
               override val initAll: EmitCodeBuilder => Unit = childProducer.initAll
@@ -59,8 +59,8 @@ object EmitNDArray {
 
               val shapeArray = NDArrayEmitter.unifyShapes2(cb, leftShapeValues, rightShapeValues)
 
-              val lElemRef = cb.emb.newEmitField(lName, leftProducer.elementType, required = true)
-              val rElemRef = cb.emb.newEmitField(rName, rightProducer.elementType, required = true)
+              val lElemRef = cb.emb.newEmitField(lName, leftProducer.elementType.sType, required = true)
+              val rElemRef = cb.emb.newEmitField(rName, rightProducer.elementType.sType, required = true)
               val bodyEnv = env.bind(lName, lElemRef)
                 .bind(rName, rElemRef)
               val bodyEC = EmitCode.fromI(cb.emb)(cb => emitI(body, cb, env = bodyEnv))
@@ -69,7 +69,7 @@ object EmitNDArray {
               val rightBroadcasted = broadcast(cb, rightProducer, "right")
 
               new NDArrayProducer {
-                override def elementType: SType = bodyEC.st
+                override def elementType: PType = bodyEC.st.canonicalPType()
 
                 override val shape: IndexedSeq[Value[Long]] = shapeArray
                 override val initAll: EmitCodeBuilder => Unit = {
@@ -101,7 +101,7 @@ object EmitNDArray {
           deforest(child).map(cb) { childProducer =>
 
             new NDArrayProducer {
-              override def elementType: SType = childProducer.elementType
+              override def elementType: PType = childProducer.elementType
 
               override val shape: IndexedSeq[Value[Long]] = indexExpr.map { childIndex =>
                 if (childIndex < childProducer.nDims)
@@ -195,9 +195,9 @@ object EmitNDArray {
               val rowMajor = fromSValue(childMemo, cb).toSCode(cb, childPType, region, true).memoize(cb, "ndarray_reshape_row_major_layout")
               // The canonical row major thing is now in the order we want. We just need to read this with the row major striding that
               // would be generated for something of the new shape.
-              val outputPType = PCanonicalNDArray(rowMajor.st.elementType.canonicalPType().setRequired(true), x.typ.nDims, true) // TODO Should it be required?
+              val outputPType = PCanonicalNDArray(rowMajor.st.elementPType.setRequired(true), x.typ.nDims, true) // TODO Should it be required?
               val rowMajorStriding = outputPType.makeRowMajorStrides(requestedShapeValues, region, cb)
-              fromShapeStridesFirstAddress(rowMajor.st.elementType, requestedShapeValues, rowMajorStriding, rowMajor.firstDataAddress(cb), cb)
+              fromShapeStridesFirstAddress(rowMajor.st.elementPType, requestedShapeValues, rowMajorStriding, rowMajor.firstDataAddress(cb), cb)
             }
           }
 
@@ -261,7 +261,7 @@ object EmitNDArray {
               val stagedArrayOfSizes = finish(cb).memoize(cb, "ndarray_concat_staged_array_of_sizes")
 
               new NDArrayProducer {
-                override def elementType: SType = firstND.st.elementType
+                override def elementType: PType = firstND.st.elementPType
                 override val shape: IndexedSeq[Value[Long]] = newShape
 
                 val idxVars = shape.indices.map(i => cb.newLocal[Long](s"ndarray_produceer_fall_through_idx_${i}"))
@@ -363,7 +363,7 @@ object EmitNDArray {
 
                 outputShape.map(cb) { outputShapeSeq =>
                   new NDArrayProducer() {
-                    override def elementType: SType = childProducer.elementType
+                    override def elementType: PType = childProducer.elementType
                     override val shape: IndexedSeq[Value[Long]] = outputShapeSeq
 
                     override val initAll: EmitCodeBuilder => Unit = cb => {
@@ -421,7 +421,7 @@ object EmitNDArray {
             }
 
             new NDArrayProducer {
-              override def elementType: SType = childProducer.elementType
+              override def elementType: PType = childProducer.elementType
               override val shape: IndexedSeq[Value[Long]] = outputShape
 
               // Plan: Keep track of current indices on each axis, use them to step through filtered
@@ -464,14 +464,14 @@ object EmitNDArray {
             val newOutputShape = axesToKeep.map(idx => childProducer.shape(idx))
             val newOutputShapeComplement = axesToSumOut.map(idx => childProducer.shape(idx))
 
-            val newElementType = child.typ.asInstanceOf[TNDArray].elementType match {
-              case TInt32 => SInt32
-              case TInt64 => SInt64
-              case TFloat32 => SFloat32
-              case TFloat64 => SFloat64
+            val newElementType: PType = child.typ.asInstanceOf[TNDArray].elementType match {
+              case TInt32 => PInt32Required
+              case TInt64 => PInt64Required
+              case TFloat32 => PFloat32Required
+              case TFloat64 => PFloat64Required
             }
             new NDArrayProducer {
-              override def elementType: SType = newElementType
+              override def elementType: PType = newElementType
 
               override val shape: IndexedSeq[Value[Long]] = newOutputShape
 
@@ -488,7 +488,7 @@ object EmitNDArray {
 
               override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = {
                 // Idea: For each axis that is being summed over, step through and keep a running sum.
-                val numericElementType = elementType.canonicalPType().asInstanceOf[PNumeric]
+                val numericElementType = elementType.asInstanceOf[PNumeric]
                 val runningSum = NumericPrimitives.newLocal(cb, "ndarray_agg_running_sum", numericElementType.virtualType)
                 cb.assign(runningSum, numericElementType.zero)
 
@@ -517,23 +517,23 @@ object EmitNDArray {
     if (deforestedEltType != ndIR.typ.asInstanceOf[TNDArray].elementType)
       throw new RuntimeException(s"invalid NDArray deforest rule: deforested element type is ${ deforestedEltType }, expect ${ ndIR.asInstanceOf[TNDArray].elementType }")
 
-    deforested.map(cb)(ndap => ndap.toSCode(cb, PCanonicalNDArray(ndap.elementType.canonicalPType().setRequired(true), ndap.nDims), region))
+    deforested.map(cb)(ndap => ndap.toSCode(cb, PCanonicalNDArray(ndap.elementType.setRequired(true), ndap.nDims), region))
   }
 
   def fromSValue(ndSv: SNDArrayValue, cb: EmitCodeBuilder): NDArrayProducer = {
     val ndSvShape = ndSv.shapes(cb)
     val strides = ndSv.strides(cb)
 
-    fromShapeStridesFirstAddress(ndSv.st.elementType, ndSvShape, strides, ndSv.firstDataAddress(cb), cb)
+    fromShapeStridesFirstAddress(ndSv.st.elementPType, ndSvShape, strides, ndSv.firstDataAddress(cb), cb)
   }
 
-  def fromShapeStridesFirstAddress(newElementType: SType, ndSvShape: IndexedSeq[Value[Long]], strides: IndexedSeq[Value[Long]], firstDataAddress: Value[Long], cb: EmitCodeBuilder): NDArrayProducer = {
+  def fromShapeStridesFirstAddress(newElementType: PType, ndSvShape: IndexedSeq[Value[Long]], strides: IndexedSeq[Value[Long]], firstDataAddress: Value[Long], cb: EmitCodeBuilder): NDArrayProducer = {
     val counters = ndSvShape.indices.map(i => cb.newLocal[Long](s"ndarray_producer_fall_through_idx_${i}"))
 
     assert(ndSvShape.size == strides.size, s"shape.size = ${ndSvShape.size} != strides.size = ${strides.size}")
 
     new NDArrayProducer {
-      override def elementType: SType = newElementType
+      override def elementType: PType = newElementType
       override val shape: IndexedSeq[Value[Long]] = ndSvShape
 
       override val initAll: EmitCodeBuilder => Unit = cb => {
@@ -554,8 +554,7 @@ object EmitNDArray {
 
       override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = {
         val offset = counters.foldLeft[Code[Long]](const(0L)){ (a, b) => a + b}
-        // TODO: Safe to canonicalPType here?
-        val loaded = elementType.canonicalPType().loadCheapPCode(cb, firstDataAddress + offset)
+        val loaded = elementType.loadCheapPCode(cb, firstDataAddress + offset)
         val memoLoaded = loaded.memoize(cb, "temp_memo")
         memoLoaded.get
       }
@@ -584,7 +583,7 @@ object EmitNDArray {
 abstract class NDArrayProducer {
   outer =>
 
-  def elementType: SType
+  def elementType: PType
   val shape: IndexedSeq[Value[Long]]
   def nDims = shape.size
 
@@ -594,14 +593,14 @@ abstract class NDArrayProducer {
   def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode
 
   def copy(
-    aElementType: SType = elementType,
+    aElementType: PType = elementType,
     aShape: IndexedSeq[Value[Long]] = shape,
     ainitAll: EmitCodeBuilder => Unit = initAll,
     ainitAxis: IndexedSeq[(EmitCodeBuilder) => Unit] = initAxis,
     astepAxis: IndexedSeq[(EmitCodeBuilder, Value[Long]) => Unit] = stepAxis
   ): NDArrayProducer = {
     new NDArrayProducer() {
-      override def elementType: SType = aElementType
+      override def elementType: PType = aElementType
 
       override val shape: IndexedSeq[Value[Long]] = aShape
       override val initAll: EmitCodeBuilder => Unit = ainitAll
