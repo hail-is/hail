@@ -711,7 +711,7 @@ object Interpret {
         try {
           Row(null, interpret(child))
         } catch {
-          case e: HailException => Row(e.render(), null)
+          case e: HailException => Row(Row(e.msg, e.errorId), null)
         }
       case ir@ApplyIR(function, _, functionArgs) =>
         interpret(ir.explicitNode, env, args)

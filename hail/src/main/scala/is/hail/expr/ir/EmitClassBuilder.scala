@@ -398,8 +398,8 @@ class EmitClassBuilder[C](
     _aggSerialized.load().update(i, Code._null)
   }
 
-  def runMethodWithHailExceptionHandler(mname: String): Code[String] = {
-    Code.invokeScalaObject2[AnyRef, String, String](CodeExceptionHandler.getClass,
+  def runMethodWithHailExceptionHandler(mname: String): Code[(String, java.lang.Integer)] = {
+    Code.invokeScalaObject2[AnyRef, String, (String, java.lang.Integer)](CodeExceptionHandler.getClass,
       "handleUserException",
       cb._this.get.asInstanceOf[Code[AnyRef]], mname)
   }
@@ -797,14 +797,14 @@ object CodeExceptionHandler {
     * is a 0-argument class method (only takes the class itself as an arg)
     * which returns void.
     */
-  def handleUserException(obj: AnyRef, methodName: String): String = {
+  def handleUserException(obj: AnyRef, methodName: String): (String, java.lang.Integer) = {
     try {
       obj.getClass.getMethod(methodName).invoke(obj)
       null
     } catch {
       case e: InvocationTargetException =>
         e.getTargetException match {
-          case ue: HailException => ue.render()
+          case ue: HailException => (ue.msg, ue.errorId)
           case e => throw e
         }
     }

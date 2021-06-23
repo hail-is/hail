@@ -14,8 +14,12 @@ class TrapNodeSuite extends HailSuite {
     assertEvalsTo(Trap(ArrayRef(Literal(TArray(TInt32), FastIndexedSeq(0, 1, 2)), I32(1))), Row(null, 1))
     val res = eval(Trap(ArrayRef(Literal(TArray(TInt32), FastIndexedSeq(0, 1, 2)), I32(-1))))
     res match {
-      case Row(msg: String, null) => assert(msg.startsWith("-1#"))
+      case Row(Row(msg: String, id: Int), null) =>
+        assert(id == -1)
+        assert(msg.contains("array index out of bounds"))
     }
+
+    assertEvalsTo(Trap(Die(Str("foo bar"), TInt32, 5)), Row(Row("foo bar", 5), null))
   }
 
   @Test def testTrapNodeInLargerContext() {

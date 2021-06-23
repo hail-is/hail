@@ -544,7 +544,7 @@ object Die {
 
 /**
   * the Trap node runs the `child` node with an exception handler. If the child
-  * throws a HailException (user exception), then we return the tuple (msg, NA).
+  * throws a HailException (user exception), then we return the tuple ((msg, errorId), NA).
   * If the child throws any other exception, we raise that exception. If the
   * child does not throw, then we return the tuple (NA, child value).
   */
