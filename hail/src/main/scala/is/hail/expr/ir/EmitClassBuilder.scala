@@ -8,8 +8,7 @@ import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.io.fs.FS
 import is.hail.io.{BufferSpec, InputBuffer, TypedCodecSpec}
 import is.hail.types.VirtualTypeWithReq
-import is.hail.types.physical.stypes.interfaces.SStream
-import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType, SValue}
+import is.hail.types.physical.stypes._
 import is.hail.types.physical.{PCanonicalTuple, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils._
@@ -17,6 +16,7 @@ import is.hail.variant.ReferenceGenome
 import org.apache.spark.TaskContext
 
 import java.io._
+import java.lang.reflect.InvocationTargetException
 import scala.collection.mutable
 import scala.language.existentials
 
@@ -396,6 +396,12 @@ class EmitClassBuilder[C](
   def freeSerializedAgg(i: Int): Code[Unit] = {
     assert(i < _nSerialized)
     _aggSerialized.load().update(i, Code._null)
+  }
+
+  def runMethodWithHailExceptionHandler(mname: String): Code[String] = {
+    Code.invokeScalaObject2[AnyRef, String, String](CodeExceptionHandler.getClass,
+      "handleUserException",
+      cb._this.get.asInstanceOf[Code[AnyRef]], mname)
   }
 
   def backend(): Code[BackendUtils] = {
@@ -783,6 +789,21 @@ trait FunctionWithSeededRandomness {
 
 trait FunctionWithBackend {
   def setBackend(spark: BackendUtils): Unit
+}
+
+object CodeExceptionHandler {
+  def handleUserException(obj: AnyRef, methodName: String): String = {
+    try {
+      obj.getClass.getMethod(methodName).invoke(obj)
+      null
+    } catch {
+      case e: InvocationTargetException =>
+        e.getTargetException match {
+          case ue: HailException => ue.render()
+          case e => throw e
+        }
+    }
+  }
 }
 
 class EmitMethodBuilder[C](

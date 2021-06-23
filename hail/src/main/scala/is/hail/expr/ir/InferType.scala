@@ -49,6 +49,7 @@ object InferType {
       case _: DeserializeAggs => TVoid
       case _: Begin => TVoid
       case Die(_, t, _) => t
+      case Trap(child) => TTuple(TString, child.typ)
       case If(cond, cnsq, altr) =>
         assert(cond.typ == TBoolean)
         assert(cnsq.typ == altr.typ)

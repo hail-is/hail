@@ -542,6 +542,13 @@ object Die {
   def apply(message: String, typ: Type, errorId: Int): Die = Die(Str(message), typ, errorId)
 }
 
+/**
+  * the Trap node runs the `child` node with an exception handler. If the child
+  * throws a HailException (user exception), then we return the tuple (msg, NA).
+  * If the child throws any other exception, we raise that exception. If the
+  * child does not throw, then we return the tuple (NA, child value).
+  */
+final case class Trap(child: IR) extends IR
 final case class Die(message: IR, _typ: Type, errorId: Int) extends IR
 
 final case class ApplyIR(function: String, typeArgs: Seq[Type], args: Seq[IR]) extends IR {

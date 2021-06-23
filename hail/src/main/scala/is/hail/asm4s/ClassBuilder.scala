@@ -229,7 +229,7 @@ class ClassBuilder[C](
   val sourceFile: Option[String]
 ) extends WrappedModuleBuilder {
 
-  val ti: TypeInfo[C] = new ClassInfo[C](className)
+  val ti: ClassInfo[C] = new ClassInfo[C](className)
 
   val lclass = new lir.Classx[C](className, "java/lang/Object", sourceFile)
 

@@ -557,13 +557,7 @@ class Emit[C](
     cb.invokeVoid(mb)
   }
 
-  def emitInSeparateMethod(context: String, cb: EmitCodeBuilder, ir: IR, region: Value[Region], env: EmitEnv, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): IEmitCode = {
-    if (ir.typ == TVoid) {
-      emitVoidInSeparateMethod(context, cb, ir, region, env, container, loopEnv)
-      return IEmitCode.present(cb, SVoidCode)
-    }
-
-    assert(!ctx.inLoopCriticalPath.contains(ir))
+  def emitSplitMethod(context: String, cb: EmitCodeBuilder, ir: IR, region: Value[Region], env: EmitEnv, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): (EmitSettable, EmitMethodBuilder[_]) = {
     val mb = cb.emb.genEmitMethod(context, FastIndexedSeq[ParamType](), UnitInfo)
     val r = cb.newField[Region]("emitInSeparate_region", region)
 
@@ -575,6 +569,17 @@ class Emit[C](
       ev = cb.emb.ecb.newEmitField(s"${context}_result", result.emitType)
       cb.assign(ev, result)
     }
+    (ev, mb)
+  }
+
+  def emitInSeparateMethod(context: String, cb: EmitCodeBuilder, ir: IR, region: Value[Region], env: EmitEnv, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): IEmitCode = {
+    if (ir.typ == TVoid) {
+      emitVoidInSeparateMethod(context, cb, ir, region, env, container, loopEnv)
+      return IEmitCode.present(cb, SVoidCode)
+    }
+
+    assert(!ctx.inLoopCriticalPath.contains(ir))
+    val (ev, mb) = emitSplitMethod(context, cb, ir, region, env, container, loopEnv)
     cb.invokeVoid(mb)
     ev.toI(cb)
   }
@@ -2034,6 +2039,22 @@ class Emit[C](
             }
             emitI(res, env = resEnv)
           }
+      case t@Trap(child) =>
+        val (ev, mb) = emitSplitMethod("trap", cb, child, region, env, container, loopEnv)
+        val maybeExceptionMessage = cb.newLocal[String]("trap_msg", cb.emb.ecb.runMethodWithHailExceptionHandler(mb.mb.methodName))
+        val sst = SStringPointer(PCanonicalString(false))
+        val str: EmitSettable = cb.emb.newEmitField("trap_str", EmitType(sst, false))
+        val maybeMissingEV = cb.emb.newEmitField("trap_value", ev.emitType.copy(required = false))
+        cb.ifx(maybeExceptionMessage.isNull, {
+          cb.assign(str, EmitCode.missing(cb.emb, sst))
+          cb.assign(maybeMissingEV, ev)
+        }, {
+          cb.assign(maybeMissingEV, EmitCode.missing(cb.emb, ev.st))
+          cb.assign(str, IEmitCode.present(cb, sst.constructFromString(cb, region, maybeExceptionMessage)))
+        })
+        IEmitCode.present(cb, {
+          SStackStruct.constructFromArgs(cb, region, t.typ.asInstanceOf[TBaseStruct], str, maybeMissingEV)
+        })
 
       case Die(m, typ, errorId) =>
         val cm = emitI(m)

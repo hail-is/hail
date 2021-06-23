@@ -1,10 +1,20 @@
 package is.hail.utils
 
+object HailException {
+  def parseRendered(s: String): HailException = {
+    s.split("#", 2) match {
+      case Array(id, msg) => new HailException(msg, id.toInt)
+    }
+  }
+}
+
 class HailException(val msg: String, val logMsg: Option[String], cause: Throwable, val errorId: Int) extends RuntimeException(msg, cause) {
   def this(msg: String) = this(msg, None, null, -1)
   def this(msg: String, logMsg: Option[String]) = this(msg, logMsg, null, -1)
   def this(msg: String, logMsg: Option[String], cause: Throwable) = this(msg, logMsg, cause, -1)
   def this(msg: String, errorId: Int) = this(msg, None, null, errorId)
+
+  def render(): String = s"$errorId#$msg"
 }
 
 trait ErrorHandling {
