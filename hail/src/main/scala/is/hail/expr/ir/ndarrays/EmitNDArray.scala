@@ -88,9 +88,7 @@ object EmitNDArray {
                 }}
 
                 override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = {
-                  //cb.println("Load left element")
                   cb.assign(lElemRef, EmitCode.present(cb.emb, leftBroadcasted.loadElementAtCurrentAddr(cb)))
-                  //cb.println("Load right element")
                   cb.assign(rElemRef, EmitCode.present(cb.emb, rightBroadcasted.loadElementAtCurrentAddr(cb)))
 
                   bodyEC.toI(cb).get(cb, "NDArrayMap2 body cannot be missing")
@@ -527,36 +525,6 @@ object EmitNDArray {
     val strides = ndSv.strides(cb)
 
     fromShapeStridesFirstAddress(ndSv.st.elementType, ndSvShape, strides, ndSv.firstDataAddress(cb), cb)
-//    val counters = ndSvShape.indices.map(i => cb.newLocal[Long](s"ndarray_produceer_fall_through_idx_${i}"))
-//
-//    new NDArrayProducer {
-//      override def elementType: SType = ndSv.st.elementType
-//      override val shape: IndexedSeq[Value[Long]] = ndSvShape
-//
-//      override val initAll: EmitCodeBuilder => Unit = cb => {
-//        counters.foreach(ctr => cb.assign(ctr, 0L))
-//      }
-//      override val initAxis: IndexedSeq[EmitCodeBuilder => Unit] = {
-//        shape.indices.map(i => (cb: EmitCodeBuilder) => {
-//          cb.assign(counters(i), 0L)
-//        })
-//      }
-//      override val stepAxis: IndexedSeq[(EmitCodeBuilder, Value[Long]) => Unit] = {
-//        shape.indices.map{ i =>
-//          (cb: EmitCodeBuilder, step: Value[Long]) => {
-//            cb.assign(counters(i), counters(i) + step * strides(i))
-//          }
-//        }
-//      }
-//
-//      override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = {
-//        val offset = counters.foldLeft[Code[Long]](const(0L)){ (a, b) => a + b}
-//        // TODO: Safe to canonicalPType here?
-//        val loaded = elementType.canonicalPType().loadCheapPCode(cb, ndSv.firstDataAddress(cb) + offset) //elementType.loadFrom(cb, region, ndPv.st.elementType.canonicalPType(), ndPv.firstDataAddress(cb) + offset)
-//        val memoLoaded = loaded.memoize(cb, "temp_memo")
-//        memoLoaded.get
-//      }
-//    }
   }
 
   def fromShapeStridesFirstAddress(newElementType: SType, ndSvShape: IndexedSeq[Value[Long]], strides: IndexedSeq[Value[Long]], firstDataAddress: Value[Long], cb: EmitCodeBuilder): NDArrayProducer = {
@@ -603,11 +571,9 @@ object EmitNDArray {
 
   def broadcast(cb: EmitCodeBuilder, prod: NDArrayProducer,ctx: String): NDArrayProducer = {
     val broadcastMask = createBroadcastMask(cb, prod.shape)
-    //cb.println("Broadcast mask: ", broadcastMask.map(_.toS.concat(" ")).reduce(_ concat _))
     val newSteps = prod.stepAxis.indices.map { idx =>
       (cb: EmitCodeBuilder, step: Value[Long]) => {
         val maskedStep = cb.newLocal[Long]("ndarray_producer_masked_step", step & broadcastMask(idx))
-        //cb.println(s"${ctx}: Stepping ", maskedStep.toS, " units on index ", idx.toString)
         prod.stepAxis(idx)(cb, maskedStep)
       }
     }
