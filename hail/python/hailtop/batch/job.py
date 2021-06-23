@@ -965,4 +965,5 @@ with open(os.environ[\\"{result}\\"], \\"wb\\") as dill_out:
     except Exception as e:
         traceback.print_exc()
         dill.dump((e, traceback.format_exception(type(e), e, e.__traceback__)), dill_out, recurse=True)
+        raise e
 "''')
