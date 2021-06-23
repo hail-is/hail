@@ -381,6 +381,7 @@ def test_ndarray_map1():
 
     assert hl.eval(hl.missing(hl.tndarray(hl.tfloat, 1)).map(lambda x: x * 2)) is None
 
+    # NDArrays don't correctly support elements that contain pointers at the moment.
     # s = hl.nd.array(["hail", "is", "great"])
     # s_lens = s.map(lambda e: hl.len(e))
     # assert np.array_equal(hl.eval(s_lens), np.array([4, 2, 5]))

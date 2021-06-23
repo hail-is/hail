@@ -11,6 +11,57 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SFloat32, SFloat64, SInt32, SInt64}
 import is.hail.types.virtual.{TFloat32, TFloat64, TInt32, TInt64, TNDArray}
 
+abstract class NDArrayProducer {
+  outer =>
+
+  def elementType: PType
+  val shape: IndexedSeq[Value[Long]]
+  def nDims = shape.size
+
+  val initAll: EmitCodeBuilder => Unit
+  val initAxis: IndexedSeq[(EmitCodeBuilder) => Unit]
+  val stepAxis: IndexedSeq[(EmitCodeBuilder, Value[Long]) => Unit]
+  def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode
+
+  def copy(
+    aElementType: PType = elementType,
+    aShape: IndexedSeq[Value[Long]] = shape,
+    ainitAll: EmitCodeBuilder => Unit = initAll,
+    ainitAxis: IndexedSeq[(EmitCodeBuilder) => Unit] = initAxis,
+    astepAxis: IndexedSeq[(EmitCodeBuilder, Value[Long]) => Unit] = stepAxis
+  ): NDArrayProducer = {
+    new NDArrayProducer() {
+      override def elementType: PType = aElementType
+
+      override val shape: IndexedSeq[Value[Long]] = aShape
+      override val initAll: EmitCodeBuilder => Unit = ainitAll
+      override val initAxis: IndexedSeq[EmitCodeBuilder => Unit] = ainitAxis
+      override val stepAxis: IndexedSeq[(EmitCodeBuilder, Value[Long]) => Unit] = astepAxis
+
+      override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = outer.loadElementAtCurrentAddr(cb)
+    }
+  }
+
+  def toSCode(cb: EmitCodeBuilder, targetType: PCanonicalNDArray, region: Value[Region], rowMajor: Boolean = false): SNDArrayCode =  {
+    val (firstElementAddress, finish) = targetType.constructDataFunction(
+      shape,
+      targetType.makeColumnMajorStrides(shape, region, cb),
+      cb,
+      region)
+
+    val currentWriteAddr = cb.newLocal[Long]("ndarray_producer_to_scode_cur_write_addr")
+    cb.assign(currentWriteAddr, firstElementAddress)
+
+    initAll(cb)
+    val idxGenerator = if (rowMajor) SNDArray.forEachIndexWithInitAndIncRowMajor _ else SNDArray.forEachIndexWithInitAndIncColMajor _
+    idxGenerator(cb, shape, initAxis, stepAxis.map(stepper => (cb: EmitCodeBuilder) => stepper(cb, 1L)), "ndarray_producer_toSCode"){ (cb, indices) =>
+      targetType.elementType.storeAtAddress(cb, currentWriteAddr, region, loadElementAtCurrentAddr(cb), true)
+      cb.assign(currentWriteAddr, currentWriteAddr + targetType.elementType.byteSize)
+    }
+
+    finish(cb)
+  }
+}
 
 object EmitNDArray {
 
@@ -577,57 +628,5 @@ object EmitNDArray {
       }
     }
     prod.copy(astepAxis = newSteps)
-  }
-}
-
-abstract class NDArrayProducer {
-  outer =>
-
-  def elementType: PType
-  val shape: IndexedSeq[Value[Long]]
-  def nDims = shape.size
-
-  val initAll: EmitCodeBuilder => Unit
-  val initAxis: IndexedSeq[(EmitCodeBuilder) => Unit]
-  val stepAxis: IndexedSeq[(EmitCodeBuilder, Value[Long]) => Unit]
-  def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode
-
-  def copy(
-    aElementType: PType = elementType,
-    aShape: IndexedSeq[Value[Long]] = shape,
-    ainitAll: EmitCodeBuilder => Unit = initAll,
-    ainitAxis: IndexedSeq[(EmitCodeBuilder) => Unit] = initAxis,
-    astepAxis: IndexedSeq[(EmitCodeBuilder, Value[Long]) => Unit] = stepAxis
-  ): NDArrayProducer = {
-    new NDArrayProducer() {
-      override def elementType: PType = aElementType
-
-      override val shape: IndexedSeq[Value[Long]] = aShape
-      override val initAll: EmitCodeBuilder => Unit = ainitAll
-      override val initAxis: IndexedSeq[EmitCodeBuilder => Unit] = ainitAxis
-      override val stepAxis: IndexedSeq[(EmitCodeBuilder, Value[Long]) => Unit] = astepAxis
-
-      override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = outer.loadElementAtCurrentAddr(cb)
-    }
-  }
-
-  def toSCode(cb: EmitCodeBuilder, targetType: PCanonicalNDArray, region: Value[Region], rowMajor: Boolean = false): SNDArrayCode =  {
-    val (firstElementAddress, finish) = targetType.constructDataFunction(
-      shape,
-      targetType.makeColumnMajorStrides(shape, region, cb),
-      cb,
-      region)
-
-    val currentWriteAddr = cb.newLocal[Long]("ndarray_producer_to_scode_cur_write_addr")
-    cb.assign(currentWriteAddr, firstElementAddress)
-
-    initAll(cb)
-    val idxGenerator = if (rowMajor) SNDArray.forEachIndexWithInitAndIncRowMajor _ else SNDArray.forEachIndexWithInitAndIncColMajor _
-    idxGenerator(cb, shape, initAxis, stepAxis.map(stepper => (cb: EmitCodeBuilder) => stepper(cb, 1L)), "ndarray_producer_toSCode"){ (cb, indices) =>
-      targetType.elementType.storeAtAddress(cb, currentWriteAddr, region, loadElementAtCurrentAddr(cb), true)
-      cb.assign(currentWriteAddr, currentWriteAddr + targetType.elementType.byteSize)
-    }
-
-    finish(cb)
   }
 }
