@@ -59,5 +59,9 @@ we have been granted in one zone is 640,000 GB.
 We recommend requesting double your quota when you're using 80-90% of the current quota. Repeating
 this process will generally allow you to quickly scale the cluster.
 
+A higher or lower quota is requested by going to the "Quota Metric Details" page for a specific
+quota (e.g. `PREEMPTIBLE_CPUS`), selecting the regions or zones of interest, and clicking "Edit
+Quotas".
+
 Quota requests during Eastern Time business hours appear to be approved faster. We presume this is
 because our Technical Account Managers work in the Cambridge, MA Google office.
