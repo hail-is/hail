@@ -3,12 +3,12 @@
 1000_Genomes_HighCov_chrY
 =========================
 
-*  **Versions:** NYGC_30x
+*  **Versions:** NYGC_30x_unphased
 *  **Reference genome builds:** GRCh38
 *  **Type:** :class:`hail.MatrixTable`
 
-Schema (NYGC_30x, GRCh38)
-~~~~~~~~~~~~~~~~~~~~~~~~~
+Schema (NYGC_30x_unphased, GRCh38)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: text
 
@@ -70,8 +70,8 @@ Schema (NYGC_30x, GRCh38)
         'qual': float64
         'filters': set<str>
         'info': struct {
-            AC: array<int32>,
-            AF: array<float64>,
+            AC: int32,
+            AF: float64,
             AN: int32,
             BaseQRankSum: float64,
             ClippingRankSum: float64,
@@ -82,8 +82,8 @@ Schema (NYGC_30x, GRCh38)
             FS: float64,
             HaplotypeScore: float64,
             InbreedingCoeff: float64,
-            MLEAC: array<int32>,
-            MLEAF: array<float64>,
+            MLEAC: int32,
+            MLEAF: float64,
             MQ: float64,
             MQ0: int32,
             MQRankSum: float64,
@@ -106,27 +106,29 @@ Schema (NYGC_30x, GRCh38)
             AN_AMR_unrel: int32,
             AN_SAS_unrel: int32,
             AN_AFR_unrel: int32,
-            AC_EAS: array<int32>,
-            AC_AMR: array<int32>,
-            AC_EUR: array<int32>,
-            AC_AFR: array<int32>,
-            AC_SAS: array<int32>,
-            AC_EUR_unrel: array<int32>,
-            AC_EAS_unrel: array<int32>,
-            AC_AMR_unrel: array<int32>,
-            AC_SAS_unrel: array<int32>,
-            AC_AFR_unrel: array<int32>,
-            AF_EAS: array<float64>,
-            AF_AMR: array<float64>,
-            AF_EUR: array<float64>,
-            AF_AFR: array<float64>,
-            AF_SAS: array<float64>,
-            AF_EUR_unrel: array<float64>,
-            AF_EAS_unrel: array<float64>,
-            AF_AMR_unrel: array<float64>,
-            AF_SAS_unrel: array<float64>,
-            AF_AFR_unrel: array<float64>
+            AC_EAS: int32,
+            AC_AMR: int32,
+            AC_EUR: int32,
+            AC_AFR: int32,
+            AC_SAS: int32,
+            AC_EUR_unrel: int32,
+            AC_EAS_unrel: int32,
+            AC_AMR_unrel: int32,
+            AC_SAS_unrel: int32,
+            AC_AFR_unrel: int32,
+            AF_EAS: float64,
+            AF_AMR: float64,
+            AF_EUR: float64,
+            AF_AFR: float64,
+            AF_SAS: float64,
+            AF_EUR_unrel: float64,
+            AF_EAS_unrel: float64,
+            AF_AMR_unrel: float64,
+            AF_SAS_unrel: float64,
+            AF_AFR_unrel: float64
         }
+        'a_index': int32
+        'was_split': bool
         'variant_qc': struct {
             dp_stats: struct {
                 mean: float64,
