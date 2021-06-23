@@ -479,47 +479,46 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=[], pass
             ).map(lambda idx_and_y_values: idx_and_y_values[0])
 
         kept_samples = ht.y_arrays_per_group.map(get_kept_samples)
-        y_nds = hl.zip(kept_samples, ht.y_arrays_per_group).map(lambda sample_indices_and_y_arrays:
-                                                                hl.nd.array(sample_indices_and_y_arrays[0].map(lambda idx:
-                                                                                                               sample_indices_and_y_arrays[1][idx])))
-        weight_nds = hl.zip(kept_samples, ht.weight_arrays_per_group).map(lambda sample_indices_and_weight_arrays:
-                                                                hl.nd.array(sample_indices_and_weight_arrays[0].map(lambda idx:
-                                                                                                               sample_indices_and_weight_arrays[1][idx])))
+        y_nds = hl.zip(kept_samples, ht.y_arrays_per_group).starmap(lambda sample_indices, y_arrays:
+                                                                    hl.nd.array(sample_indices.map(lambda idx: y_arrays[idx])))
+        weight_nds = hl.zip(kept_samples, ht.weight_arrays_per_group).starmap(lambda sample_indices, weight_arrays:
+                                                                              hl.nd.array(sample_indices.map(lambda idx: weight_arrays[idx])))
         cov_nds = kept_samples.map(lambda group: hl.nd.array(group.map(lambda idx: ht.cov_arrays[idx])))
 
         sqrt_weights = weight_nds.map(lambda weight_nd: weight_nd.map(lambda e: hl.sqrt(e)))
-        scaled_y_nds = hl.zip(y_nds, sqrt_weights).map(lambda y_and_sqrt_weight: y_and_sqrt_weight[0] * y_and_sqrt_weight[1])
+        scaled_y_nds = hl.zip(y_nds, sqrt_weights).starmap(lambda y, sqrt_weight: y * sqrt_weight)
+        scaled_cov_nds = hl.zip(cov_nds, sqrt_weights).starmap(lambda cov, sqrt_weight: cov * sqrt_weight)
 
         k = builtins.len(covariates)
         ns = kept_samples.map(lambda one_sample_set: hl.len(one_sample_set))
         cov_Qts = hl.if_else(k > 0,
-                             cov_nds.map(lambda one_cov_nd: hl.nd.qr(one_cov_nd)[0].T),
+                             scaled_cov_nds.map(lambda one_cov_nd: hl.nd.qr(one_cov_nd)[0].T),
                              ns.map(lambda n: hl.nd.zeros((0, n))))
-        Qtys = hl.zip(cov_Qts, y_nds).map(lambda cov_qt_and_y: cov_qt_and_y[0] @ cov_qt_and_y[1])
+        Qtys = hl.zip(cov_Qts, scaled_y_nds).starmap(lambda cov_qt, y: cov_qt @ y)
         return ht.annotate_globals(
             kept_samples=kept_samples,
-            __y_nds=y_nds,
-            __weight_nds = weight_nds,
+            __scaled_y_nds=scaled_y_nds,
+            __sqrt_weight_nds=sqrt_weights,
             ns=ns,
             ds=ns.map(lambda n: n - k - 1),
             __cov_Qts=cov_Qts,
             __Qtys=Qtys,
-            __yyps=hl.range(num_y_lists).map(lambda i: dot_rows_with_themselves(y_nds[i].T) - dot_rows_with_themselves(Qtys[i].T)))
+            __yyps=hl.range(num_y_lists).map(lambda i: dot_rows_with_themselves(scaled_y_nds[i].T) - dot_rows_with_themselves(Qtys[i].T)))
 
     ht = setup_globals(ht)
 
-    import pdb; pdb.set_trace()
+    #import pdb; pdb.set_trace()
 
     def process_block(block):
         rows_in_block = hl.len(block)
 
         # Processes one block group based on given idx. Returns a single struct.
         def process_y_group(idx):
-            X = hl.nd.array(block[entries_field_name].map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples[idx])))).T
+            X = hl.nd.array(block[entries_field_name].map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples[idx])))).T * ht.__sqrt_weight_nds[idx]
             n = ht.ns[idx]
             sum_x = X.sum(0)
             Qtx = ht.__cov_Qts[idx] @ X
-            ytx = ht.__y_nds[idx].T @ X
+            ytx = ht.__scaled_y_nds[idx].T @ X
             xyp = ytx - (ht.__Qtys[idx].T @ Qtx)
             xxpRec = (dot_rows_with_themselves(X.T) - dot_rows_with_themselves(Qtx.T)).map(lambda entry: 1 / entry)
             b = xyp * xxpRec
