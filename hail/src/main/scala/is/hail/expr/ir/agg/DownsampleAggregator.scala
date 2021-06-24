@@ -8,6 +8,7 @@ import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.encoded.EType
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.SingleCodeSCode
 import is.hail.types.physical.stypes.concrete.SIndexablePointerCode
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -367,7 +368,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
               val yc = point.loadField(cb, "y").get(cb).asFloat64.doubleCode(cb)
               val x = cb.newLocal[Double]("x", xc)
               val y = cb.newLocal[Double]("y", yc)
-              val pointc = SingleCodePCode.fromPCode(cb, point, region).code.asInstanceOf[Code[Long]]
+              val pointc = SingleCodeSCode.fromSCode(cb, point, region).code.asInstanceOf[Code[Long]]
               insertIntoTree(cb, xBinCoordinate(x), yBinCoordinate(y), pointc, deepCopy = true)
             })
             cb.assign(i, i + 1)
@@ -443,7 +444,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
 
   def insert(cb: EmitCodeBuilder, x: EmitCode, y: EmitCode, l: EmitCode): Unit = {
     val name = "downsample_insert"
-    val mb = kb.getOrGenEmitMethod(name, (this, name), FastIndexedSeq[ParamType](x.pv.st.pType.asParam, y.pv.st.pType.asParam, PCodeEmitParamType(l.pv.st.pType)), UnitInfo) { mb =>
+    val mb = kb.getOrGenEmitMethod(name, (this, name), FastIndexedSeq[ParamType](x.st.paramType, y.st.paramType, l.emitParamType), UnitInfo) { mb =>
 
       val pointStaging = mb.newLocal[Long]("pointStaging")
       mb.voidWithBuilder { cb =>
@@ -514,7 +515,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
     mb.emitWithBuilder { cb =>
       cb.assign(i, 0)
       cb.whileLoop(i < other.buffer.size, {
-        val point = SingleCodePCode.fromPCode(cb, other.buffer.loadElement(cb, i).pv, region)
+        val point = SingleCodeSCode.fromSCode(cb, other.buffer.loadElement(cb, i).pv, region)
         deepCopyAndInsertPoint(cb, point.code.asInstanceOf[Code[Long]])
         cb.assign(i, i + 1)
       })

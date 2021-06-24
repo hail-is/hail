@@ -162,9 +162,9 @@ object PType {
   }
 
   def literalPType(t: Type, a: Annotation): PType = {
-    val rb = new BoxedArrayBuilder[Boolean]()
-    val crib = new BoxedArrayBuilder[Int]()
-    val cib = new BoxedArrayBuilder[Int]()
+    val rb = new BooleanArrayBuilder()
+    val crib = new IntArrayBuilder()
+    val cib = new IntArrayBuilder()
 
     def indexTypes(t: Type): Unit = {
       val ci = crib.size
@@ -194,6 +194,7 @@ object PType {
 
           crib.setSizeUninitialized(ci + n)
           cib.setSizeUninitialized(ci + n)
+          cib.setSize(ci + n)
 
           var j = 0
           while (j < n) {
@@ -402,23 +403,6 @@ abstract class PType extends Serializable with Requiredness {
     }
   }
 
-  def deepInnerRequired(required: Boolean): PType =
-    this match {
-      case t: PArray => PCanonicalArray(t.elementType.deepInnerRequired(true), required)
-      case t: PSet => PCanonicalSet(t.elementType.deepInnerRequired(true), required)
-      case t: PDict => PCanonicalDict(t.keyType.deepInnerRequired(true), t.valueType.deepInnerRequired(true), required)
-      case t: PStruct =>
-        PCanonicalStruct(t.fields.map(f => PField(f.name, f.typ.deepInnerRequired(true), f.index)), required)
-      case t: PCanonicalTuple =>
-        PCanonicalTuple(t._types.map { f => f.copy(typ = f.typ.deepInnerRequired(true)) }, required)
-      case t: PInterval =>
-        PCanonicalInterval(t.pointType.deepInnerRequired(true), required)
-      case t: PStream =>
-        PCanonicalStream(t.elementType.deepInnerRequired(true), required = required)
-      case t =>
-        t.setRequired(required)
-    }
-
   protected[physical] def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long
 
   def copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
@@ -433,7 +417,7 @@ abstract class PType extends Serializable with Requiredness {
   }
 
   // return a PCode that can cheaply operate on the region representation. Generally a pointer type, but not necessarily (e.g. primitives).
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): SCode
 
   // stores a stack value as a region value of this type
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long]
@@ -444,21 +428,6 @@ abstract class PType extends Serializable with Requiredness {
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit
 
   def deepRename(t: Type): PType = this
-
-  def defaultValue(mb: EmitMethodBuilder[_]): PCode = PCode(this, is.hail.types.physical.defaultValue(this))
-
-  def ti: TypeInfo[_] = typeToTypeInfo(this)
-
-  def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(ti)
-
-  def asParam: PCodeParamType = PCodeParamType(this)
-
-  def nCodes: Int = 1
-
-  def fromCodeTuple(ct: IndexedSeq[Code[_]]): PCode = {
-    assert(ct.length == 1)
-    PCode(this, ct(0))
-  }
 
   // called to load a region value's start address from a nested representation.
   // Usually a no-op, but may need to dereference a pointer.

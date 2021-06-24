@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.{Region, RegionValue, RegionValueBuilder, SafeRow, ScalaToRegionValue}
 import is.hail.asm4s._
-import is.hail.types.physical._
+import is.hail.types.physical.{stypes, _}
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Call2
@@ -12,6 +12,7 @@ import is.hail.expr.ir.streams.{EmitStream, StreamArgType, StreamUtils}
 import is.hail.types.physical.stypes.interfaces.SStreamCode
 import org.apache.spark.sql.Row
 import is.hail.TestUtils._
+import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeSCode, StreamSingleCodeType}
 import org.testng.annotations.Test
 
 class EmitStreamSuite extends HailSuite {
@@ -52,11 +53,8 @@ class EmitStreamSuite extends HailSuite {
     val fb = EmitFunctionBuilder[F](ctx, "F", (classInfo[Region]: ParamType) +: inputTypes.map(pt => pt: ParamType), LongInfo)
     val mb = fb.apply_method
     val ir = streamIR.deepCopy()
-    val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
-    val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
-    InferPType(ir, Env.empty, requiredness, usesAndDefs)
 
-    val emitContext = new EmitContext(ctx, requiredness)
+    val emitContext = EmitContext.analyze(ctx, ir)
 
     var arrayType: PType = null
     mb.emit(EmitCodeBuilder.scopedCode(mb) { cb =>
@@ -66,10 +64,10 @@ class EmitStreamSuite extends HailSuite {
         case s => s
       }
       TypeCheck(s)
-      EmitStream.produce(new Emit(emitContext, fb.ecb), s, cb, region, Env.empty, None)
+      EmitStream.produce(new Emit(emitContext, fb.ecb), s, cb, region, EmitEnv(Env.empty, inputTypes.indices.map(i => mb.storeEmitParam(i + 2, cb))), None)
         .consumeCode[Long](cb, 0L, { s =>
           val arr = StreamUtils.toArray(cb, s.asStream.producer, region)
-          val scp = SingleCodePCode.fromPCode(cb, arr, region, false)
+          val scp = SingleCodeSCode.fromSCode(cb, arr, region, false)
           arrayType = scp.typ.asInstanceOf[PTypeReferenceSingleCodeType].pt
 
           coerce[Long](scp.code)
@@ -126,18 +124,14 @@ class EmitStreamSuite extends HailSuite {
     val mb = fb.apply_method
     val region = mb.getCodeParam[Region](1)
     val ir = streamIR.deepCopy()
-    val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
-    val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
-    InferPType(ir, Env.empty, requiredness, usesAndDefs)
-
-    val emitContext = new EmitContext(ctx, requiredness)
+    val emitContext = EmitContext.analyze(ctx, ir)
 
     fb.emitWithBuilder { cb =>
       TypeCheck(ir)
       val len = cb.newLocal[Int]("len", 0)
       val len2 = cb.newLocal[Int]("len2", -1)
 
-      EmitStream.produce(new Emit(emitContext, fb.ecb), ir, cb, region, Env.empty, None)
+      EmitStream.produce(new Emit(emitContext, fb.ecb), ir, cb, region, EmitEnv(Env.empty, FastIndexedSeq()), None)
         .consume(cb,
           {},
           { case stream: SStreamCode =>

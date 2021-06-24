@@ -3,14 +3,17 @@ package is.hail.expr.ir
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.lowering.LoweringPipeline
-import is.hail.types.physical.{PTuple, PType, PTypeReferenceSingleCodeType, SingleCodeType}
+import is.hail.types.physical.{PTuple, PType, stypes}
 import is.hail.types.virtual._
 import is.hail.io.BufferSpec
 import is.hail.linalg.BlockMatrix
 import is.hail.rvd.RVDContext
 import is.hail.utils._
 import is.hail.HailContext
+import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeType}
 import org.apache.spark.sql.Row
+
+import scala.collection.mutable
 
 object Interpret {
   type Agg = (IndexedSeq[Row], TStruct)
@@ -130,7 +133,7 @@ object Interpret {
                 case Add() => ll + rr
                 case Subtract() => ll - rr
                 case Multiply() => ll * rr
-                case FloatingPointDivide() => ll.toFloat / rr.toFloat
+                case FloatingPointDivide() => ll.toDouble / rr.toDouble
                 case RoundToNegInfDivide() => java.lang.Math.floorDiv(ll, rr)
                 case BitAnd() => ll & rr
                 case BitOr() => ll | rr
@@ -154,7 +157,7 @@ object Interpret {
                 case Add() => ll + rr
                 case Subtract() => ll - rr
                 case Multiply() => ll * rr
-                case FloatingPointDivide() => ll.toFloat / rr.toFloat
+                case FloatingPointDivide() => ll.toDouble / rr.toDouble
                 case RoundToNegInfDivide() => java.lang.Math.floorDiv(ll, rr)
                 case BitAnd() => ll & rr
                 case BitOr() => ll | rr
@@ -514,7 +517,7 @@ object Interpret {
 
           for (i <- 0 until k) { advance(i) }
 
-          val builder = new BoxedArrayBuilder[Any]()
+          val builder = new mutable.ArrayBuffer[Any]()
           while (tournament(0) != k) {
             val i = tournament(0)
             val elt = Array.fill[Row](k)(null)
@@ -529,7 +532,7 @@ object Interpret {
             }
             builder += interpret(joinF, env.bind(curKeyName -> curKey, curValsName -> elt.toFastIndexedSeq), args)
           }
-          builder.result().toFastIndexedSeq
+          builder.toFastIndexedSeq
         }
       case StreamFilter(a, name, cond) =>
         val aValue = interpret(a, env, args)

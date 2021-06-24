@@ -205,7 +205,7 @@ object Pretty {
       FastSeq(if (typ == reader.fullMatrixType) "None" else typ.parsableString(),
         prettyBooleanLiteral(dropCols),
         prettyBooleanLiteral(dropRows),
-        '"' + StringEscapeUtils.escapeString(JsonMethods.compact(reader.toJValue)) + '"')
+        if (elideLiterals) reader.renderShort() else '"' + StringEscapeUtils.escapeString(JsonMethods.compact(reader.toJValue)) + '"')
     case MatrixWrite(_, writer) =>
       single('"' + StringEscapeUtils.escapeString(Serialization.write(writer)(MatrixWriter.formats)) + '"')
     case MatrixMultiWrite(_, writer) =>
@@ -256,7 +256,7 @@ object Pretty {
     case TableRead(typ, dropRows, tr) =>
       FastSeq(if (typ == tr.fullType) "None" else typ.parsableString(),
         prettyBooleanLiteral(dropRows),
-        '"' + StringEscapeUtils.escapeString(JsonMethods.compact(tr.toJValue)) + '"')
+        if (elideLiterals) tr.renderShort() else '"' + StringEscapeUtils.escapeString(JsonMethods.compact(tr.toJValue)) + '"')
     case TableWrite(_, writer) =>
       single('"' + StringEscapeUtils.escapeString(Serialization.write(writer)(TableWriter.formats)) + '"')
     case TableMultiWrite(_, writer) =>
@@ -292,6 +292,8 @@ object Pretty {
     case TableToValueApply(_, function) =>
       single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
     case MatrixToValueApply(_, function) =>
+      single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
+    case BlockMatrixToValueApply(_, function) =>
       single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
     case BlockMatrixToTableApply(_, _, function) =>
       single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))

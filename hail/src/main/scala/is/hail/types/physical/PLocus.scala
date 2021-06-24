@@ -26,13 +26,3 @@ abstract class PLocus extends PType {
 
   def unstagedStoreLocus(addr: Long, contig: String, position: Int, region: Region): Unit
 }
-
-abstract class PLocusValue extends PValue with SLocusValue
-
-abstract class PLocusCode extends PCode with SLocusCode {
-  def pt: PLocus
-
-  def memoize(cb: EmitCodeBuilder, name: String): PLocusValue
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): PLocusValue
-}

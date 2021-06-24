@@ -3,82 +3,56 @@ package is.hail.expr.ir
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.BackendContext
-import is.hail.expr.ir.Emit.E
 import is.hail.expr.ir.agg.{AggStateSig, ArrayAggStateSig, GroupedStateSig}
-import is.hail.expr.ir.functions.StringFunctions
+import is.hail.expr.ir.analyses.{ComputeMethodSplits, ControlFlowPreventsSplit, ParentPointers}
 import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.expr.ir.streams.{EmitStream, StreamProducer, StreamUtils}
-import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
+import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
 import is.hail.services.shuffler._
-import is.hail.types.TypeWithRequiredness
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointerCode, SCanonicalShufflePointer, SCanonicalShufflePointerCode, SCanonicalShufflePointerSettable}
-import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SNDArray, SNDArrayCode, SStreamCode}
-import is.hail.types.physical.stypes.primitives.{SFloat32, SFloat64, SInt32, SInt32Code, SInt64}
-import is.hail.types.physical.stypes.{EmitType, SCode, SType}
+import is.hail.types.physical.stypes._
+import is.hail.types.physical.stypes.concrete._
+import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
+import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.utils._
-import is.hail.utils.richUtils.RichCodeRegion
 
 import java.io._
 import scala.collection.mutable
 import scala.language.{existentials, postfixOps}
 
 // class for holding all information computed ahead-of-time that we need in the emitter
-class EmitContext(val executeContext: ExecuteContext, val req: RequirednessAnalysis)
-
-
-object SetupBuilder {
-  def apply(mb: EmitMethodBuilder[_]): SetupBuilder = new SetupBuilder(mb, Code._empty)
-
-  def apply(mb: EmitMethodBuilder[_], setup: Code[Unit]): SetupBuilder = new SetupBuilder(mb, setup)
-
-  def map[T, U](mb: EmitMethodBuilder[_])(is: IndexedSeq[T])(f: (SetupBuilder, T) => U): (Code[Unit], IndexedSeq[U]) = {
-    val sb = SetupBuilder(mb)
-    val rs = sb.map(is)(f)
-    (sb.setup, rs)
-  }
-
-  def map[T, U](mb: EmitMethodBuilder[_], setup: Code[Unit])(is: IndexedSeq[T])(f: (SetupBuilder, T) => U): (Code[Unit], IndexedSeq[U]) = {
-    val sb = SetupBuilder(mb, setup)
-    val rs = sb.map(is)(f)
-    (sb.setup, rs)
+object EmitContext {
+  def analyze(ctx: ExecuteContext, ir: IR): EmitContext = {
+    ctx.timer.time("EmitContext.analyze") {
+      val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
+      val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
+      val inLoopCriticalPath = ControlFlowPreventsSplit(ir, ParentPointers(ir), usesAndDefs)
+      val methodSplits = ComputeMethodSplits(ir,inLoopCriticalPath)
+      new EmitContext(ctx, requiredness, usesAndDefs, methodSplits, inLoopCriticalPath, Memo.empty[Unit])
+    }
   }
 }
 
-class SetupBuilder(mb: EmitMethodBuilder[_], var setup: Code[Unit]) {
-  def append(c: Code[Unit]): Unit = {
-    setup = Code(setup, c)
-  }
+class EmitContext(
+  val executeContext: ExecuteContext,
+  val req: RequirednessAnalysis,
+  val usesAndDefs: UsesAndDefs,
+  val methodSplits: Memo[Unit],
+  val inLoopCriticalPath: Memo[Unit],
+  val tryingToSplit: Memo[Unit]
+)
 
-  def +=(c: Code[Unit]): Unit = append(c)
+case class EmitEnv(bindings: Env[EmitValue], inputValues: IndexedSeq[Value[Region] => EmitValue]) {
+  def bind(name: String, v: EmitValue): EmitEnv = copy(bindings = bindings.bind(name, v))
 
-  def memoize[T](e: Code[T], name: String)(implicit tti: TypeInfo[T]): Value[T] = {
-    val l = mb.newLocal[T](name)
-    append(l := e)
-    l
-  }
-
-  def memoizeField[T](e: Code[T], name: String)(implicit tti: TypeInfo[T]): Value[T] = {
-    val l = mb.genFieldThisRef[T](name)
-    append(l := e)
-    l
-  }
-
-  def map[T, U](is: IndexedSeq[T])(f: (SetupBuilder, T) => U): IndexedSeq[U] = is.map(f(this, _))
-
-  def result(): Code[Unit] = {
-    val r = setup
-    setup = null
-    r
-  }
+  def bind(newBindings: (String, EmitValue)*): EmitEnv = copy(bindings = bindings.bindIterable(newBindings))
 }
 
 object Emit {
-  type E = Env[EmitValue]
-
-  def apply[C](ctx: EmitContext, ir: IR, fb: EmitFunctionBuilder[C], rti: TypeInfo[_], aggs: Option[Array[AggStateSig]] = None): Option[SingleCodeType] = {
+  def apply[C](ctx: EmitContext, ir: IR, fb: EmitFunctionBuilder[C], rti: TypeInfo[_], nParams: Int, aggs: Option[Array[AggStateSig]] = None): Option[SingleCodeType] = {
     TypeCheck(ir)
 
     val mb = fb.apply_method
@@ -90,19 +64,21 @@ object Emit {
     val region = mb.getCodeParam[Region](1)
     val returnTypeOption: Option[SingleCodeType] = if (ir.typ == TVoid) {
       fb.apply_method.voidWithBuilder { cb =>
-        emitter.emitVoid(cb, ir, region, Env.empty, container, None)
+        val env = EmitEnv(Env.empty, (0 until nParams).map(i => mb.storeEmitParam(i + 2, cb))) // this, region, ...
+        emitter.emitVoid(cb, ir, region, env, container, None)
       }
       None
     } else {
       var sct: SingleCodeType = null
       fb.emitWithBuilder { cb =>
 
-        val pcode = emitter.emitI(ir, cb, region, Env.empty, container, None).handle(cb, {
+        val env = EmitEnv(Env.empty, (0 until nParams).map(i => mb.storeEmitParam(i + 2, cb))) // this, region, ...
+        val sc = emitter.emitI(ir, cb, region, env, container, None).handle(cb, {
           cb._throw[RuntimeException](
             Code.newInstance[RuntimeException, String]("cannot return empty"))
         })
 
-        val scp = SingleCodePCode.fromPCode(cb, pcode, region)
+        val scp = SingleCodeSCode.fromSCode(cb, sc, region)
         assert(scp.typ.ti == rti, s"type info mismatch: expect $rti, got ${ scp.typ.ti }")
         sct = scp.typ
         scp.code
@@ -127,21 +103,21 @@ object AggContainer {
       aggState
     }
 
-    val cleanup =  { cb: EmitCodeBuilder =>
+    val cleanup = { cb: EmitCodeBuilder =>
       aggState.store(cb)
       cb += region.load().invalidate()
-      cb.assign(region, Code._null)
+      cb.assign(region, Code._null[Region])
     }
 
     (AggContainer(aggs, aggState, () => ()), (cb: EmitCodeBuilder) => cb += setup, cleanup)
   }
 
   def fromMethodBuilder[C](aggs: Array[AggStateSig], mb: EmitMethodBuilder[C], varPrefix: String): (AggContainer, EmitCodeBuilder => Unit, EmitCodeBuilder => Unit) =
-    fromVars(aggs, mb, mb.genFieldThisRef[Region](s"${varPrefix}_top_region"), mb.genFieldThisRef[Long](s"${varPrefix}_off"))
+    fromVars(aggs, mb, mb.genFieldThisRef[Region](s"${ varPrefix }_top_region"), mb.genFieldThisRef[Long](s"${ varPrefix }_off"))
 
   def fromBuilder[C](cb: EmitCodeBuilder, aggs: Array[AggStateSig], varPrefix: String): AggContainer = {
-    val off = cb.newField[Long](s"${varPrefix}_off")
-    val region = cb.newField[Region](s"${varPrefix}_top_region", Region.stagedCreate(Region.REGULAR, cb.emb.ecb.pool()))
+    val off = cb.newField[Long](s"${ varPrefix }_off")
+    val region = cb.newField[Region](s"${ varPrefix }_top_region", Region.stagedCreate(Region.REGULAR, cb.emb.ecb.pool()))
     val states = agg.StateTuple(aggs.map(a => agg.AggStateSig.getState(a, cb.emb.ecb)))
     val aggState = new agg.TupleAggregatorState(cb.emb.ecb, states, region, off)
     cb += region.load().setNumParents(aggs.length)
@@ -151,7 +127,7 @@ object AggContainer {
     AggContainer(aggs, aggState, { () =>
       aggState.store(cb)
       cb += region.load().invalidate()
-      cb.assign(region, Code._null)
+      cb.assign(region, Code._null[Region])
     })
   }
 }
@@ -182,16 +158,19 @@ case class EmitRegion(mb: EmitMethodBuilder[_], region: Value[Region]) {
 }
 
 abstract class EmitValue {
-  def pt: PType
+  def emitType: EmitType
+
+  def st: SType = emitType.st
 
   def load: EmitCode
 
-  def get(cb: EmitCodeBuilder): PCode
+  def get(cb: EmitCodeBuilder): SCode
 }
 
 class EmitUnrealizableValue(private val ec: EmitCode) extends EmitValue {
-  val pt: PType = ec.pt
-  assert(!pt.isRealizable)
+  val emitType: EmitType = ec.emitType
+
+  assert(st.isInstanceOf[SStream])
   private[this] var used: Boolean = false
 
   def load: EmitCode = {
@@ -200,17 +179,17 @@ class EmitUnrealizableValue(private val ec: EmitCode) extends EmitValue {
     ec
   }
 
-  override def get(cb: EmitCodeBuilder): PCode = throw new UnsupportedOperationException(s"Can't make PValue for unrealizable type ${pt}")
+  override def get(cb: EmitCodeBuilder): SCode = throw new UnsupportedOperationException(s"Can't make PValue for unrealizable type ${ ec.st }")
 }
 
 /**
- * Notes on IEmitCode;
- *  1. It is the responsibility of the producers of IEmitCode to emit the relevant
- *     jumps for the Lmissing and Lpresent labels (cb.goto or similar)
- *  2. It is the responsibility of consumers to define these labels and to
- *     prevent the pcode from being used on any code path taken as a result of
- *     jumping to Lmissing.
- */
+  * Notes on IEmitCode;
+  *  1. It is the responsibility of the producers of IEmitCode to emit the relevant
+  *     jumps for the Lmissing and Lpresent labels (cb.goto or similar)
+  *  2. It is the responsibility of consumers to define these labels and to
+  *     prevent the SCode from being used on any code path taken as a result of
+  *     jumping to Lmissing.
+  */
 object IEmitCode {
   def apply[A](cb: EmitCodeBuilder, m: Code[Boolean], value: => A): IEmitCodeGen[A] = {
     Code.constBoolValue(m) match {
@@ -241,7 +220,7 @@ object IEmitCode {
     IEmitCodeGen(Lmissing, CodeLabel(), defaultValue, false)
   }
 
-  def multiMapEmitCodes(cb: EmitCodeBuilder, seq: IndexedSeq[EmitCode])(f: IndexedSeq[PCode] => PCode): IEmitCode = {
+  def multiMapEmitCodes(cb: EmitCodeBuilder, seq: IndexedSeq[EmitCode])(f: IndexedSeq[SCode] => SCode): IEmitCode = {
     val Lmissing = CodeLabel()
     val Lpresent = CodeLabel()
 
@@ -261,7 +240,7 @@ object IEmitCode {
   }
 
   def multiFlatMap[A, B, C](seq: IndexedSeq[A], toIec: A => IEmitCodeGen[B], cb: EmitCodeBuilder)
-                           (f: IndexedSeq[B] => IEmitCodeGen[C]): IEmitCodeGen[C] = {
+    (f: IndexedSeq[B] => IEmitCodeGen[C]): IEmitCodeGen[C] = {
     val Lmissing = CodeLabel()
 
     var required: Boolean = true
@@ -286,26 +265,31 @@ object IEmitCode {
 }
 
 object IEmitCodeGen {
-  implicit class IEmitCode(val iec: IEmitCodeGen[PCode]) extends AnyVal {
-    def pc: PCode = iec.value
-    def pt: PType = pc.pt
+
+  implicit class IEmitCode(val iec: IEmitCodeGen[SCode]) extends AnyVal {
+    def pc: SCode = iec.value
+
+    def st: SType = pc.st
 
     def memoize(cb: EmitCodeBuilder, name: String): EmitValue =
       cb.memoize(iec, name)
+
+    def memoizeField(cb: EmitCodeBuilder, name: String): EmitValue =
+      cb.memoizeField(iec, name)
   }
+
 }
 
-case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A, val required: Boolean) {
+case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A, required: Boolean) {
 
   lazy val emitType: EmitType = {
     value match {
-      case pc: PCode => EmitType(pc.st, required)
+      case pc: SCode => EmitType(pc.st, required)
       case _ => throw new UnsupportedOperationException(s"emitType on $value")
     }
   }
 
-  // This method is a very temporary patch until we can properly separate SCode and PCode
-  def typecast[T]: IEmitCodeGen[T] = IEmitCodeGen(Lmissing, Lpresent, value.asInstanceOf[T], required)
+  def setOptional: IEmitCodeGen[A] = copy(required = false)
 
   def map[B](cb: EmitCodeBuilder)(f: (A) => B): IEmitCodeGen[B] = {
     val Lpresent2 = CodeLabel()
@@ -351,17 +335,17 @@ case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A, 
     cb.define(Lafter)
   }
 
-  def consumePCode(cb: EmitCodeBuilder, ifMissing: => PCode, ifPresent: (A) => PCode): PCode = {
+  def consumePCode(cb: EmitCodeBuilder, ifMissing: => SCode, ifPresent: (A) => SCode): SCode = {
     val Lafter = CodeLabel()
     cb.define(Lmissing)
     val missingValue = ifMissing
-    val pt = missingValue.pt
-    val ret = cb.emb.newPLocal(pt)
+    val st = missingValue.st
+    val ret = cb.emb.newPLocal(st)
     cb.assign(ret, missingValue)
     cb.goto(Lafter)
     cb.define(Lpresent)
     val presentValue = ifPresent(value)
-    assert(presentValue.pt == pt)
+    assert(presentValue.st == st)
     cb.assign(ret, presentValue)
     cb.define(Lafter)
     ret
@@ -375,7 +359,7 @@ case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A, 
 }
 
 object EmitCode {
-  def apply(setup: Code[Unit], m: Code[Boolean], pv: PCode): EmitCode = {
+  def apply(setup: Code[Unit], m: Code[Boolean], pv: SCode): EmitCode = {
     Code.constBoolValue(m) match {
       case Some(false) =>
         val Lpresent = CodeLabel()
@@ -388,7 +372,7 @@ object EmitCode {
     }
   }
 
-  def unapply(ec: EmitCode): Option[(Code[Boolean], PCode)] =
+  def unapply(ec: EmitCode): Option[(Code[Boolean], SCode)] =
     Some((ec.m, ec.pv))
 
   def apply(setup: Code[Unit], ec: EmitCode): EmitCode = {
@@ -397,9 +381,9 @@ object EmitCode {
     new EmitCode(Lstart, ec.iec)
   }
 
-  def present(mb: EmitMethodBuilder[_], pc: PCode): EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, pc))
+  def present(mb: EmitMethodBuilder[_], pc: SCode): EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, pc))
 
-  def missing(mb: EmitMethodBuilder[_], pt: PType): EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.missing(cb, pt.defaultValue(mb)))
+  def missing(mb: EmitMethodBuilder[_], pt: SType): EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.missing(cb, pt.defaultValue))
 
   def fromI(mb: EmitMethodBuilder[_])(f: (EmitCodeBuilder) => IEmitCode): EmitCode = {
     val cb = EmitCodeBuilder(mb)
@@ -413,35 +397,39 @@ class EmitCode(private val start: CodeLabel, private val iec: IEmitCode) {
 
   def required: Boolean = iec.required
 
+  def setOptional: EmitCode = new EmitCode(start, iec.setOptional)
+
   lazy val emitType: EmitType = iec.emitType
 
-  def emitParamType: PCodeEmitParamType = PCodeEmitParamType(st.pType)
+  def emitParamType: PCodeEmitParamType = emitType.paramType
 
   def st: SType = iec.value.st
 
-  def pv: PCode = iec.value
+  def pv: SCode = iec.value
 
   val m: Code[Boolean] = new CCode(start.L, iec.Lmissing.L, iec.Lpresent.L)
-
-  def pt: PType = pv.pt
-
-  def v: Code[_] = pv.code
 
   def toI(cb: EmitCodeBuilder): IEmitCode = {
     cb.goto(start)
     iec
   }
 
-  def castTo(mb: EmitMethodBuilder[_], region: Value[Region], destType: PType, deepCopy: Boolean = false): EmitCode = {
+  def castTo(mb: EmitMethodBuilder[_], region: Value[Region], destType: SType, deepCopy: Boolean = false): EmitCode = {
     EmitCode.fromI(mb)(cb => toI(cb).map(cb)(_.castTo(cb, region, destType)))
   }
 
-  def codeTuple(): IndexedSeq[Code[_]] = {
-    val tc = pv.codeTuple()
-    if (pt.required)
-      tc
-    else
-      tc :+ m
+  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = {
+    val ct = if (required) {
+      toI(cb).get(cb).makeCodeTuple(cb)
+    } else {
+      val es = cb.emb.newEmitLocal("ec_makecodetuple", emitType)
+      cb.assign(es, toI(cb))
+      es.pv.makeCodeTuple(cb) :+ es.m
+    }
+
+    assert(ct.zip(emitParamType.codeTupleTypes).forall { case (p, pt) => p.ti == pt.ti},
+      s"ctt mismatch: $emitType\n  param: ${ct.map(_.ti)}\n  types: ${emitParamType.codeTupleTypes}")
+    ct
   }
 
   def missingIf(mb: EmitMethodBuilder[_], cond: Code[Boolean]): EmitCode =
@@ -457,19 +445,63 @@ class EmitCode(private val start: CodeLabel, private val iec: IEmitCode) {
     }
 
   def asVoid(): Code[Unit] = {
-    require(pv.pt == PVoid)
+    require(pv.st == SVoid)
     Code.toUnit(m)
   }
 }
 
-abstract class EmitSettable extends EmitValue {
-  def store(cb: EmitCodeBuilder, ec: EmitCode): Unit
-
-  def store(cb: EmitCodeBuilder, iec: IEmitCode): Unit
+object EmitSettable {
+  def present(vs: SSettable): EmitSettable = new EmitSettable(None, vs)
 }
 
-abstract class PresentEmitSettable extends EmitValue {
-  def store(cb: EmitCodeBuilder, pc: PCode): Unit
+class EmitSettable(
+  missing: Option[Settable[Boolean]], // required if None
+  vs: SSettable) extends EmitValue {
+
+  lazy val required: Boolean = missing.isEmpty
+
+  lazy val emitType: EmitType = EmitType(vs.st, required)
+
+  def settableTuple(): IndexedSeq[Settable[_]] = {
+    missing match {
+      case Some(m) => vs.settableTuple() :+ m
+      case None => vs.settableTuple()
+    }
+  }
+
+  def m: Code[Boolean] = missing.map(_.load()).getOrElse(const(false))
+
+  def load: EmitCode = {
+    val ec = EmitCode(Code._empty,
+      if (required) const(false) else missing.get.load(),
+      vs.get)
+    assert(ec.required == required)
+    ec
+  }
+
+  def store(cb: EmitCodeBuilder, ec: EmitCode): Unit = {
+    store(cb, ec.toI(cb))
+  }
+
+  def store(cb: EmitCodeBuilder, iec: IEmitCode): Unit =
+    if (required)
+      cb.assign(vs, iec.get(cb, s"Required EmitSettable cannot be missing ${ st }"))
+    else
+      iec.consume(cb, {
+        cb.assign(missing.get, true)
+      }, { value =>
+        cb.assign(missing.get, false)
+        cb.assign(vs, value)
+      })
+
+  override def get(cb: EmitCodeBuilder): SCode = {
+    if (required) {
+      vs
+    } else {
+      cb.ifx(missing.get, cb._fatal(s"Can't convert missing ${ st } to PValue"))
+      vs
+    }
+  }
 }
 
 class RichIndexedSeqEmitSettable(is: IndexedSeq[EmitSettable]) {
@@ -477,9 +509,9 @@ class RichIndexedSeqEmitSettable(is: IndexedSeq[EmitSettable]) {
 }
 
 object LoopRef {
-  def apply(cb: EmitCodeBuilder, L: CodeLabel, args: IndexedSeq[(String, PType)], pool: Value[RegionPool], resultType: EmitType): LoopRef = {
-    val (loopArgs, tmpLoopArgs) = args.zipWithIndex.map { case ((name, pt), i) =>
-      (cb.emb.newEmitField(s"$name$i", pt, pt.required), cb.emb.newEmitField(s"tmp$name$i", pt, pt.required))
+  def apply(cb: EmitCodeBuilder, L: CodeLabel, args: IndexedSeq[(String, EmitType)], pool: Value[RegionPool], resultType: EmitType): LoopRef = {
+    val (loopArgs, tmpLoopArgs) = args.zipWithIndex.map { case ((name, et), i) =>
+      (cb.emb.newEmitField(s"$name$i", et), cb.emb.newEmitField(s"tmp$name$i", et))
     }.unzip
 
     val r1: Settable[Region] = cb.newLocal[Region]("loop_ref_r1")
@@ -494,7 +526,7 @@ object LoopRef {
 
 class LoopRef(
   val L: CodeLabel,
-  val loopTypes: IndexedSeq[PType],
+  val loopTypes: IndexedSeq[EmitType],
   val loopArgs: IndexedSeq[EmitSettable],
   val tmpLoopArgs: IndexedSeq[EmitSettable],
   val r1: Settable[Region],
@@ -509,24 +541,63 @@ abstract class EstimableEmitter[C] {
 
 class Emit[C](
   val ctx: EmitContext,
-  val cb: EmitClassBuilder[C]) { emitSelf =>
+  val cb: EmitClassBuilder[C]) {
+  emitSelf =>
 
-  val methods: mutable.Map[(String, Seq[Type], Seq[PType], PType), EmitMethodBuilder[C]] = mutable.Map()
+  val methods: mutable.Map[(String, Seq[Type], Seq[SType], SType), EmitMethodBuilder[C]] = mutable.Map()
 
+  def emitVoidInSeparateMethod(context: String, cb: EmitCodeBuilder, ir: IR, region: Value[Region], env: EmitEnv, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): Unit = {
+    assert(!ctx.inLoopCriticalPath.contains(ir))
+    val mb = cb.emb.genEmitMethod(context, FastIndexedSeq[ParamType](), UnitInfo)
+    val r = cb.newField[Region]("emitVoidSeparate_region", region)
+    mb.voidWithBuilder { cb =>
+      ctx.tryingToSplit.bind(ir, ())
+      emitVoid(cb, ir, r, env, container, loopEnv)
+    }
+    cb.invokeVoid(mb)
+  }
 
-  private[ir] def emitVoid(cb: EmitCodeBuilder, ir: IR, region: Value[Region], env: E, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): Unit = {
+  def emitInSeparateMethod(context: String, cb: EmitCodeBuilder, ir: IR, region: Value[Region], env: EmitEnv, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): IEmitCode = {
+    if (ir.typ == TVoid) {
+      emitVoidInSeparateMethod(context, cb, ir, region, env, container, loopEnv)
+      return IEmitCode.present(cb, SVoidCode)
+    }
+
+    assert(!ctx.inLoopCriticalPath.contains(ir))
+    val mb = cb.emb.genEmitMethod(context, FastIndexedSeq[ParamType](), UnitInfo)
+    val r = cb.newField[Region]("emitInSeparate_region", region)
+
+    var ev: EmitSettable = null
+    mb.voidWithBuilder { cb =>
+      ctx.tryingToSplit.bind(ir, ())
+      val result = emitI(ir, cb, r, env, container, loopEnv)
+
+      ev = cb.emb.ecb.newEmitField(s"${context}_result", result.emitType)
+      cb.assign(ev, result)
+    }
+    cb.invokeVoid(mb)
+    ev.toI(cb)
+  }
+
+  private[ir] def emitVoid(cb: EmitCodeBuilder, ir: IR, region: Value[Region], env: EmitEnv, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): Unit = {
+    if (ctx.methodSplits.contains(ir) && !ctx.tryingToSplit.contains(ir)) {
+      emitVoidInSeparateMethod(s"split_${ir.getClass.getSimpleName}", cb, ir, region, env, container, loopEnv)
+      return
+    }
+
     val mb: EmitMethodBuilder[C] = cb.emb.asInstanceOf[EmitMethodBuilder[C]]
 
-    def emit(ir: IR, mb: EmitMethodBuilder[C] = mb, region: Value[Region] = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): EmitCode =
+
+    def emit(ir: IR, mb: EmitMethodBuilder[C] = mb, region: Value[Region] = region, env: EmitEnv = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): EmitCode =
       this.emit(ir, mb, region, env, container, loopEnv)
 
     def emitStream(ir: IR, outerRegion: Value[Region], mb: EmitMethodBuilder[C] = mb): EmitCode =
       EmitCode.fromI(mb)(cb => EmitStream.produce(this, ir, cb, outerRegion, env, container))
 
-    def emitVoid(ir: IR, cb: EmitCodeBuilder = cb, region: Value[Region] = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
+    def emitVoid(ir: IR, cb: EmitCodeBuilder = cb, region: Value[Region] = region, env: EmitEnv = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
       this.emitVoid(cb, ir, region, env, container, loopEnv)
 
-    def emitI(ir: IR, region: Value[Region] = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
+    def emitI(ir: IR, region: Value[Region] = region, env: EmitEnv = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
       this.emitI(ir, cb, region, env, container, loopEnv)
 
     (ir: @unchecked) match {
@@ -548,8 +619,6 @@ class Emit[C](
         }
 
       case StreamFor(a, valueName, body) =>
-        val streamType = coerce[PStream](a.pType)
-
         emitStream(a, region).toI(cb).consume(cb,
           {},
           { case stream: SStreamCode =>
@@ -619,15 +688,15 @@ class Emit[C](
         Array.range(start, start + ns).foreach(i => sc.newState(cb, i))
 
         cb.assign(ib, spec.buildCodeInputBuffer(
-            Code.newInstance[ByteArrayInputStream, Array[Byte]](
-              mb.getSerializedAgg(sIdx))))
+          Code.newInstance[ByteArrayInputStream, Array[Byte]](
+            mb.getSerializedAgg(sIdx))))
         cb += mb.freeSerializedAgg(sIdx)
 
         (0 until ns).foreach { j =>
           deserializers(j)(cb, ib)
         }
 
-        cb.assign(ib, Code._null)
+        cb.assign(ib, Code._null[InputBuffer])
 
       case Die(m, typ, errorId) =>
         val cm = emitI(m)
@@ -641,12 +710,12 @@ class Emit[C](
         val AggContainer(_, sc, _) = container.get
         val rvAgg = agg.Extract.getAgg(aggSig)
         val tempState = AggStateSig.getState(aggSig.state, mb.ecb)
-        val aggStateOffset = mb.genFieldThisRef[Long](s"combOpValue_${i}_state");
+        val aggStateOffset = mb.genFieldThisRef[Long](s"combOpValue_${ i }_state");
 
         val v = emitI(value)
         v.consume(cb,
           cb._fatal("cannot combOp a missing value"),
-          { case serializedValue: PBinaryCode =>
+          { case serializedValue: SBinaryCode =>
             cb.assign(aggStateOffset, region.allocate(tempState.storageType.alignment, tempState.storageType.byteSize))
             tempState.createState(cb)
             tempState.newState(cb)
@@ -662,7 +731,7 @@ class Emit[C](
         val v = emitI(value)
         v.consume(cb,
           cb._fatal("cannot initialize aggs from a missing value"),
-          { case serializedValue: PBinaryCode =>
+          { case serializedValue: SBinaryCode =>
             sc.states(i).createState(cb)
             sc.newState(cb, i)
             sc.states(i).deserializeFromBytes(cb, serializedValue)
@@ -671,102 +740,114 @@ class Emit[C](
     }
   }
 
-  private[ir] def emitI(ir: IR, cb: EmitCodeBuilder, env: E, container: Option[AggContainer]): IEmitCode = {
+  private[ir] def emitI(ir: IR, cb: EmitCodeBuilder, env: EmitEnv, container: Option[AggContainer]): IEmitCode = {
     val region = cb.emb.getCodeParam[Region](1)
     emitI(ir, cb, region, env, container, None)
   }
 
-  private[ir] def emitI(ir: IR, cb: EmitCodeBuilder, region: Value[Region], env: E,
+  private[ir] def emitI(ir: IR, cb: EmitCodeBuilder, region: Value[Region], env: EmitEnv,
     container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]
   ): IEmitCode = {
+    if (ctx.methodSplits.contains(ir) && !ctx.tryingToSplit.contains(ir)) {
+      return emitInSeparateMethod(s"split_${ir.getClass.getSimpleName}", cb, ir, region, env, container, loopEnv)
+    }
+
     val mb: EmitMethodBuilder[C] = cb.emb.asInstanceOf[EmitMethodBuilder[C]]
 
-    def emitI(ir: IR, region: Value[Region] = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
+    def emitI(ir: IR, region: Value[Region] = region, env: EmitEnv = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
       this.emitI(ir, cb, region, env, container, loopEnv)
 
-    def emitInNewBuilder(cb: EmitCodeBuilder, ir: IR, region: Value[Region] = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
+    def emitInNewBuilder(cb: EmitCodeBuilder, ir: IR, region: Value[Region] = region, env: EmitEnv = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
       this.emitI(ir, cb, region, env, container, loopEnv)
 
-    def emitInMethod(cb: EmitCodeBuilder, ir: IR): IEmitCode =
-      this.emitI(ir, cb, Env.empty, container)
-
-    def emitStream(ir: IR, cb: EmitCodeBuilder, outerRegion: Value[Region] ): IEmitCode =
+    def emitStream(ir: IR, cb: EmitCodeBuilder, outerRegion: Value[Region]): IEmitCode =
       EmitStream.produce(this, ir, cb, outerRegion, env, container)
 
-    def emitVoid(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
+    def emitVoid(ir: IR, env: EmitEnv = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
       this.emitVoid(cb, ir: IR, region, env, container, loopEnv)
 
-    def emitFallback(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
+    def emitFallback(ir: IR, env: EmitEnv = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
       this.emit(ir, mb, region, env, container, loopEnv, fallingBackFromEmitI = true).toI(cb)
 
     def emitDeforestedNDArrayI(ir: IR): IEmitCode =
       deforestNDArrayI(ir, cb, region, env)
 
     def emitNDArrayColumnMajorStrides(ir: IR): IEmitCode = {
-      emitI(ir).map(cb){case pNDCode: PNDArrayCode =>
+      emitI(ir).map(cb) { case pNDCode: SNDArrayCode =>
         val pNDValue = pNDCode.memoize(cb, "ndarray_column_major_check")
         LinalgCodeUtils.checkColMajorAndCopyIfNeeded(pNDValue, cb, region)
       }
     }
 
-    val pt = ir.pType
-
-    if (pt == PVoid) {
-      emitVoid(ir)
-      return IEmitCode(CodeLabel(), CodeLabel(), PCode._empty, required = true)
+    // Returns an IEmitCode along with a Boolean that is true if the returned value is column major. If false it's row
+    // major instead.
+    def emitNDArrayStandardStriding(ir: IR): IEmitCodeGen[(SNDArrayValue, Value[Boolean])] = {
+      emitI(ir).map(cb) { case pNDCode: SNDArrayCode =>
+        val pNDValue = pNDCode.memoize(cb, "ndarray_standard_striding_check")
+        LinalgCodeUtils.checkStandardStriding(pNDValue, cb, region)
+      }
     }
 
-    def presentPC(pc: PCode): IEmitCode = IEmitCode.present(cb, pc)
+    def typeWithReqx(node: IR): VirtualTypeWithReq = VirtualTypeWithReq(node.typ, ctx.req.lookup(node).asInstanceOf[TypeWithRequiredness])
 
-    def presentC(c: Code[_]): IEmitCode = presentPC(PCode(pt, c))
+    def typeWithReq: VirtualTypeWithReq = typeWithReqx(ir)
+
+    if (ir.typ == TVoid) {
+      emitVoid(ir)
+      return IEmitCode.present(cb, SVoidCode)
+    }
+
+    def presentPC(pc: SCode): IEmitCode = IEmitCode.present(cb, pc)
 
     val result: IEmitCode = (ir: @unchecked) match {
       case I32(x) =>
-        presentC(const(x))
+        presentPC(primitive(const(x)))
       case I64(x) =>
-        presentC(const(x))
+        presentPC(primitive(const(x)))
       case F32(x) =>
-        presentC(const(x))
+        presentPC(primitive(const(x)))
       case F64(x) =>
-        presentC(const(x))
+        presentPC(primitive(const(x)))
       case s@Str(x) =>
-        presentPC(mb.addLiteral(x, coerce[PString](s.pType)))
+        presentPC(mb.addLiteral(x, typeWithReq))
       case x@UUID4(_) =>
-        presentPC(PCode(x.pType, coerce[PString](x.pType).
+        val pt = PCanonicalString()
+        presentPC(pt.loadCheapPCode(cb, pt.
           allocateAndStoreString(mb, region, Code.invokeScalaObject0[String](
             Class.forName("is.hail.expr.ir.package$"), "uuid4"))))
       case x@Literal(t, v) =>
-        presentPC(mb.addLiteral(v, x.pType))
+        presentPC(mb.addLiteral(v, typeWithReq))
       case x@EncodedLiteral(codec, value) =>
-        assert(x.pType == codec.decodedPType())
         presentPC(mb.addEncodedLiteral(x))
       case True() =>
-        presentC(const(true))
+        presentPC(primitive(const(true)))
       case False() =>
-        presentC(const(false))
+        presentPC(primitive(const(false)))
       case Consume(value) =>
-        emitI(value).map(cb){pc =>
+        emitI(value).map(cb) { pc =>
           cb.memoizeField(pc, "consumed_field")
           // Ignore pc, just return a 1
-          PCode(ir.pType, 1L)
+          primitive(const(1L))
         }
       case Cast(v, typ) =>
         val iec = emitI(v)
         val cast = Casts.get(v.typ, typ)
-        iec.map(cb)(pc => PCode(pt, cast(pc.code)))
+        iec.map(cb)(pc => cast(cb, pc))
       case CastRename(v, _typ) =>
         emitI(v)
-          .map(cb)(pc => PCode(pt, pc.code))
+          .map(cb)(pc => pc.st.castRename(_typ).fromCodes(pc.makeCodeTuple(cb)))
       case NA(typ) =>
-        IEmitCode(cb, const(true), pt.defaultValue(cb.emb))
+        IEmitCode(cb, const(true), typeWithReq.canonicalEmitType.st.defaultValue)
       case IsNA(v) =>
         val m = emitI(v).consumeCode(cb, true, _ => false)
-        presentC(m)
+        presentPC(primitive(m))
 
       case Coalesce(values) =>
-        val coalescedValue = mb.newPLocal("coalesce_value", pt)
 
         val emittedValues = values.map(v => EmitCode.fromI(cb.emb)(cb => emitInNewBuilder(cb, v)))
+        val unifiedType = SType.chooseCompatibleType(typeWithReq, emittedValues.map(_.st): _*)
+        val coalescedValue = mb.newPLocal("coalesce_value", unifiedType)
+
         val Ldefined = CodeLabel()
         val Lmissing = CodeLabel()
 
@@ -774,7 +855,7 @@ class Emit[C](
           value.toI(cb).consume(cb,
             {}, // fall through to next check
             { sc =>
-              cb.assign(coalescedValue, sc.castTo(cb, region, pt))
+              cb.assign(coalescedValue, sc.castTo(cb, region, unifiedType))
               cb.goto(Ldefined)
             })
         }
@@ -788,25 +869,27 @@ class Emit[C](
 
         emitI(cond).flatMap(cb) { condValue =>
 
+
           val codeCnsq = EmitCode.fromI(cb.emb)(cb => emitInNewBuilder(cb, cnsq))
           val codeAltr = EmitCode.fromI(cb.emb)(cb => emitInNewBuilder(cb, altr))
+          val outType = SType.chooseCompatibleType(typeWithReq, codeCnsq.st, codeAltr.st)
 
           val Lmissing = CodeLabel()
           val Ldefined = CodeLabel()
-          val out = mb.newPLocal(pt)
+          val out = mb.newPLocal(outType)
           cb.ifx(condValue.asBoolean.boolCode(cb), {
             codeCnsq.toI(cb).consume(cb,
               {
                 cb.goto(Lmissing)
-              }, {sc =>
-                cb.assign(out, sc.castTo(cb, region, pt))
+              }, { sc =>
+                cb.assign(out, sc.castTo(cb, region, outType))
               })
           }, {
             codeAltr.toI(cb).consume(cb,
               {
                 cb.goto(Lmissing)
-              }, {sc =>
-                cb.assign(out, sc.castTo(cb, region, pt))
+              }, { sc =>
+                cb.assign(out, sc.castTo(cb, region, outType))
               })
           })
           cb.goto(Ldefined)
@@ -815,100 +898,73 @@ class Emit[C](
         }
 
       case x@MakeStruct(fields) =>
-        val scode = x.pType.asInstanceOf[PCanonicalBaseStruct].constructFromFields(cb,
-          region,
-          fields.map { case (name, x) =>
+        presentPC(SStackStruct.constructFromArgs(cb, region, x.typ.asInstanceOf[TBaseStruct],
+          fields.map { case (_, x) =>
             EmitCode.fromI(cb.emb)(cb => emitInNewBuilder(cb, x))
-          }.toFastIndexedSeq,
-          deepCopy = false)
-        presentPC(scode)
+          }: _*
+        ))
 
       case x@MakeTuple(fields) =>
-        val scode = x.pType.asInstanceOf[PCanonicalBaseStruct].constructFromFields(cb,
-          region,
+        presentPC(SStackStruct.constructFromArgs(cb, region, x.typ.asInstanceOf[TBaseStruct],
           fields.map { case (_, x) =>
-            EmitCode.fromI(cb.emb)(emitInNewBuilder(_, x))
-          }.toFastIndexedSeq,
-          deepCopy = false)
-        presentPC(scode)
+            EmitCode.fromI(cb.emb)(cb => emitInNewBuilder(cb, x))
+          }: _*
+        ))
 
       case x@SelectFields(oldStruct, fields) =>
         emitI(oldStruct)
-          .map(cb) { case sc: SBaseStructCode =>
-            val sv = sc.memoize(cb, "select_fields_scode")
-            x.pType.asInstanceOf[PCanonicalBaseStruct].constructFromFields(cb,
-              region,
-              fields.map { field =>
-                EmitCode.fromI(cb.emb)(cb => sv.loadField(cb, field).typecast[PCode])
-              }.toFastIndexedSeq,
-              deepCopy = false)
-          }
+          .map(cb) { case sc: SBaseStructCode => sc.subset(fields: _*) }
 
-      case x@InsertFields(old, fields, fieldOrder) =>
+      case x@InsertFields(old, fields, _) =>
         if (fields.isEmpty)
           emitI(old)
         else {
-          val codeOld = emitI(old)
-          val updateMap = Map(fields: _*)
-
-          codeOld.map(cb) { oldPC =>
-            val oldPV = oldPC.asBaseStruct.memoize(cb, "insert_fields_old")
-
-            val itemsEC = x.pType.fields.map { f =>
-              updateMap.get(f.name) match {
-                case Some(vir) =>
-                  EmitCode.fromI(mb)(emitInNewBuilder(_, vir))
-                case None =>
-                  EmitCode.fromI(mb)(oldPV.loadField(_, f.name).typecast[PCode])
-              }
-            }
-
-            x.pType.asInstanceOf[PCanonicalBaseStruct]
-             .constructFromFields(cb, region, itemsEC, deepCopy = false)
-             .asPCode
+          emitI(old).map(cb) { old =>
+            old.asBaseStruct.insert(cb, region, x.typ,
+              fields.map { case (name, x) => (name, EmitCode.fromI(cb.emb)(cb => emitInNewBuilder(cb, x))) }: _*)
           }
         }
 
       case ApplyBinaryPrimOp(op, l, r) =>
         emitI(l).flatMap(cb) { pcL =>
-          emitI(r).map(cb)(pcR => PCode(pt, BinaryOp.emit(op, l.typ, r.typ, pcL.code, pcR.code)))
+          emitI(r).map(cb)(pcR => BinaryOp.emit(cb, op, pcL, pcR))
         }
       case ApplyUnaryPrimOp(op, x) =>
-        emitI(x).map(cb)(pc => PCode(pt, UnaryOp.emit(op, x.typ, pc.code)))
+        emitI(x).map(cb)(pc => UnaryOp.emit(cb, op, pc))
       case ApplyComparisonOp(op, l, r) =>
         if (op.strict) {
           emitI(l).flatMap(cb) { l =>
             emitI(r).map(cb) { r =>
               val f = op.codeOrdering(cb.emb.ecb, l.st, r.st)
-              PCode(pt, f(cb, EmitCode.present(cb.emb, l), EmitCode.present(cb.emb, r)))
+              primitive(ir.typ, f(cb, EmitCode.present(cb.emb, l), EmitCode.present(cb.emb, r)))
             }
           }
         } else {
           val lc = emitI(l).memoize(cb, "l")
           val rc = emitI(r).memoize(cb, "r")
           val f = op.codeOrdering(cb.emb.ecb, lc.st, rc.st)
-          presentC(f(cb, lc, rc))
+          presentPC(primitive(ir.typ, f(cb, lc, rc)))
         }
 
       case x@MakeArray(args, _) =>
-        val pType = x.pType.asInstanceOf[PCanonicalArray]
 
+        val emittedArgs = args.map(a => EmitCode.fromI(mb)(cb => emitInNewBuilder(cb, a)))
+        val pType = typeWithReq.canonicalPType.asInstanceOf[PCanonicalArray]
         val (pushElement, finish) = pType.constructFromFunctions(cb, region, args.size, deepCopy = false)
-        for (arg <- args) {
-          val v = emitI(arg)
-          pushElement(cb, v)
+        for (arg <- emittedArgs) {
+          pushElement(cb, arg.toI(cb))
         }
         presentPC(finish(cb))
 
       case ArrayZeros(length) =>
         emitI(length).map(cb) { case n: SInt32Code =>
-          val outputPType = coerce[PArray](ir.pType)
+          val outputPType = PCanonicalArray(PInt32Required)
           val elementSize = outputPType.elementByteSize
           val numElements = cb.newLocal[Int]("n_elements", n.intCode(cb))
           val arrayAddress = cb.newLocal[Long]("array_addr", outputPType.allocate(region, numElements))
           cb += outputPType.stagedInitialize(arrayAddress, numElements)
           cb += Region.setMemory(outputPType.firstElementOffset(arrayAddress), numElements.toL * elementSize, 0.toByte)
-          PCode(pt, arrayAddress)
+          outputPType.loadCheapPCode(cb, arrayAddress)
         }
 
       case x@ArrayRef(a, i, s) =>
@@ -952,101 +1008,174 @@ class Emit[C](
             val av = ac.asIndexable.memoize(cb, "aref_a")
             val iv = cb.newLocal("i", ic.asInt.intCode(cb))
             boundsCheck(cb, iv, av.loadLength())
-            av.loadElement(cb, iv).typecast[PCode]
+            av.loadElement(cb, iv)
           }
         }
 
-      case CastToArray(a) =>
-        emitI(a).map(cb)(pc => pt.fromCodeTuple(pc.codeTuple()))
-
       case ArrayLen(a) =>
         emitI(a).map(cb) { (ac) =>
-          PCode(pt, ac.asIndexable.loadLength())
+          primitive(ac.asIndexable.loadLength())
         }
 
       case GetField(o, name) =>
         emitI(o).flatMap(cb) { oc =>
-          val ov = oc.asBaseStruct.memoize(cb, "get_tup_elem_o")
-          ov.loadField(cb, name).typecast[PCode]
+          oc.asBaseStruct.loadSingleField(cb, name)
         }
 
       case GetTupleElement(o, i) =>
         emitI(o).flatMap(cb) { oc =>
-          val ov = oc.asBaseStruct.memoize(cb, "get_tup_elem_o")
-          ov.loadField(cb, oc.pt.asInstanceOf[PTuple].fieldIndex(i)).typecast[PCode]
+          oc.asBaseStruct.loadSingleField(cb, o.typ.asInstanceOf[TTuple].fieldIndex(i))
         }
 
       case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
         emitI(orderedCollection).map(cb) { a =>
-          val typ: PContainer = coerce[PIterable](a.pt).asPContainer
           val e = EmitCode.fromI(cb.emb)(cb => this.emitI(elem, cb, region, env, container, loopEnv))
-          val bs = new BinarySearch[C](mb, typ, e.pt, keyOnly = onKey)
-          val arr = SingleCodePCode.fromPCode(cb, a, region)
-          PCode(pt, bs.getClosestIndex(arr.code.asInstanceOf[Code[Long]], e.m, e.v))
+          val bs = new BinarySearch[C](mb, a.st.asInstanceOf[SContainer], e.emitType, keyOnly = onKey)
+          primitive(bs.getClosestIndex(cb, a, e))
+        }
+
+      case x@ArraySort(a, left, right, lessThan) =>
+        emitStream(a, cb, region).map(cb) { case stream: SStreamCode =>
+          val producer = stream.producer
+
+          val sct = SingleCodeType.fromSType(producer.element.st)
+
+          val vab = new StagedArrayBuilder(sct, producer.element.required, mb, 0)
+          StreamUtils.writeToArrayBuilder(cb, stream.producer, vab, region)
+          val sorter = new ArraySorter(EmitRegion(mb, region), vab)
+          sorter.sort(cb, region, makeDependentSortingFunction(cb, sct, lessThan, env, emitSelf, Array(left, right)))
+          sorter.toRegion(cb, x.typ)
+        }
+
+      case x@ToSet(a) =>
+        emitStream(a, cb, region).map(cb) { case stream: SStreamCode =>
+          val producer = stream.producer
+
+          val sct = SingleCodeType.fromSType(producer.element.st)
+
+          val vab = new StagedArrayBuilder(sct, producer.element.required, mb, 0)
+          StreamUtils.writeToArrayBuilder(cb, stream.producer, vab, region)
+          val sorter = new ArraySorter(EmitRegion(mb, region), vab)
+
+          def lessThan(cb: EmitCodeBuilder, region: Value[Region], l: Code[_], r: Code[_]): Code[Boolean] = {
+            cb.emb.ecb.getOrdering(sct.loadedSType, sct.loadedSType)
+              .ltNonnull(cb, sct.loadToPCode(cb, region, l), sct.loadToPCode(cb, region, r))
+          }
+
+          sorter.sort(cb, region, lessThan)
+
+          def skipNext(cb: EmitCodeBuilder, region: Value[Region], l: EmitCode, r: EmitCode): Code[Boolean] = {
+            cb.newLocal[Boolean]("asdb", cb.emb.ecb.getOrdering(l.st, r.st)
+              .equiv(cb, l, r, missingEqual = true))
+          }
+
+          sorter.distinctFromSorted(cb, region, skipNext)
+          sorter.toRegion(cb, x.typ)
+        }
+
+      case x@ToDict(a) =>
+        emitStream(a, cb, region).map(cb) { case stream: SStreamCode =>
+          val producer = stream.producer
+
+          val sct = SingleCodeType.fromSType(producer.element.st)
+
+          val vab = new StagedArrayBuilder(sct, producer.element.required, mb, 0)
+          StreamUtils.writeToArrayBuilder(cb, stream.producer, vab, region)
+          val sorter = new ArraySorter(EmitRegion(mb, region), vab)
+
+          def lessThan(cb: EmitCodeBuilder, region: Value[Region], l: Code[_], r: Code[_]): Code[Boolean] = {
+            val lk = EmitCode.fromI(cb.emb)(cb => sct.loadToPCode(cb, region, l)
+              .asBaseStruct.memoize(cb, "lt_l")
+              .loadField(cb, 0))
+
+            val rk = EmitCode.fromI(cb.emb)(cb => sct.loadToPCode(cb, region, r)
+              .asBaseStruct.memoize(cb, "lt_r")
+              .loadField(cb, 0))
+
+            cb.emb.ecb.getOrdering(lk.st, rk.st)
+              .lt(cb, lk, rk, missingEqual = true)
+          }
+
+          sorter.sort(cb, region, lessThan)
+          sorter.pruneMissing(cb)
+
+          def skipNext(cb: EmitCodeBuilder, region: Value[Region], l: EmitCode, r: EmitCode): Code[Boolean] = {
+
+            val lk = EmitCode.fromI(cb.emb) { cb =>
+              l.toI(cb).flatMap(cb) { x =>
+                x.asBaseStruct.memoize(cb, "lt_l")
+                  .loadField(cb, 0)
+              }
+            }
+
+            val rk = EmitCode.fromI(cb.emb) { cb =>
+              r.toI(cb).flatMap(cb) { x =>
+                x.asBaseStruct.memoize(cb, "lt_r")
+                  .loadField(cb, 0)
+              }
+            }
+
+            cb.emb.ecb.getOrdering(lk.st, rk.st)
+              .equiv(cb, lk, rk, missingEqual = true)
+          }
+
+          sorter.distinctFromSorted(cb, region, skipNext)
+          sorter.toRegion(cb, x.typ)
         }
 
       case GroupByKey(collection) =>
-        // sort collection by group
-        val collectionTyp = coerce[PStream](collection.pType)
-        val keyValTyp = coerce[PBaseStruct](collectionTyp.elementType)
-        val keyTyp = keyValTyp.types(0)
-        val valTyp = keyValTyp.types(1)
-        val dictTyp = coerce[PCanonicalDict](ir.pType)
-        val groupTyp = dictTyp.elementType
-        val arrayTyp = PCanonicalArray(groupTyp, required = true)
-
-        val sortedElts = new StagedArrayBuilder(keyValTyp, mb, 16)
-        val sorter = new ArraySorter(EmitRegion(mb, region), sortedElts)
-
-        val (k1, k2) = keyValTyp match {
-          case t: PStruct => GetField(In(0, PCodeEmitParamType(t)), "key") -> GetField(In(1, PCodeEmitParamType(t)), "key")
-          case t: PTuple =>
-            assert(t.fields(0).index == 0)
-            GetTupleElement(In(0, PCodeEmitParamType(t)), 0) -> GetTupleElement(In(1, PCodeEmitParamType(t)), 0)
-        }
-
-        val compare = ApplyComparisonOp(Compare(keyValTyp.types(0).virtualType), k1, k2) < 0
-        InferPType(compare)
-        val leftRightComparatorNames = Array.empty[String]
-        val sortF = sortedElts.ti match {
-          case BooleanInfo => makeDependentSortingFunction[Boolean](region, keyValTyp, compare, env, leftRightComparatorNames)
-          case IntInfo => makeDependentSortingFunction[Int](region, keyValTyp, compare, env, leftRightComparatorNames)
-          case LongInfo => makeDependentSortingFunction[Long](region, keyValTyp, compare, env, leftRightComparatorNames)
-          case FloatInfo => makeDependentSortingFunction[Float](region, keyValTyp, compare, env, leftRightComparatorNames)
-          case DoubleInfo => makeDependentSortingFunction[Double](region, keyValTyp, compare, env, leftRightComparatorNames)
-        }
-
-        val groupSizes = new StagedArrayBuilder(PInt32(), mb, 0)
-
-        val (lastKey, currKey) = (keyValTyp.virtualType: @unchecked) match {
-          case ts: TStruct =>
-            GetField(In(0, PCodeEmitParamType(keyValTyp)), ts.fieldNames(0)) -> GetField(In(1, PCodeEmitParamType(keyValTyp)), ts.fieldNames(0))
-          case tt: TTuple =>
-            GetTupleElement(In(0, PCodeEmitParamType(keyValTyp)), tt.fields(0).index) -> GetTupleElement(In(1, PCodeEmitParamType(keyValTyp)), tt.fields(0).index)
-        }
-        val compare2 = ApplyComparisonOp(EQWithNA(keyTyp.virtualType), lastKey, currKey)
-        InferPType(compare2)
-        val isSame = mb.genEmitMethod("isSame",
-          FastIndexedSeq(typeInfo[Region], PCodeEmitParamType(keyValTyp), PCodeEmitParamType(keyValTyp)),
-          BooleanInfo)
-        isSame.emitWithBuilder { cb =>
-          emitInMethod(cb, compare2).consumeCode[Boolean](cb, true, _.asBoolean.boolCode(cb))
-        }
-
-        val eltIdx = mb.newLocal[Int]("groupByKey_eltIdx")
-        val grpIdx = mb.newLocal[Int]("groupByKey_grpIdx")
-        val withinGrpIdx = mb.newLocal[Int]("groupByKey_withinGrpIdx")
-        val outerSize = mb.newLocal[Int]("groupByKey_outerSize")
-        val groupSize = mb.newLocal[Int]("groupByKey_groupSize")
-
         emitStream(collection, cb, region).map(cb) { case stream: SStreamCode =>
 
+          val sct = SingleCodeType.fromSType(stream.producer.element.st)
+          val sortedElts = new StagedArrayBuilder(sct, stream.producer.element.required, mb, 16)
           StreamUtils.writeToArrayBuilder(cb, stream.producer, sortedElts, region)
-          cb += sorter.sort(sortF)
-          cb += sorter.pruneMissing
+          val sorter = new ArraySorter(EmitRegion(mb, region), sortedElts)
+
+          def lt(cb: EmitCodeBuilder, region: Value[Region], l: Code[_], r: Code[_]): Code[Boolean] = {
+            val lk = EmitCode.fromI(cb.emb)(cb => sct.loadToPCode(cb, region, l)
+              .asBaseStruct.memoize(cb, "lt_l")
+              .loadField(cb, 0))
+            val rk = EmitCode.fromI(cb.emb)(cb => sct.loadToPCode(cb, region, r)
+              .asBaseStruct.memoize(cb, "lt_r")
+              .loadField(cb, 0))
+            cb.emb.ecb.getOrdering(lk.st, rk.st)
+              .lt(cb, lk, rk, missingEqual = true)
+          }
+
+          sorter.sort(cb, region, lt)
+          sorter.pruneMissing(cb)
+
+          val groupSizes = new StagedArrayBuilder(Int32SingleCodeType, true, mb, 0)
+
+          val eltIdx = mb.newLocal[Int]("groupByKey_eltIdx")
+          val grpIdx = mb.newLocal[Int]("groupByKey_grpIdx")
+          val withinGrpIdx = mb.newLocal[Int]("groupByKey_withinGrpIdx")
+          val outerSize = mb.newLocal[Int]("groupByKey_outerSize")
+          val groupSize = mb.newLocal[Int]("groupByKey_groupSize")
+
+
           cb += groupSizes.clear
           cb.assign(eltIdx, 0)
           cb.assign(groupSize, 0)
+
+          def sameKeyAtIndices(cb: EmitCodeBuilder, region: Value[Region], idx1: Code[Int], idx2: Code[Int]): Code[Boolean] = {
+            val lk = EmitCode.fromI(cb.emb) { cb =>
+              sortedElts.loadFromIndex(cb, region, idx1).flatMap(cb) { x =>
+                x.asBaseStruct.memoize(cb, "lt_l")
+                  .loadField(cb, 0)
+              }
+            }
+
+            val rk = EmitCode.fromI(cb.emb) { cb =>
+              sortedElts.loadFromIndex(cb, region, idx2).flatMap(cb) { x =>
+                x.asBaseStruct.memoize(cb, "lt_r")
+                  .loadField(cb, 0)
+              }
+            }
+
+            cb.emb.ecb.getOrdering(lk.st, rk.st)
+              .equiv(cb, lk, rk, missingEqual = true)
+          }
 
           cb.whileLoop(eltIdx < sortedElts.size, {
             val bottomOfLoop = CodeLabel()
@@ -1056,7 +1185,7 @@ class Emit[C](
             cb.ifx(eltIdx.ceq(sortedElts.size - 1), {
               cb.goto(newGroup)
             }, {
-              cb.ifx(cb.invokeCode[Boolean](isSame, region, sortedElts.applyEV(mb, eltIdx), sortedElts.applyEV(mb, eltIdx + 1)), {
+              cb.ifx(sameKeyAtIndices(cb, region, eltIdx, eltIdx + 1), {
                 cb.goto(bottomOfLoop)
               }, {
                 cb.goto(newGroup)
@@ -1071,7 +1200,12 @@ class Emit[C](
           })
 
           cb.assign(outerSize, groupSizes.size)
-          val (addGroup, finishOuter) = arrayTyp.constructFromFunctions(cb, region, outerSize, deepCopy = false)
+          val loadedElementType = sct.loadedSType.asInstanceOf[SBaseStruct]
+          val innerType = PCanonicalArray(loadedElementType.fieldEmitTypes(1).canonicalPType, true)
+          val kt = loadedElementType.fieldEmitTypes(0).canonicalPType
+          val groupType = PCanonicalStruct(true, ("key", kt), ("value", innerType))
+          val dictType = PCanonicalDict(kt, innerType, false)
+          val (addGroup, finishOuter) = dictType.arrayRep.constructFromFunctions(cb, region, outerSize, deepCopy = false)
 
           cb.assign(eltIdx, 0)
           cb.assign(grpIdx, 0)
@@ -1079,25 +1213,25 @@ class Emit[C](
           cb.whileLoop(grpIdx < outerSize, {
             cb.assign(groupSize, coerce[Int](groupSizes(grpIdx)))
             cb.assign(withinGrpIdx, 0)
-            val firstStruct = sortedElts.applyEV(mb, eltIdx).get(cb).asBaseStruct.memoize(cb, "GroupByKey_firstStruct")
-            val key = EmitCode.fromI(mb) { cb => firstStruct.loadField(cb, 0).typecast[PCode] }
+            val firstStruct = sortedElts.loadFromIndex(cb, region, eltIdx).get(cb).asBaseStruct.memoize(cb, "GroupByKey_firstStruct")
+            val key = EmitCode.fromI(mb) { cb => firstStruct.loadField(cb, 0) }
             val group = EmitCode.fromI(mb) { cb =>
-              val (addElt, finishInner) = PCanonicalArray(valTyp, required = true)
+              val (addElt, finishInner) = innerType
                 .constructFromFunctions(cb, region, groupSize, deepCopy = false)
               cb.whileLoop(withinGrpIdx < groupSize, {
-                val struct = sortedElts.applyEV(mb, eltIdx).get(cb).asBaseStruct.memoize(cb, "GroupByKey_struct")
-                addElt(cb, struct.loadField(cb, 1).typecast[PCode])
+                val struct = sortedElts.loadFromIndex(cb, region, eltIdx).get(cb).asBaseStruct.memoize(cb, "GroupByKey_struct")
+                addElt(cb, struct.loadField(cb, 1))
                 cb.assign(eltIdx, eltIdx + 1)
                 cb.assign(withinGrpIdx, withinGrpIdx + 1)
               })
               IEmitCode.present(cb, finishInner(cb))
             }
-            val elt = groupTyp.constructFromFields(cb, region, FastIndexedSeq(key, group), deepCopy = false)
+            val elt = groupType.constructFromFields(cb, region, FastIndexedSeq(key, group), deepCopy = false)
             addGroup(cb, IEmitCode.present(cb, elt))
             cb.assign(grpIdx, grpIdx + 1)
           })
 
-          dictTyp.construct(finishOuter(cb))
+          dictType.construct(finishOuter(cb))
         }
 
       case x@StreamLen(a) =>
@@ -1108,7 +1242,7 @@ class Emit[C](
               producer.initialize(cb)
               val xLen = cb.newLocal[Int]("streamlen_x", compLen(cb))
               producer.close(cb)
-              PCode(x.pType, xLen)
+              primitive(xLen)
             case None =>
               val count = cb.newLocal[Int]("stream_length", 0)
               producer.memoryManagedConsume(region, cb) { cb =>
@@ -1119,25 +1253,28 @@ class Emit[C](
                 case SStreamCode(_, nested) => StreamProducer.defineUnusedLabels(nested, mb)
                 case _ =>
               }
-              PCode(x.pType, count)
+              primitive(count)
           }
         }
 
       case x@MakeNDArray(dataIR, shapeIR, rowMajorIR, errorId) =>
-        val xP = coerce[PCanonicalNDArray](x.pType)
-        val shapePType = coerce[PTuple](shapeIR.pType)
-        val nDims = shapePType.size
 
         emitI(rowMajorIR).flatMap(cb) { isRowMajorCode =>
-          emitI(shapeIR).flatMap(cb) { case shapeTupleCode: PBaseStructCode =>
-            emitI(dataIR).map(cb) { case dataCode: PIndexableCode =>
+          emitI(shapeIR).flatMap(cb) { case shapeTupleCode: SBaseStructCode =>
+            emitI(dataIR).map(cb) { case dataCode: SIndexableCode =>
+
+              val shapeSType = shapeTupleCode.st
+              val nDims = shapeSType.size
+              val xP = PCanonicalNDArray(dataCode.st.elementType.canonicalPType().setRequired(true), nDims)
+
               val shapeTupleValue = shapeTupleCode.memoize(cb, "make_ndarray_shape")
               val memoData = dataCode.memoize(cb, "make_nd_array_memoized_data")
 
               cb.ifx(memoData.hasMissingValues(cb), {
                 cb._throw(Code.newInstance[HailException, String, Int](
-                    "Cannot construct an ndarray with missing values.", errorId
-              ))})
+                  "Cannot construct an ndarray with missing values.", errorId
+                ))
+              })
 
               (0 until nDims).foreach { index =>
                 cb.ifx(shapeTupleValue.isFieldMissing(index),
@@ -1147,7 +1284,8 @@ class Emit[C](
               val stridesSettables = (0 until nDims).map(i => cb.newLocal[Long](s"make_ndarray_stride_$i"))
 
               val shapeValues = (0 until nDims).map { i =>
-                shapeTupleValue.loadField(cb, i).get(cb).memoize(cb, s"make_ndarray_shape_${i}").asPValue.value.asInstanceOf[Value[Long]]
+                val shape = SingleCodeSCode.fromSCode(cb, shapeTupleValue.loadField(cb, i).get(cb), region)
+                cb.newLocalAny[Long](s"make_ndarray_shape_${ i }", shape.code)
               }
 
               cb.ifx(isRowMajorCode.asBoolean.boolCode(cb), {
@@ -1168,16 +1306,16 @@ class Emit[C](
           }
         }
       case NDArrayShape(ndIR) =>
-        emitI(ndIR).map(cb){ case pc: PNDArrayCode => pc.shape(cb).asPCode}
+        emitI(ndIR).map(cb) { case pc: SNDArrayCode => pc.shape(cb) }
       case x@NDArrayReindex(child, indexMap) =>
         val childEC = emitI(child)
-        val childPType = coerce[PCanonicalNDArray](child.pType)
-        childEC.map(cb){ case pndCode: PNDArrayCode =>
+        childEC.map(cb) { case pndCode: SNDArrayPointerCode =>
+          val childPType = pndCode.st.pType
           val pndVal = pndCode.memoize(cb, "ndarray_reindex_child")
           val childShape = pndVal.shapes(cb)
           val childStrides = pndVal.strides(cb)
 
-          val pndAddr = SingleCodePCode.fromPCode(cb, pndVal, region)
+          val pndAddr = SingleCodeSCode.fromSCode(cb, pndVal, region)
           val dataArray = childPType.dataType.loadCheapPCode(cb, childPType.dataPArrayPointer(pndAddr.code.asInstanceOf[Code[Long]]))
 
           val newShape = indexMap.map { childIndex =>
@@ -1187,7 +1325,8 @@ class Emit[C](
             if (childIndex < childPType.nDims) childStrides(childIndex) else const(0L)
           }
 
-          x.pType.constructByCopyingArray(
+          val newPType = childPType.copy(nDims = indexMap.length)
+          newPType.constructByCopyingArray(
             newShape,
             newStrides,
             dataArray,
@@ -1198,29 +1337,25 @@ class Emit[C](
       case NDArrayRef(nd, idxs, errorId) =>
         val ndt = emitI(nd)
 
-        ndt.flatMap(cb) { case ndCode: PNDArrayCode =>
+        ndt.flatMap(cb) { case ndCode: SNDArrayCode =>
           val indexEmitCodes = idxs.map(idx => EmitCode.fromI(cb.emb)(emitInNewBuilder(_, idx)))
-          IEmitCode.multiMapEmitCodes(cb, indexEmitCodes) { idxPCodes: IndexedSeq[PCode] =>
-            val memoizedIndices = idxPCodes.zipWithIndex.map { case (pc, idx) =>
-              pc.memoize(cb,s"ref_idx_$idx")
+          IEmitCode.multiMapEmitCodes(cb, indexEmitCodes) { idxPCodes: IndexedSeq[SCode] =>
+            val idxValues = idxPCodes.zipWithIndex.map { case (pc, idx) =>
+              cb.newLocal(s"ref_idx_$idx", pc.asInt64.longCode(cb))
             }
 
             val ndValue = ndCode.memoize(cb, "reffed_ndarray")
-            val idxValues = memoizedIndices.map(_.value.asInstanceOf[Value[Long]])
             cb.append(ndValue.assertInBounds(idxValues, cb, errorId))
 
-            ndValue.loadElement(idxValues, cb).asPCode
+            ndValue.loadElement(idxValues, cb)
           }
         }
 
       case NDArrayMatMul(lChild, rChild) =>
-        emitNDArrayColumnMajorStrides(lChild).flatMap(cb) { case leftPCode: PNDArrayCode =>
-          emitNDArrayColumnMajorStrides(rChild).map(cb) { case rightPCode: PNDArrayCode =>
-            val lPType = leftPCode.pt
-            val rPType = rightPCode.pt
-
-            val leftPVal = leftPCode.memoize(cb, "left_ndarray_matmul")
-            val rightPVal = rightPCode.memoize(cb, "right_ndarray_matmul")
+        emitNDArrayStandardStriding(lChild).flatMap(cb) { case (leftPVal: SNDArrayValue, leftIsColumnMajor: Value[Boolean]) =>
+          emitNDArrayStandardStriding(rChild).map(cb) { case (rightPVal: SNDArrayValue, rightIsColumnMajor: Value[Boolean]) =>
+            val lPType = leftPVal.st.asInstanceOf[SNDArrayPointer].pType
+            val rPType = rightPVal.st.asInstanceOf[SNDArrayPointer].pType
 
             val lShape = leftPVal.shapes(cb)
             val rShape = rightPVal.shapes(cb)
@@ -1230,11 +1365,11 @@ class Emit[C](
             val leftBroadcastMask = if (lPType.nDims > 2) NDArrayEmitter.broadcastMask(lShape) else IndexedSeq[Value[Long]]()
             val rightBroadcastMask = if (rPType.nDims > 2) NDArrayEmitter.broadcastMask(rShape) else IndexedSeq[Value[Long]]()
 
-            val outputPType = PCanonicalNDArray(lPType.elementType, TNDArray.matMulNDims(lPType.nDims, rPType.nDims), pt.required)
+            val outputPType = PCanonicalNDArray(lPType.elementType, TNDArray.matMulNDims(lPType.nDims, rPType.nDims))
 
             if ((lPType.elementType.isInstanceOf[PFloat64] || lPType.elementType.isInstanceOf[PFloat32]) && lPType.nDims == 2 && rPType.nDims == 2) {
-              val leftPValAddr = SingleCodePCode.fromPCode(cb, leftPVal, region)
-              val rightPValAddr = SingleCodePCode.fromPCode(cb, rightPVal, region)
+              val leftPValAddr = SingleCodeSCode.fromSCode(cb, leftPVal, region)
+              val rightPValAddr = SingleCodeSCode.fromSCode(cb, rightPVal, region)
               val leftDataAddress = lPType.dataFirstElementPointer(leftPValAddr.code.asInstanceOf[Code[Long]])
               val rightDataAddress = rPType.dataFirstElementPointer(rightPValAddr.code.asInstanceOf[Code[Long]])
 
@@ -1242,9 +1377,12 @@ class Emit[C](
               val N = rShape(rPType.nDims - 1)
               val K = lShape(lPType.nDims - 1)
 
-              val LDA = M
-              val LDB = K
+              val LDA = leftIsColumnMajor.mux(M, K)
+              val LDB = rightIsColumnMajor.mux(K, N)
               val LDC = M
+
+              val TRANSA: Code[String] = leftIsColumnMajor.mux("N", "T")
+              val TRANSB: Code[String] = rightIsColumnMajor.mux("N", "T")
 
               val (answerFirstElementAddr, answerFinisher) = outputPType.constructDataFunction(
                 IndexedSeq(M, N),
@@ -1256,8 +1394,8 @@ class Emit[C](
                 cb.append(lPType.elementType match {
                   case PFloat32(_) =>
                     Code.invokeScalaObject13[String, String, Int, Int, Int, Float, Long, Int, Long, Int, Float, Long, Int, Unit](BLAS.getClass, method = "sgemm",
-                      "N",
-                      "N",
+                      TRANSA,
+                      TRANSB,
                       M.toI,
                       N.toI,
                       K.toI,
@@ -1272,8 +1410,8 @@ class Emit[C](
                     )
                   case PFloat64(_) =>
                     Code.invokeScalaObject13[String, String, Int, Int, Int, Double, Long, Int, Long, Int, Double, Long, Int, Unit](BLAS.getClass, method = "dgemm",
-                      "N",
-                      "N",
+                      TRANSA,
+                      TRANSB,
                       M.toI,
                       N.toI,
                       K.toI,
@@ -1298,8 +1436,8 @@ class Emit[C](
               val numericElementType = coerce[PNumeric](lPType.elementType)
               val eVti = typeToTypeInfo(numericElementType)
 
-              val emitter = new NDArrayEmitter(unifiedShape) {
-                override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
+              val emitter = new NDArrayEmitter(unifiedShape, leftPVal.st.elementType) {
+                override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): SCode = {
                   val element = coerce[Any](cb.newField("matmul_element")(eVti))
                   val k = cb.newField[Long]("ndarray_matmul_k")
 
@@ -1319,15 +1457,15 @@ class Emit[C](
 
                   val kLen = cb.newField[Long]("ndarray_matmul_kLen")
 
-                  def multiply(l: PCode, r: PCode): Code[_] = {
+                  def multiply(l: SCode, r: SCode): Code[_] = {
                     (l.st, r.st) match {
-                      case (_: SInt32, _: SInt32) =>
+                      case (SInt32, SInt32) =>
                         l.asInt.intCode(cb) * r.asInt.intCode(cb)
-                      case (_: SInt64, _: SInt64) =>
+                      case (SInt64, SInt64) =>
                         l.asLong.longCode(cb) * r.asLong.longCode(cb)
-                      case (_: SFloat32, _: SFloat32) =>
+                      case (SFloat32, SFloat32) =>
                         l.asFloat.floatCode(cb) * r.asFloat.floatCode(cb)
-                      case (_: SFloat64, _: SFloat64) =>
+                      case (SFloat64, SFloat64) =>
                         l.asDouble.doubleCode(cb) * r.asDouble.doubleCode(cb)
                     }
                   }
@@ -1337,10 +1475,10 @@ class Emit[C](
                   cb.forLoop(cb.assign(k, 0L), k < kLen, cb.assign(k, k + 1L), {
                     val lElem = leftPVal.loadElement(lIndices, cb)
                     val rElem = rightPVal.loadElement(rIndices, cb)
-                    cb.assign(element, numericElementType.add(multiply(lElem.asPCode, rElem.asPCode), element))
+                    cb.assign(element, numericElementType.add(multiply(lElem, rElem), element))
                   })
 
-                  PCode(outputPType.elementType, element)
+                  primitive(outputPType.elementType.virtualType, element)
                 }
               }
               emitter.emit(cb, outputPType, region)
@@ -1349,9 +1487,9 @@ class Emit[C](
         }
       case NDArrayInv(nd) =>
         // Based on https://github.com/numpy/numpy/blob/v1.19.0/numpy/linalg/linalg.py#L477-L547
-        emitNDArrayColumnMajorStrides(nd).map(cb) { case pNDCode: PNDArrayCode =>
+        emitNDArrayColumnMajorStrides(nd).map(cb) { case pNDCode: SNDArrayCode =>
           val pndVal = pNDCode.memoize(cb, "ndarray_inverse_nd")
-          val ndPT = pndVal.pt.asInstanceOf[PCanonicalNDArray]
+          val ndPT = pndVal.st.asInstanceOf[SNDArrayPointer].pType
 
           val shapeArray = pndVal.shapes(cb)
           val stridesArray = ndPT.makeColumnMajorStrides(shapeArray, region, cb)
@@ -1373,7 +1511,7 @@ class Emit[C](
           val INFOdgetrf = mb.newLocal[Int]()
           val INFOdgetri = mb.newLocal[Int]()
           val INFOerror = (fun: String, info: LocalRef[Int]) => (info cne 0)
-            .orEmpty(Code._fatal[Unit](const(s"LAPACK error ${fun}. Error code = ").concat(info.toS)))
+            .orEmpty(Code._fatal[Unit](const(s"LAPACK error ${ fun }. Error code = ").concat(info.toS)))
 
           cb.append((N cne M).orEmpty(Code._fatal[Unit](const("Can only invert square matrix"))))
 
@@ -1410,11 +1548,11 @@ class Emit[C](
           finish(cb)
         }
       case x@NDArraySVD(nd, full_matrices, computeUV) =>
-        emitNDArrayColumnMajorStrides(nd).flatMap(cb){ case ndPCode: PNDArrayCode =>
+        emitNDArrayColumnMajorStrides(nd).flatMap(cb) { case ndPCode: SNDArrayCode =>
           val ndPVal = ndPCode.memoize(cb, "nd_svd_value")
 
           val infoDGESDDResult = cb.newLocal[Int]("infoDGESDD")
-          val infoDGESDDErrorTest = (extraErrorMsg: String) => (infoDGESDDResult cne  0)
+          val infoDGESDDErrorTest = (extraErrorMsg: String) => (infoDGESDDResult cne 0)
             .orEmpty(Code._fatal[Unit](const(s"LAPACK error DGESDD. $extraErrorMsg Error code = ").concat(infoDGESDDResult.toS)))
 
           val LWORKAddress = mb.newLocal[Long]("svd_lwork_address")
@@ -1431,10 +1569,12 @@ class Emit[C](
           val A = cb.newLocal[Long]("dgesdd_A_address")
           val firstElementDataAddress = ndPVal.firstDataAddress(cb)
 
-          cb.assign(LWORKAddress, Code.invokeStatic1[Memory, Long, Long]("malloc",  8L))
+          cb.assign(LWORKAddress, Code.invokeStatic1[Memory, Long, Long]("malloc", 8L))
+
+          val retPTypeUncast = NDArraySVD.pTypes(computeUV, false)
 
           val (jobz, sPType, uData, uFinisher, vtData, vtFinisher) = if (computeUV) {
-            val outputPType = x.pType.asInstanceOf[PTuple]
+            val outputPType = retPTypeUncast.asInstanceOf[PTuple]
             val uPType = outputPType.fields(0).typ.asInstanceOf[PCanonicalNDArray]
             val sPType = outputPType.fields(1).typ.asInstanceOf[PCanonicalNDArray]
             val vtPType = outputPType.fields(2).typ.asInstanceOf[PCanonicalNDArray]
@@ -1447,8 +1587,13 @@ class Emit[C](
             (if (full_matrices) "A" else "S", sPType, uData, uFinisher, vtData, vtFinisher)
           }
           else {
-            def noOp(cb: EmitCodeBuilder): SNDArrayCode = { throw new IllegalStateException("Can't happen")}
-            ("N", x.pType.asInstanceOf[PCanonicalNDArray], const(0L), noOp(_), const(0L), noOp(_))
+            val outputPType = retPTypeUncast.asInstanceOf[PCanonicalNDArray]
+
+            def noOp(cb: EmitCodeBuilder): SNDArrayCode = {
+              throw new IllegalStateException("Can't happen")
+            }
+
+            ("N", outputPType.asInstanceOf[PCanonicalNDArray], const(0L), noOp(_), const(0L), noOp(_))
           }
 
           val (sDataAddress, sFinisher) = sPType.constructDataFunction(IndexedSeq(K), sPType.makeColumnMajorStrides(IndexedSeq(K), region, cb), cb, region)
@@ -1477,6 +1622,7 @@ class Emit[C](
           cb.append(Region.copyFrom(firstElementDataAddress, A, (M * N) * 8L))
 
           def LWORK = Region.loadDouble(LWORKAddress).toI
+
           val WORK = cb.newLocal[Long]("dgesdd_work_address")
 
           cb.assign(WORK, Code.invokeStatic1[Memory, Long, Long]("malloc", LWORK.toL * 8L))
@@ -1510,8 +1656,8 @@ class Emit[C](
             val u = uFinisher(cb)
             val vt = vtFinisher(cb)
 
-            val outputPType = x.pType.asInstanceOf[PCanonicalTuple]
-            outputPType.constructFromFields(cb, region, FastIndexedSeq(EmitCode.present(cb.emb, u.asPCode), EmitCode.present(cb.emb, s), EmitCode.present(cb.emb, vt.asPCode)), deepCopy = false)
+            val outputPType = NDArraySVD.pTypes(true, false).asInstanceOf[PCanonicalTuple]
+            outputPType.constructFromFields(cb, region, FastIndexedSeq(EmitCode.present(cb.emb, u), EmitCode.present(cb.emb, s), EmitCode.present(cb.emb, vt)), deepCopy = false)
           } else {
             s
           }
@@ -1520,11 +1666,14 @@ class Emit[C](
         }
       case x@NDArrayQR(nd, mode) =>
         // See here to understand different modes: https://docs.scipy.org/doc/numpy/reference/generated/numpy.linalg.qr.html
-        emitNDArrayColumnMajorStrides(nd).map(cb) { case pndCode: PNDArrayCode =>
+        emitNDArrayColumnMajorStrides(nd).map(cb) { case pndCode: SNDArrayCode =>
+
+          val resultPType = NDArrayQR.pType(mode, false)
+
           val pndValue = pndCode.memoize(cb, "ndarray_qr_nd")
           // This does a lot of byte level copying currently, so only trust
           // the PCanonicalNDArray representation.
-          assert(pndValue.pt.isInstanceOf[PCanonicalNDArray])
+          val pType = pndValue.st.asInstanceOf[SNDArrayPointer].pType
 
           val shapeArray = pndValue.shapes(cb)
 
@@ -1541,7 +1690,7 @@ class Emit[C](
 
           def LWORK = (Region.loadDouble(LWORKAddress).toI > 0).mux(Region.loadDouble(LWORKAddress).toI, 1)
 
-          val ndPT = pndValue.pt.asInstanceOf[PCanonicalNDArray]
+          val ndPT = pType
           val dataFirstElementAddress = pndValue.firstDataAddress(cb)
 
           val hPType = ndPT
@@ -1592,10 +1741,8 @@ class Emit[C](
           val h = hFinisher(cb)
           val hMemo = h.memoize(cb, "ndarray_qr_h_memo")
 
-          val result: PCode = if (mode == "raw") {
-            val resultType = x.pType.asInstanceOf[PCanonicalBaseStruct]
-            val rawPType = x.pType.asInstanceOf[PTuple]
-            assert(hPType equalModuloRequired rawPType.types(0).asInstanceOf[PCanonicalNDArray],  s"hPType = ${hPType}, other = ${rawPType.types(0).asInstanceOf[PCanonicalNDArray]}")
+          val result: SCode = if (mode == "raw") {
+            val resultType = resultPType.asInstanceOf[PCanonicalBaseStruct]
             val tau = tauFinisher(cb)
 
             resultType.constructFromFields(cb, region, FastIndexedSeq(
@@ -1605,11 +1752,11 @@ class Emit[C](
 
           } else {
             val (rPType, rRows, rCols) = if (mode == "r") {
-              (x.pType.asInstanceOf[PCanonicalNDArray], K, N)
+              (resultPType.asInstanceOf[PCanonicalNDArray], K, N)
             } else if (mode == "complete") {
-              (x.pType.asInstanceOf[PTuple].types(1).asInstanceOf[PCanonicalNDArray], M, N)
+              (resultPType.asInstanceOf[PTuple].types(1).asInstanceOf[PCanonicalNDArray], M, N)
             } else if (mode == "reduced") {
-              (x.pType.asInstanceOf[PTuple].types(1).asInstanceOf[PCanonicalNDArray], K, N)
+              (resultPType.asInstanceOf[PTuple].types(1).asInstanceOf[PCanonicalNDArray], K, N)
             } else {
               throw new AssertionError(s"Unsupported QR mode $mode")
             }
@@ -1621,15 +1768,23 @@ class Emit[C](
             val (rDataAddress, rFinisher) = rPType.constructDataFunction(rShapeArray, rStridesArray, cb, region)
 
             // This block assumes that `rDataAddress` and `aAddressDGEQRF` point to column major arrays.
-            // TODO: Abstract this into ndarray ptype/pcode interface methods.
+            // TODO: Abstract this into ndarray ptype/SCode interface methods.
             val currRow = cb.newLocal[Long]("ndarray_qr_currRow")
             val currCol = cb.newLocal[Long]("ndarray_qr_currCol")
 
             val curWriteAddress = cb.newLocal[Long]("ndarray_qr_curr_write_addr", rDataAddress)
 
             // I think this just copies out the upper triangle into new ndarray in column major order
-            cb.forLoop({cb.assign(currCol, 0L)}, currCol < rCols, {cb.assign(currCol, currCol + 1L)}, {
-              cb.forLoop({cb.assign(currRow, 0L)}, currRow < rRows, {cb.assign(currRow, currRow + 1L)}, {
+            cb.forLoop({
+              cb.assign(currCol, 0L)
+            }, currCol < rCols, {
+              cb.assign(currCol, currCol + 1L)
+            }, {
+              cb.forLoop({
+                cb.assign(currRow, 0L)
+              }, currRow < rRows, {
+                cb.assign(currRow, currRow + 1L)
+              }, {
                 cb.append(Region.storeDouble(
                   curWriteAddress,
                   (currCol >= currRow).mux(
@@ -1647,7 +1802,7 @@ class Emit[C](
               computeR
             }
             else {
-              val crPType = x.pType.asInstanceOf[PCanonicalTuple]
+              val crPType = resultPType.asInstanceOf[PCanonicalTuple]
 
               val qPType = crPType.types(0).asInstanceOf[PCanonicalNDArray]
               val qShapeArray = if (mode == "complete") Array(M, M) else Array(M, K)
@@ -1714,8 +1869,8 @@ class Emit[C](
           }
           result
         }
-      case x: NDArrayMap  =>  emitDeforestedNDArrayI(x)
-      case x: NDArrayMap2 =>  emitDeforestedNDArrayI(x)
+      case x: NDArrayMap => emitDeforestedNDArrayI(x)
+      case x: NDArrayMap2 => emitDeforestedNDArrayI(x)
       case x: NDArrayReshape => emitDeforestedNDArrayI(x)
       case x: NDArrayConcat => emitDeforestedNDArrayI(x)
       case x: NDArraySlice => emitDeforestedNDArrayI(x)
@@ -1735,7 +1890,7 @@ class Emit[C](
       case x@ResultOp(start, sig) =>
         val AggContainer(aggs, sc, _) = container.get
 
-        val pt = x.pType.asInstanceOf[PCanonicalTuple]
+        val pt = PCanonicalTuple(false, sig.map(_.pResultType): _*)
 
         val addr = cb.newLocal("resultop_tuple_addr", pt.allocate(region))
         cb += pt.stagedInitialize(addr, setMissing = false)
@@ -1750,15 +1905,15 @@ class Emit[C](
 
         presentPC(pt.loadCheapPCode(cb, addr))
       case x@ApplySeeded(fn, args, seed, rt) =>
-        val codeArgs = args.map(a => (a.pType, EmitCode.fromI(cb.emb)(emitInNewBuilder(_, a))))
+        val codeArgs = args.map(a => EmitCode.fromI(cb.emb)(emitInNewBuilder(_, a)))
         val impl = x.implementation
         val unified = impl.unify(Array.empty[Type], args.map(_.typ), rt)
         assert(unified)
-        impl.applySeededI(seed, cb, region, pt, codeArgs: _*)
+        impl.applySeededI(seed, cb, region, impl.computeReturnEmitType(x.typ, codeArgs.map(_.emitType)).st, codeArgs: _*)
 
       case AggStateValue(i, _) =>
         val AggContainer(_, sc, _) = container.get
-        presentC(sc.states(i).serializeToRegion(cb, coerce[PBinary](pt), region))
+        presentPC(sc.states(i).serializeToRegion(cb, PCanonicalBinary(), region))
 
       case ToArray(a) =>
         EmitStream.produce(this, a, cb, region, env, container)
@@ -1769,7 +1924,9 @@ class Emit[C](
           .flatMap(cb) { case (stream: SStreamCode) =>
             val producer = stream.producer
 
-            val xAcc = mb.newEmitField(accumName, x.accPType, x.accPType.required) // in future, will choose compatible type for zero/body with requiredness
+            val stateEmitType = VirtualTypeWithReq(zero.typ, ctx.req.lookupState(x).head.asInstanceOf[TypeWithRequiredness]).canonicalEmitType
+
+            val xAcc = mb.newEmitField(accumName, stateEmitType)
             val xElt = mb.newEmitField(valueName, producer.element.emitType)
 
             var tmpRegion: Settable[Region] = null
@@ -1781,11 +1938,11 @@ class Emit[C](
               cb.assign(tmpRegion, Region.stagedCreate(Region.REGULAR, region.getPool()))
 
               cb.assign(xAcc, emitI(zero, tmpRegion)
-                .map(cb)(pc => pc.castTo(cb, tmpRegion, x.accPType)))
+                .map(cb)(pc => pc.castTo(cb, tmpRegion, stateEmitType.st)))
             } else {
               cb.assign(producer.elementRegion, region)
               cb.assign(xAcc, emitI(zero, producer.elementRegion)
-                .map(cb)(pc => pc.castTo(cb, producer.elementRegion, x.accPType)))
+                .map(cb)(pc => pc.castTo(cb, producer.elementRegion, stateEmitType.st)))
             }
 
             producer.unmanagedConsume(cb) { cb =>
@@ -1793,19 +1950,19 @@ class Emit[C](
 
               if (producer.requiresMemoryManagementPerElement) {
                 cb.assign(xAcc, emitI(body, producer.elementRegion, env.bind(accumName -> xAcc, valueName -> xElt))
-                  .map(cb)(pc => pc.castTo(cb, tmpRegion, x.accPType, deepCopy = true)))
+                  .map(cb)(pc => pc.castTo(cb, tmpRegion, stateEmitType.st, deepCopy = true)))
                 cb += producer.elementRegion.clearRegion()
                 val swapRegion = cb.newLocal[Region]("streamfold_swap_region", producer.elementRegion)
                 cb.assign(producer.elementRegion, tmpRegion.load())
                 cb.assign(tmpRegion, swapRegion.load())
               } else {
                 cb.assign(xAcc, emitI(body, producer.elementRegion, env.bind(accumName -> xAcc, valueName -> xElt))
-                  .map(cb)(pc => pc.castTo(cb, producer.elementRegion, x.accPType, deepCopy = false)))
+                  .map(cb)(pc => pc.castTo(cb, producer.elementRegion, stateEmitType.st, deepCopy = false)))
               }
             }
 
             if (producer.requiresMemoryManagementPerElement) {
-              cb.assign(xAcc, xAcc.toI(cb).map(cb)(pc => pc.castTo(cb, region, pc.pt, deepCopy = true)))
+              cb.assign(xAcc, xAcc.toI(cb).map(cb)(pc => pc.castTo(cb, region, pc.st, deepCopy = true)))
               cb += producer.elementRegion.invalidate()
               cb += tmpRegion.invalidate()
             }
@@ -1819,9 +1976,13 @@ class Emit[C](
 
             var tmpRegion: Settable[Region] = null
 
+            val accTypes = ctx.req.lookupState(x).zip(acc.map(_._2.typ))
+              .map { case (btwr, t) => VirtualTypeWithReq(t, btwr.asInstanceOf[TypeWithRequiredness])
+                .canonicalEmitType
+              }
+
             val xElt = mb.newEmitField(valueName, producer.element.emitType)
             val names = acc.map(_._1)
-            val accTypes = x.accPTypes.map(pt => EmitType(pt.sType, pt.required))
             val accVars = (names, accTypes).zipped.map(mb.newEmitField)
 
             val resEnv = env.bind(names.zip(accVars): _*)
@@ -1834,12 +1995,12 @@ class Emit[C](
               cb.assign(tmpRegion, Region.stagedCreate(Region.REGULAR, region.getPool()))
 
               (accVars, acc).zipped.foreach { case (xAcc, (_, x)) =>
-                cb.assign(xAcc, emitI(x, tmpRegion).map(cb)(_.castTo(cb, tmpRegion, xAcc.pt)))
+                cb.assign(xAcc, emitI(x, tmpRegion).map(cb)(_.castTo(cb, tmpRegion, xAcc.st)))
               }
             } else {
               cb.assign(producer.elementRegion, region)
               (accVars, acc).zipped.foreach { case (xAcc, (_, x)) =>
-                cb.assign(xAcc, emitI(x, region).map(cb)(_.castTo(cb, region, xAcc.pt)))
+                cb.assign(xAcc, emitI(x, region).map(cb)(_.castTo(cb, region, xAcc.st)))
               }
             }
 
@@ -1849,7 +2010,7 @@ class Emit[C](
                 (accVars, seq).zipped.foreach { (accVar, ir) =>
                   cb.assign(accVar,
                     emitI(ir, producer.elementRegion, env = seqEnv)
-                      .map(cb)(pc => pc.castTo(cb, tmpRegion, accVar.pt, deepCopy = true)))
+                      .map(cb)(pc => pc.castTo(cb, tmpRegion, accVar.st, deepCopy = true)))
                 }
                 cb += producer.elementRegion.clearRegion()
                 val swapRegion = cb.newLocal[Region]("streamfold2_swap_region", producer.elementRegion)
@@ -1859,14 +2020,14 @@ class Emit[C](
                 (accVars, seq).zipped.foreach { (accVar, ir) =>
                   cb.assign(accVar,
                     emitI(ir, producer.elementRegion, env = seqEnv)
-                      .map(cb)(pc => pc.castTo(cb, producer.elementRegion, accVar.pt, deepCopy = false)))
+                      .map(cb)(pc => pc.castTo(cb, producer.elementRegion, accVar.st, deepCopy = false)))
                 }
               }
             }
 
             if (producer.requiresMemoryManagementPerElement) {
               accVars.foreach { xAcc =>
-                cb.assign(xAcc, xAcc.toI(cb).map(cb)(pc => pc.castTo(cb, region, pc.pt, deepCopy = true)))
+                cb.assign(xAcc, xAcc.toI(cb).map(cb)(pc => pc.castTo(cb, region, pc.st, deepCopy = true)))
               }
               cb += producer.elementRegion.invalidate()
               cb += tmpRegion.invalidate()
@@ -1879,14 +2040,13 @@ class Emit[C](
         val msg = cb.newLocal[String]("die_msg")
         cm.consume(cb,
           cb.assign(msg, "<exception message missing>"),
-        { sc => cb.assign(msg, sc.asString.loadString())})
+          { sc => cb.assign(msg, sc.asString.loadString()) })
         cb._throw[HailException](Code.newInstance[HailException, String, Int](msg, errorId))
 
-        val t = PType.canonical(typ, true).deepInnerRequired(true)
-        IEmitCode.present(cb, t.defaultValue(cb.emb))
+        IEmitCode.present(cb, typeWithReq.canonicalEmitType.st.defaultValue)
 
       case CastToArray(a) =>
-        emitI(a).map(cb) { ind => ind.asIndexable.castToArray(cb) }.typecast[PCode]
+        emitI(a).map(cb) { ind => ind.asIndexable.castToArray(cb) }
 
       case x@ShuffleWith(
         keyFields,
@@ -1899,15 +2059,15 @@ class Emit[C](
       ) =>
         val shuffleType = x.shuffleType
 
-        val shuffleST = SCanonicalShufflePointer(PCanonicalShuffle(shuffleType, true))
-        val settable = mb.newPField(shuffleST.pType).asInstanceOf[SCanonicalShufflePointerSettable]
+        val shuffleST = SCanonicalShufflePointer(PCanonicalShuffle(shuffleType, false))
+        val settable = mb.newPField(shuffleST).asInstanceOf[SCanonicalShufflePointerSettable]
         val shuffle = CompileTimeShuffleClient.create(cb, settable)
 
         shuffle.start(cb, region)
 
-        val shuffleEnv = env.bind(name -> mb.newPresentEmitSettable(settable))
+        val shuffleEnv = env.bind(name -> EmitSettable.present(settable))
 
-        val successfulShuffleIds: PValue = emitI(writerIR, env = shuffleEnv)
+        val successfulShuffleIds: SValue = emitI(writerIR, env = shuffleEnv)
           .get(cb, "shuffle ID must be non-missing")
           // just store it so the writer gets run
           .memoize(cb, "shuffleSuccessfulShuffleIds")
@@ -1942,10 +2102,10 @@ class Emit[C](
         shuffle.finishPut(cb)
         shuffle.close(cb)
 
-        val resPType = pt.asInstanceOf[PCanonicalBinary]
+        val resPType = PCanonicalBinary()
         // FIXME: server needs to send uuid for the successful partition
         val boff = cb.memoize(resPType.loadCheapPCode(cb, resPType.allocate(region, 0)), "shuffleWriteBOff")
-        val baddr = SingleCodePCode.fromPCode(cb, boff, region)
+        val baddr = SingleCodeSCode.fromSCode(cb, boff, region)
         cb += resPType.storeLength(baddr.code.asInstanceOf[Code[Long]], 0)
         presentPC(boff)
 
@@ -1957,7 +2117,7 @@ class Emit[C](
         }
 
       case WriteValue(value, path, spec) =>
-        emitI(path).flatMap(cb) { case p: PStringCode =>
+        emitI(path).flatMap(cb) { case p: SStringCode =>
           val pv = p.memoize(cb, "write_path")
           emitI(value).map(cb) { v =>
             val ob = cb.newLocal[OutputBuffer]("write_ob")
@@ -1971,7 +2131,13 @@ class Emit[C](
 
       case x@TailLoop(name, args, body) =>
         val loopStartLabel = CodeLabel()
-        val inits = args.zip(x.accPTypes)
+
+        val accTypes = ctx.req.lookupState(x).zip(args.map(_._2.typ))
+          .map { case (btwr, t) => VirtualTypeWithReq(t, btwr.asInstanceOf[TypeWithRequiredness])
+            .canonicalEmitType
+          }
+
+        val inits = args.zip(accTypes)
 
         val stagedPool = cb.newLocal[RegionPool]("tail_loop_pool_ref")
         cb.assign(stagedPool, region.getPool())
@@ -1985,14 +2151,14 @@ class Emit[C](
         val newLoopEnv = loopEnv.getOrElse(Env.empty)
 
         // Emit into LoopRef's current region. (region 1)
-        loopRef.loopArgs.zip(inits).foreach { case (settable, ((_, x), pt)) =>
-          settable.store(cb, emitI(x, loopRef.r1).map(cb)(_.castTo(cb, loopRef.r1, pt)))
+        loopRef.loopArgs.zip(inits).foreach { case (settable, ((_, x), et)) =>
+          settable.store(cb, emitI(x, loopRef.r1).map(cb)(_.castTo(cb, loopRef.r1, et.st)))
         }
 
         cb.define(loopStartLabel)
 
         val result = emitI(body, env = argEnv, loopEnv = Some(newLoopEnv.bind(name, loopRef))).map(cb) { pc =>
-          val answerInRightRegion = pc.copyToRegion(cb, region)
+          val answerInRightRegion = pc.copyToRegion(cb, region, pc.st)
           cb.append(loopRef.r1.clearRegion())
           cb.append(loopRef.r2.clearRegion())
           answerInRightRegion
@@ -2004,8 +2170,8 @@ class Emit[C](
         val loopRef = loopEnv.get.lookup(name)
 
         // Need to emit into region 2, clear region 1, then swap them.
-        (loopRef.tmpLoopArgs, loopRef.loopTypes, args).zipped.map { case (tmpLoopArg, pt, arg) =>
-          tmpLoopArg.store(cb, emitI(arg, loopEnv = None, region = loopRef.r2).map(cb)(_.castTo(cb, loopRef.r2, pt)))
+        (loopRef.tmpLoopArgs, loopRef.loopTypes, args).zipped.map { case (tmpLoopArg, et, arg) =>
+          tmpLoopArg.store(cb, emitI(arg, loopEnv = None, region = loopRef.r2).map(cb)(_.castTo(cb, loopRef.r2, et.st)))
         }
 
         cb.append(loopRef.r1.clearRegion())
@@ -2025,55 +2191,65 @@ class Emit[C](
         cb.define(deadLabel)
 
         val rt = loopRef.resultType
-        IEmitCode(CodeLabel(), CodeLabel(), rt.st.pType.defaultValue(mb), rt.required)
+        IEmitCode(CodeLabel(), CodeLabel(), rt.st.defaultValue, rt.required)
 
       case x@CollectDistributedArray(contexts, globals, cname, gname, body, tsd) =>
-        val ctxsType = coerce[PStream](contexts.pType)
         val parentCB = mb.ecb
+        emitStream(contexts, cb, region).map(cb) { case ctxStream: SStreamCode =>
 
-        val functionID: String = {
+          def wrapInTuple(cb: EmitCodeBuilder, region: Value[Region], et: EmitCode): SBaseStructPointerCode = {
+            PCanonicalTuple(true, et.emitType.canonicalPType).constructFromFields(cb, region, FastIndexedSeq(et), deepCopy = false)
+          }
+
+          val bufferSpec: BufferSpec = BufferSpec.defaultUncompressed
+
+          val emitGlobals = EmitCode.fromI(mb)(cb => emitInNewBuilder(cb, globals))
+
+          val ctxType = ctxStream.st.elementEmitType
+          val contextPTuple: PTuple = PCanonicalTuple(required = true, ctxType.canonicalPType)
+          val globalPTuple: PTuple = PCanonicalTuple(required = true, emitGlobals.emitType.canonicalPType)
+          val contextSpec: TypedCodecSpec = TypedCodecSpec(contextPTuple, bufferSpec)
+          val globalSpec: TypedCodecSpec = TypedCodecSpec(globalPTuple, bufferSpec)
+
+          // emit body in new FB
           val bodyFB = EmitFunctionBuilder[Region, Array[Byte], Array[Byte], Array[Byte]](ctx.executeContext, "collect_distributed_array")
 
-          // FIXME this is terrible
-          val m = MakeTuple.ordered(FastSeq(body))
-          val bodyReturnPType = PCanonicalTuple(true, body.pType)
-          m._pType = bodyReturnPType
-
+          var bodySpec: TypedCodecSpec = null
           bodyFB.emitWithBuilder { cb =>
-            val ctxIB = cb.newLocal[InputBuffer]("cda_ctx_ib", x.contextSpec.buildCodeInputBuffer(
+            val region = bodyFB.getCodeParam[Region](1)
+            val ctxIB = cb.newLocal[InputBuffer]("cda_ctx_ib", contextSpec.buildCodeInputBuffer(
               Code.newInstance[ByteArrayInputStream, Array[Byte]](bodyFB.getCodeParam[Array[Byte]](2))))
-            val gIB = cb.newLocal[InputBuffer]("cda_g_ib", x.globalSpec.buildCodeInputBuffer(
+            val gIB = cb.newLocal[InputBuffer]("cda_g_ib", globalSpec.buildCodeInputBuffer(
               Code.newInstance[ByteArrayInputStream, Array[Byte]](bodyFB.getCodeParam[Array[Byte]](3))))
 
-            val decodedContext = x.contextSpec.encodedType.buildDecoder(x.contextSpec.encodedVirtualType, bodyFB.ecb)
-              .apply(cb, bodyFB.getCodeParam[Region](1), ctxIB)
+            val decodedContext = contextSpec.encodedType.buildDecoder(contextSpec.encodedVirtualType, bodyFB.ecb)
+              .apply(cb, region, ctxIB)
               .asBaseStruct
               .memoize(cb, "decoded_context_tuple")
               .loadField(cb, 0)
-              .typecast[PCode]
-              .memoize(cb, "decoded_context")
+              .memoizeField(cb, "decoded_context")
 
-            val decodedGlobal = x.globalSpec.encodedType.buildDecoder(x.globalSpec.encodedVirtualType, bodyFB.ecb)
-              .apply(cb, bodyFB.getCodeParam[Region](1), gIB)
+            val decodedGlobal = globalSpec.encodedType.buildDecoder(globalSpec.encodedVirtualType, bodyFB.ecb)
+              .apply(cb, region, gIB)
               .asBaseStruct
               .memoize(cb, "decoded_global_tuple")
               .loadField(cb, 0)
-              .typecast[PCode]
-              .memoize(cb, "decoded_global")
+              .memoizeField(cb, "decoded_global")
 
-            val env = Env[EmitValue](
+            val env = EmitEnv(Env[EmitValue](
               (cname, decodedContext),
-              (gname, decodedGlobal))
+              (gname, decodedGlobal)), FastIndexedSeq())
 
-            val bodyResult = new Emit(ctx, bodyFB.ecb)
-              .emitI(m, cb, env, None)
-              .get(cb, "cda return cannot be missing!")
-              .memoize(cb, "cda_body_result")
+            val bodyResult = wrapInTuple(cb,
+              region,
+              EmitCode.fromI(cb.emb)(cb => new Emit(ctx, bodyFB.ecb).emitI(body, cb, env, None)))
+
+            bodySpec = TypedCodecSpec(bodyResult.st.canonicalPType().setRequired(true), bufferSpec)
 
             val bOS = cb.newLocal[ByteArrayOutputStream]("cda_baos", Code.newInstance[ByteArrayOutputStream]())
-            val bOB = cb.newLocal[OutputBuffer]("cda_ob", x.bodySpec.buildCodeOutputBuffer(bOS))
-            x.bodySpec.encodedType.buildEncoder(bodyResult.st, cb.emb.ecb)
-                .apply(cb, bodyResult, bOB)
+            val bOB = cb.newLocal[OutputBuffer]("cda_ob", bodySpec.buildCodeOutputBuffer(bOS))
+            bodySpec.encodedType.buildEncoder(bodyResult.st, cb.emb.ecb)
+              .apply(cb, bodyResult, bOB)
             cb += bOB.invoke[Unit]("flush")
             cb += bOB.invoke[Unit]("close")
             bOS.invoke[Array[Byte]]("toByteArray")
@@ -2081,59 +2257,55 @@ class Emit[C](
 
           val fID = genUID()
           parentCB.addModule(fID, bodyFB.resultWithIndex())
-          fID
-        }
+          val functionID = fID
 
-        val spark = parentCB.backend()
+          val spark = parentCB.backend()
 
-        val baos = mb.genFieldThisRef[ByteArrayOutputStream]()
-        val buf = mb.genFieldThisRef[OutputBuffer]()
-        val ctxab = mb.genFieldThisRef[ByteArrayArrayBuilder]()
-        val encRes = mb.genFieldThisRef[Array[Array[Byte]]]()
+          val baos = mb.genFieldThisRef[ByteArrayOutputStream]()
+          val buf = mb.genFieldThisRef[OutputBuffer]()
+          val ctxab = mb.genFieldThisRef[ByteArrayArrayBuilder]()
+          val encRes = mb.genFieldThisRef[Array[Array[Byte]]]()
 
-        def wrapInTuple(cb: EmitCodeBuilder, et: EmitCode): SBaseStructPointerCode = {
-          PCanonicalTuple(true, et.pt).constructFromFields(cb, region, FastIndexedSeq(et), deepCopy = false)
-        }
 
-        def addContexts(cb: EmitCodeBuilder, ctxStream: StreamProducer): Unit = {
-          ctxStream.memoryManagedConsume(region, cb, setup = { cb =>
-            cb += ctxab.invoke[Int, Unit]("ensureCapacity", ctxStream.length.map(_.apply(cb)).getOrElse(16))
-          }) { cb =>
-            cb += baos.invoke[Unit]("reset")
-            val ctxTuple = wrapInTuple(cb, ctxStream.element)
-              .memoize(cb, "cda_add_contexts_addr")
-            x.contextSpec.encodedType.buildEncoder(ctxTuple.st, parentCB)
-              .apply(cb, ctxTuple, buf)
+          def addContexts(cb: EmitCodeBuilder, ctxStream: StreamProducer): Unit = {
+            ctxStream.memoryManagedConsume(region, cb, setup = { cb =>
+              cb += ctxab.invoke[Int, Unit]("ensureCapacity", ctxStream.length.map(_.apply(cb)).getOrElse(16))
+            }) { cb =>
+              cb += baos.invoke[Unit]("reset")
+              val ctxTuple = wrapInTuple(cb, region, ctxStream.element)
+                .memoize(cb, "cda_add_contexts_addr")
+              contextSpec.encodedType.buildEncoder(ctxTuple.st, parentCB)
+                .apply(cb, ctxTuple, buf)
+              cb += buf.invoke[Unit]("flush")
+              cb += ctxab.invoke[Array[Byte], Unit]("add", baos.invoke[Array[Byte]]("toByteArray"))
+            }
+          }
+
+          def addGlobals(cb: EmitCodeBuilder): Unit = {
+            val wrapped = wrapInTuple(cb, region, emitGlobals)
+            globalSpec.encodedType.buildEncoder(wrapped.st, parentCB)
+              .apply(cb, wrapped, buf)
             cb += buf.invoke[Unit]("flush")
-            cb += ctxab.invoke[Array[Byte], Unit]("add", baos.invoke[Array[Byte]]("toByteArray"))
           }
-        }
 
-        def addGlobals(cb: EmitCodeBuilder): Unit = {
-          val g = wrapInTuple(cb, EmitCode.fromI(mb)(cb => emitInNewBuilder(cb, globals))).memoize(cb, "cda_g")
-          x.globalSpec.encodedType.buildEncoder(g.st, parentCB)
-              .apply(cb, g, buf)
-          cb += buf.invoke[Unit]("flush")
-        }
+          def decodeResult(cb: EmitCodeBuilder): SCode = {
+            val len = mb.newLocal[Int]("cda_result_length")
+            val ib = mb.newLocal[InputBuffer]("decode_ib")
 
-        def decodeResult(cb: EmitCodeBuilder): PCode = {
-          val len = mb.newLocal[Int]("cda_result_length")
-          val ib = mb.newLocal[InputBuffer]("decode_ib")
-
-          cb.assign(len, encRes.length())
-          x.pType.asInstanceOf[PCanonicalArray].constructFromElements(cb, region, len, deepCopy = false) { (cb, i) =>
-            cb.assign(ib, x.bodySpec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](encRes(i))))
-            val eltTupled = x.bodySpec.encodedType.buildDecoder(x.bodySpec.encodedVirtualType, parentCB)
-              .apply(cb, region, ib)
-              .asBaseStruct
-              .memoize(cb, "cda_eltTupled")
-            eltTupled.loadField(cb, 0)
+            cb.assign(len, encRes.length())
+            val pt = PCanonicalArray(bodySpec.encodedType.decodedSType(bodySpec.encodedVirtualType).asInstanceOf[SBaseStruct].fieldEmitTypes(0).canonicalPType)
+            pt.asInstanceOf[PCanonicalArray].constructFromElements(cb, region, len, deepCopy = false) { (cb, i) =>
+              cb.assign(ib, bodySpec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](encRes(i))))
+              val eltTupled = bodySpec.encodedType.buildDecoder(bodySpec.encodedVirtualType, parentCB)
+                .apply(cb, region, ib)
+                .asBaseStruct
+                .memoize(cb, "cda_eltTupled")
+              eltTupled.loadField(cb, 0)
+            }
           }
-        }
 
-        emitStream(contexts, cb, region).map(cb) { case ctxStream: SStreamCode =>
           cb.assign(baos, Code.newInstance[ByteArrayOutputStream]())
-          cb.assign(buf, x.contextSpec.buildCodeOutputBuffer(baos)) // TODO: take a closer look at whether we need two codec buffers?
+          cb.assign(buf, contextSpec.buildCodeOutputBuffer(baos)) // TODO: take a closer look at whether we need two codec buffers?
           cb.assign(ctxab, Code.newInstance[ByteArrayArrayBuilder, Int](16))
           addContexts(cb, ctxStream.producer)
           cb += baos.invoke[Unit]("reset")
@@ -2155,21 +2327,17 @@ class Emit[C](
     ctx.req.lookupOpt(ir) match {
       case Some(r) =>
         if (result.required != r.required) {
-          throw new RuntimeException(s"requiredness mismatch: EC=${ result.required } / Analysis=${ r.required }\n${ result.pt }\n${ Pretty(ir) }")
+          throw new RuntimeException(s"requiredness mismatch: EC=${ result.required } / Analysis=${ r.required }\n${ result.st }\n${ Pretty(ir) }")
         }
 
       case _ =>
       // we dynamically generate some IRs in emission. Ignore these...
     }
 
-    if (result.pt != pt) {
-      if (!result.pt.equalModuloRequired(pt))
-        throw new RuntimeException(s"ptype mismatch:\n  emitted:  ${ result.pt }\n  inferred: ${ ir.pType }\n  ir: $ir")
-      (result.pt.required, pt.required) match {
-        case (true, false) => result.map(cb)(pc => PCode(pc.pt.setRequired(pt.required), pc.code))
-        case (false, true) => IEmitCode.present(cb, result.get(cb))
-      }
-    } else result
+    if (result.st.virtualType != ir.typ)
+      throw new RuntimeException(s"type mismatch:\n  EC=${ result.st.virtualType }\n  IR=${ ir.typ }\n  node: ${ Pretty(ir).take(50) }")
+
+    result
   }
 
   /**
@@ -2205,50 +2373,50 @@ class Emit[C](
     * {@code tAggIn.elementType}.  {@code tAggIn.symTab} is not used by Emit.
     *
     **/
-  private[ir] def emit(ir: IR, mb: EmitMethodBuilder[C], env: E, container: Option[AggContainer]): EmitCode = {
+  private[ir] def emit(ir: IR, mb: EmitMethodBuilder[C], env: EmitEnv, container: Option[AggContainer]): EmitCode = {
     val region = mb.getCodeParam[Region](1)
     emit(ir, mb, region, env, container, None)
   }
 
-  private[ir] def emitWithRegion(ir: IR, mb: EmitMethodBuilder[C], region: Value[Region], env: E, container: Option[AggContainer]): EmitCode =
+  private[ir] def emitWithRegion(ir: IR, mb: EmitMethodBuilder[C], region: Value[Region], env: EmitEnv, container: Option[AggContainer]): EmitCode =
     emit(ir, mb, region, env, container, None)
 
   private def emit(
     ir: IR,
     mb: EmitMethodBuilder[C],
     region: Value[Region],
-    env: E,
+    env: EmitEnv,
     container: Option[AggContainer],
     loopEnv: Option[Env[LoopRef]],
     fallingBackFromEmitI: Boolean = false
   ): EmitCode = {
 
-    def emit(ir: IR, region: Value[Region] = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): EmitCode =
+    if (ctx.methodSplits.contains(ir) && !ctx.tryingToSplit.contains(ir)) {
+      return EmitCode.fromI(mb)(cb => emitInSeparateMethod(s"split_${ir.getClass.getSimpleName}", cb, ir, region, env, container, loopEnv))
+    }
+
+
+    def emit(ir: IR, region: Value[Region] = region, env: EmitEnv = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): EmitCode =
       this.emit(ir, mb, region, env, container, loopEnv)
 
-    def emitInMethod(ir: IR, mb: EmitMethodBuilder[C]): EmitCode =
-      this.emit(ir, mb, Env.empty, container)
-
-    def emitI(ir: IR, cb: EmitCodeBuilder, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
+    def emitI(ir: IR, cb: EmitCodeBuilder, env: EmitEnv = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
       this.emitI(ir, cb, region, env, container, loopEnv)
 
-    def emitVoid(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Code[Unit] = {
+    def emitVoid(ir: IR, env: EmitEnv = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Code[Unit] = {
       EmitCodeBuilder.scopedVoid(mb) { cb =>
         this.emitVoid(cb, ir, region, env, container, loopEnv)
       }
     }
 
-    def emitStream(ir: IR, outerRegion: Value[Region] ): EmitCode =
+    def emitStream(ir: IR, outerRegion: Value[Region]): EmitCode =
       EmitCode.fromI(mb)(cb => EmitStream.produce(this, ir, cb, outerRegion, env, container))
-
-    val pt = ir.pType
 
     // ideally, emit would not be called with void values, but initOp args can be void
     // working towards removing this
-    if (pt == PVoid)
+    if (ir.typ == TVoid)
       return EmitCode.fromI(mb) { cb =>
         this.emitVoid(cb, ir, region, env, container, loopEnv)
-        IEmitCode.present(cb, PCode._empty)
+        IEmitCode.present(cb, SCode._empty)
       }
 
     val result: EmitCode = (ir: @unchecked) match {
@@ -2261,90 +2429,15 @@ class Emit[C](
           }
         }
 
-      case Ref(name, _) =>
-        val ev = env.lookup(name)
-        if (!ev.pt.equalModuloRequired(pt))
-          throw new RuntimeException(s"PValue type did not match inferred ptype:\n name: $name\n  pv: ${ ev.pt }\n  ir: $pt")
+      case Ref(name, t) =>
+        val ev = env.bindings.lookup(name)
+        if (ev.st.virtualType != t)
+          throw new RuntimeException(s"emit value type did not match specified type:\n name: $name\n  ev: ${ ev.st.virtualType }\n  ir: ${ ir.typ }")
         ev.load
-
-      case x@(_: ArraySort | _: ToSet | _: ToDict) =>
-        val resultTypeAsIterable = coerce[PIterable](x.pType)
-        val eltType = x.children(0).asInstanceOf[IR].pType.asInstanceOf[PIterable].elementType
-        val eltVType = eltType.virtualType
-
-        val vab = new StagedArrayBuilder(resultTypeAsIterable.elementType, mb, 0)
-        val sorter = new ArraySorter(EmitRegion(mb, region), vab)
-
-        val (array, lessThan, distinct, leftRightComparatorNames: Array[String]) = (x: @unchecked) match {
-          case ArraySort(a, l, r, lessThan) => (a, lessThan, Code._empty, Array(l, r))
-          case ToSet(a) =>
-            val discardNext = mb.genEmitMethod("discardNext",
-              FastIndexedSeq[ParamType](typeInfo[Region], PCodeEmitParamType(eltType), PCodeEmitParamType(eltType)),
-              typeInfo[Boolean])
-            val cmp2 = ApplyComparisonOp(EQWithNA(eltVType), In(0, PCodeEmitParamType(eltType)), In(1, PCodeEmitParamType(eltType)))
-            InferPType(cmp2)
-            val EmitCode(m, pv) = emitInMethod(cmp2, discardNext)
-            discardNext.emitWithBuilder { cb =>
-              m || pv.asBoolean.boolCode(cb)
-            }
-            val lessThan = ApplyComparisonOp(Compare(eltVType), In(0, PCodeEmitParamType(eltType)), In(1, PCodeEmitParamType(eltType))) < 0
-            InferPType(lessThan)
-            (a, lessThan, sorter.distinctFromSorted { (r, v1, m1, v2, m2) =>
-              EmitCodeBuilder.scopedCode[Boolean](mb) { cb =>
-                cb.invokeCode[Boolean](discardNext, r,
-                  EmitCode(Code._empty, m1, PCode(eltType, v1)),
-                  EmitCode(Code._empty, m2, PCode(eltType, v2)))
-              }
-            }, Array.empty[String])
-          case ToDict(a) =>
-            val (k0, k1, keyType) = eltType match {
-              case t: PStruct => (GetField(In(0, PCodeEmitParamType(eltType)), "key"), GetField(In(1, PCodeEmitParamType(eltType)), "key"), t.fieldType("key"))
-              case t: PTuple => (GetTupleElement(In(0, PCodeEmitParamType(eltType)), 0), GetTupleElement(In(1, PCodeEmitParamType(eltType)), 0), t.types(0))
-            }
-            val discardNext = mb.genEmitMethod("discardNext",
-              FastIndexedSeq[ParamType](typeInfo[Region], PCodeEmitParamType(eltType), PCodeEmitParamType(eltType)),
-              typeInfo[Boolean])
-
-            val cmp2 = ApplyComparisonOp(EQWithNA(keyType.virtualType), k0, k1).deepCopy()
-            InferPType(cmp2)
-            val EmitCode(m, pv) = emitInMethod(cmp2, discardNext)
-            discardNext.emitWithBuilder { cb =>
-              m || pv.asBoolean.boolCode(cb)
-            }
-            val lessThan = (ApplyComparisonOp(Compare(keyType.virtualType), k0, k1) < 0).deepCopy()
-            InferPType(lessThan)
-            (a, lessThan, Code(sorter.pruneMissing, sorter.distinctFromSorted { (r, v1, m1, v2, m2) =>
-              EmitCodeBuilder.scopedCode[Boolean](mb) { cb =>
-                cb.invokeCode[Boolean](discardNext, r,
-                  EmitCode(Code._empty, m1, PCode(eltType, v1)),
-                  EmitCode(Code._empty, m2, PCode(eltType, v2)))
-              }
-            }), Array.empty[String])
-        }
-
-        val sort = vab.ti match {
-          case BooleanInfo => sorter.sort(makeDependentSortingFunction[Boolean](
-            region, eltType, lessThan, env, leftRightComparatorNames))
-          case IntInfo => sorter.sort(makeDependentSortingFunction[Int](region, eltType, lessThan, env, leftRightComparatorNames))
-          case LongInfo => sorter.sort(makeDependentSortingFunction[Long](
-            region, eltType, lessThan, env, leftRightComparatorNames))
-          case FloatInfo => sorter.sort(makeDependentSortingFunction[Float](
-            region, eltType, lessThan, env, leftRightComparatorNames))
-          case DoubleInfo => sorter.sort(makeDependentSortingFunction[Double](
-            region, eltType, lessThan, env, leftRightComparatorNames))
-        }
-
-        val optStream = emitStream(array, region)
-        EmitCode.fromI(mb)(cb => optStream.toI(cb).map(cb) { case stream: SStreamCode =>
-          StreamUtils.writeToArrayBuilder(cb, stream.producer, vab, region)
-          cb += sort
-          cb += distinct
-          sorter.toRegion(cb, x.pType)
-        })
 
       case In(i, expectedPType) =>
         // this, Code[Region], ...
-        val ev = mb.getEmitParam(2 + i, region)
+        val ev = env.inputValues(i).apply(region)
         ev
 
       case ir@Apply(fn, typeArgs, args, rt) =>
@@ -2352,25 +2445,24 @@ class Emit[C](
         val unified = impl.unify(typeArgs, args.map(_.typ), rt)
         assert(unified)
 
-        val argPTypes = args.map(_.pType)
-        val k = (fn, typeArgs, argPTypes, pt)
+        val emitArgs = args.map(a => EmitCode.fromI(mb)(emitI(a, _))).toFastIndexedSeq
+
+        val argSTypes = emitArgs.map(_.st)
+        val retType = impl.computeStrictReturnEmitType(ir.typ, argSTypes)
+        val k = (fn, typeArgs, argSTypes, retType)
         val meth =
           methods.get(k) match {
             case Some(funcMB) =>
               funcMB
             case None =>
-              val funcMB = impl.getAsMethod(mb.ecb, pt, typeArgs, argPTypes: _*)
+              val funcMB = impl.getAsMethod(mb.ecb, retType, typeArgs, argSTypes: _*)
               methods.update(k, funcMB)
               funcMB
           }
-        val vars = args.map { a => coerce[Any](mb.newLocal()(typeToTypeInfo(a.pType))) }
         EmitCode.fromI(mb) { cb =>
           val emitArgs = args.map(a => EmitCode.fromI(cb.emb)(emitI(a, _))).toFastIndexedSeq
           IEmitCode.multiMapEmitCodes(cb, emitArgs) { codeArgs =>
-            for ((l, i) <- vars.zip(codeArgs)) {
-              cb.assign(l, i.code)
-            }
-            PCode(pt, meth.invokeCode[Any](CodeParam(region) +: vars.map(_.get: Param): _*))
+            cb.invokePCode(meth, FastIndexedSeq[Param](CodeParam(region)) ++ codeArgs.map(pc => pc: Param): _*)
           }
         }
       case x@ApplySpecial(_, typeArgs, args, rt) =>
@@ -2378,7 +2470,8 @@ class Emit[C](
         val impl = x.implementation
         val unified = impl.unify(typeArgs, args.map(_.typ), rt)
         assert(unified)
-        impl.apply(EmitRegion(mb, region), pt, typeArgs, codeArgs: _*)
+        val retType = impl.computeReturnEmitType(x.typ, codeArgs.map(_.emitType))
+        impl.apply(EmitRegion(mb, region), retType.st, typeArgs, codeArgs: _*)
 
       case x@WritePartition(stream, pctx, writer) =>
         val ctxCode = emit(pctx)
@@ -2401,149 +2494,111 @@ class Emit[C](
     ctx.req.lookupOpt(ir) match {
       case Some(r) =>
         if (result.required != r.required) {
-          throw new RuntimeException(s"requiredness mismatch: EC=${ result.required } / Analysis=${ r.required }\n${ result.pt }\n${ Pretty(ir) }")
+          throw new RuntimeException(s"requiredness mismatch: EC=${ result.required } / Analysis=${ r.required }\n${ result.emitType }\n${ Pretty(ir) }")
         }
 
       case _ =>
       // we dynamically generate some IRs in emission. Ignore these...
     }
 
-    if (result.pt != pt) {
-      if (!result.pt.equalModuloRequired(pt))
-        throw new RuntimeException(s"ptype mismatch:\n  emitted:  ${ result.pt }\n  inferred: ${ ir.pType }\n  ir: $ir")
-      (result.pt.required, pt.required) match {
-        case (true, false) => EmitCode.fromI(mb)(cb => result.toI(cb).map(cb)(pc => PCode(pc.pt.setRequired(pt.required), pc.code)))
-        case (false, true) => EmitCode.fromI(mb) { cb => IEmitCode.present(cb, result.toI(cb).get(cb)) }
-      }
-    } else result
+    if (result.st.virtualType != ir.typ)
+      throw new RuntimeException(s"type mismatch: EC=${ result.st.virtualType } / IR=${ ir.typ }\n")
+    result
   }
 
-  private def capturedReferences(ir: IR): (IR, (Emit.E, DependentEmitFunctionBuilder[_]) => Emit.E) = {
-    var ids = Set[String]()
+  private def makeDependentSortingFunction(
+    cb: EmitCodeBuilder,
+    elemSCT: SingleCodeType, ir: IR, env: EmitEnv, emitter: Emit[_], leftRightComparatorNames: Array[String]): (EmitCodeBuilder, Value[Region], Code[_], Code[_]) => Code[Boolean] = {
+    val fb = cb.emb.ecb
 
-    VisitIR(ir) {
-      case Ref(id, _) =>
-        ids += id
-      case _ =>
-    }
-
-    (ir, { (env: Emit.E, f: DependentEmitFunctionBuilder[_]) =>
-      Env[EmitValue](ids.toFastSeq.flatMap { id =>
-         env.lookupOption(id).map { e =>
-           (id, f.newDepEmitField(e.load))
-        }
-      }: _*)
-    })
-  }
-
-  private def makeDependentSortingFunction[T: TypeInfo](
-    region: Code[Region],
-    elemPType: PType, ir: IR, env: Emit.E, leftRightComparatorNames: Array[String]): DependentEmitFunctionBuilder[AsmFunction2[T, T, Boolean]] = {
-    val (newIR, getEnv) = capturedReferences(ir)
-    val f = cb.genDependentFunction[T, T, Boolean](baseName = "sort_compare")
-    val fregion = f.newDepField[Region](region)
-    var newEnv = getEnv(env, f)
-
-    val leftEC = EmitCode(Code._empty, false, PCode(elemPType, f.getCodeParam[T](1)))
-    val rightEC = EmitCode(Code._empty, false, PCode(elemPType, f.getCodeParam[T](2)))
-    val sort = f.genEmitMethod("sort",
-      FastIndexedSeq(typeInfo[Region], leftEC.emitParamType, rightEC.emitParamType),
+    var newEnv = env
+    val sort = fb.genEmitMethod("dependent_sorting_func",
+      FastIndexedSeq(typeInfo[Region], CodeParamType(elemSCT.ti), CodeParamType(elemSCT.ti)),
       BooleanInfo)
 
-    if (leftRightComparatorNames.nonEmpty) {
-      assert(leftRightComparatorNames.length == 2)
-      newEnv = newEnv.bindIterable(
-        IndexedSeq(
-          (leftRightComparatorNames(0), sort.getEmitParam(2, fregion)),
-          (leftRightComparatorNames(1), sort.getEmitParam(3, fregion))))
+    sort.emitWithBuilder[Boolean] { cb =>
+      val region = sort.getCodeParam[Region](1)
+      val leftEC = cb.memoize(EmitCode.present(sort, elemSCT.loadToPCode(cb, region, sort.getCodeParam(2)(elemSCT.ti))), "sort_leftEC")
+      val rightEC = cb.memoize(EmitCode.present(sort, elemSCT.loadToPCode(cb, region, sort.getCodeParam(3)(elemSCT.ti))), "sort_rightEC")
+
+      if (leftRightComparatorNames.nonEmpty) {
+        assert(leftRightComparatorNames.length == 2)
+        newEnv = newEnv.bind(
+            (leftRightComparatorNames(0), leftEC),
+            (leftRightComparatorNames(1), rightEC))
+      }
+
+      val iec = emitter.emitI(ir, cb, newEnv, None)
+      iec.get(cb, "Result of sorting function cannot be missing").asBoolean.boolCode(cb)
     }
-
-    val EmitCode(m, v) = new Emit(ctx, f.ecb).emit(newIR, sort, newEnv, None)
-
-    sort.emit(m.mux(Code._fatal[Boolean]("Result of sorting function cannot be missing."), v.code))
-    f.apply_method.emitWithBuilder(cb => cb.invokeCode[Boolean](sort, fregion, leftEC, rightEC))
-    f
+    (cb: EmitCodeBuilder, region: Value[Region], l: Code[_], r: Code[_]) => cb.invokeCode[Boolean](sort, region, l, r)
   }
 
-  private def present(pv: PCode): EmitCode = EmitCode(Code._empty, false, pv)
+  def deforestNDArrayI(x0: IR, cb: EmitCodeBuilder, region: Value[Region], env: EmitEnv): IEmitCode = {
 
-  private def present(pt: PType, c: Code[_]): EmitCode =
-    EmitCode(Code._empty, false, PCode(pt, c))
-
-  def deforestNDArrayI(x0: IR, cb: EmitCodeBuilder, region: Value[Region], env: E): IEmitCode = {
-
-    def emit(ir: IR, env: E = env): IEmitCode =
+    def emit(ir: IR, env: EmitEnv = env): IEmitCode =
       this.emitI(ir, cb, region, env, None, None)
 
-    def dEmit(ir: IR, env: E = env): IEmitCode = emit(ir, env)
+    def dEmit(ir: IR, env: EmitEnv = env): EmitCode = EmitCode.fromI(cb.emb)(cb => this.emitI(ir, cb, region, env, None, None))
 
     def deforest(x: IR): IEmitCodeGen[NDArrayEmitter] = {
-      val xType = coerce[PNDArray](x.pType)
+      val xType = coerce[TNDArray](x.typ)
       val outputNDims = xType.nDims
 
-      x match {
+      val r = x match {
         case NDArrayMap(child, elemName, body) =>
           deforest(child).map(cb) { childEmitter =>
-            val childP = child.pType.asInstanceOf[PNDArray]
-            val elemPType = childP.elementType
+            val elemRef = cb.emb.newEmitField("ndarray_map_element_name", childEmitter.elementType, required = true)
+            val bodyEnv = env.bind(elemName, elemRef)
+            val bodyEC = dEmit(body, bodyEnv)
 
-            new NDArrayEmitter(childEmitter.outputShape) {
-              override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
-                val elemRef = cb.emb.newPresentEmitField("ndarray_map_element_name", elemPType)
-
-                cb.assign(elemRef, childEmitter.outputElement(cb, idxVars))
-                val bodyEnv = env.bind(elemName, elemRef)
-                val bodyI = dEmit(body, bodyEnv)
-
-                bodyI.get(cb, "NDArray map body cannot be missing")
+            new NDArrayEmitter(childEmitter.outputShape, bodyEC.st) {
+              override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): SCode = {
+                cb.assign(elemRef, EmitCode.present(cb.emb, childEmitter.outputElement(cb, idxVars)))
+                bodyEC.toI(cb).get(cb, "NDArray map body cannot be missing")
               }
             }
           }
         case NDArrayMap2(lChild, rChild, lName, rName, body) =>
           deforest(lChild).flatMap(cb) { leftChildEmitter =>
             deforest(rChild).map(cb) { rightChildEmitter =>
-              val lP = coerce[PNDArray](lChild.pType)
-              val rP = coerce[PNDArray](rChild.pType)
-
               val leftShapeValues = leftChildEmitter.outputShape
               val rightShapeValues = rightChildEmitter.outputShape
 
-              val (newSetupShape, shapeArray) = NDArrayEmitter.unifyShapes2(cb.emb, leftShapeValues, rightShapeValues)
+              val shapeArray = NDArrayEmitter.unifyShapes2(cb, leftShapeValues, rightShapeValues)
 
-              cb.append(newSetupShape)
+              val lElemRef = cb.emb.newEmitField(lName, leftChildEmitter.elementType, required = true)
+              val rElemRef = cb.emb.newEmitField(rName, rightChildEmitter.elementType, required = true)
+              val bodyEnv = env.bind(lName, lElemRef)
+                .bind(rName, rElemRef)
+              val bodyEC = dEmit(body, bodyEnv)
 
-              new NDArrayEmitter(shapeArray) {
-                override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
-                  val lElemRef = cb.emb.newPresentEmitField(lName, lP.elementType)
-                  val rElemRef = cb.emb.newPresentEmitField(rName, rP.elementType)
-
-                  val bodyEnv = env.bind(lName, lElemRef)
-                    .bind(rName, rElemRef)
-
+              new NDArrayEmitter(shapeArray, bodyEC.st) {
+                override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): SCode = {
                   val lIdxVars2 = NDArrayEmitter.zeroBroadcastedDims2(cb.emb, idxVars, nDims, leftShapeValues)
                   val rIdxVars2 = NDArrayEmitter.zeroBroadcastedDims2(cb.emb, idxVars, nDims, rightShapeValues)
 
-                  cb.assign(lElemRef, leftChildEmitter.outputElement(cb, lIdxVars2))
-                  cb.assign(rElemRef, rightChildEmitter.outputElement(cb, rIdxVars2))
+                  cb.assign(lElemRef, EmitCode.present(cb.emb, leftChildEmitter.outputElement(cb, lIdxVars2)))
+                  cb.assign(rElemRef, EmitCode.present(cb.emb, rightChildEmitter.outputElement(cb, rIdxVars2)))
 
-                  dEmit(body, bodyEnv).get(cb, "NDArrayMap2 body cannot be missing")
+                  bodyEC.toI(cb).get(cb, "NDArrayMap2 body cannot be missing")
                 }
               }
             }
           }
         case NDArrayReindex(child, indexExpr) =>
           deforest(child).map(cb) { childEmitter =>
-            val childPType = child.pType.asInstanceOf[PNDArray]
+            val childType = child.typ.asInstanceOf[TNDArray]
 
             val shapeSeq = indexExpr.map { childIndex =>
-              if (childIndex < childPType.nDims)
+              if (childIndex < childType.nDims)
                 childEmitter.outputShape(childIndex)
               else
                 const(1L)
             }
 
-            new NDArrayEmitter(shapeSeq) {
-              override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
+            new NDArrayEmitter(shapeSeq, childEmitter.elementType) {
+              override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): SCode = {
                 val concreteIdxsForChild = Array.tabulate(childEmitter.nDims) { childDim =>
                   val parentDim = indexExpr.indexOf(childDim)
                   idxVars(parentDim)
@@ -2554,13 +2609,12 @@ class Emit[C](
           }
         case x@NDArrayReshape(childND, shape) =>
           deforest(childND).flatMap(cb) { childEmitter =>
-            val outputNDims = x.pType.nDims
 
             val childShapeValues = childEmitter.outputShape
 
-            val requestedShapeValues = Array.tabulate(x.pType.nDims)(i => cb.newLocal[Long](s"ndarray_reindex_request_shape_$i")).toIndexedSeq
+            val requestedShapeValues = Array.tabulate(outputNDims)(i => cb.newLocal[Long](s"ndarray_reindex_request_shape_$i")).toIndexedSeq
 
-            dEmit(shape, env).map(cb) { pc =>
+            emit(shape, env).map(cb) { pc =>
               val tupleCode = pc.asBaseStruct
               val tupleValue = tupleCode.memoize(cb, "ndarray_reshape_requested")
 
@@ -2596,13 +2650,13 @@ class Emit[C](
               }
 
               val numElements = cb.newLocal[Long]("ndarray_reshape_child_num_elements")
-              cb.assign(numElements, childND.pType.asInstanceOf[PNDArray].numElements(childShapeValues))
+              cb.assign(numElements, SNDArray.numElements(childShapeValues))
 
               cb.ifx(hasNegativeOne.mux(
                 (runningProduct ceq 0L) || (numElements % runningProduct) > 0L,
                 numElements cne runningProduct
               ), {
-                cb._fatal("Can't reshape since requested shape is incompatible with number of elements")
+                cb._fatal("Can't reshape since requested shape is incompatible with number of elements. Requested ", cb.strValue(tupleValue), " and num elements was ", numElements.toS)
               })
               cb.assign(replacesNegativeOne, (runningProduct ceq 0L).mux(0L, numElements / runningProduct))
 
@@ -2611,8 +2665,8 @@ class Emit[C](
                 cb.assign(requestedShapeValues(i), (tempShapeElement ceq -1L).mux(replacesNegativeOne, tempShapeElement))
               }
 
-              new NDArrayEmitter(requestedShapeValues) {
-                override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
+              new NDArrayEmitter(requestedShapeValues, childEmitter.elementType) {
+                override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): SCode = {
                   val storeElementIndex = cb.newLocal[Long]("ndarray_reshape_index_store")
                   cb.assign(storeElementIndex, LinalgCodeUtils.linearizeIndicesRowMajor(idxVars, requestedShapeValues, cb.emb))
 
@@ -2628,8 +2682,8 @@ class Emit[C](
         case x@NDArrayFilter(child, filters) =>
           deforest(child).map(cb) { childEmitter =>
 
-            val filterWasMissing = (0 until filters.size).map(i => cb.newField[Boolean](s"ndarray_filter_${i}_was_missing"))
-            val filtPValues = new Array[PIndexableValue](filters.size)
+            val filterWasMissing = (0 until filters.size).map(i => cb.newField[Boolean](s"ndarray_filter_${ i }_was_missing"))
+            val filtPValues = new Array[SIndexableValue](filters.size)
             val outputShape = childEmitter.outputShape.map(_ => cb.newField[Long]("ndarray_filter_output_shapes"))
 
             filters.zipWithIndex.foreach { case (filt, i) =>
@@ -2641,7 +2695,7 @@ class Emit[C](
                 },
                 {
                   filtArrayPC => {
-                    val filtArrayPValue = filtArrayPC.asIndexable.memoize(cb, s"ndarray_filt_array_${i}")
+                    val filtArrayPValue = filtArrayPC.asIndexable.memoize(cb, s"ndarray_filt_array_${ i }")
                     filtPValues(i) = filtArrayPValue
                     cb.assign(outputShape(i), filtArrayPValue.loadLength().toL)
                     cb.assign(filterWasMissing(i), false)
@@ -2650,9 +2704,9 @@ class Emit[C](
               )
             }
 
-            new NDArrayEmitter(outputShape) {
-              override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
-                val newIdxVars: IndexedSeq[Settable[Long]] = Array.tabulate(x.pType.nDims) { _ => cb.newField[Long]("ndarray_filter_new_idx_val") }
+            new NDArrayEmitter(outputShape, childEmitter.elementType) {
+              override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): SCode = {
+                val newIdxVars: IndexedSeq[Settable[Long]] = Array.tabulate(outputNDims) { _ => cb.newField[Long]("ndarray_filter_new_idx_val") }
                 newIdxVars.zipWithIndex.foreach { case (newIdxVar, i) =>
                   cb.ifx(filterWasMissing(i), {
                     cb.assign(newIdxVar, idxVars(i))
@@ -2671,14 +2725,14 @@ class Emit[C](
             emit(slicesIR).flatMap(cb) { slicesPC =>
               val slicesValue = slicesPC.asBaseStruct.memoize(cb, "ndarray_slice_tuple_pv")
 
-              val (indexingIndices, slicingIndices) = slicesValue.pt.types.zipWithIndex.partition { case (pFieldType, idx) =>
+              val (indexingIndices, slicingIndices) = slicesValue.st.fieldTypes.zipWithIndex.partition { case (pFieldType, idx) =>
                 pFieldType.isPrimitive
               } match {
                 case (a, b) => (a.map(_._2), b.map(_._2))
               }
 
               IEmitCode.multiFlatMap[Int, SCode, NDArrayEmitter](indexingIndices, indexingIndex => slicesValue.loadField(cb, indexingIndex), cb) { indexingSCodes =>
-                val indexingValues = indexingSCodes.map(sCode => sCode.memoize(cb, "ndarray_slice_indexer"))
+                val indexingValues = indexingSCodes.map(sCode => cb.newLocal("ndarray_slice_indexer", sCode.asInt64.longCode(cb)))
                 val slicingValueTriples = new BoxedArrayBuilder[(Value[Long], Value[Long], Value[Long])]()
                 val outputShape = {
                   IEmitCode.multiFlatMap[Int, SCode, IndexedSeq[Value[Long]]](slicingIndices,
@@ -2718,24 +2772,21 @@ class Emit[C](
                 }
 
                 outputShape.map(cb) { outputShapeSeq =>
-                  new NDArrayEmitter(outputShapeSeq) {
-                    override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
+                  new NDArrayEmitter(outputShapeSeq, childEmitter.elementType) {
+                    override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): SCode = {
                       // Iterate through the slices tuple given in. For each single integer, should just copy that integer into
                       // an indexed seq. For each range, should use start and step to modify.
                       val oldIdxVarsIterator = idxVars.toIterator
                       val indexingIterator = indexingValues.toIterator
                       val slicingIterator = slicingValueTriples.result().toIterator
 
-                      val newIdxVars = slicesValue.pt.types.map { fieldType => fieldType match {
-                        case indexer: PInt64 => {
-                          indexingIterator.next().asPValue.value.asInstanceOf[Value[Long]]
-                        }
-                        case slicer: PBaseStruct => {
+                      val newIdxVars = slicesValue.st.fieldTypes.map {
+                        case SInt64 =>
+                          indexingIterator.next()
+                        case slicer: SBaseStruct =>
                           val (start, stop, step) = slicingIterator.next()
-
-                          cb.memoize(PCode.apply(PInt64Required, start + oldIdxVarsIterator.next() * step), "ndarray_slice_adjusted_lookup").value.asInstanceOf[Value[Long]]
-                        }
-                      }}
+                          cb.newLocal[Long]("ndarray_slice_adjusted_lookup", start + oldIdxVarsIterator.next() * step)
+                      }
 
                       childEmitter.outputElement(cb, newIdxVars)
                     }
@@ -2771,19 +2822,19 @@ class Emit[C](
               val loopIdx = cb.newLocal[Int]("ndarray_concat_shape_check_idx")
               val firstND = ndsArrayPValue.loadElement(cb, 0).map(cb) { sCode => sCode.asNDArray }.get(cb).memoize(cb, "ndarray_concat_input_0")
               val newShape = (0 until outputNDims).map { dimIdx =>
-                val localDim = cb.newLocal[Long](s"ndarray_concat_output_shape_element_${dimIdx}")
+                val localDim = cb.newLocal[Long](s"ndarray_concat_output_shape_element_${ dimIdx }")
                 val ndShape = firstND.shapes(cb)
                 cb.assign(localDim, ndShape(dimIdx))
                 cb.forLoop(cb.assign(loopIdx, 1), loopIdx < arrLength, cb.assign(loopIdx, loopIdx + 1), {
                   val shapeOfNDAtIdx = ndsArrayPValue.loadElement(cb, loopIdx).map(cb) { sCode => sCode.asNDArray }.get(cb).shape(cb).memoize(cb, "ndarray_concat_input_shape")
-                  val dimLength = shapeOfNDAtIdx.loadField(cb, dimIdx).get(cb).toPCode(cb, region).memoize(cb, "dimLength").value.asInstanceOf[Value[Long]]
+                  val dimLength = cb.newLocal[Long]("dimLength", shapeOfNDAtIdx.loadField(cb, dimIdx).get(cb).asInt64.longCode(cb))
 
                   if (dimIdx == axis) {
                     cb.assign(localDim, localDim + dimLength)
                   }
                   else {
                     cb.ifx(dimLength.cne(localDim),
-                      cb._fatal(const(s"NDArrayConcat: mismatched dimensions of input NDArrays along axis ").concat(loopIdx.toS).concat(": expected ")
+                      cb._fatal(const(s"NDArrayConcat: mismatched dimensions of input NDArrays along axis ").concat(axis.toString).concat(": expected ")
                         .concat(localDim.toS).concat(", got ")
                         .concat(dimLength.toS))
                     )
@@ -2792,8 +2843,8 @@ class Emit[C](
                 localDim
               }
 
-              new NDArrayEmitter(newShape) {
-                override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
+              new NDArrayEmitter(newShape, ndsArrayPValue.st.elementType.asInstanceOf[SNDArray].elementType) {
+                override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): SCode = {
                   val concatAxisIdx = cb.newLocal[Long]("ndarray_concat_axis_id")
                   val whichNDArrayToRead = cb.newLocal[Int]("ndarray_concat_outputElement_i")
 
@@ -2810,7 +2861,7 @@ class Emit[C](
                   val transformedIdxs = Array.tabulate(nDims) { idx =>
                     if (idx == axis) concatAxisIdx else idxVars(idx)
                   }.toFastIndexedSeq
-                  ndsArrayPValue.loadElement(cb, whichNDArrayToRead).get(cb).asNDArray.memoize(cb, "ndarray_to_load_element_from").loadElement(transformedIdxs, cb).toPCode(cb, region)
+                  ndsArrayPValue.loadElement(cb, whichNDArrayToRead).get(cb).asNDArray.memoize(cb, "ndarray_to_load_element_from").loadElement(transformedIdxs, cb)
                 }
               }
             })
@@ -2822,42 +2873,53 @@ class Emit[C](
             val newOutputShape = axesToKeep.map(idx => childEmitter.outputShape(idx))
             val newOutputShapeComplement = axesToSumOut.map(idx => childEmitter.outputShape(idx))
 
-            new NDArrayEmitter(newOutputShape) {
-              override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
-                val numericElementType = coerce[PNumeric](child.pType.asInstanceOf[PNDArray].elementType)
+            val st = child.typ.asInstanceOf[TNDArray].elementType match {
+              case TInt32 => SInt32
+              case TInt64 => SInt64
+              case TFloat32 => SFloat32
+              case TFloat64 => SFloat64
+            }
+            new NDArrayEmitter(newOutputShape, st) {
+              override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): SCode = {
+                val numericElementType = coerce[PNumeric](childEmitter.elementType.canonicalPType())
                 val runningSum = NumericPrimitives.newLocal(cb, "ndarray_agg_running_sum", numericElementType.virtualType)
                 cb.assign(runningSum, numericElementType.zero)
 
-                SNDArray.forEachIndex(cb, newOutputShapeComplement, "NDArrayAgg_Sum_loop"){ case (cb, coordsBeingSummedOut) =>
+                SNDArray.forEachIndex(cb, newOutputShapeComplement, "NDArrayAgg_Sum_loop") { case (cb, coordsBeingSummedOut) =>
                   // Build the new list we need to pass down into child
                   val idxVarsIt = idxVars.toIterator
                   val summedOutIt = coordsBeingSummedOut.toIterator
                   val fullIndicesForChild = (0 until childDims).map(idx =>
                     if (axesToSumOut.contains(idx)) summedOutIt.next() else idxVarsIt.next()
                   )
-                  cb.assign(runningSum, numericElementType.add(runningSum, childEmitter.outputElement(cb, fullIndicesForChild).code))
+                  cb.assign(runningSum, numericElementType.add(runningSum, SType.extractPrimCode(cb, childEmitter.outputElement(cb, fullIndicesForChild))))
                 }
 
-                PCode.apply(numericElementType, runningSum)
+                primitive(numericElementType.virtualType, runningSum)
               }
             }
           }
         case _ =>
           val ndI = emit(x)
-          ndI.map(cb){ ndPCode =>
+          ndI.map(cb) { ndPCode =>
             val ndPv = ndPCode.asNDArray.memoize(cb, "deforestNDArray_fall_through_ndarray")
             val shape = ndPv.shapes(cb)
 
-            new NDArrayEmitter(shape) {
-              override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
-                ndPv.asInstanceOf[PNDArrayValue].loadElement(idxVars, cb).toPCode(cb, region)
+            new NDArrayEmitter(shape, ndPCode.st.asInstanceOf[SNDArray].elementType) {
+              override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): SCode = {
+                ndPv.loadElement(idxVars, cb)
               }
             }
           }
       }
+
+      val deforestedEltType = r.value.elementType.virtualType
+      if (deforestedEltType != xType.elementType)
+        throw new RuntimeException(s"invalid NDArray deforest rule: deforested element type is ${ deforestedEltType }, expect ${ xType.elementType }")
+      r
     }
 
-    deforest(x0).map(cb)(emitter => emitter.emit(cb, coerce[PCanonicalNDArray](x0.pType), region))
+    deforest(x0).map(cb)(emitter => emitter.emit(cb, PCanonicalNDArray(emitter.elementType.canonicalPType().setRequired(true), emitter.nDims), region))
   }
 }
 
@@ -2882,15 +2944,15 @@ object NDArrayEmitter {
   def zeroBroadcastedDims(indices: IndexedSeq[Code[Long]], broadcastMask: IndexedSeq[Code[Long]]): IndexedSeq[Value[Long]] = {
     indices.zip(broadcastMask).map { case (index, flag) => new Value[Long] {
       def get: Code[Long] = index * flag
-    }}
+    }
+    }
   }
 
-  def unifyShapes2(mb: EmitMethodBuilder[_], leftShape: IndexedSeq[Value[Long]], rightShape: IndexedSeq[Value[Long]]): (Code[Unit], IndexedSeq[Value[Long]]) = {
-    val sb = SetupBuilder(mb)
-
+  def unifyShapes2(cb: EmitCodeBuilder, leftShape: IndexedSeq[Value[Long]], rightShape: IndexedSeq[Value[Long]]): IndexedSeq[Value[Long]] = {
     val shape = leftShape.zip(rightShape).zipWithIndex.map { case ((left, right), i) =>
       val notSameAndNotBroadcastable = !((left ceq right) || (left ceq 1L) || (right ceq 1L))
-      sb.memoizeField(
+      cb.newField[Long](
+        s"unify_shapes2_shape$i",
         notSameAndNotBroadcastable.mux(
           Code._fatal[Long](rightShape.foldLeft[Code[String]](
             leftShape.foldLeft[Code[String]](
@@ -2899,16 +2961,14 @@ object NDArrayEmitter {
               .concat("] vs [ ")
           )((accum, v) => accum.concat(v.toS).concat(" "))
             .concat("]")),
-          (left > right).mux(left, right)),
-        s"unify_shapes2_shape$i")
+          (left > right).mux(left, right)))
     }
 
-    (sb.result(), shape)
+    shape
   }
 
   def matmulShape(cb: EmitCodeBuilder, leftShape: IndexedSeq[Value[Long]], rightShape: IndexedSeq[Value[Long]]): IndexedSeq[Value[Long]] = {
     val mb = cb.emb
-    val sb = SetupBuilder(mb)
 
     assert(leftShape.nonEmpty)
     assert(rightShape.nonEmpty)
@@ -2916,7 +2976,6 @@ object NDArrayEmitter {
     var lK: Value[Long] = null
     var rK: Value[Long] = null
     var shape: IndexedSeq[Value[Long]] = null
-    var setup: Code[Unit] = Code._empty
 
     if (leftShape.length == 1) {
       lK = leftShape.head
@@ -2934,10 +2993,9 @@ object NDArrayEmitter {
         shape = leftShape.slice(0, leftShape.length - 1)
       } else {
         rK = rightShape(rightShape.length - 2)
-        val (unifiedSetup, unifiedShape) = unifyShapes2(mb,
+        val unifiedShape = unifyShapes2(cb,
           leftShape.slice(0, leftShape.length - 2),
           rightShape.slice(0, rightShape.length - 2))
-        setup = Code(setup, unifiedSetup)
         shape = unifiedShape :+ leftShape(leftShape.length - 2) :+ rightShape.last
       }
     }
@@ -2946,25 +3004,23 @@ object NDArrayEmitter {
     val rightShapeString = const("(").concat(rightShape.map(_.toS).reduce((a, b) => a.concat(", ").concat(b))).concat(")")
 
 
-    setup = Code(setup,
-      (lK cne rK).orEmpty(
-        Code._fatal[Unit](const("Matrix dimensions incompatible: ")
-          .concat(leftShapeString)
-          .concat(" can't be multiplied by matrix with dimensions ")
-          .concat(rightShapeString))))
+    cb.ifx(lK.cne(rK), {
+      cb._fatal("Matrix dimensions incompatible: ",
+        leftShapeString,
+        " can't be multiplied by matrix with dimensions ",
+        rightShapeString)
+    })
 
-    cb.append(setup)
     shape
   }
 }
 
-abstract class NDArrayEmitter(val outputShape: IndexedSeq[Value[Long]])
-{
+abstract class NDArrayEmitter(val outputShape: IndexedSeq[Value[Long]], val elementType: SType) {
   val nDims = outputShape.length
 
-  def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode
+  def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): SCode
 
-  def emit(cb: EmitCodeBuilder, targetType: PCanonicalNDArray, region: Value[Region]): PCode = {
+  def emit(cb: EmitCodeBuilder, targetType: PCanonicalNDArray, region: Value[Region]): SCode = {
     val shapeArray = outputShape
 
     val idx = cb.newLocal[Int]("ndarrayemitter_emitloops_idx", 0)
@@ -2976,8 +3032,10 @@ abstract class NDArrayEmitter(val outputShape: IndexedSeq[Value[Long]])
       region)
 
     SNDArray.forEachIndex(cb, shapeArray, "ndarrayemitter_emitloops") { case (cb, idxVars) =>
-      val element = IEmitCode.present(cb, outputElement(cb, idxVars)).consume(cb,  {cb._fatal("NDArray elements cannot  be missing")}, { elementPc  =>
-        targetType.elementType.storeAtAddress(cb, firstElementAddress + (idx.toL * targetType.elementType.byteSize), region, elementPc,  true)
+      val element = IEmitCode.present(cb, outputElement(cb, idxVars)).consume(cb, {
+        cb._fatal("NDArray elements cannot  be missing")
+      }, { elementPc =>
+        targetType.elementType.storeAtAddress(cb, firstElementAddress + (idx.toL * targetType.elementType.byteSize), region, elementPc, true)
       })
       cb.assign(idx, idx + 1)
     }

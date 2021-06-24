@@ -427,6 +427,8 @@ object TypeCheck {
       case BlockMatrixCollect(_) =>
       case BlockMatrixWrite(_, _) =>
       case BlockMatrixMultiWrite(_, _) =>
+      case ValueToBlockMatrix(child, _, _) =>
+        assert(child.typ.isInstanceOf[TArray] || child.typ.isInstanceOf[TNDArray] ||  child.typ == TFloat64)
       case CollectDistributedArray(ctxs, globals, cname, gname, body, _) =>
         assert(ctxs.typ.isInstanceOf[TStream])
       case x@ReadPartition(context, rowType, reader) =>

@@ -379,6 +379,11 @@ class Job:
         if not isinstance(self._batch._backend, backend.ServiceBackend):
             raise NotImplementedError("A ServiceBackend is required to use the 'gcsfuse' option")
 
+        if bucket == '':
+            raise BatchException('bucket cannot be the empty string')
+        if mount_point == '':
+            raise BatchException('mount_point cannot be the empty string')
+
         self._gcsfuse.append((bucket, mount_point, read_only))
         return self
 
@@ -871,7 +876,7 @@ class PythonJob(Job):
 
         return result
 
-    def _compile(self, local_tmpdir, remote_tmpdir):
+    async def _compile(self, local_tmpdir, remote_tmpdir):
         for i, (result, unapplied, args, kwargs) in enumerate(self._functions):
             def prepare_argument_for_serialization(arg):
                 if isinstance(arg, _resource.PythonResult):
@@ -910,13 +915,8 @@ class PythonJob(Job):
             job_path = os.path.dirname(result._get_path(remote_tmpdir))
             code_path = f'{job_path}/code{i}.p'
 
-            if isinstance(self._batch._backend, backend.LocalBackend):
-                os.makedirs(os.path.dirname(code_path), exist_ok=True)
-                with open(code_path, 'wb') as f:
-                    f.write(pipe.getvalue())
-            else:
-                assert isinstance(self._batch._backend, backend.ServiceBackend)
-                self._batch._gcs._write_gs_file_from_file_like_object(code_path, pipe)
+            await self._batch._fs.makedirs(os.path.dirname(code_path), exist_ok=True)
+            await self._batch._fs.write(code_path, pipe.getvalue())
 
             code = self._batch.read_input(code_path)
             self._add_inputs(code)

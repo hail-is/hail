@@ -3,8 +3,9 @@ include ../config.mk
 EXTRA_PYTHONPATH := ../hail/python:../gear
 PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
 
-QUERY_LATEST = $(DOCKER_PREFIX)/query:latest
-QUERY_IMAGE = $(DOCKER_PREFIX)/query:$(shell docker images -q --no-trunc query | sed -e 's,[^:]*:,,')
+TOKEN = $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
+
+QUERY_IMAGE := $(DOCKER_PREFIX)/query:$(TOKEN)
 
 .PHONY: check
 check:
@@ -17,22 +18,14 @@ build:
 	$(MAKE) -C ../hail shadowJar
 # janky
 	cp ../hail/build/libs/hail-all-spark.jar ./hail.jar
-	-docker pull $(QUERY_LATEST)
-	python3 ../ci/jinja2_render.py '{"service_java_run_base_image":{"image":"service-java-run-base"}}' Dockerfile Dockerfile.out
-	docker build -t query -f Dockerfile.out --cache-from query,$(QUERY_LATEST),service-base .
-
-.PHONY: push
-push: build
-	docker tag query $(QUERY_LATEST)
-	docker push $(QUERY_LATEST)
-	docker tag query $(QUERY_IMAGE)
-	docker push $(QUERY_IMAGE)
+	python3 ../ci/jinja2_render.py '{"service_java_run_base_image":{"image":"'$$(cat ../docker/service-java-run-base-image-ref)'"}}' Dockerfile Dockerfile.out
+	../docker-build.sh . Dockerfile.out $(QUERY_IMAGE)
 
 UPLOAD_QUERY_JAR_TOKEN := $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
 HAIL_REVISION := $(shell git rev-parse HEAD)
 
 .PHONY: deploy
-deploy: push
+deploy: build
 	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
 	kubectl -n $(NAMESPACE) apply -f service-account.yaml
 	gsutil cp ./hail.jar gs://hail-test-dmk9z/$(UPLOAD_QUERY_JAR_TOKEN)/jars/$(HAIL_REVISION).jar

@@ -16,14 +16,16 @@ import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, BlockMatrixReadRowBlock
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
 import is.hail.types._
-import is.hail.types.physical._
-import is.hail.types.physical.stypes.interfaces.{SStream, SStreamCode}
+import is.hail.types.physical.{stypes, _}
+import is.hail.types.physical.stypes.{BooleanSingleCodeType, Int32SingleCodeType, PTypeReferenceSingleCodeType, StreamSingleCodeType}
+import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStream, SStreamCode}
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.TaskContext
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark.sql.Row
 import org.json4s.JsonAST.JString
+import org.json4s.jackson.JsonMethods
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
 import java.io.{ByteArrayInputStream, DataInputStream, DataOutputStream, InputStream}
@@ -416,6 +418,12 @@ abstract class TableReader {
     Extraction.decompose(this)(TableReader.formats)
   }
 
+  def renderShort(): String
+
+  def defaultRender(): String = {
+    StringEscapeUtils.escapeString(JsonMethods.compact(toJValue))
+  }
+
   def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR =
     throw new LowererUnsupportedOperation(s"${ getClass.getSimpleName }.lowerGlobals not implemented")
 
@@ -483,7 +491,6 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
       val iterator = mb.genFieldThisRef[Iterator[Long]]("rvdreader_iterator")
       val next = mb.genFieldThisRef[Long]("rvdreader_next")
 
-      val first = mb.genFieldThisRef[Boolean]("rvdreader_first")
       val region = mb.genFieldThisRef[Region]("rvdreader_region")
       val upcastF = mb.genFieldThisRef[AsmFunction2RegionLongLong]("rvdreader_upcast")
 
@@ -509,7 +516,7 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
         override def close(cb: EmitCodeBuilder): Unit = {}
       }
 
-      SStreamCode(SStream(producer.element.st, true), producer)
+      SStreamCode(producer)
     }
   }
 
@@ -539,7 +546,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends AbstractN
     context.toI(cb).map(cb) { path =>
       val pathString = path.asString.loadString()
       val xRowBuf = mb.genFieldThisRef[InputBuffer]("pnr_xrowbuf")
-      val next = mb.newPSettable(mb.fieldBuilder, spec.decodedPType(requestedType), "pnr_next")
+      val next = mb.newPSettable(mb.fieldBuilder, spec.encodedType.decodedSType(requestedType), "pnr_next")
       val region = mb.genFieldThisRef[Region]("pnr_region")
 
       val producer = new StreamProducer {
@@ -560,7 +567,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends AbstractN
 
         override def close(cb: EmitCodeBuilder): Unit = cb += xRowBuf.close()
       }
-      SStreamCode(SStream(producer.element.st, true), producer)
+      SStreamCode(producer)
     }
   }
 
@@ -635,12 +642,13 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
                 .consumeCode[Interval](cb,
                   Code._fatal[Interval](""),
                   { pc =>
-                    val pcm = pc.memoize(cb, "pnri_interval").asPValue
+                    val pcm = pc.memoize(cb, "pnri_interval")
+                    val pt = pcm.st.canonicalPType()
                     Code.invokeScalaObject2[PType, Long, Interval](
                       PartitionBoundOrdering.getClass,
                       "regionValueToJavaObject",
-                      mb.getPType(pcm.pt),
-                      coerce[Long](pcm.code))
+                      mb.getPType(pt),
+                      pt.store(cb, region, pcm, false))
                   }
                 ),
               Code._null[InputMetrics]
@@ -658,7 +666,7 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
 
         override def close(cb: EmitCodeBuilder): Unit = cb += it.invoke[Unit]("close")
       }
-      SStreamCode(SStream(producer.element.st, true), producer)
+      SStreamCode(producer)
     }
   }
 
@@ -747,7 +755,7 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
 
     context.toI(cb).map(cb) { ctxStruct =>
 
-      def getIndexReader(cb: EmitCodeBuilder, ctxMemo: PBaseStructValue): Code[IndexReader] = {
+      def getIndexReader(cb: EmitCodeBuilder, ctxMemo: SBaseStructValue): Code[IndexReader] = {
         makeIndexCode match {
           case Some(makeIndex) =>
             val indexPath = ctxMemo
@@ -762,19 +770,20 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
         }
       }
 
-      def getInterval(cb: EmitCodeBuilder, ctxMemo: PBaseStructValue): Code[Interval] = {
+      def getInterval(cb: EmitCodeBuilder, region: Value[Region], ctxMemo: SBaseStructValue): Code[Interval] = {
         makeIndexCode match {
           case Some(_) =>
             ctxMemo.loadField(cb, "interval")
               .consumeCode[Interval](cb,
                 Code._fatal[Interval](""),
                 { pc =>
-                  val pcm = pc.memoize(cb, "pnri_interval").asPValue
+                  val pcm = pc.memoize(cb, "pnri_interval")
+                  val pt = pcm.st.canonicalPType()
                   Code.invokeScalaObject2[PType, Long, Interval](
                     PartitionBoundOrdering.getClass,
                     "regionValueToJavaObject",
-                    mb.getPType(pcm.pt),
-                    coerce[Long](pcm.code))
+                    mb.getPType(pt),
+                    pt.store(cb, region, pcm, false))
                 }
               )
           case None => Code._null[Interval]
@@ -818,7 +827,7 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
               getIndexReader(cb, ctxMemo),
               leftOffsetField.map[Code[String]](const(_)).getOrElse(Code._null[String]),
               rightOffsetField.map[Code[String]](const(_)).getOrElse(Code._null[String]),
-              getInterval(cb, ctxMemo),
+              getInterval(cb, region, ctxMemo),
               Code._null[InputMetrics]
             ))
         }
@@ -834,7 +843,7 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
 
         override def close(cb: EmitCodeBuilder): Unit = cb += it.invoke[Unit]("close")
       }
-      SStreamCode(SStream(producer.element.st, true), producer)
+      SStreamCode(producer)
     }
   }
 
@@ -889,6 +898,8 @@ class TableNativeReader(
     decomposeWithName(params, "TableNativeReader")
   }
 
+  override def renderShort(): String = s"(TableNativeReader ${ params.path } ${ params.options.map(_.renderShort()).getOrElse("") })"
+
   override def hashCode(): Int = params.hashCode()
 
   override def equals(that: Any): Boolean = that match {
@@ -913,7 +924,7 @@ class TableNativeReader(
     else
       params.options.map(opts => new RVDPartitioner(specPart.kType, opts.intervals))
 
-    spec.rowsSpec.readTableStage(ctx, spec.rowsComponent.absolutePath(params.path), requestedType.rowType, partitioner, filterIntervals).apply(globals)
+    spec.rowsSpec.readTableStage(ctx, spec.rowsComponent.absolutePath(params.path), requestedType, partitioner, filterIntervals).apply(globals)
   }
 }
 
@@ -926,7 +937,9 @@ case class TableNativeZippedReader(
 ) extends TableReader {
   def pathsUsed: Seq[String] = FastSeq(pathLeft, pathRight)
 
-  private lazy val filterIntervals = options.map(_.filterIntervals).getOrElse(false)
+  override def renderShort(): String = s"(TableNativeZippedReader $pathLeft $pathRight ${ options.map(_.renderShort()).getOrElse("") })"
+
+  private lazy val filterIntervals = options.exists(_.filterIntervals)
 
   private def intervals = options.map(_.intervals)
 
@@ -1044,7 +1057,7 @@ case class TableNativeZippedReader(
     AbstractRVDSpec.readZippedLowered(ctx,
       specLeft.rowsSpec, specRight.rowsSpec,
       pathLeft + "/rows", pathRight + "/rows",
-      partitioner, options.exists(_.filterIntervals),
+      partitioner, filterIntervals,
       requestedType.rowType, reqLeft, reqRight, requestedType.key).apply(globals)
   }
 
@@ -1110,6 +1123,8 @@ case class TableFromBlockMatrixNativeReader(params: TableFromBlockMatrixNativeRe
   override def toJValue: JValue = {
     decomposeWithName(params, "TableFromBlockMatrixNativeReader")(TableReader.formats)
   }
+
+  def renderShort(): String = defaultRender()
 }
 
 object TableRead {
@@ -1684,6 +1699,11 @@ case class TableIntervalJoin(
   }
 }
 
+/**
+  * The TableMultiWayZipJoin node assumes that input tables have distinct keys. If inputs
+  * do not have distinct keys, the key that is included in the result is undefined, but
+  * is likely the last.
+  */
 case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String, globalName: String) extends TableIR {
   require(children.length > 0, "there must be at least one table as an argument")
 

@@ -105,7 +105,7 @@ class RequirednessSuite extends HailSuite {
       MakeTuple.ordered(FastIndexedSeq(I32(5), Str("bar"))))
 
     allRequired.foreach { n =>
-      nodes += Array(n, PType.canonical(n.typ, required).deepInnerRequired(required))
+      nodes += Array(n, RequirednessSuite.deepInnerRequired(PType.canonical(n.typ, required), required))
     }
 
     val bools = Array(true, false)
@@ -518,4 +518,23 @@ class RequirednessSuite extends HailSuite {
     val actual = coerce[TypeWithRequiredness](res.r.lookup(node)).canonicalPType(node.typ)
     assert(actual == expected)
   }
+}
+
+object RequirednessSuite {
+  def deepInnerRequired(t: PType, required: Boolean): PType =
+    t match {
+      case t: PCanonicalArray => PCanonicalArray(deepInnerRequired(t.elementType, true), required)
+      case t: PCanonicalSet => PCanonicalSet(deepInnerRequired(t.elementType, true), required)
+      case t: PCanonicalDict => PCanonicalDict(deepInnerRequired(t.keyType, true), deepInnerRequired(t.valueType, true), required)
+      case t: PCanonicalStruct =>
+        PCanonicalStruct(t.fields.map(f => PField(f.name, deepInnerRequired(f.typ, true), f.index)), required)
+      case t: PCanonicalTuple =>
+        PCanonicalTuple(t._types.map { f => f.copy(typ = deepInnerRequired(f.typ, true)) }, required)
+      case t: PCanonicalInterval =>
+        PCanonicalInterval(deepInnerRequired(t.pointType, true), required)
+      case t: PCanonicalStream =>
+        PCanonicalStream(deepInnerRequired(t.elementType, true), required = required)
+      case t =>
+        t.setRequired(required)
+    }
 }

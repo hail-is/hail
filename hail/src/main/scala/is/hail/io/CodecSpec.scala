@@ -3,12 +3,11 @@ package is.hail.io
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream, OutputStream}
 
 import is.hail.annotations.{Region, RegionValue}
-import is.hail.asm4s.{Code, TypeInfo, Value}
-import is.hail.expr.ir.{EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, ExecuteContext}
+import is.hail.asm4s.Code
+import is.hail.expr.ir.ExecuteContext
 import is.hail.types.encoded.EType
-import is.hail.types.physical.{PCode, PType, PValue, typeToTypeInfo}
+import is.hail.types.physical.PType
 import is.hail.types.virtual.Type
-import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils.using
 import org.apache.spark.rdd.RDD

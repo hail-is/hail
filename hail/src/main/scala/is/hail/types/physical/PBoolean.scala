@@ -27,13 +27,13 @@ class PBoolean(override val required: Boolean) extends PType with PPrimitive {
 
   override def byteSize: Long = 1
 
-  def sType: SBoolean = SBoolean(required)
+  def sType: SBoolean.type = SBoolean
 
   def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SCode): Unit = {
     cb += Region.storeBoolean(addr, value.asBoolean.boolCode(cb))
   }
 
-  override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): SBooleanCode = new SBooleanCode(required, Region.loadBoolean(addr))
+  override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): SBooleanCode = new SBooleanCode(Region.loadBoolean(addr))
 
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
     Region.storeByte(addr, annotation.asInstanceOf[Boolean].toByte)

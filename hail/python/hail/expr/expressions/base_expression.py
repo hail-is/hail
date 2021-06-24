@@ -517,7 +517,7 @@ class Expression(object):
     def _div_ret_type_f(t):
         assert is_numeric(t)
         if t == tint32 or t == tint64:
-            return tfloat32
+            return tfloat64
         else:
             # Float64 or Float32
             return t

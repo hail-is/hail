@@ -1466,40 +1466,35 @@ class Tests(unittest.TestCase):
         self.assertFalse(hl.eval(s_whitespace.endswith('a')))
 
     def test_str_parsing(self):
-        for x in ('true', 'True', 'TRUE'):
-            self.assertTrue(hl.eval(hl.bool(x)))
-
-        for x in ('false', 'False', 'FALSE'):
-            self.assertFalse(hl.eval(hl.bool(x)))
+        assert_all_eval_to(*[(hl.bool(x), True) for x in ('true', 'True', 'TRUE')])
+        assert_all_eval_to(*[(hl.bool(x), False) for x in ('false', 'False', 'FALSE')])
 
         for x in ('nan', 'Nan', 'naN', 'NaN'):
             for f in (hl.float, hl.float32, hl.float64, hl.parse_float32, hl.parse_float64):
-                self.assertTrue(hl.eval(hl.is_nan(f(x))))
-                self.assertTrue(hl.eval(hl.is_nan(f('+' + x))))
-                self.assertTrue(hl.eval(hl.is_nan(f('-' + x))))
-
+                assert_all_eval_to(
+                    (hl.is_nan(f(x)), True),
+                    (hl.is_nan(f('+' + x)), True),
+                    (hl.is_nan(f('-' + x)), True)
+                )
         for x in ('inf', 'Inf', 'iNf', 'InF', 'infinity', 'InfiNitY', 'INFINITY'):
             for f in (hl.float, hl.float32, hl.float64, hl.parse_float32, hl.parse_float64):
-                self.assertTrue(hl.eval(hl.is_infinite(f(x))))
-                self.assertTrue(hl.eval(hl.is_infinite(f('+' + x))))
-                self.assertTrue(hl.eval(hl.is_infinite(f('-' + x))))
-                self.assertTrue(hl.eval(f('-' + x) < 0.0))
+                assert_all_eval_to(
+                    (hl.is_infinite(f(x)), True),
+                    (hl.is_infinite(f('+' + x)), True),
+                    (hl.is_infinite(f('-' + x)), True),
+                    (f('-' + x) < 0.0, True)
+                )
 
         for x in ('0', '1', '-5', '12382421'):
-            for f in (hl.int32, hl.int64, hl.parse_int32, hl.parse_int64):
-                self.assertEqual(hl.eval(f(hl.literal(x))), int(x))
-            for f in (hl.float32, hl.float64, hl.parse_float32, hl.parse_float64):
-                self.assertEqual(hl.eval(f(hl.literal(x))), float(x))
+            assert_all_eval_to(*[(f(hl.literal(x)), int(x)) for f in (hl.int32, hl.int64, hl.parse_int32, hl.parse_int64)])
+            assert_all_eval_to(*[(f(hl.literal(x)), float(x)) for f in (hl.float32, hl.float64, hl.parse_float32, hl.parse_float64)])
 
         for x in ('-1.5', '0.0', '2.5'):
-            for f in (hl.float32, hl.float64, hl.parse_float32, hl.parse_float64):
-                self.assertEqual(hl.eval(f(hl.literal(x))), float(x))
-            for f in (hl.parse_int32, hl.parse_int64):
-                self.assertEqual(hl.eval(f(hl.literal(x))), None)
+            assert_all_eval_to(*[(f(hl.literal(x)), float(x)) for f in (hl.float32, hl.float64, hl.parse_float32, hl.parse_float64)])
+            assert_all_eval_to(*[(f(hl.literal(x)), None) for f in (hl.parse_int32, hl.parse_int64)])
 
         for x in ('abc', '1abc', ''):
-            for f in (hl.parse_float32, hl.parse_float64, hl.parse_int32, hl.parse_int64):
-                self.assertEqual(hl.eval(f(hl.literal(x))), None)
+            assert_all_eval_to(*[(f(hl.literal(x)), None) for f in (hl.parse_float32, hl.parse_float64, hl.parse_int32, hl.parse_int64)])
 
     def test_str_missingness(self):
         self.assertEqual(hl.eval(hl.str(1)), '1')
@@ -1526,33 +1521,33 @@ class Tests(unittest.TestCase):
         expected = [0.5, 1.0, 2.0, 4.0, None]
         expected_inv = [2.0, 1.0, 0.5, 0.25, None]
 
-        self.check_expr(a_int32 / 4, expected, tarray(tfloat32))
-        self.check_expr(a_int64 / 4, expected, tarray(tfloat32))
+        self.check_expr(a_int32 / 4, expected, tarray(tfloat64))
+        self.check_expr(a_int64 / 4, expected, tarray(tfloat64))
         self.check_expr(a_float32 / 4, expected, tarray(tfloat32))
         self.check_expr(a_float64 / 4, expected, tarray(tfloat64))
 
-        self.check_expr(int32_4s / a_int32, expected_inv, tarray(tfloat32))
-        self.check_expr(int32_4s / a_int64, expected_inv, tarray(tfloat32))
+        self.check_expr(int32_4s / a_int32, expected_inv, tarray(tfloat64))
+        self.check_expr(int32_4s / a_int64, expected_inv, tarray(tfloat64))
         self.check_expr(int32_4s / a_float32, expected_inv, tarray(tfloat32))
         self.check_expr(int32_4s / a_float64, expected_inv, tarray(tfloat64))
 
-        self.check_expr(a_int32 / int32_4s, expected, tarray(tfloat32))
-        self.check_expr(a_int64 / int32_4s, expected, tarray(tfloat32))
+        self.check_expr(a_int32 / int32_4s, expected, tarray(tfloat64))
+        self.check_expr(a_int64 / int32_4s, expected, tarray(tfloat64))
         self.check_expr(a_float32 / int32_4s, expected, tarray(tfloat32))
         self.check_expr(a_float64 / int32_4s, expected, tarray(tfloat64))
 
-        self.check_expr(a_int32 / int64_4, expected, tarray(tfloat32))
-        self.check_expr(a_int64 / int64_4, expected, tarray(tfloat32))
+        self.check_expr(a_int32 / int64_4, expected, tarray(tfloat64))
+        self.check_expr(a_int64 / int64_4, expected, tarray(tfloat64))
         self.check_expr(a_float32 / int64_4, expected, tarray(tfloat32))
         self.check_expr(a_float64 / int64_4, expected, tarray(tfloat64))
 
-        self.check_expr(int64_4 / a_int32, expected_inv, tarray(tfloat32))
-        self.check_expr(int64_4 / a_int64, expected_inv, tarray(tfloat32))
+        self.check_expr(int64_4 / a_int32, expected_inv, tarray(tfloat64))
+        self.check_expr(int64_4 / a_int64, expected_inv, tarray(tfloat64))
         self.check_expr(int64_4 / a_float32, expected_inv, tarray(tfloat32))
         self.check_expr(int64_4 / a_float64, expected_inv, tarray(tfloat64))
 
-        self.check_expr(a_int32 / int64_4s, expected, tarray(tfloat32))
-        self.check_expr(a_int64 / int64_4s, expected, tarray(tfloat32))
+        self.check_expr(a_int32 / int64_4s, expected, tarray(tfloat64))
+        self.check_expr(a_int64 / int64_4s, expected, tarray(tfloat64))
         self.check_expr(a_float32 / int64_4s, expected, tarray(tfloat32))
         self.check_expr(a_float64 / int64_4s, expected, tarray(tfloat64))
 
@@ -2434,6 +2429,9 @@ class Tests(unittest.TestCase):
         fm = hl.flatmap(lambda x: hl.set(hl.range(0, x.length()).map(lambda i: x[i])), {"ABC", "AAa", "BD"})
         self.assertEqual(hl.eval(fm), {'A', 'a', 'B', 'C', 'D'})
 
+    def test_starmap(self):
+        self.assertEqual(hl.eval(hl.array([(1, 2), (2, 3)]).starmap(lambda x,y: x+y)), [3, 5])
+
     def test_array_corr(self):
         x1 = [random.uniform(-10, 10) for x in range(10)]
         x2 = [random.uniform(-10, 10) for x in range(10)]
@@ -2471,6 +2469,10 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.sorted([0, 1, 4, hl.missing(tint), 3, 2], lambda x: x)), [0, 1, 2, 3, 4, None])
         self.assertEqual(hl.sorted([0, 1, 4, hl.missing(tint), 3, 2], lambda x: x, reverse=True).collect()[0], [4, 3, 2, 1, 0, None])
         self.assertEqual(hl.eval(hl.sorted([0, 1, 4, hl.missing(tint), 3, 2], lambda x: x, reverse=True)), [4, 3, 2, 1, 0, None])
+
+        self.assertEqual(hl.eval(hl.sorted({0, 1, 4, 3, 2})), [0, 1, 2, 3, 4])
+
+        self.assertEqual(hl.eval(hl.sorted({"foo": 1, "bar": 2})), [("bar", 2), ("foo", 1)])
 
     def test_sort_by(self):
         self.assertEqual(hl.eval(hl._sort_by(["c", "aaa", "bb", hl.missing(hl.tstr)], lambda l, r: hl.len(l) < hl.len(r))), ["c", "bb", "aaa", None])

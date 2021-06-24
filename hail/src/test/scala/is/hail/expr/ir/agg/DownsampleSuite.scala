@@ -6,7 +6,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.stypes.primitives.{SFloat64Code, SInt32Code}
-import is.hail.types.physical.{PCanonicalArray, PCanonicalString, PCode}
+import is.hail.types.physical.{PCanonicalArray, PCanonicalString}
 import is.hail.utils.FastIndexedSeq
 import org.testng.annotations.Test
 
@@ -40,9 +40,9 @@ class DownsampleSuite extends HailSuite {
           cb.assign(y, rng.invoke[Double, Double, Double]("runif", 0d, 1d))
 
           ds1.insert(cb,
-            EmitCode.present(cb.emb, new SFloat64Code(true, x)),
-            EmitCode.present(cb.emb, new SFloat64Code(true, y)),
-            EmitCode.missing(cb.emb, PCanonicalArray(PCanonicalString())))
+            EmitCode.present(cb.emb, new SFloat64Code(x)),
+            EmitCode.present(cb.emb, new SFloat64Code(y)),
+            EmitCode.missing(cb.emb, PCanonicalArray(PCanonicalString()).sType))
           cb.assign(i, i + const(1))
       })
       ds1.merge(cb, ds2)

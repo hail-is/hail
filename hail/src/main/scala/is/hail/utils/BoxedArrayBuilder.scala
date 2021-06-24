@@ -6,7 +6,7 @@ object BoxedArrayBuilder {
   final val defaultInitialCapacity: Int = 16
 }
 
-final class BoxedArrayBuilder[T](initialCapacity: Int)(implicit tct: ClassTag[T]) extends Serializable {
+final class BoxedArrayBuilder[T <: AnyRef](initialCapacity: Int)(implicit tct: ClassTag[T]) extends Serializable {
   private[utils] var b: Array[T] = new Array[T](initialCapacity)
   private[utils] var size_ : Int = 0
 
