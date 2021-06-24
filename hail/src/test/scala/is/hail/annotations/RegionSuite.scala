@@ -1,8 +1,11 @@
 package is.hail.annotations
 
+import is.hail.expr.ir.LongArrayBuilder
 import is.hail.utils.{info, using}
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
+
+import scala.collection.mutable.ArrayBuffer
 
 class RegionSuite extends TestNGSuite {
 
@@ -230,6 +233,45 @@ class RegionSuite extends TestNGSuite {
 
       assert(pool.numFreeRegions() == 1)
       assert(pool.numFreeBlocks() == 2)
+    }
+  }
+
+  @Test
+  def testCache1(): Unit = {
+    RegionPool.scoped { pool =>
+
+      var operations = ArrayBuffer[(String, Long, Long)]()
+
+      def allocate(numBytes: Long): Long = {
+        var pointer = Memory.malloc(numBytes)
+        operations += (("allocate", numBytes, pointer))
+        pointer
+      }
+      def free(ptrToFree: Long): Unit = {
+        operations += (("free", ptrToFree, 0L))
+        Memory.free(ptrToFree)
+      }
+      val chunkCache1 = new ChunkCache1(allocate, free)
+      val sizeArr = IndexedSeq(30L, 60L, 500L, 300L, 28L, 58L, 90L, 300L, 20L, 480L)
+      val ab = new LongArrayBuilder()
+      var i = 0
+      println(s"before allocation, total at ${pool.getTotalAllocatedBytes}")
+      while (i <= 3) {
+        ab += chunkCache1.getChunk(pool, sizeArr(i))
+        i += 1
+      }
+      println(s"first allocation, total at ${pool.getTotalAllocatedBytes}")
+      chunkCache1.freeChunks(pool, ab)
+      ab.clear()
+      while (i <= 9) {
+        ab += chunkCache1.getChunk(pool, sizeArr(i))
+        i += 1
+      }
+      println(s"second allocation, total at ${pool.getTotalAllocatedBytes}")
+      println(operations)
+
+
+
     }
   }
 }
