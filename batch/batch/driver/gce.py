@@ -1,17 +1,17 @@
 import re
 import json
 import logging
-import dateutil.parser
 import datetime
 import aiohttp
 
 from gear import Database
 from hailtop import aiotools, aiogoogle
-from hailtop.utils import periodically_call
+from hailtop.utils import periodically_call, time_msecs
 
 from ..batch_configuration import PROJECT, DEFAULT_NAMESPACE
 from .zone_monitor import ZoneMonitor
 from .instance_collection_manager import InstanceCollectionManager
+from ..utils import parse_timestamp_msecs
 
 log = logging.getLogger('gce_event_monitor')
 
@@ -58,7 +58,7 @@ class GCEEventMonitor:
             log.warning(f'event has no payload {json.dumps(event)}')
             return
 
-        timestamp = dateutil.parser.isoparse(event['timestamp']).timestamp() * 1000
+        timestamp_msecs = parse_timestamp_msecs(event['timestamp'])
 
         resource_type = event['resource']['type']
         if resource_type != 'gce_instance':
@@ -103,14 +103,14 @@ class GCEEventMonitor:
 
             if event_subtype == 'compute.instances.preempted':
                 log.info(f'event handler: handle preempt {instance}')
-                await self.handle_preempt_event(instance, timestamp)
+                await self.handle_preempt_event(instance, timestamp_msecs)
             elif event_subtype == 'v1.compute.instances.delete':
                 if event_type == 'COMPLETED':
                     log.info(f'event handler: delete {instance} done')
-                    await self.handle_delete_done_event(instance, timestamp)
+                    await self.handle_delete_done_event(instance, timestamp_msecs)
                 elif event_type == 'STARTED':
                     log.info(f'event handler: handle call delete {instance}')
-                    await self.handle_call_delete_event(instance, timestamp)
+                    await self.handle_call_delete_event(instance, timestamp_msecs)
 
     async def handle_events(self):
         row = await self.db.select_and_fetchone('SELECT * FROM `gevents_mark`;')
@@ -154,16 +154,34 @@ timestamp >= "{mark}"
         params = {'filter': f'(labels.namespace = {DEFAULT_NAMESPACE})'}
 
         for zone in self.zone_monitor.zones:
+            log.info(f'deleting orphaned disks for zone {zone}')
             async for disk in await self.compute_client.list(f'/zones/{zone}/disks', params=params):
+                disk_name = disk['name']
                 instance_name = disk['labels']['instance-name']
                 instance = self.inst_coll_manager.get_instance(instance_name)
+
+                creation_timestamp_msecs = parse_timestamp_msecs(disk.get('creationTimestamp'))
+                last_attach_timestamp_msecs = parse_timestamp_msecs(disk.get('lastAttachTimestamp'))
+                last_detach_timestamp_msecs = parse_timestamp_msecs(disk.get('lastDetachTimestamp'))
+
+                now_msecs = time_msecs()
                 if instance is None:
-                    try:
-                        await self.compute_client.delete_disk(f'/zones/{zone}/disks/{disk["name"]}')
-                    except aiohttp.ClientResponseError as e:
-                        if e.status == 404:
-                            continue
-                        log.exception(f'error while deleting orphaned disk {disk["name"]}')
+                    log.exception(f'deleting disk {disk_name} from instance that no longer exists')
+                elif (last_attach_timestamp_msecs is None
+                        and now_msecs - creation_timestamp_msecs > 10 * 60 * 1000):
+                    log.exception(f'deleting disk {disk_name} that has not attached within 10 minutes')
+                elif (last_detach_timestamp_msecs is not None
+                        and now_msecs - last_detach_timestamp_msecs > 5 * 60 * 1000):
+                    log.exception(f'deleting detached disk {disk_name} that has not been cleaned up within 5 minutes')
+                else:
+                    continue
+
+                try:
+                    await self.compute_client.delete_disk(f'/zones/{zone}/disks/{disk_name}')
+                except aiohttp.ClientResponseError as e:
+                    if e.status == 404:
+                        continue
+                    log.exception(f'error while deleting orphaned disk {disk_name}')
 
     async def delete_orphaned_disks_loop(self):
-        await periodically_call(60, self.delete_orphaned_disks)
+        await periodically_call(15, self.delete_orphaned_disks)
