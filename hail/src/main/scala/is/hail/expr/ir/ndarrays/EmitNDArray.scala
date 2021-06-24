@@ -83,7 +83,7 @@ object EmitNDArray {
 
       var ev: EmitSettable = null
       mb.voidWithBuilder { cb =>
-        emitter.ctx.tryingToSplit.bind(ir, ())
+        emitter.ctx.tryingToSplit.update(ir, ())
         val result: IEmitCode = deforest(ir, cb, r, env, container, loopEnv).map(cb)(ndap => ndap.toSCode(cb, PCanonicalNDArray(ndap.elementType.setRequired(true), ndap.nDims), r))
 
         ev = cb.emb.ecb.newEmitField(s"${context}_result", result.emitType)
