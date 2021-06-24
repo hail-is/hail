@@ -256,20 +256,20 @@ class RegionSuite extends TestNGSuite {
       val ab = new LongArrayBuilder()
       var i = 0
       println(s"before allocation, total at ${pool.getTotalAllocatedBytes}")
-      while (i <= 3) {
+      while (i <= 9) {
         ab += chunkCache1.getChunk(pool, sizeArr(i))
         i += 1
       }
       println(s"first allocation, total at ${pool.getTotalAllocatedBytes}")
       chunkCache1.freeChunks(pool, ab)
-      ab.clear()
-      while (i <= 9) {
-        ab += chunkCache1.getChunk(pool, sizeArr(i))
-        i += 1
-      }
+//      ab.clear()
+//      while (i <= 9) {
+//        ab += chunkCache1.getChunk(pool, sizeArr(i))
+//        i += 1
+//      }
+      chunkCache1.freeAll(pool)
       println(s"second allocation, total at ${pool.getTotalAllocatedBytes}")
       println(operations)
-
 
 
     }
