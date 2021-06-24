@@ -166,13 +166,13 @@ timestamp >= "{mark}"
 
                 now_msecs = time_msecs()
                 if instance is None:
-                    log.exception(f'deleting disk from instance that no longer exists')
+                    log.exception(f'deleting disk {disk_name} from instance that no longer exists')
                 elif (last_attach_timestamp_msecs is None
                         and now_msecs - creation_timestamp_msecs > 10 * 60 * 1000):
-                    log.exception(f'deleting disk that has not attached within 10 minutes')
+                    log.exception(f'deleting disk {disk_name} that has not attached within 10 minutes')
                 elif (last_detach_timestamp_msecs is not None
                         and now_msecs - last_detach_timestamp_msecs > 5 * 60 * 1000):
-                    log.exception(f'deleting detached disk that has not been cleaned up within 5 minutes')
+                    log.exception(f'deleting detached disk {disk_name} that has not been cleaned up within 5 minutes')
                 else:
                     continue
 
