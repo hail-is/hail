@@ -409,7 +409,7 @@ object LowerTableIR {
           val loweredRowsAndGlobalRef = Ref(genUID(), loweredRowsAndGlobal.typ)
 
           val context = bindIR(ArrayLen(GetField(loweredRowsAndGlobalRef, "rows"))) { numRowsRef =>
-            bindIR(If(numRowsRef < nPartitionsAdj, numRowsRef, nPartitionsAdj)) { numNonEmptyPartitionsRef =>
+            bindIR(If(numRowsRef < nPartitionsAdj, maxIR(numRowsRef, I32(1)), nPartitionsAdj)) { numNonEmptyPartitionsRef =>
               bindIR(numRowsRef floorDiv numNonEmptyPartitionsRef) { qRef =>
                 bindIR(numRowsRef - qRef * numNonEmptyPartitionsRef) { remainderRef =>
                   mapIR(rangeIR(0, nPartitionsAdj)) { partIdx =>
@@ -483,26 +483,26 @@ object LowerTableIR {
           loweredChild.repartitionNoShuffle(loweredChild.partitioner.coarsen(child.typ.key.length).strictify)
             .mapPartition(Some(child.typ.key)) { partition =>
 
-              mapIR(StreamGroupByKey(partition, child.typ.key)) { groupRef =>
-                StreamAgg(
-                  groupRef,
-                  "row",
-                  bindIRs(ArrayRef(ApplyAggOp(FastSeq(I32(1)), FastSeq(SelectFields(Ref("row", child.typ.rowType), child.typ.key)),
-                    AggSignature(Take(), FastSeq(TInt32), FastSeq(child.typ.keyType))), I32(0)), // FIXME: would prefer a First() agg op
-                    expr) { case Seq(key, value) =>
-                    MakeStruct(child.typ.key.map(k => (k, GetField(key, k))) ++ expr.typ.asInstanceOf[TStruct].fieldNames.map { f =>
-                      (f, GetField(value, f))
-                    })
-                  }
-                )
-              }
+              Let("global", loweredChild.globals,
+                mapIR(StreamGroupByKey(partition, child.typ.key)) { groupRef =>
+                  StreamAgg(
+                    groupRef,
+                    "row",
+                    bindIRs(ArrayRef(ApplyAggOp(FastSeq(I32(1)), FastSeq(SelectFields(Ref("row", child.typ.rowType), child.typ.key)),
+                      AggSignature(Take(), FastSeq(TInt32), FastSeq(child.typ.keyType))), I32(0)), // FIXME: would prefer a First() agg op
+                      expr) { case Seq(key, value) =>
+                      MakeStruct(child.typ.key.map(k => (k, GetField(key, k))) ++ expr.typ.asInstanceOf[TStruct].fieldNames.map { f =>
+                        (f, GetField(value, f))
+                      })
+                    }
+                  )
+                })
             }
 
         // TODO: This ignores nPartitions and bufferSize
         case TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
           val loweredChild = lower(child)
           val newKeyType = newKey.typ.asInstanceOf[TStruct]
-          val oldRowType = child.typ.rowType
 
           val fullRowUID = genUID()
           val withNewKeyFields = loweredChild.mapPartition(Some(FastIndexedSeq())) { partition =>

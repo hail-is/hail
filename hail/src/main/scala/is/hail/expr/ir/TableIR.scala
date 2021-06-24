@@ -1238,6 +1238,7 @@ case class TableRead(typ: TableType, dropRows: Boolean, tr: TableReader) extends
 case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) extends TableIR {
   require(rowsAndGlobal.typ.isInstanceOf[TStruct])
   require(rowsAndGlobal.typ.asInstanceOf[TStruct].fieldNames.sameElements(Array("rows", "global")))
+  require(nPartitions.forall(_ > 0))
 
   lazy val rowCountUpperBound: Option[Long] = None
 
