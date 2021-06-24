@@ -13,35 +13,9 @@ object SNDArray {
   }
 
   // Column major order
-  def forEachIndex(cb: EmitCodeBuilder, shape: IndexedSeq[Value[Long]], context: String)
-    (f: (EmitCodeBuilder, IndexedSeq[Value[Long]]) => Unit): Unit = {
-
-    val indices = Array.tabulate(shape.length) { dimIdx => cb.newLocal[Long](s"${ context }_foreach_dim_$dimIdx", 0L) }
-
-    def recurLoopBuilder(dimIdx: Int, innerLambda: () => Unit): Unit = {
-      if (dimIdx == shape.length) {
-        innerLambda()
-      }
-      else {
-        val dimVar = indices(dimIdx)
-
-        recurLoopBuilder(dimIdx + 1,
-          () => {
-            cb.forLoop({
-              cb.assign(dimVar, 0L)
-            }, dimVar < shape(dimIdx), {
-              cb.assign(dimVar, dimVar + 1L)
-            },
-              innerLambda()
-            )
-          }
-        )
-      }
-    }
-
-    val body = () => f(cb, indices)
-
-    recurLoopBuilder(0, body)
+  def forEachIndexColMajor(cb: EmitCodeBuilder, shape: IndexedSeq[Value[Long]], context: String)
+                          (f: (EmitCodeBuilder, IndexedSeq[Value[Long]]) => Unit): Unit = {
+    forEachIndexWithInitAndIncColMajor(cb, shape, shape.map(_ => (cb: EmitCodeBuilder) => ()), shape.map(_ => (cb: EmitCodeBuilder) => ()), context)(f)
   }
 
   def coiterate(cb: EmitCodeBuilder, region: Value[Region], arrays: IndexedSeq[(SNDArrayCode, String)], body: IndexedSeq[SSettable] => Unit): Unit =
@@ -143,6 +117,82 @@ object SNDArray {
   }
 
   // Column major order
+  def forEachIndexWithInitAndIncColMajor(cb: EmitCodeBuilder, shape: IndexedSeq[Value[Long]], inits: IndexedSeq[EmitCodeBuilder => Unit],
+                                         incrementers: IndexedSeq[EmitCodeBuilder => Unit], context: String)
+                                        (f: (EmitCodeBuilder, IndexedSeq[Value[Long]]) => Unit): Unit = {
+
+    val indices = Array.tabulate(shape.length) { dimIdx => cb.newLocal[Long](s"${ context }_foreach_dim_$dimIdx", 0L) }
+
+    def recurLoopBuilder(dimIdx: Int, innerLambda: () => Unit): Unit = {
+      if (dimIdx == shape.length) {
+        innerLambda()
+      }
+      else {
+        val dimVar = indices(dimIdx)
+
+        recurLoopBuilder(dimIdx + 1,
+          () => {
+            cb.forLoop({
+              inits(dimIdx)(cb)
+              cb.assign(dimVar, 0L)
+            }, dimVar < shape(dimIdx), {
+              incrementers(dimIdx)(cb)
+              cb.assign(dimVar, dimVar + 1L)
+            },
+              innerLambda()
+            )
+          }
+        )
+      }
+    }
+
+    val body = () => f(cb, indices)
+
+    recurLoopBuilder(0, body)
+  }
+
+  // Row major order
+  def forEachIndexRowMajor(cb: EmitCodeBuilder, shape: IndexedSeq[Value[Long]], context: String)
+                          (f: (EmitCodeBuilder, IndexedSeq[Value[Long]]) => Unit): Unit = {
+    forEachIndexWithInitAndIncRowMajor(cb, shape, shape.map(_ => (cb: EmitCodeBuilder) => ()), shape.map(_ => (cb: EmitCodeBuilder) => ()), context)(f)
+  }
+
+  // Row major order
+  def forEachIndexWithInitAndIncRowMajor(cb: EmitCodeBuilder, shape: IndexedSeq[Value[Long]], inits: IndexedSeq[EmitCodeBuilder => Unit],
+                                         incrementers: IndexedSeq[EmitCodeBuilder => Unit], context: String)
+                                        (f: (EmitCodeBuilder, IndexedSeq[Value[Long]]) => Unit): Unit = {
+
+    val indices = Array.tabulate(shape.length) { dimIdx => cb.newLocal[Long](s"${ context }_foreach_dim_$dimIdx", 0L) }
+
+    def recurLoopBuilder(dimIdx: Int, innerLambda: () => Unit): Unit = {
+      if (dimIdx == -1) {
+        innerLambda()
+      }
+      else {
+        val dimVar = indices(dimIdx)
+
+        recurLoopBuilder(dimIdx - 1,
+          () => {
+            cb.forLoop({
+              inits(dimIdx)(cb)
+              cb.assign(dimVar, 0L)
+            }, dimVar < shape(dimIdx), {
+              incrementers(dimIdx)(cb)
+              cb.assign(dimVar, dimVar + 1L)
+            },
+              innerLambda()
+            )
+          }
+        )
+      }
+    }
+
+    val body = () => f(cb, indices)
+
+    recurLoopBuilder(shape.length - 1, body)
+  }
+
+  // Column major order
   def unstagedForEachIndex(shape: IndexedSeq[Long])
                           (f: IndexedSeq[Long] => Unit): Unit = {
 
@@ -178,6 +228,7 @@ trait SNDArray extends SType {
   def nDims: Int
 
   def elementType: SType
+  def elementPType: PType
 }
 
 trait SNDArrayValue extends SValue {

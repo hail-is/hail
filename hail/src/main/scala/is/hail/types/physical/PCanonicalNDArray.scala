@@ -12,6 +12,7 @@ import is.hail.utils._
 
 final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boolean = false) extends PNDArray  {
   assert(elementType.required, "elementType must be required")
+  assert(!elementType.containsPointers, "ndarrays do not currently support elements which contain arrays, ndarrays, or strings")
 
   def _asIdent: String = s"ndarray_of_${elementType.asIdent}"
 
