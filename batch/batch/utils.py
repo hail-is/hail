@@ -2,6 +2,7 @@ import logging
 import math
 import json
 import secrets
+import dateutil.parser
 from aiohttp import web
 from functools import wraps
 from collections import deque
@@ -192,6 +193,12 @@ def is_valid_cores_mcpu(cores_mcpu: int):
         return False
     quarter_cores = quarter_core_mcpu // 1000
     return quarter_cores & (quarter_cores - 1) == 0
+
+
+def parse_timestamp_msecs(ts):
+    if ts is None:
+        return ts
+    return dateutil.parser.isoparse(ts).timestamp() * 1000
 
 
 class Box:
