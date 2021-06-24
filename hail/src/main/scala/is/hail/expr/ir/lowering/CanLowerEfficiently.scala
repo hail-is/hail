@@ -91,6 +91,8 @@ object CanLowerEfficiently {
 
         case RelationalRef(_, _) => throw new RuntimeException(s"unexpected relational ref")
 
+        case _: ApplySeeded => fail("seeded randomness does not satisfy determinism restrictions in lowered IR")
+
         case x: IR =>
           // nodes with relational children should be enumerated above explicitly
           if (!x.children.forall(_.isInstanceOf[IR])) {
