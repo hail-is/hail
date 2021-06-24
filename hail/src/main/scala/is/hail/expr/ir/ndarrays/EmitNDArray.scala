@@ -71,18 +71,37 @@ object EmitNDArray {
     cb: EmitCodeBuilder,
     region: Value[Region],
     env: EmitEnv,
-    container: Option[AggContainer]
+    container: Option[AggContainer],
+    loopEnv: Option[Env[LoopRef]]
   ): IEmitCode = {
 
-    def deforest(x: IR): IEmitCodeGen[NDArrayProducer] = {
+    def emitNDInSeparateMethod(context: String, cb: EmitCodeBuilder, ir: IR, region: Value[Region], env: EmitEnv, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): IEmitCode = {
 
-      def emitI(ir: IR, cb: EmitCodeBuilder, region: Value[Region] = region, env: EmitEnv = env, container: Option[AggContainer] = container): IEmitCode = {
-        emitter.emitI(ir, cb, region, env, container, None)
+      assert(!emitter.ctx.inLoopCriticalPath.contains(ir))
+      val mb = cb.emb.genEmitMethod(context, FastIndexedSeq[ParamType](), UnitInfo)
+      val r = cb.newField[Region]("emitInSeparate_region", region)
+
+      var ev: EmitSettable = null
+      mb.voidWithBuilder { cb =>
+        emitter.ctx.tryingToSplit.bind(ir, ())
+        val result: IEmitCode = deforest(ir, cb, r, env, container, loopEnv).map(cb)(ndap => ndap.toSCode(cb, PCanonicalNDArray(ndap.elementType.setRequired(true), ndap.nDims), r))
+
+        ev = cb.emb.ecb.newEmitField(s"${context}_result", result.emitType)
+        cb.assign(ev, result)
+      }
+      cb.invokeVoid(mb)
+      ev.toI(cb)
+    }
+
+    def deforest(x: IR, cb: EmitCodeBuilder = cb, region: Value[Region] = region, env: EmitEnv = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCodeGen[NDArrayProducer] = {
+
+      def emitI(ir: IR, cb: EmitCodeBuilder, region: Value[Region] = region, env: EmitEnv = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode = {
+        emitter.emitI(ir, cb, region, env, container, loopEnv)
       }
 
       x match {
         case NDArrayMap(child, elemName, body) => {
-          deforest(child).map(cb) { childProducer =>
+          deforest(child, cb).map(cb) { childProducer =>
             val elemRef = cb.emb.newEmitField("ndarray_map_element_name", childProducer.elementType.sType, required = true)
             val bodyEnv = env.bind(elemName, elemRef)
             val bodyEC = EmitCode.fromI(cb.emb)(cb => emitI(body, cb, env = bodyEnv))
@@ -103,8 +122,8 @@ object EmitNDArray {
           }
         }
         case NDArrayMap2(lChild, rChild, lName, rName, body) => {
-          deforest(lChild).flatMap(cb) { leftProducer =>
-            deforest(rChild).map(cb) { rightProducer =>
+          deforest(lChild, cb).flatMap(cb) { leftProducer =>
+            deforest(rChild,cb).map(cb) { rightProducer =>
               val leftShapeValues = leftProducer.shape
               val rightShapeValues = rightProducer.shape
 
@@ -149,7 +168,7 @@ object EmitNDArray {
           }
         }
         case NDArrayReindex(child, indexExpr) =>
-          deforest(child).map(cb) { childProducer =>
+          deforest(child, cb).map(cb) { childProducer =>
 
             new NDArrayProducer {
               override def elementType: PType = childProducer.elementType
@@ -363,7 +382,7 @@ object EmitNDArray {
             })
           }
         case NDArraySlice(child, slicesIR) =>
-          deforest(child).flatMap(cb) { childProducer =>
+          deforest(child, cb).flatMap(cb) { childProducer =>
             emitI(slicesIR, cb).flatMap(cb) { slicesPC =>
               val slicesValue = slicesPC.asBaseStruct.memoize(cb, "ndarray_slice_tuple_pv")
 
@@ -447,7 +466,7 @@ object EmitNDArray {
             }
           }
         case NDArrayFilter(child, filters) =>
-          deforest(child).map(cb) { childProducer: NDArrayProducer =>
+          deforest(child, cb).map(cb) { childProducer: NDArrayProducer =>
 
             val filterWasMissing = (0 until filters.size).map(i => cb.newField[Boolean](s"ndarray_filter_${i}_was_missing"))
             val filtPValues = new Array[SIndexableValue](filters.size)
@@ -509,7 +528,7 @@ object EmitNDArray {
             }
           }
         case NDArrayAgg(child, axesToSumOut) =>
-          deforest(child).map(cb) { childProducer: NDArrayProducer =>
+          deforest(child, cb).map(cb) { childProducer: NDArrayProducer =>
             val childDims = child.typ.asInstanceOf[TNDArray].nDims
             val axesToKeep = (0 until childDims).filter(axis => !axesToSumOut.contains(axis))
             val newOutputShape = axesToKeep.map(idx => childProducer.shape(idx))
@@ -563,12 +582,13 @@ object EmitNDArray {
       }
     }
 
-    val deforested = deforest(ndIR)
-    val deforestedEltType = deforested.value.elementType.virtualType
-    if (deforestedEltType != ndIR.typ.asInstanceOf[TNDArray].elementType)
-      throw new RuntimeException(s"invalid NDArray deforest rule: deforested element type is ${ deforestedEltType }, expect ${ ndIR.asInstanceOf[TNDArray].elementType }")
-
-    deforested.map(cb)(ndap => ndap.toSCode(cb, PCanonicalNDArray(ndap.elementType.setRequired(true), ndap.nDims), region))
+//    val deforested = deforest(ndIR)
+//    val deforestedEltType = deforested.value.elementType.virtualType
+//    if (deforestedEltType != ndIR.typ.asInstanceOf[TNDArray].elementType)
+//      throw new RuntimeException(s"invalid NDArray deforest rule: deforested element type is ${ deforestedEltType }, expect ${ ndIR.asInstanceOf[TNDArray].elementType }")
+//
+//    deforested.map(cb)(ndap => ndap.toSCode(cb, PCanonicalNDArray(ndap.elementType.setRequired(true), ndap.nDims), region))
+    emitNDInSeparateMethod("foo", cb, ndIR, region, env, container, loopEnv)
   }
 
   def fromSValue(ndSv: SNDArrayValue, cb: EmitCodeBuilder): NDArrayProducer = {

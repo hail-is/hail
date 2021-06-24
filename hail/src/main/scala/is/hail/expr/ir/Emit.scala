@@ -778,7 +778,7 @@ class Emit[C](
     def emitFallback(ir: IR, env: EmitEnv = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
       this.emit(ir, mb, region, env, container, loopEnv, fallingBackFromEmitI = true).toI(cb)
 
-    def emitDeforestedNDArrayI(ir: IR): IEmitCode = EmitNDArray(this, ir, cb, region, env, container)
+    def emitDeforestedNDArrayI(ir: IR): IEmitCode = EmitNDArray(this, ir, cb, region, env, container, loopEnv)
 
     def emitNDArrayColumnMajorStrides(ir: IR): IEmitCode = {
       emitI(ir).map(cb) { case pNDCode: SNDArrayCode =>
