@@ -1,39 +1,65 @@
 {
   "1000_Genomes_HighCov_autosomes": {
-    "description": "1000 Genomes Project: The New York Genome Center (NYGC), funded by NHGRI, has sequenced 3202 samples from the 1000 Genomes Project sample collection to 30x coverage. Initially, the 2504 unrelated samples from the phase three panel from the 1000 Genomes Project were sequenced. Thereafter, an additional 698 samples, related to samples in the 2504 panel, were also sequenced. This dataset contains phased calls.",
+    "description": "1000 Genomes Project: The New York Genome Center (NYGC), funded by NHGRI, has sequenced 3202 samples from the 1000 Genomes Project sample collection to 30x coverage. Initially, the 2504 unrelated samples from the phase three panel from the 1000 Genomes Project were sequenced. Thereafter, an additional 698 samples, related to samples in the 2504 panel, were also sequenced.",
     "url": "https://www.internationalgenome.org/data-portal/data-collection/30x-grch38",
     "versions": [
       {
         "reference_genome": "GRCh38",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/1000_Genomes/NYGC_30x/GRCh38/autosomes.mt"
+            "us": "s3://hail-datasets-us-east-1/1000_Genomes/NYGC_30x/GRCh38/autosomes_phased.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/1000_Genomes/NYGC_30x/GRCh38/autosomes.mt",
-            "us": "gs://hail-datasets-us/1000_Genomes/NYGC_30x/GRCh38/autosomes.mt"
+            "eu": "gs://hail-datasets-eu/1000_Genomes/NYGC_30x/GRCh38/autosomes_phased.mt",
+            "us": "gs://hail-datasets-us/1000_Genomes/NYGC_30x/GRCh38/autosomes_phased.mt"
           }
         },
-        "version": "NYGC_30x"
+        "version": "NYGC_30x_phased"
+      },
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/1000_Genomes/NYGC_30x/GRCh38/autosomes_unphased.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/1000_Genomes/NYGC_30x/GRCh38/autosomes_unphased.mt",
+            "us": "gs://hail-datasets-us/1000_Genomes/NYGC_30x/GRCh38/autosomes_unphased.mt"
+          }
+        },
+        "version": "NYGC_30x_unphased"
       }
     ]
   },
   "1000_Genomes_HighCov_chrX": {
-    "description": "1000 Genomes Project: The New York Genome Center (NYGC), funded by NHGRI, has sequenced 3202 samples from the 1000 Genomes Project sample collection to 30x coverage. Initially, the 2504 unrelated samples from the phase three panel from the 1000 Genomes Project were sequenced. Thereafter, an additional 698 samples, related to samples in the 2504 panel, were also sequenced. This dataset contains phased calls.",
+    "description": "1000 Genomes Project: The New York Genome Center (NYGC), funded by NHGRI, has sequenced 3202 samples from the 1000 Genomes Project sample collection to 30x coverage. Initially, the 2504 unrelated samples from the phase three panel from the 1000 Genomes Project were sequenced. Thereafter, an additional 698 samples, related to samples in the 2504 panel, were also sequenced.",
     "url": "https://www.internationalgenome.org/data-portal/data-collection/30x-grch38",
     "versions": [
       {
         "reference_genome": "GRCh38",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/1000_Genomes/NYGC_30x/GRCh38/chrX.mt"
+            "us": "s3://hail-datasets-us-east-1/1000_Genomes/NYGC_30x/GRCh38/chrX_phased.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/1000_Genomes/NYGC_30x/GRCh38/chrX.mt",
-            "us": "gs://hail-datasets-us/1000_Genomes/NYGC_30x/GRCh38/chrX.mt"
+            "eu": "gs://hail-datasets-eu/1000_Genomes/NYGC_30x/GRCh38/chrX_phased.mt",
+            "us": "gs://hail-datasets-us/1000_Genomes/NYGC_30x/GRCh38/chrX_phased.mt"
           }
         },
-        "version": "NYGC_30x"
+        "version": "NYGC_30x_phased"
+      },
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/1000_Genomes/NYGC_30x/GRCh38/chrX_unphased.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/1000_Genomes/NYGC_30x/GRCh38/chrX_unphased.mt",
+            "us": "gs://hail-datasets-us/1000_Genomes/NYGC_30x/GRCh38/chrX_unphased.mt"
+          }
+        },
+        "version": "NYGC_30x_unphased"
       }
     ]
   },
@@ -45,14 +71,14 @@
         "reference_genome": "GRCh38",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/1000_Genomes/NYGC_30x/GRCh38/chrY.mt"
+            "us": "s3://hail-datasets-us-east-1/1000_Genomes/NYGC_30x/GRCh38/chrY_unphased.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/1000_Genomes/NYGC_30x/GRCh38/chrY.mt",
-            "us": "gs://hail-datasets-us/1000_Genomes/NYGC_30x/GRCh38/chrY.mt"
+            "eu": "gs://hail-datasets-eu/1000_Genomes/NYGC_30x/GRCh38/chrY_unphased.mt",
+            "us": "gs://hail-datasets-us/1000_Genomes/NYGC_30x/GRCh38/chrY_unphased.mt"
           }
         },
-        "version": "NYGC_30x"
+        "version": "NYGC_30x_unphased"
       }
     ]
   },

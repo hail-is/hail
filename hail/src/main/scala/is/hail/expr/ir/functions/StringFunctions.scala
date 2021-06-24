@@ -100,11 +100,11 @@ object StringFunctions extends RegistryFunctions {
   def registerAll(): Unit = {
     val thisClass = getClass
 
-    registerPCode1("length", TString, TInt32, (_: Type, _: SType) => SInt32) { case (r: EmitRegion, cb, _, s: SStringCode) =>
+    registerSCode1("length", TString, TInt32, (_: Type, _: SType) => SInt32) { case (r: EmitRegion, cb, _, s: SStringCode) =>
       primitive(s.loadString().invoke[Int]("length"))
     }
 
-    registerPCode3("substring", TString, TInt32, TInt32, TString, {
+    registerSCode3("substring", TString, TInt32, TInt32, TString, {
       (_: Type, _: SType, _: SType, _: SType) => SStringPointer(PCanonicalString())
     }) {
       case (r: EmitRegion, cb, st: SString, s, start, end) =>
@@ -141,7 +141,7 @@ object StringFunctions extends RegistryFunctions {
     registerIR2("sliceRight", TString, TInt32, TString) { (_, s, start) => invoke("slice", TString, s, start, invoke("length", TInt32, s)) }
     registerIR2("sliceLeft", TString, TInt32, TString) { (_, s, end) => invoke("slice", TString, s, I32(0), end) }
 
-    registerPCode1("str", tv("T"), TString, (_: Type, _: SType) => SStringPointer(PCanonicalString())) { case (r, cb, st: SString, a) =>
+    registerSCode1("str", tv("T"), TString, (_: Type, _: SType) => SStringPointer(PCanonicalString())) { case (r, cb, st: SString, a) =>
       val annotation = scodeToJavaValue(cb, r.region, a)
       val str = cb.emb.getType(a.st.virtualType).invoke[Any, String]("str", annotation)
       st.constructFromString(cb, r.region, str)
@@ -292,7 +292,7 @@ object StringFunctions extends RegistryFunctions {
       case (_: Type, _: SType, _: SType, _: SType) => SInt64
     })(thisClass, "strptime")
 
-    registerPCode("parse_json", Array(TString), TTuple(tv("T")),
+    registerSCode("parse_json", Array(TString), TTuple(tv("T")),
       (rType: Type, _: Seq[SType]) => SType.canonical(rType), typeParameters = Array(tv("T"))
     ) { case (er, cb, _, resultType, Array(s: SStringCode)) =>
 

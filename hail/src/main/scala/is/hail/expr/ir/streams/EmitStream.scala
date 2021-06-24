@@ -1870,7 +1870,7 @@ object EmitStream {
               cb.define(Lpush)
               cb.assign(xKey, EmitCode.present(cb.emb, curKey))
               cb.assign(xElts, EmitCode.present(cb.emb, curValsType.constructFromElements(cb, elementRegion, k, false) { (cb, i) =>
-                IEmitCode(cb, result(i).ceq(0L), eltType.loadCheapPCode(cb, result(i)))
+                IEmitCode(cb, result(i).ceq(0L), eltType.loadCheapSCode(cb, result(i)))
               }))
               cb.goto(LproduceElementDone)
 
@@ -1878,7 +1878,7 @@ object EmitStream {
               cb.forLoop(cb.assign(i, 0), i < k, cb.assign(i, i + 1), {
                 cb += (result(i) = 0L)
               })
-              cb.assign(curKey, eltType.loadCheapPCode(cb, heads(winner)).subset(key: _*)
+              cb.assign(curKey, eltType.loadCheapSCode(cb, heads(winner)).subset(key: _*)
                 .castTo(cb, elementRegion, curKey.st, true))
               cb.goto(LaddToResult)
 
@@ -1909,8 +1909,8 @@ object EmitStream {
 
                 cb.ifx(winner.ceq(k), cb.goto(LchallengerWins))
 
-                val left = eltType.loadCheapPCode(cb, heads(challenger)).subset(key: _*)
-                val right = eltType.loadCheapPCode(cb, heads(winner)).subset(key: _*)
+                val left = eltType.loadCheapSCode(cb, heads(challenger)).subset(key: _*)
+                val right = eltType.loadCheapSCode(cb, heads(winner)).subset(key: _*)
                 val ord = StructOrdering.make(left.st, right.st, cb.emb.ecb, missingFieldsEqual = false)
                 cb.ifx(ord.lteqNonnull(cb, left, right),
                   cb.goto(LchallengerWins),
@@ -1938,7 +1938,7 @@ object EmitStream {
                     })
                 }, {
                   cb.ifx(!winner.cne(k), cb.goto(Lpush))
-                  val left = eltType.loadCheapPCode(cb, heads(winner)).subset(key: _*)
+                  val left = eltType.loadCheapSCode(cb, heads(winner)).subset(key: _*)
                   val right = curKey
                   val ord = StructOrdering.make(left.st, right.st.asInstanceOf[SBaseStruct],
                     cb.emb.ecb, missingFieldsEqual = false)
@@ -2058,8 +2058,8 @@ object EmitStream {
             * left when key fields are missing.
             */
           def comp(cb: EmitCodeBuilder, li: Code[Int], lv: Code[Long], ri: Code[Int], rv: Code[Long]): Code[Boolean] = {
-            val l = unifiedType.loadCheapPCode(cb, lv).asBaseStruct.subset(key: _*).memoize(cb, "stream_merge_l")
-            val r = unifiedType.loadCheapPCode(cb, rv).asBaseStruct.subset(key: _*).memoize(cb, "stream_merge_r")
+            val l = unifiedType.loadCheapSCode(cb, lv).asBaseStruct.subset(key: _*).memoize(cb, "stream_merge_l")
+            val r = unifiedType.loadCheapSCode(cb, rv).asBaseStruct.subset(key: _*).memoize(cb, "stream_merge_r")
             val ord1 = StructOrdering.make(l.asBaseStruct.st, r.asBaseStruct.st, cb.emb.ecb, missingFieldsEqual = false)
             val ord2 = StructOrdering.make(r.asBaseStruct.st, l.asBaseStruct.st, cb.emb.ecb, missingFieldsEqual = false)
             val b = cb.newLocal[Boolean]("stream_merge_comp_result")
@@ -2168,7 +2168,7 @@ object EmitStream {
               }
             }
 
-            override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, unifiedType.loadCheapPCode(cb, heads(winner))))
+            override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, unifiedType.loadCheapSCode(cb, heads(winner))))
 
             override def close(cb: EmitCodeBuilder): Unit = {
               producers.foreach { p =>

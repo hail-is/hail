@@ -32,10 +32,10 @@ object TestRegisterFunctions extends RegistryFunctions {
     registerJavaStaticFunction("compare", Array(TInt32, TInt32), TInt32, null)(classOf[java.lang.Integer], "compare")
     registerScalaFunction("foobar1", Array(), TInt32, null)(ScalaTestObject.getClass, "testFunction")
     registerScalaFunction("foobar2", Array(), TInt32, null)(ScalaTestCompanion.getClass, "testFunction")
-    registerPCode2("testCodeUnification", tnum("x"), tv("x", "int32"), tv("x"), null) {
+    registerSCode2("testCodeUnification", tnum("x"), tv("x", "int32"), tv("x"), null) {
       case (_, cb, rt, a, b) => primitive(a.asInt.intCode(cb) + b.asInt.intCode(cb))
     }
-    registerPCode1("testCodeUnification2", tv("x"), tv("x"), null) { case (_, cb, rt, a) => a }
+    registerSCode1("testCodeUnification2", tv("x"), tv("x"), null) { case (_, cb, rt, a) => a }
   }
 }
 

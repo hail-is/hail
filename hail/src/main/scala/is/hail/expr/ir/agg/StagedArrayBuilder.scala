@@ -37,11 +37,11 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
     cb.assign(tmpOff, src)
     cb.assign(size, Region.loadInt(currentSizeOffset(tmpOff)))
     cb.assign(capacity, Region.loadInt(capacityOffset(tmpOff)))
-    cb.assign(data, eltArray.store(cb, region, eltArray.loadCheapPCode(cb, Region.loadAddress(dataOffset(tmpOff))), deepCopy = true))
+    cb.assign(data, eltArray.store(cb, region, eltArray.loadCheapSCode(cb, Region.loadAddress(dataOffset(tmpOff))), deepCopy = true))
   }
 
   def reallocateData(cb: EmitCodeBuilder): Unit = {
-    cb.assign(data, eltArray.store(cb, region, eltArray.loadCheapPCode(cb, data), deepCopy = true))
+    cb.assign(data, eltArray.store(cb, region, eltArray.loadCheapSCode(cb, data), deepCopy = true))
   }
 
   def storeTo(cb: EmitCodeBuilder, dest: Code[Long]): Unit = {
@@ -58,7 +58,7 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
       cb += ob.writeInt(size)
       cb += ob.writeInt(capacity)
       codecSpec.encodedType.buildEncoder(eltArray.sType, kb)
-        .apply(cb, eltArray.loadCheapPCode(cb, data), ob)
+        .apply(cb, eltArray.loadCheapSCode(cb, data), ob)
       cb += ob.writeInt(const(StagedArrayBuilder.END_SERIALIZATION))
     }
   }
@@ -112,7 +112,7 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
 
   def loadElement(cb: EmitCodeBuilder, idx: Value[Int]): EmitCode = {
     val m = eltArray.isElementMissing(data, idx)
-    EmitCode(Code._empty, m, eltType.loadCheapPCode(cb, eltArray.loadElement(data, capacity, idx)))
+    EmitCode(Code._empty, m, eltType.loadCheapSCode(cb, eltArray.loadElement(data, capacity, idx)))
   }
 
   private def resize(cb: EmitCodeBuilder): Unit = {

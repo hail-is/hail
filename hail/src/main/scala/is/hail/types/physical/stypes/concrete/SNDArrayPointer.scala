@@ -17,6 +17,8 @@ case class SNDArrayPointer(pType: PCanonicalNDArray) extends SNDArray {
 
   override def elementType: SType = pType.elementType.sType
 
+  override def elementPType: PType = pType.elementType
+
   lazy val virtualType: Type = pType.virtualType
 
   override def castRename(t: Type): SType = SNDArrayPointer(pType.deepRename(t))
@@ -68,7 +70,7 @@ class SNDArrayPointerSettable(
 
   def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SCode = {
     assert(indices.size == pt.nDims)
-    pt.elementType.loadCheapPCode(cb, pt.loadElementFromDataAndStrides(cb, indices, dataFirstElement, strides))
+    pt.elementType.loadCheapSCode(cb, pt.loadElementFromDataAndStrides(cb, indices, dataFirstElement, strides))
   }
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a) ++ shape ++ strides ++ FastIndexedSeq(dataFirstElement)
@@ -134,5 +136,5 @@ class SNDArrayPointerCode(val st: SNDArrayPointer, val a: Code[Long]) extends SN
 
   override def memoizeField(cb: EmitCodeBuilder, name: String): SValue = memoize(cb, name, cb.fieldBuilder)
 
-  override def shape(cb: EmitCodeBuilder): SBaseStructCode = pt.shapeType.loadCheapPCode(cb, pt.representation.loadField(a, "shape"))
+  override def shape(cb: EmitCodeBuilder): SBaseStructCode = pt.shapeType.loadCheapSCode(cb, pt.representation.loadField(a, "shape"))
 }

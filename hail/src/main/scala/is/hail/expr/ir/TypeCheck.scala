@@ -404,6 +404,7 @@ object TypeCheck {
         }
       case Die(msg, typ, _) =>
         assert(msg.typ == TString)
+      case Trap(child) =>
       case x@ApplyIR(fn, typeArgs, args) =>
       case x: AbstractApplyNode[_] =>
         assert(x.implementation.unify(x.typeArgs, x.args.map(_.typ), x.returnType))

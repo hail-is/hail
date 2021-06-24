@@ -459,6 +459,15 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       // always required
       case _: I32 | _: I64 | _: F32 | _: F64 | _: Str | True() | False() | _: IsNA | _: Die | _: UUID4 | _: Consume =>
       case _: CombOpValue | _: AggStateValue =>
+      case Trap(child) =>
+        // error message field is missing if the child runs without error
+        requiredness.asInstanceOf[RTuple].field(0).union(false)
+
+        val childField = requiredness.asInstanceOf[RTuple].field(1)
+        // trap can return optional if child throws exception
+        childField.union(false)
+
+        childField.unionFrom(lookup(child))
       case x if x.typ == TVoid =>
       case ApplyComparisonOp(EQWithNA(_, _), _, _) | ApplyComparisonOp(NEQWithNA(_, _), _, _) | ApplyComparisonOp(Compare(_, _), _, _) =>
       case ApplyComparisonOp(op, l, r) =>
@@ -684,7 +693,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.union(lookup(path).required)
         requiredness.fromPType(spec.encodedType.decodedPType(rt))
       case In(_, t) => t match {
-        case PCodeEmitParamType(et) => requiredness.fromPType(et.canonicalPType)
+        case SCodeEmitParamType(et) => requiredness.fromPType(et.canonicalPType)
         case SingleCodeEmitParamType(required, StreamSingleCodeType(_, eltType)) => requiredness.fromPType(PCanonicalStream(eltType, required)) // fixme hacky
         case SingleCodeEmitParamType(required, PTypeReferenceSingleCodeType(pt)) => requiredness.fromPType(pt.setRequired(required))
         case SingleCodeEmitParamType(required, _) => requiredness.union(required)

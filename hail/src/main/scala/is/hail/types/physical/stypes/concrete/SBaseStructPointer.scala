@@ -65,7 +65,7 @@ class SBaseStructPointerSettable(
   def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
     IEmitCode(cb,
       pt.isFieldMissing(a, fieldIdx),
-      pt.fields(fieldIdx).typ.loadCheapPCode(cb, pt.loadField(a, fieldIdx)))
+      pt.fields(fieldIdx).typ.loadCheapSCode(cb, pt.loadField(a, fieldIdx)))
   }
 
   def store(cb: EmitCodeBuilder, pv: SCode): Unit = {

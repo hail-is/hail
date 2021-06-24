@@ -3060,6 +3060,7 @@ class Tests(unittest.TestCase):
         t = hl.set([3, 8])
 
         self.assert_evals_to(s, set([1, 3, 7]))
+        self.assert_evals_to(hl.set(frozenset([1, 2, 3])), set([1, 2, 3]))
 
         self.assert_evals_to(s.add(3), set([1, 3, 7]))
         self.assert_evals_to(s.add(4), set([1, 3, 4, 7]))

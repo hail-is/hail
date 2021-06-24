@@ -1259,6 +1259,11 @@ object IRParser {
         ir_value_expr(env)(it).map { msg =>
           Die(msg, typ, errorId)
         }
+      case "Trap" =>
+        ir_value_expr(env)(it).map { child =>
+          Trap(child)
+        }
+
       case "ApplySeeded" =>
         val function = identifier(it)
         val seed = int64_literal(it)

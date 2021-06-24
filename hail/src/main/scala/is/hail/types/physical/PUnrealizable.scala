@@ -32,7 +32,7 @@ trait PUnrealizable extends PType {
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit =
     unsupported
 
-  override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): SCode = unsupported
+  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SCode = unsupported
 
   override def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = unsupported
 

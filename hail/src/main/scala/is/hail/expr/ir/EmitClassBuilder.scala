@@ -8,8 +8,7 @@ import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.io.fs.FS
 import is.hail.io.{BufferSpec, InputBuffer, TypedCodecSpec}
 import is.hail.types.VirtualTypeWithReq
-import is.hail.types.physical.stypes.interfaces.SStream
-import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType, SValue}
+import is.hail.types.physical.stypes._
 import is.hail.types.physical.{PCanonicalTuple, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils._
@@ -17,6 +16,7 @@ import is.hail.variant.ReferenceGenome
 import org.apache.spark.TaskContext
 
 import java.io._
+import java.lang.reflect.InvocationTargetException
 import scala.collection.mutable
 import scala.language.existentials
 
@@ -398,6 +398,12 @@ class EmitClassBuilder[C](
     _aggSerialized.load().update(i, Code._null)
   }
 
+  def runMethodWithHailExceptionHandler(mname: String): Code[(String, java.lang.Integer)] = {
+    Code.invokeScalaObject2[AnyRef, String, (String, java.lang.Integer)](CodeExceptionHandler.getClass,
+      "handleUserException",
+      cb._this.get.asInstanceOf[Code[AnyRef]], mname)
+  }
+
   def backend(): Code[BackendUtils] = {
     if (_backendField == null) {
       cb.addInterface(typeInfo[FunctionWithBackend].iname)
@@ -507,12 +513,12 @@ class EmitClassBuilder[C](
     val codeArgsInfo = argsInfo.flatMap {
       case CodeParamType(ti) => FastIndexedSeq(ti)
       case t: EmitParamType => t.codeTupleTypes
-      case PCodeParamType(pt) => pt.codeTupleTypes()
+      case SCodeParamType(pt) => pt.codeTupleTypes()
     }
     val (codeReturnInfo, asmTuple) = returnInfo match {
       case CodeParamType(ti) => ti -> null
-      case PCodeParamType(pt) if pt.nCodes == 1 => pt.codeTupleTypes().head -> null
-      case PCodeParamType(pt) =>
+      case SCodeParamType(pt) if pt.nCodes == 1 => pt.codeTupleTypes().head -> null
+      case SCodeParamType(pt) =>
         val asmTuple = modb.tupleClass(pt.codeTupleTypes())
         asmTuple.ti -> asmTuple
       case t: EmitParamType =>
@@ -785,6 +791,26 @@ trait FunctionWithBackend {
   def setBackend(spark: BackendUtils): Unit
 }
 
+object CodeExceptionHandler {
+  /**
+    * This method assumes that the method referred to by `methodName`
+    * is a 0-argument class method (only takes the class itself as an arg)
+    * which returns void.
+    */
+  def handleUserException(obj: AnyRef, methodName: String): (String, java.lang.Integer) = {
+    try {
+      obj.getClass.getMethod(methodName).invoke(obj)
+      null
+    } catch {
+      case e: InvocationTargetException =>
+        e.getTargetException match {
+          case ue: HailException => (ue.msg, ue.errorId)
+          case e => throw e
+        }
+    }
+  }
+}
+
 class EmitMethodBuilder[C](
   val emitParamTypes: IndexedSeq[ParamType],
   val emitReturnType: ParamType,
@@ -818,10 +844,10 @@ class EmitMethodBuilder[C](
     }
   }
 
-  def getPCodeParam(emitIndex: Int): SCode = {
+  def getSCodeParam(emitIndex: Int): SCode = {
     assert(mb.isStatic || emitIndex != 0)
     val static = (!mb.isStatic).toInt
-    val _st = emitParamTypes(emitIndex - static).asInstanceOf[PCodeParamType].st
+    val _st = emitParamTypes(emitIndex - static).asInstanceOf[SCodeParamType].st
     assert(_st.isRealizable)
 
     val ts = _st.codeTupleTypes()
@@ -847,9 +873,9 @@ class EmitMethodBuilder[C](
         { region: Value[Region] =>
           val emitCode = EmitCode.fromI(this) { cb =>
             if (required) {
-              IEmitCode.present(cb, sct.loadToPCode(cb, region, field.load()))
+              IEmitCode.present(cb, sct.loadToSCode(cb, region, field.load()))
             } else {
-              IEmitCode(cb, mb.getArg[Boolean](codeIndex + 1).get, sct.loadToPCode(cb, null, field.load()))
+              IEmitCode(cb, mb.getArg[Boolean](codeIndex + 1).get, sct.loadToSCode(cb, null, field.load()))
             }
           }
 
@@ -864,7 +890,7 @@ class EmitMethodBuilder[C](
           }
         }
 
-      case PCodeEmitParamType(et) =>
+      case SCodeEmitParamType(et) =>
         val fd = cb.memoizeField(getEmitParam(emitIndex, null), s"storeEmitParam_$emitIndex")
         _ => fd
     }
@@ -886,9 +912,9 @@ class EmitMethodBuilder[C](
 
         val emitCode = EmitCode.fromI(this) { cb =>
           if (required) {
-            IEmitCode.present(cb, sct.loadToPCode(cb, r, mb.getArg(codeIndex)(sct.ti).get))
+            IEmitCode.present(cb, sct.loadToSCode(cb, r, mb.getArg(codeIndex)(sct.ti).get))
           } else {
-            IEmitCode(cb, mb.getArg[Boolean](codeIndex + 1).get, sct.loadToPCode(cb, null, mb.getArg(codeIndex)(sct.ti).get))
+            IEmitCode(cb, mb.getArg[Boolean](codeIndex + 1).get, sct.loadToSCode(cb, null, mb.getArg(codeIndex)(sct.ti).get))
           }
         }
 
@@ -902,7 +928,7 @@ class EmitMethodBuilder[C](
           override def get(cb: EmitCodeBuilder): SCode = emitCode.toI(cb).get(cb)
         }
 
-      case PCodeEmitParamType(et) =>
+      case SCodeEmitParamType(et) =>
         val ts = et.st.codeTupleTypes()
 
         new EmitValue {
@@ -962,7 +988,7 @@ class EmitMethodBuilder[C](
 
   def voidWithBuilder(f: (EmitCodeBuilder) => Unit): Unit = emit(EmitCodeBuilder.scopedVoid(this)(f))
 
-  def emitPCode(f: (EmitCodeBuilder) => SCode): Unit = {
+  def emitSCode(f: (EmitCodeBuilder) => SCode): Unit = {
     emit(EmitCodeBuilder.scopedCode(this) { cb =>
       val res = f(cb)
       if (res.st.nCodes == 1)

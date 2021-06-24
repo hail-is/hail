@@ -51,12 +51,13 @@ class RequirednessSuite extends HailSuite {
   def nd(r: Boolean): IR =
     if (r) MakeNDArray.fill(int(optional), FastIndexedSeq(1, 2), True()) else NA(tnd)
 
-  def nestednd(r: Boolean, aelt: Boolean): IR = {
-    if (r)
-      MakeNDArray.fill(array(optional, aelt), FastIndexedSeq(1, 2), True())
-    else
-      NDArrayMap(NA(tnestednd), genUID(), array(optional, aelt))
-  }
+// FIXME: Currently ndarrays don't support elements that have pointers.
+//  def nestednd(r: Boolean, aelt: Boolean): IR = {
+//    if (r)
+//      MakeNDArray.fill(array(optional, aelt), FastIndexedSeq(1, 2), True())
+//    else
+//      NDArrayMap(NA(tnestednd), genUID(), array(optional, aelt))
+//  }
 
   def nestedstream(r: Boolean, a: Boolean, aelt: Boolean): IR = {
     if (r)
@@ -114,7 +115,6 @@ class RequirednessSuite extends HailSuite {
       nodes += Array(nd(r1), pnd(r1))
       for (r2 <- bools) {
         nodes += Array(array(r2, r1), parray(r2, r1))
-        nodes += Array(nestednd(r2, r1), pnestednd(r2, r1))
         for (r3 <- bools) {
           nodes += Array(nestedarray(r3, r2, r1), pnestedarray(r3, r2, r1))
           for (r4 <- bools) {

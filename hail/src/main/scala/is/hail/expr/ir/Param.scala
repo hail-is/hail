@@ -17,10 +17,10 @@ case class CodeParamType(ti: TypeInfo[_]) extends ParamType {
   override def toString: String = s"CodeParam($ti)"
 }
 
-case class PCodeParamType(st: SType) extends ParamType {
+case class SCodeParamType(st: SType) extends ParamType {
   def nCodes: Int = st.nCodes
 
-  override def toString: String = s"PCodeParam($st, $nCodes)"
+  override def toString: String = s"SCodeParam($st, $nCodes)"
 }
 
 trait EmitParamType extends ParamType {
@@ -49,7 +49,7 @@ case class SingleCodeEmitParamType(required: Boolean, sct: SingleCodeType) exten
   override def toString: String = s"SingleCodeEmitParamType($required, $sct)"
 }
 
-case class PCodeEmitParamType(et: EmitType) extends EmitParamType {
+case class SCodeEmitParamType(et: EmitType) extends EmitParamType {
   def required: Boolean = et.required
 
   def virtualType: Type = et.st.virtualType
@@ -61,4 +61,4 @@ sealed trait Param
 
 case class CodeParam(c: Code[_]) extends Param
 case class EmitParam(ec: EmitCode) extends Param
-case class PCodeParam(pc: SCode) extends Param
+case class SCodeParam(sc: SCode) extends Param

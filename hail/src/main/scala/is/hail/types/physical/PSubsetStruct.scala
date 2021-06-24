@@ -123,7 +123,7 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String]) ext
     throw new UnsupportedOperationException
   }
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructCode = throw new UnsupportedOperationException
+  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructCode = throw new UnsupportedOperationException
 
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
     throw new UnsupportedOperationException
