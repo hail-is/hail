@@ -201,7 +201,7 @@ object AbstractRVDSpec {
         val iOrd = partitioner.kord.intervalEndpointOrdering
         val includedIndices = (0 until partitioner.numPartitions).filter { i =>
           val rb = partitioner.rangeBounds(i)
-          rb.isDisjointFrom(iOrd, rb)
+          !rb.isDisjointFrom(iOrd, rb)
         }.toArray
         (includedIndices.map(specLeft.partFiles), partitioner.copy(rangeBounds = includedIndices.map(partitioner.rangeBounds)))
     }
