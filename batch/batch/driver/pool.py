@@ -213,7 +213,12 @@ WHERE name = %s;
     async def create_instances_from_ready_cores(self, ready_cores_mcpu, zone=None):
         n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
 
-        instances_needed = (ready_cores_mcpu - self.live_free_cores_mcpu + (self.worker_cores * 1000) - 1) // (
+        if zone is None:
+            live_free_cores_mcpu = self.live_free_cores_mcpu
+        else:
+            live_free_cores_mcpu = self.live_free_cores_mcpu_by_zone[zone]
+
+        instances_needed = (ready_cores_mcpu - live_free_cores_mcpu + (self.worker_cores * 1000) - 1) // (
             self.worker_cores * 1000
         )
         instances_needed = min(
@@ -443,7 +448,7 @@ LIMIT %s;
             while i < len(self.pool.healthy_instances_by_free_cores):
                 instance = self.pool.healthy_instances_by_free_cores[i]
                 assert cores_mcpu <= instance.free_cores_mcpu
-                if user != 'ci' or (user == 'ci' and instance.zone.startswith('us-central1')):
+                if user != 'ci' or (user == 'ci' and instance.zone == GCP_ZONE):
                     return instance
                 i += 1
             histogram = collections.defaultdict(int)
