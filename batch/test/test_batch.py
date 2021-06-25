@@ -625,7 +625,7 @@ def test_verify_no_access_to_metadata_server(client):
     builder.submit()
     status = j.wait()
     assert status['state'] == 'Failed', str(status)
-    assert "Request timed out" in j.log()['main'], (str(j.log()['main']), status)
+    assert "Connection timed out" in j.log()['main'], (str(j.log()['main']), status)
 
 
 def test_can_use_google_credentials(client):
