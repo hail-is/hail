@@ -62,7 +62,7 @@ steps:
     contextPath: /io/echo
     publishAs: echo
     resources:
-      storage: 50Gi
+      storage: 10Gi
       cpu: "2"
       memory: 7.5Gi
     inputs:
