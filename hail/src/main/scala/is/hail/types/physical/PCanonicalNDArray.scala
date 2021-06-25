@@ -112,23 +112,16 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   }
 
   def getElementAddress(indices: IndexedSeq[Long], nd: Long): Long = {
-    val dataLength = (0 until nDims).map(loadShape(nd, _)).foldLeft(1L)(_ * _)
-    val dataAddress = this.representation.loadField(nd, 2)
-
     var bytesAway = 0L
     indices.zipWithIndex.foreach{case (requestedIndex: Long, strideIndex: Int) =>
       bytesAway += requestedIndex * loadStride(nd, strideIndex)
     }
-
     bytesAway + this.unstagedDataFirstElementPointer(nd)
   }
 
   private def getElementAddress(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], nd: Value[Long]): Value[Long] = {
     val ndarrayValue = loadCheapSCode(cb, nd).asNDArray.memoize(cb, "getElementAddressNDValue")
     val stridesTuple = ndarrayValue.strides(cb)
-
-    val dataStore = cb.newLocal[Long]("nd_get_element_address_data_store",
-      representation.loadField(nd, "data"))
 
     cb.newLocal[Long]("pcndarray_get_element_addr", indices.zipWithIndex.map { case (requestedElementIndex, strideIndex) =>
       requestedElementIndex * stridesTuple(strideIndex)
@@ -211,17 +204,14 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
           false)
 
         val newDataPointer = cb.newLocal("ndarray_construct_new_data_pointer", this.allocateData(shape, region))
+        cb.append(Region.storeAddress(this.representation.fieldOffset(ndAddr, "data"), newDataPointer))
         val result = new SNDArrayPointerCode(sType, ndAddr).memoize(cb, "construct_by_copying_array_result")
-
-        cb.append(Region.storeLong(this.representation.fieldOffset(ndAddr, "data"), newDataPointer))
         // TODO: Try to memcpy here
         val loopCtr = cb.newLocal[Long]("foo")
         cb.forLoop(cb.assign(loopCtr, 0L), loopCtr < dataValue.loadLength().toL, cb.assign(loopCtr, loopCtr + 1L), {
-          elementType.storeAtAddress(cb, newDataPointer + loopCtr * elementType.byteSize, region, dataValue.loadElement(cb, loopCtr.toI).get(cb, "NDArray elements cannot be missing"), true)
+          elementType.storeAtAddress(cb, newDataPointer + (loopCtr * elementType.byteSize), region, dataValue.loadElement(cb, loopCtr.toI).get(cb, "NDArray elements cannot be missing"), true)
         })
-        //dataType.storeContentsAtAddress(cb, newDataPointer, region, dataValue, true)
 
-        cb.println(cb.strValue(result))
         result
       }
     }
@@ -391,7 +381,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SCode = new SNDArrayPointerCode(sType, addr)
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
-    val addr = this.representation.allocate(region)
+    val addr = cb.newField[Long]("pcanonical_ndarray_store", this.representation.allocate(region))
     storeAtAddress(cb, addr, region, value, deepCopy)
     addr
   }
@@ -430,9 +420,9 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   }
 
   def unstagedDataFirstElementPointer(ndAddr: Long): Long =
-    representation.loadField(ndAddr, 2)
+    Region.loadAddress(representation.loadField(ndAddr, 2))
 
-  override def dataFirstElementPointer(ndAddr: Code[Long]): Code[Long] = representation.loadField(ndAddr, "data")
+  override def dataFirstElementPointer(ndAddr: Code[Long]): Code[Long] = Region.loadAddress(representation.loadField(ndAddr, "data"))
 
   def loadFromNested(addr: Code[Long]): Code[Long] = addr
 
@@ -447,7 +437,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
     val aNDArray = annotation.asInstanceOf[NDArray]
 
-    var runningProduct = this.representation.fieldType("data").asInstanceOf[PArray].elementType.byteSize
+    var runningProduct = this.elementType.byteSize
     val stridesArray = new Array[Long](aNDArray.shape.size)
     ((aNDArray.shape.size - 1) to 0 by -1).foreach { i =>
       stridesArray(i) = runningProduct
@@ -459,6 +449,8 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       elementType.unstagedStoreJavaObjectAtAddress(curElementAddress, element, region)
       curElementAddress += elementType.byteSize
     }
-    this.representation.unstagedStoreJavaObjectAtAddress(addr, Row(aNDArray.shape, stridesArray, dataFirstElementAddress), region)
+    val shapeRow = Row(aNDArray.shape: _*)
+    val stridesRow = Row(stridesArray: _*)
+    this.representation.unstagedStoreJavaObjectAtAddress(addr, Row(shapeRow, stridesRow, dataFirstElementAddress), region)
   }
 }

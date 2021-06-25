@@ -283,8 +283,8 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
   }
 
   def allocateNDArrayData(size: Long): Long = {
-    if (size <= 0L) {
-      throw new IllegalArgumentException(s"Can't request ndarray of non-positive memory size, got ${size}")
+    if (size < 0L) {
+      throw new IllegalArgumentException(s"Can't request ndarray of negative memory size, got ${size}")
     }
 
     val extra = PNDArray.headerBytes
