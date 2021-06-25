@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Callable, Tuple
+from typing import Optional, Dict, Callable, Tuple, Awaitable, Any
 import os
 import json
 import sys
@@ -356,6 +356,7 @@ class Container:
         self.job = job
         self.name = name
         self.spec = spec
+        self.deleted_event = asyncio.Event()
 
         image_ref = parse_docker_image_reference(self.spec['image'])
         if image_ref.tag is None and image_ref.digest is None:
@@ -402,7 +403,8 @@ class Container:
 
     async def run(self, worker):
         try:
-            with self.step('pulling'):
+
+            async def localize_rootfs():
                 async with worker.rootfs_locks[self.image_ref_str]:
                     last_fetched = worker.rootfs_last_fetched.get(self.image_ref_str)
                     five_minutes_ago = time_msecs() - 5 * 60 * 1000
@@ -420,22 +422,17 @@ class Container:
                     if not os.path.exists(self.rootfs_path):
                         await self.extract_rootfs()
 
+            with self.step('pulling'):
+                await self.run_until_done_or_deleted(localize_rootfs)
+
             with self.step('setting up overlay'):
-                await self.setup_overlay()
+                await self.run_until_done_or_deleted(self.setup_overlay)
 
             with self.step('setting up network'):
-                network = self.spec.get('network')
-                if network is None or network is True:
-                    self.netns = await network_allocator.allocate_public()
-                else:
-                    assert network == 'private'
-                    self.netns = await network_allocator.allocate_private()
-                if self.port is not None:
-                    self.host_port = await port_allocator.allocate()
-                    await self.netns.expose_port(self.port, self.host_port)
+                await self.run_until_done_or_deleted(self.setup_network_namespace)
 
             with self.step('running'):
-                timed_out = await self.run_container()
+                timed_out = await self.run_until_done_or_deleted(self.run_container)
 
             self.container_status = await self.get_container_status()
 
@@ -463,6 +460,15 @@ class Container:
         finally:
             with self.step('deleting'):
                 await self.delete_container()
+
+    async def run_until_done_or_deleted(self, f: Callable[[], Awaitable[Any]]):
+        step = asyncio.ensure_future(f())
+        deleted = asyncio.ensure_future(self.deleted_event.wait())
+        await asyncio.wait([deleted, step], return_when=asyncio.FIRST_COMPLETED)
+        if deleted.done():
+            raise JobDeletedError()
+        assert step.done()
+        return step.result()
 
     def is_job_deleted(self) -> bool:
         return self.job.deleted
@@ -539,6 +545,17 @@ class Container:
         await check_shell(
             f'mount -t overlay overlay -o lowerdir={lower_dir},upperdir={upper_dir},workdir={work_dir} {merged_dir}'
         )
+
+    async def setup_network_namespace(self):
+        network = self.spec.get('network')
+        if network is None or network is True:
+            self.netns = await network_allocator.allocate_public()
+        else:
+            assert network == 'private'
+            self.netns = await network_allocator.allocate_private()
+        if self.port is not None:
+            self.host_port = await port_allocator.allocate()
+            await self.netns.expose_port(self.port, self.host_port)
 
     async def run_container(self) -> bool:
         self.started_at = time_msecs()
@@ -793,6 +810,7 @@ class Container:
 
     async def delete(self):
         log.info(f'deleting {self}')
+        self.deleted_event.set()
         await self.delete_container()
 
     # {
