@@ -116,9 +116,12 @@ class noCache extends ChunkCache {
     }
     else {
       val closestSize = bigChunkCache.ceilingEntry(size)
-      if (closestSize.getKey == size || ((closestSize.getKey * .9) <= size)) {
+      if (closestSize != null && (closestSize.getKey == size
+          || ((closestSize.getKey * .9) <= size))) {
         cacheHits += 1
-        (closestSize.getValue.pop(), size)
+        val chunkPointer = closestSize.getValue.pop()
+        if (closestSize.getValue.size == 0) bigChunkCache.remove(closestSize.getKey)
+        (chunkPointer, size)
       }
       else (newChunk(pool, size), size)
     }
