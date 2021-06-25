@@ -4,7 +4,9 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.types.coerce
-import is.hail.types.physical.{PArray, PCode, PFloat64, PIndexableCode, PType}
+import is.hail.types.physical.stypes.EmitType
+import is.hail.types.physical.stypes.primitives.SFloat64
+import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -305,10 +307,10 @@ object ArrayFunctions extends RegistryFunctions {
     }
 
     registerIEmitCode2("corr", TArray(TFloat64), TArray(TFloat64), TFloat64, {
-      (_: Type, _: PType, _: PType) => PFloat64()
+      (_: Type, _: EmitType, _: EmitType) => EmitType(SFloat64, false)
     }) { case (cb, r, rt, ec1, ec2) =>
-      ec1.toI(cb).flatMap(cb) { case pc1: PIndexableCode =>
-        ec2.toI(cb).flatMap(cb) { case pc2: PIndexableCode =>
+      ec1.toI(cb).flatMap(cb) { case pc1: SIndexableCode =>
+        ec2.toI(cb).flatMap(cb) { case pc2: SIndexableCode =>
           val pv1 = pc1.memoize(cb, "corr_a1")
           val pv2 = pc2.memoize(cb, "corr_a2")
           val l1 = cb.newLocal("len1", pv1.loadLength())
@@ -346,7 +348,7 @@ object ArrayFunctions extends RegistryFunctions {
               MathFunctions.mathPackageClass,
               "sqrt",
               (n.toD * xSqSum - xSum * xSum) * (n.toD * ySqSum - ySum * ySum))
-            PCode(rt, res)
+            primitive(res)
           })
         }
       }

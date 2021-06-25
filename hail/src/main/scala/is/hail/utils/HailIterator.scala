@@ -1,5 +1,6 @@
 package is.hail.utils
 
+import scala.collection.mutable
 import scala.reflect.ClassTag
 
 abstract class HailIterator[@specialized T] {
@@ -8,10 +9,10 @@ abstract class HailIterator[@specialized T] {
   def hasNext: Boolean
 
   def toArray(implicit tct: ClassTag[T]): Array[T] = {
-    val b = new BoxedArrayBuilder[T]()
+    val b = new mutable.ArrayBuffer[T]()
     while (hasNext)
       b += next()
-    b.result()
+    b.toArray
   }
 
   def countNonNegative()(implicit ev: Numeric[T]): Int = {

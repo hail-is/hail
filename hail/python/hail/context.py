@@ -35,7 +35,10 @@ def _get_local_tmpdir(local_tmpdir):
 def _get_log(log):
     if log is None:
         py_version = version()
-        log = hail.utils.timestamp_path(os.path.join(os.getcwd(), 'hail'),
+        log_dir = os.environ.get('HAIL_LOG_DIR')
+        if log_dir is None:
+            log_dir = os.getcwd()
+        log = hail.utils.timestamp_path(os.path.join(log_dir, 'hail'),
                                         suffix=f'-{py_version}.log')
     return log
 

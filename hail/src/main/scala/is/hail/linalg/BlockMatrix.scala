@@ -2,7 +2,6 @@ package is.hail.linalg
 
 import java.io._
 import java.nio._
-
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV, sum => breezeSum, _}
 import breeze.numerics.{abs => breezeAbs, log => breezeLog, pow => breezePow, sqrt => breezeSqrt}
 import breeze.stats.distributions.{RandBasis, ThreadLocalRandomGenerator}
@@ -12,7 +11,7 @@ import is.hail.backend.{BroadcastValue, HailTaskContext}
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.utils._
 import is.hail.expr.Parser
-import is.hail.expr.ir.{CompileAndEvaluate, ExecuteContext, IR, TableValue}
+import is.hail.expr.ir.{CompileAndEvaluate, ExecuteContext, IR, IntArrayBuilder, TableValue}
 import is.hail.types._
 import is.hail.types.physical.{PArray, PCanonicalArray, PCanonicalStruct, PFloat64, PFloat64Optional, PFloat64Required, PInt64, PInt64Optional, PInt64Required, PStruct}
 import is.hail.types.virtual._
@@ -1368,8 +1367,8 @@ object BlockMatrixFilterRDD {
 
     val blockSize = gp.blockSize
     val ab = new BoxedArrayBuilder[(Int, Array[Int], Array[Int])]()
-    val startIndices = new BoxedArrayBuilder[Int]()
-    val endIndices = new BoxedArrayBuilder[Int]()
+    val startIndices = new IntArrayBuilder()
+    val endIndices = new IntArrayBuilder()
 
     keep
       .grouped(blockSize)

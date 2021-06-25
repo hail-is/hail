@@ -44,11 +44,11 @@ final case class PCanonicalShuffle(
   override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long =
     this.representation.unstagedStoreJavaObject(annotation, region)
 
-  def loadBinary(cb: EmitCodeBuilder, addr: Code[Long]): SBinaryPointerCode = representation.loadCheapPCode(cb, addr).asInstanceOf[SBinaryPointerCode]
+  def loadBinary(cb: EmitCodeBuilder, addr: Code[Long]): SBinaryPointerCode = representation.loadCheapSCode(cb, addr).asInstanceOf[SBinaryPointerCode]
 
-  def sType: SCanonicalShufflePointer = SCanonicalShufflePointer(this)
+  def sType: SCanonicalShufflePointer = SCanonicalShufflePointer(setRequired(false).asInstanceOf[PCanonicalShuffle])
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SCanonicalShufflePointerCode(sType, representation.loadCheapPCode(cb, addr))
+  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SCode = new SCanonicalShufflePointerCode(sType, representation.loadCheapSCode(cb, addr))
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {

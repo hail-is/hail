@@ -8,6 +8,7 @@ import is.hail.io._
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.encoded.EType
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.SCode
 import is.hail.types.virtual.{TVoid, Type}
 import is.hail.utils._
 
@@ -20,7 +21,7 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
 
   override def compWithKey(cb: EmitCodeBuilder, off: Code[Long], k: EmitCode): Code[Int] = {
     val mb = kb.getOrGenEmitMethod("compWithKey",
-      ("compWithKey_grouped_btree", kt, k.pt),
+      ("compWithKey_grouped_btree", kt, k.emitType),
       FastIndexedSeq[ParamType](typeInfo[Long], k.emitParamType),
       typeInfo[Int]
     ) { mb =>
@@ -41,8 +42,8 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
   def isKeyMissing(off: Code[Long]): Code[Boolean] =
     storageType.isFieldMissing(off, 0)
 
-  def loadKey(cb: EmitCodeBuilder, off: Code[Long]): PCode = {
-    kt.loadCheapPCode(cb, storageType.loadField(off, 0))
+  def loadKey(cb: EmitCodeBuilder, off: Code[Long]): SCode = {
+    kt.loadCheapSCode(cb, storageType.loadField(off, 0))
   }
 
   def initValue(cb: EmitCodeBuilder, destc: Code[Long], k: EmitCode, rIdx: Code[Int]): Unit = {
@@ -81,11 +82,11 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
     cb += Region.storeInt(storageType.fieldOffset(off, 1), -1)
 
   def copy(cb: EmitCodeBuilder, src: Code[Long], dest: Code[Long]): Unit =
-    storageType.storeAtAddress(cb, dest, region, storageType.loadCheapPCode(cb, src), deepCopy = false)
+    storageType.storeAtAddress(cb, dest, region, storageType.loadCheapSCode(cb, src), deepCopy = false)
 
   def deepCopy(cb: EmitCodeBuilder, er: EmitRegion, dest: Code[Long], srcCode: Code[Long]): Unit = {
     val src = cb.newLocal("ga_deep_copy_src", srcCode)
-    storageType.storeAtAddress(cb, dest, region, storageType.loadCheapPCode(cb, src), deepCopy = true)
+    storageType.storeAtAddress(cb, dest, region, storageType.loadCheapSCode(cb, src), deepCopy = true)
     container.copyFrom(cb, containerOffset(src))
     container.store(cb)
   }
@@ -312,6 +313,6 @@ class GroupedAggregator(ktV: VirtualTypeWithReq, nestedAggs: Array[StagedAggrega
     }
 
     // don't need to deep copy because that's done in nested aggregators
-    pt.storeAtAddress(cb, addr, region, resultType.loadCheapPCode(cb, resultAddr), deepCopy = false)
+    pt.storeAtAddress(cb, addr, region, resultType.loadCheapSCode(cb, resultAddr), deepCopy = false)
   }
 }

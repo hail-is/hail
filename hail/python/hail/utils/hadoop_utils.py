@@ -214,6 +214,26 @@ def hadoop_ls(path: str) -> List[Dict]:
     return Env.fs().ls(path)
 
 
+def hadoop_scheme_supported(scheme: str) -> bool:
+    """Returns ``True`` if the Hadoop filesystem supports URLs with the given
+    scheme.
+
+    Examples
+    --------
+
+    >>> hadoop_scheme_supported('gs') # doctest: +SKIP
+
+    Parameters
+    ----------
+    scheme : :class:`str`
+
+    Returns
+    -------
+    :obj:`.bool`
+    """
+    return Env.fs().supports_scheme(scheme)
+
+
 def copy_log(path: str) -> None:
     """Attempt to copy the session log to a hadoop-API-compatible location.
 

@@ -2,14 +2,15 @@ package is.hail.expr.ir.functions
 
 import is.hail.annotations.{Memory, Region}
 import is.hail.asm4s.{Code, Value}
-import is.hail.expr.{Nat, NatVariable}
 import is.hail.expr.ir._
+import is.hail.expr.{Nat, NatVariable}
 import is.hail.linalg.{LAPACK, LinalgCodeUtils}
 import is.hail.types.coerce
-import is.hail.types.physical.PCanonicalNDArray
-import is.hail.types.physical.stypes.concrete.SNDArrayPointerSettable
+import is.hail.types.physical.stypes.EmitType
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SNDArrayPointer}
+import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.physical.{PBooleanRequired, PCanonicalNDArray, PCanonicalStruct, PFloat64Required, PType}
 import is.hail.types.virtual._
-import is.hail.utils._
 
 object NDArrayFunctions extends RegistryFunctions {
   override def registerAll() {
@@ -35,58 +36,75 @@ object NDArrayFunctions extends RegistryFunctions {
       }
     }
 
-    registerIEmitCode2("linear_solve", TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)), { (t, p1, p2) => p2 }) { case (cb, region, pt, aec, bec) =>
-      aec.toI(cb).flatMap(cb){ apc =>
-        bec.toI(cb).map(cb){ bpc =>
-          val aInput = apc.asNDArray.memoize(cb, "A")
-          val bInput = bpc.asNDArray.memoize(cb, "B")
+    def linear_solve(a: SNDArrayCode, b: SNDArrayCode, outputPt: PType, cb: EmitCodeBuilder, region: Value[Region]): (SNDArrayCode, Value[Int]) = {
+      val aInput = a.asNDArray.memoize(cb, "A")
+      val bInput = b.asNDArray.memoize(cb, "B")
 
-          val aColMajor = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(aInput, cb, region)
-          val bColMajor = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(bInput, cb, region)
+      val aColMajor = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(aInput, cb, region)
+      val bColMajor = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(bInput, cb, region)
 
-          val IndexedSeq(n0, n1) = aColMajor.shapes(cb)
+      val IndexedSeq(n0, n1) = aColMajor.shapes(cb)
 
-          cb.ifx(n0 cne n1, cb._fatal("hail.nd.solve: matrix a must be square."))
+      cb.ifx(n0 cne n1, cb._fatal("hail.nd.solve: matrix a must be square."))
 
-          val IndexedSeq(n, nrhs) = bColMajor.shapes(cb)
+      val IndexedSeq(n, nrhs) = bColMajor.shapes(cb)
 
-          cb.ifx(n0 cne n, cb._fatal("hail.nd.solve: Solve dimensions incompatible"))
+      cb.ifx(n0 cne n, cb._fatal("hail.nd.solve: Solve dimensions incompatible"))
 
-          val infoDGESVResult = cb.newLocal[Int]("dgesv_result")
-          val ipiv = cb.newLocal[Long]("dgesv_ipiv")
-          cb.assign(ipiv, Code.invokeStatic1[Memory, Long, Long]("malloc", n * 4L))
+      val infoDGESVResult = cb.newLocal[Int]("dgesv_result")
+      val ipiv = cb.newLocal[Long]("dgesv_ipiv")
+      cb.assign(ipiv, Code.invokeStatic1[Memory, Long, Long]("malloc", n * 4L))
 
-          val aCopy = cb.newLocal[Long]("dgesv_a_copy")
-          def aNumBytes = n * n * 8L
-          cb.assign(aCopy, Code.invokeStatic1[Memory, Long, Long]("malloc", aNumBytes))
-          val aColMajorFirstElement = aColMajor.firstDataAddress(cb)
+      val aCopy = cb.newLocal[Long]("dgesv_a_copy")
 
-          cb.append(Region.copyFrom(aColMajorFirstElement, aCopy, aNumBytes))
+      def aNumBytes = n * n * 8L
 
-          val outputPType = coerce[PCanonicalNDArray](pt)
-          val outputShape = IndexedSeq(n, nrhs)
-          val (outputAddress, outputFinisher) = outputPType.constructDataFunction(outputShape, outputPType.makeColumnMajorStrides(outputShape, region, cb), cb, region)
+      cb.assign(aCopy, Code.invokeStatic1[Memory, Long, Long]("malloc", aNumBytes))
+      val aColMajorFirstElement = aColMajor.firstDataAddress(cb)
 
-          cb.append(Region.copyFrom(bColMajor.firstDataAddress(cb), outputAddress, n * nrhs * 8L))
+      cb.append(Region.copyFrom(aColMajorFirstElement, aCopy, aNumBytes))
 
-          cb.assign(infoDGESVResult, Code.invokeScalaObject7[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgesv",
-            n.toI,
-            nrhs.toI,
-            aCopy,
-            n.toI,
-            ipiv,
-            outputAddress,
-            n.toI
-          ))
+      val outputPType = coerce[PCanonicalNDArray](outputPt)
+      val outputShape = IndexedSeq(n, nrhs)
+      val (outputAddress, outputFinisher) = outputPType.constructDataFunction(outputShape, outputPType.makeColumnMajorStrides(outputShape, region, cb), cb, region)
 
-          cb.ifx(infoDGESVResult cne 0, cb._fatal(s"hl.nd.solve: Could not solve, matrix was singular. dgesv error code ", infoDGESVResult.toS))
+      cb.append(Region.copyFrom(bColMajor.firstDataAddress(cb), outputAddress, n * nrhs * 8L))
 
-          cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", ipiv.load()))
-          cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", aCopy.load()))
+      cb.assign(infoDGESVResult, Code.invokeScalaObject7[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgesv",
+        n.toI,
+        nrhs.toI,
+        aCopy,
+        n.toI,
+        ipiv,
+        outputAddress,
+        n.toI
+      ))
 
-          outputFinisher(cb)
+      cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", ipiv.load()))
+      cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", aCopy.load()))
+
+      (outputFinisher(cb), infoDGESVResult)
+    }
+
+    registerIEmitCode2("linear_solve_no_crash", TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)), TStruct(("solution", TNDArray(TFloat64, Nat(2))), ("failed", TBoolean)),
+      { (t, p1, p2) => EmitType(PCanonicalStruct(false, ("solution", PCanonicalNDArray(PFloat64Required, 2, false)), ("failed", PBooleanRequired)).sType, false) }) {
+      case (cb, region, SBaseStructPointer(outputStructType: PCanonicalStruct), aec, bec) =>
+        aec.toI(cb).flatMap(cb) { apc =>
+          bec.toI(cb).map(cb) { bpc =>
+            val outputNDArrayPType = outputStructType.fieldType("solution")
+            val (resNDPCode, info) = linear_solve(apc.asNDArray, bpc.asNDArray, outputNDArrayPType, cb, region)
+            val ndEmitCode = EmitCode(Code._empty, info cne 0, resNDPCode)
+            outputStructType.constructFromFields(cb, region, IndexedSeq[EmitCode](ndEmitCode, EmitCode(Code._empty, false, primitive(info cne 0))), false)
+          }
         }
-      }
+    }
+
+    registerSCode2("linear_solve", TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)),
+      { (t, p1, p2) => PCanonicalNDArray(PFloat64Required, 2, true).sType }) {
+      case (er, cb, SNDArrayPointer(pt), apc, bpc) =>
+        val (resPCode, info) = linear_solve(apc.asNDArray, bpc.asNDArray, pt, cb, er.region)
+        cb.ifx(info cne 0, cb._fatal(s"hl.nd.solve: Could not solve, matrix was singular. dgesv error code ", info.toS))
+        resPCode
     }
   }
 }

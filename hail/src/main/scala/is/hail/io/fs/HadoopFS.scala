@@ -175,4 +175,18 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
     val pathFS = ppath.getFileSystem(conf.value)
     pathFS.deleteOnExit(ppath)
   }
+
+  def supportsScheme(scheme: String): Boolean = {
+    if (scheme == "") {
+      true
+    } else {
+      try {
+        hadoop.fs.FileSystem.getFileSystemClass(scheme, conf.value)
+        true
+      } catch {
+        case e: hadoop.fs.UnsupportedFileSystemException => false
+        case e: Exception => throw e
+      }
+    }
+  }
 }

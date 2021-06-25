@@ -11,6 +11,7 @@ import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
 import is.hail.rvd.RVDSpecMaker
 import is.hail.types.encoded._
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.{BooleanSingleCodeType, Float32SingleCodeType, Float64SingleCodeType, Int32SingleCodeType, Int64SingleCodeType, PTypeReferenceSingleCodeType, SType}
 import is.hail.types.virtual._
 import is.hail.utils.{FastIndexedSeq, _}
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
@@ -18,14 +19,7 @@ import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 import scala.language.existentials
 
 sealed trait IR extends BaseIR {
-  protected[ir] var _pType: PType = null
   private var _typ: Type = null
-
-  def pType = {
-    assert(_pType != null)
-
-    _pType
-  }
 
   def typ: Type = {
     if (_typ == null)
@@ -64,9 +58,8 @@ sealed trait IR extends BaseIR {
   def unwrap: IR = _unwrap(this)
 }
 
-sealed trait TypedIR[T <: Type, P <: PType] extends IR {
+sealed trait TypedIR[T <: Type] extends IR {
   override def typ: T = coerce[T](super.typ)
-  override def pType: P = coerce[P](super.pType)
 }
 
 object Literal {
@@ -174,7 +167,7 @@ final case class Ref(name: String, var _typ: Type) extends BaseRef
 
 // Recur can't exist outside of loop
 // Loops can be nested, but we can't call outer loops in terms of inner loops so there can only be one loop "active" in a given context
-final case class TailLoop(name: String, params: IndexedSeq[(String, IR)], body: IR) extends IR with InferredState {
+final case class TailLoop(name: String, params: IndexedSeq[(String, IR)], body: IR) extends IR {
   lazy val paramIdx: Map[String, Int] = params.map(_._1).zipWithIndex.toMap
 }
 final case class Recur(name: String, args: IndexedSeq[IR], _typ: Type) extends BaseRef
@@ -297,20 +290,15 @@ final case class StreamZip(as: IndexedSeq[IR], names: IndexedSeq[String], body: 
 }
 final case class StreamMultiMerge(as: IndexedSeq[IR], key: IndexedSeq[String]) extends IR {
   override def typ: TStream = coerce[TStream](super.typ)
-  override def pType: PStream = coerce[PStream](super.pType)
 }
+
+/**
+  * The StreamZipJoin node assumes that input streams have distinct keys. If input streams
+  * do not have distinct keys, the key that is included in the result is undefined, but
+  * is likely the last.
+ */
 final case class StreamZipJoin(as: IndexedSeq[IR], key: IndexedSeq[String], curKey: String, curVals: String, joinF: IR) extends IR {
   override def typ: TStream = coerce[TStream](super.typ)
-  override def pType: PStream = coerce[PStream](super.pType)
-  private var _curValsType: PCanonicalArray = null
-  def getOrComputeCurValsType(valsType: => PType): PCanonicalArray = {
-    if (_curValsType == null) _curValsType = valsType.asInstanceOf[PCanonicalArray]
-    _curValsType
-  }
-  def curValsType: PCanonicalArray = {
-    assert(_curValsType != null)
-    _curValsType
-  }
 }
 final case class StreamFilter(a: IR, name: String, cond: IR) extends IR {
   override def typ: TStream = coerce[TStream](super.typ)
@@ -319,11 +307,7 @@ final case class StreamFlatMap(a: IR, name: String, body: IR) extends IR {
   override def typ: TStream = coerce[TStream](super.typ)
 }
 
-trait InferredState extends IR { var accPTypes: Array[PType] = null }
-
-final case class StreamFold(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends IR with InferredState {
-  def accPType: PType = accPTypes.head
-}
+final case class StreamFold(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends IR
 
 object StreamFold2 {
   def apply(a: StreamFold): StreamFold2 = {
@@ -331,14 +315,12 @@ object StreamFold2 {
   }
 }
 
-final case class StreamFold2(a: IR, accum: IndexedSeq[(String, IR)], valueName: String, seq: IndexedSeq[IR], result: IR) extends IR with InferredState {
+final case class StreamFold2(a: IR, accum: IndexedSeq[(String, IR)], valueName: String, seq: IndexedSeq[IR], result: IR) extends IR {
   assert(accum.length == seq.length)
   val nameIdx: Map[String, Int] = accum.map(_._1).zipWithIndex.toMap
 }
 
-final case class StreamScan(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends IR with InferredState {
-  def accPType: PType = accPTypes.head
-}
+final case class StreamScan(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends IR
 
 final case class StreamFor(a: IR, valueName: String, body: IR) extends IR
 
@@ -395,7 +377,7 @@ object StreamJoin {
 
 final case class StreamJoinRightDistinct(left: IR, right: IR, lKey: IndexedSeq[String], rKey: IndexedSeq[String], l: String, r: String, joinF: IR, joinType: String) extends IR
 
-sealed trait NDArrayIR extends TypedIR[TNDArray, PNDArray] {
+sealed trait NDArrayIR extends TypedIR[TNDArray] {
   def elementTyp: Type = typ.elementType
 }
 
@@ -519,8 +501,6 @@ object InsertFields {
 final case class InsertFields(old: IR, fields: Seq[(String, IR)], fieldOrder: Option[IndexedSeq[String]]) extends IR {
 
   override def typ: TStruct = coerce[TStruct](super.typ)
-
-  override def pType: PStruct = coerce[PStruct](super.pType)
 }
 
 object GetFieldByIdx {
@@ -562,6 +542,13 @@ object Die {
   def apply(message: String, typ: Type, errorId: Int): Die = Die(Str(message), typ, errorId)
 }
 
+/**
+  * the Trap node runs the `child` node with an exception handler. If the child
+  * throws a HailException (user exception), then we return the tuple ((msg, errorId), NA).
+  * If the child throws any other exception, we raise that exception. If the
+  * child does not throw, then we return the tuple (NA, child value).
+  */
+final case class Trap(child: IR) extends IR
 final case class Die(message: IR, _typ: Type, errorId: Int) extends IR
 
 final case class ApplyIR(function: String, typeArgs: Seq[Type], args: Seq[IR]) extends IR {
@@ -629,25 +616,7 @@ final case class BlockMatrixWrite(child: BlockMatrixIR, writer: BlockMatrixWrite
 
 final case class BlockMatrixMultiWrite(blockMatrices: IndexedSeq[BlockMatrixIR], writer: BlockMatrixMultiWriter) extends IR
 
-final case class CollectDistributedArray(contexts: IR, globals: IR, cname: String, gname: String, body: IR, tsd: Option[TableStageDependency] = None) extends IR {
-  val bufferSpec: BufferSpec = BufferSpec.defaultUncompressed
-
-  lazy val contextPTuple: PTuple = PCanonicalTuple(required = true, coerce[PStream](contexts.pType).elementType)
-  lazy val globalPTuple: PTuple = PCanonicalTuple(required = true, globals.pType)
-  lazy val bodyPTuple: PTuple = PCanonicalTuple(required = true, body.pType)
-
-  lazy val contextSpec: TypedCodecSpec = TypedCodecSpec(contextPTuple, bufferSpec)
-  lazy val globalSpec: TypedCodecSpec = TypedCodecSpec(globalPTuple, bufferSpec)
-  lazy val bodySpec: TypedCodecSpec = TypedCodecSpec(bodyPTuple, bufferSpec)
-
-  lazy val decodedContextPTuple: PTuple = contextSpec.encodedType.decodedPType(contextPTuple.virtualType).asInstanceOf[PTuple]
-  lazy val decodedGlobalPTuple: PTuple = globalSpec.encodedType.decodedPType(globalPTuple.virtualType).asInstanceOf[PTuple]
-  lazy val decodedBodyPTuple: PTuple = bodySpec.encodedType.decodedPType(bodyPTuple.virtualType).asInstanceOf[PTuple]
-
-  def decodedContextPType: PType = decodedContextPTuple.types(0)
-  def decodedGlobalPType: PType = decodedGlobalPTuple.types(0)
-  def decodedBodyPType: PType = decodedBodyPTuple.types(0)
-}
+final case class CollectDistributedArray(contexts: IR, globals: IR, cname: String, gname: String, body: IR, tsd: Option[TableStageDependency] = None) extends IR
 
 object PartitionReader {
   implicit val formats: Formats = new DefaultFormats() {

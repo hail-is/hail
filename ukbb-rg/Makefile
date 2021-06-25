@@ -1,36 +1,22 @@
 include ../config.mk
 
-UKBB_RG_STATIC_LATEST = $(DOCKER_PREFIX)/ukbb-rg-static:latest
-UKBB_RG_STATIC_IMAGE = $(DOCKER_PREFIX)/ukbb-rg-static:$(shell docker images -q --no-trunc ukbb-rg-static | sed -e 's,[^:]*:,,')
+TOKEN = $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
 
-UKBB_RG_BROWSER_LATEST = $(DOCKER_PREFIX)/ukbb-rg-browser:latest
-UKBB_RG_BROWSER_IMAGE = $(DOCKER_PREFIX)/ukbb-rg-browser:$(shell docker images -q --no-trunc ukbb-rg-browser | sed -e 's,[^:]*:,,')
+UKBB_RG_STATIC_IMAGE := $(DOCKER_PREFIX)/ukbb-rg-static:$(TOKEN)
+UKBB_RG_BROWSER_IMAGE := $(DOCKER_PREFIX)/ukbb-rg-browser:$(TOKEN)
 
 .PHONY: build
 build:
 	ls app/app.R app/www/rainbowvis.js # read the README
-	docker pull $(DOCKER_PREFIX)/ubuntu:18.04
-	-docker pull $(UKBB_RG_STATIC_LATEST)
-	python3 ../ci/jinja2_render.py '{"docker_prefix":"$(DOCKER_PREFIX)"}' Dockerfile.static Dockerfile.static.out
-	docker build -t ukbb-rg-static -f Dockerfile.static.out --cache-from ukbb-rg-static,$(UKBB_RG_STATIC_LATEST),$(DOCKER_PREFIX)/ubuntu:18.04 .
-	docker pull $(DOCKER_PREFIX)/ubuntu:19.04
-	-docker pull $(UKBB_RG_BROWSER_LATEST)
-	python3 ../ci/jinja2_render.py '{"docker_prefix":"$(DOCKER_PREFIX)"}' Dockerfile.browser Dockerfile.browser.out
-	docker build -t ukbb-rg-browser -f Dockerfile.browser.out --cache-from ukbb-rg-browser,$(UKBB_RG_BROWSER_LATEST),$(DOCKER_PREFIX)/ubuntu:19.04 .
 
-.PHONY: push
-push: build
-	docker tag ukbb-rg-static $(UKBB_RG_STATIC_LATEST)
-	docker push $(UKBB_RG_STATIC_LATEST)
-	docker tag ukbb-rg-static $(UKBB_RG_STATIC_IMAGE)
-	docker push $(UKBB_RG_STATIC_IMAGE)
-	docker tag ukbb-rg-browser $(UKBB_RG_BROWSER_LATEST)
-	docker push $(UKBB_RG_BROWSER_LATEST)
-	docker tag ukbb-rg-browser $(UKBB_RG_BROWSER_IMAGE)
-	docker push $(UKBB_RG_BROWSER_IMAGE)
+	python3 ../ci/jinja2_render.py '{"docker_prefix":"$(DOCKER_PREFIX)"}' Dockerfile.static Dockerfile.static.out
+	../docker-build.sh . Dockerfile.static.out $(UKBB_RG_STATIC_IMAGE)
+
+	python3 ../ci/jinja2_render.py '{"docker_prefix":"$(DOCKER_PREFIX)"}' Dockerfile.browser Dockerfile.browser.out
+	../docker-build.sh . Dockerfile.browser.out $(UKBB_RG_BROWSER_IMAGE)
 
 .PHONY: deploy
-deploy: push
+deploy: build
 	python3 ../ci/jinja2_render.py '{"docker_prefix":"$(DOCKER_PREFIX)"}' deployment.yaml deployment.yaml.out
 	kubectl apply -f deployment.yaml.out
 

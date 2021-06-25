@@ -1,7 +1,6 @@
 package is.hail.types.encoded
 import java.util
 import java.util.Map.Entry
-
 import is.hail.HailContext
 import is.hail.annotations.Region
 import is.hail.asm4s.{coerce => _, _}
@@ -9,7 +8,7 @@ import is.hail.expr.ir.{EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, 
 import is.hail.io._
 import is.hail.types._
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.{SCode, SType}
+import is.hail.types.physical.stypes.{SCode, SType, SValue}
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.json4s.CustomSerializer
@@ -25,7 +24,7 @@ class ETypeSerializer extends CustomSerializer[EType](format => ( {
 
 abstract class EType extends BaseType with Serializable with Requiredness {
   type StagedEncoder = (EmitCodeBuilder, SCode, Code[OutputBuffer]) => Unit
-  type StagedDecoder = (EmitCodeBuilder, Code[Region], Code[InputBuffer]) => PCode
+  type StagedDecoder = (EmitCodeBuilder, Code[Region], Code[InputBuffer]) => SCode
   type StagedInplaceDecoder = (EmitCodeBuilder, Code[Region], Code[Long], Code[InputBuffer]) => Unit
 
   final def buildEncoder(ctx: ExecuteContext, t: PType): (OutputBuffer) => Encoder = {
@@ -45,7 +44,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
 
   final def buildEncoder(st: SType, kb: EmitClassBuilder[_]): StagedEncoder = {
     val mb = buildEncoderMethod(st, kb);
-    { (cb: EmitCodeBuilder, sc: SCode, ob: Code[OutputBuffer]) => cb.invokeVoid(mb, sc.asPCode, ob) }
+    { (cb: EmitCodeBuilder, sc: SCode, ob: Code[OutputBuffer]) => cb.invokeVoid(mb, sc, ob) }
   }
 
   final def buildEncoderMethod(st: SType, kb: EmitClassBuilder[_]): EmitMethodBuilder[_] = {
@@ -55,7 +54,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
       UnitInfo) { mb =>
 
       mb.voidWithBuilder { cb =>
-        val arg = mb.getPCodeParam(1)
+        val arg = mb.getSCodeParam(1)
           .memoize(cb, "encoder_method_arg")
         val out = mb.getCodeParam[OutputBuffer](2)
         _buildEncoder(cb, arg, out)
@@ -66,7 +65,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   final def buildDecoder(t: Type, kb: EmitClassBuilder[_]): StagedDecoder = {
     val mb = buildDecoderMethod(t: Type, kb);
     { (cb: EmitCodeBuilder, r: Code[Region], ib: Code[InputBuffer]) =>
-      cb.invokePCode(mb, r, ib)
+      cb.invokeSCode(mb, r, ib)
     }
   }
 
@@ -77,7 +76,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
       FastIndexedSeq[ParamType](typeInfo[Region], classInfo[InputBuffer]),
       st.paramType) { mb =>
 
-      mb.emitPCode { cb =>
+      mb.emitSCode { cb =>
         val region: Value[Region] = mb.getCodeParam[Region](1)
         val in: Value[InputBuffer] = mb.getCodeParam[InputBuffer](2)
         val sc = _buildDecoder(cb, t, region, in)
@@ -123,9 +122,9 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     }).invokeCode(_, _)
   }
 
-  def _buildEncoder(cb: EmitCodeBuilder, v: PValue, out: Value[OutputBuffer]): Unit
+  def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit
 
-  def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): PCode
+  def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SCode
 
   def _buildInplaceDecoder(
     cb: EmitCodeBuilder,
@@ -162,7 +161,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   }
 
   final def decodedPType(requestedType: Type): PType = {
-    decodedSType(requestedType).canonicalPType()
+    decodedSType(requestedType).canonicalPType().setRequired(required)
   }
 
   def _decodedSType(requestedType: Type): SType
@@ -205,7 +204,7 @@ object EType {
       mb.voidWithBuilder { cb =>
         val addr: Code[Long] = mb.getCodeParam[Long](1)
         val out: Code[OutputBuffer] = mb.getCodeParam[OutputBuffer](2)
-        val pc = pt.loadCheapPCode(cb, addr)
+        val pc = pt.loadCheapSCode(cb, addr)
         val f = et.buildEncoder(pc.st, mb.ecb)
         f(cb, pc, out)
       }

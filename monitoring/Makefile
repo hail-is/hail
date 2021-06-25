@@ -1,7 +1,8 @@
 include ../config.mk
 
-MONITORING_LATEST = $(DOCKER_PREFIX)/monitoring:latest
-MONITORING_IMAGE = $(DOCKER_PREFIX)/monitoring:$(shell docker images -q --no-trunc monitoring:latest | sed -e 's,[^:]*:,,')
+TOKEN = $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
+
+MONITORING_IMAGE := $(DOCKER_PREFIX)/monitoring:$(TOKEN)
 
 PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}
 PYTHON := PYTHONPATH=$(PYTHONPATH)../hail/python:../gear:../web_common python3
@@ -15,20 +16,12 @@ check:
 
 .PHONY: build
 build:
-	$(MAKE) -C ../docker build
-	-docker pull $(MONITORING_LATEST)
-	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"service-base"}}' Dockerfile Dockerfile.out
-	docker build -f Dockerfile.out -t monitoring --cache-from monitoring,$(MONITORING_LATEST),service-base ..
-
-.PHONY: push
-push: build
-	docker tag monitoring $(MONITORING_LATEST)
-	docker push $(MONITORING_LATEST)
-	docker tag monitoring $(MONITORING_IMAGE)
-	docker push $(MONITORING_IMAGE)
+	$(MAKE) -C ../docker service-base
+	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"'$$(cat ../docker/service-base-image-ref)'"}}' Dockerfile Dockerfile.out
+	../docker-build.sh .. monitoring/Dockerfile.out $(MONITORING_IMAGE)
 
 .PHONY: deploy
-deploy: push
+deploy: build
 	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
 	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"default_ns":{"name":"$(NAMESPACE)"},"monitoring_image":{"image":"$(MONITORING_IMAGE)"},"monitoring_database":{"user_secret_name":"sql-monitoring-user-config"},"global":{"project":"$(PROJECT)","zone":"$(ZONE)","domain":"$(DOMAIN)"}}' deployment.yaml deployment.yaml.out
 	kubectl -n $(NAMESPACE) apply -f deployment.yaml.out

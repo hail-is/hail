@@ -130,7 +130,6 @@ def skip_unless_spark_backend():
 
     return wrapper
 
-
 def skip_when_service_backend(message='does not work on ServiceBackend'):
     from hail.backend.service_backend import ServiceBackend
     @decorator
@@ -152,6 +151,15 @@ fails_local_backend = pytest.mark.xfail(
 fails_service_backend = pytest.mark.xfail(
     os.environ.get('HAIL_QUERY_BACKEND') == 'service',
     reason="doesn't yet work on service backend",
+    strict=True)
+
+def check_spark():
+    backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'spark')
+    return backend_name == 'spark'
+
+fails_spark_backend = pytest.mark.xfail(
+    check_spark(),
+    reason="doesn't yet work on spark backend",
     strict=True)
 
 

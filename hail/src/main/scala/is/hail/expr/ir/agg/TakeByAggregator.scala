@@ -7,8 +7,9 @@ import is.hail.expr.ir.{Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, 
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointerCode, SIndexablePointerCode}
-import is.hail.types.physical.stypes.interfaces.SBaseStruct
+import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.{TInt32, Type}
 import is.hail.utils._
 
@@ -56,7 +57,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
     ord.compare(cb, k1, k2, true)
   }
 
-  private def compareIndexedKey(cb: EmitCodeBuilder, k1: PCode, k2: PCode): Code[Int] = {
+  private def compareIndexedKey(cb: EmitCodeBuilder, k1: SCode, k2: SCode): Code[Int] = {
     val ord = StructOrdering.make(k1.st.asInstanceOf[SBaseStruct], k2.st.asInstanceOf[SBaseStruct], cb.emb.ecb, Array(so, Ascending), true)
     ord.compareNonnull(cb, k1, k2)
   }
@@ -198,7 +199,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
 
   private def keyIsMissing(offset: Code[Long]): Code[Boolean] = indexedKeyType.isFieldMissing(offset, 0)
 
-  private def loadKeyValue(cb: EmitCodeBuilder, offset: Code[Long]): PCode = keyType.loadCheapPCode(cb, indexedKeyType.loadField(offset, 0))
+  private def loadKeyValue(cb: EmitCodeBuilder, offset: Code[Long]): SCode = keyType.loadCheapSCode(cb, indexedKeyType.loadField(offset, 0))
 
   private def loadKey(cb: EmitCodeBuilder, offset: Value[Long]): EmitCode =
     EmitCode(Code._empty, keyIsMissing(offset), loadKeyValue(cb, offset))
@@ -209,8 +210,8 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
     val j = mb.getCodeParam[Long](2)
 
     mb.emitWithBuilder(cb => compareIndexedKey(cb,
-      indexedKeyType.loadCheapPCode(cb, eltTuple.fieldOffset(i, 0)),
-      indexedKeyType.loadCheapPCode(cb, eltTuple.fieldOffset(j, 0))))
+      indexedKeyType.loadCheapSCode(cb, eltTuple.fieldOffset(i, 0)),
+      indexedKeyType.loadCheapSCode(cb, eltTuple.fieldOffset(j, 0))))
 
     mb.invokeCode(_, _)
   }
@@ -328,7 +329,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
     indexedKeyType.storeAtAddress(cb,
       eltTuple.fieldOffset(staging, 0),
       region,
-      indexedKeyType.loadCheapPCode(cb, indexedKey),
+      indexedKeyType.loadCheapSCode(cb, indexedKey),
       deepCopy = false)
     value.toI(cb)
       .consume(cb,
@@ -342,12 +343,12 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
   }
 
   private def swapStaging(cb: EmitCodeBuilder): Unit = {
-    eltTuple.storeAtAddress(cb, ab.elementOffset(0), region, eltTuple.loadCheapPCode(cb, staging), true)
+    eltTuple.storeAtAddress(cb, ab.elementOffset(0), region, eltTuple.loadCheapSCode(cb, staging), true)
     rebalanceDown(cb, 0)
   }
 
   private def enqueueStaging(cb: EmitCodeBuilder): Unit = {
-    ab.append(cb, eltTuple.loadCheapPCode(cb, staging))
+    ab.append(cb, eltTuple.loadCheapSCode(cb, staging))
     rebalanceUp(cb, ab.size - 1)
   }
 
@@ -382,8 +383,8 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
 
   // for tests
   def seqOp(cb: EmitCodeBuilder, vm: Code[Boolean], v: Code[_], km: Code[Boolean], k: Code[_]): Unit = {
-    val vec = EmitCode(Code._empty, vm, PCode(valueType, v))
-    val kec = EmitCode(Code._empty, km, PCode(keyType, k))
+    val vec = EmitCode(Code._empty, vm, if (valueType.isPrimitive) primitive(valueType.virtualType, v) else valueType.loadCheapSCode(cb, coerce[Long](v)))
+    val kec = EmitCode(Code._empty, km, if (keyType.isPrimitive) primitive(keyType.virtualType, k) else keyType.loadCheapSCode(cb, coerce[Long](k)))
     seqOp(cb, vec, kec)
   }
 
@@ -530,11 +531,11 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
         val sortedIdx = cb.newLocal[Int]("tba_result_sortedidx", Region.loadInt(indexOffset(idx)))
         ab.loadElement(cb, sortedIdx).toI(cb)
           .flatMap(cb) { case pct: SBaseStructPointerCode =>
-            pct.memoize(cb, "takeby_result_tuple").loadField(cb, 1).typecast[PCode]
+            pct.memoize(cb, "takeby_result_tuple").loadField(cb, 1)
           }
       }.a
     }
-    resultType.loadCheapPCode(cb, cb.invokeCode[Long](mb, _r))
+    resultType.loadCheapSCode(cb, cb.invokeCode[Long](mb, _r))
   }
 }
 

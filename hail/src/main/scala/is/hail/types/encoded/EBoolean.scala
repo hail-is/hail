@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.SType
+import is.hail.types.physical.stypes.{SCode, SType, SValue}
 import is.hail.types.physical.stypes.primitives.{SBoolean, SBooleanCode}
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -15,17 +15,17 @@ case object EBooleanOptional extends EBoolean(false)
 case object EBooleanRequired extends EBoolean(true)
 
 class EBoolean(override val required: Boolean) extends EType {
-  override def _buildEncoder(cb: EmitCodeBuilder, v: PValue, out: Value[OutputBuffer]): Unit = {
+  override def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = {
     cb += out.writeBoolean(v.asBoolean.boolCode(cb))
   }
 
-  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): PCode = {
-    new SBooleanCode(required, in.readBoolean())
+  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SCode = {
+    new SBooleanCode(in.readBoolean())
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = cb += in.skipBoolean()
 
-  def _decodedSType(requestedType: Type): SType = SBoolean(required)
+  def _decodedSType(requestedType: Type): SType = SBoolean
 
   def _asIdent = "bool"
 
