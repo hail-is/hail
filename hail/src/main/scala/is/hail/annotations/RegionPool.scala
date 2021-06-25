@@ -124,7 +124,7 @@ class noCache extends ChunkCache {
         (chunkPointer, size)
       }
       else (newChunk(pool, size), size)
-    }
+    }git
   }
 
   override def freeChunks(pool: RegionPool, ab: LongArrayBuilder, totalSize: Long = 0): Unit = {
