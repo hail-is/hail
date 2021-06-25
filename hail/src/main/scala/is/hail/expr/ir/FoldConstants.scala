@@ -23,8 +23,8 @@ object FoldConstants {
     val constantsIS = constants.toIndexedSeq
     assert(constants.forall(x => x.typ.isRealizable))
     val bindingsIS = bindings.toIndexedSeq
-    val constantTuple = MakeTuple.ordered(constantsIS)
-    val letWrapped = bindingsIS.foldRight[IR](constantTuple){ case ((name, binding), accum) => Let(name, binding, accum)}
+    val constantsTrapTuple = MakeTuple.ordered(constantsIS.map(constIR => Trap(constIR)))
+    val letWrapped = bindingsIS.foldRight[IR](constantsTrapTuple){ case ((name, binding), accum) => Let(name, binding, accum)}
     val productIR = try {
       val compiled = CompileAndEvaluate[Any](ctx, letWrapped, optimize = false)
       val rowCompiled = compiled.asInstanceOf[Row]
@@ -141,7 +141,14 @@ object FoldConstants {
     val constDict = Memo.empty[IR]
     val constantCompiledSeq = (0 until constantsCompiled.length).map(idx => constantsCompiled(idx))
     constantTrees.zip(constantCompiledSeq).foreach { case (constantTree, constantCompiled) =>
-      constDict.bind(constantTree, Literal.coerce(constantTree.typ, constantCompiled))
+      constantsCompiled match {
+        case Row(error, value) =>
+          error m
+            case Row(msg: String, id: Int) =>
+              constDict.bind(constantTree, new Die(Str(msg), constantTree.typ, id))
+            case _ => constDict.bind(constantTree, Literal.coerce(constantTree.typ, value))
+          }
+      }
     }
     constDict
   }
