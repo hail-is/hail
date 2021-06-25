@@ -3,7 +3,7 @@ package is.hail.types.physical.stypes.concrete
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, IEmitCode}
-import is.hail.types.physical.PType
+import is.hail.types.physical.{PCanonicalNDArray, PNDArray, PType}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType}
 import is.hail.types.virtual._
@@ -249,6 +249,10 @@ case class SUnreachableNDArray(virtualType: TNDArray) extends SUnreachable with 
 
   lazy val elementType: SType = SUnreachable.fromVirtualType(virtualType.elementType)
 
+  override def elementPType: PType = elementType.canonicalPType()
+
+  override def pType: PNDArray = PCanonicalNDArray(elementPType, nDims, false)
+
   override def elementByteSize: Long = 0L
 }
 
@@ -272,6 +276,8 @@ class SUnreachableNDArrayValue(val st: SUnreachableNDArray) extends SUnreachable
   def firstDataAddress(cb: EmitCodeBuilder): Value[Long] = const(0L)
 
   override def memoize(cb: EmitCodeBuilder, name: String): SUnreachableNDArrayValue = this
+
+  override def get: SUnreachableNDArrayValue = this
 }
 
 
