@@ -58,9 +58,9 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
 
   private def allocateBigChunk(size: Long): Long = {
     val o = pool.getChunk(size)
-    bigChunks.add(o)
-    totalChunkMemory += size
-    o
+    bigChunks.add(o._1)
+    totalChunkMemory += o._2
+    o._1
   }
 
   def allocate(n: Long): Long = {
@@ -132,20 +132,22 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
 
   private def releaseNDArrays(): Unit = {
     var i = 0
+    val ndArraysToFree = new LongArrayBuilder()
+    var totalBytesToFree = 0L
     while (i < ndarrayRefs.size) {
       val addr = this.ndarrayRefs(i)
       val curCount = PNDArray.getReferenceCount(addr)
       if (curCount == 1) {
         PNDArray.storeReferenceCount(addr, 0L)
-        val bytesToFree = PNDArray.getByteSize(addr) + PNDArray.headerBytes
-        pool.incrementAllocatedBytes(-bytesToFree)
-        Memory.free(addr - PNDArray.headerBytes)
+        totalBytesToFree += PNDArray.getByteSize(addr) + PNDArray.headerBytes
+        //pool.incrementAllocatedBytes(-bytesToFree)
+        ndArraysToFree += (addr - PNDArray.headerBytes)
       } else {
         PNDArray.storeReferenceCount(addr, curCount - 1)
       }
       i += 1
     }
-
+    pool.freeChunks(ndArraysToFree, totalBytesToFree)
     this.ndarrayRefs.clear()
   }
 
@@ -293,13 +295,14 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     val extra = PNDArray.headerBytes
 
     // This adjusted address is where the ndarray content starts
-    val allocatedAddr = pool.getChunk(size + extra) + extra
-
+    val allocatedChunk = pool.getChunk(size + extra)
+    val newChunkPointer = allocatedChunk._1 + extra
+    val newChunkSize = allocatedChunk._2
     // The reference count and total size are stored just before the content.
-    PNDArray.storeReferenceCount(allocatedAddr, 0L)
-    PNDArray.storeByteSize(allocatedAddr, size)
-    this.trackNDArray(allocatedAddr)
-    allocatedAddr
+    PNDArray.storeReferenceCount(newChunkPointer, 0L)
+    PNDArray.storeByteSize(newChunkPointer, newChunkSize)
+    this.trackNDArray(newChunkPointer)
+    newChunkPointer
   }
 
   def trackNDArray(alloc: Long): Unit = {

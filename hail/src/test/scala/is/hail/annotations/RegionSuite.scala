@@ -257,7 +257,7 @@ class RegionSuite extends TestNGSuite {
       var i = 0
       println(s"before allocation, total at ${pool.getTotalAllocatedBytes}")
       while (i <= 9) {
-        ab += chunkCache1.getChunk(pool, sizeArr(i))
+        ab += chunkCache1.getChunk(pool, sizeArr(i))._1
         i += 1
       }
       println(s"first allocation, total at ${pool.getTotalAllocatedBytes}")

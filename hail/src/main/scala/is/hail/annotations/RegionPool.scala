@@ -21,14 +21,14 @@ object RegionPool {
 }
 
 trait ChunkCache {
-  def getChunk(pool:RegionPool, size: Long): Long
+  def getChunk(pool:RegionPool, size: Long): (Long, Long)
   def freeChunks(pool: RegionPool, ab: LongArrayBuilder, totalSize: Long): Unit
 }
 
 class noCache extends ChunkCache {
-  override def getChunk(pool: RegionPool, size: Long): Long = {
+  override def getChunk(pool: RegionPool, size: Long): (Long, Long) = {
     pool.incrementAllocatedBytes(size)
-    Memory.malloc(size)
+    (Memory.malloc(size), size)
   }
 
   override def freeChunks(pool: RegionPool, ab: LongArrayBuilder, totalSize: Long): Unit = {
@@ -46,6 +46,8 @@ class noCache extends ChunkCache {
   val bigChunkCache = new TreeMap[Long, LongArrayBuilder]()
   val chunksEncountered = mutable.Map[Long, Long]()
   val minSpaceRequirements = .9
+  var chunksRequested = 0
+  var cacheHits = 0
   val smallChunkCache = new Array[LongArrayBuilder](highestSmallChunkPowerOf2 + 1)
    (0 until highestSmallChunkPowerOf2 + 1).foreach(index => {
      smallChunkCache(index) = new LongArrayBuilder()
@@ -55,7 +57,7 @@ class noCache extends ChunkCache {
    def freeInLongArrayBuilder(pool: RegionPool, ab: LongArrayBuilder):Unit = {
      val pointer = ab.pop()
      val size = chunksEncountered(pointer)
-     pool.incrementAllocatedBytes(-size)
+     pool.incrementAllocatedBytes(-1 * size)
      freer(pointer)
      chunksEncountered -= pointer
    }
@@ -89,7 +91,9 @@ class noCache extends ChunkCache {
   def freeAll(pool: RegionPool): Unit = {
     smallChunkCache.foreach(ab =>  while(ab.size > 0) freeInLongArrayBuilder(pool, ab))
     bigChunkCache.forEach((k, ab) =>  while (ab.size > 0) freeInLongArrayBuilder(pool, ab))
-    bigChunkCache.clear()
+  }
+  def getUsage(): (Int, Int) = {
+    (chunksRequested, cacheHits)
   }
   def indexInSmallChunkCache(size: Long): Int = {
     var closestPower = highestSmallChunkPowerOf2
@@ -97,26 +101,33 @@ class noCache extends ChunkCache {
     if (size % (1 << closestPower) != 0) closestPower +=1
     closestPower
   }
-  override def getChunk(pool: RegionPool, size: Long): Long = {
+  override def getChunk(pool: RegionPool, size: Long): (Long, Long) = {
+    chunksRequested += 1
       if (size <= biggestSmallChunk) {
         val closestPower = indexInSmallChunkCache(size)
-        val sizePowerOf2 = (1 << closestPower).toLong
       if(smallChunkCache(closestPower).size == 0 ) {
-        newChunk(pool, sizePowerOf2)
+        val sizePowerOf2 = (1 << closestPower).toLong
+        (newChunk(pool, sizePowerOf2), sizePowerOf2)
       }
-      else smallChunkCache(closestPower).pop()
+      else  {
+        cacheHits += 1
+        (smallChunkCache(closestPower).pop(), size)
+      }
     }
     else {
       val closestSize = bigChunkCache.ceilingEntry(size)
-      if (closestSize.getKey == size || ((closestSize.getKey * .9) <= size)) closestSize.getValue.pop()
-      else newChunk(pool, size)
+      if (closestSize.getKey == size || ((closestSize.getKey * .9) <= size)) {
+        cacheHits += 1
+        (closestSize.getValue.pop(), size)
+      }
+      else (newChunk(pool, size), size)
     }
   }
 
   override def freeChunks(pool: RegionPool, ab: LongArrayBuilder, totalSize: Long = 0): Unit = {
     while (ab.size > 0) {
       val chunkPointer = ab.pop()
-      val chunkSize = chunksEncountered.get(chunkPointer).get
+      val chunkSize = chunksEncountered(chunkPointer)
       if (chunkSize <= biggestSmallChunk) {
         smallChunkCache(indexInSmallChunkCache(chunkSize)) += chunkPointer
       }
@@ -157,7 +168,7 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
   def getTotalAllocatedBytes: Long = totalAllocatedBytes
 
   def getHighestTotalUsage: Long = highestTotalUsage
-
+  def getUsage: (Int,Int) = chunkCache.getUsage()
   private[annotations] def incrementAllocatedBytes(toAdd: Long): Unit = {
     totalAllocatedBytes += toAdd
     if (totalAllocatedBytes >= allocationEchoThreshold) {
@@ -186,7 +197,7 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
     }
   }
 
-  protected[annotations] def getChunk(size: Long): Long = {
+  protected[annotations] def getChunk(size: Long): (Long, Long) = {
     chunkCache.getChunk(this, size)
   }
 
@@ -286,7 +297,7 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
       }
       i += 1
     }
-    chunkCache.freeAll(this)
+    chunkCache.freeAll(pool = this)
     if (totalAllocatedBytes != 0) {
       val msg = s"RegionPool: total allocated bytes not 0 after closing! total allocated: " +
         s"$totalAllocatedBytes (${ readableBytes(totalAllocatedBytes) })"
