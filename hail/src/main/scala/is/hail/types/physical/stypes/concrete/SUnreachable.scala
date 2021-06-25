@@ -251,7 +251,7 @@ case class SUnreachableNDArray(virtualType: TNDArray) extends SUnreachable with 
 
   override def elementPType: PType = elementType.canonicalPType()
 
-  override def pType: PNDArray = PCanonicalNDArray(elementPType, nDims, false)
+  override def pType: PNDArray = PCanonicalNDArray(elementPType.setRequired(true), nDims, false)
 
   override def elementByteSize: Long = 0L
 }
