@@ -85,7 +85,12 @@ object TableStageToRVD {
 
 
     val fsBc = ctx.fsBc
-    val crdd = ContextRDD.weaken(sparkContext
+
+
+    val crdd = if (nContexts == 0)
+      ContextRDD.empty[Long]
+    else
+      ContextRDD.weaken(sparkContext
       .parallelize(encodedContexts.zipWithIndex, numSlices = nContexts))
       .cflatMap { case (rvdContext, (encodedContext, idx)) =>
         val decodedContext = makeContextDec(new ByteArrayInputStream(encodedContext))
