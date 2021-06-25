@@ -282,7 +282,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     references.update(idx, null)
   }
 
-  def allocateNDArray(size: Long): Long = {
+  def allocateNDArrayData(size: Long): Long = {
     if (size <= 0L) {
       throw new IllegalArgumentException(s"Can't request ndarray of non-positive memory size, got ${size}")
     }
@@ -294,12 +294,12 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     val newChunkPointer = allocatedChunk + extra
     // The reference count and total size are stored just before the content.
     PNDArray.storeReferenceCount(newChunkPointer, 0L)
-    PNDArray.storeByteSize(newChunkPointer, newChunkSize)
-    this.trackNDArray(newChunkPointer)
+    PNDArray.storeDataByteSize(newChunkPointer, newChunkSize)
+    this.trackNDArrayData(newChunkPointer)
     newChunkPointer
   }
 
-  def trackNDArray(alloc: Long): Unit = {
+  def trackNDArrayData(alloc: Long): Unit = {
     this.ndarrayRefs.add(alloc)
     val curRefCount = Region.loadLong(alloc - 16)
     Region.storeLong(alloc - 16, curRefCount + 1L)

@@ -341,13 +341,13 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
     }
   }
 
-  def allocateNDArray(nBytes: Long): Long = {
+  def allocateNDArrayData(nBytes: Long): Long = {
     assert(nBytes >= 0L)
-    memory.allocateNDArray(nBytes)
+    memory.allocateNDArrayData(nBytes)
   }
 
-  def trackNDArray(addr: Long): Unit = {
-    memory.trackNDArray(addr)
+  def trackNDArrayData(addr: Long): Unit = {
+    memory.trackNDArrayData(addr)
   }
 
   def close(): Unit = {

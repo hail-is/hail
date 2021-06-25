@@ -14,8 +14,8 @@ object PNDArray {
   val headerBytes = 16L
   def getReferenceCount(ndAddr: Long): Long = Region.loadLong(ndAddr - 16L)
   def storeReferenceCount(ndAddr: Long, newCount: Long): Unit = Region.storeLong(ndAddr - 16L, newCount)
-  def getByteSize(ndAddr: Long): Long = Region.loadLong(ndAddr - 8L)
-  def storeByteSize(ndAddr: Long, byteSize: Long): Unit = Region.storeLong(ndAddr - 8L, byteSize)
+  def getDataByteSize(ndAddr: Long): Long = Region.loadLong(ndAddr - 8L)
+  def storeDataByteSize(ndAddr: Long, byteSize: Long): Unit = Region.storeLong(ndAddr - 8L, byteSize)
 }
 
 abstract class PNDArray extends PType {
@@ -28,7 +28,6 @@ abstract class PNDArray extends PType {
   assert(elementType.required, "elementType must be required")
 
   def dataFirstElementPointer(ndAddr: Code[Long]): Code[Long]
-  def dataPArrayPointer(ndAddr: Code[Long]): Code[Long]
 
   def loadShape(off: Long, idx: Int): Long
   def unstagedLoadShapes(addr: Long): IndexedSeq[Long] = {
