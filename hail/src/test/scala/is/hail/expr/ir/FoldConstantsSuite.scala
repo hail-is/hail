@@ -79,11 +79,17 @@ class FoldConstantsSuite extends HailSuite {
                              ApplySeeded("rand_norm", Seq(F64(0d), F64(0d)), 0L, TFloat64),
                              Let("x", I32(3) , ApplyBinaryPrimOp(Add(), I32(4),
                                  ApplyBinaryPrimOp(Multiply(),Ref("x", TInt32), Ref("y", TInt32)))))
-    val errorIR = Let("x", ToArray(StreamRange(0, 10, 1)),
-                      If(ApplyComparisonOp(LT(TInt32, TInt32), ArrayLen(Ref("x", TArray(TInt32))), I32(1)),
-                        ApplyBinaryPrimOp(Add(), I32(3), ArrayRef(Ref("x", TArray(TInt32)), I32(30))),
-                        ApplyBinaryPrimOp(Add(), I32(2), ArrayRef(Ref("x", TArray(TInt32)), I32(2)))))
+    val errorIR =
+                      If(
+                        ApplyComparisonOp(LT(TInt32, TInt32),
+                                          ArrayLen(Literal(TArray(TInt32), FastIndexedSeq(0, 1, 2))),
+                                          I32(1)),
+                        ApplyBinaryPrimOp(Add(), F64(3d),
+                                          ArrayRef(Literal(TArray(TFloat64), FastIndexedSeq(0d, 1d, 2d)), I32(-1))),
+                        ApplyBinaryPrimOp(Add(),
+                                          ApplySeeded("rand_norm", Seq(F64(0d), F64(0d)), 0L, TFloat64), F64(22d)))
 
+    println(FoldConstants(ctx, errorIR))
     assert(FoldConstants(ctx, makeStreamIR) == makeStreamIRConst)
     assert(FoldConstants(ctx, toArrayStreamFilterIR) == toArrayStreamFilterIR)
     assert(FoldConstants(ctx, makeTupleSeededIR) == makeTupleSeededIRConst)

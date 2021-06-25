@@ -33,7 +33,7 @@ object FoldConstants {
     }
     catch {
       case _: HailException | _: NumberFormatException => {
-        log.info("Error raised during fold constants, aborting")
+        println("Error raised during fold constants, aborting")
         ir
       }
     }
@@ -141,9 +141,9 @@ object FoldConstants {
     val constDict = Memo.empty[IR]
     val constantCompiledSeq = (0 until constantsCompiled.length).map(idx => constantsCompiled(idx))
     constantTrees.zip(constantCompiledSeq).foreach { case (constantTree, constantCompiled) =>
-      constantsCompiled match {
+      constantCompiled match {
         case Row(error, value) =>
-          error m
+          error match {
             case Row(msg: String, id: Int) =>
               constDict.bind(constantTree, new Die(Str(msg), constantTree.typ, id))
             case _ => constDict.bind(constantTree, Literal.coerce(constantTree.typ, value))
