@@ -237,6 +237,10 @@ WHERE name = %s;
             await asyncio.gather(*[self.create_instance(zone=zone) for _ in range(instances_needed)])
 
     async def create_instances(self):
+        if self.app['frozen']:
+            log.info(f'not creating instances for {self}; batch is frozen')
+            return
+
         ready_cores_mcpu_per_user = self.db.select_and_fetchall(
             '''
 SELECT user,
@@ -383,6 +387,10 @@ HAVING n_ready_jobs + n_running_jobs > 0;
         return result
 
     async def schedule_loop_body(self):
+        if self.app['frozen']:
+            log.info(f'not scheduling any jobs for {self.pool}; batch is frozen')
+            return True
+
         log.info(f'schedule {self.pool}: starting')
         start = time_msecs()
         n_scheduled = 0

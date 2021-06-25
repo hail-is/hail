@@ -28,6 +28,7 @@ from hailtop.utils import (
     LoggingTimer,
     cost_str,
     dump_all_stacktraces,
+    periodically_call,
 )
 from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
 from hailtop.config import get_deploy_config
@@ -55,7 +56,6 @@ from ..utils import (
     is_valid_cores_mcpu,
     cost_from_msec_mcpu,
     cores_mcpu_to_memory_bytes,
-    batch_only,
 )
 from ..batch import batch_record_to_dict, job_record_to_dict, cancel_batch_in_db
 from ..exceptions import (
@@ -615,6 +615,10 @@ async def create_jobs(request, userdata):
     db: Database = app['db']
     log_store: LogStore = app['log_store']
 
+    if app['frozen']:
+        log.info('ignoring batch create request; batch is frozen')
+        raise web.HTTPServiceUnavailable()
+
     batch_id = int(request.match_info['batch_id'])
 
     user = userdata['username']
@@ -995,6 +999,10 @@ async def create_batch(request, userdata):
     app = request.app
     db: Database = app['db']
 
+    if app['frozen']:
+        log.info('ignoring batch create jobs request; batch is frozen')
+        raise web.HTTPServiceUnavailable()
+
     batch_spec = await request.json()
 
     try:
@@ -1150,6 +1158,10 @@ async def close_batch(request, userdata):
 
     app = request.app
     db: Database = app['db']
+
+    if app['frozen']:
+        log.info('ignoring batch close request; batch is frozen')
+        raise web.HTTPServiceUnavailable()
 
     record = await db.select_and_fetchone(
         '''
@@ -1994,12 +2006,16 @@ async def api_delete_billing_projects(request, userdata):  # pylint: disable=unu
     return web.json_response(billing_project)
 
 
-@routes.patch('/api/v1alpha/inst_colls/refresh')
-@batch_only
-async def refresh_inst_colls(request):
-    inst_coll_configs: InstanceCollectionConfigs = request.app['inst_coll_configs']
+async def _refresh(app):
+    db: Database = app['db']
+    inst_coll_configs: InstanceCollectionConfigs = app['inst_coll_configs']
     await inst_coll_configs.refresh()
-    return web.Response()
+    row = await db.select_and_fetchone(
+        '''
+SELECT frozen FROM globals;
+'''
+    )
+    app['frozen'] = row['frozen']
 
 
 @routes.get('')
@@ -2048,7 +2064,7 @@ async def on_startup(app):
 
     row = await db.select_and_fetchone(
         '''
-SELECT instance_id, internal_token, n_tokens FROM globals;
+SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
 '''
     )
 
@@ -2061,6 +2077,8 @@ SELECT instance_id, internal_token, n_tokens FROM globals;
     app['internal_token'] = row['internal_token']
 
     app['batch_headers'] = {'Authorization': f'Bearer {row["internal_token"]}'}
+
+    app['frozen'] = row['frozen']
 
     credentials = google.oauth2.service_account.Credentials.from_service_account_file('/gsa-key/key.json')
     app['log_store'] = LogStore(BATCH_BUCKET_NAME, instance_id, pool, credentials=credentials)
@@ -2081,6 +2099,10 @@ SELECT instance_id, internal_token, n_tokens FROM globals;
 
     app['task_manager'].ensure_future(
         retry_long_running('delete_batch_loop', run_if_changed, delete_batch_state_changed, delete_batch_loop_body, app)
+    )
+
+    app['task_manager'].ensure_future(
+        periodically_call(5, _refresh, app)
     )
 
 

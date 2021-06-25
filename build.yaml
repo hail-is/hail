@@ -2280,6 +2280,8 @@ steps:
         script: /io/sql/do-not-lock-entire-batch.sql
       - name: add-fail-fast
         script: /io/sql/add-fail-fast.sql
+      - name: add-frozen-mode
+        script: /io/sql/add-frozen-mode.sql
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
