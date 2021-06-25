@@ -6,7 +6,7 @@ import is.hail.expr.ir.{CodeParam, CodeParamType, EmitCode, EmitCodeBuilder, Par
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.{TNDArray, Type}
-import is.hail.types.physical.stypes.concrete.{SNDArrayPointer, SNDArrayPointerCode, SNDArrayPointerSettable, SStackStruct}
+import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerSettable, SNDArrayPointer, SNDArrayPointerSettable, SNDArrayPointerCode, SStackStruct}
 import org.apache.spark.sql.Row
 import is.hail.utils._
 
@@ -206,11 +206,18 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
         val newDataPointer = cb.newLocal("ndarray_construct_new_data_pointer", this.allocateData(shape, region))
         cb.append(Region.storeAddress(this.representation.fieldOffset(ndAddr, "data"), newDataPointer))
         val result = new SNDArrayPointerCode(sType, ndAddr).memoize(cb, "construct_by_copying_array_result")
-        // TODO: Try to memcpy here
-        val loopCtr = cb.newLocal[Long]("foo")
-        cb.forLoop(cb.assign(loopCtr, 0L), loopCtr < dataValue.loadLength().toL, cb.assign(loopCtr, loopCtr + 1L), {
-          elementType.storeAtAddress(cb, newDataPointer + (loopCtr * elementType.byteSize), region, dataValue.loadElement(cb, loopCtr.toI).get(cb, "NDArray elements cannot be missing"), true)
-        })
+
+        dataValue.st match {
+          case SIndexablePointer(PCanonicalArray(otherElementType, _)) if otherElementType == elementType =>
+            cb += Region.copyFrom(dataValue.asInstanceOf[SIndexablePointerSettable].elementsAddress, newDataPointer, dataValue.loadLength().toL * elementType.byteSize)
+          case _ =>
+            val loopCtr = cb.newLocal[Long]("pcanonical_ndarray_construct_by_copying_loop_idx")
+            cb.forLoop(cb.assign(loopCtr, 0L), loopCtr < dataValue.loadLength().toL, cb.assign(loopCtr, loopCtr + 1L), {
+              elementType.storeAtAddress(cb, newDataPointer + (loopCtr * elementType.byteSize), region, dataValue.loadElement(cb, loopCtr.toI).get(cb, "NDArray elements cannot be missing"), true)
+            })
+        }
+
+
 
         result
       }
@@ -241,8 +248,6 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     val newDataPointer = cb.newLocal("ndarray_construct_new_data_pointer", this.allocateData(shape, region))
     cb.append(Region.storeLong(this.representation.fieldOffset(ndAddr, "data"), newDataPointer))
     val newFirstElementDataPointer = cb.newLocal[Long]("ndarray_construct_first_element_pointer", this.dataFirstElementPointer(ndAddr))
-
-    // cb.append(dataType.stagedInitialize(newDataPointer, this.numElements(shape).toI))
 
     (newFirstElementDataPointer, (cb: EmitCodeBuilder) => new SNDArrayPointerCode(sType, ndAddr))
   }
