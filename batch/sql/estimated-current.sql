@@ -152,7 +152,6 @@ CREATE INDEX `batches_user_state_cancelled` ON `batches` (`user`, `state`, `canc
 CREATE INDEX `batches_deleted` ON `batches` (`deleted`);
 CREATE INDEX `batches_token` ON `batches` (`token`);
 CREATE INDEX `batches_time_completed` ON `batches` (`time_completed`);
-CREATE INDEX `batches_time_closed` ON `batches` (`time_closed`);
 CREATE INDEX `batches_billing_project_state` ON `batches` (`billing_project`, `state`);
 
 CREATE TABLE IF NOT EXISTS `batches_inst_coll_staging` (
