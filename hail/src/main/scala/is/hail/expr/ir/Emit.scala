@@ -1376,9 +1376,7 @@ class Emit[C](
             val outputPType = PCanonicalNDArray(lSType.elementType.canonicalPType().setRequired(true),
               TNDArray.matMulNDims(lSType.nDims, rSType.nDims))
 
-            if ((lSType.elementType.isInstanceOf[PFloat64] || lSType.elementType.isInstanceOf[PFloat32]) && lSType.nDims == 2 && rSType.nDims == 2) {
-              val leftPValAddr = SingleCodeSCode.fromSCode(cb, leftPVal, region)
-              val rightPValAddr = SingleCodeSCode.fromSCode(cb, rightPVal, region)
+            if ((lSType.elementType.virtualType == TFloat64 || lSType.elementType.virtualType == TFloat32) && lSType.nDims == 2 && rSType.nDims == 2) {
               val leftDataAddress = leftPVal.firstDataAddress(cb)
               val rightDataAddress = rightPVal.firstDataAddress(cb)
 
