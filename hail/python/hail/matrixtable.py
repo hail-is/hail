@@ -2707,7 +2707,7 @@ class MatrixTable(ExprContainer):
         -----
         The coordinate table representation of the source matrix table contains
         one row for each **non-filtered** entry of the matrix -- if a matrix table
-        has no filtered entries nad contains N rows and M columns, the table will contain
+        has no filtered entries and contains N rows and M columns, the table will contain
         ``M * N`` rows, which can be **a very large number**.
 
         This representation can be useful for aggregating over both axes of a matrix table
