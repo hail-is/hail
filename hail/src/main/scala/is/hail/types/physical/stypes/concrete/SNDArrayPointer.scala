@@ -1,14 +1,13 @@
 package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{Code, IntInfo, LongInfo, Settable, SettableBuilder, TypeInfo, Value, const}
-import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
+import is.hail.asm4s._
+import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SNDArray, SNDArrayCode, SNDArrayValue}
 import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
 import is.hail.types.physical.{PCanonicalNDArray, PType}
 import is.hail.types.virtual.Type
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.{FastIndexedSeq, toRichIterable}
 
 case class SNDArrayPointer(pType: PCanonicalNDArray) extends SNDArray {
   require(!pType.required)
@@ -119,6 +118,97 @@ class SNDArrayPointerSettable(
   }
 
   def firstDataAddress(cb: EmitCodeBuilder): Value[Long] = dataFirstElement
+
+  // Note: to iterate through an array in column major order, make sure the indices are in ascending order. E.g.
+  // A.coiterate(cb, region, IndexedSeq("i", "j"), IndexedSeq((A, IndexedSeq(0, 1), "A"), (B, IndexedSeq(0, 1), "B")), {
+  //   SCode.add(cb, a, b)
+  // })
+  // computes A += B.
+  def coiterateMutate(
+    cb: EmitCodeBuilder,
+    region: Value[Region],
+    deepCopy: Boolean,
+    indexVars: IndexedSeq[String],
+    destIndices: IndexedSeq[Int],
+    arrays: (SNDArrayCode, IndexedSeq[Int], String)*
+  )(body: IndexedSeq[SCode] => SCode
+  ): Unit = {
+
+    val indexSizes = new Array[Settable[Int]](indexVars.length)
+    val indexCoords = Array.tabulate(indexVars.length) { i => cb.newLocal[Int](indexVars(i)) }
+
+    case class ArrayInfo(
+      array: SNDArrayValue,
+      strides: IndexedSeq[Value[Long]],
+      pos: IndexedSeq[Settable[Long]],
+      elt: SCode,
+      indexToDim: Map[Int, Int],
+      name: String)
+
+    val arrayValues = arrays.map { case (_array, indices, name) =>
+      val array = _array.memoize(cb, s"${name}_copy")
+      (array, indices, name)
+    }
+
+    val info = ((this, destIndices, "dest") +: arrayValues).toIndexedSeq.map { case (array, indices, name) =>
+      for (idx <- indices) assert(idx < indexVars.length && idx >= 0)
+      // FIXME: relax this assumption to handle transposing, non-column major
+      for (i <- 0 until indices.length - 1) assert(indices(i) < indices(i+1))
+      assert(indices.length == array.st.nDims)
+
+      val shape = array.shapes(cb)
+      for (i <- indices.indices) {
+        val idx = indices(i)
+        if (indexSizes(idx) == null) {
+          indexSizes(idx) = cb.newLocal[Int](s"${indexVars(idx)}_max")
+          cb.assign(indexSizes(idx), shape(i).toI)
+        } else {
+          cb.ifx(indexSizes(idx).cne(shape(i).toI), s"${indexVars(idx)} indexes incompatible dimensions")
+        }
+      }
+      val strides = array.strides(cb)
+      val pos = Array.tabulate(array.st.nDims + 1) { i => cb.newLocal[Long](s"$name$i") }
+      // FIXME: need to use `pos` of smallest index var to support non-column major
+      val pt: PType = array.st.pType.elementType
+      val elt = pt.loadCheapSCode(cb, pt.loadFromNested(pos(0)))
+      val indexToDim = indices.zipWithIndex.toMap
+      ArrayInfo(array, strides, pos, elt, indexToDim, name)
+    }
+
+    def recurLoopBuilder(idx: Int): Unit = {
+      if (idx < 0) {
+        pt.storeAtAddress(cb, info.head.pos(0), region, body(info.map(_.elt)), deepCopy)
+      } else {
+        val coord = indexCoords(idx)
+        def init(): Unit = {
+          cb.assign(coord, 0)
+          for (n <- arrays.indices) {
+            if (info(n).indexToDim.contains(idx)) {
+              val i = info(n).indexToDim(idx)
+              // FIXME: assumes array's indices in ascending order
+              cb.assign(info(n).pos(i), info(n).pos(i+1))
+            }
+          }
+        }
+        def increment(): Unit = {
+          cb.assign(coord, coord + 1)
+          for (n <- arrays.indices) {
+            if (info(n).indexToDim.contains(idx)) {
+              val i = info(n).indexToDim(idx)
+              cb.assign(info(n).pos(i), info(n).pos(i) + info(n).strides(i))
+            }
+          }
+        }
+
+        cb.forLoop(init(), coord < indexSizes(idx), increment(), recurLoopBuilder(idx - 1))
+      }
+    }
+
+    for (n <- arrays.indices) {
+      cb.assign(info(n).pos(info(n).array.st.nDims), info(n).array.firstDataAddress(cb))
+    }
+    recurLoopBuilder(indexVars.length - 1)
+  }
 }
 
 class SNDArrayPointerCode(val st: SNDArrayPointer, val a: Code[Long]) extends SNDArrayCode {

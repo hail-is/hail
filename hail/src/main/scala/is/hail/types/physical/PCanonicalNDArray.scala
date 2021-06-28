@@ -2,11 +2,11 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, NDArray, Region, UnsafeOrdering}
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.{CodeParam, CodeParamType, EmitCode, EmitCodeBuilder, SCodeParam, Param, ParamType}
+import is.hail.expr.ir.{CodeParam, CodeParamType, EmitCode, EmitCodeBuilder, Param, ParamType, SCodeParam}
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.{TNDArray, Type}
-import is.hail.types.physical.stypes.concrete.{SNDArrayPointer, SNDArrayPointerCode, SStackStruct}
+import is.hail.types.physical.stypes.concrete.{SNDArrayPointer, SNDArrayPointerCode, SNDArrayPointerSettable, SStackStruct}
 import org.apache.spark.sql.Row
 import is.hail.utils._
 
@@ -364,14 +364,13 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
         val shape = oldND.shapes(cb)
         val newStrides = makeColumnMajorStrides(shape, region, cb)
         val (targetDataFirstElementAddr, finish) = this.constructDataFunction(shape, newStrides, cb, region)
-        val result = finish(cb)
+        val result = finish(cb).memoize(cb, "dest")
 
-        SNDArray.coiterate(cb, region, FastIndexedSeq((result, "result"), (oldND.get, "oldND")), {
-          case Seq(dest, elt) =>
-            cb.assign(dest, elt)
-        }, deepCopy = true)
+        result.coiterateMutate(cb, region, true, (oldND.get, "oldND")){
+          case Seq(dest, elt) => elt
+        }
 
-        result.a
+        result.asInstanceOf[SNDArrayPointerSettable].a
     }
   }
 
