@@ -3946,6 +3946,10 @@ class NDArrayExpression(Expression):
         assert isinstance(self._type, tndarray)
         return ndarray_map
 
+    def _map2(self,nd, f):
+        element_type = self._type.element_type
+
+
     def _broadcast_to_same_ndim(self, other):
         if isinstance(other, NDArrayExpression):
             if self.ndim < other.ndim:

@@ -703,6 +703,47 @@ class NDArrayReshape(IR):
         self._type = tndarray(self.nd.typ.element_type, len(self.shape.typ))
 
 
+class NDArrayMap2(IR):
+    @typecheck_method(l=IR, r=IR, lname=str, rname=str, body=IR)
+    def __init__(self, l, r, lname, rname, body):
+        super.__init__(l, r, body)
+        self.r = r
+        self.l = l
+        self.lname = lname
+        self.rname = rname
+        self.body = body
+
+    @typecheck_method(l=IR, r=IR, body=IR)
+    def copy(self, r, l, body):
+        return NDArrayMap2(l, r, self.lname, self.rname, body)
+
+    def head_str(self):
+        return f'{escape_id(self.lname)} {escape_id(self.rname)}'
+
+    def _eq(self, other):
+        return self.lname == other.lname and\
+               self.rname == other.rname
+
+    @property
+    def bound_variables(self):
+        return {self.lname, self.rname} | super().bound_variables
+
+    def _compute_type(self, env, agg_env):
+        self.l._compute_type(env, agg_env)
+        self.r._compute_type(env, agg_env)
+        self._body._compute_type(_env_bind(env, self.bindings(2)), agg_env)
+        self._type = tndarray(self.body.typ, self.l.typ.ndim)
+
+    def renderable_bindings(self, i, default_value=None):
+        if i == 2:
+            if default_value is None:
+                return {self.l_name: self.l.typ.element_type, self.rname: self.a.typ.element_type}
+            else:
+                return {self.l_name: default_value, self.r_name: default_value}
+        else:
+            return {}
+
+
 class NDArrayMap(IR):
     @typecheck_method(nd=IR, name=str, body=IR)
     def __init__(self, nd, name, body):
