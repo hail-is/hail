@@ -178,12 +178,12 @@ class NetworkNamespace:
         # Jobs on the private network should have access to the metadata server
         # and our vdc. The public network should not so we use google's public
         # resolver.
-        with open(f'/etc/netns/{self.network_ns_name}/resolv.conf', 'w') as hosts:
+        with open(f'/etc/netns/{self.network_ns_name}/resolv.conf', 'w') as resolv:
             if self.private:
-                hosts.write('nameserver 169.254.169.254\n')
-                hosts.write('search c.hail-vdc.internal google.internal\n')
+                resolv.write('nameserver 169.254.169.254\n')
+                resolv.write('search c.hail-vdc.internal google.internal\n')
             else:
-                hosts.write('nameserver 8.8.8.8\n')
+                resolv.write('nameserver 8.8.8.8\n')
 
     async def create_netns(self):
         await check_shell(
@@ -502,7 +502,7 @@ class Container:
                 self.short_error = 'image not found'
             raise
 
-        image_config, _ = await check_exec_output('docker', 'inspect', shq(self.image_ref_str))
+        image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
         image_configs[self.image_ref_str] = json.loads(image_config)[0]
 
     async def ensure_image_is_pulled(self, auth=None):
