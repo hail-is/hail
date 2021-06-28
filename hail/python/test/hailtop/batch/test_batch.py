@@ -794,7 +794,7 @@ class ServiceTests(unittest.TestCase):
 
     def test_python_job_w_non_zero_ec(self):
         b = self.batch(default_python_image='gcr.io/hail-vdc/python-dill:3.7-slim')
-        j = b.new_job()
+        j = b.new_python_job()
 
         def error():
             raise Exception("this should fail")
