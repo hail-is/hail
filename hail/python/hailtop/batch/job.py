@@ -189,7 +189,7 @@ class Job:
         ----------
         storage:
             Units are in bytes if `storage` is an :obj:`int`. If `None`, use the
-            default storage size (0 Gi).
+            default storage size for the :class:`.ServiceBackend` (0 Gi).
 
         Returns
         -------
@@ -232,7 +232,7 @@ class Job:
         ----------
         memory:
             Units are in bytes if `memory` is an :obj:`int`. If `None`,
-            use the default value for the :class:.
+            use the default value for the :class:`.ServiceBackend` ('standard').
 
         Returns
         -------
@@ -271,8 +271,8 @@ class Job:
         ----------
         cores:
             Units are in cpu if `cores` is numeric. If `None`,
-            use the default value of 1 cpu for the
-            :class:`.ServiceBackend`.
+            use the default value for the :class:`.ServiceBackend`
+            (1 cpu).
 
         Returns
         -------
