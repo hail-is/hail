@@ -18,6 +18,7 @@ import async_timeout
 import concurrent
 import aiodocker  # type: ignore
 from collections import defaultdict
+import psutil
 from aiodocker.exceptions import DockerError  # type: ignore
 import google.oauth2.service_account  # type: ignore
 from hailtop.utils import (
@@ -202,8 +203,8 @@ ip -n {self.network_ns_name} route add default via {self.host_ip}'''
     async def enable_iptables_forwarding(self):
         await check_shell(
             f'''
-iptables -w 10 --append FORWARD --in-interface {self.veth_host} --jump ACCEPT && \
-iptables -w 10 --append FORWARD --out-interface {self.veth_host} --jump ACCEPT'''
+iptables -w 10 --append FORWARD --in-interface {self.veth_host} --out-interface ens5 --jump ACCEPT && \
+iptables -w 10 --append FORWARD --out-interface {self.veth_host} --in-interface ens5 --jump ACCEPT'''
         )
 
     async def expose_port(self, port, host_port):
@@ -240,6 +241,9 @@ class NetworkAllocator:
     def __init__(self):
         self.private_networks = asyncio.Queue()
         self.public_networks = asyncio.Queue()
+
+        if 'ens5' not in psutil.net_if_addrs().keys():
+            raise Exception('No ens5 interface detected')
 
     async def reserve(self, netns_pool_min_size: int = 64):
         for subnet_index in range(netns_pool_min_size):
