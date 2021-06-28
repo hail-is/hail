@@ -333,7 +333,6 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long  = {
     val srcNDPType = srcPType.asInstanceOf[PCanonicalNDArray]
     assert(nDims == srcNDPType.nDims)
-
     if (equalModuloRequired(srcPType)) { // The situation where you can just memcpy, but then still have to update pointers.
       if (!deepCopy) {
         return srcAddress
@@ -343,7 +342,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
       Region.copyFrom(srcAddress, newNDAddress, this.representation.field("shape").typ.byteSize + this.representation.field("strides").typ.byteSize)
 
-      val srcDataAddress = Region.loadAddress(srcNDPType.representation.fieldOffset(srcAddress, 2))
+      val srcDataAddress = srcNDPType.unstagedDataFirstElementPointer(srcAddress)
       // Deep copy, two scenarios.
       val newDataAddress = if (elementType.containsPointers) {
         // Can't just reference count change, since the elements have to be copied and updated.

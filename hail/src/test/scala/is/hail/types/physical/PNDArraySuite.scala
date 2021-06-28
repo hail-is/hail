@@ -49,8 +49,8 @@ class PNDArraySuite extends PhysicalTestUtils {
         val snd2 = snd2Finisher(cb).memoize(cb, "snd2")
         cb.assign(r2PointerToNDAddress1, nd.store(cb, codeRegion2, snd1, true))
 
-        // Return the data address of the 1st one
-        Region.loadAddress(nd.representation.loadField(r2PointerToNDAddress1, "data"))
+        // Return the 1st ndarray
+        snd1.asInstanceOf[SNDArrayPointerSettable].a
       }
     } catch {
       case e: AssertionError =>
@@ -62,23 +62,24 @@ class PNDArraySuite extends PhysicalTestUtils {
 
     val f = fb.result()()
     val result1 = f(region1, region2, region3)
+    val result1Data = nd.unstagedDataFirstElementPointer(result1)
 
     // Check number of ndarrays in each region:
     assert(region1.memory.listNDArrayRefs().size == 1)
-    assert(region1.memory.listNDArrayRefs()(0) == result1)
+    assert(region1.memory.listNDArrayRefs()(0) == result1Data)
 
     assert(region2.memory.listNDArrayRefs().size == 2)
-    assert(region2.memory.listNDArrayRefs()(1) == result1)
+    assert(region2.memory.listNDArrayRefs()(1) == result1Data)
 
     // Check that the reference count of ndarray1 is 2:
-    val rc1A = Region.loadLong(result1-PNDArray.headerBytes)
+    val rc1A = Region.loadLong(result1Data-PNDArray.headerBytes)
     assert(rc1A == 2)
 
     region1.clear()
     assert(region1.memory.listNDArrayRefs().size == 0)
 
     // Check that ndarray 1 wasn't actually cleared, ref count should just be 1 now:
-    val rc1B = Region.loadLong(result1-16L)
+    val rc1B = Region.loadLong(result1Data-PNDArray.headerBytes)
     assert(rc1B == 1)
 
 
