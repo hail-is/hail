@@ -559,8 +559,8 @@ def is_transient_error(e):
         # 503 service unavailable, 504 gateway timeout
         return True
     if isinstance(e, hailtop.httpx.ClientResponseError) and (
-            e.status == 403 and ('rateLimitExceeded' in e.body or
-                                 'QUOTA_EXCEEDED' in e.body)):
+            e.status == 403 and ('rateLimitExceeded' in e.body
+                                 or 'QUOTA_EXCEEDED' in e.body)):
         return True
     if isinstance(e, aiohttp.ServerTimeoutError):
         return True
