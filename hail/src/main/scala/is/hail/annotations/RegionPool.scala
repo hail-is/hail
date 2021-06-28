@@ -3,12 +3,8 @@ package is.hail.annotations
 import is.hail.expr.ir.LongArrayBuilder
 import is.hail.utils._
 
-import java.util
 import java.util.TreeMap
-import scala.collection.Searching._
-import scala.collection.convert.ImplicitConversions.`map AsJavaMap`
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
 
 object RegionPool {
 
@@ -90,7 +86,10 @@ class noCache extends ChunkCache {
    }
   def freeAll(pool: RegionPool): Unit = {
     smallChunkCache.foreach(ab =>  while(ab.size > 0) freeInLongArrayBuilder(pool, ab))
-    bigChunkCache.forEach((k, ab) =>  while (ab.size > 0) freeInLongArrayBuilder(pool, ab))
+
+    bigChunkCache.entrySet().forEach(entry =>
+      while (entry.getValue.size > 0)
+        freeInLongArrayBuilder(pool, entry.getValue))
   }
   def getUsage(): (Int, Int) = {
     (chunksRequested, cacheHits)
