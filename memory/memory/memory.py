@@ -17,7 +17,7 @@ from hailtop.google_storage import GCS
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
 from hailtop.utils import AsyncWorkerPool, retry_transient_errors, dump_all_stacktraces
-from gear import setup_aiohttp_session, rest_authenticated_users_only, monitor_endpoint
+from gear import setup_aiohttp_session, rest_authenticated_users_only, monitor_endpoints_middleware
 
 uvloop.install()
 
@@ -34,7 +34,6 @@ async def healthcheck(request):  # pylint: disable=unused-argument
 
 
 @routes.get('/api/v1alpha/objects')
-@monitor_endpoint
 @rest_authenticated_users_only
 async def get_object(request, userdata):
     filepath = request.query.get('q')
@@ -48,7 +47,6 @@ async def get_object(request, userdata):
 
 
 @routes.post('/api/v1alpha/objects')
-@monitor_endpoint
 @rest_authenticated_users_only
 async def write_object(request, userdata):
     filepath = request.query.get('q')
@@ -159,7 +157,7 @@ async def on_cleanup(app):
 
 
 def run():
-    app = web.Application()
+    app = web.Application(middlewares=[monitor_endpoints_middleware])
 
     setup_aiohttp_session(app)
     app.add_routes(routes)

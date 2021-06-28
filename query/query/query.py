@@ -20,7 +20,7 @@ from gear import (
     setup_aiohttp_session,
     rest_authenticated_users_only,
     rest_authenticated_developers_only,
-    monitor_endpoint,
+    monitor_endpoints_middleware,
 )
 
 from .sockets import connect_to_java
@@ -142,14 +142,12 @@ async def handle_ws_response(request, userdata, endpoint, f):
 
 
 @routes.get('/api/v1alpha/execute')
-@monitor_endpoint
 @rest_authenticated_users_only
 async def execute(request, userdata):
     return await handle_ws_response(request, userdata, 'execute', blocking_execute)
 
 
 @routes.get('/api/v1alpha/load_references_from_dataset')
-@monitor_endpoint
 @rest_authenticated_users_only
 async def load_references_from_dataset(request, userdata):
     return await handle_ws_response(
@@ -158,42 +156,36 @@ async def load_references_from_dataset(request, userdata):
 
 
 @routes.get('/api/v1alpha/type/value')
-@monitor_endpoint
 @rest_authenticated_users_only
 async def value_type(request, userdata):
     return await handle_ws_response(request, userdata, 'type/value', blocking_value_type)
 
 
 @routes.get('/api/v1alpha/type/table')
-@monitor_endpoint
 @rest_authenticated_users_only
 async def table_type(request, userdata):
     return await handle_ws_response(request, userdata, 'type/table', blocking_table_type)
 
 
 @routes.get('/api/v1alpha/type/matrix')
-@monitor_endpoint
 @rest_authenticated_users_only
 async def matrix_type(request, userdata):
     return await handle_ws_response(request, userdata, 'type/matrix', blocking_matrix_type)
 
 
 @routes.get('/api/v1alpha/type/blockmatrix')
-@monitor_endpoint
 @rest_authenticated_users_only
 async def blockmatrix_type(request, userdata):
     return await handle_ws_response(request, userdata, 'type/blockmatrix', blocking_blockmatrix_type)
 
 
 @routes.get('/api/v1alpha/references/get')
-@monitor_endpoint
 @rest_authenticated_users_only
 async def get_reference(request, userdata):  # pylint: disable=unused-argument
     return await handle_ws_response(request, userdata, 'references/get', blocking_get_reference)
 
 
 @routes.get('/api/v1alpha/flags/get')
-@monitor_endpoint
 @rest_authenticated_developers_only
 async def get_flags(request, userdata):  # pylint: disable=unused-argument
     app = request.app
@@ -203,7 +195,6 @@ async def get_flags(request, userdata):  # pylint: disable=unused-argument
 
 
 @routes.get('/api/v1alpha/flags/get/{flag}')
-@monitor_endpoint
 @rest_authenticated_developers_only
 async def get_flag(request, userdata):  # pylint: disable=unused-argument
     app = request.app
@@ -214,7 +205,6 @@ async def get_flag(request, userdata):  # pylint: disable=unused-argument
 
 
 @routes.get('/api/v1alpha/flags/set/{flag}')
-@monitor_endpoint
 @rest_authenticated_developers_only
 async def set_flag(request, userdata):  # pylint: disable=unused-argument
     app = request.app
@@ -261,7 +251,7 @@ async def on_shutdown(_):
 
 
 def run():
-    app = web.Application()
+    app = web.Application(middlewares=[monitor_endpoints_middleware])
 
     setup_aiohttp_session(app)
 

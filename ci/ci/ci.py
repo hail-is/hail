@@ -22,7 +22,7 @@ from gear import (
     web_authenticated_developers_only,
     check_csrf_token,
     create_database_pool,
-    monitor_endpoint,
+    monitor_endpoints_middleware,
 )
 from typing import Dict, Any, Optional, List
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
@@ -88,7 +88,6 @@ async def watched_branch_config(app, wb: WatchedBranch, index: int) -> Dict[str,
 
 @routes.get('')
 @routes.get('/')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def index(request, userdata):  # pylint: disable=unused-argument
     wb_configs = [await watched_branch_config(request.app, wb, i) for i, wb in enumerate(watched_branches)]
@@ -110,7 +109,6 @@ def wb_and_pr_from_request(request):
 
 
 @routes.get('/watched_branches/{watched_branch_index}/pr/{pr_number}')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_pr(request, userdata):  # pylint: disable=unused-argument
     wb, pr = wb_and_pr_from_request(request)
@@ -166,7 +164,6 @@ async def retry_pr(wb, pr, request):
 
 @routes.post('/watched_branches/{watched_branch_index}/pr/{pr_number}/retry')
 @check_csrf_token
-@monitor_endpoint
 @web_authenticated_developers_only(redirect=False)
 async def post_retry_pr(request, userdata):  # pylint: disable=unused-argument
     wb, pr = wb_and_pr_from_request(request)
@@ -176,7 +173,6 @@ async def post_retry_pr(request, userdata):  # pylint: disable=unused-argument
 
 
 @routes.get('/batches')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_batches(request, userdata):
     batch_client = request.app['batch_client']
@@ -187,7 +183,6 @@ async def get_batches(request, userdata):
 
 
 @routes.get('/batches/{batch_id}')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
@@ -216,7 +211,6 @@ def get_maybe_wb_for_batch(b: Batch):
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_job(request, userdata):
     batch_id = int(request.match_info['batch_id'])
@@ -254,7 +248,6 @@ def pr_requires_action(gh_username, pr_config):
 
 
 @routes.get('/me')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_user(request, userdata):
     username = userdata['username']
@@ -291,7 +284,6 @@ async def get_user(request, userdata):
 
 @routes.post('/authorize_source_sha')
 @check_csrf_token
-@monitor_endpoint
 @web_authenticated_developers_only(redirect=False)
 async def post_authorized_source_sha(request, userdata):  # pylint: disable=unused-argument
     app = request.app
@@ -373,7 +365,6 @@ async def batch_callback_handler(request):
 
 
 @routes.get('/api/v1alpha/deploy_status')
-@monitor_endpoint
 @rest_authenticated_developers_only
 async def deploy_status(request, userdata):  # pylint: disable=unused-argument
     batch_client = request.app['batch_client']
@@ -408,7 +399,6 @@ async def deploy_status(request, userdata):  # pylint: disable=unused-argument
 
 
 @routes.post('/api/v1alpha/update')
-@monitor_endpoint
 @rest_authenticated_developers_only
 async def post_update(request, userdata):  # pylint: disable=unused-argument
     log.info('developer triggered update')
@@ -422,7 +412,6 @@ async def post_update(request, userdata):  # pylint: disable=unused-argument
 
 
 @routes.post('/api/v1alpha/dev_deploy_branch')
-@monitor_endpoint
 @rest_authenticated_developers_only
 async def dev_deploy_branch(request, userdata):
     app = request.app
@@ -466,7 +455,6 @@ async def dev_deploy_branch(request, userdata):
 
 
 @routes.post('/api/v1alpha/batch_callback')
-@monitor_endpoint
 async def batch_callback(request):
     await asyncio.shield(batch_callback_handler(request))
     return web.Response(status=200)
@@ -507,7 +495,7 @@ async def on_cleanup(app):
 
 
 def run():
-    app = web.Application()
+    app = web.Application(middlewares=[monitor_endpoints_middleware])
     setup_aiohttp_jinja2(app, 'ci')
     setup_aiohttp_session(app)
 
