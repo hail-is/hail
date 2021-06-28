@@ -217,8 +217,6 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
             })
         }
 
-
-
         result
       }
     }
@@ -271,6 +269,25 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       false)
     cb += Region.storeAddress(this.representation.fieldOffset(ndAddr, 2), dataPtr)
     new SNDArrayPointerCode(sType, ndAddr)
+  }
+
+  def constructByActuallyCopyingData(
+    toBeCopied: SNDArrayValue,
+    cb: EmitCodeBuilder,
+    region: Value[Region]
+  ): SNDArrayCode = {
+    val oldDataAddr = toBeCopied.firstDataAddress(cb)
+    val numDataBytes = cb.newLocal("constructByActuallyCopyingData_numDataBytes", PNDArray.getDataByteSize(oldDataAddr))
+    val newDataAddr = cb.newLocal("constructByActuallyCopyingData_newDataAddr", region.allocateNDArrayData(numDataBytes))
+    cb.println("Allocated data in copier, at ptr: ", newDataAddr.toS)
+    cb += Region.copyFrom(oldDataAddr, newDataAddr, numDataBytes)
+    constructByCopyingDataPointer(
+      toBeCopied.shapes(cb),
+      toBeCopied.strides(cb),
+      newDataAddr,
+      cb,
+      region
+    )
   }
 
   def unstagedConstructDataFunction(

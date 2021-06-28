@@ -35,6 +35,10 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     jObjects(idx)
   }
 
+  def assertHasNDArrayRef(ptr: Long): Unit = {
+    assert(ndarrayRefs.result().contains(ptr))
+  }
+
   def dumpMemoryInfo(): String = {
     s"""
        |Blocks Used = ${usedBlocks.size}, Chunks used = ${bigChunks.size}

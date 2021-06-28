@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder, EmitParamType, SCodeEmitParamType}
+import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder, EmitParamType, SCodeEmitParamType, uuid4}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.concrete.SNDArrayPointerSettable
@@ -26,10 +26,12 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     val initMethod = cb.emb.genEmitMethod[Unit]("ndarray_sum_aggregator_init_op")
+    cb.println("initOp Start")
     initMethod.voidWithBuilder(cb =>
       state.storeMissing(cb)
     )
     cb.invokeVoid(initMethod)
+    cb.println("initOp Over")
   }
 
   override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
@@ -45,7 +47,10 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
           {
             cb += (state.region.getNewRegion(Region.TINY))
             cb += state.storageType.setFieldPresent(state.off, ndarrayFieldNumber)
-            state.storeNonmissing(cb, nextNDPV)
+            cb.println("About to copy in seqop")
+            val fullyCopiedNDArray = ndTyp.constructByActuallyCopyingData(nextNDPV, cb, state.region).memoize(cb, "foo")
+            state.storeNonmissing(cb, fullyCopiedNDArray)
+            cb.println("seqOp Answer: ", cb.strValue(fullyCopiedNDArray))
           },
           { currentNDPCode =>
             val currentNDPValue = currentNDPCode.asNDArray.memoize(cb, "ndarray_sum_seqop_current")
@@ -54,7 +59,10 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
         )
       })
     }
+    val uid = uuid4()
+    cb.println(s"seqOp Start ${uid}")
     cb.invokeVoid(seqOpMethod, nextNDCode)
+    cb.println(s"seqOp Over ${uid}")
   }
 
   override protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
@@ -68,17 +76,20 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
           val leftPV = state.storageType.loadCheapSCode(cb, state.off).asBaseStruct.memoize(cb, "ndarray_sum_comb_op_left")
           leftPV.loadField(cb, ndarrayFieldNumber).consume(cb,
             {
+              cb.println("seqOp: Missing case")
               state.storeNonmissing(cb, rightNdValue)
             },
             { leftNDPC =>
+              cb.println("seqOp: Present case")
               val leftNdValue = leftNDPC.asNDArray.memoize(cb, "left_ndarray_sum_agg")
               addValues(cb, state.region, leftNdValue, rightNdValue)
             })
         }
       )
     }
-
+    cb.println("Start combop")
     cb.invokeVoid(combOpMethod)
+    cb.println("End combop")
   }
 
   private def addValues(cb: EmitCodeBuilder, region: Value[Region], leftNdValue: SNDArrayValue, rightNdValue: SNDArrayValue): Unit = {
