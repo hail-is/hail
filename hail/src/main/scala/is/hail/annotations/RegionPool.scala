@@ -94,7 +94,7 @@ class noCache extends ChunkCache {
     })
   }
   def getUsage(): (Int, Int) = {
-    (chunksRequested, cacheHits)
+    (chunksRequested, cacheHits) 
   }
   def indexInSmallChunkCache(size: Long): Int = {
     var closestPower = highestSmallChunkPowerOf2
