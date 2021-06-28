@@ -4,6 +4,7 @@ import is.hail.expr.ir.LongArrayBuilder
 import is.hail.utils._
 
 import java.util.TreeMap
+import java.util.function.BiConsumer
 import scala.collection.mutable
 
 object RegionPool {
@@ -86,10 +87,10 @@ class noCache extends ChunkCache {
    }
   def freeAll(pool: RegionPool): Unit = {
     smallChunkCache.foreach(ab =>  while(ab.size > 0) freeInLongArrayBuilder(pool, ab))
-
-    bigChunkCache.forEach((key, value) => {
-      while (value.size > 0)
-        freeInLongArrayBuilder(pool, value)
+    //BiConsumer needed to work with scala 2.11.12
+    bigChunkCache.forEach( new BiConsumer[Long, LongArrayBuilder]() {
+      def accept(key: Long, value: LongArrayBuilder): Unit =
+        while(value.size > 0) freeInLongArrayBuilder(pool, value)
     })
   }
   def getUsage(): (Int, Int) = {
