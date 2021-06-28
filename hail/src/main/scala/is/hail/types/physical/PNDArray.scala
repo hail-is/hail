@@ -12,8 +12,8 @@ import is.hail.types.virtual.TNDArray
 
 object PNDArray {
   val headerBytes = 16L
-  def getReferenceCount(ndAddr: Long): Long = Region.loadLong(ndAddr - 16L)
-  def storeReferenceCount(ndAddr: Long, newCount: Long): Unit = Region.storeLong(ndAddr - 16L, newCount)
+  def getReferenceCount(ndAddr: Long): Long = Region.loadLong(ndAddr - headerBytes)
+  def storeReferenceCount(ndAddr: Long, newCount: Long): Unit = Region.storeLong(ndAddr - headerBytes, newCount)
   def getDataByteSize(ndAddr: Long): Long = Region.loadLong(ndAddr - 8L)
   def getDataByteSize(ndAddr: Code[Long]): Code[Long] = Region.loadLong(ndAddr - 8L)
   def storeDataByteSize(ndAddr: Long, byteSize: Long): Unit = Region.storeLong(ndAddr - 8L, byteSize)

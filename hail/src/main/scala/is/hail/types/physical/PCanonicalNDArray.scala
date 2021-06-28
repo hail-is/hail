@@ -423,17 +423,16 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       SStackStruct.constructFromArgs(cb, region, strideType.virtualType, strides.map(s => EmitCode.present(cb.emb, primitive(s))): _*),
       false)
 
-    val outputSNDValue = new SNDArrayPointerCode(sType, targetAddr).memoize(cb, "pcanonical_ndarray_store_at_addr_output")
-
     value.st match {
       case SNDArrayPointer(t) if t.equalModuloRequired(this) =>
         if (deepCopy) {
-          region.trackNDArray(dataAddr)
+          region.trackNDArray(cb, dataAddr)
         }
         cb += Region.storeAddress(this.representation.fieldOffset(targetAddr, "data"), dataAddr)
       case SNDArrayPointer(t) =>
         val newDataAddr = this.allocateData(shape, region)
         cb += Region.storeAddress(this.representation.fieldOffset(targetAddr, "data"), newDataAddr)
+        val outputSNDValue = new SNDArrayPointerCode(sType, targetAddr).memoize(cb, "pcanonical_ndarray_store_at_addr_output")
         outputSNDValue.coiterateMutate(cb, region, true, (inputSNDValue.get, "input")){
           case Seq(dest, elt) =>
             elt
