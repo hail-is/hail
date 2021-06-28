@@ -87,9 +87,10 @@ class noCache extends ChunkCache {
   def freeAll(pool: RegionPool): Unit = {
     smallChunkCache.foreach(ab =>  while(ab.size > 0) freeInLongArrayBuilder(pool, ab))
 
-    bigChunkCache.entrySet().forEach(entry =>
-      while (entry.getValue.size > 0)
-        freeInLongArrayBuilder(pool, entry.getValue))
+    bigChunkCache.forEach((key, value) => {
+      while (value.size > 0)
+        freeInLongArrayBuilder(pool, value)
+    })
   }
   def getUsage(): (Int, Int) = {
     (chunksRequested, cacheHits)
