@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.HailSuite
 import is.hail.TestUtils.assertEvalsTo
-import is.hail.types.virtual.{TArray, TBoolean, TFloat32, TFloat64, TInt32, TStream, TStruct, TTuple}
+import is.hail.types.virtual.{TArray, TBoolean, TFloat32, TFloat64, TInt32, TStream, TStruct, TTuple, Type}
 import is.hail.utils.{FastIndexedSeq, FastSeq}
 import org.apache.spark.sql.Row
 import org.scalatest.testng.TestNGSuite
@@ -94,6 +94,20 @@ class FoldConstantsSuite extends HailSuite {
     assert(FoldConstants(ctx, toArrayStreamFilterIR) == toArrayStreamFilterIR)
     assert(FoldConstants(ctx, makeTupleSeededIR) == makeTupleSeededIRConst)
     assert(FoldConstants(ctx, randLetIR) == randLetIRConst)
+    val errorCompiled = FoldConstants(ctx, errorIR)
+    errorCompiled match {
+      case If(cond, cnsq, _) =>
+        assert(cond == False())
+        cnsq match {
+          case Die(msg: IR, typ: Type, id: Int) =>
+            assert(typ == TFloat64)
+            assert(id == -1)
+            msg match {
+              case Str(str: String) =>
+                assert(str.contains("array index out of bounds"))
+            }
+        }
+    }
 
   }
 }
