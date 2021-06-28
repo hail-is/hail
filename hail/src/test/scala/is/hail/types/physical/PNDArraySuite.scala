@@ -95,18 +95,20 @@ class PNDArraySuite extends PhysicalTestUtils {
   @Test def testUnstagedCopy(): Unit = {
     val region1 = Region(pool=this.pool)
     val region2 = Region(pool=this.pool)
-    val x = new SafeNDArray(IndexedSeq(3L, 2L), (0 until 6).map(_.toDouble))
+    val x = SafeNDArray(IndexedSeq(3L, 2L), (0 until 6).map(_.toDouble))
     val pNd = PCanonicalNDArray(PFloat64Required, 2, true)
-    val addr1 = pNd.unstagedStoreJavaObject(x, region=region1)
-    val addr2 = pNd.copyFromAddress(region2, pNd, addr1, true)
-    val unsafe1 = UnsafeRow.read(pNd, region1, addr1)
-    val unsafe2 = UnsafeRow.read(pNd, region2, addr2)
+    val ndAddr1 = pNd.unstagedStoreJavaObject(x, region=region1)
+    val ndAddr2 = pNd.copyFromAddress(region2, pNd, ndAddr1, true)
+    val unsafe1 = UnsafeRow.read(pNd, region1, ndAddr1)
+    val unsafe2 = UnsafeRow.read(pNd, region2, ndAddr2)
     // Deep copy same ptype just increments reference count, doesn't change the address.
-    assert(addr1 == addr2)
-    assert(PNDArray.getReferenceCount(addr1) == 2)
+    val dataAddr1 = Region.loadAddress(pNd.representation.loadField(ndAddr1, 2))
+    val dataAddr2 = Region.loadAddress(pNd.representation.loadField(ndAddr2, 2))
+    assert(dataAddr1 == dataAddr2)
+    assert(PNDArray.getReferenceCount(dataAddr1) == 2)
     assert(unsafe1 == unsafe2)
     region1.clear()
-    assert(PNDArray.getReferenceCount(addr1) == 1)
+    assert(PNDArray.getReferenceCount(dataAddr1) == 1)
 
     // Deep copy with elements that contain pointers, so have to actually do a full copy
     // FIXME: Currently ndarrays do not support this, reference counting needs to account for this.
