@@ -148,10 +148,11 @@ class PortAllocator:
 
 
 class NetworkNamespace:
-    def __init__(self, subnet_index: int, private: bool):
+    def __init__(self, subnet_index: int, private: bool, internet_interface: str):
         assert subnet_index <= 255
         self.subnet_index = subnet_index
         self.private = private
+        self.internet_interface = internet_interface
         self.network_ns_name = uuid.uuid4().hex[:5]
         self.hostname = uuid.uuid4().hex[:10]
         self.veth_host = self.network_ns_name + '-host'
@@ -203,8 +204,8 @@ ip -n {self.network_ns_name} route add default via {self.host_ip}'''
     async def enable_iptables_forwarding(self):
         await check_shell(
             f'''
-iptables -w 10 --append FORWARD --in-interface {self.veth_host} --out-interface ens5 --jump ACCEPT && \
-iptables -w 10 --append FORWARD --out-interface {self.veth_host} --in-interface ens5 --jump ACCEPT'''
+iptables -w 10 --append FORWARD --in-interface {self.veth_host} --out-interface {self.internet_interface} --jump ACCEPT && \
+iptables -w 10 --append FORWARD --out-interface {self.veth_host} --in-interface {self.internet_interface} --jump ACCEPT'''
         )
 
     async def expose_port(self, port, host_port):
@@ -242,16 +243,21 @@ class NetworkAllocator:
         self.private_networks = asyncio.Queue()
         self.public_networks = asyncio.Queue()
 
-        if 'ens5' not in psutil.net_if_addrs().keys():
-            raise Exception('No ens5 interface detected')
+        for nic in psutil.net_if_addrs().keys():
+            if nic.startswith('ens'):
+                self.internet_interface = nic
+                break
+        else:
+            raise Exception('No ens interface detected')
 
     async def reserve(self, netns_pool_min_size: int = 64):
         for subnet_index in range(netns_pool_min_size):
-            public = NetworkNamespace(subnet_index, private=False)
+            public = NetworkNamespace(subnet_index, private=False, internet_interface=self.internet_interface)
             await public.init()
             self.public_networks.put_nowait(public)
 
-            private = NetworkNamespace(subnet_index, private=True)
+            private = NetworkNamespace(subnet_index, private=True, internet_interface=self.internet_interface)
+
             await private.init()
             self.private_networks.put_nowait(private)
 
