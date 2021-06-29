@@ -36,6 +36,21 @@ object SNDArray {
     arrays: (SNDArrayCode, IndexedSeq[Int], String)*
   )(body: IndexedSeq[SCode] => Unit
   ): Unit = {
+    _coiterate(cb, indexVars, arrays: _*) { ptrs =>
+      val codes = ptrs.zip(arrays).map { case (ptr, (array, _, _)) =>
+        val pt = array.st.pType.elementType
+        pt.loadCheapSCode(cb, pt.loadFromNested(ptr))
+      }
+      body(codes)
+    }
+  }
+
+  def _coiterate(
+    cb: EmitCodeBuilder,
+    indexVars: IndexedSeq[String],
+    arrays: (SNDArrayCode, IndexedSeq[Int], String)*
+  )(body: IndexedSeq[Code[Long]] => Unit
+  ): Unit = {
     val indexSizes = new Array[Settable[Int]](indexVars.length)
     val indexCoords = Array.tabulate(indexVars.length) { i => cb.newLocal[Int](indexVars(i)) }
 
@@ -43,7 +58,6 @@ object SNDArray {
       array: SNDArrayValue,
       strides: IndexedSeq[Value[Long]],
       pos: IndexedSeq[Settable[Long]],
-      elt: SCode,
       indexToDim: Map[Int, Int],
       name: String)
 
@@ -66,15 +80,14 @@ object SNDArray {
       }
       val strides = array.strides(cb)
       val pos = Array.tabulate(array.st.nDims + 1) { i => cb.newLocal[Long](s"$name$i") }
-      val pt: PType = array.st.pType.elementType
-      val elt = pt.loadCheapSCode(cb, pt.loadFromNested(pos(0)))
       val indexToDim = indices.zipWithIndex.toMap
-      ArrayInfo(array, strides, pos, elt, indexToDim, name)
+      ArrayInfo(array, strides, pos, indexToDim, name)
     }
 
     def recurLoopBuilder(idx: Int): Unit = {
       if (idx < 0) {
-        body(info.map(_.elt))
+        // FIXME: to handle non-column major, need to use `pos` of smallest index var
+        body(info.map(_.pos(0)))
       } else {
         val coord = indexCoords(idx)
         def init(): Unit = {
