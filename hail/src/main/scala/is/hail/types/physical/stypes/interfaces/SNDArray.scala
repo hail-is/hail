@@ -3,8 +3,8 @@ package is.hail.types.physical.stypes.interfaces
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
-import is.hail.types.physical.{PNDArray, PType}
 import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
+import is.hail.types.physical.{PNDArray, PType}
 import is.hail.utils.{FastIndexedSeq, toRichIterable}
 
 object SNDArray {
@@ -233,6 +233,8 @@ trait SNDArray extends SType {
 
   def elementType: SType
   def elementPType: PType
+
+  def elementByteSize: Long
 }
 
 trait SNDArrayValue extends SValue {
@@ -282,6 +284,8 @@ trait SNDArrayValue extends SValue {
   )(body: IndexedSeq[SCode] => SCode
   ): Unit
 }
+
+trait SNDArraySettable extends SNDArrayValue with SSettable
 
 trait SNDArrayCode extends SCode {
   def st: SNDArray

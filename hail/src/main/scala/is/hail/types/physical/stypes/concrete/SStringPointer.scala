@@ -18,7 +18,7 @@ case class SStringPointer(pType: PString) extends SString {
 
   override def castRename(t: Type): SType = this
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SStringPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 

@@ -86,4 +86,6 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
     val subsetValue = valueType.valueSubsetter(subdict.valueType)
     (a: Any) => a.asInstanceOf[Map[Any, Any]].mapValues(subsetValue)
   }
+
+  override def arrayElementsRepr: TArray = TArray(elementType)
 }

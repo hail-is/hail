@@ -56,13 +56,13 @@ object IntervalFunctions extends RegistryFunctions {
     registerSCode1("includesStart", TInterval(tv("T")), TBoolean, (_: Type, x: SType) =>
       SBoolean
     ) {
-      case (r, cb, rt, interval: SIntervalCode) => primitive(interval.includesStart())
+      case (r, cb, rt, interval: SIntervalCode) => primitive(interval.codeIncludesStart())
     }
 
     registerSCode1("includesEnd", TInterval(tv("T")), TBoolean, (_: Type, x: SType) =>
       SBoolean
     ) {
-      case (r, cb, rt, interval: SIntervalCode) => primitive(interval.includesEnd())
+      case (r, cb, rt, interval: SIntervalCode) => primitive(interval.codeIncludesEnd())
     }
 
     registerIEmitCode2("contains", TInterval(tv("T")), tv("T"), TBoolean, {
