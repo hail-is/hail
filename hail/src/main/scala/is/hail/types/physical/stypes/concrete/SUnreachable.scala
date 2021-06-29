@@ -60,7 +60,6 @@ abstract class SUnreachableValue extends SCode with SSettable {
 }
 
 case class SUnreachableStruct(virtualType: TBaseStruct) extends SUnreachable with SBaseStruct {
-
   override def size: Int = virtualType.size
 
   val fieldTypes: IndexedSeq[SType] = virtualType.types.map(SUnreachable.fromVirtualType)
@@ -279,7 +278,6 @@ class SUnreachableNDArrayValue(val st: SUnreachableNDArray) extends SUnreachable
 
   override def get: SUnreachableNDArrayValue = this
 }
-
 
 case class SUnreachableContainer(virtualType: TContainer) extends SUnreachable with SContainer {
   val sv = new SUnreachableContainerValue(this)

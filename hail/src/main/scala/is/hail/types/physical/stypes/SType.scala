@@ -49,7 +49,7 @@ trait SType {
     }
   }
 
-  def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode
+  protected[stypes] def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]]
 
