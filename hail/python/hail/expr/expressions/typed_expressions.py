@@ -3946,9 +3946,19 @@ class NDArrayExpression(Expression):
         assert isinstance(self._type, tndarray)
         return ndarray_map
 
-    def _map2(self,nd, f):
-        element_type = self._type.element_type
+    @typecheck_method(f=func_spec(2, expr_any))
+    def map2(self, other, f):
+        if isinstance(other, list) or isinstance(other, np.ndarray):
+            other = hl.nd.array(other)
 
+        self_broadcast, other_broadcast = self._broadcast_to_same_ndim(other)
+
+        element_type1 = self._type.element_type
+        element_type2 = other._type.element_type
+        ndarray_map2 = self_broadcast._ir_lambda_method2(other_broadcast, ir.NDArrayMap2, f, element_type1,
+                                               element_type2, lambda t: tndarray(t, self.ndim))
+
+        assert isinstance(self._type, tndarray)
 
     def _broadcast_to_same_ndim(self, other):
         if isinstance(other, NDArrayExpression):
