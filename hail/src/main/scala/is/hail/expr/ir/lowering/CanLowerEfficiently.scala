@@ -100,8 +100,10 @@ object CanLowerEfficiently {
           }
       }
 
-      if (prohibitiveReason.isEmpty)
-        ir.children.foreach(recur)
+      ir.children.foreach { child =>
+        if (prohibitiveReason.isEmpty)
+          recur(child)
+      }
     }
 
     recur(ir0)
