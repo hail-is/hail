@@ -109,8 +109,6 @@ class SUnreachableBinaryValue extends SUnreachableValue with SBinaryValue with S
 
   override def loadByte(i: Code[Int]): Code[Byte] = const(0.toByte)
 
-  override def bytesAddress(): Code[Long] = const(0L)
-
   override def loadBytes(): Code[Array[Byte]] = Code._null
 
   override def loadLength(): Code[Int] = const(0)
@@ -139,7 +137,7 @@ class SUnreachableStringValue extends SUnreachableValue with SStringValue with S
 
   override def loadString(): Code[String] = Code._null
 
-  override def asBytes(): SBinaryCode = new SUnreachableBinaryValue
+  override def toBytes(): SBinaryCode = new SUnreachableBinaryValue
 
   override def get: SUnreachableStringValue = this
 }

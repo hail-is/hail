@@ -444,7 +444,7 @@ abstract class RegistryFunctions {
       case TString => classTag[String]
       case TArray(TInt32) => classTag[IndexedSeq[Int]]
       case TArray(TFloat64) => classTag[IndexedSeq[Double]]
-      case TArray(TString) => classTag[IndexedSeq[String]]
+      case TArray(TString) => classTag[Array[String]]
       case TSet(TString) => classTag[Set[String]]
       case TDict(TString, TString) => classTag[Map[String, String]]
       case TCall => classTag[Int]

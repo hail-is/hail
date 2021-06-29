@@ -95,6 +95,14 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
       }
     }
 
+  def constructFromByteArray(cb: EmitCodeBuilder, region: Value[Region], bytes: Code[Array[Byte]]): SBinaryPointerCode = {
+    val ba = cb.newLocal[Array[Byte]]("pcbin_ba", bytes)
+    val len = cb.newLocal[Int]("pcbin_len", ba.length())
+    val addr = cb.newLocal[Long]("pcbin_addr", allocate(region, len))
+    cb += store(addr, ba)
+    loadCheapSCode(cb, addr)
+  }
+
   def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] = {
     val srcBinary = srcPType.asInstanceOf[PBinary]
     Region.storeAddress(addr, constructOrCopy(mb, region, srcBinary, srcAddress, deepCopy))
@@ -135,14 +143,22 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {
-      case SBinaryPointer(PCanonicalBinary(_)) if !deepCopy =>
-        value.asInstanceOf[SBinaryPointerCode].a
+      case SBinaryPointer(PCanonicalBinary(_)) =>
+        if (deepCopy) {
+          val bv = value.asInstanceOf[SBinaryPointerCode].memoize(cb, "pcbin_store")
+          val len = cb.newLocal[Int]("pcbinary_store_len", bv.loadLength())
+          val newAddr = cb.newLocal[Long]("pcbinary_store_newaddr", allocate(region, len))
+          cb += storeLength(newAddr, len)
+          cb += Region.copyFrom(bytesAddress(bv.a), bytesAddress(newAddr), len.toL)
+          newAddr
+        } else
+          value.asInstanceOf[SBinaryPointerCode].a
       case _ =>
         val bv = value.asBinary.memoize(cb, "pcbin_store")
         val len = cb.newLocal[Int]("pcbinary_store_len", bv.loadLength())
         val newAddr = cb.newLocal[Long]("pcbinary_store_newaddr", allocate(region, len))
         cb += storeLength(newAddr, len)
-        cb += Region.copyFrom(bv.bytesAddress(), bytesAddress(newAddr), len.toL)
+        cb += Region.storeBytes(bytesAddress(newAddr), bv.loadBytes())
         newAddr
     }
   }

@@ -1,15 +1,13 @@
 package is.hail.expr.ir.functions
 
-import is.hail.asm4s
 import is.hail.asm4s.{coerce => _, _}
 import is.hail.expr.ir._
-import is.hail.types.physical._
 import is.hail.types.physical.stypes._
-import is.hail.types.physical.stypes.primitives._
-import is.hail.types.physical.stypes.concrete.SStringPointer
-import is.hail.utils._
-import is.hail.types.virtual._
+import is.hail.types.physical.stypes.concrete.SJavaString
 import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.physical.stypes.primitives._
+import is.hail.types.virtual._
+import is.hail.utils._
 import org.apache.spark.sql.Row
 
 import scala.reflect.ClassTag
@@ -293,12 +291,11 @@ object UtilFunctions extends RegistryFunctions {
       }
     }
 
-    registerSCode2("format", TString, tv("T", "tuple"), TString, (_: Type, _: SType, _: SType) => PCanonicalString().sType) {
-      case (r, cb, SStringPointer(rt: PCanonicalString), format, args, _) =>
+    registerSCode2("format", TString, tv("T", "tuple"), TString, (_: Type, _: SType, _: SType) => SJavaString) {
+      case (r, cb, st: SJavaString.type, format, args, _) =>
         val javaObjArgs = Code.checkcast[Row](scodeToJavaValue(cb, r.region, args))
         val formatted = Code.invokeScalaObject2[String, Row, String](thisClass, "format", format.asString.loadString(), javaObjArgs)
-        val st = SStringPointer(rt)
-        st.constructFromString(cb, r.region, formatted)
+        st.construct(formatted)
     }
 
     registerIEmitCode2("land", TBoolean, TBoolean, TBoolean, (_: Type, tl: EmitType, tr: EmitType) => EmitType(SBoolean, tl.required && tr.required)) {

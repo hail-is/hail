@@ -25,14 +25,14 @@ object LocusOrdering {
             val rhsContig = rhs.contig(cb).memoize(cb, "locus_cmp_rcontig").asInstanceOf[SStringValue]
 
             // ugh
-            val lhsContigBinType = lhsContig.get.asBytes().st
-            val rhsContigBinType = rhsContig.get.asBytes().st
-            val bincmp = CodeOrdering.makeOrdering(lhsContigBinType, rhsContigBinType, ecb)
+            val lhsContigType = lhsContig.get.st
+            val rhsContigType = rhsContig.get.st
+            val strcmp = CodeOrdering.makeOrdering(lhsContigType, rhsContigType, ecb)
 
             val ret = cb.newLocal[Int]("locus_cmp_ret", 0)
-            cb.ifx(bincmp.compareNonnull(cb,
-              lhsContig.get.asBytes(),
-              rhsContig.get.asBytes()).ceq(0), {
+            cb.ifx(strcmp.compareNonnull(cb,
+              lhsContig.get,
+              rhsContig.get).ceq(0), {
               cb.assign(ret, Code.invokeStatic2[java.lang.Integer, Int, Int, Int](
                 "compare", lhs.position(cb), rhs.position(cb)))
             }, {

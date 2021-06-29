@@ -16,10 +16,10 @@ object StringOrdering {
           val type2: SString = t2
 
           def _compareNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Int] = {
-            val bcode1 = x.asInstanceOf[SStringPointerCode].binaryRepr
-            val bcode2 = y.asInstanceOf[SStringPointerCode].binaryRepr
-            val ord = BinaryOrdering.make(bcode1.st, bcode2.st, ecb)
-            ord.compareNonnull(cb, x.asString.asBytes(), y.asString.asBytes())
+            val bcode1 = x.asInstanceOf[SStringPointerCode]
+            val bcode2 = y.asInstanceOf[SStringPointerCode]
+            val ord = BinaryOrdering.make(bcode1.binaryRepr.st, bcode2.binaryRepr.st, ecb)
+            ord.compareNonnull(cb, bcode1.binaryRepr, bcode2.binaryRepr)
           }
         }
 

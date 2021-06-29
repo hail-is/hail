@@ -47,15 +47,13 @@ case class SStringPointer(pType: PString) extends SString {
 class SStringPointerCode(val st: SStringPointer, val a: Code[Long]) extends SStringCode {
   val pt: PString = st.pType
 
-  def code: Code[_] = a
-
   def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
   def loadLength(): Code[Int] = pt.loadLength(a)
 
   def loadString(): Code[String] = pt.loadString(a)
 
-  def asBytes(): SBinaryCode = new SBinaryPointerCode(SBinaryPointer(pt.binaryRepresentation), a)
+  def toBytes(): SBinaryPointerCode = new SBinaryPointerCode(SBinaryPointer(pt.binaryRepresentation), a)
 
   private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SValue = {
     val s = new SStringPointerSettable(st, sb.newSettable[Long]("sstringpointer_memoize"))
@@ -78,8 +76,6 @@ object SStringPointerSettable {
 }
 
 class SStringPointerSettable(val st: SStringPointer, val a: Settable[Long]) extends SStringValue with SSettable {
-  val pt: PString = st.pType
-
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
 
   def get: SStringPointerCode = new SStringPointerCode(st, a.load())
@@ -87,4 +83,6 @@ class SStringPointerSettable(val st: SStringPointer, val a: Settable[Long]) exte
   def store(cb: EmitCodeBuilder, v: SCode): Unit = {
     cb.assign(a, v.asInstanceOf[SStringPointerCode].a)
   }
+
+  def binaryRepr(): SBinaryPointerSettable = new SBinaryPointerSettable(SBinaryPointer(st.pType.binaryRepresentation), a)
 }
