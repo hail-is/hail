@@ -412,22 +412,31 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     val shape = inputSNDValue.shapes(cb)
     val strides = inputSNDValue.strides(cb)
     val dataAddr = inputSNDValue.firstDataAddress(cb)
+    cb.println("About to store shape. targetAddr is ", targetAddr.toS)
     shapeType.storeAtAddress(cb, cb.newLocal[Long]("construct_shape", this.representation.fieldOffset(targetAddr, "shape")),
       region,
       SStackStruct.constructFromArgs(cb, region, shapeType.virtualType, shape.map(s => EmitCode.present(cb.emb, primitive(s))): _*),
       false)
+    cb.println("Stored shape")
     strideType.storeAtAddress(cb, cb.newLocal[Long]("construct_strides", this.representation.fieldOffset(targetAddr, "strides")),
       region,
       SStackStruct.constructFromArgs(cb, region, strideType.virtualType, strides.map(s => EmitCode.present(cb.emb, primitive(s))): _*),
       false)
+    cb.println("Stored strides")
 
     value.st match {
       case SNDArrayPointer(t) if t.equalModuloRequired(this) =>
+        cb.println("B1")
         if (deepCopy) {
-          region.trackNDArray(cb, dataAddr)
+          cb.println("Trying to track")
+          region.trackNDArrayData(cb, dataAddr)
+          cb.println("Tracked")
         }
+        cb.println("Trying to store data address")
         cb += Region.storeAddress(this.representation.fieldOffset(targetAddr, "data"), dataAddr)
+        cb.println("Successfully stored data address")
       case SNDArrayPointer(t) =>
+        cb.println("B2")
         val newDataAddr = this.allocateData(shape, region)
         cb += Region.storeAddress(this.representation.fieldOffset(targetAddr, "data"), newDataAddr)
         val outputSNDValue = new SNDArrayPointerCode(sType, targetAddr).memoize(cb, "pcanonical_ndarray_store_at_addr_output")

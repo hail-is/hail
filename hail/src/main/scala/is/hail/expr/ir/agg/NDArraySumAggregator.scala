@@ -47,22 +47,25 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
           {
             cb += (state.region.getNewRegion(Region.TINY))
             cb += state.storageType.setFieldPresent(state.off, ndarrayFieldNumber)
-            cb.println("About to copy in seqop")
-            val fullyCopiedNDArray = ndTyp.constructByActuallyCopyingData(nextNDPV, cb, state.region).memoize(cb, "foo")
+            cb.println("About to copy in seqop. Input is ", cb.strValue(nextNDPV))
+            val fullyCopiedNDArray = ndTyp.constructByActuallyCopyingData(nextNDPV, cb, state.region).memoize(cb, "ndarray_sum_seq_op_full_copy")
+            cb.println("Copied in seqOp")
             state.storeNonmissing(cb, fullyCopiedNDArray)
             cb.println("seqOp Answer: ", cb.strValue(fullyCopiedNDArray))
           },
           { currentNDPCode =>
             val currentNDPValue = currentNDPCode.asNDArray.memoize(cb, "ndarray_sum_seqop_current")
+            cb.println("About to sum in seqOP, current state is ", cb.strValue(currentNDPValue), " and I'm adding: ", cb.strValue(nextNDPV))
             addValues(cb, state.region, currentNDPValue, nextNDPV)
+            cb.println("Result of summing was ", cb.strValue(currentNDPValue))
           }
         )
       })
     }
-    val uid = uuid4()
-    cb.println(s"seqOp Start ${uid}")
+//    val uid = uuid4()
+//    cb.println(s"seqOp Start ${uid}")
     cb.invokeVoid(seqOpMethod, nextNDCode)
-    cb.println(s"seqOp Over ${uid}")
+//    cb.println(s"seqOp Over ${uid}")
   }
 
   override protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
@@ -107,6 +110,11 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
   protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
     state.get(cb).consume(cb,
       ifMissing(cb),
-      { sc => pt.storeAtAddress(cb, addr, region, sc, deepCopy = true) })
+      { sc =>
+        val lastNDInAggState = sc.asNDArray.memoize(cb, "ndarray_sum_agg_last_state")
+        cb.println("combOp last state: ", cb.strValue(lastNDInAggState))
+        val fullyCopiedNDArray = ndTyp.constructByActuallyCopyingData(lastNDInAggState, cb, state.region).memoize(cb, "ndarray_sum_result")
+        pt.storeAtAddress(cb, addr, region, fullyCopiedNDArray, deepCopy = true)
+      })
   }
 }
