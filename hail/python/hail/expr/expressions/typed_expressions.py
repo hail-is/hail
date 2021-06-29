@@ -8,7 +8,8 @@ from .base_expression import Expression, ExpressionException, to_expr, \
     unify_all, unify_types
 from .expression_typecheck import coercer_from_dtype, \
     expr_any, expr_array, expr_set, expr_bool, expr_numeric, expr_int32, \
-    expr_int64, expr_str, expr_dict, expr_interval, expr_tuple, expr_oneof
+    expr_int64, expr_str, expr_dict, expr_interval, expr_tuple, expr_oneof, \
+    expr_ndarray
 from hail.expr.types import HailType, tint32, tint64, tfloat32, \
     tfloat64, tbool, tcall, tset, tarray, tstruct, tdict, ttuple, tstr, \
     tndarray, tlocus, tinterval, is_numeric
@@ -3946,17 +3947,17 @@ class NDArrayExpression(Expression):
         assert isinstance(self._type, tndarray)
         return ndarray_map
 
-    @typecheck_method(f=func_spec(2, expr_any))
+    @typecheck_method(other=expr_ndarray(), f=func_spec(2, expr_any))
     def map2(self, other, f):
         if isinstance(other, list) or isinstance(other, np.ndarray):
             other = hl.nd.array(other)
 
         self_broadcast, other_broadcast = self._broadcast_to_same_ndim(other)
 
-        element_type1 = self._type.element_type
-        element_type2 = other._type.element_type
+        element_type1 = self_broadcast._type.element_type
+        element_type2 = other_broadcast._type.element_type
         ndarray_map2 = self_broadcast._ir_lambda_method2(other_broadcast, ir.NDArrayMap2, f, element_type1,
-                                               element_type2, lambda t: tndarray(t, self.ndim))
+                                               element_type2, lambda t: tndarray(t, self_broadcast.ndim))
 
         assert isinstance(self._type, tndarray)
 
