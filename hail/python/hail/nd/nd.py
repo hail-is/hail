@@ -574,3 +574,4 @@ def hstack(arrs):
         axis = 1
 
     return concatenate(arrs, axis)
+

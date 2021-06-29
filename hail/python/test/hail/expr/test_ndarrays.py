@@ -419,11 +419,11 @@ def test_ndarray_map2():
         (b + na, np.array(a + b)),
         (nx + y, x + y),
         (ncube1 + cube2, cube1 + cube2),
-
-        # Addition
         (na + na, np.array(a + a)),
         (nx + ny, x + y),
         (ncube1 + ncube2, cube1 + cube2),
+        (nx.map2(y, lambda c, d: c+d), x + y),
+        (ncube1.map2(cube2, lambda c, d: c+d), cube1 + cube2),
         # Broadcasting
         (ncube1 + na, cube1 + a),
         (na + ncube1, a + cube1),
@@ -431,6 +431,9 @@ def test_ndarray_map2():
         (ny + ncube1, y + cube1),
         (nrow_vec + ncube1, row_vec + cube1),
         (ncube1 + nrow_vec, cube1 + row_vec),
+        (ncube1.map2(na, lambda c, d: c+d), cube1 + a),
+        (nrow_vec.map2(ncube1, lambda c, d: c+d), row_vec + cube1),
+
 
         # Subtraction
         (na - na, np.array(a - a)),
@@ -457,6 +460,7 @@ def test_ndarray_map2():
         (ny * ncube1, y * cube1),
         (ncube1 * nrow_vec, cube1 * row_vec),
         (nrow_vec * ncube1, row_vec * cube1),
+
 
         # Floor div
         (na // na, np.array(a // a)),
@@ -1122,3 +1126,4 @@ def test_agg_ndarray_sum():
         mismatched = mismatched.annotate(x=hl.nd.ones((mismatched.idx,)))
         mismatched.aggregate(hl.agg.ndarray_sum(mismatched.x))
     assert "Can't sum" in str(exc.value)
+
