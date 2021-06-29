@@ -163,7 +163,7 @@ def test_quota_shared_by_io_and_rootfs(client):
     resources = {'storage': '10Gi'}
     j = builder.create_job(
         DOCKER_ROOT_IMAGE,
-        ['/bin/sh', '-c', 'fallocate -l 7GiB /io/foo; fallocate -l 7GiB /io/foo'],
+        ['/bin/sh', '-c', 'fallocate -l 7GiB /foo; fallocate -l 7GiB /io/foo'],
         resources=resources,
     )
     builder.submit()
