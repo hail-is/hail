@@ -1,29 +1,33 @@
+import copy
 import uuid
-from typing import Mapping, Any, Optional, MutableMapping
+import asyncio
+from typing import Mapping, Any, Optional, MutableMapping, List, Dict
 import logging
 
 from .base_client import BaseClient
-from hailtop.utils import sleep_and_backoff
+from hailtop.utils import sleep_and_backoff, retry_transient_errors
 
 log = logging.getLogger('compute_client')
 
 
-async def request_with_wait_for_done(request_f, path, params: MutableMapping[str, Any] = None, **kwargs):
-    assert 'params' not in kwargs
+class GCPError:
+    def __init__(self, code, message):
+        self.code = code
+        self.message = message
 
-    if params is None:
-        params = {}
 
-    request_uuid = str(uuid.uuid4())
-    if 'requestId' not in params:
-        params['requestId'] = request_uuid
+class GCPOperationError(Exception):
+    def __init__(self, status: int, message: str, errors: Optional[List[GCPError]], response: Dict[str, Any]):
+        super().__init__(message)
+        self.status = status
+        self.message = message
+        self.errors = errors or []
+        self.error_codes = [e.code for e in errors]
+        self.error_messages = [e.message for e in errors]
+        self.response = response
 
-    delay = 0.2
-    while True:
-        resp = await request_f(path, params=params, **kwargs)
-        if resp['status'] == 'DONE':
-            return resp
-        delay = await sleep_and_backoff(delay)
+    def __str__(self):
+        return f'GCPOperationError: {self.status}:{self.message} {self.error_codes} {self.error_messages}; {self.response}'
 
 
 class PagedIterator:
@@ -67,6 +71,7 @@ class ComputeClient(BaseClient):
         super().__init__(f'https://compute.googleapis.com/compute/v1/projects/{project}', **kwargs)
 
     # docs:
+    # https://cloud.google.com/compute/docs/api/how-tos/api-requests-responses#handling_api_responses
     # https://cloud.google.com/compute/docs/reference/rest/v1
     # https://cloud.google.com/compute/docs/reference/rest/v1/instances/insert
     # https://cloud.google.com/compute/docs/reference/rest/v1/instances/get
@@ -77,13 +82,52 @@ class ComputeClient(BaseClient):
         return PagedIterator(self, path, params, kwargs)
 
     async def create_disk(self, path: str, *, params: MutableMapping[str, Any] = None, **kwargs):
-        return await request_with_wait_for_done(self.post, path, params, **kwargs)
+        return await self._request_with_zonal_operations_response(self.post, path, params, **kwargs)
 
     async def attach_disk(self, path: str, *, params: MutableMapping[str, Any] = None, **kwargs):
-        return await request_with_wait_for_done(self.post, path, params, **kwargs)
+        return await self._request_with_zonal_operations_response(self.post, path, params, **kwargs)
 
     async def detach_disk(self, path: str, *, params: MutableMapping[str, Any] = None, **kwargs):
-        return await request_with_wait_for_done(self.post, path, params, **kwargs)
+        return await self._request_with_zonal_operations_response(self.post, path, params, **kwargs)
 
     async def delete_disk(self, path: str, *, params: MutableMapping[str, Any] = None, **kwargs):
-        return await request_with_wait_for_done(self.delete, path, params, **kwargs)
+        return await self.delete(path, params=params, **kwargs)
+
+    async def _request_with_zonal_operations_response(self, request_f, path, params: MutableMapping[str, Any] = None, **kwargs):
+        assert 'params' not in kwargs
+
+        async def request_and_wait():
+            local_params = copy.deepcopy(params)
+
+            if local_params is None:
+                local_params = {}
+
+            request_uuid = str(uuid.uuid4())
+            if 'requestId' not in local_params:
+                local_params['requestId'] = request_uuid
+
+            resp = await request_f(path, params=local_params, **kwargs)
+            log.info(f'resp {resp}')
+            operation_id = resp['id']
+            zone = resp['zone'].rsplit('/', 1)[1]
+
+            while True:
+                result = await self.post(f'/zones/{zone}/operations/{operation_id}/wait')
+                log.info(f'result {result}')
+                if result['status'] == 'DONE':
+                    http_error_status_code = result.get('httpErrorStatusCode')
+                    http_error_message = result.get('httpErrorMessage')
+                    errors = None
+
+                    error = result.get('error')
+                    if error:
+                        errors = error['errors']
+                        errors = [GCPError(e['code'], e['message']) for e in errors]
+
+                    if http_error_status_code is not None:
+                        raise GCPOperationError(http_error_status_code, http_error_message, errors, result)
+                    return result
+
+                await asyncio.sleep(1)
+
+        await retry_transient_errors(request_and_wait)

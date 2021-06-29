@@ -23,8 +23,6 @@ import weakref
 from requests.adapters import HTTPAdapter
 from urllib3.poolmanager import PoolManager
 
-import hailtop
-
 from .time import time_msecs
 
 
@@ -552,11 +550,17 @@ def is_transient_error(e):
     #
     # OSError: [Errno 51] Connect call failed ('35.188.91.25', 443)
     # https://hail.zulipchat.com/#narrow/stream/223457-Batch-support/topic/ssl.20error
+    import hailtop.aiogoogle.client.compute_client  # pylint: disable=import-outside-toplevel
+    import hailtop.httpx  # pylint: disable=import-outside-toplevel
+
     if isinstance(e, aiohttp.ClientResponseError) and (
             e.status in RETRYABLE_HTTP_STATUS_CODES):
         # nginx returns 502 if it cannot connect to the upstream server
         # 408 request timeout, 500 internal server error, 502 bad gateway
         # 503 service unavailable, 504 gateway timeout
+        return True
+    if (isinstance(e, hailtop.aiogoogle.client.compute_client.GCPOperationError)
+            and (e.errors and 'QUOTA_EXCEEDED' in e.error_codes)):
         return True
     if isinstance(e, hailtop.httpx.ClientResponseError) and (
             e.status == 403 and 'rateLimitExceeded' in e.body):
