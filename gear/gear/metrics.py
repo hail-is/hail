@@ -9,8 +9,11 @@ CONCURRENT_REQUESTS = pc.Gauge('http_concurrent_requests', 'Number of in progres
 
 @web.middleware
 async def monitor_endpoints_middleware(request, handler):
-    # Use the path template given to @route.<METHOD>, not the fully resolved one
-    endpoint = request.match_info.route.resource.canonical
+    if request.match_info.route.resource:
+        # Use the path template given to @route.<METHOD>, not the fully resolved one
+        endpoint = request.match_info.route.resource.canonical
+    else:
+        endpoint = ''
     verb = request.method
     CONCURRENT_REQUESTS.labels(endpoint=endpoint, verb=verb).inc()
     try:
