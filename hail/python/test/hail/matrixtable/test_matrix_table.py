@@ -505,7 +505,6 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         mt._force_count_rows()
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_globals_lowering(self):
         mt = hl.utils.range_matrix_table(1, 1).annotate_globals(x=1)
         lit = hl.literal(hl.utils.Struct(x = 0))
