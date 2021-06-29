@@ -474,31 +474,31 @@ class Tests(unittest.TestCase):
         mt = hl.import_vcf(resource('regressionLinear.vcf'))
         mt = mt.add_col_index()
 
-        for linreg_function in self.linreg_functions:
-            my_covs = [1.0] + list(covariates[mt.s].values())
 
-            mt = mt.annotate_cols(y=hl.coalesce(pheno[mt.s].Pheno, 1.0))
-            mt = mt.annotate_entries(x=hl.coalesce(mt.GT.n_alt_alleles(), 1.0))
+        mt = mt.annotate_cols(y=hl.coalesce(pheno[mt.s].Pheno, 1.0))
+        mt = mt.annotate_entries(x=hl.coalesce(mt.GT.n_alt_alleles(), 1.0))
+        my_covs = [1.0] + list(covariates[mt.s].values())
 
-            ht_with_weights = linreg_function(y=mt.y,
-                                              x=mt.x,
-                                              covariates=[1],
-                                              weights=mt.col_idx)
 
-            ht_pre_weighted = linreg_function(y=mt.y * hl.sqrt(mt.col_idx),
-                                              x=mt.x * hl.sqrt(mt.col_idx),
-                                              covariates=[1 * hl.sqrt(mt.col_idx)],             #list(map(lambda e: e * hl.sqrt(mt.col_idx), my_covs)),
-                                              weights=1)
+        ht_with_weights = hl._linear_regression_rows_nd(y=mt.y,
+                                          x=mt.x,
+                                          covariates=my_covs,
+                                          weights=mt.col_idx)
 
-            ht_from_agg = mt.annotate_rows(my_linreg=hl.agg.linreg(mt.y, [1, mt.x], weight=mt.col_idx)).rows()
+        ht_pre_weighted = hl._linear_regression_rows_nd(y=mt.y * hl.sqrt(mt.col_idx),
+                                          x=mt.x * hl.sqrt(mt.col_idx),
+                                          covariates=list(map(lambda e: e * hl.sqrt(mt.col_idx), my_covs)),
+                                          weights=1)
 
-            betas_with_weights = ht_with_weights.beta.collect()
-            betas_pre_weighted = ht_pre_weighted.beta.collect()
-            betas_from_agg = ht_from_agg.my_linreg.beta[1].collect()
+        ht_from_agg = mt.annotate_rows(my_linreg=hl.agg.linreg(mt.y, [1, mt.x], weight=mt.col_idx)).rows()
 
-            import pdb; pdb.set_trace()
+        betas_with_weights = ht_with_weights.beta.collect()
+        betas_pre_weighted = ht_pre_weighted.beta.collect()
+        betas_from_agg = ht_from_agg.my_linreg.beta[1].collect()
 
-            assert betas_with_weights == betas_pre_weighted
+        def equal_with_nans(arr1, arr2):
+            return all([a == b or (np.isnan(a) and np.isnan(b)) for a, b in zip(arr1, arr2)])
+        assert equal_with_nans(betas_with_weights, betas_pre_weighted)
 
 
     # comparing to R:
