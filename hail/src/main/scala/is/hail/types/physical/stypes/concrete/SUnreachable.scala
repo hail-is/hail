@@ -277,6 +277,9 @@ class SUnreachableNDArrayValue(val st: SUnreachableNDArray) extends SUnreachable
   override def memoize(cb: EmitCodeBuilder, name: String): SUnreachableNDArrayValue = this
 
   override def get: SUnreachableNDArrayValue = this
+
+  override def coiterateMutate(cb: EmitCodeBuilder, region: Value[Region], deepCopy: Boolean, indexVars: IndexedSeq[String],
+    destIndices: IndexedSeq[Int], arrays: (SNDArrayCode, IndexedSeq[Int], String)*)(body: IndexedSeq[SCode] => SCode): Unit = ()
 }
 
 case class SUnreachableContainer(virtualType: TContainer) extends SUnreachable with SContainer {
