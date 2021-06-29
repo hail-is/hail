@@ -1,14 +1,13 @@
 package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{Code, IntInfo, LongInfo, Settable, SettableBuilder, TypeInfo, Value, const}
-import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
+import is.hail.asm4s._
+import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SNDArray, SNDArrayCode, SNDArrayValue}
 import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
 import is.hail.types.physical.{PCanonicalNDArray, PType}
 import is.hail.types.virtual.Type
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.{FastIndexedSeq, toRichIterable}
 
 case class SNDArrayPointer(pType: PCanonicalNDArray) extends SNDArray {
   require(!pType.required)
@@ -119,6 +118,29 @@ class SNDArrayPointerSettable(
   }
 
   def firstDataAddress(cb: EmitCodeBuilder): Value[Long] = dataFirstElement
+
+  // Note: to iterate through an array in column major order, make sure the indices are in ascending order. E.g.
+  // A.coiterate(cb, region, IndexedSeq("i", "j"), IndexedSeq((A, IndexedSeq(0, 1), "A"), (B, IndexedSeq(0, 1), "B")), {
+  //   SCode.add(cb, a, b)
+  // })
+  // computes A += B.
+  def coiterateMutate(
+    cb: EmitCodeBuilder,
+    region: Value[Region],
+    deepCopy: Boolean,
+    indexVars: IndexedSeq[String],
+    destIndices: IndexedSeq[Int],
+    arrays: (SNDArrayCode, IndexedSeq[Int], String)*
+  )(body: IndexedSeq[SCode] => SCode
+  ): Unit = {
+    SNDArray._coiterate(cb, indexVars, (this.get, destIndices, "dest") +: arrays: _*) { ptrs =>
+      val codes = (this.get +: arrays.map(_._1)).zip(ptrs).toFastIndexedSeq.map { case (array, ptr) =>
+        val pt: PType = array.st.pType.elementType
+        pt.loadCheapSCode(cb, pt.loadFromNested(ptr))
+      }
+      pt.elementType.storeAtAddress(cb, ptrs.head, region, body(codes), deepCopy)
+    }
+  }
 }
 
 class SNDArrayPointerCode(val st: SNDArrayPointer, val a: Code[Long]) extends SNDArrayCode {

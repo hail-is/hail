@@ -55,9 +55,7 @@ object LinalgCodeUtils {
     // construct an SNDArrayCode with undefined contents
     val result = dataFinisher(cb).memoize(cb, "col_major_result")
 
-    SNDArray.coiterate(cb, region, FastIndexedSeq((result.get, "result"), (pndv.get, "pndv")), {
-      case Seq(l, r) => cb.assign(l, r)
-    })
+    result.coiterateMutate(cb, region, (pndv.get, "pndv")) { case Seq(l, r) => r }
     result.get
   }
 
