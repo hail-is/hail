@@ -140,7 +140,17 @@ object AbstractRVDSpec {
       specLeft.partFiles.map { p => (p, null) }
     } else {
       val partFiles = specLeft.partFiles
-      tmpPartitioner.rangeBounds.map { b => (partFiles(partitioner.lowerBoundInterval(b)), b) }
+
+      val iOrd = partitioner.kord.intervalEndpointOrdering
+      val includedIndices = (0 until partitioner.numPartitions).filter { i =>
+        val rb = partitioner.rangeBounds(i)
+        !rb.isDisjointFrom(iOrd, rb)
+      }.toArray
+
+      includedIndices.map { i =>
+        val b = tmpPartitioner.rangeBounds(i)
+        (partFiles(partitioner.lowerBoundInterval(b)), b)
+      }
     }
 
     val kSize = specLeft.key.size
