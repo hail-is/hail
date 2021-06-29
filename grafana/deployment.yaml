@@ -23,6 +23,11 @@ spec:
         - name: grafana-configmap-volume
           configMap:
             name: grafana-config
+            items:
+            - key: grafana.ini
+              path: grafana.ini
+            - key: datasources.yaml
+              path: provisioning/datasources/datasources.yaml
         - name: ssl-config-grafana
           secret:
             optional: false
@@ -100,6 +105,21 @@ data:
     root_url = %(protocol)s://%(domain)/{{ default_ns.name }}/grafana/
     serve_from_sub_path = true
 {% endif %}
+    [paths]
+    provisioning = /etc/grafana/provisioning
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Google Cloud Monitoring
+        type: stackdriver
+        access: proxy
+        jsonData:
+          authenticationType: gce
+          defaultProject: {{ global.project }}
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus.default.svc.cluster.local:9090
 ---
 apiVersion: v1
 kind: Service
