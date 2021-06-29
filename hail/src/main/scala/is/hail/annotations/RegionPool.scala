@@ -127,24 +127,23 @@ class noCache extends ChunkCache {
       else (newChunk(pool, size), size)
     }
   }
-
-  override def freeChunks(pool: RegionPool, ab: LongArrayBuilder, totalSize: Long = 0): Unit = {
-    while (ab.size > 0) {
-      val chunkPointer = ab.pop()
-      val chunkSize = chunksEncountered(chunkPointer)
-      if (chunkSize <= biggestSmallChunk) {
-        smallChunkCache(indexInSmallChunkCache(chunkSize)) += chunkPointer
-      }
-      else {
-        val sameSizeEntries = bigChunkCache.get(chunkSize)
-        if (sameSizeEntries == null) {
-          val newSize = new LongArrayBuilder()
-          newSize += chunkPointer
-          bigChunkCache.put(chunkSize, newSize)
-        }
-        else sameSizeEntries += chunkPointer
-      }
+  def freeChunk(pool: RegionPool, chunkPointer: Long): Unit = {
+    val chunkSize = chunksEncountered(chunkPointer)
+    if (chunkSize <= biggestSmallChunk) {
+      smallChunkCache(indexInSmallChunkCache(chunkSize)) += chunkPointer
     }
+    else {
+      val sameSizeEntries = bigChunkCache.get(chunkSize)
+      if (sameSizeEntries == null) {
+        val newSize = new LongArrayBuilder()
+        newSize += chunkPointer
+        bigChunkCache.put(chunkSize, newSize)
+      }
+      else sameSizeEntries += chunkPointer
+    }
+  }
+  override def freeChunks(pool: RegionPool, ab: LongArrayBuilder, totalSize: Long = 0): Unit = {
+    while (ab.size > 0) freeChunk(pool, ab.pop())
   }
 }
 
@@ -207,6 +206,9 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
 
   protected[annotations] def freeChunks(ab: LongArrayBuilder, totalSize: Long): Unit = {
     chunkCache.freeChunks(this, ab, totalSize)
+  }
+  protected[annotations] def freeChunk(chunkPointer: Long): Unit = {
+    chunkCache.freeChunk(this, chunkPointer)
   }
 
   protected[annotations] def getMemory(size: Int): RegionMemory = {
