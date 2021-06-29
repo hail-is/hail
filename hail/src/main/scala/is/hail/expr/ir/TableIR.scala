@@ -883,12 +883,10 @@ class TableNativeReader(
       else
         params.options.map(opts => new RVDPartitioner(tr.typ.keyType, opts.intervals))
       val rvd = spec.rowsComponent.read(ctx, params.path, tr.typ.rowType, partitioner, filterIntervals)
-      if (rvd.typ.key startsWith tr.typ.key)
-        rvd
-      else {
-        log.info("Sorting a table after read. Rewrite the table to prevent this in the future.")
-        rvd.changeKey(ctx, tr.typ.key)
-      }
+      if (!rvd.typ.key.startsWith(tr.typ.key))
+        fatal(s"Error while reading table ${params.path}: legacy table written without key." +
+          s"\n  Read and write with version 0.2.70 or earlier")
+      rvd
     }
     TableValue(ctx, tr.typ, BroadcastRow(ctx, RegionValue(ctx.r, globalsOffset), globalType.setRequired(true).asInstanceOf[PStruct]), rvd)
   }

@@ -81,4 +81,4 @@ class Tests(unittest.TestCase):
                 f = os.path.join(matrix_table_dir, '{}.hmt'.format(i))
                 n += 1
 
-        assert n == 76
+        assert n == 72
