@@ -706,7 +706,7 @@ class NDArrayReshape(IR):
 class NDArrayMap2(IR):
     @typecheck_method(l=IR, r=IR, lname=str, rname=str, body=IR)
     def __init__(self, l, r, lname, rname, body):
-        super.__init__(l, r, body)
+        super().__init__(l, r, body)
         self.r = r
         self.l = l
         self.lname = lname
@@ -731,15 +731,15 @@ class NDArrayMap2(IR):
     def _compute_type(self, env, agg_env):
         self.l._compute_type(env, agg_env)
         self.r._compute_type(env, agg_env)
-        self._body._compute_type(_env_bind(env, self.bindings(2)), agg_env)
+        self.body._compute_type(_env_bind(env, self.bindings(2)), agg_env)
         self._type = tndarray(self.body.typ, self.l.typ.ndim)
 
     def renderable_bindings(self, i, default_value=None):
         if i == 2:
             if default_value is None:
-                return {self.l_name: self.l.typ.element_type, self.rname: self.a.typ.element_type}
+                return {self.lname: self.l.typ.element_type, self.rname: self.r.typ.element_type}
             else:
-                return {self.l_name: default_value, self.r_name: default_value}
+                return {self.lname: default_value, self.rname: default_value}
         else:
             return {}
 

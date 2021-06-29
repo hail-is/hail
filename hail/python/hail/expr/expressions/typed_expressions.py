@@ -3960,6 +3960,7 @@ class NDArrayExpression(Expression):
                                                element_type2, lambda t: tndarray(t, self_broadcast.ndim))
 
         assert isinstance(self._type, tndarray)
+        return ndarray_map2
 
     def _broadcast_to_same_ndim(self, other):
         if isinstance(other, NDArrayExpression):
