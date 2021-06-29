@@ -49,7 +49,7 @@ object SNDArray {
     cb: EmitCodeBuilder,
     indexVars: IndexedSeq[String],
     arrays: (SNDArrayCode, IndexedSeq[Int], String)*
-  )(body: IndexedSeq[Code[Long]] => Unit
+  )(body: IndexedSeq[Value[Long]] => Unit
   ): Unit = {
     val indexSizes = new Array[Settable[Int]](indexVars.length)
     val indexCoords = Array.tabulate(indexVars.length) { i => cb.newLocal[Int](indexVars(i)) }

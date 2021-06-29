@@ -138,7 +138,7 @@ class SNDArrayPointerSettable(
         val pt: PType = array.st.pType.elementType
         pt.loadCheapSCode(cb, pt.loadFromNested(ptr))
       }
-      pt.storeAtAddress(cb, ptrs.head, region, body(codes), deepCopy)
+      pt.elementType.storeAtAddress(cb, ptrs.head, region, body(codes), deepCopy)
     }
   }
 }
