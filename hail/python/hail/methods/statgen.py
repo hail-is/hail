@@ -483,17 +483,19 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
         y_nds = hl.zip(kept_samples, ht.y_arrays_per_group).starmap(lambda sample_indices, y_arrays:
                                                                     hl.nd.array(sample_indices.map(lambda idx: y_arrays[idx])))
         if weights is None:
-            weight_nds = hl.rbind(hl.nd.array([[1]]), lambda constant_weight:
-                            kept_samples.map(lambda sample_indices: constant_weight)
-                         )
+            weight_nds = hl.rbind(hl.nd.array([[1]]),
+                                  lambda constant_weight: kept_samples.map(lambda sample_indices: constant_weight)
+                                  )
         else:
-            weight_nds = kept_samples.map(lambda group: hl.nd.array(group.map(lambda idx: ht.weight_arrays[idx])))
+            weight_nds = hl.enumerate(kept_samples).starmap(
+                lambda group_idx, group_sample_indices: hl.nd.array(group_sample_indices.map(lambda group_sample_idx: ht.weight_arrays[group_sample_idx][group_idx]))
+            )
 
         cov_nds = kept_samples.map(lambda group: hl.nd.array(group.map(lambda idx: ht.cov_arrays[idx])))
 
         sqrt_weights = weight_nds.map(lambda weight_nd: weight_nd.map(lambda e: hl.sqrt(e)))
-        scaled_y_nds = hl.zip(y_nds, sqrt_weights).starmap(lambda y, sqrt_weight: y * sqrt_weight)
-        scaled_cov_nds = hl.zip(cov_nds, sqrt_weights).starmap(lambda cov, sqrt_weight: cov * sqrt_weight)
+        scaled_y_nds = hl.zip(y_nds, sqrt_weights).starmap(lambda y, sqrt_weight: y * sqrt_weight.reshape(-1, 1))
+        scaled_cov_nds = hl.zip(cov_nds, sqrt_weights).starmap(lambda cov, sqrt_weight: cov * sqrt_weight.reshape(-1, 1))
 
         k = builtins.len(covariates)
         ns = kept_samples.map(lambda one_sample_set: hl.len(one_sample_set))
@@ -501,6 +503,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
                              scaled_cov_nds.map(lambda one_cov_nd: hl.nd.qr(one_cov_nd)[0].T),
                              ns.map(lambda n: hl.nd.zeros((0, n))))
         Qtys = hl.zip(cov_Qts, scaled_y_nds).starmap(lambda cov_qt, y: cov_qt @ y)
+
         return ht.annotate_globals(
             kept_samples=kept_samples,
             __scaled_y_nds=scaled_y_nds,
@@ -513,14 +516,12 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
 
     ht = setup_globals(ht)
 
-    import pdb; pdb.set_trace()
-
     def process_block(block):
         rows_in_block = hl.len(block)
 
         # Processes one block group based on given idx. Returns a single struct.
         def process_y_group(idx):
-            X = hl.nd.array(block[entries_field_name].map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples[idx])))).T * ht.__sqrt_weight_nds[idx]
+            X = (hl.nd.array(block[entries_field_name].map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples[idx])))) * ht.__sqrt_weight_nds[idx]).T
             n = ht.ns[idx]
             sum_x = X.sum(0)
             Qtx = ht.__cov_Qts[idx] @ X
@@ -572,7 +573,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
         fields = ['y_transpose_x', 'beta', 'standard_error', 't_stat', 'p_value']
         res = res.annotate(**{f: res[f][0] for f in fields})
 
-    res = res.select_globals()
+    # res = res.select_globals()
 
     return res
 
