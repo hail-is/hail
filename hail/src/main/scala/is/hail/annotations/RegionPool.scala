@@ -45,6 +45,8 @@ class noCache extends ChunkCache {
   val minSpaceRequirements = .9
   var chunksRequested = 0
   var cacheHits = 0
+  var deallocationsToFit = 0
+  var smallChunkCacheSize = 0
   val smallChunkCache = new Array[LongArrayBuilder](highestSmallChunkPowerOf2 + 1)
    (0 until highestSmallChunkPowerOf2 + 1).foreach(index => {
      smallChunkCache(index) = new LongArrayBuilder()
@@ -59,20 +61,25 @@ class noCache extends ChunkCache {
      chunksEncountered -= pointer
    }
   def deallocateChunksToFit(pool: RegionPool, sizeToFit: Long): Unit = {
+    deallocationsToFit += 1
     var smallChunkIndex = highestSmallChunkPowerOf2
     while((sizeToFit + pool.getTotalAllocatedBytes) > pool.getHighestTotalUsage &&
-          smallChunkIndex >= 0) {
+          smallChunkIndex >= 0 && !chunksEncountered.isEmpty) {
       if (!bigChunkCache.isEmpty) {
         val toFree = bigChunkCache.lastEntry()
         freeInLongArrayBuilder(pool, toFree.getValue)
         if (toFree.getValue.size == 0) bigChunkCache.remove(toFree.getKey)
       }
       else {
-        val toFree = smallChunkCache(smallChunkIndex)
-        if (toFree.size != 0) {
-          freeInLongArrayBuilder(pool, toFree)
+        if (smallChunkCacheSize == 0) smallChunkIndex = -1
+        else {
+          val toFree = smallChunkCache(smallChunkIndex)
+          if (toFree.size != 0) {
+            freeInLongArrayBuilder(pool, toFree)
+            smallChunkCacheSize -= 1
+          }
+          if (toFree.size == 0) smallChunkIndex -= 1
         }
-        if (toFree.size == 0) smallChunkIndex -= 1
       }
     }
   }
@@ -86,15 +93,21 @@ class noCache extends ChunkCache {
      newChunkPointer
    }
   def freeAll(pool: RegionPool): Unit = {
-    smallChunkCache.foreach(ab =>  while(ab.size > 0) freeInLongArrayBuilder(pool, ab))
-    //BiConsumer needed to work with scala 2.11.12
-    bigChunkCache.forEach( new BiConsumer[Long, LongArrayBuilder]() {
-      def accept(key: Long, value: LongArrayBuilder): Unit =
-        while(value.size > 0) freeInLongArrayBuilder(pool, value)
-    })
+    if (!chunksEncountered.isEmpty) {
+      smallChunkCache.foreach(ab => {
+        while (ab.size > 0) {
+          freeInLongArrayBuilder(pool, ab)
+          smallChunkCacheSize -= 1
+      }})
+      //BiConsumer needed to work with scala 2.11.12
+      bigChunkCache.forEach(new BiConsumer[Long, LongArrayBuilder]() {
+        def accept(key: Long, value: LongArrayBuilder): Unit =
+          while (value.size > 0) freeInLongArrayBuilder(pool, value)
+      })
+    }
   }
-  def getUsage(): (Int, Int) = {
-    (chunksRequested, cacheHits) 
+  def getUsage(): (Int, Int, Int) = {
+    (chunksRequested, cacheHits, deallocationsToFit)
   }
   def indexInSmallChunkCache(size: Long): Int = {
     var closestPower = highestSmallChunkPowerOf2
@@ -127,10 +140,11 @@ class noCache extends ChunkCache {
       else (newChunk(pool, size), size)
     }
   }
-  def freeChunk(pool: RegionPool, chunkPointer: Long): Unit = {
+  def freeChunk( chunkPointer: Long): Unit = {
     val chunkSize = chunksEncountered(chunkPointer)
     if (chunkSize <= biggestSmallChunk) {
       smallChunkCache(indexInSmallChunkCache(chunkSize)) += chunkPointer
+      smallChunkCacheSize += 1
     }
     else {
       val sameSizeEntries = bigChunkCache.get(chunkSize)
@@ -143,7 +157,7 @@ class noCache extends ChunkCache {
     }
   }
   override def freeChunks(pool: RegionPool, ab: LongArrayBuilder, totalSize: Long = 0): Unit = {
-    while (ab.size > 0) freeChunk(pool, ab.pop())
+    while (ab.size > 0) freeChunk(ab.pop())
   }
 }
 
@@ -171,7 +185,7 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
   def getTotalAllocatedBytes: Long = totalAllocatedBytes
 
   def getHighestTotalUsage: Long = highestTotalUsage
-  def getUsage: (Int,Int) = chunkCache.getUsage()
+  def getUsage: (Int, Int, Int) = chunkCache.getUsage()
   private[annotations] def incrementAllocatedBytes(toAdd: Long): Unit = {
     totalAllocatedBytes += toAdd
     if (totalAllocatedBytes >= allocationEchoThreshold) {
@@ -208,7 +222,7 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
     chunkCache.freeChunks(this, ab, totalSize)
   }
   protected[annotations] def freeChunk(chunkPointer: Long): Unit = {
-    chunkCache.freeChunk(this, chunkPointer)
+    chunkCache.freeChunk(chunkPointer)
   }
 
   protected[annotations] def getMemory(size: Int): RegionMemory = {
