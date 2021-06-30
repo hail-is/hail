@@ -370,14 +370,17 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
     return ht_result.persist()
 
 
+no_weights = None
+
+
 # Weights are m X num_y values.
 @typecheck(y=oneof(expr_float64, sequenceof(expr_float64), sequenceof(sequenceof(expr_float64))),
            x=expr_float64,
            covariates=sequenceof(expr_float64),
            block_size=int,
-           weights=oneof(expr_float64, sequenceof(expr_float64), sequenceof(sequenceof(expr_float64))),
+           weights=nullable(oneof(expr_float64, sequenceof(expr_float64), sequenceof(sequenceof(expr_float64)))),
            pass_through=sequenceof(oneof(str, Expression)))
-def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=[], pass_through=()) -> hail.Table:
+def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=no_weights, pass_through=()) -> hail.Table:
     mt = matrix_table_source('linear_regression_rows_nd/x', x)
     check_entry_indexed('linear_regression_rows_nd/x', x)
 
@@ -390,7 +393,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=[], pass
         raise ValueError("'linear_regression_rows': found empty inner list for 'y'")
 
     y = wrap_to_list(y)
-    weights = wrap_to_list(weights)
+    weights = wrap_to_list(weights) if weights is not None else None
 
     for e in (itertools.chain.from_iterable(y) if is_chained else y):
         analyze('linear_regression_rows_nd/y', e, mt._col_indices)
@@ -404,16 +407,18 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=[], pass
     if is_chained:
         y_field_name_groups = [[f'__y_{i}_{j}' for j in range(len(y[i]))] for i in range(len(y))]
         y_dict = dict(zip(itertools.chain.from_iterable(y_field_name_groups), itertools.chain.from_iterable(y)))
-        weight_field_name_groups = [[f'__weight_{i}_{j}' for j in range(len(weights[i]))] for i in range(weights(y))]
-        weight_dict = dict(zip(itertools.chain.from_iterable(weight_field_name_groups), itertools.chain.from_iterable(weights)))
+        if weights != no_weights:
+            raise ValueError("Don't support chained linear regression with weights")
+        weight_field_name_groups = [[f'__weight_{i}_{j}' for j in range(len(weights[i]))] for i in range(weights(y))] if weights is not None else None
+        weight_dict = dict(zip(itertools.chain.from_iterable(weight_field_name_groups), itertools.chain.from_iterable(weights))) if weights is not None else {}
     else:
         y_field_name_groups = list(f'__y_{i}' for i in range(len(y)))
         y_dict = dict(zip(y_field_name_groups, y))
-        weight_field_name_groups = list(f'__weight__{i}' for i in range(len(weights)))
-        weight_dict = dict(zip(weight_field_name_groups, weights))
+        weight_field_name_groups = list(f'__weight__{i}' for i in range(len(weights))) if weights is not None else None
+        weight_dict = dict(zip(weight_field_name_groups, weights)) if weights is not None else {}
         # Wrapping in a list since the code is written for the more general chained case.
         y_field_name_groups = [y_field_name_groups]
-        weight_field_name_groups = [weight_field_name_groups]
+        weight_field_name_groups = [weight_field_name_groups] if weights is not None else None
 
     cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
 
@@ -460,7 +465,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=[], pass
 
         y_arrays_per_group = [ht[sample_field_name].map(lambda sample_struct: [sample_struct[y_name] for y_name in one_y_field_name_set]) for one_y_field_name_set in y_field_name_groups]
 
-        if weight_field_name_groups == [[]]:
+        if weight_field_name_groups is None:
             weight_arrays_per_group = hl.empty_array(hl.tarray(hl.tarray(hl.tfloat64)))
         else:
             weight_arrays_per_group = [ht[sample_field_name].map(lambda sample_struct: [sample_struct[weight_name] for weight_name in one_weight_field_name_set]) for one_weight_field_name_set in weight_field_name_groups]
@@ -481,7 +486,12 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=[], pass
         kept_samples = ht.y_arrays_per_group.map(get_kept_samples)
         y_nds = hl.zip(kept_samples, ht.y_arrays_per_group).starmap(lambda sample_indices, y_arrays:
                                                                     hl.nd.array(sample_indices.map(lambda idx: y_arrays[idx])))
-        weight_nds = hl.zip(kept_samples, ht.weight_arrays_per_group).starmap(lambda sample_indices, weight_arrays:
+        if weights is None:
+            weight_nds = hl.rbind(hl.nd.array([[1]]), lambda constant_weight:
+                            kept_samples.map(lambda sample_indices: constant_weight)
+                         )
+        else:
+            weight_nds = hl.zip(kept_samples, ht.weight_arrays_per_group).starmap(lambda sample_indices, weight_arrays:
                                                                               hl.nd.array(sample_indices.map(lambda idx: weight_arrays[idx])))
         cov_nds = kept_samples.map(lambda group: hl.nd.array(group.map(lambda idx: ht.cov_arrays[idx])))
 
