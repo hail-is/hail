@@ -517,7 +517,7 @@ def pc_relate_2(call_expr: CallExpression,
                 ht = ht.annotate(k1=1.0 - (ht.k2 + ht.k0))
 
     # Filter table to only have one row for each distinct pair of samples
-    ht = ht.filter(ht.i < ht.j)
+    ht = ht.filter(ht.i <= ht.j)
     ht = ht.rename({"k0": "ibd0", "k1": "ibd1", "k2": "ibd2"})
 
     if min_kinship is not None:
@@ -530,7 +530,7 @@ def pc_relate_2(call_expr: CallExpression,
         }
         ht = ht.drop(*_fields_to_drop[statistics])
     if not include_self_kinship:
-        ht = ht.filter(ht.i != ht.j)
+        ht = ht.filter(ht.i == ht.j, keep=False)
 
     col_keys = hl.literal(mt.select_cols().key_cols_by().cols().collect(),
                           dtype=hl.tarray(mt.col_key.dtype))
