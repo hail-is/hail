@@ -1210,18 +1210,17 @@ object LowerTableIR {
                   Begin(
                     aggs.aggs.zipWithIndex.map { case (sig, i) =>
                       InitFromSerializedValue(i, GetTupleElement(serializedTuple, i), sig.state)
-                    }
-                  )
+                    })
                 },
+                forIR(StreamRange(1, ArrayLen(partArrayRef), 1)) { fileIdx =>
+
                   bindIR(ReadValue(ArrayRef(partArrayRef, fileIdx), codecSpec, codecSpec.encodedVirtualType)) { serializedTuple =>
                     Begin(
                       aggs.aggs.zipWithIndex.map { case (sig, i) =>
                         CombOpValue(i, GetTupleElement(serializedTuple, i), sig)
-                      }
-                    )
+                      })
                   }
-                }
-              ))
+                }))
             }
 
             bindIR(TailLoop(treeAggFunction,
