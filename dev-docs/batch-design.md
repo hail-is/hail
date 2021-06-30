@@ -20,15 +20,16 @@ directory that is mounted into each container. Each container directory contains
 - The container's `config.json` that the worker creates and passes to `crun`.
 
 Batch uses [xfs_quota](https://man7.org/linux/man-pages/man8/xfs_quota.8.html) to enforce storage
-limits for jobs. Each job receives its own XFS project rooted at the scratch directory, so all storage used by
-the main container, input/output containers and anything written to `/io` count toward the overall job quota.
+limits for jobs. Each job receives its own XFS project rooted at the scratch directory. Any writes from
+the main, input and output containers into their root filesystems contribute to the overall job storage quota.
+Storage in `/io` is subject to the user's quota *unless* `/io` is mounted from an external disk.
 
 Below is the layout of job's scratch directory on the worker. NOTE: Since the underlying image/root filesystem
 is not stored per-job, it does not contribute toward a job's storage quota.
 
 ```
 scratch/
-├─ io/
+├─ io/ (potentially mounted from an external disk)
 ├─ input/
 │  ├─ rootfs_overlay/
 │  │  ├─ upperdir/ (writeable layer)

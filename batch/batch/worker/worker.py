@@ -1305,6 +1305,7 @@ class DockerJob(Job):
                     data_disk_storage_in_bytes = storage_gib_to_bytes(self.data_disk_storage_in_gib)
 
                 with self.step('configuring xfsquota'):
+                    # Quota will not be applied to `/io` if the job has an attached disk mounted there
                     await check_shell_output(f'xfs_quota -x -c "project -s -p {self.scratch} {self.project_id}" /host/')
                     await check_shell_output(
                         f'xfs_quota -x -c "limit -p bsoft={data_disk_storage_in_bytes} bhard={data_disk_storage_in_bytes} {self.project_id}" /host/'
