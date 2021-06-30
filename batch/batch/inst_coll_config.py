@@ -141,7 +141,6 @@ class InstanceCollectionConfigs:
         await self.refresh()
 
     async def refresh(self):
-        log.info('loading inst coll configs and resource rates from db')
         records = self.db.execute_and_fetchall(
             '''
 SELECT inst_colls.*, pools.*
