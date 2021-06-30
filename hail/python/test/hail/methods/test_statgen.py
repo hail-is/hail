@@ -480,30 +480,35 @@ class Tests(unittest.TestCase):
         my_covs = [1.0] + list(covariates[mt.s].values())
 
 
-        ht_with_weights = hl._linear_regression_rows_nd(y=mt.y,
-                                          x=mt.x,
-                                          covariates=my_covs,
-                                          weights=mt.col_idx)
+        # ht_with_weights = hl._linear_regression_rows_nd(y=mt.y,
+        #                                   x=mt.x,
+        #                                   covariates=my_covs,
+        #                                   weights=mt.col_idx)
+        #
+        # ht_pre_weighted = hl._linear_regression_rows_nd(y=mt.y * hl.sqrt(mt.col_idx),
+        #                                   x=mt.x * hl.sqrt(mt.col_idx),
+        #                                   covariates=list(map(lambda e: e * hl.sqrt(mt.col_idx), my_covs)))
+        #
+        # ht_from_agg = mt.annotate_rows(my_linreg=hl.agg.linreg(mt.y, [1, mt.x] + list(covariates[mt.s].values()), weight=mt.col_idx)).rows()
+        #
+        # betas_with_weights = ht_with_weights.beta.collect()
+        # betas_pre_weighted = ht_pre_weighted.beta.collect()
+        # betas_from_agg = ht_from_agg.my_linreg.beta[1].collect()
+        #
+        # def equal_with_nans(arr1, arr2):
+        #     def both_nan_or_none(a, b):
+        #         return (a is None or np.isnan) and (b is None or np.isnan(b))
+        #
+        #     return all([both_nan_or_none(a, b) or a - b < .00001 for a, b in zip(arr1, arr2)])
+        #
+        # assert equal_with_nans(betas_with_weights, betas_pre_weighted)
+        # assert equal_with_nans(betas_with_weights, betas_from_agg)
 
-        ht_pre_weighted = hl._linear_regression_rows_nd(y=mt.y * hl.sqrt(mt.col_idx),
-                                          x=mt.x * hl.sqrt(mt.col_idx),
-                                          covariates=list(map(lambda e: e * hl.sqrt(mt.col_idx), my_covs)))
-
-        ht_from_agg = mt.annotate_rows(my_linreg=hl.agg.linreg(mt.y, [1, mt.x] + list(covariates[mt.s].values()), weight=mt.col_idx)).rows()
-
-        betas_with_weights = ht_with_weights.beta.collect()
-        betas_pre_weighted = ht_pre_weighted.beta.collect()
-        betas_from_agg = ht_from_agg.my_linreg.beta[1].collect()
-
-        def equal_with_nans(arr1, arr2):
-            def both_nan_or_none(a, b):
-                return (a is None or np.isnan) and (b is None or np.isnan(b))
-
-            return all([both_nan_or_none(a, b) or a - b < .00001 for a, b in zip(arr1, arr2)])
-
-        assert equal_with_nans(betas_with_weights, betas_pre_weighted)
-        assert equal_with_nans(betas_with_weights, betas_from_agg)
-
+        ht_with_multiple_weights = hl._linear_regression_rows_nd(y=[[mt.y], [hl.abs(mt.y)]],
+                                                                 x=mt.x,
+                                                                 covariates=my_covs,
+                                                                 weights=[mt.col_idx, mt.col_idx + 5])
+        ht_with_multiple_weights.collect()
 
     # comparing to R:
     # x = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0)

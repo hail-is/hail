@@ -128,7 +128,14 @@ object EmitNDArray {
                 val leftShapeValues = leftProducer.shape
                 val rightShapeValues = rightProducer.shape
 
-                val shapeArray = NDArrayEmitter.unifyShapes2(cb, leftShapeValues, rightShapeValues)
+                cb.println(rightShapeValues.foldLeft[Code[String]](
+                  leftShapeValues.foldLeft[Code[String]](
+                    const("Map2 with NDArray shapes: [ ")
+                  )((accum, v) => accum.concat(v.toS).concat(" "))
+                    .concat("] vs [ ")
+                )((accum, v) => accum.concat(v.toS).concat(" "))
+                  .concat(s"] and operation ${Pretty(body)}"))
+                val shapeArray = NDArrayEmitter.unifyShapes2(cb, leftShapeValues, rightShapeValues, s" when trying to do map2 with body ${Pretty(body)}")
 
                 val lElemRef = cb.emb.newEmitField(lName, leftProducer.elementType.sType, required = true)
                 val rElemRef = cb.emb.newEmitField(rName, rightProducer.elementType.sType, required = true)

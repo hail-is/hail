@@ -370,9 +370,6 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
     return ht_result.persist()
 
 
-no_weights = None
-
-
 # Weights are m X num_y values.
 @typecheck(y=oneof(expr_float64, sequenceof(expr_float64), sequenceof(sequenceof(expr_float64))),
            x=expr_float64,
@@ -380,7 +377,7 @@ no_weights = None
            block_size=int,
            weights=nullable(oneof(expr_float64, sequenceof(expr_float64))),
            pass_through=sequenceof(oneof(str, Expression)))
-def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=no_weights, pass_through=()) -> hail.Table:
+def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pass_through=()) -> hail.Table:
     mt = matrix_table_source('linear_regression_rows_nd/x', x)
     check_entry_indexed('linear_regression_rows_nd/x', x)
 
@@ -407,13 +404,15 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=no_weigh
     if is_chained:
         y_field_name_groups = [[f'__y_{i}_{j}' for j in range(len(y[i]))] for i in range(len(y))]
         y_dict = dict(zip(itertools.chain.from_iterable(y_field_name_groups), itertools.chain.from_iterable(y)))
-        if weights != no_weights:
-            raise ValueError("Don't support chained linear regression with weights")
+        if weights is not None:
+            assert len(weights) == len(y), "Must specify same number of weights as groups of phenotypes"
     else:
         y_field_name_groups = list(f'__y_{i}' for i in range(len(y)))
         y_dict = dict(zip(y_field_name_groups, y))
         # Wrapping in a list since the code is written for the more general chained case.
         y_field_name_groups = [y_field_name_groups]
+        if weights is not None:
+            assert len(weights) == 1, "Must specify same number of weights as groups of phenotypes"
 
     cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
     weight_field_names = list(f'__weight_for_group_{i}' for i in range(len(weights))) if weights is not None else None
@@ -514,7 +513,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=no_weigh
 
     ht = setup_globals(ht)
 
-    #import pdb; pdb.set_trace()
+    import pdb; pdb.set_trace()
 
     def process_block(block):
         rows_in_block = hl.len(block)
