@@ -378,7 +378,7 @@ no_weights = None
            x=expr_float64,
            covariates=sequenceof(expr_float64),
            block_size=int,
-           weights=nullable(oneof(expr_float64, sequenceof(expr_float64), sequenceof(sequenceof(expr_float64)))),
+           weights=nullable(oneof(expr_float64, sequenceof(expr_float64))),
            pass_through=sequenceof(oneof(str, Expression)))
 def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=no_weights, pass_through=()) -> hail.Table:
     mt = matrix_table_source('linear_regression_rows_nd/x', x)
@@ -409,18 +409,15 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=no_weigh
         y_dict = dict(zip(itertools.chain.from_iterable(y_field_name_groups), itertools.chain.from_iterable(y)))
         if weights != no_weights:
             raise ValueError("Don't support chained linear regression with weights")
-        weight_field_name_groups = [[f'__weight_{i}_{j}' for j in range(len(weights[i]))] for i in range(weights(y))] if weights is not None else None
-        weight_dict = dict(zip(itertools.chain.from_iterable(weight_field_name_groups), itertools.chain.from_iterable(weights))) if weights is not None else {}
     else:
         y_field_name_groups = list(f'__y_{i}' for i in range(len(y)))
         y_dict = dict(zip(y_field_name_groups, y))
-        weight_field_name_groups = list(f'__weight__{i}' for i in range(len(weights))) if weights is not None else None
-        weight_dict = dict(zip(weight_field_name_groups, weights)) if weights is not None else {}
         # Wrapping in a list since the code is written for the more general chained case.
         y_field_name_groups = [y_field_name_groups]
-        weight_field_name_groups = [weight_field_name_groups] if weights is not None else None
 
     cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
+    weight_field_names = list(f'__weight_for_group_{i}' for i in range(len(weights))) if weights is not None else None
+    weight_dict = dict(zip(weight_field_names, weights)) if weights is not None else {}
 
     row_field_names = _get_regression_row_fields(mt, pass_through, 'linear_regression_rows_nd')
 
@@ -465,14 +462,14 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=no_weigh
 
         y_arrays_per_group = [ht[sample_field_name].map(lambda sample_struct: [sample_struct[y_name] for y_name in one_y_field_name_set]) for one_y_field_name_set in y_field_name_groups]
 
-        if weight_field_name_groups is None:
-            weight_arrays_per_group = hl.empty_array(hl.tarray(hl.tarray(hl.tfloat64)))
+        if weight_field_names:
+            weight_arrays = ht[sample_field_name].map(lambda sample_struct: [sample_struct[weight_name] for weight_name in weight_field_names])
         else:
-            weight_arrays_per_group = [ht[sample_field_name].map(lambda sample_struct: [sample_struct[weight_name] for weight_name in one_weight_field_name_set]) for one_weight_field_name_set in weight_field_name_groups]
+            weight_arrays = ht[sample_field_name].map(lambda sample_struct: hl.empty_array(hl.tfloat64))
 
         ht = ht.annotate_globals(
             y_arrays_per_group=y_arrays_per_group,
-            weight_arrays_per_group=weight_arrays_per_group
+            weight_arrays=weight_arrays
         )
         all_covs_defined = ht.cov_arrays.map(lambda sample_covs: no_missing(sample_covs))
 
@@ -491,8 +488,8 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=no_weigh
                             kept_samples.map(lambda sample_indices: constant_weight)
                          )
         else:
-            weight_nds = hl.zip(kept_samples, ht.weight_arrays_per_group).starmap(lambda sample_indices, weight_arrays:
-                                                                              hl.nd.array(sample_indices.map(lambda idx: weight_arrays[idx])))
+            weight_nds = kept_samples.map(lambda group: hl.nd.array(group.map(lambda idx: ht.weight_arrays[idx])))
+
         cov_nds = kept_samples.map(lambda group: hl.nd.array(group.map(lambda idx: ht.cov_arrays[idx])))
 
         sqrt_weights = weight_nds.map(lambda weight_nd: weight_nd.map(lambda e: hl.sqrt(e)))
