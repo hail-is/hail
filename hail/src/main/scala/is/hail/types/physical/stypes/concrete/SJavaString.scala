@@ -31,7 +31,7 @@ case object SJavaString extends SString {
   }
 
   def fromCodes(codes: IndexedSeq[Code[_]]): SJavaStringCode = {
-    val IndexedSeq(s: Settable[String@unchecked]) = codes
+    val IndexedSeq(s: Code[String@unchecked]) = codes
     new SJavaStringCode(s)
   }
 

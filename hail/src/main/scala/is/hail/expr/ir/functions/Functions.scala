@@ -9,7 +9,7 @@ import is.hail.asm4s.coerce
 import is.hail.experimental.ExperimentalFunctions
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{EmitType, SCode, SType}
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerCode, SCanonicalCall, SCanonicalCallCode, SIndexablePointer, SStringPointer}
+import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
@@ -290,7 +290,7 @@ abstract class RegistryFunctions {
     case TFloat32 => primitive(coerce[Float](value))
     case TFloat64 => primitive(coerce[Double](value))
     case TString =>
-      val sst = st.asInstanceOf[SStringPointer]
+      val sst = st.asInstanceOf[SJavaString.type]
       sst.constructFromString(cb, r, coerce[String](value))
     case TCall =>
       assert(st == SCanonicalCall)
@@ -316,16 +316,8 @@ abstract class RegistryFunctions {
         IEmitCode(cb, elt.isNull, primitive(elt.invoke[Double]("doubleValue")))
       }
     case TArray(TString) =>
-      val ast = st.asInstanceOf[SIndexablePointer]
-      val pca = ast.pType.asInstanceOf[PCanonicalArray]
-      val arr = cb.newLocal[IndexedSeq[String]]("unrwrap_return_array_str_arr", coerce[IndexedSeq[String]](value))
-      val len = cb.newLocal[Int]("unwrap_return_array_str_len", arr.invoke[Int]("length"))
-      pca.constructFromElements(cb, r, len, deepCopy = false) { (cb, idx) =>
-        val st = SStringPointer(pca.elementType.setRequired(false).asInstanceOf[PCanonicalString])
-        val elt = cb.newLocal[String]("unwrap_return_array_str_elt",
-          Code.checkcast[String](arr.invoke[Int, java.lang.Object]("apply", idx)))
-        IEmitCode(cb, elt.isNull, st.constructFromString(cb, r, elt))
-      }
+      val ast = st.asInstanceOf[SJavaArrayString]
+      ast.construct(coerce[Array[String]](value))
     case t: TBaseStruct =>
       val sst = st.asInstanceOf[SBaseStructPointer]
       val pt = sst.pType.asInstanceOf[PCanonicalBaseStruct]
@@ -459,8 +451,12 @@ abstract class RegistryFunctions {
 
     registerSCode(name, valueParameterTypes, returnType, calculateReturnType) { case (r, cb, _, rt, args, _) =>
       val cts = valueParameterTypes.map(ct(_).runtimeClass)
-      unwrapReturn(cb, r.region, rt,
-        Code.invokeScalaObject(cls, method, cts, args.map { a => wrap(cb, r.region, a) })(ct(returnType)))
+      try {
+        unwrapReturn(cb, r.region, rt,
+          Code.invokeScalaObject(cls, method, cts, args.map { a => wrap(cb, r.region, a) })(ct(returnType)))
+      } catch {
+        case e: Throwable => throw new RuntimeException(s"error while registering function $name", e)
+      }
     }
   }
 
