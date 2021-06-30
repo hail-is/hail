@@ -581,7 +581,6 @@ async def get_job_private_inst_manager(request, userdata):
 
 @routes.post('/freeze')
 @check_csrf_token
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def freeze_batch(request, userdata):  # pylint: disable=unused-argument
     app = request.app
@@ -606,7 +605,6 @@ UPDATE globals SET frozen = 1;
 
 @routes.post('/unfreeze')
 @check_csrf_token
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def unfreeze_batch(request, userdata):  # pylint: disable=unused-argument
     app = request.app
