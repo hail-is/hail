@@ -446,8 +446,10 @@ def pc_relate_2(call_expr: CallExpression,
     ones_normalized = hl.nd.full((V0.shape[0], 1), (1 / S[0]))
     V = hl.nd.hstack((ones_normalized, V0))
 
-    beta = (BlockMatrix.from_ndarray(((1 / S) * V).T) @ g.T).checkpoint(new_temp_file("pcrelate2/beta", ".bm"))
-    mu = (0.5 * (BlockMatrix.from_ndarray(V * S) @ beta).T).checkpoint(new_temp_file("pcrelate2/mu", ".bm"))
+    beta = (BlockMatrix.from_ndarray(((1 / S) * V).T, block_size=block_size) @ g.T)\
+        .checkpoint(new_temp_file("pcrelate2/beta", ".bm"))
+    mu = (0.5 * (BlockMatrix.from_ndarray(V * S, block_size=block_size) @ beta).T)\
+        .checkpoint(new_temp_file("pcrelate2/mu", ".bm"))
 
     # Define NaN to use instead of missing, otherwise cannot go back to block matrix
     nan = hl.literal(0) / 0
