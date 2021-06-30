@@ -5,7 +5,7 @@ from typing import Mapping, Any, Optional, MutableMapping, List, Dict
 import logging
 
 from .base_client import BaseClient
-from hailtop.utils import sleep_and_backoff, retry_transient_errors
+from hailtop.utils import retry_transient_errors
 
 log = logging.getLogger('compute_client')
 
@@ -107,13 +107,11 @@ class ComputeClient(BaseClient):
                 local_params['requestId'] = request_uuid
 
             resp = await request_f(path, params=local_params, **kwargs)
-            log.info(f'resp {resp}')
             operation_id = resp['id']
             zone = resp['zone'].rsplit('/', 1)[1]
 
             while True:
                 result = await self.post(f'/zones/{zone}/operations/{operation_id}/wait')
-                log.info(f'result {result}')
                 if result['status'] == 'DONE':
                     http_error_status_code = result.get('httpErrorStatusCode')
                     http_error_message = result.get('httpErrorMessage')
