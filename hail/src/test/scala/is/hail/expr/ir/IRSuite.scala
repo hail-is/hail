@@ -2948,7 +2948,7 @@ class IRSuite extends HailSuite {
     try {
       val fs = ctx.fs
 
-      val read = TableIR.read(fs, "src/test/resources/backward_compatability/1.0.0/table/0.ht")
+      val read = TableIR.read(fs, "src/test/resources/backward_compatability/1.1.0/table/0.ht")
       val mtRead = MatrixIR.read(fs, "src/test/resources/backward_compatability/1.0.0/matrix_table/0.hmt")
       val b = True()
 

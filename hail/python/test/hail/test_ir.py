@@ -228,7 +228,7 @@ class MatrixIRTests(unittest.TestCase):
                 resource('backward_compatability/1.0.0/matrix_table/0.hmt'), None, False),
             False, False)
         table_read = ir.TableRead(
-            ir.TableNativeReader(resource('backward_compatability/1.0.0/table/0.ht'), None, False), False)
+            ir.TableNativeReader(resource('backward_compatability/1.1.0/table/0.ht'), None, False), False)
 
         matrix_range = ir.MatrixRead(ir.MatrixRangeReader(1, 1, 10))
         matrix_irs = [
