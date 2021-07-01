@@ -27,7 +27,7 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
   private[this] var allocationEchoThreshold: Long = 256 * 1024
   private[this] var numJavaObjects: Long = 0L
   private[this] var highestTotalUsage = 0L
-  private[this] val chunkCache = new ChunkCache1(Memory.malloc, Memory.free)
+  private[this] val chunkCache = new ChunkCache(Memory.malloc, Memory.free)
 
   def addJavaObject(): Unit = {
     numJavaObjects += 1

@@ -237,13 +237,13 @@ class RegionSuite extends TestNGSuite {
   }
 
   @Test
-  def testCache1(): Unit = {
+  def testChunkCache(): Unit = {
     RegionPool.scoped { pool =>
 
-      var operations = ArrayBuffer[(String, Long, Long)]()
+      val operations = ArrayBuffer[(String, Long, Long)]()
 
       def allocate(numBytes: Long): Long = {
-        var pointer = Memory.malloc(numBytes)
+        val pointer = Memory.malloc(numBytes)
         operations += (("allocate", numBytes, pointer))
         pointer
       }
@@ -251,26 +251,16 @@ class RegionSuite extends TestNGSuite {
         operations += (("free", ptrToFree, 0L))
         Memory.free(ptrToFree)
       }
-      val chunkCache1 = new ChunkCache1(allocate, free)
+      val chunkCache = new ChunkCache(allocate, free)
       val sizeArr = IndexedSeq(30L, 60L, 500L, 300L, 28L, 58L, 90L, 300L, 20L, 480L)
       val ab = new LongArrayBuilder()
       var i = 0
-      println(s"before allocation, total at ${pool.getTotalAllocatedBytes}")
       while (i <= 9) {
-        ab += chunkCache1.getChunk(pool, sizeArr(i))._1
+        ab += chunkCache.getChunk(pool, sizeArr(i))._1
         i += 1
       }
-      println(s"first allocation, total at ${pool.getTotalAllocatedBytes}")
-      chunkCache1.freeChunks(pool, ab)
-//      ab.clear()
-//      while (i <= 9) {
-//        ab += chunkCache1.getChunk(pool, sizeArr(i))
-//        i += 1
-//      }
-      chunkCache1.freeAll(pool)
-      println(s"second allocation, total at ${pool.getTotalAllocatedBytes}")
-      println(operations)
-
+      chunkCache.freeChunksToCache(ab)
+      chunkCache.freeAll(pool)
 
     }
   }

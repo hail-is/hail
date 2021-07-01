@@ -6,7 +6,7 @@ import java.util.TreeMap
 import java.util.function.BiConsumer
 import scala.collection.mutable
 
-class ChunkCache1 private(allocator: Long => Long, freer: Long => Unit){
+private class ChunkCache (allocator: Long => Long, freer: Long => Unit){
   private[this] val highestSmallChunkPowerOf2 = 24
   private[this] val biggestSmallChunk = Math.pow(2,highestSmallChunkPowerOf2)
   private[this] val bigChunkCache = new TreeMap[Long, LongArrayBuilder]()
