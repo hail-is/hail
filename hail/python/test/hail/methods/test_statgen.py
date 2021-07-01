@@ -506,7 +506,7 @@ class Tests(unittest.TestCase):
 
         def equal_with_nans(arr1, arr2):
             def both_nan_or_none(a, b):
-                return (a is None or np.isnan) and (b is None or np.isnan(b))
+                return (a is None or np.isnan(a)) and (b is None or np.isnan(b))
 
             return all([both_nan_or_none(a, b) or math.isclose(a, b) for a, b in zip(arr1, arr2)])
 
@@ -535,17 +535,17 @@ class Tests(unittest.TestCase):
         # Now making sure that missing weights get excluded.
         ht_with_missing_weights = hl._linear_regression_rows_nd(y=[[mt.y], [hl.abs(mt.y)]],
                                                                  x=mt.x,
-                                                                 covariates=[1] + list(covariates[mt.s].values()),
+                                                                 covariates=[1],
                                                                  weights=[weights[mt.s].Weight1, weights[mt.s].Weight2])
 
         mt_with_missing_weights = mt.annotate_cols(Weight1 = weights[mt.s].Weight1, Weight2 = weights[mt.s].Weight2)
         mt_with_missing_weight1_filtered = mt_with_missing_weights.filter_cols(hl.is_defined(mt_with_missing_weights.Weight1))
         mt_with_missing_weight2_filtered = mt_with_missing_weights.filter_cols(hl.is_defined(mt_with_missing_weights.Weight2))
         ht_from_agg_weight_1 = mt_with_missing_weight1_filtered.annotate_rows(
-            my_linreg=hl.agg.linreg(mt_with_missing_weight1_filtered.y, [1, mt_with_missing_weight1_filtered.x] + list(covariates[mt_with_missing_weight1_filtered.s].values()), weight=weights[mt_with_missing_weight1_filtered.s].Weight1)
+            my_linreg=hl.agg.linreg(mt_with_missing_weight1_filtered.y, [1, mt_with_missing_weight1_filtered.x], weight=weights[mt_with_missing_weight1_filtered.s].Weight1)
         ).rows()
         ht_from_agg_weight_2 = mt_with_missing_weight2_filtered.annotate_rows(
-            my_linreg=hl.agg.linreg(mt_with_missing_weight2_filtered.y, [1, mt_with_missing_weight2_filtered.x] + list(covariates[mt_with_missing_weight2_filtered.s].values()), weight=weights[mt_with_missing_weight2_filtered.s].Weight2)
+            my_linreg=hl.agg.linreg(mt_with_missing_weight2_filtered.y, [1, mt_with_missing_weight2_filtered.x], weight=weights[mt_with_missing_weight2_filtered.s].Weight2)
         ).rows()
 
         multi_weight_missing_betas = ht_with_missing_weights.beta.collect()
