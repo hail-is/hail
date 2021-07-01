@@ -104,7 +104,7 @@ class ChunkCache1 private(allocator: Long => Long, freer: Long => Unit){
     else {
       val closestSize = bigChunkCache.ceilingEntry(size)
       if (closestSize != null && (closestSize.getKey == size
-        || ((closestSize.getKey * minSpaceRequiremen) <= size))) {
+        || ((closestSize.getKey * minSpaceRequirements) <= size))) {
         cacheHits += 1
         val chunkPointer = closestSize.getValue.pop()
         if (closestSize.getValue.size == 0) bigChunkCache.remove(closestSize.getKey)
