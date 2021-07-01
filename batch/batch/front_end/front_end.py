@@ -1535,8 +1535,7 @@ async def _query_billing(request):
     default_start = datetime.datetime.now().replace(day=1)
     default_start = datetime.datetime.strftime(default_start, date_format)
 
-    default_end = datetime.datetime.now()
-    default_end = datetime.datetime.strftime(default_end, date_format)
+    default_end = None
 
     async def parse_error(msg):
         session = await aiohttp_session.get_session(request)
@@ -1552,15 +1551,32 @@ async def _query_billing(request):
 
     end_query = request.query.get('end', default_end)
     try:
-        end = datetime.datetime.strptime(end_query, date_format)
-        end = (end + datetime.timedelta(days=1)).timestamp() * 1000
+        if end_query is not None and end_query != '':
+            end = datetime.datetime.strptime(end_query, date_format)
+            end = (end + datetime.timedelta(days=1)).timestamp() * 1000
+        else:
+            end = None
     except ValueError:
         return await parse_error(f"Invalid value for end '{end_query}'; must be in the format of MM/DD/YYYY.")
 
-    if start > end:
+    if end is not None and start > end:
         return await parse_error('Invalid search; start must be earlier than end.')
 
-    sql = '''
+    where_conditions = ["billing_projects.`status` != 'deleted'"]
+    where_args = []
+
+    if end is not None:
+        where_conditions.append("`time_completed` IS NOT NULL")
+        where_conditions.append("`time_completed` >= %s")
+        where_args.append(start)
+        where_conditions.append("`time_completed` <= %s")
+        where_args.append(end)
+    else:
+        where_conditions.append("(`time_completed` IS NOT NULL AND `time_completed` >= %s) OR "
+                                "(`time_closed` IS NOT NULL AND `time_completed` IS NULL)")
+        where_args.append(start)
+
+    sql = f'''
 SELECT
   billing_project,
   `user`,
@@ -1573,13 +1589,11 @@ LEFT JOIN resources
   ON resources.resource = aggregated_batch_resources.resource
 LEFT JOIN billing_projects
   ON billing_projects.name = batches.billing_project
-WHERE `time_completed` >= %s AND
-  `time_completed` <= %s AND
-  billing_projects.`status` != 'deleted'
+WHERE {' AND '.join(where_conditions)}
 GROUP BY billing_project, `user`;
 '''
 
-    sql_args = (start, end)
+    sql_args = where_args
 
     def billing_record_to_dict(record):
         cost_msec_mcpu = cost_from_msec_mcpu(record['msec_mcpu'])
