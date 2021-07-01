@@ -280,7 +280,7 @@ def user_error(e):
     if isinstance(e, DockerError):
         if e.status == 404 and 'pull access denied' in e.message:
             return True
-        if e.status == 404 and 'not found: manifest unknown' in e.message:
+        if e.status == 404 and ('not found: manifest unknown' in e.message or 'no such image' in e.message):
             return True
         if e.status == 400 and 'executable file not found' in e.message:
             return True
@@ -518,7 +518,7 @@ class Container:
         except asyncio.CancelledError:
             raise
         except Exception as e:
-            if not isinstance(e, (JobDeletedError, JobTimeoutError)):
+            if not isinstance(e, (JobDeletedError, JobTimeoutError)) and not user_error(e):
                 log.exception(f'while running {self}')
 
             self.state = 'error'
@@ -1333,8 +1333,9 @@ class Worker:
             await job.run(self)
         except asyncio.CancelledError:
             raise
-        except Exception:
-            log.exception(f'while running {job}, ignoring')
+        except Exception as e:
+            if not user_error(e):
+                log.exception(f'while running {job}, ignoring')
 
     async def create_job_1(self, request):
         body = await request.json()
