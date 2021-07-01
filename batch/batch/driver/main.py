@@ -1009,10 +1009,16 @@ async def on_cleanup(app):
                             try:
                                 app['task_manager'].shutdown()
                             finally:
-                                del app['k8s_cache'].client
-                                await asyncio.gather(
-                                    *(t for t in asyncio.all_tasks() if t is not asyncio.current_task())
-                                )
+                                try:
+                                    await app['logging_client'].close()
+                                finally:
+                                    try:
+                                        await app['compute_client'].close()
+                                    finally:
+                                        del app['k8s_cache'].client
+                                        await asyncio.gather(
+                                            *(t for t in asyncio.all_tasks() if t is not asyncio.current_task())
+                                        )
 
 
 def run():
