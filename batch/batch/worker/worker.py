@@ -1521,8 +1521,6 @@ class JVMJob(Job):
                 log.info(f'{self}: initializing')
                 self.state = 'initializing'
 
-                os.makedirs(f'{self.scratch}/')
-
                 await check_shell_output(f'xfs_quota -x -c "project -s -p {self.scratch} {self.project_id}" /host/')
                 await check_shell_output(
                     f'xfs_quota -x -c "limit -p bsoft={self.data_disk_storage_in_gib} bhard={self.data_disk_storage_in_gib} {self.project_id}" /host/'
