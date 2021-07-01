@@ -569,6 +569,9 @@ class ArrayRef(IR):
     def copy(self, a, i, s):
         return ArrayRef(a, i, s)
 
+    def head_str(self):
+        return str(self._error_id)
+
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
         self.i._compute_type(env, agg_env)
