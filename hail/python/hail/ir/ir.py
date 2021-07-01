@@ -558,12 +558,14 @@ class MakeArray(IR):
 
 
 class ArrayRef(IR):
-    @typecheck_method(a=IR, i=IR, s=IR)
-    def __init__(self, a, i, s):
+    @typecheck_method(a=IR, i=IR, s=IR, error_id=nullable(int), stack_trace=nullable(str))
+    def __init__(self, a, i, s, error_id=None, stack_trace=None):
         super().__init__(a, i, s)
         self.a = a
         self.i = i
         self.s = s
+        self.error_id = error_id
+        self.stack_trace = stack_trace
 
     @typecheck_method(a=IR, i=IR, s=IR)
     def copy(self, a, i, s):
