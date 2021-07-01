@@ -470,6 +470,11 @@ class Tests(unittest.TestCase):
                                 missing='0',
                                 types={'Pheno': hl.tfloat})
 
+        weights = hl.import_table(resource('regressionLinear.weights'),
+                                  key='Sample',
+                                  missing='0',
+                                  types={'Sample': hl.tstr, 'Weight1': hl.tfloat, 'Weight2': hl.tfloat})
+
         mt = hl.import_vcf(resource('regressionLinear.vcf'))
         mt = mt.add_col_index()
 
@@ -526,6 +531,31 @@ class Tests(unittest.TestCase):
         assert(equal_with_nans(multi_weight_betas_1, betas_pre_weighted_1))
         assert(equal_with_nans(multi_weight_betas_2, betas_pre_weighted_2))
 
+        # Now making sure that missing weights get excluded.
+        ht_with_missing_weights = hl._linear_regression_rows_nd(y=[[mt.y], [hl.abs(mt.y)]],
+                                                                 x=mt.x,
+                                                                 covariates=[1] + list(covariates[mt.s].values()),
+                                                                 weights=[weights[mt.s].Weight1, weights[mt.s].Weight2])
+
+        mt_with_missing_weights = mt.annotate_cols(Weight1 = weights[mt.s].Weight1, Weight2 = weights[mt.s].Weight2)
+        mt_with_missing_weight1_filtered = mt_with_missing_weights.filter_cols(hl.is_defined(mt_with_missing_weights.Weight1))
+        mt_with_missing_weight2_filtered = mt_with_missing_weights.filter_cols(hl.is_defined(mt_with_missing_weights.Weight2))
+        ht_from_agg_weight_1 = mt_with_missing_weight1_filtered.annotate_rows(
+            my_linreg=hl.agg.linreg(mt_with_missing_weight1_filtered.y, [1, mt_with_missing_weight1_filtered.x] + list(covariates[mt_with_missing_weight1_filtered.s].values()), weight=weights[mt_with_missing_weight1_filtered.s].Weight1)
+        ).rows()
+        ht_from_agg_weight_2 = mt_with_missing_weight2_filtered.annotate_rows(
+            my_linreg=hl.agg.linreg(mt_with_missing_weight2_filtered.y, [1, mt_with_missing_weight2_filtered.x] + list(covariates[mt_with_missing_weight2_filtered.s].values()), weight=weights[mt_with_missing_weight2_filtered.s].Weight2)
+        ).rows()
+
+        multi_weight_missing_betas = ht_with_missing_weights.beta.collect()
+        multi_weight_missing_betas_1 = [e[0][0] for e in multi_weight_missing_betas]
+        multi_weight_missing_betas_2 = [e[1][0] for e in multi_weight_missing_betas]
+
+        betas_from_agg_weight_1 = ht_from_agg_weight_1.my_linreg.beta[1].collect()
+        betas_from_agg_weight_2 = ht_from_agg_weight_2.my_linreg.beta[1].collect()
+
+        assert equal_with_nans(multi_weight_missing_betas_1, betas_from_agg_weight_1)
+        assert equal_with_nans(multi_weight_missing_betas_2, betas_from_agg_weight_2)
 
     # comparing to R:
     # x = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0)

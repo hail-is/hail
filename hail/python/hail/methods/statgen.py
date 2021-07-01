@@ -473,13 +473,14 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
         all_covs_defined = ht.cov_arrays.map(lambda sample_covs: no_missing(sample_covs))
 
         #TODO: I guess I have to filter for weights too?
-        def get_kept_samples(sample_ys):
+        def get_kept_samples(group_idx, sample_ys):
             # sample_ys is an array of samples, with each element being an array of the y_values
             return hl.enumerate(sample_ys).filter(
                 lambda idx_and_y_values: all_covs_defined[idx_and_y_values[0]] & no_missing(idx_and_y_values[1])
+                                         & (hl.is_defined(ht.weight_arrays[idx_and_y_values[0]][group_idx]) if weights else True)
             ).map(lambda idx_and_y_values: idx_and_y_values[0])
 
-        kept_samples = ht.y_arrays_per_group.map(get_kept_samples)
+        kept_samples = hl.enumerate(ht.y_arrays_per_group).starmap(get_kept_samples)
         y_nds = hl.zip(kept_samples, ht.y_arrays_per_group).starmap(lambda sample_indices, y_arrays:
                                                                     hl.nd.array(sample_indices.map(lambda idx: y_arrays[idx])))
         if weights is None:
