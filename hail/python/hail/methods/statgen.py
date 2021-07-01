@@ -201,8 +201,9 @@ def _get_regression_row_fields(mt, pass_through, method) -> Dict[str, str]:
            x=expr_float64,
            covariates=sequenceof(expr_float64),
            block_size=int,
-           pass_through=sequenceof(oneof(str, Expression)))
-def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> hail.Table:
+           pass_through=sequenceof(oneof(str, Expression)),
+           weights=nullable(oneof(expr_float64, sequenceof(expr_float64))))
+def linear_regression_rows(y, x, covariates, block_size=16, pass_through=(), *, weights=None) -> hail.Table:
     r"""For each row, test an input variable for association with
     response variables using linear regression.
 
@@ -303,13 +304,16 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
         require more memory but may improve performance.
     pass_through : :obj:`list` of :class:`str` or :class:`.Expression`
         Additional row fields to include in the resulting table.
+    weights : :class:`.Float64Expression` or :obj:`list` of :class:`.Float64Expression`
+        Optional column-indexed weighting for doing weighted least squares regression. Specify a single weight if a
+        single y or list of ys is specified. If a list of lists of ys is specified, specify one weight per inner list.
 
     Returns
     -------
     :class:`.Table`
     """
-    if not isinstance(Env.backend(), SparkBackend):
-        return _linear_regression_rows_nd(y, x, covariates, block_size, None, pass_through)
+    if not isinstance(Env.backend(), SparkBackend) or weights is not None:
+        return _linear_regression_rows_nd(y, x, covariates, block_size, weights, pass_through)
 
     mt = matrix_table_source('linear_regression_rows/x', x)
     check_entry_indexed('linear_regression_rows/x', x)
