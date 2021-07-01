@@ -124,7 +124,13 @@ object AbstractRVDSpec {
     val extendedNewPartitioner = newPartitioner.map(_.extendKey(partitioner.kType))
     val tmpPartitioner = extendedNewPartitioner match {
       case Some(np) => np.intersect(partitioner)
-      case None => partitioner
+      case None =>
+        val iOrd = partitioner.kord.intervalEndpointOrdering
+        val includedIndices = (0 until partitioner.numPartitions).filter { i =>
+          val rb = partitioner.rangeBounds(i)
+          !rb.isDisjointFrom(iOrd, rb)
+        }.toArray
+        partitioner.copy(rangeBounds = includedIndices.map(partitioner.rangeBounds))
     }
 
     val (indexSpecLeft, indexSpecRight) = (specLeft, specRight) match {
@@ -189,15 +195,22 @@ object AbstractRVDSpec {
     val partitioner = specLeft.partitioner
 
     val extendedNewPartitioner = newPartitioner.map(_.extendKey(partitioner.kType))
-    val tmpPartitioner = extendedNewPartitioner match {
-      case Some(np) => np.intersect(partitioner)
-      case None => partitioner
+    val (parts, tmpPartitioner) = extendedNewPartitioner match {
+      case Some(np) =>
+        val tmpPart = np.intersect(partitioner)
+        assert(specLeft.key.nonEmpty)
+        val p = tmpPart.rangeBounds.map { b => specLeft.partFiles(partitioner.lowerBoundInterval(b)) }
+        (p, tmpPart)
+      case None =>
+        // need to remove partitions with degenerate intervals
+        // these partitions are necessarily empty
+        val iOrd = partitioner.kord.intervalEndpointOrdering
+        val includedIndices = (0 until partitioner.numPartitions).filter { i =>
+          val rb = partitioner.rangeBounds(i)
+          !rb.isDisjointFrom(iOrd, rb)
+        }.toArray
+        (includedIndices.map(specLeft.partFiles), partitioner.copy(rangeBounds = includedIndices.map(partitioner.rangeBounds)))
     }
-
-    val parts = if (specLeft.key.isEmpty)
-      specLeft.partFiles
-    else
-      tmpPartitioner.rangeBounds.map { b => specLeft.partFiles(partitioner.lowerBoundInterval(b)) }
 
     val (isl, isr) = (specLeft, specRight) match {
       case (l: Indexed, r: Indexed) => (Some(l.indexSpec), Some(r.indexSpec))
