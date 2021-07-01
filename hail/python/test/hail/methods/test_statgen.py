@@ -1,4 +1,5 @@
 import os
+import math
 import unittest
 import pytest
 import numpy as np
@@ -507,7 +508,7 @@ class Tests(unittest.TestCase):
             def both_nan_or_none(a, b):
                 return (a is None or np.isnan) and (b is None or np.isnan(b))
 
-            return all([both_nan_or_none(a, b) or a - b < .00001 for a, b in zip(arr1, arr2)])
+            return all([both_nan_or_none(a, b) or math.isclose(a, b) for a, b in zip(arr1, arr2)])
 
         assert equal_with_nans(betas_with_weights, betas_pre_weighted_1)
         assert equal_with_nans(betas_with_weights, betas_from_agg)
