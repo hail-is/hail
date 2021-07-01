@@ -560,7 +560,7 @@ def is_transient_error(e):
         # 503 service unavailable, 504 gateway timeout
         return True
     if (isinstance(e, hailtop.aiogoogle.client.compute_client.GCPOperationError)
-            and (e.errors and 'QUOTA_EXCEEDED' in e.error_codes)):
+            and 'QUOTA_EXCEEDED' in e.error_codes):
         return True
     if isinstance(e, hailtop.httpx.ClientResponseError) and (
             e.status == 403 and 'rateLimitExceeded' in e.body):
@@ -615,11 +615,11 @@ def is_transient_error(e):
     return False
 
 
-async def sleep_and_backoff(delay):
+async def sleep_and_backoff(delay, max_delay=30.0):
     # exponentially back off, up to (expected) max of 30s
     t = delay * random.uniform(0.9, 1.1)
     await asyncio.sleep(t)
-    return min(delay * 2, 30.0)
+    return min(delay * 2, max_delay)
 
 
 def sync_sleep_and_backoff(delay):

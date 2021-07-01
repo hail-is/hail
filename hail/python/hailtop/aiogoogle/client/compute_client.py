@@ -1,29 +1,20 @@
-import copy
 import uuid
-import asyncio
 from typing import Mapping, Any, Optional, MutableMapping, List, Dict
 import logging
 
 from .base_client import BaseClient
-from hailtop.utils import retry_transient_errors
+from hailtop.utils import retry_transient_errors, sleep_and_backoff
 
 log = logging.getLogger('compute_client')
 
 
-class GCPError:
-    def __init__(self, code, message):
-        self.code = code
-        self.message = message
-
-
 class GCPOperationError(Exception):
-    def __init__(self, status: int, message: str, errors: Optional[List[GCPError]], response: Dict[str, Any]):
+    def __init__(self, status: int, message: str, error_codes: Optional[List[str]], error_messages: Optional[List[str]], response: Dict[str, Any]):
         super().__init__(message)
         self.status = status
         self.message = message
-        self.errors = errors or []
-        self.error_codes = [e.code for e in errors]
-        self.error_messages = [e.message for e in errors]
+        self.error_codes = error_codes
+        self.error_messages = error_messages
         self.response = response
 
     def __str__(self):
@@ -94,40 +85,37 @@ class ComputeClient(BaseClient):
         return await self.delete(path, params=params, **kwargs)
 
     async def _request_with_zonal_operations_response(self, request_f, path, params: MutableMapping[str, Any] = None, **kwargs):
-        assert 'params' not in kwargs
+        params = params or dict()
+        assert 'requestId' not in params
 
         async def request_and_wait():
-            local_params = copy.deepcopy(params)
+            params['requestId'] = str(uuid.uuid4())
 
-            if local_params is None:
-                local_params = {}
+            resp = await request_f(path, params=params, **kwargs)
 
-            request_uuid = str(uuid.uuid4())
-            if 'requestId' not in local_params:
-                local_params['requestId'] = request_uuid
-
-            resp = await request_f(path, params=local_params, **kwargs)
             operation_id = resp['id']
             zone = resp['zone'].rsplit('/', 1)[1]
 
-            await asyncio.sleep(5)
-
+            delay = 2
             while True:
                 result = await self.post(f'/zones/{zone}/operations/{operation_id}/wait')
                 if result['status'] == 'DONE':
-                    http_error_status_code = result.get('httpErrorStatusCode')
-                    http_error_message = result.get('httpErrorMessage')
-                    errors = None
-
                     error = result.get('error')
                     if error:
-                        errors = error['errors']
-                        errors = [GCPError(e['code'], e['message']) for e in errors]
+                        assert result.get('httpErrorStatusCode') is not None
+                        assert result.get('httpErrorMessage') is not None
 
-                    if http_error_status_code is not None:
-                        raise GCPOperationError(http_error_status_code, http_error_message, errors, result)
+                        error_codes = [e['code'] for e in error['errors']]
+                        error_messages = [e['message'] for e in error['errors']]
+
+                        raise GCPOperationError(result['httpErrorStatusCode'],
+                                                result['httpErrorMessage'],
+                                                error_codes,
+                                                error_messages,
+                                                result)
+
                     return result
 
-                await asyncio.sleep(1)
+                delay = await sleep_and_backoff(delay, max_delay=15)
 
         await retry_transient_errors(request_and_wait)
