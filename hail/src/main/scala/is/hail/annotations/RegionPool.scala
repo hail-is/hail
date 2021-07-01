@@ -60,6 +60,7 @@ class noCache extends ChunkCache {
      freer(pointer)
      chunksEncountered -= pointer
    }
+
   def deallocateChunksToFit(pool: RegionPool, sizeToFit: Long): Unit = {
     deallocationsToFit += 1
     var smallChunkIndex = highestSmallChunkPowerOf2
@@ -83,6 +84,7 @@ class noCache extends ChunkCache {
       }
     }
   }
+
    def newChunk(pool: RegionPool, size: Long): Long = {
      if ((size + pool.getTotalAllocatedBytes) > pool.getHighestTotalUsage) {
        deallocateChunksToFit(pool, size)
@@ -92,6 +94,7 @@ class noCache extends ChunkCache {
      pool.incrementAllocatedBytes(size)
      newChunkPointer
    }
+
   def freeAll(pool: RegionPool): Unit = {
     if (!chunksEncountered.isEmpty) {
       smallChunkCache.foreach(ab => {
@@ -106,15 +109,18 @@ class noCache extends ChunkCache {
       })
     }
   }
+
   def getUsage(): (Int, Int, Int) = {
     (chunksRequested, cacheHits, deallocationsToFit)
   }
+
   def indexInSmallChunkCache(size: Long): Int = {
     var closestPower = highestSmallChunkPowerOf2
     while((size >> closestPower) != 1) closestPower = closestPower - 1
     if (size % (1 << closestPower) != 0) closestPower +=1
     closestPower
   }
+
   override def getChunk(pool: RegionPool, size: Long): (Long, Long) = {
     chunksRequested += 1
       if (size <= biggestSmallChunk) {
@@ -140,6 +146,7 @@ class noCache extends ChunkCache {
       else (newChunk(pool, size), size)
     }
   }
+
   def freeChunk( chunkPointer: Long): Unit = {
     val chunkSize = chunksEncountered(chunkPointer)
     if (chunkSize <= biggestSmallChunk) {
@@ -156,6 +163,7 @@ class noCache extends ChunkCache {
       else sameSizeEntries += chunkPointer
     }
   }
+
   override def freeChunks(pool: RegionPool, ab: LongArrayBuilder, totalSize: Long = 0): Unit = {
     while (ab.size > 0) freeChunk(ab.pop())
   }
