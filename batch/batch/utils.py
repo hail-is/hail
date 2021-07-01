@@ -196,12 +196,6 @@ def is_valid_cores_mcpu(cores_mcpu: int):
     return quarter_cores & (quarter_cores - 1) == 0
 
 
-def parse_timestamp_msecs(ts):
-    if ts is None:
-        return ts
-    return dateutil.parser.isoparse(ts).timestamp() * 1000
-
-
 class Box:
     def __init__(self, value):
         self.value = value

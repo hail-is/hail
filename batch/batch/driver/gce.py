@@ -6,12 +6,11 @@ import aiohttp
 
 from gear import Database
 from hailtop import aiotools, aiogoogle
-from hailtop.utils import periodically_call, time_msecs
+from hailtop.utils import periodically_call, time_msecs, parse_timestamp_msecs
 
 from ..batch_configuration import PROJECT, DEFAULT_NAMESPACE
 from .zone_monitor import ZoneMonitor
 from .instance_collection_manager import InstanceCollectionManager
-from ..utils import parse_timestamp_msecs
 
 log = logging.getLogger('gce_event_monitor')
 

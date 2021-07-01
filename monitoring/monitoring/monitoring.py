@@ -1,17 +1,22 @@
 import datetime
 import calendar
 import asyncio
+import os
+import json
 from aiohttp import web
 import aiohttp_session
 import logging
 from collections import defaultdict
+from prometheus_async.aio.web import server_stats  # type: ignore
+import prometheus_client as pc  # type: ignore
 
 from hailtop import aiogoogle, aiotools
-from hailtop.aiogoogle import BigQueryClient
+from hailtop.aiogoogle import BigQueryClient, ComputeClient
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
-from hailtop.utils import run_if_changed_idempotent, retry_long_running, time_msecs, cost_str
+from hailtop.utils import (run_if_changed_idempotent, retry_long_running, time_msecs, cost_str, parse_timestamp_msecs,
+                           url_basename, periodically_call)
 from gear import (
     Database,
     setup_aiohttp_session,
@@ -28,6 +33,16 @@ log = logging.getLogger('monitoring')
 routes = web.RouteTableDef()
 
 deploy_config = get_deploy_config()
+
+GCP_REGION = os.environ['HAIL_GCP_REGION']
+BATCH_GCP_REGIONS = set(json.loads(os.environ['HAIL_BATCH_GCP_REGIONS']))
+BATCH_GCP_REGIONS.add(GCP_REGION)
+
+PROJECT = os.environ['PROJECT']
+
+DISK_STATES = pc.Gauge('batch_disk_states', 'Batch disk states', ['state', 'namespace', 'zone'])
+DISK_SIZE_GB_SUMMARY = pc.Summary('batch_disk_size_gb', 'Summary of user batch disk sizes (GB)', ['namespace', 'zone'])
+INSTANCE_STATUSES = pc.Gauge('batch_instance_statuses', 'Batch instance statuses', ['status', 'namespace', 'zone', 'machine_type', 'preemptible'])
 
 
 def get_previous_month(dt):
@@ -227,17 +242,75 @@ async def polling_loop(app):
         await asyncio.sleep(60)
 
 
+async def monitor_disks(app):
+    log.info(f'monitoring disks')
+    compute_client: ComputeClient = app['compute_client']
+
+    DISK_SIZE_GB_SUMMARY.clear()
+    DISK_STATES.clear()
+
+    for zone in app['zones']:
+        async for disk in await compute_client.list(f'/zones/{zone}/disks', params={'filter': '(labels.batch = 1)'}):
+            log.info(f'disk {disk}')
+            namespace = disk['labels']['namespace']
+            size_gb = int(disk['sizeGb'])
+
+            creation_timestamp_msecs = parse_timestamp_msecs(disk.get('creationTimestamp'))
+            last_attach_timestamp_msecs = parse_timestamp_msecs(disk.get('lastAttachTimestamp'))
+            last_detach_timestamp_msecs = parse_timestamp_msecs(disk.get('lastDetachTimestamp'))
+
+            labels = {'zone': zone,
+                      'namespace': namespace}
+
+            DISK_SIZE_GB_SUMMARY.labels(**labels).observe(size_gb)
+
+            if creation_timestamp_msecs is None:
+                DISK_STATES.labels(state='creating', **labels).inc()
+            elif last_attach_timestamp_msecs is None:
+                DISK_STATES.labels(state='created', **labels).inc()
+            elif last_attach_timestamp_msecs is not None and last_detach_timestamp_msecs is None:
+                DISK_STATES.labels(state='attached', **labels).inc()
+            elif last_attach_timestamp_msecs is not None and last_detach_timestamp_msecs is not None:
+                DISK_STATES.labels(state='detached', **labels).inc()
+            else:
+                log.exception(f'disk is in unknown state {disk}')
+
+
+async def monitor_instances(app):
+    log.info(f'monitoring instances')
+    compute_client: ComputeClient = app['compute_client']
+
+    INSTANCE_STATUSES.clear()
+
+    for zone in app['zones']:
+        async for instance in await compute_client.list(f'/zones/{zone}/instances', params={'filter': '(labels.role = batch2-agent)'}):
+            labels = {'status': instance['status'],
+                      'zone': zone,
+                      'namespace': instance['labels']['namespace'],
+                      'machine_type': instance['machineType'].rsplit('/', 1)[1],
+                      'preemptible': instance['scheduling']['preemptible']}
+            INSTANCE_STATUSES.labels(**labels).inc()
+
+
 async def on_startup(app):
     db = Database()
     await db.async_init()
     app['db'] = db
 
     aiogoogle_credentials = aiogoogle.Credentials.from_file('/billing-monitoring-gsa-key/key.json')
+
     bigquery_client = BigQueryClient('broad-ctsa', credentials=aiogoogle_credentials)
     app['bigquery_client'] = bigquery_client
 
+    compute_client = ComputeClient(PROJECT, credentials=aiogoogle_credentials)
+    app['compute_client'] = compute_client
+
     query_billing_event = asyncio.Event()
     app['query_billing_event'] = query_billing_event
+
+    region_info = {name: await compute_client.get(f'/regions/{name}') for name in BATCH_GCP_REGIONS}
+    zones = [url_basename(z) for r in region_info.values() for z in r['zones']]
+    app['zones'] = zones
 
     app['task_manager'] = aiotools.BackgroundTaskManager()
 
@@ -248,6 +321,9 @@ async def on_startup(app):
             'query_billing_loop', run_if_changed_idempotent, query_billing_event, query_billing_body, app
         )
     )
+
+    app['task_manager'].ensure_future(periodically_call(60, monitor_disks, app))
+    app['task_manager'].ensure_future(periodically_call(60, monitor_instances, app))
 
 
 async def on_cleanup(app):
@@ -264,6 +340,7 @@ def run():
     setup_aiohttp_jinja2(app, 'monitoring')
     setup_common_static_routes(routes)
     app.add_routes(routes)
+    app.router.add_get("/metrics", server_stats)
 
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
