@@ -1323,8 +1323,10 @@ class Worker:
         self.headers = None
         self.compute_client = None
 
-    def shutdown(self):
+    async def shutdown(self):
         self.task_manager.shutdown()
+        if self.compute_client:
+            await self.compute_client.close()
 
     async def run_job(self, job):
         try:
@@ -1641,7 +1643,7 @@ async def async_main():
         await worker.run()
     finally:
         try:
-            worker.shutdown()
+            await worker.shutdown()
             log.info('worker shutdown')
         finally:
             await docker.close()
