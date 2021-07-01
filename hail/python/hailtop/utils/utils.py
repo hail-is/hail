@@ -769,6 +769,8 @@ async def retry_long_running(name, f, *args, **kwargs):
         try:
             start_time = time_msecs()
             return await f(*args, **kwargs)
+        except asyncio.CancelledError:
+            raise
         except Exception:
             end_time = time_msecs()
 
