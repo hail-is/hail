@@ -517,15 +517,11 @@ class Tests(unittest.TestCase):
                                                                  x=mt.x,
                                                                  covariates=my_covs,
                                                                  weights=[mt.col_idx, mt.col_idx + 5])
-        ht_chained_no_weights = hl._linear_regression_rows_nd(y=[[mt.y], [hl.abs(mt.y)]],
-                                                                 x=mt.x,
-                                                                 covariates=my_covs)
+
         # Check that preweighted 1 and preweighted 2 match up with fields 1 and 2 of multiple
         multi_weight_betas = ht_with_multiple_weights.beta.collect()
         multi_weight_betas_1 = [e[0][0] for e in multi_weight_betas]
         multi_weight_betas_2 = [e[1][0] for e in multi_weight_betas]
-
-        assert np.array(ht_chained_no_weights.beta.collect()).shape == (10, 2, 1)
 
         assert np.array(multi_weight_betas).shape == (10, 2, 1)
 
@@ -548,7 +544,8 @@ class Tests(unittest.TestCase):
             my_linreg=hl.agg.linreg(mt_with_missing_weight2_filtered.y, [1, mt_with_missing_weight2_filtered.x], weight=weights[mt_with_missing_weight2_filtered.s].Weight2)
         ).rows()
 
-        multi_weight_missing_betas = ht_with_missing_weights.beta.collect()
+        multi_weight_missing_results = ht_with_missing_weights.collect()
+        multi_weight_missing_betas = [e.beta for e in multi_weight_missing_results]
         multi_weight_missing_betas_1 = [e[0][0] for e in multi_weight_missing_betas]
         multi_weight_missing_betas_2 = [e[1][0] for e in multi_weight_missing_betas]
 
@@ -557,6 +554,27 @@ class Tests(unittest.TestCase):
 
         assert equal_with_nans(multi_weight_missing_betas_1, betas_from_agg_weight_1)
         assert equal_with_nans(multi_weight_missing_betas_2, betas_from_agg_weight_2)
+
+        multi_weight_missing_p_values = [e.p_value for e in multi_weight_missing_results]
+        multi_weight_missing_p_values_1 = [e[0][0] for e in multi_weight_missing_p_values]
+        multi_weight_missing_p_values_2 = [e[1][0] for e in multi_weight_missing_p_values]
+
+        p_values_from_agg_weight_1 = ht_from_agg_weight_1.my_linreg.p_value[1].collect()
+        p_values_from_agg_weight_2 = ht_from_agg_weight_2.my_linreg.p_value[1].collect()
+
+        assert equal_with_nans(multi_weight_missing_p_values_1, p_values_from_agg_weight_1)
+        assert equal_with_nans(multi_weight_missing_p_values_2, p_values_from_agg_weight_2)
+
+        multi_weight_missing_t_stats = [e.t_stat for e in multi_weight_missing_results]
+        multi_weight_missing_t_stats_1 = [e[0][0] for e in multi_weight_missing_t_stats]
+        multi_weight_missing_t_stats_2 = [e[1][0] for e in multi_weight_missing_t_stats]
+
+        t_stats_from_agg_weight_1 = ht_from_agg_weight_1.my_linreg.t_stat[1].collect()
+        t_stats_from_agg_weight_2 = ht_from_agg_weight_2.my_linreg.t_stat[1].collect()
+
+        assert equal_with_nans(multi_weight_missing_t_stats_1, t_stats_from_agg_weight_1)
+        assert equal_with_nans(multi_weight_missing_t_stats_2, t_stats_from_agg_weight_2)
+
 
     # comparing to R:
     # x = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
