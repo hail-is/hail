@@ -8,7 +8,9 @@ RUN hail-apt-get-install \
 
 COPY hail/python/requirements.txt requirements.txt
 COPY hail/python/dev-requirements.txt dev-requirements.txt
-RUN hail-pip-install -r requirements.txt -r dev-requirements.txt
+RUN file=$(mktemp) && \
+    cat requirements.txt dev-requirements.txt > $file && \
+    hail-pip-install -r $file
 
 COPY wheel-container.tar wheel-container.tar
 RUN tar -xf wheel-container.tar && \
