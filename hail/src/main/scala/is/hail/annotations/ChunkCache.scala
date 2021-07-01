@@ -6,16 +6,16 @@ import java.util.TreeMap
 import java.util.function.BiConsumer
 import scala.collection.mutable
 
-class ChunkCache1(allocator: Long => Long, freer: Long => Unit){
-  val highestSmallChunkPowerOf2 = 24
-  val biggestSmallChunk = Math.pow(2,highestSmallChunkPowerOf2)
-  val bigChunkCache = new TreeMap[Long, LongArrayBuilder]()
-  val chunksEncountered = mutable.Map[Long, Long]()
-  val minSpaceRequirements = .9
-  var chunksRequested = 0
-  var cacheHits = 0
-  var smallChunkCacheSize = 0
-  val smallChunkCache = new Array[LongArrayBuilder](highestSmallChunkPowerOf2 + 1)
+class ChunkCache1 private(allocator: Long => Long, freer: Long => Unit){
+  private[this] val highestSmallChunkPowerOf2 = 24
+  private[this] val biggestSmallChunk = Math.pow(2,highestSmallChunkPowerOf2)
+  private[this] val bigChunkCache = new TreeMap[Long, LongArrayBuilder]()
+  private[this] val chunksEncountered = mutable.Map[Long, Long]()
+  private[this] val minSpaceRequirements = .9
+  private[this] var chunksRequested = 0
+  private[this] var cacheHits = 0
+  private[this] var smallChunkCacheSize = 0
+  private[this] val smallChunkCache = new Array[LongArrayBuilder](highestSmallChunkPowerOf2 + 1)
   (0 until highestSmallChunkPowerOf2 + 1).foreach(index => {
     smallChunkCache(index) = new LongArrayBuilder()
   })
@@ -104,7 +104,7 @@ class ChunkCache1(allocator: Long => Long, freer: Long => Unit){
     else {
       val closestSize = bigChunkCache.ceilingEntry(size)
       if (closestSize != null && (closestSize.getKey == size
-        || ((closestSize.getKey * .9) <= size))) {
+        || ((closestSize.getKey * minSpaceRequiremen) <= size))) {
         cacheHits += 1
         val chunkPointer = closestSize.getValue.pop()
         if (closestSize.getValue.size == 0) bigChunkCache.remove(closestSize.getKey)
