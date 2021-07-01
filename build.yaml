@@ -787,17 +787,30 @@ steps:
       - hail_build_image
       - merge_code
   - kind: runImage
-    name: download_junixsocket_jar_and_build_java
+    name: compile_batch_worker_jvm_entryway
     image:
-      valueFrom: ci_utils_image.image
+      valueFrom: base_image.image
     script: |
+      set -ex
+
+      cd /io
+
       curl -sSfL https://github.com/kohlschutter/junixsocket/releases/download/junixsocket-parent-2.3.3/junixsocket-selftest-2.3.3-jar-with-dependencies.jar \
-           >/io/junixsocket-selftest-2.3.3-jar-with-dependencies.jar
-      javac -cp jars/junixsocket-selftest-2.3.3-jar-with-dependencies.jar src/main/java/is/hail/JVMEntryway.java
-      mv 
+           > junixsocket-selftest-2.3.3-jar-with-dependencies.jar
+
+      javac -cp junixsocket-selftest-2.3.3-jar-with-dependencies.jar \
+            batch/src/main/java/is/hail/JVMEntryway.java
+    inputs:
+      - from: /repo/batch
+        to: /io/batch
     outputs:
       - from: /io/junixsocket-selftest-2.3.3-jar-with-dependencies.jar
         to: /junixsocket-selftest-2.3.3-jar-with-dependencies.jar
+      - from: /io/batch/src/main/java/is/hail/JVMEntryway.class
+        to: /JVMEntryway.class
+    dependsOn:
+      - base_image
+      - merge_code
   - kind: buildImage2
     name: batch_worker_image
     dockerFile: /io/repo/batch/Dockerfile.worker
@@ -806,6 +819,8 @@ steps:
     inputs:
       - from: /repo
         to: /io/repo
+      - from: /JVMEntryway.class
+        to: /io/repo/batch/src/main/java/is/hail/JVMEntryway.class
       - from: /junixsocket-selftest-2.3.3-jar-with-dependencies.jar
         to: /io/repo/batch/jars/junixsocket-selftest-2.3.3-jar-with-dependencies.jar
       - from: /hail_version
@@ -813,6 +828,7 @@ steps:
     dependsOn:
       - merge_code
       - hail_ubuntu_image
+      - compile_batch_worker_jvm_entryway
   - kind: buildImage2
     name: service_java_run_base_image
     dockerFile: /io/repo/docker/Dockerfile.service-java-run-base
