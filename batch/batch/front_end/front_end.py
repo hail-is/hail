@@ -991,7 +991,6 @@ VALUES (%s, %s, %s);
 
 
 @routes.post('/api/v1alpha/batches/create-fast')
-@monitor_endpoint
 @rest_authenticated_users_only
 async def create_batch_fast(request, userdata):
     app = request.app
