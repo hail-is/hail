@@ -3,7 +3,7 @@ from functools import reduce
 import hail as hl
 from hail.expr.functions import _ndarray
 from hail.expr.functions import array as aarray
-from hail.expr.types import HailType, tfloat64, ttuple, tndarray
+from hail.expr.types import HailType, tfloat64, tfloat32, ttuple, tndarray
 from hail.typecheck import typecheck, nullable, oneof, tupleof, sequenceof
 from hail.expr.expressions import (
     expr_int32, expr_int64, expr_tuple, expr_any, expr_array, expr_ndarray,
@@ -575,3 +575,83 @@ def hstack(arrs):
 
     return concatenate(arrs, axis)
 
+
+@typecheck(nd1=expr_ndarray(), nd2=oneof(expr_ndarray(), list))
+def maximum(nd1, nd2):
+    """
+    Compares elements at corresponding indexes in  arrays
+    and returns an array of the maximum element found
+    at each compared index.
+
+    If an array element being compared has the value NaN,
+    the maximum for that index will be NaN.
+
+    Parameters
+    ----------
+    nd1 : :class:`.NDArrayExpression`
+    nd2 : class:`.NDArrayExpression`, `.ArrayExpression`, numpy ndarray, or nested python lists/tuples.
+        Nd1 and nd2 must be the same shape or broadcastable into common shape. Nd1 and nd2 must
+        have elements of comparable types
+
+    Returns
+    -------
+    max_array : :class:`.NDArrayExpression` Element-wise maximuims of nd1 and nd2. If nd1 has the
+    same shape as nd2, the resulting array will be of that shape. If nd1 and nd2 were broadcasted
+    into a common shape, the resulting array will be of that shape
+
+    Examples
+    --------
+    >>> a = hl.nd.array([1,5,3])
+    >>> b = hl.nd.array([2,3,4])
+    >>> hl.eval(hl.nd.maximuim((a,b)))
+    array([2,5,4], dtype=int32)
+    >>> a = hl.nd.array([hl.float64(float("NaN")),5.0,3.0])
+    >>> b = hl.nd.array([2.0,3.0,hl.float64(float("NaN"))])
+    >>> hl.eval(hl.nd.maximuim((a,b)))
+    array([NaN,5.0,NaN], dtype=float64)
+    """
+    if (nd1.dtype.element_type or nd2.dtype.element_type) == (tfloat64 or tfloat32):
+        return nd1.map2(nd2, lambda a, b: hl.if_else(hl.is_nan(a) | hl.is_nan(b),
+                                                 hl.float64(float("NaN")), hl.if_else(a > b, a, b)))
+    return nd1.map2(nd2, lambda a, b: hl.if_else(a > b, a, b))
+
+
+@typecheck(nd1=expr_ndarray(), nd2=oneof(expr_ndarray(), list))
+def minimum(nd1, nd2):
+    """
+    Compares elements at corresponding indexes in arrays
+    and returns an array of the minimuim element found
+    at each compared index.
+
+    If an array element being compared has the value NaN,
+    the minimuim for that index will be NaN.
+
+    Parameters
+    ----------
+    nd1 : :class:`.NDArrayExpression`
+    nd2 : class:`.NDArrayExpression`, `.ArrayExpression`, numpy ndarray, or  python lists
+        nd1 and nd2 must be the same shape or broadcastable into common shape. Nd1 and nd2 must
+        have elements of comparable types
+
+    Returns
+    -------
+    min_array : :class:`.NDArrayExpression` Element-wise minimuims of nd1 and nd2. If nd1 has the
+    same shape as nd2, the resulting array will be of that shape. If nd1 and nd2 were broadcasted
+    into a common shape, resulting array will be of that shape
+
+    Examples
+    --------
+    >>> a = hl.nd.array([1,5,3])
+    >>> b = hl.nd.array([2,3,4])
+    >>> hl.eval(hl.nd.minimuim((a,b)))
+    array([1,3,3], dtype=int32)
+    >>> a = hl.nd.array([hl.float64(float("NaN")),5,3])
+    >>> b = hl.nd.array([2,3,hl.float64(float("NaN"))])
+    >>> hl.eval(hl.nd.maximuim((a,b)))
+    array([NaN,3,NaN], dtype=int32)
+    """
+    if (nd1.dtype.element_type or nd2.dtype.element_type) == (tfloat64 or tfloat32):
+        return nd1.map2(nd2, lambda a, b: hl.if_else(hl.is_nan(a) | hl.is_nan(b),
+                                                 hl.float64(float("NaN")),
+                                                 hl.if_else(a < b, a, b)))
+    return nd1.map2(nd2, lambda a, b: hl.if_else(a < b, a, b))

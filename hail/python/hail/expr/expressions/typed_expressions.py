@@ -3947,7 +3947,7 @@ class NDArrayExpression(Expression):
         assert isinstance(self._type, tndarray)
         return ndarray_map
 
-    @typecheck_method(other=expr_ndarray(), f=func_spec(2, expr_any))
+    @typecheck_method(other=oneof(expr_ndarray(), list), f=func_spec(2, expr_any))
     def map2(self, other, f):
         if isinstance(other, list) or isinstance(other, np.ndarray):
             other = hl.nd.array(other)
