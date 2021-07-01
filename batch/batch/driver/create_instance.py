@@ -2,6 +2,7 @@ import os
 import logging
 import base64
 import json
+import uuid
 
 from hailtop import aiogoogle
 
@@ -320,7 +321,9 @@ journalctl -u docker.service > dockerd.log
         {'key': 'worker_config', 'value': base64.b64encode(json.dumps(worker_config.config).encode()).decode()}
     )
 
-    await compute_client.post(f'/zones/{zone}/instances', json=config)
+    params = {'requestId': str(uuid.uuid4())}
+
+    await compute_client.post(f'/zones/{zone}/instances', params=params, json=config)
 
     log.info(f'created machine {machine_name}')
 

@@ -110,6 +110,8 @@ class ComputeClient(BaseClient):
             operation_id = resp['id']
             zone = resp['zone'].rsplit('/', 1)[1]
 
+            await asyncio.sleep(5)
+
             while True:
                 result = await self.post(f'/zones/{zone}/operations/{operation_id}/wait')
                 if result['status'] == 'DONE':

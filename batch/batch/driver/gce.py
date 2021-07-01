@@ -184,4 +184,4 @@ timestamp >= "{mark}"
                     log.exception(f'error while deleting orphaned disk {disk_name}')
 
     async def delete_orphaned_disks_loop(self):
-        await periodically_call(15, self.delete_orphaned_disks)
+        await periodically_call(60, self.delete_orphaned_disks)
