@@ -47,7 +47,7 @@ requirements:
     - google-cloud-sdk
     - google-cloud-storage
     - google-api-core
-    - janus
+    - janus >=0.6,<0.7
 
 test:
   imports:
