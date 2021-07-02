@@ -462,7 +462,7 @@ class Container:
         except asyncio.CancelledError:
             raise
         except Exception as e:
-            if not isinstance(e, (JobDeletedError, JobTimeoutError)):
+            if not isinstance(e, (JobDeletedError, JobTimeoutError)) and not user_error(e):
                 log.exception(f'while running {self}')
 
             self.state = 'error'
