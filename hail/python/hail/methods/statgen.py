@@ -470,27 +470,23 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
         else:
             weight_arrays = ht[sample_field_name].map(lambda sample_struct: hl.empty_array(hl.tfloat64))
 
-        ht = ht.annotate_globals(
-            y_arrays_per_group=y_arrays_per_group,
-            weight_arrays=weight_arrays
-        )
         all_covs_defined = ht.cov_arrays.map(lambda sample_covs: no_missing(sample_covs))
 
         def get_kept_samples(group_idx, sample_ys):
             # sample_ys is an array of samples, with each element being an array of the y_values
             return hl.enumerate(sample_ys).filter(
-                lambda idx_and_y_values: all_covs_defined[idx_and_y_values[0]] & no_missing(idx_and_y_values[1]) & (hl.is_defined(ht.weight_arrays[idx_and_y_values[0]][group_idx]) if weights else True)
+                lambda idx_and_y_values: all_covs_defined[idx_and_y_values[0]] & no_missing(idx_and_y_values[1]) & (hl.is_defined(weight_arrays[idx_and_y_values[0]][group_idx]) if weights else True)
             ).map(lambda idx_and_y_values: idx_and_y_values[0])
 
-        kept_samples = hl.enumerate(ht.y_arrays_per_group).starmap(get_kept_samples)
-        y_nds = hl.zip(kept_samples, ht.y_arrays_per_group).starmap(lambda sample_indices, y_arrays:
+        kept_samples = hl.enumerate(y_arrays_per_group).starmap(get_kept_samples)
+        y_nds = hl.zip(kept_samples, y_arrays_per_group).starmap(lambda sample_indices, y_arrays:
                                                                     hl.nd.array(sample_indices.map(lambda idx: y_arrays[idx])))
         if weights is None:
             weight_nds = hl.rbind(hl.nd.array([[1]]),
                                   lambda constant_weight: kept_samples.map(lambda sample_indices: constant_weight))
         else:
             weight_nds = hl.enumerate(kept_samples).starmap(
-                lambda group_idx, group_sample_indices: hl.nd.array(group_sample_indices.map(lambda group_sample_idx: ht.weight_arrays[group_sample_idx][group_idx])))
+                lambda group_idx, group_sample_indices: hl.nd.array(group_sample_indices.map(lambda group_sample_idx: weight_arrays[group_sample_idx][group_idx])))
 
         cov_nds = kept_samples.map(lambda group: hl.nd.array(group.map(lambda idx: ht.cov_arrays[idx])))
 
