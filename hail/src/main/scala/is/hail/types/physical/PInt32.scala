@@ -35,18 +35,16 @@ class PInt32(override val required: Boolean) extends PNumeric with PPrimitive {
     coerce[PInt32](coerce[Int](a) * coerce[Int](b))
   }
 
-  override def sType: SType = SInt32
+  override def sType: SType = SInt32(required)
 
   def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SCode): Unit =
     cb.append(Region.storeInt(addr, value.asInt.intCode(cb)))
 
-  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SCode = new SInt32Code(Region.loadInt(addr))
+  override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SInt32Code(required, Region.loadInt(addr))
 
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
     Region.storeInt(addr, annotation.asInstanceOf[Int])
   }
-
-  def unstagedLoadFromAddress(addr: Long): Int = Region.loadInt(addr)
 }
 
 object PInt32 {

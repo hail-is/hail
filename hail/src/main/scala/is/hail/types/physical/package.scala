@@ -2,12 +2,11 @@ package is.hail.types
 
 import is.hail.asm4s._
 import is.hail.expr.ir.streams.StreamArgType
-import is.hail.types.physical.stypes.{SCode, SValue}
 
 import scala.language.implicitConversions
 
 package object physical {
-  implicit def sValueToSCode(sv: SValue): SCode = sv.get
+  implicit def pvalueToPCode(pv: PValue): PCode = pv.get
 
   def typeToTypeInfo(t: PType): TypeInfo[_] = t match {
     case _: PInt32 => typeInfo[Int]

@@ -46,7 +46,6 @@ steps:
       - gcr-pull-key
       - gcr-push-service-account-key
       - test-gsa-key
-      - test-aws-key
       - auth-oauth2-client-secret
       - benchmark-gsa-key
   - kind: buildImage2
@@ -157,7 +156,7 @@ steps:
       - from: /repo/tls
         to: /io/tls
     dependsOn:
-      - hail_ubuntu_image
+      - service_base_image
       - merge_code
   - kind: runImage
     name: create_ssl_config_hail_root
@@ -628,10 +627,10 @@ steps:
       - service_base_image
       - merge_code
   - kind: buildImage2
-    name: hail_buildkit_image
-    dockerFile: /io/repo/ci/buildkit/Dockerfile
+    name: hail_kaniko_image
+    dockerFile: /io/repo/ci/kaniko/Dockerfile
     contextPath: /io/repo/ci
-    publishAs: hail-buildkit
+    publishAs: hail-kaniko
     inputs:
       - from: /repo/ci
         to: /io/repo/ci
@@ -1253,10 +1252,8 @@ steps:
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
-      export HAIL_TEST_GCS_BUCKET=cpg-hail-test
+      export HAIL_TEST_BUCKET=cpg-hail-test
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-      export HAIL_TEST_S3_BUCKET=hail-test-dy5rg
-      export AWS_SHARED_CREDENTIALS_FILE=/test-aws-key/credentials
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=0
@@ -1275,10 +1272,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: test-aws-key
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /test-aws-key
     dependsOn:
       - default_ns
       - hail_run_tests_image
@@ -1300,10 +1293,8 @@ steps:
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
-      export HAIL_TEST_GCS_BUCKET=cpg-hail-test
+      export HAIL_TEST_BUCKET=cpg-hail-test
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-      export HAIL_TEST_S3_BUCKET=hail-test-dy5rg
-      export AWS_SHARED_CREDENTIALS_FILE=/test-aws-key/credentials
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=1
@@ -1322,10 +1313,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: test-aws-key
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /test-aws-key
     dependsOn:
       - default_ns
       - hail_run_tests_image
@@ -1347,10 +1334,8 @@ steps:
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
-      export HAIL_TEST_GCS_BUCKET=cpg-hail-test
+      export HAIL_TEST_BUCKET=cpg-hail-test
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-      export HAIL_TEST_S3_BUCKET=hail-test-dy5rg
-      export AWS_SHARED_CREDENTIALS_FILE=/test-aws-key/credentials
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=2
@@ -1369,10 +1354,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: test-aws-key
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /test-aws-key
     dependsOn:
       - default_ns
       - hail_run_tests_image
@@ -1394,10 +1375,8 @@ steps:
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
-      export HAIL_TEST_GCS_BUCKET=cpg-hail-test
+      export HAIL_TEST_BUCKET=cpg-hail-test
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-      export HAIL_TEST_S3_BUCKET=hail-test-dy5rg
-      export AWS_SHARED_CREDENTIALS_FILE=/test-aws-key/credentials
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=3
@@ -1416,10 +1395,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: test-aws-key
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /test-aws-key
     dependsOn:
       - default_ns
       - hail_run_tests_image
@@ -1441,10 +1416,8 @@ steps:
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
-      export HAIL_TEST_GCS_BUCKET=cpg-hail-test
+      export HAIL_TEST_BUCKET=cpg-hail-test
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-      export HAIL_TEST_S3_BUCKET=hail-test-dy5rg
-      export AWS_SHARED_CREDENTIALS_FILE=/test-aws-key/credentials
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=4
@@ -1463,10 +1436,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: test-aws-key
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /test-aws-key
     dependsOn:
       - default_ns
       - hail_run_tests_image
@@ -1484,10 +1453,8 @@ steps:
       tar xzf test.tar.gz
       tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
-      export HAIL_TEST_GCS_BUCKET=cpg-hail-test
+      export HAIL_TEST_BUCKET=cpg-hail-test
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-      export HAIL_TEST_S3_BUCKET=hail-test-dy5rg
-      export AWS_SHARED_CREDENTIALS_FILE=/test-aws-key/credentials
       python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 -n 10 test/hailtop/aiotools/test_copy.py
     inputs:
       - from: /debug-wheel-container.tar
@@ -1499,10 +1466,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: test-aws-key
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /test-aws-key
     dependsOn:
       - default_ns
       - hail_run_image
@@ -1524,7 +1487,7 @@ steps:
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
-      export HAIL_TEST_GCS_BUCKET=cpg-hail-test
+      export HAIL_TEST_BUCKET=cpg-hail-test
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       python3 -m pytest -m unchecked_allocator --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
@@ -1641,7 +1604,7 @@ steps:
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
-      export HAIL_TEST_GCS_BUCKET=cpg-hail-test
+      export HAIL_TEST_BUCKET=cpg-hail-test
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=2
       export HAIL_QUERY_BACKEND=local
@@ -1763,7 +1726,7 @@ steps:
     script: |
       set -ex
       export HAIL_SHORT_VERSION='0.2'
-      export SPHINXOPTS='-tgenerate_notebook_outputs'
+      export SPHINXOPTS='-tchecktutorial'
 
       mkdir -p {{ token }}/python
       cd {{ token }}
@@ -2501,7 +2464,6 @@ steps:
       - base_image
       - build_hail_jar_only
       - merge_code
-      - create_test_gsa_keys
   - kind: deploy
     name: deploy_query
     namespace:
@@ -3071,7 +3033,7 @@ steps:
       - deploy_batch
       - deploy_ci_agent
       - create_certs
-      - hail_buildkit_image
+      - hail_kaniko_image
   - kind: runImage
     name: test_ci
     image:
@@ -3119,7 +3081,6 @@ steps:
       cd /io/hailtop
       set -ex
       export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
-      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=0
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
@@ -3172,7 +3133,6 @@ steps:
       cd /io/hailtop
       set -ex
       export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
-      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=1
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
@@ -3225,7 +3185,6 @@ steps:
       cd /io/hailtop
       set -ex
       export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
-      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=2
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
@@ -3278,7 +3237,6 @@ steps:
       cd /io/hailtop
       set -ex
       export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
-      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=3
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
@@ -3331,7 +3289,6 @@ steps:
       cd /io/hailtop
       set -ex
       export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
-      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=4
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
@@ -3383,7 +3340,6 @@ steps:
     script: |
       set -ex
       export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
-      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       cd /io/hailtop/batch
       hailctl config set batch/billing_project test
       hailctl config set batch/bucket cpg-hail-test

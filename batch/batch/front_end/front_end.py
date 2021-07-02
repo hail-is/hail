@@ -16,7 +16,6 @@ import pymysql
 import google.oauth2.service_account
 import google.api_core.exceptions
 import humanize
-import traceback
 from prometheus_async.aio.web import server_stats  # type: ignore
 from hailtop.utils import (
     time_msecs,
@@ -68,7 +67,7 @@ from ..exceptions import (
 from ..inst_coll_config import InstanceCollectionConfigs
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
-from ..batch_configuration import BATCH_BUCKET_NAME, DEFAULT_NAMESPACE, SCOPE
+from ..batch_configuration import BATCH_BUCKET_NAME, DEFAULT_NAMESPACE
 from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION, memory_to_worker_type
 from ..spec_writer import SpecWriter
 from ..batch_format_version import BatchFormatVersion
@@ -97,21 +96,6 @@ def rest_authenticated_developers_or_auth_only(fun):
             return await fun(request, userdata, *args, **kwargs)
         raise web.HTTPUnauthorized()
 
-    return wrapped
-
-
-def catch_ui_error_in_dev(fun):
-    @wraps(fun)
-    async def wrapped(request, userdata, *args, **kwargs):
-        try:
-            return await fun(request, userdata, *args, **kwargs)
-        except aiohttp.web_exceptions.HTTPFound as e:
-            raise e
-        except Exception as e:
-            if SCOPE == 'dev':
-                log.exception('error while populating ui page')
-                raise web.HTTPInternalServerError(text=traceback.format_exc()) from e
-            raise
     return wrapped
 
 
@@ -172,15 +156,12 @@ async def _handle_ui_error(session, f, *args, **kwargs):
         await f(*args, **kwargs)
     except KeyError as e:
         set_message(session, str(e), 'error')
-        log.info(f'ui error: KeyError {e}')
         return True
     except BatchOperationAlreadyCompletedError as e:
         set_message(session, e.message, e.ui_error_type)
-        log.info(f'ui error: BatchOperationAlreadyCompletedError {e.message}')
         return True
     except BatchUserError as e:
         set_message(session, e.message, e.ui_error_type)
-        log.info(f'ui error: BatchUserError {e.message}')
         return True
     else:
         return False
@@ -341,7 +322,7 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
             except google.api_core.exceptions.NotFound:
                 id = (batch_id, job_id)
                 log.exception(f'missing log file for {id} and task {task}')
-                data = 'ERROR: could not find log file'
+                data = 'ERROR: could not read log file'
             return task, data
 
         spec = json.loads(record['spec'])
@@ -851,10 +832,6 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if user != 'ci' and not (network is None or network == 'public'):
                     raise web.HTTPBadRequest(reason=f'unauthorized network {network}')
 
-                unconfined = spec.get('unconfined')
-                if user != 'ci' and unconfined:
-                    raise web.HTTPBadRequest(reason=f'unauthorized use of unconfined={unconfined}')
-
                 spec_writer.add(json.dumps(spec))
                 db_spec = batch_format_version.db_spec(spec)
 
@@ -1201,7 +1178,6 @@ async def delete_batch(request, userdata, batch_id):  # pylint: disable=unused-a
 @routes.get('/batches/{batch_id}')
 @monitor_endpoint
 @web_billing_project_users_only()
-@catch_ui_error_in_dev
 async def ui_batch(request, userdata, batch_id):
     app = request.app
     batch = await _get_batch(app, batch_id)
@@ -1222,7 +1198,6 @@ async def ui_batch(request, userdata, batch_id):
 @monitor_endpoint
 @check_csrf_token
 @web_billing_project_users_only(redirect=False)
-@catch_ui_error_in_dev
 async def ui_cancel_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
     post = await request.post()
     q = post.get('q')
@@ -1241,7 +1216,6 @@ async def ui_cancel_batch(request, userdata, batch_id):  # pylint: disable=unuse
 @monitor_endpoint
 @check_csrf_token
 @web_billing_project_users_only(redirect=False)
-@catch_ui_error_in_dev
 async def ui_delete_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
     post = await request.post()
     q = post.get('q')
@@ -1258,7 +1232,6 @@ async def ui_delete_batch(request, userdata, batch_id):  # pylint: disable=unuse
 @routes.get('/batches', name='batches')
 @monitor_endpoint
 @web_authenticated_users_only()
-@catch_ui_error_in_dev
 async def ui_batches(request, userdata):
     user = userdata['username']
     q = request.query.get('q', f'user:{user}')
@@ -1373,7 +1346,6 @@ async def get_job(request, userdata, batch_id):  # pylint: disable=unused-argume
 @routes.get('/batches/{batch_id}/jobs/{job_id}')
 @monitor_endpoint
 @web_billing_project_users_only()
-@catch_ui_error_in_dev
 async def ui_get_job(request, userdata, batch_id):
     app = request.app
     job_id = int(request.match_info['job_id'])
@@ -1394,7 +1366,6 @@ async def ui_get_job(request, userdata, batch_id):
                 'running': dictfix.NoneOr({'duration': dictfix.NoneOr(Number)}),
             },
             'short_error': dictfix.NoneOr(str),
-            'error': dictfix.NoneOr(str),
             'container_status': {'out_of_memory': dictfix.NoneOr(bool)},
             'state': str,
         }
@@ -1409,7 +1380,6 @@ async def ui_get_job(request, userdata, batch_id):
     job_status = dictfix.dictfix(job_status, job_status_spec)
     container_statuses = job_status['container_statuses']
     step_statuses = [container_statuses['input'], container_statuses['main'], container_statuses['output']]
-    step_errors = {step: status['error'] for step, status in container_statuses.items() if status is not None}
 
     for status in step_statuses:
         # backwards compatibility
@@ -1448,8 +1418,6 @@ async def ui_get_job(request, userdata, batch_id):
         'step_statuses': step_statuses,
         'job_specification': job_specification,
         'job_status_str': json.dumps(job, indent=2),
-        'step_errors': step_errors,
-        'error': job_status.get('error')
     }
     return await render_template('batch', request, userdata, 'job.html', page_context)
 
@@ -1457,7 +1425,6 @@ async def ui_get_job(request, userdata, batch_id):
 @routes.get('/billing_limits')
 @monitor_endpoint
 @web_authenticated_users_only()
-@catch_ui_error_in_dev
 async def ui_get_billing_limits(request, userdata):
     app = request.app
     db: Database = app['db']
@@ -1532,7 +1499,6 @@ async def post_edit_billing_limits(request, userdata):  # pylint: disable=unused
 @monitor_endpoint
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
-@catch_ui_error_in_dev
 async def post_edit_billing_limits_ui(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -1614,7 +1580,6 @@ GROUP BY billing_project, `user`;
 @routes.get('/billing')
 @monitor_endpoint
 @web_authenticated_developers_only()
-@catch_ui_error_in_dev
 async def ui_get_billing(request, userdata):
     billing, start, end = await _query_billing(request)
 
@@ -1655,7 +1620,6 @@ async def ui_get_billing(request, userdata):
 @routes.get('/billing_projects')
 @monitor_endpoint
 @web_authenticated_developers_only()
-@catch_ui_error_in_dev
 async def ui_get_billing_projects(request, userdata):
     db: Database = request.app['db']
     billing_projects = await query_billing_projects(db)
@@ -1747,7 +1711,6 @@ WHERE billing_project = %s AND user = %s;
 @monitor_endpoint
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
-@catch_ui_error_in_dev
 async def post_billing_projects_remove_user(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -1812,7 +1775,6 @@ VALUES (%s, %s);
 @monitor_endpoint
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
-@catch_ui_error_in_dev
 async def post_billing_projects_add_user(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
     post = await request.post()
@@ -1868,7 +1830,6 @@ VALUES (%s);
 @monitor_endpoint
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
-@catch_ui_error_in_dev
 async def post_create_billing_projects(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
     post = await request.post()
@@ -1929,7 +1890,6 @@ FOR UPDATE;
 @monitor_endpoint
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
-@catch_ui_error_in_dev
 async def post_close_billing_projects(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -1975,7 +1935,6 @@ async def _reopen_billing_project(db, billing_project):
 @monitor_endpoint
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
-@catch_ui_error_in_dev
 async def post_reopen_billing_projects(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -2038,7 +1997,6 @@ async def refresh_inst_colls(request):
 @routes.get('')
 @routes.get('/')
 @web_authenticated_users_only()
-@catch_ui_error_in_dev
 async def index(request, userdata):  # pylint: disable=unused-argument
     location = request.app.router['batches'].url_for()
     raise web.HTTPFound(location=location)

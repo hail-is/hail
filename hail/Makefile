@@ -14,7 +14,7 @@ BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 SCALA_VERSION ?= 2.12.13
 SPARK_VERSION ?= 3.1.1
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 70
+HAIL_PATCH_VERSION := 67
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 ELASTIC_MAJOR_VERSION ?= 7
@@ -192,7 +192,7 @@ copy-py-files: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS) $(PY_FILES) 
 	mkdir -p build/deploy
 	mkdir -p build/deploy/src
 	cp ../README.md build/deploy/
-	rsync -r \
+	rsync -rv \
 	    --exclude '.eggs/' \
 	    --exclude '.pytest_cache/' \
 	    --exclude '__pycache__/' \
@@ -336,7 +336,7 @@ HAIL_CACHE_VERSION = $(shell cat python/hail/hail_version)
 .PHONY: hail-docs
 hail-docs: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	$(MAKE) -C python/hail/docs \
-	        SPHINXOPTS='-tgenerate_notebook_outputs' \
+	        SPHINXOPTS='-tchecktutorial' \
 	        BUILDDIR=$(HAIL_DIR)/build/docs/hail \
 	        html
 	mkdir -p build/www/docs

@@ -57,10 +57,6 @@ class FS(abc.ABC):
     def rmtree(self, path: str):
         pass
 
-    @abc.abstractmethod
-    def supports_scheme(self, scheme: str) -> bool:
-        pass
-
     def copy_log(self, path: str) -> None:
         log = Env.hc()._log
         try:

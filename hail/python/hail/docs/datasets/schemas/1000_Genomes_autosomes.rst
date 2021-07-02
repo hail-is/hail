@@ -4,7 +4,7 @@
 ======================
 
 *  **Versions:** phase_3
-*  **Reference genome builds:** GRCh37
+*  **Reference genome builds:** GRCh37, GRCh38
 *  **Type:** :class:`hail.MatrixTable`
 
 Schema (phase_3, GRCh37)
@@ -115,3 +115,4 @@ Schema (phase_3, GRCh37)
     Column key: ['s']
     Row key: ['locus', 'alleles']
     ----------------------------------------
+

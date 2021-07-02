@@ -54,5 +54,5 @@ trait PStruct extends PBaseStruct {
 
   def insertFields(fieldsToInsert: TraversableOnce[(String, PType)]): PStruct
 
-  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructCode
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PBaseStructCode
 }

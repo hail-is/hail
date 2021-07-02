@@ -1,9 +1,9 @@
 include ../config.mk
 
-TOKEN = $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
-
-NOTEBOOK_IMAGE := $(DOCKER_PREFIX)/notebook:$(TOKEN)
-NOTEBOOK_NGINX_IMAGE := $(DOCKER_PREFIX)/notebook_nginx:$(TOKEN)
+NOTEBOOK_LATEST = $(DOCKER_PREFIX)/notebook:latest
+NOTEBOOK_IMAGE = $(DOCKER_PREFIX)/notebook:$(shell docker images -q --no-trunc notebook | sed -e 's,[^:]*:,,')
+NOTEBOOK_NGINX_LATEST = $(DOCKER_PREFIX)/notebook_nginx:latest
+NOTEBOOK_NGINX_IMAGE = $(DOCKER_PREFIX)/notebook_nginx:$(shell docker images -q --no-trunc notebook_nginx | sed -e 's,[^:]*:,,')
 
 EXTRA_PYTHONPATH := ../hail/python:../gear:../web_common
 PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
@@ -17,24 +17,35 @@ check:
 
 .PHONY: build-notebook
 build-notebook:
-	$(MAKE) -C ../docker service-base
-	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"'$$(cat ../docker/service-base-image-ref)'"}}' Dockerfile Dockerfile.out
-	../docker-build.sh .. notebook/Dockerfile.out $(NOTEBOOK_IMAGE)
+	$(MAKE) -C ../docker build
+	-docker pull $(NOTEBOOK_LATEST)
+	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"service-base"}}' Dockerfile Dockerfile.out
+	docker build -t notebook -f Dockerfile.out --cache-from notebook,$(NOTEBOOK_LATEST),service-base ..
 
 .PHONY: build-nginx
 build-nginx:
 	$(MAKE) -C ../docker hail-ubuntu
-	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat ../docker/hail-ubuntu-image-ref)'"}}' Dockerfile.nginx Dockerfile.nginx.out
+	-docker pull $(NOTEBOOK_NGINX_LATEST)
+	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"hail-ubuntu"}}' Dockerfile.nginx Dockerfile.nginx.out
 	python3 ../ci/jinja2_render.py '{"deploy": $(DEPLOY), "default_ns": {"name": "$(NAMESPACE)"}}' nginx.conf nginx.conf.out
-	../docker-build.sh . Dockerfile.nginx.out $(NOTEBOOK_NGINX_IMAGE)
+	docker build -t notebook_nginx -f Dockerfile.nginx.out --cache-from notebook_nginx,$(NOTEBOOK_NGINX_LATEST),hail-ubuntu .
 
-.PHONY: build
-build: build-notebook build-nginx
+.PHONY: push
+push: build-notebook build-nginx
+	docker tag notebook $(NOTEBOOK_LATEST)
+	docker push $(NOTEBOOK_LATEST)
+	docker tag notebook $(NOTEBOOK_IMAGE)
+	docker push $(NOTEBOOK_IMAGE)
+	docker tag notebook_nginx $(NOTEBOOK_NGINX_LATEST)
+	docker push $(NOTEBOOK_NGINX_LATEST)
+	docker tag notebook_nginx $(NOTEBOOK_NGINX_IMAGE)
+	docker push $(NOTEBOOK_NGINX_IMAGE)
+
 
 JINJA_ENVIRONMENT = '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"notebook_image":{"image":"$(NOTEBOOK_IMAGE)"},"notebook_nginx_image":{"image":"$(NOTEBOOK_NGINX_IMAGE)"},"default_ns":{"name":"$(NAMESPACE)"},"notebook_database":{"user_secret_name":"sql-notebook-user-config"},"global":{"project":"$(PROJECT)","domain":"$(DOMAIN)","k8s_server_url":"$(KUBERNETES_SERVER_URL)"},"scope":"$(SCOPE)"}'
 
 .PHONY: deploy
-deploy: build
+deploy: push
 	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
 	E=$(JINJA_ENVIRONMENT) && \
 	  python3 ../ci/jinja2_render.py $$E deployment.yaml deployment.yaml.out && \

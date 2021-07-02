@@ -3,9 +3,8 @@ include ../config.mk
 PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}../hail/python:../gear
 PYTHON := PYTHONPATH=$(PYTHONPATH) python3
 
-TOKEN = $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
-
-MEMORY_IMAGE := $(DOCKER_PREFIX)/memory:$(TOKEN)
+MEMORY_LATEST = $(DOCKER_PREFIX)/memory:latest
+MEMORY_IMAGE = $(DOCKER_PREFIX)/memory:$(shell docker images -q --no-trunc memory | sed -e 's,[^:]*:,,')
 
 .PHONY: check
 check:
@@ -14,12 +13,21 @@ check:
 
 .PHONY: build
 build:
-	$(MAKE) -C ../docker service-base
-	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"'$$(cat ../docker/service-base-image-ref)'"}}' Dockerfile Dockerfile.out
-	../docker-build.sh .. memory/Dockerfile.out $(MEMORY_IMAGE)
+	$(MAKE) -C ../docker build
+	-docker pull $(MEMORY_LATEST)
+	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"service-base"}}' Dockerfile Dockerfile.out
+	docker build -t memory -f Dockerfile.out --cache-from memory,$(MEMORY_LATEST),service-base ..
+
+.PHONY: push
+push: build
+	docker tag memory $(MEMORY_LATEST)
+	docker push $(MEMORY_LATEST)
+	docker tag memory $(MEMORY_IMAGE)
+	docker push $(MEMORY_IMAGE)
 
 .PHONY: deploy
-deploy: build
+
+deploy: push
 	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
 	kubectl -n $(NAMESPACE) apply -f service-account.yaml
 	python3 ../ci/jinja2_render.py '{"default_ns":{"name":"$(NAMESPACE)"}}' service-account-batch-pods.yaml service-account-batch-pods.yaml.out

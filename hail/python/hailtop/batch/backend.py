@@ -1,47 +1,34 @@
-from typing import Optional, Dict, Any, TypeVar, Generic
+from typing import Optional, Dict, Any
 import sys
 import abc
 import os
 import subprocess as sp
 import uuid
 import time
-import functools
 import copy
 from shlex import quote as shq
 import webbrowser
 import warnings
-from concurrent.futures import ThreadPoolExecutor
 
 from hailtop.config import get_deploy_config, get_user_config
-from hailtop.utils import is_google_registry_domain, parse_docker_image_reference, async_to_blocking, bounded_gather, tqdm
+from hailtop.utils import is_google_registry_domain, parse_docker_image_reference
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
 import hailtop.batch_client.client as bc
 from hailtop.batch_client.client import BatchClient
-from hailtop.aiotools import RouterAsyncFS, LocalAsyncFS, AsyncFS
-from hailtop.aiogoogle import GoogleStorageAsyncFS
 
 from . import resource, batch, job as _job  # pylint: disable=unused-import
 from .exceptions import BatchException
 
 
-RunningBatchType = TypeVar('RunningBatchType')
-"""
-The type of value returned by :py:meth:`.Backend._run`. The value returned by some backends
-enables the user to monitor the asynchronous execution of a Batch.
-"""
-
-SelfType = TypeVar('SelfType')
-
-
-class Backend(abc.ABC, Generic[RunningBatchType]):
+class Backend(abc.ABC):
     """
     Abstract class for backends.
     """
     _DEFAULT_SHELL = '/bin/bash'
 
     @abc.abstractmethod
-    def _run(self, batch, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs) -> RunningBatchType:
+    def _run(self, batch, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs):
         """
         Execute a batch.
 
@@ -49,12 +36,7 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
         -------
         This method should not be called directly. Instead, use :meth:`.batch.Batch.run`.
         """
-        raise NotImplementedError()
-
-    @property
-    @abc.abstractmethod
-    def _fs(self) -> AsyncFS:
-        raise NotImplementedError()
+        return
 
     # pylint: disable=R0201
     def close(self):
@@ -63,14 +45,14 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
         """
         return
 
-    def __enter__(self: SelfType) -> SelfType:
+    def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
 
-class LocalBackend(Backend[None]):
+class LocalBackend(Backend):
     """
     Backend that executes batches on a local computer.
 
@@ -113,18 +95,13 @@ class LocalBackend(Backend[None]):
             flags += f' -v {gsa_key_file}:/gsa-key/key.json'
 
         self._extra_docker_run_flags = flags
-        self.__fs: AsyncFS = LocalAsyncFS(ThreadPoolExecutor())
-
-    @property
-    def _fs(self):
-        return self.__fs
 
     def _run(self,
              batch: 'batch.Batch',
              dry_run: bool,
              verbose: bool,
              delete_scratch_on_exit: bool,
-             **backend_kwargs) -> None:  # pylint: disable=R0915
+             **backend_kwargs):  # pylint: disable=R0915
         """
         Execute a batch.
 
@@ -149,24 +126,11 @@ class LocalBackend(Backend[None]):
 
         tmpdir = self._get_scratch_dir()
 
-        def new_code_block():
-            return ['set -e' + ('x' if verbose else ''),
-                    '\n',
-                    '# change cd to tmp directory',
-                    f"cd {tmpdir}",
-                    '\n']
-
-        def run_code(code):
-            code = '\n'.join(code)
-            if dry_run:
-                print(code)
-            else:
-                try:
-                    sp.check_call(code, shell=True)
-                except sp.CalledProcessError as e:
-                    print(e)
-                    print(e.output)
-                    raise
+        lines = ['set -e' + ('x' if verbose else ''),
+                 '\n',
+                 '# change cd to tmp directory',
+                 f"cd {tmpdir}",
+                 '\n']
 
         copied_input_resource_files = set()
         os.makedirs(tmpdir + '/inputs/', exist_ok=True)
@@ -182,7 +146,7 @@ class LocalBackend(Backend[None]):
                     copied_input_resource_files.add(r)
 
                     if r._input_path.startswith('gs://'):
-                        return [f'gsutil {requester_pays_project} cp -r {shq(r._input_path)} {shq(r._get_path(tmpdir))}']
+                        return [f'gsutil {requester_pays_project} cp {shq(r._input_path)} {shq(r._get_path(tmpdir))}']
 
                     absolute_input_path = os.path.realpath(r._input_path)
 
@@ -207,7 +171,7 @@ class LocalBackend(Backend[None]):
                     directory = os.path.dirname(dest)
                     os.makedirs(directory, exist_ok=True)
                     return 'cp'
-                return f'gsutil {requester_pays_project} cp -r'
+                return f'gsutil {requester_pays_project} cp'
 
             if isinstance(r, resource.InputResourceFile):
                 return [f'{_cp(dest)} {shq(r._input_path)} {shq(dest)}'
@@ -226,78 +190,81 @@ class LocalBackend(Backend[None]):
                     symlinks.append(f'ln -sf {shq(src)} {shq(dest)}')
             return symlinks
 
-        try:
-            write_inputs = [x for r in batch._input_resources for x in copy_external_output(r)]
-            if write_inputs:
-                code = new_code_block()
-                code += ["# Write input resources to output destinations"]
-                code += write_inputs
-                code += ['\n']
-                run_code(code)
+        write_inputs = [x for r in batch._input_resources for x in copy_external_output(r)]
+        if write_inputs:
+            lines += ["# Write input resources to output destinations"]
+            lines += write_inputs
+            lines += ['\n']
 
-            for job in batch._jobs:
-                if isinstance(job, _job.PythonJob):
-                    async_to_blocking(job._compile(tmpdir, tmpdir))
+        for job in batch._jobs:
+            if isinstance(job, _job.PythonJob):
+                job._compile(tmpdir, tmpdir)
 
-                os.makedirs(f'{tmpdir}/{job._job_id}/', exist_ok=True)
+            os.makedirs(f'{tmpdir}/{job._job_id}/', exist_ok=True)
 
-                code = new_code_block()
+            lines.append(f"# {job._job_id}: {job.name if job.name else ''}")
 
-                code.append(f"# {job._job_id}: {job.name if job.name else ''}")
+            lines += [x for r in job._inputs for x in copy_input(job, r)]
+            lines += [x for r in job._mentioned for x in symlink_input_resource_group(r)]
 
-                code += [x for r in job._inputs for x in copy_input(job, r)]
-                code += [x for r in job._mentioned for x in symlink_input_resource_group(r)]
+            resource_defs = [r._declare(tmpdir) for r in job._mentioned]
+            env = [f'export {k}={v}' for k, v in job._env.items()]
 
-                resource_defs = [r._declare(tmpdir) for r in job._mentioned]
-                env = [f'export {k}={v}' for k, v in job._env.items()]
+            job_shell = job._shell if job._shell else self._DEFAULT_SHELL
 
-                job_shell = job._shell if job._shell else self._DEFAULT_SHELL
+            defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
+            joined_env = '; '.join(env) + '; ' if env else ''
 
-                defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
-                joined_env = '; '.join(env) + '; ' if env else ''
+            cmd = " && ".join(f'{{\n{x}\n}}' for x in job._command)
 
-                cmd = " && ".join(f'{{\n{x}\n}}' for x in job._command)
+            quoted_job_script = shq(joined_env + defs + cmd)
 
-                quoted_job_script = shq(joined_env + defs + cmd)
+            if job._image:
+                cpu = f'--cpus={job._cpu}' if job._cpu else ''
 
-                if job._image:
-                    cpu = f'--cpus={job._cpu}' if job._cpu else ''
-
-                    memory = job._memory
-                    if memory is not None:
-                        memory_ratios = {'lowmem': 1024**3, 'standard': 4 * 1024**3, 'highmem': 7 * 1024**3}
-                        if memory in memory_ratios:
-                            if job._cpu is not None:
-                                mcpu = parse_cpu_in_mcpu(job._cpu)
-                                if mcpu is not None:
-                                    memory = str(int(memory_ratios[memory] * (mcpu / 1000)))
-                                else:
-                                    raise BatchException(f'invalid value for cpu: {job._cpu}')
+                memory = job._memory
+                if memory is not None:
+                    memory_ratios = {'lowmem': 1024**3, 'standard': 4 * 1024**3, 'highmem': 7 * 1024**3}
+                    if memory in memory_ratios:
+                        if job._cpu is not None:
+                            mcpu = parse_cpu_in_mcpu(job._cpu)
+                            if mcpu is not None:
+                                memory = str(int(memory_ratios[memory] * (mcpu / 1000)))
                             else:
-                                raise BatchException(f'must specify cpu when using {memory} to specify the memory')
-                        memory = f'-m {memory}' if memory else ''
-                    else:
-                        memory = ''
+                                raise BatchException(f'invalid value for cpu: {job._cpu}')
+                        else:
+                            raise BatchException(f'must specify cpu when using {memory} to specify the memory')
+                    memory = f'-m {memory}' if memory else ''
 
-                    code.append(f"docker run "
-                                "--entrypoint=''"
-                                f"{self._extra_docker_run_flags} "
-                                f"-v {tmpdir}:{tmpdir} "
-                                f"-w {tmpdir} "
-                                f"{memory} "
-                                f"{cpu} "
-                                f"{job._image} "
-                                f"{job_shell} -c {quoted_job_script}")
-                else:
-                    code.append(f"{job_shell} -c {quoted_job_script}")
+                lines.append(f"docker run "
+                             "--entrypoint=''"
+                             f"{self._extra_docker_run_flags} "
+                             f"-v {tmpdir}:{tmpdir} "
+                             f"-w {tmpdir} "
+                             f"{memory} "
+                             f"{cpu} "
+                             f"{job._image} "
+                             f"{job_shell} -c {quoted_job_script}")
+            else:
+                lines.append(f"{job_shell} -c {quoted_job_script}")
 
-                code += [x for r in job._external_outputs for x in copy_external_output(r)]
-                code += ['\n']
+            lines += [x for r in job._external_outputs for x in copy_external_output(r)]
+            lines += ['\n']
 
-                run_code(code)
-        finally:
-            if delete_scratch_on_exit:
-                sp.run(f'rm -rf {tmpdir}', shell=True, check=False)
+        script = "\n".join(lines)
+
+        if dry_run:
+            print(lines)
+        else:
+            try:
+                sp.check_call(script, shell=True)
+            except sp.CalledProcessError as e:
+                print(e)
+                print(e.output)
+                raise
+            finally:
+                if delete_scratch_on_exit:
+                    sp.run(f'rm -rf {tmpdir}', shell=True, check=False)
 
         print('Batch completed successfully!')
 
@@ -311,17 +278,14 @@ class LocalBackend(Backend[None]):
 
         return _get_random_name()
 
-    def close(self):
-        async_to_blocking(self._fs.close())
 
-
-class ServiceBackend(Backend[bc.Batch]):
+class ServiceBackend(Backend):
     """Backend that executes batches on Hail's Batch Service on Google Cloud.
 
     Examples
     --------
 
-    >>> service_backend = ServiceBackend('my-billing-account', bucket='my-bucket') # doctest: +SKIP
+    >>> service_backend = ServiceBackend('my-billing-account', 'my-bucket') # doctest: +SKIP
     >>> b = Batch(backend=service_backend) # doctest: +SKIP
     >>> b.run() # doctest: +SKIP
     >>> service_backend.close() # doctest: +SKIP
@@ -335,58 +299,22 @@ class ServiceBackend(Backend[bc.Batch]):
     >>> b.run() # doctest: +SKIP
     >>> service_backend.close()
 
-    Instead of a bucket, a full path may be specified for the remote temporary directory:
-
-    >>> service_backend = ServiceBackend('my-billing-account',
-    ...                                  remote_tmpdir='gs://my-bucket/temporary-files/')
-    >>> b = Batch(backend=service_backend)
-    >>> b.run() # doctest: +SKIP
-    >>> service_backend.close()
-
     Parameters
     ----------
     billing_project:
         Name of billing project to use.
     bucket:
-        Name of bucket to use. Should not include the ``gs://`` prefix. Cannot be used with
-        remote_tmpdir. Temporary data will be stored in the "/batch" folder of this
-        bucket. Using this parameter as a positional argument is deprecated.
-    remote_tmpdir:
-        Temporary data will be stored in this google cloud storage folder. Cannot be used with
-        bucket.
-    google_project:
-        If specified, the project to use when authenticating with Google
-        Storage. Google Storage is used to transfer serialized values between
-        this computer and the cloud machines that execute Python jobs.
+        Name of bucket to use.  Should not include the ``gs://``
+        prefix.
     token:
         The authorization token to pass to the batch client.
         Should only be set for user delegation purposes.
     """
 
     def __init__(self,
-                 *args,
-                 billing_project: Optional[str] = None,
-                 bucket: Optional[str] = None,
-                 remote_tmpdir: Optional[str] = None,
-                 google_project: Optional[str] = None,
-                 token: str = None
-    ):
-        if len(args) > 2:
-            raise TypeError(f'ServiceBackend() takes 2 positional arguments but {len(args)} were given')
-        if len(args) >= 1:
-            if billing_project is not None:
-                raise TypeError('ServiceBackend() got multiple values for argument \'billing_project\'')
-            warnings.warn('Use of deprecated positional argument \'billing_project\' in ServiceBackend(). Specify \'billing_project\' as a keyword argument instead.')
-            billing_project = args[0]
-        if len(args) >= 2:
-            if bucket is not None:
-                raise TypeError('ServiceBackend() got multiple values for argument \'bucket\'')
-            warnings.warn('Use of deprecated positional argument \'bucket\' in ServiceBackend(). Specify \'bucket\' as a keyword argument instead.')
-            bucket = args[1]
-
-        if remote_tmpdir is not None and bucket is not None:
-            raise ValueError('Cannot specify both remote_tmpdir and bucket in ServiceBackend()')
-
+                 billing_project: str = None,
+                 bucket: str = None,
+                 token: str = None):
         if billing_project is None:
             billing_project = get_user_config().get('batch', 'billing_project', fallback=None)
         if billing_project is None:
@@ -395,31 +323,15 @@ class ServiceBackend(Backend[bc.Batch]):
                 'or run `hailctl config set batch/billing_project '
                 'MY_BILLING_PROJECT`')
         self._batch_client = BatchClient(billing_project, _token=token)
-        self.__fs: AsyncFS = RouterAsyncFS('file', [LocalAsyncFS(ThreadPoolExecutor()),
-                                                    GoogleStorageAsyncFS(project=google_project)])
-        if remote_tmpdir is None:
-            if bucket is None:
-                bucket = get_user_config().get('batch', 'bucket', fallback=None)
-            if bucket is None:
-                raise ValueError(
-                    'either the bucket or remote_tmpdir parameter of ServiceBackend '
-                    'must be set or run `hailctl config set batch/bucket MY_BUCKET`')
-            if 'gs://' in bucket:
-                raise ValueError(
-                    'The bucket parameter to ServiceBackend() should be a bucket name, not a path. '
-                    'Use the remote_tmpdir parameter to specify a path.')
-            remote_tmpdir = f'gs://{bucket}/batch'
-        else:
-            if not remote_tmpdir.startswith('gs://'):
-                raise ValueError(
-                    'remote_tmpdir must be a google storage path like gs://bucket/folder')
-        if remote_tmpdir[-1] != '/':
-            remote_tmpdir += '/'
-        self.remote_tmpdir = remote_tmpdir
 
-    @property
-    def _fs(self):
-        return self.__fs
+        if bucket is None:
+            bucket = get_user_config().get('batch', 'bucket', fallback=None)
+        if bucket is None:
+            raise ValueError(
+                'the bucket parameter of ServiceBackend must be set '
+                'or run `hailctl config set batch/bucket '
+                'MY_BUCKET`')
+        self._bucket_name = bucket
 
     def close(self):
         """
@@ -431,7 +343,6 @@ class ServiceBackend(Backend[bc.Batch]):
         end of your script.
         """
         self._batch_client.close()
-        async_to_blocking(self._fs.close())
 
     def _run(self,
              batch: 'batch.Batch',
@@ -443,7 +354,7 @@ class ServiceBackend(Backend[bc.Batch]):
              disable_progress_bar: bool = False,
              callback: Optional[str] = None,
              token: Optional[str] = None,
-             **backend_kwargs) -> bc.Batch:  # pylint: disable-msg=too-many-statements
+             **backend_kwargs):  # pylint: disable-msg=too-many-statements
         """Execute a batch.
 
         Warning
@@ -473,27 +384,14 @@ class ServiceBackend(Backend[bc.Batch]):
         token:
             If not `None`, a string used for idempotency of batch submission.
         """
-        return async_to_blocking(
-            self._async_run(batch, dry_run, verbose, delete_scratch_on_exit, wait, open, disable_progress_bar, callback, token, **backend_kwargs))
 
-    async def _async_run(self,
-                         batch: 'batch.Batch',
-                         dry_run: bool,
-                         verbose: bool,
-                         delete_scratch_on_exit: bool,
-                         wait: bool = True,
-                         open: bool = False,
-                         disable_progress_bar: bool = False,
-                         callback: Optional[str] = None,
-                         token: Optional[str] = None,
-                         **backend_kwargs):  # pylint: disable-msg=too-many-statements
         if backend_kwargs:
             raise ValueError(f'ServiceBackend does not support any of these keywords: {backend_kwargs}')
 
         build_dag_start = time.time()
 
         uid = uuid.uuid4().hex[:6]
-        batch_remote_tmpdir = f'{self.remote_tmpdir}{uid}'
+        remote_tmpdir = f'gs://{self._bucket_name}/batch/{uid}'
         local_tmpdir = f'/io/batch/{uid}'
 
         default_image = 'ubuntu:18.04'
@@ -521,11 +419,11 @@ class ServiceBackend(Backend[bc.Batch]):
             if isinstance(r, resource.InputResourceFile):
                 return [(r._input_path, r._get_path(local_tmpdir))]
             assert isinstance(r, (resource.JobResourceFile, resource.PythonResult))
-            return [(r._get_path(batch_remote_tmpdir), r._get_path(local_tmpdir))]
+            return [(r._get_path(remote_tmpdir), r._get_path(local_tmpdir))]
 
         def copy_internal_output(r):
             assert isinstance(r, (resource.JobResourceFile, resource.PythonResult))
-            return [(r._get_path(local_tmpdir), r._get_path(batch_remote_tmpdir))]
+            return [(r._get_path(local_tmpdir), r._get_path(remote_tmpdir))]
 
         def copy_external_output(r):
             if isinstance(r, resource.InputResourceFile):
@@ -562,22 +460,16 @@ class ServiceBackend(Backend[bc.Batch]):
                 jobs_to_command[j] = write_cmd
                 n_jobs_submitted += 1
 
-        pyjobs = [j for j in batch._jobs if isinstance(j, _job.PythonJob)]
-        for job in pyjobs:
-            if job._image is None:
-                version = sys.version_info
-                if version.major != 3 or version.minor not in (6, 7, 8):
-                    raise BatchException(
-                        f"You must specify 'image' for Python jobs if you are using a Python version other than 3.6, 3.7, or 3.8 (you are using {version})")
-                job._image = f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
+        for job in batch._jobs:
+            if isinstance(job, _job.PythonJob):
+                if job._image is None:
+                    version = sys.version_info
+                    if version.major != 3 or version.minor not in (6, 7, 8):
+                        raise BatchException(
+                            f"You must specify 'image' for Python jobs if you are using a Python version other than 3.6, 3.7, or 3.8 (you are using {version})")
+                    job._image = f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
+                job._compile(local_tmpdir, remote_tmpdir)
 
-        with tqdm(total=len(pyjobs), desc='upload python functions', disable=disable_progress_bar) as pbar:
-            async def compile_job(job):
-                await job._compile(local_tmpdir, batch_remote_tmpdir)
-                pbar.update(1)
-            await bounded_gather(*[functools.partial(compile_job, j) for j in pyjobs], parallelism=150)
-
-        for job in tqdm(batch._jobs, desc='create job objects', disable=disable_progress_bar):
             inputs = [x for r in job._inputs for x in copy_input(r)]
 
             outputs = [x for r in job._internal_outputs for x in copy_internal_output(r)]
@@ -660,7 +552,7 @@ class ServiceBackend(Backend[bc.Batch]):
 
         if delete_scratch_on_exit and used_remote_tmpdir:
             parents = list(jobs_to_command.keys())
-            rm_cmd = f'gsutil -m rm -r {batch_remote_tmpdir}'
+            rm_cmd = f'gsutil -m rm -r {remote_tmpdir}'
             cmd = f'''
 {bash_flags}
 {activate_service_account}

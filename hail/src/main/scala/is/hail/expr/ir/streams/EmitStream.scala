@@ -5,12 +5,11 @@ import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.services.shuffler.CompileTimeShuffleClient
-import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
-import is.hail.types.physical.stypes.{EmitType, SType}
+import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete.SCanonicalShufflePointerSettable
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Code}
-import is.hail.types.physical.{PCanonicalArray, PCanonicalStream, PCanonicalStruct, PInterval, PStruct, PType}
+import is.hail.types.physical.{PCanonicalStream, PCode, PInterval, PStruct, PType}
 import is.hail.types.virtual.{TInterval, TShuffle, TStream}
 import is.hail.utils._
 
@@ -143,33 +142,31 @@ object EmitStream {
     streamIR: IR,
     cb: EmitCodeBuilder,
     outerRegion: Value[Region],
-    env: EmitEnv,
+    env: Emit.E,
     container: Option[AggContainer]
   ): IEmitCode = {
 
     val mb = cb.emb
 
 
-    def emitVoid(ir: IR, cb: EmitCodeBuilder, region: Value[Region] = outerRegion, env: EmitEnv = env, container: Option[AggContainer] = container): Unit =
+    def emitVoid(ir: IR, cb: EmitCodeBuilder, region: Value[Region] = outerRegion, env: Emit.E = env, container: Option[AggContainer] = container): Unit =
       emitter.emitVoid(cb, ir, region, env, container, None)
 
-    def emit(ir: IR, cb: EmitCodeBuilder, region: Value[Region] = outerRegion, env: EmitEnv = env, container: Option[AggContainer] = container): IEmitCode = {
+    def emit(ir: IR, cb: EmitCodeBuilder, region: Value[Region] = outerRegion, env: Emit.E = env, container: Option[AggContainer] = container): IEmitCode = {
       ir.typ match {
         case _: TStream => produce(ir, cb, region, env, container)
         case _ => emitter.emitI(ir, cb, region, env, container, None)
       }
     }
 
-    def produce(streamIR: IR, cb: EmitCodeBuilder, region: Value[Region] = outerRegion, env: EmitEnv = env, container: Option[AggContainer] = container): IEmitCode =
+    def produce(streamIR: IR, cb: EmitCodeBuilder, region: Value[Region] = outerRegion, env: Emit.E = env, container: Option[AggContainer] = container): IEmitCode =
       EmitStream.produce(emitter, streamIR, cb, region, env, container)
-
-    def typeWithReqx(node: IR): VirtualTypeWithReq = VirtualTypeWithReq(node.typ, emitter.ctx.req.lookup(node).asInstanceOf[TypeWithRequiredness])
-    def typeWithReq: VirtualTypeWithReq = typeWithReqx(streamIR)
 
     streamIR match {
 
-      case x@NA(_typ) =>
-        val st = typeWithReq.canonicalEmitType.st.asInstanceOf[SStream]
+      case NA(_typ) =>
+        val eltType = streamIR.pType.asInstanceOf[PCanonicalStream].elementType
+        val st = SStream(eltType.sType, false)
         val region = mb.genFieldThisRef[Region]("na_region")
         val producer = new StreamProducer {
           override def initialize(cb: EmitCodeBuilder): Unit = {}
@@ -180,15 +177,15 @@ object EmitStream {
           override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
             cb.goto(LendOfStream)
           }
-          override val element: EmitCode = EmitCode.present(mb, st.elementType.defaultValue)
+          override val element: EmitCode = EmitCode.present(mb, eltType.defaultValue(mb))
 
           override def close(cb: EmitCodeBuilder): Unit = {}
         }
-        IEmitCode.missing(cb, SStreamCode(producer))
+        IEmitCode.missing(cb, SStreamCode(st, producer))
 
       case Ref(name, _typ) =>
         assert(_typ.isInstanceOf[TStream])
-        env.bindings.lookup(name).toI(cb)
+        env.lookup(name).toI(cb)
           .map(cb) { case (stream: SStreamCode) =>
             val childProducer = stream.producer
             val producer = new StreamProducer {
@@ -219,7 +216,7 @@ object EmitStream {
 
       case In(n, _) =>
         // this, Code[Region], ...
-        val param = env.inputValues(n).apply(outerRegion)
+        val param = mb.getEmitParam(2 + n, outerRegion)
         if (!param.st.isInstanceOf[SStream])
           throw new RuntimeException(s"parameter ${ 2 + n } is not a stream! t=${ param.st } }, params=${ mb.emitParamTypes }")
         param.load.toI(cb)
@@ -227,12 +224,13 @@ object EmitStream {
       case ToStream(a, _requiresMemoryManagementPerElement) =>
 
         emit(a, cb).map(cb) { case ind: SIndexableCode =>
-          val containerField = mb.newPField("tostream_arr", ind.st)
+          val containerField = mb.newPField("tostream_arr", ind.pt)
           val container = containerField.asInstanceOf[SIndexableValue]
           val idx = mb.genFieldThisRef[Int]("tostream_idx")
           val regionVar = mb.genFieldThisRef[Region]("tostream_region")
 
           SStreamCode(
+            SStream(ind.st.elementType, ind.pt.required),
             new StreamProducer {
               override def initialize(cb: EmitCodeBuilder): Unit = {
                 cb.assign(containerField, ind)
@@ -252,7 +250,7 @@ object EmitStream {
               }
 
               val element: EmitCode = EmitCode.fromI(mb) { cb =>
-                container.loadElement(cb, idx) }
+                container.loadElement(cb, idx).typecast[PCode] }
 
               def close(cb: EmitCodeBuilder): Unit = {}
             })
@@ -263,16 +261,14 @@ object EmitStream {
         val region = mb.genFieldThisRef[Region]("makestream_region")
         val emittedArgs = args.map(a => EmitCode.fromI(mb)(cb => emit(a, cb, region))).toFastIndexedSeq
 
-        // FIXME use SType.chooseCompatibleType
-        val st = typeWithReq.canonicalEmitType.st.asInstanceOf[SStream]
-        val unifiedType = st.elementEmitType
-        val eltField = mb.newEmitField("makestream_elt", unifiedType)
+        val unifiedType = x.pType.asInstanceOf[PCanonicalStream].elementType.sType // FIXME
+        val eltField = mb.newEmitField("makestream_elt", EmitType(unifiedType, emittedArgs.forall(_.required)))
 
         val staticLen = args.size
         val current = mb.genFieldThisRef[Int]("makestream_current")
 
         IEmitCode.present(cb, SStreamCode(
-          st,
+          SStream(unifiedType, required = true),
           new StreamProducer {
             override def initialize(cb: EmitCodeBuilder): Unit = {
               cb.assign(current, 0) // switches on 1..N
@@ -292,7 +288,7 @@ object EmitStream {
                 },
                 emittedArgs.map { elem =>
                   EmitCodeBuilder.scopedVoid(mb) { cb =>
-                    cb.assign(eltField, elem.toI(cb).map(cb)(pc => pc.castTo(cb, region, unifiedType.st, false)))
+                    cb.assign(eltField, elem.toI(cb).map(cb)(pc => pc.castTo(cb, region, unifiedType.pType, false)))
                     cb.goto(LendOfSwitch)
                   }
                 })
@@ -321,10 +317,7 @@ object EmitStream {
           val leftProducer = leftEC.pv.asStream.producer
           val rightProducer = rightEC.pv.asStream.producer
 
-          val unifiedStreamSType = typeWithReq.canonicalEmitType.st.asInstanceOf[SStream]
-          val unifiedElementType = unifiedStreamSType.elementEmitType
-
-          val xElt = mb.newEmitField(unifiedElementType)
+          val xElt = mb.newEmitField(x.pType.asInstanceOf[PCanonicalStream].elementType, leftEC.required && rightEC.required) // FIXME unify here
 
           val region = mb.genFieldThisRef[Region]("streamif_region")
           cb.ifx(xCond,
@@ -357,11 +350,11 @@ object EmitStream {
               cb.ifx(xCond, cb.goto(leftProducer.LproduceElement), cb.goto(rightProducer.LproduceElement))
 
               cb.define(leftProducer.LproduceElementDone)
-              cb.assign(xElt, leftProducer.element.toI(cb).map(cb)(_.castTo(cb, region, xElt.st)))
+              cb.assign(xElt, leftProducer.element.toI(cb).map(cb)(_.castTo(cb, region, xElt.pt)))
               cb.goto(LproduceElementDone)
 
               cb.define(rightProducer.LproduceElementDone)
-              cb.assign(xElt, rightProducer.element.toI(cb).map(cb)(_.castTo(cb, region, xElt.st)))
+              cb.assign(xElt, rightProducer.element.toI(cb).map(cb)(_.castTo(cb, region, xElt.pt)))
               cb.goto(LproduceElementDone)
 
               cb.define(leftProducer.LendOfStream)
@@ -379,7 +372,7 @@ object EmitStream {
           }
 
           IEmitCode(Lmissing, Lpresent,
-            SStreamCode(producer),
+            SStreamCode(SStream(xElt.st, required = leftEC.pt.required && rightEC.pt.required), producer),
             leftEC.required && rightEC.required)
         }
 
@@ -443,11 +436,14 @@ object EmitStream {
                   cb.goto(LproduceElementDone)
                 }
 
-                val element: EmitCode = EmitCode.present(mb, new SInt32Code(curr))
+                val element: EmitCode = EmitCode.present(mb, new SInt32Code(true, curr))
 
                 def close(cb: EmitCodeBuilder): Unit = {}
               }
-              SStreamCode(producer)
+              SStreamCode(
+                SStream(SInt32(true), required = true),
+                producer
+              )
             }
           }
         }
@@ -513,7 +509,9 @@ object EmitStream {
               cb.goto(producer.LendOfStream)
             }
 
-            SStreamCode(producer)
+            SStreamCode(
+              childStream.st,
+              producer)
           }
 
       case StreamTake(a, num) =>
@@ -555,7 +553,7 @@ object EmitStream {
                 }
               }
 
-              SStreamCode(producer)
+              SStreamCode(childStream.st, producer)
             }
           }
 
@@ -602,7 +600,7 @@ object EmitStream {
                 }
               }
 
-              SStreamCode(producer)
+              SStreamCode(childStream.st, producer)
             }
           }
 
@@ -646,15 +644,17 @@ object EmitStream {
               cb.goto(producer.LendOfStream)
             }
 
-            SStreamCode(producer)
+            SStreamCode(
+              SStream(bodyResult.st, required = childStream.st.required),
+              producer
+            )
           }
 
       case x@StreamScan(childIR, zeroIR, accName, eltName, bodyIR) =>
         produce(childIR, cb).map(cb) { case (childStream: SStreamCode) =>
           val childProducer = childStream.producer
 
-          val accEmitType = VirtualTypeWithReq(zeroIR.typ, emitter.ctx.req.lookupState(x).head.asInstanceOf[TypeWithRequiredness]).canonicalEmitType
-
+          val accEmitType = EmitType(x.accPType.sType, x.accPType.required)
           val accValueAccRegion = mb.newEmitField(accEmitType)
           val accValueEltRegion = mb.newEmitField(accEmitType)
 
@@ -686,7 +686,7 @@ object EmitStream {
               cb.ifx(first, {
 
                 cb.assign(first, false)
-                cb.assign(accValueEltRegion, emit(zeroIR, cb, region = elementRegion).map(cb)(sc => sc.castTo(cb, elementRegion, accValueAccRegion.st)))
+                cb.assign(accValueEltRegion, emit(zeroIR, cb, region = elementRegion))
 
                 cb.goto(LcopyAndReturn)
               })
@@ -697,13 +697,13 @@ object EmitStream {
 
               if (requiresMemoryManagementPerElement) {
                 // deep copy accumulator into element region, then clear accumulator region
-                cb.assign(accValueEltRegion, accValueAccRegion.toI(cb).map(cb)(_.castTo(cb, childProducer.elementRegion, accEmitType.st, deepCopy = true)))
+                cb.assign(accValueEltRegion, accValueAccRegion.toI(cb).map(cb)(_.castTo(cb, childProducer.elementRegion, x.accPType, deepCopy = true)))
                 cb += accRegion.clearRegion()
               }
 
               val bodyCode = cb.withScopedMaybeStreamValue(childProducer.element, "scan_child_elt") { ev =>
                 emit(bodyIR, cb, env = env.bind((accName, accValueEltRegion), (eltName, ev)), region = childProducer.elementRegion)
-                  .map(cb)(pc => pc.castTo(cb, childProducer.elementRegion, accEmitType.st, deepCopy = false))
+                  .map(cb)(pc => pc.castTo(cb, childProducer.elementRegion, x.accPType, deepCopy = false))
               }
 
               cb.assign(accValueEltRegion, bodyCode)
@@ -711,7 +711,7 @@ object EmitStream {
               cb.define(LcopyAndReturn)
 
               if (requiresMemoryManagementPerElement) {
-                cb.assign(accValueAccRegion, accValueEltRegion.toI(cb).map(cb)(pc => pc.castTo(cb, accRegion, accEmitType.st, deepCopy = true)))
+                cb.assign(accValueAccRegion, accValueEltRegion.toI(cb).map(cb)(pc => pc.castTo(cb, accRegion, x.accPType, deepCopy = true)))
               }
 
               cb.goto(LproduceElementDone)
@@ -730,7 +730,7 @@ object EmitStream {
             cb.goto(producer.LendOfStream)
           }
 
-          SStreamCode(producer)
+          SStreamCode(SStream(accValueEltRegion.st, childStream.st.required), producer)
         }
 
       case RunAggScan(child, name, init, seqs, result, states) =>
@@ -776,7 +776,7 @@ object EmitStream {
             cb.goto(producer.LendOfStream)
           }
 
-          SStreamCode(producer)
+          SStreamCode(SStream(producer.element.st, childStream.st.required), producer)
         }
 
       case StreamFlatMap(a, name, body) =>
@@ -899,7 +899,10 @@ object EmitStream {
             cb.goto(producer.LendOfStream)
           }
 
-          SStreamCode(producer)
+          SStreamCode(
+            SStream(innerProducer.element.st, required = outerStream.st.required),
+            producer
+          )
         }
 
       case x@StreamJoinRightDistinct(leftIR, rightIR, lKey, rKey, leftName, rightName, joinIR, joinType) =>
@@ -918,8 +921,8 @@ object EmitStream {
               assert(lelt.emitType == lEltType)
               assert(relt.emitType == rEltType)
 
-              val lhs = EmitCode.fromI(mb)(cb => lelt.toI(cb).map(cb)(_.asBaseStruct.subset(lKey: _*)))
-              val rhs = EmitCode.fromI(mb)(cb => relt.toI(cb).map(cb)(_.asBaseStruct.subset(rKey: _*)))
+              val lhs = EmitCode.fromI(mb)(cb => lelt.toI(cb).map(cb)(_.asBaseStruct.subset(lKey: _*).asPCode))
+              val rhs = EmitCode.fromI(mb)(cb => relt.toI(cb).map(cb)(_.asBaseStruct.subset(rKey: _*).asPCode))
               StructOrdering.make(lhs.st.asInstanceOf[SBaseStruct], rhs.st.asInstanceOf[SBaseStruct],
                 cb.emb.ecb, missingFieldsEqual = false)
                 .compare(cb, lhs, rhs, missingEqual = false)
@@ -984,7 +987,7 @@ object EmitStream {
                     cb.ifx(c > 0, cb.goto(LpullRight))
 
                     cb.ifx(c < 0, {
-                      cb.assign(rxOut, EmitCode.missing(mb, rxOut.st))
+                      cb.assign(rxOut, EmitCode.missing(mb, rxOut.pt))
                     }, {
                       // c == 0
                       if (rightProducer.requiresMemoryManagementPerElement) {
@@ -1007,7 +1010,7 @@ object EmitStream {
 
                     // if right stream ends before left
                     cb.define(rightProducer.LendOfStream)
-                    cb.assign(rxOut, EmitCode.missing(mb, rxOut.st))
+                    cb.assign(rxOut, EmitCode.missing(mb, rxOut.pt))
                     cb.assign(rightEOS, true)
 
                     if (leftProducer.requiresMemoryManagementPerElement)
@@ -1029,7 +1032,7 @@ object EmitStream {
                 }
 
 
-                SStreamCode(producer)
+                SStreamCode(SStream(producer.element.st, leftStream.st.required && rightStream.st.required), producer)
 
               case "outer" =>
 
@@ -1094,8 +1097,6 @@ object EmitStream {
                     cb.goto(rightProducer.LproduceElement)
 
                     cb.define(LpullLeft)
-                    if (leftProducer.requiresMemoryManagementPerElement)
-                      cb += leftProducer.elementRegion.clearRegion()
                     cb.goto(leftProducer.LproduceElement)
 
                     val Lcompare = CodeLabel()
@@ -1109,6 +1110,7 @@ object EmitStream {
                             cb.assign(lOutMissing, true)
                             if (rightProducer.requiresMemoryManagementPerElement) {
                               cb += elementRegion.trackAndIncrementReferenceCountOf(rightProducer.elementRegion)
+                              cb += rightProducer.elementRegion.clearRegion()
                             }
                             cb.goto(Lpush)
                           },
@@ -1123,6 +1125,7 @@ object EmitStream {
                               cb.assign(rOutMissing, true)
                               if (leftProducer.requiresMemoryManagementPerElement) {
                                 cb += elementRegion.trackAndIncrementReferenceCountOf(leftProducer.elementRegion)
+                                cb += leftProducer.elementRegion.clearRegion()
                               }
                               cb.goto(Lpush)
                             },
@@ -1130,9 +1133,11 @@ object EmitStream {
                               // c == 0
                               if (leftProducer.requiresMemoryManagementPerElement) {
                                 cb += elementRegion.trackAndIncrementReferenceCountOf(leftProducer.elementRegion)
+                                cb += leftProducer.elementRegion.clearRegion()
                               }
                               if (rightProducer.requiresMemoryManagementPerElement) {
                                 cb += elementRegion.trackAndIncrementReferenceCountOf(rightProducer.elementRegion)
+                                cb += rightProducer.elementRegion.clearRegion()
                               }
                               cb.goto(Lpush)
                             })
@@ -1141,11 +1146,11 @@ object EmitStream {
 
                     mb.implementLabel(Lpush) { cb =>
                       cb.ifx(lOutMissing,
-                        cb.assign(lxOut, EmitCode.missing(mb, lxOut.st)),
+                        cb.assign(lxOut, EmitCode.missing(mb, lxOut.pt)),
                         cb.assign(lxOut, lx)
                       )
                       cb.ifx(rOutMissing,
-                        cb.assign(rxOut, EmitCode.missing(mb, rxOut.st)),
+                        cb.assign(rxOut, EmitCode.missing(mb, rxOut.pt)),
                         cb.assign(rxOut, rx))
                       cb.goto(LproduceElementDone)
                     }
@@ -1163,6 +1168,7 @@ object EmitStream {
                           {
                             if (leftProducer.requiresMemoryManagementPerElement) {
                               cb += elementRegion.trackAndIncrementReferenceCountOf(leftProducer.elementRegion)
+                              cb += leftProducer.elementRegion.clearRegion()
                             }
                             cb.goto(Lpush)
                           },
@@ -1189,6 +1195,7 @@ object EmitStream {
                             {
                               if (rightProducer.requiresMemoryManagementPerElement) {
                                 cb += elementRegion.trackAndIncrementReferenceCountOf(rightProducer.elementRegion)
+                                cb += rightProducer.elementRegion.clearRegion()
                               }
                               cb.goto(Lpush)
                             },
@@ -1226,7 +1233,7 @@ object EmitStream {
                   }
                 }
 
-                SStreamCode(producer)
+                SStreamCode(SStream(producer.element.st, leftStream.st.required && rightStream.st.required), producer)
             }
           }
         }
@@ -1236,15 +1243,15 @@ object EmitStream {
 
           val childProducer = childStream.producer
 
-          val xCurElt = mb.newPField("st_grpby_curelt", childProducer.element.st)
+          val xCurElt = mb.newPField("st_grpby_curelt", childProducer.element.pt)
 
           val keyRegion = mb.genFieldThisRef[Region]("st_groupby_key_region")
           def subsetCode = xCurElt.asBaseStruct.subset(key: _*)
-          val curKey = mb.newPField("st_grpby_curkey", subsetCode.st)
-
-          // This type shouldn't be a subset struct, since it is copied deeply.
-          // We don't want to deep copy the parent.
-          val lastKey = mb.newPField("st_grpby_lastkey", SType.canonical(subsetCode.st))
+          val curKey = mb.newPField("st_grpby_curkey", subsetCode.st.pType)
+          // FIXME: PType.canonical is the wrong infrastructure here. This should be some
+          // notion of "cheap stype with a copy". We don't want to use a subset struct,
+          // since we don't want to deep copy the parent.
+          val lastKey = mb.newPField("st_grpby_lastkey", PType.canonical(subsetCode.st.pType))
 
           val eos = mb.genFieldThisRef[Boolean]("st_grpby_eos")
           val nextGroupReady = mb.genFieldThisRef[Boolean]("streamgroupbykey_nextready")
@@ -1260,7 +1267,7 @@ object EmitStream {
           val outerElementRegion = mb.genFieldThisRef[Region]("streamgroupbykey_outer_elt_region")
 
           def equiv(cb: EmitCodeBuilder, l: SBaseStructCode, r: SBaseStructCode): Code[Boolean] =
-            StructOrdering.make(l.st, r.st, cb.emb.ecb, missingFieldsEqual = false).equivNonnull(cb, l, r)
+            StructOrdering.make(l.st, r.st, cb.emb.ecb, missingFieldsEqual = false).equivNonnull(cb, l.asPCode, r.asPCode)
 
           val LchildProduceDoneInner = CodeLabel()
           val LchildProduceDoneOuter = CodeLabel()
@@ -1291,7 +1298,7 @@ object EmitStream {
                 if (requiresMemoryManagementPerElement)
                   cb += keyRegion.clearRegion()
 
-                cb.assign(lastKey, subsetCode.castTo(cb, keyRegion, lastKey.st, deepCopy = true))
+                cb.assign(lastKey, subsetCode.castTo(cb, keyRegion, lastKey.pt, deepCopy = true))
                 cb.assign(nextGroupReady, true)
                 cb.assign(inOuter, true)
                 cb.goto(LendOfStream)
@@ -1367,14 +1374,14 @@ object EmitStream {
               if (requiresMemoryManagementPerElement)
                 cb += keyRegion.clearRegion()
 
-              cb.assign(lastKey, subsetCode.castTo(cb, keyRegion, lastKey.st, deepCopy = true))
+              cb.assign(lastKey, subsetCode.castTo(cb, keyRegion, lastKey.pt, deepCopy = true))
 
               cb.define(LinnerStreamReady)
               cb.assign(nextGroupReady, false)
               cb.goto(LproduceElementDone)
             }
 
-            override val element: EmitCode = EmitCode.present(mb, SStreamCode(innerProducer))
+            override val element: EmitCode = EmitCode.present(mb, SStreamCode(SStream(innerProducer.element.st, true), innerProducer))
 
             override def close(cb: EmitCodeBuilder): Unit = {
               childProducer.close(cb)
@@ -1399,7 +1406,7 @@ object EmitStream {
             cb.ifx(inOuter, cb.goto(LchildProduceDoneOuter), cb.goto(LchildProduceDoneInner))
           }
 
-          SStreamCode(outerProducer)
+          SStreamCode(SStream(outerProducer.element.st, required = childStream.st.required), outerProducer)
         }
 
       case StreamGrouped(a, groupSize) =>
@@ -1457,7 +1464,7 @@ object EmitStream {
 
               override def close(cb: EmitCodeBuilder): Unit = {}
             }
-            val innerStreamCode = EmitCode.present(mb, SStreamCode(innerProducer))
+            val innerStreamCode = EmitCode.present(mb, SStreamCode(SStream(innerProducer.element.st, true), innerProducer))
 
             val outerProducer = new StreamProducer {
               override val length: Option[EmitCodeBuilder => Code[Int]] =
@@ -1520,7 +1527,7 @@ object EmitStream {
               cb.ifx(inOuter, cb.goto(LchildProduceDoneOuter), cb.goto(LchildProduceDoneInner))
             }
 
-            SStreamCode(outerProducer)
+            SStreamCode(SStream(outerProducer.element.st, required = childStream.st.required), outerProducer)
           }
         }
 
@@ -1727,7 +1734,7 @@ object EmitStream {
 
                     // this stream has ended before each other, so we set the eos flag and the element EmitSettable
                     cb.assign(eosPerStream(i), true)
-                    cb.assign(vars(i), EmitCode.missing(mb, vars(i).st))
+                    cb.assign(vars(i), EmitCode.missing(mb, vars(i).pt))
 
                     cb.goto(endProduce)
 
@@ -1749,24 +1756,16 @@ object EmitStream {
 
           }
 
-          SStreamCode(producer)
+          SStreamCode(SStream(producer.element.st, childStreams.forall(_.pt.required)), producer)
         }
 
       case x@StreamZipJoin(as, key, keyRef, valsRef, joinIR) =>
         IEmitCode.multiMapEmitCodes(cb, as.map(a => EmitCode.fromI(mb)(cb => emit(a, cb)))) { children =>
           val producers = children.map(_.asStream.producer)
 
-          val eltType = VirtualTypeWithReq.union(as.map(a => typeWithReqx(a))).canonicalEmitType
-            .st
-            .asInstanceOf[SStream]
-            .elementType
-            .canonicalPType()
-            .setRequired(false)
-            .asInstanceOf[PCanonicalStruct]
-
-          val keyType = eltType.selectFields(key)
-
-          val curValsType = PCanonicalArray(eltType)
+          // FIXME: unify
+          val curValsType = x.curValsType
+          val eltType = curValsType.elementType.setRequired(true).asInstanceOf[PStruct]
 
           val _elementRegion = mb.genFieldThisRef[Region]("szj_region")
           val regionArray = mb.genFieldThisRef[Array[Region]]("szj_region_array")
@@ -1814,10 +1813,11 @@ object EmitStream {
           val result = mb.genFieldThisRef[Array[Long]]("merge_result")
           val i = mb.genFieldThisRef[Int]("merge_i")
 
-          val curKey = mb.newPField("st_grpby_curkey", keyType.sType)
+          val keyType = eltType.selectFields(key)
+          val curKey = mb.newPField("st_grpby_curkey", keyType)
 
-          val xKey = mb.newEmitField("zipjoin_key", keyType.sType, required = true)
-          val xElts = mb.newEmitField("zipjoin_elts", curValsType.sType, required = true)
+          val xKey = mb.newPresentEmitField("zipjoin_key", keyType)
+          val xElts = mb.newPresentEmitField("zipjoin_elts", curValsType)
 
           val joinResult: EmitCode = EmitCode.fromI(mb) { cb =>
             val newEnv = env.bind((keyRef -> xKey), (valsRef -> xElts))
@@ -1868,18 +1868,18 @@ object EmitStream {
               })
 
               cb.define(Lpush)
-              cb.assign(xKey, EmitCode.present(cb.emb, curKey))
-              cb.assign(xElts, EmitCode.present(cb.emb, curValsType.constructFromElements(cb, elementRegion, k, false) { (cb, i) =>
-                IEmitCode(cb, result(i).ceq(0L), eltType.loadCheapSCode(cb, result(i)))
-              }))
+              cb.assign(xKey, curKey)
+              cb.assign(xElts, curValsType.constructFromElements(cb, elementRegion, k, false) { (cb, i) =>
+                IEmitCode(cb, result(i).ceq(0L), eltType.loadCheapPCode(cb, result(i)))
+              })
               cb.goto(LproduceElementDone)
 
               cb.define(LstartNewKey)
               cb.forLoop(cb.assign(i, 0), i < k, cb.assign(i, i + 1), {
                 cb += (result(i) = 0L)
               })
-              cb.assign(curKey, eltType.loadCheapSCode(cb, heads(winner)).subset(key: _*)
-                .castTo(cb, elementRegion, curKey.st, true))
+              cb.assign(curKey, eltType.loadCheapPCode(cb, heads(winner)).subset(key: _*)
+                .castTo(cb, elementRegion, curKey.pt, true))
               cb.goto(LaddToResult)
 
               cb.define(LaddToResult)
@@ -1909,8 +1909,8 @@ object EmitStream {
 
                 cb.ifx(winner.ceq(k), cb.goto(LchallengerWins))
 
-                val left = eltType.loadCheapSCode(cb, heads(challenger)).subset(key: _*)
-                val right = eltType.loadCheapSCode(cb, heads(winner)).subset(key: _*)
+                val left = eltType.loadCheapPCode(cb, heads(challenger)).subset(key: _*)
+                val right = eltType.loadCheapPCode(cb, heads(winner)).subset(key: _*)
                 val ord = StructOrdering.make(left.st, right.st, cb.emb.ecb, missingFieldsEqual = false)
                 cb.ifx(ord.lteqNonnull(cb, left, right),
                   cb.goto(LchallengerWins),
@@ -1938,7 +1938,7 @@ object EmitStream {
                     })
                 }, {
                   cb.ifx(!winner.cne(k), cb.goto(Lpush))
-                  val left = eltType.loadCheapSCode(cb, heads(winner)).subset(key: _*)
+                  val left = eltType.loadCheapPCode(cb, heads(winner)).subset(key: _*)
                   val right = curKey
                   val ord = StructOrdering.make(left.st, right.st.asInstanceOf[SBaseStruct],
                     cb.emb.ecb, missingFieldsEqual = false)
@@ -1985,19 +1985,14 @@ object EmitStream {
             }
           }
 
-          SStreamCode(producer)
+          SStreamCode(SStream(producer.element.st, children.forall(_.pt.required)), producer)
         }
 
       case x@StreamMultiMerge(as, key) =>
         IEmitCode.multiMapEmitCodes(cb, as.map(a => EmitCode.fromI(mb)(cb => emit(a, cb)))) { children =>
           val producers = children.map(_.asStream.producer)
 
-          val unifiedType = VirtualTypeWithReq.union(as.map(a => typeWithReqx(a))).canonicalEmitType
-            .st
-            .asInstanceOf[SStream]
-            .elementEmitType
-            .canonicalPType
-            .asInstanceOf[PCanonicalStruct]
+          val unifiedType = x.pType.elementType.asInstanceOf[PStruct] // FIXME unify
 
           val region = mb.genFieldThisRef[Region]("smm_region")
           val regionArray = mb.genFieldThisRef[Array[Region]]("smm_region_array")
@@ -2058,8 +2053,8 @@ object EmitStream {
             * left when key fields are missing.
             */
           def comp(cb: EmitCodeBuilder, li: Code[Int], lv: Code[Long], ri: Code[Int], rv: Code[Long]): Code[Boolean] = {
-            val l = unifiedType.loadCheapSCode(cb, lv).asBaseStruct.subset(key: _*).memoize(cb, "stream_merge_l")
-            val r = unifiedType.loadCheapSCode(cb, rv).asBaseStruct.subset(key: _*).memoize(cb, "stream_merge_r")
+            val l = unifiedType.loadCheapPCode(cb, lv).asBaseStruct.subset(key: _*).memoize(cb, "stream_merge_l")
+            val r = unifiedType.loadCheapPCode(cb, rv).asBaseStruct.subset(key: _*).memoize(cb, "stream_merge_r")
             val ord1 = StructOrdering.make(l.asBaseStruct.st, r.asBaseStruct.st, cb.emb.ecb, missingFieldsEqual = false)
             val ord2 = StructOrdering.make(r.asBaseStruct.st, l.asBaseStruct.st, cb.emb.ecb, missingFieldsEqual = false)
             val b = cb.newLocal[Boolean]("stream_merge_comp_result")
@@ -2168,7 +2163,7 @@ object EmitStream {
               }
             }
 
-            override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, unifiedType.loadCheapSCode(cb, heads(winner))))
+            override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, unifiedType.loadCheapPCode(cb, heads(winner))))
 
             override def close(cb: EmitCodeBuilder): Unit = {
               producers.foreach { p =>
@@ -2180,7 +2175,7 @@ object EmitStream {
               cb.assign(heads, Code._null)
             }
           }
-          SStreamCode(producer)
+          SStreamCode(SStream(producer.element.st, children.forall(_.pt.required)), producer)
         }
 
       case ReadPartition(context, rowType, reader) =>
@@ -2190,13 +2185,15 @@ object EmitStream {
       case ShuffleRead(idIR, keyRangeIR) =>
         val shuffleType = idIR.typ.asInstanceOf[TShuffle]
         val keyType = keyRangeIR.typ.asInstanceOf[TInterval].pointType
+        val keyPType = keyRangeIR.pType.asInstanceOf[PInterval].pointType
         assert(keyType == shuffleType.keyType)
+        assert(keyPType == shuffleType.keyDecodedPType)
 
 
         val region = mb.genFieldThisRef[Region]("shuffleread_region")
 
         val emitID = EmitCode.fromI(mb)(cb => emit(idIR, cb))
-        val shuffleField = cb.emb.newPField(emitID.st).asInstanceOf[SCanonicalShufflePointerSettable]
+        val shuffleField = cb.emb.newPField(emitID.pt).asInstanceOf[SCanonicalShufflePointerSettable]
 
         val shuffle = CompileTimeShuffleClient.create(cb, shuffleField)
 
@@ -2223,7 +2220,7 @@ object EmitStream {
             cb.goto(LproduceElementDone)
           }
 
-          override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, shuffle.readValue(cb, region)))
+          override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, shuffle.readValue(cb, region).asPCode))
 
           override def close(cb: EmitCodeBuilder): Unit = {
             shuffle.finishGet(cb)
@@ -2231,13 +2228,13 @@ object EmitStream {
           }
         }
 
-        IEmitCode.present(cb, SStreamCode(producer))
+        IEmitCode.present(cb, SStreamCode(SStream(producer.element.st, true), producer))
 
       case ShufflePartitionBounds(idIR, nPartitionsIR) =>
 
         val region = mb.genFieldThisRef[Region]("shuffle_partition_bounds_region")
         val emitID = EmitCode.fromI(mb)(cb => emit(idIR, cb))
-        val shuffleField = cb.emb.newPField(emitID.st).asInstanceOf[SCanonicalShufflePointerSettable]
+        val shuffleField = cb.emb.newPField(emitID.pt).asInstanceOf[SCanonicalShufflePointerSettable]
 
         val shuffle = CompileTimeShuffleClient.create(cb, shuffleField)
         val currentAddr = mb.genFieldThisRef[Long]("shuffle_partition_bounds_addr")
@@ -2259,14 +2256,14 @@ object EmitStream {
             cb.goto(LproduceElementDone)
           }
           override val element: EmitCode = EmitCode.fromI(mb)(cb =>
-            IEmitCode.present(cb, shuffle.readPartitionBound(cb, elementRegion)))
+            IEmitCode.present(cb, shuffle.readPartitionBound(cb, elementRegion).asPCode))
 
           override def close(cb: EmitCodeBuilder): Unit = {
             shuffle.partitionBoundsFinished(cb)
             shuffle.close(cb)
           }
         }
-        IEmitCode.present(cb, SStreamCode(producer))
+        IEmitCode.present(cb, SStreamCode(SStream(producer.element.st, true), producer))
     }
   }
 }

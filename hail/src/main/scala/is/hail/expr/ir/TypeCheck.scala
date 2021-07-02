@@ -404,7 +404,6 @@ object TypeCheck {
         }
       case Die(msg, typ, _) =>
         assert(msg.typ == TString)
-      case Trap(child) =>
       case x@ApplyIR(fn, typeArgs, args) =>
       case x: AbstractApplyNode[_] =>
         assert(x.implementation.unify(x.typeArgs, x.args.map(_.typ), x.returnType))
@@ -428,8 +427,6 @@ object TypeCheck {
       case BlockMatrixCollect(_) =>
       case BlockMatrixWrite(_, _) =>
       case BlockMatrixMultiWrite(_, _) =>
-      case ValueToBlockMatrix(child, _, _) =>
-        assert(child.typ.isInstanceOf[TArray] || child.typ.isInstanceOf[TNDArray] ||  child.typ == TFloat64)
       case CollectDistributedArray(ctxs, globals, cname, gname, body, _) =>
         assert(ctxs.typ.isInstanceOf[TStream])
       case x@ReadPartition(context, rowType, reader) =>

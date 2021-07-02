@@ -1,17 +1,16 @@
 package is.hail.io.index
 
 import java.io.OutputStream
+
 import is.hail.annotations.{Annotation, Region, RegionPool, RegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{CodeParam, EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, IEmitCode, IntArrayBuilder, LongArrayBuilder, ParamType}
+import is.hail.expr.ir.{CodeParam, EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, IEmitCode, ParamType}
 import is.hail.io._
 import is.hail.io.fs.FS
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.types
-import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerSettable}
-import is.hail.types.physical.stypes.interfaces.SBaseStructValue
-import is.hail.types.physical.{PCanonicalArray, PCanonicalStruct, PType}
+import is.hail.types.physical.{PBaseStructValue, PCanonicalArray, PCanonicalStruct, PCode, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
@@ -103,7 +102,7 @@ class IndexWriterArrayBuilder(name: String, maxSize: Int, sb: SettableBuilder, r
   private val aoff = sb.newSettable[Long](s"${name}_aoff")
   private val len = sb.newSettable[Int](s"${name}_len")
 
-  val eltType: PCanonicalStruct = types.coerce[PCanonicalStruct](arrayType.elementType.setRequired((false)))
+  val eltType: PCanonicalStruct = types.coerce[PCanonicalStruct](arrayType.elementType)
   private val elt = new SBaseStructPointerSettable(SBaseStructPointer(eltType), sb.newSettable[Long](s"${name}_elt_off"))
 
   def length: Code[Int] = len
@@ -116,13 +115,13 @@ class IndexWriterArrayBuilder(name: String, maxSize: Int, sb: SettableBuilder, r
   def create(cb: EmitCodeBuilder, dest: Code[Long]): Unit = {
     cb.assign(aoff, arrayType.allocate(region, maxSize))
     cb += arrayType.stagedInitialize(aoff, maxSize)
-    arrayType.storeAtAddress(cb, dest, region, arrayType.loadCheapSCode(cb, aoff), deepCopy = false)
+    arrayType.storeAtAddress(cb, dest, region, arrayType.loadCheapPCode(cb, aoff), deepCopy = false)
     cb.assign(len, 0)
   }
 
   def storeLength(cb: EmitCodeBuilder): Unit = cb += arrayType.storeLength(aoff, length)
 
-  def setFieldValue(cb: EmitCodeBuilder, name: String, field: SCode): Unit = {
+  def setFieldValue(cb: EmitCodeBuilder, name: String, field: PCode): Unit = {
     cb += eltType.setFieldPresent(elt.a, name)
     eltType.fieldType(name).storeAtAddress(cb, eltType.fieldOffset(elt.a, name), region, field, deepCopy = true)
   }
@@ -136,8 +135,10 @@ class IndexWriterArrayBuilder(name: String, maxSize: Int, sb: SettableBuilder, r
     loadChild(cb, len)
     cb.assign(len, len + 1)
   }
-  def loadChild(cb: EmitCodeBuilder, idx: Code[Int]): Unit = elt.store(cb, eltType.loadCheapSCode(cb, arrayType.loadElement(aoff, idx)))
-  def getLoadedChild: SBaseStructValue = elt
+  def loadChild(cb: EmitCodeBuilder, idx: Code[Int]): Unit = elt.store(cb, PCode(eltType, arrayType.elementOffset(aoff, idx)))
+  def getLoadedChild: PBaseStructValue = elt
+
+  def getChild(idx: Value[Int]): PCode = PCode(eltType, arrayType.elementOffset(aoff, idx))
 }
 
 class StagedIndexWriterUtils(ib: Settable[IndexWriterUtils]) {
@@ -188,8 +189,8 @@ class IndexWriterUtils(path: String, fs: FS, meta: StagedIndexMetadata) {
   }
 
   val rBuilder = new BoxedArrayBuilder[Region]()
-  val aBuilder = new LongArrayBuilder()
-  val lBuilder = new IntArrayBuilder()
+  val aBuilder = new BoxedArrayBuilder[Long]()
+  val lBuilder = new BoxedArrayBuilder[Int]()
 
   def size: Int = rBuilder.size
 
@@ -244,9 +245,9 @@ object StagedIndexWriter {
       .voidWithBuilder(cb => siw.init(cb, cb.emb.getCodeParam[String](1)))
     fb.emb.voidWithBuilder { cb =>
       siw.add(cb,
-        IEmitCode(cb, false, keyType.loadCheapSCode(cb, fb.getCodeParam[Long](1))),
+        IEmitCode(cb, false, PCode(keyType, fb.getCodeParam[Long](1))),
         fb.getCodeParam[Long](2),
-        IEmitCode(cb, false, annotationType.loadCheapSCode(cb, fb.getCodeParam[Long](3))))
+        IEmitCode(cb, false, PCode(annotationType, fb.getCodeParam[Long](3))))
     }
     cb.newEmitMethod("close", FastIndexedSeq[ParamType](), typeInfo[Unit])
       .voidWithBuilder(siw.close)

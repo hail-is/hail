@@ -257,7 +257,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
           cb.assign(i, i + 1)
         })
         // don't need to deep copy because that's done in nested aggregators
-        pt.storeAtAddress(cb, addr, region, resultType.loadCheapSCode(cb, resultAddr), deepCopy = false)
+        pt.storeAtAddress(cb, addr, region, resultType.loadCheapPCode(cb, resultAddr), deepCopy = false)
 
       }
     )

@@ -14,7 +14,7 @@ from hail.expr.types import HailType, tint32, tint64, tfloat32, \
     tndarray, tlocus, tinterval, is_numeric
 import hail.ir as ir
 from hail.typecheck import typecheck, typecheck_method, func_spec, oneof, \
-    identity, nullable, tupleof, sliceof, dictof, anyfunc
+    identity, nullable, tupleof, sliceof, dictof
 from hail.utils.java import Env, warning
 from hail.utils.linkedlist import LinkedList
 from hail.utils.misc import wrap_to_list, wrap_to_tuple, get_nice_field_error, get_nice_attr_error
@@ -344,29 +344,6 @@ class CollectionExpression(Expression):
             return hl.set(array_map)
         assert isinstance(self._type, tarray)
         return array_map
-
-    @typecheck_method(f=anyfunc)
-    def starmap(self, f):
-        r"""Transform each element of a collection of tuples.
-
-        Examples
-        --------
-
-        >>> hl.eval(hl.array([(1, 2), (2, 3)]).starmap(lambda x, y: x+y))
-        [3, 5]
-
-        Parameters
-        ----------
-        f : function ( (\*args) -> :class:`.Expression`)
-            Function to transform each element of the collection.
-
-        Returns
-        -------
-        :class:`.CollectionExpression`.
-            Collection where each element has been transformed according to `f`.
-        """
-
-        return self.map(lambda e: f(*e))
 
     def length(self):
         """Returns the size of a collection.
@@ -2202,10 +2179,27 @@ class NumericExpression(Expression):
         :class:`.NumericExpression`
             The left number divided by the left.
         """
-        return self._bin_op_numeric("/", other, self._div_ret_type_f)
+
+        def ret_type_f(t):
+            assert is_numeric(t)
+            if t == tint32 or t == tint64:
+                return tfloat32
+            else:
+                # Float64 or Float32
+                return t
+
+        return self._bin_op_numeric("/", other, ret_type_f)
 
     def __rtruediv__(self, other):
-        return self._bin_op_numeric_reverse("/", other, self._div_ret_type_f)
+        def ret_type_f(t):
+            assert is_numeric(t)
+            if t == tint32 or t == tint64:
+                return tfloat32
+            else:
+                # float64 or float32
+                return t
+
+        return self._bin_op_numeric_reverse("/", other, ret_type_f)
 
     def __floordiv__(self, other):
         """Divide two numbers with floor division.
@@ -3775,41 +3769,20 @@ class NDArrayExpression(Expression):
 
     _opt_long_slice = sliceof(nullable(expr_int64), nullable(expr_int64), nullable(expr_int64))
 
-    @typecheck_method(item=nullable(oneof(expr_int64, type(...), _opt_long_slice, tupleof(nullable(oneof(expr_int64, type(...), _opt_long_slice))))))
+    @typecheck_method(item=oneof(expr_int64, _opt_long_slice, tupleof(oneof(expr_int64, _opt_long_slice))))
     def __getitem__(self, item):
         if not isinstance(item, tuple):
             item = (item,)
 
-        num_ellipses = len([e for e in item if isinstance(e, type(...))])
-        if num_ellipses > 1:
-            raise IndexError("an index can only have a single ellipsis (\'...\')")
+        if len(item) != self.ndim:
+            raise ValueError(f'Must specify one index per dimension. '
+                             f'Expected {self.ndim} dimensions but got {len(item)}')
 
-        num_nones = len([x for x in item if x is None])
-        list_item = list(item)
-
-        if num_ellipses == 1:
-            list_types = [type(e) for e in list_item]
-            ellipsis_location = list_types.index(type(...))
-            num_slices_to_add = self.ndim - (len(item) - num_nones) + 1
-            no_ellipses = list_item[:ellipsis_location] + [slice(None)] * num_slices_to_add + list_item[ellipsis_location + 1:]
-        else:
-            no_ellipses = list_item
-
-        no_nums = [x for x in no_ellipses if ((x is None) or (isinstance(x, slice)))]
-        indices_nones = [i for i, x in enumerate(no_nums) if x is None]
-        formatted_item = [x for x in no_ellipses if x is not None]
-
-        if len(formatted_item) > self.ndim:
-            raise IndexError(f'too many indices for array: array is '
-                             f'{self.ndim}-dimensional, but {len(item)} were indexed')
-        if len(formatted_item) < self.ndim:
-            formatted_item += [slice(None, None, None)] * (self.ndim - len(formatted_item))
-
-        n_sliced_dims = len([s for s in formatted_item if isinstance(s, slice)])
+        n_sliced_dims = len([s for s in item if isinstance(s, slice)])
 
         if n_sliced_dims > 0:
             slices = []
-            for i, s in enumerate(formatted_item):
+            for i, s in enumerate(item):
                 dlen = self.shape[i]
                 if isinstance(s, slice):
 
@@ -3821,7 +3794,6 @@ class NDArrayExpression(Expression):
 
                     max_bound = hl.if_else(step > 0, dlen, dlen - 1)
                     min_bound = hl.if_else(step > 0, to_expr(0, tint64), to_expr(-1, tint64))
-
                     if s.start is not None:
                         # python treats start < -dlen as None when step < 0: [0,1][-3:0:-1]
                         # and 0 otherwise: [0,1][-3::1] == [0,1][0::1]
@@ -3851,35 +3823,15 @@ class NDArrayExpression(Expression):
                         hl.str("Index ") + hl.str(s) + hl.str(f" is out of bounds for axis {i} with size ") + hl.str(dlen)
                     )
                     slices.append(checked_int)
-            product = construct_expr(ir.NDArraySlice(self._ir, hl.tuple(slices)._ir),
-                                     tndarray(self._type.element_type, n_sliced_dims),
-                                     self._indices,
-                                     self._aggregations)
+            return construct_expr(ir.NDArraySlice(self._ir, hl.tuple(slices)._ir),
+                                  tndarray(self._type.element_type, n_sliced_dims),
+                                  self._indices,
+                                  self._aggregations)
 
-            if len(indices_nones) > 0:
-                reshape_arg = []
-                index_non_nones = 0
-                for i in range(n_sliced_dims + num_nones):
-                    if i in indices_nones:
-                        reshape_arg.append(1)
-                    else:
-                        reshape_arg.append(product.shape[index_non_nones])
-                        index_non_nones += 1
-                product = product.reshape(tuple(reshape_arg))
-
-        else:
-            product = construct_expr(ir.NDArrayRef(self._ir, [idx._ir for idx in formatted_item]),
-                                     self._type.element_type,
-                                     self._indices,
-                                     self._aggregations)
-
-            if len(indices_nones) > 0:
-                reshape_arg = []
-                for i in indices_nones:
-                    reshape_arg.append(1)
-                product = hl.nd.array(product).reshape(tuple(reshape_arg))
-
-        return product
+        return construct_expr(ir.NDArrayRef(self._ir, [idx._ir for idx in item]),
+                              self._type.element_type,
+                              self._indices,
+                              self._aggregations)
 
     @typecheck_method(shape=oneof(expr_int64, tupleof(expr_int64), expr_tuple()))
     def reshape(self, *shape):

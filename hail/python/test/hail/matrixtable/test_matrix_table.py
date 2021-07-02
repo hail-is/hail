@@ -165,6 +165,7 @@ class Tests(unittest.TestCase):
         mt.count_rows()
 
     @fails_service_backend()
+    @fails_local_backend()
     def test_aggregate(self):
         mt = self.get_mt()
 
@@ -430,6 +431,7 @@ class Tests(unittest.TestCase):
         assert mt.anti_join_cols(ht).count() == (3, 7)
 
     @fails_service_backend()
+    @fails_local_backend()
     def test_joins(self):
         mt = self.get_mt().select_rows(x1=1, y1=1)
         mt2 = mt.select_rows(x2=1, y2=2)
@@ -449,6 +451,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(ct.all(ct.c2 == 2))
 
     @fails_service_backend()
+    @fails_local_backend()
     def test_joins_with_key_structs(self):
         mt = self.get_mt()
 
@@ -560,7 +563,6 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         mt = mt.key_rows_by(x = mt.row_idx // 2)
         assert mt.union_cols(mt).count_rows() == 5
 
-    @skip_when_service_backend('flaky https://hail.zulipchat.com/#narrow/stream/127527-team/topic/CI.20Deploy.20Failure/near/237593731')
     def test_union_cols_outer(self):
         r, c = 10, 10
         mt = hl.utils.range_matrix_table(2*r, c)
@@ -842,13 +844,14 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         self.assertTrue(ds_small.count_rows() < ds.count_rows())
 
     @fails_service_backend()
+    @fails_local_backend()
     def test_read_stored_cols(self):
         ds = self.get_mt()
         ds = ds.annotate_globals(x='foo')
         f = new_temp_file(extension='mt')
         ds.write(f)
         t = hl.read_table(f + '/cols')
-        self.assertTrue(ds.cols().key_by()._same(t))
+        self.assertTrue(ds.cols()._same(t))
 
     @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_read_stored_rows(self):
@@ -868,6 +871,7 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         self.assertTrue(ds.globals_table()._same(t))
 
     @fails_service_backend()
+    @fails_local_backend()
     def test_indexed_read(self):
         mt = hl.utils.range_matrix_table(2000, 100, 10)
         f = new_temp_file(extension='mt')
@@ -887,6 +891,7 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         self.assertTrue(mt.filter_rows((mt.row_idx >= 150) & (mt.row_idx < 500))._same(mt2))
 
     @fails_service_backend()
+    @fails_local_backend()
     def test_indexed_read_vcf(self):
         vcf = self.get_mt(10)
         f = new_temp_file(extension='mt')

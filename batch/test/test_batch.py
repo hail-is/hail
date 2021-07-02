@@ -18,9 +18,21 @@ from .failure_injecting_client_session import FailureInjectingClientSession
 
 deploy_config = get_deploy_config()
 
-DOCKER_PREFIX = os.environ.get('DOCKER_PREFIX')
 DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'gcr.io/hail-vdc/ubuntu:18.04')
 SCOPE = os.environ.get('HAIL_SCOPE', 'test')
+
+
+def poll_until(p, max_polls=None):
+    i = 0
+    while True and (max_polls is None or i < max_polls):
+        x = p()
+        if x:
+            return x
+        # max 4.5s
+        j = random.randrange(math.floor(1.1 ** min(i, 40)))
+        time.sleep(0.100 * j)
+        i = i + 1
+    raise ValueError(f'poll_until: exceeded max polls: {i} {max_polls}')
 
 
 @pytest.fixture
@@ -255,15 +267,6 @@ def test_fail(client):
     b.submit()
     status = j.wait()
     assert j._get_exit_code(status, 'main') == 1, str(status)
-
-
-def test_unknown_image(client):
-    b = client.create_batch()
-    j = b.create_job(f'{DOCKER_PREFIX}/does-not-exist', ['echo', 'test'])
-    b.submit()
-    status = j.wait()
-    assert j._get_exit_code(status, 'main') is None
-    assert status['status']['container_statuses']['main']['short_error'] == 'image not found'
 
 
 def test_running_job_log_and_status(client):
@@ -563,20 +566,6 @@ def test_batch_create_validation():
         # token None/missing
         {'billing_project': 'foo', 'n_jobs': 5, 'token': None},
         {'billing_project': 'foo', 'n_jobs': 5},
-        # empty gcsfuse bucket name
-        {
-            'billing_project': 'foo',
-            'n_jobs': 5,
-            'token': 'baz',
-            'gcsfuse': [{'bucket': '', 'mount_path': '/bucket', 'read_only': False}],
-        },
-        # empty gcsfuse mount_path name
-        {
-            'billing_project': 'foo',
-            'n_jobs': 5,
-            'token': 'baz',
-            'gcsfuse': [{'bucket': 'foo', 'mount_path': '', 'read_only': False}],
-        },
         # attribute key/value None
         {'attributes': {'k': None}, 'billing_project': 'foo', 'n_jobs': 5, 'token': 'baz'},
     ]

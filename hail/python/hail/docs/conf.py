@@ -65,9 +65,7 @@ katex_options = ''
 nbsphinx_timeout = 300
 nbsphinx_allow_errors = False
 # F821 undefined name 'tags'
-if not tags.has('checktutorial') and not tags.has('generate_notebook_outputs'):  # noqa: F821
-    # these flags have the same effect: they run the notebook and save the output in the generated
-    # rST file.
+if not tags.has('checktutorial'):  # noqa: F821
     nbsphinx_execute = 'never'
 
 autosummary_generate = True

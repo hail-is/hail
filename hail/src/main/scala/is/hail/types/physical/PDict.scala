@@ -2,7 +2,6 @@ package is.hail.types.physical
 
 import is.hail.annotations._
 import is.hail.check.Gen
-import is.hail.types.physical.stypes.interfaces.SContainer
 import is.hail.types.virtual.TDict
 
 abstract class PDict extends PContainer {
@@ -10,8 +9,6 @@ abstract class PDict extends PContainer {
 
   val keyType: PType
   val valueType: PType
-
-  def sType: SContainer
 
   def elementType: PStruct
 

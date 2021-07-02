@@ -8,7 +8,6 @@ import is.hail.expr.ir.{ExecuteContext, IR, PartitionZippedNativeReader}
 import is.hail.io._
 import is.hail.io.fs.FS
 import is.hail.io.index.{InternalNodeBuilder, LeafNodeBuilder}
-import is.hail.types.TableType
 import is.hail.types.encoded.ETypeSerializer
 import is.hail.types.physical.{PCanonicalStruct, PInt64Optional, PStruct, PType, PTypeSerializer}
 import is.hail.types.virtual.{TStructSerializer, _}
@@ -165,7 +164,7 @@ object AbstractRVDSpec {
         contexts,
         body)
       extendedNewPartitioner match {
-        case Some(np) if !filterIntervals =>
+        case Some(np) if filterIntervals =>
           ts.repartitionNoShuffle(np)
         case _ => ts
       }
@@ -261,28 +260,24 @@ abstract class AbstractRVDSpec {
   def readTableStage(
     ctx: ExecuteContext,
     path: String,
-    requestedType: TableType,
+    requestedType: TStruct,
     newPartitioner: Option[RVDPartitioner] = None,
     filterIntervals: Boolean = false
   ): IR => TableStage = newPartitioner match {
     case Some(_) => fatal("attempted to read unindexed data as indexed")
     case None =>
-      if (!partitioner.kType.fieldNames.startsWith(requestedType.key))
-        fatal(s"cannot generate whole-stage code for legacy table: " +
-          s"table key = [${ requestedType.key.mkString(", ") }], " +
-          s"key on disk: [${ partitioner.kType.fieldNames.mkString(", ") }]")
 
       val rSpec = typedCodecSpec
 
       val ctxType = TStruct("path" -> TString)
       val contexts = ir.ToStream(ir.Literal(TArray(ctxType), absolutePartPaths(path).map(x => Row(x)).toFastIndexedSeq))
 
-      val body = (ctx: IR) => ir.ReadPartition(ir.GetField(ctx, "path"), requestedType.rowType, ir.PartitionNativeReader(rSpec))
+      val body = (ctx: IR) => ir.ReadPartition(ir.GetField(ctx, "path"), requestedType, ir.PartitionNativeReader(rSpec))
 
       (globals: IR) =>
         TableStage(
           globals,
-          partitioner.coarsen(partitioner.kType.fieldNames.takeWhile(requestedType.rowType.hasField).length),
+          partitioner,
           TableStageDependency.none,
           contexts,
           body)
@@ -492,7 +487,7 @@ case class IndexedRVDSpec2(_key: IndexedSeq[String],
   override def readTableStage(
     ctx: ExecuteContext,
     path: String,
-    requestedType: TableType,
+    requestedType: TStruct,
     newPartitioner: Option[RVDPartitioner] = None,
     filterIntervals: Boolean = false
   ): IR => TableStage = newPartitioner match {
@@ -524,7 +519,7 @@ case class IndexedRVDSpec2(_key: IndexedSeq[String],
 
       val contexts = ir.ToStream(ir.Literal(TArray(reader.contextType), contextsValues))
 
-      val body = (ctx: IR) => ir.ReadPartition(ctx, requestedType.rowType, reader)
+      val body = (ctx: IR) => ir.ReadPartition(ctx, requestedType, reader)
 
       { (globals: IR) =>
         val ts = TableStage(
