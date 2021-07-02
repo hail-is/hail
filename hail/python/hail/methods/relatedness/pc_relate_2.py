@@ -58,7 +58,7 @@ def _gram(M: BlockMatrix) -> BlockMatrix:
     :class:`.BlockMatrix`
         `M.T @ M`
     """
-    return M.T @ M
+    return (M.T @ M).checkpoint(new_temp_file())
 
 
 def _dominance_encoding(g: Float64Expression, mu: Float64Expression) -> Float64Expression:
@@ -459,10 +459,9 @@ def pc_relate_2(call_expr: CallExpression,
     pre_mu = mu._map_dense(lambda x: hl.if_else(_bad_mu(x, min_individual_maf), nan, x))
 
     # If an entry at an index in either g or pre_mu is NaN, set mu to NaN
-    mu = g._apply_map2(lambda _g, _mu: hl.if_else(hl.is_nan(_g) | hl.is_nan(_mu), nan, _mu),
-                       pre_mu,
-                       sparsity_strategy="NeedsDense")
-    mu = mu.checkpoint(new_temp_file("pcrelate2/mu", ".bm"))
+    mu = pre_mu._apply_map2(lambda _mu, _g: hl.if_else(hl.is_nan(_mu) | hl.is_nan(_g), nan, _mu),
+                            g,
+                            sparsity_strategy="NeedsDense").checkpoint(new_temp_file("pcrelate2/mu", ".bm"))
 
     variance = _replace_nan(mu * (1.0 - mu), 0.0).checkpoint(new_temp_file("pcrelate2/variance", ".bm"))
     std_dev = variance.sqrt()
