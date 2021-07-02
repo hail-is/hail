@@ -29,7 +29,6 @@ version = ''
 # The full version, including alpha/beta/rc tags
 release = ''
 nitpicky = True
-nitpick_ignore = [('py:class', 'hailtop.batch_client.client.Batch')]
 
 # -- General configuration ---------------------------------------------------
 

@@ -25,7 +25,7 @@ from hail.expr.types import (HailType, hail_type, tint32, tint64, tfloat32,
 from hail.genetics.reference_genome import reference_genome_type, ReferenceGenome
 import hail.ir as ir
 from hail.typecheck import (typecheck, nullable, anytype, enumeration, tupleof,
-                            func_spec, oneof, arg_check, args_check, anyfunc)
+                            func_spec, oneof, arg_check, args_check)
 from hail.utils.java import Env, warning
 from hail.utils.misc import plural
 
@@ -3614,34 +3614,6 @@ def map(f: Callable, collection):
     return collection.map(f)
 
 
-@typecheck(f=anyfunc,
-           collection=expr_oneof(expr_set(), expr_array(), expr_ndarray()))
-def starmap(f: Callable, collection):
-    r"""Transform each element of a collection of tuples.
-
-    Examples
-    --------
-
-    >>> a = [(1, 5), (3, 2), (7, 8)]
-
-    >>> hl.eval(hl.starmap(lambda x, y: hl.if_else(x < y, x, y), a))
-    [1, 2, 7]
-
-    Parameters
-    ----------
-    f : function ( (\*args) -> :class:`.Expression`)
-        Function to transform each element of the collection.
-    collection : :class:`.ArrayExpression` or :class:`.SetExpression`
-        Collection expression.
-
-    Returns
-    -------
-    :class:`.ArrayExpression` or :class:`.SetExpression`.
-        Collection where each element has been transformed by `f`.
-    """
-    return collection.starmap(f)
-
-
 @typecheck(x=expr_oneof(expr_set(), expr_array(), expr_dict(), expr_str, expr_tuple(), expr_struct()))
 def len(x) -> Int32Expression:
     """Returns the size of a collection or string.
@@ -4510,7 +4482,7 @@ def _sort_by(collection, less_than):
         collection._aggregations)
 
 
-@typecheck(collection=expr_oneof(expr_array(), expr_dict(), expr_set()),
+@typecheck(collection=expr_array(),
            key=nullable(func_spec(1, expr_any)),
            reverse=expr_bool)
 def sorted(collection,
@@ -4538,8 +4510,8 @@ def sorted(collection,
 
     Parameters
     ----------
-    collection : :class:`.ArrayExpression` or :class:`.SetExpression` or :class:`.DictExpression`
-        Collection to sort.
+    collection : :class:`.ArrayExpression`
+        Array to sort.
     key: function ( (arg) -> :class:`.Expression`), optional
         Function to evaluate for each element to compute sort key.
     reverse : :class:`.BooleanExpression`
@@ -4550,9 +4522,6 @@ def sorted(collection,
     :class:`.ArrayExpression`
         Sorted array.
     """
-
-    if not isinstance(collection, ArrayExpression):
-        collection = hl.array(collection)
 
     def comp(left, right):
         return (hl.case()

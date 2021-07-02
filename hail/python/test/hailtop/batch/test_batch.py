@@ -8,7 +8,6 @@ import google.oauth2.service_account
 import google.cloud.storage
 
 from hailtop.batch import Batch, ServiceBackend, LocalBackend
-from hailtop.batch.exceptions import BatchException
 from hailtop.batch.globals import arg_max
 from hailtop.utils import grouped
 from hailtop.config import get_user_config
@@ -610,14 +609,6 @@ class ServiceTests(unittest.TestCase):
         res = b.run()
         assert res.status()['state'] == 'success', debug_info(res)
 
-    def test_gcsfuse_empty_string_bucket_fails(self):
-        b = self.batch()
-        j = b.new_job()
-        with self.assertRaises(BatchException):
-            j.gcsfuse('', '/empty_bucket')
-        with self.assertRaises(BatchException):
-            j.gcsfuse(self.bucket_name, '')
-
     def test_requester_pays(self):
         b = self.batch(requester_pays_project='hail-vdc')
         input = b.read_input('gs://hail-services-requester-pays/hello')
@@ -796,7 +787,7 @@ class ServiceTests(unittest.TestCase):
         b = self.batch(cancel_after_n_failures=1)
 
         j1 = b.new_job()
-        j1.command('false')
+        j1.command(f'false')
 
         j2 = b.new_job()
         j2.command('sleep 300')
@@ -804,30 +795,3 @@ class ServiceTests(unittest.TestCase):
         res = b.run()
         job_status = res.get_job(2).status()
         assert job_status['state'] == 'Cancelled', str(job_status)
-
-    def test_service_backend_bucket_parameter(self):
-        backend = ServiceBackend(bucket='hail-test-dmk9z')
-        b = Batch(backend=backend)
-        j1 = b.new_job()
-        j1.command(f'echo hello > {j1.ofile}')
-        j2 = b.new_job()
-        j2.command(f'cat {j1.ofile}')
-        b.run()
-
-    def test_service_backend_remote_tempdir_with_trailing_slash(self):
-        backend = ServiceBackend(remote_tmpdir='gs://hail-test-dmk9z/temporary-files/')
-        b = Batch(backend=backend)
-        j1 = b.new_job()
-        j1.command(f'echo hello > {j1.ofile}')
-        j2 = b.new_job()
-        j2.command(f'cat {j1.ofile}')
-        b.run()
-
-    def test_service_backend_remote_tempdir_with_no_trailing_slash(self):
-        backend = ServiceBackend(remote_tmpdir='gs://hail-test-dmk9z/temporary-files')
-        b = Batch(backend=backend)
-        j1 = b.new_job()
-        j1.command(f'echo hello > {j1.ofile}')
-        j2 = b.new_job()
-        j2.command(f'cat {j1.ofile}')
-        b.run()

@@ -6,7 +6,7 @@ import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.BaseStruct
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.{SCode, SType, SValue}
+import is.hail.types.physical.stypes.SType
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces.SBaseStructValue
 import is.hail.types.virtual._
@@ -53,24 +53,24 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     case t: TInterval =>
       val structPType = decodedPType(t.structRepresentation).asInstanceOf[PStruct]
       val pointType = structPType.field("start").typ
-      SIntervalPointer(PCanonicalInterval(pointType, false))
+      SIntervalPointer(PCanonicalInterval(pointType, required))
     case t: TLocus =>
-      SCanonicalLocusPointer(PCanonicalLocus(t.rg, false))
+      SCanonicalLocusPointer(PCanonicalLocus(t.rg, required))
     case t: TStruct =>
       val pFields = t.fields.map { case Field(name, typ, idx) =>
         val pt = fieldType(name).decodedPType(typ)
         PField(name, pt, idx)
       }
-      SBaseStructPointer(PCanonicalStruct(pFields, false))
+      SBaseStructPointer(PCanonicalStruct(pFields, required))
     case t: TTuple =>
       val pFields = t.fields.map { case Field(name, typ, idx) =>
         val pt = fieldType(name).decodedPType(typ)
         PTupleField(t._types(idx).index, pt)
       }
-      SBaseStructPointer(PCanonicalTuple(pFields, false))
+      SBaseStructPointer(PCanonicalTuple(pFields, required))
   }
 
-  override def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = {
+  override def _buildEncoder(cb: EmitCodeBuilder, v: PValue, out: Value[OutputBuffer]): Unit = {
     val structValue = v.st match {
       case SIntervalPointer(t: PCanonicalInterval) => new SBaseStructPointerSettable(
         SBaseStructPointer(t.representation),
@@ -79,18 +79,20 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
         new SBaseStructPointerSettable(
           SBaseStructPointer(t.representation),
           v.asInstanceOf[SCanonicalLocusPointerSettable].a)
-      case _ => v.asInstanceOf[SBaseStructValue]
+      case SBaseStructPointer(t) => v.asInstanceOf[SBaseStructValue]
     }
+    val ft = structValue.pt
+
     // write missing bytes
     structValue.st match {
       case SBaseStructPointer(st) if st.size == size && st.fieldRequired.sameElements(fields.map(_.typ.required)) =>
-        val missingBytes = UnsafeUtils.packBitsToBytes(st.nMissing)
+        val missingBytes = UnsafeUtils.packBitsToBytes(ft.nMissing)
 
         val addr = structValue.asInstanceOf[SBaseStructPointerSettable].a
         if (nMissingBytes > 1)
           cb += out.writeBytes(addr, missingBytes - 1)
         if (nMissingBytes > 0)
-          cb += out.writeByte((Region.loadByte(addr + (missingBytes.toLong - 1)).toI & const(EType.lowBitMask(st.nMissing & 0x7))).toB)
+          cb += out.writeByte((Region.loadByte(addr + (missingBytes.toLong - 1)).toI & const(EType.lowBitMask(ft.nMissing & 0x7))).toB)
 
       case _ =>
         var j = 0
@@ -121,18 +123,19 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
           if (ef.typ.required)
             cb._fatal(s"required field ${ ef.name } saw missing value in encode")
         },
-        { pc =>
+        { _pc =>
+          val pc = _pc.asPCode
           ef.typ.buildEncoder(pc.st, cb.emb.ecb)
             .apply(cb, pc, out)
         })
     }
   }
 
-  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SCode = {
+  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): PCode = {
     val pt = decodedPType(t)
     val addr = cb.newLocal[Long]("base_struct_dec_addr", region.allocate(pt.alignment, pt.byteSize))
     _buildInplaceDecoder(cb, pt, region, addr, in)
-    pt.loadCheapSCode(cb, addr)
+    pt.loadCheapPCode(cb, addr)
   }
 
   override def _buildInplaceDecoder(cb: EmitCodeBuilder, pt: PType, region: Value[Region], addr: Value[Long], in: Value[InputBuffer]): Unit = {

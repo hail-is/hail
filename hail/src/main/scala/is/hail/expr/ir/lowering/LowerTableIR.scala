@@ -271,7 +271,7 @@ class TableStage(
           GetField(ctxRef, "partitionBound"),
           StreamFilter(
             StreamFlatMap(
-              ToStream(GetField(ctxRef, "oldContexts"), true),
+              ToStream(GetField(ctxRef, "oldContexts")),
               prevContextUIDPartition,
               body
             ),
@@ -440,7 +440,7 @@ object LowerTableIR {
             RVDPartitioner.unkeyed(nPartitionsAdj),
             TableStageDependency.none,
             context,
-            ctxRef => ToStream(ctxRef, true))
+            ctxRef => ToStream(ctxRef))
 
         case TableRange(n, nPartitions) =>
           val nPartitionsAdj = math.max(math.min(n, nPartitions), 1)
@@ -465,7 +465,7 @@ object LowerTableIR {
                 MakeStruct(FastIndexedSeq("start" -> start, "end" -> end))
               },
               TStream(contextType)),
-            (ctxRef: Ref) => mapIR(StreamRange(GetField(ctxRef, "start"), GetField(ctxRef, "end"), I32(1), true)) { i =>
+            (ctxRef: Ref) => mapIR(rangeIR(GetField(ctxRef, "start"), GetField(ctxRef, "end"))) { i =>
               MakeStruct(FastSeq("idx" -> i))
             })
 
@@ -656,12 +656,6 @@ object LowerTableIR {
         case TableHead(child, targetNumRows) =>
           val loweredChild = lower(child)
 
-          def streamLenOrMax(a: IR): IR =
-            if (targetNumRows <= Integer.MAX_VALUE)
-              StreamLen(StreamTake(a, targetNumRows.toInt))
-            else
-              StreamLen(a)
-
           def partitionSizeArray(childContexts: Ref): IR = {
             val partitionSizeArrayFunc = genUID()
             val howManyPartsToTry = Ref(genUID(), TInt32)
@@ -670,7 +664,7 @@ object LowerTableIR {
               partitionSizeArrayFunc,
               FastIndexedSeq(howManyPartsToTry.name -> 4),
               bindIR(loweredChild.mapContexts(_ => StreamTake(ToStream(childContexts), howManyPartsToTry)){ ctx: IR => ctx }
-                                 .mapCollect(relationalLetsAbove)(streamLenOrMax)) { counts =>
+                                 .mapCollect(relationalLetsAbove)(StreamLen)) { counts =>
                 If((Cast(streamSumIR(ToStream(counts)), TInt64) >= targetNumRows) || (ArrayLen(childContexts) <= ArrayLen(counts)),
                   counts,
                   Recur(partitionSizeArrayFunc, FastIndexedSeq(howManyPartsToTry * 4), TArray(TInt32)))
@@ -1100,37 +1094,13 @@ object LowerTableIR {
         case TableLiteral(typ, rvd, enc, encodedGlobals) =>
           RVDToTableStage(rvd, EncodedLiteral(enc, encodedGlobals))
 
-        case bmtt@BlockMatrixToTable(bmir) =>
-          val bmStage = LowerBlockMatrixIR.lower(bmir, typesToLower, ctx, r, relationalLetsAbove)
-          val ts = LowerBlockMatrixIR.lowerToTableStage(bmir, typesToLower, ctx, r, relationalLetsAbove)
-          // I now have an unkeyed table of (blockRow, blockCol, block).
-          val entriesUnkeyed = ts.mapPartitionWithContext { (partition, ctxRef) =>
-            flatMapIR(partition)(singleRowRef =>
-              bindIR(GetField(singleRowRef, "block")) { singleNDRef =>
-                bindIR(NDArrayShape(singleNDRef)) { shapeTupleRef =>
-                  flatMapIR(rangeIR(Cast(GetTupleElement(shapeTupleRef, 0), TInt32))) { withinNDRowIdx =>
-                    mapIR(rangeIR(Cast(GetTupleElement(shapeTupleRef, 1), TInt32))) { withinNDColIdx =>
-                      val entry = NDArrayRef(singleNDRef, IndexedSeq(Cast(withinNDRowIdx, TInt64), Cast(withinNDColIdx, TInt64)), ErrorIDs.NO_ERROR)
-                      val blockStartRow = GetField(singleRowRef, "blockRow") * bmir.typ.blockSize
-                      val blockStartCol = GetField(singleRowRef, "blockCol") * bmir.typ.blockSize
-                      makestruct("i" -> Cast(withinNDRowIdx + blockStartRow, TInt64), "j" -> Cast(withinNDColIdx + blockStartCol, TInt64), "entry" -> entry)
-                    }
-                  }
-                }
-              }
-            )
-          }
-
-          val rowR = r.lookup(bmtt).asInstanceOf[RTable].rowType
-          ctx.backend.lowerDistributedSort(ctx, entriesUnkeyed, IndexedSeq(SortField("i", Ascending), SortField("j", Ascending)), relationalLetsAbove, rowR)
-
         case node =>
           throw new LowererUnsupportedOperation(s"undefined: \n${ Pretty(node) }")
       }
 
       assert(tir.typ.globalType == lowered.globalType, s"\n  ir global: ${tir.typ.globalType}\n  lowered global: ${lowered.globalType}")
       assert(tir.typ.rowType == lowered.rowType, s"\n  ir row: ${tir.typ.rowType}\n  lowered row: ${lowered.rowType}")
-      assert(lowered.key startsWith tir.typ.keyType.fieldNames, s"\n  ir key: ${tir.typ.keyType.fieldNames.toSeq}\n  lowered key: ${lowered.key}")
+      assert(lowered.key startsWith tir.typ.keyType.fieldNames, s"\n  ir key: ${tir.typ.keyType.fieldNames}\n  lowered key: ${lowered.key}")
 
       lowered
     }

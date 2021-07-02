@@ -86,8 +86,6 @@ spec:
          - name: HAIL_SHOULD_PROFILE
            value: "1"
 {% endif %}
-         - name: HAIL_SCOPE
-           value: "{{ scope }}"
 {% if deploy %}
          - name: HAIL_BATCH_BUCKET_NAME
            valueFrom:
@@ -224,8 +222,6 @@ spec:
            value: "{{ global.k8s_server_url }}"
          - name: HAIL_SHA
            value: "{{ code.sha }}"
-         - name: HAIL_SCOPE
-           value: "{{ scope }}"
 {% if deploy %}
          - name: HAIL_BATCH_BUCKET_NAME
            valueFrom:

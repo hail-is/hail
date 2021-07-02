@@ -4,7 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{Code, SettableBuilder, Value}
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.OutputBuffer
-import is.hail.types.physical.stypes.interfaces._
+import is.hail.types
 import is.hail.types.encoded.EType
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerSettable, SIndexablePointerCode}
@@ -62,7 +62,7 @@ class StagedInternalNodeBuilder(maxSize: Int, keyType: PType, annotationType: PT
   }
 
   def allocate(cb: EmitCodeBuilder): Unit = {
-    node.store(cb, pType.loadCheapSCode(cb, pType.allocate(region)))
+    node.store(cb, PCode(pType, pType.allocate(region)))
     ab.create(cb, pType.fieldOffset(node.a, "children"))
   }
 
@@ -77,26 +77,28 @@ class StagedInternalNodeBuilder(maxSize: Int, keyType: PType, annotationType: PT
     enc(cb, node, ob)
   }
 
-  def nodeAddress: SBaseStructValue = node
+  def nodeAddress: PBaseStructValue = node
 
-  def add(cb: EmitCodeBuilder, indexFileOffset: Code[Long], firstIndex: Code[Long], firstChild: SBaseStructValue): Unit = {
+  def add(cb: EmitCodeBuilder, indexFileOffset: Code[Long], firstIndex: Code[Long], firstChild: PBaseStructValue): Unit = {
+    val childtyp = types.coerce[PBaseStruct](firstChild.pt)
     ab.addChild(cb)
-    ab.setFieldValue(cb, "index_file_offset", primitive(indexFileOffset))
-    ab.setFieldValue(cb, "first_idx", primitive(firstIndex))
-    ab.setField(cb, "first_key", firstChild.loadField(cb, "key"))
-    ab.setField(cb, "first_record_offset", firstChild.loadField(cb, "offset"))
-    ab.setField(cb, "first_annotation", firstChild.loadField(cb, "annotation"))
+    ab.setFieldValue(cb, "index_file_offset", PCode(PInt64(), indexFileOffset))
+    ab.setFieldValue(cb, "first_idx", PCode(PInt64(), firstIndex))
+    ab.setField(cb, "first_key", firstChild.loadField(cb, childtyp.fieldIdx("key")).typecast[PCode])
+    ab.setField(cb, "first_record_offset", firstChild.loadField(cb, childtyp.fieldIdx("offset")).typecast[PCode])
+    ab.setField(cb, "first_annotation", firstChild.loadField(cb, childtyp.fieldIdx("annotation")).typecast[PCode])
   }
 
-  def add(cb: EmitCodeBuilder, indexFileOffset: Code[Long], firstChild: SBaseStructValue): Unit = {
+  def add(cb: EmitCodeBuilder, indexFileOffset: Code[Long], firstChild: PBaseStructValue): Unit = {
+    val childtyp = types.coerce[PBaseStruct](firstChild.pt)
     ab.addChild(cb)
-    ab.setFieldValue(cb, "index_file_offset", primitive(indexFileOffset))
-    ab.setField(cb, "first_idx", firstChild.loadField(cb, "first_idx"))
-    ab.setField(cb, "first_key", firstChild.loadField(cb, "first_key"))
-    ab.setField(cb, "first_record_offset", firstChild.loadField(cb, "first_record_offset"))
-    ab.setField(cb, "first_annotation", firstChild.loadField(cb, "first_annotation"))
+    ab.setFieldValue(cb, "index_file_offset", PCode(PInt64(), indexFileOffset))
+    ab.setField(cb, "first_idx", firstChild.loadField(cb, childtyp.fieldIdx("first_idx")).typecast[PCode])
+    ab.setField(cb, "first_key", firstChild.loadField(cb, childtyp.fieldIdx("first_key")).typecast[PCode])
+    ab.setField(cb, "first_record_offset", firstChild.loadField(cb, childtyp.fieldIdx("first_record_offset")).typecast[PCode])
+    ab.setField(cb, "first_annotation", firstChild.loadField(cb, childtyp.fieldIdx("first_annotation")).typecast[PCode])
   }
 
   def loadChild(cb: EmitCodeBuilder, idx: Code[Int]): Unit = ab.loadChild(cb, idx)
-  def getLoadedChild: SBaseStructValue = ab.getLoadedChild
+  def getLoadedChild: PBaseStructValue = ab.getLoadedChild
 }

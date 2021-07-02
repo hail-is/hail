@@ -4,24 +4,15 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{Code, IntInfo, LongInfo, Settable, SettableBuilder, TypeInfo, Value, const}
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
-import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SNDArray, SNDArrayCode, SNDArrayValue}
-import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
-import is.hail.types.physical.{PCanonicalNDArray, PType}
-import is.hail.types.virtual.Type
+import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayValue}
+import is.hail.types.physical.stypes.{SCode, SType}
+import is.hail.types.physical.{PBaseStructCode, PCanonicalNDArray, PCode, PNDArray, PNDArrayCode, PNDArrayValue, PSettable, PType, PValue}
 import is.hail.utils.FastIndexedSeq
 
 case class SNDArrayPointer(pType: PCanonicalNDArray) extends SNDArray {
-  require(!pType.required)
-
   def nDims: Int = pType.nDims
 
   override def elementType: SType = pType.elementType.sType
-
-  override def elementPType: PType = pType.elementType
-
-  lazy val virtualType: Type = pType.virtualType
-
-  override def castRename(t: Type): SType = SNDArrayPointer(pType.deepRename(t))
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SNDArrayPointerCode(this, pType.store(cb, region, value, deepCopy))
@@ -29,7 +20,12 @@ case class SNDArrayPointer(pType: PCanonicalNDArray) extends SNDArray {
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
 
-  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = Array.fill(2 + nDims * 2)(LongInfo)
+  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
+    if (pt == this.pType)
+      new SNDArrayPointerCode(this, addr)
+    else
+      coerceOrCopy(cb, region, pt.loadCheapPCode(cb, addr), deepCopy = false)
+  }
 
   def fromSettables(settables: IndexedSeq[Settable[_]]): SNDArrayPointerSettable = {
     val a = settables(0).asInstanceOf[Settable[Long@unchecked]]
@@ -65,24 +61,24 @@ class SNDArrayPointerSettable(
    val shape: IndexedSeq[Settable[Long]],
    val strides: IndexedSeq[Settable[Long]],
    val dataFirstElement: Settable[Long]
- ) extends SNDArrayValue with SSettable {
+ ) extends PNDArrayValue with PSettable {
   val pt: PCanonicalNDArray = st.pType
 
-  def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SCode = {
+  def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): PCode = {
     assert(indices.size == pt.nDims)
-    pt.elementType.loadCheapSCode(cb, pt.loadElementFromDataAndStrides(cb, indices, dataFirstElement, strides))
+    pt.elementType.loadCheapPCode(cb, pt.loadElementFromDataAndStrides(cb, indices, dataFirstElement, strides))
   }
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a) ++ shape ++ strides ++ FastIndexedSeq(dataFirstElement)
 
-  def store(cb: EmitCodeBuilder, v: SCode): Unit = {
+  def store(cb: EmitCodeBuilder, v: PCode): Unit = {
     cb.assign(a, v.asInstanceOf[SNDArrayPointerCode].a)
     pt.loadShapes(cb, a, shape)
     pt.loadStrides(cb, a, strides)
     cb.assign(dataFirstElement, pt.dataFirstElementPointer(a))
   }
 
-  override def get: SNDArrayPointerCode = new SNDArrayPointerCode(st, a)
+  override def get: PCode = new SNDArrayPointerCode(st, a)
 
   override def outOfBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Boolean] = {
     val shape = this.shapes(cb)
@@ -121,20 +117,22 @@ class SNDArrayPointerSettable(
   def firstDataAddress(cb: EmitCodeBuilder): Value[Long] = dataFirstElement
 }
 
-class SNDArrayPointerCode(val st: SNDArrayPointer, val a: Code[Long]) extends SNDArrayCode {
+class SNDArrayPointerCode(val st: SNDArrayPointer, val a: Code[Long]) extends PNDArrayCode {
   val pt: PCanonicalNDArray = st.pType
 
-  override def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(a)
+  override def code: Code[_] = a
 
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SNDArrayValue = {
+  override def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
+
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PNDArrayValue = {
     val s = SNDArrayPointerSettable(sb, st, name)
     cb.assign(s, this)
     s
   }
 
-  override def memoize(cb: EmitCodeBuilder, name: String): SNDArrayValue = memoize(cb, name, cb.localBuilder)
+  override def memoize(cb: EmitCodeBuilder, name: String): PNDArrayValue = memoize(cb, name, cb.localBuilder)
 
-  override def memoizeField(cb: EmitCodeBuilder, name: String): SValue = memoize(cb, name, cb.fieldBuilder)
+  override def memoizeField(cb: EmitCodeBuilder, name: String): PValue = memoize(cb, name, cb.fieldBuilder)
 
-  override def shape(cb: EmitCodeBuilder): SBaseStructCode = pt.shapeType.loadCheapSCode(cb, pt.representation.loadField(a, "shape"))
+  override def shape(cb: EmitCodeBuilder): PBaseStructCode = pt.shapeType.loadCheapPCode(cb, pt.representation.loadField(a, "shape"))
 }

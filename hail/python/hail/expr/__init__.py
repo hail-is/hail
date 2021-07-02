@@ -36,7 +36,7 @@ from .functions import literal, chi_squared_test, if_else, cond, switch, case, \
     is_star, is_complex, is_strand_ambiguous, allele_type, hamming, \
     mendel_error_code, triangle, downcode, gq_from_pl, parse_call, \
     unphased_diploid_gt_index_call, argmax, argmin, zip, _zip_func, enumerate, zip_with_index, map, \
-    flatmap, starmap, flatten, any, all, filter, sorted, find, group_by, fold, \
+    flatmap, flatten, any, all, filter, sorted, find, group_by, fold, \
     array_scan, len, min, nanmin, max, nanmax, mean, median, product, sum, \
     cumulative_sum, struct, tuple, set, empty_set, array, empty_array, \
     empty_dict, delimit, abs, sign, floor, ceil, float, float32, float64, \
@@ -182,7 +182,6 @@ __all__ = ['HailType',
            'zip_with_index',
            'map',
            'flatmap',
-           'starmap',
            'flatten',
            'any',
            'all',

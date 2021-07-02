@@ -139,6 +139,3 @@ class GoogleCloudStorageFS(FS):
         if self._is_local(path):
             rmtree(path)
         self.client.rm(path, recursive=True)
-
-    def supports_scheme(self, scheme: str) -> bool:
-        return scheme in ("gs", "")

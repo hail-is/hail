@@ -2,33 +2,32 @@ package is.hail.expr.ir
 
 import is.hail.asm4s._
 import is.hail.types._
-import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 
 import scala.language.existentials
 
 object Casts {
-  private val casts: Map[(Type, Type), (EmitCodeBuilder, SCode) => SCode] = Map(
-    (TInt32, TInt32) -> ((cb: EmitCodeBuilder, x: SCode) => x),
-    (TInt32, TInt64) -> ((cb: EmitCodeBuilder, x: SCode) => primitive(x.asInt.intCode(cb).toL)),
-    (TInt32, TFloat32) -> ((cb: EmitCodeBuilder, x: SCode) => primitive(x.asInt.intCode(cb).toF)),
-    (TInt32, TFloat64) -> ((cb: EmitCodeBuilder, x: SCode) => primitive(x.asInt.intCode(cb).toD)),
-    (TInt64, TInt32) -> ((cb: EmitCodeBuilder, x: SCode) => primitive(x.asLong.longCode(cb).toI)),
-    (TInt64, TInt64) -> ((cb: EmitCodeBuilder, x: SCode) => x),
-    (TInt64, TFloat32) -> ((cb: EmitCodeBuilder, x: SCode) => primitive(x.asLong.longCode(cb).toF)),
-    (TInt64, TFloat64) -> ((cb: EmitCodeBuilder, x: SCode) => primitive(x.asLong.longCode(cb).toD)),
-    (TFloat32, TInt32) -> ((cb: EmitCodeBuilder, x: SCode) => primitive(x.asFloat.floatCode(cb).toI)),
-    (TFloat32, TInt64) -> ((cb: EmitCodeBuilder, x: SCode) => primitive(x.asFloat.floatCode(cb).toL)),
-    (TFloat32, TFloat32) -> ((cb: EmitCodeBuilder, x: SCode) => x),
-    (TFloat32, TFloat64) -> ((cb: EmitCodeBuilder, x: SCode) => primitive(x.asFloat.floatCode(cb).toD)),
-    (TFloat64, TInt32) -> ((cb: EmitCodeBuilder, x: SCode) => primitive(x.asDouble.doubleCode(cb).toI)),
-    (TFloat64, TInt64) -> ((cb: EmitCodeBuilder, x: SCode) => primitive(x.asDouble.doubleCode(cb).toL)),
-    (TFloat64, TFloat32) -> ((cb: EmitCodeBuilder, x: SCode) => primitive(x.asDouble.doubleCode(cb).toF)),
-    (TFloat64, TFloat64) -> ((cb: EmitCodeBuilder, x: SCode) => x))
+  private val casts: Map[(Type, Type), (Code[T] => Code[_]) forSome {type T}] = Map(
+    (TInt32, TInt32) -> ((x: Code[Int]) => x),
+    (TInt32, TInt64) -> ((x: Code[Int]) => x.toL),
+    (TInt32, TFloat32) -> ((x: Code[Int]) => x.toF),
+    (TInt32, TFloat64) -> ((x: Code[Int]) => x.toD),
+    (TInt64, TInt32) -> ((x: Code[Long]) => x.toI),
+    (TInt64, TInt64) -> ((x: Code[Long]) => x),
+    (TInt64, TFloat32) -> ((x: Code[Long]) => x.toF),
+    (TInt64, TFloat64) -> ((x: Code[Long]) => x.toD),
+    (TFloat32, TInt32) -> ((x: Code[Float]) => x.toI),
+    (TFloat32, TInt64) -> ((x: Code[Float]) => x.toL),
+    (TFloat32, TFloat32) -> ((x: Code[Float]) => x),
+    (TFloat32, TFloat64) -> ((x: Code[Float]) => x.toD),
+    (TFloat64, TInt32) -> ((x: Code[Double]) => x.toI),
+    (TFloat64, TInt64) -> ((x: Code[Double]) => x.toL),
+    (TFloat64, TFloat32) -> ((x: Code[Double]) => x.toF),
+    (TFloat64, TFloat64) -> ((x: Code[Double]) => x),
+    (TInt32, TCall) -> ((x: Code[Int]) => x))
 
-  def get(from: Type, to: Type): (EmitCodeBuilder, SCode) => SCode =
-    casts(from -> to)
+  def get(from: Type, to: Type): Code[_] => Code[_] =
+    casts(from -> to).asInstanceOf[Code[_] => Code[_]]
 
   def valid(from: Type, to: Type): Boolean =
     casts.contains(from -> to)

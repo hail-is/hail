@@ -140,12 +140,6 @@ class NullableValidator:
             self.checker.validate(name, obj)
 
 
-class TruthyValidator:
-    def validate(self, name: str, obj):  # pylint: disable=no-self-use
-        if not obj:
-            raise ValidationError(f'{name} cannot be {obj}')
-
-
 class MultipleValidator:
     def __init__(self, checkers: List['Validator']):
         self.checkers = checkers
@@ -168,11 +162,10 @@ def required(key: str):
 
 
 str_type = TypedValidator(str)
-non_empty_str_type = MultipleValidator([str_type, TruthyValidator()])
 bool_type = TypedValidator(bool)
 int_type = TypedValidator(int)
 
-Validator = Union[TypedValidator, NumericValidator, NullableValidator, TruthyValidator, SetValidator]
+Validator = Union[TypedValidator, NumericValidator, NullableValidator, SetValidator]
 
 
 def dictof(vchecker: Validator):

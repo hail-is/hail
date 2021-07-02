@@ -2,13 +2,11 @@ import logging
 import math
 import json
 import secrets
-import dateutil.parser
 from aiohttp import web
 from functools import wraps
 from collections import deque
 
 from gear import maybe_parse_bearer_header
-from hailtop.utils import secret_alnum_string
 
 from .globals import RESERVED_STORAGE_GB_PER_CORE
 
@@ -196,12 +194,6 @@ def is_valid_cores_mcpu(cores_mcpu: int):
     return quarter_cores & (quarter_cores - 1) == 0
 
 
-def parse_timestamp_msecs(ts):
-    if ts is None:
-        return ts
-    return dateutil.parser.isoparse(ts).timestamp() * 1000
-
-
 class Box:
     def __init__(self, value):
         self.value = value
@@ -256,8 +248,7 @@ class ExceededSharesCounter:
         self._global_counter = WindowFractionCounter(10)
 
     def push(self, success: bool):
-        token = secret_alnum_string(6)
-        self._global_counter.push(token, success)
+        self._global_counter.push('exceeded_shares', success)
 
     def rate(self) -> float:
         return self._global_counter.fraction()

@@ -42,9 +42,7 @@ package object services {
         true
       case e: SocketException =>
         e.getMessage != null && (
-          e.getMessage.contains("Connection reset") ||
-            e.getMessage.contains("Broken pipe") ||
-            e.getMessage.contains("Connection refused"))
+          e.getMessage.contains("Connection reset") || e.getMessage.contains("Broken pipe"))
       case e: EOFException =>
         e.getMessage != null && (
           e.getMessage.contains("SSL peer shut down incorrectly"))

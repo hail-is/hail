@@ -7,3 +7,7 @@ abstract class PStream extends PIterable with PUnrealizable {
 
   def _asIdent = s"stream_of_${elementType.asIdent}"
 }
+
+abstract class PStreamCode extends PCode with PUnrealizableCode {
+  def pt: PStream
+}

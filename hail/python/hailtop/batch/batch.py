@@ -1,15 +1,14 @@
 import os
-import warnings
 import re
-from concurrent.futures import ThreadPoolExecutor
+import concurrent
 from typing import Optional, Dict, Union, List, Any, Set
 
 from hailtop.utils import secret_alnum_string
-from hailtop.aiotools import AsyncFS, RouterAsyncFS, LocalAsyncFS
-from hailtop.aiogoogle import GoogleStorageAsyncFS
 
 from . import backend as _backend, job, resource as _resource  # pylint: disable=cyclic-import
 from .exceptions import BatchException
+
+from ..google_storage import GCS
 
 
 class Batch:
@@ -79,15 +78,13 @@ class Batch:
         `dill` pre-installed will automatically be used if the current Python version is
         3.6, 3.7, or 3.8.
     project:
-        DEPRECATED: please specify `google_project` on the ServiceBackend instead. If specified,
-        the project to use when authenticating with Google Storage. Google Storage is used to
-        transfer serialized values between this computer and the cloud machines that execute Python
-        jobs.
+        If specified, the project to use when authenticating with Google
+        Storage. Google Storage is used to transfer serialized values between
+        this computer and the cloud machines that execute Python jobs.
     cancel_after_n_failures:
         Automatically cancel the batch after N failures have occurred. The default
         behavior is there is no limit on the number of failures. Only
         applicable for the :class:`.ServiceBackend`. Must be greater than 0.
-
     """
 
     _counter = 0
@@ -140,23 +137,17 @@ class Batch:
         self._default_shell = default_shell
         self._default_python_image = default_python_image
 
-        if project is not None:
-            warnings.warn(
-                'The project argument to Batch is deprecated, please instead use the google_project argument to '
-                'ServiceBackend. Use of this argument may trigger warnings from aiohttp about unclosed objects.')
-        self._DEPRECATED_project = project
-        self._DEPRECATED_fs: Optional[RouterAsyncFS] = None
+        self._project = project
+        self.__gcs: Optional[GCS] = None
 
         self._cancel_after_n_failures = cancel_after_n_failures
 
     @property
-    def _fs(self) -> AsyncFS:
-        if self._DEPRECATED_project is not None:
-            if self._DEPRECATED_fs is None:
-                self._DEPRECATED_fs = RouterAsyncFS('file', [LocalAsyncFS(ThreadPoolExecutor()),
-                                                             GoogleStorageAsyncFS(project=self._DEPRECATED_project)])
-            return self._DEPRECATED_fs
-        return self._backend._fs
+    def _gcs(self):
+        if self.__gcs is None:
+            self.__gcs = GCS(blocking_pool=concurrent.futures.ThreadPoolExecutor(),
+                             project=self._project)
+        return self.__gcs
 
     def new_job(self,
                 name: Optional[str] = None,
@@ -562,12 +553,7 @@ class Batch:
                     raise BatchException("cycle detected in dependency graph")
 
         self._jobs = ordered_jobs
-        run_result = self._backend._run(self, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs)  # pylint: disable=assignment-from-no-return
-        if self._DEPRECATED_fs is not None:
-            # best effort only because this is deprecated
-            self._DEPRECATED_fs.close()
-            self._DEPRECATED_fs = None
-        return run_result
+        return self._backend._run(self, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs)
 
     def __str__(self):
         return self._uid

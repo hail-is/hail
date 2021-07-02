@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Callable, Tuple
+from typing import Optional, Dict, Callable
 import os
 import json
 import sys
@@ -68,6 +68,7 @@ from ..publicly_available_images import publicly_available_images
 from ..utils import storage_gib_to_bytes, Box
 
 from .disk import Disk
+from .flock import Flock
 
 # uvloop.install()
 
@@ -280,8 +281,6 @@ def user_error(e):
     if isinstance(e, DockerError):
         if e.status == 404 and 'pull access denied' in e.message:
             return True
-        if e.status == 404 and 'not found: manifest unknown' in e.message:
-            return True
         if e.status == 400 and 'executable file not found' in e.message:
             return True
     return False
@@ -360,10 +359,6 @@ class Container:
         if network is None:
             network = 'public'
         host_config['NetworkMode'] = network  # not documented, I used strace to inspect the packets
-
-        unconfined = self.spec.get('unconfined')
-        if unconfined:
-            host_config['SecurityOpt'] = ["seccomp:unconfined", "apparmor:unconfined"]
 
         config['HostConfig'] = host_config
 
@@ -447,11 +442,8 @@ class Container:
                             docker.images.pull, self.image_ref_str, auth=auth
                         )
                 except DockerError as e:
-                    if e.status == 404:
-                        if 'pull access denied' in e.message:
-                            self.short_error = 'image cannot be pulled'
-                        elif 'not found: manifest unknown' in e.message:
-                            self.short_error = 'image not found'
+                    if e.status == 404 and 'pull access denied' in e.message:
+                        self.short_error = 'image cannot be pulled'
                     raise
 
             if self.port is not None:
@@ -472,8 +464,12 @@ class Container:
             self.overlay_path = merged_overlay_path[:-7].replace(WORKER_DATA_DISK_MOUNT, '/host')
             os.makedirs(f'{self.overlay_path}/', exist_ok=True)
 
+            async with Flock('/xfsquota/projects', pool=worker.pool):
+                with open('/xfsquota/projects', 'a') as f:
+                    f.write(f'{self.job.project_id}:{self.overlay_path}\n')
+
             await check_shell_output(
-                f'xfs_quota -x -c "project -s -p {self.overlay_path} {self.job.project_id}" /host/'
+                f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.job.project_name}" /host/'
             )
 
             with self.step('starting'):
@@ -539,6 +535,12 @@ class Container:
         return self.log
 
     async def delete_container(self):
+        if self.overlay_path:
+            path = self.overlay_path.replace('/', r'\/')
+
+            async with Flock('/xfsquota/projects', pool=worker.pool):
+                await check_shell(f"sed -i '/:{path}/d' /xfsquota/projects")
+
         if self.container:
             try:
                 log.info(f'{self}: deleting container')
@@ -604,7 +606,6 @@ def populate_secret_host_path(host_path, secret_data):
 
 
 async def add_gcsfuse_bucket(mount_path, bucket, key_file, read_only):
-    assert bucket
     os.makedirs(mount_path)
     options = ['allow_other']
     if read_only:
@@ -777,6 +778,7 @@ class Job:
         self.secrets = secrets
         self.env = job_spec.get('env', [])
 
+        self.project_name = f'batch-{self.batch_id}-job-{self.job_id}'
         self.project_id = Job.get_next_xfsquota_project_id()
 
         self.task_manager = task_manager
@@ -906,9 +908,6 @@ class DockerJob(Job):
         if network:
             assert network in ('public', 'private')
             main_spec['network'] = network
-        unconfined = job_spec.get('unconfined')
-        if unconfined:
-            main_spec['unconfined'] = unconfined
         containers['main'] = Container(self, 'main', main_spec)
 
         if output_files:
@@ -971,16 +970,25 @@ class DockerJob(Job):
 
                 await self.setup_io()
 
+                async with Flock('/xfsquota/projid', pool=worker.pool):
+                    with open('/xfsquota/projid', 'a') as f:
+                        f.write(f'{self.project_name}:{self.project_id}\n')
+
                 if not self.disk:
+                    async with Flock('/xfsquota/projects', pool=worker.pool):
+                        with open('/xfsquota/projects', 'a') as f:
+                            f.write(f'{self.project_id}:{self.scratch}\n')
                     data_disk_storage_in_bytes = storage_gib_to_bytes(
                         self.external_storage_in_gib + self.data_disk_storage_in_gib
                     )
                 else:
                     data_disk_storage_in_bytes = storage_gib_to_bytes(self.data_disk_storage_in_gib)
 
-                await check_shell_output(f'xfs_quota -x -c "project -s -p {self.scratch} {self.project_id}" /host/')
                 await check_shell_output(
-                    f'xfs_quota -x -c "limit -p bsoft={data_disk_storage_in_bytes} bhard={data_disk_storage_in_bytes} {self.project_id}" /host/'
+                    f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.project_name}" /host/'
+                )
+                await check_shell_output(
+                    f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft={data_disk_storage_in_bytes} bhard={data_disk_storage_in_bytes} {self.project_name}" /host/'
                 )
 
                 if self.secrets:
@@ -1064,7 +1072,15 @@ class DockerJob(Job):
                     await check_shell(f'fusermount -u {mount_path}')
                     log.info(f'unmounted gcsfuse bucket {bucket} from {mount_path}')
 
-            await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')
+            await check_shell(
+                f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft=0 bhard=0 {self.project_name}" /host'
+            )
+
+            async with Flock('/xfsquota/projid', pool=worker.pool):
+                await check_shell(f"sed -i '/{self.project_name}:{self.project_id}/d' /xfsquota/projid")
+
+            async with Flock('/xfsquota/projects', pool=worker.pool):
+                await check_shell(f"sed -i '/{self.project_id}:/d' /xfsquota/projects")
 
             await blocking_to_async(self.pool, shutil.rmtree, self.scratch, ignore_errors=True)
         except asyncio.CancelledError:
@@ -1183,9 +1199,19 @@ class JVMJob(Job):
 
                 os.makedirs(f'{self.scratch}/')
 
-                await check_shell_output(f'xfs_quota -x -c "project -s -p {self.scratch} {self.project_id}" /host/')
+                async with Flock('/xfsquota/projid', pool=worker.pool):
+                    with open('/xfsquota/projid', 'a') as f:
+                        f.write(f'{self.project_name}:{self.project_id}\n')
+
+                async with Flock('/xfsquota/projects', pool=worker.pool):
+                    with open('/xfsquota/projects', 'a') as f:
+                        f.write(f'{self.project_id}:{self.scratch}\n')
+
                 await check_shell_output(
-                    f'xfs_quota -x -c "limit -p bsoft={self.data_disk_storage_in_gib} bhard={self.data_disk_storage_in_gib} {self.project_id}" /host/'
+                    f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.project_name}" /host/'
+                )
+                await check_shell_output(
+                    f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft={self.data_disk_storage_in_gib} bhard={self.data_disk_storage_in_gib} {self.project_name}" /host/'
                 )
 
                 if self.secrets:
@@ -1261,7 +1287,15 @@ class JVMJob(Job):
 
         log.info(f'{self}: cleaning up')
         try:
-            await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')
+            await check_shell(
+                f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft=0 bhard=0 {self.project_name}" /host'
+            )
+
+            async with Flock('/xfsquota/projid', pool=worker.pool):
+                await check_shell(f"sed -i '/{self.project_name}:{self.project_id}/d' /xfsquota/projid")
+
+            async with Flock('/xfsquota/projects', pool=worker.pool):
+                await check_shell(f"sed -i '/{self.project_id}:/d' /xfsquota/projects")
 
             await blocking_to_async(self.pool, shutil.rmtree, self.scratch, ignore_errors=True)
         except asyncio.CancelledError:
@@ -1307,13 +1341,12 @@ class JVMJob(Job):
 
 class Worker:
     def __init__(self):
-        self.active = False
         self.cores_mcpu = CORES * 1000
         self.last_updated = time_msecs()
         self.cpu_sem = FIFOWeightedSemaphore(self.cores_mcpu)
         self.data_disk_space_remaining = Box(UNRESERVED_WORKER_DATA_DISK_SIZE_GB)
         self.pool = concurrent.futures.ThreadPoolExecutor()
-        self.jobs: Dict[Tuple[int, int], Job] = {}
+        self.jobs = {}
         self.stop_event = asyncio.Event()
         self.task_manager = aiotools.BackgroundTaskManager()
         self.jar_download_locks = defaultdict(asyncio.Lock)
@@ -1369,10 +1402,6 @@ class Worker:
         # already running
         if id in self.jobs:
             return web.HTTPForbidden()
-
-        # check worker hasn't started shutting down
-        if not self.active:
-            return web.HTTPServiceUnavailable()
 
         job = Job.create(
             batch_id, body['user'], body['gsa_key'], job_spec, format_version, self.task_manager, self.pool
@@ -1470,7 +1499,6 @@ class Worker:
                         f'free worker data disk storage {self.data_disk_space_remaining.value}Gi'
                     )
         finally:
-            self.active = False
             log.info('shutting down')
             await site.stop()
             log.info('stopped site')
@@ -1627,7 +1655,6 @@ class Worker:
             resp_json = await resp.json()
 
             self.headers = {'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {resp_json["token"]}'}
-            self.active = True
 
 
 async def async_main():
@@ -1649,7 +1676,7 @@ async def async_main():
             asyncio.get_event_loop().set_debug(True)
             log.debug('Tasks immediately after docker close')
             dump_all_stacktraces()
-            other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
+            other_tasks = [t for t in asyncio.tasks() if t != asyncio.current_task()]
             if other_tasks:
                 _, pending = await asyncio.wait(other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED)
                 for t in pending:

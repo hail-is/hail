@@ -68,21 +68,21 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
 
   def containsPointers: Boolean = representation.containsPointers
 
-  def sType: SIntervalPointer = SIntervalPointer(setRequired(false).asInstanceOf[PCanonicalInterval])
+  def sType: SIntervalPointer = SIntervalPointer(this)
 
-  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SCode = new SIntervalPointerCode(sType, addr)
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SIntervalPointerCode(SIntervalPointer(this), addr)
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {
       case SIntervalPointer(t: PCanonicalInterval) =>
-        representation.store(cb, region, t.representation.loadCheapSCode(cb, value.asInstanceOf[SIntervalPointerCode].a), deepCopy)
+        representation.store(cb, region, t.representation.loadCheapPCode(cb, value.asInstanceOf[SIntervalPointerCode].a), deepCopy)
     }
   }
 
   def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
     value.st match {
       case SIntervalPointer(t: PCanonicalInterval) =>
-        representation.storeAtAddress(cb, addr, region, t.representation.loadCheapSCode(cb, value.asInstanceOf[SIntervalPointerCode].a), deepCopy)
+        representation.storeAtAddress(cb, addr, region, t.representation.loadCheapPCode(cb, value.asInstanceOf[SIntervalPointerCode].a), deepCopy)
     }
   }
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
@@ -121,6 +121,6 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
   def constructFromCodes(cb: EmitCodeBuilder, region: Value[Region],
     start: EmitCode, end: EmitCode, includesStart: EmitCode, includesEnd: EmitCode): SIntervalPointerCode = {
     val sc = representation.constructFromFields(cb, region, FastIndexedSeq(start, end, includesStart, includesEnd), deepCopy = false)
-    new SIntervalPointerCode(sType, sc.a)
+    new SIntervalPointerCode(SIntervalPointer(this), sc.a)
   }
 }

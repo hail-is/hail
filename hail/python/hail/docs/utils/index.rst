@@ -15,12 +15,10 @@ utils
     hadoop_is_dir
     hadoop_stat
     hadoop_ls
-    hadoop_scheme_supported
     copy_log
     range_table
     range_matrix_table
     get_1kg
-    get_hgdp
     get_movie_lens
 
 .. autoclass:: Interval
@@ -33,10 +31,8 @@ utils
 .. autofunction:: hadoop_is_dir
 .. autofunction:: hadoop_stat
 .. autofunction:: hadoop_ls
-.. autofunction:: hadoop_scheme_supported
 .. autofunction:: copy_log
 .. autofunction:: range_table
 .. autofunction:: range_matrix_table
 .. autofunction:: get_1kg
-.. autofunction:: get_hgdp
 .. autofunction:: get_movie_lens

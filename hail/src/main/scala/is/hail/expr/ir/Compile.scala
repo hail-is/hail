@@ -7,9 +7,8 @@ import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.expr.ir.streams.{EmitStream, StreamArgType}
 import is.hail.io.fs.FS
 import is.hail.rvd.RVDContext
-import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeType, StreamSingleCodeType}
 import is.hail.types.physical.stypes.interfaces.SStream
-import is.hail.types.physical.{PStream, PStruct, PType}
+import is.hail.types.physical.{PStream, PStruct, PType, PTypeReferenceSingleCodeType, SingleCodeType, StreamSingleCodeType}
 import is.hail.types.virtual.Type
 import is.hail.utils._
 
@@ -49,6 +48,10 @@ object Compile {
 
     TypeCheck(ir, BindingEnv.empty)
 
+    val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
+    val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
+    InferPType(ir, Env.empty, requiredness, usesAndDefs)
+
     val returnParam = CodeParamType(SingleCodeType.typeInfoFromType(ir.typ))
 
     val fb = EmitFunctionBuilder[F](ctx, "Compiled",
@@ -72,8 +75,8 @@ object Compile {
     assert(fb.mb.parameterTypeInfo == expectedCodeParamTypes, s"expected $expectedCodeParamTypes, got ${ fb.mb.parameterTypeInfo }")
     assert(fb.mb.returnTypeInfo == expectedCodeReturnType, s"expected $expectedCodeReturnType, got ${ fb.mb.returnTypeInfo }")
 
-    val emitContext = EmitContext.analyze(ctx, ir)
-    val rt = Emit(emitContext, ir, fb, expectedCodeReturnType, params.length)
+    val emitContext = new EmitContext(ctx, requiredness)
+    val rt = Emit(emitContext, ir, fb, expectedCodeReturnType)
 
     val f = fb.resultWithIndex(print)
     codeCache += k -> CodeCacheValue(rt, f)
@@ -111,6 +114,10 @@ object CompileWithAggregators {
 
     TypeCheck(ir, BindingEnv(Env.fromSeq[Type](params.map { case (name, t) => name -> t.virtualType })))
 
+    val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
+    val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
+    InferPType(ir, Env.empty, requiredness, usesAndDefs)
+
     val fb = EmitFunctionBuilder[F](ctx, "CompiledWithAggs",
       CodeParamType(typeInfo[Region]) +: params.map { case (_, pt) => pt },
       SingleCodeType.typeInfoFromType(ir.typ), Some("Emit.scala"))
@@ -128,8 +135,8 @@ object CompileWithAggregators {
     }
      */
 
-    val emitContext = EmitContext.analyze(ctx, ir)
-    val rt = Emit(emitContext, ir, fb, expectedCodeReturnType, params.length, Some(aggSigs))
+    val emitContext = new EmitContext(ctx, requiredness)
+    val rt = Emit(emitContext, ir, fb, expectedCodeReturnType, Some(aggSigs))
 
     val f = fb.resultWithIndex()
     codeCache += k -> CodeCacheValue(rt, f)
@@ -199,26 +206,27 @@ object CompileIterator {
     val ir = LoweringPipeline.compileLowerer(true)(ctx, body).asInstanceOf[IR].noSharing
     TypeCheck(ir)
 
-    var elementAddress: Settable[Long] = null
-    var returnType: PType = null
+    val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
+    val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
+    InferPType(ir, Env.empty, requiredness, usesAndDefs)
 
+    val emitContext = new EmitContext(ctx, requiredness)
+    val emitter = new Emit(emitContext, stepFECB)
+
+    val returnType = ir.pType.asInstanceOf[PStream].elementType.asInstanceOf[PStruct].setRequired(true)
+
+    val optStream = EmitCode.fromI(stepF)(cb => EmitStream.produce(emitter, ir, cb, outerRegion, Env.empty, None))
+    val returnPType = optStream.st.asInstanceOf[SStream].elementType.canonicalPType()
+
+    val elementAddress = stepF.genFieldThisRef[Long]("elementAddr")
+
+    val didSetup = stepF.genFieldThisRef[Boolean]("didSetup")
+    stepF.cb.emitInit(didSetup := false)
+
+    val eosField = stepF.genFieldThisRef[Boolean]("eos")
+
+    val producer = optStream.pv.asStream.producer
     stepF.emitWithBuilder[Boolean] { cb =>
-      val emitContext = EmitContext.analyze(ctx, ir)
-      val emitter = new Emit(emitContext, stepFECB)
-
-      val env = EmitEnv(Env.empty, argTypeInfo.indices.filter(i => argTypeInfo(i).isInstanceOf[EmitParamType]).map(i => stepF.storeEmitParam(i + 1, cb)))
-      val optStream = EmitCode.fromI(stepF)(cb => EmitStream.produce(emitter, ir, cb, outerRegion, env, None))
-      returnType = optStream.st.asInstanceOf[SStream].elementEmitType.canonicalPType.setRequired(true)
-      val returnPType = optStream.st.asInstanceOf[SStream].elementType.canonicalPType()
-
-      elementAddress = stepF.genFieldThisRef[Long]("elementAddr")
-
-      val didSetup = stepF.genFieldThisRef[Boolean]("didSetup")
-      stepF.cb.emitInit(didSetup := false)
-
-      val eosField = stepF.genFieldThisRef[Boolean]("eos")
-
-      val producer = optStream.pv.asStream.producer
 
       val ret = cb.newLocal[Boolean]("stepf_ret")
       val Lreturn = CodeLabel()
@@ -226,7 +234,11 @@ object CompileIterator {
       cb.ifx(!didSetup, {
         optStream.toI(cb).get(cb) // handle missing, but bound stream producer above
 
-        cb.assign(producer.elementRegion, eltRegionField)
+        if (producer.requiresMemoryManagementPerElement)
+          cb.assign(producer.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
+        else
+          cb.assign(producer.elementRegion, outerRegion)
+
         producer.initialize(cb)
         cb.assign(didSetup, true)
         cb.assign(eosField, false)
@@ -241,6 +253,8 @@ object CompileIterator {
 
       stepF.implementLabel(producer.LendOfStream) { cb =>
         producer.close(cb)
+        if (producer.requiresMemoryManagementPerElement)
+          cb += producer.elementRegion.invalidate()
         cb.assign(eosField, true)
         cb.assign(ret, false)
         cb.goto(Lreturn)

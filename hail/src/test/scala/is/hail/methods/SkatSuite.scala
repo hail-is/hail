@@ -3,10 +3,9 @@ package is.hail.methods
 import is.hail.{HailSuite, TestUtils}
 import is.hail.utils._
 import breeze.linalg._
-import is.hail.expr.ir.DoubleArrayBuilder
 import org.testng.annotations.Test
 
-case class SkatAggForR(xs: BoxedArrayBuilder[DenseVector[Double]], weights: DoubleArrayBuilder)
+case class SkatAggForR(xs: BoxedArrayBuilder[DenseVector[Double]], weights: BoxedArrayBuilder[Double])
 
 class SkatSuite extends HailSuite {
 

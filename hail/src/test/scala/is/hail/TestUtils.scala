@@ -1,6 +1,7 @@
 package is.hail
 
 import java.io.{File, PrintWriter}
+
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
@@ -9,16 +10,13 @@ import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir._
 import is.hail.expr.ir.{BindingEnv, MakeTuple, Subst}
 import is.hail.expr.ir.lowering.LowererUnsupportedOperation
-import is.hail.types.physical.{PBaseStruct, PCanonicalArray, PType, stypes}
+import is.hail.types.physical.{PBaseStruct, PCanonicalArray, PType, PTypeReferenceSingleCodeType}
 import is.hail.types.virtual._
 import is.hail.io.vcf.MatrixVCFReader
-import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
-
-import scala.collection.mutable
 
 object ExecStrategy extends Enumeration {
   type ExecStrategy = Value
@@ -177,7 +175,7 @@ object TestUtils {
     ctx: ExecuteContext
   ): Any = {
       val inputTypesB = new BoxedArrayBuilder[Type]()
-      val inputsB = new mutable.ArrayBuffer[Any]()
+      val inputsB = new BoxedArrayBuilder[Any]()
 
       args.foreach { case (v, t) =>
         inputsB += v
@@ -348,6 +346,7 @@ object TestUtils {
         }
 
       filteredExecStrats.foreach { strat =>
+        InferPType.clearPTypes(x)
         try {
           val res = strat match {
             case ExecStrategy.Interpret =>

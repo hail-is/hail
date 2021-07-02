@@ -3281,7 +3281,7 @@ class Table(ExprContainer):
         from hail.expr.functions import _values_similar
 
         if self._type != other._type:
-            print(f'Table._same: types differ:\n  {self._type}\n  {other._type}')
+            print(f'Table._same: types differ: {self._type}, {other._type}')
             return False
 
         left_global_value = Env.get_uid()
@@ -3469,10 +3469,6 @@ class Table(ExprContainer):
         to create the full Cartesian product of duplicate keys. Instead, there
         is exactly one entry in some `data_field_name` array for every row in
         the inputs.
-
-        The :meth:`multi_way_zip_join` method assumes that inputs have distinct
-        keys. If any input has duplicate keys, the row value that is included
-        in the result array for that key is undefined.
 
         Parameters
         ----------

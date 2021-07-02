@@ -101,7 +101,6 @@ class PruneSuite extends HailSuite {
     false).execute(ctx))
 
   lazy val tr = TableRead(tab.typ, false, new TableReader {
-    override def renderShort(): String = ???
 
     def pathsUsed: Seq[String] = FastSeq()
 
@@ -139,8 +138,6 @@ class PruneSuite extends HailSuite {
     def lower(mr: MatrixRead): TableIR = ???
 
     def toJValue: JValue = ???
-
-    override def renderShort(): String = ???
   })
 
   lazy val emptyTableDep = TableType(TStruct.empty, FastIndexedSeq(), TStruct.empty)

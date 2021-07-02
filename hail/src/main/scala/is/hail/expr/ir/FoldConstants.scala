@@ -33,7 +33,6 @@ object FoldConstants {
            _: NDArrayAgg |
            _: NDArrayWrite |
            _: NDArrayMatMul |
-           _: Trap |
            _: Die => None
       case ir: IR if ir.typ.isInstanceOf[TStream] => None
       case ir: IR if !IsConstant(ir) &&

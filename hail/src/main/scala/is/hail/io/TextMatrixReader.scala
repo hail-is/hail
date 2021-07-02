@@ -8,8 +8,7 @@ import is.hail.io.fs.FS
 import is.hail.rvd.RVDPartitioner
 import is.hail.types._
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.{SIndexablePointerCode, SStackStruct, SStringPointer}
+import is.hail.types.physical.stypes.concrete.{SIndexablePointerCode, SStringPointer}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -345,7 +344,7 @@ class TextMatrixReader(
         params.hasHeader)
 
       { (region: Region, context: Any) =>
-        val Row(lc, partitionIdx: Int) = context
+        val (lc, partitionIdx: Int) = context
         compiledLineParser.apply(partitionIdx, region,
           linesBody(lc).filter { line =>
             val l = line.toString
@@ -362,8 +361,8 @@ class TextMatrixReader(
         val subset = tt.globalType.valueSubsetter(requestedGlobalsType)
         subset(globals).asInstanceOf[Row]
       },
-      TTuple(lines.contextType, TInt32),
-      lines.contexts.zipWithIndex.map { case (x, i) => Row(x, i) },
+      lines.contextType,
+      lines.contexts.zipWithIndex,
       bodyPType,
       body)
 
@@ -380,8 +379,6 @@ class TextMatrixReader(
     implicit val formats: Formats = DefaultFormats
     decomposeWithName(params, "TextMatrixReader")
   }
-
-  override def renderShort(): String = defaultRender()
 
   override def hashCode(): Int = params.hashCode()
 
@@ -483,7 +480,7 @@ class CompiledLineParser(
 
   private[this] def parseOptionalValue(
     cb: EmitCodeBuilder,
-    parse: EmitCodeBuilder => SCode
+    parse: EmitCodeBuilder => PCode
   ): IEmitCode = {
     assert(missingValue.size > 0)
     val end = cb.newLocal[Int]("parse_optional_value_end", pos + missingValue.size)
@@ -574,15 +571,15 @@ class CompiledLineParser(
   }
 
   private[this] def parseValueOfType(cb: EmitCodeBuilder, t: PType): IEmitCode = {
-    def parseDefinedValue(cb: EmitCodeBuilder): SCode = t match {
+    def parseDefinedValue(cb: EmitCodeBuilder): PCode = t match {
       case t: PInt32 =>
-        primitive(cb.invokeCode[Int](parseIntMb, region))
+        PCode(t, cb.invokeCode[Int](parseIntMb, region))
       case t: PInt64 =>
-        primitive(cb.invokeCode[Long](parseLongMb, region))
+        PCode(t, cb.invokeCode[Long](parseLongMb, region))
       case t: PFloat32 =>
-        primitive(Code.invokeStatic1[java.lang.Float, String, Float]("parseFloat", cb.invokeCode(parseStringMb, region)))
+        PCode(t, Code.invokeStatic1[java.lang.Float, String, Float]("parseFloat", cb.invokeCode(parseStringMb, region)))
       case t: PFloat64 =>
-        primitive(Code.invokeStatic1[java.lang.Double, String, Double]("parseDouble", cb.invokeCode(parseStringMb, region)))
+        PCode(t, Code.invokeStatic1[java.lang.Double, String, Double]("parseDouble", cb.invokeCode(parseStringMb, region)))
       case t: PString =>
         val st = SStringPointer(t)
         st.constructFromString(cb, region, cb.invokeCode[String](parseStringMb, region))
@@ -641,14 +638,16 @@ class CompiledLineParser(
   private[this] def parseEntries(cb: EmitCodeBuilder, entriesType: PCanonicalArray): SIndexablePointerCode = {
     val entryType = entriesType.elementType.asInstanceOf[PCanonicalStruct]
     assert(entryType.fields.size == 1)
-    val (push, finish) = entriesType.constructFromFunctions(cb, region, nCols, false)
+    val (nextAddress, _, finish) = entriesType.constructFromNextAddress(cb, region, nCols)
 
     val i = cb.newLocal[Int]("i", 0)
     cb.whileLoop(i < nCols, {
+      val nextAddr = nextAddress(cb)
+
       cb.ifx(pos >= line.length, parseError(cb, const("unexpected end of line while reading entry ").concat(i.toS)))
 
       val ec = EmitCode.fromI(cb.emb)(cb => parseValueOfType(cb, entryType.fields(0).typ))
-      push(cb, IEmitCode.present(cb, SStackStruct.constructFromArgs(cb, region, entryType.virtualType, ec)))
+      entryType.storeAtAddressFromFields(cb, nextAddr, region, FastIndexedSeq(ec), deepCopy = false)
       cb.assign(pos, pos + 1)
       cb.assign(i, i + 1)
     })

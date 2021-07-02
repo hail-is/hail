@@ -5,10 +5,9 @@ import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitMethodBuilder, _}
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.{EmitType, SType}
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerCode, SCanonicalLocusPointer, SCanonicalLocusPointerCode, SIntervalPointer, SIntervalPointerCode, SStringPointer}
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointerCode, SCanonicalLocusPointerCode, SIntervalPointerCode, SStringPointer}
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.primitives.{SFloat64Code, SInt32, SInt64}
+import is.hail.types.physical.stypes.primitives.SFloat64Code
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant._
@@ -40,7 +39,7 @@ object LocusFunctions extends RegistryFunctions {
       val pAlleles = rt.types(1).asInstanceOf[PCanonicalArray]
       val all = cb.newLocal[IndexedSeq[String]]("locus_alleles_parsed_alleles", variant.invoke[IndexedSeq[String]]("_2"))
       val len = cb.newLocal[Int]("locus_alleles_n_alleles", all.invoke[Int]("length"))
-      val ps = pAlleles.elementType.setRequired(false).asInstanceOf[PCanonicalString]
+      val ps = pAlleles.elementType.asInstanceOf[PCanonicalString]
       val ss = SStringPointer(ps)
       val (push, finish) = pAlleles.constructFromFunctions(cb, r, len, deepCopy = false)
       val i = cb.newLocal[Int]("locus_alleles_i", 0)
@@ -94,16 +93,16 @@ object LocusFunctions extends RegistryFunctions {
   def registerAll() {
     val locusClass = Locus.getClass
 
-    registerSCode1("contig", tlocus("T"), TString,
-      (_: Type, x: SType) => x.asInstanceOf[SLocus].contigType) {
-      case (r, cb, rt, locus: SLocusCode) =>
-        locus.contig(cb)
+    registerPCode1("contig", tlocus("T"), TString,
+      (_: Type, x: PType) => x.asInstanceOf[PLocus].contigType) {
+      case (r, cb, rt, locus: PLocusCode) =>
+        locus.contig(cb).asPCode
     }
 
-    registerSCode1("position", tlocus("T"), TInt32, (_: Type, x: SType) => SInt32) {
+    registerPCode1("position", tlocus("T"), TInt32, (_: Type, x: PType) => x.asInstanceOf[PLocus].positionType) {
       case (r, cb, rt, pc: SLocusCode) =>
         val locus = pc.memoize(cb, "locus_position_locus")
-        primitive(locus.position(cb))
+        PCode(rt, locus.position(cb))
     }
     registerLocusCode("isAutosomalOrPseudoAutosomal") { locus =>
       isAutosomal(locus) || ((inX(locus) || inY(locus)) && inPar(locus))
@@ -115,13 +114,13 @@ object LocusFunctions extends RegistryFunctions {
     registerLocusCode("inXNonPar") { locus => inX(locus) && !inPar(locus) }
     registerLocusCode("inYNonPar") { locus => inY(locus) && !inPar(locus) }
 
-    registerSCode2("min_rep", tlocus("T"), TArray(TString), TStruct("locus" -> tv("T"), "alleles" -> TArray(TString)), {
-      (returnType: Type, _: SType, _: SType) => {
+    registerPCode2("min_rep", tlocus("T"), TArray(TString), TStruct("locus" -> tv("T"), "alleles" -> TArray(TString)), {
+      (returnType: Type, _: PType, _: PType) => {
         val locusPT = PCanonicalLocus(returnType.asInstanceOf[TStruct].field("locus").typ.asInstanceOf[TLocus].rg, true)
-        PCanonicalStruct("locus" -> locusPT, "alleles" -> PCanonicalArray(PCanonicalString(true), true)).sType
+        PCanonicalStruct("locus" -> locusPT, "alleles" -> PCanonicalArray(PCanonicalString(true), true))
       }
     }) {
-      case (r, cb, SBaseStructPointer(rt: PCanonicalStruct), locus: SLocusCode, alleles: SIndexableCode) =>
+      case (r, cb, rt: PCanonicalStruct, locus: PLocusCode, alleles: PIndexableCode) =>
         val variantTuple = Code.invokeScalaObject2[Locus, IndexedSeq[String], (Locus, IndexedSeq[String])](
           VariantMethods.getClass, "minRep",
           locus.getLocusObj(cb),
@@ -130,11 +129,11 @@ object LocusFunctions extends RegistryFunctions {
         emitVariant(cb, r.region, variantTuple, rt)
     }
 
-    registerSCode2("locus_windows_per_contig", TArray(TArray(TFloat64)), TFloat64, TTuple(TArray(TInt32), TArray(TInt32)), {
-      (_: Type, _: SType, _: SType) =>
-        PCanonicalTuple(false, PCanonicalArray(PInt32(true), true), PCanonicalArray(PInt32(true), true)).sType
+    registerPCode2("locus_windows_per_contig", TArray(TArray(TFloat64)), TFloat64, TTuple(TArray(TInt32), TArray(TInt32)), {
+      (_: Type, _: PType, _: PType) =>
+        PCanonicalTuple(false, PCanonicalArray(PInt32(true), true), PCanonicalArray(PInt32(true), true))
     }) {
-      case (r: EmitRegion, cb: EmitCodeBuilder, SBaseStructPointer(rt: PCanonicalTuple), groupedCode: SIndexableCode, radiusCode: SFloat64Code) =>
+      case (r: EmitRegion, cb: EmitCodeBuilder, rt: PCanonicalTuple, groupedCode: PIndexableCode, radiusCode: SFloat64Code) =>
 
         val grouped = groupedCode.memoize(cb, "locuswindows_grouped")
         val radius = cb.newLocal("locuswindows_radius", radiusCode.doubleCode(cb))
@@ -201,7 +200,7 @@ object LocusFunctions extends RegistryFunctions {
               )
               cb.define(Lbreak)
 
-              pushElement(cb, IEmitCode.present(cb, primitive(offset + idx)))
+              pushElement(cb, IEmitCode.present(cb, PCode(arrayType.elementType, offset + idx)))
 
               cb.assign(i, i + 1)
             })
@@ -230,10 +229,10 @@ object LocusFunctions extends RegistryFunctions {
           ), deepCopy = false)
     }
 
-    registerSCode1("Locus", TString, tlocus("T"), {
-      (returnType: Type, _: SType) => PCanonicalLocus(returnType.asInstanceOf[TLocus].rg).sType
+    registerPCode1("Locus", TString, tlocus("T"), {
+      (returnType: Type, _: PType) => PCanonicalLocus(returnType.asInstanceOf[TLocus].rg)
     }) {
-      case (r, cb, SCanonicalLocusPointer(rt: PCanonicalLocus), str: SStringCode) =>
+      case (r, cb, rt: PCanonicalLocus, str: PStringCode) =>
         val slocus = str.loadString()
         emitLocus(cb,
           r.region,
@@ -241,23 +240,23 @@ object LocusFunctions extends RegistryFunctions {
           rt)
     }
 
-    registerSCode2("Locus", TString, TInt32, tlocus("T"), {
-      (returnType: Type, _: SType, _: SType) => PCanonicalLocus(returnType.asInstanceOf[TLocus].rg).sType
+    registerPCode2("Locus", TString, TInt32, tlocus("T"), {
+      (returnType: Type, _: PType, _: PType) => PCanonicalLocus(returnType.asInstanceOf[TLocus].rg)
     }) {
-      case (r, cb, SCanonicalLocusPointer(rt: PCanonicalLocus), contig, pos) =>
+      case (r, cb, rt: PCanonicalLocus, contig, pos) =>
         val contigMemo = contig.memoize(cb, "locus_contig")
         val posMemo = pos.memoize(cb, "locus_pos")
         cb += rgCode(r.mb, rt.rg).invoke[String, Int, Unit]("checkLocus", contigMemo.asString.loadString(), posMemo.asInt.intCode(cb))
         rt.constructFromPositionAndString(cb, r.region, contigMemo.asString.loadString(), posMemo.asInt.intCode(cb))
     }
 
-    registerSCode1("LocusAlleles", TString, tvariant("T"), {
-      (returnType: Type, _: SType) => {
+    registerPCode1("LocusAlleles", TString, tvariant("T"), {
+      (returnType: Type, _: PType) => {
         val lTyp = returnType.asInstanceOf[TStruct].field("locus").typ.asInstanceOf[TLocus]
-        PCanonicalStruct("locus" -> PCanonicalLocus(lTyp.rg, true), "alleles" -> PCanonicalArray(PCanonicalString(true), true)).sType
+        PCanonicalStruct("locus" -> PCanonicalLocus(lTyp.rg, true), "alleles" -> PCanonicalArray(PCanonicalString(true), true))
       }
     }) {
-      case (r, cb, SBaseStructPointer(rt: PCanonicalStruct), variantStr) =>
+      case (r, cb, rt: PCanonicalStruct, variantStr) =>
 
         val svar = variantStr.asString.loadString()
         val plocus = rt.types(0).asInstanceOf[PCanonicalLocus]
@@ -268,11 +267,11 @@ object LocusFunctions extends RegistryFunctions {
     }
 
     registerIEmitCode2("LocusInterval", TString, TBoolean, tinterval("T"), {
-      (returnType: Type, _: EmitType, _: EmitType) => {
+      (returnType: Type, _: PType, _: PType) => {
         val lPTyp = returnType.asInstanceOf[TInterval].pointType.asInstanceOf[TLocus]
-        EmitType(PCanonicalInterval(PCanonicalLocus(lPTyp.asInstanceOf[TLocus].rg)).sType, false)
+        PCanonicalInterval(PCanonicalLocus(lPTyp.asInstanceOf[TLocus].rg))
       }
-    }) { case (cb: EmitCodeBuilder, r: Value[Region], SIntervalPointer(rt: PCanonicalInterval), locusStrEC: EmitCode, invalidMissingEC: EmitCode) =>
+    }) { case (cb: EmitCodeBuilder, r: Value[Region], rt: PCanonicalInterval, locusStrEC: EmitCode, invalidMissingEC: EmitCode) =>
       val plocus = rt.pointType.asInstanceOf[PLocus]
 
 
@@ -299,13 +298,13 @@ object LocusFunctions extends RegistryFunctions {
     }
 
     registerIEmitCode6("LocusInterval", TString, TInt32, TInt32, TBoolean, TBoolean, TBoolean, tinterval("T"), {
-      (returnType: Type, _: EmitType, _: EmitType, _: EmitType, _: EmitType, _: EmitType, _: EmitType) => {
+      (returnType: Type, _: PType, _: PType, _: PType, _: PType, _: PType, _: PType) => {
         val lPTyp = returnType.asInstanceOf[TInterval].pointType.asInstanceOf[TLocus]
-        EmitType(PCanonicalInterval(PCanonicalLocus(lPTyp.rg)).sType, false)
+        PCanonicalInterval(PCanonicalLocus(lPTyp.rg))
       }
     }) {
       case (cb: EmitCodeBuilder, r: Value[Region],
-      SIntervalPointer(rt: PCanonicalInterval),
+      rt: PCanonicalInterval,
       locusString: EmitCode,
       pos1: EmitCode,
       pos2: EmitCode,
@@ -348,38 +347,38 @@ object LocusFunctions extends RegistryFunctions {
         }
     }
 
-    registerSCode1("globalPosToLocus", TInt64, tlocus("T"), {
-      (returnType: Type, _: SType) =>
-        PCanonicalLocus(returnType.asInstanceOf[TLocus].rg).sType
+    registerPCode1("globalPosToLocus", TInt64, tlocus("T"), {
+      (returnType: Type, _: PType) =>
+        PCanonicalLocus(returnType.asInstanceOf[TLocus].rg)
     }) {
-      case (r, cb, SCanonicalLocusPointer(rt: PCanonicalLocus), globalPos) =>
+      case (r, cb, rt: PCanonicalLocus, globalPos) =>
         val locus = cb.newLocal[Locus]("global_pos_locus",
           rgCode(r.mb, rt.rg).invoke[Long, Locus]("globalPosToLocus", globalPos.asLong.longCode(cb)))
         rt.constructFromPositionAndString(cb, r.region, locus.invoke[String]("contig"), locus.invoke[Int]("position"))
     }
 
-    registerSCode1("locusToGlobalPos", tlocus("T"), TInt64, (_: Type, _: SType) => SInt64) {
-      case (r, cb, rt, locus: SLocusCode) =>
+    registerPCode1("locusToGlobalPos", tlocus("T"), TInt64, (_: Type, _: PType) => PInt64()) {
+      case (r, cb, rt, locus: PLocusCode) =>
         val locusObject = locus.memoize(cb, "locus_to_global_pos")
           .getLocusObj(cb)
-        val globalPos = rgCode(r.mb, locus.st.rg).invoke[Locus, Long]("locusToGlobalPos", locusObject)
-        primitive(globalPos)
+        val globalPos = rgCode(r.mb, locus.pt.rg).invoke[Locus, Long]("locusToGlobalPos", locusObject)
+        PCode(rt, globalPos)
     }
 
     registerIEmitCode2("liftoverLocus", tlocus("T"), TFloat64, TStruct("result" -> tv("U", "locus"), "is_negative_strand" -> TBoolean), {
-      (returnType: Type, _: EmitType, _: EmitType) => {
+      (returnType: Type, _: PType, _: PType) => {
         val lTyp = returnType.asInstanceOf[TStruct].field("result").typ.asInstanceOf[TLocus]
-        EmitType(PCanonicalStruct("result" -> PCanonicalLocus(lTyp.rg, true), "is_negative_strand" -> PBoolean(true)).sType, false)
+        PCanonicalStruct("result" -> PCanonicalLocus(lTyp.rg, true), "is_negative_strand" -> PBoolean(true))
       }
     }) {
-      case (cb, r, SBaseStructPointer(rt: PCanonicalStruct), loc, minMatch) =>
+      case (cb, r, rt: PCanonicalStruct, loc, minMatch) =>
         loc.toI(cb).flatMap(cb) { loc =>
           minMatch.toI(cb).flatMap(cb) { minMatch =>
 
             val Lmissing = CodeLabel()
             val Ldefined = CodeLabel()
 
-            val locT = loc.asLocus.st
+            val locT = loc.pt.asInstanceOf[PLocus]
             val srcRG = locT.rg
 
             val destRG = rt.types(0).asInstanceOf[PLocus].rg
@@ -406,12 +405,12 @@ object LocusFunctions extends RegistryFunctions {
     }
 
     registerIEmitCode2("liftoverLocusInterval", tinterval("T"), TFloat64, TStruct("result" -> tinterval("U"), "is_negative_strand" -> TBoolean), {
-      (returnType: Type, _: EmitType, _: EmitType) => {
+      (returnType: Type, _: PType, _: PType) => {
         val lTyp = returnType.asInstanceOf[TStruct].field("result").typ.asInstanceOf[TInterval].pointType.asInstanceOf[TLocus]
-        EmitType(PCanonicalStruct("result" -> PCanonicalInterval(PCanonicalLocus(lTyp.rg, true), true), "is_negative_strand" -> PBoolean(true)).sType, false)
+        PCanonicalStruct("result" -> PCanonicalInterval(PCanonicalLocus(lTyp.rg, true), true), "is_negative_strand" -> PBoolean(true))
       }
     }) {
-      case (cb, r, SBaseStructPointer(rt: PCanonicalStruct), interval, minMatch) =>
+      case (cb, r, rt: PCanonicalStruct, interval, minMatch) =>
         interval.toI(cb).flatMap(cb) { interval =>
           minMatch.toI(cb).flatMap(cb) { minMatch =>
 
@@ -419,8 +418,8 @@ object LocusFunctions extends RegistryFunctions {
             val Ldefined = CodeLabel()
 
 
-            val iT = interval.st.asInstanceOf[SInterval]
-            val srcRG = iT.pointType.asInstanceOf[SLocus].rg
+            val iT = interval.pt.asInstanceOf[PInterval]
+            val srcRG = iT.pointType.asInstanceOf[PLocus].rg
             val destRG = rt.types(0).asInstanceOf[PInterval].pointType.asInstanceOf[PLocus].rg
             val er = EmitRegion(cb.emb, r)
             val intervalObj = Code.checkcast[Interval](scodeToJavaValue(cb, r, interval))

@@ -3,8 +3,6 @@ package is.hail.utils.richUtils
 import is.hail.utils.BoxedArrayBuilder
 import org.apache.spark.sql.Row
 
-import scala.collection.mutable
-
 class RichRow(r: Row) {
 
   def update(i: Int, a: Any): Row = {
@@ -21,18 +19,18 @@ class RichRow(r: Row) {
   }
 
   def append(a: Any): Row = {
-    val ab = new mutable.ArrayBuffer[Any]()
+    val ab = new BoxedArrayBuilder[Any]()
     ab ++= r.toSeq
     ab += a
-    Row.fromSeq(ab)
+    Row.fromSeq(ab.result())
   }
 
   def insertBefore(i: Int, a: Any): Row = {
-    val ab = new mutable.ArrayBuffer[Any]()
+    val ab = new BoxedArrayBuilder[Any]()
     (0 until i).foreach(ab += r.get(_))
     ab += a
     (i until r.size).foreach(ab += r.get(_))
-    Row.fromSeq(ab)
+    Row.fromSeq(ab.result())
   }
 
   def truncate(newSize: Int): Row = {

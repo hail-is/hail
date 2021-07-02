@@ -9,11 +9,9 @@ package object lir {
 
   def genName(tag: String, baseName: String): String = synchronized {
     counter += 1
-    if (baseName != null) {
-      if (baseName.contains("."))
-        throw new RuntimeException(s"genName has invalid character(s): $baseName")
+    if (baseName != null)
       s"__$tag$counter$baseName"
-    } else
+    else
       s"__$tag${ counter }null"
   }
 

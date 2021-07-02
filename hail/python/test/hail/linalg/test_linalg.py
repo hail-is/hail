@@ -71,22 +71,26 @@ class Tests(unittest.TestCase):
         self._assert_close(bm.sum(axis=0), np.sum(nd, axis=0, keepdims=True))
         self._assert_close(bm.sum(axis=1), np.sum(nd, axis=1, keepdims=True))
 
-    def test_from_entry_expr_simple(self):
+    @fails_service_backend()
+    @fails_local_backend()
+    def test_from_entry_expr(self):
         mt = get_dataset()
         mt = mt.annotate_entries(x=hl.or_else(mt.GT.n_alt_alleles(), 0)).cache()
 
-        a1 = hl.eval(BlockMatrix.from_entry_expr(hl.or_else(mt.GT.n_alt_alleles(), 0), block_size=32).to_ndarray())
-        a2 = hl.eval(BlockMatrix.from_entry_expr(mt.x, block_size=32).to_ndarray())
-        a3 = hl.eval(BlockMatrix.from_entry_expr(hl.float64(mt.x), block_size=32).to_ndarray())
+        a1 = BlockMatrix.from_entry_expr(hl.or_else(mt.GT.n_alt_alleles(), 0), block_size=32).to_numpy()
+        a2 = BlockMatrix.from_entry_expr(mt.x, block_size=32).to_numpy()
+        a3 = BlockMatrix.from_entry_expr(hl.float64(mt.x), block_size=32).to_numpy()
 
         self._assert_eq(a1, a2)
         self._assert_eq(a1, a3)
 
         with hl.TemporaryDirectory(ensure_exists=False) as path:
             BlockMatrix.write_from_entry_expr(mt.x, path, block_size=32)
-            a4 = hl.eval(BlockMatrix.read(path).to_ndarray())
+            a4 = BlockMatrix.read(path).to_numpy()
             self._assert_eq(a1, a4)
 
+    @fails_service_backend()
+    @fails_local_backend()
     def test_from_entry_expr_options(self):
         def build_mt(a):
             data = [{'v': 0, 's': 0, 'x': a[0]},
@@ -98,10 +102,10 @@ class Tests(unittest.TestCase):
             return mt.choose_cols([ids.index(0), ids.index(1), ids.index(2)])
 
         def check(expr, mean_impute, center, normalize, expected):
-            actual = np.squeeze(hl.eval(BlockMatrix.from_entry_expr(expr,
+            actual = np.squeeze(BlockMatrix.from_entry_expr(expr,
                                                             mean_impute=mean_impute,
                                                             center=center,
-                                                            normalize=normalize).to_ndarray()))
+                                                            normalize=normalize).to_numpy())
             assert np.allclose(actual, expected)
 
         a = np.array([0.0, 1.0, 2.0])
@@ -121,6 +125,8 @@ class Tests(unittest.TestCase):
         with self.assertRaises(Exception):
             BlockMatrix.from_entry_expr(mt.x)
 
+    @fails_service_backend()
+    @fails_local_backend()
     def test_write_from_entry_expr_overwrite(self):
         mt = hl.balding_nichols_model(1, 1, 1)
         mt = mt.select_entries(x=mt.GT.n_alt_alleles())
@@ -250,20 +256,19 @@ class Tests(unittest.TestCase):
         mt_round_trip = BlockMatrix.from_entry_expr(mt.element).to_matrix_table_row_major()
         assert mt._same(mt_round_trip)
 
-    def test_paired_elementwise_ops(self):
+    @fails_service_backend()
+    @fails_local_backend()
+    def test_elementwise_ops(self):
         nx = np.array([[2.0]])
         nc = np.array([[1.0], [2.0]])
         nr = np.array([[1.0, 2.0, 3.0]])
         nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
 
         e = 2.0
-        # BlockMatrixMap requires very simple IRs on the SparkBackend. If I use
-        # `from_ndarray` here, it generates an `NDArrayRef` expression that it can't handle.
-        # Will be fixed by improving FoldConstants handling of ndarrays or fully lowering BlockMatrix.
-        x = BlockMatrix._create(1, 1, [2.0], block_size=8)
-        c = BlockMatrix.from_ndarray(hl.literal(nc), block_size=8)
-        r = BlockMatrix.from_ndarray(hl.literal(nr), block_size=8)
-        m = BlockMatrix.from_ndarray(hl.literal(nm), block_size=8)
+        x = BlockMatrix.from_numpy(nx, block_size=8)
+        c = BlockMatrix.from_numpy(nc, block_size=8)
+        r = BlockMatrix.from_numpy(nr, block_size=8)
+        m = BlockMatrix.from_numpy(nm, block_size=8)
 
         self.assertRaises(TypeError,
                           lambda: x + np.array(['one'], dtype=str))
@@ -572,9 +577,11 @@ class Tests(unittest.TestCase):
         self.assert_sums_agree(bm3, nd)
         self.assert_sums_agree(bm4, nd4)
 
+    @fails_service_backend()
+    @fails_local_backend()
     def test_slicing(self):
         nd = np.array(np.arange(0, 80, dtype=float)).reshape(8, 10)
-        bm = BlockMatrix.from_ndarray(hl.literal(nd), block_size=3)
+        bm = BlockMatrix.from_numpy(nd, block_size=3)
 
         for indices in [(0, 0), (5, 7), (-3, 9), (-8, -10)]:
             self._assert_eq(bm[indices], nd[indices])
@@ -595,16 +602,14 @@ class Tests(unittest.TestCase):
             self._assert_eq(bm[indices] - bm, nd[indices] - nd)
             self._assert_eq(bm - bm[indices], nd - nd[indices])
 
-        for indices in [
-            (slice(0, 8), slice(0, 10)),
-            (slice(0, 8, 2), slice(0, 10, 2)),
-            (slice(2, 4), slice(5, 7)),
-            (slice(-8, -1), slice(-10, -1)),
-            (slice(-8, -1, 2), slice(-10, -1, 2)),
-            (slice(None, 4, 1), slice(None, 4, 1)),
-            (slice(4, None), slice(4, None)),
-            (slice(None, None), slice(None, None))
-        ]:
+        for indices in [(slice(0, 8), slice(0, 10)),
+                        (slice(0, 8, 2), slice(0, 10, 2)),
+                        (slice(2, 4), slice(5, 7)),
+                        (slice(-8, -1), slice(-10, -1)),
+                        (slice(-8, -1, 2), slice(-10, -1, 2)),
+                        (slice(None, 4, 1), slice(None, 4, 1)),
+                        (slice(4, None), slice(4, None)),
+                        (slice(None, None), slice(None, None))]:
             self._assert_eq(bm[indices], nd[indices])
             self._assert_eq(bm[indices][:, :2], nd[indices][:, :2])
             self._assert_eq(bm[indices][:2, :], nd[indices][:2, :])
@@ -876,6 +881,8 @@ class Tests(unittest.TestCase):
         sparsed = BlockMatrix.from_ndarray(hl.nd.array(sparsed_numpy), block_size=4)._sparsify_blocks(blocks_to_sparsify).to_ndarray()
         self.assertTrue(np.array_equal(sparsed_numpy, hl.eval(sparsed)))
 
+    @fails_service_backend()
+    @fails_local_backend()
     def test_block_matrix_entries(self):
         n_rows, n_cols = 5, 3
         rows = [{'i': i, 'j': j, 'entry': float(i + j)} for i in range(n_rows) for j in range(n_cols)]
@@ -887,12 +894,14 @@ class Tests(unittest.TestCase):
         ndarray = np.reshape(list(map(lambda row: row['entry'], rows)), (n_rows, n_cols))
 
         for block_size in [1, 2, 1024]:
-            block_matrix = BlockMatrix.from_ndarray(hl.literal(ndarray), block_size)
+            block_matrix = BlockMatrix.from_numpy(ndarray, block_size)
             entries_table = block_matrix.entries()
             self.assertEqual(entries_table.count(), n_cols * n_rows)
             self.assertEqual(len(entries_table.row), 3)
             self.assertTrue(table._same(entries_table))
 
+    @fails_service_backend()
+    @fails_local_backend()
     def test_from_entry_expr_filtered(self):
         mt = hl.utils.range_matrix_table(1, 1).filter_entries(False)
         bm = hl.linalg.BlockMatrix.from_entry_expr(mt.row_idx + mt.col_idx, mean_impute=True) # should run without error
@@ -1192,17 +1201,3 @@ class Tests(unittest.TestCase):
         # Summing horizontally along a column vector to make sure nothing changes
         f = col.sum(axis=1)
         assert f.to_numpy().shape == (10, 1)
-
-
-    @fails_spark_backend()
-    def test_map(self):
-        np_mat = np.arange(20, dtype=np.float64).reshape((4, 5))
-        bm = BlockMatrix.from_ndarray(hl.nd.array(np_mat))
-        bm_mapped_arith = bm._map_dense(lambda x: (x * x) + 5)
-        self._assert_eq(bm_mapped_arith, np_mat * np_mat + 5)
-
-        bm_mapped_if = bm._map_dense(lambda x: hl.if_else(x >= 1, x, -8.0))
-        np_if = np_mat.copy()
-        np_if[0, 0] = -8.0
-        self._assert_eq(bm_mapped_if, np_if)
-

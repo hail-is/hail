@@ -76,10 +76,6 @@ class VCFTests(unittest.TestCase):
         self.assertFalse('undeclaredFlag' in info_type)
 
     @fails_service_backend()
-    def test_can_import_bad_number_flag(self):
-        hl.import_vcf(resource('bad_flag_number.vcf')).rows()._force_count()
-
-    @fails_service_backend()
     def test_malformed(self):
         with self.assertRaisesRegex(FatalError, "invalid character"):
             mt = hl.import_vcf(resource('malformed.vcf'))
@@ -955,24 +951,6 @@ class PLINKTests(unittest.TestCase):
                         resource('sex_mt_contigs.bim'),
                         resource('sex_mt_contigs.fam'),
                         reference_genome='random')
-
-    @fails_service_backend()
-    @fails_local_backend()
-    def test_export_plink_struct_locus(self):
-        mt = hl.utils.range_matrix_table(10, 10)
-        mt = mt.key_rows_by(locus=hl.struct(contig=hl.str(mt.row_idx), position=mt.row_idx), alleles=['A', 'T']).select_rows()
-        mt = mt.key_cols_by(s=hl.str(mt.col_idx)).select_cols()
-        mt = mt.annotate_entries(GT=hl.call(0, 0))
-
-        out = new_temp_file()
-
-        hl.export_plink(mt, out)
-        mt2 = hl.import_plink(
-            bed=out + '.bed',
-            bim=out + '.bim',
-            fam=out + '.fam',
-            reference_genome=None).select_rows().select_cols()
-        assert mt._same(mt2)
 
 
 # this routine was used to generate resources random.gen, random.sample
@@ -1880,7 +1858,7 @@ class ImportMatrixTableTests(unittest.TestCase):
 
     @fails_service_backend()
     @fails_local_backend()
-    def test_devilish_nine_separated_eight_missing_file(self):
+    def test_devlish_nine_separated_eight_missing_file(self):
         fields = {'chr': hl.tstr,
                   '': hl.tint32,
                   'ref': hl.tstr,
@@ -2069,6 +2047,7 @@ class GrepTests(unittest.TestCase):
 
 
 @fails_service_backend()
+@fails_local_backend()
 def test_matrix_and_table_read_intervals_with_hidden_key():
     f1 = new_temp_file()
     f2 = new_temp_file()

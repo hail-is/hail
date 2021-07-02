@@ -8,17 +8,13 @@ from hailtop.utils import sync_retry_transient_errors
 
 __all__ = [
     'get_1kg',
-    'get_hgdp',
     'get_movie_lens'
 ]
 
 resources = {
     '1kg_annotations': 'https://storage.googleapis.com/hail-tutorial/1kg_annotations.txt',
     '1kg_matrix_table': 'https://storage.googleapis.com/hail-tutorial/1kg.vcf.bgz',
-    '1kg_ensembl_gene_annotations': 'https://storage.googleapis.com/hail-tutorial/ensembl_gene_annotations.txt',
-    'HGDP_annotations': 'https://storage.googleapis.com/hail-tutorial/hgdp/hgdp_pop_and_sex_annotations.tsv',
-    'HGDP_matrix_table': 'https://storage.googleapis.com/hail-tutorial/hgdp/hgdp_subset.vcf.bgz',
-    'HGDP_ensembl_gene_annotations': 'https://storage.googleapis.com/hail-tutorial/hgdp/hgdp_gene_annotations.tsv',
+    'ensembl_gene_annotations': 'https://storage.googleapis.com/hail-tutorial/ensembl_gene_annotations.txt',
     'movie_lens_100k': 'http://files.grouplens.org/datasets/movielens/ml-100k.zip',
 }
 
@@ -92,7 +88,7 @@ def get_1kg(output_dir, overwrite: bool = False):
         sync_retry_transient_errors(urlretrieve, source, tmp_sample_annot)
 
         tmp_gene_annot = os.path.join(tmp_dir, 'ensembl_gene_annotations.txt')
-        source = resources['1kg_ensembl_gene_annotations']
+        source = resources['ensembl_gene_annotations']
         info(f'downloading Ensembl gene annotations ...\n'
              f'  Source: {source}')
         sync_retry_transient_errors(urlretrieve, source, tmp_gene_annot)
@@ -103,67 +99,6 @@ def get_1kg(output_dir, overwrite: bool = False):
         info('Done!')
     else:
         info('1KG files found')
-
-
-def get_hgdp(output_dir, overwrite: bool = False):
-    """Download subset of the `Human Genome Diversity Panel
-    <https://www.internationalgenome.org/data-portal/data-collection/hgdp/>`__
-    dataset and sample annotations.
-
-    Notes
-    -----
-    The download is about 30MB.
-
-    Parameters
-    ----------
-    output_dir
-        Directory in which to write data.
-    overwrite
-        If ``True``, overwrite any existing files/directories at `output_dir`.
-    """
-    fs = Env.fs()
-
-    if not _dir_exists(fs, output_dir):
-        fs.mkdir(output_dir)
-
-    matrix_table_path = os.path.join(output_dir, 'HGDP.mt')
-    vcf_path = os.path.join(output_dir, 'HGDP.vcf.bgz')
-    sample_annotations_path = os.path.join(output_dir, 'HGDP_annotations.txt')
-    gene_annotations_path = os.path.join(output_dir, 'ensembl_gene_annotations.txt')
-
-    if (overwrite
-            or not _dir_exists(fs, matrix_table_path)
-            or not _file_exists(fs, sample_annotations_path)
-            or not _file_exists(fs, vcf_path)
-            or not _file_exists(fs, gene_annotations_path)):
-        init_temp_dir()
-        tmp_vcf = os.path.join(tmp_dir, 'HGDP.vcf.bgz')
-        source = resources['HGDP_matrix_table']
-        info(f'downloading HGDP VCF ...\n'
-             f'  Source: {source}')
-        sync_retry_transient_errors(urlretrieve, resources['HGDP_matrix_table'], tmp_vcf)
-        cluster_readable_vcf = _copy_to_tmp(fs, local_path_uri(tmp_vcf), extension='vcf.bgz')
-        info('importing VCF and writing to matrix table...')
-        hl.import_vcf(cluster_readable_vcf, min_partitions=16, reference_genome='GRCh38').write(matrix_table_path, overwrite=True)
-
-        tmp_sample_annot = os.path.join(tmp_dir, 'HGDP_annotations.txt')
-        source = resources['HGDP_annotations']
-        info(f'downloading HGDP annotations ...\n'
-             f'  Source: {source}')
-        sync_retry_transient_errors(urlretrieve, source, tmp_sample_annot)
-
-        tmp_gene_annot = os.path.join(tmp_dir, 'ensembl_gene_annotations.txt')
-        source = resources['HGDP_ensembl_gene_annotations']
-        info(f'downloading Ensembl gene annotations ...\n'
-             f'  Source: {source}')
-        sync_retry_transient_errors(urlretrieve, source, tmp_gene_annot)
-
-        hl.hadoop_copy(local_path_uri(tmp_sample_annot), sample_annotations_path)
-        hl.hadoop_copy(local_path_uri(tmp_gene_annot), gene_annotations_path)
-        hl.hadoop_copy(local_path_uri(tmp_vcf), vcf_path)
-        info('Done!')
-    else:
-        info('HGDP files found')
 
 
 def get_movie_lens(output_dir, overwrite: bool = False):

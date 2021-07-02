@@ -1,8 +1,7 @@
 package is.hail.services.batch_client
 
-import is.hail.expr.ir.ByteArrayBuilder
-
 import java.nio.charset.StandardCharsets
+
 import is.hail.utils._
 import is.hail.services._
 import is.hail.services.{DeployConfig, Tokens}
@@ -98,7 +97,7 @@ class BatchClient(
     bunchb.clear()
     size = 0
 
-    val b = new ByteArrayBuilder()
+    val b = new BoxedArrayBuilder[Byte]()
 
     i = 0 // reuse
     while (i < bunches.length) {

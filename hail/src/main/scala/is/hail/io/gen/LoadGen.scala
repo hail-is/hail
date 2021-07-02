@@ -21,8 +21,6 @@ import org.apache.spark.sql.Row
 import org.apache.spark.broadcast.Broadcast
 import org.json4s.{DefaultFormats, Extraction, Formats, JObject, JValue}
 
-import scala.collection.mutable
-
 case class GenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Annotation, Iterable[Annotation])])
 
 object LoadGen {
@@ -83,7 +81,7 @@ object LoadGen {
       if (gp.length != (3 * nSamples))
         fatal("Number of genotype probabilities does not match 3 * number of samples. If no chromosome column is included, use -c to input the chromosome.")
 
-      val gsb = new mutable.ArrayBuffer[Annotation]()
+      val gsb = new BoxedArrayBuilder[Annotation]()
 
       for (i <- gp.indices by 3) {
         val d0 = gp(i)
@@ -104,7 +102,7 @@ object LoadGen {
 
       val annotations = Annotation(locus, alleles, rsid, varid)
 
-      Some(annotations -> gsb.result())
+      Some(annotations -> gsb.result().toIterable)
     }
   }
 }
@@ -266,8 +264,6 @@ class MatrixGENReader(
     implicit val formats: Formats = DefaultFormats
     decomposeWithName(params, "MatrixGENReader")
   }
-
-  def renderShort(): String = defaultRender()
 
   override def hashCode(): Int = params.hashCode()
 

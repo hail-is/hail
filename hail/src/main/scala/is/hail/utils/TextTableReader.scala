@@ -333,8 +333,6 @@ class TextTableReader(
       PCanonicalStruct.empty(required = true)
   }
 
-  def renderShort(): String = defaultRender()
-
   def executeGeneric(ctx: ExecuteContext): GenericTableValue = {
     val fs = ctx.fs
 

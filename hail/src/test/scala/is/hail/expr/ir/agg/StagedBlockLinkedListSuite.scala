@@ -47,7 +47,7 @@ class StagedBlockLinkedListSuite extends HailSuite {
         sbll.load(cb, ptr)
         sbll.push(cb, r, EmitCode(Code._empty,
           eltOff.get.ceq(0L),
-          elemPType.loadCheapSCode(cb, eltOff)))
+          elemPType.loadCheapPCode(cb, eltOff)))
         sbll.store(cb, ptr)
         Code._empty
       }

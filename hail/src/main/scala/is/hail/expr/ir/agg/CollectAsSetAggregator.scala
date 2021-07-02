@@ -8,7 +8,6 @@ import is.hail.io._
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.encoded.EType
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.SCode
 import is.hail.types.virtual.Type
 import is.hail.utils._
 
@@ -18,8 +17,8 @@ class TypedKey(typ: PType, kb: EmitClassBuilder[_], region: Value[Region]) exten
 
   def isKeyMissing(src: Code[Long]): Code[Boolean] = storageType.isFieldMissing(src, 0)
 
-  def loadKey(cb: EmitCodeBuilder, src: Code[Long]): SCode = {
-    typ.loadCheapSCode(cb, storageType.loadField(src, 0))
+  def loadKey(cb: EmitCodeBuilder, src: Code[Long]): PCode = {
+    typ.loadCheapPCode(cb, storageType.loadField(src, 0))
   }
 
   def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Code[Boolean] = storageType.isFieldMissing(off, 1)
@@ -46,7 +45,7 @@ class TypedKey(typ: PType, kb: EmitClassBuilder[_], region: Value[Region]) exten
     cb += Region.copyFrom(src, dest, storageType.byteSize)
 
   def deepCopy(cb: EmitCodeBuilder, er: EmitRegion, dest: Code[Long], src: Code[Long]): Unit = {
-    storageType.storeAtAddress(cb, dest, region, storageType.loadCheapSCode(cb, src), deepCopy = true)
+    storageType.storeAtAddress(cb, dest, region, storageType.loadCheapPCode(cb, src), deepCopy = true)
   }
 
   def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = {
