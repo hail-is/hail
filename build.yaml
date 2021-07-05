@@ -46,7 +46,6 @@ steps:
       - gcr-pull-key
       - gcr-push-service-account-key
       - test-gsa-key
-      - test-aws-key
       - auth-oauth2-client-secret
       - benchmark-gsa-key
   - kind: buildImage2
