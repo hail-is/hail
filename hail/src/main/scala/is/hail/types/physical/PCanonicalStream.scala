@@ -3,7 +3,7 @@ package is.hail.types.physical
 import is.hail.annotations.UnsafeOrdering
 import is.hail.asm4s.Code
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.types.physical.stypes.interfaces
+import is.hail.types.physical.stypes.{EmitType, interfaces}
 import is.hail.types.physical.stypes.interfaces.{SStream, SStreamCode}
 import is.hail.types.virtual.{TStream, Type}
 
@@ -16,8 +16,6 @@ final case class PCanonicalStream(elementType: PType, required: Boolean = false)
     sb.append("]")
   }
 
-  override def defaultValue(mb: EmitMethodBuilder[_]): SStreamCode = throw new UnsupportedOperationException
-
   override def deepRename(t: Type) = deepRenameStream(t.asInstanceOf[TStream])
 
   private def deepRenameStream(t: TStream): PStream =
@@ -25,7 +23,7 @@ final case class PCanonicalStream(elementType: PType, required: Boolean = false)
 
   def setRequired(required: Boolean): PCanonicalStream = if (required == this.required) this else this.copy(required = required)
 
-  override def sType: SStream = interfaces.SStream(elementType.sType, required)
+  override def sType: SStream = interfaces.SStream(EmitType(elementType.sType, elementType.required))
 
   def loadFromNested(addr: Code[Long]): Code[Long] = throw new NotImplementedError()
 

@@ -416,6 +416,8 @@ class TailLoop(IR):
         return {n for n, _ in self.params} | {self.name} | super().bound_variables
 
     def _compute_type(self, env, agg_env):
+        for _, b in self.params:
+            b._compute_type(env, agg_env)
         self.body._compute_type(_env_bind(env, self.bindings(len(self.params))), agg_env)
         self._type = self.body.typ
 
@@ -475,7 +477,10 @@ class ApplyBinaryPrimOp(IR):
         self.left._compute_type(env, agg_env)
         self.right._compute_type(env, agg_env)
         if self.op == '/':
-            if self.left.typ == tfloat64:
+            int_types = [tint32, tint64]
+            if self.left.typ in int_types and self.right.typ in int_types:
+                self._type = tfloat64
+            elif self.left.typ == tfloat64:
                 self._type = tfloat64
             else:
                 self._type = tfloat32

@@ -2,8 +2,9 @@ package is.hail.utils
 
 import is.hail.annotations.{Region, RegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.types.physical.{PCanonicalTuple, PTuple, PType, PTypeReferenceSingleCodeType}
+import is.hail.types.physical.{PCanonicalTuple, PTuple, PType, stypes}
 import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, IRParserEnvironment, Interpret, Literal, MakeTuple, SingleCodeEmitParamType}
+import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual._
 import org.apache.spark.sql.Row
 

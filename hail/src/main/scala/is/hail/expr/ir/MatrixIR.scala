@@ -20,6 +20,7 @@ import is.hail.variant._
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s._
+import org.json4s.jackson.JsonMethods
 
 object MatrixIR {
   def read(fs: FS, path: String, dropCols: Boolean = false, dropRows: Boolean = false, requestedType: Option[MatrixType] = None): MatrixIR = {
@@ -105,10 +106,18 @@ trait MatrixReader {
   def lower(mr: MatrixRead): TableIR
 
   def toJValue: JValue
+
+  def renderShort(): String
+
+  def defaultRender(): String = {
+    StringEscapeUtils.escapeString(JsonMethods.compact(toJValue))
+  }
 }
 
 abstract class MatrixHybridReader extends TableReader with MatrixReader {
   lazy val fullType: TableType = fullMatrixType.canonicalTableType
+
+  override def defaultRender(): String = super.defaultRender()
 
   override def lower(mr: MatrixRead): TableIR = {
     var tr: TableIR = TableRead(mr.typ.canonicalTableType, mr.dropRows, this)
@@ -194,6 +203,8 @@ class MatrixNativeReader(
   spec: AbstractMatrixTableSpec
 ) extends MatrixReader {
   def pathsUsed: Seq[String] = FastSeq(params.path)
+
+  override def renderShort(): String = s"(MatrixNativeReader ${ params.path } ${ params.options.map(_.renderShort()).getOrElse("") })"
 
   lazy val columnCount: Option[Int] = Some(spec.colsSpec
     .partitionCounts
@@ -300,6 +311,8 @@ class MatrixRangeReader(
     rowKey = Array("row_idx"),
     rowType = TStruct("row_idx" -> TInt32),
     entryType = TStruct.empty)
+
+  override def renderShort(): String = s"(MatrixRangeReader $params $nPartitionsAdj)"
 
   val columnCount: Option[Int] = Some(params.nCols)
 

@@ -55,4 +55,6 @@ case class NativeReaderOptions(
       "intervalPointType" -> intervalPointType.parsableString(),
       "filterIntervals" -> filterIntervals)
   }
+
+  def renderShort(): String = s"(IntervalRead: ${intervals.length} intervals, filter=${filterIntervals})"
 }

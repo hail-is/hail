@@ -248,9 +248,12 @@ async def unschedule_job(app, record):
         if instance.state in ('inactive', 'deleted'):
             return
         try:
-            async with aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+            async with aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
                 await session.delete(url)
                 await instance.mark_healthy()
+        except asyncio.TimeoutError:
+            await instance.incr_failed_request_count()
+            return
         except aiohttp.ClientResponseError as err:
             if err.status == 404:
                 await instance.mark_healthy()
@@ -425,6 +428,8 @@ async def schedule_job(app, record, instance):
             await instance.mark_healthy()
             if e.status == 403:
                 log.info(f'attempt already exists for job {id} on {instance}, aborting')
+            if e.status == 503:
+                log.info(f'job {id} cannot be scheduled because {instance} is shutting down, aborting')
             raise e
         except Exception:
             await instance.incr_failed_request_count()

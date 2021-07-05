@@ -8,7 +8,7 @@ import is.hail.io.fs.FS
 import is.hail.io.index.IndexReaderBuilder
 import is.hail.io.{ByteArrayReader, HadoopFSDataBinaryReader}
 import is.hail.types._
-import is.hail.types.physical.stypes.concrete.{SCanonicalCallCode, SStringPointer}
+import is.hail.types.physical.stypes.concrete.{SCanonicalCallCode, SStackStruct, SStringPointer}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.{PCanonicalArray, PCanonicalLocus, PCanonicalString, PCanonicalStruct, PStruct}
 import is.hail.types.virtual.{TInterval, Type}
@@ -279,7 +279,7 @@ object CompileDecoder {
             t.constructFromPositionAndString(cb, region, contigRecoded, position)
           case t: PCanonicalStruct =>
             val strT = t.field("contig").typ.asInstanceOf[PCanonicalString]
-            val contigPC = SStringPointer(strT).constructFromString(cb, region, contigRecoded)
+            val contigPC = strT.sType.constructFromString(cb, region, contigRecoded)
             t.constructFromFields(cb, region,
               FastIndexedSeq(EmitCode.present(cb.emb, contigPC), EmitCode.present(cb.emb, primitive(position))),
               deepCopy = false)
@@ -310,9 +310,9 @@ object CompileDecoder {
       }
 
       if (settings.hasField("rsid"))
-        structFieldCodes += EmitCode.present(cb.emb, SStringPointer(PCanonicalString(true)).constructFromString(cb, region, rsid))
+        structFieldCodes += EmitCode.present(cb.emb, SStringPointer(PCanonicalString(false)).constructFromString(cb, region, rsid))
       if (settings.hasField("varid"))
-        structFieldCodes += EmitCode.present(cb.emb, SStringPointer(PCanonicalString(true)).constructFromString(cb, region, varid))
+        structFieldCodes += EmitCode.present(cb.emb, SStringPointer(PCanonicalString(false)).constructFromString(cb, region, varid))
       if (settings.hasField("offset"))
         structFieldCodes += EmitCode.present(cb.emb, primitive(offset))
       if (settings.hasField("file_idx"))
@@ -343,15 +343,13 @@ object CompileDecoder {
             val LnoOp = CodeLabel()
             cb.ifx(alreadyMemoized, cb.goto(LnoOp))
 
-            val (nextAddr, _, finish) = memoTyp.constructFromNextAddress(cb, partRegion, 1 << 16)
+            val (push, finish) = memoTyp.constructFromFunctions(cb, partRegion, 1 << 16, false)
 
             val d0 = cb.newLocal[Int]("memoize_entries_d0", 0)
             cb.whileLoop(d0 < 256, {
               val d1 = cb.newLocal[Int]("memoize_entries_d1", 0)
               cb.whileLoop(d1 < 256, {
                 val d2 = cb.newLocal[Int]("memoize_entries_d2", const(255) - d0 - d1)
-
-                val structAddr = nextAddr(cb)
 
                 val entryFieldCodes = new BoxedArrayBuilder[EmitCode]()
 
@@ -388,7 +386,7 @@ object CompileDecoder {
                             cb.goto(Lpresent)
                           })))
 
-                    IEmitCode(Lmissing, Lpresent, new SCanonicalCallCode(false, value), false)
+                    IEmitCode(Lmissing, Lpresent, new SCanonicalCallCode(value), false)
                   }
 
                 if (includeGP)
@@ -412,7 +410,8 @@ object CompileDecoder {
                     IEmitCode.present(cb, primitive((d1 + (d2 << 1)).toD / 255.0))
                   }
 
-                entryType.storeAtAddressFromFields(cb, structAddr, partRegion, entryFieldCodes.result(), deepCopy = false)
+                push(cb, IEmitCode.present(cb,
+                  SStackStruct.constructFromArgs(cb, partRegion, entryType.virtualType, entryFieldCodes.result(): _*)))
 
                 cb.assign(d1, d1 + 1)
               })
@@ -518,7 +517,7 @@ object CompileDecoder {
             val dataOffset = cb.newLocal[Int]("bgen_add_entries_offset", const(settings.nSamples + 10) + i * 2)
             val d0 = data(dataOffset) & 0xff
             val d1 = data(dataOffset + 1) & 0xff
-            val pc = entryType.loadCheapPCode(cb, memoTyp.loadElement(memoizedEntryData, settings.nSamples, (d0 << 8) | d1))
+            val pc = entryType.loadCheapSCode(cb, memoTyp.loadElement(memoizedEntryData, settings.nSamples, (d0 << 8) | d1))
             cb.goto(Lpresent)
             val iec = IEmitCode(Lmissing, Lpresent, pc, false)
             pushElement(cb, iec)

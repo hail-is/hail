@@ -2,7 +2,7 @@ package is.hail.utils
 
 import scala.reflect.ClassTag
 
-final class ObjectArrayStack[T](hintSize: Int = 16)(implicit tct: ClassTag[T]) {
+final class ObjectArrayStack[T <: AnyRef](hintSize: Int = 16)(implicit tct: ClassTag[T]) {
   private var a = new Array[T](hintSize)
 
   private[this] var size_ = 0

@@ -1,7 +1,9 @@
+import asyncio
 import aiohttp
 import sortedcontainers
 import logging
 import dateutil.parser
+import collections
 from typing import Dict
 
 from hailtop.utils import time_msecs, secret_alnum_string, periodically_call
@@ -26,6 +28,7 @@ class InstanceCollection:
         self.is_pool = is_pool
 
         self.name_instance: Dict[str, Instance] = {}
+        self.live_free_cores_mcpu_by_zone: Dict[str, int] = collections.defaultdict(int)
 
         self.instances_by_last_updated = sortedcontainers.SortedSet(key=lambda instance: instance.last_updated)
 
@@ -70,6 +73,7 @@ class InstanceCollection:
         if instance.state in ('pending', 'active'):
             self.live_free_cores_mcpu -= max(0, instance.free_cores_mcpu)
             self.live_total_cores_mcpu -= instance.cores_mcpu
+            self.live_free_cores_mcpu_by_zone[instance.zone] -= max(0, instance.free_cores_mcpu)
 
     async def remove_instance(self, instance, reason, timestamp=None):
         await instance.deactivate(reason, timestamp)
@@ -88,6 +92,7 @@ class InstanceCollection:
         if instance.state in ('pending', 'active'):
             self.live_free_cores_mcpu += max(0, instance.free_cores_mcpu)
             self.live_total_cores_mcpu += instance.cores_mcpu
+            self.live_free_cores_mcpu_by_zone[instance.zone] += max(0, instance.free_cores_mcpu)
 
     def add_instance(self, instance):
         assert instance.name not in self.name_instance
@@ -123,6 +128,13 @@ class InstanceCollection:
                 return
             raise
 
+        if (instance.state == 'active'
+                and instance.failed_request_count > 5
+                and time_msecs() - instance.last_updated > 5 * 60 * 1000):
+            log.exception(f'deleting {instance} with {instance.failed_request_count} failed request counts after more than 5 minutes')
+            await self.call_delete_instance(instance, 'not_responding')
+            return
+
         # PROVISIONING, STAGING, RUNNING, STOPPING, TERMINATED
         gce_state = spec['status']
 
@@ -157,12 +169,16 @@ class InstanceCollection:
 
     async def monitor_instances(self):
         if self.instances_by_last_updated:
-            # 0 is the smallest (oldest)
-            instance = self.instances_by_last_updated[0]
-            since_last_updated = time_msecs() - instance.last_updated
-            if since_last_updated > 60 * 1000:
-                log.info(f'checking on {instance}, last updated {since_last_updated / 1000}s ago')
-                await self.check_on_instance(instance)
+            # [:50] are the fifty smallest (oldest)
+            instances = self.instances_by_last_updated[:50]
+
+            async def check(instance):
+                since_last_updated = time_msecs() - instance.last_updated
+                if since_last_updated > 60 * 1000:
+                    log.info(f'checking on {instance}, last updated {since_last_updated / 1000}s ago')
+                    await self.check_on_instance(instance)
+
+            await asyncio.gather(*[check(instance) for instance in instances])
 
     async def monitor_instances_loop(self):
         await periodically_call(1, self.monitor_instances)

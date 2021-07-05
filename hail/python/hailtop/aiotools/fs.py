@@ -1,4 +1,4 @@
-from typing import Any, Optional, List, Type, BinaryIO, cast, Set, AsyncIterator, Union, Dict
+from typing import Any, AsyncContextManager, Optional, List, Type, BinaryIO, cast, Set, AsyncIterator, Union, Dict
 from types import TracebackType
 import abc
 import os
@@ -9,10 +9,11 @@ import shutil
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import urllib.parse
+import functools
 import humanize
 from hailtop.utils import (
     retry_transient_errors, blocking_to_async, url_basename, url_join, bounded_gather2,
-    time_msecs, humanize_timedelta_msecs)
+    time_msecs, humanize_timedelta_msecs, OnlineBoundedGather2)
 from .stream import ReadableStream, WritableStream, blocking_readable_stream_to_async, blocking_writable_stream_to_async
 
 
@@ -54,7 +55,7 @@ class FileListEntry(abc.ABC):
 
 class MultiPartCreate(abc.ABC):
     @abc.abstractmethod
-    async def create_part(self, number: int, start: int, *, retry_writes: bool = True):
+    async def create_part(self, number: int, start: int) -> AsyncContextManager[WritableStream]:
         pass
 
     @abc.abstractmethod
@@ -86,7 +87,7 @@ class AsyncFS(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def create(self, url: str, *, retry_writes: bool = True) -> WritableStream:
+    async def create(self, url: str, *, retry_writes: bool = True) -> AsyncContextManager[WritableStream]:
         pass
 
     @abc.abstractmethod
@@ -117,6 +118,33 @@ class AsyncFS(abc.ABC):
     async def staturl(self, url: str) -> str:
         pass
 
+    async def _staturl_parallel_isfile_isdir(self, url: str) -> str:
+        assert not url.endswith('/')
+
+        async def with_exception(f, *args, **kwargs):
+            try:
+                return (await f(*args, **kwargs)), None
+            except Exception as e:
+                return None, e
+
+        [(is_file, isfile_exc), (is_dir, isdir_exc)] = await asyncio.gather(
+            with_exception(self.isfile, url), with_exception(self.isdir, url + '/'))
+        # raise exception deterministically
+        if isfile_exc:
+            raise isfile_exc
+        if isdir_exc:
+            raise isdir_exc
+
+        if is_file:
+            if is_dir:
+                raise FileAndDirectoryError(url)
+            return AsyncFS.FILE
+
+        if is_dir:
+            return AsyncFS.DIR
+
+        raise FileNotFoundError(url)
+
     @abc.abstractmethod
     async def isfile(self, url: str) -> bool:
         pass
@@ -129,13 +157,47 @@ class AsyncFS(abc.ABC):
     async def remove(self, url: str) -> None:
         pass
 
+    async def _remove_doesnt_exist_ok(self, url):
+        try:
+            await self.remove(url)
+        except FileNotFoundError:
+            pass
+
     @abc.abstractmethod
-    async def rmtree(self, sema: asyncio.Semaphore, url: str) -> None:
+    async def rmtree(self, sema: Optional[asyncio.Semaphore], url: str) -> None:
         pass
+
+    async def _rmtree_with_recursive_listfiles(self, sema: asyncio.Semaphore, url: str) -> None:
+        async with OnlineBoundedGather2(sema) as pool:
+            try:
+                it = await self.listfiles(url, recursive=True)
+            except FileNotFoundError:
+                return
+            async for entry in it:
+                await pool.call(self._remove_doesnt_exist_ok, await entry.url())
 
     async def touch(self, url: str) -> None:
         async with await self.create(url):
             pass
+
+    async def read(self, url: str) -> bytes:
+        async with await self.open(url) as f:
+            return await f.read()
+
+    async def read_from(self, url: str, start: int) -> bytes:
+        async with await self.open_from(url, start) as f:
+            return await f.read()
+
+    async def read_range(self, url: str, start: int, end: int) -> bytes:
+        n = (end - start) + 1
+        async with await self.open_from(url, start) as f:
+            return await f.read(n)
+
+    async def write(self, url: str, data: bytes) -> None:
+        async def _write() -> None:
+            async with await self.create(url, retry_writes=False) as f:
+                await f.write(data)
+        await retry_transient_errors(_write)
 
     async def close(self) -> None:
         pass
@@ -191,7 +253,7 @@ class LocalFileListEntry(FileListEntry):
     async def status(self) -> LocalStatFileStatus:
         if self._status is None:
             if await self.is_dir():
-                raise ValueError("directory has no file status")
+                raise IsADirectoryError()
             self._status = LocalStatFileStatus(await blocking_to_async(self._thread_pool, self._entry.stat))
         return self._status
 
@@ -202,7 +264,7 @@ class LocalMultiPartCreate(MultiPartCreate):
         self._path = path
         self._num_parts = num_parts
 
-    async def create_part(self, number: int, start: int, *, retry_writes: bool = True):  # pylint: disable=unused-argument
+    async def create_part(self, number: int, start: int):  # pylint: disable=unused-argument
         assert 0 <= number < self._num_parts
         f = await blocking_to_async(self._fs._thread_pool, open, self._path, 'r+b')
         f.seek(start)
@@ -336,9 +398,9 @@ class LocalAsyncFS(AsyncFS):
 
     async def remove(self, url: str) -> None:
         path = self._get_path(url)
-        return os.remove(path)
+        return await blocking_to_async(self._thread_pool, os.remove, path)
 
-    async def rmtree(self, sema: asyncio.Semaphore, url: str) -> None:
+    async def rmtree(self, sema: Optional[asyncio.Semaphore], url: str) -> None:
         path = self._get_path(url)
         await blocking_to_async(self._thread_pool, shutil.rmtree, path)
 
@@ -495,12 +557,12 @@ class SourceCopier:
 
         async with await self.router_fs.open(srcfile) as srcf:
             try:
-                destf = await self.router_fs.create(destfile, retry_writes=False)
+                dest_cm = await self.router_fs.create(destfile, retry_writes=False)
             except FileNotFoundError:
                 await self.router_fs.makedirs(os.path.dirname(destfile), exist_ok=True)
-                destf = await self.router_fs.create(destfile)
+                dest_cm = await self.router_fs.create(destfile)
 
-            async with destf:
+            async with dest_cm as destf:
                 while True:
                     b = await srcf.read(Copier.BUFFER_SIZE)
                     if not b:
@@ -511,7 +573,7 @@ class SourceCopier:
     async def _copy_part(self, source_report, srcfile, part_number, part_creator, return_exceptions):
         try:
             async with await self.router_fs.open_from(srcfile, part_number * self.PART_SIZE) as srcf:
-                async with await part_creator.create_part(part_number, part_number * self.PART_SIZE, retry_writes=False) as destf:
+                async with await part_creator.create_part(part_number, part_number * self.PART_SIZE) as destf:
                     n = self.PART_SIZE
                     while n > 0:
                         b = await srcf.read(min(Copier.BUFFER_SIZE, n))
@@ -550,7 +612,7 @@ class SourceCopier:
 
         async with part_creator:
             await bounded_gather2(sema, *[
-                retry_transient_errors(self._copy_part, source_report, srcfile, i, part_creator, return_exceptions)
+                functools.partial(retry_transient_errors, self._copy_part, source_report, srcfile, i, part_creator, return_exceptions)
                 for i in range(n_parts)
             ], cancel_on_error=True)
 
@@ -632,6 +694,7 @@ class SourceCopier:
             src = self.src
             if not src.endswith('/'):
                 src = src + '/'
+
             try:
                 srcentries = await self.router_fs.listfiles(src, recursive=True)
             except (NotADirectoryError, FileNotFoundError):
@@ -666,7 +729,7 @@ class SourceCopier:
             await self._copy_file_multi_part(sema, source_report, srcfile, await srcentry.status(), url_join(full_dest, relsrcfile), return_exceptions)
 
         await bounded_gather2(sema, *[
-            copy_source(srcentry)
+            functools.partial(copy_source, srcentry)
             async for srcentry in srcentries], cancel_on_error=True)
 
     async def copy(self, sema: asyncio.Semaphore, source_report: SourceReport, return_exceptions: bool):
@@ -750,7 +813,7 @@ class Copier:
                         raise NotADirectoryError(transfer.dest)
 
                     await bounded_gather2(sema, *[
-                        self.copy_source(sema, transfer, r, s, dest_type_task, return_exceptions)
+                        functools.partial(self.copy_source, sema, transfer, r, s, dest_type_task, return_exceptions)
                         for r, s in zip(src_report, src)
                     ], cancel_on_error=True)
 
@@ -776,7 +839,7 @@ class Copier:
 
             assert isinstance(transfer_report, list)
             await bounded_gather2(sema, *[
-                self._copy_one_transfer(sema, r, t, return_exceptions)
+                functools.partial(self._copy_one_transfer, sema, r, t, return_exceptions)
                 for r, t in zip(transfer_report, transfer)
             ], return_exceptions=return_exceptions, cancel_on_error=True)
         except Exception as e:
@@ -830,7 +893,7 @@ class RouterAsyncFS(AsyncFS):
         fs = self._get_fs(url)
         return await fs.open_from(url, start)
 
-    async def create(self, url: str, *, retry_writes: bool = True) -> WritableStream:
+    async def create(self, url: str, retry_writes: bool = True) -> WritableStream:
         fs = self._get_fs(url)
         return await fs.create(url, retry_writes=retry_writes)
 
@@ -874,7 +937,7 @@ class RouterAsyncFS(AsyncFS):
         fs = self._get_fs(url)
         return await fs.remove(url)
 
-    async def rmtree(self, sema: asyncio.Semaphore, url: str) -> None:
+    async def rmtree(self, sema: Optional[asyncio.Semaphore], url: str) -> None:
         fs = self._get_fs(url)
         return await fs.rmtree(sema, url)
 

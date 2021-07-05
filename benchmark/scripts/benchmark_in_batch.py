@@ -1,7 +1,8 @@
 import os
 import random
-import sys
 import re
+import sys
+import time
 
 from benchmark_hail.run.resources import all_resources
 from benchmark_hail.run.utils import list_benchmarks
@@ -18,9 +19,10 @@ if __name__ == '__main__':
 
     labeled_sha = SHA
     label = os.environ.get('BENCHMARK_LABEL')
+    timestamp = time.strftime('%Y-%m-%d')
     if label:
         labeled_sha = f'{labeled_sha}-{label}'
-    output_file = os.path.join(BUCKET_BASE, f'{labeled_sha}.json')
+    output_file = os.path.join(BUCKET_BASE, f'{timestamp}-{labeled_sha}.json')
     permissions_test_file = os.path.join(BUCKET_BASE, f'permissions-test')
 
     b = hb.Batch(

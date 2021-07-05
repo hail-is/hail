@@ -1,6 +1,7 @@
 """An experimental library for combining (g)VCFS into sparse matrix tables"""
 # these are necessary for the diver script included at the end of this file
 import math
+import os
 import uuid
 from typing import Optional, List, Tuple, Dict
 
@@ -11,7 +12,7 @@ from hail.expr.expressions import expr_bool, expr_str
 from hail.genetics.reference_genome import reference_genome_type
 from hail.ir import Apply, TableMapRows, MatrixKeyRowsBy, TopLevelReference
 from hail.typecheck import oneof, sequenceof, typecheck
-from hail.utils.java import info, warning
+from hail.utils.java import info, warning, Env
 
 _transform_rows_function_map = {}
 _merge_function_map = {}
@@ -291,55 +292,70 @@ def combine_gvcfs(mts):
     return unlocalize(combined)
 
 
-@typecheck(ht=hl.Table, n=int, reference_genome=reference_genome_type)
-def calculate_new_intervals(ht, n, reference_genome):
+@typecheck(mt=hl.MatrixTable, desired_average_partition_size=int, tmp_path=str)
+def calculate_new_intervals(mt, desired_average_partition_size: int, tmp_path: str):
     """takes a table, keyed by ['locus', ...] and produces a list of intervals suitable
-    for repartitioning a combiner matrix table
+    for repartitioning a combiner matrix table.
 
     Parameters
     ----------
-    ht : :class:`.Table`
-        Table / Rows Table to compute new intervals for
-    n : :obj:`int`
-        Number of rows each partition should have, (last partition may be smaller)
-    reference_genome: :class:`str` or :class:`.ReferenceGenome`, optional
-        Reference genome to use.
+    mt : :class:`.MatrixTable`
+        Sparse MT intermediate.
+    desired_average_partition_size : :obj:`int`
+        Average target number of rows for each partition.
+    tmp_path : :obj:`str`
+        Temporary path for scan checkpointing.
 
     Returns
     -------
-    :obj:`List[Interval]`
+    (:obj:`List[Interval]`, :obj:`.Type`)
     """
-    assert list(ht.key) == ['locus']
-    assert ht.locus.dtype == hl.tlocus(reference_genome=reference_genome)
+    assert list(mt.row_key) == ['locus']
+    assert isinstance(mt.locus.dtype, hl.tlocus)
+    reference_genome = mt.locus.dtype.reference_genome
     end = hl.Locus(reference_genome.contigs[-1],
                    reference_genome.lengths[reference_genome.contigs[-1]],
                    reference_genome=reference_genome)
 
-    n_rows = ht.count()
+    (n_rows, n_cols) = mt.count()
 
     if n_rows == 0:
         raise ValueError('empty table!')
 
-    ht = ht.select()
-    ht = ht.annotate(x=hl.scan.count())
-    ht = ht.annotate(y=ht.x + 1)
-    ht = ht.filter((ht.x // n != ht.y // n) | (ht.x == (n_rows - 1)))
-    ht = ht.select()
+    # split by a weight function that takes into account the number of
+    # dense entries per row. However, give each row some base weight
+    # to prevent densify computations from becoming unbalanced (these
+    # scale roughly linearly with N_ROW * N_COL)
+    ht = mt.select_rows(weight=hl.agg.count() + (n_cols // 25) + 1).rows().checkpoint(tmp_path)
+
+    total_weight = ht.aggregate(hl.agg.sum(ht.weight))
+    partition_weight = int(total_weight / (n_rows / desired_average_partition_size))
+
+    ht = ht.annotate(cumulative_weight=hl.scan.sum(ht.weight),
+                     last_weight=hl.scan._prev_nonnull(ht.weight),
+                     row_idx=hl.scan.count())
+
+    def partition_bound(x):
+        return x - (x % hl.int64(partition_weight))
+
+    at_partition_bound = partition_bound(ht.cumulative_weight) != partition_bound(ht.cumulative_weight - ht.last_weight)
+
+    ht = ht.filter(at_partition_bound | (ht.row_idx == n_rows - 1))
     ht = ht.annotate(start=hl.or_else(
         hl.scan._prev_nonnull(hl.locus_from_global_position(ht.locus.global_position() + 1,
                                                             reference_genome=reference_genome)),
         hl.locus_from_global_position(0, reference_genome=reference_genome)))
-    ht = ht.key_by()
-    ht = ht.select(interval=hl.interval(start=ht.start, end=ht.locus, includes_end=True))
+    ht = ht.select(
+        interval=hl.interval(start=hl.struct(locus=ht.start), end=hl.struct(locus=ht.locus), includes_end=True))
 
+    intervals_dtype = hl.tarray(ht.interval.dtype)
     intervals = ht.aggregate(hl.agg.collect(ht.interval))
-
     last_st = hl.eval(
-        hl.locus_from_global_position(hl.literal(intervals[-1].end).global_position() + 1,
+        hl.locus_from_global_position(hl.literal(intervals[-1].end.locus).global_position() + 1,
                                       reference_genome=reference_genome))
-    interval = hl.Interval(start=last_st, end=end, includes_end=True)
+    interval = hl.Interval(start=hl.Struct(locus=last_st), end=hl.Struct(locus=end), includes_end=True)
     intervals.append(interval)
-    return intervals
+    return intervals, intervals_dtype
 
 
 @typecheck(reference_genome=reference_genome_type, interval_size=int)
@@ -426,8 +442,9 @@ class CombinerPlan(object):
 
 
 class CombinerConfig(object):
+    default_max_partitions_per_job = 75_000
     default_branch_factor = 100
-    default_batch_size = 100
+    default_phase1_batch_size = 100
     default_target_records = 30_000
 
     # These are used to calculate intervals for reading GVCFs in the combiner
@@ -439,7 +456,7 @@ class CombinerConfig(object):
 
     def __init__(self,
                  branch_factor: int = default_branch_factor,
-                 batch_size: int = default_batch_size,
+                 batch_size: int = default_phase1_batch_size,
                  target_records: int = default_target_records):
         self.branch_factor: int = branch_factor
         self.batch_size: int = batch_size
@@ -461,6 +478,7 @@ class CombinerConfig(object):
 
         file_size.append([1 for _ in range(n_inputs)])
         while len(file_size[-1]) > 1:
+            batch_size_this_phase = self.batch_size if len(file_size) == 1 else 1
             last_stage_files = file_size[-1]
             n = len(last_stage_files)
             i = 0
@@ -468,7 +486,7 @@ class CombinerConfig(object):
             while (i < n):
                 job = []
                 job_i = 0
-                while job_i < self.batch_size and i < n:
+                while job_i < batch_size_this_phase and i < n:
                     merge = []
                     merge_i = 0
                     merge_size = 0
@@ -501,7 +519,7 @@ class CombinerConfig(object):
 
         info(f"GVCF combiner plan:\n"
              f"    Branch factor: {self.branch_factor}\n"
-             f"    Batch size: {self.batch_size}\n"
+             f"    Phase 1 batch size: {self.batch_size}\n"
              f"    Combining {n_inputs} input files in {tree_height} phases with {total_jobs} total jobs.{''.join(phase_strs)}\n")
         return CombinerPlan(file_size, phases)
 
@@ -517,7 +535,7 @@ def run_combiner(sample_paths: List[str],
                  header: Optional[str] = None,
                  sample_names: Optional[List[str]] = None,
                  branch_factor: int = CombinerConfig.default_branch_factor,
-                 batch_size: int = CombinerConfig.default_batch_size,
+                 batch_size: int = CombinerConfig.default_phase1_batch_size,
                  target_records: int = CombinerConfig.default_target_records,
                  overwrite: bool = False,
                  reference_genome: str = 'default',
@@ -644,9 +662,10 @@ def run_combiner(sample_paths: List[str],
         info(f"Starting phase {phase_i}/{n_phases}, merging {len(files_to_merge)} {merge_str} in {n_jobs} {job_str}.")
 
         if phase_i > 1:
-            intervals = calculate_new_intervals(hl.read_matrix_table(files_to_merge[0]).rows(),
-                                                config.target_records,
-                                                reference_genome=reference_genome)
+            intervals, intervals_dtype = calculate_new_intervals(hl.read_matrix_table(files_to_merge[0]),
+                                                                 config.target_records,
+                                                                 os.path.join(tmp_path,
+                                                                              f'phase{phase_i}_interval_checkpoint.ht'))
 
         new_files_to_merge = []
 
@@ -671,7 +690,8 @@ def run_combiner(sample_paths: List[str],
                                                       reference_genome=reference_genome,
                                                       contig_recoding=contig_recoding)]
                 else:
-                    mts = [hl.read_matrix_table(path, _intervals=intervals) for path in inputs]
+                    mts = Env.spark_backend("vcf_combiner").read_multiple_matrix_tables(inputs, intervals,
+                                                                                        intervals_dtype)
 
                 merge_mts.append(combine_gvcfs(mts))
 

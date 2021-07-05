@@ -22,6 +22,7 @@ Collection functions
     len
     map
     flatmap
+    starmap
     zip
     enumerate
     zip_with_index
@@ -39,6 +40,7 @@ Collection functions
 .. autofunction:: len
 .. autofunction:: map
 .. autofunction:: flatmap
+.. autofunction:: starmap
 .. autofunction:: zip
 .. autofunction:: enumerate
 .. autofunction:: zip_with_index

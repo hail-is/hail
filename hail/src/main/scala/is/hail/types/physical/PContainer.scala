@@ -88,13 +88,3 @@ abstract class PContainer extends PIterable {
 
   def nextElementAddress(currentOffset: Code[Long]): Code[Long]
 }
-
-abstract class PIndexableValue extends PValue with SIndexableValue
-
-abstract class PIndexableCode extends PCode with SIndexableCode {
-  def pt: PContainer
-
-  def memoize(cb: EmitCodeBuilder, name: String): PIndexableValue
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): PIndexableValue
-}

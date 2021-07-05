@@ -49,6 +49,7 @@ object InferType {
       case _: DeserializeAggs => TVoid
       case _: Begin => TVoid
       case Die(_, t, _) => t
+      case Trap(child) => TTuple(TTuple(TString, TInt32), child.typ)
       case If(cond, cnsq, altr) =>
         assert(cond.typ == TBoolean)
         assert(cnsq.typ == altr.typ)
@@ -90,7 +91,7 @@ object InferType {
       case ToDict(a) =>
         val elt = coerce[TBaseStruct](coerce[TStream](a.typ).elementType)
         TDict(elt.types(0), elt.types(1))
-      case ToArray(a) =>
+      case ta@ToArray(a) =>
         val elt = coerce[TStream](a.typ).elementType
         TArray(elt)
       case CastToArray(a) =>

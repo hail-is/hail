@@ -22,6 +22,7 @@ import is.hail.services.shuffler.ShuffleClient
 import is.hail.types._
 import is.hail.types.encoded._
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome

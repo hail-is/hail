@@ -7,7 +7,7 @@ import is.hail.types.BaseType
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.io.{InputBuffer, OutputBuffer}
-import is.hail.types.physical.stypes.SType
+import is.hail.types.physical.stypes.{SCode, SType, SValue}
 import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerCode, SIndexablePointerSettable}
 import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.utils._
@@ -17,12 +17,12 @@ final case class EArray(val elementType: EType, override val required: Boolean =
     val elementPType = elementType.decodedPType(requestedType.asInstanceOf[TContainer].elementType)
     requestedType match {
       case _: TSet =>
-        SIndexablePointer(PCanonicalSet(elementPType, required))
+        SIndexablePointer(PCanonicalSet(elementPType, false))
       case _: TArray =>
-        SIndexablePointer(PCanonicalArray(elementPType, required))
+        SIndexablePointer(PCanonicalArray(elementPType, false))
       case _: TDict =>
         val et = elementPType.asInstanceOf[PStruct]
-        SIndexablePointer(PCanonicalDict(et.fieldType("key"), et.fieldType("value"), required))
+        SIndexablePointer(PCanonicalDict(et.fieldType("key"), et.fieldType("value"), false))
     }
   }
 
@@ -81,12 +81,12 @@ final case class EArray(val elementType: EType, override val required: Boolean =
     })
   }
 
-  override def _buildEncoder(cb: EmitCodeBuilder, v: PValue, out: Value[OutputBuffer]): Unit = {
+  override def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = {
     val ind = v.asInstanceOf[SIndexableValue]
     buildPrefixEncoder(cb, ind, out, ind.loadLength())
   }
 
-  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): PCode = {
+  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SCode = {
     val st = decodedSType(t).asInstanceOf[SIndexablePointer]
 
     val arrayType: PCanonicalArray = st.pType match {

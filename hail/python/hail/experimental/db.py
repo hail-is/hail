@@ -5,8 +5,7 @@ from typing import Iterable, List, Optional, Set, Tuple, Union
 
 import hail as hl
 import pkg_resources
-from hailtop.utils import (retry_response_returning_functions,
-                           external_requests_client_session)
+from hailtop.utils import (external_requests_client_session, retry_response_returning_functions)
 
 from .lens import MatrixRows, TableRows
 from ..expr import StructExpression
@@ -270,9 +269,13 @@ class Dataset:
                           for version in self.versions)
             if index is not None]
         if len(compatible_indexed_values) == 0:
-            raise ValueError(f'Could not find compatible version of'
-                             f' {self.name} for user dataset with'
-                             f' key {key_expr.dtype}.')
+            versions = [f'{(v.version, v.reference_genome)}' for v in self.versions]
+            raise ValueError(
+                f'Could not find compatible version of {self.name} for user'
+                f' dataset with key {key_expr.dtype}.\n'
+                f'This annotation dataset is available for the following'
+                f' versions and reference genome builds: {", ".join(versions)}.'
+            )
         assert len(compatible_indexed_values) == 1, \
             f'{key_expr.dtype}, {self.name}, {compatible_indexed_values}'
         return compatible_indexed_values[0]

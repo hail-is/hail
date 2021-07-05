@@ -3,6 +3,21 @@
 Change Log
 ==========
 
+**Version 0.2.70**
+
+- Made submitting ``PythonJob`` faster when using the ``ServiceBackend``
+
+**Version 0.2.69**
+
+- Added the option to specify either `remote_tmpdir` or `bucket` when using the ``ServiceBackend``
+
+**Version 0.2.68**
+
+- Fixed copying a directory from GCS when using the ``LocalBackend``
+- Fixed writing files to GCS when the bucket name starts with a "g" or an "s"
+- Fixed the error "Argument list too long" when using the ``LocalBackend``
+- Fixed an error where memory is set to None when using the ``LocalBackend``
+
 **Version 0.2.66**
 
 - Removed the need for the ``project`` argument in ``Batch()`` unless you are creating a PythonJob

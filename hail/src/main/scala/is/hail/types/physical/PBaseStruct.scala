@@ -179,17 +179,3 @@ abstract class PBaseStruct extends PType {
       Gen.uniformSequence(types.map(t => t.genValue)).map(a => Annotation(a: _*))
   }
 }
-
-abstract class PBaseStructValue extends PValue with SBaseStructValue {
-  def pt: PBaseStruct
-}
-
-abstract class PBaseStructCode extends PCode with SBaseStructCode {
-  def pt: PBaseStruct
-
-  def memoize(cb: EmitCodeBuilder, name: String): PBaseStructValue
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): PBaseStructValue
-}
-
-trait PStructSettable extends PBaseStructValue with PSettable

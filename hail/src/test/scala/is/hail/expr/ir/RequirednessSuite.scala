@@ -51,12 +51,13 @@ class RequirednessSuite extends HailSuite {
   def nd(r: Boolean): IR =
     if (r) MakeNDArray.fill(int(optional), FastIndexedSeq(1, 2), True()) else NA(tnd)
 
-  def nestednd(r: Boolean, aelt: Boolean): IR = {
-    if (r)
-      MakeNDArray.fill(array(optional, aelt), FastIndexedSeq(1, 2), True())
-    else
-      NDArrayMap(NA(tnestednd), genUID(), array(optional, aelt))
-  }
+// FIXME: Currently ndarrays don't support elements that have pointers.
+//  def nestednd(r: Boolean, aelt: Boolean): IR = {
+//    if (r)
+//      MakeNDArray.fill(array(optional, aelt), FastIndexedSeq(1, 2), True())
+//    else
+//      NDArrayMap(NA(tnestednd), genUID(), array(optional, aelt))
+//  }
 
   def nestedstream(r: Boolean, a: Boolean, aelt: Boolean): IR = {
     if (r)
@@ -105,7 +106,7 @@ class RequirednessSuite extends HailSuite {
       MakeTuple.ordered(FastIndexedSeq(I32(5), Str("bar"))))
 
     allRequired.foreach { n =>
-      nodes += Array(n, PType.canonical(n.typ, required).deepInnerRequired(required))
+      nodes += Array(n, RequirednessSuite.deepInnerRequired(PType.canonical(n.typ, required), required))
     }
 
     val bools = Array(true, false)
@@ -114,7 +115,6 @@ class RequirednessSuite extends HailSuite {
       nodes += Array(nd(r1), pnd(r1))
       for (r2 <- bools) {
         nodes += Array(array(r2, r1), parray(r2, r1))
-        nodes += Array(nestednd(r2, r1), pnestednd(r2, r1))
         for (r3 <- bools) {
           nodes += Array(nestedarray(r3, r2, r1), pnestedarray(r3, r2, r1))
           for (r4 <- bools) {
@@ -518,4 +518,23 @@ class RequirednessSuite extends HailSuite {
     val actual = coerce[TypeWithRequiredness](res.r.lookup(node)).canonicalPType(node.typ)
     assert(actual == expected)
   }
+}
+
+object RequirednessSuite {
+  def deepInnerRequired(t: PType, required: Boolean): PType =
+    t match {
+      case t: PCanonicalArray => PCanonicalArray(deepInnerRequired(t.elementType, true), required)
+      case t: PCanonicalSet => PCanonicalSet(deepInnerRequired(t.elementType, true), required)
+      case t: PCanonicalDict => PCanonicalDict(deepInnerRequired(t.keyType, true), deepInnerRequired(t.valueType, true), required)
+      case t: PCanonicalStruct =>
+        PCanonicalStruct(t.fields.map(f => PField(f.name, deepInnerRequired(f.typ, true), f.index)), required)
+      case t: PCanonicalTuple =>
+        PCanonicalTuple(t._types.map { f => f.copy(typ = deepInnerRequired(f.typ, true)) }, required)
+      case t: PCanonicalInterval =>
+        PCanonicalInterval(deepInnerRequired(t.pointType, true), required)
+      case t: PCanonicalStream =>
+        PCanonicalStream(deepInnerRequired(t.elementType, true), required = required)
+      case t =>
+        t.setRequired(required)
+    }
 }

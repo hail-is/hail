@@ -2,7 +2,7 @@ package is.hail.stats
 
 import breeze.linalg._
 import is.hail.annotations.{Region, RegionValue}
-import is.hail.expr.ir.MatrixValue
+import is.hail.expr.ir.{IntArrayBuilder, MatrixValue}
 import is.hail.types.physical.{PArray, PStruct}
 import is.hail.types.virtual.TFloat64
 import is.hail.utils._
@@ -12,7 +12,7 @@ object RegressionUtils {
   def setMeanImputedDoubles(data: Array[Double],
     offset: Int,
     completeColIdx: Array[Int],
-    missingCompleteCols: BoxedArrayBuilder[Int],
+    missingCompleteCols: IntArrayBuilder,
     rv: Long,
     rvRowType: PStruct,
     entryArrayType: PArray,

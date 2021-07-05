@@ -1,15 +1,17 @@
 package is.hail.expr.ir
 
+import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.types.physical.{PCode, PType, PValue, typeToTypeInfo}
+import is.hail.types.physical.stypes.SingleCodeType
+import is.hail.types.physical.{PType, typeToTypeInfo}
 import is.hail.types.virtual.Type
 import is.hail.utils.BoxedArrayBuilder
 
 import scala.reflect.ClassTag
 
-class StagedArrayBuilder(val elt: PType, mb: EmitMethodBuilder[_], len: Code[Int]) {
+class StagedArrayBuilder(val elt: SingleCodeType, val eltRequired: Boolean, mb: EmitMethodBuilder[_], len: Code[Int]) {
 
-  val ti: TypeInfo[_] = typeToTypeInfo(elt)
+  val ti: TypeInfo[_] = elt.ti
 
   val ref: Value[Any] = coerce[Any](ti match {
     case BooleanInfo => mb.genLazyFieldThisRef[BooleanMissingArrayBuilder](Code.newInstance[BooleanMissingArrayBuilder, Int](len), "zab")
@@ -44,26 +46,6 @@ class StagedArrayBuilder(val elt: PType, mb: EmitMethodBuilder[_], len: Code[Int
     case DoubleInfo => coerce[DoubleMissingArrayBuilder](ref).invoke[Int, Double, Unit]("update", i, coerce[Double](x))
   }
 
-  def sort(compare: Code[AsmFunction2[_, _, _]]): Code[Unit] = {
-    ti match {
-      case BooleanInfo =>
-        type F = AsmFunction2[Boolean, Boolean, Boolean]
-        coerce[BooleanMissingArrayBuilder](ref).invoke[F, Unit]("sort", coerce[F](compare))
-      case IntInfo =>
-        type F = AsmFunction2[Int, Int, Boolean]
-        coerce[IntMissingArrayBuilder](ref).invoke[F, Unit]("sort", coerce[F](compare))
-      case LongInfo =>
-        type F = AsmFunction2[Long, Long, Boolean]
-        coerce[LongMissingArrayBuilder](ref).invoke[F, Unit]("sort", coerce[F](compare))
-      case FloatInfo =>
-        type F = AsmFunction2[Float, Float, Boolean]
-        coerce[FloatMissingArrayBuilder](ref).invoke[F, Unit]("sort", coerce[F](compare))
-      case DoubleInfo =>
-        type F = AsmFunction2[Double, Double, Boolean]
-        coerce[DoubleMissingArrayBuilder](ref).invoke[F, Unit]("sort", coerce[F](compare))
-    }
-  }
-
   def addMissing(): Code[Unit] =
     coerce[MissingArrayBuilder](ref).invoke[Unit]("addMissing")
 
@@ -81,19 +63,10 @@ class StagedArrayBuilder(val elt: PType, mb: EmitMethodBuilder[_], len: Code[Int
 
   def clear: Code[Unit] = coerce[MissingArrayBuilder](ref).invoke[Unit]("clear")
 
-  def applyEV(mb: EmitMethodBuilder[_], i: Code[Int]): EmitValue =
-    new EmitValue {
-      def pt: PType = elt
-
-      def get(cb: EmitCodeBuilder): PCode = load.toI(cb).get(
-        cb,
-        s"Can't convert missing EmitValue of type ${pt} to PValue.")
-
-      def load: EmitCode = {
-        val t = mb.newLocal[Int]("sab_applyEV_load_i")
-        EmitCode(t := i, isMissing(t), PCode(elt, apply(t)))
-      }
-    }
+  def loadFromIndex(cb: EmitCodeBuilder, r: Value[Region], i: Code[Int]): IEmitCode = {
+    val idx = cb.newLocal[Int]("loadFromIndex_idx", i)
+    IEmitCode(cb, isMissing(idx), elt.loadToSCode(cb, r, apply(idx)))
+  }
 }
 
 sealed abstract class MissingArrayBuilder(initialCapacity: Int) {
@@ -493,6 +466,22 @@ final class LongArrayBuilder(initialCapacity: Int= 16) {
     }
   }
 
+  def +=(x: Long): Unit = add(x)
+
+  def ++=(xs: Array[Long]) = {
+    val newLen = size + xs.length
+    ensureCapacity(newLen)
+    System.arraycopy(xs, 0, b, size_, xs.length)
+    size_ = newLen
+  }
+
+  def ++=(xs: Array[Long], n: Int) = {
+    val newLen = size + n
+    ensureCapacity(newLen)
+    System.arraycopy(xs, 0, b, size_, n)
+    size_ = newLen
+  }
+
   def add(x: Long): Unit = {
     ensureCapacity(size_ + 1)
     b(size_) = x
@@ -549,6 +538,27 @@ final class IntArrayBuilder(initialCapacity: Int = 16) {
       Array.copy(b, 0, newb, 0, size_)
       b = newb
     }
+  }
+
+  def setSizeUninitialized(n: Int) = {
+    ensureCapacity(n)
+    size_ = n
+  }
+
+  def +=(x: Int): Unit = add(x)
+
+  def ++=(xs: Array[Int]) = {
+    val newLen = size + xs.length
+    ensureCapacity(newLen)
+    System.arraycopy(xs, 0, b, size_, xs.length)
+    size_ = newLen
+  }
+
+  def ++=(xs: Array[Int], n: Int) = {
+    val newLen = size + n
+    ensureCapacity(newLen)
+    System.arraycopy(xs, 0, b, size_, n)
+    size_ = newLen
   }
 
   def add(x: Int): Unit = {
@@ -609,6 +619,27 @@ final class DoubleArrayBuilder(initialCapacity: Int = 16) {
     }
   }
 
+  def setSizeUninitialized(n: Int) = {
+    ensureCapacity(n)
+    size_ = n
+  }
+
+  def +=(x: Double): Unit = add(x)
+
+  def ++=(xs: Array[Double]) = {
+    val newLen = size + xs.length
+    ensureCapacity(newLen)
+    System.arraycopy(xs, 0, b, size_, xs.length)
+    size_ = newLen
+  }
+
+  def ++=(xs: Array[Double], n: Int) = {
+    val newLen = size + n
+    ensureCapacity(newLen)
+    System.arraycopy(xs, 0, b, size_, n)
+    size_ = newLen
+  }
+
   def add(x: Double): Unit = {
     ensureCapacity(size_ + 1)
     b(size_) = x
@@ -636,6 +667,140 @@ final class DoubleArrayBuilder(initialCapacity: Int = 16) {
   }
 
   def pop(): Double = {
+    size_ -= 1
+    b(size)
+  }
+}
+
+final class ByteArrayBuilder(initialCapacity: Int = 16) {
+
+  var size_ : Int = 0
+  var b: Array[Byte] = new Array[Byte](initialCapacity)
+
+  def size: Int = size_
+
+  def setSize(n: Int) {
+    require(n >= 0 && n <= size)
+    size_ = n
+  }
+
+  def apply(i: Int): Byte = {
+    require(i >= 0 && i < size)
+    b(i)
+  }
+
+  def ensureCapacity(n: Int): Unit = {
+    if (b.length < n) {
+      val newCapacity = math.max(n, b.length * 2)
+      val newb = new Array[Byte](newCapacity)
+      Array.copy(b, 0, newb, 0, size_)
+      b = newb
+    }
+  }
+
+  def +=(x: Byte) = add(x)
+
+  def ++=(xs: Array[Byte]) = {
+    val newLen = size + xs.length
+    ensureCapacity(newLen)
+    System.arraycopy(xs, 0, b, size_, xs.length)
+    size_ = newLen
+  }
+
+  def ++=(xs: Array[Byte], n: Int) = {
+    val newLen = size + n
+    ensureCapacity(newLen)
+    System.arraycopy(xs, 0, b, size_, n)
+    size_ = newLen
+  }
+
+  def add(x: Byte): Unit = {
+    ensureCapacity(size_ + 1)
+    b(size_) = x
+    size_ += 1
+  }
+
+  def update(i: Int, x: Byte): Unit = {
+    require(i >= 0 && i < size)
+    b(i) = x
+  }
+
+  def clear() {  size_ = 0 }
+
+  def result(): Array[Byte] = b.slice(0, size_)
+
+  def clearAndResize(): Unit = {
+    size_ = 0
+    if (b.length > initialCapacity)
+      b = new Array[Byte](initialCapacity)
+  }
+  def appendFrom(ab2: ByteArrayBuilder): Unit = {
+    ensureCapacity(size_ + ab2.size_)
+    System.arraycopy(ab2.b, 0, b, size_, ab2.size_)
+    size_ = size_ + ab2.size_
+  }
+
+  def pop(): Byte = {
+    size_ -= 1
+    b(size)
+  }
+}
+
+final class BooleanArrayBuilder(initialCapacity: Int = 16) {
+
+  var size_ : Int = 0
+  var b: Array[Boolean] = new Array[Boolean](initialCapacity)
+
+  def size: Int = size_
+
+  def setSize(n: Int) {
+    require(n >= 0 && n <= size)
+    size_ = n
+  }
+
+  def apply(i: Int): Boolean = {
+    require(i >= 0 && i < size)
+    b(i)
+  }
+
+  def ensureCapacity(n: Int): Unit = {
+    if (b.length < n) {
+      val newCapacity = math.max(n, b.length * 2)
+      val newb = new Array[Boolean](newCapacity)
+      Array.copy(b, 0, newb, 0, size_)
+      b = newb
+    }
+  }
+
+  def +=(x: Boolean) = add(x)
+
+  def add(x: Boolean): Unit = {
+    ensureCapacity(size_ + 1)
+    b(size_) = x
+    size_ += 1
+  }
+
+  def update(i: Int, x: Boolean): Unit = {
+    require(i >= 0 && i < size)
+    b(i) = x
+  }
+
+  def clear() {  size_ = 0 }
+
+  def result(): Array[Boolean] = b.slice(0, size_)
+
+  def clearAndResize(): Unit = {
+    size_ = 0
+    if (b.length > initialCapacity)
+      b = new Array[Boolean](initialCapacity)
+  }
+  def appendFrom(ab2: BooleanArrayBuilder): Unit = {
+    ensureCapacity(size_ + ab2.size_)
+    System.arraycopy(ab2.b, 0, b, size_, ab2.size_)
+    size_ = size_ + ab2.size_
+  }
+
+  def pop(): Boolean = {
     size_ -= 1
     b(size)
   }

@@ -100,15 +100,3 @@ abstract class PInterval extends PType {
 
   override def genNonmissingValue: Gen[Annotation] = Interval.gen(pointType.virtualType.ordering, pointType.genValue)
 }
-
-abstract class PIntervalValue extends PValue with SIntervalValue {
-  def pt: PInterval
-}
-
-abstract class PIntervalCode extends PCode with SIntervalCode {
-  def pt: PInterval
-
-  def memoize(cb: EmitCodeBuilder, name: String): PIntervalValue
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): PIntervalValue
-}
