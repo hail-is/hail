@@ -632,10 +632,9 @@ class Expression(object):
         args = (to_expr(arg)._ir for arg in args)
         new_id1 = Env.get_uid()
         new_id2 = Env.get_uid()
-        lambda_result = to_expr(f(
-                            expressions.construct_variable(new_id1, input_type1, self._indices, self._aggregations),
-                            expressions.construct_variable(new_id2, input_type2, other._indices, other._aggregations)
-                            ))
+        lambda_result = to_expr(
+            f(expressions.construct_variable(new_id1, input_type1, self._indices, self._aggregations),
+              expressions.construct_variable(new_id2, input_type2, other._indices, other._aggregations)))
         indices, aggregations = unify_all(self, other, lambda_result)
         x = irf(self._ir, other._ir, new_id1, new_id2, lambda_result._ir, *args)
         return expressions.construct_expr(x, ret_type_f(lambda_result._type), indices, aggregations)

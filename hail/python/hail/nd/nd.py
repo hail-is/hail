@@ -595,7 +595,7 @@ def maximum(nd1, nd2):
 
     Returns
     -------
-    max_array : :class:`.NDArrayExpression` Element-wise maximuims of nd1 and nd2. If nd1 has the
+    max_array : :class:`.NDArrayExpression` Element-wise maximums of nd1 and nd2. If nd1 has the
     same shape as nd2, the resulting array will be of that shape. If nd1 and nd2 were broadcasted
     into a common shape, the resulting array will be of that shape
 
@@ -603,16 +603,16 @@ def maximum(nd1, nd2):
     --------
     >>> a = hl.nd.array([1,5,3])
     >>> b = hl.nd.array([2,3,4])
-    >>> hl.eval(hl.nd.maximuim((a,b)))
+    >>> hl.eval(hl.nd.maximum((a,b)))
     array([2,5,4], dtype=int32)
     >>> a = hl.nd.array([hl.float64(float("NaN")),5.0,3.0])
     >>> b = hl.nd.array([2.0,3.0,hl.float64(float("NaN"))])
-    >>> hl.eval(hl.nd.maximuim((a,b)))
+    >>> hl.eval(hl.nd.maximum((a,b)))
     array([NaN,5.0,NaN], dtype=float64)
     """
     if (nd1.dtype.element_type or nd2.dtype.element_type) == (tfloat64 or tfloat32):
         return nd1.map2(nd2, lambda a, b: hl.if_else(hl.is_nan(a) | hl.is_nan(b),
-                                                 hl.float64(float("NaN")), hl.if_else(a > b, a, b)))
+                        hl.float64(float("NaN")), hl.if_else(a > b, a, b)))
     return nd1.map2(nd2, lambda a, b: hl.if_else(a > b, a, b))
 
 
@@ -620,11 +620,11 @@ def maximum(nd1, nd2):
 def minimum(nd1, nd2):
     """
     Compares elements at corresponding indexes in arrays
-    and returns an array of the minimuim element found
+    and returns an array of the minimum element found
     at each compared index.
 
     If an array element being compared has the value NaN,
-    the minimuim for that index will be NaN.
+    the minimum for that index will be NaN.
 
     Parameters
     ----------
@@ -635,7 +635,7 @@ def minimum(nd1, nd2):
 
     Returns
     -------
-    min_array : :class:`.NDArrayExpression` Element-wise minimuims of nd1 and nd2. If nd1 has the
+    min_array : :class:`.NDArrayExpression` Element-wise minimums of nd1 and nd2. If nd1 has the
     same shape as nd2, the resulting array will be of that shape. If nd1 and nd2 were broadcasted
     into a common shape, resulting array will be of that shape
 
@@ -643,15 +643,14 @@ def minimum(nd1, nd2):
     --------
     >>> a = hl.nd.array([1,5,3])
     >>> b = hl.nd.array([2,3,4])
-    >>> hl.eval(hl.nd.minimuim((a,b)))
+    >>> hl.eval(hl.nd.minimum((a,b)))
     array([1,3,3], dtype=int32)
     >>> a = hl.nd.array([hl.float64(float("NaN")),5,3])
     >>> b = hl.nd.array([2,3,hl.float64(float("NaN"))])
-    >>> hl.eval(hl.nd.maximuim((a,b)))
+    >>> hl.eval(hl.nd.manimum((a,b)))
     array([NaN,3,NaN], dtype=int32)
     """
     if (nd1.dtype.element_type or nd2.dtype.element_type) == (tfloat64 or tfloat32):
         return nd1.map2(nd2, lambda a, b: hl.if_else(hl.is_nan(a) | hl.is_nan(b),
-                                                 hl.float64(float("NaN")),
-                                                 hl.if_else(a < b, a, b)))
+                        hl.float64(float("NaN")),hl.if_else(a < b, a, b)))
     return nd1.map2(nd2, lambda a, b: hl.if_else(a < b, a, b))

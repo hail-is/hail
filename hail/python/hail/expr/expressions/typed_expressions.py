@@ -3957,7 +3957,7 @@ class NDArrayExpression(Expression):
         element_type1 = self_broadcast._type.element_type
         element_type2 = other_broadcast._type.element_type
         ndarray_map2 = self_broadcast._ir_lambda_method2(other_broadcast, ir.NDArrayMap2, f, element_type1,
-                                               element_type2, lambda t: tndarray(t, self_broadcast.ndim))
+                                                         element_type2, lambda t: tndarray(t, self_broadcast.ndim))
 
         assert isinstance(self._type, tndarray)
         return ndarray_map2
