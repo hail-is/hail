@@ -2214,10 +2214,7 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
-    val startTime = System.currentTimeMillis()
-    log.info("TableMapGlobals start")
     val tv = child.execute(ctx)
-    val childDoneExecutingTime = System.currentTimeMillis()
 
     val (Some(PTypeReferenceSingleCodeType(resultPType: PStruct)), f) = Compile[AsmFunction2RegionLongLong](ctx,
       FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.globals.t)))),
@@ -2225,15 +2222,8 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
       Coalesce(FastIndexedSeq(
         newGlobals,
         Die("Internal error: TableMapGlobals: globals missing", newGlobals.typ))))
-    val doneCompilingGlobalsTime = System.currentTimeMillis()
-//    println(s"Compiled tableMapGlobals, took ${(doneCompilingGlobalsTime - childDoneExecutingTime)/1000} seconds")
-//    log.info(s"Compiled tableMapGlobals, took ${(doneCompilingGlobalsTime - childDoneExecutingTime)/1000} seconds")
 
     val resultOff = f(ctx.fs, 0, ctx.r)(ctx.r, tv.globals.value.offset)
-    val doneForRealTime = System.currentTimeMillis()
-    //println(s"Executed tableMapGlobals, took ${(doneForRealTime - doneCompilingGlobalsTime)/1000} seconds")
-    //log.info(s"Executed tableMapGlobals, took ${(doneForRealTime - doneCompilingGlobalsTime)/1000} seconds")
-    log.info(s"Globals was ${RegionValue(ctx.r, resultOff).pretty(resultPType)}")
     tv.copy(typ = typ,
       globals = BroadcastRow(ctx, RegionValue(ctx.r, resultOff), resultPType))
   }
