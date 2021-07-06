@@ -81,6 +81,8 @@ MAX_DOCKER_IMAGE_PULL_SECS = 20 * 60
 MAX_DOCKER_WAIT_SECS = 5 * 60
 MAX_DOCKER_OTHER_OPERATION_SECS = 1 * 60
 
+IPTABLES_WAIT_TIMEOUT_SECS = 60
+
 CORES = int(os.environ['CORES'])
 NAME = os.environ['NAME']
 NAMESPACE = os.environ['NAMESPACE']
@@ -204,8 +206,8 @@ ip -n {self.network_ns_name} route add default via {self.host_ip}'''
     async def enable_iptables_forwarding(self):
         await check_shell(
             f'''
-iptables -w 10 --append FORWARD --in-interface {self.veth_host} --out-interface {self.internet_interface} --jump ACCEPT && \
-iptables -w 10 --append FORWARD --out-interface {self.veth_host} --in-interface {self.internet_interface} --jump ACCEPT'''
+iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --in-interface {self.veth_host} --out-interface {self.internet_interface} --jump ACCEPT && \
+iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --out-interface {self.veth_host} --in-interface {self.internet_interface} --jump ACCEPT'''
         )
 
     async def expose_port(self, port, host_port):
@@ -217,7 +219,7 @@ iptables -w 10 --append FORWARD --out-interface {self.veth_host} --in-interface 
         # Appending to PREROUTING means this is only exposed to external traffic.
         # To expose for locally created packets, we would append instead to the OUTPUT chain.
         await check_shell(
-            f'iptables --table nat --{action} PREROUTING '
+            f'iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --table nat --{action} PREROUTING '
             f'--match addrtype --dst-type LOCAL '
             f'--protocol tcp '
             f'--match tcp --dport {self.host_port} '
