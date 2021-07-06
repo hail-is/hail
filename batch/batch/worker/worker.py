@@ -476,8 +476,10 @@ class Container:
         deleted = asyncio.ensure_future(self.deleted_event.wait())
         await asyncio.wait([deleted, step], return_when=asyncio.FIRST_COMPLETED)
         if deleted.done():
+            step.cancel()
             raise JobDeletedError()
         assert step.done()
+        deleted.cancel()
         return step.result()
 
     def is_job_deleted(self) -> bool:
