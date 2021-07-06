@@ -474,12 +474,12 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
             y_arrays_per_group=y_arrays_per_group,
             weight_arrays=weight_arrays
         )
-        all_covs_defined = ht.cov_arrays.map(lambda sample_covs: no_missing(sample_covs))
+        ht = ht.annotate_globals(all_covs_defined = ht.cov_arrays.map(lambda sample_covs: no_missing(sample_covs)))
 
         def get_kept_samples(group_idx, sample_ys):
             # sample_ys is an array of samples, with each element being an array of the y_values
             return hl.enumerate(sample_ys).filter(
-                lambda idx_and_y_values: all_covs_defined[idx_and_y_values[0]] & no_missing(idx_and_y_values[1]) & (hl.is_defined(ht.weight_arrays[idx_and_y_values[0]][group_idx]) if weights else True)
+                lambda idx_and_y_values: ht.all_covs_defined[idx_and_y_values[0]] & no_missing(idx_and_y_values[1]) & (hl.is_defined(ht.weight_arrays[idx_and_y_values[0]][group_idx]) if weights else True)
             ).map(lambda idx_and_y_values: idx_and_y_values[0])
 
         ht = ht.annotate_globals(kept_samples = hl.enumerate(ht.y_arrays_per_group).starmap(get_kept_samples))
