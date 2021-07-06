@@ -30,7 +30,7 @@ object IRFunctionRegistry {
   }
 
   type IRFunctionSignature = (Seq[Type], Seq[Type], Type, Boolean)
-  type IRFunctionImplementation = (Seq[Type], Seq[IR]) => IR
+  type IRFunctionImplementation = (Seq[Type], Seq[IR], Int) => IR
 
   val irRegistry: mutable.Map[String, mutable.Map[IRFunctionSignature, IRFunctionImplementation]] = new mutable.HashMap()
 
@@ -53,7 +53,7 @@ object IRFunctionRegistry {
     valueParameterTypes: Seq[Type],
     returnType: Type,
     alwaysInline: Boolean,
-    f: (Seq[Type], Seq[IR]) => IR
+    f: IRFunctionImplementation
   ): Unit = {
     requireJavaIdentifier(name)
 
@@ -76,7 +76,7 @@ object IRFunctionRegistry {
     userAddedFunctions += ((name, (body.typ, typeParameters, valueParameterTypes)))
     addIR(name,
       typeParameters,
-      valueParameterTypes, IRParser.parseType(returnType), false, { (_, args) =>
+      valueParameterTypes, IRParser.parseType(returnType), false, { (_, args, _) =>
         Subst(body,
           BindingEnv(Env[IR](argNames.asScala.zip(args): _*)))
       })
@@ -163,7 +163,7 @@ object IRFunctionRegistry {
   def lookupUnseeded(name: String, returnType: Type, typeParameters: Seq[Type], arguments: Seq[Type]): Option[(Seq[Type], Seq[IR]) => IR] = {
     val validIR: Option[(Seq[Type], Seq[IR]) => IR] = lookupIR(name, returnType, typeParameters, arguments).map {
       case ((_, _, _, inline), conversion) => (typeParametersPassed, args) =>
-        val x = ApplyIR(name, typeParametersPassed, args)
+        val x = ApplyIR(name, typeParametersPassed, args, errorID.noerror)
         x.conversion = conversion
         x.inline = inline
         x
@@ -480,7 +480,7 @@ abstract class RegistryFunctions {
     }
   }
 
-  def registerIR(name: String, valueParameterTypes: Array[Type], returnType: Type, inline: Boolean = false, typeParameters: Array[Type] = Array.empty)(f: (Seq[Type], Seq[IR]) => IR): Unit =
+  def registerIR(name: String, valueParameterTypes: Array[Type], returnType: Type, inline: Boolean = false, typeParameters: Array[Type] = Array.empty)(f: (Seq[Type], Seq[IR], Int) => IR): Unit =
     IRFunctionRegistry.addIR(name, typeParameters, valueParameterTypes, returnType, inline, f)
 
   def registerSCode1(name: String, mt1: Type, rt: Type, pt: (Type, SType) => SType)(impl: (EmitRegion, EmitCodeBuilder, SType, SCode) => SCode): Unit =
@@ -570,17 +570,17 @@ abstract class RegistryFunctions {
     (impl: (EmitRegion, SType, EmitCode, EmitCode) => EmitCode): Unit =
     registerEmitCode(name, Array(mt1, mt2), rt, unwrappedApply(pt)) { case (r, rt, Array(a1, a2)) => impl(r, rt, a1, a2) }
 
-  def registerIR1(name: String, mt1: Type, returnType: Type, typeParameters: Array[Type] = Array.empty)(f: (Seq[Type], IR) => IR): Unit =
-    registerIR(name, Array(mt1), returnType, typeParameters = typeParameters) { case (t, Seq(a1)) => f(t, a1) }
+  def registerIR1(name: String, mt1: Type, returnType: Type, typeParameters: Array[Type] = Array.empty)(f: (Seq[Type], IR, Int) => IR): Unit =
+    registerIR(name, Array(mt1), returnType, typeParameters = typeParameters) { case (t, Seq(a1), errorID) => f(t, a1, errorID) }
 
-  def registerIR2(name: String, mt1: Type, mt2: Type, returnType: Type, typeParameters: Array[Type] = Array.empty)(f: (Seq[Type], IR, IR) => IR): Unit =
-    registerIR(name, Array(mt1, mt2), returnType, typeParameters = typeParameters) { case (t, Seq(a1, a2)) => f(t, a1, a2) }
+  def registerIR2(name: String, mt1: Type, mt2: Type, returnType: Type, typeParameters: Array[Type] = Array.empty)(f: (Seq[Type], IR, IR, Int) => IR): Unit =
+    registerIR(name, Array(mt1, mt2), returnType, typeParameters = typeParameters) { case (t, Seq(a1, a2), errorID) => f(t, a1, a2, errorID) }
 
-  def registerIR3(name: String, mt1: Type, mt2: Type, mt3: Type, returnType: Type, typeParameters: Array[Type] = Array.empty)(f: (Seq[Type], IR, IR, IR) => IR): Unit =
-    registerIR(name, Array(mt1, mt2, mt3), returnType, typeParameters = typeParameters) { case (t, Seq(a1, a2, a3)) => f(t, a1, a2, a3) }
+  def registerIR3(name: String, mt1: Type, mt2: Type, mt3: Type, returnType: Type, typeParameters: Array[Type] = Array.empty)(f: (Seq[Type], IR, IR, IR, Int) => IR): Unit =
+    registerIR(name, Array(mt1, mt2, mt3), returnType, typeParameters = typeParameters) { case (t, Seq(a1, a2, a3), errorID) => f(t, a1, a2, a3, errorID) }
 
-  def registerIR4(name: String, mt1: Type, mt2: Type, mt3: Type, mt4: Type, returnType: Type, typeParameters: Array[Type] = Array.empty)(f: (Seq[Type], IR, IR, IR, IR) => IR): Unit =
-    registerIR(name, Array(mt1, mt2, mt3, mt4), returnType, typeParameters = typeParameters) { case (t, Seq(a1, a2, a3, a4)) => f(t, a1, a2, a3, a4) }
+  def registerIR4(name: String, mt1: Type, mt2: Type, mt3: Type, mt4: Type, returnType: Type, typeParameters: Array[Type] = Array.empty)(f: (Seq[Type], IR, IR, IR, IR, Int) => IR): Unit =
+    registerIR(name, Array(mt1, mt2, mt3, mt4), returnType, typeParameters = typeParameters) { case (t, Seq(a1, a2, a3, a4), errorID) => f(t, a1, a2, a3, a4, errorID) }
 
   def registerSeeded(
     name: String,

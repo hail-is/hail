@@ -551,12 +551,12 @@ object Die {
 final case class Trap(child: IR) extends IR
 final case class Die(message: IR, _typ: Type, errorId: Int) extends IR
 
-final case class ApplyIR(function: String, typeArgs: Seq[Type], args: Seq[IR]) extends IR {
-  var conversion: (Seq[Type], Seq[IR]) => IR = _
+final case class ApplyIR(function: String, typeArgs: Seq[Type], args: Seq[IR], errorID: Int) extends IR {
+  var conversion: (Seq[Type], Seq[IR], Int) => IR = _
   var inline: Boolean = _
 
   private lazy val refs = args.map(a => Ref(genUID(), a.typ)).toArray
-  lazy val body: IR = conversion(typeArgs, refs).deepCopy()
+  lazy val body: IR = conversion(typeArgs, refs, errorID).deepCopy()
   lazy val refIdx: Map[String, Int] = refs.map(_.name).zipWithIndex.toMap
 
   lazy val explicitNode: IR = {
