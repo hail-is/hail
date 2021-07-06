@@ -482,8 +482,9 @@ class Container:
             return step.result()
         finally:
             for t in (step, deleted):
-                if t.done() and t.exception():
-                    log.exception(t.exception())
+                if t.done():
+                    if t.exception() and not user_error(t.exception()):
+                        log.exception(t.exception())
                 else:
                     t.cancel()
 
