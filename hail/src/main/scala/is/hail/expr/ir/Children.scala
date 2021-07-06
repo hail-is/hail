@@ -52,8 +52,8 @@ object Children {
       args.toFastIndexedSeq
     case MakeStream(args, _, _) =>
       args.toFastIndexedSeq
-    case ArrayRef(a, i, s) =>
-      Array(a, i, s)
+    case ArrayRef(a, i, _) =>
+      Array(a, i)
     case ArrayLen(a) =>
       Array(a)
     case StreamRange(start, stop, step, _) =>
@@ -187,13 +187,13 @@ object Children {
     case Die(message, typ, errorId) =>
       Array(message)
     case Trap(child) => Array(child)
-    case ApplyIR(_, _, args) =>
+    case ApplyIR(_, _, args, _) =>
       args.toFastIndexedSeq
-    case Apply(_, _, args, _) =>
+    case Apply(_, _, args, _, _) =>
       args.toFastIndexedSeq
     case ApplySeeded(_, args, seed, _) =>
       args.toFastIndexedSeq
-    case ApplySpecial(_, _, args, _) =>
+    case ApplySpecial(_, _, args, _, _) =>
       args.toFastIndexedSeq
     // from MatrixIR
     case MatrixWrite(child, _) => Array(child)

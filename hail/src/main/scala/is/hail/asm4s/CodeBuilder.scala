@@ -151,6 +151,10 @@ trait CodeBuilderLike {
     append(Code._fatal[Unit](msgs.reduce(_.concat(_))))
   }
 
+  def _fatalWithError(errorId: Int, msgs: Code[String]*): Unit = {
+    append(Code._fatalWithID[Unit](msgs.reduce(_.concat(_)), errorId))
+  }
+
   def _throw[T <: java.lang.Throwable](cerr: Code[T]): Unit = {
     append(Code._throw[T, Unit](cerr))
   }

@@ -538,7 +538,7 @@ class OrderingSuite extends HailSuite {
           FastSeq(),
           FastSeq(
             Ref("accumulator", TBoolean),
-            invoke("contains", TBoolean, set2, Ref("setelt", TInt32))), TBoolean)), true)
+            invoke("contains", TBoolean, set2, Ref("setelt", TInt32))), TBoolean, ErrorIDs.NO_ERROR)), true)
   }
 
   @DataProvider(name = "arrayDoubleOrderingData")

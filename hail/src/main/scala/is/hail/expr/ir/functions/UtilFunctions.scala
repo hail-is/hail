@@ -212,8 +212,8 @@ object UtilFunctions extends RegistryFunctions {
     }
 
     Array(TInt32, TInt64).foreach { t =>
-      registerIR2("min", t, t, t)((_, a, b) => intMin(a, b))
-      registerIR2("max", t, t, t)((_, a, b) => intMax(a, b))
+      registerIR2("min", t, t, t)((_, a, b, _) => intMin(a, b))
+      registerIR2("max", t, t, t)((_, a, b, _) => intMax(a, b))
     }
 
     Array("min", "max").foreach { name =>

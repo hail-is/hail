@@ -713,9 +713,9 @@ object Interpret {
         } catch {
           case e: HailException => Row(Row(e.msg, e.errorId), null)
         }
-      case ir@ApplyIR(function, _, functionArgs) =>
+      case ir@ApplyIR(function, _, functionArgs, _) =>
         interpret(ir.explicitNode, env, args)
-      case ApplySpecial("lor", _, Seq(left_, right_), _) =>
+      case ApplySpecial("lor", _, Seq(left_, right_), _, _) =>
         val left = interpret(left_)
         if (left == true)
           true
@@ -727,7 +727,7 @@ object Interpret {
             null
           else false
         }
-      case ApplySpecial("land", _, Seq(left_, right_), _) =>
+      case ApplySpecial("land", _, Seq(left_, right_), _, _) =>
         val left = interpret(left_)
         if (left == false)
           false

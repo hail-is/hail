@@ -887,11 +887,11 @@ object IRParser {
           MakeStream(args, typ, requiresMemoryManagementPerElement)
         }
       case "ArrayRef" =>
+        val errorId = int32_literal(it)
         for {
           a <- ir_value_expr(env)(it)
           i <- ir_value_expr(env)(it)
-          s <- ir_value_expr(env)(it)
-        } yield ArrayRef(a, i, s)
+        } yield ArrayRef(a, i, errorId)
       case "ArrayLen" => ir_value_expr(env)(it).map(ArrayLen)
       case "StreamLen" => ir_value_expr(env)(it).map(StreamLen)
       case "StreamRange" =>
@@ -1272,11 +1272,12 @@ object IRParser {
           ApplySeeded(function, args, seed, rt)
         }
       case "ApplyIR" | "ApplySpecial" | "Apply" =>
+        val errorID = int32_literal(it)
         val function = identifier(it)
         val typeArgs = type_exprs(env.typEnv)(it)
         val rt = type_expr(env.typEnv)(it)
         ir_value_children(env)(it).map { args =>
-          invoke(function, rt, typeArgs, args: _*)
+          invoke(function, rt, typeArgs, errorID, args: _*)
         }
       case "MatrixCount" =>
         matrix_ir(env.withRefMap(Map.empty))(it).map(MatrixCount)

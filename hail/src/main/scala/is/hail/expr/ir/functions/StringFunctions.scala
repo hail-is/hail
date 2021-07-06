@@ -113,7 +113,7 @@ object StringFunctions extends RegistryFunctions {
         st.constructFromString(cb, r.region, str)
     }
 
-    registerIR3("slice", TString, TInt32, TInt32, TString) { (_, str, start, end) =>
+    registerIR3("slice", TString, TInt32, TInt32, TString) { (_, str, start, end, _) =>
       val len = Ref(genUID(), TInt32)
       val s = Ref(genUID(), TInt32)
       val e = Ref(genUID(), TInt32)
@@ -123,7 +123,7 @@ object StringFunctions extends RegistryFunctions {
             invoke("substring", TString, str, s, If(e < s, s, e)))))
     }
 
-    registerIR2("index", TString, TInt32, TString) { (_, s, i) =>
+    registerIR2("index", TString, TInt32, TString) { (_, s, i, errorID) =>
       val len = Ref(genUID(), TInt32)
       val idx = Ref(genUID(), TInt32)
       Let(len.name, invoke("length", TInt32, s),
@@ -133,13 +133,13 @@ object StringFunctions extends RegistryFunctions {
               Str("string index out of bounds: "),
               invoke("concat", TString,
                 invoke("str", TString, i),
-                invoke("concat", TString, Str(" / "), invoke("str", TString, len)))), TInt32, -1),
+                invoke("concat", TString, Str(" / "), invoke("str", TString, len)))), TInt32, errorID),
             If(i < 0, i + len, i)),
           invoke("substring", TString, s, idx, idx + 1)))
     }
 
-    registerIR2("sliceRight", TString, TInt32, TString) { (_, s, start) => invoke("slice", TString, s, start, invoke("length", TInt32, s)) }
-    registerIR2("sliceLeft", TString, TInt32, TString) { (_, s, end) => invoke("slice", TString, s, I32(0), end) }
+    registerIR2("sliceRight", TString, TInt32, TString) { (_, s, start, _) => invoke("slice", TString, s, start, invoke("length", TInt32, s)) }
+    registerIR2("sliceLeft", TString, TInt32, TString) { (_, s, end, _) => invoke("slice", TString, s, I32(0), end) }
 
     registerSCode1("str", tv("T"), TString, (_: Type, _: SType) => SStringPointer(PCanonicalString())) { case (r, cb, st: SString, a) =>
       val annotation = scodeToJavaValue(cb, r.region, a)

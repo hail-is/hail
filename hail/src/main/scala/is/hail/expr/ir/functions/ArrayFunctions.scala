@@ -11,18 +11,21 @@ import is.hail.types.virtual._
 import is.hail.utils._
 
 object ArrayFunctions extends RegistryFunctions {
-  val arrayOps: Array[(String, Type, Type, (IR, IR) => IR)] =
+  val arrayOps: Array[(String, Type, Type, (IR, IR, Int) => IR)] =
     Array(
-      ("mul", tnum("T"), tv("T"), ApplyBinaryPrimOp(Multiply(), _, _)),
-      ("div", TInt32, TFloat32, ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
-      ("div", TInt64, TFloat32, ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
-      ("div", TFloat32, TFloat32, ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
-      ("div", TFloat64, TFloat64, ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
-      ("floordiv", tnum("T"), tv("T"), ApplyBinaryPrimOp(RoundToNegInfDivide(), _, _)),
-      ("add", tnum("T"), tv("T"), ApplyBinaryPrimOp(Add(), _, _)),
-      ("sub", tnum("T"), tv("T"), ApplyBinaryPrimOp(Subtract(), _, _)),
-      ("pow", tnum("T"), TFloat64, (ir1: IR, ir2: IR) => Apply("pow", Seq(), Seq(ir1, ir2), TFloat64)),
-      ("mod", tnum("T"), tv("T"), (ir1: IR, ir2: IR) => Apply("mod", Seq(), Seq(ir1, ir2), ir2.typ)))
+      ("mul", tnum("T"), tv("T"), (ir1: IR, ir2: IR, _) =>ApplyBinaryPrimOp(Multiply(), ir1, ir2)),
+      ("div", TInt32, TFloat32, (ir1: IR, ir2: IR, _) =>ApplyBinaryPrimOp(FloatingPointDivide(), ir1, ir2)),
+      ("div", TInt64, TFloat32, (ir1: IR, ir2: IR, _) =>ApplyBinaryPrimOp(FloatingPointDivide(), ir1, ir2)),
+      ("div", TFloat32, TFloat32, (ir1: IR, ir2: IR, _) =>ApplyBinaryPrimOp(FloatingPointDivide(),ir1, ir2)),
+      ("div", TFloat64, TFloat64, (ir1: IR, ir2: IR, _) =>ApplyBinaryPrimOp(FloatingPointDivide(), ir1, ir2)),
+      ("floordiv", tnum("T"), tv("T"), (ir1: IR, ir2: IR, _) =>
+        ApplyBinaryPrimOp(RoundToNegInfDivide(), ir1, ir2)),
+      ("add", tnum("T"), tv("T"), (ir1: IR, ir2: IR, _) =>ApplyBinaryPrimOp(Add(),ir1, ir2)),
+      ("sub", tnum("T"), tv("T"), (ir1: IR, ir2: IR, _) =>ApplyBinaryPrimOp(Subtract(), ir1, ir2)),
+      ("pow", tnum("T"), TFloat64, (ir1: IR, ir2: IR, errorID: Int) =>
+        Apply("pow", Seq(), Seq(ir1, ir2), TFloat64, errorID)),
+      ("mod", tnum("T"), tv("T"), (ir1: IR, ir2: IR, errorID: Int) =>
+        Apply("mod", Seq(), Seq(ir1, ir2), ir2.typ, errorID)))
 
   def mean(args: Seq[IR]): IR = {
     val Seq(a) = args
@@ -101,22 +104,23 @@ object ArrayFunctions extends RegistryFunctions {
     registerIR2("contains", TArray(tv("T")), tv("T"), TBoolean) { (_, a, e, _) => contains(a, e) }
 
     for ((stringOp, argType, retType, irOp) <- arrayOps) {
-      registerIR2(stringOp, TArray(argType), argType, TArray(retType)) { (_, a, c, _) =>
+      registerIR2(stringOp, TArray(argType), argType, TArray(retType)) { (_, a, c, errorID) =>
         val i = genUID()
-        ToArray(StreamMap(ToStream(a), i, irOp(Ref(i, c.typ), c)))
+        ToArray(StreamMap(ToStream(a), i, irOp(Ref(i, c.typ), c, errorID)))
       }
 
-      registerIR2(stringOp, argType, TArray(argType), TArray(retType)) { (_, c, a, _) =>
+      registerIR2(stringOp, argType, TArray(argType), TArray(retType)) { (_, c, a, errorID) =>
         val i = genUID()
-        ToArray(StreamMap(ToStream(a), i, irOp(c, Ref(i, c.typ))))
+        ToArray(StreamMap(ToStream(a), i, irOp(c, Ref(i, c.typ), errorID)))
       }
 
-      registerIR2(stringOp, TArray(argType), TArray(argType), TArray(retType)) { (_, array1, array2, _) =>
+      registerIR2(stringOp, TArray(argType), TArray(argType), TArray(retType)) { (_, array1, array2, errorID) =>
         val a1id = genUID()
         val e1 = Ref(a1id, coerce[TArray](array1.typ).elementType)
         val a2id = genUID()
         val e2 = Ref(a2id, coerce[TArray](array2.typ).elementType)
-        ToArray(StreamZip(FastIndexedSeq(ToStream(array1), ToStream(array2)), FastIndexedSeq(a1id, a2id), irOp(e1, e2), ArrayZipBehavior.AssertSameLength))
+        ToArray(StreamZip(FastIndexedSeq(ToStream(array1), ToStream(array2)), FastIndexedSeq(a1id, a2id),
+                                        irOp(e1, e2, errorID), ArrayZipBehavior.AssertSameLength))
       }
     }
 

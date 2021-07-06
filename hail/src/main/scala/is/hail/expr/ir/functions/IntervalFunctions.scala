@@ -125,14 +125,14 @@ object IntervalFunctions extends RegistryFunctions {
     }
 
     registerIR2("sortedNonOverlappingIntervalsContain",
-      TArray(TInterval(tv("T"))), tv("T"), TBoolean) { case (_, intervals, value) =>
+      TArray(TInterval(tv("T"))), tv("T"), TBoolean) { case (_, intervals, value, errorID) =>
       val uid = genUID()
       val uid2 = genUID()
       Let(uid, LowerBoundOnOrderedCollection(intervals, value, onKey = true),
         (Let(uid2, Ref(uid, TInt32) - I32(1), (Ref(uid2, TInt32) >= 0)
-          && invoke("contains", TBoolean, ArrayRef(intervals, Ref(uid2, TInt32)), value)))
+          && invoke("contains", TBoolean, ArrayRef(intervals, Ref(uid2, TInt32), errorID), value)))
           || ((Ref(uid, TInt32) < ArrayLen(intervals))
-          && invoke("contains", TBoolean, ArrayRef(intervals, Ref(uid, TInt32)), value)))
+          && invoke("contains", TBoolean, ArrayRef(intervals, Ref(uid, TInt32), errorID), value)))
     }
 
 
@@ -140,7 +140,7 @@ object IntervalFunctions extends RegistryFunctions {
     registerIR2("partitionIntervalContains",
       TStruct("left" -> endpointT, "right" -> endpointT, "includesLeft" -> TBoolean, "includesRight" -> TBoolean),
       tv("T"), TBoolean) {
-      case (_, interval, point) =>
+      case (_, interval, point, _) =>
 
         def compareStructs(left: IR, right: IR): IR = {
           bindIRs(left, right) { case Seq(lTuple, r) =>

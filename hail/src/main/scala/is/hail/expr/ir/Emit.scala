@@ -975,40 +975,23 @@ class Emit[C](
           outputPType.loadCheapSCode(cb, arrayAddress)
         }
 
-      case x@ArrayRef(a, i, s) =>
+      case x@ArrayRef(a, i, errorId) =>
         def boundsCheck(cb: EmitCodeBuilder, index: Value[Int], len: Value[Int]): Unit = {
-          s match {
-            case Str(constant) =>
-              val baseMsg = constant match {
-                case "" => s"\n----------\nIR:\n${ Pretty.short(x) }"
-                case c => s"\n----------\nPython traceback:\n$c"
-              }
-              val bcMb = mb.getOrGenEmitMethod("arrayref_bounds_check", ("arrayref_bounds_check", baseMsg),
-                IndexedSeq[ParamType](IntInfo, IntInfo), UnitInfo)({ mb =>
-                mb.voidWithBuilder { cb =>
-                  val index = mb.getCodeParam[Int](1)
-                  val len = mb.getCodeParam[Int](2)
-                  cb.ifx(index < 0 || index >= len, {
-                    cb._fatal(const("array index out of bounds: index=")
-                      .concat(index.toS)
-                      .concat(", length=")
-                      .concat(len.toS)
-                      .concat(baseMsg))
-                  })
+            val bcMb = mb.getOrGenEmitMethod("arrayref_bounds_check", "arrayref_bounds_check",
+              IndexedSeq[ParamType](IntInfo, IntInfo), UnitInfo)({ mb =>
+              mb.voidWithBuilder { cb =>
+                val index = mb.getCodeParam[Int](1)
+                val len = mb.getCodeParam[Int](2)
+                cb.ifx(index < 0 || index >= len, {
+                  cb._fatalWithError(errorId, const("array index out of bounds: index=")
+                    .concat(index.toS)
+                    .concat(", length=")
+                    .concat(len.toS))
+                })
 
-                }
-              })
-              cb.invokeVoid(bcMb, index, len)
-            case s =>
-              cb.ifx(index < 0 || index >= len, {
-                val msg = cb.newLocal[String]("arrayref_msg", const("array index out of bounds: index=")
-                  .concat(index.toS)
-                  .concat(", length=")
-                  .concat(len.toS))
-                emitI(s).consume(cb, (), sc => cb.assign(msg, msg.concat(sc.asString.loadString())))
-                cb._fatal(msg)
-              })
-          }
+              }
+            })
+            cb.invokeVoid(bcMb, index, len)
         }
 
         emitI(a).flatMap(cb) { (ac) =>
@@ -2471,7 +2454,7 @@ class Emit[C](
         val ev = env.inputValues(i).apply(region)
         ev
 
-      case ir@Apply(fn, typeArgs, args, rt) =>
+      case ir@Apply(fn, typeArgs, args, rt, errorID) =>
         val impl = ir.implementation
         val unified = impl.unify(typeArgs, args.map(_.typ), rt)
         assert(unified)
@@ -2496,7 +2479,7 @@ class Emit[C](
             cb.invokeSCode(meth, FastIndexedSeq[Param](CodeParam(region)) ++ codeArgs.map(pc => pc: Param): _*)
           }
         }
-      case x@ApplySpecial(_, typeArgs, args, rt) =>
+      case x@ApplySpecial(_, typeArgs, args, rt, errorID) =>
         val codeArgs = args.map(a => emit(a))
         val impl = x.implementation
         val unified = impl.unify(typeArgs, args.map(_.typ), rt)

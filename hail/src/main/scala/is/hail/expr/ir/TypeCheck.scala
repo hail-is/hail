@@ -137,9 +137,8 @@ object TypeCheck {
         args.map(_.typ).zipWithIndex.foreach { case (x, i) => assert(x == typ.elementType,
           s"at position $i type mismatch: ${ typ.elementType.parsableString() } ${ x.parsableString() }")
         }
-      case x@ArrayRef(a, i, s) =>
+      case x@ArrayRef(a, i, _) =>
         assert(i.typ == TInt32)
-        assert(s.typ == TString)
         assert(x.typ == coerce[TArray](a.typ).elementType)
       case ArrayLen(a) =>
         assert(a.typ.isInstanceOf[TArray])
@@ -405,7 +404,7 @@ object TypeCheck {
       case Die(msg, typ, _) =>
         assert(msg.typ == TString)
       case Trap(child) =>
-      case x@ApplyIR(fn, typeArgs, args) =>
+      case x@ApplyIR(fn, typeArgs, args, _) =>
       case x: AbstractApplyNode[_] =>
         assert(x.implementation.unify(x.typeArgs, x.args.map(_.typ), x.returnType))
       case MatrixWrite(_, _) =>

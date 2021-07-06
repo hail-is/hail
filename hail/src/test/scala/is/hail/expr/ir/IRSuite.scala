@@ -2931,7 +2931,7 @@ class IRSuite extends HailSuite {
               ApplySpecial("Interval",
                 FastSeq(),
                 FastSeq(I32(0), I32(5), True(), False()),
-                TInterval(TInt32)))))
+                TInterval(TInt32), ErrorIDs.NO_ERROR))))
       }
       )
     irs.map(x => Array(x))

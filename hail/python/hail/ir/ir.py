@@ -564,12 +564,14 @@ class ArrayRef(IR):
         self.a = a
         self.i = i
         self.s = s
-        self.error_id = error_id
-        self.stack_trace = stack_trace
+        self._error_id = error_id
+        self._stack_trace = stack_trace
+        if error_id is None or stack_trace is None:
+            self.save_error_info()
 
     @typecheck_method(a=IR, i=IR, s=IR)
     def copy(self, a, i, s):
-        return ArrayRef(a, i, s)
+        return ArrayRef(a, i, s, self._error_id, self._stack_trace)
 
     def head_str(self):
         return str(self._error_id)
@@ -2080,20 +2082,25 @@ def udf(*param_types):
 
 
 class Apply(IR):
-    @typecheck_method(function=str, return_type=hail_type, args=IR, type_args=tupleof(hail_type))
-    def __init__(self, function, return_type, *args, type_args=()):
+    @typecheck_method(function=str, return_type=hail_type, args=IR,
+                      error_id=nullable(int), stack_trace=nullable(str), type_args=tupleof(hail_type))
+    def __init__(self, function, return_type, *args, error_id=None, stack_trace=None, type_args=()):
         super().__init__(*args)
         self.function = function
         self.return_type = return_type
         self.type_args = type_args
         self.args = args
+        self._error_id = error_id
+        self._stack_trace = stack_trace
+        if error_id is None or stack_trace is None:
+            self.save_error_info()
 
     def copy(self, *args):
-        return Apply(self.function, self.return_type, *args, type_args=self.type_args)
+        return Apply(self.function, self.return_type, *args, self._error_id, self._stack_trace, type_args=self.type_args)
 
     def head_str(self):
         type_args = "(" + " ".join([a._parsable_string() for a in self.type_args]) + ")"
-        return f'{escape_id(self.function)} {type_args} {self.return_type._parsable_string()}'
+        return f'{self._error_id} {escape_id(self.function)} {type_args} {self.return_type._parsable_string()}'
 
     def _eq(self, other):
         return other.function == self.function and \

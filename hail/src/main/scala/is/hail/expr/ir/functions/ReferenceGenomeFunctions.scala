@@ -48,7 +48,7 @@ object ReferenceGenomeFunctions extends RegistryFunctions {
     }
 
     registerIR("getReferenceSequence", Array(TString, TInt32, TInt32, TInt32), TString, typeParameters = Array(LocusFunctions.tlocus("R"))) {
-      case (tl, Seq(contig, pos, before, after)) =>
+      case (tl, Seq(contig, pos, before, after), _) =>
         val getRef = IRFunctionRegistry.lookupUnseeded(
           name = "getReferenceSequenceFromValidLocus",
           returnType = TString,
@@ -60,8 +60,8 @@ object ReferenceGenomeFunctions extends RegistryFunctions {
           typeParameters = tl,
           Seq(TString, TInt32)).get
 
-        val r = isValid(tl, Seq(contig, pos))
-        val p = getRef(tl, Seq(contig, pos, before, after))
+        val r = isValid(tl, Seq(contig, pos), ErrorIDs.NO_ERROR)
+        val p = getRef(tl, Seq(contig, pos, before, after), ErrorIDs.NO_ERROR)
         If(r, p, NA(TString))
     }
   }

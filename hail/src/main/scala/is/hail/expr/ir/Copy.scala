@@ -63,9 +63,9 @@ object Copy {
       case MakeStream(args, typ, requiresMemoryManagementPerElement) =>
         assert(args.length == newChildren.length)
         MakeStream(newChildren.map(_.asInstanceOf[IR]), typ, requiresMemoryManagementPerElement)
-      case ArrayRef(_, _, _) =>
-        assert(newChildren.length == 3)
-        ArrayRef(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR])
+      case ArrayRef(_, _, errorID) =>
+        assert(newChildren.length == 2)
+        ArrayRef(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], errorID)
       case ArrayLen(_) =>
         assert(newChildren.length == 1)
         ArrayLen(newChildren(0).asInstanceOf[IR])
@@ -283,17 +283,17 @@ object Copy {
       case Trap(child) =>
         assert(newChildren.length == 1)
         Trap(newChildren(0).asInstanceOf[IR])
-      case x@ApplyIR(fn, typeArgs, args) =>
-        val r = ApplyIR(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]))
+      case x@ApplyIR(fn, typeArgs, args, errorID) =>
+        val r = ApplyIR(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), errorID)
         r.conversion = x.conversion
         r.inline = x.inline
         r
-      case Apply(fn, typeArgs, args, t) =>
-        Apply(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), t)
+      case Apply(fn, typeArgs, args, t, errorID) =>
+        Apply(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), t, errorID)
       case ApplySeeded(fn, args, seed, t) =>
         ApplySeeded(fn, newChildren.map(_.asInstanceOf[IR]), seed, t)
-      case ApplySpecial(fn, typeArgs, args, t) =>
-        ApplySpecial(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), t)
+      case ApplySpecial(fn, typeArgs, args, t, errorID) =>
+        ApplySpecial(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), t, errorID)
       // from MatrixIR
       case MatrixWrite(_, writer) =>
         assert(newChildren.length == 1)

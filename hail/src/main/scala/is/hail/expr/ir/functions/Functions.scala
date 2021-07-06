@@ -157,13 +157,13 @@ object IRFunctionRegistry {
       }
   }
 
-  def lookupUnseeded(name: String, returnType: Type, arguments: Seq[Type]): Option[(Seq[Type], Seq[IR]) => IR] =
+  def lookupUnseeded(name: String, returnType: Type, arguments: Seq[Type]): Option[IRFunctionImplementation] =
     lookupUnseeded(name, returnType, Array.empty[Type], arguments)
 
-  def lookupUnseeded(name: String, returnType: Type, typeParameters: Seq[Type], arguments: Seq[Type]): Option[(Seq[Type], Seq[IR]) => IR] = {
-    val validIR: Option[(Seq[Type], Seq[IR]) => IR] = lookupIR(name, returnType, typeParameters, arguments).map {
-      case ((_, _, _, inline), conversion) => (typeParametersPassed, args) =>
-        val x = ApplyIR(name, typeParametersPassed, args, errorID.noerror)
+  def lookupUnseeded(name: String, returnType: Type, typeParameters: Seq[Type], arguments: Seq[Type]): Option[IRFunctionImplementation] = {
+    val validIR: Option[IRFunctionImplementation] = lookupIR(name, returnType, typeParameters, arguments).map {
+      case ((_, _, _, inline), conversion) => (typeParametersPassed, args, errorID) =>
+        val x = ApplyIR(name, typeParametersPassed, args, errorID)
         x.conversion = conversion
         x.inline = inline
         x
@@ -171,12 +171,12 @@ object IRFunctionRegistry {
 
     val validMethods = lookupFunction(name, returnType, typeParameters, arguments)
       .filter(!_.isInstanceOf[SeededJVMFunction]).map { f =>
-        { (irValueParametersTypes: Seq[Type], irArguments: Seq[IR]) =>
+        { (irValueParametersTypes: Seq[Type], irArguments: Seq[IR], errorID: Int) =>
           f match {
             case _: UnseededMissingnessObliviousJVMFunction =>
-              Apply(name, irValueParametersTypes, irArguments, f.returnType.subst())
+              Apply(name, irValueParametersTypes, irArguments, f.returnType.subst(), errorID)
             case _: UnseededMissingnessAwareJVMFunction =>
-              ApplySpecial(name, irValueParametersTypes, irArguments, f.returnType.subst())
+              ApplySpecial(name, irValueParametersTypes, irArguments, f.returnType.subst(), errorID)
           }
         }
       }
