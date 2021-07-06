@@ -1865,7 +1865,7 @@ case class TableMapPartitions(child: TableIR,
         globalName -> In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(globalPType))),
         partitionStreamName -> In(1, SingleCodeEmitParamType(true, StreamSingleCodeType(requiresMemoryManagementPerElement = true, rowPType)))))))
 
-    val globalsOff = tv.globals.value.offset
+    val globalsBc = tv.globals.broadcast
 
     val fsBc = tv.ctx.fsBc
     val itF = { (idx: Int, consumerCtx: RVDContext, partition: (RVDContext) => Iterator[Long]) =>
@@ -1874,7 +1874,7 @@ case class TableMapPartitions(child: TableIR,
           partition(new RVDContext(outerRegion, eltRegion)).map(box)
       }
       makeIterator(fsBc.value, idx, consumerCtx,
-        globalsOff,
+        globalsBc.value.readRegionValue(consumerCtx.partitionRegion),
         boxedPartition
       ).map(l => l.longValue())
     }
@@ -2226,13 +2226,14 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
         newGlobals,
         Die("Internal error: TableMapGlobals: globals missing", newGlobals.typ))))
     val doneCompilingGlobalsTime = System.currentTimeMillis()
-    println(s"Compiled tableMapGlobals, took ${(doneCompilingGlobalsTime - childDoneExecutingTime)/1000} seconds")
-    log.info(s"Compiled tableMapGlobals, took ${(doneCompilingGlobalsTime - childDoneExecutingTime)/1000} seconds")
+//    println(s"Compiled tableMapGlobals, took ${(doneCompilingGlobalsTime - childDoneExecutingTime)/1000} seconds")
+//    log.info(s"Compiled tableMapGlobals, took ${(doneCompilingGlobalsTime - childDoneExecutingTime)/1000} seconds")
 
     val resultOff = f(ctx.fs, 0, ctx.r)(ctx.r, tv.globals.value.offset)
     val doneForRealTime = System.currentTimeMillis()
-    println(s"Executed tableMapGlobals, took ${(doneForRealTime - doneCompilingGlobalsTime)/1000} seconds")
-    log.info(s"Executed tableMapGlobals, took ${(doneForRealTime - doneCompilingGlobalsTime)/1000} seconds")
+    //println(s"Executed tableMapGlobals, took ${(doneForRealTime - doneCompilingGlobalsTime)/1000} seconds")
+    //log.info(s"Executed tableMapGlobals, took ${(doneForRealTime - doneCompilingGlobalsTime)/1000} seconds")
+    log.info(s"Globals was ${RegionValue(ctx.r, resultOff).pretty(resultPType)}")
     tv.copy(typ = typ,
       globals = BroadcastRow(ctx, RegionValue(ctx.r, resultOff), resultPType))
   }

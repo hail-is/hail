@@ -90,8 +90,9 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     types(fieldIdx).unstagedLoadFromNested(off)
   }
 
-  def loadField(offset: Code[Long], fieldIdx: Int): Code[Long] =
+  def loadField(offset: Code[Long], fieldIdx: Int): Code[Long] = {
     loadField(fieldOffset(offset, fieldIdx), types(fieldIdx))
+  }
 
   private def loadField(fieldOffset: Code[Long], fieldType: PType): Code[Long] = {
     fieldType.loadFromNested(fieldOffset)
