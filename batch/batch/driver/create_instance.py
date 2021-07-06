@@ -100,6 +100,16 @@ async def create_instance(
 #!/bin/bash
 set -x
 
+if [ -f "/started" ]; then
+    echo "instance $NAME has previously been started"
+    while true; do
+    gcloud -q compute instances delete $NAME --zone=$ZONE
+    sleep 1
+    done
+else
+    touch /started
+fi
+
 curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/run_script"  >./run.sh
 
 nohup /bin/bash run.sh >run.log 2>&1 &
