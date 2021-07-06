@@ -474,13 +474,18 @@ class Container:
     async def run_until_done_or_deleted(self, f: Callable[[], Awaitable[Any]]):
         step = asyncio.ensure_future(f())
         deleted = asyncio.ensure_future(self.deleted_event.wait())
-        await asyncio.wait([deleted, step], return_when=asyncio.FIRST_COMPLETED)
-        if deleted.done():
-            step.cancel()
-            raise JobDeletedError()
-        assert step.done()
-        deleted.cancel()
-        return step.result()
+        try:
+            await asyncio.wait([deleted, step], return_when=asyncio.FIRST_COMPLETED)
+            if deleted.done():
+                raise JobDeletedError()
+            assert step.done()
+            return step.result()
+        finally:
+            for t in (step, deleted):
+                if t.done() and t.exception():
+                    log.exception(t.exception())
+                else:
+                    t.cancel()
 
     def is_job_deleted(self) -> bool:
         return self.job.deleted
