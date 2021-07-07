@@ -240,27 +240,39 @@ class RegionSuite extends TestNGSuite {
   def testChunkCache(): Unit = {
     RegionPool.scoped { pool =>
 
-      val operations = ArrayBuffer[(String, Long, Long)]()
+      val operations = ArrayBuffer[(String, Long)]()
 
       def allocate(numBytes: Long): Long = {
         val pointer = Memory.malloc(numBytes)
-        operations += (("allocate", numBytes, pointer))
+        operations += (("allocate", numBytes))
         pointer
       }
       def free(ptrToFree: Long): Unit = {
-        operations += (("free", ptrToFree, 0L))
+        operations += (("free", 0L))
         Memory.free(ptrToFree)
       }
       val chunkCache = new ChunkCache(allocate, free)
-      val sizeArr = IndexedSeq(30L, 60L, 500L, 300L, 28L, 58L, 90L, 300L, 20L, 480L)
       val ab = new LongArrayBuilder()
       var i = 0
-      while (i <= 9) {
-        ab += chunkCache.getChunk(pool, sizeArr(i))._1
-        i += 1
-      }
+      ab += chunkCache.getChunk(pool, 400L)._1
+      chunkCache.freeChunkToCache(ab.pop())
+      ab += chunkCache.getChunk(pool, 50L)._1
+      assert(operations(0)==("allocate", 512))
+      //512 size chunk freed from cache to not exceed peak memory
+      assert(operations(1)==("free", 0L))
+      assert(operations(2)==("allocate", 64))
+      chunkCache.freeChunkToCache(ab.pop())
+      //No additional allocate should be made as uses cache
+      ab += chunkCache.getChunk(pool, 50L)._1
+      assert(operations.length == 3)
+      ab += chunkCache.getChunk(pool, 40L)._1
       chunkCache.freeChunksToCache(ab)
+      assert(operations(3) == ("allocate", 64))
+      assert(operations.length == 4)
       chunkCache.freeAll(pool)
+      assert(operations(4)==("free", 0L))
+      assert(operations(5)==("free", 0L))
+      assert(operations.length == 6)
 
     }
   }
