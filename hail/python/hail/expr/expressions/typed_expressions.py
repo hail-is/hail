@@ -3928,7 +3928,7 @@ class NDArrayExpression(Expression):
 
     @typecheck_method(f=func_spec(1, expr_any))
     def map(self, f):
-        """Applies an element-wise binary operation on an NDArray.
+        """Applies an element-wise operation on an NDArray.
 
         Parameters
         ----------

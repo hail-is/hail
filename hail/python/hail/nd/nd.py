@@ -601,13 +601,13 @@ def maximum(nd1, nd2):
 
     Examples
     --------
-    >>> a = hl.nd.array([1,5,3])
-    >>> b = hl.nd.array([2,3,4])
-    >>> hl.eval(hl.nd.maximum(a,b))
+    >>> a = hl.nd.array([1, 5, 3])
+    >>> b = hl.nd.array([2, 3, 4])
+    >>> hl.eval(hl.nd.maximum(a, b))
     array([2,5,4], dtype=int32)
-    >>> a = hl.nd.array([hl.float64(float("NaN")),5.0,3.0])
-    >>> b = hl.nd.array([2.0,3.0,hl.float64(float("NaN"))])
-    >>> hl.eval(hl.nd.maximum(a,b))
+    >>> a = hl.nd.array([hl.float64(float("NaN")), 5.0, 3.0])
+    >>> b = hl.nd.array([2.0, 3.0, hl.float64(float("NaN"))])
+    >>> hl.eval(hl.nd.maximum(a, b))
     array([NaN,5.0,NaN], dtype=float64)
     """
 
@@ -642,13 +642,13 @@ def minimum(nd1, nd2):
 
     Examples
     --------
-    >>> a = hl.nd.array([1,5,3])
-    >>> b = hl.nd.array([2,3,4])
-    >>> hl.eval(hl.nd.minimum(a,b))
+    >>> a = hl.nd.array([1, 5, 3])
+    >>> b = hl.nd.array([2, 3, 4])
+    >>> hl.eval(hl.nd.minimum(a, b))
     array([1,3,3], dtype=int32)
-    >>> a = hl.nd.array([hl.float64(float("NaN")),5,3])
-    >>> b = hl.nd.array([2,3,hl.float64(float("NaN"))])
-    >>> hl.eval(hl.nd.minimum(a,b))
+    >>> a = hl.nd.array([hl.float64(float("NaN")), 5, 3])
+    >>> b = hl.nd.array([2, 3, hl.float64(float("NaN"))])
+    >>> hl.eval(hl.nd.minimum(a, b))
     array([NaN,3,NaN], dtype=int32)
     """
 
