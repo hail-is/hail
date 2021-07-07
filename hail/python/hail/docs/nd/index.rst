@@ -31,6 +31,8 @@ As much as possible, we try to mimic the numpy array interface.
     vstack
     eye
     identity
+    maximum
+    minimum
 
 .. autofunction:: array
 .. autofunction:: arange
@@ -47,4 +49,6 @@ As much as possible, we try to mimic the numpy array interface.
 .. autofunction:: vstack
 .. autofunction:: eye
 .. autofunction:: identity
+.. autofunction:: maximum
+.. autofunction:: minimum
 
