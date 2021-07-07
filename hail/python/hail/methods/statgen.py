@@ -474,7 +474,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
             y_arrays_per_group=y_arrays_per_group,
             weight_arrays=weight_arrays
         )
-        ht = ht.annotate_globals(all_covs_defined = ht.cov_arrays.map(lambda sample_covs: no_missing(sample_covs)))
+        ht = ht.annotate_globals(all_covs_defined=ht.cov_arrays.map(lambda sample_covs: no_missing(sample_covs)))
 
         def get_kept_samples(group_idx, sample_ys):
             # sample_ys is an array of samples, with each element being an array of the y_values
