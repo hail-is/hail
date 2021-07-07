@@ -13,31 +13,17 @@ object FoldConstants {
     }
 
   def foldConstants(ctx: ExecuteContext, ir : BaseIR): BaseIR = {
-    println("start")
-    println(Pretty(ir))
     val constantSubTrees = Memo.empty[Unit]
     visitIR(ir, constantSubTrees)
     val constants = ArrayBuffer[IR]()
     getConstantIRs(ir, constantSubTrees, constants)
     val constantsIS = constants.toIndexedSeq
-    println(constantsIS)
     assert(constants.forall(x => x.typ.isRealizable))
     val constantsTrapTuple = MakeTuple.ordered(constantsIS.map(constIR => Trap(constIR)))
-    val productIR = try {
-      val compiled = CompileAndEvaluate[Any](ctx, constantsTrapTuple, optimize = false)
-      val rowCompiled = compiled.asInstanceOf[Row]
-      val constDict = getIRConstantMapping(rowCompiled, constantsIS)
-      replaceConstantTrees(ir, constDict)
-    }
-    catch {
-      case _: HailException | _: NumberFormatException => {
-        println("Error raised during fold constants, aborting")
-        ir
-      }
-    }
-    println("end")
-    println(Pretty(productIR))
-    productIR
+    val compiled = CompileAndEvaluate[Any](ctx, constantsTrapTuple, optimize = false)
+    val rowCompiled = compiled.asInstanceOf[Row]
+    val constDict = getIRConstantMapping(rowCompiled, constantsIS)
+    replaceConstantTrees(ir, constDict)
   }
 
   def visitIR(baseIR: BaseIR, memo: Memo[Unit]): Option[Set[String]] = {
