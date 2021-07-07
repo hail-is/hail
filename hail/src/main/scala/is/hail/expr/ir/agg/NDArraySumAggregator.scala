@@ -102,8 +102,7 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
       ifMissing(cb),
       { sc =>
         val lastNDInAggState = sc.asNDArray.memoize(cb, "ndarray_sum_agg_last_state")
-        val fullyCopiedNDArray = ndTyp.constructByActuallyCopyingData(lastNDInAggState, cb, state.region).memoize(cb, "ndarray_sum_result")
-        pt.storeAtAddress(cb, addr, region, fullyCopiedNDArray, deepCopy = true)
+        pt.storeAtAddress(cb, addr, region, lastNDInAggState, deepCopy = true)
       })
   }
 }
