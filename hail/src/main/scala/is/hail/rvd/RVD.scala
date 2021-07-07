@@ -1586,15 +1586,6 @@ object RVD {
 class BroadcastRVD(backend: SparkBackend, rvd: RVD) extends Serializable {
   private[this] val crdd = rvd.crdd
 
-  // necessary to realize all dependencies on driver to avoid serialization nonsense
-  def recurDeps(rdd: RDD[_]) {
-    rdd.dependencies.foreach { d =>
-      recurDeps(d.rdd)
-    }
-  }
-
-  recurDeps(crdd.rdd)
-
   private[this] val bcPartitions = backend.broadcast(rvd.crdd.partitions)
 
   def computePartition(idx: Int, region: Region, partitionRegion: Region): Iterator[Long] = {
