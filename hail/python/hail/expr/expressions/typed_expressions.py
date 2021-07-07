@@ -3928,7 +3928,7 @@ class NDArrayExpression(Expression):
 
     @typecheck_method(f=func_spec(1, expr_any))
     def map(self, f):
-        """Transform each element of an NDArray.
+        """Applies an element-wise binary operation on an NDArray.
 
         Parameters
         ----------
@@ -3949,6 +3949,22 @@ class NDArrayExpression(Expression):
 
     @typecheck_method(other=oneof(expr_ndarray(), list), f=func_spec(2, expr_any))
     def map2(self, other, f):
+        """Applies an element-wise binary operation on two NDArrays.
+
+        Parameters
+        ----------
+        other : class:`.NDArrayExpression`, :class:`.ArrayExpression`, numpy NDarray,
+            or nested python list/tuples. Both NDArrays must be the same shape or
+            broadcastable into common shape.
+        f : function ((arg1, arg2)-> :class:`.Expression`)
+            Function to be applied to each element of both NDArrays.
+
+        Returns
+        -------
+        :class:`.NDArrayExpression`.
+            Element-wise result of applying `f` to each index in NDArrays.
+        """
+
         if isinstance(other, list) or isinstance(other, np.ndarray):
             other = hl.nd.array(other)
 

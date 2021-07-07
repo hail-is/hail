@@ -603,11 +603,11 @@ def maximum(nd1, nd2):
     --------
     >>> a = hl.nd.array([1,5,3])
     >>> b = hl.nd.array([2,3,4])
-    >>> hl.eval(hl.nd.maximum((a,b)))
+    >>> hl.eval(hl.nd.maximum(a,b))
     array([2,5,4], dtype=int32)
     >>> a = hl.nd.array([hl.float64(float("NaN")),5.0,3.0])
     >>> b = hl.nd.array([2.0,3.0,hl.float64(float("NaN"))])
-    >>> hl.eval(hl.nd.maximum((a,b)))
+    >>> hl.eval(hl.nd.maximum(a,b))
     array([NaN,5.0,NaN], dtype=float64)
     """
     if (nd1.dtype.element_type or nd2.dtype.element_type) == (tfloat64 or tfloat32):
@@ -629,7 +629,7 @@ def minimum(nd1, nd2):
     Parameters
     ----------
     nd1 : :class:`.NDArrayExpression`
-    nd2 : class:`.NDArrayExpression`, `.ArrayExpression`, numpy ndarray, or  python lists
+    nd2 : class:`.NDArrayExpression`, `.ArrayExpression`, numpy ndarray, or nested python lists/tuples.
         nd1 and nd2 must be the same shape or broadcastable into common shape. Nd1 and nd2 must
         have elements of comparable types
 
@@ -643,14 +643,14 @@ def minimum(nd1, nd2):
     --------
     >>> a = hl.nd.array([1,5,3])
     >>> b = hl.nd.array([2,3,4])
-    >>> hl.eval(hl.nd.minimum((a,b)))
+    >>> hl.eval(hl.nd.minimum(a,b))
     array([1,3,3], dtype=int32)
     >>> a = hl.nd.array([hl.float64(float("NaN")),5,3])
     >>> b = hl.nd.array([2,3,hl.float64(float("NaN"))])
-    >>> hl.eval(hl.nd.manimum((a,b)))
+    >>> hl.eval(hl.nd.manimum(a,b))
     array([NaN,3,NaN], dtype=int32)
     """
     if (nd1.dtype.element_type or nd2.dtype.element_type) == (tfloat64 or tfloat32):
         return nd1.map2(nd2, lambda a, b: hl.if_else(hl.is_nan(a) | hl.is_nan(b),
-                        hl.float64(float("NaN")),hl.if_else(a < b, a, b)))
+                        hl.float64(float("NaN")), hl.if_else(a < b, a, b)))
     return nd1.map2(nd2, lambda a, b: hl.if_else(a < b, a, b))
