@@ -9,7 +9,7 @@ import is.hail.HailContext
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex, Validate}
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir._
-import is.hail.types.physical.{PStruct, PTuple, PType}
+import is.hail.types.physical.{PCanonicalStruct, PStruct, PTuple, PType}
 import is.hail.types.virtual.{TArray, TInterval, TStruct, TVoid, Type}
 import is.hail.backend.{Backend, BackendContext, BroadcastValue, HailTaskContext}
 import is.hail.expr.ir.IRParser.parseType
@@ -674,26 +674,48 @@ class SparkBackend(
   ): TableStage = {
     val (globals, rvd) = TableStageToRVD(ctx, stage, relationalLetsAbove)
 
-    if (sortFields.forall(_.sortOrder == Ascending)) {
-      return RVDToTableStage(rvd.changeKey(ctx, sortFields.map(_.field)), globals.toEncodedLiteral())
+    val shuffleRVD = if (sortFields.forall(_.sortOrder == Ascending))
+      rvd.changeKey(ctx, sortFields.map(_.field))
+    else {
+
+      val rowType = rvd.rowType
+      val sortColIndexOrd = sortFields.map { case SortField(n, so) =>
+        val i = rowType.fieldIdx(n)
+        val f = rowType.fields(i)
+        val fo = f.typ.ordering
+        if (so == Ascending) fo else fo.reverse
+      }.toArray
+
+      val ord: Ordering[Annotation] = ExtendedOrdering.rowOrdering(sortColIndexOrd).toOrdering
+
+      val act = implicitly[ClassTag[Annotation]]
+
+      val codec = TypedCodecSpec(rvd.rowPType, BufferSpec.wireSpec)
+      val rdd = rvd.keyedEncodedRDD(ctx, codec, sortFields.map(_.field)).sortBy(_._1)(ord, act)
+      val (rowPType: PStruct, orderedCRDD) = codec.decodeRDD(ctx, rowType, rdd.map(_._2))
+      val newrvd = RVD.unkeyed(rowPType, orderedCRDD)
+      newrvd.crdd.rdd.dependencies // wtf are we doing
+      newrvd.crdd.rdd.partitions // wtf are we doing
+
+      newrvd
     }
+    val newStage = RVDToTableStage(shuffleRVD, globals.toEncodedLiteral())
 
-    val rowType = rvd.rowType
-    val sortColIndexOrd = sortFields.map { case SortField(n, so) =>
-      val i = rowType.fieldIdx(n)
-      val f = rowType.fields(i)
-      val fo = f.typ.ordering
-      if (so == Ascending) fo else fo.reverse
-    }.toArray
+    val tablePath = ctx.createTmpPath("shuffle_intermediate")
+    val rowSpec = TypedCodecSpec(shuffleRVD.rowPType, BufferSpec.wireSpec)
+    val globalSpec = TypedCodecSpec(PCanonicalStruct(), BufferSpec.wireSpec)
 
-    val ord: Ordering[Annotation] = ExtendedOrdering.rowOrdering(sortColIndexOrd).toOrdering
+    val tt = TableType(shuffleRVD.rowType, shuffleRVD.typ.key, TStruct())
+    log.info(s"SparkBackend.lowerDistributedSort: executing isolated shuffle with ${ shuffleRVD.getNumPartitions } partitions, writing to ${ tablePath }")
+    CompileAndEvaluate(
+      ctx,
+      TableNativeWriter.lower(ctx, newStage, tt, tablePath, false, false, rowSpec, globalSpec, Map.empty)
+    )
+    log.info(s"SparkBackend.lowerDistributedSort: done executing shuffle")
 
-    val act = implicitly[ClassTag[Annotation]]
-
-    val codec = TypedCodecSpec(rvd.rowPType, BufferSpec.wireSpec)
-    val rdd = rvd.keyedEncodedRDD(ctx, codec, sortFields.map(_.field)).sortBy(_._1)(ord, act)
-    val (rowPType: PStruct, orderedCRDD) = codec.decodeRDD(ctx, rowType, rdd.map(_._2))
-    RVDToTableStage(RVD.unkeyed(rowPType, orderedCRDD), globals.toEncodedLiteral())
+    TableNativeReader(ctx.fs, TableNativeReaderParameters(tablePath, None))
+      .lower(ctx, tt)
+      .mapGlobals(_ => globals.toEncodedLiteral())
   }
 
   def pyImportFam(path: String, isQuantPheno: Boolean, delimiter: String, missingValue: String): String =

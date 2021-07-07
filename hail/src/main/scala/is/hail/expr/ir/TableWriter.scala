@@ -37,20 +37,9 @@ abstract class TableWriter {
   def canLowerEfficiently: Boolean = false
 }
 
-case class TableNativeWriter(
-  path: String,
-  overwrite: Boolean = true,
-  stageLocally: Boolean = false,
-  codecSpecJSONStr: String = null
-) extends TableWriter {
-
-  override def canLowerEfficiently: Boolean = !stageLocally
-
-  override def lower(ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
-    val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
-    val rowSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(t.typ.rowType, r.rowType), t.typ.rowType, bufferSpec)
-    val globalSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(t.typ.globalType, r.globalType), t.typ.globalType, bufferSpec)
-
+object TableNativeWriter {
+  def lower(ctx: ExecuteContext, ts: TableStage, tt: TableType, path: String, overwrite: Boolean, stageLocally: Boolean,
+    rowSpec: TypedCodecSpec, globalSpec: TypedCodecSpec, relationalLetsAbove: Map[String, IR]): IR = {
     // write out partitioner key, which may be stricter than table key
     val partitioner = ts.partitioner
     val pKey: PStruct = coerce[PStruct](rowSpec.decodedPType(partitioner.kType))
@@ -73,7 +62,7 @@ case class TableNativeWriter(
       val writeGlobals = WritePartition(MakeStream(FastSeq(globals), TStream(globals.typ)),
         Str(partFile(1, 0)), globalWriter)
 
-      RelationalWriter.scoped(path, overwrite, Some(t.typ))(
+      RelationalWriter.scoped(path, overwrite, Some(tt))(
         bindIR(parts) { fileAndCount =>
           Begin(FastIndexedSeq(
             WriteMetadata(MakeArray(GetField(writeGlobals, "filePath")),
@@ -81,9 +70,27 @@ case class TableNativeWriter(
             WriteMetadata(ToArray(mapIR(ToStream(fileAndCount)) { fc => GetField(fc, "filePath") }),
               RVDSpecWriter(s"$path/rows", RVDSpecMaker(rowSpec, partitioner, IndexSpec.emptyAnnotation("../index", coerce[PStruct](pKey))))),
             WriteMetadata(ToArray(mapIR(ToStream(fileAndCount)) { fc => GetField(fc, "partitionCounts") }),
-              TableSpecWriter(path, t.typ, "rows", "globals", "references", log = true))))
+              TableSpecWriter(path, tt, "rows", "globals", "references", log = true))))
         })
     }
+  }
+}
+
+case class TableNativeWriter(
+  path: String,
+  overwrite: Boolean = true,
+  stageLocally: Boolean = false,
+  codecSpecJSONStr: String = null
+) extends TableWriter {
+
+  override def canLowerEfficiently: Boolean = !stageLocally
+
+  override def lower(ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
+    val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
+    val rowSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(t.typ.rowType, r.rowType), t.typ.rowType, bufferSpec)
+    val globalSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(t.typ.globalType, r.globalType), t.typ.globalType, bufferSpec)
+
+    TableNativeWriter.lower(ctx, ts, t.typ, path, overwrite, stageLocally, rowSpec, globalSpec, relationalLetsAbove)
   }
 
   def apply(ctx: ExecuteContext, tv: TableValue): Unit = {
