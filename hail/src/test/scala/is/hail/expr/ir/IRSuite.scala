@@ -3019,7 +3019,7 @@ class IRSuite extends HailSuite {
 
       IndexBgen(ctx, Array("src/test/resources/example.8bits.bgen"), rg = Some("GRCh37"), contigRecoding = Map("01" -> "1"))
 
-      val tableRead = TableIR.read(fs, "src/test/resources/backward_compatability/1.0.0/table/0.ht")
+      val tableRead = TableIR.read(fs, "src/test/resources/backward_compatability/1.1.0/table/0.ht")
       val read = MatrixIR.read(fs, "src/test/resources/backward_compatability/1.0.0/matrix_table/0.hmt")
       val range = MatrixIR.range(3, 7, None)
       val vcf = is.hail.TestUtils.importVCF(ctx, "src/test/resources/sample.vcf")
