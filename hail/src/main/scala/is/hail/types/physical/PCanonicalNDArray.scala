@@ -427,7 +427,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
           region.trackNDArrayData(cb, dataAddr)
         }
         cb += Region.storeAddress(this.representation.fieldOffset(targetAddr, "data"), dataAddr)
-      case SNDArrayPointer(t) =>
+      case _ =>
         val newDataAddr = this.allocateData(shape, region)
         cb += Region.storeAddress(this.representation.fieldOffset(targetAddr, "data"), newDataAddr)
         val outputSNDValue = new SNDArrayPointerCode(sType, targetAddr).memoize(cb, "pcanonical_ndarray_store_at_addr_output")
