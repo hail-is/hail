@@ -7,7 +7,7 @@ import java.util.function.BiConsumer
 import scala.collection.mutable
 
   /**
-    *     ChunkCache works to call free and allocate less often by holding onto
+    *     ChunkCache minimizes calls to free and allocate by holding onto
     *  chunks when they are no longer in use. When a chunk is needed, the cache
     *  is searched. If the size requested is less than a certain amount, the size
     *  is rounded up to the nearest power of 2 and the small chunk cache is checked
