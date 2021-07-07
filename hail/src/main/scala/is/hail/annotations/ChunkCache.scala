@@ -6,6 +6,22 @@ import java.util.TreeMap
 import java.util.function.BiConsumer
 import scala.collection.mutable
 
+  /**
+    *     ChunkCache works to call free and allocate less often by holding onto
+    *  chunks when they are no longer in use. When a chunk is needed, the cache
+    *  is searched. If the size requested is less than a certain amount, the size
+    *  is rounded up to the nearest power of 2 and the small chunk cache is checked
+    *  for available chunk. If bigger, the big chunk cache returns the chunk whose size
+    *  is the ceiling match. If the size requested is at least 90 percent of the size of
+    *  the chunk returned, then that chunk is used. If no acceptable chunk is found, a new
+    *  chunk is created. If the chunk created plus the current allocation is greater than
+    *  peak usage, than chunks from the cache are deallocated until this condition is not
+    *  true or the cache is empty.
+    *     When freeChunk is called on RegionPool, the chunks get put in the cache that
+    *  corresponds to their size. freeAll releases all chunks and is called when
+    *  RegionPool is closed.
+    */
+
 private class ChunkCache (allocator: Long => Long, freer: Long => Unit){
   private[this] val highestSmallChunkPowerOf2 = 24
   private[this] val biggestSmallChunk = Math.pow(2,highestSmallChunkPowerOf2)
