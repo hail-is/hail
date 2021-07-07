@@ -374,7 +374,6 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=(), *, 
     return ht_result.persist()
 
 
-# Weights are m X num_y values.
 @typecheck(y=oneof(expr_float64, sequenceof(expr_float64), sequenceof(sequenceof(expr_float64))),
            x=expr_float64,
            covariates=sequenceof(expr_float64),
