@@ -89,11 +89,13 @@ class FoldConstantsSuite extends HailSuite {
                                           ArrayRef(Literal(TArray(TFloat64), FastIndexedSeq(0d, 1d, 2d)), I32(-1))),
                         ApplyBinaryPrimOp(Add(),
                                           ApplySeeded("rand_norm", Seq(F64(0d), F64(0d)), 0L, TFloat64), F64(22d)))
-    
+
+
     assert(FoldConstants(ctx, makeStreamIR) == makeStreamIRConst)
     assert(FoldConstants(ctx, toArrayStreamFilterIR) == toArrayStreamFilterIR)
     assert(FoldConstants(ctx, makeTupleSeededIR) == makeTupleSeededIRConst)
     assert(FoldConstants(ctx, randLetIR) == randLetIRConst)
+
     val errorCompiled = FoldConstants(ctx, errorIR)
     errorCompiled match {
       case If(cond, Die(Str(str), typ, id: Int), _) =>
