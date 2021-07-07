@@ -397,7 +397,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
     if weights is not None:
         if y_is_list and is_chained and not isinstance(weights, list):
             raise ValueError("When y is a list of lists, weights should be a list.")
-        elif y_is_list and isinstance(weights, list):
+        elif y_is_list and not is_chained and isinstance(weights, list):
             raise ValueError("When y is a single list, weights should be a single expression.")
         elif not y_is_list and isinstance(weights, list):
             raise ValueError("When y is a single expression, weights should be a single expression.")

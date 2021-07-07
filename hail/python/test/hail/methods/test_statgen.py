@@ -575,6 +575,16 @@ class Tests(unittest.TestCase):
         assert equal_with_nans(multi_weight_missing_t_stats_1, t_stats_from_agg_weight_1)
         assert equal_with_nans(multi_weight_missing_t_stats_2, t_stats_from_agg_weight_2)
 
+        multi_weight_missing_se = [e.standard_error for e in multi_weight_missing_results]
+        multi_weight_missing_se_1 = [e[0][0] for e in multi_weight_missing_se]
+        multi_weight_missing_se_2 = [e[1][0] for e in multi_weight_missing_se]
+
+        se_from_agg_weight_1 = ht_from_agg_weight_1.my_linreg.standard_error[1].collect()
+        se_from_agg_weight_2 = ht_from_agg_weight_2.my_linreg.standard_error[1].collect()
+
+        assert equal_with_nans(multi_weight_missing_se_1, se_from_agg_weight_1)
+        assert equal_with_nans(multi_weight_missing_se_2, se_from_agg_weight_2)
+
     def test_errors_weighted_linear_regression(self):
         mt = hl.utils.range_matrix_table(20, 10).annotate_entries(x=2)
         mt = mt.annotate_cols(**{f"col_{i}": i for i in range(4)})
