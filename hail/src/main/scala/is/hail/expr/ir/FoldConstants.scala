@@ -13,20 +13,18 @@ object FoldConstants {
     }
 
   def foldConstants(ctx: ExecuteContext, ir : BaseIR): BaseIR = {
-
+    println("start")
+    println(Pretty(ir))
     val constantSubTrees = Memo.empty[Unit]
-    val constantRefs = Set[String]()
-    visitIR(ir, constantRefs, constantSubTrees)
+    visitIR(ir, constantSubTrees)
     val constants = ArrayBuffer[IR]()
-    val bindings = ArrayBuffer[(String,IR)]()
-    getConstantIRsAndRefs(ir, constantSubTrees, constants, bindings)
+    getConstantIRs(ir, constantSubTrees, constants)
     val constantsIS = constants.toIndexedSeq
+    println(constantsIS)
     assert(constants.forall(x => x.typ.isRealizable))
-    val bindingsIS = bindings.toIndexedSeq
     val constantsTrapTuple = MakeTuple.ordered(constantsIS.map(constIR => Trap(constIR)))
-    val letWrapped = bindingsIS.foldRight[IR](constantsTrapTuple){ case ((name, binding), accum) => Let(name, binding, accum)}
     val productIR = try {
-      val compiled = CompileAndEvaluate[Any](ctx, letWrapped, optimize = false)
+      val compiled = CompileAndEvaluate[Any](ctx, constantsTrapTuple, optimize = false)
       val rowCompiled = compiled.asInstanceOf[Row]
       val constDict = getIRConstantMapping(rowCompiled, constantsIS)
       replaceConstantTrees(ir, constDict)
@@ -37,57 +35,38 @@ object FoldConstants {
         ir
       }
     }
+    println("end")
+    println(Pretty(productIR))
     productIR
   }
 
-  def visitIR(baseIR: BaseIR, constantRefs: Set[String], memo: Memo[Unit]): Option[Set[String]] = {
-
-    baseIR match {
-      case Ref(name, _) => {
-        if (constantRefs.contains(name)) Some(Set())
-        else Some(Set(name))
-      }
-      case let@Let(name, value, body) => {
-        val valueDeps = visitIR(value, constantRefs, memo)
-        val bodyConstantRefs = if (!valueDeps.isEmpty) {
-          if (valueDeps.get.isEmpty) {
-            constantRefs + name
-          }
-          else constantRefs
-        }
-        else constantRefs
-
-        val bodyDeps = visitIR(body, bodyConstantRefs, memo)
-
-        val nodeDeps = bodyDeps.flatMap(bD =>
-          valueDeps.map(vD => vD ++ (bD - name)))
-        nodeDeps.foreach(nD => if (nD.isEmpty && let.typ.isRealizable) memo.bind(let, ()))
-        nodeDeps
-      }
-      case _ => {
-        val childrenDeps = baseIR.children.map {
+  def visitIR(baseIR: BaseIR, memo: Memo[Unit]): Option[Set[String]] = {
+      baseIR match {
+        case Ref(name, _) => Some(Set(name))
+        case _ =>
+          val childrenDeps = baseIR.children.map {
           child =>
-            visitIR(child, constantRefs, memo)
-        }
-        val allConstantChildren = childrenDeps.forall(child => !child.isEmpty)
-        if (!allConstantChildren) return None
-        val constChildrenDeps = childrenDeps.map(child => child.get)
-        val nodeDeps = baseIR.children.zip(constChildrenDeps).zipWithIndex.map { case ((child, childDep), index) =>
-          childDep -- Bindings.apply(baseIR, index).map(ref => ref._1)
-        }.foldLeft(Set[String]())((accum, elem) => elem ++ accum)
-        baseIR match {
+          visitIR (child, memo)
+          }
+          val allConstantChildren = childrenDeps.forall (child => ! child.isEmpty)
+          if (! allConstantChildren) return None
+          val constChildrenDeps = childrenDeps.map (child => child.get)
+          val nodeDeps = baseIR.children.zip (constChildrenDeps).zipWithIndex.map {
+          case ((child, childDep), index) =>
+          childDep -- Bindings.apply (baseIR, index).map (ref => ref._1)
+          }.foldLeft (Set[String] () ) ((accum, elem) => elem ++ accum)
+          baseIR match {
           case ir: IR =>
-            if (nodeDeps.isEmpty && ir.typ.isRealizable && !neverConstantIRs(ir)) {
-              memo.bind(ir, ())
-               Some(nodeDeps)
-            }
-            else if (!neverConstantIRs(ir)) Some(nodeDeps)
-            else  None
+          if (nodeDeps.isEmpty && ir.typ.isRealizable && ! neverConstantIRs (ir) ) {
+          memo.bind (ir, () )
+          Some (nodeDeps)
+          }
+          else if (! neverConstantIRs (ir) ) Some (nodeDeps)
+          else None
 
           case _ => None
         }
       }
-    }
   }
 
   def neverConstantIRs(baseIR: BaseIR): Boolean = {
@@ -121,22 +100,13 @@ object FoldConstants {
 
   }
 
-  def getConstantIRsAndRefs(ir: BaseIR, constantSubTrees: Memo[Unit], constants : ArrayBuffer[IR],
-                                  refs : ArrayBuffer[(String,IR)]) : Unit  = {
+  def getConstantIRs(ir: BaseIR, constantSubTrees: Memo[Unit], constants : ArrayBuffer[IR]) : Unit  = {
     ir match {
       case ir: IR if constantSubTrees.contains(ir) && !IsConstant(ir) => constants += ir
-
-      case let@Let(name, value, body) => {
-        if (constantSubTrees.contains(value)) {
-          refs += ((name, value))
-          constants += value
-        }
-        else getConstantIRsAndRefs(value, constantSubTrees, constants, refs)
-        getConstantIRsAndRefs(body, constantSubTrees, constants, refs)
-      }
-      case _ => ir.children.foreach(child => getConstantIRsAndRefs(child, constantSubTrees, constants, refs))
+      case _ => ir.children.foreach(child => getConstantIRs(child, constantSubTrees, constants))
     }
   }
+
   def getIRConstantMapping(constantsCompiled: Row, constantTrees: IndexedSeq[IR]): Memo[IR] = {
     val constDict = Memo.empty[IR]
     val constantCompiledSeq = (0 until constantsCompiled.length).map(idx => constantsCompiled(idx))

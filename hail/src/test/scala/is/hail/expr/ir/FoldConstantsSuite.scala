@@ -54,7 +54,7 @@ class FoldConstantsSuite extends HailSuite {
                                                   TStream(TStruct(("lk", TInt32),("l", TInt32))))
     val toArrayStreamFilterIR = ToArray(
                                   StreamFilter(StreamMap( streamIRA, "x",
-                                               ApplyBinaryPrimOp(Add(), Ref("x", TInt32), I32(3))), "element",
+                                    ApplyBinaryPrimOp(Add(), Ref("x", TInt32), I32(3))), "element",
                                       ApplyComparisonOp(LT(TInt32, TInt32),
                                         Ref("element", TInt32),
                                         ApplySeeded("rand_norm", Seq(F64(0d), F64(0d)), 0L, TFloat64))))
@@ -77,7 +77,8 @@ class FoldConstantsSuite extends HailSuite {
                                               ApplyBinaryPrimOp(Multiply(),Ref("x", TInt32), Ref("y", TInt32)))))
     val randLetIRConst = Let("y",
                              ApplySeeded("rand_norm", Seq(F64(0d), F64(0d)), 0L, TFloat64),
-                             Let("x", I32(3) , ApplyBinaryPrimOp(Add(), I32(4),
+                             Let("x", I32(3),
+                               ApplyBinaryPrimOp(Add(), ApplyBinaryPrimOp(Add(), Ref("x", TInt32), 1),
                                  ApplyBinaryPrimOp(Multiply(),Ref("x", TInt32), Ref("y", TInt32)))))
     val errorIR =
                       If(
@@ -88,26 +89,19 @@ class FoldConstantsSuite extends HailSuite {
                                           ArrayRef(Literal(TArray(TFloat64), FastIndexedSeq(0d, 1d, 2d)), I32(-1))),
                         ApplyBinaryPrimOp(Add(),
                                           ApplySeeded("rand_norm", Seq(F64(0d), F64(0d)), 0L, TFloat64), F64(22d)))
-
-    println(FoldConstants(ctx, errorIR))
+    
     assert(FoldConstants(ctx, makeStreamIR) == makeStreamIRConst)
     assert(FoldConstants(ctx, toArrayStreamFilterIR) == toArrayStreamFilterIR)
     assert(FoldConstants(ctx, makeTupleSeededIR) == makeTupleSeededIRConst)
     assert(FoldConstants(ctx, randLetIR) == randLetIRConst)
     val errorCompiled = FoldConstants(ctx, errorIR)
     errorCompiled match {
-      case If(cond, cnsq, _) =>
+      case If(cond, Die(Str(str), typ, id: Int), _) =>
         assert(cond == False())
-        cnsq match {
-          case Die(msg: IR, typ: Type, id: Int) =>
-            assert(typ == TFloat64)
-            assert(id == -1)
-            msg match {
-              case Str(str: String) =>
-                assert(str.contains("array index out of bounds"))
-            }
-        }
+        assert(typ == TFloat64)
+        assert(id == -1)
+        assert(str.contains("array index out of bounds"))
+      case _ => fail()
     }
-
   }
 }
