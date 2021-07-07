@@ -575,6 +575,26 @@ class Tests(unittest.TestCase):
         assert equal_with_nans(multi_weight_missing_t_stats_1, t_stats_from_agg_weight_1)
         assert equal_with_nans(multi_weight_missing_t_stats_2, t_stats_from_agg_weight_2)
 
+    def test_errors_weighted_linear_regression(self):
+        mt = hl.utils.range_matrix_table(20, 10).annotate_entries(x=2)
+        mt = mt.annotate_cols(**{f"col_{i}": i for i in range(4)})
+
+        self.assertRaises(ValueError, lambda: hl._linear_regression_rows_nd(y=[[mt.col_1]],
+                                                                                x=mt.x,
+                                                                                covariates=[1],
+                                                                                weights=[mt.col_2, mt.col_3]))
+
+        self.assertRaises(ValueError, lambda: hl._linear_regression_rows_nd(y=[mt.col_1],
+                                                                                x=mt.x,
+                                                                                covariates=[1],
+                                                                                weights=[mt.col_2]))
+
+        self.assertRaises(ValueError, lambda: hl._linear_regression_rows_nd(y=[[mt.col_1]],
+                                                                            x=mt.x,
+                                                                            covariates=[1],
+                                                                            weights=mt.col_2))
+
+
 
     # comparing to R:
     # x = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0)

@@ -393,6 +393,15 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
         raise ValueError("'linear_regression_rows': found empty inner list for 'y'")
 
     y = wrap_to_list(y)
+
+    if weights is not None:
+        if y_is_list and is_chained and not isinstance(weights, list):
+            raise ValueError("When y is a list of lists, weights should be a list.")
+        elif y_is_list and isinstance(weights, list):
+            raise ValueError("When y is a single list, weights should be a single expression.")
+        elif not y_is_list and isinstance(weights, list):
+            raise ValueError("When y is a single expression, weights should be a single expression.")
+
     weights = wrap_to_list(weights) if weights is not None else None
 
     for e in (itertools.chain.from_iterable(y) if is_chained else y):
@@ -407,15 +416,15 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
     if is_chained:
         y_field_name_groups = [[f'__y_{i}_{j}' for j in range(len(y[i]))] for i in range(len(y))]
         y_dict = dict(zip(itertools.chain.from_iterable(y_field_name_groups), itertools.chain.from_iterable(y)))
-        if weights is not None:
-            assert len(weights) == len(y), "Must specify same number of weights as groups of phenotypes"
+        if weights is not None and len(weights) != len(y):
+            raise ValueError("Must specify same number of weights as groups of phenotypes")
     else:
         y_field_name_groups = list(f'__y_{i}' for i in range(len(y)))
         y_dict = dict(zip(y_field_name_groups, y))
         # Wrapping in a list since the code is written for the more general chained case.
         y_field_name_groups = [y_field_name_groups]
-        if weights is not None:
-            assert len(weights) == 1, "Must specify same number of weights as groups of phenotypes"
+        if weights is not None and len(weights) != 1:
+            raise ValueError("Must specify same number of weights as groups of phenotypes")
 
     cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
     weight_field_names = list(f'__weight_for_group_{i}' for i in range(len(weights))) if weights is not None else None
