@@ -96,6 +96,7 @@ at `<https://batch.hail.is>`__.
     :nosignatures:
     :template: class.rst
 
+    backend.RunningBatchType
     backend.Backend
     backend.LocalBackend
     backend.ServiceBackend

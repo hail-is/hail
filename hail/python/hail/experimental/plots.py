@@ -63,7 +63,7 @@ def plot_roc_curve(ht, scores, tp_label='tp', fp_label='fp', colors=None, title=
             tpr=hl.scan.count_where(ordered_ht[tp_label]) / total_tp,
             fpr=hl.scan.count_where(ordered_ht[fp_label]) / total_fp,
         ).key_by().drop('_score')
-        last_row = hl.utils.range_table(1).key_by().select(score_name=score, score=hl.float64(float('-inf')), tpr=hl.float32(1.0), fpr=hl.float32(1.0))
+        last_row = hl.utils.range_table(1).key_by().select(score_name=score, score=hl.float64(float('-inf')), tpr=hl.float64(1.0), fpr=hl.float64(1.0))
         ordered_ht = ordered_ht.union(last_row)
         ordered_ht = ordered_ht.annotate(
             auc_contrib=hl.or_else((ordered_ht.fpr - hl.scan.max(ordered_ht.fpr)) * ordered_ht.tpr, 0.0)

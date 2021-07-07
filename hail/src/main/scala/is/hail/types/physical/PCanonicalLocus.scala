@@ -91,21 +91,21 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
     }
   }
 
-  def sType: SCanonicalLocusPointer = SCanonicalLocusPointer(this)
+  def sType: SCanonicalLocusPointer = SCanonicalLocusPointer(setRequired(false).asInstanceOf[PCanonicalLocus])
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SCanonicalLocusPointerCode(sType, addr)
+  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SCode = new SCanonicalLocusPointerCode(sType, addr)
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {
       case SCanonicalLocusPointer(pt) =>
-        representation.store(cb, region, pt.representation.loadCheapPCode(cb, value.asInstanceOf[SCanonicalLocusPointerCode].a), deepCopy)
+        representation.store(cb, region, pt.representation.loadCheapSCode(cb, value.asInstanceOf[SCanonicalLocusPointerCode].a), deepCopy)
     }
   }
 
   def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
     value.st match {
       case SCanonicalLocusPointer(pt) =>
-        representation.storeAtAddress(cb, addr, region, pt.representation.loadCheapPCode(cb, value.asInstanceOf[SCanonicalLocusPointerCode].a), deepCopy)
+        representation.storeAtAddress(cb, addr, region, pt.representation.loadCheapSCode(cb, value.asInstanceOf[SCanonicalLocusPointerCode].a), deepCopy)
     }
   }
 
@@ -131,8 +131,8 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
 
   def constructFromPositionAndString(cb: EmitCodeBuilder, r: Value[Region], contig: Code[String], pos: Code[Int]): SCanonicalLocusPointerCode = {
     val contigType = representation.fieldType("contig").asInstanceOf[PCanonicalString]
-    val contigCode = SStringPointer(contigType).constructFromString(cb, r, contig)
+    val contigCode = contigType.sType.constructFromString(cb, r, contig)
     val repr = representation.constructFromFields(cb, r, FastIndexedSeq(EmitCode.present(cb.emb, contigCode), EmitCode.present(cb.emb, primitive(pos))), deepCopy = false)
-    new SCanonicalLocusPointerCode(SCanonicalLocusPointer(this), repr.a)
+    new SCanonicalLocusPointerCode(SCanonicalLocusPointer(setRequired(false).asInstanceOf[PCanonicalLocus]), repr.a)
   }
 }

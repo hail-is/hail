@@ -50,6 +50,9 @@ class HadoopFS(FS):
     def rmtree(self, path: str):
         return self._jfs.rmtree(path)
 
+    def supports_scheme(self, scheme: str) -> bool:
+        return self._jfs.supportsScheme(scheme)
+
 
 class HadoopReader(io.RawIOBase):
     def __init__(self, hfs, path, buffer_size):

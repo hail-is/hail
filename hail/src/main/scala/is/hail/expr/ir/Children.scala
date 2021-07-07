@@ -186,6 +186,7 @@ object Children {
       none
     case Die(message, typ, errorId) =>
       Array(message)
+    case Trap(child) => Array(child)
     case ApplyIR(_, _, args) =>
       args.toFastIndexedSeq
     case Apply(_, _, args, _) =>

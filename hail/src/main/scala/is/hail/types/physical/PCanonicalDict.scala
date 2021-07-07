@@ -3,7 +3,18 @@ package is.hail.types.physical
 import is.hail.annotations.{Annotation, Region}
 import is.hail.types.virtual.{TDict, Type}
 import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerCode}
+import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SIndexableCode}
 import org.apache.spark.sql.Row
+
+object PCanonicalDict {
+  def coerceArrayCode(contents: SIndexableCode): SIndexableCode = {
+    contents.st match {
+      case SIndexablePointer(PCanonicalArray(ps: PBaseStruct, r)) =>
+        PCanonicalDict(ps.types(0), ps.types(1), r)
+          .construct(contents)
+    }
+  }
+}
 
 final case class PCanonicalDict(keyType: PType, valueType: PType, required: Boolean = false) extends PDict with PArrayBackedContainer {
   val elementType = PCanonicalStruct(required = true, "key" -> keyType, "value" -> valueType)
@@ -39,8 +50,12 @@ final case class PCanonicalDict(keyType: PType, valueType: PType, required: Bool
     this.arrayRep.unstagedStoreJavaObject(sortedArray, region)
   }
 
-  def construct(contents: PIndexableCode): PIndexableCode = {
-    assert(contents.pt.equalModuloRequired(arrayRep), s"\n  contents:  ${ contents.pt }\n  arrayrep: ${ arrayRep }")
+  def construct(contents: SIndexableCode): SIndexableCode = {
+    contents.st match {
+      case SIndexablePointer(PCanonicalArray(pbs: PBaseStruct, _))
+        if pbs.types.size == 2 && pbs.types(0) == keyType && pbs.types(1) == valueType =>
+      case t => throw new RuntimeException(s"PCDict.construct: contents=${t}, arrayrep=${arrayRep}")
+    }
     new SIndexablePointerCode(SIndexablePointer(this), contents.asInstanceOf[SIndexablePointerCode].a)
   }
 }

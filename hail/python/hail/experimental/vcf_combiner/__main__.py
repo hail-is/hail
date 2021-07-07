@@ -30,7 +30,7 @@ def main():
                              'GVCFs will be overridden by the names in sample map.',
                         required=False)
     parser.add_argument('--branch-factor', type=int, default=CombinerConfig.default_branch_factor, help='Branch factor.')
-    parser.add_argument('--batch-size', type=int, default=CombinerConfig.default_batch_size, help='Batch size.')
+    parser.add_argument('--batch-size', type=int, default=CombinerConfig.default_phase1_batch_size, help='Batch size.')
     parser.add_argument('--target-records', type=int, default=CombinerConfig.default_target_records, help='Target records per partition.')
     parser.add_argument('--overwrite', help='overwrite the output path', action='store_true')
     parser.add_argument('--key-by-locus-and-alleles', help='Key by both locus and alleles in the final output.', action='store_true')

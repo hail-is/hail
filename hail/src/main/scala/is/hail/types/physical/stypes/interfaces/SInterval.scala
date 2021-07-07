@@ -1,12 +1,13 @@
 package is.hail.types.physical.stypes.interfaces
 
 import is.hail.asm4s.{Code, Value}
-import is.hail.expr.ir.{EmitCodeBuilder, IEmitSCode}
+import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.PInterval
-import is.hail.types.physical.stypes.{SCode, SType, SValue}
+import is.hail.types.physical.stypes.{EmitType, SCode, SType, SValue}
 
 trait SInterval extends SType {
   def pointType: SType
+  def pointEmitType: EmitType
 }
 
 trait SIntervalValue extends SValue {
@@ -16,11 +17,11 @@ trait SIntervalValue extends SValue {
 
   def includesEnd(): Value[Boolean]
 
-  def loadStart(cb: EmitCodeBuilder): IEmitSCode
+  def loadStart(cb: EmitCodeBuilder): IEmitCode
 
   def startDefined(cb: EmitCodeBuilder): Code[Boolean]
 
-  def loadEnd(cb: EmitCodeBuilder): IEmitSCode
+  def loadEnd(cb: EmitCodeBuilder): IEmitCode
 
   def endDefined(cb: EmitCodeBuilder): Code[Boolean]
 

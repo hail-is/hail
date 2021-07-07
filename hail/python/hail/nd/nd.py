@@ -221,8 +221,8 @@ def diagonal(nd):
     return hl.nd.array(hl.range(hl.int32(shape_min)).map(lambda i: nd[i, i]))
 
 
-@typecheck(a=expr_ndarray(), b=expr_ndarray())
-def solve(a, b):
+@typecheck(a=expr_ndarray(), b=expr_ndarray(), no_crash=bool)
+def solve(a, b, no_crash=False):
     """Solve a linear system.
 
     Parameters
@@ -251,11 +251,21 @@ def solve(a, b):
     if b.dtype.element_type != hl.tfloat64:
         b = b.map(lambda e: hl.float64(e))
 
-    ir = Apply("linear_solve", hl.tndarray(hl.tfloat64, 2), a._ir, b._ir)
-    result = construct_expr(ir, hl.tndarray(hl.tfloat64, 2), a._indices, a._aggregations)
+    if no_crash:
+        name = "linear_solve_no_crash"
+        return_type = hl.tstruct(solution=hl.tndarray(hl.tfloat64, 2), failed=hl.tbool)
+    else:
+        name = "linear_solve"
+        return_type = hl.tndarray(hl.tfloat64, 2)
+
+    ir = Apply(name, return_type, a._ir, b._ir)
+    result = construct_expr(ir, return_type, a._indices, a._aggregations)
 
     if b_ndim_orig == 1:
-        result = result.reshape((-1))
+        if no_crash:
+            result = hl.struct(solution=result.solution.reshape((-1)), failed=result.failed)
+        else:
+            result = result.reshape((-1))
     return result
 
 

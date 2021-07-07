@@ -4,6 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.interfaces.primitive
 import is.hail.types.virtual.Type
 
 object CountAggregator extends StagedAggregator {
@@ -17,21 +18,21 @@ object CountAggregator extends StagedAggregator {
     assert(init.length == 0)
     assert(state.vtypes.head.r.required)
     val ev = state.fields(0)
-    cb.assign(ev, EmitCode.present(cb.emb, PCode(resultType, 0L)))
+    cb.assign(ev, EmitCode.present(cb.emb, primitive(const(0L))))
   }
 
   protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     assert(seq.length == 0)
     assert(state.vtypes.head.r.required)
     val ev = state.fields(0)
-    cb.assign(ev, EmitCode.present(cb.emb, PCode(resultType, ev.pv.asInt64.longCode(cb) + 1L)))
+    cb.assign(ev, EmitCode.present(cb.emb, primitive(ev.pv.asInt64.longCode(cb) + 1L)))
   }
 
   protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
     assert(state.vtypes.head.r.required)
     val v1 = state.fields(0)
     val v2 = other.fields(0)
-    cb.assign(v1, EmitCode.present(cb.emb, PCode(resultType, v1.pv.asInt64.longCode(cb) + v2.pv.asInt64.longCode(cb))))
+    cb.assign(v1, EmitCode.present(cb.emb, primitive(v1.pv.asInt64.longCode(cb) + v2.pv.asInt64.longCode(cb))))
   }
 
   protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {

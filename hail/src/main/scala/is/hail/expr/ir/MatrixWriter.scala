@@ -1,28 +1,32 @@
 package is.hail.expr.ir
 
-import java.io.OutputStream
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.functions.MatrixWriteBlockMatrix
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage}
 import is.hail.expr.ir.streams.StreamProducer
+import is.hail.expr.{JSONAnnotationImpex, Nat}
 import is.hail.io._
 import is.hail.io.fs.FS
 import is.hail.io.gen.{ExportBGEN, ExportGen}
 import is.hail.io.index.StagedIndexWriter
 import is.hail.io.plink.ExportPlink
 import is.hail.io.vcf.ExportVCF
-import is.hail.rvd.{RVDPartitioner, RVDSpecMaker}
-import is.hail.types.encoded.{EBaseStruct, EType}
+import is.hail.linalg.BlockMatrix
+import is.hail.rvd.{IndexSpec, RVDPartitioner, RVDSpecMaker}
+import is.hail.types.encoded.{EBaseStruct, EBlockMatrixNDArray, EType}
+import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.{PBaseStructCode, PCanonicalBaseStruct, PCanonicalString, PCanonicalStruct, PCode, PIndexableValue, PInt64, PInt64Required, PStream, PStruct, PType}
+import is.hail.types.physical.{PCanonicalBaseStruct, PCanonicalString, PCanonicalStruct, PInt64, PStream, PStruct, PType}
 import is.hail.types.virtual._
-import is.hail.types.{MatrixType, RTable, TableType}
+import is.hail.types._
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
+import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
 import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
+
+import java.io.OutputStream
 
 object MatrixWriter {
   implicit val formats: Formats = new DefaultFormats() {
@@ -114,11 +118,14 @@ case class MatrixNativeWriter(
         Str(partFile(1, 0)), globalWriter)
 
       val globalTableWriter = TableSpecWriter(s"$path/globals", TableType(tm.globalType, FastIndexedSeq(), TStruct.empty), "rows", "globals", "../references", log = false)
-      val colTableWriter = TableSpecWriter(s"$path/cols", tm.colsTableType, "rows", "../globals/rows", "../references", log = false)
+      val colTableWriter = TableSpecWriter(s"$path/cols", tm.colsTableType.copy(key = FastIndexedSeq[String]()), "rows", "../globals/rows", "../references", log = false)
       val rowTableWriter = TableSpecWriter(s"$path/rows", tm.rowsTableType, "rows", "../globals/rows", "../references", log = false)
       val entriesTableWriter = TableSpecWriter(s"$path/entries", TableType(tm.entriesRVType, FastIndexedSeq(), tm.globalType), "rows", "../globals/rows", "../references", log = false)
 
       val matrixWriter = MatrixSpecWriter(path, tm, "rows/rows", "globals/rows", "cols/rows", "entries/rows", "references", log = true)
+
+      val rowsIndexSpec = IndexSpec.defaultAnnotation("../../index", coerce[PStruct](pKey))
+      val entriesIndexSpec = IndexSpec.defaultAnnotation("../../index", coerce[PStruct](pKey), withOffsetField = true)
 
       RelationalWriter.scoped(path, overwrite = overwrite, Some(t.typ))(
         RelationalWriter.scoped(s"$path/globals", overwrite = false, None)(
@@ -138,8 +145,8 @@ case class MatrixNativeWriter(
                       WriteMetadata(MakeArray(GetField(colInfo, "partitionCounts")), colTableWriter),
                       bindIR(ToArray(mapIR(ToStream(partInfo)) { fc => GetField(fc, "filePath") })) { files =>
                         Begin(FastIndexedSeq(
-                          WriteMetadata(files, RVDSpecWriter(s"$path/rows/rows", RVDSpecMaker(rowSpec, lowered.partitioner))),
-                          WriteMetadata(files, RVDSpecWriter(s"$path/entries/rows", RVDSpecMaker(entrySpec, RVDPartitioner.unkeyed(lowered.numPartitions))))))
+                          WriteMetadata(files, RVDSpecWriter(s"$path/rows/rows", RVDSpecMaker(rowSpec, lowered.partitioner, rowsIndexSpec))),
+                          WriteMetadata(files, RVDSpecWriter(s"$path/entries/rows", RVDSpecMaker(entrySpec, RVDPartitioner.unkeyed(lowered.numPartitions), entriesIndexSpec)))))
                       },
                       bindIR(ToArray(mapIR(ToStream(partInfo)) { fc => GetField(fc, "partitionCounts") })) { counts =>
                         Begin(FastIndexedSeq(
@@ -179,12 +186,13 @@ case class SplitPartitionNativeWriter(
     context: EmitCode,
     region: Value[Region]): IEmitCode = {
     val keyType = ifIndexed { index.get._2 }
-    val iAnnotationType = PCanonicalStruct(required = true, "entries_offset" -> PInt64Required)
+    val iAnnotationType = PCanonicalStruct(required = true, "entries_offset" -> PInt64())
     val mb = cb.emb
+
     val indexWriter = ifIndexed { StagedIndexWriter.withDefaults(keyType, mb.ecb, annotationType = iAnnotationType) }
 
 
-    context.toI(cb).map(cb) { ctxCode: PCode =>
+    context.toI(cb).map(cb) { ctxCode: SCode =>
       val result = mb.newLocal[Long]("write_result")
       val filename1 = mb.newLocal[String]("filename1")
       val os1 = mb.newLocal[ByteTrackingOutputStream]("write_os1")
@@ -202,7 +210,7 @@ case class SplitPartitionNativeWriter(
           indexWriter.add(cb, {
             IEmitCode.present(cb, keyType.asInstanceOf[PCanonicalBaseStruct]
               .constructFromFields(cb, stream.elementRegion,
-                keyType.fields.map(f => EmitCode.fromI(cb.emb)(cb => row.loadField(cb, f.name).typecast[PCode])),
+                keyType.fields.map(f => EmitCode.fromI(cb.emb)(cb => row.loadField(cb, f.name))),
                 deepCopy = false))
           }, ob1.invoke[Long]("indexOffset"), {
             IEmitCode.present(cb,
@@ -223,39 +231,37 @@ case class SplitPartitionNativeWriter(
         cb.assign(n, n + 1L)
       }
 
-      PCode(pResultType, EmitCodeBuilder.scopedCode(mb) { cb: EmitCodeBuilder =>
-        val pctx = ctxCode.memoize(cb, "context")
-        cb.assign(filename1, pctx.asString.loadString())
-        if (hasIndex) {
-          val indexFile = cb.newLocal[String]("indexFile")
-          cb.assign(indexFile, const(index.get._1).concat(filename1))
-          indexWriter.init(cb, indexFile)
-        }
-        cb.assign(filename2, const(partPrefix2).concat(filename1))
-        cb.assign(filename1, const(partPrefix1).concat(filename1))
-        cb.assign(os1, Code.newInstance[ByteTrackingOutputStream, OutputStream](mb.create(filename1)))
-        cb.assign(os2, Code.newInstance[ByteTrackingOutputStream, OutputStream](mb.create(filename2)))
-        cb.assign(ob1, spec1.buildCodeOutputBuffer(Code.checkcast[OutputStream](os1)))
-        cb.assign(ob2, spec2.buildCodeOutputBuffer(Code.checkcast[OutputStream](os2)))
-        cb.assign(n, 0L)
+      val pctx = ctxCode.memoize(cb, "context")
+      cb.assign(filename1, pctx.asString.loadString())
+      if (hasIndex) {
+        val indexFile = cb.newLocal[String]("indexFile")
+        cb.assign(indexFile, const(index.get._1).concat(filename1).concat(".idx"))
+        indexWriter.init(cb, indexFile)
+      }
+      cb.assign(filename2, const(partPrefix2).concat(filename1))
+      cb.assign(filename1, const(partPrefix1).concat(filename1))
+      cb.assign(os1, Code.newInstance[ByteTrackingOutputStream, OutputStream](mb.create(filename1)))
+      cb.assign(os2, Code.newInstance[ByteTrackingOutputStream, OutputStream](mb.create(filename2)))
+      cb.assign(ob1, spec1.buildCodeOutputBuffer(Code.checkcast[OutputStream](os1)))
+      cb.assign(ob2, spec2.buildCodeOutputBuffer(Code.checkcast[OutputStream](os2)))
+      cb.assign(n, 0L)
 
-        stream.memoryManagedConsume(region, cb) { cb =>
-          writeFile(cb, stream.element)
-        }
+      stream.memoryManagedConsume(region, cb) { cb =>
+        writeFile(cb, stream.element)
+      }
 
-        cb += ob1.writeByte(0.asInstanceOf[Byte])
-        cb += ob2.writeByte(0.asInstanceOf[Byte])
-        cb.assign(result, pResultType.allocate(region))
-        if (hasIndex)
-          indexWriter.close(cb)
-        cb += ob1.flush()
-        cb += ob2.flush()
-        cb += os1.invoke[Unit]("close")
-        cb += os2.invoke[Unit]("close")
-        filenameType.storeAtAddress(cb, pResultType.fieldOffset(result, "filePath"), region, pctx, false)
-        cb += Region.storeLong(pResultType.fieldOffset(result, "partitionCounts"), n)
-        result.get
-      })
+      cb += ob1.writeByte(0.asInstanceOf[Byte])
+      cb += ob2.writeByte(0.asInstanceOf[Byte])
+      cb.assign(result, pResultType.allocate(region))
+      if (hasIndex)
+        indexWriter.close(cb)
+      cb += ob1.flush()
+      cb += ob2.flush()
+      cb += os1.invoke[Unit]("close")
+      cb += os2.invoke[Unit]("close")
+      filenameType.storeAtAddress(cb, pResultType.fieldOffset(result, "filePath"), region, pctx, false)
+      cb += Region.storeLong(pResultType.fieldOffset(result, "partitionCounts"), n)
+      pResultType.loadCheapSCode(cb, result.get)
     }
   }
 }
@@ -291,16 +297,16 @@ case class MatrixSpecWriter(path: String, typ: MatrixType, rowRelPath: String, g
     cb: EmitCodeBuilder,
     region: Value[Region]): Unit = {
     cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
-    val pc = writeAnnotations.get(cb, "write annotations can't be missing!").asInstanceOf[PBaseStructCode]
+    val pc = writeAnnotations.get(cb, "write annotations can't be missing!").asBaseStruct
     val partCounts = cb.newLocal[Array[Long]]("partCounts")
     val c = pc.memoize(cb, "matrixPartCounts")
-    val a = c.loadField(cb, "rows").get(cb).memoize(cb, "rowCounts").asInstanceOf[PIndexableValue]
+    val a = c.loadField(cb, "rows").get(cb).asIndexable.memoize(cb, "rowCounts")
 
     val n = cb.newLocal[Int]("n", a.loadLength())
     val i = cb.newLocal[Int]("i", 0)
     cb.assign(partCounts, Code.newArray[Long](n))
     cb.whileLoop(i < n, {
-      val count = a.loadElement(cb, i).get(cb, "part count can't be missing!").asPCode
+      val count = a.loadElement(cb, i).get(cb, "part count can't be missing!")
       cb += partCounts.update(i, count.asInt64.longCode(cb))
       cb.assign(i, i + 1)
     })
@@ -346,6 +352,119 @@ case class MatrixBlockMatrixWriter(
   blockSize: Int
 ) extends MatrixWriter {
   def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = MatrixWriteBlockMatrix(ctx, mv, entryField, path, overwrite, blockSize)
+
+  override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
+    ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
+
+    val tm = MatrixType.fromTableType(t.typ, colsFieldName, entriesFieldName, colKey)
+    val rm = r.asMatrixType(colsFieldName, entriesFieldName)
+
+    val countColumnsIR = ArrayLen(GetField(ts.getGlobals(), colsFieldName))
+    val numCols: Int = CompileAndEvaluate(ctx, countColumnsIR, true).asInstanceOf[Int]
+    val numBlockCols: Int = (numCols - 1) / blockSize + 1
+    val lastBlockNumCols = numCols % blockSize
+
+    val rowCountIR = ts.mapCollect(relationalLetsAbove)(paritionIR => StreamLen(paritionIR))
+    val inputRowCountPerPartition: IndexedSeq[Int] = CompileAndEvaluate(ctx, rowCountIR).asInstanceOf[IndexedSeq[Int]]
+    val inputPartStartsPlusLast = inputRowCountPerPartition.scanLeft(0L)(_ + _)
+    val inputPartStarts = inputPartStartsPlusLast.dropRight(1)
+    val inputPartStops = inputPartStartsPlusLast.tail
+
+    val numRows = inputPartStartsPlusLast.last
+    val numBlockRows: Int = (numRows.toInt - 1) / blockSize + 1
+
+    // Zip contexts with partition starts and ends
+    val zippedWithStarts = ts.mapContexts{oldContextsStream => zipIR(IndexedSeq(oldContextsStream, ToStream(Literal(TArray(TInt64), inputPartStarts)), ToStream(Literal(TArray(TInt64), inputPartStops))), ArrayZipBehavior.AssertSameLength){ case IndexedSeq(oldCtx, partStart, partStop) =>
+      MakeStruct(Seq[(String, IR)]("mwOld" -> oldCtx, "mwStartIdx" -> Cast(partStart, TInt32), "mwStopIdx" -> Cast(partStop, TInt32)))
+    }}(newCtx => GetField(newCtx, "mwOld"))
+
+    // Now label each row with its idx.
+    val perRowIdxId = genUID()
+    val partsZippedWithIdx = zippedWithStarts.mapPartitionWithContext { (part, ctx) =>
+      zip2(part, rangeIR(GetField(ctx, "mwStartIdx"), GetField(ctx, "mwStopIdx")), ArrayZipBehavior.AssertSameLength) { (partRow, idx) =>
+        insertIR(partRow, (perRowIdxId, idx))
+      }
+    }
+
+    // Two steps, make a partitioner that works currently based on row_idx splits, then resplit accordingly.
+    val inputRowIntervals = inputPartStarts.zip(inputPartStops).map{ case (intervalStart, intervalEnd) =>
+      Interval(Row(intervalStart.toInt), Row(intervalEnd.toInt), true, false)
+    }
+    val rowIdxPartitioner = RVDPartitioner.generate(TStruct((perRowIdxId, TInt32)), inputRowIntervals)
+
+    val keyedByRowIdx = partsZippedWithIdx.changePartitionerNoRepartition(rowIdxPartitioner)
+
+    // Now create a partitioner that makes appropriately sized blocks
+    val desiredRowStarts = (0 until numBlockRows).map(_ * blockSize)
+    val desiredRowStops = desiredRowStarts.drop(1) :+ numRows.toInt
+    val desiredRowIntervals = desiredRowStarts.zip(desiredRowStops).map{
+      case (intervalStart, intervalEnd) =>  Interval(Row(intervalStart), Row(intervalEnd), true, false)
+    }
+
+    val blockSizeGroupsPartitioner = RVDPartitioner.generate(TStruct((perRowIdxId, TInt32)), desiredRowIntervals)
+    val rowsInBlockSizeGroups: TableStage = keyedByRowIdx.repartitionNoShuffle(blockSizeGroupsPartitioner)
+
+    def createBlockMakingContexts(tablePartsStreamIR: IR): IR = {
+      flatten(zip2(tablePartsStreamIR, rangeIR(numBlockRows), ArrayZipBehavior.AssertSameLength) { case (tableSinglePartCtx, blockColIdx)  =>
+        mapIR(rangeIR(I32(numBlockCols))){ blockColIdx =>
+          MakeStruct(Seq("oldTableCtx" -> tableSinglePartCtx, "blockStart" -> (blockColIdx * I32(blockSize)),
+            "blockSize" -> If(blockColIdx ceq I32(numBlockCols - 1), I32(lastBlockNumCols), I32(blockSize)),
+            "blockColIdx" -> blockColIdx,
+            "blockRowIdx" -> blockColIdx))
+        }
+      })
+    }
+
+    val tableOfNDArrays = rowsInBlockSizeGroups.mapContexts(createBlockMakingContexts)(ir => GetField(ir, "oldTableCtx")).mapPartitionWithContext{ (partIr, ctxRef) =>
+      bindIR(GetField(ctxRef, "blockStart")){ blockStartRef =>
+        val numColsOfBlock = GetField(ctxRef, "blockSize")
+        val arrayOfSlicesAndIndices = ToArray(mapIR(partIr) { singleRow =>
+          val mappedSlice = ToArray(mapIR(ToStream(sliceArrayIR(GetField(singleRow, entriesFieldName), blockStartRef, blockStartRef + numColsOfBlock)))(entriesStructRef =>
+            GetField(entriesStructRef, entryField)
+          ))
+          MakeStruct(Seq(
+            perRowIdxId -> GetField(singleRow, perRowIdxId),
+            "rowOfData" -> mappedSlice
+          ))
+        })
+        bindIR(arrayOfSlicesAndIndices){ arrayOfSlicesAndIndicesRef =>
+          val idxOfResult = GetField(ArrayRef(arrayOfSlicesAndIndicesRef, I32(0)), perRowIdxId)
+          val ndarrayData = ToArray(flatMapIR(ToStream(arrayOfSlicesAndIndicesRef)){idxAndSlice =>
+            ToStream(GetField(idxAndSlice, "rowOfData"))
+          })
+          val numRowsOfBlock = ArrayLen(arrayOfSlicesAndIndicesRef)
+          val shape = maketuple(Cast(numRowsOfBlock, TInt64), Cast(numColsOfBlock, TInt64))
+          val ndarray = MakeNDArray(ndarrayData, shape, True(), ErrorIDs.NO_ERROR)
+          MakeStream(Seq(MakeStruct(Seq(
+            perRowIdxId -> idxOfResult,
+            "blockRowIdx" -> GetField(ctxRef, "blockRowIdx"),
+            "blockColIdx" -> GetField(ctxRef, "blockColIdx"),
+            "ndBlock" -> ndarray))),
+            TStream(TStruct(perRowIdxId -> TInt32, "blockRowIdx" -> TInt32, "blockColIdx" -> TInt32, "ndBlock" -> ndarray.typ)))
+        }
+      }
+    }
+
+    val elementType = tm.entryType.fieldType(entryField)
+    val etype = EBlockMatrixNDArray(EType.fromTypeAndAnalysis(elementType, rm.entryType.field(entryField)), encodeRowMajor = true, required = true)
+    val spec = TypedCodecSpec(etype, TNDArray(tm.entryType.fieldType(entryField), Nat(2)), BlockMatrix.bufferSpec)
+
+    val pathsWithColMajorIndices = tableOfNDArrays.mapCollect(relationalLetsAbove) { partition =>
+     ToArray(mapIR(partition) { singleNDArrayTuple =>
+       bindIR(GetField(singleNDArrayTuple, "blockRowIdx") + (GetField(singleNDArrayTuple, "blockColIdx") * numBlockRows)) { colMajorIndex =>
+         val blockPath =
+           Str(s"$path/parts/part-") +
+             invoke("str", TString, colMajorIndex) + Str("-") + UUID4()
+         maketuple(colMajorIndex, WriteValue(GetField(singleNDArrayTuple, "ndBlock"), blockPath, spec))
+       }
+      })
+    }
+    val flatPathsAndIndices = flatMapIR(ToStream(pathsWithColMajorIndices))(ToStream(_))
+    val sortedColMajorPairs = sortIR(flatPathsAndIndices){case (l, r) => ApplyComparisonOp(LT(TInt32), GetTupleElement(l, 0), GetTupleElement(r, 0))}
+    val flatPaths = ToArray(mapIR(ToStream(sortedColMajorPairs))(GetTupleElement(_, 1)))
+    val bmt = BlockMatrixType(elementType, IndexedSeq(numRows, numCols), numRows==1, blockSize, BlockMatrixSparsity.dense)
+    RelationalWriter.scoped(path, overwrite, None)(WriteMetadata(flatPaths, BlockMatrixNativeMetadataWriter(path, false, bmt)))
+  }
 }
 
 object MatrixNativeMultiWriter {

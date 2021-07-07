@@ -9,9 +9,10 @@ import is.hail.HailContext
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex, Validate}
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir._
-import is.hail.types.physical.{PStruct, PTuple, PType, PTypeReferenceSingleCodeType}
-import is.hail.types.virtual.{TStruct, TVoid, Type}
+import is.hail.types.physical.{PStruct, PTuple, PType}
+import is.hail.types.virtual.{TArray, TInterval, TStruct, TVoid, Type}
 import is.hail.backend.{Backend, BackendContext, BroadcastValue, HailTaskContext}
+import is.hail.expr.ir.IRParser.parseType
 import is.hail.io.fs.{FS, HadoopFS}
 import is.hail.utils._
 import is.hail.io.bgen.IndexBgen
@@ -31,10 +32,12 @@ import is.hail.linalg.{BlockMatrix, RowMatrix}
 import is.hail.rvd.RVD
 import is.hail.stats.LinearMixedModel
 import is.hail.types._
+import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.util.TaskCompletionListener
+import org.json4s
 import org.json4s.JsonAST.{JInt, JObject}
 
 
@@ -547,6 +550,28 @@ class SparkBackend(
         JsonMethods.compact(out)
       }
     }
+  }
+
+  def pyReadMultipleMatrixTables(jsonQuery: String): java.util.List[MatrixIR] = {
+    log.info("pyReadMultipleMatrixTables: got query")
+    val kvs = JsonMethods.parse(jsonQuery) match {
+      case json4s.JObject(values) => values.toMap
+    }
+
+    val paths = kvs("paths").asInstanceOf[json4s.JArray].arr.toArray.map { case json4s.JString(s) => s }
+
+    val intervalPointType = parseType(kvs("intervalPointType").asInstanceOf[json4s.JString].s)
+    val intervalObjects = JSONAnnotationImpex.importAnnotation(kvs("intervals"), TArray(TInterval(intervalPointType)))
+      .asInstanceOf[IndexedSeq[Interval]]
+
+    val opts = NativeReaderOptions(intervalObjects, intervalPointType, filterIntervals = false)
+    val matrixReaders: IndexedSeq[MatrixIR] = paths.map { p =>
+      log.info(s"creating MatrixRead node for $p")
+      val mnr = MatrixNativeReader(fs, p, Some(opts))
+      MatrixRead(mnr.fullMatrixType, false, false, mnr): MatrixIR
+    }
+    log.info("pyReadMultipleMatrixTables: returning N matrix tables")
+    matrixReaders.asJava
   }
 
   def pyReferenceAddLiftover(name: String, chainFile: String, destRGName: String): Unit = {

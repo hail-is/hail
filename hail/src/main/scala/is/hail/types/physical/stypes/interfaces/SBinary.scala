@@ -2,7 +2,6 @@ package is.hail.types.physical.stypes.interfaces
 
 import is.hail.asm4s.Code
 import is.hail.expr.ir.EmitCodeBuilder
-import is.hail.types.physical.PValue
 import is.hail.types.physical.stypes.{SCode, SType, SValue}
 
 trait SBinary extends SType

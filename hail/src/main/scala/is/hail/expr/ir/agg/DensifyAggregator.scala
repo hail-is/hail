@@ -57,7 +57,7 @@ class DensifyState(val arrayVType: VirtualTypeWithReq, val kb: EmitClassBuilder[
     val codecSpec = TypedCodecSpec(arrayStorageType, codec)
     (cb: EmitCodeBuilder, ob: Value[OutputBuffer]) => {
 
-      val arrayCode = arrayStorageType.loadCheapPCode(cb, arrayAddr)
+      val arrayCode = arrayStorageType.loadCheapSCode(cb, arrayAddr)
       codecSpec.encodedType.buildEncoder(arrayCode.st, kb)
         .apply(cb, arrayCode, ob)
       cb += ob.writeInt(const(DensifyAggregator.END_SERIALIZATION))
@@ -88,7 +88,7 @@ class DensifyState(val arrayVType: VirtualTypeWithReq, val kb: EmitClassBuilder[
   private def gc(cb: EmitCodeBuilder): Unit = {
     cb.ifx(region.totalManagedBytes() > maxRegionSize, {
       val newRegion = cb.newLocal[Region]("densify_gc", Region.stagedCreate(regionSize, kb.pool()))
-      cb.assign(arrayAddr, arrayStorageType.store(cb, newRegion, arrayStorageType.loadCheapPCode(cb, arrayAddr), deepCopy = true))
+      cb.assign(arrayAddr, arrayStorageType.store(cb, newRegion, arrayStorageType.loadCheapSCode(cb, arrayAddr), deepCopy = true))
       cb += region.invalidate()
       cb.assign(r, newRegion)
 
@@ -113,7 +113,7 @@ class DensifyState(val arrayVType: VirtualTypeWithReq, val kb: EmitClassBuilder[
 
   def combine(cb: EmitCodeBuilder, other: DensifyState): Unit = {
     assert(other.arrayStorageType == this.arrayStorageType)
-    val arr = arrayStorageType.loadCheapPCode(cb, other.arrayAddr).memoize(cb, "densify_comb_other")
+    val arr = arrayStorageType.loadCheapSCode(cb, other.arrayAddr).memoize(cb, "densify_comb_other")
     arr.asInstanceOf[SIndexableValue].forEachDefined(cb) { case (cb, idx, element) =>
       cb += arrayStorageType.setElementPresent(arrayAddr, idx)
       eltType.storeAtAddress(cb, arrayStorageType.elementOffset(arrayAddr, length, idx), region, element, deepCopy = true)
@@ -122,14 +122,14 @@ class DensifyState(val arrayVType: VirtualTypeWithReq, val kb: EmitClassBuilder[
   }
 
   def result(cb: EmitCodeBuilder, region: Value[Region]): SIndexablePointerCode = {
-    arrayStorageType.loadCheapPCode(cb, arrayAddr)
+    arrayStorageType.loadCheapSCode(cb, arrayAddr)
   }
 
   def copyFrom(cb: EmitCodeBuilder, srcCode: Code[Long]): Unit = {
     cb.assign(arrayAddr,
       arrayStorageType.store(cb,
         region,
-        arrayStorageType.loadCheapPCode(cb, arrayStorageType.loadFromNested(srcCode)),
+        arrayStorageType.loadCheapSCode(cb, arrayStorageType.loadFromNested(srcCode)),
         deepCopy = true))
     cb.assign(length, arrayStorageType.loadLength(arrayAddr))
   }

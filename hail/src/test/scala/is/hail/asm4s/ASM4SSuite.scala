@@ -345,7 +345,7 @@ class ASM4SSuite extends TestNGSuite {
         intField.store(fb.getArg[Int](1)),
         longField.store(fb.getArg[Long](2)),
         booleanField.store(fb.getArg[Boolean](3)))
-      
+
       typeInfo[T] match {
         case IntInfo => fb.emit(Code(c, intField.load()))
         case LongInfo => fb.emit(Code(c, longField.load()))
@@ -399,48 +399,6 @@ class ASM4SSuite extends TestNGSuite {
       v1))
 
     assert(fb.result()()() == 1)
-  }
-
-  @Test def fbFunctionsCanBeNested(): Unit = {
-    val fb = FunctionBuilder[Boolean]("F")
-    val fb2 = fb.cb.genDependentFunction[Int, Boolean]("DepF")
-    val localF = fb.genFieldThisRef[AsmFunction1[Int, Boolean]]()
-
-    val wrappedInt = Code.invokeStatic1[java.lang.Integer, Int, java.lang.Integer]("valueOf", 0)
-    val rawOut = localF.load().invoke[java.lang.Object, java.lang.Object]("apply", wrappedInt)
-
-    fb2.emit(true)
-    fb.emit(Code(
-      localF := fb2.newInstance(fb.apply_method),
-      checkcast[java.lang.Boolean](rawOut).invoke[Boolean]("booleanValue")
-    ))
-
-    val f = fb.result()()
-    assert(f())
-  }
-
-  @Test def dependentFunctionsCanUseParentsFields(): Unit = {
-    val fb = FunctionBuilder[Int, Int, Int]("F")
-    val fb2 = fb.cb.genDependentFunction[Int, Int]("DepF")
-
-    val localF = fb.genFieldThisRef[AsmFunction1[Int, Int]]()
-
-    val field1 = fb.genFieldThisRef[Int]()
-    val field2 = fb2.newDepField[Int](field1.load())
-
-    def wrappedCall(c: Code[Int]) =
-      localF.load().invoke[java.lang.Object, java.lang.Object]("apply",
-        Code.invokeStatic1[java.lang.Integer, Int, java.lang.Integer]("valueOf", c))
-
-    fb2.emit(field2 + fb2.getArg[Int](1))
-    fb.emit(Code(
-      field1 := fb.getArg[Int](1),
-      localF := fb2.newInstance(fb.apply_method),
-      checkcast[java.lang.Integer](wrappedCall(fb.getArg[Int](2))).invoke[Int]("intValue")
-    ))
-
-    val f = fb.result()()
-    assert(f(1, 2) == 3)
   }
 
   @Test def testInitialize(): Unit = {

@@ -24,13 +24,46 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.70
+
+Released 2021-06-21
+
+---
+
+## Version 0.2.69
+
+Released 2021-06-14
+
+### New Features
+
+- (hail#10592) Added `hl.get_hgdp` function.
+- (hail#10555) Added `hl.hadoop_scheme_supported` function.
+- (hail#10551) Indexing ndarrays now supports ellipses.
+
+### Bug fixes
+
+- (hail#10553) Dividing two integers now returns a `float64`, not a `float32`.
+- (hail#10595) Don't include nans in `lambda_gc_agg`.
+
+### hailctl dataproc
+
+- (hail#10574) Hail logs will now be stored in `/home/hail` by default. 
+
+---
+
+## Version 0.2.68
+
+Released 2021-05-27
+
+---
+
 ## Version 0.2.67
 
 ### Critical performance fix
 
 Released 2021-05-06
 
-- (hail#10451) Fixed a memory leak / performance bug triggered by `hl.literal(...).contains(...)
+- (hail#10451) Fixed a memory leak / performance bug triggered by `hl.literal(...).contains(...)`
 
 ---
 
