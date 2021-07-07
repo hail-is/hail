@@ -284,6 +284,12 @@ def user_error(e):
             return True
         if e.status == 400 and 'executable file not found' in e.message:
             return True
+    if isinstance(e, CalledProcessError):
+        # Opening GCS connection...\n', b'daemonize.Run: readFromProcess: sub-process: mountWithArgs: mountWithConn:
+        # fs.NewServer: create file system: SetUpBucket: OpenBucket: Bad credentials for bucket "BUCKET". Check the
+        # bucket name and your credentials.\n')
+        if 'Bad credentials for bucket' in e.outerr:
+            return True
     return False
 
 
@@ -771,6 +777,7 @@ class Job:
         self.gcsfuse = gcsfuse
         if gcsfuse:
             for b in gcsfuse:
+                b['mounted'] = False
                 self.main_volume_mounts.append(f'{self.gcsfuse_path(b["bucket"])}:{b["mount_path"]}:shared')
 
         secrets = job_spec.get('secrets')
@@ -997,6 +1004,7 @@ class DockerJob(Job):
                             key_file=f'{self.gsa_key_file_path()}/key.json',
                             read_only=b['read_only'],
                         )
+                        b['mounted'] = True
 
                 self.state = 'running'
 
@@ -1059,10 +1067,12 @@ class DockerJob(Job):
         try:
             if self.gcsfuse:
                 for b in self.gcsfuse:
-                    bucket = b['bucket']
-                    mount_path = self.gcsfuse_path(bucket)
-                    await check_shell(f'fusermount -u {mount_path}')
-                    log.info(f'unmounted gcsfuse bucket {bucket} from {mount_path}')
+                    if b['mounted']:
+                        bucket = b['bucket']
+                        mount_path = self.gcsfuse_path(bucket)
+                        await check_shell(f'fusermount -u {mount_path}')
+                        log.info(f'unmounted gcsfuse bucket {bucket} from {mount_path}')
+                        b['mounted'] = False
 
             await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')
 
