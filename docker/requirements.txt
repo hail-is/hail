@@ -42,7 +42,6 @@ nest_asyncio==1.0.0
 parsimonious==0.8.1
 prometheus_async==19.2.0
 prometheus_client==0.7.1
-psutil==5.8.0
 pyjwt==1.7.1
 pylint==2.6.0
 astroid<2.5  # https://github.com/PyCQA/pylint/issues/4131

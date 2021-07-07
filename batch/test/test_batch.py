@@ -75,7 +75,9 @@ def test_bad_command(client):
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['sleep 5'])
     builder.submit()
     status = j.wait()
-    assert status['state'] == 'Failed', str(status)
+    assert j._get_exit_codes(status) == {'main': None}, status
+    assert j._get_error(status, 'main') is not None
+    assert status['state'] == 'Error', str(status)
 
 
 def test_invalid_resource_requests(client):
@@ -126,46 +128,6 @@ def test_out_of_storage(client):
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '5Gi'}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['/bin/sh', '-c', 'fallocate -l 100GiB /foo'], resources=resources)
-    builder.submit()
-    status = j.wait()
-    assert status['state'] == 'Failed', str(status)
-    assert "fallocate failed: No space left on device" in j.log()['main']
-
-
-def test_quota_applies_to_volume(client):
-    builder = client.create_batch()
-    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '5Gi'}
-    j = builder.create_job(
-        os.environ['HAIL_VOLUME_IMAGE'], ['/bin/sh', '-c', 'fallocate -l 100GiB /data/foo'], resources=resources
-    )
-    builder.submit()
-    status = j.wait()
-    assert status['state'] == 'Failed', str(status)
-    assert "fallocate failed: No space left on device" in j.log()['main']
-
-
-def test_quota_shared_by_io_and_rootfs(client):
-    builder = client.create_batch()
-    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '10Gi'}
-    j = builder.create_job(DOCKER_ROOT_IMAGE, ['/bin/sh', '-c', 'fallocate -l 7GiB /foo'], resources=resources)
-    builder.submit()
-    status = j.wait()
-    assert status['state'] == 'Success', str(status)
-
-    builder = client.create_batch()
-    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '10Gi'}
-    j = builder.create_job(DOCKER_ROOT_IMAGE, ['/bin/sh', '-c', 'fallocate -l 7GiB /io/foo'], resources=resources)
-    builder.submit()
-    status = j.wait()
-    assert status['state'] == 'Success', str(status)
-
-    builder = client.create_batch()
-    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '10Gi'}
-    j = builder.create_job(
-        DOCKER_ROOT_IMAGE,
-        ['/bin/sh', '-c', 'fallocate -l 7GiB /foo; fallocate -l 7GiB /io/foo'],
-        resources=resources,
-    )
     builder.submit()
     status = j.wait()
     assert status['state'] == 'Failed', str(status)
@@ -646,14 +608,7 @@ def test_verify_no_access_to_metadata_server(client):
     builder.submit()
     status = j.wait()
     assert status['state'] == 'Failed', str(status)
-    assert "Could not resolve host" in j.log()['main'], (str(j.log()['main']), status)
-
-    builder = client.create_batch()
-    j = builder.create_job(os.environ['HAIL_CURL_IMAGE'], ['curl', '-fsSL', '169.254.169.254', '--max-time', '10'])
-    builder.submit()
-    status = j.wait()
-    assert status['state'] == 'Failed', str(status)
-    assert "Connection timed out" in j.log()['main'], (str(j.log()['main']), status)
+    assert "Connection timed out" in j.log()['main'], str(j.log()['main'], status)
 
 
 def test_can_use_google_credentials(client):
