@@ -185,7 +185,7 @@ object Pretty {
     case AggArrayPerElement(_, elementName, indexName, _, knownLength, isScan) =>
       FastSeq(prettyIdentifier(elementName), prettyIdentifier(indexName), prettyBooleanLiteral(isScan), prettyBooleanLiteral(knownLength.isDefined))
     case NDArrayMap(_, name, _) => single(prettyIdentifier(name))
-    case NDArrayMap2(_, _, lName, rName, _) => FastSeq(prettyIdentifier(lName), prettyIdentifier(rName))
+    case NDArrayMap2(_, _, lName, rName, _, _) => FastSeq(prettyIdentifier(lName), prettyIdentifier(rName))
     case NDArrayReindex(_, indexExpr) => single(prettyInts(indexExpr, elideLiterals))
     case NDArrayConcat(_, axis) => single(axis.toString)
     case NDArrayAgg(_, axes) => single(prettyInts(axes, elideLiterals))

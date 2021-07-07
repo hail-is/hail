@@ -278,7 +278,7 @@ object LowerBlockMatrixIR {
         loweredLeft
           .addGlobals(loweredRight.globalVals: _*)
           .addContext(loweredRight.ctxType)(loweredRight.blockContext).mapBody { (ctx, leftBody) =>
-          NDArrayMap2(leftBody, bindIR(GetField(ctx, "new"))(loweredRight.blockBody), lname, rname, f)
+          NDArrayMap2(leftBody, bindIR(GetField(ctx, "new"))(loweredRight.blockBody), lname, rname, f, ErrorIDs.NO_ERROR)
         }
 
       case x@BlockMatrixBroadcast(child, IndexedSeq(), _, _) =>
@@ -446,13 +446,13 @@ object LowerBlockMatrixIR {
             def blockMultiply(elt: Ref) =
               bindIR(GetTupleElement(elt, 0)) { leftElt =>
                 bindIR(GetTupleElement(elt, 1)) { rightElt =>
-                  NDArrayMatMul(left.blockBody(leftElt), right.blockBody(rightElt))
+                  NDArrayMatMul(left.blockBody(leftElt), right.blockBody(rightElt), ErrorIDs.NO_ERROR)
                 }
               }
             foldIR(ToStream(invoke("sliceRight", ctxType, ctxRef, I32(1))),
               bindIR(ArrayRef(ctxRef, 0))(blockMultiply)) { (sum, elt) =>
               NDArrayMap2(sum, blockMultiply(elt), "l", "r",
-                Ref("l", x.typ.elementType) + Ref("r", x.typ.elementType))
+                Ref("l", x.typ.elementType) + Ref("r", x.typ.elementType), ErrorIDs.NO_ERROR)
             }
           }
         }

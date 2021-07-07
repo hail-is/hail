@@ -1885,7 +1885,7 @@ class IRSuite extends HailSuite {
     val bools = MakeNDArray(MakeArray(Seq(True(), False(), False(), True()), TArray(TBoolean)), shape, True(), ErrorIDs.NO_ERROR)
 
     val actual = NDArrayMap2(numbers, bools, "n", "b",
-      ApplyBinaryPrimOp(Add(), Ref("n", TFloat64), If(Ref("b", TBoolean), F64(10), F64(20))))
+      ApplyBinaryPrimOp(Add(), Ref("n", TFloat64), If(Ref("b", TBoolean), F64(10), F64(20))), ErrorIDs.NO_ERROR)
     val ten = makeNDArrayRef(actual, FastSeq(0L, 0L))
     val twentyTwo = makeNDArrayRef(actual, FastSeq(1L, 0L))
     assertEvalsTo(ten, 10.0)
@@ -1922,7 +1922,7 @@ class IRSuite extends HailSuite {
       NDArrayReindex(scalarRowMajor, FastIndexedSeq(1, 0)),
       matrixRowMajor,
       "s", "m",
-      ApplyBinaryPrimOp(Add(), Ref("s", TFloat64), Ref("m", TFloat64)))
+      ApplyBinaryPrimOp(Add(), Ref("s", TFloat64), Ref("m", TFloat64)), ErrorIDs.NO_ERROR)
 
     val topLeft = makeNDArrayRef(scalarWithMatrix, FastIndexedSeq(0, 0))
     assertEvalsTo(topLeft, 4.0)
@@ -1931,7 +1931,7 @@ class IRSuite extends HailSuite {
       NDArrayReindex(vectorRowMajor, FastIndexedSeq(1, 0)),
       matrixRowMajor,
       "v", "m",
-      ApplyBinaryPrimOp(Add(), Ref("v", TFloat64), Ref("m", TFloat64)))
+      ApplyBinaryPrimOp(Add(), Ref("v", TFloat64), Ref("m", TFloat64)), ErrorIDs.NO_ERROR)
 
     assertEvalsTo(makeNDArrayRef(vectorWithMatrix, FastIndexedSeq(0, 0)), 2.0)
     assertEvalsTo(makeNDArrayRef(vectorWithMatrix, FastIndexedSeq(0, 1)), 1.0)
@@ -1939,7 +1939,7 @@ class IRSuite extends HailSuite {
 
     val colVector = makeNDArray(FastIndexedSeq(1.0, -1.0), FastIndexedSeq(2, 1), True())
     val colVectorWithMatrix = NDArrayMap2(colVector, matrixRowMajor, "v", "m",
-      ApplyBinaryPrimOp(Add(), Ref("v", TFloat64), Ref("m", TFloat64)))
+      ApplyBinaryPrimOp(Add(), Ref("v", TFloat64), Ref("m", TFloat64)), ErrorIDs.NO_ERROR)
 
     assertEvalsTo(makeNDArrayRef(colVectorWithMatrix, FastIndexedSeq(0, 0)), 2.0)
     assertEvalsTo(makeNDArrayRef(colVectorWithMatrix, FastIndexedSeq(0, 1)), 3.0)
@@ -1967,21 +1967,21 @@ class IRSuite extends HailSuite {
   @Test def testNDArrayMatMul() {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
-    val dotProduct = NDArrayMatMul(vectorRowMajor, vectorRowMajor)
+    val dotProduct = NDArrayMatMul(vectorRowMajor, vectorRowMajor, ErrorIDs.NO_ERROR)
     val zero = makeNDArrayRef(dotProduct, IndexedSeq())
     assertEvalsTo(zero, 2.0)
 
-    val seven = makeNDArrayRef(NDArrayMatMul(matrixRowMajor, matrixRowMajor), IndexedSeq(0, 0))
+    val seven = makeNDArrayRef(NDArrayMatMul(matrixRowMajor, matrixRowMajor, ErrorIDs.NO_ERROR), IndexedSeq(0, 0))
     assertEvalsTo(seven, 7.0)
 
     val twoByThreeByFive = threeTensorRowMajor
     val twoByFiveByThree = NDArrayReindex(twoByThreeByFive, IndexedSeq(0, 2, 1))
-    val twoByThreeByThree = NDArrayMatMul(twoByThreeByFive, twoByFiveByThree)
+    val twoByThreeByThree = NDArrayMatMul(twoByThreeByFive, twoByFiveByThree, ErrorIDs.NO_ERROR)
     val thirty = makeNDArrayRef(twoByThreeByThree, IndexedSeq(0, 0, 0))
     assertEvalsTo(thirty, 30.0)
 
     val threeByTwoByFive = NDArrayReindex(twoByThreeByFive, IndexedSeq(1, 0, 2))
-    val matMulCube = NDArrayMatMul(NDArrayReindex(matrixRowMajor, IndexedSeq(2, 0, 1)), threeByTwoByFive)
+    val matMulCube = NDArrayMatMul(NDArrayReindex(matrixRowMajor, IndexedSeq(2, 0, 1)), threeByTwoByFive, ErrorIDs.NO_ERROR)
     assertEvalsTo(makeNDArrayRef(matMulCube, IndexedSeq(0, 0, 0)), 30.0)
   }
 
@@ -2800,11 +2800,11 @@ class IRSuite extends HailSuite {
       NDArrayConcat(MakeArray(FastSeq(nd, nd), TArray(nd.typ)), 0),
       NDArrayRef(nd, FastSeq(I64(1), I64(2)), -1),
       NDArrayMap(nd, "v", ApplyUnaryPrimOp(Negate(), v)),
-      NDArrayMap2(nd, nd, "l", "r", ApplyBinaryPrimOp(Add(), l, r)),
+      NDArrayMap2(nd, nd, "l", "r", ApplyBinaryPrimOp(Add(), l, r), ErrorIDs.NO_ERROR),
       NDArrayReindex(nd, FastIndexedSeq(0, 1)),
       NDArrayAgg(nd, FastIndexedSeq(0)),
       NDArrayWrite(nd, Str("/path/to/ndarray")),
-      NDArrayMatMul(nd, nd),
+      NDArrayMatMul(nd, nd, ErrorIDs.NO_ERROR),
       NDArraySlice(nd, MakeTuple.ordered(FastSeq(MakeTuple.ordered(FastSeq(F64(0), F64(2), F64(1))),
                                          MakeTuple.ordered(FastSeq(F64(0), F64(2), F64(1)))))),
       NDArrayFilter(nd, FastIndexedSeq(NA(TArray(TInt64)), NA(TArray(TInt64)))),

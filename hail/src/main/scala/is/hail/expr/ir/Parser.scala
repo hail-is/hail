@@ -887,11 +887,11 @@ object IRParser {
           MakeStream(args, typ, requiresMemoryManagementPerElement)
         }
       case "ArrayRef" =>
-        val errorId = int32_literal(it)
+        val errorID = int32_literal(it)
         for {
           a <- ir_value_expr(env)(it)
           i <- ir_value_expr(env)(it)
-        } yield ArrayRef(a, i, errorId)
+        } yield ArrayRef(a, i, errorID)
       case "ArrayLen" => ir_value_expr(env)(it).map(ArrayLen)
       case "StreamLen" => ir_value_expr(env)(it).map(StreamLen)
       case "StreamRange" =>
@@ -940,6 +940,7 @@ object IRParser {
           body <- ir_value_expr(env + (name -> coerce[TNDArray](nd.typ).elementType))(it)
         } yield NDArrayMap(nd, name, body)
       case "NDArrayMap2" =>
+        val errorID = int32_literal(it)
         val lName = identifier(it)
         val rName = identifier(it)
         for {
@@ -948,7 +949,7 @@ object IRParser {
           body_env = (env + (lName -> coerce[TNDArray](l.typ).elementType)
             + (rName -> coerce[TNDArray](r.typ).elementType))
           body <- ir_value_expr(body_env)(it)
-        } yield NDArrayMap2(l, r, lName, rName, body)
+        } yield NDArrayMap2(l, r, lName, rName, body, errorID)
       case "NDArrayReindex" =>
         val indexExpr = int32_literals(it)
         ir_value_expr(env)(it).map { nd =>
@@ -960,11 +961,11 @@ object IRParser {
           NDArrayAgg(nd, axes)
         }
       case "NDArrayRef" =>
-        val errorId = int32_literal(it)
+        val errorID = int32_literal(it)
         for {
           nd <- ir_value_expr(env)(it)
           idxs <- ir_value_children(env)(it)
-        } yield NDArrayRef(nd, idxs, errorId)
+        } yield NDArrayRef(nd, idxs, errorID)
       case "NDArraySlice" =>
         for {
           nd <- ir_value_expr(env)(it)
@@ -976,10 +977,11 @@ object IRParser {
           filters <- fillArray(coerce[TNDArray](nd.typ).nDims)(ir_value_expr(env)(it))
         } yield NDArrayFilter(nd, filters.toFastIndexedSeq)
       case "NDArrayMatMul" =>
+        val errorID = int32_literal(it)
         for {
           l <- ir_value_expr(env)(it)
           r <- ir_value_expr(env)(it)
-        } yield NDArrayMatMul(l, r)
+        } yield NDArrayMatMul(l, r, errorID)
       case "NDArrayWrite" =>
         for {
           nd <- ir_value_expr(env)(it)
@@ -1255,9 +1257,9 @@ object IRParser {
         }
       case "Die" =>
         val typ = type_expr(env.typEnv)(it)
-        val errorId = int32_literal(it)
+        val errorID = int32_literal(it)
         ir_value_expr(env)(it).map { msg =>
-          Die(msg, typ, errorId)
+          Die(msg, typ, errorID)
         }
       case "Trap" =>
         ir_value_expr(env)(it).map { child =>

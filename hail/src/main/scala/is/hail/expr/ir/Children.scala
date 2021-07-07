@@ -132,13 +132,13 @@ object Children {
       nd +: keep
     case NDArrayMap(nd, _, body) =>
       Array(nd, body)
-    case NDArrayMap2(l, r, _, _, body) =>
+    case NDArrayMap2(l, r, _, _, body, _) =>
       Array(l, r, body)
     case NDArrayReindex(nd, _) =>
       Array(nd)
     case NDArrayAgg(nd, _) =>
       Array(nd)
-    case NDArrayMatMul(l, r) =>
+    case NDArrayMatMul(l, r, _) =>
       Array(l, r)
     case NDArrayQR(nd, _) =>
       Array(nd)

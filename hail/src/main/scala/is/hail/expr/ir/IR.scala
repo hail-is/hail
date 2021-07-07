@@ -401,13 +401,13 @@ final case class NDArraySlice(nd: IR, slices: IR) extends NDArrayIR
 final case class NDArrayFilter(nd: IR, keep: IndexedSeq[IR]) extends NDArrayIR
 
 final case class NDArrayMap(nd: IR, valueName: String, body: IR) extends NDArrayIR
-final case class NDArrayMap2(l: IR, r: IR, lName: String, rName: String, body: IR) extends NDArrayIR
+final case class NDArrayMap2(l: IR, r: IR, lName: String, rName: String, body: IR, errorID: Int) extends NDArrayIR
 
 final case class NDArrayReindex(nd: IR, indexExpr: IndexedSeq[Int]) extends NDArrayIR
 final case class NDArrayAgg(nd: IR, axes: IndexedSeq[Int]) extends IR
 final case class NDArrayWrite(nd: IR, path: IR) extends IR
 
-final case class NDArrayMatMul(l: IR, r: IR) extends NDArrayIR
+final case class NDArrayMatMul(l: IR, r: IR, errorID: Int) extends NDArrayIR
 
 object NDArrayQR {
   def pType(mode: String, req: Boolean): PType = {

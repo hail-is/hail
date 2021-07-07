@@ -32,7 +32,7 @@ object NDArrayFunctions extends RegistryFunctions {
         val lElemRef = Ref(lid, coerce[TNDArray](l.typ).elementType)
         val rElemRef = Ref(rid, coerce[TNDArray](r.typ).elementType)
 
-        NDArrayMap2(l, r, lid, rid, irOp(lElemRef, rElemRef, errorID))
+        NDArrayMap2(l, r, lid, rid, irOp(lElemRef, rElemRef, errorID), errorID)
       }
     }
 

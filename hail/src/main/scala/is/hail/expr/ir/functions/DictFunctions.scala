@@ -56,7 +56,7 @@ object DictFunctions extends RegistryFunctions {
         invoke("concat", TString,
           invoke("str", TString, k),
           invoke("concat", TString,
-            Str("'    not found in dictionary. Keys: "),
+            Str("' not found in dictionary. Keys: "),
             invoke("str", TString, invoke("keys", TArray(k.typ), d)))))
       get(d, k, Die(errormsg, vtype, errorID))
     }

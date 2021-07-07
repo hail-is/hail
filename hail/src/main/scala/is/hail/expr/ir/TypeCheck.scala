@@ -178,7 +178,7 @@ object TypeCheck {
         assert(filters.forall(f => coerce[TArray](f.typ).elementType == TInt64))
       case x@NDArrayMap(_, _, body) =>
         assert(x.elementTyp == body.typ)
-      case x@NDArrayMap2(l, r, _, _, body) =>
+      case x@NDArrayMap2(l, r, _, _, body, _) =>
         val lTyp = coerce[TNDArray](l.typ)
         val rTyp = coerce[TNDArray](r.typ)
         assert(lTyp.nDims == rTyp.nDims)
@@ -199,7 +199,7 @@ object TypeCheck {
       case x@NDArrayWrite(nd, path) =>
         assert(nd.typ.isInstanceOf[TNDArray])
         assert(path.typ == TString)
-      case x@NDArrayMatMul(l, r) =>
+      case x@NDArrayMatMul(l, r, _) =>
         assert(l.typ.isInstanceOf[TNDArray])
         assert(r.typ.isInstanceOf[TNDArray])
         val lType = l.typ.asInstanceOf[TNDArray]

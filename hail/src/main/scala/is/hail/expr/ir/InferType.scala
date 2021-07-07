@@ -150,7 +150,7 @@ object InferType {
         coerce[TArray](nds.typ).elementType
       case NDArrayMap(nd, _, body) =>
         TNDArray(body.typ, coerce[TNDArray](nd.typ).nDimsBase)
-      case NDArrayMap2(l, _, _, _, body) =>
+      case NDArrayMap2(l, _, _, _, body, _) =>
         TNDArray(body.typ, coerce[TNDArray](l.typ).nDimsBase)
       case NDArrayReindex(nd, indexExpr) =>
         TNDArray(coerce[TNDArray](nd.typ).elementType, Nat(indexExpr.length))
@@ -168,7 +168,7 @@ object InferType {
         TNDArray(childTyp.elementType, remainingDims)
       case NDArrayFilter(nd, _) =>
         nd.typ
-      case NDArrayMatMul(l, r) =>
+      case NDArrayMatMul(l, r, _) =>
         val lTyp = coerce[TNDArray](l.typ)
         val rTyp = coerce[TNDArray](r.typ)
         TNDArray(lTyp.elementType, Nat(TNDArray.matMulNDims(lTyp.nDims, rTyp.nDims)))

@@ -80,7 +80,7 @@ object NestingDepth {
         case NDArrayMap(nd, _, body) =>
           computeIR(nd, depth)
           computeIR(body, depth.incrementEval)
-        case NDArrayMap2(nd1, nd2, _, _, body) =>
+        case NDArrayMap2(nd1, nd2, _, _, body, _) =>
           computeIR(nd1, depth)
           computeIR(nd2, depth)
           computeIR(body, depth.incrementEval)

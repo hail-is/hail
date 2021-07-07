@@ -97,18 +97,18 @@ object Copy {
       case NDArrayMap(_, name, _) =>
         assert(newChildren.length ==  2)
         NDArrayMap(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
-      case NDArrayMap2(_, _, lName, rName, _) =>
+      case NDArrayMap2(_, _, lName, rName, _, errorID) =>
         assert(newChildren.length ==  3)
-        NDArrayMap2(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], lName, rName, newChildren(2).asInstanceOf[IR])
+        NDArrayMap2(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], lName, rName, newChildren(2).asInstanceOf[IR], errorID)
       case NDArrayReindex(_, indexExpr) =>
         assert(newChildren.length == 1)
         NDArrayReindex(newChildren(0).asInstanceOf[IR], indexExpr)
       case NDArrayAgg(_, axes) =>
         assert(newChildren.length == 1)
         NDArrayAgg(newChildren(0).asInstanceOf[IR], axes)
-      case NDArrayMatMul(_, _) =>
+      case NDArrayMatMul(_, _, errorID) =>
         assert(newChildren.length == 2)
-        NDArrayMatMul(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
+        NDArrayMatMul(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], errorID)
       case NDArrayQR(_, mode) =>
         assert(newChildren.length == 1)
         NDArrayQR(newChildren(0).asInstanceOf[IR], mode)

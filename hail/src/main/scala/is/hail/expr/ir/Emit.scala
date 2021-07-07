@@ -1248,7 +1248,7 @@ class Emit[C](
           }
         }
 
-      case x@MakeNDArray(dataIR, shapeIR, rowMajorIR, errorId) =>
+      case x@MakeNDArray(dataIR, shapeIR, rowMajorIR, errorID) =>
 
         emitI(rowMajorIR).flatMap(cb) { isRowMajorCode =>
           emitI(shapeIR).flatMap(cb) { case shapeTupleCode: SBaseStructCode =>
@@ -1263,13 +1263,13 @@ class Emit[C](
 
               cb.ifx(memoData.hasMissingValues(cb), {
                 cb._throw(Code.newInstance[HailException, String, Int](
-                  "Cannot construct an ndarray with missing values.", errorId
+                  "Cannot construct an ndarray with missing values.", errorID
                 ))
               })
 
               (0 until nDims).foreach { index =>
                 cb.ifx(shapeTupleValue.isFieldMissing(index),
-                  cb.append(Code._fatal[Unit](s"shape missing at index $index")))
+                  cb.append(Code._fatalWithID[Unit](s"shape missing at index $index", errorID)))
               }
 
               val stridesSettables = (0 until nDims).map(i => cb.newLocal[Long](s"make_ndarray_stride_$i"))
@@ -1342,7 +1342,7 @@ class Emit[C](
           }
         }
 
-      case NDArrayMatMul(lChild, rChild) =>
+      case NDArrayMatMul(lChild, rChild, errorID) =>
         emitNDArrayStandardStriding(lChild).flatMap(cb) { case (leftPVal: SNDArrayValue, leftIsColumnMajor: Value[Boolean]) =>
           emitNDArrayStandardStriding(rChild).map(cb) { case (rightPVal: SNDArrayValue, rightIsColumnMajor: Value[Boolean]) =>
             val lSType = leftPVal.st
@@ -1351,7 +1351,7 @@ class Emit[C](
             val lShape = leftPVal.shapes(cb)
             val rShape = rightPVal.shapes(cb)
 
-            val unifiedShape = NDArrayEmitter.matmulShape(cb, lShape, rShape)
+            val unifiedShape = NDArrayEmitter.matmulShape(cb, lShape, rShape, errorID)
 
             val leftBroadcastMask = if (lSType.nDims > 2) NDArrayEmitter.broadcastMask(lShape) else IndexedSeq[Value[Long]]()
             val rightBroadcastMask = if (rSType.nDims > 2) NDArrayEmitter.broadcastMask(rShape) else IndexedSeq[Value[Long]]()
@@ -2574,26 +2574,26 @@ object NDArrayEmitter {
     }
   }
 
-  def unifyShapes2(cb: EmitCodeBuilder, leftShape: IndexedSeq[Value[Long]], rightShape: IndexedSeq[Value[Long]], context: String): IndexedSeq[Value[Long]] = {
+  def unifyShapes2(cb: EmitCodeBuilder, leftShape: IndexedSeq[Value[Long]], rightShape: IndexedSeq[Value[Long]], errorID: Int): IndexedSeq[Value[Long]] = {
     val shape = leftShape.zip(rightShape).zipWithIndex.map { case ((left, right), i) =>
       val notSameAndNotBroadcastable = !((left ceq right) || (left ceq 1L) || (right ceq 1L))
       cb.newField[Long](
         s"unify_shapes2_shape$i",
         notSameAndNotBroadcastable.mux(
-          Code._fatal[Long](rightShape.foldLeft[Code[String]](
+          Code._fatalWithID[Long](rightShape.foldLeft[Code[String]](
             leftShape.foldLeft[Code[String]](
               const("Incompatible NDArray shapes: [ ")
             )((accum, v) => accum.concat(v.toS).concat(" "))
               .concat("] vs [ ")
           )((accum, v) => accum.concat(v.toS).concat(" "))
-            .concat(s"] ${context}")),
+            .concat("]"), errorID),
           (left > right).mux(left, right)))
     }
 
     shape
   }
 
-  def matmulShape(cb: EmitCodeBuilder, leftShape: IndexedSeq[Value[Long]], rightShape: IndexedSeq[Value[Long]]): IndexedSeq[Value[Long]] = {
+  def matmulShape(cb: EmitCodeBuilder, leftShape: IndexedSeq[Value[Long]], rightShape: IndexedSeq[Value[Long]], errorID: Int): IndexedSeq[Value[Long]] = {
     val mb = cb.emb
 
     assert(leftShape.nonEmpty)
@@ -2621,7 +2621,7 @@ object NDArrayEmitter {
         rK = rightShape(rightShape.length - 2)
         val unifiedShape = unifyShapes2(cb,
           leftShape.slice(0, leftShape.length - 2),
-          rightShape.slice(0, rightShape.length - 2), "when trying to matmul")
+          rightShape.slice(0, rightShape.length - 2), errorID)
         shape = unifiedShape :+ leftShape(leftShape.length - 2) :+ rightShape.last
       }
     }
@@ -2631,10 +2631,8 @@ object NDArrayEmitter {
 
 
     cb.ifx(lK.cne(rK), {
-      cb._fatal("Matrix dimensions incompatible: ",
-        leftShapeString,
-        " can't be multiplied by matrix with dimensions ",
-        rightShapeString)
+      cb._fatalWithError(errorID,f"Matrix dimensions incompatible: ${leftShapeString}, " +
+        f"can't be multiplied by matrix with dimensions ${rightShapeString}")
     })
 
     shape

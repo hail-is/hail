@@ -190,14 +190,14 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newNd <- normalize(nd)
           newBody <- normalize(body, env.bindEval(name -> newName))
         } yield NDArrayMap(newNd, newName, newBody)
-      case NDArrayMap2(l, r, lName, rName, body) =>
+      case NDArrayMap2(l, r, lName, rName, body, errorID) =>
         val newLName = gen()
         val newRName = gen()
         for {
           newL <- normalize(l)
           newR <- normalize(r)
           newBody <- normalize(body, env.bindEval(lName -> newLName, rName -> newRName))
-        } yield NDArrayMap2(newL, newR, newLName, newRName, newBody)
+        } yield NDArrayMap2(newL, newR, newLName, newRName, newBody, errorID)
       case AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, isScan) =>
         val newElementName = gen()
         val newIndexName = gen()

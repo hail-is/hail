@@ -1140,7 +1140,7 @@ object PruneDeadFields {
           bodyEnv.deleteEval(valueName),
           memoizeValueIR(nd, ndType.copy(elementType = valueType), memo)
         )
-      case NDArrayMap2(left, right, leftName, rightName, body) =>
+      case NDArrayMap2(left, right, leftName, rightName, body, _) =>
         val leftType = left.typ.asInstanceOf[TNDArray]
         val rightType = right.typ.asInstanceOf[TNDArray]
         val bodyEnv = memoizeValueIR(body, requestedType.asInstanceOf[TNDArray].elementType, memo)
@@ -1840,13 +1840,13 @@ object PruneDeadFields {
       case NDArrayMap(nd, valueName, body) =>
         val nd2 = rebuildIR(nd, env, memo)
         NDArrayMap(nd2, valueName, rebuildIR(body, env.bindEval(valueName, nd2.typ.asInstanceOf[TNDArray].elementType), memo))
-      case NDArrayMap2(left, right, leftName, rightName, body) =>
+      case NDArrayMap2(left, right, leftName, rightName, body, errorID) =>
         val left2 = rebuildIR(left, env, memo)
         val right2 = rebuildIR(right, env, memo)
         val body2 = rebuildIR(body,
           env.bindEval(leftName, left2.typ.asInstanceOf[TNDArray].elementType).bindEval(rightName, right2.typ.asInstanceOf[TNDArray].elementType),
           memo)
-        NDArrayMap2(left2, right2, leftName, rightName, body2)
+        NDArrayMap2(left2, right2, leftName, rightName, body2, errorID)
       case MakeStruct(fields) =>
         val depStruct = requestedType.asInstanceOf[TStruct]
         // drop unnecessary field IRs

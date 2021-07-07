@@ -251,7 +251,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           refMap(idx).foreach { use => defs.bind(use, Array[BaseTypeWithRequiredness](RPrimitive())) }
       case NDArrayMap(nd, name, body) =>
         addElementBinding(name, nd)
-      case NDArrayMap2(left, right, l, r, body) =>
+      case NDArrayMap2(left, right, l, r, body, _) =>
         addElementBinding(l, left)
         addElementBinding(r, right)
       case CollectDistributedArray(ctxs, globs, c, g, body, _) =>
@@ -629,10 +629,10 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case NDArrayMap(nd, name, body) =>
         requiredness.union(lookup(nd).required)
         coerce[RNDArray](requiredness).unionElement(lookup(body))
-      case NDArrayMap2(l, r, _, _, body) =>
+      case NDArrayMap2(l, r, _, _, body, _) =>
         requiredness.union(lookup(l).required && lookup(r).required)
         coerce[RNDArray](requiredness).unionElement(lookup(body))
-      case NDArrayMatMul(l, r) =>
+      case NDArrayMatMul(l, r, _) =>
         requiredness.unionFrom(lookup(l))
         requiredness.union(lookup(r).required)
       case NDArrayQR(child, mode) => requiredness.fromPType(NDArrayQR.pType(mode, lookup(child).required))
