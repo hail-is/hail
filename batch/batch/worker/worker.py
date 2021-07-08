@@ -422,6 +422,8 @@ class Container:
         self.container_overlay_path = f'{self.container_scratch}/rootfs_overlay'
         self.config_path = f'{self.container_scratch}/config'
 
+        self.container_name = f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}'
+
         self.netns: Optional[NetworkNamespace] = None
         self.process = None
 
@@ -485,10 +487,9 @@ class Container:
             self.state = 'error'
             self.error = traceback.format_exc()
         finally:
-            with self.step('deleting'):
-                await self.delete_container()
-                if self.image_digest:
-                    worker.rootfs_digest_refs[self.image_digest] -= 1
+            await self.delete_container()
+            if self.image_digest:
+                worker.rootfs_digest_refs[self.image_digest] -= 1
 
     async def run_until_done_or_deleted(self, f: Callable[[], Awaitable[Any]]):
         step = asyncio.ensure_future(f())
@@ -608,7 +609,7 @@ class Container:
                     f'{self.container_overlay_path}/merged',
                     '--config',
                     f'{self.config_path}/config.json',
-                    f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}',
+                    self.container_name,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
@@ -792,6 +793,24 @@ class Container:
                     'options': ['nosuid', 'noexec', 'nodev', 'ro'],
                 },
                 {
+                    'source': 'devpts',
+                    'destination': '/dev/pts',
+                    'type': 'devpts',
+                    'options': ['nosuid', 'noexec', 'nodev'],
+                },
+                {
+                    'source': 'mqueue',
+                    'destination': '/dev/mqueue',
+                    'type': 'mqueue',
+                    'options': ['nosuid', 'noexec', 'nodev'],
+                },
+                {
+                    'source': 'shm',
+                    'destination': '/dev/shm',
+                    'type': 'tmpfs',
+                    'options': ['nosuid', 'noexec', 'nodev', 'mode=1777', 'size=67108864'],
+                },
+                {
                     'source': f'/etc/netns/{self.netns.network_ns_name}/resolv.conf',
                     'destination': '/etc/resolv.conf',
                     'type': 'none',
@@ -818,12 +837,13 @@ class Container:
         if self.container_is_running():
             try:
                 log.info(f'{self} container is still running, killing crun process')
-                self.process.kill()
+                self.process.terminate()
+                self.process = None
+                await check_exec_output('crun', 'kill', '--all', self.container_name)
             except asyncio.CancelledError:
                 raise
             except Exception:
-                log.warning('while deleting container, ignoring', exc_info=True)
-        self.process = None
+                log.exception('while deleting container', exc_info=True)
 
         if self.host_port is not None:
             port_allocator.free(self.host_port)
