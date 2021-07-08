@@ -17,7 +17,7 @@ from aiohttp import web
 import async_timeout
 import concurrent
 import aiodocker  # type: ignore
-from collections import defaultdict
+from collections import defaultdict, Counter
 import psutil
 from aiodocker.exceptions import DockerError  # type: ignore
 import google.oauth2.service_account  # type: ignore
@@ -131,6 +131,11 @@ image_configs: Dict[str, Dict[str, Any]] = dict()
 
 def get_image_digest(image_config) -> str:
     return image_config['RepoDigests'][0].split('@')[1].split(':')[1]
+
+
+def get_unused_image(worker):
+    unused = [image_digest for image_digest, count in worker.rootfs_digest_refs.items() if count == 0]
+    return unused[0] if len(unused) > 0 else False
 
 
 class PortAllocator:
@@ -408,6 +413,7 @@ class Container:
         self.overlay_path = None
 
         self.image_config = None
+        self.image_digest = None
         self.rootfs_path = None
         scratch = self.spec['scratch']
         self.container_scratch = f'{scratch}/{self.name}'
@@ -417,24 +423,27 @@ class Container:
         self.netns: Optional[NetworkNamespace] = None
         self.process = None
 
-    async def run(self, worker):
+    async def run(self, worker: 'Worker'):
         try:
 
             async def localize_rootfs():
-                async with worker.rootfs_locks[self.image_ref_str]:
+                cond = worker.rootfs_locks[self.image_ref_str]
+                async with cond:
+                    if len(worker.rootfs_digest_refs) == 10:
+                        unused_image = await cond.wait_for(lambda: get_unused_image(worker))
+                        shutil.rmtree(f'/host/rootfs/{unused_image}')
+                        del worker.rootfs_digest_refs[unused_image]
+
                     last_fetched = worker.rootfs_last_fetched.get(self.image_ref_str)
                     five_minutes_ago = time_msecs() - 5 * 60 * 1000
-                    if last_fetched and last_fetched < five_minutes_ago:
-                        assert self.image_ref_str in image_configs
-                        image_digest = get_image_digest(image_configs[self.image_ref_str])
-                        shutil.rmtree(f'/host/rootfs/{image_digest}')
                     if not last_fetched or last_fetched < five_minutes_ago:
                         worker.rootfs_last_fetched[self.image_ref_str] = time_msecs()
                         await self.pull_image()
 
                     self.image_config = image_configs[self.image_ref_str]
-                    image_digest = get_image_digest(self.image_config)
-                    self.rootfs_path = f'/host/rootfs/{image_digest}'
+                    self.image_digest = get_image_digest(self.image_config)
+                    worker.rootfs_digest_refs[self.image_digest] += 1
+                    self.rootfs_path = f'/host/rootfs/{self.image_digest}'
                     if not os.path.exists(self.rootfs_path):
                         await self.extract_rootfs()
 
@@ -476,6 +485,8 @@ class Container:
         finally:
             with self.step('deleting'):
                 await self.delete_container()
+                if self.image_digest:
+                    worker.rootfs_digest_refs[self.image_digest] -= 1
 
     async def run_until_done_or_deleted(self, f: Callable[[], Awaitable[Any]]):
         step = asyncio.ensure_future(f())
@@ -1659,8 +1670,9 @@ class Worker:
         self.task_manager = aiotools.BackgroundTaskManager()
         self.jar_download_locks = defaultdict(asyncio.Lock)
 
-        self.rootfs_locks = defaultdict(asyncio.Lock)
+        self.rootfs_locks: Dict[str, asyncio.Condition] = defaultdict(asyncio.Condition)
         self.rootfs_last_fetched = {}
+        self.rootfs_digest_refs = Counter()
 
         # filled in during activation
         self.log_store = None
