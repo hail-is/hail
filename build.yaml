@@ -488,6 +488,10 @@ steps:
     dockerFile: /io/hail/Dockerfile.hail-run
     contextPath: /io/hail
     publishAs: hail-run
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo/hail
         to: /io/hail
