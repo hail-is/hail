@@ -101,6 +101,9 @@ async def create_instance(
 #!/bin/bash
 set -x
 
+NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
+ZONE=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
+
 function quit() {
     while true; do
     gcloud -q compute instances delete $NAME --zone=$ZONE
