@@ -58,7 +58,7 @@ def _gram(M: BlockMatrix) -> BlockMatrix:
     :class:`.BlockMatrix`
         `M.T @ M`
     """
-    return (M.T @ M).checkpoint(new_temp_file())
+    return (M.T @ M).checkpoint(new_temp_file("pcrelate2/gram", "bm"))
 
 
 def _dominance_encoding(g: Float64Expression, mu: Float64Expression) -> Float64Expression:
@@ -447,27 +447,27 @@ def pc_relate_2(call_expr: CallExpression,
     V = hl.nd.hstack((ones_normalized, V0))
 
     beta = (BlockMatrix.from_ndarray(((1 / S) * V).T, block_size=block_size) @ g.T)\
-        .checkpoint(new_temp_file("pcrelate2/beta", ".bm"))
+        .checkpoint(new_temp_file("pcrelate2/beta", "bm"))
     mu = (0.5 * (BlockMatrix.from_ndarray(V * S, block_size=block_size) @ beta).T)\
-        .checkpoint(new_temp_file("pcrelate2/mu", ".bm"))
+        .checkpoint(new_temp_file("pcrelate2/pre-mu", "bm"))
 
     # Define NaN to use instead of missing, otherwise cannot go back to block matrix
     nan = hl.literal(0) / 0
 
     # Replace bad entries in g and pre_mu with NaNs
-    g = g._map_dense(lambda x: hl.if_else(_bad_gt(x), nan, x)).checkpoint(new_temp_file("pcrelate2/g", ".bm"))
+    g = g._map_dense(lambda x: hl.if_else(_bad_gt(x), nan, x)).checkpoint(new_temp_file("pcrelate2/g", "bm"))
     pre_mu = mu._map_dense(lambda x: hl.if_else(_bad_mu(x, min_individual_maf), nan, x))
 
     # If an entry at an index in either g or pre_mu is NaN, set mu to NaN
     mu = pre_mu._apply_map2(lambda _mu, _g: hl.if_else(hl.is_nan(_mu) | hl.is_nan(_g), nan, _mu),
                             g,
-                            sparsity_strategy="NeedsDense").checkpoint(new_temp_file("pcrelate2/mu", ".bm"))
+                            sparsity_strategy="NeedsDense").checkpoint(new_temp_file("pcrelate2/mu", "bm"))
 
-    variance = _replace_nan(mu * (1.0 - mu), 0.0).checkpoint(new_temp_file("pcrelate2/variance", ".bm"))
+    variance = _replace_nan(mu * (1.0 - mu), 0.0).checkpoint(new_temp_file("pcrelate2/variance", "bm"))
     std_dev = variance.sqrt()
 
     centered_af = _replace_nan(g - (2.0 * mu), 0.0)
-    phi = (_gram(centered_af) / (4.0 * _gram(std_dev))).checkpoint(new_temp_file("pcrelate2/phi", ".bm"))
+    phi = (_gram(centered_af) / (4.0 * _gram(std_dev))).checkpoint(new_temp_file("pcrelate2/phi", "bm"))
 
     ht = phi.entries().rename({'entry': 'kin'})
     ht = ht.annotate(k0=hl.missing(hl.tfloat64),
@@ -482,7 +482,7 @@ def pc_relate_2(call_expr: CallExpression,
         gd = g._apply_map2(lambda _g, _mu: _dominance_encoding(_g, _mu),
                            mu,
                            sparsity_strategy="NeedsDense")
-        normalized_gd = (gd - variance * (1.0 + f_i)).checkpoint(new_temp_file("pcrelate2/normalized_gd", ".bm"))
+        normalized_gd = (gd - variance * (1.0 + f_i)).checkpoint(new_temp_file("pcrelate2/normalized_gd", "bm"))
 
         # Compute IBD2 (k2) estimate
         k2 = (_gram(normalized_gd) / _gram(variance))
@@ -496,12 +496,12 @@ def pc_relate_2(call_expr: CallExpression,
             hom_ref = g._apply_map2(lambda _g, _mu: hl.if_else((_g != 0.0) | hl.is_nan(_mu), 0.0, 1.0),
                                     mu,
                                     sparsity_strategy="NeedsDense")
-            ibs0 = _AtB_plus_BtA(hom_alt, hom_ref).checkpoint(new_temp_file("pcrelate2/ibs0", ".bm"))
+            ibs0 = _AtB_plus_BtA(hom_alt, hom_ref).checkpoint(new_temp_file("pcrelate2/ibs0", "bm"))
 
             # Compute denominator for IBD0 (k0) estimates
             mu2 = _replace_nan(mu ** 2.0, 0.0)
             one_minus_mu2 = _replace_nan((1.0 - mu) ** 2.0, 0.0)
-            k0_denom = _AtB_plus_BtA(mu2, one_minus_mu2).checkpoint(new_temp_file("pcrelate2/k0_denom", ".bm"))
+            k0_denom = _AtB_plus_BtA(mu2, one_minus_mu2).checkpoint(new_temp_file("pcrelate2/k0_denom", "bm"))
 
             # Compute all IBD0 (k0) estimates assuming phi > _k0_cutoff
             _k0_cutoff = 2.0 ** (-5.0 / 2.0)
