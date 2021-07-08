@@ -109,7 +109,7 @@ if [ -f "/started" ]; then
     while true; do
     gcloud -q compute instances delete $NAME --zone=$ZONE
     sleep 1
-    done  
+    done
     exit
 else
     touch /started
