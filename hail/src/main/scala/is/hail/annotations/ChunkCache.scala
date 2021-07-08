@@ -31,7 +31,7 @@ private class ChunkCache (allocator: Long => Long, freer: Long => Unit){
   private[this] var chunksRequested = 0
   private[this] var cacheHits = 0
   private[this] var smallChunkCacheSize = 0
-  private[this] val smallChunkCache = new Array[LongArrayBuilder](highestSmallChunkPowerOf2 + 1)
+  private[this] val smallChunkCache = new Array[LongArrayBuilder](highestSmallChunkPowerOf2 + 2)
   (0 until highestSmallChunkPowerOf2 + 1).foreach(index => {
     smallChunkCache(index) = new LongArrayBuilder()
   })
@@ -106,6 +106,7 @@ private class ChunkCache (allocator: Long => Long, freer: Long => Unit){
 
   def getChunk(pool: RegionPool, size: Long): (Long, Long) = {
     chunksRequested += 1
+    assert(size > 0L)
     if (size <= biggestSmallChunk) {
       val closestPower = indexInSmallChunkCache(size)
       if(smallChunkCache(closestPower).size == 0 ) {
