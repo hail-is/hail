@@ -1866,7 +1866,7 @@ case class TableMapPartitions(child: TableIR,
         globalName -> In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(globalPType))),
         partitionStreamName -> In(1, SingleCodeEmitParamType(true, StreamSingleCodeType(requiresMemoryManagementPerElement = true, rowPType)))))))
 
-    val globalsOff = tv.globals.value.offset
+    val globalsBc = tv.globals.broadcast
 
     val fsBc = tv.ctx.fsBc
     val itF = { (idx: Int, consumerCtx: RVDContext, partition: (RVDContext) => Iterator[Long]) =>
@@ -1875,7 +1875,7 @@ case class TableMapPartitions(child: TableIR,
           partition(new RVDContext(outerRegion, eltRegion)).map(box)
       }
       makeIterator(fsBc.value, idx, consumerCtx,
-        globalsOff,
+        globalsBc.value.readRegionValue(consumerCtx.partitionRegion),
         boxedPartition
       ).map(l => l.longValue())
     }

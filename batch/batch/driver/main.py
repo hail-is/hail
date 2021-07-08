@@ -18,7 +18,7 @@ from gear import (
     web_authenticated_developers_only,
     check_csrf_token,
     transaction,
-    monitor_endpoint,
+    monitor_endpoints_middleware,
 )
 from hailtop.hail_logging import AccessLogger
 from hailtop.config import get_deploy_config
@@ -160,7 +160,6 @@ async def get_healthcheck(request):  # pylint: disable=W0613
 
 
 @routes.get('/check_invariants')
-@monitor_endpoint
 @rest_authenticated_developers_only
 async def get_check_invariants(request, userdata):  # pylint: disable=unused-argument
     app = request.app
@@ -172,7 +171,6 @@ async def get_check_invariants(request, userdata):  # pylint: disable=unused-arg
 
 
 @routes.patch('/api/v1alpha/batches/{user}/{batch_id}/close')
-@monitor_endpoint
 @batch_only
 async def close_batch(request):
     db = request.app['db']
@@ -201,7 +199,6 @@ def set_cancel_state_changed(app):
 
 
 @routes.post('/api/v1alpha/batches/cancel')
-@monitor_endpoint
 @batch_only
 async def cancel_batch(request):
     set_cancel_state_changed(request.app)
@@ -209,7 +206,6 @@ async def cancel_batch(request):
 
 
 @routes.post('/api/v1alpha/batches/delete')
-@monitor_endpoint
 @batch_only
 async def delete_batch(request):
     set_cancel_state_changed(request.app)
@@ -236,14 +232,12 @@ async def activate_instance_1(request, instance):
 
 
 @routes.get('/api/v1alpha/instances/gsa_key')
-@monitor_endpoint
 @activating_instances_only
 async def get_gsa_key(request, instance):  # pylint: disable=unused-argument
     return await asyncio.shield(get_gsa_key_1(instance))
 
 
 @routes.post('/api/v1alpha/instances/activate')
-@monitor_endpoint
 @activating_instances_only
 async def activate_instance(request, instance):
     return await asyncio.shield(activate_instance_1(request, instance))
@@ -257,7 +251,6 @@ async def deactivate_instance_1(instance):
 
 
 @routes.post('/api/v1alpha/instances/deactivate')
-@monitor_endpoint
 @active_instances_only
 async def deactivate_instance(request, instance):  # pylint: disable=unused-argument
     return await asyncio.shield(deactivate_instance_1(instance))
@@ -305,7 +298,6 @@ async def job_complete_1(request, instance):
 
 
 @routes.post('/api/v1alpha/instances/job_complete')
-@monitor_endpoint
 @active_instances_only
 async def job_complete(request, instance):
     return await asyncio.shield(job_complete_1(request, instance))
@@ -329,7 +321,6 @@ async def job_started_1(request, instance):
 
 
 @routes.post('/api/v1alpha/instances/job_started')
-@monitor_endpoint
 @active_instances_only
 async def job_started(request, instance):
     return await asyncio.shield(job_started_1(request, instance))
@@ -337,7 +328,6 @@ async def job_started(request, instance):
 
 @routes.get('/')
 @routes.get('')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_index(request, userdata):
     app = request.app
@@ -393,7 +383,6 @@ async def refresh_inst_colls_on_front_end(app):
 
 @routes.post('/config-update/pool/{pool}')
 @check_csrf_token
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def pool_config_update(request, userdata):  # pylint: disable=unused-argument
     app = request.app
@@ -502,7 +491,6 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
 
 @routes.post('/config-update/jpim')
 @check_csrf_token
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def job_private_config_update(request, userdata):  # pylint: disable=unused-argument
     app = request.app
@@ -542,7 +530,6 @@ async def job_private_config_update(request, userdata):  # pylint: disable=unuse
 
 
 @routes.get('/inst_coll/pool/{pool}')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_pool(request, userdata):
     app = request.app
@@ -577,7 +564,6 @@ async def get_pool(request, userdata):
 
 
 @routes.get('/inst_coll/jpim')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_job_private_inst_manager(request, userdata):
     app = request.app
@@ -609,7 +595,6 @@ async def get_job_private_inst_manager(request, userdata):
 
 
 @routes.get('/user_resources')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_user_resources(request, userdata):
     app = request.app
@@ -1024,10 +1009,16 @@ async def on_cleanup(app):
                             try:
                                 app['task_manager'].shutdown()
                             finally:
-                                del app['k8s_cache'].client
-                                await asyncio.gather(
-                                    *(t for t in asyncio.all_tasks() if t is not asyncio.current_task())
-                                )
+                                try:
+                                    await app['logging_client'].close()
+                                finally:
+                                    try:
+                                        await app['compute_client'].close()
+                                    finally:
+                                        del app['k8s_cache'].client
+                                        await asyncio.gather(
+                                            *(t for t in asyncio.all_tasks() if t is not asyncio.current_task())
+                                        )
 
 
 def run():
@@ -1042,7 +1033,7 @@ def run():
             verbose=3,
         )
 
-    app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)
+    app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE, middlewares=[monitor_endpoints_middleware])
     setup_aiohttp_session(app)
 
     setup_aiohttp_jinja2(app, 'batch.driver')

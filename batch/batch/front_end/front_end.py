@@ -43,7 +43,7 @@ from gear import (
     web_authenticated_developers_only,
     check_csrf_token,
     transaction,
-    monitor_endpoint,
+    monitor_endpoints_middleware,
 )
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 
@@ -112,6 +112,7 @@ def catch_ui_error_in_dev(fun):
                 log.exception('error while populating ui page')
                 raise web.HTTPInternalServerError(text=traceback.format_exc()) from e
             raise
+
     return wrapped
 
 
@@ -296,7 +297,6 @@ LIMIT 50;
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs')
-@monitor_endpoint
 @rest_billing_project_users_only
 async def get_jobs(request, userdata, batch_id):  # pylint: disable=unused-argument
     db = request.app['db']
@@ -468,7 +468,6 @@ async def _get_full_job_status(app, record):
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
-@monitor_endpoint
 @rest_billing_project_users_only
 async def get_job_log(request, userdata, batch_id):  # pylint: disable=unused-argument
     job_id = int(request.match_info['job_id'])
@@ -586,7 +585,6 @@ LIMIT 51;
 
 
 @routes.get('/api/v1alpha/batches')
-@monitor_endpoint
 @rest_authenticated_users_only
 async def get_batches(request, userdata):  # pylint: disable=unused-argument
     user = userdata['username']
@@ -611,7 +609,6 @@ def check_service_account_permissions(user, sa):
 
 
 @routes.post('/api/v1alpha/batches/{batch_id}/jobs/create')
-@monitor_endpoint
 @rest_authenticated_users_only
 async def create_jobs(request, userdata):
     app = request.app
@@ -993,7 +990,6 @@ VALUES (%s, %s, %s);
 
 
 @routes.post('/api/v1alpha/batches/create')
-@monitor_endpoint
 @rest_authenticated_users_only
 async def create_batch(request, userdata):
     app = request.app
@@ -1134,14 +1130,12 @@ WHERE id = %s AND NOT deleted;
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}')
-@monitor_endpoint
 @rest_billing_project_users_only
 async def get_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
     return web.json_response(await _get_batch(request.app, batch_id))
 
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/cancel')
-@monitor_endpoint
 @rest_billing_project_users_only
 async def cancel_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
     await _handle_api_error(_cancel_batch, request.app, batch_id)
@@ -1149,7 +1143,6 @@ async def cancel_batch(request, userdata, batch_id):  # pylint: disable=unused-a
 
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/close')
-@monitor_endpoint
 @rest_authenticated_users_only
 async def close_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
@@ -1191,7 +1184,6 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
 
 @routes.delete('/api/v1alpha/batches/{batch_id}')
-@monitor_endpoint
 @rest_billing_project_users_only
 async def delete_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
     await _delete_batch(request.app, batch_id)
@@ -1199,7 +1191,6 @@ async def delete_batch(request, userdata, batch_id):  # pylint: disable=unused-a
 
 
 @routes.get('/batches/{batch_id}')
-@monitor_endpoint
 @web_billing_project_users_only()
 @catch_ui_error_in_dev
 async def ui_batch(request, userdata, batch_id):
@@ -1219,7 +1210,6 @@ async def ui_batch(request, userdata, batch_id):
 
 
 @routes.post('/batches/{batch_id}/cancel')
-@monitor_endpoint
 @check_csrf_token
 @web_billing_project_users_only(redirect=False)
 @catch_ui_error_in_dev
@@ -1238,7 +1228,6 @@ async def ui_cancel_batch(request, userdata, batch_id):  # pylint: disable=unuse
 
 
 @routes.post('/batches/{batch_id}/delete')
-@monitor_endpoint
 @check_csrf_token
 @web_billing_project_users_only(redirect=False)
 @catch_ui_error_in_dev
@@ -1256,7 +1245,6 @@ async def ui_delete_batch(request, userdata, batch_id):  # pylint: disable=unuse
 
 
 @routes.get('/batches', name='batches')
-@monitor_endpoint
 @web_authenticated_users_only()
 @catch_ui_error_in_dev
 async def ui_batches(request, userdata):
@@ -1353,7 +1341,6 @@ WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/attempts')
-@monitor_endpoint
 @rest_billing_project_users_only
 async def get_attempts(request, userdata, batch_id):  # pylint: disable=unused-argument
     job_id = int(request.match_info['job_id'])
@@ -1362,7 +1349,6 @@ async def get_attempts(request, userdata, batch_id):  # pylint: disable=unused-a
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}')
-@monitor_endpoint
 @rest_billing_project_users_only
 async def get_job(request, userdata, batch_id):  # pylint: disable=unused-argument
     job_id = int(request.match_info['job_id'])
@@ -1371,7 +1357,6 @@ async def get_job(request, userdata, batch_id):  # pylint: disable=unused-argume
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}')
-@monitor_endpoint
 @web_billing_project_users_only()
 @catch_ui_error_in_dev
 async def ui_get_job(request, userdata, batch_id):
@@ -1449,13 +1434,12 @@ async def ui_get_job(request, userdata, batch_id):
         'job_specification': job_specification,
         'job_status_str': json.dumps(job, indent=2),
         'step_errors': step_errors,
-        'error': job_status.get('error')
+        'error': job_status.get('error'),
     }
     return await render_template('batch', request, userdata, 'job.html', page_context)
 
 
 @routes.get('/billing_limits')
-@monitor_endpoint
 @web_authenticated_users_only()
 @catch_ui_error_in_dev
 async def ui_get_billing_limits(request, userdata):
@@ -1517,7 +1501,6 @@ UPDATE billing_projects SET `limit` = %s WHERE name = %s;
 
 
 @routes.post('/api/v1alpha/billing_limits/{billing_project}/edit')
-@monitor_endpoint
 @rest_authenticated_developers_or_auth_only
 async def post_edit_billing_limits(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
@@ -1529,7 +1512,6 @@ async def post_edit_billing_limits(request, userdata):  # pylint: disable=unused
 
 
 @routes.post('/billing_limits/{billing_project}/edit')
-@monitor_endpoint
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
@@ -1553,8 +1535,7 @@ async def _query_billing(request):
     default_start = datetime.datetime.now().replace(day=1)
     default_start = datetime.datetime.strftime(default_start, date_format)
 
-    default_end = datetime.datetime.now()
-    default_end = datetime.datetime.strftime(default_end, date_format)
+    default_end = None
 
     async def parse_error(msg):
         session = await aiohttp_session.get_session(request)
@@ -1570,15 +1551,32 @@ async def _query_billing(request):
 
     end_query = request.query.get('end', default_end)
     try:
-        end = datetime.datetime.strptime(end_query, date_format)
-        end = (end + datetime.timedelta(days=1)).timestamp() * 1000
+        if end_query is not None and end_query != '':
+            end = datetime.datetime.strptime(end_query, date_format)
+            end = (end + datetime.timedelta(days=1)).timestamp() * 1000
+        else:
+            end = None
     except ValueError:
         return await parse_error(f"Invalid value for end '{end_query}'; must be in the format of MM/DD/YYYY.")
 
-    if start > end:
+    if end is not None and start > end:
         return await parse_error('Invalid search; start must be earlier than end.')
 
-    sql = '''
+    where_conditions = ["billing_projects.`status` != 'deleted'"]
+    where_args = []
+
+    if end is not None:
+        where_conditions.append("`time_completed` IS NOT NULL")
+        where_conditions.append("`time_completed` >= %s")
+        where_args.append(start)
+        where_conditions.append("`time_completed` <= %s")
+        where_args.append(end)
+    else:
+        where_conditions.append("(`time_completed` IS NOT NULL AND `time_completed` >= %s) OR "
+                                "(`time_closed` IS NOT NULL AND `time_completed` IS NULL)")
+        where_args.append(start)
+
+    sql = f'''
 SELECT
   billing_project,
   `user`,
@@ -1591,13 +1589,11 @@ LEFT JOIN resources
   ON resources.resource = aggregated_batch_resources.resource
 LEFT JOIN billing_projects
   ON billing_projects.name = batches.billing_project
-WHERE `time_completed` >= %s AND
-  `time_completed` <= %s AND
-  billing_projects.`status` != 'deleted'
+WHERE {' AND '.join(where_conditions)}
 GROUP BY billing_project, `user`;
 '''
 
-    sql_args = (start, end)
+    sql_args = where_args
 
     def billing_record_to_dict(record):
         cost_msec_mcpu = cost_from_msec_mcpu(record['msec_mcpu'])
@@ -1612,7 +1608,6 @@ GROUP BY billing_project, `user`;
 
 
 @routes.get('/billing')
-@monitor_endpoint
 @web_authenticated_developers_only()
 @catch_ui_error_in_dev
 async def ui_get_billing(request, userdata):
@@ -1653,7 +1648,6 @@ async def ui_get_billing(request, userdata):
 
 
 @routes.get('/billing_projects')
-@monitor_endpoint
 @web_authenticated_developers_only()
 @catch_ui_error_in_dev
 async def ui_get_billing_projects(request, userdata):
@@ -1667,7 +1661,6 @@ async def ui_get_billing_projects(request, userdata):
 
 
 @routes.get('/api/v1alpha/billing_projects')
-@monitor_endpoint
 @rest_authenticated_users_only
 async def get_billing_projects(request, userdata):
     db: Database = request.app['db']
@@ -1683,7 +1676,6 @@ async def get_billing_projects(request, userdata):
 
 
 @routes.get('/api/v1alpha/billing_projects/{billing_project}')
-@monitor_endpoint
 @rest_authenticated_users_only
 async def get_billing_project(request, userdata):
     db: Database = request.app['db']
@@ -1744,7 +1736,6 @@ WHERE billing_project = %s AND user = %s;
 
 
 @routes.post('/billing_projects/{billing_project}/users/{user}/remove')
-@monitor_endpoint
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
@@ -1761,7 +1752,6 @@ async def post_billing_projects_remove_user(request, userdata):  # pylint: disab
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/remove')
-@monitor_endpoint
 @rest_authenticated_developers_or_auth_only
 async def api_get_billing_projects_remove_user(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
@@ -1809,7 +1799,6 @@ VALUES (%s, %s);
 
 
 @routes.post('/billing_projects/{billing_project}/users/add')
-@monitor_endpoint
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
@@ -1828,7 +1817,6 @@ async def post_billing_projects_add_user(request, userdata):  # pylint: disable=
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/add')
-@monitor_endpoint
 @rest_authenticated_developers_or_auth_only
 async def api_billing_projects_add_user(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
@@ -1865,7 +1853,6 @@ VALUES (%s);
 
 
 @routes.post('/billing_projects/create')
-@monitor_endpoint
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
@@ -1883,7 +1870,6 @@ async def post_create_billing_projects(request, userdata):  # pylint: disable=un
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/create')
-@monitor_endpoint
 @rest_authenticated_developers_or_auth_only
 async def api_get_create_billing_projects(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
@@ -1926,7 +1912,6 @@ FOR UPDATE;
 
 
 @routes.post('/billing_projects/{billing_project}/close')
-@monitor_endpoint
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
@@ -1942,7 +1927,6 @@ async def post_close_billing_projects(request, userdata):  # pylint: disable=unu
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/close')
-@monitor_endpoint
 @rest_authenticated_developers_or_auth_only
 async def api_close_billing_projects(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
@@ -1972,7 +1956,6 @@ async def _reopen_billing_project(db, billing_project):
 
 
 @routes.post('/billing_projects/{billing_project}/reopen')
-@monitor_endpoint
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
@@ -1988,7 +1971,6 @@ async def post_reopen_billing_projects(request, userdata):  # pylint: disable=un
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/reopen')
-@monitor_endpoint
 @rest_authenticated_developers_or_auth_only
 async def api_reopen_billing_projects(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
@@ -2017,7 +1999,6 @@ async def _delete_billing_project(db, billing_project):
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/delete')
-@monitor_endpoint
 @rest_authenticated_developers_or_auth_only
 async def api_delete_billing_projects(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
@@ -2125,7 +2106,7 @@ async def on_cleanup(app):
 
 
 def run():
-    app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)
+    app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE, middlewares=[monitor_endpoints_middleware])
     setup_aiohttp_session(app)
 
     setup_aiohttp_jinja2(app, 'batch.front_end')

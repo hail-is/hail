@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SCanonicalLocusPointerCode, SStringPointer}
+import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SCanonicalLocusPointerCode, SStackStruct, SStringPointer}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.utils.FastIndexedSeq
 import is.hail.variant._
@@ -99,6 +99,10 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
     value.st match {
       case SCanonicalLocusPointer(pt) =>
         representation.store(cb, region, pt.representation.loadCheapSCode(cb, value.asInstanceOf[SCanonicalLocusPointerCode].a), deepCopy)
+      case _ =>
+        val addr = representation.allocate(region)
+        storeAtAddress(cb, addr, region, value, deepCopy)
+        addr
     }
   }
 
@@ -106,6 +110,12 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
     value.st match {
       case SCanonicalLocusPointer(pt) =>
         representation.storeAtAddress(cb, addr, region, pt.representation.loadCheapSCode(cb, value.asInstanceOf[SCanonicalLocusPointerCode].a), deepCopy)
+      case _ =>
+        val loc = value.asLocus.memoize(cb, "pclocus_store")
+        representation.storeAtAddress(cb, addr, region,
+          SStackStruct.constructFromArgs(cb, region, representation.virtualType,
+            EmitCode.present(cb.emb, loc.contig(cb)), EmitCode.present(cb.emb, primitive(loc.position(cb)))),
+          deepCopy)
     }
   }
 

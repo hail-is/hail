@@ -64,7 +64,7 @@ trait SBaseStructCode extends SCode {
     )
   }
 
-  final def insert(cb: EmitCodeBuilder, region: Value[Region], newType: TStruct, fields: (String, EmitCode)*): SBaseStructCode = {
+  def insert(cb: EmitCodeBuilder, region: Value[Region], newType: TStruct, fields: (String, EmitCode)*): SBaseStructCode = {
     if (newType.size < 64 || fields.length < 16)
       return _insert(newType, fields: _*)
 

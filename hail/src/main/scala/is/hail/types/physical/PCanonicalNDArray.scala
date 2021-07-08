@@ -2,16 +2,17 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, NDArray, Region, UnsafeOrdering}
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.{CodeParam, CodeParamType, EmitCode, EmitCodeBuilder, SCodeParam, Param, ParamType}
+import is.hail.expr.ir.{CodeParam, CodeParamType, EmitCode, EmitCodeBuilder, Param, ParamType, SCodeParam}
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.{TNDArray, Type}
-import is.hail.types.physical.stypes.concrete.{SNDArrayPointer, SNDArrayPointerCode, SStackStruct}
+import is.hail.types.physical.stypes.concrete.{SNDArrayPointer, SNDArrayPointerCode, SNDArrayPointerSettable, SStackStruct}
 import org.apache.spark.sql.Row
 import is.hail.utils._
 
 final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boolean = false) extends PNDArray  {
   assert(elementType.required, "elementType must be required")
+  assert(!elementType.containsPointers, "ndarrays do not currently support elements which contain arrays, ndarrays, or strings")
 
   def _asIdent: String = s"ndarray_of_${elementType.asIdent}"
 
@@ -358,19 +359,18 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
           cb.append(region.trackNDArray(storedAddress))
         }
         storedAddress
-      case SNDArrayPointer(t) =>
+      case _ =>
         val oldND = value.asNDArray.memoize(cb, "pcanonical_ndarray_store_old")
         val shape = oldND.shapes(cb)
         val newStrides = makeColumnMajorStrides(shape, region, cb)
         val (targetDataFirstElementAddr, finish) = this.constructDataFunction(shape, newStrides, cb, region)
-        val result = finish(cb)
+        val result = finish(cb).memoize(cb, "dest")
 
-        SNDArray.coiterate(cb, region, FastIndexedSeq((result, "result"), (oldND.get, "oldND")), {
-          case Seq(dest, elt) =>
-            cb.assign(dest, elt)
-        }, deepCopy = true)
+        result.coiterateMutate(cb, region, true, (oldND.get, "oldND")){
+          case Seq(dest, elt) => elt
+        }
 
-        result.a
+        result.asInstanceOf[SNDArrayPointerSettable].a
     }
   }
 

@@ -5,6 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitSettable, SCodeEmitParamType, SCodeParamType}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.PType
+import is.hail.types.physical.stypes.concrete.SUnreachable
 import is.hail.types.physical.stypes.interfaces.SStream
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
@@ -12,10 +13,15 @@ import is.hail.types.virtual._
 
 object SType {
   def chooseCompatibleType(req: VirtualTypeWithReq, stypes: SType*): SType = {
-    if (stypes.toSet.size == 1)
-      stypes.head
+    val reachable = stypes.filter(t => !t.isInstanceOf[SUnreachable]).toSet
+
+    // all unreachable
+    if (reachable.isEmpty)
+      SUnreachable.fromVirtualType(req.t)
+    else if (reachable.size == 1) // only one reachable stype
+      reachable.head
     else
-      req.canonicalEmitType.st
+      req.canonicalEmitType.st // fall back to canonical emit type from requiredness
   }
 
   def canonical(virt: Type): SType = {
@@ -36,7 +42,14 @@ object SType {
 trait SType {
   def virtualType: Type
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode
+  final def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+    value.st match {
+      case _: SUnreachable => this.defaultValue
+      case _ => _coerceOrCopy(cb, region, value, deepCopy)
+    }
+  }
+
+  protected[stypes] def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]]
 

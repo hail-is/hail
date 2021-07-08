@@ -187,6 +187,7 @@ def init_parser(parser):
     parser.add_argument('--network', type=str, help='the network for all nodes in this cluster')
     parser.add_argument('--service-account', type=str, help='The Google Service Account to use for cluster creation (default to the Compute Engine service account).')
     parser.add_argument('--master-tags', type=str, help='comma-separated list of instance tags to apply to the mastern node')
+    parser.add_argument('--scopes', help='Specifies access scopes for the node instances')
 
     parser.add_argument('--wheel', help='Non-default Hail installation. Warning: experimental.')
 
@@ -338,6 +339,8 @@ def main(args, pass_through_args):
         conf.flags['project'] = args.project
     if args.bucket:
         conf.flags['bucket'] = args.bucket
+    if args.scopes:
+        conf.flags['scopes'] = args.scopes
 
     account = gcloud.get_config("account")
     if account:
