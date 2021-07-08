@@ -1,6 +1,8 @@
 import logging
 import json
+from typing import Dict
 from functools import wraps
+from collections import namedtuple, defaultdict
 import concurrent
 import copy
 import asyncio
@@ -11,6 +13,7 @@ import aiohttp_session
 import kubernetes_asyncio as kube
 import google.oauth2.service_account
 from prometheus_async.aio.web import server_stats
+import prometheus_client as pc # type: ignore
 from gear import (
     Database,
     setup_aiohttp_session,
@@ -911,6 +914,125 @@ WHERE state = 'running' AND cancel_after_n_failures IS NOT NULL AND n_failed >= 
         await _cancel_batch(app, batch['id'])
 
 
+READY_USER_CORES = pc.Gauge('batch_ready_user_cores', 'Batch ready user cores', ['user', 'inst_coll'])
+RUNNING_USER_CORES = pc.Gauge('batch_running_user_cores', 'Batch running user cores', ['user', 'inst_coll'])
+READY_USER_JOBS = pc.Gauge('batch_ready_user_jobs', 'Batch ready user jobs', ['user', 'inst_coll'])
+RUNNING_USER_JOBS = pc.Gauge('batch_running_user_jobs', 'Batch running user jobs', ['user', 'inst_coll'])
+CREATING_USER_JOBS = pc.Gauge('batch_creating_user_jobs', 'Batch creating user jobs', ['user', 'inst_coll'])
+
+FREE_CORES = pc.Summary('batch_free_cores', 'Batch instance free cores', ['inst_coll'])
+UTILIZATION = pc.Summary('batch_utilization', 'Batch utilization rates', ['inst_coll'])
+ACTUAL_COST_PER_HOUR = pc.Summary('batch_actual_cost_per_hour', 'Batch actual cost ($/hr)', ['inst_coll'])
+BILLED_COST_PER_HOUR = pc.Summary('batch_billed_cost_per_hour', 'Batch billed cost ($/hr)', ['inst_coll'])
+INSTANCES = pc.Gauge('batch_instances', 'Batch instances', ['inst_coll', 'state'])
+
+UserInstCollLabels = namedtuple('UserInstCollLabels', ['user', 'inst_coll'])
+InstCollLabels = namedtuple('InstCollLabels', ['inst_coll'])
+InstanceLabels = namedtuple('InstanceLabels', ['inst_coll', 'state'])
+
+
+async def monitor_user_resources(app):
+    db: Database = app['db']
+
+    ready_user_cores = defaultdict(int)
+    running_user_cores = defaultdict(int)
+    ready_user_jobs = defaultdict(int)
+    running_user_jobs = defaultdict(int)
+    creating_user_jobs = defaultdict(int)
+
+    records = db.select_and_fetchall(
+        '''
+SELECT user, inst_coll,
+  CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu,
+  CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED) AS n_ready_jobs,
+  CAST(COALESCE(SUM(running_cores_mcpu), 0) AS SIGNED) AS running_cores_mcpu,
+  CAST(COALESCE(SUM(n_running_jobs), 0) AS SIGNED) AS n_running_jobs,
+  CAST(COALESCE(SUM(n_creating_jobs), 0) AS SIGNED) AS n_creating_jobs
+FROM user_inst_coll_resources
+GROUP BY user, inst_coll;
+'''
+    )
+
+    async for record in records:
+        labels = UserInstCollLabels(user=record['user'], inst_coll=record['inst_coll'])
+        ready_user_cores[labels] += record['ready_cores_mcpu'] / 1000
+        running_user_cores[labels] += record['running_cores_mcpu'] / 1000
+        ready_user_jobs[labels] += record['n_ready_jobs']
+        running_user_jobs[labels] += record['n_running_jobs']
+        creating_user_jobs[labels] += record['n_creating_jobs']
+
+    READY_USER_CORES.clear()
+    RUNNING_USER_CORES.clear()
+    READY_USER_CORES.clear()
+    RUNNING_USER_CORES.clear()
+    CREATING_USER_JOBS.clear()
+
+    def set_value(gauge, data):
+        for labels, count in data.items():
+            if count > 0:
+                gauge.labels(**labels._asdict()).set(count)
+
+    set_value(READY_USER_CORES, ready_user_cores)
+    set_value(RUNNING_USER_CORES, running_user_cores)
+    set_value(READY_USER_JOBS, ready_user_jobs)
+    set_value(RUNNING_USER_JOBS, running_user_jobs)
+    set_value(CREATING_USER_JOBS, creating_user_jobs)
+
+
+def monitor_instances(app):
+    resource_rates: Dict[str, float] = app['resource_rates']
+    inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
+
+    actual_cost_per_hour = defaultdict(list)
+    billed_cost_per_hour = defaultdict(list)
+    free_cores = defaultdict(list)
+    utilization = defaultdict(list)
+    instances = defaultdict(int)
+
+    for pool_name, pool in inst_coll_manager.pools.items():
+        for instance in pool.name_instance.values():
+            labels = InstCollLabels(inst_coll=instance.inst_coll)
+            utilized_cores_mcpu = instance.cores_mcpu - instance.free_cores_mcpu
+
+            if instance.state != 'deleted':
+                if instance.worker_config:
+                    actual_rate = instance.worker_config.actual_cost_per_hour(resource_rates)
+                    actual_cost_per_hour[labels].append(actual_rate)
+
+                    billed_rate = instance.worker_config.cost_per_hour_from_cores(resource_rates, utilized_cores_mcpu)
+                    billed_cost_per_hour[labels].append(billed_rate)
+
+                free_cores[labels].append(instance.free_cores_mcpu / 1000)
+                utilization[labels].append(utilized_cores_mcpu / instance.cores_mcpu)
+
+            inst_labels = InstanceLabels(inst_coll=instance.inst_coll, state=instance.state)
+            instances[inst_labels] += 1
+
+    ACTUAL_COST_PER_HOUR.clear()
+    BILLED_COST_PER_HOUR.clear()
+    FREE_CORES.clear()
+    UTILIZATION.clear()
+    INSTANCES.clear()
+
+    def observe(summary, data):
+        for labels, items in data.items():
+            for item in items:
+                summary.labels(**labels._asdict()).observe(item)
+
+    observe(ACTUAL_COST_PER_HOUR, actual_cost_per_hour)
+    observe(BILLED_COST_PER_HOUR, billed_cost_per_hour)
+    observe(FREE_CORES, free_cores)
+    observe(UTILIZATION, utilization)
+
+    for labels, count in instances.items():
+        INSTANCES.labels(**labels._asdict()).set(count)
+
+
+async def monitor_system(app):
+    await monitor_user_resources(app)
+    monitor_instances(app)
+
+
 async def scheduling_cancelling_bump(app):
     log.info('scheduling cancelling bump loop')
     app['scheduler_state_changed'].notify()
@@ -949,9 +1071,8 @@ SELECT instance_id, internal_token, frozen FROM globals;
 
     app['frozen'] = row['frozen']
 
-    resources = db.select_and_fetchall('SELECT resource FROM resources;')
-
-    app['resources'] = [record['resource'] async for record in resources]
+    resources = db.select_and_fetchall('SELECT resource, rate FROM resources;')
+    app['resource_rates'] = {record['resource']: record['rate'] async for record in resources}
 
     aiogoogle_credentials = aiogoogle.Credentials.from_file('/gsa-key/key.json')
     compute_client = aiogoogle.ComputeClient(PROJECT, credentials=aiogoogle_credentials)
@@ -1020,6 +1141,8 @@ SELECT instance_id, internal_token, frozen FROM globals;
     app['task_manager'].ensure_future(periodically_call(10, cancel_fast_failing_batches, app))
 
     app['task_manager'].ensure_future(periodically_call(60, scheduling_cancelling_bump, app))
+
+    app['task_manager'].ensure_future(periodically_call(15, monitor_system, app))
 
 
 async def on_cleanup(app):

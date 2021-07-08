@@ -153,7 +153,6 @@ timestamp >= "{mark}"
         params = {'filter': f'(labels.namespace = {DEFAULT_NAMESPACE})'}
 
         for zone in self.zone_monitor.zones:
-            log.info(f'deleting orphaned disks for zone {zone}')
             async for disk in await self.compute_client.list(f'/zones/{zone}/disks', params=params):
                 disk_name = disk['name']
                 instance_name = disk['labels']['instance-name']

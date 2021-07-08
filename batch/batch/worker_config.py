@@ -2,6 +2,7 @@ import re
 from collections import defaultdict
 
 from .globals import WORKER_CONFIG_VERSION
+from .utils import cores_mcpu_to_memory_bytes
 
 from typing import TYPE_CHECKING
 
@@ -201,8 +202,7 @@ class WorkerConfig:
 
         return resources
 
-    def cost_per_hour(self, resource_rates, cpu_in_mcpu, memory_in_bytes, storage_in_gb):
-        resources = self.resources(cpu_in_mcpu, memory_in_bytes, storage_in_gb)
+    def _cost_per_hour_from_resources(self, resource_rates, resources, cpu_in_mcpu, memory_in_bytes, storage_in_gb):
         cost_per_msec = 0
         for r in resources:
             name = r['name']
@@ -210,3 +210,22 @@ class WorkerConfig:
             rate_unit_msec = resource_rates[name]
             cost_per_msec += quantity * rate_unit_msec
         return cost_per_msec * 1000 * 60 * 60
+
+    def cost_per_hour(self, resource_rates, cpu_in_mcpu, memory_in_bytes, storage_in_gb):
+        resources = self.resources(cpu_in_mcpu, memory_in_bytes, storage_in_gb)
+        return self._cost_per_hour_from_resources(resource_rates, resources, cpu_in_mcpu, memory_in_bytes, storage_in_gb)
+
+    def cost_per_hour_from_cores(self, resource_rates, utilized_cores_mcpu):
+        assert 0 <= utilized_cores_mcpu <= self.cores * 1000
+        memory_in_bytes = cores_mcpu_to_memory_bytes(utilized_cores_mcpu, self.instance_type)
+        storage_in_gb = 0   # we don't need to account for external storage
+        return self.cost_per_hour(resource_rates, utilized_cores_mcpu, memory_in_bytes, storage_in_gb)
+
+    def actual_cost_per_hour(self, resource_rates):
+        cpu_in_mcpu = self.cores * 1000
+        memory_in_bytes = cores_mcpu_to_memory_bytes(cpu_in_mcpu, self.instance_type)
+        storage_in_gb = 0   # we don't need to account for external storage
+        resources = self.resources(cpu_in_mcpu, memory_in_bytes, storage_in_gb)
+        resources = [r for r in resources if 'service-fee' not in r['name']]
+        return self._cost_per_hour_from_resources(resource_rates, resources, cpu_in_mcpu, memory_in_bytes,
+                                                  storage_in_gb)

@@ -3,12 +3,16 @@ import datetime
 import logging
 import secrets
 import humanize
+import base64
+import json
+from typing import Optional
 
 from hailtop.utils import time_msecs, time_msecs_str, retry_transient_errors
 from gear import Database
 
 from ..database import check_call_procedure
 from ..globals import INSTANCE_VERSION
+from ..worker_config import WorkerConfig
 
 log = logging.getLogger('instance')
 
@@ -16,6 +20,12 @@ log = logging.getLogger('instance')
 class Instance:
     @staticmethod
     def from_record(app, inst_coll, record):
+        config = record.get('config')
+        if config:
+            worker_config = WorkerConfig(json.loads(base64.b64decode(config).decode()))
+        else:
+            worker_config = None
+
         return Instance(
             app,
             inst_coll,
@@ -31,10 +41,11 @@ class Instance:
             record['zone'],
             record['machine_type'],
             bool(record['preemptible']),
+            worker_config,
         )
 
     @staticmethod
-    async def create(app, inst_coll, name, activation_token, worker_cores_mcpu, zone, machine_type, preemptible):
+    async def create(app, inst_coll, name, activation_token, worker_cores_mcpu, zone, machine_type, preemptible, worker_config: WorkerConfig):
         db: Database = app['db']
 
         state = 'pending'
@@ -43,8 +54,8 @@ class Instance:
         await db.just_execute(
             '''
 INSERT INTO instances (name, state, activation_token, token, cores_mcpu, free_cores_mcpu,
-  time_created, last_updated, version, zone, inst_coll, machine_type, preemptible)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+  time_created, last_updated, version, zone, inst_coll, machine_type, preemptible, config)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
             (
                 name,
@@ -60,6 +71,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 inst_coll.name,
                 machine_type,
                 preemptible,
+                base64.b64encode(json.dumps(worker_config.config).encode()).decode()
             ),
         )
         return Instance(
@@ -77,6 +89,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
             zone,
             machine_type,
             preemptible,
+            worker_config
         )
 
     def __init__(
@@ -95,6 +108,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         zone,
         machine_type,
         preemptible,
+        worker_config: Optional[WorkerConfig],
     ):
         self.db: Database = app['db']
         self.inst_coll = inst_coll
@@ -111,6 +125,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         self.zone = zone
         self.machine_type = machine_type
         self.preemptible = preemptible
+        self.worker_config = worker_config
 
     @property
     def state(self):
