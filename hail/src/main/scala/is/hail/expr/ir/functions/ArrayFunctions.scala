@@ -313,7 +313,7 @@ object ArrayFunctions extends RegistryFunctions {
 
     registerIEmitCode2("corr", TArray(TFloat64), TArray(TFloat64), TFloat64, {
       (_: Type, _: EmitType, _: EmitType) => EmitType(SFloat64, false)
-    }) { case (cb, r, rt, ec1, ec2) =>
+    }) { case (cb, r, rt, errorID, ec1, ec2) =>
       ec1.toI(cb).flatMap(cb) { case pc1: SIndexableCode =>
         ec2.toI(cb).flatMap(cb) { case pc2: SIndexableCode =>
           val pv1 = pc1.memoize(cb, "corr_a1")
@@ -321,7 +321,7 @@ object ArrayFunctions extends RegistryFunctions {
           val l1 = cb.newLocal("len1", pv1.loadLength())
           val l2 = cb.newLocal("len2", pv2.loadLength())
           cb.ifx(l1.cne(l2), {
-            cb._fatal(
+            cb._fatalWithError(errorID,
               "'corr': cannot compute correlation between arrays of different lengths: ",
                 l1.toS,
                 ", ",

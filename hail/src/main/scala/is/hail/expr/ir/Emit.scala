@@ -2476,7 +2476,7 @@ class Emit[C](
         EmitCode.fromI(mb) { cb =>
           val emitArgs = args.map(a => EmitCode.fromI(cb.emb)(emitI(a, _))).toFastIndexedSeq
           IEmitCode.multiMapEmitCodes(cb, emitArgs) { codeArgs =>
-            cb.invokeSCode(meth, FastIndexedSeq[Param](CodeParam(region)) ++ codeArgs.map(pc => pc: Param): _*)
+            cb.invokeSCode(meth, FastIndexedSeq[Param](CodeParam(region), CodeParam(errorID)) ++ codeArgs.map(pc => pc: Param): _*)
           }
         }
       case x@ApplySpecial(_, typeArgs, args, rt, errorID) =>
@@ -2485,7 +2485,7 @@ class Emit[C](
         val unified = impl.unify(typeArgs, args.map(_.typ), rt)
         assert(unified)
         val retType = impl.computeReturnEmitType(x.typ, codeArgs.map(_.emitType))
-        impl.apply(EmitRegion(mb, region), retType.st, typeArgs, codeArgs: _*)
+        impl.apply(EmitRegion(mb, region), retType.st, typeArgs, errorID, codeArgs: _*)
 
       case x@WritePartition(stream, pctx, writer) =>
         val ctxCode = emit(pctx)

@@ -269,32 +269,32 @@ object UtilFunctions extends RegistryFunctions {
       }
 
       registerIEmitCode2(ignoreMissingName, TInt32, TInt32, TInt32, (_: Type, t1: EmitType, t2: EmitType) => EmitType(SInt32, t1.required || t2.required)) {
-        case (cb, r, rt, v1, v2) => ignoreMissingTriplet[Int](cb, rt, v1, v2, name, Code.invokeStatic2[Math, Int, Int, Int](name, _, _))
+        case (cb, r, rt, _, v1, v2) => ignoreMissingTriplet[Int](cb, rt, v1, v2, name, Code.invokeStatic2[Math, Int, Int, Int](name, _, _))
       }
 
       registerIEmitCode2(ignoreMissingName, TInt64, TInt64, TInt64, (_: Type, t1: EmitType, t2: EmitType) => EmitType(SInt64, t1.required || t2.required)) {
-        case (cb, r, rt, v1, v2) => ignoreMissingTriplet[Long](cb, rt, v1, v2, name, Code.invokeStatic2[Math, Long, Long, Long](name, _, _))
+        case (cb, r, rt, _, v1, v2) => ignoreMissingTriplet[Long](cb, rt, v1, v2, name, Code.invokeStatic2[Math, Long, Long, Long](name, _, _))
       }
 
       registerIEmitCode2(ignoreMissingName, TFloat32, TFloat32, TFloat32, (_: Type, t1: EmitType, t2: EmitType) => EmitType(SFloat32, t1.required || t2.required)) {
-        case (cb, r, rt, v1, v2) => ignoreMissingTriplet[Float](cb, rt, v1, v2, name, Code.invokeStatic2[Math, Float, Float, Float](name, _, _))
+        case (cb, r, rt, _, v1, v2) => ignoreMissingTriplet[Float](cb, rt, v1, v2, name, Code.invokeStatic2[Math, Float, Float, Float](name, _, _))
       }
 
       registerIEmitCode2(ignoreMissingName, TFloat64, TFloat64, TFloat64, (_: Type, t1: EmitType, t2: EmitType) => EmitType(SFloat64, t1.required || t2.required)) {
-        case (cb, r, rt, v1, v2) => ignoreMissingTriplet[Double](cb, rt, v1, v2, name, Code.invokeStatic2[Math, Double, Double, Double](name, _, _))
+        case (cb, r, rt, _, v1, v2) => ignoreMissingTriplet[Double](cb, rt, v1, v2, name, Code.invokeStatic2[Math, Double, Double, Double](name, _, _))
       }
 
       registerIEmitCode2(ignoreBothName, TFloat32, TFloat32, TFloat32, (_: Type, t1: EmitType, t2: EmitType) => EmitType(SFloat32, t1.required || t2.required)) {
-        case (cb, r, rt, v1, v2) => ignoreMissingTriplet[Float](cb, rt, v1, v2, ignoreNanName, Code.invokeScalaObject2[Float, Float, Float](thisClass, ignoreNanName, _, _))
+        case (cb, r, rt, _, v1, v2) => ignoreMissingTriplet[Float](cb, rt, v1, v2, ignoreNanName, Code.invokeScalaObject2[Float, Float, Float](thisClass, ignoreNanName, _, _))
       }
 
       registerIEmitCode2(ignoreBothName, TFloat64, TFloat64, TFloat64, (_: Type, t1: EmitType, t2: EmitType) => EmitType(SFloat64, t1.required || t2.required)) {
-        case (cb, r, rt, v1, v2) => ignoreMissingTriplet[Double](cb, rt, v1, v2, ignoreNanName, Code.invokeScalaObject2[Double, Double, Double](thisClass, ignoreNanName, _, _))
+        case (cb, r, rt,  _, v1, v2) => ignoreMissingTriplet[Double](cb, rt, v1, v2, ignoreNanName, Code.invokeScalaObject2[Double, Double, Double](thisClass, ignoreNanName, _, _))
       }
     }
 
     registerSCode2("format", TString, tv("T", "tuple"), TString, (_: Type, _: SType, _: SType) => PCanonicalString().sType) {
-      case (r, cb, SStringPointer(rt: PCanonicalString), format, args) =>
+      case (r, cb, SStringPointer(rt: PCanonicalString), format, args, _) =>
         val javaObjArgs = Code.checkcast[Row](scodeToJavaValue(cb, r.region, args))
         val formatted = Code.invokeScalaObject2[String, Row, String](thisClass, "format", format.asString.loadString(), javaObjArgs)
         val st = SStringPointer(rt)
@@ -302,7 +302,7 @@ object UtilFunctions extends RegistryFunctions {
     }
 
     registerIEmitCode2("land", TBoolean, TBoolean, TBoolean, (_: Type, tl: EmitType, tr: EmitType) => EmitType(SBoolean, tl.required && tr.required)) {
-      case (cb, _, rt, l, r) =>
+      case (cb, _, rt, l, r, _ ) =>
 
         // 00 ... 00 rv rm lv lm
         val w = cb.newLocal[Int]("land_w")
@@ -333,7 +333,7 @@ object UtilFunctions extends RegistryFunctions {
     }
 
     registerIEmitCode2("lor", TBoolean, TBoolean, TBoolean, (_: Type, tl: EmitType, tr: EmitType) => EmitType(SBoolean, tl.required && tr.required)) {
-      case (cb, _, rt, l, r) =>
+      case (cb, _, rt, l, r, _) =>
         // 00 ... 00 rv rm lv lm
         val w = cb.newLocal[Int]("lor_w")
 

@@ -151,7 +151,7 @@ trait CodeBuilderLike {
     append(Code._fatal[Unit](msgs.reduce(_.concat(_))))
   }
 
-  def _fatalWithError(errorId: Int, msgs: Code[String]*): Unit = {
+  def _fatalWithError(errorId: Code[Int], msgs: Code[String]*): Unit = {
     append(Code._fatalWithID[Unit](msgs.reduce(_.concat(_)), errorId))
   }
 
