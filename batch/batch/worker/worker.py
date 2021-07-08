@@ -791,18 +791,6 @@ class Container:
                     'type': 'cgroup',
                     'options': ['nosuid', 'noexec', 'nodev', 'ro'],
                 },
-                # {
-                #     'source': 'mqueue',
-                #     'destination': '/dev/mqueue',
-                #     'type': 'mqueue',
-                #     'options': ['nosuid', 'noexec', 'nodev'],
-                # },
-                # {
-                #     'source': 'shm',
-                #     'destination': '/dev/shm',
-                #     'type': 'tmpfs',
-                #     'options': ['nosuid', 'noexec', 'nodev', 'mode=1777', 'size=67108864'],
-                # },
                 {
                     'source': f'/etc/netns/{self.netns.network_ns_name}/resolv.conf',
                     'destination': '/etc/resolv.conf',
