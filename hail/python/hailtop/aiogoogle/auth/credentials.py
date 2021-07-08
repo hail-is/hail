@@ -34,12 +34,15 @@ class Credentials(abc.ABC):
             if os.path.exists(application_default_credentials_file):
                 credentials_file = application_default_credentials_file
 
-        if credentials_file is None:
-            raise ValueError('unable to locate Google Cloud credentials')
+        if credentials_file:
+            log.info(f'using credentials file {credentials_file}')
+            return Credentials.from_file(credentials_file)
 
-        log.info(f'using credentials file {credentials_file}')
+        log.warning('unable to locate Google Cloud credentials file, will attempt to '
+                    'use instance metadata server instead')
+        
+        return InstanceMetadataCredentials()
 
-        return Credentials.from_file(credentials_file)
 
     async def get_access_token(self, session):
         pass
@@ -96,4 +99,13 @@ class ServiceAccountCredentials(Credentials):
                     'grant_type': 'urn:ietf:params:oauth:grant-type:jwt-bearer',
                     'assertion': encoded_assertion
                 })) as resp:
+            return await resp.json()
+
+# https://cloud.google.com/compute/docs/access/create-enable-service-accounts-for-instances#applications
+class InstanceMetadataCredentials():
+    async def get_access_token(self, session):
+        async with await request_retry_transient_errors(
+                session, 'GET',
+                'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token',
+                headers={'Metadata-Flavor': 'Google'}) as resp:
             return await resp.json()
