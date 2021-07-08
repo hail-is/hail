@@ -3,6 +3,10 @@
 Change Log
 ==========
 
+**Version 0.2.71**
+
+- Added the ability to set resource values for ``Job.cpu``, ``Job.memory``, ``Job.storage``, and ``Job.timeout`` to `None`
+
 **Version 0.2.70**
 
 - Made submitting ``PythonJob`` faster when using the ``ServiceBackend``
