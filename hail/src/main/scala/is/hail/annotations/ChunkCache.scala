@@ -31,7 +31,7 @@ private class ChunkCache (allocator: Long => Long, freer: Long => Unit){
   private[this] var chunksRequested = 0
   private[this] var cacheHits = 0
   private[this] var smallChunkCacheSize = 0
-  private[this] val smallChunkCache = new Array[LongArrayBuilder](highestSmallChunkPowerOf2 + 2)
+  private[this] val smallChunkCache = new Array[LongArrayBuilder](highestSmallChunkPowerOf2 + 1)
   (0 until highestSmallChunkPowerOf2 + 1).foreach(index => {
     smallChunkCache(index) = new LongArrayBuilder()
   })
