@@ -93,8 +93,8 @@ object HailContext {
         if (major.toInt < 8)
           fatal(s"Hail requires Java 1.8, found $versionString")
       case javaVersion(major, minor, security) =>
-        if (major.toInt > 8)
-          fatal(s"Hail requires Java 8, found $versionString")
+        if (major.toInt != 11)
+          fatal(s"Hail requires Java 8 or 11, found $versionString")
       case _ =>
         fatal(s"Unknown JVM version string: $versionString")
     }

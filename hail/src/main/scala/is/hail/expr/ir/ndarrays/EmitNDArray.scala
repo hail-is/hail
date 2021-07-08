@@ -128,7 +128,7 @@ object EmitNDArray {
                 val leftShapeValues = leftProducer.shape
                 val rightShapeValues = rightProducer.shape
 
-                val shapeArray = NDArrayEmitter.unifyShapes2(cb, leftShapeValues, rightShapeValues)
+                val shapeArray = NDArrayEmitter.unifyShapes2(cb, leftShapeValues, rightShapeValues, s" when trying to map2")
 
                 val lElemRef = cb.emb.newEmitField(lName, leftProducer.elementType.sType, required = true)
                 val rElemRef = cb.emb.newEmitField(rName, rightProducer.elementType.sType, required = true)

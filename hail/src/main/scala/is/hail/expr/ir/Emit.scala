@@ -2591,7 +2591,7 @@ object NDArrayEmitter {
     }
   }
 
-  def unifyShapes2(cb: EmitCodeBuilder, leftShape: IndexedSeq[Value[Long]], rightShape: IndexedSeq[Value[Long]]): IndexedSeq[Value[Long]] = {
+  def unifyShapes2(cb: EmitCodeBuilder, leftShape: IndexedSeq[Value[Long]], rightShape: IndexedSeq[Value[Long]], context: String): IndexedSeq[Value[Long]] = {
     val shape = leftShape.zip(rightShape).zipWithIndex.map { case ((left, right), i) =>
       val notSameAndNotBroadcastable = !((left ceq right) || (left ceq 1L) || (right ceq 1L))
       cb.newField[Long](
@@ -2599,11 +2599,11 @@ object NDArrayEmitter {
         notSameAndNotBroadcastable.mux(
           Code._fatal[Long](rightShape.foldLeft[Code[String]](
             leftShape.foldLeft[Code[String]](
-              const("Incompatible NDArrayshapes: [ ")
+              const("Incompatible NDArray shapes: [ ")
             )((accum, v) => accum.concat(v.toS).concat(" "))
               .concat("] vs [ ")
           )((accum, v) => accum.concat(v.toS).concat(" "))
-            .concat("]")),
+            .concat(s"] ${context}")),
           (left > right).mux(left, right)))
     }
 
@@ -2638,7 +2638,7 @@ object NDArrayEmitter {
         rK = rightShape(rightShape.length - 2)
         val unifiedShape = unifyShapes2(cb,
           leftShape.slice(0, leftShape.length - 2),
-          rightShape.slice(0, rightShape.length - 2))
+          rightShape.slice(0, rightShape.length - 2), "when trying to matmul")
         shape = unifiedShape :+ leftShape(leftShape.length - 2) :+ rightShape.last
       }
     }

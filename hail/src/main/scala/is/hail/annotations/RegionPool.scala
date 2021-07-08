@@ -163,7 +163,8 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
       val blockSize = Region.SIZES(i)
       val blocks = freeBlocks(i)
       while (blocks.size > 0) {
-        Memory.free(blocks.pop())
+        val popped = blocks.pop()
+        Memory.free(popped)
         totalAllocatedBytes -= blockSize
       }
       i += 1

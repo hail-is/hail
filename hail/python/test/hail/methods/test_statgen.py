@@ -1,4 +1,5 @@
 import os
+import math
 import unittest
 import pytest
 import numpy as np
@@ -460,6 +461,150 @@ class Tests(unittest.TestCase):
                 eq(combined.multi.p_value[0], combined.multi.p_value[1]))))
 
     logreg_functions = [hl.logistic_regression_rows, hl._logistic_regression_rows_nd] if backend_name == "spark" else [hl._logistic_regression_rows_nd]
+
+    def test_weighted_linear_regression(self):
+        covariates = hl.import_table(resource('regressionLinear.cov'),
+                                     key='Sample',
+                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
+        pheno = hl.import_table(resource('regressionLinear.pheno'),
+                                key='Sample',
+                                missing='0',
+                                types={'Pheno': hl.tfloat})
+
+        weights = hl.import_table(resource('regressionLinear.weights'),
+                                  key='Sample',
+                                  missing='0',
+                                  types={'Sample': hl.tstr, 'Weight1': hl.tfloat, 'Weight2': hl.tfloat})
+
+        mt = hl.import_vcf(resource('regressionLinear.vcf'))
+        mt = mt.add_col_index()
+
+        mt = mt.annotate_cols(y=hl.coalesce(pheno[mt.s].Pheno, 1.0))
+        mt = mt.annotate_entries(x=hl.coalesce(mt.GT.n_alt_alleles(), 1.0))
+        my_covs = [1.0] + list(covariates[mt.s].values())
+
+        ht_with_weights = hl._linear_regression_rows_nd(y=mt.y,
+                                          x=mt.x,
+                                          covariates=my_covs,
+                                          weights=mt.col_idx)
+
+        ht_pre_weighted_1 = hl._linear_regression_rows_nd(y=mt.y * hl.sqrt(mt.col_idx),
+                                          x=mt.x * hl.sqrt(mt.col_idx),
+                                          covariates=list(map(lambda e: e * hl.sqrt(mt.col_idx), my_covs)))
+
+        ht_pre_weighted_2 = hl._linear_regression_rows_nd(y=mt.y * hl.sqrt(mt.col_idx + 5),
+                                                          x=mt.x * hl.sqrt(mt.col_idx + 5),
+                                                          covariates=list(map(lambda e: e * hl.sqrt(mt.col_idx + 5), my_covs)))
+
+        ht_from_agg = mt.annotate_rows(my_linreg=hl.agg.linreg(mt.y, [1, mt.x] + list(covariates[mt.s].values()), weight=mt.col_idx)).rows()
+
+        betas_with_weights = ht_with_weights.beta.collect()
+        betas_pre_weighted_1 = ht_pre_weighted_1.beta.collect()
+        betas_pre_weighted_2 = ht_pre_weighted_2.beta.collect()
+
+        betas_from_agg = ht_from_agg.my_linreg.beta[1].collect()
+
+        def equal_with_nans(arr1, arr2):
+            def both_nan_or_none(a, b):
+                return (a is None or np.isnan(a)) and (b is None or np.isnan(b))
+
+            return all([both_nan_or_none(a, b) or math.isclose(a, b) for a, b in zip(arr1, arr2)])
+
+        assert equal_with_nans(betas_with_weights, betas_pre_weighted_1)
+        assert equal_with_nans(betas_with_weights, betas_from_agg)
+
+        ht_with_multiple_weights = hl._linear_regression_rows_nd(y=[[mt.y], [hl.abs(mt.y)]],
+                                                                 x=mt.x,
+                                                                 covariates=my_covs,
+                                                                 weights=[mt.col_idx, mt.col_idx + 5])
+
+        # Check that preweighted 1 and preweighted 2 match up with fields 1 and 2 of multiple
+        multi_weight_betas = ht_with_multiple_weights.beta.collect()
+        multi_weight_betas_1 = [e[0][0] for e in multi_weight_betas]
+        multi_weight_betas_2 = [e[1][0] for e in multi_weight_betas]
+
+        assert np.array(multi_weight_betas).shape == (10, 2, 1)
+
+        assert(equal_with_nans(multi_weight_betas_1, betas_pre_weighted_1))
+        assert(equal_with_nans(multi_weight_betas_2, betas_pre_weighted_2))
+
+        # Now making sure that missing weights get excluded.
+        ht_with_missing_weights = hl._linear_regression_rows_nd(y=[[mt.y], [hl.abs(mt.y)]],
+                                                                 x=mt.x,
+                                                                 covariates=[1],
+                                                                 weights=[weights[mt.s].Weight1, weights[mt.s].Weight2])
+
+        mt_with_missing_weights = mt.annotate_cols(Weight1 = weights[mt.s].Weight1, Weight2 = weights[mt.s].Weight2)
+        mt_with_missing_weight1_filtered = mt_with_missing_weights.filter_cols(hl.is_defined(mt_with_missing_weights.Weight1))
+        mt_with_missing_weight2_filtered = mt_with_missing_weights.filter_cols(hl.is_defined(mt_with_missing_weights.Weight2))
+        ht_from_agg_weight_1 = mt_with_missing_weight1_filtered.annotate_rows(
+            my_linreg=hl.agg.linreg(mt_with_missing_weight1_filtered.y, [1, mt_with_missing_weight1_filtered.x], weight=weights[mt_with_missing_weight1_filtered.s].Weight1)
+        ).rows()
+        ht_from_agg_weight_2 = mt_with_missing_weight2_filtered.annotate_rows(
+            my_linreg=hl.agg.linreg(mt_with_missing_weight2_filtered.y, [1, mt_with_missing_weight2_filtered.x], weight=weights[mt_with_missing_weight2_filtered.s].Weight2)
+        ).rows()
+
+        multi_weight_missing_results = ht_with_missing_weights.collect()
+        multi_weight_missing_betas = [e.beta for e in multi_weight_missing_results]
+        multi_weight_missing_betas_1 = [e[0][0] for e in multi_weight_missing_betas]
+        multi_weight_missing_betas_2 = [e[1][0] for e in multi_weight_missing_betas]
+
+        betas_from_agg_weight_1 = ht_from_agg_weight_1.my_linreg.beta[1].collect()
+        betas_from_agg_weight_2 = ht_from_agg_weight_2.my_linreg.beta[1].collect()
+
+        assert equal_with_nans(multi_weight_missing_betas_1, betas_from_agg_weight_1)
+        assert equal_with_nans(multi_weight_missing_betas_2, betas_from_agg_weight_2)
+
+        multi_weight_missing_p_values = [e.p_value for e in multi_weight_missing_results]
+        multi_weight_missing_p_values_1 = [e[0][0] for e in multi_weight_missing_p_values]
+        multi_weight_missing_p_values_2 = [e[1][0] for e in multi_weight_missing_p_values]
+
+        p_values_from_agg_weight_1 = ht_from_agg_weight_1.my_linreg.p_value[1].collect()
+        p_values_from_agg_weight_2 = ht_from_agg_weight_2.my_linreg.p_value[1].collect()
+
+        assert equal_with_nans(multi_weight_missing_p_values_1, p_values_from_agg_weight_1)
+        assert equal_with_nans(multi_weight_missing_p_values_2, p_values_from_agg_weight_2)
+
+        multi_weight_missing_t_stats = [e.t_stat for e in multi_weight_missing_results]
+        multi_weight_missing_t_stats_1 = [e[0][0] for e in multi_weight_missing_t_stats]
+        multi_weight_missing_t_stats_2 = [e[1][0] for e in multi_weight_missing_t_stats]
+
+        t_stats_from_agg_weight_1 = ht_from_agg_weight_1.my_linreg.t_stat[1].collect()
+        t_stats_from_agg_weight_2 = ht_from_agg_weight_2.my_linreg.t_stat[1].collect()
+
+        assert equal_with_nans(multi_weight_missing_t_stats_1, t_stats_from_agg_weight_1)
+        assert equal_with_nans(multi_weight_missing_t_stats_2, t_stats_from_agg_weight_2)
+
+        multi_weight_missing_se = [e.standard_error for e in multi_weight_missing_results]
+        multi_weight_missing_se_1 = [e[0][0] for e in multi_weight_missing_se]
+        multi_weight_missing_se_2 = [e[1][0] for e in multi_weight_missing_se]
+
+        se_from_agg_weight_1 = ht_from_agg_weight_1.my_linreg.standard_error[1].collect()
+        se_from_agg_weight_2 = ht_from_agg_weight_2.my_linreg.standard_error[1].collect()
+
+        assert equal_with_nans(multi_weight_missing_se_1, se_from_agg_weight_1)
+        assert equal_with_nans(multi_weight_missing_se_2, se_from_agg_weight_2)
+
+    def test_errors_weighted_linear_regression(self):
+        mt = hl.utils.range_matrix_table(20, 10).annotate_entries(x=2)
+        mt = mt.annotate_cols(**{f"col_{i}": i for i in range(4)})
+
+        self.assertRaises(ValueError, lambda: hl._linear_regression_rows_nd(y=[[mt.col_1]],
+                                                                                x=mt.x,
+                                                                                covariates=[1],
+                                                                                weights=[mt.col_2, mt.col_3]))
+
+        self.assertRaises(ValueError, lambda: hl._linear_regression_rows_nd(y=[mt.col_1],
+                                                                                x=mt.x,
+                                                                                covariates=[1],
+                                                                                weights=[mt.col_2]))
+
+        self.assertRaises(ValueError, lambda: hl._linear_regression_rows_nd(y=[[mt.col_1]],
+                                                                            x=mt.x,
+                                                                            covariates=[1],
+                                                                            weights=mt.col_2))
+
+
 
     # comparing to R:
     # x = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
