@@ -493,18 +493,18 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
         ht = ht.annotate_globals(kept_samples=hl.enumerate(ht.y_arrays_per_group).starmap(get_kept_samples))
         ht = ht.annotate_globals(y_nds=hl.zip(ht.kept_samples, ht.y_arrays_per_group).starmap(
             lambda sample_indices, y_arrays: hl.nd.array(sample_indices.map(lambda idx: y_arrays[idx]))))
+        ht = ht.annotate_globals(cov_nds=ht.kept_samples.map(lambda group: hl.nd.array(group.map(lambda idx: ht.cov_arrays[idx]))))
+
         if weights is None:
-            ht = ht.annotate_globals(weight_nds=hl.rbind(hl.nd.array([[1]]),
-                                     lambda constant_weight: ht.kept_samples.map(lambda sample_indices: constant_weight)))
+            ht = ht.annotate_globals(sqrt_weights=hl.missing(hl.tarray(hl.tndarray(hl.tfloat64, 2))))
+            ht = ht.annotate_globals(scaled_y_nds=ht.y_nds)
+            ht = ht.annotate_globals(scaled_cov_nds=ht.cov_nds)
         else:
             ht = ht.annotate_globals(weight_nds=hl.enumerate(ht.kept_samples).starmap(
                 lambda group_idx, group_sample_indices: hl.nd.array(group_sample_indices.map(lambda group_sample_idx: ht.weight_arrays[group_sample_idx][group_idx]))))
-
-        ht = ht.annotate_globals(cov_nds=ht.kept_samples.map(lambda group: hl.nd.array(group.map(lambda idx: ht.cov_arrays[idx]))))
-
-        ht = ht.annotate_globals(sqrt_weights=ht.weight_nds.map(lambda weight_nd: weight_nd.map(lambda e: hl.sqrt(e))))
-        ht = ht.annotate_globals(scaled_y_nds=hl.zip(ht.y_nds, ht.sqrt_weights).starmap(lambda y, sqrt_weight: y * sqrt_weight.reshape(-1, 1)))
-        ht = ht.annotate_globals(scaled_cov_nds=hl.zip(ht.cov_nds, ht.sqrt_weights).starmap(lambda cov, sqrt_weight: cov * sqrt_weight.reshape(-1, 1)))
+            ht = ht.annotate_globals(sqrt_weights=ht.weight_nds.map(lambda weight_nd: weight_nd.map(lambda e: hl.sqrt(e))))
+            ht = ht.annotate_globals(scaled_y_nds=hl.zip(ht.y_nds, ht.sqrt_weights).starmap(lambda y, sqrt_weight: y * sqrt_weight.reshape(-1, 1)))
+            ht = ht.annotate_globals(scaled_cov_nds=hl.zip(ht.cov_nds, ht.sqrt_weights).starmap(lambda cov, sqrt_weight: cov * sqrt_weight.reshape(-1, 1)))
 
         k = builtins.len(covariates)
         ht = ht.annotate_globals(ns=ht.kept_samples.map(lambda one_sample_set: hl.len(one_sample_set)))
