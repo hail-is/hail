@@ -530,7 +530,10 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
 
         # Processes one block group based on given idx. Returns a single struct.
         def process_y_group(idx):
-            X = (hl.nd.array(block[entries_field_name].map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples[idx])))) * ht.__sqrt_weight_nds[idx]).T
+            if weights is not None:
+                X = (hl.nd.array(block[entries_field_name].map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples[idx])))) * ht.__sqrt_weight_nds[idx]).T
+            else:
+                X = hl.nd.array(block[entries_field_name].map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples[idx])))).T
             n = ht.ns[idx]
             sum_x = X.sum(0)
             Qtx = ht.__cov_Qts[idx] @ X
