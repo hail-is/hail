@@ -5512,35 +5512,35 @@ def uniroot(f: Callable, min, max, *, max_iter=1000, epsilon=2.2204460492503131e
         t1 = fb / fc
         t2 = fb / fa
         q1 = fa / fc  # = t1 / t2
-        pq = cond(
+        pq = if_else(
             a == c,
             (cb * t1) / (t1 - 1.0),  # linear
             -t2 * (cb * q1 * (q1 - t1) - (b - a) * (t1 - 1.0))
             / ((q1 - 1.0) * (t1 - 1.0) * (t2 - 1.0)))  # quadratic
 
-        interpolated = cond((sign(pq) == sign(cb))
-                            & (.75 * abs(cb) > abs(pq) + tol / 2)  # b + pq within [b, c]
-                            & (abs(pq) < abs(prev / 2)),  # pq not too large
-                            pq, cb / 2)
+        interpolated = if_else((sign(pq) == sign(cb))
+                               & (.75 * abs(cb) > abs(pq) + tol / 2)  # b + pq within [b, c]
+                               & (abs(pq) < abs(prev / 2)),  # pq not too large
+                               pq, cb / 2)
 
-        new_step = cond(
+        new_step = if_else(
             (abs(prev) >= tol) & (abs(fa) > abs(fb)),  # try interpolation
             interpolated, cb / 2)
 
-        new_b = b + cond(new_step < 0, hl.min(new_step, -tol), hl.max(new_step, tol))
+        new_b = b + if_else(new_step < 0, hl.min(new_step, -tol), hl.max(new_step, tol))
         new_fb = wrapped_f(new_b)
 
-        return cond(
+        return if_else(
             iterations_remaining == 0,
-            null('float'),
-            cond(abs(fc) < abs(fb),
-                 recur(b, c, b, fb, fc, fb, prev, iterations_remaining),
-                 cond((abs(cb / 2) <= tol) | (fb == 0),
-                      b,  # acceptable approximation found
-                      cond(sign(new_fb) == sign(fc),  # use c = b for next iteration if signs match
-                           recur(b, new_b, b, fb, new_fb, fb, new_step, iterations_remaining - 1),
-                           recur(b, new_b, c, fb, new_fb, fc, new_step, iterations_remaining - 1)
-                           ))))
+            missing('float'),
+            if_else(abs(fc) < abs(fb),
+                    recur(b, c, b, fb, fc, fb, prev, iterations_remaining),
+                    if_else((abs(cb / 2) <= tol) | (fb == 0),
+                            b,  # acceptable approximation found
+                            if_else(sign(new_fb) == sign(fc),  # use c = b for next iteration if signs match
+                                    recur(b, new_b, b, fb, new_fb, fb, new_step, iterations_remaining - 1),
+                                    recur(b, new_b, c, fb, new_fb, fc, new_step, iterations_remaining - 1)
+                                    ))))
 
     fmin = wrapped_f(min)
     fmax = wrapped_f(max)
