@@ -306,7 +306,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
   def trackNDArrayData(alloc: Long): Unit = {
     this.ndarrayRefs.add(alloc)
     val curRefCount = PNDArray.getReferenceCount(alloc)
-    Region.storeLong(alloc - PNDArray.headerBytes, curRefCount + 1L)
+    PNDArray.storeReferenceCount(alloc, curRefCount + 1L)
   }
 
   def listNDArrayRefs(): IndexedSeq[Long] = {

@@ -277,10 +277,13 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     region: Value[Region]
   ): SNDArrayCode = {
     val oldDataAddr = toBeCopied.firstDataAddress(cb)
+    cb.println("Got first data address")
     val numDataBytes = cb.newLocal("constructByActuallyCopyingData_numDataBytes", PNDArray.getDataByteSize(oldDataAddr))
     cb.ifx(numDataBytes < 0L, cb._fatal("numDataBytes was ", numDataBytes.toS))
     val newDataAddr = cb.newLocal("constructByActuallyCopyingData_newDataAddr", region.allocateNDArrayData(numDataBytes))
+    cb.println("About to copy from ", cb.strValue(toBeCopied), " its data address is ", oldDataAddr.toS, " copying to data address ", newDataAddr.toS)
     cb += Region.copyFrom(oldDataAddr, newDataAddr, numDataBytes)
+    cb.println("Copied from")
     constructByCopyingDataPointer(
       toBeCopied.shapes(cb),
       toBeCopied.strides(cb),
