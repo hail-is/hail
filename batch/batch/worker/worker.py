@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Callable, Tuple, Awaitable, Any
+from typing import Optional, Dict, Callable, Tuple, Awaitable, Any, Union
 import os
 import json
 import sys
@@ -135,9 +135,11 @@ def get_image_digest(image_config) -> str:
     return image_config['RepoDigests'][0].split('@')[1].split(':')[1]
 
 
-def get_unused_image(worker):
-    unused = [image_digest for image_digest, count in worker.rootfs_digest_refs.items() if count == 0]
-    return unused[0] if len(unused) > 0 else False
+def get_unused_image(worker: 'Worker') -> Union[str, bool]:
+    for image_digest, count in worker.rootfs_digest_refs.items():
+        if count == 0:
+            return image_digest
+    return False
 
 
 class PortAllocator:
@@ -433,23 +435,25 @@ class Container:
             async def localize_rootfs():
                 cond = worker.rootfs_locks[self.image_ref_str]
                 async with cond:
-                    if len(worker.rootfs_digest_refs) == 10:
-                        unused_image = await cond.wait_for(lambda: get_unused_image(worker))
-                        shutil.rmtree(f'/host/rootfs/{unused_image}')
-                        del worker.rootfs_digest_refs[unused_image]
-
-                    last_fetched = worker.rootfs_last_fetched.get(self.image_ref_str)
-                    five_minutes_ago = time_msecs() - 5 * 60 * 1000
-                    if not last_fetched or last_fetched < five_minutes_ago:
-                        worker.rootfs_last_fetched[self.image_ref_str] = time_msecs()
-                        await self.pull_image()
-
                     self.image_config = image_configs[self.image_ref_str]
                     self.image_digest = get_image_digest(self.image_config)
-                    worker.rootfs_digest_refs[self.image_digest] += 1
                     self.rootfs_path = f'/host/rootfs/{self.image_digest}'
-                    if not os.path.exists(self.rootfs_path):
+                    last_fetched = worker.rootfs_last_fetched.get(self.image_ref_str)
+                    five_minutes_ago = time_msecs() - 5 * 60 * 1000
+
+                    if not last_fetched or last_fetched < five_minutes_ago:
+                        if len(worker.rootfs_digest_refs) == 10:
+                            unused_image = await cond.wait_for(lambda: get_unused_image(worker))
+                            shutil.rmtree(f'/host/rootfs/{unused_image}')
+                            del worker.rootfs_digest_refs[unused_image]
+                        worker.rootfs_last_fetched[self.image_ref_str] = time_msecs()
+                        await self.pull_image()
+                        self.image_config = image_configs[self.image_ref_str]
+                        self.image_digest = get_image_digest(self.image_config)
+                        self.rootfs_path = f'/host/rootfs/{self.image_digest}'
                         await self.extract_rootfs()
+
+                    worker.rootfs_digest_refs[self.image_digest] += 1
 
             with self.step('pulling'):
                 await self.run_until_done_or_deleted(localize_rootfs)
@@ -854,7 +858,7 @@ class Container:
             self.netns = None
 
         if os.path.exists(f'{self.container_overlay_path}/merged'):
-            await check_shell(f'umount {self.container_overlay_path}/merged')
+            await check_shell(f'umount -l {self.container_overlay_path}/merged')
 
     async def delete(self):
         log.info(f'deleting {self}')
