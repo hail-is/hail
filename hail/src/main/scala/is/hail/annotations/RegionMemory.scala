@@ -294,11 +294,11 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     val extra = PNDArray.headerBytes
 
     // This adjusted address is where the ndarray content starts
-    val (allocatedChunk, newChunkSize) = pool.getChunk(size + extra)
+    val (allocatedChunk, _) = pool.getChunk(size + extra)
     val newChunkPointer = allocatedChunk + extra
     // The reference count and total size are stored just before the content.
     PNDArray.storeReferenceCount(newChunkPointer, 0L)
-    PNDArray.storeDataByteSize(newChunkPointer, newChunkSize)
+    PNDArray.storeDataByteSize(newChunkPointer, size)
     this.trackNDArrayData(newChunkPointer)
     newChunkPointer
   }
