@@ -6,7 +6,7 @@ import json
 from aiohttp import web
 import aiohttp_session
 import logging
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from prometheus_async.aio.web import server_stats  # type: ignore
 import prometheus_client as pc  # type: ignore
 
@@ -40,9 +40,11 @@ BATCH_GCP_REGIONS.add(GCP_REGION)
 
 PROJECT = os.environ['PROJECT']
 
-DISK_STATES = pc.Gauge('batch_disk_states', 'Batch disk states', ['state', 'namespace', 'zone'])
-DISK_SIZE_GB_SUMMARY = pc.Summary('batch_disk_size_gb', 'Summary of user batch disk sizes (GB)', ['namespace', 'zone'])
-INSTANCE_STATUSES = pc.Gauge('batch_instance_statuses', 'Batch instance statuses', ['status', 'namespace', 'zone', 'machine_type', 'preemptible'])
+DISK_SIZES_GB = pc.Summary('batch_disk_size_gb', 'Batch disk sizes (GB)', ['namespace', 'zone', 'state'])
+INSTANCES = pc.Gauge('batch_instances', 'Batch instances', ['namespace', 'zone', 'status', 'machine_type', 'preemptible'])
+
+DiskLabels = namedtuple('DiskLabels', ['zone', 'namespace', 'state'])
+InstanceLabels = namedtuple('InstanceLabels', ['namespace', 'zone', 'status', 'machine_type', 'preemptible'])
 
 
 def get_previous_month(dt):
@@ -246,12 +248,10 @@ async def monitor_disks(app):
     log.info(f'monitoring disks')
     compute_client: ComputeClient = app['compute_client']
 
-    DISK_SIZE_GB_SUMMARY.clear()
-    DISK_STATES.clear()
+    disk_counts = defaultdict(list)
 
     for zone in app['zones']:
         async for disk in await compute_client.list(f'/zones/{zone}/disks', params={'filter': '(labels.batch = 1)'}):
-            log.info(f'disk {disk}')
             namespace = disk['labels']['namespace']
             size_gb = int(disk['sizeGb'])
 
@@ -259,37 +259,47 @@ async def monitor_disks(app):
             last_attach_timestamp_msecs = parse_timestamp_msecs(disk.get('lastAttachTimestamp'))
             last_detach_timestamp_msecs = parse_timestamp_msecs(disk.get('lastDetachTimestamp'))
 
-            labels = {'zone': zone,
-                      'namespace': namespace}
-
-            DISK_SIZE_GB_SUMMARY.labels(**labels).observe(size_gb)
-
             if creation_timestamp_msecs is None:
-                DISK_STATES.labels(state='creating', **labels).inc()
+                state = 'creating'
             elif last_attach_timestamp_msecs is None:
-                DISK_STATES.labels(state='created', **labels).inc()
+                state = 'created'
             elif last_attach_timestamp_msecs is not None and last_detach_timestamp_msecs is None:
-                DISK_STATES.labels(state='attached', **labels).inc()
+                state = 'attached'
             elif last_attach_timestamp_msecs is not None and last_detach_timestamp_msecs is not None:
-                DISK_STATES.labels(state='detached', **labels).inc()
+                state = 'detached'
             else:
+                state = 'unknown'
                 log.exception(f'disk is in unknown state {disk}')
+
+            disk_labels = DiskLabels(zone=zone, namespace=namespace, state=state)
+            disk_counts[disk_labels].append(size_gb)
+
+    DISK_SIZES_GB.clear()
+    for labels, sizes in disk_counts.items():
+        for size in sizes:
+            DISK_SIZES_GB.labels(**labels._asdict()).observe(size)
 
 
 async def monitor_instances(app):
     log.info(f'monitoring instances')
     compute_client: ComputeClient = app['compute_client']
 
-    INSTANCE_STATUSES.clear()
+    instance_counts = defaultdict(int)
 
     for zone in app['zones']:
         async for instance in await compute_client.list(f'/zones/{zone}/instances', params={'filter': '(labels.role = batch2-agent)'}):
-            labels = {'status': instance['status'],
-                      'zone': zone,
-                      'namespace': instance['labels']['namespace'],
-                      'machine_type': instance['machineType'].rsplit('/', 1)[1],
-                      'preemptible': instance['scheduling']['preemptible']}
-            INSTANCE_STATUSES.labels(**labels).inc()
+            instance_labels = InstanceLabels(
+                status=instance['status'],
+                zone=zone,
+                namespace=instance['labels']['namespace'],
+                machine_type=instance['machineType'].rsplit('/', 1)[1],
+                preemptible=instance['scheduling']['preemptible']
+            )
+            instance_counts[instance_labels] += 1
+
+    INSTANCES.clear()
+    for labels, count in instance_counts.items():
+        INSTANCES.labels(**labels._asdict()).set(count)
 
 
 async def on_startup(app):
