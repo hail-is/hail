@@ -61,8 +61,6 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       this.loadStride(addr, dimIdx)
     }
   }
-  
-  //val dataType: PCanonicalArray = PCanonicalArray(elementType, required = true)
 
   lazy val representation: PCanonicalStruct = {
     PCanonicalStruct(required,
