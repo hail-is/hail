@@ -299,9 +299,7 @@ class EmitClassBuilder[C](
       val rvb = new RegionValueBuilder(region)
       rvb.start(litType)
       rvb.startTuple()
-      literals.foreach { case ((typ, a), _) =>
-        rvb.addAnnotation(typ.t, a)
-      }
+      literals.foreach { case ((typ, a), _) => rvb.addAnnotation(typ.t, a) }
       rvb.endTuple()
       enc.writeRegionValue(rvb.end())
     }

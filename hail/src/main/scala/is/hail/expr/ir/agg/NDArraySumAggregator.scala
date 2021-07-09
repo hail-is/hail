@@ -26,12 +26,10 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     val initMethod = cb.emb.genEmitMethod[Unit]("ndarray_sum_aggregator_init_op")
-    cb.println("initOp Start")
     initMethod.voidWithBuilder(cb =>
       state.storeMissing(cb)
     )
     cb.invokeVoid(initMethod)
-    cb.println("initOp Over")
   }
 
   override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
@@ -39,23 +37,17 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
     val seqOpMethod = cb.emb.genEmitMethod("ndarray_sum_aggregator_seq_op", FastIndexedSeq(nextNDCode.emitParamType), CodeParamType(UnitInfo))
 
     seqOpMethod.voidWithBuilder { cb =>
-      cb.println("Seqop begins")
       val nextNDInput = seqOpMethod.getEmitParam(1, null) // no streams here
       nextNDInput.toI(cb).consume(cb, {}, { case nextNDArrayPCode: SNDArrayCode =>
         val nextNDPV = nextNDArrayPCode.memoize(cb, "ndarray_sum_seqop_next")
         val statePV = state.storageType.loadCheapSCode(cb, state.off).asBaseStruct.memoize(cb, "ndarray_sum_seq_op_state")
-        cb.println("Loaded the state")
         statePV.loadField(cb, ndarrayFieldNumber).consume(cb,
           {
-            cb += (state.region.getNewRegion(Region.TINY))
+            cb += state.region.getNewRegion(Region.TINY)
             cb += state.storageType.setFieldPresent(state.off, ndarrayFieldNumber)
-            cb.println("Set field present")
-            cb.println(cb.strValue(nextNDPV))
             val tempRegionForCreation = cb.newLocal[Region]("ndarray_sum_agg_temp_region", Region.stagedCreate(Region.REGULAR, cb.emb.ecb.pool()))
             val fullyCopiedNDArray = ndTyp.constructByActuallyCopyingData(nextNDPV, cb, tempRegionForCreation).memoize(cb, "ndarray_sum_seq_op_full_copy")
-            cb.println("Constructed by actually copying data")
             state.storeNonmissing(cb, fullyCopiedNDArray)
-            cb.println("Stored non-missing")
             cb += tempRegionForCreation.clearRegion()
           },
           { currentNDPCode =>
