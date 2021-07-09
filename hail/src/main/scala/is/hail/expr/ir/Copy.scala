@@ -115,9 +115,9 @@ object Copy {
       case NDArraySVD(_, fullMatrices, computeUV) =>
         assert(newChildren.length == 1)
         NDArraySVD(newChildren(0).asInstanceOf[IR], fullMatrices, computeUV)
-      case NDArrayInv(_) =>
+      case NDArrayInv(_, errorID) =>
         assert(newChildren.length == 1)
-        NDArrayInv(newChildren(0).asInstanceOf[IR])
+        NDArrayInv(newChildren(0).asInstanceOf[IR], errorID)
       case NDArrayWrite(_, _) =>
         assert(newChildren.length == 2)
         NDArrayWrite(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])

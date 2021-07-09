@@ -323,11 +323,18 @@ case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A, 
     value
   }
 
-  def get(cb: EmitCodeBuilder, errorMsg: String = s"expected non-missing"): A =
-    handle(cb, cb._fatal(errorMsg))
+//  def get(cb: EmitCodeBuilder, errorMsg: String = s"expected non-missing"): A = {
+//    get(cb, errorMsg, Code.intValue(Code.boxInt(ErrorIDs.NO_ERROR)))
+//  }
+//
+//  def get(cb: EmitCodeBuilder, errorMsg: String = s"expected non-missing", errorID: Code[Int] = const(ErrorIDs.NO_ERROR)): A =
+//    handle(cb, cb._fatalWithError(errorID, errorMsg))
+//
+//  def get(cb: EmitCodeBuilder, errorMsg: Code[String]): A =
+//    get(cb, errorMsg, Code.intValue(Code.boxInt(ErrorIDs.NO_ERROR)))
 
-  def get(cb: EmitCodeBuilder, errorMsg: Code[String]): A =
-    handle(cb, cb._fatal(errorMsg))
+  def get(cb: EmitCodeBuilder, errorMsg: Code[String]=s"expected non-missing", errorID: Code[Int] = const(ErrorIDs.NO_ERROR)): A =
+    handle(cb, cb._fatalWithError(errorID, errorMsg))
 
   def consume(cb: EmitCodeBuilder, ifMissing: => Unit, ifPresent: (A) => Unit): Unit = {
     val Lafter = CodeLabel()
@@ -975,7 +982,7 @@ class Emit[C](
           outputPType.loadCheapSCode(cb, arrayAddress)
         }
 
-      case x@ArrayRef(a, i, errorId) =>
+      case x@ArrayRef(a, i, errorID) =>
         def boundsCheck(cb: EmitCodeBuilder, index: Value[Int], len: Value[Int]): Unit = {
             val bcMb = mb.getOrGenEmitMethod("arrayref_bounds_check", "arrayref_bounds_check",
               IndexedSeq[ParamType](IntInfo, IntInfo), UnitInfo)({ mb =>
@@ -983,7 +990,7 @@ class Emit[C](
                 val index = mb.getCodeParam[Int](1)
                 val len = mb.getCodeParam[Int](2)
                 cb.ifx(index < 0 || index >= len, {
-                  cb._fatalWithError(errorId, const("array index out of bounds: index=")
+                  cb._fatalWithError(errorID, const("array index out of bounds: index=")
                     .concat(index.toS)
                     .concat(", length=")
                     .concat(len.toS))
@@ -1475,7 +1482,7 @@ class Emit[C](
             }
           }
         }
-      case NDArrayInv(nd) =>
+      case NDArrayInv(nd, errorID) =>
         // Based on https://github.com/numpy/numpy/blob/v1.19.0/numpy/linalg/linalg.py#L477-L547
         emitNDArrayColumnMajorStrides(nd).map(cb) { case pNDCode: SNDArrayCode =>
           val pndVal = pNDCode.memoize(cb, "ndarray_inverse_nd")
@@ -1501,9 +1508,9 @@ class Emit[C](
           val INFOdgetrf = mb.newLocal[Int]()
           val INFOdgetri = mb.newLocal[Int]()
           val INFOerror = (fun: String, info: LocalRef[Int]) => (info cne 0)
-            .orEmpty(Code._fatal[Unit](const(s"LAPACK error ${ fun }. Error code = ").concat(info.toS)))
+            .orEmpty(Code._fatalWithID[Unit](const(s"LAPACK error ${ fun }. Error code = ").concat(info.toS), const(errorID)))
 
-          cb.append((N cne M).orEmpty(Code._fatal[Unit](const("Can only invert square matrix"))))
+          cb.append((N cne M).orEmpty(Code._fatalWithID[Unit](const("Can only invert square matrix"), const(errorID))))
 
           cb.assign(An, (M * N).toI)
 
@@ -2631,8 +2638,8 @@ object NDArrayEmitter {
 
 
     cb.ifx(lK.cne(rK), {
-      cb._fatalWithError(errorID,f"Matrix dimensions incompatible: ${leftShapeString}, " +
-        f"can't be multiplied by matrix with dimensions ${rightShapeString}")
+      cb._fatalWithError(errorID,"Matrix dimensions incompatible: ", leftShapeString,
+        " can't be multiplied by matrix with dimensions ", rightShapeString)
     })
 
     shape

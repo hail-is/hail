@@ -439,7 +439,7 @@ final case class NDArrayQR(nd: IR, mode: String) extends IR
 
 final case class NDArraySVD(nd: IR, fullMatrices: Boolean, computeUV: Boolean) extends IR
 
-final case class NDArrayInv(nd: IR) extends IR
+final case class NDArrayInv(nd: IR, errorID: Int) extends IR
 
 final case class AggFilter(cond: IR, aggIR: IR, isScan: Boolean) extends IR
 
@@ -481,7 +481,8 @@ final case class InitOp(i: Int, args: IndexedSeq[IR], aggSig: PhysicalAggSig) ex
 final case class SeqOp(i: Int, args: IndexedSeq[IR], aggSig: PhysicalAggSig) extends IR
 final case class CombOp(i1: Int, i2: Int, aggSig: PhysicalAggSig) extends IR
 final case class ResultOp(startIdx: Int, aggSigs: IndexedSeq[PhysicalAggSig]) extends IR
-final case class CombOpValue(i: Int, value: IR, aggSig: PhysicalAggSig) extends IR
+
+private final case class CombOpValue(i: Int, value: IR, aggSig: PhysicalAggSig) extends IR
 final case class AggStateValue(i: Int, aggSig: AggStateSig) extends IR
 final case class InitFromSerializedValue(i: Int, value: IR, aggSig: AggStateSig) extends IR
 
@@ -779,4 +780,6 @@ final case class ShuffleRead(
 
 object ErrorIDs {
   val NO_ERROR = -1
+
+  private object NO_Error
 }

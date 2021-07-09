@@ -998,7 +998,9 @@ object IRParser {
         ir_value_expr(env)(it).map { nd =>
           NDArraySVD(nd, fullMatrices, computeUV)
         }
-      case "NDArrayInv" => ir_value_expr(env)(it).map(NDArrayInv(_))
+      case "NDArrayInv" =>
+        val errorID = int32_literal(it)
+        ir_value_expr(env)(it).map{ nd => NDArrayInv(nd, errorID) }
       case "ToSet" => ir_value_expr(env)(it).map(ToSet)
       case "ToDict" => ir_value_expr(env)(it).map(ToDict)
       case "ToArray" => ir_value_expr(env)(it).map(ToArray)

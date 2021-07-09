@@ -170,7 +170,7 @@ object UtilFunctions extends RegistryFunctions {
     registerSCode4("valuesSimilar", tv("T"), tv("U"), TFloat64, TBoolean, TBoolean, {
       case (_: Type, _: SType, _: SType, _: SType, _: SType) => SBoolean
     }) {
-      case (er, cb, rt, l, r, tol, abs) =>
+      case (er, cb, rt, l, r, tol, abs, _) =>
         assert(l.st.virtualType == r.st.virtualType, s"\n  lt=${ l.st.virtualType }\n  rt=${ r.st.virtualType }")
         val lb = scodeToJavaValue(cb, er.region, l)
         val rb = scodeToJavaValue(cb, er.region, r)
@@ -182,10 +182,10 @@ object UtilFunctions extends RegistryFunctions {
       (n * (n + 1)) / 2
     }
 
-    registerSCode1("toInt32", TBoolean, TInt32, (_: Type, _: SType) => SInt32) { case (_, cb, _, x) => primitive(x.asBoolean.boolCode(cb).toI) }
-    registerSCode1("toInt64", TBoolean, TInt64, (_: Type, _: SType) => SInt64) { case (_, cb, _, x) => primitive(x.asBoolean.boolCode(cb).toI.toL) }
-    registerSCode1("toFloat32", TBoolean, TFloat32, (_: Type, _: SType) => SFloat32) { case (_, cb, _, x) => primitive(x.asBoolean.boolCode(cb).toI.toF) }
-    registerSCode1("toFloat64", TBoolean, TFloat64, (_: Type, _: SType) => SFloat64) { case (_, cb, _, x) => primitive(x.asBoolean.boolCode(cb).toI.toD) }
+    registerSCode1("toInt32", TBoolean, TInt32, (_: Type, _: SType) => SInt32) { case (_, cb, _, x, _) => primitive(x.asBoolean.boolCode(cb).toI) }
+    registerSCode1("toInt64", TBoolean, TInt64, (_: Type, _: SType) => SInt64) { case (_, cb, _, x, _) => primitive(x.asBoolean.boolCode(cb).toI.toL) }
+    registerSCode1("toFloat32", TBoolean, TFloat32, (_: Type, _: SType) => SFloat32) { case (_, cb, _, x, _) => primitive(x.asBoolean.boolCode(cb).toI.toF) }
+    registerSCode1("toFloat64", TBoolean, TFloat64, (_: Type, _: SType) => SFloat64) { case (_, cb, _, x, _) => primitive(x.asBoolean.boolCode(cb).toI.toD) }
 
     for ((name, t, rpt, ct) <- Seq[(String, Type, SType, ClassTag[_])](
       ("Boolean", TBoolean, SBoolean, implicitly[ClassTag[Boolean]]),
@@ -196,12 +196,12 @@ object UtilFunctions extends RegistryFunctions {
     )) {
       val ctString: ClassTag[String] = implicitly[ClassTag[String]]
       registerSCode1(s"to$name", TString, t, (_: Type, _: SType) => rpt) {
-        case (r, cb, rt, x: SStringCode) =>
+        case (r, cb, rt, x: SStringCode, _) =>
           val s = x.loadString()
           primitive(rt.virtualType, Code.invokeScalaObject1(thisClass, s"parse$name", s)(ctString, ct))
       }
       registerIEmitCode1(s"to${name}OrMissing", TString, t, (_: Type, xPT: EmitType) => EmitType(rpt, xPT.required)) {
-        case (cb, r, rt, x) =>
+        case (cb, r, rt, _, x) =>
           x.toI(cb).flatMap(cb) { case (sc: SStringCode) =>
             val sv = cb.newLocal[String]("s", sc.loadString())
             IEmitCode(cb,
@@ -302,7 +302,7 @@ object UtilFunctions extends RegistryFunctions {
     }
 
     registerIEmitCode2("land", TBoolean, TBoolean, TBoolean, (_: Type, tl: EmitType, tr: EmitType) => EmitType(SBoolean, tl.required && tr.required)) {
-      case (cb, _, rt, l, r, _ ) =>
+      case (cb, _, rt,_ , l, r) =>
 
         // 00 ... 00 rv rm lv lm
         val w = cb.newLocal[Int]("land_w")
@@ -333,7 +333,7 @@ object UtilFunctions extends RegistryFunctions {
     }
 
     registerIEmitCode2("lor", TBoolean, TBoolean, TBoolean, (_: Type, tl: EmitType, tr: EmitType) => EmitType(SBoolean, tl.required && tr.required)) {
-      case (cb, _, rt, l, r, _) =>
+      case (cb, _, rt,_, l, r) =>
         // 00 ... 00 rv rm lv lm
         val w = cb.newLocal[Int]("lor_w")
 

@@ -25,26 +25,26 @@ object MathFunctions extends RegistryFunctions {
 
   def mod(x: Int, y: Int): Int = {
     if (y == 0)
-      fatal(s"$x % 0: modulo by zero")
+      fatal(s"$x % 0: modulo by zero", ErrorIDs.NO_ERROR)
     java.lang.Math.floorMod(x, y)
   }
 
   def mod(x: Long, y: Long): Long = {
     if (y == 0L)
-      fatal(s"$x % 0: modulo by zero")
+      fatal(s"$x % 0: modulo by zero", ErrorIDs.NO_ERROR)
     java.lang.Math.floorMod(x, y)
   }
 
   def mod(x: Float, y: Float): Float = {
     if (y == 0.0)
-      fatal(s"$x % 0: modulo by zero")
+      fatal(s"$x % 0: modulo by zero", ErrorIDs.NO_ERROR)
     val t = x % y
     if (t < 0) t + y else t
   }
 
   def mod(x: Double, y: Double): Double = {
     if (y == 0.0)
-      fatal(s"$x % 0: modulo by zero")
+      fatal(s"$x % 0: modulo by zero", ErrorIDs.NO_ERROR)
     val t = x % y
     if (t < 0) t + y else t
   }
@@ -59,14 +59,14 @@ object MathFunctions extends RegistryFunctions {
 
   def floorDiv(x: Int, y: Int): Int = {
     if (y == 0)
-      fatal(s"$x // 0: integer division by zero")
+      fatal(s"$x // 0: integer division by zero", ErrorIDs.NO_ERROR)
     java.lang.Math.floorDiv(x, y)
   }
 
 
   def floorDiv(x: Long, y: Long): Long = {
     if (y == 0L)
-      fatal(s"$x // 0: integer division by zero")
+      fatal(s"$x // 0: integer division by zero", ErrorIDs.NO_ERROR)
     java.lang.Math.floorDiv(x, y)
   }
 
@@ -171,7 +171,7 @@ object MathFunctions extends RegistryFunctions {
 
     registerSCode4("fisher_exact_test", TInt32, TInt32, TInt32, TInt32, fetStruct.virtualType,
       (_, _, _, _, _) => fetStruct.sType
-    ) { case (r, cb, rt, a: SInt32Code, b: SInt32Code, c: SInt32Code, d: SInt32Code) =>
+    ) { case (r, cb, rt, a: SInt32Code, b: SInt32Code, c: SInt32Code, d: SInt32Code, _) =>
       val res = cb.newLocal[Array[Double]]("fisher_exact_test_res",
         Code.invokeScalaObject4[Int, Int, Int, Int, Array[Double]](statsPackageClass, "fisherExactTest",
           a.intCode(cb),
@@ -189,7 +189,7 @@ object MathFunctions extends RegistryFunctions {
 
     registerSCode4("chi_squared_test", TInt32, TInt32, TInt32, TInt32, chisqStruct.virtualType,
       (_, _, _, _, _) => chisqStruct.sType
-    ) { case (r, cb, rt, a: SInt32Code, b: SInt32Code, c: SInt32Code, d: SInt32Code) =>
+    ) { case (r, cb, rt, a: SInt32Code, b: SInt32Code, c: SInt32Code, d: SInt32Code, _) =>
       val res = cb.newLocal[Array[Double]]("chi_squared_test_res",
         Code.invokeScalaObject4[Int, Int, Int, Int, Array[Double]](statsPackageClass, "chiSquaredTest",
           a.intCode(cb),
@@ -205,7 +205,7 @@ object MathFunctions extends RegistryFunctions {
 
     registerSCode5("contingency_table_test", TInt32, TInt32, TInt32, TInt32, TInt32, chisqStruct.virtualType,
       (_, _, _, _, _, _) => chisqStruct.sType
-    ) { case (r, cb, rt, a: SInt32Code, b: SInt32Code, c: SInt32Code, d: SInt32Code, mcc: SInt32Code) =>
+    ) { case (r, cb, rt, a: SInt32Code, b: SInt32Code, c: SInt32Code, d: SInt32Code, mcc: SInt32Code, _) =>
       val res = cb.newLocal[Array[Double]]("contingency_table_test_res",
         Code.invokeScalaObject5[Int, Int, Int, Int, Int, Array[Double]](statsPackageClass, "contingencyTableTest",
           a.intCode(cb),
@@ -222,7 +222,7 @@ object MathFunctions extends RegistryFunctions {
 
     registerSCode3("hardy_weinberg_test", TInt32, TInt32, TInt32, hweStruct.virtualType,
       (_, _, _, _) => hweStruct.sType
-    ) { case (r, cb, rt, nHomRef: SInt32Code, nHet: SInt32Code, nHomVar: SInt32Code) =>
+    ) { case (r, cb, rt, nHomRef: SInt32Code, nHet: SInt32Code, nHomVar: SInt32Code, _) =>
       val res = cb.newLocal[Array[Double]]("hardy_weinberg_test_res",
         Code.invokeScalaObject3[Int, Int, Int, Array[Double]](statsPackageClass, "hardyWeinbergTest",
           nHomRef.intCode(cb),

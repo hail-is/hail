@@ -188,7 +188,7 @@ object InferType {
         } else {
           TNDArray(TFloat64, Nat(1))
         }
-      case NDArrayInv(_) =>
+      case NDArrayInv(_, _) =>
         TNDArray(TFloat64, Nat(2))
       case NDArrayWrite(_, _) => TVoid
       case AggFilter(_, aggIR, _) =>

@@ -144,7 +144,7 @@ object Children {
       Array(nd)
     case NDArraySVD(nd, _, _) =>
       Array(nd)
-    case NDArrayInv(nd) =>
+    case NDArrayInv(nd, errorID) =>
       Array(nd)
     case NDArrayWrite(nd, path) =>
       Array(nd, path)

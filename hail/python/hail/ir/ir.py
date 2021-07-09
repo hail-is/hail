@@ -878,15 +878,22 @@ class NDArrayAgg(IR):
 
 
 class NDArrayMatMul(IR):
-    @typecheck_method(left=IR, right=IR)
-    def __init__(self, left, right):
+    @typecheck_method(left=IR, right=IR, error_id=nullable(int), stack_trace=nullable(str))
+    def __init__(self, left, right, error_id=None, stack_trace=None):
         super().__init__(left, right)
         self.left = left
         self.right = right
+        self._error_id = error_id
+        self._stack_trace = stack_trace
+        if error_id is None or stack_trace is None:
+            self.save_error_info()
 
     @typecheck_method(left=IR, right=IR)
     def copy(self, left, right):
-        return NDArrayMatMul(left, right)
+        return NDArrayMatMul(left, right, self._error_id, self._stack_trace)
+
+    def head_str(self):
+        return str(self._error_id)
 
     def _compute_type(self, env, agg_env):
         self.left._compute_type(env, agg_env)
@@ -947,13 +954,20 @@ class NDArraySVD(IR):
 
 
 class NDArrayInv(IR):
-    @typecheck_method(nd=IR)
-    def __init__(self, nd):
+    @typecheck_method(nd=IR, error_id=nullable(int), stack_trace=nullable(str))
+    def __init__(self, nd, error_id=None, stack_trace=None):
         super().__init__(nd)
         self.nd = nd
+        self._error_id = error_id
+        self._stack_trace = stack_trace
+        if error_id is None or stack_trace is None:
+            self.save_error_info()
 
     def copy(self):
-        return NDArrayInv(self.nd)
+        return NDArrayInv(self.nd, self._error_id, self._stack_trace)
+
+    def head_str(self):
+        return str(self._error_id)
 
     def _compute_type(self, env, agg_env):
         self.nd._compute_type(env, agg_env)
@@ -2084,7 +2098,7 @@ def udf(*param_types):
 class Apply(IR):
     @typecheck_method(function=str, return_type=hail_type, args=IR,
                       error_id=nullable(int), stack_trace=nullable(str), type_args=tupleof(hail_type))
-    def __init__(self, function, return_type, *args, error_id=None, stack_trace=None, type_args=()):
+    def __init__(self, function, return_type, *args, type_args=(), error_id=None, stack_trace=None,):
         super().__init__(*args)
         self.function = function
         self.return_type = return_type
@@ -2096,7 +2110,7 @@ class Apply(IR):
             self.save_error_info()
 
     def copy(self, *args):
-        return Apply(self.function, self.return_type, *args, self._error_id, self._stack_trace, type_args=self.type_args)
+        return Apply(self.function, self.return_type, *args, type_args=self.type_args, error_id=self._error_id, stack_trace=self._stack_trace,)
 
     def head_str(self):
         type_args = "(" + " ".join([a._parsable_string() for a in self.type_args]) + ")"

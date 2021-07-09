@@ -216,7 +216,7 @@ object TypeCheck {
         val ndType = nd.typ.asInstanceOf[TNDArray]
         assert(ndType.elementType == TFloat64)
         assert(ndType.nDims == 2)
-      case x@NDArrayInv(nd) =>
+      case x@NDArrayInv(nd, _) =>
         val ndType = nd.typ.asInstanceOf[TNDArray]
         assert(ndType.elementType == TFloat64)
         assert(ndType.nDims == 2)

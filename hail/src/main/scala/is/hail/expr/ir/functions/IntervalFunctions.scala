@@ -21,7 +21,7 @@ object IntervalFunctions extends RegistryFunctions {
           required = includesStartET.required && includesEndET.required
         ).sType, includesStartET.required && includesEndET.required)
       }) {
-      case (cb, r, SIntervalPointer(pt: PCanonicalInterval), start, end, includesStart, includesEnd) =>
+      case (cb, r, SIntervalPointer(pt: PCanonicalInterval), _, start, end, includesStart, includesEnd) =>
 
         includesStart.toI(cb).flatMap(cb) { includesStart =>
           includesEnd.toI(cb).map(cb) { includesEnd =>
@@ -37,7 +37,7 @@ object IntervalFunctions extends RegistryFunctions {
 
     registerIEmitCode1("start", TInterval(tv("T")), tv("T"),
       (_: Type, x: EmitType) => EmitType(x.st.asInstanceOf[SInterval].pointType, x.required && x.st.asInstanceOf[SInterval].pointEmitType.required)) {
-      case (cb, r, rt, interval) =>
+      case (cb, r, rt, _, interval) =>
         interval.toI(cb).flatMap(cb) { case pi: SIntervalCode =>
           val pv = pi.memoize(cb, "interval")
           pv.loadStart(cb)
@@ -46,7 +46,7 @@ object IntervalFunctions extends RegistryFunctions {
 
     registerIEmitCode1("end", TInterval(tv("T")), tv("T"),
       (_: Type, x: EmitType) => EmitType(x.st.asInstanceOf[SInterval].pointType, x.required && x.st.asInstanceOf[SInterval].pointEmitType.required)) {
-      case (cb, r, rt, interval) =>
+      case (cb, r, rt, _, interval) =>
         interval.toI(cb).flatMap(cb) { case pi: SIntervalCode =>
           val pv = pi.memoize(cb, "interval")
           pv.loadEnd(cb)
@@ -56,19 +56,19 @@ object IntervalFunctions extends RegistryFunctions {
     registerSCode1("includesStart", TInterval(tv("T")), TBoolean, (_: Type, x: SType) =>
       SBoolean
     ) {
-      case (r, cb, rt, interval: SIntervalCode) => primitive(interval.codeIncludesStart())
+      case (r, cb, rt, interval: SIntervalCode, _) => primitive(interval.codeIncludesStart())
     }
 
     registerSCode1("includesEnd", TInterval(tv("T")), TBoolean, (_: Type, x: SType) =>
       SBoolean
     ) {
-      case (r, cb, rt, interval: SIntervalCode) => primitive(interval.codeIncludesEnd())
+      case (r, cb, rt, interval: SIntervalCode, _) => primitive(interval.codeIncludesEnd())
     }
 
     registerIEmitCode2("contains", TInterval(tv("T")), tv("T"), TBoolean, {
       case(_: Type, intervalT: EmitType, _: EmitType) => EmitType(SBoolean, intervalT.required)
     }) {
-      case (cb, r, rt, int, point) =>
+      case (cb, r, rt, _, int, point) =>
         int.toI(cb).map(cb) { case (intc: SIntervalCode) =>
           val interval: SIntervalValue = intc.memoize(cb, "interval")
           val pointv = cb.memoize(point.toI(cb), "point")
@@ -88,7 +88,7 @@ object IntervalFunctions extends RegistryFunctions {
     }
 
     registerSCode1("isEmpty", TInterval(tv("T")), TBoolean, (_: Type, pt: SType) => SBoolean) {
-      case (r, cb, rt, interval: SIntervalCode) =>
+      case (r, cb, rt, interval: SIntervalCode, _) =>
         val empty = EmitCodeBuilder.scopedCode(r.mb) { cb =>
           val intv = interval.memoize(cb, "interval")
           intv.isEmpty(cb)
@@ -97,7 +97,7 @@ object IntervalFunctions extends RegistryFunctions {
     }
 
     registerSCode2("overlaps", TInterval(tv("T")), TInterval(tv("T")), TBoolean, (_: Type, i1t: SType, i2t: SType) => SBoolean) {
-      case (r, cb, rt, int1: SIntervalCode, int2: SIntervalCode) =>
+      case (r, cb, rt, int1: SIntervalCode, int2: SIntervalCode, _) =>
         val overlap = EmitCodeBuilder.scopedCode(r.mb) { cb =>
           val interval1 = int1.memoize(cb, "interval1")
           val interval2 = int2.memoize(cb, "interval2")
