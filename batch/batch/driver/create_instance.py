@@ -101,17 +101,15 @@ async def create_instance(
 #!/bin/bash
 set -x
 
-function quit() {
+NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
+ZONE=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
+
+if [ -f "/started" ]; then
+    echo "instance $NAME has previously been started"
     while true; do
     gcloud -q compute instances delete $NAME --zone=$ZONE
     sleep 1
     done
-}
-
-trap quit EXIT
-
-if [ -f "/started" ]; then
-    echo "instance $NAME has previously been started"
     exit
 else
     touch /started
@@ -126,7 +124,7 @@ nohup /bin/bash run.sh >run.log 2>&1 &
                     'key': 'run_script',
                     'value': rf'''
 #!/bin/bash
-set -ex
+set -x
 
 # set up docker networks
 docker network create public --opt com.docker.network.bridge.name=public
@@ -301,7 +299,10 @@ python3 -u -m batch.worker.worker >worker.log 2>&1
 
 [ $? -eq 0 ] || tail -n 1000 worker.log
 
-exit
+while true; do
+gcloud -q compute instances delete $NAME --zone=$ZONE
+sleep 1
+done
 ''',
                 },
                 {
