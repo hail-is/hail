@@ -433,7 +433,7 @@ class Container:
         try:
 
             async def localize_rootfs():
-                cond = worker.rootfs_locks[self.image_ref_str]
+                cond = worker.rootfs_conds[self.image_ref_str]
                 async with cond:
                     self.image_config = image_configs[self.image_ref_str]
                     self.image_digest = get_image_digest(self.image_config)
@@ -1695,7 +1695,7 @@ class Worker:
         self.task_manager = aiotools.BackgroundTaskManager()
         self.jar_download_locks = defaultdict(asyncio.Lock)
 
-        self.rootfs_locks: Dict[str, asyncio.Condition] = defaultdict(asyncio.Condition)
+        self.rootfs_conds: Dict[str, asyncio.Condition] = defaultdict(asyncio.Condition)
         self.rootfs_last_fetched = {}
         self.rootfs_digest_refs = Counter()
 
