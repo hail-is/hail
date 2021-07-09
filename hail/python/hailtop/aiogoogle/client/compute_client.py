@@ -1,6 +1,7 @@
 import uuid
 from typing import Mapping, Any, Optional, MutableMapping, List, Dict
 import logging
+import aiohttp
 
 from .base_client import BaseClient
 from hailtop.utils import retry_transient_errors, sleep_and_backoff
@@ -98,7 +99,8 @@ class ComputeClient(BaseClient):
 
             delay = 2
             while True:
-                result = await self.post(f'/zones/{zone}/operations/{operation_id}/wait')
+                result = await self.post(f'/zones/{zone}/operations/{operation_id}/wait',
+                                         timeout=aiohttp.ClientTimeout(total=150))
                 if result['status'] == 'DONE':
                     error = result.get('error')
                     if error:
