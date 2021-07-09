@@ -245,7 +245,7 @@ async def polling_loop(app):
 
 
 async def monitor_disks(app):
-    log.info(f'monitoring disks')
+    log.info('monitoring disks')
     compute_client: ComputeClient = app['compute_client']
 
     disk_counts = defaultdict(list)
@@ -281,7 +281,7 @@ async def monitor_disks(app):
 
 
 async def monitor_instances(app):
-    log.info(f'monitoring instances')
+    log.info('monitoring instances')
     compute_client: ComputeClient = app['compute_client']
 
     instance_counts = defaultdict(int)

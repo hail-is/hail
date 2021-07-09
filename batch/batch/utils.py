@@ -2,7 +2,6 @@ import logging
 import math
 import json
 import secrets
-import dateutil.parser
 from aiohttp import web
 from functools import wraps
 from collections import deque
