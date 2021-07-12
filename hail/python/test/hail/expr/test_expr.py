@@ -218,6 +218,11 @@ class Tests(unittest.TestCase):
 
         self.assertDictEqual(result, expected)
 
+    def test_dict_missing_error(self):
+        d = hl.dict({'a': 2, 'b': 3})
+        with pytest.raises(hl.utils.HailUserError, match='Key NA not found in dictionary'):
+            hl.eval(d[hl.missing(hl.tstr)])
+
     def test_numeric_conversion(self):
         schema = hl.tstruct(a=hl.tfloat64, b=hl.tfloat64, c=hl.tint32, d=hl.tint32)
         rows = [{'a': 2.0, 'b': 4.0, 'c': 1, 'd': 5}]
