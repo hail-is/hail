@@ -9,6 +9,7 @@ import is.hail.types.coerce
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SNDArrayPointer}
 import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.physical.stypes.primitives.SBooleanCode
 import is.hail.types.physical.{PBooleanRequired, PCanonicalNDArray, PCanonicalStruct, PFloat64Required, PType}
 import is.hail.types.virtual._
 
@@ -35,7 +36,56 @@ object NDArrayFunctions extends RegistryFunctions {
         NDArrayMap2(l, r, lid, rid, irOp(lElemRef, rElemRef))
       }
     }
+    def linear_triangular_solve(ndCoef: SNDArrayCode, ndDep: SNDArrayCode, lower: SBooleanCode, outputPt: PType, cb: EmitCodeBuilder, region: Value[Region]): (SNDArrayCode, Value[Int]) = {
+      val ndCoefInput = ndCoef.asNDArray.memoize(cb, "ndCoef")
+      val ndDepInput = ndDep.asNDArray.memoize(cb, "ndDep")
+      val lowerInput = lower.asBoolean.memoize(cb, "lower")
 
+      val ndCoefColMajor = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(ndCoefInput, cb, region)
+      val ndDepColMajor = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(ndDepInput, cb, region)
+
+      val IndexedSeq(n0, n1) = aColMajor.shapes(cb)
+
+      cb.ifx(n0 cne n1, cb._fatal("hail.nd.solve: matrix a must be square."))
+
+      val IndexedSeq(n, nrhs) = bColMajor.shapes(cb)
+
+      cb.ifx(n0 cne n, cb._fatal("hail.nd.solve: Solve dimensions incompatible"))
+
+      val infoDGESVResult = cb.newLocal[Int]("dgesv_result")
+      val ipiv = cb.newLocal[Long]("dgesv_ipiv")
+      cb.assign(ipiv, Code.invokeStatic1[Memory, Long, Long]("malloc", n * 4L))
+
+      val aCopy = cb.newLocal[Long]("dgesv_a_copy")
+
+      def aNumBytes = n * n * 8L
+
+      cb.assign(aCopy, Code.invokeStatic1[Memory, Long, Long]("malloc", aNumBytes))
+      val aColMajorFirstElement = aColMajor.firstDataAddress(cb)
+
+      cb.append(Region.copyFrom(aColMajorFirstElement, aCopy, aNumBytes))
+
+      val outputPType = coerce[PCanonicalNDArray](outputPt)
+      val outputShape = IndexedSeq(n, nrhs)
+      val (outputAddress, outputFinisher) = outputPType.constructDataFunction(outputShape, outputPType.makeColumnMajorStrides(outputShape, region, cb), cb, region)
+
+      cb.append(Region.copyFrom(bColMajor.firstDataAddress(cb), outputAddress, n * nrhs * 8L))
+
+      cb.assign(infoDGESVResult, Code.invokeScalaObject7[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgesv",
+        n.toI,
+        nrhs.toI,
+        aCopy,
+        n.toI,
+        ipiv,
+        outputAddress,
+        n.toI
+      ))
+
+      cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", ipiv.load()))
+      cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", aCopy.load()))
+
+      (outputFinisher(cb), infoDGESVResult)
+    }
     def linear_solve(a: SNDArrayCode, b: SNDArrayCode, outputPt: PType, cb: EmitCodeBuilder, region: Value[Region]): (SNDArrayCode, Value[Int]) = {
       val aInput = a.asNDArray.memoize(cb, "A")
       val bInput = b.asNDArray.memoize(cb, "B")

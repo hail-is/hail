@@ -7,9 +7,10 @@ from hail.expr.types import HailType, tfloat64, tfloat32, ttuple, tndarray
 from hail.typecheck import typecheck, nullable, oneof, tupleof, sequenceof
 from hail.expr.expressions import (
     expr_int32, expr_int64, expr_tuple, expr_any, expr_array, expr_ndarray,
-    expr_numeric, Int64Expression, cast_expr, construct_expr)
+    expr_numeric, Int64Expression, cast_expr, construct_expr, expr_bool)
 from hail.expr.expressions.typed_expressions import NDArrayNumericExpression
 from hail.ir import NDArrayQR, NDArrayInv, NDArrayConcat, NDArraySVD, Apply
+
 
 tsequenceof_nd = oneof(sequenceof(expr_ndarray()), expr_array(expr_ndarray()))
 shape_type = oneof(expr_int64, tupleof(expr_int64), expr_tuple())
@@ -238,19 +239,7 @@ def solve(a, b, no_crash=False):
         Solution to the system Ax = B. Shape is same as shape of B.
 
     """
-    assert a.ndim == 2
-    assert b.ndim == 1 or b.ndim == 2
-
-    b_ndim_orig = b.ndim
-
-    if b_ndim_orig == 1:
-        b = b.reshape((-1, 1))
-
-    if a.dtype.element_type != hl.tfloat64:
-        a = a.map(lambda e: hl.float64(e))
-    if b.dtype.element_type != hl.tfloat64:
-        b = b.map(lambda e: hl.float64(e))
-
+    a, b = solve_helper(a, b)
     if no_crash:
         name = "linear_solve_no_crash"
         return_type = hl.tstruct(solution=hl.tndarray(hl.tfloat64, 2), failed=hl.tbool)
@@ -261,12 +250,38 @@ def solve(a, b, no_crash=False):
     ir = Apply(name, return_type, a._ir, b._ir)
     result = construct_expr(ir, return_type, a._indices, a._aggregations)
 
-    if b_ndim_orig == 1:
+    if b.ndim == 1:
         if no_crash:
             result = hl.struct(solution=result.solution.reshape((-1)), failed=result.failed)
         else:
             result = result.reshape((-1))
     return result
+
+
+@typecheck(nd_coef=expr_ndarray(), nd_dep=expr_ndarray(), lower=expr_bool)
+def solve_triangular(nd_coef, nd_dep, lower=False):
+    nd_coef, nd_dep = solve_helper(nd_coef, nd_dep)
+    return_type = hl.tndarray(hl.tfloat64, 2)
+    ir = Apply("linear_triangular_solve". return_type, nd_coef._ir, nd_dep._ir, lower)
+    result = construct_expr(ir, return_type, nd_coef._indices, nd_coef._aggregations)
+    if nd_dep.ndim == 1:
+        result = result.reshape((-1))
+
+
+def solve_helper(nd_coef, nd_dep):
+    assert nd_coef.ndim == 2
+    assert nd_dep.ndim == 1 or nd_dep.ndim == 2
+
+    nd_dep_ndim_orig = nd_dep.ndim
+
+    if nd_dep_ndim_orig == 1:
+        nd_dep = nd_dep.reshape((-1, 1))
+
+    if nd_coef.dtype.element_type != hl.tfloat64:
+        nd_coef = nd_coef.map(lambda e: hl.float64(e))
+    if nd_dep.dtype.element_type != hl.tfloat64:
+        nd_dep = nd_dep.map(lambda e: hl.float64(e))
+    return nd_coef, nd_dep
 
 
 @typecheck(nd=expr_ndarray(), mode=str)
