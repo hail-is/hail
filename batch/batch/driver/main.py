@@ -22,7 +22,6 @@ from gear import (
 )
 from hailtop.hail_logging import AccessLogger
 from hailtop.config import get_deploy_config
-from hailtop.httpx import client_session
 from hailtop.utils import (
     time_msecs,
     RateLimit,
@@ -30,7 +29,6 @@ from hailtop.utils import (
     Notice,
     periodically_call,
     AsyncWorkerPool,
-    request_retry_transient_errors,
     dump_all_stacktraces,
 )
 from hailtop.tls import internal_server_ssl_context
@@ -351,6 +349,7 @@ FROM user_inst_coll_resources;
         'ready_cores_mcpu': ready_cores_mcpu,
         'live_total_cores_mcpu': inst_coll_manager.global_live_total_cores_mcpu,
         'live_free_cores_mcpu': inst_coll_manager.global_live_free_cores_mcpu,
+        'frozen': app['frozen'],
     }
     return await render_template('batch-driver', request, userdata, 'index.html', page_context)
 
@@ -369,16 +368,6 @@ def validate_int(session, url_path, name, value, predicate, description):
         set_message(session, f'{name} invalid: {value}.  Must be an integer.', 'error')
         raise web.HTTPFound(deploy_config.external_url('batch-driver', url_path)) from e
     return validate(session, url_path, name, i, predicate, description)
-
-
-async def refresh_inst_colls_on_front_end(app):
-    async with client_session() as session:
-        await request_retry_transient_errors(
-            session,
-            'PATCH',
-            deploy_config.url('batch', '/api/v1alpha/inst_colls/refresh'),
-            headers=app['batch_headers'],
-        )
 
 
 @routes.post('/config-update/pool/{pool}')
@@ -482,8 +471,6 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
         max_live_instances,
     )
 
-    await refresh_inst_colls_on_front_end(app)
-
     set_message(session, f'Updated configuration for {pool}.', 'info')
 
     return web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
@@ -521,8 +508,6 @@ async def job_private_config_update(request, userdata):  # pylint: disable=unuse
     )
 
     await job_private_inst_manager.configure(boot_disk_size_gb, max_instances, max_live_instances)
-
-    await refresh_inst_colls_on_front_end(app)
 
     set_message(session, f'Updated configuration for {job_private_inst_manager}.', 'info')
 
@@ -592,6 +577,54 @@ async def get_job_private_inst_manager(request, userdata):
     }
 
     return await render_template('batch-driver', request, userdata, 'job_private.html', page_context)
+
+
+@routes.post('/freeze')
+@check_csrf_token
+@web_authenticated_developers_only()
+async def freeze_batch(request, userdata):  # pylint: disable=unused-argument
+    app = request.app
+    db: Database = app['db']
+    session = await aiohttp_session.get_session(request)
+
+    if app['frozen']:
+        set_message(session, 'Batch is already frozen.', 'info')
+        return web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+
+    await db.execute_update(
+        '''
+UPDATE globals SET frozen = 1;
+''')
+
+    app['frozen'] = True
+
+    set_message(session, 'Froze all instance collections and batch submissions.', 'info')
+
+    return web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+
+
+@routes.post('/unfreeze')
+@check_csrf_token
+@web_authenticated_developers_only()
+async def unfreeze_batch(request, userdata):  # pylint: disable=unused-argument
+    app = request.app
+    db: Database = app['db']
+    session = await aiohttp_session.get_session(request)
+
+    if not app['frozen']:
+        set_message(session, 'Batch is already unfrozen.', 'info')
+        return web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+
+    await db.execute_update(
+        '''
+UPDATE globals SET frozen = 0;
+''')
+
+    app['frozen'] = False
+
+    set_message(session, 'Unfroze all instance collections and batch submissions.', 'info')
+
+    return web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
 
 @routes.get('/user_resources')
@@ -902,7 +935,7 @@ async def on_startup(app):
 
     row = await db.select_and_fetchone(
         '''
-SELECT instance_id, internal_token FROM globals;
+SELECT instance_id, internal_token, frozen FROM globals;
 '''
     )
 
@@ -913,6 +946,8 @@ SELECT instance_id, internal_token FROM globals;
     app['internal_token'] = row['internal_token']
 
     app['batch_headers'] = {'Authorization': f'Bearer {row["internal_token"]}'}
+
+    app['frozen'] = row['frozen']
 
     resources = db.select_and_fetchall('SELECT resource FROM resources;')
 
