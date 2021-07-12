@@ -46,6 +46,7 @@ from .matrixtable import MatrixTable, GroupedMatrixTable  # noqa: E402
 from .expr import *  # noqa: F401,F403,E402
 from .genetics import *  # noqa: F401,F403,E402
 from .methods import *  # noqa: F401,F403,E402
+from .vds import *  # noqa: F401,F403,E402
 from . import expr  # noqa: E402
 from . import genetics  # noqa: E402
 from . import methods  # noqa: E402
@@ -119,6 +120,7 @@ __all__ = [
 
 __all__.extend(genetics.__all__)
 __all__.extend(methods.__all__)
+__all__.extend(vds.__all__)
 
 # don't overwrite builtins in `from hail import *`
 import builtins  # noqa: E402
