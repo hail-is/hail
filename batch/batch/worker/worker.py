@@ -135,13 +135,6 @@ def get_image_digest(image_config) -> str:
     return image_config['RepoDigests'][0].split('@')[1].split(':')[1]
 
 
-def get_unused_image(worker: 'Worker') -> Union[str, bool]:
-    for image_digest, count in worker.rootfs_digest_refs.items():
-        if count == 0:
-            return image_digest
-    return False
-
-
 class PortAllocator:
     def __init__(self):
         self.ports = asyncio.Queue()
@@ -433,27 +426,20 @@ class Container:
         try:
 
             async def localize_rootfs():
-                cond = worker.rootfs_conds[self.image_ref_str]
-                async with cond:
+                async with worker.rootfs_locks[self.image_ref_str]:
+                    last_fetched = worker.rootfs_last_fetched.get(self.image_ref_str)
+                    five_minutes_ago = time_msecs() - 5 * 60 * 1000
+                    if not last_fetched or last_fetched < five_minutes_ago:
+                        await self.pull_image()
+                        worker.rootfs_last_fetched[self.image_ref_str] = time_msecs()
+
                     self.image_config = image_configs[self.image_ref_str]
                     self.image_digest = get_image_digest(self.image_config)
                     self.rootfs_path = f'/host/rootfs/{self.image_digest}'
-                    last_fetched = worker.rootfs_last_fetched.get(self.image_ref_str)
-                    five_minutes_ago = time_msecs() - 5 * 60 * 1000
-
-                    if not last_fetched or last_fetched < five_minutes_ago:
-                        if len(worker.rootfs_digest_refs) == 10:
-                            unused_image = await cond.wait_for(lambda: get_unused_image(worker))
-                            shutil.rmtree(f'/host/rootfs/{unused_image}')
-                            del worker.rootfs_digest_refs[unused_image]
-                        worker.rootfs_last_fetched[self.image_ref_str] = time_msecs()
-                        await self.pull_image()
-                        self.image_config = image_configs[self.image_ref_str]
-                        self.image_digest = get_image_digest(self.image_config)
-                        self.rootfs_path = f'/host/rootfs/{self.image_digest}'
+                    if not os.path.exists(self.rootfs_path):
                         await self.extract_rootfs()
 
-                    worker.rootfs_digest_refs[self.image_digest] += 1
+                    worker.image_digest_ref_count[self.image_digest] += 1
 
             with self.step('pulling'):
                 await self.run_until_done_or_deleted(localize_rootfs)
@@ -493,7 +479,8 @@ class Container:
         finally:
             await self.delete_container()
             if self.image_digest:
-                worker.rootfs_digest_refs[self.image_digest] -= 1
+                worker.image_digest_ref_count[self.image_digest] -= 1
+                assert worker.image_digest_ref_count[self.image_digest] >= 0
 
     async def run_until_done_or_deleted(self, f: Callable[[], Awaitable[Any]]):
         step = asyncio.ensure_future(f())
@@ -1695,9 +1682,9 @@ class Worker:
         self.task_manager = aiotools.BackgroundTaskManager()
         self.jar_download_locks = defaultdict(asyncio.Lock)
 
-        self.rootfs_conds: Dict[str, asyncio.Condition] = defaultdict(asyncio.Condition)
+        self.rootfs_locks: Dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
         self.rootfs_last_fetched = {}
-        self.rootfs_digest_refs = Counter()
+        self.image_digest_ref_count = Counter()
 
         # filled in during activation
         self.log_store = None
@@ -1838,6 +1825,7 @@ class Worker:
         site = web.TCPSite(app_runner, '0.0.0.0', 5000)
         await site.start()
 
+        self.task_manager.ensure_future(self.cleanup_old_images())
         try:
             while True:
                 try:
@@ -2012,6 +2000,23 @@ class Worker:
 
             self.headers = {'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {resp_json["token"]}'}
             self.active = True
+
+    def get_unused_image(self) -> Union[str, bool]:
+        for image_digest, count in self.image_digest_ref_count.items():
+            if count == 0:
+                return image_digest
+        return False
+
+    async def cleanup_old_images(self):
+        c = asyncio.Condition()
+        async with c:
+            while True:
+                log.exception('Checking for an unused image')
+                unused_image = await c.wait_for(lambda: self.get_unused_image())
+                log.exception(f'Found an unused image: {unused_image}')
+                shutil.rmtree(f'/host/rootfs/{unused_image}')
+                log.exception(f'Deleted the image, going back to sleep')
+                await asyncio.sleep(30)
 
 
 async def async_main():
