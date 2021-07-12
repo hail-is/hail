@@ -2015,7 +2015,7 @@ class Worker:
                 unused_image = await c.wait_for(lambda: self.get_unused_image())
                 log.exception(f'Found an unused image: {unused_image}')
                 shutil.rmtree(f'/host/rootfs/{unused_image}')
-                log.exception(f'Deleted the image, going back to sleep')
+                log.exception('Deleted the image, going back to sleep')
                 await asyncio.sleep(30)
 
 
