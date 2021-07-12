@@ -866,7 +866,7 @@ def mean_impute(hl_array):
 
 
 def sigmoid(hl_nd):
-    return hl_nd.map(lambda x: hl.if_else(x >= 0,  1 / (1 + hl.exp(-x)), hl.rbind(hl.exp(x), lambda exped: exped / (exped + 1))))
+    return hl_nd.map(lambda x: hl.expit(x))
 
 
 def nd_max(hl_nd):
