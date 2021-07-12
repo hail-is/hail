@@ -55,7 +55,7 @@ class Tests(unittest.TestCase):
         same_as_python(10, -5, -1)
         same_as_python(10, -5, -4)
 
-        with self.assertRaisesRegex(hl.utils.FatalError, 'Array range cannot have step size 0'):
+        with self.assertRaisesRegex(hl.utils.HailUserError, 'Array range cannot have step size 0'):
             hl.eval(hl.range(0, 1, 0))
 
     def test_zeros(self):

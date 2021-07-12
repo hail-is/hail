@@ -156,10 +156,10 @@ object Pretty {
     case MakeArray(_, typ) => single(typ.parsableString())
     case MakeStream(_, typ, requiresMemoryManagementPerElement) =>
       FastSeq(typ.parsableString(), prettyBooleanLiteral(requiresMemoryManagementPerElement))
-    case StreamRange(_, _, _, requiresMemoryManagementPerElement) => single(prettyBooleanLiteral(requiresMemoryManagementPerElement))
+    case StreamRange(_, _, _, requiresMemoryManagementPerElement, _) => single(prettyBooleanLiteral(requiresMemoryManagementPerElement))
     case ToStream(_, requiresMemoryManagementPerElement) => single(prettyBooleanLiteral(requiresMemoryManagementPerElement))
     case StreamMap(_, name, _) => single(prettyIdentifier(name))
-    case StreamZip(_, names, _, behavior) => FastSeq(behavior match {
+    case StreamZip(_, names, _, behavior, _) => FastSeq(behavior match {
       case ArrayZipBehavior.AssertSameLength => "AssertSameLength"
       case ArrayZipBehavior.TakeMinLength => "TakeMinLength"
       case ArrayZipBehavior.ExtendNA => "ExtendNA"

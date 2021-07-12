@@ -85,12 +85,12 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newA <- normalize(a)
           newBody <- normalize(body, env.bindEval(name, newName))
         } yield StreamMap(newA, newName, newBody)
-      case StreamZip(as, names, body, behavior) =>
+      case StreamZip(as, names, body, behavior, errorID) =>
         val newNames = names.map(_ => gen())
         for {
           newAs <- as.mapRecur(normalize(_))
           newBody <- normalize(body, env.bindEval(names.zip(newNames): _*))
-        } yield StreamZip(newAs, newNames, newBody, behavior)
+        } yield StreamZip(newAs, newNames, newBody, behavior, errorID)
       case StreamZipJoin(as, key, curKey, curVals, joinF) =>
         val newCurKey = gen()
         val newCurVals = gen()

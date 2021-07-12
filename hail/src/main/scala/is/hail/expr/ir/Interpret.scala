@@ -261,12 +261,12 @@ object Interpret {
           null
         else
           aValue.asInstanceOf[IndexedSeq[Any]].length
-      case StreamRange(start, stop, step, _) =>
+      case StreamRange(start, stop, step, _, errorID) =>
         val startValue = interpret(start, env, args)
         val stopValue = interpret(stop, env, args)
         val stepValue = interpret(step, env, args)
         if (stepValue == 0)
-          fatal("Array range cannot have step size 0.")
+          fatal("Array range cannot have step size 0.", errorID)
         if (startValue == null || stopValue == null || stepValue == null)
           null
         else
@@ -420,7 +420,7 @@ object Interpret {
             interpret(body, env.bind(name, element), args)
           }
         }
-      case StreamZip(as, names, body, behavior) =>
+      case StreamZip(as, names, body, behavior, errorID) =>
         val aValues = as.map(interpret(_, env, args).asInstanceOf[IndexedSeq[_]])
         if (aValues.contains(null))
           null
@@ -429,7 +429,7 @@ object Interpret {
             case ArrayZipBehavior.AssertSameLength | ArrayZipBehavior.AssumeSameLength =>
               val lengths = aValues.map(_.length).toSet
               if (lengths.size != 1)
-                fatal(s"zip: length mismatch: ${ lengths.mkString(", ") }")
+                fatal(s"zip: length mismatch: ${ lengths.mkString(", ") }", errorID)
               lengths.head
             case ArrayZipBehavior.TakeMinLength =>
               aValues.map(_.length).min

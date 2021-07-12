@@ -56,7 +56,7 @@ object Children {
       Array(a, i)
     case ArrayLen(a) =>
       Array(a)
-    case StreamRange(start, stop, step, _) =>
+    case StreamRange(start, stop, step, _, _) =>
       Array(start, stop, step)
     case ArrayZeros(length) =>
       Array(length)
@@ -64,7 +64,7 @@ object Children {
       Array(data, shape, rowMajor)
     case NDArrayShape(nd) =>
       Array(nd)
-    case NDArrayReshape(nd, shape) =>
+    case NDArrayReshape(nd, shape, _) =>
       Array(nd, shape)
     case NDArrayConcat(nds, _) =>
       Array(nds)
@@ -96,7 +96,7 @@ object Children {
       Array(a)
     case StreamMap(a, name, body) =>
       Array(a, body)
-    case StreamZip(as, names, body, _) =>
+    case StreamZip(as, names, body, _, _) =>
       as :+ body
     case StreamZipJoin(as, _, _, _, joinF) =>
       as :+ joinF
@@ -140,9 +140,9 @@ object Children {
       Array(nd)
     case NDArrayMatMul(l, r, _) =>
       Array(l, r)
-    case NDArrayQR(nd, _) =>
+    case NDArrayQR(nd, _, _) =>
       Array(nd)
-    case NDArraySVD(nd, _, _) =>
+    case NDArraySVD(nd, _, _, _) =>
       Array(nd)
     case NDArrayInv(nd, errorID) =>
       Array(nd)

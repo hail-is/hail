@@ -141,8 +141,8 @@ object Simplify {
 
     case x@StreamMap(NA(_), _, _) => NA(x.typ)
 
-    case StreamZip(as, names, body, _) if as.length == 1 => StreamMap(as.head, names.head, body)
-    case StreamMap(StreamZip(as, names, zipBody, b), name, mapBody) => StreamZip(as, names, Let(name, zipBody, mapBody), b)
+    case StreamZip(as, names, body, _, _) if as.length == 1 => StreamMap(as.head, names.head, body)
+    case StreamMap(StreamZip(as, names, zipBody, b, errorID), name, mapBody) => StreamZip(as, names, Let(name, zipBody, mapBody), b, errorID)
     case StreamMap(StreamFlatMap(child, flatMapName, flatMapBody), mapName, mapBody) => StreamFlatMap(child, flatMapName, StreamMap(flatMapBody, mapName, mapBody))
 
     case x@StreamFlatMap(NA(_), _, _) => NA(x.typ)

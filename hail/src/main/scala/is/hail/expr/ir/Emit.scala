@@ -1544,13 +1544,13 @@ class Emit[C](
 
           finish(cb)
         }
-      case x@NDArraySVD(nd, full_matrices, computeUV) =>
+      case x@NDArraySVD(nd, full_matrices, computeUV, errorID) =>
         emitNDArrayColumnMajorStrides(nd).flatMap(cb) { case ndPCode: SNDArrayCode =>
           val ndPVal = ndPCode.memoize(cb, "nd_svd_value")
 
           val infoDGESDDResult = cb.newLocal[Int]("infoDGESDD")
           val infoDGESDDErrorTest = (extraErrorMsg: String) => (infoDGESDDResult cne 0)
-            .orEmpty(Code._fatal[Unit](const(s"LAPACK error DGESDD. $extraErrorMsg Error code = ").concat(infoDGESDDResult.toS)))
+            .orEmpty(Code._fatalWithID[Unit](const(s"LAPACK error DGESDD. $extraErrorMsg Error code = ").concat(infoDGESDDResult.toS), errorID))
 
           val LWORKAddress = mb.newLocal[Long]("svd_lwork_address")
           val shapes = ndPVal.shapes(cb)
@@ -1661,7 +1661,7 @@ class Emit[C](
           IEmitCode(cb, false, resultPCode)
 
         }
-      case x@NDArrayQR(nd, mode) =>
+      case x@NDArrayQR(nd, mode, errorID) =>
         // See here to understand different modes: https://docs.scipy.org/doc/numpy/reference/generated/numpy.linalg.qr.html
         emitNDArrayColumnMajorStrides(nd).map(cb) { case pndCode: SNDArrayCode =>
 
@@ -1703,7 +1703,7 @@ class Emit[C](
 
           val infoDGEQRFResult = cb.newLocal[Int]("ndaray_qr_infoDGEQRFResult")
           val infoDGEQRFErrorTest = (extraErrorMsg: String) => (infoDGEQRFResult cne 0)
-            .orEmpty(Code._fatal[Unit](const(s"LAPACK error DGEQRF. $extraErrorMsg Error code = ").concat(infoDGEQRFResult.toS)))
+            .orEmpty(Code._fatalWithID[Unit](const(s"LAPACK error DGEQRF. $extraErrorMsg Error code = ").concat(infoDGEQRFResult.toS), errorID))
 
           // Computing H and Tau
           cb.assign(aNumElements, ndPT.numElements(shapeArray))
@@ -1807,7 +1807,7 @@ class Emit[C](
 
               val infoDORGQRResult = cb.newLocal[Int]("ndarray_qr_DORGQR_info")
               val infoDORQRErrorTest = (extraErrorMsg: String) => (infoDORGQRResult cne 0)
-                .orEmpty(Code._fatal[Unit](const(s"LAPACK error DORGQR. $extraErrorMsg Error code = ").concat(infoDORGQRResult.toS)))
+                .orEmpty(Code._fatalWithID[Unit](const(s"LAPACK error DORGQR. $extraErrorMsg Error code = ").concat(infoDORGQRResult.toS), errorID))
 
               val qCondition = cb.newLocal[Boolean]("ndarray_qr_qCondition")
               val numColsToUse = cb.newLocal[Long]("ndarray_qr_numColsToUse")
@@ -2505,7 +2505,7 @@ class Emit[C](
 
       case x =>
         if (fallingBackFromEmitI) {
-          fatal(s"ir is not defined in emit or emitI $x")
+          fatal( s"ir is not defined in emit or emitI $x")
         }
         EmitCode.fromI(mb) { cb =>
           emitI(ir, cb)

@@ -301,7 +301,7 @@ object ArrayFunctions extends RegistryFunctions {
             If(ApplyComparisonOp(LT(TInt32), j, I32(0)),
               ApplyBinaryPrimOp(Add(), ArrayLen(a), j),
               UtilFunctions.intMin(j, ArrayLen(a))),
-            I32(1)),
+            I32(1), errorID = errorID),
           idx,
           ArrayRef(a, Ref(idx, TInt32), errorID)))
     }

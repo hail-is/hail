@@ -16,7 +16,7 @@ object Bindings {
       args.map { case (name, ir) => name -> ir.typ } :+
         name -> TTuple(TTuple(args.map(_._2.typ): _*), body.typ) else empty
     case StreamMap(a, name, _) => if (i == 1) Array(name -> coerce[TStream](a.typ).elementType) else empty
-    case StreamZip(as, names, _, _) => if (i == as.length) names.zip(as.map(a => coerce[TStream](a.typ).elementType)) else empty
+    case StreamZip(as, names, _, _, _) => if (i == as.length) names.zip(as.map(a => coerce[TStream](a.typ).elementType)) else empty
     case StreamZipJoin(as, key, curKey, curVals, _) =>
       val eltType = coerce[TStruct](coerce[TStream](as.head.typ).elementType)
       if (i == as.length)

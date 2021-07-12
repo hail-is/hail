@@ -975,7 +975,7 @@ object PruneDeadFields {
         val reqStructT = coerce[TStruct](coerce[TStream](coerce[TStream](requestedType).elementType).elementType)
         val origStructT = coerce[TStruct](coerce[TStream](a.typ).elementType)
         memoizeValueIR(a, TStream(unify(origStructT, reqStructT, selectKey(origStructT, key))), memo)
-      case StreamZip(as, names, body, behavior) =>
+      case StreamZip(as, names, body, behavior, _) =>
         val bodyEnv = memoizeValueIR(body,
           requestedType.asInstanceOf[TStream].elementType,
           memo)
@@ -1761,12 +1761,12 @@ object PruneDeadFields {
       case StreamMap(a, name, body) =>
         val a2 = rebuildIR(a, env, memo)
         StreamMap(a2, name, rebuildIR(body, env.bindEval(name, a2.typ.asInstanceOf[TStream].elementType), memo))
-      case StreamZip(as, names, body, b) =>
+      case StreamZip(as, names, body, b, errorID) =>
         val (newAs, newNames) = as.zip(names)
           .flatMap { case (a, name) => if (memo.requestedType.contains(a)) Some((rebuildIR(a, env, memo), name)) else None }
           .unzip
         StreamZip(newAs, newNames, rebuildIR(body,
-          env.bindEval(newNames.zip(newAs.map(a => a.typ.asInstanceOf[TStream].elementType)): _*), memo), b)
+          env.bindEval(newNames.zip(newAs.map(a => a.typ.asInstanceOf[TStream].elementType)): _*), memo), b, errorID)
       case StreamZipJoin(as, key, curKey, curVals, joinF) =>
         val newAs = as.map(a => rebuildIR(a, env, memo))
         val newEltType = as.head.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]

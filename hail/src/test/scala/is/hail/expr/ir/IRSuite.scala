@@ -1791,8 +1791,8 @@ class IRSuite extends HailSuite {
   @Test def testNDArrayReshape() {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
-    val v = NDArrayReshape(matrixRowMajor, MakeTuple.ordered(Seq(I64(4))))
-    val mat2 = NDArrayReshape(v, MakeTuple.ordered(Seq(I64(2), I64(2))))
+    val v = NDArrayReshape(matrixRowMajor, MakeTuple.ordered(Seq(I64(4))), ErrorIDs.NO_ERROR)
+    val mat2 = NDArrayReshape(v, MakeTuple.ordered(Seq(I64(2), I64(2))), ErrorIDs.NO_ERROR)
 
     assertEvalsTo(makeNDArrayRef(v, FastIndexedSeq(2)), 3.0)
     assertEvalsTo(makeNDArrayRef(mat2, FastIndexedSeq(1, 0)), 3.0)
@@ -2796,7 +2796,7 @@ class IRSuite extends HailSuite {
       MakeArray(FastSeq(i, NA(TInt32), I32(-3)), TArray(TInt32)),
       MakeStream(FastSeq(i, NA(TInt32), I32(-3)), TStream(TInt32)),
       nd,
-      NDArrayReshape(nd, MakeTuple.ordered(Seq(I64(4)))),
+      NDArrayReshape(nd, MakeTuple.ordered(Seq(I64(4))), ErrorIDs.NO_ERROR),
       NDArrayConcat(MakeArray(FastSeq(nd, nd), TArray(nd.typ)), 0),
       NDArrayRef(nd, FastSeq(I64(1), I64(2)), -1),
       NDArrayMap(nd, "v", ApplyUnaryPrimOp(Negate(), v)),

@@ -69,9 +69,10 @@ object Copy {
       case ArrayLen(_) =>
         assert(newChildren.length == 1)
         ArrayLen(newChildren(0).asInstanceOf[IR])
-      case StreamRange(_, _, _, requiresMemoryManagementPerElement) =>
+      case StreamRange(_, _, _, requiresMemoryManagementPerElement, errorID) =>
         assert(newChildren.length == 3)
-        StreamRange(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR], requiresMemoryManagementPerElement)
+        StreamRange(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR],
+          requiresMemoryManagementPerElement, errorID)
       case ArrayZeros(_) =>
         assert(newChildren.length == 1)
         ArrayZeros(newChildren(0).asInstanceOf[IR])
@@ -81,9 +82,9 @@ object Copy {
       case NDArrayShape(_) =>
         assert(newChildren.length == 1)
         NDArrayShape(newChildren(0).asInstanceOf[IR])
-      case NDArrayReshape(_, _) =>
+      case NDArrayReshape(_, _, errorID) =>
         assert(newChildren.length ==  2)
-        NDArrayReshape(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
+        NDArrayReshape(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], errorID)
       case NDArrayConcat(_, axis) =>
         assert(newChildren.length ==  1)
         NDArrayConcat(newChildren(0).asInstanceOf[IR], axis)
@@ -109,12 +110,12 @@ object Copy {
       case NDArrayMatMul(_, _, errorID) =>
         assert(newChildren.length == 2)
         NDArrayMatMul(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], errorID)
-      case NDArrayQR(_, mode) =>
+      case NDArrayQR(_, mode, errorID) =>
         assert(newChildren.length == 1)
-        NDArrayQR(newChildren(0).asInstanceOf[IR], mode)
-      case NDArraySVD(_, fullMatrices, computeUV) =>
+        NDArrayQR(newChildren(0).asInstanceOf[IR], mode, errorID)
+      case NDArraySVD(_, fullMatrices, computeUV, errorID) =>
         assert(newChildren.length == 1)
-        NDArraySVD(newChildren(0).asInstanceOf[IR], fullMatrices, computeUV)
+        NDArraySVD(newChildren(0).asInstanceOf[IR], fullMatrices, computeUV, errorID)
       case NDArrayInv(_, errorID) =>
         assert(newChildren.length == 1)
         NDArrayInv(newChildren(0).asInstanceOf[IR], errorID)
@@ -162,9 +163,10 @@ object Copy {
       case StreamMap(_, name, _) =>
         assert(newChildren.length == 2)
         StreamMap(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
-      case StreamZip(_, names, _, behavior) =>
+      case StreamZip(_, names, _, behavior, errorID) =>
         assert(newChildren.length == names.length + 1)
-        StreamZip(newChildren.init.asInstanceOf[IndexedSeq[IR]], names, newChildren(names.length).asInstanceOf[IR], behavior)
+        StreamZip(newChildren.init.asInstanceOf[IndexedSeq[IR]], names, newChildren(names.length).asInstanceOf[IR],
+          behavior, errorID)
       case StreamZipJoin(as, key, curKey, curVals, _) =>
         assert(newChildren.length == as.length + 1)
         StreamZipJoin(newChildren.init.asInstanceOf[IndexedSeq[IR]], key, curKey, curVals, newChildren(as.length).asInstanceOf[IR])

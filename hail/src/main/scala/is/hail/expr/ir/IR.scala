@@ -227,7 +227,8 @@ object ArrayRef {
 final case class ArrayRef(a: IR, i: IR, errorId: Int) extends IR
 final case class ArrayLen(a: IR) extends IR
 final case class ArrayZeros(length: IR) extends IR
-final case class StreamRange(start: IR, stop: IR, step: IR, requiresMemoryManagementPerElement: Boolean = false) extends IR
+final case class StreamRange(start: IR, stop: IR, step: IR, requiresMemoryManagementPerElement: Boolean = false,
+                             errorID: Int = ErrorIDs.NO_ERROR) extends IR
 
 object ArraySort {
   def apply(a: IR, ascending: IR = True(), onKey: Boolean = false): ArraySort = {
@@ -284,7 +285,8 @@ object ArrayZipBehavior extends Enumeration {
   val ExtendNA: Value = Value(3)
 }
 
-final case class StreamZip(as: IndexedSeq[IR], names: IndexedSeq[String], body: IR, behavior: ArrayZipBehavior) extends IR {
+final case class StreamZip(as: IndexedSeq[IR], names: IndexedSeq[String], body: IR, behavior: ArrayZipBehavior,
+                           errorID: Int = ErrorIDs.NO_ERROR) extends IR {
   lazy val nameIdx: Map[String, Int] = names.zipWithIndex.toMap
   override def typ: TStream = coerce[TStream](super.typ)
 }
@@ -384,7 +386,7 @@ sealed trait NDArrayIR extends TypedIR[TNDArray] {
 object MakeNDArray {
   def fill(elt: IR, shape: IndexedSeq[Long], rowMajor: IR): MakeNDArray =
     MakeNDArray(
-      ToArray(StreamMap(StreamRange(0, shape.product.toInt, 1), genUID(), elt)),
+      ToArray(StreamMap(StreamRange(0, shape.product.toInt, 1, errorID = ErrorIDs.NO_ERROR), genUID(), elt)),
       MakeTuple.ordered(shape.map(I64)), rowMajor, ErrorIDs.NO_ERROR)
 }
 
@@ -392,7 +394,7 @@ final case class MakeNDArray(data: IR, shape: IR, rowMajor: IR, errorId: Int) ex
 
 final case class NDArrayShape(nd: IR) extends IR
 
-final case class NDArrayReshape(nd: IR, shape: IR) extends NDArrayIR
+final case class NDArrayReshape(nd: IR, shape: IR, errorID: Int) extends NDArrayIR
 
 final case class NDArrayConcat(nds: IR, axis: Int) extends NDArrayIR
 
@@ -435,9 +437,9 @@ object NDArrayInv {
   val pType = PCanonicalNDArray(PFloat64Required, 2)
 }
 
-final case class NDArrayQR(nd: IR, mode: String) extends IR
+final case class NDArrayQR(nd: IR, mode: String, errorID: Int) extends IR
 
-final case class NDArraySVD(nd: IR, fullMatrices: Boolean, computeUV: Boolean) extends IR
+final case class NDArraySVD(nd: IR, fullMatrices: Boolean, computeUV: Boolean, errorID: Int) extends IR
 
 final case class NDArrayInv(nd: IR, errorID: Int) extends IR
 
