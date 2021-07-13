@@ -989,7 +989,7 @@ def monitor_instances(app):
     utilization = defaultdict(list)
     instances = defaultdict(int)
 
-    for pool_name, pool in inst_coll_manager.pools.items():
+    for pool in inst_coll_manager.pools.values():
         for instance in pool.name_instance.values():
             labels = InstCollLabels(inst_coll=instance.inst_coll)
             utilized_cores_mcpu = instance.cores_mcpu - instance.free_cores_mcpu
