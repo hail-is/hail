@@ -396,8 +396,13 @@ abstract class RegistryFunctions {
           typeParameters: Seq[Type],
           errorID: Value[Int],
           args: EmitCode*
-        ): IEmitCode = impl(cb, r, rpt, errorID, args.toArray)
-
+        ): IEmitCode = {
+          val res = impl(cb, r, rpt, errorID, args.toArray)
+          if (res.emitType != calculateReturnType(rpt.virtualType, args.map(_.emitType)))
+            throw new RuntimeException(s"type mismatch while registering $name" +
+              s"\n  got ${ res.emitType }, got ${ calculateReturnType(rpt.virtualType, args.map(_.emitType)) }")
+          res
+        }
         override def apply(r: EmitRegion, rpt: SType, typeParameters: Seq[Type], errorID: Value[Int], args: EmitCode*): EmitCode = {
           EmitCode.fromI(r.mb) { cb =>
             apply(cb, r.region, rpt, typeParameters, errorID, args: _*)

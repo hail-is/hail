@@ -51,7 +51,7 @@ object StringFunctions extends RegistryFunctions {
   def replace(str: String, pattern1: String, pattern2: String): String =
     str.replaceAll(pattern1, pattern2)
 
-  def split(s: String, p: String): IndexedSeq[String] = s.split(p, -1)
+  def split(s: String, p: String): Array[String] = s.split(p, -1)
 
   def translate(s: String, d: Map[String, String]): String = {
     val charD = new mutable.HashMap[Char, String]

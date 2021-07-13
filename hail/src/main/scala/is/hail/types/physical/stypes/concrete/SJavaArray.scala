@@ -6,7 +6,7 @@ import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.stypes.interfaces.{SContainer, SIndexableCode, SIndexableValue}
 import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType}
 import is.hail.types.physical.{PCanonicalArray, PType}
-import is.hail.types.virtual.Type
+import is.hail.types.virtual.{TArray, TString, Type}
 import is.hail.utils.FastIndexedSeq
 
 object SJavaArrayHelpers {
@@ -26,7 +26,7 @@ case class SJavaArrayString(elementRequired: Boolean) extends SContainer {
 
   override def canonicalPType(): PType = PCanonicalArray(elementEmitType.canonicalPType, false)
 
-  lazy val virtualType: Type = elementType.virtualType
+  lazy val virtualType: Type = TArray(TString)
 
   override def castRename(t: Type): SType = this
 
@@ -40,7 +40,7 @@ case class SJavaArrayString(elementRequired: Boolean) extends SContainer {
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(arrayInfo[String])
 
-  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo, IntInfo, LongInfo)
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(arrayInfo[String])
 
   def fromSettables(settables: IndexedSeq[Settable[_]]): SJavaArrayStringSettable = {
     val IndexedSeq(a: Settable[Array[String]@unchecked]) = settables
