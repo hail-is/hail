@@ -391,7 +391,7 @@ abstract class RegistryFunctions {
     valueParameterTypes: Array[Type],
     returnType: Type,
     calculateReturnType: (Type, Seq[EmitType]) => EmitType,
-    typeParameters: Array[Type] = Array.empty,
+    typeParameters: Array[Type] = Array.empty
   )(
     impl: (EmitCodeBuilder, Value[Region], SType , Value[Int], Array[EmitCode]) => IEmitCode
   ) {
