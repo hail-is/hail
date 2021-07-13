@@ -558,20 +558,19 @@ class MakeArray(IR):
 
 
 class ArrayRef(IR):
-    @typecheck_method(a=IR, i=IR, s=IR, error_id=nullable(int), stack_trace=nullable(str))
-    def __init__(self, a, i, s, error_id=None, stack_trace=None):
-        super().__init__(a, i, s)
+    @typecheck_method(a=IR, i=IR, error_id=nullable(int), stack_trace=nullable(str))
+    def __init__(self, a, i, error_id=None, stack_trace=None):
+        super().__init__(a, i)
         self.a = a
         self.i = i
-        self.s = s
         self._error_id = error_id
         self._stack_trace = stack_trace
         if error_id is None or stack_trace is None:
             self.save_error_info()
 
-    @typecheck_method(a=IR, i=IR, s=IR)
-    def copy(self, a, i, s):
-        return ArrayRef(a, i, s, self._error_id, self._stack_trace)
+    @typecheck_method(a=IR, i=IR)
+    def copy(self, a, i):
+        return ArrayRef(a, i, self._error_id, self._stack_trace)
 
     def head_str(self):
         return str(self._error_id)
@@ -579,7 +578,6 @@ class ArrayRef(IR):
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
         self.i._compute_type(env, agg_env)
-        self.s._compute_type(env, agg_env)
         self._type = self.a.typ.element_type
 
 
@@ -762,21 +760,25 @@ class NDArrayMap(IR):
 
 
 class NDArrayMap2(IR):
-    @typecheck_method(left=IR, right=IR, lname=str, rname=str, body=IR)
-    def __init__(self, left, right, lname, rname, body):
+    @typecheck_method(left=IR, right=IR, lname=str, rname=str, body=IR, error_id=nullable(int), stack_trace=nullable(str))
+    def __init__(self, left, right, lname, rname, body, error_id=None, stack_trace=None):
         super().__init__(left, right, body)
         self.right = right
         self.left = left
         self.lname = lname
         self.rname = rname
         self.body = body
+        self._error_id = error_id
+        self._stack_trace = stack_trace
+        if error_id is None or stack_trace is None:
+            self.save_error_info()
 
     @typecheck_method(l=IR, r=IR, body=IR)
     def copy(self, left, right, body):
-        return NDArrayMap2(left, right, self.lname, self.rname, body)
+        return NDArrayMap2(left, right, self.lname, self.rname, body, self._error_id, self._stack_trace)
 
     def head_str(self):
-        return f'{escape_id(self.lname)} {escape_id(self.rname)}'
+        return f'{self._error_id} {escape_id(self.lname)} {escape_id(self.rname)}'
 
     def _eq(self, other):
         return self.lname == other.lname and \

@@ -1143,7 +1143,7 @@ def test_maximum_minimuim():
         (hl.nd.maximum(nx, ny), np.maximum(x, y)),
         (hl.nd.maximum(ny, z), np.maximum(y, z)),
         (hl.nd.minimum(nx, ny), np.minimum(x, y)),
-        (hl.nd.minimum(ny, z), np.minimum(y, z)),
+         (hl.nd.minimum(ny, z), np.minimum(y, z)),
     )
 
     np_nan_max = np.maximum(nan_elem, f)

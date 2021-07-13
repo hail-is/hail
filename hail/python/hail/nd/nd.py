@@ -646,7 +646,6 @@ def minimum(nd1, nd2):
     >>> b = hl.nd.array([2, 3, 4])
     >>> hl.eval(hl.nd.minimum(a, b))
     array([1, 3, 3], dtype=int32)
-
     >>> a = hl.nd.array([hl.float64(float("NaN")), 5.0, 3.0])
     >>> b = hl.nd.array([2.0, 3.0, hl.float64(float("NaN"))])
     >>> hl.eval(hl.nd.minimum(a, b))

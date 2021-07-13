@@ -50,7 +50,7 @@ class ValueIRTests(unittest.TestCase):
             ir.ApplyUnaryPrimOp('-', i),
             ir.ApplyComparisonOp('EQ', i, j),
             ir.MakeArray([i, ir.NA(hl.tint32), ir.I32(-3)], hl.tarray(hl.tint32)),
-            ir.ArrayRef(a, i, ir.Str('foo')),
+            ir.ArrayRef(a, i),
             ir.ArrayLen(a),
             ir.ArraySort(ir.ToStream(a), 'l', 'r', ir.ApplyComparisonOp("LT", ir.Ref('l'), ir.Ref('r'))),
             ir.ToSet(a),

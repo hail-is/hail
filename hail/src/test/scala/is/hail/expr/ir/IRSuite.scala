@@ -1256,9 +1256,9 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testArrayRef() {
-    assertEvalsTo(ArrayRef(MakeArray(FastIndexedSeq(I32(5), NA(TInt32)), TArray(TInt32)), I32(0)), 5)
-    assertEvalsTo(ArrayRef(MakeArray(FastIndexedSeq(I32(5), NA(TInt32)), TArray(TInt32)), I32(1)), null)
-    assertEvalsTo(ArrayRef(MakeArray(FastIndexedSeq(I32(5), NA(TInt32)), TArray(TInt32)), NA(TInt32)), null)
+    assertEvalsTo(ArrayRef(MakeArray(FastIndexedSeq(I32(5), NA(TInt32)), TArray(TInt32)), I32(0), ErrorIDs.NO_ERROR), 5)
+    assertEvalsTo(ArrayRef(MakeArray(FastIndexedSeq(I32(5), NA(TInt32)), TArray(TInt32)), I32(1), ErrorIDs.NO_ERROR), null)
+    assertEvalsTo(ArrayRef(MakeArray(FastIndexedSeq(I32(5), NA(TInt32)), TArray(TInt32)), NA(TInt32), ErrorIDs.NO_ERROR), null)
 
     assertFatal(ArrayRef(MakeArray(FastIndexedSeq(I32(5)), TArray(TInt32)), I32(2)), "array index out of bounds")
   }
