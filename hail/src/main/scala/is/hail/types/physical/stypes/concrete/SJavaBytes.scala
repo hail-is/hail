@@ -74,7 +74,7 @@ class SJavaBytesSettable(val bytes: Settable[Array[Byte]]) extends SBinaryValue 
     cb.assign(bytes, v.asInstanceOf[SJavaBytesCode].bytes)
   }
 
-  override def loadLength(): Code[Int] = bytes.invoke[Int]("length")
+  override def loadLength(): Code[Int] = bytes.length()
 
   override def loadByte(i: Code[Int]): Code[Byte] = bytes(i)
 
