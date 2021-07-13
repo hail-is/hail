@@ -342,12 +342,16 @@ object LowerBlockMatrixIR {
       case a@BlockMatrixAgg(child, outIndexExpr) =>
         val loweredChild = lower(child)
         val summedChild = loweredChild.mapBody { (ctx, body) =>
-          if (!outIndexExpr.isEmpty) NDArrayAgg(body, outIndexExpr) else body
+          if (!outIndexExpr.isEmpty) NDArrayAgg(body, outIndexExpr) else {
+            NDArrayReshape(NDArrayAgg(body, IndexedSeq(0, 1)), MakeTuple.ordered(Seq(I64(1L), I64(1L))))
+          }
         }
         // Now, make decision based on outIndexExpr
         outIndexExpr match {
           case IndexedSeq()  =>
             val res = NDArrayAgg(summedChild.collectLocal(relationalLetsAbove, a.typ), IndexedSeq[Int](0, 1))
+            val foo = summedChild.collectLocal(relationalLetsAbove, a.typ)
+            println(CompileAndEvaluate(ctx, foo))
             new BlockMatrixStage(summedChild.globalVals, TStruct.empty) {
               override def blockContext(idx: (Int, Int)): IR = makestruct()
               override def blockBody(ctxRef: Ref): IR = NDArrayReshape(res, MakeTuple.ordered(Seq(I64(1L), I64(1L))))
