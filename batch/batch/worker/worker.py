@@ -482,7 +482,6 @@ class Container:
             if self.image_digest:
                 worker.image_digest_ref_count[self.image_digest] -= 1
                 assert worker.image_digest_ref_count[self.image_digest] >= 0
-            log.exception(f'The image digest ref counts is: {worker.image_digest_ref_count}')
 
     async def run_until_done_or_deleted(self, f: Callable[[], Awaitable[Any]]):
         step = asyncio.ensure_future(f())
@@ -832,11 +831,18 @@ class Container:
                 log.info(f'{self} container is still running, killing crun process')
                 self.process.terminate()
                 self.process = None
-                await check_exec_output('crun', 'kill', '--all', self.container_name)
+                await check_exec_output('crun', 'kill', '--all', self.container_name, 'SIGTERM')
             except asyncio.CancelledError:
                 raise
             except Exception:
                 log.exception('while deleting container', exc_info=True)
+
+            try:
+                await check_shell(f'umount -l {self.container_overlay_path}/merged')
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                log.exception('while unmounting overlay', exc_info=True)
 
         if self.host_port is not None:
             port_allocator.free(self.host_port)
@@ -845,9 +851,6 @@ class Container:
         if self.netns:
             network_allocator.free(self.netns)
             self.netns = None
-
-        if os.path.exists(f'{self.container_overlay_path}/merged'):
-            await check_shell(f'umount -l {self.container_overlay_path}/merged')
 
     async def delete(self):
         log.info(f'deleting {self}')
