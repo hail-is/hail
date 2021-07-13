@@ -294,29 +294,9 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       return srcAddress
     }
 
-    if (equalModuloRequired(srcPType)) { // The situation where you can just memcpy
-      val newNDAddress = this.representation.allocate(region)
-
-      Region.copyFrom(srcAddress, newNDAddress, this.representation.field("shape").typ.byteSize + this.representation.field("strides").typ.byteSize)
-
-      val srcDataAddress = srcNDPType.unstagedDataFirstElementPointer(srcAddress)
-
-      assert(!elementType.containsPointers)
-
-      val newDataAddress = {
-        region.trackSharedChunk(srcDataAddress)
-        srcDataAddress
-      }
-      Region.storeAddress(this.representation.fieldOffset(newNDAddress, 2), newDataAddress)
-
-      newNDAddress
-    }
-    else {  // The situation where maybe the structs inside the ndarray have different requiredness
-      val newAddress = this.representation.allocate(region)
-      unstagedStoreAtAddress(newAddress, region, srcPType, srcAddress, deepCopy)
-      newAddress
-    }
-
+    val newAddress = this.representation.allocate(region)
+    unstagedStoreAtAddress(newAddress, region, srcPType, srcAddress, deepCopy)
+    newAddress
   }
 
   override def deepRename(t: Type) = deepRenameNDArray(t.asInstanceOf[TNDArray])
