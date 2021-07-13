@@ -1723,9 +1723,9 @@ def expit(x) -> Float64Expression:
 
     Examples
     --------
-    >>> hl.eval(hl.logit(.01))
-    0.7310585786300049
-    >>> hl.eval(hl.logit(0.0))
+    >>> hl.eval(hl.expit(.01))
+    0.5024999791668749
+    >>> hl.eval(hl.expit(0.0))
     0.5
 
 
@@ -1737,8 +1737,7 @@ def expit(x) -> Float64Expression:
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return hl.if_else(x >= 0,  1 / (1 + hl.exp(-x)), hl.rbind(hl.exp(x), lambda exped: exped / (exped + 1)))
-
+    return hl.if_else(x >= 0, 1 / (1 + hl.exp(-x)), hl.rbind(hl.exp(x), lambda exped: exped / (exped + 1)))
 
 
 @typecheck(args=expr_any)
