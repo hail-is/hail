@@ -202,7 +202,7 @@ class WorkerConfig:
 
         return resources
 
-    def _cost_per_hour_from_resources(self, resource_rates, resources, cpu_in_mcpu, memory_in_bytes, storage_in_gb):
+    def _cost_per_hour_from_resources(self, resource_rates, resources):  # pylint: disable=no-self-use
         cost_per_msec = 0
         for r in resources:
             name = r['name']
@@ -213,7 +213,7 @@ class WorkerConfig:
 
     def cost_per_hour(self, resource_rates, cpu_in_mcpu, memory_in_bytes, storage_in_gb):
         resources = self.resources(cpu_in_mcpu, memory_in_bytes, storage_in_gb)
-        return self._cost_per_hour_from_resources(resource_rates, resources, cpu_in_mcpu, memory_in_bytes, storage_in_gb)
+        return self._cost_per_hour_from_resources(resource_rates, resources)
 
     def cost_per_hour_from_cores(self, resource_rates, utilized_cores_mcpu):
         assert 0 <= utilized_cores_mcpu <= self.cores * 1000
@@ -227,5 +227,4 @@ class WorkerConfig:
         storage_in_gb = 0   # we don't need to account for external storage
         resources = self.resources(cpu_in_mcpu, memory_in_bytes, storage_in_gb)
         resources = [r for r in resources if 'service-fee' not in r['name']]
-        return self._cost_per_hour_from_resources(resource_rates, resources, cpu_in_mcpu, memory_in_bytes,
-                                                  storage_in_gb)
+        return self._cost_per_hour_from_resources(resource_rates, resources)
