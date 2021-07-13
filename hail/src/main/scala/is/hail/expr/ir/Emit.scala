@@ -1443,9 +1443,11 @@ class Emit[C](
               val leftDataAddress = leftPVal.firstDataAddress(cb)
               val rightDataAddress = rightPVal.firstDataAddress(cb)
 
-              val M = lShape(lSType.nDims - 2)
-              val N = lShape(lSType.nDims - 1)
-              val outputSize = cb.newLocal[Long]("output_size", M)
+              val numRows = lShape(lSType.nDims - 2)
+              val numCols = lShape(lSType.nDims - 1)
+              val M = cb.newLocal[Long]("dgemv_m", leftIsColumnMajor.mux(numRows, numCols))
+              val N = cb.newLocal[Long]("dgemv_n", leftIsColumnMajor.mux(numCols, numRows))
+              val outputSize = cb.newLocal[Long]("output_size", numRows)
 
               val alpha = 1.0
               val beta = 0.0
@@ -1474,13 +1476,7 @@ class Emit[C](
               ))
 
 
-              val res = answerFinisher(cb).memoize(cb, "foo")
-              cb.println(const("M = ").concat(M.toS))
-              cb.println(const("N = ").concat(N.toS))
-              cb.println(const("left: ") concat cb.strValue(leftPVal))
-              cb.println(const("right: ") concat cb.strValue(rightPVal))
-              cb.println(const("ans: ") concat cb.strValue(res))
-              res
+              answerFinisher(cb)
             }  else {
               val numericElementType = coerce[PNumeric](lSType.elementType.canonicalPType())
               val eVti = typeToTypeInfo(numericElementType)
