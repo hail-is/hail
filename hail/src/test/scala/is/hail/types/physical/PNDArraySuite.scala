@@ -72,14 +72,14 @@ class PNDArraySuite extends PhysicalTestUtils {
     assert(region2.memory.listNDArrayRefs()(1) == result1Data)
 
     // Check that the reference count of ndarray1 is 2:
-    val rc1A = Region.loadLong(result1Data - PNDArray.headerBytes)
+    val rc1A = Region.loadLong(result1Data - Region.sharedChunkHeaderBytes)
     assert(rc1A == 2)
 
     region1.clear()
     assert(region1.memory.listNDArrayRefs().size == 0)
 
     // Check that ndarray 1 wasn't actually cleared, ref count should just be 1 now:
-    val rc1B = Region.loadLong(result1Data - PNDArray.headerBytes)
+    val rc1B = Region.loadLong(result1Data - Region.sharedChunkHeaderBytes)
     assert(rc1B == 1)
 
 
