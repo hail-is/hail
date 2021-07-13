@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Callable, Tuple, Awaitable, Any, Union
+from typing import Optional, Dict, Callable, Tuple, Awaitable, Any
 import os
 import json
 import sys
@@ -432,6 +432,7 @@ class Container:
                     if not last_fetched or last_fetched < five_minutes_ago:
                         await self.pull_image()
                         worker.rootfs_last_fetched[self.image_ref_str] = time_msecs()
+                        log.info(f'Added image to cache: {self.image_ref_str}')
 
                     self.image_config = image_configs[self.image_ref_str]
                     self.image_digest = get_image_digest(self.image_config)
@@ -481,6 +482,7 @@ class Container:
             if self.image_digest:
                 worker.image_digest_ref_count[self.image_digest] -= 1
                 assert worker.image_digest_ref_count[self.image_digest] >= 0
+            log.exception(f'The image digest ref counts is: {worker.image_digest_ref_count}')
 
     async def run_until_done_or_deleted(self, f: Callable[[], Awaitable[Any]]):
         step = asyncio.ensure_future(f())
@@ -2001,22 +2003,24 @@ class Worker:
             self.headers = {'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {resp_json["token"]}'}
             self.active = True
 
-    def get_unused_image(self) -> Union[str, bool]:
+    def get_unused_image(self) -> Optional[str]:
         for image_digest, count in self.image_digest_ref_count.items():
             if count == 0:
                 return image_digest
-        return False
+        return None
 
     async def cleanup_old_images(self):
-        c = asyncio.Condition()
-        async with c:
-            while True:
-                log.exception('Checking for an unused image')
-                unused_image = await c.wait_for(lambda: self.get_unused_image())
-                log.exception(f'Found an unused image: {unused_image}')
-                shutil.rmtree(f'/host/rootfs/{unused_image}')
-                log.exception('Deleted the image, going back to sleep')
-                await asyncio.sleep(30)
+        while True:
+            unused_image = self.get_unused_image()
+            if unused_image:
+                try:
+                    log.info(f'Found an unused image: {unused_image}')
+                    shutil.rmtree(f'/host/rootfs/{unused_image}')
+                    del self.image_digest_ref_count[unused_image]
+                    log.info(f'Deleted image from cache: {unused_image}')
+                except Exception as e:
+                    log.exception(f'Error while deleting unused image: {e}')
+            await asyncio.sleep(60)
 
 
 async def async_main():
