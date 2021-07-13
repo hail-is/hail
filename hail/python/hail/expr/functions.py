@@ -25,7 +25,7 @@ from hail.expr.types import (HailType, hail_type, tint32, tint64, tfloat32,
 from hail.genetics.reference_genome import reference_genome_type, ReferenceGenome
 import hail.ir as ir
 from hail.typecheck import (typecheck, nullable, anytype, enumeration, tupleof,
-                            func_spec, oneof, arg_check, args_check, anyfunc, sequenceof)
+                            func_spec, oneof, arg_check, args_check, anyfunc)
 from hail.utils.java import Env, warning
 from hail.utils.misc import plural
 
