@@ -74,9 +74,9 @@ object StringFunctions extends RegistryFunctions {
     sb.result()
   }
 
-  def splitLimited(s: String, p: String, n: Int): IndexedSeq[String] = s.split(p, n)
+  def splitLimited(s: String, p: String, n: Int): Array[String] = s.split(p, n)
 
-  def arrayMkString(a: IndexedSeq[String], sep: String): String = a.mkString(sep)
+  def arrayMkString(a: Array[String], sep: String): String = a.mkString(sep)
 
   def setMkString(s: Set[String], sep: String): String = s.mkString(sep)
 

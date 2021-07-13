@@ -22,6 +22,15 @@ trait SIndexableValue extends SValue {
 
   def hasMissingValues(cb: EmitCodeBuilder): Code[Boolean]
 
+  def foreach(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, Value[Int], IEmitCode) => Unit): Unit = {
+    val length = loadLength()
+    val idx = cb.newLocal[Int]("foreach_idx", 0)
+    cb.whileLoop(idx < length, {
+      f(cb, idx, loadElement(cb, idx))
+      cb.assign(idx, idx + 1)
+    })
+  }
+
   def forEachDefined(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, Value[Int], SCode) => Unit): Unit = {
     val length = loadLength()
     val idx = cb.newLocal[Int]("foreach_idx", 0)

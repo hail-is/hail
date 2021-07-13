@@ -443,9 +443,23 @@ abstract class RegistryFunctions {
       case t => PrimitiveTypeToIRIntermediateClassTag(t)
     }
 
-    def wrap(cb: EmitCodeBuilder, r: Value[Region], code: SCode): Code[_] = code.st match {
+    def wrap(cb: EmitCodeBuilder, r: Value[Region], code: SCode): Code[_] = code.st.virtualType match {
       case t if t.isPrimitive => SType.extractPrimCode(cb, code)
-      case call: SCall => code.asCall.loadCanonicalRepresentation(cb)
+      case TCall => code.asCall.loadCanonicalRepresentation(cb)
+      case TArray(TString) => code.st match {
+        case _: SJavaArrayString => code.asInstanceOf[SJavaArrayStringCode].array
+        case _ =>
+          val sv = code.asIndexable.memoize(cb, "scode_array_string")
+          val arr = cb.newLocal[Array[String]]("scode_array_string", Code.newArray[String](sv.loadLength()))
+          sv.foreach(cb) { case (cb, idx, elt) =>
+            elt.consume(cb,
+              (),
+              { sc =>
+                cb += (arr(idx) = sc.asString.loadString())
+              })
+          }
+          arr
+      }
       case _ => scodeToJavaValue(cb, r, code)
     }
 
