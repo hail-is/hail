@@ -158,13 +158,11 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   }
 
   def allocateData(shape: IndexedSeq[Value[Long]], region: Value[Region]): Code[Long] = {
-    //Need to allocate enough space to construct my tuple, then to construct the array right next to it.
     val sizeOfArray = this.contentsByteSize(this.numElements(shape).toL)
     region.allocateNDArrayData(sizeOfArray)
   }
 
   def allocateData(shape: IndexedSeq[Long], region: Region): Long = {
-    //Need to allocate enough space to construct my tuple, then to construct the array right next to it.
     val sizeOfArray: Long = this.contentsByteSize(shape.product)
     region.allocateNDArrayData(sizeOfArray)
   }
