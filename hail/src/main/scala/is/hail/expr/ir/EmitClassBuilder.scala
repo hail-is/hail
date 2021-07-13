@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.{Region, RegionPool, RegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.backend.BackendUtils
+import is.hail.backend.{BackendUtils, BroadcastValue}
 import is.hail.expr.ir.functions.IRRandomness
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.io.fs.FS
@@ -14,9 +14,9 @@ import is.hail.types.virtual.Type
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.TaskContext
-
 import java.io._
 import java.lang.reflect.InvocationTargetException
+
 import scala.collection.mutable
 import scala.language.existentials
 
@@ -27,7 +27,7 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
   def genEmitClass[C](baseName: String, sourceFile: Option[String] = None)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] =
     newEmitClass[C](genName("C", baseName), sourceFile)
 
-  private[this] var _staticFS: StaticField[FS] = {
+  private[this] val _staticFS: StaticField[FS] = {
     val cls = genEmitClass[Unit]("FSContainer")
     cls.newStaticField[FS]("filesystem", Code._null[FS])
   }
@@ -36,14 +36,20 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
 
   def getFS: Value[FS] = new StaticFieldRef(_staticFS)
 
-  private[this] val rgMap: mutable.Map[ReferenceGenome, Value[ReferenceGenome]] =
-    mutable.Map[ReferenceGenome, Value[ReferenceGenome]]()
+  private val rgContainers: mutable.Map[ReferenceGenome, StaticField[ReferenceGenome]] = mutable.Map.empty
 
-  def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] = rgMap.getOrElseUpdate(rg, {
-    val cls = genEmitClass[Unit](s"RGContainer_${rg.name}")
-    val fld = cls.newStaticField("reference_genome", rg.codeSetup(ctx.localTmpdir, cls))
-    new StaticFieldRef(fld)
-  })
+  def hasReferences: Boolean = rgContainers.nonEmpty
+
+  def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] = {
+    val rgField = rgContainers.getOrElseUpdate(rg, {
+      val cls = genEmitClass[Unit](s"RGContainer_${rg.name}")
+      cls.newStaticField("reference_genome", Code._null[ReferenceGenome])
+    })
+    new StaticFieldRef(rgField)
+  }
+
+  def referenceGenomes(): IndexedSeq[ReferenceGenome] = rgContainers.keys.toFastIndexedSeq
+  def referenceGenomeFields(): IndexedSeq[StaticField[ReferenceGenome]] = rgContainers.values.toFastIndexedSeq
 }
 
 trait WrappedEmitModuleBuilder {
@@ -572,6 +578,20 @@ class EmitClassBuilder[C](
     }
   }
 
+  def makeAddReferenceGenomes(): Unit = {
+    cb.addInterface(typeInfo[FunctionWithReferences].iname)
+    val mb = newEmitMethod("addReferenceGenomes", FastIndexedSeq[ParamType](typeInfo[Array[ReferenceGenome]]), typeInfo[Unit])
+    mb.voidWithBuilder { cb =>
+      val rgFields = emodb.referenceGenomeFields()
+      val rgs = mb.getCodeParam[Array[ReferenceGenome]](1)
+      cb.ifx(rgs.length().cne(const(rgFields.length)), cb._fatal("Invalid number of references, expected ", rgFields.length.toString, " got ", rgs.length().toS))
+      for ((fld, i) <- rgFields.zipWithIndex) {
+        cb += fld.put(rgs(i))
+        cb += fld.get().invoke[String, FS, Unit]("heal", ctx.tmpdir, getFS)
+      }
+    }
+  }
+
   def makeRNGs() {
     cb.addInterface(typeInfo[FunctionWithSeededRandomness].iname)
 
@@ -606,12 +626,22 @@ class EmitClassBuilder[C](
     makeAddFS()
 
     val hasLiterals: Boolean = literalsMap.nonEmpty || encodedLiteralsMap.nonEmpty
+    val hasReferences: Boolean = emodb.hasReferences
+    if (hasReferences)
+      makeAddReferenceGenomes()
 
     val literalsBc = if (hasLiterals)
       ctx.backend.broadcast(encodeLiterals())
     else
       // if there are no literals, there might not be a HailContext
       null
+    val referencesBc: Array[BroadcastValue[ReferenceGenome]] = if (hasReferences) {
+      val rgs = emodb.referenceGenomes()
+      rgs.map(_.broadcast).toArray
+    } else {
+      null
+    }
+
 
     val nSerializedAggs = _nSerialized
 
@@ -652,6 +682,8 @@ class EmitClassBuilder[C](
           f.asInstanceOf[FunctionWithObjects].setObjects(objects)
         if (hasLiterals)
           f.asInstanceOf[FunctionWithLiterals].addLiterals(literalsBc.value)
+        if (hasReferences)
+          f.asInstanceOf[FunctionWithReferences].addReferenceGenomes(referencesBc.map(_.value))
         if (nSerializedAggs != 0)
           f.asInstanceOf[FunctionWithAggRegion].setNumSerialized(nSerializedAggs)
         f.asInstanceOf[FunctionWithSeededRandomness].setPartitionIndex(idx)
@@ -772,6 +804,10 @@ trait FunctionWithAggRegion {
 
 trait FunctionWithFS {
   def addFS(fs: FS): Unit
+}
+
+trait FunctionWithReferences {
+  def addReferenceGenomes(rgs: Array[ReferenceGenome]): Unit
 }
 
 trait FunctionWithPartitionRegion {
