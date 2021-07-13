@@ -281,9 +281,8 @@ abstract class AbstractRVDSpec {
     case Some(_) => fatal("attempted to read unindexed data as indexed")
     case None =>
       if (!partitioner.kType.fieldNames.startsWith(requestedType.key))
-        fatal(s"cannot generate whole-stage code for legacy table: " +
-          s"table key = [${ requestedType.key.mkString(", ") }], " +
-          s"key on disk: [${ partitioner.kType.fieldNames.mkString(", ") }]")
+        fatal(s"Error while reading table ${ path }: legacy table written without key." +
+          s"\n  Read and write with version 0.2.70 or earlier")
 
       val rSpec = typedCodecSpec
 
