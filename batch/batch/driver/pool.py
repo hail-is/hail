@@ -27,7 +27,6 @@ from ..utils import (
     adjust_cores_for_packability,
     adjust_cores_for_storage_request,
 )
-from ..worker_config import WorkerConfig
 from .create_instance import create_instance, get_instance_config
 from .instance import Instance
 from .instance_collection import InstanceCollection

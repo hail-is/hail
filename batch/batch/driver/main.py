@@ -13,7 +13,7 @@ import aiohttp_session
 import kubernetes_asyncio as kube
 import google.oauth2.service_account
 from prometheus_async.aio.web import server_stats
-import prometheus_client as pc # type: ignore
+import prometheus_client as pc  # type: ignore
 from gear import (
     Database,
     setup_aiohttp_session,
