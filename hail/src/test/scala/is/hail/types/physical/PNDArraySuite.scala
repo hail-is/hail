@@ -106,10 +106,10 @@ class PNDArraySuite extends PhysicalTestUtils {
     val dataAddr1 = Region.loadAddress(pNd.representation.loadField(ndAddr1, 2))
     val dataAddr2 = Region.loadAddress(pNd.representation.loadField(ndAddr2, 2))
     assert(dataAddr1 == dataAddr2)
-    assert(PNDArray.getReferenceCount(dataAddr1) == 2)
+    assert(Region.getSharedChunkRefCount(dataAddr1) == 2)
     assert(unsafe1 == unsafe2)
     region1.clear()
-    assert(PNDArray.getReferenceCount(dataAddr1) == 1)
+    assert(Region.getSharedChunkRefCount(dataAddr1) == 1)
 
     // Deep copy with elements that contain pointers, so have to actually do a full copy
     // FIXME: Currently ndarrays do not support this, reference counting needs to account for this.

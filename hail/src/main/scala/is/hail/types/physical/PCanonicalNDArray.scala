@@ -159,12 +159,12 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   def allocateData(shape: IndexedSeq[Value[Long]], region: Value[Region]): Code[Long] = {
     val sizeOfArray = this.contentsByteSize(this.numElements(shape).toL)
-    region.allocateNDArrayData(sizeOfArray)
+    region.allocateSharedChunk(sizeOfArray)
   }
 
   def allocateData(shape: IndexedSeq[Long], region: Region): Long = {
     val sizeOfArray: Long = this.contentsByteSize(shape.product)
-    region.allocateNDArrayData(sizeOfArray)
+    region.allocateSharedChunk(sizeOfArray)
   }
 
   def constructByCopyingArray(
@@ -273,9 +273,9 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     region: Value[Region]
   ): SNDArrayCode = {
     val oldDataAddr = toBeCopied.firstDataAddress(cb)
-    val numDataBytes = cb.newLocal("constructByActuallyCopyingData_numDataBytes", PNDArray.getDataByteSize(oldDataAddr))
+    val numDataBytes = cb.newLocal("constructByActuallyCopyingData_numDataBytes", Region.getSharedChunkByteSize(oldDataAddr))
     cb.ifx(numDataBytes < 0L, cb._fatal("numDataBytes was ", numDataBytes.toS))
-    val newDataAddr = cb.newLocal("constructByActuallyCopyingData_newDataAddr", region.allocateNDArrayData(numDataBytes))
+    val newDataAddr = cb.newLocal("constructByActuallyCopyingData_newDataAddr", region.allocateSharedChunk(numDataBytes))
     cb += Region.copyFrom(oldDataAddr, newDataAddr, numDataBytes)
     constructByCopyingDataPointer(
       toBeCopied.shapes(cb),
@@ -304,7 +304,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       assert(!elementType.containsPointers)
 
       val newDataAddress = {
-        region.trackNDArrayData(srcDataAddress)
+        region.trackSharedChunk(srcDataAddress)
         srcDataAddress
       }
       Region.storeAddress(this.representation.fieldOffset(newNDAddress, 2), newDataAddress)
@@ -339,7 +339,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
       val newDataAddress = {
         if (deepCopy) {
-          region.trackNDArrayData(srcDataAddress)
+          region.trackSharedChunk(srcDataAddress)
         }
         srcDataAddress
       }
@@ -395,7 +395,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     value.st match {
       case SNDArrayPointer(t) if t.equalModuloRequired(this) =>
         if (deepCopy) {
-          region.trackNDArrayData(cb, dataAddr)
+          region.trackSharedChunk(cb, dataAddr)
         }
         cb += Region.storeAddress(this.representation.fieldOffset(targetAddr, "data"), dataAddr)
       case _ =>

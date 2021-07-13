@@ -134,12 +134,12 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     var i = 0
     while (i < ndarrayRefs.size) {
       val addr = this.ndarrayRefs(i)
-      val curCount = PNDArray.getReferenceCount(addr)
+      val curCount = Region.getSharedChunkRefCount(addr)
       if (curCount == 1) {
-        PNDArray.storeReferenceCount(addr, 0L)
-        pool.freeChunk(addr - PNDArray.headerBytes)
+        Region.storeSharedChunkRefCount(addr, 0L)
+        pool.freeChunk(addr - Region.sharedChunkHeaderBytes)
       } else {
-        PNDArray.storeReferenceCount(addr, curCount - 1)
+        Region.storeSharedChunkRefCount(addr, curCount - 1)
       }
       i += 1
     }
@@ -282,27 +282,27 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     references.update(idx, null)
   }
 
-  def allocateNDArrayData(size: Long): Long = {
+  def allocateSharedChunk(size: Long): Long = {
     if (size < 0L) {
       throw new IllegalArgumentException(s"Can't request ndarray of negative memory size, got ${size}")
     }
 
-    val extra = PNDArray.headerBytes
+    val extra = Region.sharedChunkHeaderBytes
 
     // This adjusted address is where the ndarray content starts
     val (allocatedChunk, _) = pool.getChunk(size + extra)
     val newChunkPointer = allocatedChunk + extra
     // The reference count and total size are stored just before the content.
-    PNDArray.storeReferenceCount(newChunkPointer, 0L)
-    PNDArray.storeDataByteSize(newChunkPointer, size)
-    this.trackNDArrayData(newChunkPointer)
+    Region.storeSharedChunkRefCount(newChunkPointer, 0L)
+    Region.storeSharedChunkByteSize(newChunkPointer, size)
+    this.trackSharedChunk(newChunkPointer)
     newChunkPointer
   }
 
-  def trackNDArrayData(alloc: Long): Unit = {
+  def trackSharedChunk(alloc: Long): Unit = {
     this.ndarrayRefs.add(alloc)
-    val curRefCount = PNDArray.getReferenceCount(alloc)
-    PNDArray.storeReferenceCount(alloc, curRefCount + 1L)
+    val curRefCount = Region.getSharedChunkRefCount(alloc)
+    Region.storeSharedChunkRefCount(alloc, curRefCount + 1L)
   }
 
   def listNDArrayRefs(): IndexedSeq[Long] = {
