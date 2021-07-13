@@ -1439,7 +1439,45 @@ class Emit[C](
               )
 
               answerFinisher(cb)
-            } else {
+            } else if (lSType.elementType.virtualType == TFloat64 && lSType.nDims == 2 && rSType.nDims == 1) {
+              val leftDataAddress = leftPVal.firstDataAddress(cb)
+              val rightDataAddress = rightPVal.firstDataAddress(cb)
+
+              val numRows = lShape(lSType.nDims - 2)
+              val numCols = lShape(lSType.nDims - 1)
+              val M = cb.newLocal[Long]("dgemv_m", leftIsColumnMajor.mux(numRows, numCols))
+              val N = cb.newLocal[Long]("dgemv_n", leftIsColumnMajor.mux(numCols, numRows))
+              val outputSize = cb.newLocal[Long]("output_size", numRows)
+
+              val alpha = 1.0
+              val beta = 0.0
+
+              val LDA = M
+              val TRANS: Code[String] = leftIsColumnMajor.mux("N", "T")
+
+              val (answerFirstElementAddr, answerFinisher) = outputPType.constructDataFunction(
+                IndexedSeq(outputSize),
+                outputPType.makeColumnMajorStrides(IndexedSeq(outputSize), region, cb),
+                cb,
+                region)
+              
+              cb.append(Code.invokeScalaObject11[String, Int, Int, Double, Long, Int, Long, Int, Double, Long, Int, Unit](BLAS.getClass, method="dgemv",
+                TRANS,
+                M.toI,
+                N.toI,
+                alpha,
+                leftDataAddress,
+                LDA.toI,
+                rightDataAddress,
+                1,
+                beta,
+                answerFirstElementAddr,
+                1
+              ))
+
+
+              answerFinisher(cb)
+            }  else {
               val numericElementType = coerce[PNumeric](lSType.elementType.canonicalPType())
               val eVti = typeToTypeInfo(numericElementType)
 

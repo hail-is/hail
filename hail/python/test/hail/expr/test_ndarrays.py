@@ -672,6 +672,22 @@ def test_ndarray_matmul():
         hl.eval(hl.nd.array([1, 2]) @ hl.nd.array([1, 2, 3]))
     assert "Matrix dimensions incompatible" in str(exc.value)
 
+def test_ndarray_matmul_dgemv():
+    np_mat_3_4 = np.arange(12, dtype=np.float64).reshape((3, 4))
+    np_mat_4_3 = np.arange(12, dtype=np.float64).reshape((4, 3))
+    np_vec_3 = np.array([4, 2, 7], dtype=np.float64)
+    np_vec_4 = np.array([9, 17, 3, 1], dtype=np.float64)
+
+    mat_3_4 = hl.nd.array(np_mat_3_4)
+    mat_4_3 = hl.nd.array(np_mat_4_3)
+    vec_3 = hl.nd.array(np_vec_3)
+    vec_4 = hl.nd.array(np_vec_4)
+
+    assert_ndarrays_eq(
+        (mat_3_4 @ vec_4, np_mat_3_4 @ np_vec_4),
+        (mat_4_3 @ vec_3, np_mat_4_3 @ np_vec_3),
+        (mat_3_4.T @ vec_3, np_mat_3_4.T @ np_vec_3)
+    )
 
 def test_ndarray_big():
     assert hl.eval(hl.nd.array(hl.range(100_000))).size == 100_000
