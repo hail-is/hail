@@ -44,7 +44,7 @@ object NDArrayFunctions extends RegistryFunctions {
       val ndDepColMajor = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(ndDepInput, cb, region)
 
       val IndexedSeq(ndCoefRow, ndCoefCol) = ndCoefColMajor.shapes(cb)
-      cb.ifx(ndCoefRow cne ndCoefCol, cb._fatal("hail.nd.solve: matrix a must be square."))
+      cb.ifx(ndCoefRow cne ndCoefCol, cb._fatal("hail.nd.solve_triangular: matrix a must be square."))
       val IndexedSeq(ndDepRow, ndDepCol) = ndDepColMajor.shapes(cb)
       cb.ifx(ndCoefRow  cne ndDepRow, cb._fatal("hail.nd.solve_triangular: Solve dimensions incompatible"))
       val uplo = cb.newLocal[String]("dtrtrs_uplo")
