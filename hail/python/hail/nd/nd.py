@@ -262,10 +262,11 @@ def solve(a, b, no_crash=False):
 def solve_triangular(nd_coef, nd_dep, lower=False):
     nd_coef, nd_dep = solve_helper(nd_coef, nd_dep)
     return_type = hl.tndarray(hl.tfloat64, 2)
-    ir = Apply("linear_triangular_solve". return_type, nd_coef._ir, nd_dep._ir, lower)
+    ir = Apply("linear_triangular_solve", return_type, nd_coef._ir, nd_dep._ir, lower._ir)
     result = construct_expr(ir, return_type, nd_coef._indices, nd_coef._aggregations)
     if nd_dep.ndim == 1:
         result = result.reshape((-1))
+    return result
 
 
 def solve_helper(nd_coef, nd_dep):

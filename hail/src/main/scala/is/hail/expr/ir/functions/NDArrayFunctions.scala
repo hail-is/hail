@@ -39,7 +39,6 @@ object NDArrayFunctions extends RegistryFunctions {
     def linear_triangular_solve(ndCoef: SNDArrayCode, ndDep: SNDArrayCode, lower: SBooleanCode, outputPt: PType, cb: EmitCodeBuilder, region: Value[Region]): (SNDArrayCode, Value[Int]) = {
       val ndCoefInput = ndCoef.asNDArray.memoize(cb, "ndCoef")
       val ndDepInput = ndDep.asNDArray.memoize(cb, "ndDep")
-      val lowerInput = lower.asBoolean.memoize(cb, "lower")
 
       val ndCoefColMajor = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(ndCoefInput, cb, region)
       val ndDepColMajor = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(ndDepInput, cb, region)
@@ -53,40 +52,32 @@ object NDArrayFunctions extends RegistryFunctions {
       val infoDTRTRSResult = cb.newLocal[Int]("dtrtrs_result")
       val trans = cb.newLocal[String]("dtrtrs_trans")
       cb.assign(trans, const("N"))
-      val n = cb.newLocal[Int]("dtrtrs_n")
+      val diag = cb.newLocal[String]("dtrtrs_diag")
+      cb.assign(diag, const("N"))
+      val n = cb.newLocal[Long]("dtrtrs_n")
       cb.assign(n, ndDepRow)
-      val n = cb.newLocal[Int]("dtrtrs_n")
-      cb.assign(n, ndDepCol)
+      val nrhs = cb.newLocal[Long]("dtrtrs_nrhs")
+      cb.assign(nrhs, ndDepCol)
 
-
-      def aNumBytes = ndDepRow. * n * 8L
-
-      cb.assign(aCopy, Code.invokeStatic1[Memory, Long, Long]("malloc", aNumBytes))
-      val aColMajorFirstElement = aColMajor.firstDataAddress(cb)
-
-      cb.append(Region.copyFrom(aColMajorFirstElement, aCopy, aNumBytes))
 
       val outputPType = coerce[PCanonicalNDArray](outputPt)
-      val outputShape = IndexedSeq(n, nrhs)
-      val (outputAddress, outputFinisher) = outputPType.constructDataFunction(outputShape, outputPType.makeColumnMajorStrides(outputShape, region, cb), cb, region)
+      val output = outputPType.constructByActuallyCopyingData(ndDepColMajor, cb, region).memoize(cb, "triangular_solve_output")
 
-      cb.append(Region.copyFrom(bColMajor.firstDataAddress(cb), outputAddress, n * nrhs * 8L))
-
-      cb.assign(infoDGESVResult, Code.invokeScalaObject7[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgesv",
+      cb.assign(infoDTRTRSResult, Code.invokeScalaObject9[String, String, String, Int, Int, Long, Int, Long, Int, Int](LAPACK.getClass, "dtrtrs",
+        uplo,
+        trans,
+        diag,
         n.toI,
         nrhs.toI,
-        aCopy,
+        ndCoefColMajor.firstDataAddress(cb),
         n.toI,
-        ipiv,
-        outputAddress,
+        output.firstDataAddress(cb),
         n.toI
       ))
 
-      cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", ipiv.load()))
-      cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", aCopy.load()))
-
-      (outputFinisher(cb), infoDGESVResult)
+      (output.get, infoDTRTRSResult)
     }
+
     def linear_solve(a: SNDArrayCode, b: SNDArrayCode, outputPt: PType, cb: EmitCodeBuilder, region: Value[Region]): (SNDArrayCode, Value[Int]) = {
       val aInput = a.asNDArray.memoize(cb, "A")
       val bInput = b.asNDArray.memoize(cb, "B")
@@ -154,6 +145,13 @@ object NDArrayFunctions extends RegistryFunctions {
       { (t, p1, p2) => PCanonicalNDArray(PFloat64Required, 2, true).sType }) {
       case (er, cb, SNDArrayPointer(pt), apc, bpc) =>
         val (resPCode, info) = linear_solve(apc.asNDArray, bpc.asNDArray, pt, cb, er.region)
+        cb.ifx(info cne 0, cb._fatal(s"hl.nd.solve: Could not solve, matrix was singular. dgesv error code ", info.toS))
+        resPCode
+    }
+    registerSCode3("linear_triangular_solve", TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)), TBoolean, TNDArray(TFloat64, Nat(2)),
+      { (t, p1, p2, p3) => PCanonicalNDArray(PFloat64Required, 2, true).sType }) {
+      case (er, cb, SNDArrayPointer(pt), apc, bpc, lower) =>
+        val (resPCode, info) = linear_triangular_solve(apc.asNDArray, bpc.asNDArray,lower.asBoolean, pt, cb, er.region)
         cb.ifx(info cne 0, cb._fatal(s"hl.nd.solve: Could not solve, matrix was singular. dgesv error code ", info.toS))
         resPCode
     }

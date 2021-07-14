@@ -98,7 +98,7 @@ object LAPACK {
   }
 
   def dgesv(N: Int, NHRS: Int, A: Long, LDA: Int, IPIV: Long, B: Long, LDB: Int): Int = {
-    val Nref= new IntByReference(N)
+    val Nref = new IntByReference(N)
     val NHRSref = new IntByReference(NHRS)
     val LDAref = new IntByReference(LDA)
     val LDBref = new IntByReference(LDB)
@@ -106,6 +106,16 @@ object LAPACK {
 
     libraryInstance.get.dgesv(Nref, NHRSref, A, LDAref, IPIV, B, LDBref, INFOref)
 
+    INFOref.getValue()
+  }
+  def dtrtrs(UPLO: String, TRANS: String, DIAG: String, N: Int, NRHS: Int,
+             A: Long, LDA: Int, B: Long, LDB: Int): Int = {
+    val Nref =  new IntByReference(N)
+    val NRHSref =  new IntByReference(NRHS)
+    val LDAref =  new IntByReference(LDA)
+    val LDBref = new IntByReference(LDB)
+    val INFOref = new IntByReference(1)
+    libraryInstance.get.dtrtrs(UPLO, TRANS, DIAG, Nref, NRHSref, A, LDAref, B, LDBref, INFOref)
     INFOref.getValue()
   }
 
@@ -130,4 +140,5 @@ trait LAPACKLibrary extends Library {
   def dgetri(N: IntByReference, A: Long, LDA: IntByReference, IPIV: Long, WORK: Long, LWORK: IntByReference, INFO: IntByReference)
   def dgesdd(JOBZ: String, M: IntByReference, N: IntByReference, A: Long, LDA: IntByReference, S: Long, U: Long, LDU: IntByReference, VT: Long, LDVT: IntByReference, WORK: Long, LWORK: IntByReference, IWORK: Long, INFO: IntByReference)
   def ilaver(MAJOR: IntByReference, MINOR: IntByReference, PATCH: IntByReference)
+  def dtrtrs(UPLO: String, TRANS: String, DIAG: String, N: IntByReference, NRHS: IntByReference, A: Long, LDA: IntByReference, B: Long, LDB: IntByReference, INFO:IntByReference)
 }

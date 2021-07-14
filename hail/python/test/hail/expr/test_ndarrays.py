@@ -749,6 +749,11 @@ def test_ndarray_diagonal():
     assert "2 dimensional" in str(exc.value)
 
 
+def test_ndarray_solve_triangle():
+    a = hl.nd.array([[1, 1], [0, 1]])
+    b = hl.nd.array([2, 1])
+    print(hl.eval(hl.nd.solve_triangular(a, b)))
+
 def test_ndarray_solve():
     a = hl.nd.array([[1, 2], [3, 5]])
     b = hl.nd.array([1, 2])
