@@ -1695,6 +1695,51 @@ def log10(x) -> Float64Expression:
     return _func("log10", tfloat64, x)
 
 
+@typecheck(x=expr_float64)
+def logit(x) -> Float64Expression:
+    """The logistic function.
+
+    Examples
+    --------
+    >>> hl.eval(hl.logit(.01))
+    -4.59511985013459
+    >>> hl.eval(hl.logit(.5))
+    0.0
+
+    Parameters
+    ----------
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+
+    Returns
+    -------
+    :class:`.Expression` of type :py:data:`.tfloat64`
+    """
+    return hl.log(x / (1 - x))
+
+
+@typecheck(x=expr_float64)
+def expit(x) -> Float64Expression:
+    """The logistic sigmoid function.
+
+    Examples
+    --------
+    >>> hl.eval(hl.expit(.01))
+    0.5024999791668749
+    >>> hl.eval(hl.expit(0.0))
+    0.5
+
+
+    Parameters
+    ----------
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+
+    Returns
+    -------
+    :class:`.Expression` of type :py:data:`.tfloat64`
+    """
+    return hl.if_else(x >= 0, 1 / (1 + hl.exp(-x)), hl.rbind(hl.exp(x), lambda exped: exped / (exped + 1)))
+
+
 @typecheck(args=expr_any)
 def coalesce(*args):
     """Returns the first non-missing value of `args`.
