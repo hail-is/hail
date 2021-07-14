@@ -323,16 +323,6 @@ case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A, 
     value
   }
 
-//  def get(cb: EmitCodeBuilder, errorMsg: String = s"expected non-missing"): A = {
-//    get(cb, errorMsg, Code.intValue(Code.boxInt(ErrorIDs.NO_ERROR)))
-//  }
-//
-//  def get(cb: EmitCodeBuilder, errorMsg: String = s"expected non-missing", errorID: Code[Int] = const(ErrorIDs.NO_ERROR)): A =
-//    handle(cb, cb._fatalWithError(errorID, errorMsg))
-//
-//  def get(cb: EmitCodeBuilder, errorMsg: Code[String]): A =
-//    get(cb, errorMsg, Code.intValue(Code.boxInt(ErrorIDs.NO_ERROR)))
-
   def get(cb: EmitCodeBuilder, errorMsg: Code[String]=s"expected non-missing", errorID: Code[Int] = const(ErrorIDs.NO_ERROR)): A =
     handle(cb, cb._fatalWithError(errorID, errorMsg))
 
@@ -2506,7 +2496,7 @@ class Emit[C](
 
       case x =>
         if (fallingBackFromEmitI) {
-          fatal( s"ir is not defined in emit or emitI $x")
+          fatal(s"ir is not defined in emit or emitI $x")
         }
         EmitCode.fromI(mb) { cb =>
           emitI(ir, cb)

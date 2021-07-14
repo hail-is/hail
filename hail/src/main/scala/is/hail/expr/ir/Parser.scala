@@ -1042,7 +1042,6 @@ object IRParser {
         val behavior = identifier(it) match {
           case "AssertSameLength" => ArrayZipBehavior.AssertSameLength
           case "TakeMinLength" => ArrayZipBehavior.TakeMinLength
-          case "TakeMinLength" => ArrayZipBehavior.TakeMinLength
           case "ExtendNA" => ArrayZipBehavior.ExtendNA
           case "AssumeSameLength" => ArrayZipBehavior.AssumeSameLength
         }

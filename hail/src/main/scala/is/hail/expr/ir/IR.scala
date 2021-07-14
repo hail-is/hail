@@ -782,6 +782,4 @@ final case class ShuffleRead(
 
 object ErrorIDs {
   val NO_ERROR = -1
-
-  private object NO_Error
 }

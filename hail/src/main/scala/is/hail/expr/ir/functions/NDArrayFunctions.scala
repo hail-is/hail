@@ -36,7 +36,7 @@ object NDArrayFunctions extends RegistryFunctions {
       }
     }
 
-    def linear_solve(a: SNDArrayCode, b: SNDArrayCode, outputPt: PType, cb: EmitCodeBuilder, region: Value[Region]): (SNDArrayCode, Value[Int]) = {
+    def linear_solve(a: SNDArrayCode, b: SNDArrayCode, outputPt: PType, cb: EmitCodeBuilder, region: Value[Region], errorID: Value[Int]): (SNDArrayCode, Value[Int]) = {
       val aInput = a.asNDArray.memoize(cb, "A")
       val bInput = b.asNDArray.memoize(cb, "B")
 
@@ -45,11 +45,11 @@ object NDArrayFunctions extends RegistryFunctions {
 
       val IndexedSeq(n0, n1) = aColMajor.shapes(cb)
 
-      cb.ifx(n0 cne n1, cb._fatalWithError(ErrorIDs.NO_ERROR, "hail.nd.solve: matrix a must be square."))
+      cb.ifx(n0 cne n1, cb._fatalWithError(errorID, "hail.nd.solve: matrix a must be square."))
 
       val IndexedSeq(n, nrhs) = bColMajor.shapes(cb)
 
-      cb.ifx(n0 cne n, cb._fatalWithError(ErrorIDs.NO_ERROR, "hail.nd.solve: Solve dimensions incompatible"))
+      cb.ifx(n0 cne n, cb._fatalWithError(errorID, "hail.nd.solve: Solve dimensions incompatible"))
 
       val infoDGESVResult = cb.newLocal[Int]("dgesv_result")
       val ipiv = cb.newLocal[Long]("dgesv_ipiv")
@@ -88,11 +88,11 @@ object NDArrayFunctions extends RegistryFunctions {
 
     registerIEmitCode2("linear_solve_no_crash", TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)), TStruct(("solution", TNDArray(TFloat64, Nat(2))), ("failed", TBoolean)),
       { (t, p1, p2) => EmitType(PCanonicalStruct(false, ("solution", PCanonicalNDArray(PFloat64Required, 2, false)), ("failed", PBooleanRequired)).sType, false) }) {
-      case (cb, region, SBaseStructPointer(outputStructType: PCanonicalStruct), _, aec, bec) =>
+      case (cb, region, SBaseStructPointer(outputStructType: PCanonicalStruct), errorID, aec, bec) =>
         aec.toI(cb).flatMap(cb) { apc =>
           bec.toI(cb).map(cb) { bpc =>
             val outputNDArrayPType = outputStructType.fieldType("solution")
-            val (resNDPCode, info) = linear_solve(apc.asNDArray, bpc.asNDArray, outputNDArrayPType, cb, region)
+            val (resNDPCode, info) = linear_solve(apc.asNDArray, bpc.asNDArray, outputNDArrayPType, cb, region, errorID)
             val ndEmitCode = EmitCode(Code._empty, info cne 0, resNDPCode)
             outputStructType.constructFromFields(cb, region, IndexedSeq[EmitCode](ndEmitCode, EmitCode(Code._empty, false, primitive(info cne 0))), false)
           }
@@ -102,7 +102,7 @@ object NDArrayFunctions extends RegistryFunctions {
     registerSCode2("linear_solve", TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)),
       { (t, p1, p2) => PCanonicalNDArray(PFloat64Required, 2, true).sType }) {
       case (er, cb, SNDArrayPointer(pt), apc, bpc, errorID) =>
-        val (resPCode, info) = linear_solve(apc.asNDArray, bpc.asNDArray, pt, cb, er.region)
+        val (resPCode, info) = linear_solve(apc.asNDArray, bpc.asNDArray, pt, cb, er.region, errorID)
         cb.ifx(info cne 0, cb._fatalWithError(errorID,s"hl.nd.solve: Could not solve, matrix was singular. dgesv error code ", info.toS))
         resPCode
     }

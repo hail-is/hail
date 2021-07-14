@@ -74,13 +74,13 @@ object SetFunctions extends RegistryFunctions {
           ApplyUnaryPrimOp(Bang(), contains(s2, Ref(x, t)))))
     }
 
-    registerIR2("isSubset", TSet(tv("T")), TSet(tv("T")), TBoolean) { (_, s, w, _) =>
+    registerIR2("isSubset", TSet(tv("T")), TSet(tv("T")), TBoolean) { (_, s, w, errorID) =>
       val t = s.typ.asInstanceOf[TSet].elementType
       val a = genUID()
       val x = genUID()
       StreamFold(ToStream(s), True(), a, x,
         // FIXME short circuit
-        ApplySpecial("land", FastSeq(), FastSeq(Ref(a, TBoolean), contains(w, Ref(x, t))), TBoolean, ErrorIDs.NO_ERROR))
+        ApplySpecial("land", FastSeq(), FastSeq(Ref(a, TBoolean), contains(w, Ref(x, t))), TBoolean, errorID))
     }
 
     registerIR1("median", TSet(tnum("T")), tv("T")) { (_, s, _) =>

@@ -174,13 +174,12 @@ object LocusFunctions extends RegistryFunctions {
             cb.whileLoop(i < len, {
 
               coords.loadElement(cb, i).consume(cb,
-                cb += Code._fatalWithID[Unit](
-                  const("locus_windows: missing value for 'coord_expr' at row ")
-                    .concat((offset + i).toS), errorID),
+                cb._fatalWithError(errorID, const("locus_windows: missing value for 'coord_expr' at row ")
+                    .concat((offset + i).toS)),
                 { sc =>
                   val currentCoord = cb.newLocal[Double]("locuswindows_coord_i", sc.asDouble.doubleCode(cb))
                   cb.ifx(lastCoord > currentCoord,
-                    cb += Code._fatalWithID[Unit]("locus_windows: 'coord_expr' must be in ascending order within each contig.", errorID),
+                    cb._fatalWithError(errorID, "locus_windows: 'coord_expr' must be in ascending order within each contig."),
                     cb.assign(lastCoord, currentCoord)
                   )
                 })
