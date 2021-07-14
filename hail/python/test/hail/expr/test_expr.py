@@ -209,12 +209,14 @@ class Tests(unittest.TestCase):
             x6=kt.a.keys(),
             x7=kt.a.values(),
             x8=kt.a.size(),
-            x9=kt.a.map_values(lambda v: v * 2.0)
+            x9=kt.a.map_values(lambda v: v * 2.0),
+            x10=kt.a.items(),
         ).take(1)[0])
 
         expected = {'a': {'cat': 3, 'dog': 7}, 'x': 2.0, 'x1': 3, 'x2': 7, 'x3': False,
                     'x4': False, 'x5': {'cat', 'dog'}, 'x6': ['cat', 'dog'],
-                    'x7': [3, 7], 'x8': 2, 'x9': {'cat': 6.0, 'dog': 14.0}}
+                    'x7': [3, 7], 'x8': 2, 'x9': {'cat': 6.0, 'dog': 14.0},
+                    'x10': [('cat', 3), ('dog', 7)]}
 
         self.assertDictEqual(result, expected)
 
