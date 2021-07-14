@@ -343,7 +343,7 @@ object LowerBlockMatrixIR {
         val loweredChild = lower(child)
         val summedChild = loweredChild.mapBody { (ctx, body) =>
           if (!outIndexExpr.isEmpty) NDArrayAgg(body, outIndexExpr) else {
-            NDArrayReshape(NDArrayAgg(body, IndexedSeq(0, 1)), MakeTuple.ordered(Seq(I64(1L), I64(1L))))
+            NDArrayReshape(NDArrayAgg(body, IndexedSeq(0, 1)), MakeTuple.ordered(Seq(I64(1L), I64(1L))), ErrorIDs.NO_ERROR)
           }
         }
         // Now, make decision based on outIndexExpr
@@ -354,7 +354,7 @@ object LowerBlockMatrixIR {
             println(CompileAndEvaluate(ctx, foo))
             new BlockMatrixStage(summedChild.globalVals, TStruct.empty) {
               override def blockContext(idx: (Int, Int)): IR = makestruct()
-              override def blockBody(ctxRef: Ref): IR = NDArrayReshape(res, MakeTuple.ordered(Seq(I64(1L), I64(1L))))
+              override def blockBody(ctxRef: Ref): IR = NDArrayReshape(res, MakeTuple.ordered(Seq(I64(1L), I64(1L))), ErrorIDs.NO_ERROR)
             }
           case IndexedSeq(1) => {
             new BlockMatrixStage(loweredChild.globalVals, TArray(loweredChild.ctxType)) {
@@ -371,7 +371,7 @@ object LowerBlockMatrixIR {
               override def blockBody(ctxRef: Ref): IR = {
                 // Now I know that each context is a stream of contexts for the child.
                 val summedChildBlocks = mapIR(ToStream(ctxRef))(singleChildCtx => {
-                  bindIR(NDArrayAgg(loweredChild.blockBody(singleChildCtx), outIndexExpr))(aggedND => NDArrayReshape(aggedND, MakeTuple(Seq((0, GetTupleElement(NDArrayShape(aggedND), 0)), (1, I64(1))))))
+                  bindIR(NDArrayAgg(loweredChild.blockBody(singleChildCtx), outIndexExpr))(aggedND => NDArrayReshape(aggedND, MakeTuple(Seq((0, GetTupleElement(NDArrayShape(aggedND), 0)), (1, I64(1)))), ErrorIDs.NO_ERROR))
                 })
                 val aggVar = genUID()
                 StreamAgg(summedChildBlocks, aggVar, ApplyAggOp(NDArraySum())(Ref(aggVar, summedChildBlocks.typ.asInstanceOf[TStream].elementType)))
