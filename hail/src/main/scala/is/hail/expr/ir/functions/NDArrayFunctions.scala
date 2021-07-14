@@ -1,7 +1,7 @@
 package is.hail.expr.ir.functions
 
 import is.hail.annotations.{Memory, Region}
-import is.hail.asm4s.{Code, Value}
+import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.{Nat, NatVariable}
 import is.hail.linalg.{LAPACK, LinalgCodeUtils}
@@ -44,21 +44,22 @@ object NDArrayFunctions extends RegistryFunctions {
       val ndCoefColMajor = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(ndCoefInput, cb, region)
       val ndDepColMajor = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(ndDepInput, cb, region)
 
-      val IndexedSeq(n0, n1) = aColMajor.shapes(cb)
+      val IndexedSeq(ndCoefRow, ndCoefCol) = ndCoefColMajor.shapes(cb)
+      cb.ifx(ndCoefRow cne ndCoefCol, cb._fatal("hail.nd.solve: matrix a must be square."))
+      val IndexedSeq(ndDepRow, ndDepCol) = ndDepColMajor.shapes(cb)
+      cb.ifx(ndCoefRow  cne ndDepRow, cb._fatal("hail.nd.solve_triangular: Solve dimensions incompatible"))
+      val uplo = cb.newLocal[String]("dtrtrs_uplo")
+      cb.ifx(lower.boolCode(cb), cb.assign(uplo, const("L")), cb.assign(uplo, const("U")))
+      val infoDTRTRSResult = cb.newLocal[Int]("dtrtrs_result")
+      val trans = cb.newLocal[String]("dtrtrs_trans")
+      cb.assign(trans, const("N"))
+      val n = cb.newLocal[Int]("dtrtrs_n")
+      cb.assign(n, ndDepRow)
+      val n = cb.newLocal[Int]("dtrtrs_n")
+      cb.assign(n, ndDepCol)
 
-      cb.ifx(n0 cne n1, cb._fatal("hail.nd.solve: matrix a must be square."))
 
-      val IndexedSeq(n, nrhs) = bColMajor.shapes(cb)
-
-      cb.ifx(n0 cne n, cb._fatal("hail.nd.solve: Solve dimensions incompatible"))
-
-      val infoDGESVResult = cb.newLocal[Int]("dgesv_result")
-      val ipiv = cb.newLocal[Long]("dgesv_ipiv")
-      cb.assign(ipiv, Code.invokeStatic1[Memory, Long, Long]("malloc", n * 4L))
-
-      val aCopy = cb.newLocal[Long]("dgesv_a_copy")
-
-      def aNumBytes = n * n * 8L
+      def aNumBytes = ndDepRow. * n * 8L
 
       cb.assign(aCopy, Code.invokeStatic1[Memory, Long, Long]("malloc", aNumBytes))
       val aColMajorFirstElement = aColMajor.firstDataAddress(cb)

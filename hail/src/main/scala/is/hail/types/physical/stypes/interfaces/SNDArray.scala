@@ -107,6 +107,8 @@ object SNDArray {
               val i = info(n).indexToDim(idx)
               cb.assign(info(n).pos(i), info(n).pos(i) + info(n).strides(i))
             }
+
+
           }
         }
 
