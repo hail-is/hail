@@ -427,12 +427,12 @@ class Container:
                     await self.pull_image()
                     self.image_config = image_configs[self.image_ref_str]
                     self.image_id = self.image_config['Id'].split(":")[1]
+                    worker.image_ref_count[(self.image_ref_str, self.image_id)] += 1
+
                     self.rootfs_path = f'/host/rootfs/{self.image_id}'
                     if not os.path.exists(self.rootfs_path):
                         await self.extract_rootfs()
                         log.info(f'Added expanded image to cache: {self.image_ref_str}, ID: {self.image_id}')
-
-                    worker.image_ref_count[self.image_id] += 1
 
             with self.step('pulling'):
                 await self.run_until_done_or_deleted(localize_rootfs)
@@ -470,10 +470,12 @@ class Container:
             self.state = 'error'
             self.error = traceback.format_exc()
         finally:
-            await self.delete_container()
-            if self.image_id:
-                worker.image_ref_count[self.image_id] -= 1
-                assert worker.image_ref_count[self.image_id] >= 0
+            try:
+                await self.delete_container()
+            finally:
+                if self.image_id:
+                    worker.image_ref_count[(self.image_ref_str, self.image_id)] -= 1
+                    assert worker.image_ref_count[(self.image_ref_str, self.image_id)] >= 0
 
     async def run_until_done_or_deleted(self, f: Callable[[], Awaitable[Any]]):
         step = asyncio.ensure_future(f())
@@ -2007,16 +2009,18 @@ class Worker:
 
     async def cleanup_old_images(self):
         while True:
-            unused_image = self.get_unused_image()
-            if unused_image:
-                try:
-                    log.info(f'Found an unused image: {unused_image}')
-                    shutil.rmtree(f'/host/rootfs/{unused_image}')
-                    del self.image_ref_count[unused_image]
-                    await check_shell(f'docker rmi {unused_image}')
-                    log.info(f'Deleted image from cache: {unused_image}')
-                except Exception as e:
-                    log.exception(f'Error while deleting unused image: {e}')
+            try:
+                images = list(self.image_ref_count.keys())
+                for image_ref_str, image_id in images:
+                    async with self.rootfs_locks[image_ref_str]:
+                        if self.image_ref_count[(image_ref_str, image_id)] == 0:
+                            log.info(f'Found an unused image: {image_ref_str} with ID {image_id}')
+                            shutil.rmtree(f'/host/rootfs/{image_id}')
+                            del self.image_ref_count[(image_ref_str, image_id)]
+                            await check_shell(f'docker rmi {image_id}')
+                            log.info(f'Deleted image from cache: {image_ref_str} with ID {image_id}')
+            except Exception as e:
+                log.exception(f'Error while deleting unused image: {e}')
             await asyncio.sleep(60)
 
 
