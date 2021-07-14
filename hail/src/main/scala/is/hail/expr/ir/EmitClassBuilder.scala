@@ -635,12 +635,11 @@ class EmitClassBuilder[C](
     else
       // if there are no literals, there might not be a HailContext
       null
-    val referencesBc: Array[BroadcastValue[ReferenceGenome]] = if (hasReferences) {
-      val rgs = emodb.referenceGenomes()
-      rgs.map(_.broadcast).toArray
-    } else {
+
+    val references: Array[ReferenceGenome] = if (hasReferences)
+      emodb.referenceGenomes().toArray
+    else
       null
-    }
 
 
     val nSerializedAggs = _nSerialized
@@ -683,7 +682,7 @@ class EmitClassBuilder[C](
         if (hasLiterals)
           f.asInstanceOf[FunctionWithLiterals].addLiterals(literalsBc.value)
         if (hasReferences)
-          f.asInstanceOf[FunctionWithReferences].addReferenceGenomes(referencesBc.map(_.value))
+          f.asInstanceOf[FunctionWithReferences].addReferenceGenomes(references)
         if (nSerializedAggs != 0)
           f.asInstanceOf[FunctionWithAggRegion].setNumSerialized(nSerializedAggs)
         f.asInstanceOf[FunctionWithSeededRandomness].setPartitionIndex(idx)
