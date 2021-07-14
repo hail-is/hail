@@ -184,6 +184,16 @@ package object ir {
   def makestruct(fields: (String, IR)*): MakeStruct = MakeStruct(fields)
   def maketuple(fields: IR*): MakeTuple = MakeTuple(fields.zipWithIndex.map{ case (field, idx) => (idx, field)})
 
+  def aggBindIR(v: IR, isScan: Boolean = false)(body: Ref => IR): IR = {
+    val ref = Ref(genUID(), v.typ)
+    AggLet(ref.name, v, body(ref), isScan = isScan)
+  }
+
+  def aggExplodeIR(v: IR, isScan: Boolean = false)(body: Ref => IR): AggExplode = {
+    val r = Ref(genUID(), v.typ.asInstanceOf[TIterable].elementType)
+    AggExplode(v, r.name, body(r), isScan)
+  }
+
   implicit def toRichIndexedSeqEmitSettable(s: IndexedSeq[EmitSettable]): RichIndexedSeqEmitSettable = new RichIndexedSeqEmitSettable(s)
 
   implicit def emitValueToCode(ev: EmitValue): EmitCode = ev.load
