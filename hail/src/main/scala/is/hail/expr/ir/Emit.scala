@@ -1317,14 +1317,14 @@ class Emit[C](
         emitI(ndIR).map(cb) { case pc: SNDArrayCode => pc.shape(cb) }
       case x@NDArrayReindex(child, indexMap) =>
         val childEC = emitI(child)
-        childEC.map(cb) { case pndCode: SNDArrayPointerCode =>
-          val childPType = pndCode.st.pType
-          val pndVal = pndCode.memoize(cb, "ndarray_reindex_child")
-          val childShape = pndVal.shapes(cb)
-          val childStrides = pndVal.strides(cb)
+        childEC.map(cb) { case sndCode: SNDArrayPointerCode =>
+          val childPType = sndCode.st.pType
+          val sndVal = sndCode.memoize(cb, "ndarray_reindex_child")
+          val childShape = sndVal.shapes(cb)
+          val childStrides = sndVal.strides(cb)
 
-          val pndAddr = SingleCodeSCode.fromSCode(cb, pndVal, region)
-          val dataArray = childPType.dataType.loadCheapSCode(cb, childPType.dataPArrayPointer(pndAddr.code.asInstanceOf[Code[Long]]))
+          val pndAddr = SingleCodeSCode.fromSCode(cb, sndVal, region)
+          val dataPtr = sndVal.firstDataAddress(cb)
 
           val newShape = indexMap.map { childIndex =>
             if (childIndex < childPType.nDims) childShape(childIndex) else const(1L)
@@ -1334,10 +1334,10 @@ class Emit[C](
           }
 
           val newPType = childPType.copy(nDims = indexMap.length)
-          newPType.constructByCopyingArray(
+          newPType.constructByCopyingDataPointer(
             newShape,
             newStrides,
-            dataArray,
+            dataPtr,
             cb,
             region)
         }
