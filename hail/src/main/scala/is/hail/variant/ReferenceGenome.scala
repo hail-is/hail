@@ -394,6 +394,12 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
     if (!fs.exists(chainFile))
       fatal(s"Chain file '$chainFile' does not exist.")
+
+    val chainFilePath = fs.fileStatus(chainFile).getPath
+    val lo = LiftOver(tmpdir, fs, chainFilePath)
+    val destRG = ReferenceGenome.getReference(destRGName)
+    lo.checkChainFile(this, destRG)
+
     chainFiles += destRGName -> chainFile
     heal(tmpdir, fs)
   }
@@ -427,10 +433,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     for ((destRGName, chainFile) <- chainFiles) {
       val chainFilePath = fs.fileStatus(chainFile).getPath
       val lo = LiftOver(tmpdir, fs, chainFilePath)
-
-      val destRG = ReferenceGenome.getReference(destRGName)
-      lo.checkChainFile(this, destRG)
-
       liftoverMaps += destRGName -> lo
     }
 

@@ -587,7 +587,7 @@ class EmitClassBuilder[C](
       cb.ifx(rgs.length().cne(const(rgFields.length)), cb._fatal("Invalid number of references, expected ", rgFields.length.toString, " got ", rgs.length().toS))
       for ((fld, i) <- rgFields.zipWithIndex) {
         cb += fld.put(rgs(i))
-        cb += fld.get().invoke[String, FS, Unit]("heal", ctx.tmpdir, getFS)
+        cb += fld.get().invoke[String, FS, Unit]("heal", ctx.localTmpdir, getFS)
       }
     }
   }
