@@ -242,6 +242,7 @@ object Simplify {
       Let(name, value, x)
 
     case MakeNDArray(ToArray(someStream), shape, rowMajor, errorId) => MakeNDArray(someStream, shape, rowMajor, errorId)
+    case MakeNDArray(ToStream(someArray, _), shape, rowMajor, errorId) => MakeNDArray(someArray, shape, rowMajor, errorId)
     case NDArrayShape(MakeNDArray(data, shape, _, _)) => {
       If(IsNA(data), NA(shape.typ), shape)
     }
