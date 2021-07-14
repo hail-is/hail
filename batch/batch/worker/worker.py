@@ -57,7 +57,6 @@ from ..utils import (
     cores_mcpu_to_storage_bytes,
 )
 from ..semaphore import FIFOWeightedSemaphore
-from shlex import quote as shq
 from ..log_store import LogStore
 from ..globals import (
     HTTP_CLIENT_MAX_SIZE,
@@ -129,10 +128,6 @@ network_allocator: Optional['NetworkAllocator'] = None
 worker: Optional['Worker'] = None
 
 image_configs: Dict[str, Dict[str, Any]] = dict()
-
-
-def get_image_digest(image_config) -> str:
-    return image_config['RepoDigests'][0].split('@')[1].split(':')[1]
 
 
 class PortAllocator:
@@ -391,6 +386,7 @@ class Container:
 
         self.image_ref = image_ref
         self.image_ref_str = str(image_ref)
+        self.image_id = None
 
         self.port = self.spec.get('port')
         self.host_port = None
@@ -410,7 +406,6 @@ class Container:
         self.overlay_path = None
 
         self.image_config = None
-        self.image_digest = None
         self.rootfs_path = None
         scratch = self.spec['scratch']
         self.container_scratch = f'{scratch}/{self.name}'
@@ -427,20 +422,17 @@ class Container:
 
             async def localize_rootfs():
                 async with worker.rootfs_locks[self.image_ref_str]:
-                    last_fetched = worker.rootfs_last_fetched.get(self.image_ref_str)
-                    five_minutes_ago = time_msecs() - 5 * 60 * 1000
-                    if not last_fetched or last_fetched < five_minutes_ago:
-                        await self.pull_image()
-                        worker.rootfs_last_fetched[self.image_ref_str] = time_msecs()
-                        log.info(f'Added image to cache: {self.image_ref_str}')
-
+                    # FIXME Authentication is entangled with pulling images. We need a way to test
+                    # that a user has access to a cached image without pulling.
+                    await self.pull_image()
                     self.image_config = image_configs[self.image_ref_str]
-                    self.image_digest = get_image_digest(self.image_config)
-                    self.rootfs_path = f'/host/rootfs/{self.image_digest}'
+                    self.image_id = self.image_config['Id'].split(":")[1]
+                    self.rootfs_path = f'/host/rootfs/{self.image_id}'
                     if not os.path.exists(self.rootfs_path):
                         await self.extract_rootfs()
+                        log.info(f'Added expanded image to cache: {self.image_ref_str}, ID: {self.image_id}')
 
-                    worker.image_digest_ref_count[self.image_digest] += 1
+                    worker.image_ref_count[self.image_id] += 1
 
             with self.step('pulling'):
                 await self.run_until_done_or_deleted(localize_rootfs)
@@ -479,9 +471,9 @@ class Container:
             self.error = traceback.format_exc()
         finally:
             await self.delete_container()
-            if self.image_digest:
-                worker.image_digest_ref_count[self.image_digest] -= 1
-                assert worker.image_digest_ref_count[self.image_digest] >= 0
+            if self.image_id:
+                worker.image_ref_count[self.image_id] -= 1
+                assert worker.image_ref_count[self.image_id] >= 0
 
     async def run_until_done_or_deleted(self, f: Callable[[], Awaitable[Any]]):
         step = asyncio.ensure_future(f())
@@ -563,7 +555,9 @@ class Container:
     async def extract_rootfs(self):
         assert self.rootfs_path
         os.makedirs(self.rootfs_path)
-        await check_shell(f'docker export $(docker create {shq(self.image_ref_str)}) | tar -C {self.rootfs_path} -xf -')
+        await check_shell(
+            f'id=$(docker create {self.image_id}) && docker export $id | tar -C {self.rootfs_path} -xf - && docker rm $id'
+        )
         log.info(f'Extracted rootfs for image {self.image_ref_str}')
 
     async def setup_overlay(self):
@@ -1688,8 +1682,7 @@ class Worker:
         self.jar_download_locks = defaultdict(asyncio.Lock)
 
         self.rootfs_locks: Dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
-        self.rootfs_last_fetched = {}
-        self.image_digest_ref_count = Counter()
+        self.image_ref_count = Counter()
 
         # filled in during activation
         self.log_store = None
@@ -2007,9 +2000,9 @@ class Worker:
             self.active = True
 
     def get_unused_image(self) -> Optional[str]:
-        for image_digest, count in self.image_digest_ref_count.items():
+        for image_id, count in self.image_ref_count.items():
             if count == 0:
-                return image_digest
+                return image_id
         return None
 
     async def cleanup_old_images(self):
@@ -2019,7 +2012,8 @@ class Worker:
                 try:
                     log.info(f'Found an unused image: {unused_image}')
                     shutil.rmtree(f'/host/rootfs/{unused_image}')
-                    del self.image_digest_ref_count[unused_image]
+                    del self.image_ref_count[unused_image]
+                    await check_shell(f'docker rmi {unused_image}')
                     log.info(f'Deleted image from cache: {unused_image}')
                 except Exception as e:
                     log.exception(f'Error while deleting unused image: {e}')
