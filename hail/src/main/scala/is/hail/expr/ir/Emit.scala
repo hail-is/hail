@@ -1249,13 +1249,13 @@ class Emit[C](
 
       case x@MakeNDArray(dataIR, shapeIR, rowMajorIR, errorId) =>
         val nDims = x.typ.nDims
-        val xP = PCanonicalNDArray(dataCode.st.elementType.canonicalPType().setRequired(true), nDims)
 
         emitI(rowMajorIR).flatMap(cb) { isRowMajorCode =>
           emitI(shapeIR).flatMap(cb) { case shapeTupleCode: SBaseStructCode =>
             dataIR.typ match {
               case _: TArray =>
                 emitI(dataIR).map(cb) { case dataCode: SIndexableCode =>
+                  val xP = PCanonicalNDArray(dataCode.st.elementType.canonicalPType().setRequired(true), nDims)
                   val shapeTupleValue = shapeTupleCode.memoize(cb, "make_ndarray_shape")
                   val memoData = dataCode.memoize(cb, "make_nd_array_memoized_data")
 
@@ -1296,6 +1296,7 @@ class Emit[C](
                 EmitStream.produce(this, dataIR, cb, region, env, container)
                   .map(cb) {
                     case stream: SStreamCode => {
+                      val xP = PCanonicalNDArray(stream.st.elementType.canonicalPType().setRequired(true), nDims)
                       val shapeTupleValue = shapeTupleCode.memoize(cb, "make_ndarray_shape")
                       (0 until nDims).foreach { index =>
                         cb.ifx(shapeTupleValue.isFieldMissing(index),
@@ -1305,7 +1306,7 @@ class Emit[C](
                       val stridesSettables = (0 until nDims).map(i => cb.newLocal[Long](s"make_ndarray_stride_$i"))
 
                       val shapeValues = (0 until nDims).map { i =>
-                        shapeTupleValue.loadField(cb, i).get(cb).memoize(cb, s"make_ndarray_shape_${i}").asPValue.value.asInstanceOf[Value[Long]]
+                        cb.newLocal[Long](s"make_ndarray_shape_${i}", shapeTupleValue.loadField(cb, i).get(cb).asLong.longCode(cb))
                       }
 
                       cb.ifx(isRowMajorCode.asBoolean.boolCode(cb), {
