@@ -435,9 +435,12 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     }
 
     // add sequence
-    val fastaPath = fs.fileStatus(fastaFilePath).getPath
-    val indexPath = fs.fileStatus(fastaIndexPath).getPath
-    fastaReaderCfg = FASTAReaderConfig(tmpdir, fs, this, fastaPath, indexPath)
+    fastaReaderCfg = null
+    if (fastaFilePath != null) {
+      val fastaPath = fs.fileStatus(fastaFilePath).getPath
+      val indexPath = fs.fileStatus(fastaIndexPath).getPath
+      fastaReaderCfg = FASTAReaderConfig(tmpdir, fs, this, fastaPath, indexPath)
+    }
   }
 
   @transient lazy val broadcast: BroadcastValue[ReferenceGenome] = HailContext.backend.broadcast(this)
