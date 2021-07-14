@@ -1125,7 +1125,7 @@ object PruneDeadFields {
       case MakeNDArray(data, shape, rowMajor, errorId) =>
         val elementType = requestedType.asInstanceOf[TNDArray].elementType
         unifyEnvs(
-          memoizeValueIR(data, TArray(elementType), memo),
+          memoizeValueIR(data, data.typ, memo),
           memoizeValueIR(shape, shape.typ, memo),
           memoizeValueIR(rowMajor, rowMajor.typ, memo)
         )
