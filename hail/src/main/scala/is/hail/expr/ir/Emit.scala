@@ -1267,7 +1267,7 @@ class Emit[C](
 
                   (0 until nDims).foreach { index =>
                     cb.ifx(shapeTupleValue.isFieldMissing(index),
-                      cb._fatalWithError(errorId, "shape missing at index $index")))
+                      cb._fatalWithError(errorId, s"shape missing at index $index"))
                   }
 
                   val stridesSettables = (0 until nDims).map(i => cb.newLocal[Long](s"make_ndarray_stride_$i"))
