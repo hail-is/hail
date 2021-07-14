@@ -32,25 +32,25 @@ def test_pc_relate_2_simple_example():
          [0, 0, 1, 1, 0, 0, 1, 1],
          [0, 1, 0, 1, 0, 1, 0, 1],
          [0, 0, 1, 1, 0, 0, 1, 1]])
-    scores = hl.literal([[0, 1], [1, 1], [1, 0], [0, 0]])
+    scores = hl.literal([[0, 1], [1, 0], [2, 0], [0, -1]])
     mt = hl.utils.range_matrix_table(n_rows=8, n_cols=4)
     mt = mt.annotate_entries(GT=hl.unphased_diploid_gt_index_call(gs[mt.col_idx][mt.row_idx]))
     mt = mt.annotate_cols(scores=scores[mt.col_idx])
     pcr = hl.pc_relate_2(mt.GT, min_individual_maf=0, scores_expr=mt.scores)
 
     expected = [
-        hl.Struct(i=0, j=1, kin=-0.14570713364640647,
-                  ibd0=1.4823511628401964, ibd1=-0.38187379109476693, ibd2=-0.10047737174542953),
-        hl.Struct(i=0, j=2, kin=0.16530591922102378,
-                  ibd0=0.5234783206257841, ibd1=0.2918196818643366, ibd2=0.18470199750987923),
-        hl.Struct(i=0, j=3, kin=-0.14570713364640647,
-                  ibd0=1.4823511628401964, ibd1=-0.38187379109476693, ibd2=-0.10047737174542953),
-        hl.Struct(i=1, j=2, kin=-0.14570713364640647,
-                  ibd0=1.4823511628401964, ibd1=-0.38187379109476693, ibd2=-0.10047737174542953),
-        hl.Struct(i=1, j=3, kin=0.14285714285714285,
-                  ibd0=0.7027734170591313, ibd1=0.02302459445316596, ibd2=0.2742019884877027),
-        hl.Struct(i=2, j=3, kin=-0.14570713364640647,
-                  ibd0=1.4823511628401964, ibd1=-0.38187379109476693, ibd2=-0.10047737174542953),
+        hl.Struct(i=0, j=1, kin=0.04308803311427006,
+                  ibd0=0.8371964347601548, ibd1=0.1532549980226101, ibd2=0.009548567217235104),
+        hl.Struct(i=0, j=2, kin=-0.02924995111304614,
+                  ibd0=0.8758618068470698, ibd1=0.36527619075804485, ibd2=-0.24113799760511467),
+        hl.Struct(i=0, j=3, kin=0.06218009537126304,
+                  ibd0=0.8278359528633145, ibd1=0.09560771278831892, ibd2=0.07655633434836666),
+        hl.Struct(i=1, j=2, kin=0.08129469602400068,
+                  ibd0=-0.1679632749787232, ibd1=2.010747765861444, ibd2=-0.8427844908827204),
+        hl.Struct(i=1, j=3, kin=0.06179990046708038,
+                  ibd0=0.8946584074678073, ibd1=-0.03651641680393625, ibd2=0.14185800933612888),
+        hl.Struct(i=2, j=3, kin=-0.012863506769063277,
+                  ibd0=0.7395091389950708, ibd1=0.5724357490861116, ibd2=-0.31194488808118237)
     ]
     ht_expected = hl.Table.parallelize(expected)
     ht_expected = ht_expected.key_by(i=hl.struct(col_idx=ht_expected.i),
