@@ -45,7 +45,7 @@ object NestingDepth {
         case StreamMap(a, name, body) =>
           computeIR(a, depth)
           computeIR(body, depth.incrementEval)
-        case StreamZip(as, _, body, _) =>
+        case StreamZip(as, _, body, _, _) =>
           as.foreach(computeIR(_, depth))
           computeIR(body, depth.incrementEval)
         case StreamFor(a, valueName, body) =>
@@ -80,7 +80,7 @@ object NestingDepth {
         case NDArrayMap(nd, _, body) =>
           computeIR(nd, depth)
           computeIR(body, depth.incrementEval)
-        case NDArrayMap2(nd1, nd2, _, _, body) =>
+        case NDArrayMap2(nd1, nd2, _, _, body, _) =>
           computeIR(nd1, depth)
           computeIR(nd2, depth)
           computeIR(body, depth.incrementEval)

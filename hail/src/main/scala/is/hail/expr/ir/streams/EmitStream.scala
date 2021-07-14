@@ -383,7 +383,7 @@ object EmitStream {
             leftEC.required && rightEC.required)
         }
 
-      case StreamRange(startIR, stopIR, stepIR, _requiresMemoryManagementPerElement) =>
+      case StreamRange(startIR, stopIR, stepIR, _requiresMemoryManagementPerElement, errorID) =>
 
         emit(startIR, cb).flatMap(cb) { startc =>
           emit(stopIR, cb).flatMap(cb) { stopc =>
@@ -409,7 +409,7 @@ object EmitStream {
                   cb.assign(stop, stopc.asInt.intCode(cb))
                   cb.assign(step, stepc.asInt.intCode(cb))
 
-                  cb.ifx(step ceq const(0), cb._fatal("Array range cannot have step size 0."))
+                  cb.ifx(step ceq const(0), cb._fatalWithError(errorID, "Array range cannot have step size 0."))
                   cb.ifx(step < const(0), {
                     cb.ifx(start.toL <= stop.toL, {
                       cb.assign(llen, 0L)
@@ -424,7 +424,7 @@ object EmitStream {
                     })
                   })
                   cb.ifx(llen > const(Int.MaxValue.toLong), {
-                    cb._fatal("Array range cannot have more than MAXINT elements.")
+                    cb._fatalWithError(errorID, "Array range cannot have more than MAXINT elements.")
                   })
                   cb.assign(len, llen.toI)
 
@@ -1524,7 +1524,7 @@ object EmitStream {
           }
         }
 
-      case StreamZip(as, names, body, behavior) =>
+      case StreamZip(as, names, body, behavior, errorID) =>
         IEmitCode.multiMapEmitCodes(cb, as.map(a => EmitCode.fromI(mb)(cb => produce(a, cb)))) { childStreams =>
 
           val producers = childStreams.map(_.asInstanceOf[SStreamCode].producer)
@@ -1612,7 +1612,7 @@ object EmitStream {
                       val len = cb.newLocal[Int]("zip_len", ls.head(cb))
                         ls.tail.foreach { compL =>
                           val lenTemp = cb.newLocal[Int]("lenTemp", compL(cb))
-                          cb.ifx(len.cne(lenTemp), cb._fatal("zip: length mismatch: ", len.toS, ", ", lenTemp.toS))
+                          cb.ifx(len.cne(lenTemp), cb._fatalWithError(errorID, "zip: length mismatch: ", len.toS, ", ", lenTemp.toS))
                         }
                       len
                     })
@@ -1657,7 +1657,7 @@ object EmitStream {
                   cb.ifx(anyEOS,
                     cb.ifx(allEOS,
                       cb.goto(LendOfStream),
-                      cb._fatal("zip: length mismatch"))
+                      cb._fatalWithError(errorID, "zip: length mismatch"))
                   )
 
                   cb.goto(LproduceElementDone)
