@@ -4,7 +4,6 @@ import is.hail.expr.ir._
 import is.hail.expr.ir.functions.TableToValueFunction
 import is.hail.io.TextMatrixReader
 import is.hail.io.bgen.MatrixBGENReader
-import is.hail.io.gen.MatrixGENReader
 import is.hail.io.plink.MatrixPLINKReader
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.methods.{ForceCountTable, NPartitionsTable}
@@ -30,8 +29,6 @@ object CanLowerEfficiently {
         case TableRead(_, _, _: MatrixVCFReader) =>
         case TableRead(_, _, _: MatrixBGENReader) =>
           fail(s"no lowering for MatrixBGENReader")
-        case TableRead(_, _, _: MatrixGENReader) =>
-          fail(s"no lowering for MatrixGENReader")
         case TableRead(_, _, _: TableFromBlockMatrixNativeReader) =>
           fail(s"no lowering for TableFromBlockMatrixNativeReader")
 
