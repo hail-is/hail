@@ -260,6 +260,24 @@ def solve(a, b, no_crash=False):
 
 @typecheck(nd_coef=expr_ndarray(), nd_dep=expr_ndarray(), lower=expr_bool)
 def solve_tri(nd_coef, nd_dep, lower=False):
+    """Solve a triangular linear system.
+
+    Parameters
+    ----------
+    nd_coef : :class:`.NDArrayNumericExpression`, (N, N)
+        Triangular coefficient matrix.
+    nd_dep : :class:`.NDArrayNumericExpression`, (N,) or (N, K)
+        Dependent variables.
+    lower : `bool`:
+        If true, nd_coef is interpreted as a lower triangular matrix
+        If false, nd_coef is interpreted as a upper triangular matrix
+
+    Returns
+    -------
+    :class:`.NDArrayNumericExpression`, (N,) or (N, K)
+        Solution to the triangular system Ax = B. Shape is same as shape of B.
+
+    """
     nd_coef, nd_dep = solve_helper(nd_coef, nd_dep)
     return_type = hl.tndarray(hl.tfloat64, 2)
     ir = Apply("linear_triangular_solve", return_type, nd_coef._ir, nd_dep._ir, lower._ir)
