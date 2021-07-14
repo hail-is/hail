@@ -23,6 +23,7 @@ from hailtop.aiogoogle import GoogleStorageAsyncFS
 
 from . import resource, batch, job as _job  # pylint: disable=unused-import
 from .exceptions import BatchException
+from .globals import DEFAULT_SHELL
 
 
 RunningBatchType = TypeVar('RunningBatchType')
@@ -38,7 +39,6 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
     """
     Abstract class for backends.
     """
-    _DEFAULT_SHELL = '/bin/bash'
 
     @abc.abstractmethod
     def _run(self, batch, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs) -> RunningBatchType:
@@ -251,12 +251,12 @@ class LocalBackend(Backend[None]):
                 resource_defs = [r._declare(tmpdir) for r in job._mentioned]
                 env = [f'export {k}={v}' for k, v in job._env.items()]
 
-                job_shell = job._shell if job._shell else self._DEFAULT_SHELL
+                job_shell = job._shell if job._shell else DEFAULT_SHELL
 
                 defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
                 joined_env = '; '.join(env) + '; ' if env else ''
 
-                cmd = " && ".join(f'{{\n{x}\n}}' for x in job._command)
+                cmd = " && ".join(f'{{\n{x}\n}}' for x in job._wrapper_code)
 
                 quoted_job_script = shq(joined_env + defs + cmd)
 
@@ -569,12 +569,13 @@ class ServiceBackend(Backend[bc.Batch]):
                         f"You must specify 'image' for Python jobs if you are using a Python version other than 3.6, 3.7, or 3.8 (you are using {version})")
                 job._image = f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
 
-        if len(pyjobs) > 0:
-            with tqdm(total=len(pyjobs), desc='upload python functions', disable=disable_progress_bar) as pbar:
-                async def compile_job(job):
-                    await job._compile(local_tmpdir, batch_remote_tmpdir)
-                    pbar.update(1)
-                await bounded_gather(*[functools.partial(compile_job, j) for j in pyjobs], parallelism=150)
+        with tqdm(total=len(batch._jobs), desc='upload code', disable=disable_progress_bar) as pbar:
+            async def compile_job(job):
+                used_remote_tmpdir = await job._compile(local_tmpdir, batch_remote_tmpdir)
+                pbar.update(1)
+                return used_remote_tmpdir
+            used_remote_tmpdir_results = await bounded_gather(*[functools.partial(compile_job, j) for j in batch._jobs], parallelism=150)
+            used_remote_tmpdir |= any(used_remote_tmpdir_results)
 
         for job in tqdm(batch._jobs, desc='create job objects', disable=disable_progress_bar):
             inputs = [x for r in job._inputs for x in copy_input(r)]
@@ -596,8 +597,7 @@ class ServiceBackend(Backend[bc.Batch]):
 
             make_local_tmpdir = f'mkdir -p {local_tmpdir}/{job._job_id}'
 
-            job_command = [cmd.strip() for cmd in job._command]
-
+            job_command = [cmd.strip() for cmd in job._wrapper_code]
             prepared_job_command = (f'{{\n{x}\n}}' for x in job_command)
             cmd = f'''
 {bash_flags}
@@ -634,8 +634,10 @@ class ServiceBackend(Backend[bc.Batch]):
                 warnings.warn(f'Using an image {image} not in GCR. '
                               f'Jobs may fail due to Docker Hub rate limits.')
 
+            user_code = '\n\n'.join(job._user_code)
+
             j = bc_batch.create_job(image=image,
-                                    command=[job._shell if job._shell else self._DEFAULT_SHELL, '-c', cmd],
+                                    command=[job._shell if job._shell else DEFAULT_SHELL, '-c', cmd],
                                     parents=parents,
                                     attributes=attributes,
                                     resources=resources,
@@ -646,7 +648,8 @@ class ServiceBackend(Backend[bc.Batch]):
                                     gcsfuse=job._gcsfuse if len(job._gcsfuse) > 0 else None,
                                     env=env_vars,
                                     requester_pays_project=batch.requester_pays_project,
-                                    mount_tokens=True)
+                                    mount_tokens=True,
+                                    user_code=user_code)
 
             n_jobs_submitted += 1
 
@@ -686,7 +689,6 @@ class ServiceBackend(Backend[bc.Batch]):
             print(f'Submitted batch {bc_batch.id} with {n_jobs_submitted} jobs in {round(time.time() - submit_batch_start, 3)} seconds:')
             for jid, cmd in jobs_to_command.items():
                 print(f'{jid}: {cmd}')
-
             print('')
 
         deploy_config = get_deploy_config()

@@ -2,11 +2,13 @@ import re
 import dill
 import os
 import functools
-from io import BytesIO
+import inspect
+from io import StringIO, BytesIO
 from typing import Union, Optional, Dict, List, Set, Tuple, Callable, Any, cast
 
 from . import backend, resource as _resource, batch  # pylint: disable=cyclic-import
 from .exceptions import BatchException
+from .globals import DEFAULT_SHELL
 
 
 def _add_resource_to_set(resource_set, resource, include_rg=True):
@@ -71,7 +73,8 @@ class Job:
         self._timeout: Optional[Union[int, float]] = None
         self._gcsfuse: List[Tuple[str, str, bool]] = []
         self._env: Dict[str, str] = dict()
-        self._command: List[str] = []
+        self._wrapper_code: List[str] = []
+        self._user_code: List[str] = []
 
         self._resources: Dict[str, _resource.Resource] = {}
         self._resources_inverse: Dict[_resource.Resource, str] = {}
@@ -398,6 +401,9 @@ class Job:
         self._gcsfuse.append((bucket, mount_point, read_only))
         return self
 
+    async def _compile(self, local_tmpdir, remote_tmpdir):
+        raise NotImplementedError
+
     def _pretty(self):
         s = f"Job '{self._uid}'" \
             f"\tName:\t'{self.name}'" \
@@ -442,6 +448,14 @@ class BashJob(Job):
     This class should never be created directly by the user. Use :meth:`.Batch.new_job`
     or :meth:`.Batch.new_bash_job` instead.
     """
+
+    def __init__(self,
+                 batch: 'batch.Batch',
+                 name: Optional[str] = None,
+                 attributes: Optional[Dict[str, str]] = None,
+                 shell: Optional[str] = None):
+        super().__init__(batch, name, attributes, shell)
+        self._command: List[str] = []
 
     def _get_resource(self, item: str) -> '_resource.Resource':
         if item not in self._resources:
@@ -527,6 +541,49 @@ class BashJob(Job):
         self._image = image
         return self
 
+    def _interpolate_command(self, command):
+        def handler(match_obj):
+            groups = match_obj.groupdict()
+            if groups['JOB']:
+                raise BatchException(f"found a reference to a Job object in command '{command}'.")
+            if groups['BATCH']:
+                raise BatchException(f"found a reference to a Batch object in command '{command}'.")
+            if groups['PYTHON_RESULT']:
+                raise BatchException(f"found a reference to a PythonResult object. hint: Use one of the methods `as_str`, `as_json` or `as_repr` on a PythonResult. command: '{command}'")
+
+            assert groups['RESOURCE_FILE'] or groups['RESOURCE_GROUP']
+            r_uid = match_obj.group()
+            r = self._batch._resource_map.get(r_uid)
+
+            if r is None:
+                raise BatchException(f"undefined resource '{r_uid}' in command '{command}'.\n"
+                                     f"Hint: resources must be from the same batch as the current job.")
+
+            if r._source != self:
+                self._add_inputs(r)
+                if r._source is not None:
+                    if r not in r._source._valid:
+                        name = r._source._resources_inverse[r]
+                        raise BatchException(f"undefined resource '{name}'\n"
+                                             f"Hint: resources must be defined within "
+                                             f"the job methods 'command' or 'declare_resource_group'")
+                    self._dependencies.add(r._source)
+                    r._source._add_internal_outputs(r)
+            else:
+                _add_resource_to_set(self._valid, r)
+            self._mentioned.add(r)
+            return f"${{{r_uid}}}"
+
+        regexes = [_resource.ResourceFile._regex_pattern,
+                   _resource.ResourceGroup._regex_pattern,
+                   _resource.PythonResult._regex_pattern,
+                   Job._regex_pattern,
+                   batch.Batch._regex_pattern]
+        subst_command = re.sub('(' + ')|('.join(regexes) + ')',
+                               handler,
+                               command)
+        return subst_command
+
     def command(self, command: str) -> 'BashJob':
         """Set the job's command to execute.
 
@@ -600,48 +657,50 @@ class BashJob(Job):
         Same job object with command appended.
         """
 
-        def handler(match_obj):
-            groups = match_obj.groupdict()
-            if groups['JOB']:
-                raise BatchException(f"found a reference to a Job object in command '{command}'.")
-            if groups['BATCH']:
-                raise BatchException(f"found a reference to a Batch object in command '{command}'.")
-            if groups['PYTHON_RESULT']:
-                raise BatchException(f"found a reference to a PythonResult object. hint: Use one of the methods `as_str`, `as_json` or `as_repr` on a PythonResult. command: '{command}'")
-
-            assert groups['RESOURCE_FILE'] or groups['RESOURCE_GROUP']
-            r_uid = match_obj.group()
-            r = self._batch._resource_map.get(r_uid)
-
-            if r is None:
-                raise BatchException(f"undefined resource '{r_uid}' in command '{command}'.\n"
-                                     f"Hint: resources must be from the same batch as the current job.")
-
-            if r._source != self:
-                self._add_inputs(r)
-                if r._source is not None:
-                    if r not in r._source._valid:
-                        name = r._source._resources_inverse[r]
-                        raise BatchException(f"undefined resource '{name}'\n"
-                                             f"Hint: resources must be defined within "
-                                             f"the job methods 'command' or 'declare_resource_group'")
-                    self._dependencies.add(r._source)
-                    r._source._add_internal_outputs(r)
-            else:
-                _add_resource_to_set(self._valid, r)
-            self._mentioned.add(r)
-            return f"${{{r_uid}}}"
-
-        regexes = [_resource.ResourceFile._regex_pattern,
-                   _resource.ResourceGroup._regex_pattern,
-                   _resource.PythonResult._regex_pattern,
-                   Job._regex_pattern,
-                   batch.Batch._regex_pattern]
-        subst_command = re.sub('(' + ')|('.join(regexes) + ')',
-                               handler,
-                               command)
+        subst_command = self._interpolate_command(command)
         self._command.append(subst_command)
         return self
+
+    async def _compile(self, local_tmpdir, remote_tmpdir):
+        job_command = [cmd.strip() for cmd in self._command]
+        job_command = [f'{{\n{x}\n}}' for x in job_command]
+        job_command = '\n'.join(job_command)
+
+        if len(job_command.encode()) <= 10 * 1024:
+            self._wrapper_code.append(job_command)
+            return False
+
+        job_shell = self._shell if self._shell else DEFAULT_SHELL
+
+        pipe = StringIO()
+        pipe.write(f'#! {job_shell}\n')
+        pipe.writelines(job_command)
+        pipe.write('\n')
+        pipe.seek(0)
+
+        code_bytes = pipe.getvalue().encode()
+
+        assert self._job_id is not None
+        job_path = f'{remote_tmpdir}/{self._job_id}'
+        code_path = f'{job_path}/code.sh'
+
+        await self._batch._fs.makedirs(os.path.dirname(code_path), exist_ok=True)
+        await self._batch._fs.write(code_path, code_bytes)
+
+        code = self._batch.read_input(code_path)
+        self._add_inputs(code)
+        self._mentioned.add(code)
+
+        self._user_code.append(pipe.getvalue())
+
+        wrapper_command = f'''
+chmod u+x {code}
+source {code}
+'''
+        wrapper_command = self._interpolate_command(wrapper_command)
+        self._wrapper_code.append(wrapper_command)
+
+        return True
 
 
 class PythonJob(Job):
@@ -957,7 +1016,7 @@ class PythonJob(Job):
                 out.write(repr(result) + \\"\\n\\")
 '''
 
-            self._command.append(f'''python3 -c "
+            self._wrapper_code.append(f'''python3 -c "
 import os
 import base64
 import dill
@@ -978,3 +1037,11 @@ with open(os.environ[\\"{result}\\"], \\"wb\\") as dill_out:
         dill.dump((e, traceback.format_exception(type(e), e, e.__traceback__)), dill_out, recurse=True)
         raise e
 "''')
+
+            self._user_code.append(inspect.getsource(unapplied))
+            args = ', '.join([f'{arg!r}' for _, arg in args])
+            kwargs = ', '.join([f'{k}={v!r}' for k, (_, v) in kwargs.items()])
+            separator = ', ' if args and kwargs else ''
+            self._user_code.append(f'{unapplied.__name__}({args}{separator}{kwargs})')
+
+        return True

@@ -89,6 +89,7 @@ job_validator = keyed(
         ),
         'service_account': keyed({required('namespace'): k8s_str, required('name'): k8s_str}),
         'timeout': numeric(**{"x > 0": lambda x: x > 0}),
+        'user_code': str_type,
     }
 )
 
