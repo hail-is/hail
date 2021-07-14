@@ -1505,6 +1505,22 @@ class DictExpression(Expression):
         """
         return self._method("values", tarray(self.dtype.value_type))
 
+    def items(self):
+        """Returns an array of tuples containing key/value pairs in the dictionary.
+
+        Examples
+        --------
+
+        >>> hl.eval(d.items())  # doctest: +SKIP_OUTPUT_CHECK
+        [('Alice', 430), ('Bob', 330), ('Charles', 440)]
+
+        Returns
+        -------
+        :class:`.ArrayExpression`
+            All key/value pairs in the dictionary.
+        """
+        return hl.array(self)
+
     def _extra_summary_fields(self, agg_result):
         return {
             'Min Size': agg_result[0],
