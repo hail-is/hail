@@ -18,7 +18,15 @@ class FoldConstantsSuite extends HailSuite {
 
   @Test def testErrorCatching() {
     val ir = invoke("toInt32", TInt32, Str(""))
-    assert(FoldConstants(ctx, ir) == ir)
+    val errorCompiled = FoldConstants(ctx, ir)
+    errorCompiled match {
+      case Die(Str(str), typ, id: Int) =>
+        assert(typ == TInt32)
+        assert(id == -1)
+        println(str)
+        assert(str.contains("Could not parse '' as Int32"))
+      case _ => fail()
+    }
   }
 
   @DataProvider(name = "aggNodes")

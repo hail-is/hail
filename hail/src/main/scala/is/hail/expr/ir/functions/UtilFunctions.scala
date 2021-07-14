@@ -18,10 +18,25 @@ object UtilFunctions extends RegistryFunctions {
 
   def parseBoolean(s: String): Boolean = s.toBoolean
 
-  def parseInt32(s: String): Int = s.toInt
+  def parseInt32(s: String): Int = {
+    try {
+      s.toInt
+    }
+    catch {
+      case nfe: NumberFormatException =>
+        throw new HailException(s"Could not parse '${s}' as Int32")
+    }
+  }
 
-  def parseInt64(s: String): Long = s.toLong
-
+  def parseInt64(s: String): Long = {
+    try {
+      s.toLong
+    }
+    catch {
+      case nfe: NumberFormatException =>
+        throw new HailException(s"Could not parse '${s}' as Int32")
+    }
+  }
   def parseSpecialNum32(s: String): Float = {
     s.length match {
       case 3 =>
@@ -38,7 +53,7 @@ object UtilFunctions extends RegistryFunctions {
         if (s.equalsCaseInsensitive("-infinity")) return Float.NegativeInfinity
       case _ =>
     }
-    throw new NumberFormatException(s"cannot parse float32 from $s")
+    throw new HailException(s"cannot parse float32 from $s")
   }
 
   def parseSpecialNum64(s: String): Double = {
@@ -57,7 +72,7 @@ object UtilFunctions extends RegistryFunctions {
         if (s.equalsCaseInsensitive("-infinity")) return Double.NegativeInfinity
       case _ =>
     }
-    throw new NumberFormatException(s"cannot parse float64 from $s")
+    throw new HailException(s"cannot parse float64 from $s")
   }
 
   def parseFloat32(s: String): Float = {
