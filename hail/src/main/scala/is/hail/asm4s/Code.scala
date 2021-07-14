@@ -384,7 +384,7 @@ object Code {
     Code._throw[is.hail.utils.HailException, U](cerr, lineNumber)
   }
 
-  def _fatalWithID[U](msg: Code[String], errorId: Int)(implicit uti: TypeInfo[U]): Code[U] =
+  def _fatalWithID[U](msg: Code[String], errorId: Code[Int])(implicit uti: TypeInfo[U]): Code[U] =
     Code._throw[is.hail.utils.HailException, U](Code.newInstance[is.hail.utils.HailException, String, Int](
       msg,
       errorId))

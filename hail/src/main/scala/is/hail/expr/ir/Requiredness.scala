@@ -173,14 +173,14 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           i += 1
         }
         states.bind(node, s)
-      case x@ApplyIR(_, _, args) =>
+      case x@ApplyIR(_, _, args, _) =>
         x.refIdx.foreach { case (n, i) => addBinding(n, args(i)) }
       case ArraySort(a, l, r, c) =>
         addElementBinding(l, a, makeRequired = true)
         addElementBinding(r, a, makeRequired = true)
       case StreamMap(a, name, body) =>
         addElementBinding(name, a)
-      case x@StreamZip(as, names, body, behavior) =>
+      case x@StreamZip(as, names, body, behavior, _) =>
         var i = 0
         while (i < names.length) {
           addElementBinding(names(i), as(i),
@@ -251,7 +251,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           refMap(idx).foreach { use => defs.bind(use, Array[BaseTypeWithRequiredness](RPrimitive())) }
       case NDArrayMap(nd, name, body) =>
         addElementBinding(name, nd)
-      case NDArrayMap2(left, right, l, r, body) =>
+      case NDArrayMap2(left, right, l, r, body, _) =>
         addElementBinding(l, left)
         addElementBinding(r, right)
       case CollectDistributedArray(ctxs, globs, c, g, body, _) =>
@@ -541,7 +541,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case StreamDrop(a, n) =>
         requiredness.union(lookup(n).required)
         requiredness.unionFrom(lookup(a))
-      case StreamZip(as, names, body, behavior) =>
+      case StreamZip(as, names, body, behavior, _) =>
         requiredness.union(as.forall(lookup(_).required))
         coerce[RIterable](requiredness).elementType.unionFrom(lookup(body))
       case StreamZipJoin(as, _, curKey, curVals, joinF) =>
@@ -603,7 +603,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.union(lookup(shape).required)
       case NDArrayShape(nd) =>
         requiredness.union(lookup(nd).required)
-      case NDArrayReshape(nd, shape) =>
+      case NDArrayReshape(nd, shape, _) =>
         val sReq = lookupAs[RBaseStruct](shape)
         val ndReq = lookup(nd)
         requiredness.unionFrom(ndReq)
@@ -629,15 +629,15 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case NDArrayMap(nd, name, body) =>
         requiredness.union(lookup(nd).required)
         coerce[RNDArray](requiredness).unionElement(lookup(body))
-      case NDArrayMap2(l, r, _, _, body) =>
+      case NDArrayMap2(l, r, _, _, body, _) =>
         requiredness.union(lookup(l).required && lookup(r).required)
         coerce[RNDArray](requiredness).unionElement(lookup(body))
-      case NDArrayMatMul(l, r) =>
+      case NDArrayMatMul(l, r, _) =>
         requiredness.unionFrom(lookup(l))
         requiredness.union(lookup(r).required)
-      case NDArrayQR(child, mode) => requiredness.fromPType(NDArrayQR.pType(mode, lookup(child).required))
-      case NDArraySVD(child, _, computeUV) => requiredness.fromPType(NDArraySVD.pTypes(computeUV, lookup(child).required))
-      case NDArrayInv(child) => requiredness.unionFrom(lookup(child))
+      case NDArrayQR(child, mode, _) => requiredness.fromPType(NDArrayQR.pType(mode, lookup(child).required))
+      case NDArraySVD(child, _, computeUV, _) => requiredness.fromPType(NDArraySVD.pTypes(computeUV, lookup(child).required))
+      case NDArrayInv(child, _) => requiredness.unionFrom(lookup(child))
       case MakeStruct(fields) =>
         fields.foreach { case (n, f) =>
           coerce[RStruct](requiredness).field(n).unionFrom(lookup(f))

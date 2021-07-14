@@ -55,7 +55,7 @@ class Tests(unittest.TestCase):
         same_as_python(10, -5, -1)
         same_as_python(10, -5, -4)
 
-        with self.assertRaisesRegex(hl.utils.FatalError, 'Array range cannot have step size 0'):
+        with self.assertRaisesRegex(hl.utils.HailUserError, 'Array range cannot have step size 0'):
             hl.eval(hl.range(0, 1, 0))
 
     def test_zeros(self):
@@ -217,6 +217,11 @@ class Tests(unittest.TestCase):
                     'x7': [3, 7], 'x8': 2, 'x9': {'cat': 6.0, 'dog': 14.0}}
 
         self.assertDictEqual(result, expected)
+
+    def test_dict_missing_error(self):
+        d = hl.dict({'a': 2, 'b': 3})
+        with pytest.raises(hl.utils.HailUserError, match='Key NA not found in dictionary'):
+            hl.eval(d[hl.missing(hl.tstr)])
 
     def test_numeric_conversion(self):
         schema = hl.tstruct(a=hl.tfloat64, b=hl.tfloat64, c=hl.tint32, d=hl.tint32)
