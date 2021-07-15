@@ -309,7 +309,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
         s"@1", badContigs.truncatable("\n  "))
   }
 
-  def hasSequence: Boolean = fastaReaderCfg != null
+  def hasSequence: Boolean = fastaFilePath != null
 
   def addSequence(ctx: ExecuteContext, fastaFile: String, indexFile: String) {
     if (hasSequence)
@@ -381,7 +381,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   private var chainFiles: Map[String, String] = Map.empty
   @transient private[this] var liftoverMap: mutable.Map[String, LiftOver] = _
 
-  def hasLiftover(destRGName: String): Boolean = liftoverMap.contains(destRGName)
+  def hasLiftover(destRGName: String): Boolean = chainFiles.contains(destRGName)
 
   def addLiftover(ctx: ExecuteContext, chainFile: String, destRGName: String): Unit = {
     if (name == destRGName)
