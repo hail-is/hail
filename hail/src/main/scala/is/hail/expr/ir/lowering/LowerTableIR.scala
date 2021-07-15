@@ -1226,14 +1226,15 @@ object LowerTableIR {
             bindIR(TailLoop(treeAggFunction,
               FastIndexedSeq((currentAggStates.name -> collected)),
               If(ArrayLen(currentAggStates) <= I32(branchFactor),
-                ToArray(StreamGrouped(ToStream(currentAggStates), I32(branchFactor))),
-                CollectDistributedArray(currentAggStates, MakeStruct(FastSeq()), distAggStatesRef.name, genUID(),
+                currentAggStates,
+                Recur(treeAggFunction, FastIndexedSeq(CollectDistributedArray(mapIR(StreamGrouped(ToStream(currentAggStates), I32(branchFactor)))(x => ToArray(x)),
+                  MakeStruct(FastSeq()), distAggStatesRef.name, genUID(),
                   RunAgg(
                     combineGroup(distAggStatesRef),
                     WriteValue(MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }), Str(tmpDir) + UUID4(), codecSpec),
                     aggs.states
                   )
-                )))
+                )), currentAggStates.typ)))
             ) { finalParts =>
               RunAgg(
                 combineGroup(finalParts),
