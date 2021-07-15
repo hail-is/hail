@@ -375,6 +375,8 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   def removeSequence(): Unit = {
     if (!hasSequence)
       fatal(s"Reference genome '$name' does not have sequence loaded.")
+    fastaFilePath = null
+    fastaIndexPath = null
     fastaReaderCfg = null
   }
 
