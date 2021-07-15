@@ -40,6 +40,9 @@ case object SInt64 extends SPrimitive {
 
 trait SInt64Value extends SValue {
   def longCode(cb: EmitCodeBuilder): Code[Long]
+  def hashCode(cb: EmitCodeBuilder): SInt32Code = {
+    new SInt32Code(longCode(cb).toI ^ (longCode(cb) >>> 32).toI)
+  }
 }
 
 class SInt64Code(val code: Code[Long]) extends SCode with SPrimitiveCode {
