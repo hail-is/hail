@@ -160,7 +160,7 @@ def adjust_cores_for_storage_request(
 
 
 def unreserved_worker_data_disk_size_gib(worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib, worker_cores):
-    reserved_image_size = 20
+    reserved_image_size = 30
     reserved_container_size = RESERVED_STORAGE_GB_PER_CORE * worker_cores
     if worker_local_ssd_data_disk:
         # local ssd is 375Gi
