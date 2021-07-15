@@ -265,8 +265,9 @@ def test_list_jobs(client):
     j_error.wait()
 
     def assert_job_ids(expected, q=None):
-        actual = set([j['job_id'] for j in b.jobs(q=q)])
-        assert actual == expected
+        jobs = b.jobs(q=q)
+        actual = set([j['job_id'] for j in jobs])
+        assert actual == expected, f'Expected {expected} job IDs, but got jobs: {jobs}'
 
     assert_job_ids({j_success.job_id}, 'success')
     assert_job_ids({j_success.job_id, j_failure.job_id, j_error.job_id}, 'done')
