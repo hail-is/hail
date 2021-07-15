@@ -379,9 +379,9 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   }
 
   private var chainFiles: Map[String, String] = Map.empty
-  @transient private[this] var liftoverMaps: Map[String, LiftOver] = Map.empty[String, LiftOver]
+  @transient private[this] val liftoverMap: mutable.Map[String, LiftOver] = mutable.Map.empty[String, LiftOver]
 
-  def hasLiftover(destRGName: String): Boolean = liftoverMaps.contains(destRGName)
+  def hasLiftover(destRGName: String): Boolean = liftoverMap.contains(destRGName)
 
   def addLiftover(ctx: ExecuteContext, chainFile: String, destRGName: String): Unit = {
     if (name == destRGName)
@@ -407,14 +407,14 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   def getLiftover(destRGName: String): LiftOver = {
     if (!hasLiftover(destRGName))
       fatal(s"Chain file has not been loaded for source reference '$name' and destination reference '$destRGName'.")
-    liftoverMaps(destRGName)
+    liftoverMap(destRGName)
   }
 
   def removeLiftover(destRGName: String): Unit = {
     if (!hasLiftover(destRGName))
       fatal(s"liftover does not exist from reference genome '$name' to '$destRGName'.")
     chainFiles -= destRGName
-    liftoverMaps -= destRGName
+    liftoverMap -= destRGName
   }
 
   def liftoverLocus(destRGName: String, l: Locus, minMatch: Double): (Locus, Boolean) = {
@@ -429,19 +429,24 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
   def heal(tmpdir: String, fs: FS): Unit = this.synchronized {
     // add liftovers
-    liftoverMaps = Map.empty
+    // NOTE: it shouldn't be possible for the liftover map to have more elements than the chain file
+    // since removeLiftover updates both maps, so we don't check to see if liftoverMap has
+    // keys that are not in chainFiles
     for ((destRGName, chainFile) <- chainFiles) {
       val chainFilePath = fs.fileStatus(chainFile).getPath
-      val lo = LiftOver(tmpdir, fs, chainFilePath)
-      liftoverMaps += destRGName -> lo
+      liftoverMap.get(destRGName) match {
+        case Some(lo) if lo.chainFile == chainFilePath => // do nothing
+        case _ => liftoverMap += destRGName -> LiftOver(tmpdir, fs, chainFilePath)
+      }
     }
 
     // add sequence
-    fastaReaderCfg = null
     if (fastaFilePath != null) {
       val fastaPath = fs.fileStatus(fastaFilePath).getPath
       val indexPath = fs.fileStatus(fastaIndexPath).getPath
-      fastaReaderCfg = FASTAReaderConfig(tmpdir, fs, this, fastaPath, indexPath)
+      if (fastaReaderCfg == null || fastaReaderCfg.fastaFile != fastaPath || fastaReaderCfg.indexFile != indexPath) {
+        fastaReaderCfg = FASTAReaderConfig(tmpdir, fs, this, fastaPath, indexPath)
+      }
     }
   }
 

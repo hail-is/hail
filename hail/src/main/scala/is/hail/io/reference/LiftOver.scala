@@ -23,10 +23,10 @@ object LiftOver {
   }
 
   def apply(tmpdir: String, fs: FS, chainFile: String): LiftOver =
-    new LiftOver(localChainFiles.getOrElseUpdate(chainFile, LiftOver.setup(tmpdir, fs, chainFile)))
+    new LiftOver(localChainFiles.getOrElseUpdate(chainFile, LiftOver.setup(tmpdir, fs, chainFile)), chainFile)
 }
 
-class LiftOver(val localChainFile: String) {
+class LiftOver(localChainFile: String, val chainFile: String) {
   val lo = new htsjdk.samtools.liftover.LiftOver(new java.io.File(uriPath(localChainFile)))
 
   def queryInterval(interval: is.hail.utils.Interval, minMatch: Double = htsjdk.samtools.liftover.LiftOver.DEFAULT_LIFTOVER_MINMATCH): (is.hail.utils.Interval, Boolean) = {
