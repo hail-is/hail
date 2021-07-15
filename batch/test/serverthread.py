@@ -2,10 +2,13 @@ import os
 import threading
 import time
 import requests
+import logging
 from werkzeug.serving import make_server
 from flask import Response
 
 from hailtop.utils import retry_response_returning_functions, external_requests_client_session
+
+log = logging.getLogger('ServerThread')
 
 
 class ServerThread(threading.Thread):
@@ -35,7 +38,8 @@ class ServerThread(threading.Thread):
             try:
                 retry_response_returning_functions(session.get, ping_url)
                 up = True
-            except requests.exceptions.ConnectionError:
+            except requests.exceptions.ConnectionError as e:
+                log.exception(f'Failed to contact server at {ping_url}: {e}')
                 time.sleep(0.01)
 
     def start(self):
@@ -43,7 +47,9 @@ class ServerThread(threading.Thread):
         self.ping()
 
     def run(self):
+        log.info('Starting server in separate thread')
         self.server.serve_forever()
+        log.info('Started server')
 
     def shutdown(self):
         self.server.shutdown()
