@@ -379,7 +379,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   }
 
   private var chainFiles: Map[String, String] = Map.empty
-  @transient private[this] val liftoverMap: mutable.Map[String, LiftOver] = mutable.Map.empty[String, LiftOver]
+  @transient private[this] var liftoverMap: mutable.Map[String, LiftOver] = _
 
   def hasLiftover(destRGName: String): Boolean = liftoverMap.contains(destRGName)
 
@@ -429,6 +429,9 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
   def heal(tmpdir: String, fs: FS): Unit = this.synchronized {
     // add liftovers
+    if (liftoverMap == null) {
+      liftoverMap = mutable.Map.empty
+    }
     // NOTE: it shouldn't be possible for the liftover map to have more elements than the chain file
     // since removeLiftover updates both maps, so we don't check to see if liftoverMap has
     // keys that are not in chainFiles
