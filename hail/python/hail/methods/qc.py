@@ -1,17 +1,20 @@
-import hail as hl
-from collections import Counter
 import os
-from typing import Tuple, List, Union
-from hail.typecheck import typecheck, oneof, anytype, nullable
-from hail.utils.java import Env, info
-from hail.utils.misc import divide_null
+from collections import Counter
+from typing import List, Tuple, Union
+
+import hail as hl
+from hail.ir import TableToTableApply
 from hail.matrixtable import MatrixTable
 from hail.table import Table
-from hail.ir import TableToTableApply
-from .misc import require_biallelic, require_row_key_variant, require_col_key_str, require_table_key_variant
+from hail.typecheck import anytype, nullable, oneof, typecheck
+from hail.utils.java import Env, info
+from hail.utils.misc import divide_null
+from hail.vds import VariantDataset
+
+from .misc import require_biallelic, require_col_key_str, require_row_key_variant, require_table_key_variant
 
 
-@typecheck(mt=MatrixTable, name=str)
+@typecheck(mt=oneof(MatrixTable, VariantDataset), name=str)
 def sample_qc(mt, name='sample_qc') -> MatrixTable:
     """Compute per-sample metrics useful for quality control.
 
@@ -100,73 +103,139 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
 
     variant_ac = Env.get_uid()
     variant_atypes = Env.get_uid()
-    mt = mt.annotate_rows(**{variant_ac: hl.agg.call_stats(mt.GT, mt.alleles).AC,
-                             variant_atypes: mt.alleles[1:].map(lambda alt: allele_type(mt.alleles[0], alt))})
 
-    bound_exprs = {}
-    gq_dp_exprs = {}
+    if type(mt) is VariantDataset:
+        gq_bins = (0, 20, 60)
+        vmt = mt.variant_data
+        if 'GT' not in vmt.entry:
+            vmt = vmt.annotate_entries(GT=hl.experimental.lgt_to_gt(vmt.LGT, vmt.LA))
 
-    def has_field_of_type(name, dtype):
-        return name in mt.entry and mt[name].dtype == dtype
+        vmt = vmt.annotate_rows(**{variant_ac: hl.agg.call_stats(vmt.GT, vmt.alleles).AC,
+                                   variant_atypes: vmt.alleles[1:].map(lambda alt: allele_type(vmt.alleles[0], alt))})
 
-    if has_field_of_type('DP', hl.tint32):
-        gq_dp_exprs['dp_stats'] = hl.agg.stats(mt.DP).select('mean', 'stdev', 'min', 'max')
+        bound_exprs = {}
 
-    if has_field_of_type('GQ', hl.tint32):
-        gq_dp_exprs['gq_stats'] = hl.agg.stats(mt.GQ).select('mean', 'stdev', 'min', 'max')
+        bound_exprs['n_het'] = hl.agg.count_where(vmt['GT'].is_het())
+        bound_exprs['n_hom_var'] = hl.agg.count_where(vmt['GT'].is_hom_var())
+        bound_exprs['n_singleton'] = hl.agg.sum(hl.sum(hl.range(0, vmt['GT'].ploidy).map(lambda i: vmt[variant_ac][vmt['GT'][i]] == 1)))
 
-    if not has_field_of_type('GT', hl.tcall):
-        raise ValueError("'sample_qc': expect an entry field 'GT' of type 'call'")
+        def get_allele_type(allele_idx):
+            return hl.if_else(allele_idx > 0, vmt[variant_atypes][allele_idx - 1], hl.missing(hl.tint32))
 
-    bound_exprs['n_called'] = hl.agg.count_where(hl.is_defined(mt['GT']))
-    bound_exprs['n_not_called'] = hl.agg.count_where(hl.is_missing(mt['GT']))
+        bound_exprs['allele_type_counts'] = hl.agg.explode(
+            lambda elt: hl.agg.counter(elt),
+            hl.range(0, vmt['GT'].ploidy).map(lambda i: get_allele_type(vmt['GT'][i])))
 
-    n_rows_ref = hl.expr.construct_expr(hl.ir.Ref('n_rows'), hl.tint64, mt._col_indices,
-                                        hl.utils.LinkedList(hl.expr.expressions.Aggregation))
-    bound_exprs['n_filtered'] = n_rows_ref - hl.agg.count()
-    bound_exprs['n_hom_ref'] = hl.agg.count_where(mt['GT'].is_hom_ref())
-    bound_exprs['n_het'] = hl.agg.count_where(mt['GT'].is_het())
-    bound_exprs['n_singleton'] = hl.agg.sum(hl.sum(hl.range(0, mt['GT'].ploidy).map(lambda i: mt[variant_ac][mt['GT'][i]] == 1)))
+        zero = hl.int64(0)
 
-    def get_allele_type(allele_idx):
-        return hl.if_else(allele_idx > 0, mt[variant_atypes][allele_idx - 1], hl.missing(hl.tint32))
+        gq_exprs = hl.agg.filter(hl.is_defined(vmt.GT),
+                                 hl.struct(**{f'gq_over_{x}': hl.agg.count_where(vmt.GQ > x)
+                                              for x in gq_bins}))
 
-    bound_exprs['allele_type_counts'] = hl.agg.explode(
-        lambda elt: hl.agg.counter(elt),
-        hl.range(0, mt['GT'].ploidy).map(lambda i: get_allele_type(mt['GT'][i])))
+        result_struct = hl.rbind(
+            hl.struct(**bound_exprs),
+            lambda x: hl.rbind(
+                hl.struct(**{
+                    'gq_exprs': gq_exprs,
+                    'n_het': x.n_het,
+                    'n_hom_var': x.n_hom_var,
+                    'n_non_ref': x.n_het + x.n_hom_var,
+                    'n_singleton': x.n_singleton,
+                    'n_snp': (x.allele_type_counts.get(allele_ints["Transition"], zero)
+                              + x.allele_type_counts.get(allele_ints["Transversion"], zero)),
+                    'n_insertion': x.allele_type_counts.get(allele_ints["Insertion"], zero),
+                    'n_deletion': x.allele_type_counts.get(allele_ints["Deletion"], zero),
+                    'n_transition': x.allele_type_counts.get(allele_ints["Transition"], zero),
+                    'n_transversion': x.allele_type_counts.get(allele_ints["Transversion"], zero),
+                    'n_star': x.allele_type_counts.get(allele_ints["Star"], zero)
+                }),
+                lambda s: s.annotate(
+                    r_ti_tv=divide_null(hl.float64(s.n_transition), s.n_transversion),
+                    r_het_hom_var=divide_null(hl.float64(s.n_het), s.n_hom_var),
+                    r_insertion_deletion=divide_null(hl.float64(s.n_insertion), s.n_deletion)
+                )))
+        variant_results = vmt.select_cols(**result_struct).cols()
 
-    zero = hl.int64(0)
+        rmt = mt.reference_data
+        ref_results = rmt.select_cols(gq_exprs=hl.struct(**{
+            f'gq_over_{x}': hl.agg.filter(rmt.GQ > x, hl.agg.sum(1 + rmt.END - rmt.locus.position))
+            for x in gq_bins
+        })).cols()
 
-    result_struct = hl.rbind(
-        hl.struct(**bound_exprs),
-        lambda x: hl.rbind(
-            hl.struct(**{
-                **gq_dp_exprs,
-                'call_rate': hl.float64(x.n_called) / (x.n_called + x.n_not_called + x.n_filtered),
-                'n_called': x.n_called,
-                'n_not_called': x.n_not_called,
-                'n_filtered': x.n_filtered,
-                'n_hom_ref': x.n_hom_ref,
-                'n_het': x.n_het,
-                'n_hom_var': x.n_called - x.n_hom_ref - x.n_het,
-                'n_non_ref': x.n_called - x.n_hom_ref,
-                'n_singleton': x.n_singleton,
-                'n_snp': (x.allele_type_counts.get(allele_ints["Transition"], zero)
-                          + x.allele_type_counts.get(allele_ints["Transversion"], zero)),
-                'n_insertion': x.allele_type_counts.get(allele_ints["Insertion"], zero),
-                'n_deletion': x.allele_type_counts.get(allele_ints["Deletion"], zero),
-                'n_transition': x.allele_type_counts.get(allele_ints["Transition"], zero),
-                'n_transversion': x.allele_type_counts.get(allele_ints["Transversion"], zero),
-                'n_star': x.allele_type_counts.get(allele_ints["Star"], zero)
-            }),
-            lambda s: s.annotate(
-                r_ti_tv=divide_null(hl.float64(s.n_transition), s.n_transversion),
-                r_het_hom_var=divide_null(hl.float64(s.n_het), s.n_hom_var),
-                r_insertion_deletion=divide_null(hl.float64(s.n_insertion), s.n_deletion)
-            )))
+        joined = ref_results[variant_results.key].gq_exprs
+        return variant_results.transmute(**{
+            f'gq_over_{x}': variant_results.gq_exprs[f'gq_over_{x}'] + joined[f'gq_over_{x}']
+            for x in gq_bins
+        })
 
-    mt = mt.annotate_cols(**{name: result_struct})
-    mt = mt.drop(variant_ac, variant_atypes)
+    elif type(mt) is MatrixTable:
+        mt = mt.annotate_rows(**{variant_ac: hl.agg.call_stats(mt.GT, mt.alleles).AC,
+                                 variant_atypes: mt.alleles[1:].map(lambda alt: allele_type(mt.alleles[0], alt))})
+
+        bound_exprs = {}
+        gq_dp_exprs = {}
+
+        def has_field_of_type(name, dtype):
+            return name in mt.entry and mt[name].dtype == dtype
+
+        if has_field_of_type('DP', hl.tint32):
+            gq_dp_exprs['dp_stats'] = hl.agg.stats(mt.DP).select('mean', 'stdev', 'min', 'max')
+
+        if has_field_of_type('GQ', hl.tint32):
+            gq_dp_exprs['gq_stats'] = hl.agg.stats(mt.GQ).select('mean', 'stdev', 'min', 'max')
+
+        if not has_field_of_type('GT', hl.tcall):
+            raise ValueError("'sample_qc': expect an entry field 'GT' of type 'call'")
+
+        bound_exprs['n_called'] = hl.agg.count_where(hl.is_defined(mt['GT']))
+        bound_exprs['n_not_called'] = hl.agg.count_where(hl.is_missing(mt['GT']))
+
+        n_rows_ref = hl.expr.construct_expr(hl.ir.Ref('n_rows'), hl.tint64, mt._col_indices,
+                                            hl.utils.LinkedList(hl.expr.expressions.Aggregation))
+        bound_exprs['n_filtered'] = n_rows_ref - hl.agg.count()
+        bound_exprs['n_hom_ref'] = hl.agg.count_where(mt['GT'].is_hom_ref())
+        bound_exprs['n_het'] = hl.agg.count_where(mt['GT'].is_het())
+        bound_exprs['n_singleton'] = hl.agg.sum(hl.sum(hl.range(0, mt['GT'].ploidy).map(lambda i: mt[variant_ac][mt['GT'][i]] == 1)))
+
+        def get_allele_type(allele_idx):
+            return hl.if_else(allele_idx > 0, mt[variant_atypes][allele_idx - 1], hl.missing(hl.tint32))
+
+        bound_exprs['allele_type_counts'] = hl.agg.explode(
+            lambda elt: hl.agg.counter(elt),
+            hl.range(0, mt['GT'].ploidy).map(lambda i: get_allele_type(mt['GT'][i])))
+
+        zero = hl.int64(0)
+
+        result_struct = hl.rbind(
+            hl.struct(**bound_exprs),
+            lambda x: hl.rbind(
+                hl.struct(**{
+                    **gq_dp_exprs,
+                    'call_rate': hl.float64(x.n_called) / (x.n_called + x.n_not_called + x.n_filtered),
+                    'n_called': x.n_called,
+                    'n_not_called': x.n_not_called,
+                    'n_filtered': x.n_filtered,
+                    'n_hom_ref': x.n_hom_ref,
+                    'n_het': x.n_het,
+                    'n_hom_var': x.n_called - x.n_hom_ref - x.n_het,
+                    'n_non_ref': x.n_called - x.n_hom_ref,
+                    'n_singleton': x.n_singleton,
+                    'n_snp': (x.allele_type_counts.get(allele_ints["Transition"], zero)
+                              + x.allele_type_counts.get(allele_ints["Transversion"], zero)),
+                    'n_insertion': x.allele_type_counts.get(allele_ints["Insertion"], zero),
+                    'n_deletion': x.allele_type_counts.get(allele_ints["Deletion"], zero),
+                    'n_transition': x.allele_type_counts.get(allele_ints["Transition"], zero),
+                    'n_transversion': x.allele_type_counts.get(allele_ints["Transversion"], zero),
+                    'n_star': x.allele_type_counts.get(allele_ints["Star"], zero)
+                }),
+                lambda s: s.annotate(
+                    r_ti_tv=divide_null(hl.float64(s.n_transition), s.n_transversion),
+                    r_het_hom_var=divide_null(hl.float64(s.n_het), s.n_hom_var),
+                    r_insertion_deletion=divide_null(hl.float64(s.n_insertion), s.n_deletion)
+                )))
+
+        mt = mt.annotate_cols(**{name: result_struct})
+        mt = mt.drop(variant_ac, variant_atypes)
 
     return mt
 
@@ -457,8 +526,8 @@ def concordance(left, right, *, _localize_global_statistics=True) -> Tuple[List[
     def n_discordant(counter):
         return hl.sum(
             hl.array(counter)
-            .filter(lambda tup: hl.literal(discordant_indices).contains(tup[0]))
-            .map(lambda tup: tup[1]))
+                .filter(lambda tup: hl.literal(discordant_indices).contains(tup[0]))
+                .map(lambda tup: tup[1]))
 
     glob = joined.aggregate_entries(concordance_array(aggr), _localize=_localize_global_statistics)
     if _localize_global_statistics:
