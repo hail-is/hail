@@ -35,6 +35,7 @@ from hailtop.utils import (
     dump_all_stacktraces,
     parse_docker_image_reference,
     blocking_to_async,
+    periodically_call,
 )
 from hailtop.httpx import client_session
 from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
@@ -1825,7 +1826,7 @@ class Worker:
         site = web.TCPSite(app_runner, '0.0.0.0', 5000)
         await site.start()
 
-        self.task_manager.ensure_future(self.cleanup_old_images())
+        self.task_manager.ensure_future(periodically_call(60, self.cleanup_old_images))
         try:
             while True:
                 try:
@@ -2001,27 +2002,21 @@ class Worker:
             self.headers = {'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {resp_json["token"]}'}
             self.active = True
 
-    def get_unused_image(self) -> Optional[str]:
-        for image_id, count in self.image_ref_count.items():
-            if count == 0:
-                return image_id
-        return None
-
     async def cleanup_old_images(self):
-        while True:
-            try:
-                images = list(self.image_ref_count.keys())
-                for image_ref_str, image_id in images:
-                    async with self.rootfs_locks[image_ref_str]:
-                        if self.image_ref_count[(image_ref_str, image_id)] == 0:
-                            log.info(f'Found an unused image: {image_ref_str} with ID {image_id}')
-                            shutil.rmtree(f'/host/rootfs/{image_id}')
-                            del self.image_ref_count[(image_ref_str, image_id)]
-                            await check_shell(f'docker rmi {image_id}')
-                            log.info(f'Deleted image from cache: {image_ref_str} with ID {image_id}')
-            except Exception as e:
-                log.exception(f'Error while deleting unused image: {e}')
-            await asyncio.sleep(60)
+        try:
+            images = list(self.image_ref_count.keys())
+            for image_ref_str, image_id in images:
+                async with self.rootfs_locks[image_ref_str]:
+                    if self.image_ref_count[(image_ref_str, image_id)] == 0:
+                        log.info(f'Found an unused image: {image_ref_str} with ID {image_id}')
+                        shutil.rmtree(f'/host/rootfs/{image_id}')
+                        del self.image_ref_count[(image_ref_str, image_id)]
+                        await check_shell(f'docker rmi {image_id}')
+                        log.info(f'Deleted image from cache: {image_ref_str} with ID {image_id}')
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            log.exception(f'Error while deleting unused image: {e}')
 
 
 async def async_main():
