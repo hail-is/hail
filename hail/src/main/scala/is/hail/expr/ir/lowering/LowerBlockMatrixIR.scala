@@ -73,6 +73,7 @@ abstract class BlockMatrixStage(val globalVals: Array[(String, IR)], val ctxType
     val blocksRowMajor = Array.range(0, typ.nRowBlocks).flatMap { i =>
       Array.tabulate(typ.nColBlocks)(j => i -> j).filter(typ.hasBlock)
     }
+    println(s"There were ${typ.nRowBlocks} row blocks and ${typ.nColBlocks} col blocks. Type is sparse? ${typ.isSparse}")
     val cda = collectBlocks(relationalBindings)((_, b) => b, blocksRowMajor)
     val blockResults = Ref(genUID(), cda.typ)
 
@@ -349,9 +350,8 @@ object LowerBlockMatrixIR {
         // Now, make decision based on outIndexExpr
         outIndexExpr match {
           case IndexedSeq()  =>
-            val res = NDArrayAgg(summedChild.collectLocal(relationalLetsAbove, a.typ), IndexedSeq[Int](0, 1))
-            val foo = summedChild.collectLocal(relationalLetsAbove, a.typ)
-            println(CompileAndEvaluate(ctx, foo))
+            val summedChildType = BlockMatrixType(child.typ.elementType, IndexedSeq[Long](child.typ.nRowBlocks, child.typ.nColBlocks), child.typ.nRowBlocks == 1, 1, BlockMatrixSparsity.dense)
+            val res = NDArrayAgg(summedChild.collectLocal(relationalLetsAbove, summedChildType), IndexedSeq[Int](0, 1))
             new BlockMatrixStage(summedChild.globalVals, TStruct.empty) {
               override def blockContext(idx: (Int, Int)): IR = makestruct()
               override def blockBody(ctxRef: Ref): IR = NDArrayReshape(res, MakeTuple.ordered(Seq(I64(1L), I64(1L))), ErrorIDs.NO_ERROR)
@@ -362,7 +362,7 @@ object LowerBlockMatrixIR {
               // Then use each one to look up child.
               override def blockContext(idx: (Int, Int)): IR = {
                 val (row, col) = idx
-                assert(col == 0)
+                assert(col == 0, s"Asked for idx ${idx}")
                 MakeArray(
                   (0 until child.typ.nColBlocks).map(childCol => summedChild.blockContext((row, childCol))),
                   TArray(loweredChild.ctxType)

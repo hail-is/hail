@@ -68,7 +68,7 @@ class Tests(unittest.TestCase):
 
     def assert_sums_agree(self, bm, nd):
         self.assertAlmostEqual(bm.sum(), np.sum(nd))
-        #self._assert_close(bm.sum(axis=0), np.sum(nd, axis=0, keepdims=True))
+        self._assert_close(bm.sum(axis=0), np.sum(nd, axis=0, keepdims=True))
         #self._assert_close(bm.sum(axis=1), np.sum(nd, axis=1, keepdims=True))
 
     def test_from_entry_expr_simple(self):
@@ -545,7 +545,7 @@ class Tests(unittest.TestCase):
 
     @fails_service_backend()
     def test_sum(self):
-        nd = np.arange(11 * 13, dtype=np.float64).reshape((11, 13))#np.random.normal(size=(11, 13))
+        nd = np.arange(11 * 13, dtype=np.float64).reshape((11, 13))
         bm = BlockMatrix.from_ndarray(hl.literal(nd), block_size=3)
 
         self.assert_sums_agree(bm, nd)
