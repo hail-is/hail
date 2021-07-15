@@ -4,7 +4,7 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
 import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.{SIntervalPointer, SIntervalPointerCode}
+import is.hail.types.physical.stypes.concrete.{SIntervalPointer, SIntervalPointerCode, SUnreachableInterval}
 import is.hail.types.virtual.{TInterval, Type}
 import is.hail.utils.{FastIndexedSeq, Interval}
 import org.apache.spark.sql.Row
@@ -83,6 +83,7 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
     value.st match {
       case SIntervalPointer(t: PCanonicalInterval) =>
         representation.storeAtAddress(cb, addr, region, t.representation.loadCheapSCode(cb, value.asInstanceOf[SIntervalPointerCode].a), deepCopy)
+      case SUnreachableInterval(_) => cb._fatal("Reached unreachable interval")
     }
   }
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {

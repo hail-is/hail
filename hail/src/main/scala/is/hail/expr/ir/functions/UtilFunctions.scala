@@ -101,6 +101,7 @@ object UtilFunctions extends RegistryFunctions {
       s.toInt; true
     } catch {
       case _: NumberFormatException => false
+
     }
 
   def isValidInt64(s: String): Boolean =
@@ -114,14 +115,14 @@ object UtilFunctions extends RegistryFunctions {
     parseFloat32(s)
     true
   } catch {
-    case _: NumberFormatException => false
+    case _: HailException => false
   }
 
   def isValidFloat64(s: String): Boolean = try {
     parseFloat64(s)
     true
   } catch {
-    case _: NumberFormatException => false
+    case _: HailException => false
   }
 
   def min_ignore_missing(l: Int, lMissing: Boolean, r: Int, rMissing: Boolean): Int =
@@ -216,7 +217,7 @@ object UtilFunctions extends RegistryFunctions {
           primitive(rt.virtualType, Code.invokeScalaObject1(thisClass, s"parse$name", s)(ctString, ct))
       }
 
-      registerIEmitCode1(s"to${name}OrMissing", TString, t, (_: Type, xPT: EmitType) => EmitType(rpt, xPT.required)) {
+      registerIEmitCode1(s"to${name}OrMissing", TString, t, (_: Type, xPT: EmitType) => EmitType(rpt, false)) {
         case (cb, r, rt, _, x) =>
           x.toI(cb).flatMap(cb) { case (sc: SStringCode) =>
             val sv = cb.newLocal[String]("s", sc.loadString())
