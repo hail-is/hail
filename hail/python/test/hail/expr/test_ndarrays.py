@@ -762,7 +762,7 @@ def test_ndarray_solve_tri():
 
     assert np.allclose(hl.eval(hl.nd.solve_tri(a, b)), np.array([1., 1.]))
     assert np.allclose(hl.eval(hl.nd.solve_tri(a, b2)), np.array([[5., 2.], [6., 3.]]))
-    assert np.allclose(hl.eval(hl.nd.solve_tri(a_low, b_low, True)), np.array([[1.], [3.]]))
+    assert np.allclose(hl.eval(hl.nd.solve_tri(a_low, b_low, True)), np.array([[1., 3.]]))
     with pytest.raises(HailUserError) as exc:
         hl.eval(hl.nd.solve(a_sing, b_sing))
     assert "singular" in str(exc.value), str(exc.value)

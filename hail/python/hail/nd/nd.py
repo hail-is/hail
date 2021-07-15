@@ -239,6 +239,7 @@ def solve(a, b, no_crash=False):
         Solution to the system Ax = B. Shape is same as shape of B.
 
     """
+    b_ndim_orig = b.ndim
     a, b = solve_helper(a, b)
     if no_crash:
         name = "linear_solve_no_crash"
@@ -250,7 +251,7 @@ def solve(a, b, no_crash=False):
     ir = Apply(name, return_type, a._ir, b._ir)
     result = construct_expr(ir, return_type, a._indices, a._aggregations)
 
-    if b.ndim == 1:
+    if b_ndim_orig == 1:
         if no_crash:
             result = hl.struct(solution=result.solution.reshape((-1)), failed=result.failed)
         else:
@@ -278,11 +279,12 @@ def solve_tri(nd_coef, nd_dep, lower=False):
         Solution to the triangular system Ax = B. Shape is same as shape of B.
 
     """
+    nd_dep_ndim_orig = nd_dep.ndim
     nd_coef, nd_dep = solve_helper(nd_coef, nd_dep)
     return_type = hl.tndarray(hl.tfloat64, 2)
     ir = Apply("linear_triangular_solve", return_type, nd_coef._ir, nd_dep._ir, lower._ir)
     result = construct_expr(ir, return_type, nd_coef._indices, nd_coef._aggregations)
-    if nd_dep.ndim == 1:
+    if nd_dep_ndim_orig == 1:
         result = result.reshape((-1))
     return result
 
