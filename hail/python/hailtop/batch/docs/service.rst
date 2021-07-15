@@ -10,6 +10,10 @@ Batch Service
     The Batch Service is currently only available to Broad Institute users. If you are interested
     in using the Batch Service, please send us an email at hail-team@broadinstitute.org.
 
+.. warning::
+
+    Ensure you have installed the Google Cloud SDK as described in the Batch Service section of
+    :ref:`Getting Started <sec-getting_started>`.
 
 What is the Batch Service?
 --------------------------
@@ -20,7 +24,6 @@ and is called the Batch Service. The Batch Service consists of a scheduler that 
 submission requests from users and then executes jobs in Docker containers on Google Compute
 Engine VMs (workers) that are shared amongst all Batch users. A UI is available at `<https://batch.hail.is>`__
 that allows a user to see job progress and access logs.
-
 
 Sign Up
 -------
@@ -178,15 +181,16 @@ is standard. If a job is scheduled on this machine, then the cost per core hour 
 Setup
 -----
 
-We assume you've already installed Batch as described in the
-:ref:`Getting Started <sec-getting_started>` section and we have
-created a user account for you and given you a billing project.
+We assume you've already installed Batch and the Google Cloud SDK as described in the :ref:`Getting
+Started <sec-getting_started>` section and we have created a user account for you and given you a
+billing project.
 
 To authenticate your computer with the Batch service, run the following
 command in a terminal window:
 
 .. code-block:: sh
 
+    gcloud auth application-default login
     hailctl auth login
 
 Executing this command will take you to a login page in your browser window where
