@@ -137,13 +137,12 @@ object TypeCheck {
         args.map(_.typ).zipWithIndex.foreach { case (x, i) => assert(x == typ.elementType,
           s"at position $i type mismatch: ${ typ.elementType.parsableString() } ${ x.parsableString() }")
         }
-      case x@ArrayRef(a, i, s) =>
+      case x@ArrayRef(a, i, _) =>
         assert(i.typ == TInt32)
-        assert(s.typ == TString)
         assert(x.typ == coerce[TArray](a.typ).elementType)
       case ArrayLen(a) =>
         assert(a.typ.isInstanceOf[TArray])
-      case x@StreamRange(a, b, c, _) =>
+      case x@StreamRange(a, b, c, _, _) =>
         assert(a.typ == TInt32)
         assert(b.typ == TInt32)
         assert(c.typ == TInt32)
@@ -155,7 +154,7 @@ object TypeCheck {
         assert(rowMajor.typ == TBoolean)
       case x@NDArrayShape(nd) =>
         assert(nd.typ.isInstanceOf[TNDArray])
-      case x@NDArrayReshape(nd, shape) =>
+      case x@NDArrayReshape(nd, shape, _) =>
         assert(nd.typ.isInstanceOf[TNDArray])
         assert(shape.typ.asInstanceOf[TTuple].types.forall(t => t == TInt64))
       case x@NDArrayConcat(nds, axis) =>
@@ -179,7 +178,7 @@ object TypeCheck {
         assert(filters.forall(f => coerce[TArray](f.typ).elementType == TInt64))
       case x@NDArrayMap(_, _, body) =>
         assert(x.elementTyp == body.typ)
-      case x@NDArrayMap2(l, r, _, _, body) =>
+      case x@NDArrayMap2(l, r, _, _, body, _) =>
         val lTyp = coerce[TNDArray](l.typ)
         val rTyp = coerce[TNDArray](r.typ)
         assert(lTyp.nDims == rTyp.nDims)
@@ -200,7 +199,7 @@ object TypeCheck {
       case x@NDArrayWrite(nd, path) =>
         assert(nd.typ.isInstanceOf[TNDArray])
         assert(path.typ == TString)
-      case x@NDArrayMatMul(l, r) =>
+      case x@NDArrayMatMul(l, r, _) =>
         assert(l.typ.isInstanceOf[TNDArray])
         assert(r.typ.isInstanceOf[TNDArray])
         val lType = l.typ.asInstanceOf[TNDArray]
@@ -209,15 +208,15 @@ object TypeCheck {
         assert(lType.nDims > 0)
         assert(rType.nDims > 0)
         assert(lType.nDims == 1 || rType.nDims == 1 || lType.nDims == rType.nDims)
-      case x@NDArrayQR(nd, mode) =>
+      case x@NDArrayQR(nd, mode, _) =>
         val ndType = nd.typ.asInstanceOf[TNDArray]
         assert(ndType.elementType == TFloat64)
         assert(ndType.nDims == 2)
-      case x@NDArraySVD(nd, _, _) =>
+      case x@NDArraySVD(nd, _, _, _) =>
         val ndType = nd.typ.asInstanceOf[TNDArray]
         assert(ndType.elementType == TFloat64)
         assert(ndType.nDims == 2)
-      case x@NDArrayInv(nd) =>
+      case x@NDArrayInv(nd, _) =>
         val ndType = nd.typ.asInstanceOf[TNDArray]
         assert(ndType.elementType == TFloat64)
         assert(ndType.nDims == 2)
@@ -269,7 +268,7 @@ object TypeCheck {
       case x@StreamMap(a, name, body) =>
         assert(a.typ.isInstanceOf[TStream])
         assert(x.elementTyp == body.typ)
-      case x@StreamZip(as, names, body, _) =>
+      case x@StreamZip(as, names, body, _, _) =>
         assert(as.length == names.length)
         assert(x.typ.elementType == body.typ)
         assert(as.forall(_.typ.isInstanceOf[TStream]))
@@ -405,7 +404,7 @@ object TypeCheck {
       case Die(msg, typ, _) =>
         assert(msg.typ == TString)
       case Trap(child) =>
-      case x@ApplyIR(fn, typeArgs, args) =>
+      case x@ApplyIR(fn, typeArgs, args, _) =>
       case x: AbstractApplyNode[_] =>
         assert(x.implementation.unify(x.typeArgs, x.args.map(_.typ), x.returnType))
       case MatrixWrite(_, _) =>

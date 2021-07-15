@@ -335,31 +335,31 @@ def test_ndarray_reshape():
     assert hl.eval(hl.nd.array(hl.range(20)).reshape(
         hl.missing(hl.ttuple(hl.tint64, hl.tint64)))) is None
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(hl.literal(np_cube).reshape((-1, -1)))
     assert "more than one -1" in str(exc.value)
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(hl.literal(np_cube).reshape((20,)))
     assert "requested shape is incompatible with number of elements" in str(exc.value)
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(a.reshape((3,)))
     assert "requested shape is incompatible with number of elements" in str(exc.value)
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(a.reshape(()))
     assert "requested shape is incompatible with number of elements" in str(exc.value)
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(hl.literal(np_cube).reshape((0, 2, 2)))
     assert "requested shape is incompatible with number of elements" in str(exc.value)
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(hl.literal(np_cube).reshape((2, 2, -2)))
     assert "must contain only nonnegative numbers or -1" in str(exc.value)
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(shape_zero.reshape((0, -1)))
     assert "Can't reshape" in str(exc.value)
 
@@ -664,14 +664,30 @@ def test_ndarray_matmul():
     with pytest.raises(ValueError):
         cube @ hl.nd.array(5)
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(r @ r)
     assert "Matrix dimensions incompatible: (2, 3) can't be multiplied by matrix with dimensions (2, 3)" in str(exc.value), str(exc.value)
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(hl.nd.array([1, 2]) @ hl.nd.array([1, 2, 3]))
     assert "Matrix dimensions incompatible" in str(exc.value)
 
+def test_ndarray_matmul_dgemv():
+    np_mat_3_4 = np.arange(12, dtype=np.float64).reshape((3, 4))
+    np_mat_4_3 = np.arange(12, dtype=np.float64).reshape((4, 3))
+    np_vec_3 = np.array([4, 2, 7], dtype=np.float64)
+    np_vec_4 = np.array([9, 17, 3, 1], dtype=np.float64)
+
+    mat_3_4 = hl.nd.array(np_mat_3_4)
+    mat_4_3 = hl.nd.array(np_mat_4_3)
+    vec_3 = hl.nd.array(np_vec_3)
+    vec_4 = hl.nd.array(np_vec_4)
+
+    assert_ndarrays_eq(
+        (mat_3_4 @ vec_4, np_mat_3_4 @ np_vec_4),
+        (mat_4_3 @ vec_3, np_mat_4_3 @ np_vec_3),
+        (mat_3_4.T @ vec_3, np_mat_3_4.T @ np_vec_3)
+    )
 
 def test_ndarray_big():
     assert hl.eval(hl.nd.array(hl.range(100_000))).size == 100_000
@@ -699,7 +715,7 @@ def test_ndarray_arange():
         (hl.nd.arange(2, 47, 13), np.arange(2, 47, 13))
     )
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(hl.nd.arange(5, 20, 0))
     assert "Array range cannot have step size 0" in str(exc.value)
 
@@ -742,7 +758,7 @@ def test_ndarray_solve():
     assert np.allclose(hl.eval(hl.nd.solve(a, b2)), np.array([[-1., -16.], [1, 12]]))
     assert np.allclose(hl.eval(hl.nd.solve(a.T, b2.T)), np.array([[19., 26.], [-6, -8]]))
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(hl.nd.solve(hl.nd.array([[1, 2], [1, 2]]), hl.nd.array([8, 10])))
     assert "singular" in str(exc.value), str(exc.value)
 
@@ -1143,7 +1159,7 @@ def test_maximum_minimuim():
         (hl.nd.maximum(nx, ny), np.maximum(x, y)),
         (hl.nd.maximum(ny, z), np.maximum(y, z)),
         (hl.nd.minimum(nx, ny), np.minimum(x, y)),
-        (hl.nd.minimum(ny, z), np.minimum(y, z)),
+         (hl.nd.minimum(ny, z), np.minimum(y, z)),
     )
 
     np_nan_max = np.maximum(nan_elem, f)

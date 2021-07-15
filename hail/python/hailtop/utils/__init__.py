@@ -1,4 +1,4 @@
-from .time import time_msecs, time_msecs_str, humanize_timedelta_msecs
+from .time import time_msecs, time_msecs_str, humanize_timedelta_msecs, parse_timestamp_msecs
 from .utils import (
     unzip, async_to_blocking, blocking_to_async, AsyncWorkerPool,
     bounded_gather, grouped, sync_sleep_and_backoff, sleep_and_backoff, is_transient_error,
@@ -82,5 +82,6 @@ __all__ = [
     'unpack_comma_delimited_inputs',
     'is_google_registry_domain',
     'parse_docker_image_reference',
-    'retry_all_errors_n_times'
+    'retry_all_errors_n_times',
+    'parse_timestamp_msecs',
 ]

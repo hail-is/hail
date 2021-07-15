@@ -53,13 +53,18 @@ package object ir {
 
   private[ir] def coerce[T <: BaseTypeWithRequiredness](x: BaseTypeWithRequiredness): T = tycoerce[T](x)
 
-  def invoke(name: String, rt: Type, typeArgs: Array[Type], args: IR*): IR = IRFunctionRegistry.lookupUnseeded(name, rt, typeArgs, args.map(_.typ)) match {
-    case Some(f) => f(typeArgs, args)
+  def invoke(name: String, rt: Type, typeArgs: Array[Type], errorID: Int, args: IR*): IR = IRFunctionRegistry.lookupUnseeded(name, rt, typeArgs, args.map(_.typ)) match {
+    case Some(f) => f(typeArgs, args, errorID)
     case None => fatal(s"no conversion found for $name(${typeArgs.mkString(", ")}, ${args.map(_.typ).mkString(", ")}) => $rt")
   }
+  def invoke(name: String, rt: Type, typeArgs: Array[Type], args: IR*): IR =
+    invoke(name, rt, typeArgs, ErrorIDs.NO_ERROR, args:_*)
 
   def invoke(name: String, rt: Type, args: IR*): IR =
-    invoke(name, rt, Array.empty[Type], args:_*)
+    invoke(name, rt, Array.empty[Type], ErrorIDs.NO_ERROR, args:_*)
+
+  def invoke(name: String, rt: Type, errorID: Int, args: IR*): IR =
+    invoke(name, rt, Array.empty[Type], errorID, args:_*)
 
   def invokeSeeded(name: String, seed: Long, rt: Type, args: IR*): IR = IRFunctionRegistry.lookupSeeded(name, seed, rt, args.map(_.typ)) match {
     case Some(f) => f(args)
@@ -173,7 +178,7 @@ package object ir {
 
   def zipIR(ss: IndexedSeq[IR], behavior: ArrayZipBehavior.ArrayZipBehavior)(f: IndexedSeq[Ref] => IR): IR = {
     val refs = ss.map(s => Ref(genUID(), coerce[TStream](s.typ).elementType))
-    StreamZip(ss, refs.map(_.name), f(refs), behavior)
+    StreamZip(ss, refs.map(_.name), f(refs), behavior, ErrorIDs.NO_ERROR)
   }
 
   def makestruct(fields: (String, IR)*): MakeStruct = MakeStruct(fields)

@@ -28,7 +28,7 @@ object BlockMatrixStage {
           val start = GetField(ctxRef, "start")
           bindIR(NDArrayReshape(
             NDArraySlice(v, MakeTuple.ordered(FastSeq(MakeTuple.ordered(FastSeq(start.toL, (start + len).toL, 1L))))),
-            MakeTuple.ordered(if (asRowVector) FastSeq[IR](1L, len.toL) else FastSeq[IR](len.toL, 1L)))) { sliced =>
+            MakeTuple.ordered(if (asRowVector) FastSeq[IR](1L, len.toL) else FastSeq[IR](len.toL, 1L)), ErrorIDs.NO_ERROR)) { sliced =>
             NDArrayConcat(ToArray(mapIR(rangeIR(nRep))(_ => sliced)), if (asRowVector) 0 else 1)
           }
         }
@@ -278,7 +278,7 @@ object LowerBlockMatrixIR {
         loweredLeft
           .addGlobals(loweredRight.globalVals: _*)
           .addContext(loweredRight.ctxType)(loweredRight.blockContext).mapBody { (ctx, leftBody) =>
-          NDArrayMap2(leftBody, bindIR(GetField(ctx, "new"))(loweredRight.blockBody), lname, rname, f)
+          NDArrayMap2(leftBody, bindIR(GetField(ctx, "new"))(loweredRight.blockBody), lname, rname, f, ErrorIDs.NO_ERROR)
         }
 
       case x@BlockMatrixBroadcast(child, IndexedSeq(), _, _) =>
@@ -299,7 +299,7 @@ object LowerBlockMatrixIR {
         }
       case x@BlockMatrixBroadcast(child, IndexedSeq(axis), _, _) =>
         val len = child.typ.shape.max
-        val vector = NDArrayReshape(lower(child).collectLocal(relationalLetsAbove, child.typ), MakeTuple.ordered(FastSeq(I64(len))))
+        val vector = NDArrayReshape(lower(child).collectLocal(relationalLetsAbove, child.typ), MakeTuple.ordered(FastSeq(I64(len))), ErrorIDs.NO_ERROR)
         BlockMatrixStage.broadcastVector(vector, x.typ, asRowVector = axis == 1)
 
       case x@BlockMatrixBroadcast(child, IndexedSeq(axis, axis2), _, _) if (axis == axis2) => // diagonal as row/col vector
@@ -446,13 +446,13 @@ object LowerBlockMatrixIR {
             def blockMultiply(elt: Ref) =
               bindIR(GetTupleElement(elt, 0)) { leftElt =>
                 bindIR(GetTupleElement(elt, 1)) { rightElt =>
-                  NDArrayMatMul(left.blockBody(leftElt), right.blockBody(rightElt))
+                  NDArrayMatMul(left.blockBody(leftElt), right.blockBody(rightElt), ErrorIDs.NO_ERROR)
                 }
               }
             foldIR(ToStream(invoke("sliceRight", ctxType, ctxRef, I32(1))),
               bindIR(ArrayRef(ctxRef, 0))(blockMultiply)) { (sum, elt) =>
               NDArrayMap2(sum, blockMultiply(elt), "l", "r",
-                Ref("l", x.typ.elementType) + Ref("r", x.typ.elementType))
+                Ref("l", x.typ.elementType) + Ref("r", x.typ.elementType), ErrorIDs.NO_ERROR)
             }
           }
         }

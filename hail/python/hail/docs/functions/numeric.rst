@@ -15,11 +15,13 @@ Numeric functions
     bit_rshift
     bit_not
     exp
+    expit
     is_nan
     is_finite
     is_infinite
     log
     log10
+    logit
     sign
     sqrt
     int
@@ -59,11 +61,13 @@ Numeric functions
 .. autofunction:: bit_rshift
 .. autofunction:: bit_not
 .. autofunction:: exp
+.. autofunction:: expit
 .. autofunction:: is_nan
 .. autofunction:: is_finite
 .. autofunction:: is_infinite
 .. autofunction:: log
 .. autofunction:: log10
+.. autofunction:: logit
 .. autofunction:: floor
 .. autofunction:: ceil
 .. autofunction:: sqrt

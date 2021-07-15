@@ -24,6 +24,28 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.71
+
+Released 2021-07-08
+
+### New Features
+
+- (hail#10632) Added support for weighted linear regression to `hl.linear_regression_rows`.
+- (hail#10635) Added `hl.nd.maximum` and `hl.nd.minimum`.
+- (hail#10602) Added `hl.starmap`.
+
+### Bug fixes
+
+- (hail#10038) Fixed crashes when writing/reading matrix tables with 0 partitions.
+- (hail#10624) Fixed out of bounds bug with `_quantile_from_cdf`.
+
+
+### hailctl dataproc
+
+- (hail#10633) Added `--scopes` parameter to `hailctl dataproc start`.
+
+---
+
 ## Version 0.2.70
 
 Released 2021-06-21
@@ -47,7 +69,7 @@ Released 2021-06-14
 
 ### hailctl dataproc
 
-- (hail#10574) Hail logs will now be stored in `/home/hail` by default. 
+- (hail#10574) Hail logs will now be stored in `/home/hail` by default.
 
 ---
 
