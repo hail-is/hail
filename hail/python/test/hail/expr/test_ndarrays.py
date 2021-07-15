@@ -107,6 +107,7 @@ def test_ndarray_slice():
         (rect_prism[1, hl.nd.newaxis, 1], np_rect_prism[1, np.newaxis, 1]),
         (rect_prism[..., hl.nd.newaxis, 1], np_rect_prism[..., np.newaxis, 1]),
     )
+
     assert_ndarrays_eq(
         (flat[15:5:-1], np_flat[15:5:-1]),
         (flat[::-1], np_flat[::-1]),
@@ -120,8 +121,6 @@ def test_ndarray_slice():
         (flat[-4:-1:2], np_flat[-4:-1:2]),
         # ellipses inclusion
         (flat[...], np_flat[...]),
-
-
         (mat[::-1, :], np_mat[::-1, :]),
         (mat[0, 1:4:2] + mat[:, 1:4:2], np_mat[0, 1:4:2] + np_mat[:, 1:4:2]),
         (mat[-1:4:1, 0], np_mat[-1:4:1, 0]),
@@ -150,18 +149,19 @@ def test_ndarray_slice():
         (mat[:-5, 0], np_mat[:-5, 0]),
         (mat[:-5:-1, 0], np_mat[:-5:-1, 0]),
         (mat[0:-5, 0], np_mat[0:-5, 0]),
-        (mat[0:-5:-1, 0], np_mat[0:-5:-1, 0]),
+        (mat[0:-5:-1, 0], np_mat[0:-5:-1, 0])
+    )
+
+    assert_ndarrays_eq(
         # partial indexing
         (mat[1], np_mat[1]),
         (mat[0:1], np_mat[0:1]),
         # ellipses inclusion
         (mat[...], np_mat[...]),
-
         (ah[:-3:1], an[:-3:1]),
         (ah[:-3:-1], an[:-3:-1]),
         (ah[-3::-1], an[-3::-1]),
         (ah[-3::1], an[-3::1]),
-
         # ellipses inclusion
         (ae[..., 3], ae_np[..., 3]),
         (ae[3, ...], ae_np[3, ...]),
@@ -170,7 +170,6 @@ def test_ndarray_slice():
         (ae[3, 2, 2, ..., 2, 1:2:2], ae_np[3, 2, 2, ..., 2, 1:2:2]),
         (ae[3, :, hl.nd.newaxis, ..., :, hl.nd.newaxis, 2], ae_np[3, :, np.newaxis, ..., :, np.newaxis, 2])
     )
-
     assert hl.eval(flat[hl.missing(hl.tint32):4:1]) is None
     assert hl.eval(flat[4:hl.missing(hl.tint32)]) is None
     assert hl.eval(flat[4:10:hl.missing(hl.tint32)]) is None
@@ -191,17 +190,6 @@ def test_ndarray_slice():
 
     with pytest.raises(IndexError, match="too many indices for array: array is 3-dimensional, but 4 were indexed"):
         hl.eval(rect_prism[1, 1, 1, 1])
-
-
-def test_ndarray_transposed_slice():
-    a = hl.nd.array([[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]])
-    np_a = np.array([[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]])
-    aT = a.T
-    np_aT = np_a.T
-    assert_ndarrays_eq(
-        (a, np_a),
-        (aT[0:aT.shape[0], 0:5], np_aT[0:np_aT.shape[0], 0:5])
-    )
 
 
 @fails_service_backend()
