@@ -61,11 +61,12 @@ package object tls {
     if (_getSSLConfig == null) {
       _getSSLConfig = default
     }
+    assert(_getSSLConfig != null)
     _getSSLConfig
   }
 
   lazy val getSSLContext: SSLContext = {
-    val sslConfig = _getSSLConfig
+    val sslConfig = getSSLConfig
 
     val pw = "dummypw".toCharArray
 
