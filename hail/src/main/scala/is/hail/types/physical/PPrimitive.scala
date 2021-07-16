@@ -13,22 +13,6 @@ trait PPrimitive extends PType {
 
   override def containsPointers: Boolean = false
 
-  def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
-    if (!deepCopy)
-      return srcAddress
-
-    // FIXME push down
-    val addr = region.allocate(byteSize, byteSize)
-    unstagedStoreAtAddress(addr, region, srcPType, srcAddress, deepCopy)
-    addr
-  }
-
-
-  def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
-    assert(srcPType.isOfType(this))
-    Region.copyFrom(srcAddress, addr, byteSize)
-  }
-
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     val newAddr = cb.newLocal[Long]("pprimitive_store_addr", region.allocate(alignment, byteSize))
     storeAtAddress(cb, newAddr, region, value, deepCopy)

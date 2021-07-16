@@ -28,16 +28,6 @@ final case class PCanonicalShuffle(
 
   override def containsPointers: Boolean = representation.containsPointers
 
-  def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
-    srcPType match {
-      case t: PCanonicalShuffle =>
-        representation.copyFromAddress(region, t.representation, srcAddress, deepCopy)
-    }
-  }
-
-  def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
-    this.representation.unstagedStoreAtAddress(addr, region, srcPType.asInstanceOf[PCanonicalShuffle].representation, srcAddress, deepCopy)
-
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit =
     this.representation.unstagedStoreJavaObjectAtAddress(addr, annotation, region)
 

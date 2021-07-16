@@ -109,12 +109,6 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String]) ext
   override def setRequired(required: Boolean): PType =
     PSubsetStruct(ps.setRequired(required).asInstanceOf[PStruct], _fieldNames)
 
-  override def copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
-    throw new UnsupportedOperationException
-
-  override def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
-    throw new UnsupportedOperationException
-
   def sType: SSubsetStruct = SSubsetStruct(ps.sType.asInstanceOf[SBaseStruct], _fieldNames)
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = throw new UnsupportedOperationException
@@ -124,10 +118,6 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String]) ext
   }
 
   def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructCode = throw new UnsupportedOperationException
-
-  def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
-    throw new UnsupportedOperationException
-  }
 
   def loadFromNested(addr: Code[Long]): Code[Long] = addr
 

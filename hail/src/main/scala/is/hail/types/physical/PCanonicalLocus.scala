@@ -77,19 +77,7 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
     }
   }
 
-  override def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
-    srcPType match {
-      case pt: PCanonicalLocus => representation.unstagedStoreAtAddress(addr, region, pt.representation, srcAddress, deepCopy)
-    }
-  }
-
   override def containsPointers: Boolean = representation.containsPointers
-
-  def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
-    srcPType match {
-      case pt: PCanonicalLocus => representation._copyFromAddress(region, pt.representation, srcAddress, deepCopy)
-    }
-  }
 
   def sType: SCanonicalLocusPointer = SCanonicalLocusPointer(setRequired(false).asInstanceOf[PCanonicalLocus])
 
