@@ -2013,7 +2013,7 @@ class Worker:
                     if self.image_ref_count[image_id] == 0:
                         log.info(f'Found an unused image with ID {image_id}')
                         image_path = f'/host/rootfs/{image_id}'
-                        shutil.rmtree(image_path)
+                        await blocking_to_async(self.pool, shutil.rmtree, image_path)
                         await check_shell(f'docker rmi {image_id}')
                         del self.image_ref_count[image_id]
                         log.info(f'Deleted image from cache with ID {image_id}')
