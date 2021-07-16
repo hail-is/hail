@@ -777,6 +777,34 @@ class PLINKTests(unittest.TestCase):
 
     @fails_service_backend()
     @fails_local_backend()
+    def test_import_plink_same_locus(self):
+        mt = hl.balding_nichols_model(n_populations=2, n_samples=10, n_variants=100)
+        mt = mt.key_rows_by(locus=hl.locus('1', 100, reference_genome='GRCh37'), alleles=mt.alleles).select_rows()
+        mt = mt.key_cols_by(s=hl.str(mt.sample_idx)).select_cols()
+        mt = mt.select_globals()
+        out = new_temp_file(prefix='plink')
+        hl.export_plink(mt, out)
+        mt2 = hl.import_plink(f'{out}.bed', f'{out}.bim', f'{out}.fam').select_cols().select_rows()
+        assert mt2._same(mt)
+
+        mt3 = hl.import_plink(f'{out}.bed', f'{out}.bim', f'{out}.fam', min_partitions=10).select_cols().select_rows()
+        assert mt3._same(mt)
+
+    @fails_service_backend()
+    @fails_local_backend()
+    def test_import_plink_partitions(self):
+        mt = hl.balding_nichols_model(n_populations=2, n_samples=10, n_variants=100)
+        mt = mt.select_rows()
+        mt = mt.key_cols_by(s=hl.str(mt.sample_idx)).select_cols()
+        mt = mt.select_globals()
+        out = new_temp_file(prefix='plink')
+        hl.export_plink(mt, out)
+        mt2 = hl.import_plink(f'{out}.bed', f'{out}.bim', f'{out}.fam', min_partitions=10).select_cols().select_rows()
+        assert mt2.n_partitions() == 10
+        assert mt2._same(mt)
+
+    @fails_service_backend()
+    @fails_local_backend()
     def test_import_plink_contig_recoding_w_reference(self):
         vcf = hl.split_multi_hts(
             hl.import_vcf(resource('sample2.vcf'),
