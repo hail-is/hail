@@ -49,7 +49,7 @@ klog() {
     for x in $(kubectl get pods -l app="${1}" -n "${2}" | tail -n +2 | awk '{print $1}')
     do
         kubectl logs --tail=999999999999999 $x -n "${2}" --all-containers \
-            | grep -Ev 'healthcheck|metrics' \
+            | grep -Ev '/(healthcheck|metrics)' \
                    > $dir/$x &
     done
     wait
@@ -75,7 +75,7 @@ kjlog() {
     for x in $(kubectl get pods -l app="${1}" -n "${2}" | tail -n +2 | awk '{print $1}')
     do
         kubectl logs --tail=999999999999999 $x -n "${2}" --all-containers \
-            | grep -Ev 'healthcheck|metrics' \
+            | grep -Ev '/(healthcheck|metrics)' \
             | grep '^{' \
             | jq -c '{time: (if .asctime then .asctime else .["@timestamp"] end), pod: "'$x'", x_real_ip, connection_id, exc_info, message}' \
                  > $dir/$x &
@@ -105,7 +105,7 @@ kjlogs() {
         for x in $(kubectl get pods -l app="${app}" -n "${namespace}" | tail -n +2 | awk '{print $1}')
         do
             kubectl logs --tail=999999999999999 $x -n "${namespace}" --all-containers \
-                | grep -Ev 'healthcheck|metrics' \
+                | grep -Ev '/(healthcheck|metrics)' \
                 | grep '^{' \
                 | jq -c '{time: (if .asctime then .asctime else .["@timestamp"] end), pod: "'$x'", x_real_ip, connection_id, exc_info, message}' \
                      > $dir/$x &
