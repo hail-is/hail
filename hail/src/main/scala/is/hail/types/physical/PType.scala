@@ -407,69 +407,12 @@ abstract class PType extends Serializable with Requiredness {
     }
   }
 
-  @transient private[this] var _compiledCopyFunctions: ThreadLocal[mutable.Map[(PType, Boolean), AsmFunction2RegionLongLong]] = _
-
-  private[this] def compiledCopyFunctions(): mutable.Map[(PType, Boolean), AsmFunction2RegionLongLong] = {
-    if (_compiledCopyFunctions == null)
-      _compiledCopyFunctions = new ThreadLocal[mutable.Map[(PType, Boolean), AsmFunction2RegionLongLong]] {
-        override def initialValue(): mutable.Map[(PType, Boolean), AsmFunction2RegionLongLong] = mutable.Map.empty[(PType, Boolean), AsmFunction2RegionLongLong]
-      }
-    _compiledCopyFunctions.get
-  }
-
-  @transient private[this] var _compiledStoreFunctions: ThreadLocal[mutable.Map[(PType, Boolean), AsmFunction3RegionLongLongUnit]] = _
-
-  private[this] def compiledStoreFunctions(): mutable.Map[(PType, Boolean), AsmFunction3RegionLongLongUnit] = {
-    if (_compiledStoreFunctions == null)
-      _compiledStoreFunctions = new ThreadLocal[mutable.Map[(PType, Boolean), AsmFunction3RegionLongLongUnit]] {
-        override def initialValue(): mutable.Map[(PType, Boolean), AsmFunction3RegionLongLongUnit] = mutable.Map.empty[(PType, Boolean), AsmFunction3RegionLongLongUnit]
-      }
-    _compiledStoreFunctions.get
-  }
-
   final def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
-    val funcs = compiledStoreFunctions()
-    val f = funcs.get((srcPType, deepCopy)) match {
-      case Some(f) => f
-      case None =>
-        if (srcPType.virtualType != this.virtualType)
-          throw new RuntimeException(s"cannot register a copy function for $srcPType to $this\n  src virt:  ${ srcPType.virtualType }\n  dest virt: ${ this.virtualType }")
-        val f = EmitFunctionBuilder[AsmFunction3RegionLongLongUnit](null, "storeFromAddr", FastIndexedSeq[ParamType](classInfo[Region], LongInfo, LongInfo), UnitInfo)
-
-        f.apply_method.voidWithBuilder { cb =>
-          val region = f.apply_method.getCodeParam[Region](1)
-          val destAddr = f.apply_method.getCodeParam[Long](2)
-          val srcAddr = f.apply_method.getCodeParam[Long](3)
-          this.storeAtAddress(cb, destAddr, region, srcPType.loadCheapSCode(cb, srcAddr), deepCopy = deepCopy)
-        }
-        val compiledFunction = f.result(allowWorkerCompilation = true)()
-        funcs += (((srcPType, deepCopy), compiledFunction))
-        compiledFunction
-    }
-    f(region, addr, srcAddress)
+    UnstagedCopyFunctionCache.lookupStore(srcPType, this, deepCopy).apply(region, addr, srcAddress)
   }
 
   final def copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
-    val funcs = compiledCopyFunctions()
-    val f = funcs.get((srcPType, deepCopy)) match {
-      case Some(f) => f
-      case None =>
-        if (srcPType.virtualType != this.virtualType)
-          throw new RuntimeException(s"cannot register a copy function for $srcPType to $this\n  src virt:  ${ srcPType.virtualType }\n  dest virt: ${ this.virtualType }")
-        val f = EmitFunctionBuilder[AsmFunction2RegionLongLong](null, // ctx can be null if reference genomes and literals do not appear
-          "copyFromAddr",
-          FastIndexedSeq[ParamType](classInfo[Region], LongInfo), LongInfo)
-
-        f.emitWithBuilder { cb =>
-          val region = f.apply_method.getCodeParam[Region](1)
-          val srcAddr = f.apply_method.getCodeParam[Long](2)
-          this.store(cb, region, srcPType.loadCheapSCode(cb, srcAddr), deepCopy = deepCopy)
-        }
-        val compiledFunction = f.result(allowWorkerCompilation = true)()
-        funcs += (((srcPType, deepCopy), compiledFunction))
-        compiledFunction
-    }
-    f(region, srcAddress)
+    UnstagedCopyFunctionCache.lookupCopy(srcPType, this, deepCopy).apply(region, srcAddress)
   }
 
   // return a SCode that can cheaply operate on the region representation. Generally a pointer type, but not necessarily (e.g. primitives).
