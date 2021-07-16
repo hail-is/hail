@@ -244,6 +244,8 @@ sudo service google-fluentd restart
 docker pull $BATCH_WORKER_IMAGE || \
 (echo 'pull failed, retrying' && sleep 15 && docker pull $BATCH_WORKER_IMAGE)
 
+BATCH_WORKER_IMAGE_ID=$(docker inspect $BATCH_WORKER_IMAGE --format='{{.Id}}' | cut -d':' -f2)
+
 # So here I go it's my shot.
 docker run \
 -e CORES=$CORES \
@@ -261,6 +263,7 @@ docker run \
 -e MAX_IDLE_TIME_MSECS=$MAX_IDLE_TIME_MSECS \
 -e WORKER_DATA_DISK_MOUNT=/mnt/disks/$WORKER_DATA_DISK_NAME \
 -e BATCH_WORKER_IMAGE=$BATCH_WORKER_IMAGE \
+-e BATCH_WORKER_IMAGE_ID=$BATCH_WORKER_IMAGE_ID \
 -e UNRESERVED_WORKER_DATA_DISK_SIZE_GB=$UNRESERVED_WORKER_DATA_DISK_SIZE_GB \
 -v /var/run/docker.sock:/var/run/docker.sock \
 -v /var/run/netns:/var/run/netns:shared \
