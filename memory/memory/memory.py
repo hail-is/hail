@@ -72,7 +72,7 @@ async def get_or_add_user(app, userdata):
     userlocks = app['userlocks']
     username = userdata['username']
     if username not in users:
-        async with userlocks[user]:
+        async with userlocks[username]:
             if username not in users:
                 log.info(f'get_or_add_user: cache miss: {username}')
                 k8s_client = app['k8s_client']
