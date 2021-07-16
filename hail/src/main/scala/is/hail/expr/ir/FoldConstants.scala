@@ -23,6 +23,13 @@ object FoldConstants {
     val compiled = CompileAndEvaluate[Any](ctx, constantsTrapTuple, optimize = false)
     val rowCompiled = compiled.asInstanceOf[Row]
     val constDict = getIRConstantMapping(rowCompiled, constantsIS)
+    constantsIS.map( ir => {
+      println("IR:")
+      println(Pretty(ir))
+      println("const:")
+      println(Pretty(constDict(ir)))
+    }
+    )
     replaceConstantTrees(ir, constDict)
   }
 
@@ -78,6 +85,8 @@ object FoldConstants {
           _: RelationalLet |
           _: WriteValue |
           _: WritePartition |
+          _: ReadPartition |
+          _: CollectDistributedArray |
           _: WriteMetadata |
           _: Begin => true
       case ir: IR if ir.typ == TVoid => true
