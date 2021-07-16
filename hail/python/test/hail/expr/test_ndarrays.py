@@ -541,6 +541,9 @@ def test_ndarray_sum():
     assert hl.eval(m.sum()) == 10
     assert hl.eval(m.sum((0, 1))) == 10
 
+    bool_nd = hl.nd.array([[True, False, True], [False, True, True]])
+    assert hl.eval(bool_nd.sum()) == 4
+
     with pytest.raises(ValueError) as exc:
         m.sum(3)
     assert "out of bounds for ndarray of dimension 2" in str(exc.value)
