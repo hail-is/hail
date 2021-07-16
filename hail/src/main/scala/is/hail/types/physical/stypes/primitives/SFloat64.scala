@@ -1,6 +1,7 @@
 package is.hail.types.physical.stypes.primitives
 
 import is.hail.annotations.Region
+import is.hail.asm4s.Code.invokeStatic1
 import is.hail.asm4s.{Code, DoubleInfo, Settable, SettableBuilder, TypeInfo, Value}
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
@@ -48,6 +49,10 @@ case object SFloat64 extends SPrimitive {
 
 trait SFloat64Value extends SValue {
   def doubleCode(cb: EmitCodeBuilder): Code[Double]
+  override def hash(cb: EmitCodeBuilder): SInt32Code = {
+    new SInt32Code(invokeStatic1[java.lang.Double, Double, Int]("hashCode", doubleCode(cb)))
+  }
+
 
 }
 

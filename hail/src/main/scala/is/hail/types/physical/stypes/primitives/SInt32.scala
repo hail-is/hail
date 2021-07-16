@@ -41,6 +41,7 @@ case object SInt32 extends SPrimitive {
 
 trait SInt32Value extends SValue {
   def intCode(cb: EmitCodeBuilder): Code[Int]
+  override def hash(cb: EmitCodeBuilder): SInt32Code = new SInt32Code(intCode(cb))
 }
 
 class SInt32Code(val code: Code[Int]) extends SCode with SPrimitiveCode {
@@ -81,4 +82,5 @@ class SInt32Settable(x: Settable[Int]) extends SInt32Value with SSettable {
   def get: SCode = new SInt32Code(x)
 
   def intCode(cb: EmitCodeBuilder): Code[Int] = x
+
 }

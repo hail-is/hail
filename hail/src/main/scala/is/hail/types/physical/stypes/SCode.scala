@@ -112,6 +112,8 @@ trait SValue {
   def st: SType
 
   def get: SCode
+
+  def hash(cb: EmitCodeBuilder): SInt32Code = throw new IllegalArgumentException
 }
 
 

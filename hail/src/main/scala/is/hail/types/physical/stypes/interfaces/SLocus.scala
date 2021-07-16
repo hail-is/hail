@@ -2,6 +2,7 @@ package is.hail.types.physical.stypes.interfaces
 
 import is.hail.asm4s.Code
 import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.types.physical.stypes.primitives.SInt32Code
 import is.hail.types.physical.stypes.{SCode, SType, SValue}
 import is.hail.variant.{Locus, ReferenceGenome}
 
@@ -19,6 +20,8 @@ trait SLocusValue extends SValue {
     contig(cb).loadString(), position(cb))
 
   def structRepr(cb: EmitCodeBuilder): SBaseStructValue
+
+  override def hash(cb: EmitCodeBuilder): SInt32Code = structRepr(cb).hash(cb)
 }
 
 trait SLocusCode extends SCode {
