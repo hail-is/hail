@@ -14,16 +14,7 @@ trait PUnrealizable extends PType {
 
   override def alignment: Long = unsupported
 
-  protected[physical] def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
-    unsupported
-
-  override def copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
-    unsupported
-
   def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] =
-    unsupported
-
-  def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
     unsupported
 
   override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long =

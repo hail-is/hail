@@ -327,56 +327,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
         }))
   }
 
-  def deepPointerCopy(region: Region, dstAddress: Long) {
-    if(!this.elementType.containsPointers) {
-      return
-    }
-
-    val numberOfElements = this.loadLength(dstAddress)
-    var currentIdx = 0
-    while(currentIdx < numberOfElements) {
-      if(this.isElementDefined(dstAddress, currentIdx)) {
-        val currentElementAddress = this.elementOffset(dstAddress, numberOfElements, currentIdx)
-        val currentElementAddressFromNested = this.elementType.unstagedLoadFromNested(currentElementAddress)
-        this.elementType.unstagedStoreAtAddress(currentElementAddress, region, this.elementType, currentElementAddressFromNested, true)
-      }
-
-      currentIdx += 1
-    }
-  }
-
-  def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
-    val srcArrayT = srcPType.asInstanceOf[PArray]
-
-    if (equalModuloRequired(srcArrayT)) {
-      if (!deepCopy)
-        return srcAddress
-
-      val len = srcArrayT.loadLength(srcAddress)
-      val newAddr = allocate(region, len)
-      Region.copyFrom(srcAddress, newAddr, contentsByteSize(len))
-      deepPointerCopy(region, newAddr)
-      newAddr
-    } else {
-      val len = srcArrayT.loadLength(srcAddress)
-      val newAddr = allocate(region, len)
-
-      initialize(newAddr, len, setMissing = true)
-      var i = 0
-      val srcElementT = srcArrayT.elementType
-      while (i < len) {
-        if (srcArrayT.isElementDefined(srcAddress, i)) {
-          setElementPresent(newAddr, i)
-          elementType.unstagedStoreAtAddress(elementOffset(newAddr, len, i), region, srcElementT, srcArrayT.loadElement(srcAddress, len, i), deepCopy)
-        } else
-          assert(!elementType.required)
-
-        i += 1
-      }
-      newAddr
-    }
-  }
-
   def sType: SIndexablePointer = SIndexablePointer(setRequired(false).asInstanceOf[PCanonicalArray])
 
   def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SIndexablePointerCode = new SIndexablePointerCode(sType, addr)
@@ -433,12 +383,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
     cb += Region.storeAddress(addr, store(cb, region, value, deepCopy))
-  }
-
-
-  def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
-    val srcArray = srcPType.asInstanceOf[PArray]
-    Region.storeAddress(addr, copyFromAddress(region, srcArray, srcAddress, deepCopy))
   }
 
   override def deepRename(t: Type): PType = deepRenameArray(t.asInstanceOf[TArray])

@@ -99,7 +99,7 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def fieldBuilder: SettableBuilder = cb.fieldBuilder
 
-  def result(print: Option[PrintWriter] = None): () => C = cb.result(print)
+  def result(print: Option[PrintWriter] = None, allowWorkerCompilation: Boolean = false): () => C = cb.result(print, allowWorkerCompilation)
 
   def getFS: Code[FS] = ecb.getFS
 
@@ -295,14 +295,14 @@ class EmitClassBuilder[C](
 
     val baos = new ByteArrayOutputStream()
     val enc = spec.buildEncoder(ctx, litType)(baos)
-    this.emodb.ctx.r.pool.scopedRegion { region =>
+    RegionPool.scoped(pool => pool.scopedRegion { region =>
       val rvb = new RegionValueBuilder(region)
       rvb.start(litType)
       rvb.startTuple()
       literals.foreach { case ((typ, a), _) => rvb.addAnnotation(typ.t, a) }
       rvb.endTuple()
       enc.writeRegionValue(rvb.end())
-    }
+    })
     enc.flush()
     enc.close()
     Array(baos.toByteArray) ++ preEncodedLiterals.map(_._1.value.ba)

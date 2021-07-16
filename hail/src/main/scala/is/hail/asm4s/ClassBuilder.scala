@@ -347,11 +347,11 @@ class ClassBuilder[C](
     lclass.asBytes(print)
   }
 
-  def result(print: Option[PrintWriter] = None): () => C = {
+  def result(print: Option[PrintWriter] = None, allowWorkerCompilation: Boolean = false): () => C = {
     val n = className.replace("/", ".")
     val classesBytes = modb.classesBytes()
 
-    assert(TaskContext.get() == null,
+    assert(allowWorkerCompilation || TaskContext.get() == null,
       "FunctionBuilder emission should happen on master, but happened on worker")
 
     new (() => C) with java.io.Serializable {

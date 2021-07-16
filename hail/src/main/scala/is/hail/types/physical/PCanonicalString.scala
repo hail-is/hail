@@ -19,9 +19,6 @@ class PCanonicalString(val required: Boolean) extends PString {
 
   lazy val binaryRepresentation: PCanonicalBinary = PCanonicalBinary(required)
 
-  def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
-    binaryRepresentation.copyFromAddress(region, srcPType.asInstanceOf[PString].binaryRepresentation, srcAddress, deepCopy)
-
   override def containsPointers: Boolean = true
 
   def loadLength(boff: Long): Int =
@@ -52,9 +49,6 @@ class PCanonicalString(val required: Boolean) extends PString {
       binaryRepresentation.store(dstAddress, byteRep),
       dstAddress)
   }
-
-  def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
-    binaryRepresentation.unstagedStoreAtAddress(addr, region, srcPType.asInstanceOf[PString].binaryRepresentation, srcAddress, deepCopy)
 
   def setRequired(required: Boolean) = if (required == this.required) this else PCanonicalString(required)
 
