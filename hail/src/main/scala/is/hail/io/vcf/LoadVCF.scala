@@ -1563,7 +1563,6 @@ object MatrixVCFReader {
   def apply(ctx: ExecuteContext, params: MatrixVCFReaderParameters): MatrixVCFReader = {
     val backend = ctx.backend
     val fs = ctx.fs
-    val fsBc = fs.broadcast
 
     val referenceGenome = params.rg.map(ReferenceGenome.getReference)
 
@@ -1579,6 +1578,7 @@ object MatrixVCFReader {
     if (fileStatuses.length > 1) {
       if (params.headerFile.isEmpty) {
         if (backend.isInstanceOf[SparkBackend]) {
+          val fsBc = fs.broadcast
           val header1Bc = backend.broadcast(header1)
 
           val localCallFields = params.callFields
