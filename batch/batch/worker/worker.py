@@ -2009,7 +2009,7 @@ class Worker:
     async def cleanup_old_images(self):
         try:
             async with image_lock.writer_lock:
-                for image_id in self.image_ref_count.keys():
+                for image_id in list(self.image_ref_count.keys()):
                     if self.image_ref_count[image_id] == 0:
                         log.info(f'Found an unused image with ID {image_id}')
                         image_path = f'/host/rootfs/{image_id}'
