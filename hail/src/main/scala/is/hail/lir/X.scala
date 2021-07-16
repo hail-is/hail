@@ -65,7 +65,9 @@ class Classx[C](val name: String, val superName: String, var sourceFile: Option[
       SimplifyControl(m)
     }
 
-    val writeIRs = HailContext.isInitialized && HailContext.getFlag("write_ir_files") != null
+    val writeIRs = org.apache.spark.TaskContext.get() == null &&
+      HailContext.isInitialized &&
+      HailContext.getFlag("write_ir_files") != null
 
     if (writeIRs) saveToFile(s"/tmp/hail/${name}.lir")
 

@@ -23,20 +23,7 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
 
   def setRequired(required: Boolean) = if (required == this.required) this else PCanonicalCall(required)
 
-  override def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
-    srcPType match {
-      case pt: PCanonicalCall =>
-        representation.unstagedStoreAtAddress(addr, region, pt.representation, srcAddress, deepCopy)
-    }
-  }
-
   override def containsPointers: Boolean = representation.containsPointers
-
-  def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
-    srcPType match {
-      case pt: PCanonicalCall => representation._copyFromAddress(region, pt.representation, srcAddress, deepCopy)
-    }
-  }
 
   def sType: SCall = SCanonicalCall
 

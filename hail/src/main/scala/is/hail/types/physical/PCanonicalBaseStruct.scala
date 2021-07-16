@@ -110,49 +110,6 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     }
   }
 
-  def deepPointerCopy(region: Region, dstStructAddress: Long) {
-    var i = 0
-    while (i < this.size) {
-      val dstFieldType = this.fields(i).typ
-      if (dstFieldType.containsPointers && this.isFieldDefined(dstStructAddress, i)) {
-        val dstFieldAddress = this.fieldOffset(dstStructAddress, i)
-        val dstFieldAddressFromNested = dstFieldType.unstagedLoadFromNested(dstFieldAddress)
-        dstFieldType.unstagedStoreAtAddress(dstFieldAddress, region, dstFieldType, dstFieldAddressFromNested, true)
-      }
-      i += 1
-    }
-  }
-
-  def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
-    if (equalModuloRequired(srcPType) && !deepCopy)
-      return srcAddress
-
-    val newAddr = allocate(region)
-    unstagedStoreAtAddress(newAddr, region, srcPType.asInstanceOf[PBaseStruct], srcAddress, deepCopy)
-    newAddr
-  }
-
-  def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
-    val srcStruct = srcPType.asInstanceOf[PBaseStruct]
-    if (equalModuloRequired(srcStruct)) {
-      Region.copyFrom(srcAddress, addr, byteSize)
-      if (deepCopy)
-        deepPointerCopy(region, addr)
-    } else {
-      initialize(addr, setMissing = true)
-      var idx = 0
-      while (idx < types.length) {
-        if (srcStruct.isFieldDefined(srcAddress, idx)) {
-          setFieldPresent(addr, idx)
-          types(idx).unstagedStoreAtAddress(
-            fieldOffset(addr, idx), region, srcStruct.types(idx), srcStruct.loadField(srcAddress, idx), deepCopy)
-        } else
-          assert(!fieldRequired(idx))
-        idx += 1
-      }
-    }
-  }
-
   def sType: SBaseStructPointer = SBaseStructPointer(setRequired(false).asInstanceOf[PCanonicalBaseStruct])
 
   def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructPointerCode = new SBaseStructPointerCode(sType, addr)

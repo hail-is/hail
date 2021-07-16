@@ -85,20 +85,6 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
         representation.storeAtAddress(cb, addr, region, t.representation.loadCheapSCode(cb, value.asInstanceOf[SIntervalPointerCode].a), deepCopy)
     }
   }
-  def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
-    srcPType match {
-      case t: PCanonicalInterval =>
-        representation.unstagedStoreAtAddress(addr, region, t.representation, srcAddress, deepCopy)
-
-    }
-  }
-
-  override def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
-    srcPType match {
-      case t: PCanonicalInterval =>
-        representation._copyFromAddress(region, t.representation, srcAddress, deepCopy)
-    }
-  }
 
   def loadFromNested(addr: Code[Long]): Code[Long] = representation.loadFromNested(addr)
 

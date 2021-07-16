@@ -130,17 +130,11 @@ trait PArrayBackedContainer extends PContainer {
   override def unsafeOrdering(rightType: PType): UnsafeOrdering =
     arrayRep.unsafeOrdering(rightType)
 
-  def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
-    arrayRep.copyFromAddress(region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, deepCopy)
-
   def nextElementAddress(currentOffset: Long): Long =
     arrayRep.nextElementAddress(currentOffset)
 
   def nextElementAddress(currentOffset: Code[Long]): Code[Long] =
     arrayRep.nextElementAddress(currentOffset)
-
-  def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
-    arrayRep.unstagedStoreAtAddress(addr, region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, deepCopy)
 
   def sType: SIndexablePointer = SIndexablePointer(setRequired(false).asInstanceOf[PArrayBackedContainer])
 
