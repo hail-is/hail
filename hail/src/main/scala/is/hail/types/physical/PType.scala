@@ -407,14 +407,6 @@ abstract class PType extends Serializable with Requiredness {
     }
   }
 
-  final def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
-    UnstagedCopyFunctionCache.lookupStore(srcPType, this, deepCopy).apply(region, addr, srcAddress)
-  }
-
-  final def copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
-    UnstagedCopyFunctionCache.lookupCopy(srcPType, this, deepCopy).apply(region, srcAddress)
-  }
-
   // return a SCode that can cheaply operate on the region representation. Generally a pointer type, but not necessarily (e.g. primitives).
   def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SCode
 
@@ -435,4 +427,88 @@ abstract class PType extends Serializable with Requiredness {
   def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long
 
   def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit
+
+  final def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
+    lookupStore(srcPType, deepCopy).apply(region, addr, srcAddress)
+  }
+
+  final def copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
+    lookupCopy(srcPType, deepCopy).apply(region, srcAddress)
+  }
+
+  @transient private[this] lazy val cachedMRE: MutableRefEquality[PType] = new MutableRefEquality(null)
+  @transient private[this] lazy val compiledDeepCopyFunctions = new java.util.HashMap[MutableRefEquality[PType], AsmFunction2RegionLongLong]
+  @transient private[this] lazy val compiledShallowCopyFunctions = new java.util.HashMap[MutableRefEquality[PType], AsmFunction2RegionLongLong]
+  @transient private[this] lazy val compiledDeepStoreFunctions = new java.util.HashMap[MutableRefEquality[PType], AsmFunction3RegionLongLongUnit]
+  @transient private[this] lazy val compiledShallowStoreFunctions = new java.util.HashMap[MutableRefEquality[PType], AsmFunction3RegionLongLongUnit]
+
+  final def lookupCopy(srcPType: PType, deepCopy: Boolean): AsmFunction2RegionLongLong = {
+    cachedMRE.assign(srcPType)
+
+    val f = if (deepCopy)
+      compiledDeepCopyFunctions.get(cachedMRE)
+    else
+      compiledShallowCopyFunctions.get(cachedMRE)
+
+    val resultFunction = if (f != null)
+      f
+    else {
+      log.info(s"generating copy for $srcPType -> $this ($deepCopy)")
+      if (srcPType.virtualType != this.virtualType)
+        throw new RuntimeException(s"cannot register a copy function for $srcPType to $this" +
+          s"\n  src virt:  ${ srcPType.virtualType }\n  dest virt: ${ this.virtualType }")
+      val fb = EmitFunctionBuilder[AsmFunction2RegionLongLong](null, // ctx can be null if reference genomes and literals do not appear
+        "copyFromAddr",
+        FastIndexedSeq[ParamType](classInfo[Region], LongInfo), LongInfo)
+
+      fb.emitWithBuilder { cb =>
+        val region = fb.apply_method.getCodeParam[Region](1)
+        val srcAddr = fb.apply_method.getCodeParam[Long](2)
+        this.store(cb, region, srcPType.loadCheapSCode(cb, srcAddr), deepCopy = deepCopy)
+      }
+      val compiledFunction = fb.result(allowWorkerCompilation = true)()
+      if (deepCopy)
+        compiledDeepCopyFunctions.put(cachedMRE.copy(), compiledFunction)
+      else
+        compiledShallowCopyFunctions.put(cachedMRE.copy(), compiledFunction)
+
+      compiledFunction
+    }
+    cachedMRE.assign(null)
+    resultFunction
+  }
+
+  final def lookupStore(srcPType: PType, deepCopy: Boolean): AsmFunction3RegionLongLongUnit = {
+    cachedMRE.assign(srcPType)
+
+    val f = if (deepCopy)
+      compiledDeepStoreFunctions.get(cachedMRE)
+    else
+      compiledShallowStoreFunctions.get(cachedMRE)
+
+    val resultFunction = if (f != null)
+      f
+    else {
+      log.info(s"generating copy for $srcPType -> $this ($deepCopy)\n  deep=${compiledDeepStoreFunctions.keySet()}\n  shal=${compiledShallowStoreFunctions.keySet()}")
+      if (srcPType.virtualType != this.virtualType)
+        throw new RuntimeException(s"cannot register a copy function for $srcPType to $this\n  src virt:  ${ srcPType.virtualType }\n  dest virt: ${ this.virtualType }")
+      val fb = EmitFunctionBuilder[AsmFunction3RegionLongLongUnit](null, "storeFromAddr", FastIndexedSeq[ParamType](classInfo[Region], LongInfo, LongInfo), UnitInfo)
+
+      fb.apply_method.voidWithBuilder { cb =>
+        val region = fb.apply_method.getCodeParam[Region](1)
+        val destAddr = fb.apply_method.getCodeParam[Long](2)
+        val srcAddr = fb.apply_method.getCodeParam[Long](3)
+        this.storeAtAddress(cb, destAddr, region, srcPType.loadCheapSCode(cb, srcAddr), deepCopy = deepCopy)
+      }
+      val compiledFunction = fb.result(allowWorkerCompilation = true)()
+      if (deepCopy)
+        compiledDeepStoreFunctions.put(cachedMRE.copy(), compiledFunction)
+      else
+        compiledShallowStoreFunctions.put(cachedMRE.copy(), compiledFunction)
+
+      compiledFunction
+    }
+    cachedMRE.assign(null)
+    resultFunction
+  }
 }
