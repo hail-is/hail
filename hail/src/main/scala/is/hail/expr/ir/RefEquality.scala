@@ -6,7 +6,24 @@ object RefEquality {
   def apply[T <: AnyRef](t: T): RefEquality[T] = new RefEquality[T](t)
 }
 
-class RefEquality[+T <: AnyRef](val t: T) {
+final class MutableRefEquality[T <: AnyRef](var t: T) {
+  override def equals(obj: scala.Any): Boolean = obj match {
+    case r: MutableRefEquality[T] => t.eq(r.t)
+    case _ => false
+  }
+
+  override def hashCode(): Int = System.identityHashCode(t)
+
+  override def toString: String = s"MutableRefEquality($t)"
+
+  def assign(newT: T): Unit = {
+    t = newT
+  }
+
+  def copy(): MutableRefEquality[T] = new MutableRefEquality(t)
+}
+
+final class RefEquality[+T <: AnyRef](val t: T) {
   override def equals(obj: scala.Any): Boolean = obj match {
     case r: RefEquality[T] => t.eq(r.t)
     case _ => false
@@ -21,7 +38,7 @@ object Memo {
   def empty[T]: Memo[T] = new Memo[T](new mutable.HashMap[RefEquality[BaseIR], T])
 }
 
-class Memo[T] private(val m: mutable.HashMap[RefEquality[BaseIR], T]) {
+final class Memo[T] private(val m: mutable.HashMap[RefEquality[BaseIR], T]) {
   def bind(ir: BaseIR, t: T): Memo[T] = bind(RefEquality(ir), t)
 
   def bind(ir: RefEquality[BaseIR], t: T): Memo[T] = {
