@@ -17,6 +17,7 @@ from aiohttp import web
 import async_timeout
 import concurrent
 import aiodocker  # type: ignore
+import aiorwlock
 from collections import defaultdict, Counter
 import psutil
 from aiodocker.exceptions import DockerError  # type: ignore
@@ -98,6 +99,7 @@ WORKER_CONFIG = json.loads(base64.b64decode(os.environ['WORKER_CONFIG']).decode(
 MAX_IDLE_TIME_MSECS = int(os.environ['MAX_IDLE_TIME_MSECS'])
 WORKER_DATA_DISK_MOUNT = os.environ['WORKER_DATA_DISK_MOUNT']
 BATCH_WORKER_IMAGE = os.environ['BATCH_WORKER_IMAGE']
+BATCH_WORKER_IMAGE_ID = os.environ['BATCH_WORKER_IMAGE_ID']
 UNRESERVED_WORKER_DATA_DISK_SIZE_GB = int(os.environ['UNRESERVED_WORKER_DATA_DISK_SIZE_GB'])
 assert UNRESERVED_WORKER_DATA_DISK_SIZE_GB >= 0
 
@@ -129,6 +131,8 @@ network_allocator: Optional['NetworkAllocator'] = None
 worker: Optional['Worker'] = None
 
 image_configs: Dict[str, Dict[str, Any]] = dict()
+
+image_lock = aiorwlock.RWLock()
 
 
 class PortAllocator:
@@ -423,13 +427,13 @@ class Container:
         try:
 
             async def localize_rootfs():
-                async with worker.rootfs_locks[self.image_ref_str]:
+                async with image_lock.reader_lock:
                     # FIXME Authentication is entangled with pulling images. We need a way to test
                     # that a user has access to a cached image without pulling.
                     await self.pull_image()
                     self.image_config = image_configs[self.image_ref_str]
                     self.image_id = self.image_config['Id'].split(":")[1]
-                    worker.image_ref_count[(self.image_ref_str, self.image_id)] += 1
+                    worker.image_ref_count[self.image_id] += 1
 
                     self.rootfs_path = f'/host/rootfs/{self.image_id}'
                     if not os.path.exists(self.rootfs_path):
@@ -476,8 +480,8 @@ class Container:
                 await self.delete_container()
             finally:
                 if self.image_id:
-                    worker.image_ref_count[(self.image_ref_str, self.image_id)] -= 1
-                    assert worker.image_ref_count[(self.image_ref_str, self.image_id)] >= 0
+                    worker.image_ref_count[self.image_id] -= 1
+                    assert worker.image_ref_count[self.image_id] >= 0
 
     async def run_until_done_or_deleted(self, f: Callable[[], Awaitable[Any]]):
         step = asyncio.ensure_future(f())
@@ -1685,8 +1689,7 @@ class Worker:
         self.task_manager = aiotools.BackgroundTaskManager()
         self.jar_download_locks = defaultdict(asyncio.Lock)
 
-        self.rootfs_locks: Dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
-        self.image_ref_count = Counter()
+        self.image_ref_count = Counter({BATCH_WORKER_IMAGE_ID: 1})
 
         # filled in during activation
         self.log_store = None
@@ -2005,15 +2008,15 @@ class Worker:
 
     async def cleanup_old_images(self):
         try:
-            images = list(self.image_ref_count.keys())
-            for image_ref_str, image_id in images:
-                async with self.rootfs_locks[image_ref_str]:
-                    if self.image_ref_count[(image_ref_str, image_id)] == 0:
-                        log.info(f'Found an unused image: {image_ref_str} with ID {image_id}')
-                        shutil.rmtree(f'/host/rootfs/{image_id}')
-                        del self.image_ref_count[(image_ref_str, image_id)]
+            async with image_lock.writer_lock:
+                for image_id in list(self.image_ref_count.keys()):
+                    if self.image_ref_count[image_id] == 0:
+                        log.info(f'Found an unused image with ID {image_id}')
+                        image_path = f'/host/rootfs/{image_id}'
+                        await blocking_to_async(self.pool, shutil.rmtree, image_path)
                         await check_shell(f'docker rmi {image_id}')
-                        log.info(f'Deleted image from cache: {image_ref_str} with ID {image_id}')
+                        del self.image_ref_count[image_id]
+                        log.info(f'Deleted image from cache with ID {image_id}')
         except asyncio.CancelledError:
             raise
         except Exception as e:
