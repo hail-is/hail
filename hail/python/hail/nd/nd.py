@@ -260,7 +260,7 @@ def solve(a, b, no_crash=False):
 
 
 @typecheck(nd_coef=expr_ndarray(), nd_dep=expr_ndarray(), lower=expr_bool)
-def solve_tri(nd_coef, nd_dep, lower=False):
+def solve_triangular(nd_coef, nd_dep, lower=False):
     """Solve a triangular linear system.
 
     Parameters

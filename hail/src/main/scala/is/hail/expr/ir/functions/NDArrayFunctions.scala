@@ -36,6 +36,7 @@ object NDArrayFunctions extends RegistryFunctions {
         NDArrayMap2(l, r, lid, rid, irOp(lElemRef, rElemRef, errorID), errorID)
       }
     }
+
     def linear_triangular_solve(ndCoef: SNDArrayCode, ndDep: SNDArrayCode, lower: SBooleanCode, outputPt: PType, cb: EmitCodeBuilder, region: Value[Region], errorID: Value[Int]): (SNDArrayCode, Value[Int]) = {
       val ndCoefInput = ndCoef.asNDArray.memoize(cb, "ndCoef")
       val ndDepInput = ndDep.asNDArray.memoize(cb, "ndDep")
@@ -54,31 +55,19 @@ object NDArrayFunctions extends RegistryFunctions {
 
       val infoDTRTRSResult = cb.newLocal[Int]("dtrtrs_result")
 
-      val trans = cb.newLocal[String]("dtrtrs_trans")
-      cb.assign(trans, const("N"))
-
-      val diag = cb.newLocal[String]("dtrtrs_diag")
-      cb.assign(diag, const("N"))
-
-      val n = cb.newLocal[Long]("dtrtrs_n")
-      cb.assign(n, ndDepRow)
-
-      val nrhs = cb.newLocal[Long]("dtrtrs_nrhs")
-      cb.assign(nrhs, ndDepCol)
-
       val outputPType = coerce[PCanonicalNDArray](outputPt)
       val output = outputPType.constructByActuallyCopyingData(ndDepColMajor, cb, region).memoize(cb, "triangular_solve_output")
 
       cb.assign(infoDTRTRSResult, Code.invokeScalaObject9[String, String, String, Int, Int, Long, Int, Long, Int, Int](LAPACK.getClass, "dtrtrs",
         uplo,
-        trans,
-        diag,
-        n.toI,
-        nrhs.toI,
+        const("N"),
+        const("N"),
+        ndDepRow.toI,
+        ndDepCol.toI,
         ndCoefColMajor.firstDataAddress(cb),
-        n.toI,
+        ndDepRow.toI,
         output.firstDataAddress(cb),
-        n.toI
+        ndDepRow.toI
       ))
 
       (output.get, infoDTRTRSResult)
@@ -158,7 +147,7 @@ object NDArrayFunctions extends RegistryFunctions {
       { (t, p1, p2, p3) => PCanonicalNDArray(PFloat64Required, 2, true).sType }) {
       case (er, cb, SNDArrayPointer(pt), apc, bpc, lower, errorID) =>
         val (resPCode, info) = linear_triangular_solve(apc.asNDArray, bpc.asNDArray,lower.asBoolean, pt, cb, er.region, errorID)
-        cb.ifx(info cne 0, cb._fatal(s"hl.nd.solve: Could not solve, matrix was singular. dtrtrs error code ", info.toS))
+        cb.ifx(info cne 0, cb._fatalWithError(errorID,s"hl.nd.solve: Could not solve, matrix was singular. dtrtrs error code ", info.toS))
         resPCode
     }
   }

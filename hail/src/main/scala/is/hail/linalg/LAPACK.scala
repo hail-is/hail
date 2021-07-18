@@ -108,6 +108,7 @@ object LAPACK {
 
     INFOref.getValue()
   }
+
   def dtrtrs(UPLO: String, TRANS: String, DIAG: String, N: Int, NRHS: Int,
              A: Long, LDA: Int, B: Long, LDB: Int): Int = {
     val Nref =  new IntByReference(N)
@@ -118,7 +119,6 @@ object LAPACK {
     libraryInstance.get.dtrtrs(UPLO, TRANS, DIAG, Nref, NRHSref, A, LDAref, B, LDBref, INFOref)
     INFOref.getValue()
   }
-
 
   private def versionTest(libInstance: LAPACKLibrary): Try[String] = {
     val major = new IntByReference()
