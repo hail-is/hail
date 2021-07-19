@@ -2014,8 +2014,9 @@ class Worker:
                 log.info(f"Obtained writer lock. The image ref counts are: {self.image_ref_count}")
                 for image_id in list(self.image_ref_count.keys()):
                     if self.image_ref_count[image_id] == 0:
+                        assert image_id != BATCH_WORKER_IMAGE_ID
                         log.info(f'Found an unused image with ID {image_id}')
-                        await check_shell(f'docker rmi {image_id}')
+                        await check_shell(f'docker rmi -f {image_id}')
                         image_path = f'/host/rootfs/{image_id}'
                         await blocking_to_async(self.pool, shutil.rmtree, image_path)
                         del self.image_ref_count[image_id]
