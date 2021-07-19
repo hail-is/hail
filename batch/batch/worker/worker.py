@@ -627,6 +627,7 @@ class Container:
     async def container_config(self):
         uid, gid = await self._get_in_container_user()
         weight = worker_fraction_in_1024ths(self.spec['cpu'])
+        workdir = self.image_config['Config']['WorkingDir']
         default_docker_capabilities = [
             'CAP_CHOWN',
             'CAP_DAC_OVERRIDE',
@@ -658,7 +659,7 @@ class Container:
                 },
                 'args': self.spec['command'],
                 'env': self._env(),
-                'cwd': '/',
+                'cwd': workdir if workdir != "" else "/",
                 'capabilities': {
                     'bounding': default_docker_capabilities,
                     'effective': default_docker_capabilities,

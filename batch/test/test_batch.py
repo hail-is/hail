@@ -190,6 +190,15 @@ def test_attached_disk(client):
     assert status['state'] == 'Success', str((status, j.log()))
 
 
+def test_cwd_from_image_workdir(client):
+    builder = client.create_batch()
+    j = builder.create_job(os.environ['HAIL_WORKDIR_IMAGE'], ['/bin/sh', '-c', 'pwd'])
+    builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str(status)
+    assert "/foo" == j.log()['main']
+
+
 def test_unsubmitted_state(client):
     builder = client.create_batch()
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
