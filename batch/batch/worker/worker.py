@@ -156,7 +156,7 @@ class NetworkNamespace:
         self.private = private
         self.internet_interface = internet_interface
         self.network_ns_name = uuid.uuid4().hex[:5]
-        self.hostname = uuid.uuid4().hex[:10]
+        self.hostname = 'hostname-' + uuid.uuid4().hex[:10]
         self.veth_host = self.network_ns_name + '-host'
         self.veth_job = self.network_ns_name + '-job'
 
