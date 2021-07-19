@@ -436,9 +436,10 @@ class Container:
                     worker.image_ref_count[self.image_id] += 1
 
                     self.rootfs_path = f'/host/rootfs/{self.image_id}'
-                    if not os.path.exists(self.rootfs_path):
-                        await self.extract_rootfs()
-                        log.info(f'Added expanded image to cache: {self.image_ref_str}, ID: {self.image_id}')
+                    async with worker.rootfs_locks[self.image_id]:
+                        if not os.path.exists(self.rootfs_path):
+                            await self.extract_rootfs()
+                            log.info(f'Added expanded image to cache: {self.image_ref_str}, ID: {self.image_id}')
 
             with self.step('pulling'):
                 await self.run_until_done_or_deleted(localize_rootfs)
@@ -1689,6 +1690,7 @@ class Worker:
         self.task_manager = aiotools.BackgroundTaskManager()
         self.jar_download_locks = defaultdict(asyncio.Lock)
 
+        self.rootfs_locks = defaultdict(asyncio.Lock)
         self.image_ref_count = Counter({BATCH_WORKER_IMAGE_ID: 1})
 
         # filled in during activation
@@ -2009,12 +2011,13 @@ class Worker:
     async def cleanup_old_images(self):
         try:
             async with image_lock.writer_lock:
+                log.info(f"Obtained writer lock. The image ref counts are: {self.image_ref_count}")
                 for image_id in list(self.image_ref_count.keys()):
                     if self.image_ref_count[image_id] == 0:
                         log.info(f'Found an unused image with ID {image_id}')
+                        await check_shell(f'docker rmi {image_id}')
                         image_path = f'/host/rootfs/{image_id}'
                         await blocking_to_async(self.pool, shutil.rmtree, image_path)
-                        await check_shell(f'docker rmi {image_id}')
                         del self.image_ref_count[image_id]
                         log.info(f'Deleted image from cache with ID {image_id}')
         except asyncio.CancelledError:
