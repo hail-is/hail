@@ -196,7 +196,7 @@ def test_cwd_from_image_workdir(client):
     builder.submit()
     status = j.wait()
     assert status['state'] == 'Success', str(status)
-    assert "/foo" == j.log()['main']
+    assert "/work" in j.log()['main']
 
 
 def test_unsubmitted_state(client):

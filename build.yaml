@@ -2588,7 +2588,7 @@ steps:
     dockerFile:
       inline: |
         FROM {{ hail_ubuntu_image.image }}
-        WORKDIR ["/foo"]
+        WORKDIR ["/work"]
     dependsOn:
       - hail_ubuntu_image
   - kind: buildImage2
