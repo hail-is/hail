@@ -38,7 +38,7 @@ trait SBaseStructValue extends SValue {
 
   override def hash(cb: EmitCodeBuilder): SInt32Code = {
     val hash_result = cb.newLocal[Int]("hash_result_struct", 1)
-    (0 to st.size).foreach(i => {
+    (0 until st.size).foreach(i => {
       loadField(cb, i).consume(cb, { cb.assign(hash_result, hash_result * 31) },
         {field => cb.assign(hash_result, (hash_result * 31) + field.memoize(cb, "struct_hash").hash(cb).intCode(cb))})
     })

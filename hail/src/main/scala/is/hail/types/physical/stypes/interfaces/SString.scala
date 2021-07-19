@@ -1,7 +1,7 @@
 package is.hail.types.physical.stypes.interfaces
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{Code, Value}
+import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.primitives.SInt32Code
 import is.hail.types.physical.stypes.{SCode, SType, SValue}
@@ -14,7 +14,8 @@ trait SString extends SType {
 trait SStringValue extends SValue {
   override def get: SStringCode
   override def hash(cb: EmitCodeBuilder): SInt32Code = {
-    new SInt32Code(invokeMethod(get, "hashCode").asInstanceOf[Int])
+    new SInt32Code(get.loadString().invoke[Int]("hashCode"))
+    //new SInt32Code(invokeMethod(get, "hashCode").asInstanceOf[Int])
   }
 }
 
