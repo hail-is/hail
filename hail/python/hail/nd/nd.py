@@ -240,7 +240,7 @@ def solve(a, b, no_crash=False):
 
     """
     b_ndim_orig = b.ndim
-    a, b = solve_helper(a, b)
+    a, b = solve_helper(a, b, b_ndim_orig)
     if no_crash:
         name = "linear_solve_no_crash"
         return_type = hl.tstruct(solution=hl.tndarray(hl.tfloat64, 2), failed=hl.tbool)
@@ -280,7 +280,7 @@ def solve_triangular(nd_coef, nd_dep, lower=False):
 
     """
     nd_dep_ndim_orig = nd_dep.ndim
-    nd_coef, nd_dep = solve_helper(nd_coef, nd_dep)
+    nd_coef, nd_dep = solve_helper(nd_coef, nd_dep, nd_dep_ndim_orig)
     return_type = hl.tndarray(hl.tfloat64, 2)
     ir = Apply("linear_triangular_solve", return_type, nd_coef._ir, nd_dep._ir, lower._ir)
     result = construct_expr(ir, return_type, nd_coef._indices, nd_coef._aggregations)
@@ -289,11 +289,9 @@ def solve_triangular(nd_coef, nd_dep, lower=False):
     return result
 
 
-def solve_helper(nd_coef, nd_dep):
+def solve_helper(nd_coef, nd_dep, nd_dep_ndim_orig):
     assert nd_coef.ndim == 2
-    assert nd_dep.ndim == 1 or nd_dep.ndim == 2
-
-    nd_dep_ndim_orig = nd_dep.ndim
+    assert nd_dep_ndim_orig == 1 or nd_dep_ndim_orig == 2
 
     if nd_dep_ndim_orig == 1:
         nd_dep = nd_dep.reshape((-1, 1))
