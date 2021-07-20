@@ -68,7 +68,7 @@ compileScala {
         "-target:jvm-1.8",
         "-feature",
         "-Xno-patmat-analysis",
- //       "-Xfatal-warnings",
+        "-Xfatal-warnings",
         "-Xlint:_",
         "-deprecation",
         "-unchecked",
