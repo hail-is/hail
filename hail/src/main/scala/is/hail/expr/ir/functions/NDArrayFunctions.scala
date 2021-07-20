@@ -1,7 +1,7 @@
 package is.hail.expr.ir.functions
 
 import is.hail.annotations.{Memory, Region}
-import is.hail.asm4s.{Code, Value}
+import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.{Nat, NatVariable}
 import is.hail.linalg.{LAPACK, LinalgCodeUtils}
@@ -9,6 +9,7 @@ import is.hail.types.coerce
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SNDArrayPointer}
 import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.physical.stypes.primitives.SBooleanCode
 import is.hail.types.physical.{PBooleanRequired, PCanonicalNDArray, PCanonicalStruct, PFloat64Required, PType}
 import is.hail.types.virtual._
 
@@ -34,6 +35,42 @@ object NDArrayFunctions extends RegistryFunctions {
 
         NDArrayMap2(l, r, lid, rid, irOp(lElemRef, rElemRef, errorID), errorID)
       }
+    }
+
+    def linear_triangular_solve(ndCoef: SNDArrayCode, ndDep: SNDArrayCode, lower: SBooleanCode, outputPt: PType, cb: EmitCodeBuilder, region: Value[Region], errorID: Value[Int]): (SNDArrayCode, Value[Int]) = {
+      val ndCoefInput = ndCoef.asNDArray.memoize(cb, "ndCoef")
+      val ndDepInput = ndDep.asNDArray.memoize(cb, "ndDep")
+
+      val ndCoefColMajor = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(ndCoefInput, cb, region)
+      val ndDepColMajor = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(ndDepInput, cb, region)
+
+      val IndexedSeq(ndCoefRow, ndCoefCol) = ndCoefColMajor.shapes(cb)
+      cb.ifx(ndCoefRow cne ndCoefCol, cb._fatalWithError(errorID, "hail.nd.solve_triangular: matrix a must be square."))
+
+      val IndexedSeq(ndDepRow, ndDepCol) = ndDepColMajor.shapes(cb)
+      cb.ifx(ndCoefRow  cne ndDepRow, cb._fatalWithError(errorID,"hail.nd.solve_triangular: Solve dimensions incompatible"))
+
+      val uplo = cb.newLocal[String]("dtrtrs_uplo")
+      cb.ifx(lower.boolCode(cb), cb.assign(uplo, const("L")), cb.assign(uplo, const("U")))
+
+      val infoDTRTRSResult = cb.newLocal[Int]("dtrtrs_result")
+
+      val outputPType = coerce[PCanonicalNDArray](outputPt)
+      val output = outputPType.constructByActuallyCopyingData(ndDepColMajor, cb, region).memoize(cb, "triangular_solve_output")
+
+      cb.assign(infoDTRTRSResult, Code.invokeScalaObject9[String, String, String, Int, Int, Long, Int, Long, Int, Int](LAPACK.getClass, "dtrtrs",
+        uplo,
+        const("N"),
+        const("N"),
+        ndDepRow.toI,
+        ndDepCol.toI,
+        ndCoefColMajor.firstDataAddress(cb),
+        ndDepRow.toI,
+        output.firstDataAddress(cb),
+        ndDepRow.toI
+      ))
+
+      (output.get, infoDTRTRSResult)
     }
 
     def linear_solve(a: SNDArrayCode, b: SNDArrayCode, outputPt: PType, cb: EmitCodeBuilder, region: Value[Region], errorID: Value[Int]): (SNDArrayCode, Value[Int]) = {
@@ -104,6 +141,13 @@ object NDArrayFunctions extends RegistryFunctions {
       case (er, cb, SNDArrayPointer(pt), apc, bpc, errorID) =>
         val (resPCode, info) = linear_solve(apc.asNDArray, bpc.asNDArray, pt, cb, er.region, errorID)
         cb.ifx(info cne 0, cb._fatalWithError(errorID,s"hl.nd.solve: Could not solve, matrix was singular. dgesv error code ", info.toS))
+        resPCode
+    }
+    registerSCode3("linear_triangular_solve", TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)), TBoolean, TNDArray(TFloat64, Nat(2)),
+      { (t, p1, p2, p3) => PCanonicalNDArray(PFloat64Required, 2, true).sType }) {
+      case (er, cb, SNDArrayPointer(pt), apc, bpc, lower, errorID) =>
+        val (resPCode, info) = linear_triangular_solve(apc.asNDArray, bpc.asNDArray,lower.asBoolean, pt, cb, er.region, errorID)
+        cb.ifx(info cne 0, cb._fatalWithError(errorID,s"hl.nd.solve: Could not solve, matrix was singular. dtrtrs error code ", info.toS))
         resPCode
     }
   }

@@ -23,6 +23,7 @@ As much as possible, we try to mimic the numpy array interface.
     ones
     diagonal
     solve
+    solve_triangular
     qr
     svd
     inv
@@ -41,6 +42,7 @@ As much as possible, we try to mimic the numpy array interface.
 .. autofunction:: ones
 .. autofunction:: diagonal
 .. autofunction:: solve
+.. autofunction:: solve_triangular
 .. autofunction:: qr
 .. autofunction:: svd
 .. autofunction:: inv

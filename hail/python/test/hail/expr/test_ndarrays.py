@@ -752,6 +752,25 @@ def test_ndarray_diagonal():
     assert "2 dimensional" in str(exc.value)
 
 
+def test_ndarray_solve_triangular():
+    a = hl.nd.array([[1, 1], [0, 1]])
+    b = hl.nd.array([2, 1])
+    b2 = hl.nd.array([[11, 5], [6, 3]])
+
+    a_low = hl.nd.array([[4, 0], [2, 1]])
+    b_low = hl.nd.array([4, 5])
+
+    a_sing = hl.nd.array([[0, 1], [0, 1]])
+    b_sing = hl.nd.array([2, 2])
+
+    assert np.allclose(hl.eval(hl.nd.solve_triangular(a, b)), np.array([1., 1.]))
+    assert np.allclose(hl.eval(hl.nd.solve_triangular(a, b2)), np.array([[5., 2.], [6., 3.]]))
+    assert np.allclose(hl.eval(hl.nd.solve_triangular(a_low, b_low, True)), np.array([[1., 3.]]))
+    with pytest.raises(HailUserError) as exc:
+        hl.eval(hl.nd.solve_triangular(a_sing, b_sing))
+    assert "singular" in str(exc.value), str(exc.value)
+
+
 def test_ndarray_solve():
     a = hl.nd.array([[1, 2], [3, 5]])
     b = hl.nd.array([1, 2])
