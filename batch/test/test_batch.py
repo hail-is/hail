@@ -474,6 +474,14 @@ def test_log_after_failing_job(client):
     assert j.is_complete()
 
 
+def test_long_log_line(client):
+    b = client.create_batch()
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['/bin/sh', '-c', 'for _ in {0..70000}; do echo -n a; done'])
+    b.submit()
+    status = j.wait()
+    assert status['state'] == 'Success'
+
+
 def test_authorized_users_only():
     session = external_requests_client_session()
     endpoints = [
