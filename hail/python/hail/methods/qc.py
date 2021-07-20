@@ -11,11 +11,13 @@ from hail.utils.java import Env, info
 from hail.utils.misc import divide_null
 from hail.vds import VariantDataset
 
-from .misc import require_biallelic, require_col_key_str, require_row_key_variant, require_table_key_variant
+from .misc import (require_biallelic, require_col_key_str,
+                   require_first_key_field_locus, require_row_key_variant,
+                   require_table_key_variant)
 
 
 @typecheck(mt=oneof(MatrixTable, VariantDataset), name=str)
-def sample_qc(mt, name='sample_qc') -> MatrixTable:
+def sample_qc(mt, name='sample_qc') -> Union[MatrixTable, Table]:
     """Compute per-sample metrics useful for quality control.
 
     .. include:: ../_templates/req_tvariant.rst
@@ -84,7 +86,11 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
         Dataset with a new column-indexed field `name`.
     """
 
-    require_row_key_variant(mt, 'sample_qc')
+    if type(mt) is VariantDataset:
+        require_first_key_field_locus(mt.reference_data, 'sample_qc')
+        require_first_key_field_locus(mt.variant_data, 'sample_qc')
+    else:
+        require_row_key_variant(mt, 'sample_qc')
 
     from hail.expr.functions import _num_allele_type, _allele_types
 
@@ -163,12 +169,14 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
         })).cols()
 
         joined = ref_results[variant_results.key].gq_exprs
-        return variant_results.transmute(**{
+        joined_results = variant_results.transmute(**{
             f'gq_over_{x}': variant_results.gq_exprs[f'gq_over_{x}'] + joined[f'gq_over_{x}']
             for x in gq_bins
         })
+        return joined_results
 
-    elif type(mt) is MatrixTable:
+
+    else:
         mt = mt.annotate_rows(**{variant_ac: hl.agg.call_stats(mt.GT, mt.alleles).AC,
                                  variant_atypes: mt.alleles[1:].map(lambda alt: allele_type(mt.alleles[0], alt))})
 
@@ -236,8 +244,7 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
 
         mt = mt.annotate_cols(**{name: result_struct})
         mt = mt.drop(variant_ac, variant_atypes)
-
-    return mt
+        return mt
 
 
 @typecheck(mt=MatrixTable, name=str)
