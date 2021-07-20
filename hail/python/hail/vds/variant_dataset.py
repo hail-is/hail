@@ -1,9 +1,9 @@
-import hail as hl
 import os
+from typing import Sequence
 
+import hail as hl
 from hail.utils.java import Env
 from hail.utils.misc import divide_null
-from typing import Sequence
 
 
 def read_vds(path):
@@ -22,6 +22,7 @@ def read_vds(path):
 
     return VariantDataset(reference_data, variant_data)
 
+
 class VariantDataset(object):
     """
     Class for representing cohort-level genomic data.
@@ -35,9 +36,8 @@ class VariantDataset(object):
     def _variants_path(base: str) -> str:
         return os.path.join(base, 'variant_data')
 
-
     @staticmethod
-    def from_merged_representation(mt, ref_block_fields = ('GQ', 'DP', 'MIN_DP')):
+    def from_merged_representation(mt, ref_block_fields=('GQ', 'DP', 'MIN_DP')):
         gt_field = 'LGT' if 'LGT' in mt.entry else 'GT'
         rmt = mt.filter_entries(mt[gt_field].is_hom_ref())
         rmt = rmt.select_entries(*(x for x in ref_block_fields if x in rmt.entry), 'END')
@@ -111,14 +111,38 @@ class VariantDataset(object):
                 .default(hl.zip(r_array, v_array).map(lambda t: hl.coalesce(rewrite_ref(t[0]), rewrite_var(t[1]))))
 
         ht = ht.select(alleles=hl.coalesce(ht['var_alleles'], ht['alleles']),
-                       **{k: ht[k] for k in self.variant_data.row_value if k != 'alleles'}, # handle cases where vmt is not keyed by alleles
+                       **{k: ht[k] for k in self.variant_data.row_value if k != 'alleles'},  # handle cases where vmt is not keyed by alleles
                        entries=merge_arrays(ht['ref_entries'], ht['var_entries']))
         return ht._unlocalize_entries('entries', 'var_cols', list(self.variant_data.col_key))
 
-
     def dense_mt(self):
-        # we can do something more efficient here!
-        return hl.experimental.densify(self.merged_sparse_mt())
+        ref = self.reference_data
+        ref = ref.drop(*(x for x in ('alleles', 'rsid') if x in ref.row))
+        var = self.variant_data
+        refl = ref.localize_entries('_ref_entries')
+        varl = var.localize_entries('_var_entries', '_var_cols')
+        varl = varl.annotate(_variant_defined=True)
+        joined = refl.join(varl.key_by('locus'), how='outer')
+        dr = joined.annotate(dense_ref=hl.or_missing(joined._variant_defined, hl.scan._densify(hl.len(joined._var_cols), joined._ref_entries)))
+        dr = dr.filter(dr._variant_defined)
+
+        def coalesce_join(ref, var):
+
+            call_field = 'GT' if 'GT' in var else 'LGT'
+            assert call_field in var, var.dtype
+
+            merged_fields = {}
+            merged_fields[call_field] = hl.coalesce(var[call_field], hl.call(0, 0))
+            for field in ref.dtype:
+                if field in var:
+                    merged_fields[field] = hl.coalesce(var[field], ref[field])
+
+            return hl.struct(**merged_fields).annotate(**{f: var[f] for f in var if f not in merged_fields})
+
+        dr = dr.annotate(_dense=hl.zip(dr._var_entries, dr.dense_ref).map(lambda tuple: coalesce_join(hl.or_missing(tuple[1].END <= dr.locus.position, tuple[1]), tuple[0])))
+        dr = dr._key_by_assert_sorted('locus', 'alleles')
+        dr = dr.drop('_var_entries', '_ref_entries', 'dense_ref', '_variant_defined')
+        return dr._unlocalize_entries('_dense', '_var_cols', list(var.col_key))
 
     def split_multi(self, *, filter_changed_loci: bool = False):
         self.variant_data = hl.experimental.sparse_split_multi(self.variant_data, filter_changed_loci=filter_changed_loci)
@@ -147,9 +171,8 @@ class VariantDataset(object):
         if not 'GT' in vmt.entry:
             vmt = vmt.annotate_entries(GT=hl.experimental.lgt_to_gt(vmt.LGT, vmt.LA))
 
-
         vmt = vmt.annotate_rows(**{variant_ac: hl.agg.call_stats(vmt.GT, vmt.alleles).AC,
-                                 variant_atypes: vmt.alleles[1:].map(lambda alt: allele_type(vmt.alleles[0], alt))})
+                                   variant_atypes: vmt.alleles[1:].map(lambda alt: allele_type(vmt.alleles[0], alt))})
 
         bound_exprs = {}
 
@@ -203,7 +226,7 @@ class VariantDataset(object):
         joined = ref_results[variant_results.key].gq_exprs
         return variant_results.transmute(**{
             f'gq_over_{x}': variant_results.gq_exprs[f'gq_over_{x}'] + joined[f'gq_over_{x}']
-                for x in gq_bins
+            for x in gq_bins
         })
 
     def filter_samples(self, samples_table: 'hl.Table', *, keep: bool = True):
@@ -219,4 +242,3 @@ class VariantDataset(object):
             self.variant_data = self.variant_data.semi_join_rows(variants_table)
         else:
             self.variant_data = self.variant_data.anti_join_rows(variants_table)
-
