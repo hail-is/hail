@@ -24,6 +24,23 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.72
+
+Released 2021-07-19
+
+### New Features
+
+- (hail#10655) Revamped many hail error messages to give useful python stack traces.
+- (hail#10663) Added `DictExpression.items()` to mirror python's `dict.items()`.
+- (hail#10657) `hl.map` now supports mapping over multiple lists like Python's built-in `map`.
+
+### Bug fixes
+
+- (hail#10662) Fixed partitioning logic in `hl.import_plink`.
+- (hail#10669) `NDArrayNumericExpression.sum()` now works correctly on ndarrays of booleans.
+
+---
+
 ## Version 0.2.71
 
 Released 2021-07-08

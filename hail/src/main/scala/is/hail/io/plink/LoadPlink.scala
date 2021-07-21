@@ -201,8 +201,8 @@ object MatrixPLINKReader {
     var nPartitions = params.nPartitions match {
       case Some(nPartitions) => nPartitions
       case None =>
-        val blockSizeInB = params.blockSizeInMB.getOrElse(128) * 1024 * 1024
-        (nVariants + blockSizeInB - 1) / blockSizeInB
+        val blockSizeInB = params.blockSizeInMB.getOrElse(16) * 1024 * 1024
+        ((bedSize + blockSizeInB - 1) / blockSizeInB).toInt
     }
     params.minPartitions match {
       case Some(minPartitions) =>
@@ -223,14 +223,14 @@ object MatrixPLINKReader {
     var p = 0
     var prevEnd = 0
     val lOrd = locusType.ordering
-    while (p < nPartitions) {
+    while (p < nPartitions && prevEnd < nVariants) {
       val start = prevEnd
 
       var end = partScan(p + 1)
       if (start < end) {
-        while (end + 1 < nVariants
-          && lOrd.equiv(variants(end).locusAlleles.asInstanceOf[Row].get(0),
-            variants(end + 1).locusAlleles.asInstanceOf[Row].get(0)))
+        while (end < nVariants
+          && lOrd.equiv(variants(end - 1).locusAlleles.asInstanceOf[Row].get(0),
+            variants(end).locusAlleles.asInstanceOf[Row].get(0)))
           end += 1
         
         cb += Row(params.bed, start, end)

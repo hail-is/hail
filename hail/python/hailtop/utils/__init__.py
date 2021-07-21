@@ -12,8 +12,8 @@ from .utils import (
     url_scheme, Notice, periodically_call, dump_all_stacktraces, find_spark_home, TransientError,
     bounded_gather2, OnlineBoundedGather2, unpack_comma_delimited_inputs, retry_all_errors_n_times)
 from .process import (
-    CalledProcessError, check_shell, check_shell_output, sync_check_shell,
-    sync_check_shell_output)
+    CalledProcessError, check_shell, check_shell_output, check_exec_output,
+    sync_check_shell, sync_check_shell_output)
 from .tqdm import tqdm, TQDM_DEFAULT_DISABLE
 from .rates import (
     rate_cpu_hour_to_mcpu_msec, rate_gib_hour_to_mib_msec, rate_gib_month_to_mib_msec,
@@ -34,6 +34,7 @@ __all__ = [
     'CalledProcessError',
     'check_shell',
     'check_shell_output',
+    'check_exec_output',
     'sync_check_shell',
     'sync_check_shell_output',
     'bounded_gather',

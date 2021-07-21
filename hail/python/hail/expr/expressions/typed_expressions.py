@@ -1505,6 +1505,22 @@ class DictExpression(Expression):
         """
         return self._method("values", tarray(self.dtype.value_type))
 
+    def items(self):
+        """Returns an array of tuples containing key/value pairs in the dictionary.
+
+        Examples
+        --------
+
+        >>> hl.eval(d.items())  # doctest: +SKIP_OUTPUT_CHECK
+        [('Alice', 430), ('Bob', 330), ('Charles', 440)]
+
+        Returns
+        -------
+        :class:`.ArrayExpression`
+            All key/value pairs in the dictionary.
+        """
+        return hl.array(self)
+
     def _extra_summary_fields(self, agg_result):
         return {
             'Min Size': agg_result[0],
@@ -4171,25 +4187,29 @@ class NDArrayNumericExpression(NDArrayExpression):
         if axis is None:
             axis = tuple(range(self.ndim))
 
-        axis = wrap_to_tuple(axis)
-        res_ir = ir.NDArrayAgg(self._ir, axis)
+        if self._type.element_type is hl.tbool:
+            return self.map(lambda x: hl.int(x)).sum(axis)
 
-        axes_set = set(axis)
-        if len(axes_set) < len(axis):
-            raise ValueError("duplicate value in 'axis'")
-        for element in axes_set:
-            if element < 0 or element >= self.ndim:
-                raise ValueError(f"axis {element} is out of bounds for ndarray of dimension {self.ndim}")
-
-        num_axes_deleted = len(axes_set)
-
-        result_ndim = self.ndim - num_axes_deleted
-        result = construct_expr(res_ir, tndarray(self._type.element_type, result_ndim), self._indices, self._aggregations)
-
-        if result_ndim == 0:
-            return result[()]
         else:
-            return result
+            axis = wrap_to_tuple(axis)
+            res_ir = ir.NDArrayAgg(self._ir, axis)
+
+            axes_set = set(axis)
+            if len(axes_set) < len(axis):
+                raise ValueError("duplicate value in 'axis'")
+            for element in axes_set:
+                if element < 0 or element >= self.ndim:
+                    raise ValueError(f"axis {element} is out of bounds for ndarray of dimension {self.ndim}")
+
+            num_axes_deleted = len(axes_set)
+
+            result_ndim = self.ndim - num_axes_deleted
+            result = construct_expr(res_ir, tndarray(self._type.element_type, result_ndim), self._indices, self._aggregations)
+
+            if result_ndim == 0:
+                return result[()]
+            else:
+                return result
 
 
 scalars = {tbool: BooleanExpression,

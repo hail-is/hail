@@ -3,6 +3,10 @@
 Change Log
 ==========
 
+**Version 0.2.72**
+
+- Made failed Python Jobs have non-zero exit codes.
+
 **Version 0.2.71**
 
 - Added the ability to set values for ``Job.cpu``, ``Job.memory``, ``Job.storage``, and ``Job.timeout`` to `None`
