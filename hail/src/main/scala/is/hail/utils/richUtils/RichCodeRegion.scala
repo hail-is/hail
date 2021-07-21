@@ -1,6 +1,6 @@
 package is.hail.utils.richUtils
 
-import is.hail.annotations.{Region, RegionPool}
+import is.hail.annotations.{Region, RegionMemory, RegionPool}
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 
@@ -11,6 +11,8 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
   def clearRegion(): Code[Unit] = {
     region.invoke[Unit]("clear")
   }
+
+  def getMemory(): Code[RegionMemory] = region.invoke[RegionMemory]("getMemory")
 
   def trackAndIncrementReferenceCountOf(other: Code[Region]): Code[Unit] =
     region.invoke[Region, Unit]("addReferenceTo", other)

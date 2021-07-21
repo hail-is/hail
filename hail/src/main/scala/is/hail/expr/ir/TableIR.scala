@@ -2000,7 +2000,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       }
     }
 
-    if (HailContext.getFlag("distributed_scan_comb_op") != null) {
+    if (HailContext.getFlag("distributed_scan_comb_op") != null && extracted.shouldTreeAggregate) {
       val fsBc = ctx.fs.broadcast
       val tmpBase = ctx.createTmpPath("table-map-rows-distributed-scan")
       val d = digitsNeeded(tv.rvd.getNumPartitions)
@@ -2030,7 +2030,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       var filesToMerge: Array[String] = files
       while (filesToMerge.length > 1) {
         val nToMerge = filesToMerge.length / 2
-        log.info(s"Running combOp stage with $nToMerge tasks")
+        log.info(s"Running distributed combine stage with $nToMerge tasks")
         fileStack += filesToMerge
 
         filesToMerge = ContextRDD.weaken(SparkBackend.sparkContext("TableMapRows.execute").parallelize(0 until nToMerge, nToMerge))
@@ -2103,13 +2103,12 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         val res = it.map { ptr =>
           newRow.setAggState(aggRegion, aggOff)
           val newPtr = newRow(ctx.region, globals, ptr)
-          seq.setAggState(aggRegion, newRow.getAggOffset())
+          aggOff = newRow.getAggOffset()
+          seq.setAggState(aggRegion, aggOff)
           seq(ctx.region, globals, ptr)
           aggOff = seq.getAggOffset()
           newPtr
         }
-        aggRegion.invalidate()
-
         res
       }
       return tv.copy(

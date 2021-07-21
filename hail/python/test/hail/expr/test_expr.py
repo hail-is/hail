@@ -510,6 +510,13 @@ class Tests(unittest.TestCase):
                                               None]),
         ]
 
+    @with_flags('distributed_scan_comb_op')
+    def test_densify_table(self):
+        ht = hl.utils.range_table(100, n_partitions=33)
+        ht = ht.annotate(arr = hl.range(100).map(lambda idx: hl.or_missing(idx == ht.idx, idx)))
+        ht = ht.annotate(dense = hl.scan._densify(100, ht.arr))
+        assert ht.all(ht.dense == hl.range(100).map(lambda idx: hl.or_missing(idx < ht.idx, idx)))
+
     def test_agg_array_inside_annotate_rows(self):
         n_rows = 10
         n_cols = 5
