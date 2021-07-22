@@ -236,8 +236,7 @@ class LocalBackend(Backend[None]):
                 run_code(code)
 
             for job in batch._jobs:
-                if isinstance(job, _job.PythonJob):
-                    async_to_blocking(job._compile(tmpdir, tmpdir))
+                async_to_blocking(job._compile(tmpdir, tmpdir))
 
                 os.makedirs(f'{tmpdir}/{job._job_id}/', exist_ok=True)
 

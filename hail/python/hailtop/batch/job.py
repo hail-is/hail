@@ -662,36 +662,30 @@ class BashJob(Job):
         return self
 
     async def _compile(self, local_tmpdir, remote_tmpdir):
+        job_shell = self._shell if self._shell else DEFAULT_SHELL
+
         job_command = [cmd.strip() for cmd in self._command]
         job_command = [f'{{\n{x}\n}}' for x in job_command]
         job_command = '\n'.join(job_command)
 
-        if len(job_command.encode()) <= 10 * 1024:
+        job_command = f'''
+#! {job_shell}
+{job_command}
+'''
+
+        if len(bytes(job_command)) <= 10 * 1024:
             self._wrapper_code.append(job_command)
             return False
 
-        job_shell = self._shell if self._shell else DEFAULT_SHELL
-
-        pipe = StringIO()
-        pipe.write(f'#! {job_shell}\n')
-        pipe.writelines(job_command)
-        pipe.write('\n')
-        pipe.seek(0)
-
-        code_bytes = pipe.getvalue().encode()
+        self._user_code.append(job_command)
 
         assert self._job_id is not None
         job_path = f'{remote_tmpdir}/{self._job_id}'
         code_path = f'{job_path}/code.sh'
 
         await self._batch._fs.makedirs(os.path.dirname(code_path), exist_ok=True)
-        await self._batch._fs.write(code_path, code_bytes)
-
+        await self._batch._fs.write(code_path, job_command.encode())
         code = self._batch.read_input(code_path)
-        self._add_inputs(code)
-        self._mentioned.add(code)
-
-        self._user_code.append(pipe.getvalue())
 
         wrapper_command = f'''
 chmod u+x {code}
