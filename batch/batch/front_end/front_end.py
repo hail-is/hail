@@ -1627,7 +1627,8 @@ GROUP BY billing_project, `user`;
 @web_authenticated_users_only()
 @catch_ui_error_in_dev
 async def ui_get_billing(request, userdata):
-    user = userdata['username'] if userdata['is_developer'] == 0 else None
+    is_developer = userdata['is_developer'] == 1
+    user = userdata['username'] if not is_developer else None
     billing, start, end = await _query_billing(request, user=user)
 
     billing_by_user = {}
@@ -1660,6 +1661,8 @@ async def ui_get_billing(request, userdata):
         'billing_by_project_user': billing_by_project_user,
         'start': start,
         'end': end,
+        'is_developer': is_developer,
+        'user': userdata['username'],
     }
     return await render_template('batch', request, userdata, 'billing.html', page_context)
 
