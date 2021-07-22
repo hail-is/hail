@@ -814,16 +814,19 @@ object LowerMatrixIR {
         val lc = lower(child, ab)
         val idx = Symbol(genUID())
         TableAggregate(lc,
-          aggExplodeIR(filterIR(
-            zip2(
-              ToStream(GetField(Ref("row", lc.typ.rowType), entriesFieldName)),
-              ToStream(GetField(Ref("global", lc.typ.globalType), colsFieldName)),
-              ArrayZipBehavior.AssertSameLength
-            ) { case (e, c) =>
-              MakeTuple.ordered(FastSeq(e, c))
-            }) { tuple => ApplyUnaryPrimOp(Bang(), IsNA(GetTupleElement(tuple, 0))) }) { tuple =>
-            AggLet("g", GetTupleElement(tuple, 0),
-              AggLet("sa", GetTupleElement(tuple, 1), Subst(query, matrixSubstEnvIR(child, lc)),
+          aggExplodeIR(
+            filterIR(
+              zip2(
+                ToStream(GetField(Ref("row", lc.typ.rowType), entriesFieldName)),
+                ToStream(GetField(Ref("global", lc.typ.globalType), colsFieldName)),
+                ArrayZipBehavior.AssertSameLength
+              ) { case (e, c) =>
+                MakeTuple.ordered(FastSeq(e, c))
+              }) { filterTuple =>
+              ApplyUnaryPrimOp(Bang(), IsNA(GetTupleElement(filterTuple, 0)))
+            }) { explodedTuple =>
+            AggLet("g", GetTupleElement(explodedTuple, 0),
+              AggLet("sa", GetTupleElement(explodedTuple, 1), Subst(query, matrixSubstEnvIR(child, lc)),
                 isScan = false),
               isScan = false)
           })
