@@ -806,8 +806,8 @@ steps:
     outputs:
       - from: /io/junixsocket-selftest-2.3.3-jar-with-dependencies.jar
         to: /junixsocket-selftest-2.3.3-jar-with-dependencies.jar
-      - from: /io/batch/src/main/java/is/hail/JVMEntryway.class
-        to: /JVMEntryway.class
+      - from: /io/batch/src/main/java/is/hail
+        to: /batch-jvm-entryway-classes
     dependsOn:
       - base_image
       - merge_code
@@ -819,8 +819,8 @@ steps:
     inputs:
       - from: /repo
         to: /io/repo
-      - from: /JVMEntryway.class
-        to: /io/repo/batch/src/main/java/is/hail/JVMEntryway.class
+      - from: /batch-jvm-entryway-classes
+        to: /io/repo/batch/src/main/java/is/hail
       - from: /junixsocket-selftest-2.3.3-jar-with-dependencies.jar
         to: /io/repo/batch/jars/junixsocket-selftest-2.3.3-jar-with-dependencies.jar
       - from: /hail_version
