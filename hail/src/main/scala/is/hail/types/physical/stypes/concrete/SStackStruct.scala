@@ -37,7 +37,7 @@ case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedSeq[Emi
 
   override lazy val fieldTypes: IndexedSeq[SType] = fieldEmitTypes.map(_.st)
 
-  def fieldIdx(fieldName: String): Int = virtualType.asInstanceOf[TStruct].fieldIdx(fieldName)
+  def fieldIdx(fieldName: String): Int = virtualType.fieldIdx(fieldName)
 
   override def canonicalPType(): PType = virtualType match {
     case ts: TStruct =>

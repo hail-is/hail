@@ -1,10 +1,13 @@
 package is.hail.expr.ir.lowering
 
+import is.hail.HailContext
 import is.hail.expr.ir._
+import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.methods.{ForceCountTable, NPartitionsTable}
 import is.hail.rvd.{PartitionBoundOrdering, RVDPartitioner}
+import is.hail.types.physical.{PCanonicalBinary, PCanonicalTuple}
 import is.hail.types.virtual._
-import is.hail.types.{RTable, TableType, RStruct, RField}
+import is.hail.types.{RField, RStruct, RTable, TableType}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 
@@ -1171,35 +1174,111 @@ object LowerTableIR {
         val initFromSerializedStates = Begin(aggs.aggs.zipWithIndex.map { case (agg, i) =>
           InitFromSerializedValue(i, GetTupleElement(initStateRef, i), agg.state )})
 
-        lcWithInitBinding.mapCollectWithGlobals(relationalLetsAbove)({ part: IR =>
-          Let("global", lc.globals,
-            RunAgg(
+        val useTreeAggregate = aggs.shouldTreeAggregate
+        val isCommutative = aggs.isCommutative
+        log.info(s"Aggregate: useTreeAggregate=${ useTreeAggregate }")
+        log.info(s"Aggregate: commutative=${ isCommutative }")
+
+        if (useTreeAggregate) {
+          val branchFactor = HailContext.get.branchingFactor
+          val tmpDir = ctx.createTmpPath("aggregate_intermediates/")
+
+          val codecSpec = TypedCodecSpec(PCanonicalTuple(true, aggs.aggs.map(_ => PCanonicalBinary(true)): _*), BufferSpec.wireSpec)
+          lcWithInitBinding.mapCollectWithGlobals(relationalLetsAbove)({ part: IR =>
+            Let("global", lc.globals,
+              RunAgg(
+                Begin(FastIndexedSeq(
+                  initFromSerializedStates,
+                  StreamFor(part,
+                    "row",
+                    aggs.seqPerElt
+                  )
+                )),
+                WriteValue(MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }), Str(tmpDir) + UUID4(), codecSpec),
+                aggs.states
+              ))
+          }) { case (collected, globals) =>
+            val treeAggFunction = genUID()
+            val currentAggStates = Ref(genUID(), TArray(TString))
+
+            val distAggStatesRef = Ref(genUID(), TArray(TString))
+
+
+            def combineGroup(partArrayRef: IR): IR = {
               Begin(FastIndexedSeq(
-                initFromSerializedStates,
-                StreamFor(part,
-                  "row",
-                  aggs.seqPerElt
-                )
-              )),
-              MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }),
-              aggs.states
-            ))
-        }) { case (collected, globals) =>
-          Let("global",
-            globals,
-            RunAgg(
-              Begin(FastIndexedSeq(
-                initFromSerializedStates,
-                forIR(ToStream(collected)) { state =>
-                  Begin(aggs.aggs.zipWithIndex.map { case (sig, i) => CombOpValue(i, GetTupleElement(state, i), sig) })
-                }
-              )),
-              Let(
-                resultUID,
-                ResultOp(0, aggs.aggs),
-                aggs.postAggIR),
-              aggs.states
-            ))
+                bindIR(ReadValue(ArrayRef(partArrayRef, 0), codecSpec, codecSpec.encodedVirtualType)) { serializedTuple =>
+                  Begin(
+                    aggs.aggs.zipWithIndex.map { case (sig, i) =>
+                      InitFromSerializedValue(i, GetTupleElement(serializedTuple, i), sig.state)
+                    })
+                },
+                forIR(StreamRange(1, ArrayLen(partArrayRef), 1)) { fileIdx =>
+
+                  bindIR(ReadValue(ArrayRef(partArrayRef, fileIdx), codecSpec, codecSpec.encodedVirtualType)) { serializedTuple =>
+                    Begin(
+                      aggs.aggs.zipWithIndex.map { case (sig, i) =>
+                        CombOpValue(i, GetTupleElement(serializedTuple, i), sig)
+                      })
+                  }
+                }))
+            }
+
+            bindIR(TailLoop(treeAggFunction,
+              FastIndexedSeq((currentAggStates.name -> collected)),
+              If(ArrayLen(currentAggStates) <= I32(branchFactor),
+                currentAggStates,
+                Recur(treeAggFunction, FastIndexedSeq(CollectDistributedArray(mapIR(StreamGrouped(ToStream(currentAggStates), I32(branchFactor)))(x => ToArray(x)),
+                  MakeStruct(FastSeq()), distAggStatesRef.name, genUID(),
+                  RunAgg(
+                    combineGroup(distAggStatesRef),
+                    WriteValue(MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }), Str(tmpDir) + UUID4(), codecSpec),
+                    aggs.states
+                  )
+                )), currentAggStates.typ)))
+            ) { finalParts =>
+              RunAgg(
+                combineGroup(finalParts),
+                Let("global", globals,
+                  Let(
+                    resultUID,
+                    ResultOp(0, aggs.aggs),
+                    aggs.postAggIR)),
+                aggs.states
+              )
+            }
+          }
+        }
+        else {
+          lcWithInitBinding.mapCollectWithGlobals(relationalLetsAbove)({ part: IR =>
+            Let("global", lc.globals,
+              RunAgg(
+                Begin(FastIndexedSeq(
+                  initFromSerializedStates,
+                  StreamFor(part,
+                    "row",
+                    aggs.seqPerElt
+                  )
+                )),
+                MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }),
+                aggs.states
+              ))
+          }) { case (collected, globals) =>
+            Let("global",
+              globals,
+              RunAgg(
+                Begin(FastIndexedSeq(
+                  initFromSerializedStates,
+                  forIR(ToStream(collected)) { state =>
+                    Begin(aggs.aggs.zipWithIndex.map { case (sig, i) => CombOpValue(i, GetTupleElement(state, i), sig) })
+                  }
+                )),
+                Let(
+                  resultUID,
+                  ResultOp(0, aggs.aggs),
+                  aggs.postAggIR),
+                aggs.states
+              ))
+          }
         }
 
       case TableToValueApply(child, NPartitionsTable()) =>
