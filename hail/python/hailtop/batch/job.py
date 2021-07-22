@@ -662,6 +662,9 @@ class BashJob(Job):
         return self
 
     async def _compile(self, local_tmpdir, remote_tmpdir):
+        if len(self._command) == 0:
+            return False
+
         job_shell = self._shell if self._shell else DEFAULT_SHELL
 
         job_command = [cmd.strip() for cmd in self._command]
