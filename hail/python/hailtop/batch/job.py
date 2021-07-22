@@ -3,7 +3,7 @@ import dill
 import os
 import functools
 import inspect
-from io import StringIO, BytesIO
+from io import BytesIO
 from typing import Union, Optional, Dict, List, Set, Tuple, Callable, Any, cast
 
 from . import backend, resource as _resource, batch  # pylint: disable=cyclic-import
@@ -673,7 +673,9 @@ class BashJob(Job):
 {job_command}
 '''
 
-        if len(bytes(job_command)) <= 10 * 1024:
+        job_command_bytes = job_command.encode()
+
+        if len(job_command_bytes) <= 10 * 1024:
             self._wrapper_code.append(job_command)
             return False
 
@@ -684,7 +686,7 @@ class BashJob(Job):
         code_path = f'{job_path}/code.sh'
 
         await self._batch._fs.makedirs(os.path.dirname(code_path), exist_ok=True)
-        await self._batch._fs.write(code_path, job_command.encode())
+        await self._batch._fs.write(code_path, job_command_bytes)
         code = self._batch.read_input(code_path)
 
         wrapper_command = f'''
