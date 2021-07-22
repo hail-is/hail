@@ -961,13 +961,8 @@ GROUP BY user, inst_coll;
         running_user_jobs[labels] += record['n_running_jobs']
         creating_user_jobs[labels] += record['n_creating_jobs']
 
-    READY_USER_CORES.clear()
-    RUNNING_USER_CORES.clear()
-    READY_USER_CORES.clear()
-    RUNNING_USER_CORES.clear()
-    CREATING_USER_JOBS.clear()
-
     def set_value(gauge, data):
+        gauge.clear()
         for labels, count in data.items():
             if count > 0:
                 gauge.labels(**labels._asdict()).set(count)
@@ -1008,13 +1003,8 @@ def monitor_instances(app):
             inst_labels = InstanceLabels(inst_coll=instance.inst_coll, state=instance.state)
             instances[inst_labels] += 1
 
-    ACTUAL_COST_PER_HOUR.clear()
-    BILLED_COST_PER_HOUR.clear()
-    FREE_CORES.clear()
-    UTILIZATION.clear()
-    INSTANCES.clear()
-
     def observe(summary, data):
+        summary.clear()
         for labels, items in data.items():
             for item in items:
                 summary.labels(**labels._asdict()).observe(item)
@@ -1024,6 +1014,7 @@ def monitor_instances(app):
     observe(FREE_CORES, free_cores)
     observe(UTILIZATION, utilization)
 
+    INSTANCES.clear()
     for labels, count in instances.items():
         INSTANCES.labels(**labels._asdict()).set(count)
 

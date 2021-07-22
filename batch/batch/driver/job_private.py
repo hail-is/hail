@@ -19,7 +19,7 @@ from hailtop.utils import (
 from ..batch_format_version import BatchFormatVersion
 from ..batch_configuration import WORKER_MAX_IDLE_TIME_MSECS
 from ..inst_coll_config import machine_type_to_dict, JobPrivateInstanceManagerConfig
-from .create_instance import create_instance, get_instance_config
+from .create_instance import create_instance, create_instance_config
 from .instance_collection import InstanceCollection
 from .instance import Instance
 from .job import mark_job_creating, schedule_job
@@ -254,7 +254,7 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
 
         activation_token = secrets.token_urlsafe(32)
 
-        config, worker_config = get_instance_config(
+        config, worker_config = create_instance_config(
             app=self.app,
             zone=zone,
             machine_name=machine_name,

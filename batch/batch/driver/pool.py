@@ -27,7 +27,7 @@ from ..utils import (
     adjust_cores_for_packability,
     adjust_cores_for_storage_request,
 )
-from .create_instance import create_instance, get_instance_config
+from .create_instance import create_instance, create_instance_config
 from .instance import Instance
 from .instance_collection import InstanceCollection
 from .job import schedule_job
@@ -183,7 +183,7 @@ WHERE name = %s;
 
         activation_token = secrets.token_urlsafe(32)
 
-        config, worker_config = get_instance_config(
+        config, worker_config = create_instance_config(
             app=self.app,
             zone=zone,
             machine_name=machine_name,

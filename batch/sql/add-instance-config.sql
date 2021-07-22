@@ -1,1 +1,1 @@
-ALTER TABLE instances ADD COLUMN `config` MEDIUMTEXT;
+ALTER TABLE instances ADD COLUMN `worker_config` MEDIUMTEXT;

@@ -20,7 +20,7 @@ log = logging.getLogger('instance')
 class Instance:
     @staticmethod
     def from_record(app, inst_coll, record):
-        config = record.get('config')
+        config = record.get('worker_config')
         if config:
             worker_config = WorkerConfig(json.loads(base64.b64decode(config).decode()))
         else:
@@ -54,7 +54,7 @@ class Instance:
         await db.just_execute(
             '''
 INSERT INTO instances (name, state, activation_token, token, cores_mcpu, free_cores_mcpu,
-  time_created, last_updated, version, zone, inst_coll, machine_type, preemptible, config)
+  time_created, last_updated, version, zone, inst_coll, machine_type, preemptible, worker_config)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
             (

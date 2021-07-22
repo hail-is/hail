@@ -20,7 +20,7 @@ BATCH_WORKER_IMAGE = os.environ['HAIL_BATCH_WORKER_IMAGE']
 log.info(f'BATCH_WORKER_IMAGE {BATCH_WORKER_IMAGE}')
 
 
-def get_instance_config(
+def create_instance_config(
     app,
     zone,
     machine_name,
