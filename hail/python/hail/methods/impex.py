@@ -1599,6 +1599,16 @@ def import_table(paths,
     return ht
 
 
+@typecheck(paths=oneof(str, sequenceof(str)), min_partitions=nullable(int))
+def import_lines(paths, min_partitions=None) -> Table:
+    paths = wrap_to_list(paths)
+
+    st_reader = ir.StringTableReader(paths, min_partitions)
+    string_table = Table(ir.TableRead(st_reader))
+
+    return string_table
+
+
 @typecheck(paths=oneof(str, sequenceof(str)),
            row_fields=dictof(str, hail_type),
            row_key=oneof(str, sequenceof(str)),

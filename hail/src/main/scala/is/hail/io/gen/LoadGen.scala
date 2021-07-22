@@ -4,7 +4,8 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.backend.BroadcastValue
 import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir.{ExecuteContext, LowerMatrixIR, MatrixHybridReader, MatrixRead, MatrixReader, MatrixValue, TableRead, TableValue}
+import is.hail.expr.ir.lowering.TableStage
+import is.hail.expr.ir.{ExecuteContext, GenericLines, GenericTableValue, LowerMatrixIR, MatrixHybridReader, MatrixRead, MatrixReader, MatrixValue, TableRead, TableValue}
 import is.hail.types.{MatrixType, TableType}
 import is.hail.types.physical.{PStruct, PType}
 import is.hail.types.virtual._
@@ -15,6 +16,7 @@ import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._
 import is.hail.io.fs.FS
+import is.hail.io.gen.LoadGen.readGenLine
 import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row
@@ -23,13 +25,12 @@ import org.json4s.{DefaultFormats, Extraction, Formats, JObject, JValue}
 
 import scala.collection.mutable
 
-case class GenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Annotation, Iterable[Annotation])])
+case class GenResult(file: String, nSamples: Int, nVariants: Int)
 
 object LoadGen {
   def apply(
     genFile: String,
     sampleFile: String,
-    sc: SparkContext,
     fs: FS,
     rgBc: Option[BroadcastValue[ReferenceGenome]],
     nPartitions: Option[Int] = None,
@@ -38,18 +39,17 @@ object LoadGen {
     contigRecoding: Map[String, String] = Map.empty[String, String],
     skipInvalidLoci: Boolean = false): GenResult = {
 
+    var nVariants = 0
     val sampleIds = LoadBgen.readSampleFile(fs, sampleFile)
+
+    fs.readLines(genFile)(_.foreach { _=> nVariants = 1 + nVariants})
+    println(s"nVariants = $nVariants")
 
     LoadVCF.warnDuplicates(sampleIds)
 
     val nSamples = sampleIds.length
 
-    val rdd = sc.textFileLines(genFile, nPartitions.getOrElse(sc.defaultMinPartitions))
-      .flatMap(_.map { l =>
-        readGenLine(l, nSamples, tolerance, rgBc.map(_.value), chromosome, contigRecoding, skipInvalidLoci)
-      }.value)
-
-    GenResult(genFile, nSamples, rdd.count().toInt, rdd = rdd)
+    GenResult(genFile, nSamples, nVariants)
   }
 
   def readGenLine(line: String, nSamples: Int,
@@ -70,10 +70,13 @@ object LoadGen {
 
     val recodedContig = contigRecoding.getOrElse(chr, chr)
 
-    if (skipInvalidLoci && !rg.forall(_.isValidLocus(recodedContig, start.toInt)))
+    val foo = skipInvalidLoci && !rg.forall(_.isValidLocus(recodedContig, start.toInt))
+    println(s"foo: $foo")
+    if (foo)
       None
     else {
       val locus = Locus.annotation(recodedContig, start.toInt, rg)
+      println(s"locus: $locus")
       val alleles = FastIndexedSeq(ref, alt)
 
       val gp = arr.drop(6 - chrCol).map {
@@ -112,7 +115,6 @@ object LoadGen {
 object MatrixGENReader {
   def fromJValue(ctx: ExecuteContext, jv: JValue): MatrixGENReader = {
     val fs = ctx.fs
-
     implicit val formats: Formats = DefaultFormats
     val params = jv.extract[MatrixGENReaderParameters]
 
@@ -132,9 +134,9 @@ object MatrixGENReader {
     val nSamples = samples.length
 
     // FIXME: can't specify multiple chromosomes
-    val results = params.files.map(f => LoadGen(f, params.sampleFile, SparkBackend.sparkContext("MatrixGENReader.fromJValue"), fs, referenceGenome.map(_.broadcast), params.nPartitions,
+    val results = params.files.map(f => LoadGen(f, params.sampleFile, fs, referenceGenome.map(_.broadcast), params.nPartitions,
       params.tolerance, params.chromosome, params.contigRecoding, params.skipInvalidLoci))
-
+    println(s"param files: ${params.files}")
     val unequalSamples = results.filter(_.nSamples != nSamples).map(x => (x.file, x.nSamples))
     if (unequalSamples.nonEmpty)
       fatal(
@@ -164,8 +166,8 @@ object MatrixGENReader {
         "rsid" -> TString, "varid" -> TString),
       entryType = TStruct("GT" -> TCall,
         "GP" -> TArray(TFloat64)))
-
-    new MatrixGENReader(params, fullMatrixType, samples, results)
+    println(s"Line 169 in JValue before MatrixGenReader creation")
+    new MatrixGENReader(params, referenceGenome.map(_.broadcast), fullMatrixType, samples, results)
   }
 }
 
@@ -181,6 +183,7 @@ case class MatrixGENReaderParameters(
 
 class MatrixGENReader(
   val params: MatrixGENReaderParameters,
+  val rgBc: Option[BroadcastValue[ReferenceGenome]],
   val fullMatrixType: MatrixType,
   samples: Array[String],
   results: Array[GenResult]
@@ -198,69 +201,100 @@ class MatrixGENReader(
   }
 
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
-    val sc = SparkBackend.sparkContext("MatrixGENReader.apply")
-    val rdd =
-      if (tr.dropRows)
-        sc.emptyRDD[(Annotation, Iterable[Annotation])]
-      else
-        sc.union(results.map(_.rdd))
+    println(s"apply line 204 before executeGeneric ")
+    executeGeneric(ctx).toTableValue(ctx, tr.typ)
 
-    val requestedType = tr.typ
-    val requestedRowType = requestedType.rowType
-    val (requestedEntryType, dropCols) = requestedRowType.fieldOption(LowerMatrixIR.entriesFieldName) match {
-      case Some(fd) => fd.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct] -> false
-      case None => TStruct.empty -> true
-    }
+  }
+  def executeGeneric(ctx: ExecuteContext): GenericTableValue = {
+    val fs = ctx.fs
+    val fileStatuses = fs.globAllStatuses(fs.globAll(params.files))
 
     val localNSamples = nSamples
 
-    val locusType = requestedRowType.fieldOption("locus").map(_.typ)
-    val allelesType = requestedRowType.fieldOption("alleles").map(_.typ)
-    val rsidType = requestedRowType.fieldOption("rsid").map(_.typ)
-    val varidType = requestedRowType.fieldOption("varid").map(_.typ)
+    val tt = fullMatrixType.toTableType(LowerMatrixIR.entriesFieldName, LowerMatrixIR.colsFieldName)
 
-    val gtType = requestedEntryType.fieldOption("GT").map(_.typ)
-    val gpType = requestedEntryType.fieldOption("GP").map(_.typ)
+    val lines = GenericLines.read(fs, fileStatuses, params.nPartitions, None, None, false, true)
 
-    val localRVDType = tr.typ.canonicalRVDType
-    val rvd = RVD.coerce(ctx,
-      localRVDType,
-      ContextRDD.weaken(rdd).cmapPartitions { (ctx, it) =>
-        val rvb = ctx.rvb
+    val globals = Row(samples.map(Row(_)).toFastIndexedSeq)
 
-        it.map { case (va, gs) =>
+    val fullRowPType: PType = tt.canonicalRowPType
+    val bodyPType = (requestedRowType: TStruct) =>
+      fullRowPType.subsetTo(requestedRowType).asInstanceOf[PStruct]
+    val linesBody = lines.body
 
-          rvb.start(localRVDType.rowType)
-          rvb.startStruct()
-          val Row(locus, alleles, rsid, varid) = va.asInstanceOf[Row]
-          locusType.foreach(rvb.addAnnotation(_, locus))
-          allelesType.foreach(rvb.addAnnotation(_, alleles))
-          rsidType.foreach(rvb.addAnnotation(_, rsid))
-          varidType.foreach(rvb.addAnnotation(_, varid))
+    val myRgbc = rgBc
+    val tolerance = params.tolerance
+    val chromosome = params.chromosome
+    val contigRecoding = params.contigRecoding
+    val skipInvalidLoci = params.skipInvalidLoci
 
-          if (!dropCols) {
-            rvb.startArray(localNSamples)
-            gs.foreach {
-              case Row(gt, gp) =>
-                rvb.startStruct()
-                gtType.foreach(rvb.addAnnotation(_, gt))
-                gpType.foreach(rvb.addAnnotation(_, gp))
-                rvb.endStruct()
-              case null =>
-                rvb.setMissing()
+
+    val body = { (requestedRowType: TStruct) =>
+
+      val requestedPType = bodyPType(requestedRowType)
+
+      val (requestedEntryType, dropCols) = requestedRowType.fieldOption(LowerMatrixIR.entriesFieldName) match {
+        case Some(fd) => fd.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct] -> false
+        case None => TStruct.empty -> true
+      }
+
+      { (region: Region, context: Any) =>
+        println(s"line 242 execute generic before rvb creation")
+        val rvb = new RegionValueBuilder(region)
+        val locusType = requestedRowType.fieldOption("locus").map(_.typ)
+        val allelesType = requestedRowType.fieldOption("alleles").map(_.typ)
+        val rsidType = requestedRowType.fieldOption("rsid").map(_.typ)
+        val varidType = requestedRowType.fieldOption("varid").map(_.typ)
+        val gtType = requestedEntryType.fieldOption("GT").map(_.typ)
+        val gpType = requestedEntryType.fieldOption("GP").map(_.typ)
+        println(s"line 250 execute generic before iteration on linesBody")
+        linesBody(context).flatMap { line =>
+          println(s"line 250 in executeGeneric")
+          val stringLine = line.toString
+          val optLine = readGenLine(stringLine, localNSamples, tolerance, myRgbc.map(_.value),
+            chromosome, contigRecoding, skipInvalidLoci)
+          optLine.map { case (va, gs) =>
+            rvb.start(requestedPType)
+            rvb.startStruct()
+            val Row(locus, alleles, rsid, varid) = va.asInstanceOf[Row]
+            locusType.foreach(rvb.addAnnotation(_, locus))
+            allelesType.foreach(rvb.addAnnotation(_, alleles))
+            rsidType.foreach(rvb.addAnnotation(_, rsid))
+            varidType.foreach(rvb.addAnnotation(_, varid))
+            if (!dropCols) {
+              rvb.startArray(localNSamples)
+              gs.foreach {
+                case Row(gt, gp) =>
+                  rvb.startStruct()
+                  gtType.foreach(rvb.addAnnotation(_, gt))
+                  gpType.foreach(rvb.addAnnotation(_, gp))
+                  rvb.endStruct()
+                case null =>
+                  rvb.setMissing()
+              }
+              rvb.endArray()
             }
-            rvb.endArray()
+            rvb.endStruct()
+
+            rvb.end()
           }
-          rvb.endStruct()
-
-          rvb.end()
         }
-      })
-
-    val globalValue = makeGlobalValue(ctx, requestedType.globalType, samples.map(Row(_)))
-
-    TableValue(ctx, tr.typ, globalValue, rvd)
+      }
+    }
+    new GenericTableValue(
+      tt,
+      None,
+      { (requestedGlobalsType: Type) =>
+        val subset = tt.globalType.valueSubsetter(requestedGlobalsType)
+        subset(globals).asInstanceOf[Row]
+      },
+      lines.contextType,
+      lines.contexts,
+      bodyPType,
+      body)
   }
+  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
+    executeGeneric(ctx).toTableStage(ctx, requestedType)
 
   override def toJValue: JValue = {
     implicit val formats: Formats = DefaultFormats

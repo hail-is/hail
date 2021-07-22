@@ -94,6 +94,23 @@ class TextTableReader(TableReader):
             other.config == self.config
 
 
+class StringTableReader(TableReader):
+    def __init__(self, path, min_partitions):
+        self.path = path
+        self.min_partitions = min_partitions
+
+    def render(self):
+        reader = {'name': 'StringTableReader',
+                  'files': self.path,
+                  'minPartitions': self.min_partitions}
+        return escape_str(json.dumps(reader))
+
+    def __eq__(self, other):
+        return isinstance(other, StringTableReader) and \
+               other.path == self.path and \
+               other.min_partitions == self.min_partitions
+
+
 class TableFromBlockMatrixNativeReader(TableReader):
     @typecheck_method(path=str, n_partitions=nullable(int), maximum_cache_memory_in_bytes=nullable(int))
     def __init__(self, path, n_partitions, maximum_cache_memory_in_bytes):

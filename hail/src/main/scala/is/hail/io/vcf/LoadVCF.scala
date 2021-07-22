@@ -1727,7 +1727,8 @@ class MatrixVCFReader(
 
     val fullRowPType: PType = fullRVDType.rowType
 
-    val bodyPType = (requestedRowType: TStruct) => fullRowPType.subsetTo(requestedRowType).asInstanceOf[PStruct]
+    val bodyPType = (requestedRowType: TStruct) =>
+      fullRowPType.subsetTo(requestedRowType).asInstanceOf[PStruct]
 
     val linesBody = lines.body
     val body = { (requestedType: TStruct) =>

@@ -50,7 +50,7 @@ from .matrix_reader import MatrixReader, MatrixNativeReader, MatrixRangeReader, 
     MatrixVCFReader, MatrixBGENReader, TextMatrixReader, MatrixPLINKReader, \
     MatrixGENReader
 from .table_reader import TableReader, TableNativeReader, TextTableReader, \
-    TableFromBlockMatrixNativeReader
+    TableFromBlockMatrixNativeReader, StringTableReader
 from .blockmatrix_reader import BlockMatrixReader, BlockMatrixNativeReader, \
     BlockMatrixBinaryReader, BlockMatrixPersistReader
 from .matrix_writer import MatrixWriter, MatrixNativeWriter, MatrixVCFWriter, \
@@ -299,6 +299,7 @@ __all__ = [
     'TableReader',
     'TableNativeReader',
     'TextTableReader',
+    'StringTableReader',
     'TableFromBlockMatrixNativeReader',
     'TableWriter',
     'TableNativeWriter',

@@ -104,6 +104,7 @@ object TableReader {
       case "TableNativeReader" => TableNativeReader.fromJValue(fs, jv)
       case "TextTableReader" => TextTableReader.fromJValue(fs, jv)
       case "TableFromBlockMatrixNativeReader" => TableFromBlockMatrixNativeReader.fromJValue(fs, jv)
+      case "StringTableReader" => StringTableReader.fromJValue(fs, jv)
       case _ => jv.extract[TableReader]
     }
   }
