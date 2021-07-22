@@ -24,6 +24,17 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.73
+
+Released 2021-07-22
+
+### Bug fixes
+
+- (hail#10684) Fixed a rare bug reading arrays from disk where short arrays would have their first elements corrupted and long arrays would cause segfaults.
+- (hail#10523) Fixed bug where liftover would fail with "Could not initialize class" errors.
+
+---
+
 ## Version 0.2.72
 
 Released 2021-07-19
