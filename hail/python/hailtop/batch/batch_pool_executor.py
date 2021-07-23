@@ -1,7 +1,6 @@
 from typing import Optional, Callable, Type, Union, List, Any, Iterable
 from types import TracebackType
 from io import BytesIO
-import os
 import asyncio
 import concurrent
 import dill
