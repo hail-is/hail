@@ -1627,7 +1627,8 @@ class tinterval(HailType):
         return Interval(self.point_type._convert_from_json_na(x['start']),
                         self.point_type._convert_from_json_na(x['end']),
                         x['includeStart'],
-                        x['includeEnd'])
+                        x['includeEnd'],
+                        point_type=self.point_type)
 
     def _convert_to_json(self, x):
         return {'start': self.point_type._convert_to_json_na(x.start),

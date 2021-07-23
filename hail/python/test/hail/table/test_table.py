@@ -1666,6 +1666,15 @@ def test_read_partitions():
     assert hl.read_table(path, _n_partitions=10).n_partitions() == 10
 
 
+@fails_service_backend()
+@fails_local_backend()
+def test_read_partitions_with_missing_key():
+    ht = hl.utils.range_table(100, 3).key_by(idx=hl.missing(hl.tint32))
+    path = new_temp_file()
+    ht.write(path)
+    assert hl.read_table(path, _n_partitions=10).n_partitions() == 10
+
+
 def test_grouped_flatmap_streams():
     ht = hl.import_vcf(resource('sample.vcf')).rows()
     ht = ht.annotate(x=hl.str(ht.locus))  # add a map node
