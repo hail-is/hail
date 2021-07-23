@@ -1212,7 +1212,7 @@ object LowerTableIR {
                       InitFromSerializedValue(i, GetTupleElement(serializedTuple, i), sig.state)
                     })
                 },
-                forIR(StreamRange(1, ArrayLen(partArrayRef), 1)) { fileIdx =>
+                forIR(StreamRange(1, ArrayLen(partArrayRef), 1, requiresMemoryManagementPerElement = true)) { fileIdx =>
 
                   bindIR(ReadValue(ArrayRef(partArrayRef, fileIdx), codecSpec, codecSpec.encodedVirtualType)) { serializedTuple =>
                     Begin(
