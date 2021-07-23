@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.expr.ir.functions.{WrappedMatrixToTableFunction, WrappedMatrixToValueFunction}
+import is.hail.expr.ir._
 import is.hail.types._
 import is.hail.types.virtual.{TArray, TBaseStruct, TDict, TInt32, TInterval, TStruct}
 import is.hail.utils._
@@ -812,17 +813,23 @@ object LowerMatrixIR {
       case MatrixAggregate(child, query) =>
         val lc = lower(child, ab)
         val idx = Symbol(genUID())
-        lc
-          .aggregate(
-            aggLet(
-              __entries_field = 'row (entriesField),
-              __cols_field = 'global (colsField)) {
-              irRange(0, '__entries_field.len)
-                .filter(idx ~> !'__entries_field (idx).isNA)
-                .aggExplode(idx ~> aggLet(sa = '__cols_field (idx), g = '__entries_field (idx)) {
-                  subst(query, matrixSubstEnv(child))
-                })
-            })
+        TableAggregate(lc,
+          aggExplodeIR(
+            filterIR(
+              zip2(
+                ToStream(GetField(Ref("row", lc.typ.rowType), entriesFieldName)),
+                ToStream(GetField(Ref("global", lc.typ.globalType), colsFieldName)),
+                ArrayZipBehavior.AssertSameLength
+              ) { case (e, c) =>
+                MakeTuple.ordered(FastSeq(e, c))
+              }) { filterTuple =>
+              ApplyUnaryPrimOp(Bang(), IsNA(GetTupleElement(filterTuple, 0)))
+            }) { explodedTuple =>
+            AggLet("g", GetTupleElement(explodedTuple, 0),
+              AggLet("sa", GetTupleElement(explodedTuple, 1), Subst(query, matrixSubstEnvIR(child, lc)),
+                isScan = false),
+              isScan = false)
+          })
       case _ => lowerChildren(ir, ab).asInstanceOf[IR]
     }
     assertTypeUnchanged(ir, lowered)
