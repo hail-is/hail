@@ -8,7 +8,7 @@ from hail.table import Table
 from hail.typecheck import sequenceof, typecheck
 from hail.utils.java import Env
 from hail.utils.misc import divide_null
-from hail.vds import VariantDataset
+from hail.vds.variant_dataset import VariantDataset
 
 
 @typecheck(vds=VariantDataset)
