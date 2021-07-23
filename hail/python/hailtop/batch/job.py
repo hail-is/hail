@@ -6,8 +6,6 @@ import inspect
 from io import BytesIO
 from typing import Union, Optional, Dict, List, Set, Tuple, Callable, Any, cast
 
-from hailtop.utils import async_to_blocking
-
 from . import backend, resource as _resource, batch  # pylint: disable=cyclic-import
 from .exceptions import BatchException
 from .globals import DEFAULT_SHELL
