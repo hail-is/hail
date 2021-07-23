@@ -46,7 +46,6 @@ from .matrixtable import MatrixTable, GroupedMatrixTable  # noqa: E402
 from .expr import *  # noqa: F401,F403,E402
 from .genetics import *  # noqa: F401,F403,E402
 from .methods import *  # noqa: F401,F403,E402
-from .vds import *  # noqa: F401,F403,E402
 from . import expr  # noqa: E402
 from . import genetics  # noqa: E402
 from . import methods  # noqa: E402
@@ -57,6 +56,7 @@ from . import experimental  # noqa: E402
 from . import ir  # noqa: E402
 from . import backend  # noqa: E402
 from . import nd  # noqa: E402
+from . import vds  # noqa: E402
 from hail.expr import aggregators as agg  # noqa: E402
 from hail.utils import (Struct, Interval, hadoop_copy, hadoop_open, hadoop_ls,  # noqa: E402
                         hadoop_stat, hadoop_exists, hadoop_is_file,
@@ -109,6 +109,7 @@ __all__ = [
     'plot',
     'experimental',
     'ir',
+    'vds',
     'backend',
     'current_backend',
     'debug_info',
@@ -120,7 +121,6 @@ __all__ = [
 
 __all__.extend(genetics.__all__)
 __all__.extend(methods.__all__)
-__all__.extend(vds.__all__)
 
 # don't overwrite builtins in `from hail import *`
 import builtins  # noqa: E402
