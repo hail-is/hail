@@ -792,6 +792,17 @@ class ServiceTests(unittest.TestCase):
         assert res.status()['state'] == 'success', debug_info(res)
         assert res.get_job_log(3)['main'] == "15\n", debug_info(res)
 
+    def test_python_job_w_non_zero_ec(self):
+        b = self.batch(default_python_image='gcr.io/hail-vdc/python-dill:3.7-slim')
+        j = b.new_python_job()
+
+        def error():
+            raise Exception("this should fail")
+
+        j.call(error)
+        res = b.run()
+        assert res.status()['state'] == 'failure', debug_info(res)
+
     def test_fail_fast(self):
         b = self.batch(cancel_after_n_failures=1)
 

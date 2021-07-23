@@ -63,15 +63,16 @@ object Copy {
       case MakeStream(args, typ, requiresMemoryManagementPerElement) =>
         assert(args.length == newChildren.length)
         MakeStream(newChildren.map(_.asInstanceOf[IR]), typ, requiresMemoryManagementPerElement)
-      case ArrayRef(_, _, _) =>
-        assert(newChildren.length == 3)
-        ArrayRef(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR])
+      case ArrayRef(_, _, errorID) =>
+        assert(newChildren.length == 2)
+        ArrayRef(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], errorID)
       case ArrayLen(_) =>
         assert(newChildren.length == 1)
         ArrayLen(newChildren(0).asInstanceOf[IR])
-      case StreamRange(_, _, _, requiresMemoryManagementPerElement) =>
+      case StreamRange(_, _, _, requiresMemoryManagementPerElement, errorID) =>
         assert(newChildren.length == 3)
-        StreamRange(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR], requiresMemoryManagementPerElement)
+        StreamRange(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR],
+          requiresMemoryManagementPerElement, errorID)
       case ArrayZeros(_) =>
         assert(newChildren.length == 1)
         ArrayZeros(newChildren(0).asInstanceOf[IR])
@@ -81,9 +82,9 @@ object Copy {
       case NDArrayShape(_) =>
         assert(newChildren.length == 1)
         NDArrayShape(newChildren(0).asInstanceOf[IR])
-      case NDArrayReshape(_, _) =>
+      case NDArrayReshape(_, _, errorID) =>
         assert(newChildren.length ==  2)
-        NDArrayReshape(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
+        NDArrayReshape(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], errorID)
       case NDArrayConcat(_, axis) =>
         assert(newChildren.length ==  1)
         NDArrayConcat(newChildren(0).asInstanceOf[IR], axis)
@@ -97,27 +98,27 @@ object Copy {
       case NDArrayMap(_, name, _) =>
         assert(newChildren.length ==  2)
         NDArrayMap(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
-      case NDArrayMap2(_, _, lName, rName, _) =>
+      case NDArrayMap2(_, _, lName, rName, _, errorID) =>
         assert(newChildren.length ==  3)
-        NDArrayMap2(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], lName, rName, newChildren(2).asInstanceOf[IR])
+        NDArrayMap2(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], lName, rName, newChildren(2).asInstanceOf[IR], errorID)
       case NDArrayReindex(_, indexExpr) =>
         assert(newChildren.length == 1)
         NDArrayReindex(newChildren(0).asInstanceOf[IR], indexExpr)
       case NDArrayAgg(_, axes) =>
         assert(newChildren.length == 1)
         NDArrayAgg(newChildren(0).asInstanceOf[IR], axes)
-      case NDArrayMatMul(_, _) =>
+      case NDArrayMatMul(_, _, errorID) =>
         assert(newChildren.length == 2)
-        NDArrayMatMul(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
-      case NDArrayQR(_, mode) =>
+        NDArrayMatMul(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], errorID)
+      case NDArrayQR(_, mode, errorID) =>
         assert(newChildren.length == 1)
-        NDArrayQR(newChildren(0).asInstanceOf[IR], mode)
-      case NDArraySVD(_, fullMatrices, computeUV) =>
+        NDArrayQR(newChildren(0).asInstanceOf[IR], mode, errorID)
+      case NDArraySVD(_, fullMatrices, computeUV, errorID) =>
         assert(newChildren.length == 1)
-        NDArraySVD(newChildren(0).asInstanceOf[IR], fullMatrices, computeUV)
-      case NDArrayInv(_) =>
+        NDArraySVD(newChildren(0).asInstanceOf[IR], fullMatrices, computeUV, errorID)
+      case NDArrayInv(_, errorID) =>
         assert(newChildren.length == 1)
-        NDArrayInv(newChildren(0).asInstanceOf[IR])
+        NDArrayInv(newChildren(0).asInstanceOf[IR], errorID)
       case NDArrayWrite(_, _) =>
         assert(newChildren.length == 2)
         NDArrayWrite(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
@@ -162,9 +163,10 @@ object Copy {
       case StreamMap(_, name, _) =>
         assert(newChildren.length == 2)
         StreamMap(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
-      case StreamZip(_, names, _, behavior) =>
+      case StreamZip(_, names, _, behavior, errorID) =>
         assert(newChildren.length == names.length + 1)
-        StreamZip(newChildren.init.asInstanceOf[IndexedSeq[IR]], names, newChildren(names.length).asInstanceOf[IR], behavior)
+        StreamZip(newChildren.init.asInstanceOf[IndexedSeq[IR]], names, newChildren(names.length).asInstanceOf[IR],
+          behavior, errorID)
       case StreamZipJoin(as, key, curKey, curVals, _) =>
         assert(newChildren.length == as.length + 1)
         StreamZipJoin(newChildren.init.asInstanceOf[IndexedSeq[IR]], key, curKey, curVals, newChildren(as.length).asInstanceOf[IR])
@@ -283,17 +285,17 @@ object Copy {
       case Trap(child) =>
         assert(newChildren.length == 1)
         Trap(newChildren(0).asInstanceOf[IR])
-      case x@ApplyIR(fn, typeArgs, args) =>
-        val r = ApplyIR(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]))
+      case x@ApplyIR(fn, typeArgs, args, errorID) =>
+        val r = ApplyIR(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), errorID)
         r.conversion = x.conversion
         r.inline = x.inline
         r
-      case Apply(fn, typeArgs, args, t) =>
-        Apply(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), t)
+      case Apply(fn, typeArgs, args, t, errorID) =>
+        Apply(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), t, errorID)
       case ApplySeeded(fn, args, seed, t) =>
         ApplySeeded(fn, newChildren.map(_.asInstanceOf[IR]), seed, t)
-      case ApplySpecial(fn, typeArgs, args, t) =>
-        ApplySpecial(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), t)
+      case ApplySpecial(fn, typeArgs, args, t, errorID) =>
+        ApplySpecial(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), t, errorID)
       // from MatrixIR
       case MatrixWrite(_, writer) =>
         assert(newChildren.length == 1)

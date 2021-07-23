@@ -170,7 +170,7 @@ object UtilFunctions extends RegistryFunctions {
     registerSCode4("valuesSimilar", tv("T"), tv("U"), TFloat64, TBoolean, TBoolean, {
       case (_: Type, _: SType, _: SType, _: SType, _: SType) => SBoolean
     }) {
-      case (er, cb, rt, l, r, tol, abs) =>
+      case (er, cb, rt, l, r, tol, abs, _) =>
         assert(l.st.virtualType == r.st.virtualType, s"\n  lt=${ l.st.virtualType }\n  rt=${ r.st.virtualType }")
         val lb = scodeToJavaValue(cb, er.region, l)
         val rb = scodeToJavaValue(cb, er.region, r)
@@ -182,10 +182,10 @@ object UtilFunctions extends RegistryFunctions {
       (n * (n + 1)) / 2
     }
 
-    registerSCode1("toInt32", TBoolean, TInt32, (_: Type, _: SType) => SInt32) { case (_, cb, _, x) => primitive(x.asBoolean.boolCode(cb).toI) }
-    registerSCode1("toInt64", TBoolean, TInt64, (_: Type, _: SType) => SInt64) { case (_, cb, _, x) => primitive(x.asBoolean.boolCode(cb).toI.toL) }
-    registerSCode1("toFloat32", TBoolean, TFloat32, (_: Type, _: SType) => SFloat32) { case (_, cb, _, x) => primitive(x.asBoolean.boolCode(cb).toI.toF) }
-    registerSCode1("toFloat64", TBoolean, TFloat64, (_: Type, _: SType) => SFloat64) { case (_, cb, _, x) => primitive(x.asBoolean.boolCode(cb).toI.toD) }
+    registerSCode1("toInt32", TBoolean, TInt32, (_: Type, _: SType) => SInt32) { case (_, cb, _, x, _) => primitive(x.asBoolean.boolCode(cb).toI) }
+    registerSCode1("toInt64", TBoolean, TInt64, (_: Type, _: SType) => SInt64) { case (_, cb, _, x, _) => primitive(x.asBoolean.boolCode(cb).toI.toL) }
+    registerSCode1("toFloat32", TBoolean, TFloat32, (_: Type, _: SType) => SFloat32) { case (_, cb, _, x, _) => primitive(x.asBoolean.boolCode(cb).toI.toF) }
+    registerSCode1("toFloat64", TBoolean, TFloat64, (_: Type, _: SType) => SFloat64) { case (_, cb, _, x, _) => primitive(x.asBoolean.boolCode(cb).toI.toD) }
 
     for ((name, t, rpt, ct) <- Seq[(String, Type, SType, ClassTag[_])](
       ("Boolean", TBoolean, SBoolean, implicitly[ClassTag[Boolean]]),
@@ -196,12 +196,12 @@ object UtilFunctions extends RegistryFunctions {
     )) {
       val ctString: ClassTag[String] = implicitly[ClassTag[String]]
       registerSCode1(s"to$name", TString, t, (_: Type, _: SType) => rpt) {
-        case (r, cb, rt, x: SStringCode) =>
+        case (r, cb, rt, x: SStringCode, _) =>
           val s = x.loadString()
           primitive(rt.virtualType, Code.invokeScalaObject1(thisClass, s"parse$name", s)(ctString, ct))
       }
       registerIEmitCode1(s"to${name}OrMissing", TString, t, (_: Type, xPT: EmitType) => EmitType(rpt, xPT.required)) {
-        case (cb, r, rt, x) =>
+        case (cb, r, rt, _, x) =>
           x.toI(cb).flatMap(cb) { case (sc: SStringCode) =>
             val sv = cb.newLocal[String]("s", sc.loadString())
             IEmitCode(cb,
@@ -212,8 +212,8 @@ object UtilFunctions extends RegistryFunctions {
     }
 
     Array(TInt32, TInt64).foreach { t =>
-      registerIR2("min", t, t, t)((_, a, b) => intMin(a, b))
-      registerIR2("max", t, t, t)((_, a, b) => intMax(a, b))
+      registerIR2("min", t, t, t)((_, a, b, _) => intMin(a, b))
+      registerIR2("max", t, t, t)((_, a, b, _) => intMax(a, b))
     }
 
     Array("min", "max").foreach { name =>
@@ -269,32 +269,32 @@ object UtilFunctions extends RegistryFunctions {
       }
 
       registerIEmitCode2(ignoreMissingName, TInt32, TInt32, TInt32, (_: Type, t1: EmitType, t2: EmitType) => EmitType(SInt32, t1.required || t2.required)) {
-        case (cb, r, rt, v1, v2) => ignoreMissingTriplet[Int](cb, rt, v1, v2, name, Code.invokeStatic2[Math, Int, Int, Int](name, _, _))
+        case (cb, r, rt, _, v1, v2) => ignoreMissingTriplet[Int](cb, rt, v1, v2, name, Code.invokeStatic2[Math, Int, Int, Int](name, _, _))
       }
 
       registerIEmitCode2(ignoreMissingName, TInt64, TInt64, TInt64, (_: Type, t1: EmitType, t2: EmitType) => EmitType(SInt64, t1.required || t2.required)) {
-        case (cb, r, rt, v1, v2) => ignoreMissingTriplet[Long](cb, rt, v1, v2, name, Code.invokeStatic2[Math, Long, Long, Long](name, _, _))
+        case (cb, r, rt, _, v1, v2) => ignoreMissingTriplet[Long](cb, rt, v1, v2, name, Code.invokeStatic2[Math, Long, Long, Long](name, _, _))
       }
 
       registerIEmitCode2(ignoreMissingName, TFloat32, TFloat32, TFloat32, (_: Type, t1: EmitType, t2: EmitType) => EmitType(SFloat32, t1.required || t2.required)) {
-        case (cb, r, rt, v1, v2) => ignoreMissingTriplet[Float](cb, rt, v1, v2, name, Code.invokeStatic2[Math, Float, Float, Float](name, _, _))
+        case (cb, r, rt, _, v1, v2) => ignoreMissingTriplet[Float](cb, rt, v1, v2, name, Code.invokeStatic2[Math, Float, Float, Float](name, _, _))
       }
 
       registerIEmitCode2(ignoreMissingName, TFloat64, TFloat64, TFloat64, (_: Type, t1: EmitType, t2: EmitType) => EmitType(SFloat64, t1.required || t2.required)) {
-        case (cb, r, rt, v1, v2) => ignoreMissingTriplet[Double](cb, rt, v1, v2, name, Code.invokeStatic2[Math, Double, Double, Double](name, _, _))
+        case (cb, r, rt, _, v1, v2) => ignoreMissingTriplet[Double](cb, rt, v1, v2, name, Code.invokeStatic2[Math, Double, Double, Double](name, _, _))
       }
 
       registerIEmitCode2(ignoreBothName, TFloat32, TFloat32, TFloat32, (_: Type, t1: EmitType, t2: EmitType) => EmitType(SFloat32, t1.required || t2.required)) {
-        case (cb, r, rt, v1, v2) => ignoreMissingTriplet[Float](cb, rt, v1, v2, ignoreNanName, Code.invokeScalaObject2[Float, Float, Float](thisClass, ignoreNanName, _, _))
+        case (cb, r, rt, _, v1, v2) => ignoreMissingTriplet[Float](cb, rt, v1, v2, ignoreNanName, Code.invokeScalaObject2[Float, Float, Float](thisClass, ignoreNanName, _, _))
       }
 
       registerIEmitCode2(ignoreBothName, TFloat64, TFloat64, TFloat64, (_: Type, t1: EmitType, t2: EmitType) => EmitType(SFloat64, t1.required || t2.required)) {
-        case (cb, r, rt, v1, v2) => ignoreMissingTriplet[Double](cb, rt, v1, v2, ignoreNanName, Code.invokeScalaObject2[Double, Double, Double](thisClass, ignoreNanName, _, _))
+        case (cb, r, rt,  _, v1, v2) => ignoreMissingTriplet[Double](cb, rt, v1, v2, ignoreNanName, Code.invokeScalaObject2[Double, Double, Double](thisClass, ignoreNanName, _, _))
       }
     }
 
     registerSCode2("format", TString, tv("T", "tuple"), TString, (_: Type, _: SType, _: SType) => PCanonicalString().sType) {
-      case (r, cb, SStringPointer(rt: PCanonicalString), format, args) =>
+      case (r, cb, SStringPointer(rt: PCanonicalString), format, args, _) =>
         val javaObjArgs = Code.checkcast[Row](scodeToJavaValue(cb, r.region, args))
         val formatted = Code.invokeScalaObject2[String, Row, String](thisClass, "format", format.asString.loadString(), javaObjArgs)
         val st = SStringPointer(rt)
@@ -302,7 +302,7 @@ object UtilFunctions extends RegistryFunctions {
     }
 
     registerIEmitCode2("land", TBoolean, TBoolean, TBoolean, (_: Type, tl: EmitType, tr: EmitType) => EmitType(SBoolean, tl.required && tr.required)) {
-      case (cb, _, rt, l, r) =>
+      case (cb, _, rt,_ , l, r) =>
 
         // 00 ... 00 rv rm lv lm
         val w = cb.newLocal[Int]("land_w")
@@ -333,7 +333,7 @@ object UtilFunctions extends RegistryFunctions {
     }
 
     registerIEmitCode2("lor", TBoolean, TBoolean, TBoolean, (_: Type, tl: EmitType, tr: EmitType) => EmitType(SBoolean, tl.required && tr.required)) {
-      case (cb, _, rt, l, r) =>
+      case (cb, _, rt,_, l, r) =>
         // 00 ... 00 rv rm lv lm
         val w = cb.newLocal[Int]("lor_w")
 

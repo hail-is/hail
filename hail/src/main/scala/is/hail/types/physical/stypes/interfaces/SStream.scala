@@ -11,7 +11,7 @@ import is.hail.types.virtual.{TStream, Type}
 case class SStream(elementEmitType: EmitType) extends SType {
   def elementType: SType = elementEmitType.st
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     if (deepCopy) throw new UnsupportedOperationException
 
     assert(value.st == this)

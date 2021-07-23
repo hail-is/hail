@@ -22,7 +22,8 @@ abstract class HailTaskContext {
 
   def finish(): Unit = {
     log.info(s"TaskReport: stage=${ stageId() }, partition=${ partitionId() }, attempt=${ attemptNumber() }, " +
-      s"peakBytes=${ thePool.getHighestTotalUsage }, peakBytesReadable=${ formatSpace(thePool.getHighestTotalUsage) }")
+      s"peakBytes=${ thePool.getHighestTotalUsage }, peakBytesReadable=${ formatSpace(thePool.getHighestTotalUsage) }, "+
+      s"chunks requested=${thePool.getUsage._1}, cache hits=${thePool.getUsage._2}")
     thePool.close()
   }
 }

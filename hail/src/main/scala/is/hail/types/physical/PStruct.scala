@@ -32,7 +32,7 @@ trait PStruct extends PBaseStruct {
 
   def rename(m: Map[String, String]): PStruct
 
-  def identBase: String = "tuple"
+  def identBase: String = "struct"
 
   final def selectFields(names: Seq[String]): PCanonicalStruct = PCanonicalStruct(required, names.map(f => f -> field(f).typ): _*)
 

@@ -19,7 +19,7 @@ from gear import (
     web_authenticated_developers_only,
     check_csrf_token,
     new_csrf_token,
-    monitor_endpoint,
+    monitor_endpoints_middleware,
 )
 
 
@@ -71,7 +71,6 @@ def resource_record_to_dict(record):
 @routes.get('')
 @routes.get('/')
 @routes.get('/resources')
-@monitor_endpoint
 @web_authenticated_developers_only()
 @render_template('resources.html')
 async def get_resources(request, userdata):  # pylint: disable=unused-argument
@@ -89,7 +88,6 @@ ORDER BY time_created DESC;
 
 
 @routes.get('/resources/create')
-@monitor_endpoint
 @web_authenticated_developers_only()
 @render_template('create_resource.html')
 async def get_create_resource(request, userdata):  # pylint: disable=unused-argument
@@ -99,7 +97,6 @@ async def get_create_resource(request, userdata):  # pylint: disable=unused-argu
 @routes.post('/resources/create')
 # this method has special content handling, can't call `request.post()`
 # @check_csrf_token
-@monitor_endpoint
 @web_authenticated_developers_only(redirect=False)
 async def post_create_resource(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
@@ -156,7 +153,6 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
 
 
 @routes.get('/resources/{id}')
-@monitor_endpoint
 @web_authenticated_developers_only()
 @render_template('resource.html')
 async def get_resource(request, userdata):  # pylint: disable=unused-argument
@@ -175,7 +171,6 @@ WHERE id = %s;
 
 
 @routes.get('/resources/{id}/edit')
-@monitor_endpoint
 @web_authenticated_developers_only()
 @render_template('edit_resource.html')
 async def get_edit_resource(request, userdata):  # pylint: disable=unused-argument
@@ -196,7 +191,6 @@ WHERE id = %s;
 @routes.post('/resources/{id}/edit')
 # this method has special content handling, can't call `request.post()`
 # @check_csrf_token
-@monitor_endpoint
 @web_authenticated_developers_only(redirect=False)
 async def post_edit_resource(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
@@ -274,7 +268,6 @@ WHERE id = %s
 
 @routes.post('/resources/{id}/delete')
 @check_csrf_token
-@monitor_endpoint
 @web_authenticated_developers_only(redirect=False)
 async def post_delete_resource(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
@@ -312,7 +305,6 @@ WHERE id = %s;
 
 
 @routes.get('/resources/{resource_id}/attachments/{attachment_id}')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_attachment(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
@@ -370,7 +362,7 @@ async def on_cleanup(app):
 
 
 def run():
-    app = web.Application()
+    app = web.Application(middlewares=[monitor_endpoints_middleware])
 
     setup_aiohttp_session(app)
 

@@ -15,7 +15,7 @@ case class SBinaryPointer(pType: PBinary) extends SBinary {
   require(!pType.required)
 
   lazy val virtualType: Type = pType.virtualType
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SBinaryPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 

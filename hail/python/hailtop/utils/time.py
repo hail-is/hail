@@ -1,6 +1,7 @@
 import time
 import datetime
 import humanize
+import dateutil.parser
 
 
 def time_msecs() -> int:
@@ -17,3 +18,9 @@ def humanize_timedelta_msecs(delta_msecs):
         return None
 
     return humanize.naturaldelta(datetime.timedelta(milliseconds=delta_msecs))
+
+
+def parse_timestamp_msecs(ts):
+    if ts is None:
+        return ts
+    return dateutil.parser.isoparse(ts).timestamp() * 1000

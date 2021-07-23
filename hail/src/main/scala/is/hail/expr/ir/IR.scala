@@ -221,13 +221,14 @@ object MakeStream {
 final case class MakeStream(args: Seq[IR], _typ: TStream, requiresMemoryManagementPerElement: Boolean = false) extends IR
 
 object ArrayRef {
-  def apply(a: IR, i: IR): ArrayRef = ArrayRef(a, i, Str(""))
+  def apply(a: IR, i: IR): ArrayRef = ArrayRef(a, i, ErrorIDs.NO_ERROR)
 }
 
-final case class ArrayRef(a: IR, i: IR, msg: IR) extends IR
+final case class ArrayRef(a: IR, i: IR, errorId: Int) extends IR
 final case class ArrayLen(a: IR) extends IR
 final case class ArrayZeros(length: IR) extends IR
-final case class StreamRange(start: IR, stop: IR, step: IR, requiresMemoryManagementPerElement: Boolean = false) extends IR
+final case class StreamRange(start: IR, stop: IR, step: IR, requiresMemoryManagementPerElement: Boolean = false,
+                             errorID: Int = ErrorIDs.NO_ERROR) extends IR
 
 object ArraySort {
   def apply(a: IR, ascending: IR = True(), onKey: Boolean = false): ArraySort = {
@@ -284,7 +285,8 @@ object ArrayZipBehavior extends Enumeration {
   val ExtendNA: Value = Value(3)
 }
 
-final case class StreamZip(as: IndexedSeq[IR], names: IndexedSeq[String], body: IR, behavior: ArrayZipBehavior) extends IR {
+final case class StreamZip(as: IndexedSeq[IR], names: IndexedSeq[String], body: IR, behavior: ArrayZipBehavior,
+                           errorID: Int = ErrorIDs.NO_ERROR) extends IR {
   lazy val nameIdx: Map[String, Int] = names.zipWithIndex.toMap
   override def typ: TStream = coerce[TStream](super.typ)
 }
@@ -384,7 +386,7 @@ sealed trait NDArrayIR extends TypedIR[TNDArray] {
 object MakeNDArray {
   def fill(elt: IR, shape: IndexedSeq[Long], rowMajor: IR): MakeNDArray =
     MakeNDArray(
-      ToArray(StreamMap(StreamRange(0, shape.product.toInt, 1), genUID(), elt)),
+      ToArray(StreamMap(StreamRange(0, shape.product.toInt, 1, errorID = ErrorIDs.NO_ERROR), genUID(), elt)),
       MakeTuple.ordered(shape.map(I64)), rowMajor, ErrorIDs.NO_ERROR)
 }
 
@@ -392,7 +394,7 @@ final case class MakeNDArray(data: IR, shape: IR, rowMajor: IR, errorId: Int) ex
 
 final case class NDArrayShape(nd: IR) extends IR
 
-final case class NDArrayReshape(nd: IR, shape: IR) extends NDArrayIR
+final case class NDArrayReshape(nd: IR, shape: IR, errorID: Int) extends NDArrayIR
 
 final case class NDArrayConcat(nds: IR, axis: Int) extends NDArrayIR
 
@@ -401,13 +403,13 @@ final case class NDArraySlice(nd: IR, slices: IR) extends NDArrayIR
 final case class NDArrayFilter(nd: IR, keep: IndexedSeq[IR]) extends NDArrayIR
 
 final case class NDArrayMap(nd: IR, valueName: String, body: IR) extends NDArrayIR
-final case class NDArrayMap2(l: IR, r: IR, lName: String, rName: String, body: IR) extends NDArrayIR
+final case class NDArrayMap2(l: IR, r: IR, lName: String, rName: String, body: IR, errorID: Int) extends NDArrayIR
 
 final case class NDArrayReindex(nd: IR, indexExpr: IndexedSeq[Int]) extends NDArrayIR
 final case class NDArrayAgg(nd: IR, axes: IndexedSeq[Int]) extends IR
 final case class NDArrayWrite(nd: IR, path: IR) extends IR
 
-final case class NDArrayMatMul(l: IR, r: IR) extends NDArrayIR
+final case class NDArrayMatMul(l: IR, r: IR, errorID: Int) extends NDArrayIR
 
 object NDArrayQR {
   def pType(mode: String, req: Boolean): PType = {
@@ -435,11 +437,11 @@ object NDArrayInv {
   val pType = PCanonicalNDArray(PFloat64Required, 2)
 }
 
-final case class NDArrayQR(nd: IR, mode: String) extends IR
+final case class NDArrayQR(nd: IR, mode: String, errorID: Int) extends IR
 
-final case class NDArraySVD(nd: IR, fullMatrices: Boolean, computeUV: Boolean) extends IR
+final case class NDArraySVD(nd: IR, fullMatrices: Boolean, computeUV: Boolean, errorID: Int) extends IR
 
-final case class NDArrayInv(nd: IR) extends IR
+final case class NDArrayInv(nd: IR, errorID: Int) extends IR
 
 final case class AggFilter(cond: IR, aggIR: IR, isScan: Boolean) extends IR
 
@@ -481,7 +483,8 @@ final case class InitOp(i: Int, args: IndexedSeq[IR], aggSig: PhysicalAggSig) ex
 final case class SeqOp(i: Int, args: IndexedSeq[IR], aggSig: PhysicalAggSig) extends IR
 final case class CombOp(i1: Int, i2: Int, aggSig: PhysicalAggSig) extends IR
 final case class ResultOp(startIdx: Int, aggSigs: IndexedSeq[PhysicalAggSig]) extends IR
-final case class CombOpValue(i: Int, value: IR, aggSig: PhysicalAggSig) extends IR
+
+private final case class CombOpValue(i: Int, value: IR, aggSig: PhysicalAggSig) extends IR
 final case class AggStateValue(i: Int, aggSig: AggStateSig) extends IR
 final case class InitFromSerializedValue(i: Int, value: IR, aggSig: AggStateSig) extends IR
 
@@ -551,12 +554,12 @@ object Die {
 final case class Trap(child: IR) extends IR
 final case class Die(message: IR, _typ: Type, errorId: Int) extends IR
 
-final case class ApplyIR(function: String, typeArgs: Seq[Type], args: Seq[IR]) extends IR {
-  var conversion: (Seq[Type], Seq[IR]) => IR = _
+final case class ApplyIR(function: String, typeArgs: Seq[Type], args: Seq[IR], errorID: Int) extends IR {
+  var conversion: (Seq[Type], Seq[IR], Int) => IR = _
   var inline: Boolean = _
 
   private lazy val refs = args.map(a => Ref(genUID(), a.typ)).toArray
-  lazy val body: IR = conversion(typeArgs, refs).deepCopy()
+  lazy val body: IR = conversion(typeArgs, refs, errorID).deepCopy()
   lazy val refIdx: Map[String, Int] = refs.map(_.name).zipWithIndex.toMap
 
   lazy val explicitNode: IR = {
@@ -575,13 +578,13 @@ sealed abstract class AbstractApplyNode[F <: JVMFunction] extends IR {
     .asInstanceOf[F]
 }
 
-final case class Apply(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type) extends AbstractApplyNode[UnseededMissingnessObliviousJVMFunction]
+final case class Apply(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type, errorID: Int) extends AbstractApplyNode[UnseededMissingnessObliviousJVMFunction]
 
 final case class ApplySeeded(function: String, args: Seq[IR], seed: Long, returnType: Type) extends AbstractApplyNode[SeededJVMFunction] {
   val typeArgs: Seq[Type] = Seq.empty[Type]
 }
 
-final case class ApplySpecial(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type) extends AbstractApplyNode[UnseededMissingnessAwareJVMFunction]
+final case class ApplySpecial(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type, errorID: Int) extends AbstractApplyNode[UnseededMissingnessAwareJVMFunction]
 
 final case class LiftMeOut(child: IR) extends IR
 final case class TableCount(child: TableIR) extends IR

@@ -335,31 +335,31 @@ def test_ndarray_reshape():
     assert hl.eval(hl.nd.array(hl.range(20)).reshape(
         hl.missing(hl.ttuple(hl.tint64, hl.tint64)))) is None
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(hl.literal(np_cube).reshape((-1, -1)))
     assert "more than one -1" in str(exc.value)
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(hl.literal(np_cube).reshape((20,)))
     assert "requested shape is incompatible with number of elements" in str(exc.value)
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(a.reshape((3,)))
     assert "requested shape is incompatible with number of elements" in str(exc.value)
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(a.reshape(()))
     assert "requested shape is incompatible with number of elements" in str(exc.value)
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(hl.literal(np_cube).reshape((0, 2, 2)))
     assert "requested shape is incompatible with number of elements" in str(exc.value)
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(hl.literal(np_cube).reshape((2, 2, -2)))
     assert "must contain only nonnegative numbers or -1" in str(exc.value)
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(shape_zero.reshape((0, -1)))
     assert "Can't reshape" in str(exc.value)
 
@@ -419,11 +419,11 @@ def test_ndarray_map2():
         (b + na, np.array(a + b)),
         (nx + y, x + y),
         (ncube1 + cube2, cube1 + cube2),
-
-        # Addition
         (na + na, np.array(a + a)),
         (nx + ny, x + y),
         (ncube1 + ncube2, cube1 + cube2),
+        (nx.map2(y, lambda c, d: c+d), x + y),
+        (ncube1.map2(cube2, lambda c, d: c+d), cube1 + cube2),
         # Broadcasting
         (ncube1 + na, cube1 + a),
         (na + ncube1, a + cube1),
@@ -431,6 +431,9 @@ def test_ndarray_map2():
         (ny + ncube1, y + cube1),
         (nrow_vec + ncube1, row_vec + cube1),
         (ncube1 + nrow_vec, cube1 + row_vec),
+        (ncube1.map2(na, lambda c, d: c+d), cube1 + a),
+        (nrow_vec.map2(ncube1, lambda c, d: c+d), row_vec + cube1),
+
 
         # Subtraction
         (na - na, np.array(a - a)),
@@ -457,6 +460,7 @@ def test_ndarray_map2():
         (ny * ncube1, y * cube1),
         (ncube1 * nrow_vec, cube1 * row_vec),
         (nrow_vec * ncube1, row_vec * cube1),
+
 
         # Floor div
         (na // na, np.array(a // a)),
@@ -536,6 +540,9 @@ def test_ndarray_sum():
 
     assert hl.eval(m.sum()) == 10
     assert hl.eval(m.sum((0, 1))) == 10
+
+    bool_nd = hl.nd.array([[True, False, True], [False, True, True]])
+    assert hl.eval(bool_nd.sum()) == 4
 
     with pytest.raises(ValueError) as exc:
         m.sum(3)
@@ -660,14 +667,30 @@ def test_ndarray_matmul():
     with pytest.raises(ValueError):
         cube @ hl.nd.array(5)
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(r @ r)
     assert "Matrix dimensions incompatible: (2, 3) can't be multiplied by matrix with dimensions (2, 3)" in str(exc.value), str(exc.value)
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(hl.nd.array([1, 2]) @ hl.nd.array([1, 2, 3]))
     assert "Matrix dimensions incompatible" in str(exc.value)
 
+def test_ndarray_matmul_dgemv():
+    np_mat_3_4 = np.arange(12, dtype=np.float64).reshape((3, 4))
+    np_mat_4_3 = np.arange(12, dtype=np.float64).reshape((4, 3))
+    np_vec_3 = np.array([4, 2, 7], dtype=np.float64)
+    np_vec_4 = np.array([9, 17, 3, 1], dtype=np.float64)
+
+    mat_3_4 = hl.nd.array(np_mat_3_4)
+    mat_4_3 = hl.nd.array(np_mat_4_3)
+    vec_3 = hl.nd.array(np_vec_3)
+    vec_4 = hl.nd.array(np_vec_4)
+
+    assert_ndarrays_eq(
+        (mat_3_4 @ vec_4, np_mat_3_4 @ np_vec_4),
+        (mat_4_3 @ vec_3, np_mat_4_3 @ np_vec_3),
+        (mat_3_4.T @ vec_3, np_mat_3_4.T @ np_vec_3)
+    )
 
 def test_ndarray_big():
     assert hl.eval(hl.nd.array(hl.range(100_000))).size == 100_000
@@ -695,7 +718,7 @@ def test_ndarray_arange():
         (hl.nd.arange(2, 47, 13), np.arange(2, 47, 13))
     )
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(hl.nd.arange(5, 20, 0))
     assert "Array range cannot have step size 0" in str(exc.value)
 
@@ -729,6 +752,25 @@ def test_ndarray_diagonal():
     assert "2 dimensional" in str(exc.value)
 
 
+def test_ndarray_solve_triangular():
+    a = hl.nd.array([[1, 1], [0, 1]])
+    b = hl.nd.array([2, 1])
+    b2 = hl.nd.array([[11, 5], [6, 3]])
+
+    a_low = hl.nd.array([[4, 0], [2, 1]])
+    b_low = hl.nd.array([4, 5])
+
+    a_sing = hl.nd.array([[0, 1], [0, 1]])
+    b_sing = hl.nd.array([2, 2])
+
+    assert np.allclose(hl.eval(hl.nd.solve_triangular(a, b)), np.array([1., 1.]))
+    assert np.allclose(hl.eval(hl.nd.solve_triangular(a, b2)), np.array([[5., 2.], [6., 3.]]))
+    assert np.allclose(hl.eval(hl.nd.solve_triangular(a_low, b_low, True)), np.array([[1., 3.]]))
+    with pytest.raises(HailUserError) as exc:
+        hl.eval(hl.nd.solve_triangular(a_sing, b_sing))
+    assert "singular" in str(exc.value), str(exc.value)
+
+
 def test_ndarray_solve():
     a = hl.nd.array([[1, 2], [3, 5]])
     b = hl.nd.array([1, 2])
@@ -738,7 +780,7 @@ def test_ndarray_solve():
     assert np.allclose(hl.eval(hl.nd.solve(a, b2)), np.array([[-1., -16.], [1, 12]]))
     assert np.allclose(hl.eval(hl.nd.solve(a.T, b2.T)), np.array([[19., 26.], [-6, -8]]))
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(hl.nd.solve(hl.nd.array([[1, 2], [1, 2]]), hl.nd.array([8, 10])))
     assert "singular" in str(exc.value), str(exc.value)
 
@@ -1122,3 +1164,45 @@ def test_agg_ndarray_sum():
         mismatched = mismatched.annotate(x=hl.nd.ones((mismatched.idx,)))
         mismatched.aggregate(hl.agg.ndarray_sum(mismatched.x))
     assert "Can't sum" in str(exc.value)
+
+
+def test_maximum_minimuim():
+    x = np.arange(4)
+    y = np.array([7, 0, 2, 4])
+    z = [5, 2, 3, 1]
+    nan_elem = np.array([1.0, float("nan"), 3.0, 6.0])
+    f = np.array([1.0, 3.0, 6.0, 4.0])
+    nx = hl.nd.array(x)
+    ny = hl.nd.array(y)
+    nf = hl.nd.array(f)
+    ndnan_elem = hl.nd.array([1.0, hl.float64(float("NaN")), 3.0, 6.0])
+
+    assert_ndarrays_eq(
+        (hl.nd.maximum(nx, ny), np.maximum(x, y)),
+        (hl.nd.maximum(ny, z), np.maximum(y, z)),
+        (hl.nd.minimum(nx, ny), np.minimum(x, y)),
+         (hl.nd.minimum(ny, z), np.minimum(y, z)),
+    )
+
+    np_nan_max = np.maximum(nan_elem, f)
+    nan_max = hl.eval(hl.nd.maximum(ndnan_elem, nf))
+    np_nan_min = np.minimum(nan_elem, f)
+    nan_min = hl.eval(hl.nd.minimum(ndnan_elem, nf))
+    max_matches = 0
+    min_matches = 0
+    for a, b in zip(np_nan_max, nan_max):
+        if a == b:
+            max_matches += 1
+        elif np.isnan(a) and np.isnan(b):
+            max_matches += 1
+    for a, b in zip(np_nan_min, nan_min):
+        if a == b:
+            min_matches += 1
+        elif np.isnan(a) and np.isnan(b):
+            min_matches += 1
+
+    assert(nan_max.size == max_matches)
+    assert(nan_min.size == min_matches)
+
+
+

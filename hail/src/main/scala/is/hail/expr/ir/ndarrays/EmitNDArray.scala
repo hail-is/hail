@@ -122,13 +122,13 @@ object EmitNDArray {
               }
             }
           }
-          case NDArrayMap2(lChild, rChild, lName, rName, body) => {
+          case NDArrayMap2(lChild, rChild, lName, rName, body, errorID) => {
             deforestRecur(lChild, cb).flatMap(cb) { leftProducer =>
               deforestRecur(rChild, cb).map(cb) { rightProducer =>
                 val leftShapeValues = leftProducer.shape
                 val rightShapeValues = rightProducer.shape
 
-                val shapeArray = NDArrayEmitter.unifyShapes2(cb, leftShapeValues, rightShapeValues)
+                val shapeArray = NDArrayEmitter.unifyShapes2(cb, leftShapeValues, rightShapeValues, errorID)
 
                 val lElemRef = cb.emb.newEmitField(lName, leftProducer.elementType.sType, required = true)
                 val rElemRef = cb.emb.newEmitField(rName, rightProducer.elementType.sType, required = true)
@@ -164,7 +164,7 @@ object EmitNDArray {
                     cb.assign(lElemRef, EmitCode.present(cb.emb, leftBroadcasted.loadElementAtCurrentAddr(cb)))
                     cb.assign(rElemRef, EmitCode.present(cb.emb, rightBroadcasted.loadElementAtCurrentAddr(cb)))
 
-                    bodyEC.toI(cb).get(cb, "NDArrayMap2 body cannot be missing")
+                    bodyEC.toI(cb).get(cb, "NDArrayMap2 body cannot be missing", errorID)
                   }
                 }
               }
@@ -203,7 +203,7 @@ object EmitNDArray {
                 override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = childProducer.loadElementAtCurrentAddr(cb)
               }
             }
-          case x@NDArrayReshape(childND, shape) =>
+          case x@NDArrayReshape(childND, shape, errorID) =>
             emitI(childND, cb).flatMap(cb) { case childND: SNDArrayCode =>
               // Plan: Run through the child row major, make an array. Then jump around it as needed.
               val childMemo = childND.memoize(cb, "ndarray_reshape_child")
@@ -226,19 +226,19 @@ object EmitNDArray {
                 cb.assign(runningProduct, 1L)
 
                 (0 until outputNDims).foreach { i =>
-                  cb.assign(tempShapeElement, tupleValue.loadField(cb, i).get(cb, "Can't reshape if elements of reshape tuple are missing.").asLong.longCode(cb))
+                  cb.assign(tempShapeElement, tupleValue.loadField(cb, i).get(cb, "Can't reshape if elements of reshape tuple are missing.", errorID).asLong.longCode(cb))
                   cb.ifx(tempShapeElement < 0L,
                     {
                       cb.ifx(tempShapeElement ceq -1L,
                         {
                           cb.ifx(hasNegativeOne, {
-                            cb._fatal("Can't infer shape, more than one -1")
+                            cb._fatalWithError(errorID, "Can't infer shape, more than one -1")
                           }, {
                             cb.assign(hasNegativeOne, true)
                           })
                         },
                         {
-                          cb._fatal("Can't reshape, new shape must contain only nonnegative numbers or -1")
+                          cb._fatalWithError(errorID,"Can't reshape, new shape must contain only nonnegative numbers or -1")
                         }
                       )
                     },
@@ -255,12 +255,12 @@ object EmitNDArray {
                   (runningProduct ceq 0L) || (numElements % runningProduct) > 0L,
                   numElements cne runningProduct
                 ), {
-                  cb._fatal("Can't reshape since requested shape is incompatible with number of elements")
+                  cb._fatalWithError(errorID,"Can't reshape since requested shape is incompatible with number of elements")
                 })
                 cb.assign(replacesNegativeOne, (runningProduct ceq 0L).mux(0L, numElements / runningProduct))
 
                 (0 until outputNDims).foreach { i =>
-                  cb.assign(tempShapeElement, tupleValue.loadField(cb, i).get(cb, "Can't reshape if elements of reshape tuple are missing.").asLong.longCode(cb))
+                  cb.assign(tempShapeElement, tupleValue.loadField(cb, i).get(cb, "Can't reshape if elements of reshape tuple are missing.", errorID).asLong.longCode(cb))
                   cb.assign(requestedShapeValues(i), (tempShapeElement ceq -1L).mux(replacesNegativeOne, tempShapeElement))
                 }
 
