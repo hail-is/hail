@@ -1,6 +1,8 @@
 from typing import Sequence
 
 import hail as hl
+from hail.expr import ArrayExpression, expr_any, expr_array, expr_interval
+from hail.matrixtable import MatrixTable
 from hail.methods.misc import require_first_key_field_locus
 from hail.table import Table
 from hail.typecheck import sequenceof, typecheck
@@ -9,14 +11,129 @@ from hail.utils.misc import divide_null
 from hail.vds import VariantDataset
 
 
-@typecheck(vds=VariantDataset, name=str, gq_bins=sequenceof(int))
-def sample_qc(vds, *, name='sample_qc', gq_bins: 'Sequence[int]' = (0, 20, 60)) -> 'Table':
-    """Run sample_qc on dataset in the sparse :class:`.VariantDataset` representation.
+@typecheck(vds=VariantDataset)
+def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
+    """Creates a single, dense :class:`.MatrixTable` from the split
+    :class:`.VariantDataset` representation.
 
     Parameters
     ----------
     vds : :class:`.VariantDataset`
-        Dataset in sparse variant dataset representation.
+        Dataset in VariantDataset representation.
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+        Dataset in dense MatrixTable representation.
+    """
+    ref = vds.reference_data
+    ref = ref.drop(*(x for x in ('alleles', 'rsid') if x in ref.row))
+    var = vds.variant_data
+    refl = ref.localize_entries('_ref_entries')
+    varl = var.localize_entries('_var_entries', '_var_cols')
+    varl = varl.annotate(_variant_defined=True)
+    joined = refl.join(varl.key_by('locus'), how='outer')
+    dr = joined.annotate(
+        dense_ref=hl.or_missing(
+            joined._variant_defined,
+            hl.scan._densify(hl.len(joined._var_cols), joined._ref_entries)
+        )
+    )
+    dr = dr.filter(dr._variant_defined)
+
+    def coalesce_join(ref, var):
+
+        call_field = 'GT' if 'GT' in var else 'LGT'
+        assert call_field in var, var.dtype
+
+        merged_fields = {}
+        merged_fields[call_field] = hl.coalesce(var[call_field], hl.call(0, 0))
+        for field in ref.dtype:
+            if field in var:
+                merged_fields[field] = hl.coalesce(var[field], ref[field])
+
+        return hl.struct(**merged_fields).annotate(**{f: var[f] for f in var if f not in merged_fields})
+
+    dr = dr.annotate(
+        _dense=hl.zip(dr._var_entries, dr.dense_ref).map(
+            lambda tuple: coalesce_join(hl.or_missing(tuple[1].END <= dr.locus.position, tuple[1]), tuple[0])
+        )
+    )
+    dr = dr._key_by_assert_sorted('locus', 'alleles')
+    dr = dr.drop('_var_entries', '_ref_entries', 'dense_ref', '_variant_defined')
+    return dr._unlocalize_entries('_dense', '_var_cols', list(var.col_key))
+
+
+@typecheck(vds=VariantDataset)
+def to_merged_sparse_mt(vds: 'VariantDataset') -> 'MatrixTable':
+    """Creates a single, merged sparse :class:'.MatrixTable' from the split
+    :class:`.VariantDataset` representation.
+
+    Parameters
+    ----------
+    vds : :class:`.VariantDataset`
+        Dataset in VariantDataset representation.
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+        Dataset in the merged sparse MatrixTable representation.
+    """
+    rht = vds.reference_data.localize_entries('ref_entries', 'ref_cols')
+    vht = vds.variant_data.localize_entries('var_entries', 'var_cols').rename({'alleles': 'var_alleles'})
+
+    merged_schema = {}
+    for e in vds.reference_data.entry:
+        merged_schema[e] = vds.reference_data[e].dtype
+    for e in vds.variant_data.entry:
+        if e in merged_schema:
+            if not merged_schema[e] == vds.variant_data[e].dtype:
+                raise TypeError(f"cannot unify field {e!r}: {merged_schema[e]}, {vds.variant_data[e].dtype}")
+        else:
+            merged_schema[e] = vds.variant_data[e].dtype
+
+    ht = rht.join(vht, how='outer').drop('ref_cols')
+
+    def merge_arrays(r_array, v_array):
+
+        def rewrite_ref(r):
+            ref_block_selector = {}
+            for k, t in merged_schema.items():
+                if k == 'LA':
+                    ref_block_selector[k] = hl.literal([0])
+                elif k in ('LGT', 'GT'):
+                    ref_block_selector[k] = hl.call(0, 0)
+                else:
+                    ref_block_selector[k] = r[k] if k in r else hl.missing(t)
+            return r.select(**ref_block_selector)
+
+        def rewrite_var(v):
+            return v.select(**{
+                k: v[k] if k in v else hl.missing(t)
+                for k, t in merged_schema.items()
+            })
+
+        return hl.case() \
+            .when(hl.is_missing(r_array), v_array.map(rewrite_var)) \
+            .when(hl.is_missing(v_array), r_array.map(rewrite_ref)) \
+            .default(hl.zip(r_array, v_array).map(lambda t: hl.coalesce(rewrite_ref(t[0]), rewrite_var(t[1]))))
+
+    ht = ht.select(
+        alleles=hl.coalesce(ht['var_alleles'], ht['alleles']),
+        **{k: ht[k] for k in vds.variant_data.row_value if k != 'alleles'},  # handle cases where vmt is not keyed by alleles
+        entries=merge_arrays(ht['ref_entries'], ht['var_entries'])
+    )
+    return ht._unlocalize_entries('entries', 'var_cols', list(vds.variant_data.col_key))
+
+
+@typecheck(vds=VariantDataset, name=str, gq_bins=sequenceof(int))
+def sample_qc(vds: 'VariantDataset', *, name='sample_qc', gq_bins: 'Sequence[int]' = (0, 20, 60)) -> 'Table':
+    """Run sample_qc on dataset in the split :class:`.VariantDataset` representation.
+
+    Parameters
+    ----------
+    vds : :class:`.VariantDataset`
+        Dataset in VariantDataset representation.
     name : :obj:`str`
         Name for resulting field.
     gq_bins : :class:`tup` of :obj:`int`
@@ -39,12 +156,14 @@ def sample_qc(vds, *, name='sample_qc', gq_bins: 'Sequence[int]' = (0, 20, 60)) 
     allele_ints = {v: k for k, v in allele_enum.items()}
 
     def allele_type(ref, alt):
-        return hl.bind(lambda at: hl.if_else(at == allele_ints['SNP'],
-                                             hl.if_else(hl.is_transition(ref, alt),
-                                                        allele_ints['Transition'],
-                                                        allele_ints['Transversion']),
-                                             at),
-                       _num_allele_type(ref, alt))
+        return hl.bind(
+            lambda at: hl.if_else(at == allele_ints['SNP'],
+                                  hl.if_else(hl.is_transition(ref, alt),
+                                             allele_ints['Transition'],
+                                             allele_ints['Transversion']),
+                                  at),
+            _num_allele_type(ref, alt)
+        )
 
     variant_ac = Env.get_uid()
     variant_atypes = Env.get_uid()
@@ -53,27 +172,33 @@ def sample_qc(vds, *, name='sample_qc', gq_bins: 'Sequence[int]' = (0, 20, 60)) 
     if 'GT' not in vmt.entry:
         vmt = vmt.annotate_entries(GT=hl.experimental.lgt_to_gt(vmt.LGT, vmt.LA))
 
-    vmt = vmt.annotate_rows(**{variant_ac: hl.agg.call_stats(vmt.GT, vmt.alleles).AC,
-                               variant_atypes: vmt.alleles[1:].map(lambda alt: allele_type(vmt.alleles[0], alt))})
+    vmt = vmt.annotate_rows(**{
+        variant_ac: hl.agg.call_stats(vmt.GT, vmt.alleles).AC,
+        variant_atypes: vmt.alleles[1:].map(lambda alt: allele_type(vmt.alleles[0], alt))
+    })
 
     bound_exprs = {}
 
     bound_exprs['n_het'] = hl.agg.count_where(vmt['GT'].is_het())
     bound_exprs['n_hom_var'] = hl.agg.count_where(vmt['GT'].is_hom_var())
-    bound_exprs['n_singleton'] = hl.agg.sum(hl.sum(hl.range(0, vmt['GT'].ploidy).map(lambda i: vmt[variant_ac][vmt['GT'][i]] == 1)))
+    bound_exprs['n_singleton'] = hl.agg.sum(
+        hl.sum(hl.range(0, vmt['GT'].ploidy).map(lambda i: vmt[variant_ac][vmt['GT'][i]] == 1))
+    )
 
     def get_allele_type(allele_idx):
         return hl.if_else(allele_idx > 0, vmt[variant_atypes][allele_idx - 1], hl.missing(hl.tint32))
 
     bound_exprs['allele_type_counts'] = hl.agg.explode(
         lambda elt: hl.agg.counter(elt),
-        hl.range(0, vmt['GT'].ploidy).map(lambda i: get_allele_type(vmt['GT'][i])))
+        hl.range(0, vmt['GT'].ploidy).map(lambda i: get_allele_type(vmt['GT'][i]))
+    )
 
     zero = hl.int64(0)
 
-    gq_exprs = hl.agg.filter(hl.is_defined(vmt.GT),
-                             hl.struct(**{f'gq_over_{x}': hl.agg.count_where(vmt.GQ > x)
-                                          for x in gq_bins}))
+    gq_exprs = hl.agg.filter(
+        hl.is_defined(vmt.GT),
+        hl.struct(**{f'gq_over_{x}': hl.agg.count_where(vmt.GQ > x) for x in gq_bins})
+    )
 
     result_struct = hl.rbind(
         hl.struct(**bound_exprs),
@@ -96,18 +221,115 @@ def sample_qc(vds, *, name='sample_qc', gq_bins: 'Sequence[int]' = (0, 20, 60)) 
                 r_ti_tv=divide_null(hl.float64(s.n_transition), s.n_transversion),
                 r_het_hom_var=divide_null(hl.float64(s.n_het), s.n_hom_var),
                 r_insertion_deletion=divide_null(hl.float64(s.n_insertion), s.n_deletion)
-            )))
+            )
+        )
+    )
     variant_results = vmt.select_cols(**result_struct).cols()
 
     rmt = vds.reference_data
-    ref_results = rmt.select_cols(gq_exprs=hl.struct(**{
-        f'gq_over_{x}': hl.agg.filter(rmt.GQ > x, hl.agg.sum(1 + rmt.END - rmt.locus.position))
-        for x in gq_bins
-    })).cols()
+    ref_results = rmt.select_cols(
+        gq_exprs=hl.struct(**{
+            f'gq_over_{x}': hl.agg.filter(rmt.GQ > x, hl.agg.sum(1 + rmt.END - rmt.locus.position)) for x in gq_bins
+        })
+    ).cols()
 
     joined = ref_results[variant_results.key].gq_exprs
     joined_results = variant_results.transmute(**{
-        f'gq_over_{x}': variant_results.gq_exprs[f'gq_over_{x}'] + joined[f'gq_over_{x}']
-        for x in gq_bins
+        f'gq_over_{x}': variant_results.gq_exprs[f'gq_over_{x}'] + joined[f'gq_over_{x}'] for x in gq_bins
     })
     return joined_results
+
+
+@typecheck(vds=VariantDataset, samples_table=Table, keep=bool)
+def filter_samples(vds: 'VariantDataset', samples_table: 'Table', *, keep: bool = True) -> 'VariantDataset':
+    """Filter samples in a :class:`.VariantDataset`.
+
+    Parameters
+    ----------
+    vds : :class:`.VariantDataset`
+        Dataset in VariantDataset representation.
+    samples_table : :class:`.Table`
+        Samples to filter on.
+    keep : :obj:`bool`
+        Whether to keep (default), or filter out the samples from `samples_table`.
+
+    Returns
+    -------
+    :class:`.VariantDataset`
+    """
+    if not list(samples_table[x].dtype for x in samples_table.key) == [hl.tstr]:
+        raise TypeError(f'invalid key: {samples_table.key.dtype}')
+    samples_to_keep = samples_table.aggregate(hl.agg.collect_as_set(samples_table.key[0]), _localize=False)._persist()
+    vds.reference_data = vds.reference_data.filter_cols(samples_to_keep.contains(vds.reference_data.key[0]), keep=keep)
+    vds.variant_data = vds.variant_data.filter_cols(samples_to_keep.contains(vds.variant_data.key[0]), keep=keep)
+    return vds
+
+
+@typecheck(vds=VariantDataset, variants_table=Table, keep=bool)
+def filter_variants(vds: 'VariantDataset', variants_table: 'Table', *, keep: bool = True) -> 'VariantDataset':
+    """Filter variants in a :class:`.VariantDataset`, without removing reference
+    data.
+
+    Parameters
+    ----------
+    vds : :class:`.VariantDataset`
+        Dataset in VariantDataset representation.
+    variants_table : :class:`.Table`
+        Variants to filter on.
+    keep: :obj:`bool`
+        Whether to keep (default), or filter out the variants from `variants_table`.
+
+    Returns
+    -------
+    :class:`.VariantDataset`.
+    """
+    if keep:
+        vds.variant_data = vds.variant_data.semi_join_rows(variants_table)
+    else:
+        vds.variant_data = vds.variant_data.anti_join_rows(variants_table)
+    return vds
+
+
+@typecheck(vds=VariantDataset, intervals=expr_array(expr_interval(expr_any)), keep=bool)
+def filter_intervals(vds: 'VariantDataset', intervals: 'ArrayExpression', *, keep: bool = False) -> 'VariantDataset':
+    """Filter intervals in a :class:`.VariantDataset` (only on variant data for
+    now).
+
+    Parameters
+    ----------
+    vds : :class:`.VariantDataset`
+        Dataset in VariantDataset representation.
+    intervals : :class:`.ArrayExpression` of type :class:`.tinterval`
+        Intervals to filter on.
+    keep : :obj:`bool`
+        Whether to keep, or filter out (default) rows that fall within any
+        interval in `intervals`.
+
+    Returns
+    -------
+    :class:`.VariantDataset`
+    """
+    # for now, don't touch reference data.
+    # should remove large regions and scan forward ref blocks to the start of the next kept region
+    vds.variant_data = hl.filter_intervals(vds.variant_data, intervals, keep)
+    return vds
+
+
+@typecheck(vds=VariantDataset, filter_changed_loci=bool)
+def split_multi(vds: 'VariantDataset', *, filter_changed_loci: bool = False) -> 'VariantDataset':
+    """Split the multiallelic variants in a :class:`.VariantDataset`.
+
+    Parameters
+    ----------
+    vds : :class:`.VariantDataset`
+        Dataset in VariantDataset representation.
+    filter_changed_loci : :obj:`bool`
+        If any REF/ALT pair changes locus under :func:`.min_rep`, filter that
+        variant instead of throwing an error.
+
+    Returns
+    -------
+    :class:`.VariantDataset`
+    """
+    vds.variant_data = hl.experimental.sparse_split_multi(vds.variant_data, filter_changed_loci=filter_changed_loci)
+    return vds
