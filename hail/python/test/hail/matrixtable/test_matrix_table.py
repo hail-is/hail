@@ -711,6 +711,7 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         self.assertTrue(rows.all(hl.sorted(rows.interval_matches.map(lambda x: x.i))
                                  == hl.range(0, hl.min(rows.row_idx % 10, 10 - rows.row_idx % 10))))
 
+    @skip_when_service_backend('slow >800s')
     def test_entry_join_self(self):
         mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4).choose_cols([9, 8, 7, 6, 5, 4, 3, 2, 1, 0])
         mt1 = mt1.annotate_entries(x=10 * mt1.row_idx + mt1.col_idx)
@@ -722,7 +723,7 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
 
         self.assertTrue(mt_join_entries.all(mt_join_entries.x == mt_join_entries.x2))
 
-    @fails_service_backend()
+    @skip_when_service_backend('slow >800s')
     def test_entry_join_const(self):
         mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4)
         mt1 = mt1.annotate_entries(x=mt1.row_idx + mt1.col_idx)

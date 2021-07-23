@@ -120,7 +120,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(b.count_cols(), 6)
         self.assertTrue('group5' in b.col_key)
 
-    @fails_service_backend()
+    @skip_when_service_backend('slow >800s')
     def test_joins_work_correctly(self):
         mt, mt2 = self.get_groupable_matrix2()
 
