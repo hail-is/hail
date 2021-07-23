@@ -1124,8 +1124,9 @@ object PruneDeadFields {
         )
       case MakeNDArray(data, shape, rowMajor, errorId) =>
         val elementType = requestedType.asInstanceOf[TNDArray].elementType
+        val dataType = if (data.typ.isInstanceOf[TArray]) TArray(elementType) else TStream(elementType)
         unifyEnvs(
-          memoizeValueIR(data, data.typ, memo),
+          memoizeValueIR(data, dataType, memo),
           memoizeValueIR(shape, shape.typ, memo),
           memoizeValueIR(rowMajor, rowMajor.typ, memo)
         )
