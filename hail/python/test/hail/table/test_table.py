@@ -928,8 +928,8 @@ Exception in thread "main" java.lang.RuntimeException: invalid sort order: b
         self.assertTrue(t1.key_by().union(t2.key_by(), t3.key_by())
                         ._same(hl.utils.range_table(15).key_by()))
 
-    @fails_service_backend()
     @fails_local_backend()
+    @skip_when_service_backend('slow >800s')
     def test_nested_union(self):
         N = 10
         M = 200
@@ -1427,6 +1427,7 @@ Exception in thread "main" java.lang.RuntimeException: invalid sort order: b
             ht.write(path)
         assert "both an input and output source" in str(exc.value)
 
+@skip_when_service_backend('slow >800s')
 def test_large_number_of_fields():
     ht = hl.utils.range_table(100)
     ht = ht.annotate(**{
@@ -1653,6 +1654,7 @@ def test_range_annotate_range():
     ht2 = hl.utils.range_table(5).annotate(x = 1)
     ht1.annotate(x = ht2[ht1.idx].x)._force_count()
 
+@skip_when_service_backend('slow >800s')
 def test_read_write_all_types():
     ht = create_all_values_table()
     tmp_file = new_temp_file()

@@ -164,7 +164,7 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(row_result.entries()._same(row_expected))
 
-    @fails_service_backend()
+    @skip_when_service_backend('slow >800s')
     def test_group_rows_by_aggregate(self):
         mt, mt2 = self.get_groupable_matrix2()
 
@@ -194,7 +194,7 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(row_result.entries()._same(row_expected))
 
-    @fails_service_backend()
+    @skip_when_service_backend('slow >800s')
     def test_group_cols_by_aggregate(self):
         mt, mt2 = self.get_groupable_matrix2()
 
