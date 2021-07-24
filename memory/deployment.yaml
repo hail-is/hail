@@ -89,11 +89,11 @@ spec:
              readOnly: true
           resources:
             requests:
-              memory: 187Mi
-              cpu: 50m
+              memory: "1.25G"
+              cpu: "400m"
             limits:
-              memory: 1875i
-              cpu: 500m
+              memory: "3.75G"
+              cpu: "1"
           readinessProbe:
             tcpSocket:
               port: 5000
