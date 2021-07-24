@@ -70,4 +70,4 @@ class VariantDataset:
 
     def checkpoint(self, path, **kwargs):
         self.write(path, **kwargs)
-        return hl.read_vds(path)
+        return read_vds(path)
