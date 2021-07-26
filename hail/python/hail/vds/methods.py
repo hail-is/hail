@@ -260,9 +260,9 @@ def filter_samples(vds: 'VariantDataset', samples_table: 'Table', *, keep: bool 
     if not list(samples_table[x].dtype for x in samples_table.key) == [hl.tstr]:
         raise TypeError(f'invalid key: {samples_table.key.dtype}')
     samples_to_keep = samples_table.aggregate(hl.agg.collect_as_set(samples_table.key[0]), _localize=False)._persist()
-    vds.reference_data = vds.reference_data.filter_cols(samples_to_keep.contains(vds.reference_data.key[0]), keep=keep)
-    vds.variant_data = vds.variant_data.filter_cols(samples_to_keep.contains(vds.variant_data.key[0]), keep=keep)
-    return vds
+    reference_data = vds.reference_data.filter_cols(samples_to_keep.contains(vds.reference_data.key[0]), keep=keep)
+    variant_data = vds.variant_data.filter_cols(samples_to_keep.contains(vds.variant_data.key[0]), keep=keep)
+    return VariantDataset(reference_data, variant_data)
 
 
 @typecheck(vds=VariantDataset, variants_table=Table, keep=bool)
@@ -284,10 +284,10 @@ def filter_variants(vds: 'VariantDataset', variants_table: 'Table', *, keep: boo
     :class:`.VariantDataset`.
     """
     if keep:
-        vds.variant_data = vds.variant_data.semi_join_rows(variants_table)
+        variant_data = vds.variant_data.semi_join_rows(variants_table)
     else:
-        vds.variant_data = vds.variant_data.anti_join_rows(variants_table)
-    return vds
+        variant_data = vds.variant_data.anti_join_rows(variants_table)
+    return VariantDataset(vds.reference_data, variant_data)
 
 
 @typecheck(vds=VariantDataset, intervals=expr_array(expr_interval(expr_any)), keep=bool)
@@ -311,8 +311,8 @@ def filter_intervals(vds: 'VariantDataset', intervals: 'ArrayExpression', *, kee
     """
     # for now, don't touch reference data.
     # should remove large regions and scan forward ref blocks to the start of the next kept region
-    vds.variant_data = hl.filter_intervals(vds.variant_data, intervals, keep)
-    return vds
+    variant_data = hl.filter_intervals(vds.variant_data, intervals, keep)
+    return VariantDataset(vds.reference_data, variant_data)
 
 
 @typecheck(vds=VariantDataset, filter_changed_loci=bool)
@@ -331,5 +331,5 @@ def split_multi(vds: 'VariantDataset', *, filter_changed_loci: bool = False) -> 
     -------
     :class:`.VariantDataset`
     """
-    vds.variant_data = hl.experimental.sparse_split_multi(vds.variant_data, filter_changed_loci=filter_changed_loci)
-    return vds
+    variant_data = hl.experimental.sparse_split_multi(vds.variant_data, filter_changed_loci=filter_changed_loci)
+    return VariantDataset(vds.reference_data, variant_data)
