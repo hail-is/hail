@@ -1507,8 +1507,6 @@ class BGENTests(unittest.TestCase):
 
 
 class GENTests(unittest.TestCase):
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_gen(self):
         gen = hl.import_gen(resource('example.gen'),
                             sample_file=resource('example.sample'),
@@ -1517,7 +1515,6 @@ class GENTests(unittest.TestCase):
         self.assertTrue(gen.all(gen.locus.contig == "1"))
         self.assertEqual(gen.count(), 199)
         self.assertEqual(gen.locus.dtype, hl.tlocus('GRCh37'))
-
 
     def test_import_gen_no_chromosome_in_file(self):
         gen = hl.import_gen(resource('no_chromosome.gen'),
@@ -1528,8 +1525,6 @@ class GENTests(unittest.TestCase):
 
         self.assertEqual(gen.aggregate_rows(hl.agg.all(gen.locus.contig == "1")), True)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_gen_no_reference_specified(self):
         gen = hl.import_gen(resource('example.gen'),
                             sample_file=resource('example.sample'),
@@ -1539,8 +1534,6 @@ class GENTests(unittest.TestCase):
                          hl.tstruct(contig=hl.tstr, position=hl.tint32))
         self.assertEqual(gen.count_rows(), 199)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_gen_skip_invalid_loci(self):
         mt = hl.import_gen(resource('skip_invalid_loci.gen'),
                            resource('skip_invalid_loci.sample'),
