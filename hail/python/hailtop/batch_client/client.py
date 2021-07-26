@@ -203,7 +203,7 @@ class BatchBuilder:
                    input_files=None, output_files=None, always_run=False,
                    timeout=None, gcsfuse=None, requester_pays_project=None,
                    mount_tokens=False, network: Optional[str] = None,
-                   unconfined: bool = False) -> Job:
+                   unconfined: bool = False, user_code: Optional[str] = None) -> Job:
         if parents:
             parents = [parent._async_job for parent in parents]
 
@@ -215,7 +215,7 @@ class BatchBuilder:
             input_files=input_files, output_files=output_files, always_run=always_run,
             timeout=timeout, gcsfuse=gcsfuse,
             requester_pays_project=requester_pays_project, mount_tokens=mount_tokens,
-            network=network, unconfined=unconfined)
+            network=network, unconfined=unconfined, user_code=user_code)
 
         return Job.from_async_job(async_job)
 

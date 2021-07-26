@@ -418,7 +418,7 @@ class BatchBuilder:
                    input_files=None, output_files=None, always_run=False,
                    timeout=None, gcsfuse=None, requester_pays_project=None,
                    mount_tokens=False, network: Optional[str] = None,
-                   unconfined: bool = False):
+                   unconfined: bool = False, user_code: Optional[str] = None):
         if self._submitted:
             raise ValueError("cannot create a job in an already submitted batch")
 
@@ -494,6 +494,8 @@ class BatchBuilder:
             job_spec['network'] = network
         if unconfined:
             job_spec['unconfined'] = unconfined
+        if user_code:
+            job_spec['user_code'] = user_code
 
         self._job_specs.append(job_spec)
 
