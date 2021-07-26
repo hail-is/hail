@@ -417,6 +417,9 @@ class Container:
         self.container_scratch = f'{scratch}/{self.name}'
         self.container_overlay_path = f'{self.container_scratch}/rootfs_overlay'
         self.config_path = f'{self.container_scratch}/config'
+        self.log_path = f'{self.container_scratch}/container.log'
+
+        self.fs = LocalAsyncFS(worker.pool)
 
         self.container_name = f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}'
 
@@ -596,21 +599,21 @@ class Container:
         try:
             await self.write_container_config()
             async with async_timeout.timeout(self.timeout):
-                log.info('Creating the crun run process')
-                self.process = await asyncio.create_subprocess_exec(
-                    'crun',
-                    'run',
-                    '--bundle',
-                    f'{self.container_overlay_path}/merged',
-                    '--config',
-                    f'{self.config_path}/config.json',
-                    self.container_name,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-                await asyncio.gather(self.pipe_to_log(self.process.stdout), self.pipe_to_log(self.process.stderr))
-                await self.process.wait()
-                log.info('crun process completed')
+                with open(self.log_path, 'w') as container_log:
+                    log.info('Creating the crun run process')
+                    self.process = await asyncio.create_subprocess_exec(
+                        'crun',
+                        'run',
+                        '--bundle',
+                        f'{self.container_overlay_path}/merged',
+                        '--config',
+                        f'{self.config_path}/config.json',
+                        self.container_name,
+                        stdout=container_log,
+                        stderr=container_log,
+                    )
+                    await self.process.wait()
+                    log.info('crun process completed')
         except asyncio.TimeoutError:
             return True
         finally:
@@ -924,12 +927,11 @@ class Container:
         )
 
     async def get_log(self):
-        return self.logbuffer.decode()
-
-    async def pipe_to_log(self, strm: Optional[asyncio.StreamReader]):
-        if strm is not None:
-            while not strm.at_eof() and not strm.exception():
-                self.logbuffer.extend(await strm.readline())
+        if os.path.exists(self.log_path):
+            stream = await self.fs.open(self.log_path)
+            async with stream:
+                return (await stream.read()).decode()
+        return ''
 
     def __str__(self):
         return f'container {self.job.id}/{self.name}'
