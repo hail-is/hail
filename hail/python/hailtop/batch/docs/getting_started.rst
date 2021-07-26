@@ -28,7 +28,7 @@ Installing the Google Cloud SDK
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 If you plan to use the Batch Service (as opposed to the local-only mode), then you must additionally
-`install the Google Cloud SDK <https://cloud.google.com/sdk/docs/install>`.
+`install the Google Cloud SDK <https://cloud.google.com/sdk/docs/install>`__.
 
 Try it out!
 ~~~~~~~~~~~
