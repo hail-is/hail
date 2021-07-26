@@ -127,7 +127,7 @@ object LoweredTableReader {
     contexts: IndexedSeq[Any],
     keyType: TStruct,
     keyPType: (TStruct) => PStruct,
-    keys: (TStruct) => (Region, Any) => Iterator[Long]
+    keys: (TStruct) => (Region, FS, Any) => Iterator[Long]
   ): LoweredTableReaderCoercer = {
     assert(key.nonEmpty)
     assert(contexts.nonEmpty)

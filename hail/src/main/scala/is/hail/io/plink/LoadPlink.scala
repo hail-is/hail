@@ -349,7 +349,7 @@ class MatrixPLINKReader(
 
       val requestedPType = bodyPType(requestedType)
 
-      { (region: Region, context: Any) =>
+      { (region: Region, fs: FS, context: Any) =>
         val c = context.asInstanceOf[Row]
         val bed = c.getString(0)
         val start = c.getInt(1)

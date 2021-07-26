@@ -1733,7 +1733,7 @@ class MatrixVCFReader(
     val body = { (requestedType: TStruct) =>
       val requestedPType = bodyPType(requestedType)
 
-      { (region: Region, context: Any) =>
+      { (region: Region, fs: FS, context: Any) =>
         val parseLineContext = new ParseLineContext(requestedType, makeJavaSet(localInfoFlagFieldNames), localNSamples)
 
         val rvb = new RegionValueBuilder(region)
@@ -1745,7 +1745,7 @@ class MatrixVCFReader(
 
         val transformer = localFilterAndReplace.transformer()
 
-        linesBody(context)
+        linesBody(fs, context)
           .filter { line =>
             val text = line.toString
             val newText = transformer(text)

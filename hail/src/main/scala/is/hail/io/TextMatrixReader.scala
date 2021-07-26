@@ -231,7 +231,7 @@ object TextMatrixReader {
 
     val lines = GenericLines.read(fs, fileStatuses, params.nPartitions, None, None, params.gzipAsBGZip, false)
 
-    val linesRDD = lines.toRDD()
+    val linesRDD = lines.toRDD(fs)
       .filter { line =>
         val l = line.toString
         l.nonEmpty && !opts.isComment(l)
@@ -344,10 +344,10 @@ class TextMatrixReader(
         partitionLineIndexWithinFile,
         params.hasHeader)
 
-      { (region: Region, context: Any) =>
+      { (region: Region, fs: FS, context: Any) =>
         val Row(lc, partitionIdx: Int) = context
         compiledLineParser.apply(partitionIdx, region,
-          linesBody(lc).filter { line =>
+          linesBody(fs, lc).filter { line =>
             val l = line.toString
             l.nonEmpty && !localOpts.isComment(l)
           }

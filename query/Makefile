@@ -18,22 +18,25 @@ jar:
 # janky
 	cp ../hail/build/libs/hail-all-spark.jar ./hail.jar
 
-.PHONY: build
-build: jar
-	$(MAKE) -C ../docker service-java-run-base
-	python3 ../ci/jinja2_render.py '{"service_java_run_base_image":{"image":"'$$(cat ../docker/service-java-run-base)'"}}' Dockerfile Dockerfile.out
-	../docker-build.sh . Dockerfile.out $(QUERY_IMAGE)
-
-UPLOAD_QUERY_JAR_TOKEN := $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
+HAIL_TEST_GCS_TOKEN := $(shell whoami)
 HAIL_REVISION := $(shell git rev-parse HEAD)
 
 .PHONY: push-jar
 push-jar: jar
-	gsutil cp ./hail.jar gs://hail-test-dmk9z/$(UPLOAD_QUERY_JAR_TOKEN)/jars/$(HAIL_REVISION).jar
+	echo gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/jars/$(HAIL_REVISION).jar >last_uploaded_jar
+	gsutil cp ./hail.jar $$(cat last_uploaded_jar)
 
-.PHONY: deploy
-deploy: build push-jar
-	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
-	kubectl -n $(NAMESPACE) apply -f service-account.yaml
-	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"default_ns":{"name":"$(NAMESPACE)"},"query_image":{"image":"$(QUERY_IMAGE)"},"global":{"project":"$(PROJECT)","domain":"$(DOMAIN)"},"upload_query_jar":{"token":"$(UPLOAD_QUERY_JAR_TOKEN)"}}' deployment.yaml deployment.yaml.out
-	kubectl -n $(NAMESPACE) apply -f deployment.yaml.out
+upload_resources_dir:
+	gsutil -m rsync ../hail/src/test/resources/ gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources/test/resources/ & \
+		gsutil -m rsync ../hail/python/hail/docs/data/ gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources/doctest/data/ & \
+		wait
+	touch upload_resources_dir
+
+.PHONY: test
+test: push-jar upload_resources_dir
+	HAIL_TEST_RESOURCES_DIR='gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources/test/resources/' \
+    HAIL_DOCTEST_DATA_DIR='gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources/test/resources/' \
+    HAIL_SHA='$(HAIL_REVISION)-$(TOKEN)' \
+    HAIL_JAR_URL=$$(cat last_uploaded_jar) \
+    $(MAKE) -C ../hail pytest PYTEST_ARGS='-n 32 $(PYTEST_ARGS)'
+
