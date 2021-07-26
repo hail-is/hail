@@ -1246,51 +1246,88 @@ class Emit[C](
           }
         }
 
-      case x@MakeNDArray(dataIR, shapeIR, rowMajorIR, errorID) =>
+
+      case x@MakeNDArray(dataIR, shapeIR, rowMajorIR, errorId) =>
+        val nDims = x.typ.nDims
 
         emitI(rowMajorIR).flatMap(cb) { isRowMajorCode =>
           emitI(shapeIR).flatMap(cb) { case shapeTupleCode: SBaseStructCode =>
-            emitI(dataIR).map(cb) { case dataCode: SIndexableCode =>
+            dataIR.typ match {
+              case _: TArray =>
+                emitI(dataIR).map(cb) { case dataCode: SIndexableCode =>
+                  val xP = PCanonicalNDArray(dataCode.st.elementType.canonicalPType().setRequired(true), nDims)
+                  val shapeTupleValue = shapeTupleCode.memoize(cb, "make_ndarray_shape")
+                  val memoData = dataCode.memoize(cb, "make_nd_array_memoized_data")
 
-              val shapeSType = shapeTupleCode.st
-              val nDims = shapeSType.size
-              val xP = PCanonicalNDArray(dataCode.st.elementType.canonicalPType().setRequired(true), nDims)
+                  cb.ifx(memoData.hasMissingValues(cb), {
+                    cb._throw(Code.newInstance[HailException, String, Int](
+                      "Cannot construct an ndarray with missing values.", errorId
+                    ))
+                  })
 
-              val shapeTupleValue = shapeTupleCode.memoize(cb, "make_ndarray_shape")
-              val memoData = dataCode.memoize(cb, "make_nd_array_memoized_data")
+                  (0 until nDims).foreach { index =>
+                    cb.ifx(shapeTupleValue.isFieldMissing(index),
+                      cb._fatalWithError(errorId, s"shape missing at index $index"))
+                  }
 
-              cb.ifx(memoData.hasMissingValues(cb), {
-                cb._throw(Code.newInstance[HailException, String, Int](
-                  "Cannot construct an ndarray with missing values.", errorID
-                ))
-              })
+                  val stridesSettables = (0 until nDims).map(i => cb.newLocal[Long](s"make_ndarray_stride_$i"))
 
-              (0 until nDims).foreach { index =>
-                cb.ifx(shapeTupleValue.isFieldMissing(index),
-                  cb.append(Code._fatalWithID[Unit](s"shape missing at index $index", errorID)))
-              }
+                  val shapeValues = (0 until nDims).map { i =>
+                    val shape = SingleCodeSCode.fromSCode(cb, shapeTupleValue.loadField(cb, i).get(cb), region)
+                    cb.newLocalAny[Long](s"make_ndarray_shape_${ i }", shape.code)
+                  }
 
-              val stridesSettables = (0 until nDims).map(i => cb.newLocal[Long](s"make_ndarray_stride_$i"))
+                  cb.ifx(isRowMajorCode.asBoolean.boolCode(cb), {
+                    val strides = xP.makeRowMajorStrides(shapeValues, region, cb)
 
-              val shapeValues = (0 until nDims).map { i =>
-                val shape = SingleCodeSCode.fromSCode(cb, shapeTupleValue.loadField(cb, i).get(cb), region)
-                cb.newLocalAny[Long](s"make_ndarray_shape_${ i }", shape.code)
-              }
+                    stridesSettables.zip(strides).foreach { case (settable, stride) =>
+                      cb.assign(settable, stride)
+                    }
+                  }, {
+                    val strides = xP.makeColumnMajorStrides(shapeValues, region, cb)
+                    stridesSettables.zip(strides).foreach { case (settable, stride) =>
+                      cb.assign(settable, stride)
+                    }
+                  })
 
-              cb.ifx(isRowMajorCode.asBoolean.boolCode(cb), {
-                val strides = xP.makeRowMajorStrides(shapeValues, region, cb)
-
-                stridesSettables.zip(strides).foreach { case (settable, stride) =>
-                  cb.assign(settable, stride)
+                  xP.constructByCopyingArray(shapeValues, stridesSettables, memoData.asIndexable, cb, region)
                 }
-              }, {
-                val strides = xP.makeColumnMajorStrides(shapeValues, region, cb)
-                stridesSettables.zip(strides).foreach { case (settable, stride) =>
-                  cb.assign(settable, stride)
-                }
-              })
+              case _: TStream =>
+                EmitStream.produce(this, dataIR, cb, region, env, container)
+                  .map(cb) {
+                    case stream: SStreamCode => {
+                      val xP = PCanonicalNDArray(stream.st.elementType.canonicalPType().setRequired(true), nDims)
+                      val shapeTupleValue = shapeTupleCode.memoize(cb, "make_ndarray_shape")
+                      (0 until nDims).foreach { index =>
+                        cb.ifx(shapeTupleValue.isFieldMissing(index),
+                          cb.append(Code._fatal[Unit](s"shape missing at index $index")))
+                      }
 
-              xP.constructByCopyingArray(shapeValues, stridesSettables, memoData.sc.asIndexable, cb, region)
+                      val stridesSettables = (0 until nDims).map(i => cb.newLocal[Long](s"make_ndarray_stride_$i"))
+
+                      val shapeValues = (0 until nDims).map { i =>
+                        cb.newLocal[Long](s"make_ndarray_shape_${i}", shapeTupleValue.loadField(cb, i).get(cb).asLong.longCode(cb))
+                      }
+
+                      cb.ifx(isRowMajorCode.asBoolean.boolCode(cb), {
+                        val strides = xP.makeRowMajorStrides(shapeValues, region, cb)
+
+
+                        stridesSettables.zip(strides).foreach { case (settable, stride) =>
+                          cb.assign(settable, stride)
+                        }
+                      }, {
+                        val strides = xP.makeColumnMajorStrides(shapeValues, region, cb)
+                        stridesSettables.zip(strides).foreach { case (settable, stride) =>
+                          cb.assign(settable, stride)
+                        }
+                      })
+
+                      val (firstElementAddress, finisher) = xP.constructDataFunction(shapeValues, stridesSettables, cb, region)
+                      StreamUtils.storeNDArrayElementsAtAddress(cb, stream.producer, region, firstElementAddress, errorId)
+                      finisher(cb)
+                    }
+                  }
             }
           }
         }
