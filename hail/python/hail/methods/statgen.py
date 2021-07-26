@@ -984,6 +984,38 @@ def lrt_test(X, y, null_fit, link):
         fit=hl.struct(n_iterations=fit.num_iter, converged=fit.converged, exploded=fit.exploded))
 
 
+def logistic_score_test(X, y, null_fit, link):
+    assert (link == "logistic")
+    m = X.shape[1]
+    m0 = null_fit.b.shape[0]
+    b = hl.nd.hstack([null_fit.b, hl.nd.zeros((hl.int32(m - m0)))])
+
+    X0 = X[:, 0:m0]
+    X1 = X[:, m0:]
+
+    mu = (X @ b).map(lambda e: hl.logit(e))
+
+    score_0 = null_fit.score
+    score_1 = X1.T @ (y - mu)
+    score = hl.nd.hstack([score_0, score_1])
+
+    fisher00 = null_fit.fisher
+    fisher01 = X0.T @ ...
+    fisher10 = fisher01.T
+    fisher11 = X1.T @ ...
+
+    fisher = hl.nd.vstack([
+        hl.nd.hstack([fisher00, fisher01]),
+        hl.nd.hstack([fisher10, fisher11])
+    ])
+
+    chi_sq = score * hl.nd.solve(fisher, score)
+    p = hl.pchisqtail(chi_sq, ...)
+
+    return hl.struct(chi_sq_stat=...,
+                     p_value=...)
+
+
 @typecheck(test=enumeration('wald', 'lrt', 'score', 'firth'),
            y=oneof(expr_float64, sequenceof(expr_float64)),
            x=expr_float64,
@@ -1266,7 +1298,9 @@ def _logistic_regression_rows_nd(test, y, x, covariates, pass_through=()) -> hai
         covs_and_x = hl.nd.hstack([ht.cov_nd, ht.x.reshape((-1, 1))])
         lrt_structs = hl.range(num_y_fields).map(lambda idx: lrt_test(covs_and_x, ht.y_nd[:, idx], ht.nulls[idx], "logistic"))
         ht = ht.annotate(logistic_regression=lrt_structs)
-
+    elif test == "score":
+        covs_and_x = hl.nd.hstack([ht.cov_nd, ht.x.reshape((-1, 1))])
+        score_structs = hl.range(num_y_fields).map(lambda idx: ...)
     else:
         raise ValueError("Only support wald and lrt so far")
 
