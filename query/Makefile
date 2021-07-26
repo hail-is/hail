@@ -27,8 +27,8 @@ push-jar: jar
 	gsutil cp ./hail.jar $$(cat last_uploaded_jar)
 
 upload_resources_dir:
-	gsutil -m rsync ../hail/src/test/resources/ gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources/test/resources/ & \
-		gsutil -m rsync ../hail/python/hail/docs/data/ gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources/doctest/data/ & \
+	gsutil -m rsync -r ../hail/src/test/resources/ gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources/test/resources/ & \
+		gsutil -m rsync -r ../hail/python/hail/docs/data/ gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources/doctest/data/ & \
 		wait
 	touch upload_resources_dir
 
