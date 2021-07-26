@@ -246,25 +246,23 @@ class BatchPoolExecutor:
 
         try:
             bp_futures: List[BatchPoolFuture] = await asyncio.gather(*tasks)
-        finally:
-            _, exc, _ = sys.exc_info()
-            if exc is not None:
-                for task in tasks:
-                    if not task.done():
-                        task.cancel()
+        except Exception:
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
 
-                if tasks:
-                    await asyncio.wait(tasks)
+            if tasks:
+                await asyncio.wait(tasks)
 
-                bp_futures = []
-                for task in tasks:
-                    assert task.done()
-                    if not task.cancelled() and not task.exception():
-                        bp_future = task.result()
-                        bp_futures.append(bp_future)
+            bp_futures = []
+            for task in tasks:
+                assert task.done()
+                if not task.cancelled() and not task.exception():
+                    bp_future = task.result()
+                    bp_futures.append(bp_future)
 
-                if bp_futures:
-                    await asyncio.wait([bp_fut.async_cancel() for bp_fut in bp_futures])
+            if bp_futures:
+                await asyncio.wait([bp_fut.async_cancel() for bp_fut in bp_futures])
 
         async def async_result_or_cancel_all(future):
             try:
@@ -537,7 +535,7 @@ class BatchPoolFuture:
         try:
             return await asyncio.wait_for(self.fetch_coro, timeout=timeout)
         except asyncio.TimeoutError:
-            await self.batch.cancel()
+            await self.async_cancel()
             raise
 
     async def _async_fetch_result(self):
