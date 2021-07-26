@@ -356,7 +356,7 @@ object LowerBlockMatrixIR {
               override def blockContext(idx: (Int, Int)): IR = makestruct()
               override def blockBody(ctxRef: Ref): IR = NDArrayReshape(res, MakeTuple.ordered(Seq(I64(1L), I64(1L))), ErrorIDs.NO_ERROR)
             }
-          case IndexedSeq(1) => {
+          case IndexedSeq(0) => {
             new BlockMatrixStage(loweredChild.globalVals, TArray(loweredChild.ctxType)) {
               // Idea. Make an array of all child contexts in the row as the context.
               // Then use each one to look up child.
@@ -378,7 +378,7 @@ object LowerBlockMatrixIR {
               }
             }
           }//childBm.rowSum()
-          case IndexedSeq(0) => unimplemented(a)//childBm.colSum()
+          case IndexedSeq(1) => unimplemented(a)//childBm.colSum()
         }
 
       case x@BlockMatrixFilter(child, keep) =>

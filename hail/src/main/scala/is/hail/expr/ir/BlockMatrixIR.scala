@@ -613,26 +613,26 @@ case class BlockMatrixBroadcast(
 
 case class BlockMatrixAgg(
   child: BlockMatrixIR,
-  outIndexExpr: IndexedSeq[Int]) extends BlockMatrixIR {
+  axesToSumOut: IndexedSeq[Int]) extends BlockMatrixIR {
 
   val blockCostIsLinear: Boolean = child.blockCostIsLinear
 
-  assert(outIndexExpr.length < 2)
+  assert(axesToSumOut.length > 0)
 
   override lazy val typ: BlockMatrixType = {
     val matrixShape = BlockMatrixIR.tensorShapeToMatrixShape(child)
     val matrixShapeArr = Array[Long](matrixShape._1, matrixShape._2)
-    val shape = outIndexExpr.map({ i: Int => matrixShapeArr(i) }).toFastIndexedSeq
-    val isRowVector = outIndexExpr == FastIndexedSeq(1)
+    val shape = axesToSumOut.map({ i: Int => matrixShapeArr(i) }).toFastIndexedSeq
+    val isRowVector = axesToSumOut == FastIndexedSeq(1)
 
     val sparsity = if (child.typ.isSparse) {
-      outIndexExpr match {
-        case IndexedSeq() => BlockMatrixSparsity.dense
-        case IndexedSeq(1) => // col vector result; agg over row
+      axesToSumOut match {
+        case IndexedSeq(0, 1) => BlockMatrixSparsity.dense
+        case IndexedSeq(0) => // col vector result; agg over row
           BlockMatrixSparsity.constructFromShapeAndFunction(child.typ.nRowBlocks, 1) { (i, _) =>
             (0 until child.typ.nColBlocks).exists(j => child.typ.hasBlock(i -> j))
           }
-        case IndexedSeq(0) => // row vector result; agg over col
+        case IndexedSeq(1) => // row vector result; agg over col
           BlockMatrixSparsity.constructFromShapeAndFunction(1, child.typ.nColBlocks) { (_, j) =>
             (0 until child.typ.nRowBlocks).exists(i => child.typ.hasBlock(i -> j))
           }
@@ -646,16 +646,16 @@ case class BlockMatrixAgg(
 
   def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixAgg = {
     assert(newChildren.length == 1)
-    BlockMatrixAgg(newChildren(0).asInstanceOf[BlockMatrixIR], outIndexExpr)
+    BlockMatrixAgg(newChildren(0).asInstanceOf[BlockMatrixIR], axesToSumOut)
   }
 
   override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
     val childBm = child.execute(ctx)
 
-    outIndexExpr match {
-      case IndexedSeq() => BlockMatrixIR.toBlockMatrix(nRows = 1, nCols = 1, Array(childBm.sum()), typ.blockSize)
-      case IndexedSeq(1) => childBm.rowSum()
-      case IndexedSeq(0) => childBm.colSum()
+    axesToSumOut match {
+      case IndexedSeq(0, 1) => BlockMatrixIR.toBlockMatrix(nRows = 1, nCols = 1, Array(childBm.sum()), typ.blockSize)
+      case IndexedSeq(0) => childBm.rowSum()
+      case IndexedSeq(1) => childBm.colSum()
     }
   }
 }
