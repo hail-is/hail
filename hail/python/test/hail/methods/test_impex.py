@@ -1518,6 +1518,16 @@ class GENTests(unittest.TestCase):
         self.assertEqual(gen.count(), 199)
         self.assertEqual(gen.locus.dtype, hl.tlocus('GRCh37'))
 
+
+    def test_import_gen_no_chromosome_in_file(self):
+        gen = hl.import_gen(resource('no_chromosome.gen'),
+                            resource('skip_invalid_loci.sample'),
+                            chromosome="1",
+                            reference_genome=None,
+                            skip_invalid_loci=True)
+
+        self.assertEqual(gen.aggregate_rows(hl.agg.all(gen.locus.contig == "1")), True)
+
     @fails_service_backend()
     @fails_local_backend()
     def test_import_gen_no_reference_specified(self):
@@ -1536,7 +1546,6 @@ class GENTests(unittest.TestCase):
                            resource('skip_invalid_loci.sample'),
                            reference_genome='GRCh37',
                            skip_invalid_loci=True)
-        mt.show()
         self.assertEqual(mt._force_count_rows(), 3)
 
         with self.assertRaisesRegex(FatalError, 'Invalid locus'):

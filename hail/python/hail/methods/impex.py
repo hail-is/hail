@@ -1193,15 +1193,6 @@ def import_bgen(path,
 
     return mt
 
-# def import_gen2(path,
-#                 sample_file=None,
-#                 tolerance=0.2,
-#                 min_partitions=None,
-#                 chromosome=None,
-#                 reference_genome='default',
-#                 contig_recoding=None,
-#                 skip_invalid_loci=False) -> MatrixTable:
-
 
 @typecheck(path=oneof(str, sequenceof(str)),
            sample_file=nullable(str),
@@ -1306,6 +1297,7 @@ def import_gen(path,
     gen_table = import_lines(path, min_partitions)
     sample_table = import_lines(sample_file)
     rg = reference_genome.name if reference_genome else None
+    contig_recoding = contig_recoding
     if contig_recoding is None:
         contig_recoding = hl.empty_dict(hl.tstr, hl.tstr)
     else:
@@ -1358,7 +1350,6 @@ def import_gen(path,
                              .or_error("error creating gt field."))
     mt = mt.key_cols_by('s').drop('col_idx', 'file', 'data')
     mt = mt.key_rows_by('locus', 'alleles')
-    mt.describe()
     return mt
 
 

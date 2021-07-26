@@ -1903,7 +1903,6 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val tv = child.execute(ctx)
     val fsBc = ctx.fsBc
-
     val scanRef = genUID()
     val extracted = agg.Extract.apply(newRow, scanRef, Requiredness(this, ctx), isScan = true)
 

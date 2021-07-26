@@ -30,7 +30,7 @@ object StringTableReader {
   def getFileStatuses(fs: FS, files: Array[String]): Array[FileStatus] = {
     val status = fs.globAllStatuses(files)
     if (status.isEmpty)
-      fatal("arguments refer to no files")
+      fatal(s"arguments refer to no files: ${files.toIndexedSeq}.")
     status
   }
 }
@@ -55,7 +55,7 @@ class StringTableReader(
 
   override def rowAndGlobalPTypes(ctx: ExecuteContext, requestedType: TableType): (PStruct, PStruct) =
     (PCanonicalStruct(IndexedSeq(PField("file", PCanonicalString(true), 0),
-                                PField("text", PCanonicalString(true), 1)), true),
+                                PField("text", PCanonicalString(true), 1)), true).subsetTo(requestedType.rowType).asInstanceOf[PStruct],
      PCanonicalStruct.empty(required = true))
 
   def executeGeneric(ctx: ExecuteContext): GenericTableValue = {
@@ -69,11 +69,9 @@ class StringTableReader(
     val linesBody = lines.body
     val body = { (requestedRowType: TStruct) =>
       val requestedPType = bodyPType(requestedRowType)
-      println(s"requestedRowType = ${requestedRowType} req P ${requestedPType}")
       val rowFieldNames = requestedRowType.fieldNames
 
       { (region: Region, context: Any) =>
-        println(s"requestedRowFieldNames: ${rowFieldNames.toIndexedSeq}")
         val rvb = new RegionValueBuilder(region)
         linesBody(context).map{ bLine =>
           val line = bLine.toString
