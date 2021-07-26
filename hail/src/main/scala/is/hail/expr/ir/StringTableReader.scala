@@ -69,10 +69,11 @@ class StringTableReader(
     val linesBody = lines.body
     val body = { (requestedRowType: TStruct) =>
       val requestedPType = bodyPType(requestedRowType)
+      println(s"requestedRowType = ${requestedRowType} req P ${requestedPType}")
       val rowFieldNames = requestedRowType.fieldNames
 
       { (region: Region, context: Any) =>
-
+        println(s"requestedRowFieldNames: ${rowFieldNames.toIndexedSeq}")
         val rvb = new RegionValueBuilder(region)
         linesBody(context).map{ bLine =>
           val line = bLine.toString

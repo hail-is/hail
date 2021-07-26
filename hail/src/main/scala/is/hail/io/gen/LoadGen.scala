@@ -43,7 +43,6 @@ object LoadGen {
     val sampleIds = LoadBgen.readSampleFile(fs, sampleFile)
 
     fs.readLines(genFile)(_.foreach { _=> nVariants = 1 + nVariants})
-    println(s"nVariants = $nVariants")
 
     LoadVCF.warnDuplicates(sampleIds)
 
@@ -71,12 +70,10 @@ object LoadGen {
     val recodedContig = contigRecoding.getOrElse(chr, chr)
 
     val foo = skipInvalidLoci && !rg.forall(_.isValidLocus(recodedContig, start.toInt))
-    println(s"foo: $foo")
     if (foo)
       None
     else {
       val locus = Locus.annotation(recodedContig, start.toInt, rg)
-      println(s"locus: $locus")
       val alleles = FastIndexedSeq(ref, alt)
 
       val gp = arr.drop(6 - chrCol).map {
@@ -136,7 +133,6 @@ object MatrixGENReader {
     // FIXME: can't specify multiple chromosomes
     val results = params.files.map(f => LoadGen(f, params.sampleFile, fs, referenceGenome.map(_.broadcast), params.nPartitions,
       params.tolerance, params.chromosome, params.contigRecoding, params.skipInvalidLoci))
-    println(s"param files: ${params.files}")
     val unequalSamples = results.filter(_.nSamples != nSamples).map(x => (x.file, x.nSamples))
     if (unequalSamples.nonEmpty)
       fatal(
@@ -166,7 +162,6 @@ object MatrixGENReader {
         "rsid" -> TString, "varid" -> TString),
       entryType = TStruct("GT" -> TCall,
         "GP" -> TArray(TFloat64)))
-    println(s"Line 169 in JValue before MatrixGenReader creation")
     new MatrixGENReader(params, referenceGenome.map(_.broadcast), fullMatrixType, samples, results)
   }
 }
@@ -201,7 +196,6 @@ class MatrixGENReader(
   }
 
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
-    println(s"apply line 204 before executeGeneric ")
     executeGeneric(ctx).toTableValue(ctx, tr.typ)
 
   }
@@ -239,7 +233,6 @@ class MatrixGENReader(
       }
 
       { (region: Region, context: Any) =>
-        println(s"line 242 execute generic before rvb creation")
         val rvb = new RegionValueBuilder(region)
         val locusType = requestedRowType.fieldOption("locus").map(_.typ)
         val allelesType = requestedRowType.fieldOption("alleles").map(_.typ)
@@ -247,9 +240,7 @@ class MatrixGENReader(
         val varidType = requestedRowType.fieldOption("varid").map(_.typ)
         val gtType = requestedEntryType.fieldOption("GT").map(_.typ)
         val gpType = requestedEntryType.fieldOption("GP").map(_.typ)
-        println(s"line 250 execute generic before iteration on linesBody")
         linesBody(context).flatMap { line =>
-          println(s"line 250 in executeGeneric")
           val stringLine = line.toString
           val optLine = readGenLine(stringLine, localNSamples, tolerance, myRgbc.map(_.value),
             chromosome, contigRecoding, skipInvalidLoci)

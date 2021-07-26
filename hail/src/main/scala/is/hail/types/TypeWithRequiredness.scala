@@ -196,6 +196,7 @@ sealed abstract class TypeWithRequiredness extends BaseTypeWithRequiredness {
     if (a == null) union(false) else _unionLiteral(a)
 
   def fromPType(pType: PType): Unit = {
+    println(s"Ptype: ${pType}")
     union(pType.required)
     _unionPType(pType)
   }
@@ -364,8 +365,10 @@ sealed abstract class RBaseStruct extends TypeWithRequiredness {
     children.zip(a.asInstanceOf[Row].toSeq).foreach { case (r, f) => r.unionLiteral(f) }
   def _matchesPType(pt: PType): Boolean =
     coerce[PBaseStruct](pt).fields.forall(f => children(f.index).matchesPType(f.typ))
-  def _unionPType(pType: PType): Unit =
+  def _unionPType(pType: PType): Unit = {
     pType.asInstanceOf[PBaseStruct].fields.foreach(f => children(f.index).fromPType(f.typ))
+  }
+
   def canonicalPType(t: Type): PType = t match {
     case ts: TStruct =>
       PCanonicalStruct(required = required,

@@ -1509,7 +1509,7 @@ class BGENTests(unittest.TestCase):
 class GENTests(unittest.TestCase):
     @fails_service_backend()
     @fails_local_backend()
-    def test_import_gen(self):
+    def test_import_gen_emma(self):
         gen = hl.import_gen(resource('example.gen'),
                             sample_file=resource('example.sample'),
                             contig_recoding={"01": "1"},
@@ -1532,12 +1532,12 @@ class GENTests(unittest.TestCase):
     @fails_service_backend()
     @fails_local_backend()
     def test_import_gen_skip_invalid_loci(self):
-        # mt = hl.import_gen(resource('skip_invalid_loci.gen'),
-        #                    resource('skip_invalid_loci.sample'),
-        #                    reference_genome='GRCh37',
-        #                    skip_invalid_loci=True)
-        # self.assertEqual(mt._force_count_rows(),
-        #                  3)
+        mt = hl.import_gen(resource('skip_invalid_loci.gen'),
+                           resource('skip_invalid_loci.sample'),
+                           reference_genome='GRCh37',
+                           skip_invalid_loci=True)
+        mt.show()
+        self.assertEqual(mt._force_count_rows(), 3)
 
         with self.assertRaisesRegex(FatalError, 'Invalid locus'):
              mt = hl.import_gen(resource('skip_invalid_loci.gen'),
@@ -1954,7 +1954,7 @@ class ImportMatrixTableTests(unittest.TestCase):
 
 class ImportStringTests(unittest.TestCase):
 
-    def test_import_strings(self):
+    def test_import_lines(self):
         t = hl.import_lines(resource('example.gen'))
         t.show()
 

@@ -1193,6 +1193,15 @@ def import_bgen(path,
 
     return mt
 
+# def import_gen2(path,
+#                 sample_file=None,
+#                 tolerance=0.2,
+#                 min_partitions=None,
+#                 chromosome=None,
+#                 reference_genome='default',
+#                 contig_recoding=None,
+#                 skip_invalid_loci=False) -> MatrixTable:
+
 
 @typecheck(path=oneof(str, sequenceof(str)),
            sample_file=nullable(str),
@@ -1242,7 +1251,7 @@ def import_gen(path,
 
     - `locus` (:class:`.tlocus` or :class:`.tstruct`) -- Row key. The genomic
       location consisting of the chromosome (1st column if present, otherwise
-      given by `chromosome`) and position (3rd column if `chromosome` is not
+      given by `chromosome`) and position (4th column if `chromosome` is not
       defined). If `reference_genome` is defined, the type will be
       :class:`.tlocus` parameterized by `reference_genome`. Otherwise, the type
       will be a :class:`.tstruct` with two fields: `contig` with type
@@ -1293,12 +1302,59 @@ def import_gen(path,
     -------
     :class:`.MatrixTable`
     """
-    path = wrap_to_list(path)
+    paths = wrap_to_list(path)
+    gen_table = import_lines(path, min_partitions)
+    sample_table = import_lines(sample_file)
     rg = reference_genome.name if reference_genome else None
     if contig_recoding is None:
-        contig_recoding = {}
-    return MatrixTable(ir.MatrixRead(ir.MatrixGENReader(
-        path, sample_file, chromosome, min_partitions, tolerance, rg, contig_recoding, skip_invalid_loci)))
+        contig_recoding = hl.empty_dict(hl.tstr, hl.tstr)
+    else:
+        contig_recoding = hl.dict(contig_recoding)
+
+    gen_table = gen_table.transmute(data=gen_table.text.split(' '))
+
+    if chromosome is None:
+        index = 5
+        contig_holder = gen_table.data[0]
+        contig_holder = contig_recoding.get(contig_holder, contig_holder)
+    else:
+        index = 4
+        contig_holder = chromosome
+    if rg is None:
+        locus = hl.struct(contig=contig_holder, position=hl.int(gen_table.data[index-2]))
+    else:
+        locus = hl.locus(contig_holder, hl.int(gen_table.data[index-2]), rg)
+    alleles = hl.array([hl.str(gen_table.data[index-1]), hl.str(gen_table.data[index])])
+    rsid = gen_table.data[index-3]
+    varid = gen_table.data[index-4]
+    gen_table = gen_table.annotate(locus=locus, alleles=alleles, varid=varid, rsid=rsid)
+    gen_table = gen_table.annotate(entries=gen_table.data[index+1:].map(lambda x: hl.float64(x))
+                                   .grouped(3).map(lambda x: hl.struct(gp=x)))
+    entry_count = hl.len(gen_table.head(1).entries).collect()[0]
+    gen_table = gen_table.annotate_globals(cols=hl.range(entry_count).map(lambda x: hl.struct(col_idx=x)))
+
+    mt = gen_table._unlocalize_entries('entries', 'cols', ['col_idx'])
+
+    sample_table_count = sample_table.count()
+    #throw error if sample_table_count != entry_count:
+
+    sample_table = sample_table.tail(sample_table_count - 2).add_index()
+    sample_table = sample_table.annotate(s=sample_table.text.split(' ')[0])
+    sample_table = sample_table.key_by(sample_table.idx)
+    mt = mt.annotate_cols(s=sample_table[hl.int64(mt.col_idx)].s)
+    mt = mt.annotate_entries(gp=hl.bind(lambda x: hl.if_else(x < 1.0 - tolerance, hl.array(), (1 - x)*mt.gp),
+                                        hl.fold(lambda y, z: y + z, 0, mt.gp)))
+
+
+
+
+
+
+    #gen_table = gen_table.annotate(gp=data)
+
+    mt.describe()
+
+    return mt
 
 
 @typecheck(paths=oneof(str, sequenceof(str)),
