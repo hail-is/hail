@@ -30,7 +30,8 @@ Released 2021-07-26
 
 ### Bug fixes
 
-- (hail#10697) Fix bug in `read_table` when the table has missing keys and `_n_partitions` is specified.
+- (hail#10697) Fixed bug in `read_table` when the table has missing keys and `_n_partitions` is specified.
+- (hail#10695) Fixed bug in hl.experimental.loop causing incorrect results when loop state contained pointers.
 
 ---
 
