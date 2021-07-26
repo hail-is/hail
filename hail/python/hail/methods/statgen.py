@@ -1000,20 +1000,26 @@ def logistic_score_test(X, y, null_fit, link):
     score = hl.nd.hstack([score_0, score_1])
 
     fisher00 = null_fit.fisher
-    fisher01 = X0.T @ ...
+    fisher01 = X0.T @ (X1 * (mu * (1 - mu)).reshape(-1, 1))
     fisher10 = fisher01.T
-    fisher11 = X1.T @ ...
+    fisher11 = X1.T @ (X1 * (mu * (1 - mu)).reshape(-1, 1))
 
     fisher = hl.nd.vstack([
         hl.nd.hstack([fisher00, fisher01]),
         hl.nd.hstack([fisher10, fisher11])
     ])
 
-    chi_sq = score * hl.nd.solve(fisher, score)
-    p = hl.pchisqtail(chi_sq, ...)
+    solve_attempt = hl.nd.solve(fisher, score, no_crash=True)
 
-    return hl.struct(chi_sq_stat=...,
-                     p_value=...)
+    chi_sq = hl.if_else(solve_attempt.failed,
+                        hl.missing(hl.tfloat64),
+                        (score * solve_attempt.solution).sum()
+                       )
+
+    p = hl.pchisqtail(chi_sq, m - m0)
+
+    return hl.struct(chi_sq_stat=chi_sq,
+                     p_value=p)
 
 
 @typecheck(test=enumeration('wald', 'lrt', 'score', 'firth'),
@@ -1300,7 +1306,8 @@ def _logistic_regression_rows_nd(test, y, x, covariates, pass_through=()) -> hai
         ht = ht.annotate(logistic_regression=lrt_structs)
     elif test == "score":
         covs_and_x = hl.nd.hstack([ht.cov_nd, ht.x.reshape((-1, 1))])
-        score_structs = hl.range(num_y_fields).map(lambda idx: ...)
+        score_structs = hl.range(num_y_fields).map(lambda idx: logistic_score_test(covs_and_x, ht.y_nd[:, idx], ht.nulls[idx], "logistic"))
+        ht = ht.annotate(logistic_regression=score_structs)
     else:
         raise ValueError("Only support wald and lrt so far")
 

@@ -601,8 +601,6 @@ class Tests(unittest.TestCase):
                                                                             covariates=[1],
                                                                             weights=mt.col_2))
 
-
-
     # comparing to R:
     # x = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
     # y = c(0, 0, 1, 1, 1, 1, 0, 0, 1, 1)
@@ -867,8 +865,6 @@ class Tests(unittest.TestCase):
     # scoretest <- anova(logfitnull, logfit, test="Rao")
     # chi2 <- scoretest[["Rao"]][2]
     # pval <- scoretest[["Pr(>Chi)"]][2]
-    @fails_service_backend()
-    @fails_local_backend()
     def test_logistic_regression_score(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -878,31 +874,33 @@ class Tests(unittest.TestCase):
                                 missing='0',
                                 types={'isCase': hl.tbool})
         mt = hl.import_vcf(resource('regressionLogistic.vcf'))
-        ht = hl.logistic_regression_rows(
-            test='score',
-            y=pheno[mt.s].isCase,
-            x=mt.GT.n_alt_alleles(),
-            covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
-
-        results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
-
-        self.assertAlmostEqual(results[1].chi_sq_stat, 0.1502364955, places=6)
-        self.assertAlmostEqual(results[1].p_value, 0.6983094571, places=6)
-
-        self.assertAlmostEqual(results[2].chi_sq_stat, 0.1823600965, places=6)
-        self.assertAlmostEqual(results[2].p_value, 0.6693528073, places=6)
-
-        self.assertAlmostEqual(results[3].chi_sq_stat, 7.047367694, places=6)
-        self.assertAlmostEqual(results[3].p_value, 0.007938182229, places=6)
 
         def is_constant(r):
             return r.chi_sq_stat is None or r.chi_sq_stat < 1e-6
 
-        self.assertTrue(is_constant(results[6]))
-        self.assertTrue(is_constant(results[7]))
-        self.assertTrue(is_constant(results[8]))
-        self.assertTrue(is_constant(results[9]))
-        self.assertTrue(is_constant(results[10]))
+        for logreg_function in self.logreg_functions:
+            ht = logreg_function(
+                test='score',
+                y=pheno[mt.s].isCase,
+                x=mt.GT.n_alt_alleles(),
+                covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+
+            results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
+
+            self.assertAlmostEqual(results[1].chi_sq_stat, 0.1502364955, places=6)
+            self.assertAlmostEqual(results[1].p_value, 0.6983094571, places=6)
+
+            self.assertAlmostEqual(results[2].chi_sq_stat, 0.1823600965, places=6)
+            self.assertAlmostEqual(results[2].p_value, 0.6693528073, places=6)
+
+            self.assertAlmostEqual(results[3].chi_sq_stat, 7.047367694, places=6)
+            self.assertAlmostEqual(results[3].p_value, 0.007938182229, places=6)
+
+            self.assertTrue(is_constant(results[6]))
+            self.assertTrue(is_constant(results[7]))
+            self.assertTrue(is_constant(results[8]))
+            self.assertTrue(is_constant(results[9]))
+            self.assertTrue(is_constant(results[10]))
 
     @fails_service_backend()
     @fails_local_backend()
