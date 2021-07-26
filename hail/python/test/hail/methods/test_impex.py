@@ -1509,7 +1509,7 @@ class BGENTests(unittest.TestCase):
 class GENTests(unittest.TestCase):
     @fails_service_backend()
     @fails_local_backend()
-    def test_import_gen_emma(self):
+    def test_import_gen(self):
         gen = hl.import_gen(resource('example.gen'),
                             sample_file=resource('example.sample'),
                             contig_recoding={"01": "1"},

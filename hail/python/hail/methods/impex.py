@@ -1316,44 +1316,49 @@ def import_gen(path,
     if chromosome is None:
         index = 5
         contig_holder = gen_table.data[0]
-        contig_holder = contig_recoding.get(contig_holder, contig_holder)
     else:
         index = 4
         contig_holder = chromosome
+
+    contig_holder = contig_recoding.get(contig_holder, contig_holder)
+
     if rg is None:
         locus = hl.struct(contig=contig_holder, position=hl.int(gen_table.data[index-2]))
     else:
-        locus = hl.locus(contig_holder, hl.int(gen_table.data[index-2]), rg)
+        if skip_invalid_loci:
+            locus = hl.if_else(hl.is_valid_locus(contig_holder, hl.int(gen_table.data[index-2]), rg),
+                               hl.locus(contig_holder, hl.int(gen_table.data[index-2]), rg),
+                               hl.missing(hl.tlocus(rg)))
+        else:
+            locus = hl.locus(contig_holder, hl.int(gen_table.data[index-2]), rg)
+
     alleles = hl.array([hl.str(gen_table.data[index-1]), hl.str(gen_table.data[index])])
     rsid = gen_table.data[index-3]
     varid = gen_table.data[index-4]
-    gen_table = gen_table.annotate(locus=locus, alleles=alleles, varid=varid, rsid=rsid)
+    gen_table = gen_table.annotate(locus=locus, alleles=alleles, rsid=rsid, varid=varid)
     gen_table = gen_table.annotate(entries=gen_table.data[index+1:].map(lambda x: hl.float64(x))
-                                   .grouped(3).map(lambda x: hl.struct(gp=x)))
-    entry_count = hl.len(gen_table.head(1).entries).collect()[0]
-    gen_table = gen_table.annotate_globals(cols=hl.range(entry_count).map(lambda x: hl.struct(col_idx=x)))
+                                   .grouped(3).map(lambda x: hl.struct(GP=x)))
 
+    sample_table_count = sample_table.count() - 2
+    gen_table = gen_table.annotate_globals(cols=hl.range(sample_table_count).map(lambda x: hl.struct(col_idx=x)))
+    gen_table = gen_table.filter(hl.is_defined(gen_table.locus))
     mt = gen_table._unlocalize_entries('entries', 'cols', ['col_idx'])
 
-    sample_table_count = sample_table.count()
-    #throw error if sample_table_count != entry_count:
-
-    sample_table = sample_table.tail(sample_table_count - 2).add_index()
+    sample_table = sample_table.tail(sample_table_count).add_index()
     sample_table = sample_table.annotate(s=sample_table.text.split(' ')[0])
     sample_table = sample_table.key_by(sample_table.idx)
     mt = mt.annotate_cols(s=sample_table[hl.int64(mt.col_idx)].s)
-    mt = mt.annotate_entries(gp=hl.bind(lambda x: hl.if_else(x < 1.0 - tolerance, hl.array(), (1 - x)*mt.gp),
-                                        hl.fold(lambda y, z: y + z, 0, mt.gp)))
-
-
-
-
-
-
-    #gen_table = gen_table.annotate(gp=data)
-
+    mt = mt.annotate_entries(GP=hl.bind(lambda x: hl.if_else(hl.abs(1.0 - x) > tolerance,
+                                                             hl.missing(hl.tarray(hl.tfloat64)), hl.abs((1 / x)*mt.GP)),
+                                        hl.sum(mt.GP)))
+    mt = mt.annotate_entries(GT=hl.switch(hl.argmax(mt.GP))
+                             .when(0, hl.call(0, 0))
+                             .when(1, hl.call(0, 1))
+                             .when(2, hl.call(1, 1))
+                             .or_error("error creating gt field."))
+    mt = mt.key_cols_by('s').drop('col_idx', 'file', 'data')
+    mt = mt.key_rows_by('locus', 'alleles')
     mt.describe()
-
     return mt
 
 
