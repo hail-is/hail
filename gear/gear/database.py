@@ -7,6 +7,7 @@ import logging
 import functools
 import ssl
 import traceback
+import warnings
 
 from hailtop.utils import sleep_and_backoff, LoggingTimer
 from hailtop.auth.sql_config import SQLConfig
@@ -19,6 +20,22 @@ log = logging.getLogger('gear.database')
 # 2003 - Can't connect to MySQL server on ...
 # 2013 - Lost connection to MySQL server during query ([Errno 104] Connection reset by peer)
 retry_codes = (1213, 2003, 2013)
+
+
+async def _show_warnings(self, conn):
+    if self._result and self._result.has_next:
+        return
+    ws = await conn.show_warnings()
+    if ws is None:
+        return
+    for w in ws:
+        msg = w[-1]
+        last_executed = getattr(self, '_last_executed', None)
+        executed = getattr(self, '_executed', None)
+        warnings.warn(f'{msg} {last_executed} {executed}', Warning, 4)
+
+
+aiomysql.Cursor._show_warnings = _show_warnings
 
 
 def retry_transient_mysql_errors(f):

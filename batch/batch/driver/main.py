@@ -30,11 +30,11 @@ from hailtop.utils import (
     periodically_call,
     AsyncWorkerPool,
     dump_all_stacktraces,
+    adjust_logging_level_error_to_warning,
 )
 from hailtop.tls import internal_server_ssl_context
 from hailtop import aiogoogle, aiotools
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
-import googlecloudprofiler
 import uvloop
 
 from ..log_store import LogStore
@@ -63,6 +63,10 @@ from ..utils import query_billing_projects, unreserved_worker_data_disk_size_gib
 from ..exceptions import BatchUserError
 
 uvloop.install()
+
+google_cloud_profiler_logger = logging.getLogger('googlecloudprofiler')
+google_cloud_profiler_logger.addFilter(adjust_logging_level_error_to_warning)
+import googlecloudprofiler
 
 log = logging.getLogger('batch')
 
@@ -1065,7 +1069,7 @@ def run():
             service='batch-driver',
             service_version=profiler_tag,
             # https://cloud.google.com/profiler/docs/profiling-python#agent_logging
-            verbose=3,
+            verbose=0,
         )
 
     app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE, middlewares=[monitor_endpoints_middleware])
