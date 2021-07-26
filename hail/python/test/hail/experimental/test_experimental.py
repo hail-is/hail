@@ -444,3 +444,8 @@ class Tests(unittest.TestCase):
 
         initial_struct = hl.struct(s1="a", s2="gfedcb")
         assert hl.eval(hl.experimental.loop(loop_func, hl.tstruct(s1=hl.tstr, s2=hl.tstr), initial_struct)) == hl.Struct(s1="abcd", s2="gfe")
+
+    def test_loop_memory(self):
+        def foo(recur, arr, idx): return hl.if_else(idx > 10, arr, recur(arr.append(hl.str(idx)), idx+1))
+
+        assert hl.eval(hl.experimental.loop(foo, hl.tarray(hl.tstr), hl.literal(['foo']), 1)) == ['foo', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10']
