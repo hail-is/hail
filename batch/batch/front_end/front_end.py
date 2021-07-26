@@ -1539,7 +1539,7 @@ async def post_edit_billing_limits_ui(request, userdata):  # pylint: disable=unu
     return web.HTTPFound(deploy_config.external_url('batch', '/billing_limits'))
 
 
-async def _query_billing(request):
+async def _query_billing(request, user=None):
     db: Database = request.app['db']
 
     date_format = '%m/%d/%Y'
@@ -1584,9 +1584,13 @@ async def _query_billing(request):
         where_conditions.append("`time_completed` <= %s")
         where_args.append(end)
     else:
-        where_conditions.append("(`time_completed` IS NOT NULL AND `time_completed` >= %s) OR "
-                                "(`time_closed` IS NOT NULL AND `time_completed` IS NULL)")
+        where_conditions.append("((`time_completed` IS NOT NULL AND `time_completed` >= %s) OR "
+                                "(`time_closed` IS NOT NULL AND `time_completed` IS NULL))")
         where_args.append(start)
+
+    if user is not None:
+        where_conditions.append("`user` = %s")
+        where_args.append(user)
 
     sql = f'''
 SELECT
@@ -1620,10 +1624,12 @@ GROUP BY billing_project, `user`;
 
 
 @routes.get('/billing')
-@web_authenticated_developers_only()
+@web_authenticated_users_only()
 @catch_ui_error_in_dev
 async def ui_get_billing(request, userdata):
-    billing, start, end = await _query_billing(request)
+    is_developer = userdata['is_developer'] == 1
+    user = userdata['username'] if not is_developer else None
+    billing, start, end = await _query_billing(request, user=user)
 
     billing_by_user = {}
     billing_by_project = {}
@@ -1655,6 +1661,8 @@ async def ui_get_billing(request, userdata):
         'billing_by_project_user': billing_by_project_user,
         'start': start,
         'end': end,
+        'is_developer': is_developer,
+        'user': userdata['username'],
     }
     return await render_template('batch', request, userdata, 'billing.html', page_context)
 
