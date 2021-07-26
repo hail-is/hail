@@ -205,6 +205,8 @@ class SUnreachableCallValue extends SUnreachableValue with SCallValue with SCall
   def st: SUnreachableCall.type = SUnreachableCall
 
   override def get: SUnreachableCallValue = this
+
+  override def lgtToGT(cb: EmitCodeBuilder, localAlleles: SIndexableValue, errorID: Value[Int]): SCallCode = this
 }
 
 

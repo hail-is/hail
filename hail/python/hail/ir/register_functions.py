@@ -216,6 +216,7 @@ def register_functions():
     register_function("split", (dtype("str"), dtype("str"),), dtype("array<str>"))
     register_seeded_function("rand_gamma", (dtype("float64"), dtype("float64"),), dtype("float64"))
     register_function("UnphasedDiploidGtIndexCall", (dtype("int32"),), dtype("call"))
+    register_function("lgt_to_gt", (dtype("call"), dtype("array<int32>"),), dtype("call"))
     register_function("index", (dtype("call"), dtype("int32"),), dtype("int32"))
     register_function("sign", (dtype("int64"),), dtype("int64"))
     register_function("sign", (dtype("float64"),), dtype("float64"))
