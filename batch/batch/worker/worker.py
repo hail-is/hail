@@ -1575,16 +1575,18 @@ class JVMJob(Job):
 
     async def cleanup(self):
         if self.jvm is not None:
-            with self.step('retrieve_output'):
-                self.log = self.jvm.retrieve_and_clear_output()
-                worker.jvms.append(self.jvm)
-                self.jvm = None
+            # I really want this to be a timed step but I can't skip this ITS CLEAN UP
+            # with self.step('retrieve_output'):
+            self.log = self.jvm.retrieve_and_clear_output()
+            worker.jvms.append(self.jvm)
+            self.jvm = None
 
         if self.log is not None:
-            with self.step('uploading_log'):
-                await worker.log_store.write_log_file(
-                    self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', self.log
-                )
+            # I really want this to be a timed step but I CANT RAISE EXCEPTIONS IN CLEANUP!!
+            # with self.step('uploading_log'):
+            await worker.log_store.write_log_file(
+                self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', self.log
+            )
 
         self.end_time = time_msecs()
 
