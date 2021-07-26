@@ -1296,20 +1296,19 @@ def _logistic_regression_rows_nd(test, y, x, covariates, pass_through=()) -> hai
     ht = ht.transmute(x=hl.nd.array(mean_impute(ht.entries[x_field_name])))
 
     if test == "wald":
-        # For each y vector, need to do wald test.
-        covs_and_x = hl.nd.hstack([ht.cov_nd, ht.x.reshape((-1, 1))])
-        wald_structs = hl.range(num_y_fields).map(lambda idx: wald_test(covs_and_x, ht.y_nd[:, idx], ht.nulls[idx], "logistic"))
-        ht = ht.annotate(logistic_regression=wald_structs)
+        test_func = wald_test
     elif test == "lrt":
-        covs_and_x = hl.nd.hstack([ht.cov_nd, ht.x.reshape((-1, 1))])
-        lrt_structs = hl.range(num_y_fields).map(lambda idx: lrt_test(covs_and_x, ht.y_nd[:, idx], ht.nulls[idx], "logistic"))
-        ht = ht.annotate(logistic_regression=lrt_structs)
+        test_func = lrt_test
     elif test == "score":
-        covs_and_x = hl.nd.hstack([ht.cov_nd, ht.x.reshape((-1, 1))])
-        score_structs = hl.range(num_y_fields).map(lambda idx: logistic_score_test(covs_and_x, ht.y_nd[:, idx], ht.nulls[idx], "logistic"))
-        ht = ht.annotate(logistic_regression=score_structs)
+        test_func = logistic_score_test
+    elif test == "firth":
+        ...
     else:
-        raise ValueError("Only support wald and lrt so far")
+        raise ValueError(f"Illegal test type {test}")
+
+    covs_and_x = hl.nd.hstack([ht.cov_nd, ht.x.reshape((-1, 1))])
+    test_structs = hl.range(num_y_fields).map(lambda idx: test_func(covs_and_x, ht.y_nd[:, idx], ht.nulls[idx], "logistic"))
+    ht = ht.annotate(logistic_regression=test_structs)
 
     if not y_is_list:
         ht = ht.transmute(**ht.logistic_regression[0])
