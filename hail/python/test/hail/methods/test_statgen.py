@@ -989,8 +989,6 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(firth[16117953].beta, 0.5258, places=4)
         self.assertAlmostEqual(firth[16117953].p_value, 0.22562, places=4)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_logreg_pass_through(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -999,13 +997,14 @@ class Tests(unittest.TestCase):
                                 key='Sample',
                                 missing='0',
                                 types={'isCase': hl.tbool})
-        mt = hl.import_vcf(resource('regressionLogistic.vcf')).annotate_rows(foo = hl.struct(bar=hl.rand_norm(0, 1)))
-        ht = hl.logistic_regression_rows('wald',
-                                         y=pheno[mt.s].isCase,
-                                         x=mt.GT.n_alt_alleles(),
-                                         covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2],
-                                         pass_through=['filters', mt.foo.bar, mt.qual])
+        mt = hl.import_vcf(resource('regressionLogistic.vcf')).annotate_rows(foo=hl.struct(bar=hl.rand_norm(0, 1)))
 
+        for logreg_function in self.logreg_functions:
+            ht = logreg_function('wald',
+                                 y=pheno[mt.s].isCase,
+                                 x=mt.GT.n_alt_alleles(),
+                                 covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2],
+                                 pass_through=['filters', mt.foo.bar, mt.qual])
 
         assert mt.aggregate_rows(hl.agg.all(mt.foo.bar == ht[mt.row_key].bar))
 
