@@ -441,7 +441,7 @@ class Container:
                     self.rootfs_path = f'/host/rootfs/{self.image_id}'
                     async with worker.rootfs_locks[self.image_id]:
                         if not os.path.exists(self.rootfs_path):
-                            await self.extract_rootfs()
+                            await asyncio.shield(self.extract_rootfs())
                             log.info(f'Added expanded image to cache: {self.image_ref_str}, ID: {self.image_id}')
 
             with self.step('pulling'):
