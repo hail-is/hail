@@ -487,7 +487,7 @@ async def _query_batches(request, user, q):
     last_batch_id = request.query.get('last_batch_id')
     if last_batch_id is not None:
         last_batch_id = int(last_batch_id)
-        where_conditions.append('(id < %s)')
+        where_conditions.append('(batches.id < %s)')
         where_args.append(last_batch_id)
 
     terms = q.split()
