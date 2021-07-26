@@ -956,7 +956,7 @@ def logreg_fit(X, y, null_fit=None, max_iter=25, tol=1E-6):
 
 
 def wald_test(X, y, null_fit, link):
-    assert (link == "logistic")
+    assert link == "logistic"
     fit = logreg_fit(X, y, null_fit)
 
     se = hl.nd.diagonal(hl.nd.inv(fit.fisher)).map(lambda e: hl.sqrt(e))
@@ -971,7 +971,7 @@ def wald_test(X, y, null_fit, link):
 
 
 def lrt_test(X, y, null_fit, link):
-    assert (link == "logistic")
+    assert link == "logistic"
     fit = logreg_fit(X, y, null_fit)
 
     chi_sq = hl.if_else(~fit.converged, hl.missing(hl.tfloat64), 2 * (fit.log_lkhd - null_fit.log_lkhd))
@@ -985,7 +985,7 @@ def lrt_test(X, y, null_fit, link):
 
 
 def logistic_score_test(X, y, null_fit, link):
-    assert (link == "logistic")
+    assert link == "logistic"
     m = X.shape[1]
     m0 = null_fit.b.shape[0]
     b = hl.nd.hstack([null_fit.b, hl.nd.zeros((hl.int32(m - m0)))])
@@ -1020,6 +1020,11 @@ def logistic_score_test(X, y, null_fit, link):
 
     return hl.struct(chi_sq_stat=chi_sq,
                      p_value=p)
+
+
+def firth_test(X, y, null_fit, link):
+    assert link == "logistic"
+    raise ValueError("firth not yet supported on lowered backends")
 
 
 @typecheck(test=enumeration('wald', 'lrt', 'score', 'firth'),
@@ -1302,7 +1307,7 @@ def _logistic_regression_rows_nd(test, y, x, covariates, pass_through=()) -> hai
     elif test == "score":
         test_func = logistic_score_test
     elif test == "firth":
-        ...
+        test_func = firth_test
     else:
         raise ValueError(f"Illegal test type {test}")
 
