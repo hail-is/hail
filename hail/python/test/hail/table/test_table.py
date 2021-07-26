@@ -1672,7 +1672,7 @@ def test_read_partitions_with_missing_key():
     ht = hl.utils.range_table(100, 3).key_by(idx=hl.missing(hl.tint32))
     path = new_temp_file()
     ht.write(path)
-    assert hl.read_table(path, _n_partitions=10).n_partitions() == 10
+    assert hl.read_table(path, _n_partitions=10).n_partitions() == 1  # one key => one partition
 
 
 def test_grouped_flatmap_streams():
