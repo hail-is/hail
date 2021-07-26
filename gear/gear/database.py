@@ -12,6 +12,10 @@ import warnings
 from hailtop.utils import sleep_and_backoff, LoggingTimer
 from hailtop.auth.sql_config import SQLConfig
 
+warnings.filterwarnings('error',
+                        message='.*This version of MySQL doesn\'t yet support \'sorting of non-scalar JSON values\'',
+                        category=pymysql.Warning)
+
 
 log = logging.getLogger('gear.database')
 
@@ -20,22 +24,6 @@ log = logging.getLogger('gear.database')
 # 2003 - Can't connect to MySQL server on ...
 # 2013 - Lost connection to MySQL server during query ([Errno 104] Connection reset by peer)
 retry_codes = (1213, 2003, 2013)
-
-
-async def _show_warnings(self, conn):
-    if self._result and self._result.has_next:
-        return
-    ws = await conn.show_warnings()
-    if ws is None:
-        return
-    for w in ws:
-        msg = w[-1]
-        last_executed = getattr(self, '_last_executed', None)
-        executed = getattr(self, '_executed', None)
-        warnings.warn(f'{msg} {last_executed} {executed}', Warning, 4)
-
-
-aiomysql.Cursor._show_warnings = _show_warnings
 
 
 def retry_transient_mysql_errors(f):
@@ -56,6 +44,19 @@ def retry_transient_mysql_errors(f):
                     raise
             delay = await sleep_and_backoff(delay)
 
+    return wrapper
+
+
+def handle_raised_warnings(f):
+    @functools.wraps(f)
+    async def wrapper(*args, **kwargs):
+        args_names = f.__code__.co_varnames[:f.__code__.co_argcount]
+        args_dict = {**dict(zip(args_names, args)), **kwargs}
+        sql = args_dict.get('sql')
+        try:
+            return await f(*args, **kwargs)
+        except Warning as w:
+            log.exception(f'raised warning {w} while executing {sql}')
     return wrapper
 
 
@@ -153,6 +154,16 @@ async def _release_connection(conn_context_manager):
             log.exception('while releasing database connection')
 
 
+@handle_raised_warnings
+async def execute(cursor, sql, args=None):
+    return await cursor.execute(sql, args=args)
+
+
+@handle_raised_warnings
+async def executemany(cursor, sql, args=None):
+    return await cursor.executemany(sql, args=args)
+
+
 class Transaction:
     def __init__(self):
         self.conn_context_manager = None
@@ -164,9 +175,9 @@ class Transaction:
             self.conn = await aenter(self.conn_context_manager)
             async with self.conn.cursor() as cursor:
                 if read_only:
-                    await cursor.execute('START TRANSACTION READ ONLY;')
+                    await execute(cursor, 'START TRANSACTION READ ONLY;')
                 else:
-                    await cursor.execute('START TRANSACTION;')
+                    await execute(cursor, 'START TRANSACTION;')
         except:
             self.conn = None
             conn_context_manager = self.conn_context_manager
@@ -214,22 +225,22 @@ class Transaction:
     async def just_execute(self, sql, args=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
-            await cursor.execute(sql, args)
+            await execute(cursor, sql, args)
 
     async def execute_and_fetchone(self, sql, args=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
-            await cursor.execute(sql, args)
+            await execute(cursor, sql, args)
             return await cursor.fetchone()
 
     async def execute_and_fetchall(self, sql, args=None, timer_description=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
             if timer_description is None:
-                await cursor.execute(sql, args)
+                await execute(cursor, sql, args)
             else:
                 async with LoggingTimer(f'{timer_description}: execute_and_fetchall: execute', threshold_ms=20):
-                    await cursor.execute(sql, args)
+                    await execute(cursor, sql, args)
             while True:
                 if timer_description is None:
                     rows = await cursor.fetchmany(100)
@@ -244,18 +255,18 @@ class Transaction:
     async def execute_insertone(self, sql, args=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
-            await cursor.execute(sql, args)
+            await execute(cursor, sql, args)
             return cursor.lastrowid
 
     async def execute_update(self, sql, args=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
-            return await cursor.execute(sql, args)
+            return await execute(cursor, sql, args)
 
     async def execute_many(self, sql, args_array):
         assert self.conn
         async with self.conn.cursor() as cursor:
-            return await cursor.executemany(sql, args_array)
+            return await executemany(cursor, sql, args_array)
 
 
 class Database:

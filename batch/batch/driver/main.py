@@ -30,11 +30,11 @@ from hailtop.utils import (
     periodically_call,
     AsyncWorkerPool,
     dump_all_stacktraces,
-    adjust_logging_level_error_to_warning,
 )
 from hailtop.tls import internal_server_ssl_context
 from hailtop import aiogoogle, aiotools
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
+import googlecloudprofiler
 import uvloop
 
 from ..log_store import LogStore
@@ -64,10 +64,6 @@ from ..exceptions import BatchUserError
 
 uvloop.install()
 
-google_cloud_profiler_logger = logging.getLogger('googlecloudprofiler')
-google_cloud_profiler_logger.addFilter(adjust_logging_level_error_to_warning)
-import googlecloudprofiler
-
 log = logging.getLogger('batch')
 
 log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
@@ -75,6 +71,16 @@ log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
 routes = web.RouteTableDef()
 
 deploy_config = get_deploy_config()
+
+
+def ignore_failed_to_collect_and_upload_profile(record):
+    if 'Failed to collect and upload profile: [Errno 32] Broken pipe' in record.msg:
+        record.levelno = logging.INFO
+        record.levelname = "INFO"
+    return record
+
+
+googlecloudprofiler.logger.addFilter(ignore_failed_to_collect_and_upload_profile)
 
 
 def instance_name_from_request(request):
@@ -1069,7 +1075,7 @@ def run():
             service='batch-driver',
             service_version=profiler_tag,
             # https://cloud.google.com/profiler/docs/profiling-python#agent_logging
-            verbose=0,
+            verbose=3,
         )
 
     app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE, middlewares=[monitor_endpoints_middleware])

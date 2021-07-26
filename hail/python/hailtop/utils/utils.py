@@ -938,10 +938,3 @@ STDERR:
 {find_spark_home.stderr}''')
         spark_home = find_spark_home.stdout.decode().strip()
     return spark_home
-
-
-def adjust_logging_level_error_to_warning(record):
-    if record.levelno == logging.ERROR:
-        record.levelno = logging.WARNING
-        record.levelname = "WARNING"
-    return record
