@@ -993,7 +993,7 @@ def logistic_score_test(X, y, null_fit, link):
     X0 = X[:, 0:m0]
     X1 = X[:, m0:]
 
-    mu = (X @ b).map(lambda e: hl.logit(e))
+    mu = (X @ b).map(lambda e: hl.expit(e))
 
     score_0 = null_fit.score
     score_1 = X1.T @ (y - mu)
