@@ -24,6 +24,17 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.74
+
+Released 2021-07-26
+
+### Bug fixes
+
+- (hail#10697) Fix bug in `read_table` when the table has missing keys and `_n_partitions` is specified.
+
+---
+
+
 ## Version 0.2.73
 
 Released 2021-07-22
