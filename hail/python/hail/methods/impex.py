@@ -1293,7 +1293,7 @@ def import_gen(path,
     -------
     :class:`.MatrixTable`
     """
-    paths = wrap_to_list(path)
+    
     gen_table = import_lines(path, min_partitions)
     sample_table = import_lines(sample_file)
     rg = reference_genome.name if reference_genome else None
@@ -1315,20 +1315,20 @@ def import_gen(path,
     contig_holder = contig_recoding.get(contig_holder, contig_holder)
 
     if rg is None:
-        locus = hl.struct(contig=contig_holder, position=hl.int(gen_table.data[index-2]))
+        locus = hl.struct(contig=contig_holder, position=hl.int(gen_table.data[index - 2]))
     else:
         if skip_invalid_loci:
-            locus = hl.if_else(hl.is_valid_locus(contig_holder, hl.int(gen_table.data[index-2]), rg),
-                               hl.locus(contig_holder, hl.int(gen_table.data[index-2]), rg),
+            locus = hl.if_else(hl.is_valid_locus(contig_holder, hl.int(gen_table.data[index - 2]), rg),
+                               hl.locus(contig_holder, hl.int(gen_table.data[index - 2]), rg),
                                hl.missing(hl.tlocus(rg)))
         else:
-            locus = hl.locus(contig_holder, hl.int(gen_table.data[index-2]), rg)
+            locus = hl.locus(contig_holder, hl.int(gen_table.data[index - 2]), rg)
 
-    alleles = hl.array([hl.str(gen_table.data[index-1]), hl.str(gen_table.data[index])])
-    rsid = gen_table.data[index-3]
-    varid = gen_table.data[index-4]
+    alleles = hl.array([hl.str(gen_table.data[index - 1]), hl.str(gen_table.data[index])])
+    rsid = gen_table.data[index - 3]
+    varid = gen_table.data[index - 4]
     gen_table = gen_table.annotate(locus=locus, alleles=alleles, rsid=rsid, varid=varid)
-    gen_table = gen_table.annotate(entries=gen_table.data[index+1:].map(lambda x: hl.float64(x))
+    gen_table = gen_table.annotate(entries=gen_table.data[index + 1:].map(lambda x: hl.float64(x))
                                    .grouped(3).map(lambda x: hl.struct(GP=x)))
 
     sample_table_count = sample_table.count() - 2
@@ -1341,7 +1341,8 @@ def import_gen(path,
     sample_table = sample_table.key_by(sample_table.idx)
     mt = mt.annotate_cols(s=sample_table[hl.int64(mt.col_idx)].s)
     mt = mt.annotate_entries(GP=hl.bind(lambda x: hl.if_else(hl.abs(1.0 - x) > tolerance,
-                                                             hl.missing(hl.tarray(hl.tfloat64)), hl.abs((1 / x)*mt.GP)),
+                                                             hl.missing(hl.tarray(hl.tfloat64)),
+                                                             hl.abs((1 / x) * mt.GP)),
                                         hl.sum(mt.GP)))
     mt = mt.annotate_entries(GT=hl.bind(lambda x: hl.if_else(hl.len(mt.GP.filter(lambda y: y == mt.GP[x])) == 1,
                              hl.switch(x)
