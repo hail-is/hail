@@ -448,7 +448,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(rt.all(rt.y2 == 2))
         self.assertTrue(ct.all(ct.c2 == 2))
 
-    @fails_service_backend()
+    @skip_when_service_backend('hangs')
     def test_joins_with_key_structs(self):
         mt = self.get_mt()
 

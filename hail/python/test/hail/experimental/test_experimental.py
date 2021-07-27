@@ -338,6 +338,7 @@ class Tests(unittest.TestCase):
 
         assert(mtj.count() == (15, 15))
 
+    @skip_when_service_backend('hangs')
     def test_mt_full_outer_join_self(self):
         mt = hl.import_vcf(resource('sample.vcf'))
         jmt = hl.experimental.full_outer_join_mt(mt, mt)

@@ -1318,6 +1318,7 @@ Exception in thread "main" java.lang.RuntimeException: invalid sort order: b
         t2 = t1.annotate_globals(x = 8)
         self.assertFalse(t1._same(t2))
 
+    @skip_when_service_backend('hangs')
     def test_same_different_rows(self):
         t1 = (hl.utils.range_table(2)
               .annotate(x = 7))
@@ -1537,6 +1538,7 @@ def test_maybe_flexindex_table_by_expr_prefix_interval_match():
 widths = [256, 512, 1024, 2048, 4096]
 
 
+@skip_when_service_backend('hangs')
 def test_can_process_wide_tables():
     for w in widths:
         print(f'working on width {w}')
