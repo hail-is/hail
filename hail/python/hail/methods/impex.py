@@ -1343,12 +1343,13 @@ def import_gen(path,
     mt = mt.annotate_entries(GP=hl.bind(lambda x: hl.if_else(hl.abs(1.0 - x) > tolerance,
                                                              hl.missing(hl.tarray(hl.tfloat64)), hl.abs((1 / x)*mt.GP)),
                                         hl.sum(mt.GP)))
-    mt = mt.annotate_entries(GT=hl.switch(hl.argmax(mt.GP))
+    mt = mt.annotate_entries(GT=hl.bind(lambda x: hl.if_else(hl.len(mt.GP.filter(lambda y: y == mt.GP[x])) == 1,
+                             hl.switch(x)
                              .when(0, hl.call(0, 0))
                              .when(1, hl.call(0, 1))
                              .when(2, hl.call(1, 1))
-                             .or_error("error creating gt field."))
-    mt = mt.filter_entries(hl.is_defined(mt.GT))
+                             .or_error("error creating gt field."), hl.missing(hl.tcall)), hl.argmax(mt.GP)))
+    mt = mt.filter_entries(hl.is_defined(mt.GP))
     mt = mt.key_cols_by('s').drop('col_idx', 'file', 'data')
     mt = mt.key_rows_by('locus', 'alleles').select_entries('GT', 'GP')
 
