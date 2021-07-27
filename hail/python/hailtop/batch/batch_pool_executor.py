@@ -537,7 +537,7 @@ class BatchPoolFuture:
         try:
             return await asyncio.wait_for(self.fetch_coro, timeout=timeout)
         except asyncio.TimeoutError:
-            await self.batch.cancel()
+            await self.async_cancel()
             raise
 
     async def _async_fetch_result(self):
