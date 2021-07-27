@@ -1349,7 +1349,8 @@ def import_gen(path,
                              .when(2, hl.call(1, 1))
                              .or_error("error creating gt field."))
     mt = mt.key_cols_by('s').drop('col_idx', 'file', 'data')
-    mt = mt.key_rows_by('locus', 'alleles')
+    mt = mt.key_rows_by('locus', 'alleles').select_entries('GT', 'GP')
+
     return mt
 
 
