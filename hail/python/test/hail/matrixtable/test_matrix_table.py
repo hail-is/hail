@@ -73,7 +73,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(f(hl.eval(mt.annotate_globals(foo=hl.literal(x, t)).foo), x), f"{x}, {t}")
             self.assertTrue(f(hl.eval(ht.annotate_globals(foo=hl.literal(x, t)).foo), x), f"{x}, {t}")
 
-    @fails_service_backend('Caused by: java.lang.ClassCastException: __C136collect_distributed_array cannot be cast to is.hail.expr.ir.FunctionWithLiterals
+    @fails_service_backend('''Caused by: java.lang.ClassCastException: __C136collect_distributed_array cannot be cast to is.hail.expr.ir.FunctionWithLiterals
 	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:662)
 	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:641)
 	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
@@ -83,7 +83,7 @@ class Tests(unittest.TestCase):
 	at is.hail.backend.service.Worker$.main(Worker.scala:120)
 	at is.hail.backend.service.Worker.main(Worker.scala)
 	... 12 more
-')
+''')
     def test_head(self):
         # no empty partitions
         mt1 = hl.utils.range_matrix_table(10, 10)
@@ -110,6 +110,23 @@ class Tests(unittest.TestCase):
         assert mt1.head(1, None).count() == (1, 10)
         assert mt1.head(None, 1).count() == (10, 1)
 
+    @skip_when_service_backend('''
+E                   hail.utils.java.FatalError: java.lang.ClassCastException: __C2Compiled cannot be cast to is.hail.expr.ir.FunctionWithLiterals
+E                   	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:662)
+E                   	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:641)
+E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBackend.scala:307)
+E                   	at is.hail.backend.service.ServiceBackend.$anonfun$execute$4(ServiceBackend.scala:324)
+E                   	at is.hail.expr.ir.ExecuteContext$.$anonfun$scoped$3(ExecuteContext.scala:47)
+E                   	at is.hail.utils.package$.using(package.scala:627)
+E                   	at is.hail.expr.ir.ExecuteContext$.$anonfun$scoped$2(ExecuteContext.scala:47)
+E                   	at is.hail.utils.package$.using(package.scala:627)
+E                   	at is.hail.annotations.RegionPool$.scoped(RegionPool.scala:13)
+E                   	at is.hail.expr.ir.ExecuteContext$.scoped(ExecuteContext.scala:46)
+E                   	at is.hail.backend.service.ServiceBackend.$anonfun$execute$1(ServiceBackend.scala:320)
+E                   	at is.hail.utils.ExecutionTimer$.time(ExecutionTimer.scala:52)
+E                   	at is.hail.utils.ExecutionTimer$.logTime(ExecutionTimer.scala:59)
+E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBackend.scala:314)
+''')
     def test_tail(self):
         # no empty partitions
         mt1 = hl.utils.range_matrix_table(10, 10)

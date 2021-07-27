@@ -110,7 +110,7 @@ class Tests(unittest.TestCase):
             x36=True
         )
 
-    @fails_service_backend('E                   hail.utils.java.FatalError: java.lang.RuntimeException: batch 30851 failed: failure
+    @fails_service_backend('''E                   hail.utils.java.FatalError: java.lang.RuntimeException: batch 30851 failed: failure
 E                   	at is.hail.backend.service.ServiceBackend.parallelizeAndComputeWithIndex(ServiceBackend.scala:186)
 E                   	at is.hail.backend.BackendUtils.collectDArray(BackendUtils.scala:28)
 E                   	at __C2Compiled.__m114split_StreamForregion16_27(Emit.scala)
@@ -141,7 +141,7 @@ E                   	at scala.collection.IndexedSeqOptimized.foreach$(IndexedSeq
 E                   	at scala.collection.mutable.WrappedArray.foreach(WrappedArray.scala:38)
 E                   	at is.hail.expr.ir.lowering.LoweringPipeline.apply(LoweringPipeline.scala:12)
 E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBackend.scala:289)
-')
+''')
     def test_aggregate1(self):
         schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32))
 
@@ -559,7 +559,7 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         joined = hl.Table.multi_way_zip_join([t1, t2, t3], '__data', '__globals')
         self.assertEqual(hl.eval(joined.globals), hl.eval(expected))
 
-    @fails_service_backend('Caused by: java.lang.ClassCastException: __C35collect_distributed_array cannot be cast to is.hail.expr.ir.FunctionWithObjects
+    @fails_service_backend('''Caused by: java.lang.ClassCastException: __C35collect_distributed_array cannot be cast to is.hail.expr.ir.FunctionWithObjects
 	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:660)
 	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:641)
 	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
@@ -569,7 +569,7 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
 	at is.hail.backend.service.Worker$.main(Worker.scala:120)
 	at is.hail.backend.service.Worker.main(Worker.scala)
 	... 11 more
-')
+''')
     def test_multi_way_zip_join_key_downcast(self):
         mt = hl.import_vcf(resource('sample.vcf.bgz'))
         mt = mt.key_rows_by('locus')
@@ -1006,7 +1006,7 @@ Exception in thread "main" java.lang.RuntimeException: invalid sort order: b
             hl.utils.Struct(idx=11, x=None, y=None, z=None),
         ]
 
-    @fails_service_backend('E                   hail.utils.java.FatalError: java.lang.ClassCastException: __C2Compiled cannot be cast to is.hail.expr.ir.FunctionWithBackend
+    @fails_service_backend('''E                   hail.utils.java.FatalError: java.lang.ClassCastException: __C2Compiled cannot be cast to is.hail.expr.ir.FunctionWithBackend
 E                   	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:658)
 E                   	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:641)
 E                   	at is.hail.expr.ir.lowering.LowerToCDA$.$anonfun$lower$2(LowerToCDA.scala:50)
@@ -1029,7 +1029,7 @@ E                   	at scala.collection.IndexedSeqOptimized.foreach$(IndexedSeq
 E                   	at scala.collection.mutable.WrappedArray.foreach(WrappedArray.scala:38)
 E                   	at is.hail.expr.ir.lowering.LoweringPipeline.apply(LoweringPipeline.scala:12)
 E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBackend.scala:289)
-')
+''')
     def test_table_head_returns_right_number(self):
         rt = hl.utils.range_table(10, 11)
         par = hl.Table.parallelize([hl.Struct(x=x) for x in range(10)], schema='struct{x: int32}', n_partitions=11)
@@ -1449,7 +1449,7 @@ E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBa
 +-------------------+----------+---------------------+-------------------+
 '''
 
-    @fails_service_backend('E                   hail.utils.java.FatalError: java.lang.ClassCastException: __C2Compiled cannot be cast to is.hail.expr.ir.FunctionWithBackend
+    @fails_service_backend('''E                   hail.utils.java.FatalError: java.lang.ClassCastException: __C2Compiled cannot be cast to is.hail.expr.ir.FunctionWithBackend
 E                   	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:658)
 E                   	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:641)
 E                   	at is.hail.expr.ir.lowering.LowerToCDA$.$anonfun$lower$2(LowerToCDA.scala:50)
@@ -1472,7 +1472,7 @@ E                   	at scala.collection.IndexedSeqOptimized.foreach$(IndexedSeq
 E                   	at scala.collection.mutable.WrappedArray.foreach(WrappedArray.scala:38)
 E                   	at is.hail.expr.ir.lowering.LoweringPipeline.apply(LoweringPipeline.scala:12)
 E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBackend.scala:289)
-')
+''')
     def test_import_filter_replace(self):
         def assert_filter_equals(filter, find_replace, to):
             assert hl.import_table(resource('filter_replace.txt'),

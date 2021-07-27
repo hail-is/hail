@@ -1401,7 +1401,7 @@ class Tests(unittest.TestCase):
                    (True, False)
                )
 
-    @skip_when_service_backend('{"@version":1,"@timestamp":"2021-07-27 20:51:58,660","message":"request GET http://internal.hail/dking/memory/api/v1alpha/objects?q=gs%3A%2F%2Fdanking%2Ftmp%2Fhail%2Fquery%2FZsJniWRyAA2AmPOnHWoov00V8l2gAuyFIna84MhTc2U%3D%2Fcontexts response 200","filename":"Requester.scala","line_number":"71","class":"is.hail.services.Requester","method":"$anonfun$requestWithHandler$2","logger_name":"Requester","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-2-thread-2"}
+    @skip_when_service_backend('''{"@version":1,"@timestamp":"2021-07-27 20:51:58,660","message":"request GET http://internal.hail/dking/memory/api/v1alpha/objects?q=gs%3A%2F%2Fdanking%2Ftmp%2Fhail%2Fquery%2FZsJniWRyAA2AmPOnHWoov00V8l2gAuyFIna84MhTc2U%3D%2Fcontexts response 200","filename":"Requester.scala","line_number":"71","class":"is.hail.services.Requester","method":"$anonfun$requestWithHandler$2","logger_name":"Requester","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-2-thread-2"}
 {"@version":1,"@timestamp":"2021-07-27 20:51:58,702","message":"request GET http://internal.hail/dking/memory/api/v1alpha/objects?q=gs%3A%2F%2Fdanking%2Ftmp%2Fhail%2Fquery%2FZsJniWRyAA2AmPOnHWoov00V8l2gAuyFIna84MhTc2U%3D%2Ff response 200","filename":"Requester.scala","line_number":"71","class":"is.hail.services.Requester","method":"$anonfun$requestWithHandler$2","logger_name":"Requester","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-2-thread-1"}
 {"@version":1,"@timestamp":"2021-07-27 20:51:58,703","message":"readInputs took 1461.343014 ms.","filename":"Worker.scala","line_number":"42","class":"is.hail.backend.service.WorkerTimer","method":"$anonfun$end$1","logger_name":"is.hail.backend.service.WorkerTimer$","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-1-thread-1"}
 {"@version":1,"@timestamp":"2021-07-27 20:51:58,703","message":"RegionPool: initialized for thread 18: pool-1-thread-1","filename":"RegionPool.scala","line_number":"17","class":"is.hail.annotations.RegionPool","method":"<init>","logger_name":"root","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-1-thread-1"}
@@ -1438,7 +1438,7 @@ Compiled method (c1)  124591 4565       3       is.hail.annotations.Region$::loa
 # If you would like to submit a bug report, please visit:
 #   http://bugreport.java.com/bugreport/crash.jsp
 #
-')
+''')
     def test_aggregator_any_and_all(self):
         df = hl.utils.range_table(10)
         df = df.annotate(all_true=True,

@@ -459,6 +459,7 @@ class VCFTests(unittest.TestCase):
         self.assertEqual(len(parts), comb.n_partitions())
         comb._force_count_rows()
 
+    @fails_service_backend()
     def test_haploid_combiner_ok(self):
         from hail.experimental.vcf_combiner.vcf_combiner import transform_gvcf
         # make a combiner table
@@ -1788,6 +1789,7 @@ class ImportMatrixTableTests(unittest.TestCase):
                                      comment=['#', '%'])
         assert mt1._same(mt2)
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_headers_not_identical(self):
         self.assertRaisesRegex(
@@ -2119,6 +2121,20 @@ class GrepTests(unittest.TestCase):
         assert hl.grep('HG0012[0-1]', resource('*.tsv'), show=False) == expected
 
 
+@skip_when_service_backend('''
+Caused by: java.lang.ClassCastException: __C2Compiled cannot be cast to is.hail.asm4s.AsmFunction3RegionLongLongLong
+	at is.hail.expr.ir.PartitionZippedNativeReader.$anonfun$emitStream$7(TableIR.scala:736)
+	at __C38collect_distributed_array.__m53split_StreamFold(Unknown Source)
+	at __C38collect_distributed_array.apply(Unknown Source)
+	at __C38collect_distributed_array.apply(Unknown Source)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
+	at is.hail.utils.package$.using(package.scala:627)
+	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:140)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
+	at is.hail.backend.service.Worker$.main(Worker.scala:120)
+	at is.hail.backend.service.Worker.main(Worker.scala)
+	... 11 more
+''')
 def test_matrix_and_table_read_intervals_with_hidden_key():
     f1 = new_temp_file()
     f2 = new_temp_file()

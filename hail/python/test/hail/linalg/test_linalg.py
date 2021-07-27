@@ -122,6 +122,19 @@ class Tests(unittest.TestCase):
         with self.assertRaises(Exception):
             BlockMatrix.from_entry_expr(mt.x)
 
+    @skip_when_service_backend('''
+Caused by: is.hail.utils.HailException: bad shuffle close
+	at __C230collect_distributed_array.__m245split_StreamLen(Unknown Source)
+	at __C230collect_distributed_array.apply(Unknown Source)
+	at __C230collect_distributed_array.apply(Unknown Source)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
+	at is.hail.utils.package$.using(package.scala:627)
+	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:140)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
+	at is.hail.backend.service.Worker$.main(Worker.scala:120)
+	at is.hail.backend.service.Worker.main(Worker.scala)
+	... 12 more
+''')
     def test_write_from_entry_expr_overwrite(self):
         mt = hl.balding_nichols_model(1, 1, 1)
         mt = mt.select_entries(x=mt.GT.n_alt_alleles())
