@@ -1,5 +1,6 @@
 import hail as hl
 from hail.expr.expressions import expr_array, expr_call, expr_int32
+from hail.expr.functions import _func
 from hail.typecheck import typecheck
 
 
@@ -17,9 +18,5 @@ def lgt_to_gt(lgt, la):
     Returns
     -------
     :class:`.CallExpression`
-
-    Notes
-    -----
-    This function assumes diploid genotypes.
     """
-    return hl.call(la[lgt[0]], la[lgt[1]], phased=lgt.phased)
+    return _func("lgt_to_gt", hl.tcall, lgt, la)

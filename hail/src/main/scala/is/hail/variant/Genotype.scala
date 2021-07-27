@@ -17,32 +17,26 @@ object GenotypeType extends Enumeration {
 }
 
 object AllelePair {
-  def apply(j: Int, k: Int): AllelePair = {
+  def apply(j: Int, k: Int): Int = {
     require(j >= 0 && j <= 0xffff, s"GTPair invalid j value $j")
     require(k >= 0 && k <= 0xffff, s"GTPair invalid k value $k")
-    new AllelePair(j | (k << 16))
+    j | (k << 16)
   }
 
-  def fromNonNormalized(j: Int, k: Int): AllelePair = {
+  def fromNonNormalized(j: Int, k: Int): Int = {
     if (j <= k)
       AllelePair(j, k)
     else
       AllelePair(k, j)
   }
-}
 
-class AllelePair(val p: Int) extends AnyVal {
-  def j: Int = p & 0xffff
+  def j(p: Int): Int = p & 0xffff
+  def k(p: Int): Int = (p >> 16) & 0xffff
 
-  def k: Int = (p >> 16) & 0xffff
+  def nNonRefAlleles(p: Int): Int =
+    (if (j(p) != 0) 1 else 0) + (if (k(p) != 0) 1 else 0)
 
-  def nNonRefAlleles: Int =
-    (if (j != 0) 1 else 0) + (if (k != 0) 1 else 0)
-
-  def alleleIndices: Array[Int] = {
-    Array(this.j, this.k)
-  }
-
+  def alleleIndices(p: Int): Array[Int] = Array(j(p), k(p))
 }
 
 object Genotype {
@@ -146,7 +140,7 @@ object Genotype {
     (p1 + 2 * p2) / (p0 + p1 + p2)
   }
 
-  val smallAllelePair = Array(AllelePair(0, 0), AllelePair(0, 1), AllelePair(1, 1),
+  val smallAllelePair: Array[Int] = Array(AllelePair(0, 0), AllelePair(0, 1), AllelePair(1, 1),
     AllelePair(0, 2), AllelePair(1, 2), AllelePair(2, 2),
     AllelePair(0, 3), AllelePair(1, 3), AllelePair(2, 3), AllelePair(3, 3),
     AllelePair(0, 4), AllelePair(1, 4), AllelePair(2, 4), AllelePair(3, 4), AllelePair(4, 4),
@@ -156,16 +150,16 @@ object Genotype {
     AllelePair(0, 7), AllelePair(1, 7), AllelePair(2, 7), AllelePair(3, 7), AllelePair(4, 7),
     AllelePair(5, 7), AllelePair(6, 7), AllelePair(7, 7))
 
-  val smallAlleleJ: Array[Int] = smallAllelePair.map(_.j)
-  val smallAlleleK: Array[Int] = smallAllelePair.map(_.k)
+  val smallAlleleJ: Array[Int] = smallAllelePair.map(AllelePair.j)
+  val smallAlleleK: Array[Int] = smallAllelePair.map(AllelePair.k)
 
   val nCachedAllelePairs: Int = smallAllelePair.length
 
   def cachedAlleleJ(p: Int): Int = smallAlleleJ(p)
   def cachedAlleleK(p: Int): Int = smallAlleleK(p)
 
-  def allelePairRecursive(i: Int): AllelePair = {
-    def f(j: Int, k: Int): AllelePair = if (j <= k)
+  def allelePairRecursive(i: Int): Int = {
+    def f(j: Int, k: Int): Int = if (j <= k)
       AllelePair(j, k)
     else
       f(j - k - 1, k + 1)
@@ -173,7 +167,7 @@ object Genotype {
     f(i, 0)
   }
 
-  def allelePairSqrt(i: Int): AllelePair = {
+  def allelePairSqrt(i: Int): Int = {
     val k: Int = (Math.sqrt(8 * i.toDouble + 1) / 2 - 0.5).toInt
     assert(k * (k + 1) / 2 <= i)
     val j = i - k * (k + 1) / 2
@@ -181,7 +175,7 @@ object Genotype {
     AllelePair(j, k)
   }
 
-  def allelePair(i: Int): AllelePair = {
+  def allelePair(i: Int): Int = {
     if (i < smallAllelePair.length)
       smallAllelePair(i)
     else
@@ -193,7 +187,7 @@ object Genotype {
     k * (k + 1) / 2 + j
   }
 
-  def diploidGtIndex(p: AllelePair): Int = diploidGtIndex(p.j, p.k)
+  def diploidGtIndex(p: Int): Int = diploidGtIndex(AllelePair.j(p), AllelePair.k(p))
 
   def diploidGtIndexWithSwap(i: Int, j: Int): Int = {
     if (j < i)
