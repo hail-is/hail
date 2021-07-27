@@ -155,10 +155,10 @@ class BlockMatrixAgg(BlockMatrixIR):
             shape = []
         elif self.out_index_expr == [0]:
             is_row_vector = True
-            shape = [1, child_matrix_shape[1]]
+            shape = [child_matrix_shape[1]]
         elif self.out_index_expr == [1]:
             is_row_vector = False
-            shape = [child_matrix_shape[0], 1]
+            shape = [child_matrix_shape[0]]
         else:
             raise ValueError("Invalid out_index_expr")
 
