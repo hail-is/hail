@@ -294,7 +294,7 @@ LEFT JOIN aggregated_billing_project_resources
 LEFT JOIN resources
   ON resources.resource = aggregated_billing_project_resources.resource
 {where_condition}
-GROUP BY billing_projects.name, billing_projects.status, users, msec_mcpu, `limit`
+GROUP BY billing_projects.name, billing_projects.status, msec_mcpu, `limit`
 LOCK IN SHARE MODE;
 '''
 
