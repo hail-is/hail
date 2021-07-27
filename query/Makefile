@@ -38,5 +38,5 @@ test: push-jar upload_resources_dir
     HAIL_DOCTEST_DATA_DIR='gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources/test/resources/' \
     HAIL_SHA='$(HAIL_REVISION)-$(TOKEN)' \
     HAIL_JAR_URL=$$(cat last_uploaded_jar) \
-    $(MAKE) -C ../hail pytest PYTEST_ARGS='-n 32 $(PYTEST_ARGS)'
+    $(MAKE) -C ../hail pytest
 
