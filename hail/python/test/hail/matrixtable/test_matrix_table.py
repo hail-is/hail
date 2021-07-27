@@ -136,7 +136,6 @@ class Tests(unittest.TestCase):
         assert mt1.tail(1, None).count() == (1, 10)
         assert mt1.tail(None, 1).count() == (10, 1)
 
-    @fails_service_backend()
     def test_tail_entries(self):
         mt = hl.utils.range_matrix_table(100, 30)
         mt = mt.filter_cols(mt.col_idx != 29)
@@ -898,7 +897,6 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         self.assertEqual(mt2.n_partitions(), 3)
         self.assertTrue(mt.filter_rows((mt.row_idx >= 150) & (mt.row_idx < 500))._same(mt2))
 
-    @fails_service_backend()
     def test_indexed_read_vcf(self):
         vcf = self.get_mt(10)
         f = new_temp_file(extension='mt')
@@ -1184,7 +1182,6 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         self.assertTrue(hl.Table.parallelize([actual]),
                         hl.Table.parallelize([expected]))
 
-    @fails_service_backend()
     @fails_local_backend()
     def test_hardy_weinberg_test(self):
         mt = hl.import_vcf(resource('HWE_test.vcf'))

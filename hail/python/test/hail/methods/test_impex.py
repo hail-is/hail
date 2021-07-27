@@ -459,7 +459,6 @@ class VCFTests(unittest.TestCase):
         self.assertEqual(len(parts), comb.n_partitions())
         comb._force_count_rows()
 
-    @fails_service_backend(reason='register_ir_function')
     def test_haploid_combiner_ok(self):
         from hail.experimental.vcf_combiner.vcf_combiner import transform_gvcf
         # make a combiner table
@@ -1789,7 +1788,6 @@ class ImportMatrixTableTests(unittest.TestCase):
                                      comment=['#', '%'])
         assert mt1._same(mt2)
 
-    @fails_service_backend()
     @fails_local_backend()
     def test_headers_not_identical(self):
         self.assertRaisesRegex(
@@ -2121,7 +2119,6 @@ class GrepTests(unittest.TestCase):
         assert hl.grep('HG0012[0-1]', resource('*.tsv'), show=False) == expected
 
 
-@fails_service_backend()
 def test_matrix_and_table_read_intervals_with_hidden_key():
     f1 = new_temp_file()
     f2 = new_temp_file()
