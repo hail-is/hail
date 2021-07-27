@@ -862,7 +862,6 @@ class Container:
     async def delete(self):
         log.info(f'deleting {self}')
         self.deleted_event.set()
-        await self.delete_container()
 
     # {
     #   name: str,
