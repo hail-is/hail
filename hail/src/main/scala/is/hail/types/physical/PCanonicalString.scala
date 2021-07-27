@@ -10,7 +10,7 @@ case object PCanonicalStringOptional extends PCanonicalString(false)
 
 case object PCanonicalStringRequired extends PCanonicalString(true)
 
-class PCanonicalString(val required: Boolean) extends PString {
+abstract class PCanonicalString(val required: Boolean) extends PString {
   def _asIdent = "string"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PCString")

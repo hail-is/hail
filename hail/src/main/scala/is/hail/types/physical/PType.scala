@@ -308,8 +308,10 @@ object PType {
   }
 }
 
-abstract class PType extends Serializable with Requiredness {
+abstract class PType extends Serializable with Requiredness with scala.Product {
   self =>
+
+  override lazy val hashCode: Int = scala.util.hashing.MurmurHash3.productHash(this)
 
   def genValue: Gen[Annotation] =
     if (required) genNonmissingValue else Gen.nextCoin(0.05).flatMap(isEmpty => if (isEmpty) Gen.const(null) else genNonmissingValue)
@@ -436,19 +438,16 @@ abstract class PType extends Serializable with Requiredness {
     lookupCopy(srcPType, deepCopy).apply(region, srcAddress)
   }
 
-  @transient private[this] lazy val cachedMRE: MutableRefEquality[PType] = new MutableRefEquality(null)
-  @transient private[this] lazy val compiledDeepCopyFunctions = new java.util.HashMap[MutableRefEquality[PType], AsmFunction2RegionLongLong]
-  @transient private[this] lazy val compiledShallowCopyFunctions = new java.util.HashMap[MutableRefEquality[PType], AsmFunction2RegionLongLong]
-  @transient private[this] lazy val compiledDeepStoreFunctions = new java.util.HashMap[MutableRefEquality[PType], AsmFunction3RegionLongLongUnit]
-  @transient private[this] lazy val compiledShallowStoreFunctions = new java.util.HashMap[MutableRefEquality[PType], AsmFunction3RegionLongLongUnit]
+  @transient private[this] lazy val compiledDeepCopyFunctions = new java.util.HashMap[PType, AsmFunction2RegionLongLong]
+  @transient private[this] lazy val compiledShallowCopyFunctions = new java.util.HashMap[PType, AsmFunction2RegionLongLong]
+  @transient private[this] lazy val compiledDeepStoreFunctions = new java.util.HashMap[PType, AsmFunction3RegionLongLongUnit]
+  @transient private[this] lazy val compiledShallowStoreFunctions = new java.util.HashMap[PType, AsmFunction3RegionLongLongUnit]
 
   final def lookupCopy(srcPType: PType, deepCopy: Boolean): AsmFunction2RegionLongLong = {
-    cachedMRE.assign(srcPType)
-
     val f = if (deepCopy)
-      compiledDeepCopyFunctions.get(cachedMRE)
+      compiledDeepCopyFunctions.get(srcPType)
     else
-      compiledShallowCopyFunctions.get(cachedMRE)
+      compiledShallowCopyFunctions.get(srcPType)
 
     val resultFunction = if (f != null)
       f
@@ -468,23 +467,20 @@ abstract class PType extends Serializable with Requiredness {
       }
       val compiledFunction = fb.result(allowWorkerCompilation = true)()
       if (deepCopy)
-        compiledDeepCopyFunctions.put(cachedMRE.copy(), compiledFunction)
+        compiledDeepCopyFunctions.put(srcPType, compiledFunction)
       else
-        compiledShallowCopyFunctions.put(cachedMRE.copy(), compiledFunction)
+        compiledShallowCopyFunctions.put(srcPType, compiledFunction)
 
       compiledFunction
     }
-    cachedMRE.assign(null)
     resultFunction
   }
 
   final def lookupStore(srcPType: PType, deepCopy: Boolean): AsmFunction3RegionLongLongUnit = {
-    cachedMRE.assign(srcPType)
-
     val f = if (deepCopy)
-      compiledDeepStoreFunctions.get(cachedMRE)
+      compiledDeepStoreFunctions.get(srcPType)
     else
-      compiledShallowStoreFunctions.get(cachedMRE)
+      compiledShallowStoreFunctions.get(srcPType)
 
     val resultFunction = if (f != null)
       f
@@ -502,13 +498,12 @@ abstract class PType extends Serializable with Requiredness {
       }
       val compiledFunction = fb.result(allowWorkerCompilation = true)()
       if (deepCopy)
-        compiledDeepStoreFunctions.put(cachedMRE.copy(), compiledFunction)
+        compiledDeepStoreFunctions.put(srcPType, compiledFunction)
       else
-        compiledShallowStoreFunctions.put(cachedMRE.copy(), compiledFunction)
+        compiledShallowStoreFunctions.put(srcPType, compiledFunction)
 
       compiledFunction
     }
-    cachedMRE.assign(null)
     resultFunction
   }
 }
