@@ -17,7 +17,7 @@ case class SStructOfArrays(virtualType: TArray, elementsRequired: Boolean, field
 
   override val elementType: SStackStruct = SStackStruct(structVirtualType, fields.map(_.elementEmitType))
 
-  def elementEmitType: EmitType = EmitType(elementType, elementsRequired)
+  val elementEmitType: EmitType = EmitType(elementType, elementsRequired)
 
   protected[stypes] def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = ???
 

@@ -328,6 +328,14 @@ object EType {
         val nDims = IRParser.int32_literal(it)
         IRParser.punctuation(it, "]")
         ENDArrayColumnMajor(elementType, nDims,  req)
+      case "EStructOfArrays" =>
+        IRParser.punctuation(it, "[")
+        val elementsRequired = IRParser.boolean_literal(it)
+        IRParser.punctuation(it, "]")
+        IRParser.punctuation(it, "{")
+        val args = IRParser.repsepUntil(it, IRParser.struct_field(eTypeParser), PunctuationToken(","), PunctuationToken("}"))
+        IRParser.punctuation(it, "}")
+        EStructOfArrays(args.zipWithIndex.map { case ((name, t), i) => EField(name, t, i) }, elementsRequired, req)
       case x => throw new UnsupportedOperationException(s"Couldn't parse $x ${it.toIndexedSeq}")
 
     }
