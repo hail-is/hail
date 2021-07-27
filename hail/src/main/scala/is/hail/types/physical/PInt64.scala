@@ -11,7 +11,7 @@ import is.hail.types.virtual.TInt64
 case object PInt64Optional extends PInt64(false)
 case object PInt64Required extends PInt64(true)
 
-class PInt64(override val required: Boolean) extends PNumeric with PPrimitive {
+abstract class PInt64(override val required: Boolean) extends PNumeric with PPrimitive {
   lazy val virtualType: TInt64.type = TInt64
 
   def _asIdent = "int64"

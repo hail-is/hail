@@ -11,7 +11,7 @@ import is.hail.types.virtual.TFloat32
 case object PFloat32Optional extends PFloat32(false)
 case object PFloat32Required extends PFloat32(true)
 
-class PFloat32(override val required: Boolean) extends PNumeric with PPrimitive {
+abstract class PFloat32(override val required: Boolean) extends PNumeric with PPrimitive {
   lazy val virtualType: TFloat32.type = TFloat32
 
   override type NType = PFloat32

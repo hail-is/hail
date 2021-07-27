@@ -12,7 +12,7 @@ case object PCanonicalBinaryOptional extends PCanonicalBinary(false)
 
 case object PCanonicalBinaryRequired extends PCanonicalBinary(true)
 
-class PCanonicalBinary(val required: Boolean) extends PBinary {
+abstract class PCanonicalBinary(val required: Boolean) extends PBinary {
   def _asIdent = "binary"
 
   override def byteSize: Long = 8

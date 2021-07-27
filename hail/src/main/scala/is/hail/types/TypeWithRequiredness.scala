@@ -184,7 +184,7 @@ case class VirtualTypeWithReq(t: Type, r: TypeWithRequiredness) {
   }
 
   override def hashCode(): Int = {
-    canonicalPType.hashCode() + 37
+    canonicalPType.hashCode + 37
   }
 }
 
