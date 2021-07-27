@@ -666,18 +666,30 @@ object LowerTableIR {
               StreamLen(a)
 
           def partitionSizeArray(childContexts: Ref): IR = {
-            val partitionSizeArrayFunc = genUID()
-            val howManyPartsToTry = Ref(genUID(), TInt32)
+            child.partitionCounts match {
+              case Some(partCounts) =>
+                var idx = 0
+                var sumSoFar = 0L
+                while (idx < partCounts.length && sumSoFar < targetNumRows) {
+                  sumSoFar += partCounts(idx)
+                  idx += 1
+                }
+                val partsToKeep = partCounts.slice(0, 0)
+                MakeArray.apply(partsToKeep.map(partSize => I32(partSize.toInt)), TArray(TInt32))
+              case None =>
+                val partitionSizeArrayFunc = genUID()
+                val howManyPartsToTry = Ref(genUID(), TInt32)
 
-            TailLoop(
-              partitionSizeArrayFunc,
-              FastIndexedSeq(howManyPartsToTry.name -> 4),
-              bindIR(loweredChild.mapContexts(_ => StreamTake(ToStream(childContexts), howManyPartsToTry)){ ctx: IR => ctx }
-                                 .mapCollect(relationalLetsAbove)(streamLenOrMax)) { counts =>
-                If((Cast(streamSumIR(ToStream(counts)), TInt64) >= targetNumRows) || (ArrayLen(childContexts) <= ArrayLen(counts)),
-                  counts,
-                  Recur(partitionSizeArrayFunc, FastIndexedSeq(howManyPartsToTry * 4), TArray(TInt32)))
-              })
+                TailLoop(
+                  partitionSizeArrayFunc,
+                  FastIndexedSeq(howManyPartsToTry.name -> 4),
+                  bindIR(loweredChild.mapContexts(_ => StreamTake(ToStream(childContexts), howManyPartsToTry)){ ctx: IR => ctx }
+                    .mapCollect(relationalLetsAbove)(streamLenOrMax)) { counts =>
+                    If((Cast(streamSumIR(ToStream(counts)), TInt64) >= targetNumRows) || (ArrayLen(childContexts) <= ArrayLen(counts)),
+                      counts,
+                      Recur(partitionSizeArrayFunc, FastIndexedSeq(howManyPartsToTry * 4), TArray(TInt32)))
+                  })
+            }
           }
 
           def answerTuple(partitionSizeArrayRef: Ref): IR =
