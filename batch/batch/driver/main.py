@@ -986,19 +986,19 @@ def monitor_instances(app):
 
             if instance.state != 'deleted':
                 if instance.worker_config:
-                    actual_cost_per_hour_labels = CostPerHourLabels(measure='actual', inst_coll=instance.inst_coll)
+                    actual_cost_per_hour_labels = CostPerHourLabels(measure='actual', inst_coll=instance.inst_coll.name)
                     actual_rate = instance.worker_config.actual_cost_per_hour(resource_rates)
                     cost_per_hour[actual_cost_per_hour_labels].append(actual_rate)
 
-                    billed_cost_per_hour_labels = CostPerHourLabels(measure='billed', inst_coll=instance.inst_coll)
+                    billed_cost_per_hour_labels = CostPerHourLabels(measure='billed', inst_coll=instance.inst_coll.name)
                     billed_rate = instance.worker_config.cost_per_hour_from_cores(resource_rates, utilized_cores_mcpu)
                     cost_per_hour[billed_cost_per_hour_labels].append(billed_rate)
 
-                inst_coll_labels = InstCollLabels(inst_coll=instance.inst_coll)
+                inst_coll_labels = InstCollLabels(inst_coll=instance.inst_coll.name)
                 free_cores[inst_coll_labels].append(instance.free_cores_mcpu / 1000)
                 utilization[inst_coll_labels].append(utilized_cores_mcpu / instance.cores_mcpu)
 
-            inst_labels = InstanceLabels(inst_coll=instance.inst_coll, state=instance.state)
+            inst_labels = InstanceLabels(inst_coll=instance.inst_coll.name, state=instance.state)
             instances[inst_labels] += 1
 
     def observe(summary, data):
