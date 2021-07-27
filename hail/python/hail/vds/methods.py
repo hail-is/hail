@@ -79,20 +79,21 @@ def to_merged_sparse_mt(vds: 'VariantDataset') -> 'MatrixTable':
     :class:`.MatrixTable`
         Dataset in the merged sparse MatrixTable representation.
     """
-    rht = vds.reference_data.localize_entries('ref_entries', 'ref_cols')
-    vht = vds.variant_data.localize_entries('var_entries', 'var_cols').rename({'alleles': 'var_alleles'})
+    rht = vds.reference_data.localize_entries('_ref_entries', '_ref_cols')
+    vht = vds.variant_data.localize_entries('_var_entries', '_var_cols')
 
     merged_schema = {}
-    for e in vds.reference_data.entry:
-        merged_schema[e] = vds.reference_data[e].dtype
     for e in vds.variant_data.entry:
-        if e in merged_schema:
-            if not merged_schema[e] == vds.variant_data[e].dtype:
-                raise TypeError(f"cannot unify field {e!r}: {merged_schema[e]}, {vds.variant_data[e].dtype}")
-        else:
-            merged_schema[e] = vds.variant_data[e].dtype
+        merged_schema[e] = vds.variant_data[e].dtype
 
-    ht = rht.join(vht, how='outer').drop('ref_cols')
+    for e in vds.reference_data.entry:
+        if e in merged_schema:
+            if not merged_schema[e] == vds.reference_data[e].dtype:
+                raise TypeError(f"cannot unify field {e!r}: {merged_schema[e]}, {vds.reference_data[e].dtype}")
+        else:
+            merged_schema[e] = vds.reference_data[e].dtype
+
+    ht = rht.join(vht, how='outer').drop('_ref_cols')
 
     def merge_arrays(r_array, v_array):
 
@@ -116,14 +117,15 @@ def to_merged_sparse_mt(vds: 'VariantDataset') -> 'MatrixTable':
         return hl.case() \
             .when(hl.is_missing(r_array), v_array.map(rewrite_var)) \
             .when(hl.is_missing(v_array), r_array.map(rewrite_ref)) \
-            .default(hl.zip(r_array, v_array).map(lambda t: hl.coalesce(rewrite_ref(t[0]), rewrite_var(t[1]))))
+            .default(hl.zip(r_array, v_array).map(lambda t: hl.coalesce(rewrite_var(t[1]), rewrite_ref(t[0]))))
 
     ht = ht.select(
-        alleles=hl.coalesce(ht['var_alleles'], ht['alleles']),
-        **{k: ht[k] for k in vds.variant_data.row_value if k != 'alleles'},  # handle cases where vmt is not keyed by alleles
-        entries=merge_arrays(ht['ref_entries'], ht['var_entries'])
+        alleles=hl.coalesce(ht['alleles'], hl.array([ht['ref_allele']])),
+        # handle cases where vmt is not keyed by alleles
+        **{k: ht[k] for k in vds.variant_data.row_value if k != 'alleles'},
+        _entries=merge_arrays(ht['_ref_entries'], ht['_var_entries'])
     )
-    return ht._unlocalize_entries('entries', 'var_cols', list(vds.variant_data.col_key))
+    return ht._unlocalize_entries('_entries', '_var_cols', list(vds.variant_data.col_key))
 
 
 @typecheck(vds=VariantDataset, name=str, gq_bins=sequenceof(int))
