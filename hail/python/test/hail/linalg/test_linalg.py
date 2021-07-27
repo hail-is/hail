@@ -480,7 +480,6 @@ class Tests(unittest.TestCase):
         self._assert_eq(m.T.diagonal(), np.array([[1.0, 5.0]]))
         self._assert_eq((m @ m.T).diagonal(), np.array([[14.0, 77.0]]))
 
-
     def test_matrix_sums(self):
         nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
         m = BlockMatrix.from_ndarray(hl.nd.array(nm), block_size=2)
@@ -540,7 +539,6 @@ class Tests(unittest.TestCase):
         self._assert_eq(bm, nd)
         self._assert_eq(bm2, nd)
 
-    @fails_service_backend()
     def test_sum(self):
         nd = np.arange(11 * 13, dtype=np.float64).reshape((11, 13))
         bm = BlockMatrix.from_ndarray(hl.literal(nd), block_size=3)
@@ -554,11 +552,13 @@ class Tests(unittest.TestCase):
         nd[2, 5] = 2.0
         nd[3, 4] = 3.0
         nd[3, 5] = 4.0
-        bm = BlockMatrix.from_numpy(nd, block_size=2).sparsify_rectangles([[2, 4, 4, 6]])
 
-        bm2 = BlockMatrix.from_numpy(nd, block_size=2).sparsify_rectangles([[2, 4, 4, 6], [0, 5, 0, 1]])
+        hnd = hl.nd.array(nd)
+        bm = BlockMatrix.from_ndarray(hnd, block_size=2).sparsify_rectangles([[2, 4, 4, 6]])
 
-        bm3 = BlockMatrix.from_numpy(nd, block_size=2).sparsify_rectangles([[2, 4, 4, 6], [0, 1, 0, 7]])
+        bm2 = BlockMatrix.from_ndarray(hnd, block_size=2).sparsify_rectangles([[2, 4, 4, 6], [0, 5, 0, 1]])
+
+        bm3 = BlockMatrix.from_ndarray(hnd, block_size=2).sparsify_rectangles([[2, 4, 4, 6], [0, 1, 0, 7]])
 
         nd4 = np.zeros(shape=(5, 7))
         bm4 = BlockMatrix.fill(5, 7, value=0.0, block_size=2).sparsify_rectangles([])

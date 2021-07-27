@@ -339,10 +339,9 @@ object LowerBlockMatrixIR {
       case BlockMatrixBroadcast(child, IndexedSeq(0, 1), _, _) =>
         lower(child)
 
-      case a@BlockMatrixAgg(child, outIndexExpr) =>
+      case a@BlockMatrixAgg(child, axesToSumOut) =>
         val loweredChild = lower(child)
-        // Now, make decision based on outIndexExpr
-        outIndexExpr match {
+        axesToSumOut match {
           case IndexedSeq(0, 1)  =>
             val summedChild = loweredChild.mapBody { (ctx, body) =>
               NDArrayReshape(NDArrayAgg(body, IndexedSeq(0, 1)), MakeTuple.ordered(Seq(I64(1), I64(1))), ErrorIDs.NO_ERROR)
@@ -365,7 +364,7 @@ object LowerBlockMatrixIR {
               }
               override def blockBody(ctxRef: Ref): IR = {
                 val summedChildBlocks = mapIR(ToStream(ctxRef))(singleChildCtx => {
-                  bindIR(NDArrayAgg(loweredChild.blockBody(singleChildCtx), outIndexExpr))(aggedND => NDArrayReshape(aggedND, MakeTuple.ordered(Seq(I64(1), GetTupleElement(NDArrayShape(aggedND), 0))), ErrorIDs.NO_ERROR))
+                  bindIR(NDArrayAgg(loweredChild.blockBody(singleChildCtx), axesToSumOut))(aggedND => NDArrayReshape(aggedND, MakeTuple.ordered(Seq(I64(1), GetTupleElement(NDArrayShape(aggedND), 0))), ErrorIDs.NO_ERROR))
                 })
                 val aggVar = genUID()
                 StreamAgg(summedChildBlocks, aggVar, ApplyAggOp(NDArraySum())(Ref(aggVar, summedChildBlocks.typ.asInstanceOf[TStream].elementType)))
@@ -384,7 +383,7 @@ object LowerBlockMatrixIR {
               }
               override def blockBody(ctxRef: Ref): IR = {
                 val summedChildBlocks = mapIR(ToStream(ctxRef))(singleChildCtx => {
-                  bindIR(NDArrayAgg(loweredChild.blockBody(singleChildCtx), outIndexExpr))(aggedND => NDArrayReshape(aggedND, MakeTuple(Seq((0, GetTupleElement(NDArrayShape(aggedND), 0)), (1, I64(1)))), ErrorIDs.NO_ERROR))
+                  bindIR(NDArrayAgg(loweredChild.blockBody(singleChildCtx), axesToSumOut))(aggedND => NDArrayReshape(aggedND, MakeTuple(Seq((0, GetTupleElement(NDArrayShape(aggedND), 0)), (1, I64(1)))), ErrorIDs.NO_ERROR))
                 })
                 val aggVar = genUID()
                 StreamAgg(summedChildBlocks, aggVar, ApplyAggOp(NDArraySum())(Ref(aggVar, summedChildBlocks.typ.asInstanceOf[TStream].elementType)))
