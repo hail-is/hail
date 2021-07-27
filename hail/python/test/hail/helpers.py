@@ -163,14 +163,6 @@ fails_spark_backend = pytest.mark.xfail(
     strict=True)
 
 
-def run_with_cxx_compile():
-    @decorator
-    def wrapper(func, *args, **kwargs):
-        return
-
-    return wrapper
-
-
 def assert_evals_to(e, v):
     res = hl.eval(e)
     if res != v:
