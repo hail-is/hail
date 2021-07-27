@@ -107,7 +107,7 @@ class SCanonicalCallSettable(val call: Settable[Int]) extends SCallValue with SS
 
     val repr = cb.newLocal[Int]("lgt_to_gt_repr")
     cb += Code.switch(ploidy(),
-      EmitCodeBuilder.scopedVoid(cb.emb)(cb => cb._fatal(s"ploidy above 2 is not currently supported")),
+      EmitCodeBuilder.scopedVoid(cb.emb)(cb => cb._fatalWithError(errorID, s"ploidy above 2 is not currently supported")),
       FastIndexedSeq(
         EmitCodeBuilder.scopedVoid(cb.emb)(cb => cb.assign(repr, call)), // ploidy 0
         EmitCodeBuilder.scopedVoid(cb.emb) { cb =>
@@ -121,7 +121,7 @@ class SCanonicalCallSettable(val call: Settable[Int]) extends SCallValue with SS
           val j = cb.newLocal[Int]("allele_j", Code.invokeScalaObject1[Int, Int](AllelePair.getClass, "j", allelePair))
           val k = cb.newLocal[Int]("allele_k", Code.invokeScalaObject1[Int, Int](AllelePair.getClass, "k", allelePair))
 
-          cb.ifx(j >= localAlleles.loadLength(), cb._fatal("invalid lgt_to_gt: allele "))
+          cb.ifx(j >= localAlleles.loadLength(), cb._fatalWithError(errorID, "invalid lgt_to_gt: allele "))
 
           cb.assign(repr, Code.invokeScalaObject3[Int, Int, Boolean, Int](Call2.getClass, "apply",
             checkAndTranslate(cb, j),
