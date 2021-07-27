@@ -1401,6 +1401,44 @@ class Tests(unittest.TestCase):
                    (True, False)
                )
 
+    @skip_when_service_backend('{"@version":1,"@timestamp":"2021-07-27 20:51:58,660","message":"request GET http://internal.hail/dking/memory/api/v1alpha/objects?q=gs%3A%2F%2Fdanking%2Ftmp%2Fhail%2Fquery%2FZsJniWRyAA2AmPOnHWoov00V8l2gAuyFIna84MhTc2U%3D%2Fcontexts response 200","filename":"Requester.scala","line_number":"71","class":"is.hail.services.Requester","method":"$anonfun$requestWithHandler$2","logger_name":"Requester","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-2-thread-2"}
+{"@version":1,"@timestamp":"2021-07-27 20:51:58,702","message":"request GET http://internal.hail/dking/memory/api/v1alpha/objects?q=gs%3A%2F%2Fdanking%2Ftmp%2Fhail%2Fquery%2FZsJniWRyAA2AmPOnHWoov00V8l2gAuyFIna84MhTc2U%3D%2Ff response 200","filename":"Requester.scala","line_number":"71","class":"is.hail.services.Requester","method":"$anonfun$requestWithHandler$2","logger_name":"Requester","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-2-thread-1"}
+{"@version":1,"@timestamp":"2021-07-27 20:51:58,703","message":"readInputs took 1461.343014 ms.","filename":"Worker.scala","line_number":"42","class":"is.hail.backend.service.WorkerTimer","method":"$anonfun$end$1","logger_name":"is.hail.backend.service.WorkerTimer$","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-1-thread-1"}
+{"@version":1,"@timestamp":"2021-07-27 20:51:58,703","message":"RegionPool: initialized for thread 18: pool-1-thread-1","filename":"RegionPool.scala","line_number":"17","class":"is.hail.annotations.RegionPool","method":"<init>","logger_name":"root","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-1-thread-1"}
+{"@version":1,"@timestamp":"2021-07-27 20:51:58,704","message":"request GET http://internal.hail/dking/address/api/shuffler","filename":"Requester.scala","line_number":"61","class":"is.hail.services.Requester","method":"requestWithHandler","logger_name":"Requester","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-1-thread-1"}
+{"@version":1,"@timestamp":"2021-07-27 20:51:58,761","message":"request GET http://internal.hail/dking/address/api/shuffler response 200","filename":"Requester.scala","line_number":"71","class":"is.hail.services.Requester","method":"$anonfun$requestWithHandler$2","logger_name":"Requester","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-1-thread-1"}
+{"@version":1,"@timestamp":"2021-07-27 20:51:58,762","message":"attempting to connect shuffler at 10.32.9.250:443","filename":"DeployConfig.scala","line_number":"145","class":"is.hail.services.DeployConfig","method":"socket","logger_name":"is.hail.services","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-1-thread-1"}
+{"@version":1,"@timestamp":"2021-07-27 20:51:58,762","message":"connected to shuffler at 10.32.9.250:443","filename":"DeployConfig.scala","line_number":"149","class":"is.hail.services.DeployConfig","method":"socket","logger_name":"is.hail.services","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-1-thread-1"}
+{"@version":1,"@timestamp":"2021-07-27 20:51:58,763","message":"put","filename":"Logging.scala","line_number":"7","class":"is.hail.utils.LogHelper$","method":"logInfo","logger_name":"root","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-1-thread-1"}
+#
+# A fatal error has been detected by the Java Runtime Environment:
+#
+#  SIGSEGV (0xb) at pc=0x00007f24619430a2, pid=233, tid=0x00007f23cb6cd700
+#
+# JRE version: OpenJDK Runtime Environment (8.0_292-b10) (build 1.8.0_292-8u292-b10-0+deb9u1-b10)
+# Java VM: OpenJDK 64-Bit Server VM (25.292-b10 mixed mode linux-amd64 compressed oops)
+# Problematic frame:
+# J 4565 C1 is.hail.annotations.Region$.loadInt(J)I (5 bytes) @ 0x00007f24619430a2 [0x00007f2461943000+0xa2]
+#
+# Core dump written. Default location: //core or core.233
+#
+# An error report file with more information is saved as:
+# //hs_err_pid233.log
+Compiled method (c1)  124591 4565       3       is.hail.annotations.Region$::loadInt (5 bytes)
+ total in heap  [0x00007f2461942e90,0x00007f2461943238] = 936
+ relocation     [0x00007f2461942fb8,0x00007f2461942fe8] = 48
+ main code      [0x00007f2461943000,0x00007f2461943120] = 288
+ stub code      [0x00007f2461943120,0x00007f24619431b0] = 144
+ oops           [0x00007f24619431b0,0x00007f24619431b8] = 8
+ metadata       [0x00007f24619431b8,0x00007f24619431c8] = 16
+ scopes data    [0x00007f24619431c8,0x00007f24619431f0] = 40
+ scopes pcs     [0x00007f24619431f0,0x00007f2461943230] = 64
+ dependencies   [0x00007f2461943230,0x00007f2461943238] = 8
+#
+# If you would like to submit a bug report, please visit:
+#   http://bugreport.java.com/bugreport/crash.jsp
+#
+')
     def test_aggregator_any_and_all(self):
         df = hl.utils.range_table(10)
         df = df.annotate(all_true=True,
