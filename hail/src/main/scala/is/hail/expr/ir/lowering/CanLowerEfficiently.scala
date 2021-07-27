@@ -41,8 +41,8 @@ object CanLowerEfficiently {
         case t: TableParallelize =>
         case t: TableRange =>
         case TableKeyBy(child, keys, isSorted) =>
-          if (!(isSorted || child.typ.key.startsWith(keys)))
-            fail(s" lowered spark shuffles immediately persist to disk, which makes some benchmarks slower (but more resilient)")
+//          if (!(isSorted || child.typ.key.startsWith(keys)))
+//            fail(s" lowered spark shuffles immediately persist to disk, which makes some benchmarks slower (but more resilient)")
 
           val doesStrangeDNDArrayOneToOneRekey = isSorted &&
             child.typ.key.zip(keys).takeWhile { case (l, r) => l == r }.isEmpty

@@ -1,15 +1,21 @@
 package is.hail.expr.ir.lowering
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import is.hail.annotations.{BroadcastRow, Region, RegionValue}
 import is.hail.asm4s._
+import is.hail.backend.BroadcastValue
+import is.hail.backend.spark.AnonymousDependency
 import is.hail.expr.ir.{Compile, CompileIterator, ExecuteContext, GetField, IR, In, Let, MakeStruct, PartitionRVDReader, ReadPartition, StreamRange, ToArray, _}
+import is.hail.io.fs.FS
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.rvd.{RVD, RVDType}
 import is.hail.sparkextras.ContextRDD
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
-import is.hail.types.physical.{PArray, PStruct, stypes}
+import is.hail.types.physical.{PArray, PStruct}
 import is.hail.utils.{FastIndexedSeq, FastSeq}
+import org.apache.spark.rdd.RDD
+import org.apache.spark.{Dependency, Partition, SparkContext, TaskContext}
+
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 object RVDToTableStage {
   def apply(rvd: RVD, globals: IR): TableStage = {
@@ -83,15 +89,15 @@ object TableStageToRVD {
         Let(bcVal, GetField(In(1, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(decodedBcValsPType))), bcVal), acc)
       }, relationalBindings))
 
-
     val fsBc = ctx.fsBc
 
+    val sparkDeps = ts.dependency
+      .deps
+      .map(dep => new AnonymousDependency(dep.asInstanceOf[RVDDependency].rvd.crdd.rdd))
 
-    val crdd = if (nContexts == 0)
-      ContextRDD.empty[Long]
-    else
-      ContextRDD.weaken(sparkContext
-      .parallelize(encodedContexts.zipWithIndex, numSlices = nContexts))
+    val rdd = new TableStageToRDD(fsBc, sparkContext, encodedContexts, sparkDeps)
+
+    val crdd = ContextRDD.weaken(rdd)
       .cflatMap { case (rvdContext, (encodedContext, idx)) =>
         val decodedContext = makeContextDec(new ByteArrayInputStream(encodedContext))
           .readRegionValue(rvdContext.partitionRegion)
@@ -102,5 +108,24 @@ object TableStageToRVD {
       }
 
     (globRow, RVD(RVDType(newRowPType, ts.key), ts.partitioner, crdd))
+  }
+}
+
+case class TableStageToRDDPartition(data: Array[Byte], index: Int) extends Partition
+
+class TableStageToRDD(
+  fsBc: BroadcastValue[FS],
+  sc: SparkContext,
+  @transient private val collection: Array[Array[Byte]],
+  deps: Seq[Dependency[_]])
+  extends RDD[(Array[Byte], Int)](sc, deps) {
+
+  override def getPartitions: Array[Partition] = {
+    Array.tabulate(collection.length)(i => TableStageToRDDPartition(collection(i), i))
+  }
+
+  override def compute(partition: Partition, context: TaskContext): Iterator[(Array[Byte], Int)] = {
+    val sp = partition.asInstanceOf[TableStageToRDDPartition]
+    Iterator.single((sp.data, sp.index))
   }
 }
