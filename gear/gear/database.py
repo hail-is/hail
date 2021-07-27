@@ -7,14 +7,9 @@ import logging
 import functools
 import ssl
 import traceback
-import warnings
 
 from hailtop.utils import sleep_and_backoff, LoggingTimer
 from hailtop.auth.sql_config import SQLConfig
-
-warnings.filterwarnings('error',
-                        message='.*This version of MySQL doesn\'t yet support \'sorting of non-scalar JSON values\'',
-                        category=pymysql.Warning)
 
 
 log = logging.getLogger('gear.database')
