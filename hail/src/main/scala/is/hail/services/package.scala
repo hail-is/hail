@@ -32,6 +32,8 @@ package object services {
   }
 
   def isTransientError(e: Throwable, transient404: Boolean = false): Boolean = {
+    def recur(e: Throwable): Boolean = isTransientError(e, transient404)
+
     e match {
       case e: NoHttpResponseException =>
         true
@@ -53,7 +55,7 @@ package object services {
           e.getMessage.contains("SSL peer shut down incorrectly"))
       case e @ (_: SSLException | _: StorageException) =>
         val cause = e.getCause
-        cause != null && isTransientError(cause)
+        cause != null && recur(cause)
       case _ =>
         false
     }
