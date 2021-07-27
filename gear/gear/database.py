@@ -47,19 +47,6 @@ def retry_transient_mysql_errors(f):
     return wrapper
 
 
-def handle_raised_warnings(f):
-    @functools.wraps(f)
-    async def wrapper(*args, **kwargs):
-        args_names = f.__code__.co_varnames[:f.__code__.co_argcount]
-        args_dict = {**dict(zip(args_names, args)), **kwargs}
-        sql = args_dict.get('sql')
-        try:
-            return await f(*args, **kwargs)
-        except Warning as w:
-            log.exception(f'raised warning {w} while executing {sql}')
-    return wrapper
-
-
 def transaction(db, **transaction_kwargs):
     def transformer(fun):
         @functools.wraps(fun)
@@ -154,16 +141,6 @@ async def _release_connection(conn_context_manager):
             log.exception('while releasing database connection')
 
 
-@handle_raised_warnings
-async def execute(cursor, sql, args=None):
-    return await cursor.execute(sql, args=args)
-
-
-@handle_raised_warnings
-async def executemany(cursor, sql, args=None):
-    return await cursor.executemany(sql, args=args)
-
-
 class Transaction:
     def __init__(self):
         self.conn_context_manager = None
@@ -175,9 +152,9 @@ class Transaction:
             self.conn = await aenter(self.conn_context_manager)
             async with self.conn.cursor() as cursor:
                 if read_only:
-                    await execute(cursor, 'START TRANSACTION READ ONLY;')
+                    await cursor.execute('START TRANSACTION READ ONLY;')
                 else:
-                    await execute(cursor, 'START TRANSACTION;')
+                    await cursor.execute('START TRANSACTION;')
         except:
             self.conn = None
             conn_context_manager = self.conn_context_manager
@@ -225,22 +202,22 @@ class Transaction:
     async def just_execute(self, sql, args=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
-            await execute(cursor, sql, args)
+            await cursor.execute(sql, args)
 
     async def execute_and_fetchone(self, sql, args=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
-            await execute(cursor, sql, args)
+            await cursor.execute(sql, args)
             return await cursor.fetchone()
 
     async def execute_and_fetchall(self, sql, args=None, timer_description=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
             if timer_description is None:
-                await execute(cursor, sql, args)
+                await cursor.execute(sql, args)
             else:
                 async with LoggingTimer(f'{timer_description}: execute_and_fetchall: execute', threshold_ms=20):
-                    await execute(cursor, sql, args)
+                    await cursor.execute(sql, args)
             while True:
                 if timer_description is None:
                     rows = await cursor.fetchmany(100)
@@ -255,18 +232,18 @@ class Transaction:
     async def execute_insertone(self, sql, args=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
-            await execute(cursor, sql, args)
+            await cursor.execute(sql, args)
             return cursor.lastrowid
 
     async def execute_update(self, sql, args=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
-            return await execute(cursor, sql, args)
+            return await cursor.execute(sql, args)
 
     async def execute_many(self, sql, args_array):
         assert self.conn
         async with self.conn.cursor() as cursor:
-            return await executemany(cursor, sql, args_array)
+            return await cursor.executemany(sql, args_array)
 
 
 class Database:
