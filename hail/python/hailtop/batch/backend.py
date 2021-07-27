@@ -244,20 +244,22 @@ class LocalBackend(Backend[None]):
 
                 code.append(f"# {job._job_id}: {job.name if job.name else ''}")
 
+                if job._user_code:
+                    code.append(f'# USER CODE')
+                    user_code = [f'# {line}' for cmd in job._user_code for line in cmd.split('\n')]
+                    code.append('\n'.join(user_code))
+
                 code += [x for r in job._inputs for x in copy_input(job, r)]
                 code += [x for r in job._mentioned for x in symlink_input_resource_group(r)]
 
-                resource_defs = [r._declare(tmpdir) for r in job._mentioned]
                 env = [f'export {k}={v}' for k, v in job._env.items()]
+                joined_env = '; '.join(env) + '; ' if env else ''
 
                 job_shell = job._shell if job._shell else DEFAULT_SHELL
 
-                defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
-                joined_env = '; '.join(env) + '; ' if env else ''
-
                 cmd = " && ".join(f'{{\n{x}\n}}' for x in job._wrapper_code)
 
-                quoted_job_script = shq(joined_env + defs + cmd)
+                quoted_job_script = shq(joined_env + cmd)
 
                 if job._image:
                     cpu = f'--cpus={job._cpu}' if job._cpu else ''
@@ -570,7 +572,7 @@ class ServiceBackend(Backend[bc.Batch]):
 
         with tqdm(total=len(batch._jobs), desc='upload code', disable=disable_progress_bar) as pbar:
             async def compile_job(job):
-                used_remote_tmpdir = await job._compile(local_tmpdir, batch_remote_tmpdir)
+                used_remote_tmpdir = await job._compile(local_tmpdir, batch_remote_tmpdir, dry_run=dry_run)
                 pbar.update(1)
                 return used_remote_tmpdir
             used_remote_tmpdir_results = await bounded_gather(*[functools.partial(compile_job, j) for j in batch._jobs], parallelism=150)
@@ -585,10 +587,6 @@ class ServiceBackend(Backend[bc.Batch]):
             outputs += [x for r in job._external_outputs for x in copy_external_output(r)]
 
             symlinks = [x for r in job._mentioned for x in symlink_input_resource_group(r)]
-
-            env_vars = {
-                **job._env,
-                **{r._uid: r._get_path(local_tmpdir) for r in job._mentioned}}
 
             if job._image is None:
                 if verbose:
@@ -605,8 +603,28 @@ class ServiceBackend(Backend[bc.Batch]):
 {" && ".join(prepared_job_command)}
 '''
 
+            if job._user_code:
+                user_code = '\n\n'.join(job._user_code)
+            else:
+                user_code = None
+
             if dry_run:
-                commands.append(cmd)
+                formatted_command = f'''
+================================================================================
+# Job {job._job_id} {f": {job.name}" if job.name else ''}
+
+--------------------------------------------------------------------------------
+## USER CODE
+--------------------------------------------------------------------------------
+{user_code}
+
+--------------------------------------------------------------------------------
+## COMMAND
+--------------------------------------------------------------------------------
+{cmd}
+================================================================================
+'''
+                commands.append(formatted_command)
                 continue
 
             parents = [job_to_client_job_mapping[j] for j in job._dependencies]
@@ -633,8 +651,6 @@ class ServiceBackend(Backend[bc.Batch]):
                 warnings.warn(f'Using an image {image} not in GCR. '
                               f'Jobs may fail due to Docker Hub rate limits.')
 
-            user_code = '\n\n'.join(job._user_code)
-
             j = bc_batch.create_job(image=image,
                                     command=[job._shell if job._shell else DEFAULT_SHELL, '-c', cmd],
                                     parents=parents,
@@ -645,7 +661,7 @@ class ServiceBackend(Backend[bc.Batch]):
                                     always_run=job._always_run,
                                     timeout=job._timeout,
                                     gcsfuse=job._gcsfuse if len(job._gcsfuse) > 0 else None,
-                                    env=env_vars,
+                                    env=job._env,
                                     requester_pays_project=batch.requester_pays_project,
                                     mount_tokens=True,
                                     user_code=user_code)

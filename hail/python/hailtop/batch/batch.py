@@ -87,7 +87,6 @@ class Batch:
         Automatically cancel the batch after N failures have occurred. The default
         behavior is there is no limit on the number of failures. Only
         applicable for the :class:`.ServiceBackend`. Must be greater than 0.
-
     """
 
     _counter = 0

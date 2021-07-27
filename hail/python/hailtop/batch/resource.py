@@ -22,9 +22,6 @@ class Resource:
     def _add_output_path(self, path: str) -> None:
         pass
 
-    def _declare(self, directory: str) -> str:
-        return f"export {self._uid}={shq(self._get_path(directory))}"  # pylint: disable=no-member
-
 
 class ResourceFile(Resource, str):
     """
@@ -73,7 +70,7 @@ class ResourceFile(Resource, str):
         return self._resource_group
 
     def __str__(self):
-        return f'"{self._uid}"'  # pylint: disable=no-member
+        return f'{self._uid}'  # pylint: disable=no-member
 
     def __repr__(self):
         return self._uid  # pylint: disable=no-member
@@ -269,7 +266,7 @@ class ResourceGroup(Resource):
         return other + str(self._uid)
 
     def __str__(self):
-        return f'"{self._uid}"'
+        return f'{self._uid}'
 
 
 class PythonResult(Resource, str):
@@ -448,7 +445,7 @@ class PythonResult(Resource, str):
         return cast(JobResourceFile, self._repr)
 
     def __str__(self):
-        return f'"{self._uid}"'  # pylint: disable=no-member
+        return f'{self._uid}'  # pylint: disable=no-member
 
     def __repr__(self):
         return self._uid  # pylint: disable=no-member

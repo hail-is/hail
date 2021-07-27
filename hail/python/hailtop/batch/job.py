@@ -401,7 +401,7 @@ class Job:
         self._gcsfuse.append((bucket, mount_point, read_only))
         return self
 
-    async def _compile(self, local_tmpdir, remote_tmpdir):
+    async def _compile(self, local_tmpdir, remote_tmpdir, *, dry_run=False):
         raise NotImplementedError
 
     def _pretty(self):
@@ -541,9 +541,36 @@ class BashJob(Job):
         self._image = image
         return self
 
-    def _interpolate_command(self, command):
+    def _process_command(self, command, handler):
+        regexes = [_resource.ResourceFile._regex_pattern,
+                   _resource.ResourceGroup._regex_pattern,
+                   _resource.PythonResult._regex_pattern,
+                   Job._regex_pattern,
+                   batch.Batch._regex_pattern]
+
+        subst_command = re.sub('(' + ')|('.join(regexes) + ')',
+                               handler,
+                               command)
+
+        return subst_command
+
+    def _subst_resource_path_handler(self, local_tmpdir):
         def handler(match_obj):
             groups = match_obj.groupdict()
+            assert groups['RESOURCE_FILE'] or groups['RESOURCE_GROUP']
+            r_uid = match_obj.group()
+            r = self._batch._resource_map.get(r_uid)
+            return r._get_path(local_tmpdir)
+        return handler
+
+    def _subst_resource_path(self, command, local_tmpdir):
+        handler = self._subst_resource_path_handler(local_tmpdir)
+        return self._process_command(command, handler)
+
+    def _interpolate_command_handler(self, command):
+        def handler(match_obj):
+            groups = match_obj.groupdict()
+
             if groups['JOB']:
                 raise BatchException(f"found a reference to a Job object in command '{command}'.")
             if groups['BATCH']:
@@ -571,18 +598,14 @@ class BashJob(Job):
                     r._source._add_internal_outputs(r)
             else:
                 _add_resource_to_set(self._valid, r)
-            self._mentioned.add(r)
-            return f"${{{r_uid}}}"
 
-        regexes = [_resource.ResourceFile._regex_pattern,
-                   _resource.ResourceGroup._regex_pattern,
-                   _resource.PythonResult._regex_pattern,
-                   Job._regex_pattern,
-                   batch.Batch._regex_pattern]
-        subst_command = re.sub('(' + ')|('.join(regexes) + ')',
-                               handler,
-                               command)
-        return subst_command
+            self._mentioned.add(r)
+            return f'{r_uid}'
+        return handler
+
+    def _interpolate_command(self, command):
+        handler = self._interpolate_command_handler(command)
+        return self._process_command(command, handler)
 
     def command(self, command: str) -> 'BashJob':
         """Set the job's command to execute.
@@ -657,11 +680,11 @@ class BashJob(Job):
         Same job object with command appended.
         """
 
-        subst_command = self._interpolate_command(command)
-        self._command.append(subst_command)
+        command = self._interpolate_command(command)
+        self._command.append(command)
         return self
 
-    async def _compile(self, local_tmpdir, remote_tmpdir):
+    async def _compile(self, local_tmpdir, remote_tmpdir, *, dry_run=False):
         if len(self._command) == 0:
             return False
 
@@ -670,6 +693,7 @@ class BashJob(Job):
         job_command = [cmd.strip() for cmd in self._command]
         job_command = [f'{{\n{x}\n}}' for x in job_command]
         job_command = '\n'.join(job_command)
+        job_command = self._subst_resource_path(job_command, local_tmpdir=local_tmpdir)
 
         job_command = f'''
 #! {job_shell}
@@ -687,9 +711,6 @@ class BashJob(Job):
         assert self._job_id is not None
         job_path = f'{remote_tmpdir}/{self._job_id}'
         code_path = f'{job_path}/code.sh'
-
-        await self._batch._fs.makedirs(os.path.dirname(code_path), exist_ok=True)
-        await self._batch._fs.write(code_path, job_command_bytes)
         code = self._batch.read_input(code_path)
 
         wrapper_command = f'''
@@ -697,7 +718,12 @@ chmod u+x {code}
 source {code}
 '''
         wrapper_command = self._interpolate_command(wrapper_command)
+        wrapper_command = self._subst_resource_path(wrapper_command, local_tmpdir=local_tmpdir)
         self._wrapper_code.append(wrapper_command)
+
+        if not dry_run:
+            await self._batch._fs.makedirs(os.path.dirname(code_path), exist_ok=True)
+            await self._batch._fs.write(code_path, job_command_bytes)
 
         return True
 
@@ -945,7 +971,7 @@ class PythonJob(Job):
 
         return result
 
-    async def _compile(self, local_tmpdir, remote_tmpdir):
+    async def _compile(self, local_tmpdir, remote_tmpdir, *, dry_run=False):
         for i, (result, unapplied, args, kwargs) in enumerate(self._functions):
             def prepare_argument_for_serialization(arg):
                 if isinstance(arg, _resource.PythonResult):
@@ -984,8 +1010,9 @@ class PythonJob(Job):
             job_path = os.path.dirname(result._get_path(remote_tmpdir))
             code_path = f'{job_path}/code{i}.p'
 
-            await self._batch._fs.makedirs(os.path.dirname(code_path), exist_ok=True)
-            await self._batch._fs.write(code_path, pipe.getvalue())
+            if not dry_run:
+                await self._batch._fs.makedirs(os.path.dirname(code_path), exist_ok=True)
+                await self._batch._fs.write(code_path, pipe.getvalue())
 
             code = self._batch.read_input(code_path)
             self._add_inputs(code)
