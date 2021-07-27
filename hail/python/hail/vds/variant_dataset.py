@@ -52,14 +52,14 @@ class VariantDataset:
                                    infer_ref_block_fields: bool = True):
 
         if 'END' not in mt.entry:
-            raise ValueError(f"VariantDataset.from_merged_representation: expect field 'END' in matrix table entry")
+            raise ValueError("VariantDataset.from_merged_representation: expect field 'END' in matrix table entry")
 
         if 'LA' not in mt.entry:
-            raise ValueError(f"VariantDataset.from_merged_representation: expect field 'LA' in matrix table entry")
+            raise ValueError("VariantDataset.from_merged_representation: expect field 'LA' in matrix table entry")
 
         if 'GT' not in mt.entry and 'LGT' not in mt.entry:
             raise ValueError(
-                f"VariantDataset.from_merged_representation: expect field 'LGT' or 'GT' in matrix table entry")
+                "VariantDataset.from_merged_representation: expect field 'LGT' or 'GT' in matrix table entry")
 
         n_rows_to_use = 100
         info(f"inferring reference block fields from missingness patterns in first {n_rows_to_use} rows")
@@ -68,11 +68,11 @@ class VariantDataset:
 
         if infer_ref_block_fields:
             mt_head = mt.head(n_rows=n_rows_to_use)
-            for k, all_present in zip(
+            for k, any_present in zip(
                     list(mt_head.entry),
                     mt_head.aggregate_entries(hl.agg.filter(hl.is_defined(mt_head.END), tuple(
-                        hl.agg.all(hl.is_defined(mt_head[x])) for x in mt_head.entry)))):
-                if all_present:
+                        hl.agg.any(hl.is_defined(mt_head[x])) for x in mt_head.entry)))):
+                if any_present:
                     used_ref_block_fields.add(k)
 
         gt_field = 'LGT' if 'LGT' in mt.entry else 'GT'
@@ -83,7 +83,7 @@ class VariantDataset:
         if 'LA' in used_ref_block_fields:
             used_ref_block_fields.remove('LA')
 
-        info(f"Including the following fields in reference block table:" + "".join(
+        info("Including the following fields in reference block table:" + "".join(
             f"\n  {k!r}" for k in mt.entry if k in used_ref_block_fields))
 
         rmt = mt.filter_entries(hl.case()
