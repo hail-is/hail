@@ -76,6 +76,16 @@ routes = web.RouteTableDef()
 deploy_config = get_deploy_config()
 
 
+def ignore_failed_to_collect_and_upload_profile(record):
+    if 'Failed to collect and upload profile: [Errno 32] Broken pipe' in record.msg:
+        record.levelno = logging.INFO
+        record.levelname = "INFO"
+    return record
+
+
+googlecloudprofiler.logger.addFilter(ignore_failed_to_collect_and_upload_profile)
+
+
 def instance_name_from_request(request):
     instance_name = request.headers.get('X-Hail-Instance-Name')
     if instance_name is None:
