@@ -189,6 +189,7 @@ class PR(Code):
         self.sha = None
         self.batch = None
         self.source_sha_failed = None
+        self.merge_conflict = False
 
         # 'error', 'success', 'failure', None
         self.build_state = None
@@ -274,6 +275,7 @@ class PR(Code):
             self.sha = None
             self.batch = None
             self.source_sha_failed = None
+            self.merge_conflict = False
             self.set_build_state(None)
             self.target_branch.batch_changed = True
             self.target_branch.state_changed = True
@@ -478,6 +480,7 @@ mkdir -p {shq(repo_dir)}
             )
             self.set_build_state('error')
             self.source_sha_failed = True
+            self.merge_conflict = True
             self.target_branch.state_changed = True
         finally:
             if batch and not self.batch:
