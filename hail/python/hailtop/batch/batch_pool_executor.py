@@ -250,6 +250,7 @@ class BatchPoolExecutor:
             for task in tasks:
                 if not task.done():
                     task.cancel()
+
             if tasks:
                 await asyncio.wait(tasks)
 
@@ -259,9 +260,9 @@ class BatchPoolExecutor:
                 if not task.cancelled() and not task.exception():
                     bp_future = task.result()
                     bp_futures.append(bp_future)
+
             if bp_futures:
                 await asyncio.wait([bp_fut.async_cancel() for bp_fut in bp_futures])
-            raise
 
         async def async_result_or_cancel_all(future):
             try:
