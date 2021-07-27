@@ -13,7 +13,7 @@ case class SStructOfArrays(virtualType: TArray, elementsRequired: Boolean, field
   require(virtualType.elementType.isInstanceOf[TBaseStruct])
   require(fields.forall(st => st.virtualType.isInstanceOf[TArray]))
 
-  private def structVirtualType: TBaseStruct = virtualType.elementType.asInstanceOf
+  private val structVirtualType: TBaseStruct = virtualType.elementType.asInstanceOf
 
   override val elementType: SStackStruct = SStackStruct(structVirtualType, fields.map(_.elementEmitType))
 
@@ -47,7 +47,7 @@ case class SStructOfArrays(virtualType: TArray, elementsRequired: Boolean, field
       if (elementsRequired) None else Some(coerce(settables(1))),
       fields.zipWithIndex.map { case (f, i) =>
         val start = settableStarts(i)
-        f.fromCodes(settables.slice(start, start + f.nSettables)).asInstanceOf
+        f.fromSettables(settables.slice(start, start + f.nSettables)).asInstanceOf
       }
     )
   }
