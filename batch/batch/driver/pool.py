@@ -27,7 +27,7 @@ from ..utils import (
     adjust_cores_for_packability,
     adjust_cores_for_storage_request,
 )
-from .create_instance import create_instance
+from .create_instance import create_instance, create_instance_config
 from .instance import Instance
 from .instance_collection import InstanceCollection
 from .job import schedule_job
@@ -183,20 +183,7 @@ WHERE name = %s;
 
         activation_token = secrets.token_urlsafe(32)
 
-        instance = await Instance.create(
-            app=self.app,
-            inst_coll=self,
-            name=machine_name,
-            activation_token=activation_token,
-            worker_cores_mcpu=cores * 1000,
-            zone=zone,
-            machine_type=machine_type,
-            preemptible=True,
-        )
-        self.add_instance(instance)
-        log.info(f'created {instance}')
-
-        await create_instance(
+        config, worker_config = create_instance_config(
             app=self.app,
             zone=zone,
             machine_name=machine_name,
@@ -208,6 +195,28 @@ WHERE name = %s;
             boot_disk_size_gb=self.boot_disk_size_gb,
             preemptible=True,
             job_private=False,
+        )
+
+        instance = await Instance.create(
+            app=self.app,
+            inst_coll=self,
+            name=machine_name,
+            activation_token=activation_token,
+            worker_cores_mcpu=cores * 1000,
+            zone=zone,
+            machine_type=machine_type,
+            preemptible=True,
+            worker_config=worker_config
+        )
+
+        self.add_instance(instance)
+        log.info(f'created {instance}')
+
+        await create_instance(
+            app=self.app,
+            machine_name=machine_name,
+            zone=zone,
+            config=config,
         )
 
     async def create_instances_from_ready_cores(self, ready_cores_mcpu, zone=None):

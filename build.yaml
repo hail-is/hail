@@ -2299,6 +2299,8 @@ steps:
         script: /io/sql/add-fail-fast.sql
       - name: add-frozen-mode
         script: /io/sql/add-frozen-mode.sql
+      - name: add-instance-config
+        script: /io/sql/add-instance-config.sql
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

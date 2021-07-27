@@ -3,6 +3,7 @@ import logging
 import base64
 import json
 import uuid
+from typing import Tuple, Dict, Any
 
 from hailtop import aiogoogle
 
@@ -19,7 +20,7 @@ BATCH_WORKER_IMAGE = os.environ['HAIL_BATCH_WORKER_IMAGE']
 log.info(f'BATCH_WORKER_IMAGE {BATCH_WORKER_IMAGE}')
 
 
-async def create_instance(
+def create_instance_config(
     app,
     zone,
     machine_name,
@@ -31,10 +32,8 @@ async def create_instance(
     boot_disk_size_gb,
     preemptible,
     job_private,
-):
+) -> Tuple[Dict[str, Any], WorkerConfig]:
     log_store: LogStore = app['log_store']
-    compute_client: aiogoogle.ComputeClient = app['compute_client']
-
     cores = int(machine_type_to_dict(machine_type)['cores'])
 
     if worker_local_ssd_data_disk:
@@ -320,15 +319,17 @@ journalctl -u docker.service > dockerd.log
     }
 
     worker_config = WorkerConfig.from_instance_config(config, job_private)
-    assert worker_config.is_valid_configuration(app['resources'])
+    resource_names = app['resource_rates'].keys()
+    assert worker_config.is_valid_configuration(resource_names)
     config['metadata']['items'].append(
         {'key': 'worker_config', 'value': base64.b64encode(json.dumps(worker_config.config).encode()).decode()}
     )
 
+    return (config, worker_config)
+
+
+async def create_instance(app, machine_name, zone, config):
+    compute_client: aiogoogle.ComputeClient = app['compute_client']
     params = {'requestId': str(uuid.uuid4())}
-
     await compute_client.post(f'/zones/{zone}/instances', params=params, json=config)
-
     log.info(f'created machine {machine_name}')
-
-    return worker_config
