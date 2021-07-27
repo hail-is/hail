@@ -1348,6 +1348,7 @@ def import_gen(path,
                              .when(1, hl.call(0, 1))
                              .when(2, hl.call(1, 1))
                              .or_error("error creating gt field."))
+    mt = mt.filter_entries(hl.is_defined(mt.GT))
     mt = mt.key_cols_by('s').drop('col_idx', 'file', 'data')
     mt = mt.key_rows_by('locus', 'alleles').select_entries('GT', 'GP')
 
