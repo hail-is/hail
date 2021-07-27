@@ -48,8 +48,8 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
     new StaticFieldRef(rgField)
   }
 
-  def referenceGenomes(): IndexedSeq[ReferenceGenome] = rgContainers.keys.toFastIndexedSeq
-  def referenceGenomeFields(): IndexedSeq[StaticField[ReferenceGenome]] = rgContainers.values.toFastIndexedSeq
+  def referenceGenomes(): IndexedSeq[ReferenceGenome] = rgContainers.keys.toFastIndexedSeq.sortBy(_.name)
+  def referenceGenomeFields(): IndexedSeq[StaticField[ReferenceGenome]] = rgContainers.toFastIndexedSeq.sortBy(_._1.name).map(_._2)
 }
 
 trait WrappedEmitModuleBuilder {
