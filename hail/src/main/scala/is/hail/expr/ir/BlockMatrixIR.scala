@@ -622,8 +622,8 @@ case class BlockMatrixAgg(
   override lazy val typ: BlockMatrixType = {
     val matrixShape = BlockMatrixIR.tensorShapeToMatrixShape(child)
     val matrixShapeArr = Array[Long](matrixShape._1, matrixShape._2)
-    val shape = axesToSumOut.map({ i: Int => matrixShapeArr(i) }).toFastIndexedSeq
-    val isRowVector = axesToSumOut == FastIndexedSeq(1)
+    val shape = IndexedSeq(0, 1).filter(i => !axesToSumOut.contains(i)).map({ i: Int => matrixShapeArr(i) }).toFastIndexedSeq
+    val isRowVector = axesToSumOut == FastIndexedSeq(0)
 
     val sparsity = if (child.typ.isSparse) {
       axesToSumOut match {

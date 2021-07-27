@@ -69,7 +69,7 @@ class Tests(unittest.TestCase):
     def assert_sums_agree(self, bm, nd):
         self.assertAlmostEqual(bm.sum(), np.sum(nd))
         self._assert_close(bm.sum(axis=0), np.sum(nd, axis=0, keepdims=True))
-        #self._assert_close(bm.sum(axis=1), np.sum(nd, axis=1, keepdims=True))
+        self._assert_close(bm.sum(axis=1), np.sum(nd, axis=1, keepdims=True))
 
     def test_from_entry_expr_simple(self):
         mt = get_dataset()
