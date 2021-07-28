@@ -486,6 +486,7 @@ class BatchPoolFuture:
             return False
         await self.batch.cancel()
         self.fetch_coro.cancel()
+        await asyncio.wait([self.fetch_coro])
         return True
 
     def cancelled(self):
