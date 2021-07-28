@@ -78,9 +78,14 @@ object InferType {
         val argTypes = a.args.map(_.typ)
         assert(a.implementation.unify(typeArgs, argTypes, a.returnType))
         a.returnType
-      case ArrayRef(a, i, s) =>
+      case ArrayRef(a, i, _) =>
         assert(i.typ == TInt32)
         coerce[TArray](a.typ).elementType
+      case ArraySlice(a, start, stop, step, _) =>
+        assert(start.typ == TInt32)
+        stop.foreach(ir => assert(ir.typ == TInt32))
+        assert(step.typ == TInt32)
+        coerce[TArray](a.typ)
       case ArraySort(a, _, _, lessThan) =>
         assert(lessThan.typ == TBoolean)
         val et = coerce[TStream](a.typ).elementType

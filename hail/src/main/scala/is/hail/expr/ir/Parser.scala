@@ -892,6 +892,14 @@ object IRParser {
           a <- ir_value_expr(env)(it)
           i <- ir_value_expr(env)(it)
         } yield ArrayRef(a, i, errorID)
+      case "ArraySlice" =>
+        val errorID = int32_literal(it)
+        ir_value_children(env)(it).map { args =>
+          args match {
+            case Array(a, start, step) => ArraySlice(a, start, None, step, errorID)
+            case Array(a, start, stop, step) => ArraySlice(a, start, Some(stop), step, errorID)
+          }
+        }
       case "ArrayLen" => ir_value_expr(env)(it).map(ArrayLen)
       case "StreamLen" => ir_value_expr(env)(it).map(StreamLen)
       case "StreamRange" =>

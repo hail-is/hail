@@ -601,22 +601,15 @@ class Expression(object):
         return self._method("index", ret_type, key)
 
     def _slice(self, ret_type, start=None, stop=None, step=None):
-        if step is not None:
-            raise NotImplementedError('Variable slice step size is not currently supported')
-
-        if start is not None:
-            start = to_expr(start)
-            if stop is not None:
-                stop = to_expr(stop)
-                return self._method('slice', ret_type, start, stop)
-            else:
-                return self._method('sliceRight', ret_type, start)
-        else:
-            if stop is not None:
-                stop = to_expr(stop)
-                return self._method('sliceLeft', ret_type, stop)
-            else:
-                return self
+        if start is None:
+            start = 0
+        if step is None:
+            step = 1
+        start = to_expr(start)
+        stop = to_expr(stop)
+        step = to_expr(step)
+        slice_ir = ir.ArraySlice(self._ir, start._ir, stop._ir, step._ir)
+        return expressions.construct_expr(slice_ir, ret_type, self._indices, self._aggregations)
 
     def _ir_lambda_method(self, irf, f, input_type, ret_type_f, *args):
         args = (to_expr(arg)._ir for arg in args)

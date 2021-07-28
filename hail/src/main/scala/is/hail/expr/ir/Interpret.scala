@@ -249,6 +249,20 @@ object Interpret {
           } else
             a.apply(i)
         }
+      case ArraySlice(a, start, stop, step, errorID) =>
+        val aValue = interpret(a, env, args)
+        val startValue = interpret(start, env, args)
+        val stopValue = stop.map(ir => interpret(ir, env, args))
+        val stepValue = interpret(step, env, args)
+        if (startValue == null || stepValue == null || aValue == null  ||
+          stopValue.getOrElse(aValue.asInstanceOf[IndexedSeq[Any]].size) == null)
+          null
+        else {
+          val a = aValue.asInstanceOf[IndexedSeq[Any]]
+          startValue.asInstanceOf[Int]
+          stopValue.getOrElse(a.size).asInstanceOf[Int]
+          stepValue.asInstanceOf[Int]
+        }
       case ArrayLen(a) =>
         val aValue = interpret(a, env, args)
         if (aValue == null)

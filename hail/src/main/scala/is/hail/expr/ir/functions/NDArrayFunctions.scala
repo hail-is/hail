@@ -13,7 +13,7 @@ import is.hail.types.physical.stypes.primitives.SBooleanCode
 import is.hail.types.physical.{PBooleanRequired, PCanonicalNDArray, PCanonicalStruct, PFloat64Required, PType}
 import is.hail.types.virtual._
 
-object NDArrayFunctions extends RegistryFunctions {
+object  NDArrayFunctions extends RegistryFunctions {
   override def registerAll() {
     for ((stringOp, argType, retType, irOp) <- ArrayFunctions.arrayOps) {
       val nDimVar = NatVariable()
