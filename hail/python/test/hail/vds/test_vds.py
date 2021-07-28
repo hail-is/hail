@@ -1,6 +1,6 @@
-import hail as hl
-
 import os
+
+import hail as hl
 from hail.utils import new_temp_file
 from ..helpers import startTestHailContext, stopTestHailContext, resource
 
@@ -20,7 +20,8 @@ def test_conversion_equivalence():
     vds_path = new_temp_file()
 
     hl.experimental.run_combiner(gvcfs, mt_path, tmpdir, use_exome_default_intervals=True, reference_genome='GRCh38',
-                                 overwrite=True, intervals=[hl.eval(hl.parse_locus_interval('chr22', 'GRCh38'))])
+                                 overwrite=True, intervals=[hl.eval(hl.parse_locus_interval('chr22', 'GRCh38'))],
+                                 key_by_locus_and_alleles=True)
 
     svcr = hl.read_matrix_table(mt_path)
 
@@ -29,7 +30,8 @@ def test_conversion_equivalence():
     var = vds.variant_data
 
     assert svcr.aggregate_entries(hl.agg.count_where(hl.is_defined(svcr.END))) == ref.aggregate_entries(hl.agg.count())
-    assert svcr.aggregate_entries(hl.agg.count()) == ref.aggregate_entries(hl.agg.count()) + var.aggregate_entries(hl.agg.count())
+    assert svcr.aggregate_entries(hl.agg.count()) == ref.aggregate_entries(hl.agg.count()) + var.aggregate_entries(
+        hl.agg.count())
 
     svcr_readback = hl.vds.to_merged_sparse_mt(vds)
 

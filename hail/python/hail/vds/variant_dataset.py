@@ -90,8 +90,8 @@ class VariantDataset:
                                 .when(hl.is_missing(mt.END), False)
                                 .when(hl.is_defined(mt.END) & mt[gt_field].is_hom_ref(), True)
                                 .or_error(hl.str('cannot create VDS from merged representation -'
-                                                 ' found END field with non-reference genotype at ') +
-                                          hl.str(mt.locus) + hl.str(' / ') + hl.str(mt.col_key[0])))
+                                                 ' found END field with non-reference genotype at ')
+                                          + hl.str(mt.locus) + hl.str(' / ') + hl.str(mt.col_key[0])))
         rmt = rmt.select_entries(*(x for x in rmt.entry if x in used_ref_block_fields))
         rmt = rmt.filter_rows(hl.agg.count() > 0)
 

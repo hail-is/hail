@@ -82,6 +82,9 @@ def to_merged_sparse_mt(vds: 'VariantDataset') -> 'MatrixTable':
     rht = vds.reference_data.localize_entries('_ref_entries', '_ref_cols')
     vht = vds.variant_data.localize_entries('_var_entries', '_var_cols')
 
+    # drop 'alleles' key for join
+    vht = vht.key_by('locus')
+
     merged_schema = {}
     for e in vds.variant_data.entry:
         merged_schema[e] = vds.variant_data[e].dtype
@@ -125,6 +128,7 @@ def to_merged_sparse_mt(vds: 'VariantDataset') -> 'MatrixTable':
         **{k: ht[k] for k in vds.variant_data.row_value if k != 'alleles'},
         _entries=merge_arrays(ht['_ref_entries'], ht['_var_entries'])
     )
+    ht = ht._key_by_assert_sorted('locus', 'alleles')
     return ht._unlocalize_entries('_entries', '_var_cols', list(vds.variant_data.col_key))
 
 
