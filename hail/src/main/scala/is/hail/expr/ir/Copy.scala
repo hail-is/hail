@@ -285,6 +285,9 @@ object Copy {
       case Trap(child) =>
         assert(newChildren.length == 1)
         Trap(newChildren(0).asInstanceOf[IR])
+      case ConsoleLog(message, result) =>
+        assert(newChildren.length == 2)
+        ConsoleLog(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
       case x@ApplyIR(fn, typeArgs, args, errorID) =>
         val r = ApplyIR(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), errorID)
         r.conversion = x.conversion
