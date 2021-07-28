@@ -1,5 +1,4 @@
 import abc
-from shlex import quote as shq
 from typing import Optional, Set, cast
 
 from . import job  # pylint: disable=cyclic-import

@@ -245,7 +245,7 @@ class LocalBackend(Backend[None]):
                 code.append(f"# {job._job_id}: {job.name if job.name else ''}")
 
                 if job._user_code:
-                    code.append(f'# USER CODE')
+                    code.append('# USER CODE')
                     user_code = [f'# {line}' for cmd in job._user_code for line in cmd.split('\n')]
                     code.append('\n'.join(user_code))
 
@@ -603,10 +603,7 @@ class ServiceBackend(Backend[bc.Batch]):
 {" && ".join(prepared_job_command)}
 '''
 
-            if job._user_code:
-                user_code = '\n\n'.join(job._user_code)
-            else:
-                user_code = None
+            user_code = '\n\n'.join(job._user_code) if job._user_code else None
 
             if dry_run:
                 formatted_command = f'''
