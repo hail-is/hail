@@ -2445,7 +2445,7 @@ class Table(ExprContainer):
 
         """
         if _join_key is None:
-            _join_key = len(self.key)
+            _join_key = max(len(self.key), len(right.key))
 
         left_key_types = list(self.key.dtype.values())[:_join_key]
         right_key_types = list(right.key.dtype.values())[:_join_key]
