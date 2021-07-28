@@ -674,7 +674,7 @@ object LowerTableIR {
                   sumSoFar += partCounts(idx)
                   idx += 1
                 }
-                val partsToKeep = partCounts.slice(0, 0)
+                val partsToKeep = partCounts.slice(0, idx)
                 MakeArray.apply(partsToKeep.map(partSize => I32(partSize.toInt)), TArray(TInt32))
               case None =>
                 val partitionSizeArrayFunc = genUID()
@@ -752,7 +752,16 @@ object LowerTableIR {
             val howManyPartsToTry = Ref(genUID(), TInt32)
 
             ir.partitionCounts match {
-              case Some(partCounts) => ???
+              case Some(partCounts) =>
+                var idx = partCounts.size - 1
+                var sumSoFar = 0L
+                while (idx >= 0 && sumSoFar < targetNumRows) {
+                  sumSoFar += partCounts(idx)
+                  idx -= 1
+                }
+                val partsToKeep = partCounts.slice(idx, partCounts.size)
+                println(s"Part counts was ${partCounts}, Parts to keep was ${partsToKeep}, idx was ${idx}, target was ${targetNumRows}")
+                MakeArray.apply(partsToKeep.map(partSize => I32(partSize.toInt)), TArray(TInt32))
               case None =>
                 TailLoop(
                   partitionSizeArrayFunc,
