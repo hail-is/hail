@@ -1328,6 +1328,11 @@ object PruneDeadFields {
         val childTupleType = o.typ.asInstanceOf[TTuple]
         val tupleDep = TTuple(FastIndexedSeq(TupleField(idx, requestedType)))
         memoizeValueIR(o, tupleDep, memo)
+      case ConsoleLog(message, result) =>
+        unifyEnvs(
+          memoizeValueIR(message, TString, memo),
+          memoizeValueIR(result, result.typ, memo)
+        )
       case MatrixCount(child) =>
         memoizeMatrixIR(child, minimal(child.typ), memo)
         BindingEnv.empty
@@ -1900,6 +1905,10 @@ object PruneDeadFields {
         val depStruct = requestedType.asInstanceOf[TStruct]
         val old2 = rebuildIR(old, env, memo)
         SelectFields(old2, fields.filter(f => old2.typ.asInstanceOf[TStruct].hasField(f) && depStruct.hasField(f)))
+      case ConsoleLog(message, result) =>
+        val message2 = rebuildIR(message, env, memo)
+        val result2 = rebuildIR(result, env, memo)
+        ConsoleLog(message2, result2)
       case TableAggregate(child, query) =>
         val child2 = rebuild(child, memo)
         val query2 = rebuildIR(query, BindingEnv(child2.typ.globalEnv, agg = Some(child2.typ.rowEnv)), memo)
