@@ -709,6 +709,12 @@ class Emit[C](
         val msg = cm.consumeCode(cb, "<exception message missing>", _.asString.loadString())
         cb._throw(Code.newInstance[HailException, String, Int](msg, errorId))
 
+      case ConsoleLog(message, result) =>
+        val cm = emitI(message)
+        val msg = cm.consumeCode(cb, "ConsoleLog with missing message", _.asString.loadString())
+        cb.logInfo(msg)
+        emitI(result)
+
       case x@WriteMetadata(annotations, writer) =>
         writer.writeMetadata(emitI(annotations), cb, region)
 

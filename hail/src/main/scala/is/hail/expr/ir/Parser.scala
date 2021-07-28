@@ -1272,7 +1272,11 @@ object IRParser {
         ir_value_expr(env)(it).map { child =>
           Trap(child)
         }
-
+      case "ConsoleLog" =>
+        for {
+          msg <- ir_value_expr(env)(it)
+          result <- ir_value_expr(env)(it)
+        } yield ConsoleLog(msg, result)
       case "ApplySeeded" =>
         val function = identifier(it)
         val seed = int64_literal(it)

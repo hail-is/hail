@@ -2075,6 +2075,26 @@ class Die(IR):
         return True
 
 
+class ConsoleLog(IR):
+    @typecheck_method(message=IR, result=IR)
+    def __init__(self, message, result):
+        super().__init__(message, result)
+        self.message = message
+        self.result = result
+
+    def _compute_type(self, env, agg_env):
+        self.message._compute_type(env, agg_env)
+        self.result._compute_type(env, agg_env)
+        self._type = self.result._type
+
+    def copy(self, message, result):
+        return ConsoleLog(message, result)
+
+    @staticmethod
+    def is_effectful() -> bool:
+        return True
+
+
 _function_registry = defaultdict(list)
 _seeded_function_registry = defaultdict(list)
 _udf_registry = dict()
