@@ -744,25 +744,29 @@ object LowerTableIR {
               loweredChild.partition(GetField(ctxRef, "old")),
               GetField(ctxRef, "numberToTake")))
 
-        case TableTail(child, targetNumRows) =>
+        case ir@TableTail(child, targetNumRows) =>
           val loweredChild = lower(child)
 
           def partitionSizeArray(childContexts: Ref, totalNumPartitions: Ref): IR = {
             val partitionSizeArrayFunc = genUID()
             val howManyPartsToTry = Ref(genUID(), TInt32)
 
-            TailLoop(
-              partitionSizeArrayFunc,
-              FastIndexedSeq(howManyPartsToTry.name -> 4),
-              bindIR(
-                loweredChild
-                  .mapContexts(_ => StreamDrop(ToStream(childContexts), maxIR(totalNumPartitions - howManyPartsToTry, 0))){ ctx: IR => ctx }
-                  .mapCollect(relationalLetsAbove)(StreamLen)
-              ) { counts =>
-                If((Cast(streamSumIR(ToStream(counts)), TInt64) >= targetNumRows) || (totalNumPartitions <= ArrayLen(counts)),
-                  counts,
-                  Recur(partitionSizeArrayFunc, FastIndexedSeq(howManyPartsToTry * 4), TArray(TInt32)))
-              })
+            ir.partitionCounts match {
+              case Some(partCounts) => ???
+              case None =>
+                TailLoop(
+                  partitionSizeArrayFunc,
+                  FastIndexedSeq(howManyPartsToTry.name -> 4),
+                  bindIR(
+                    loweredChild
+                      .mapContexts(_ => StreamDrop(ToStream(childContexts), maxIR(totalNumPartitions - howManyPartsToTry, 0))){ ctx: IR => ctx }
+                      .mapCollect(relationalLetsAbove)(StreamLen)
+                  ) { counts =>
+                    If((Cast(streamSumIR(ToStream(counts)), TInt64) >= targetNumRows) || (totalNumPartitions <= ArrayLen(counts)),
+                      counts,
+                      Recur(partitionSizeArrayFunc, FastIndexedSeq(howManyPartsToTry * 4), TArray(TInt32)))
+                  })
+            }
           }
 
           // First element is how many partitions to drop from partitionSizeArrayRef, second is how many to keep from first kept element.
