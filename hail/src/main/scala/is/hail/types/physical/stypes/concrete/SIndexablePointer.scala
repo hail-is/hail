@@ -96,7 +96,7 @@ class SIndexablePointerSettable(
 ) extends SIndexableValue with SSettable {
   val pt: PContainer = st.pType
 
-  def get: SIndexableCode = new SIndexablePointerCode(st, a)
+  def get: SIndexablePointerCode = new SIndexablePointerCode(st, a)
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a, length, elementsAddress)
 

@@ -1,19 +1,21 @@
 package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{Code, IntInfo, LongInfo, Settable, TypeInfo, Value, coerce}
+import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, IEmitCode}
-import is.hail.types.physical.PType
+import is.hail.types.physical.{PCanonicalArray, PInt32Required, PType}
 import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType}
-import is.hail.types.physical.stypes.interfaces.{SContainer, SIndexableCode, SIndexableValue}
-import is.hail.types.virtual.{TArray, TBaseStruct, Type}
+import is.hail.types.physical.stypes.interfaces.{SContainer, SIndexableCode, SIndexableSettable, SIndexableValue}
+import is.hail.types.virtual.{Field, TArray, TBaseStruct, Type}
 import is.hail.utils.FastIndexedSeq
+
+import SStructOfArrays._
 
 case class SStructOfArrays(virtualType: TArray, elementsRequired: Boolean, fields: IndexedSeq[SContainer]) extends SContainer {
   require(virtualType.elementType.isInstanceOf[TBaseStruct])
   require(fields.forall(st => st.virtualType.isInstanceOf[TArray]))
 
-  private val structVirtualType: TBaseStruct = virtualType.elementType.asInstanceOf
+  private[concrete] val structVirtualType: TBaseStruct = virtualType.elementType.asInstanceOf
 
   override val elementType: SStackStruct = SStackStruct(structVirtualType, fields.map(_.elementEmitType))
 
@@ -21,19 +23,26 @@ case class SStructOfArrays(virtualType: TArray, elementsRequired: Boolean, field
 
   protected[stypes] def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = ???
 
-  private lazy val codeStarts = fields.map(_.nCodes).scanLeft(baseTupleTypes.length)(_ + _).init
-  private lazy val settableStarts = fields.map(_.nSettables).scanLeft(baseTupleTypes.length)(_ + _).init
-  private lazy val baseTupleTypes: IndexedSeq[TypeInfo[_]] =
-    IndexedSeq(IntInfo) ++ (if (elementsRequired) None else Some(LongInfo))
+  private lazy val codeStarts = fields.map(_.nCodes).scanLeft(baseCodeTupleTypes.length)(_ + _).init
+  private lazy val settableStarts = fields.map(_.nSettables).scanLeft(baseSettableTupleTypes.length)(_ + _).init
+  private lazy val baseCodeTupleTypes: IndexedSeq[TypeInfo[_]] = if (elementsRequired)
+    IndexedSeq(IntInfo)
+  else
+    LOOKUP_TYPE.codeTupleTypes()
+  private lazy val baseSettableTupleTypes: IndexedSeq[TypeInfo[_]] = if (elementsRequired)
+    IndexedSeq(IntInfo)
+  else
+    LOOKUP_TYPE.settableTupleTypes()
 
-  lazy val codeTupleTypes: IndexedSeq[TypeInfo[_]] = baseTupleTypes ++ fields.flatMap(_.codeTupleTypes())
-
-  override lazy val settableTupleTypes: IndexedSeq[TypeInfo[_]] = baseTupleTypes ++ fields.flatMap(_.settableTupleTypes())
+  lazy val codeTupleTypes: IndexedSeq[TypeInfo[_]] = baseCodeTupleTypes ++ fields.flatMap(_.codeTupleTypes())
+  override lazy val settableTupleTypes: IndexedSeq[TypeInfo[_]] = baseSettableTupleTypes ++ fields.flatMap(_.settableTupleTypes())
 
   def fromCodes(codes: IndexedSeq[Code[_]]): SCode = {
     new SStructOfArraysCode(this,
-      coerce(codes(0)),
-      if (elementsRequired) None else Some(coerce(codes(1))),
+      if (elementsRequired)
+        Right(coerce(codes(0)))
+      else
+        Left(LOOKUP_TYPE.fromCodes(codes.slice(0, LOOKUP_TYPE.nCodes))),
       fields.zipWithIndex.map { case (f, i) =>
         val start = codeStarts(i)
         f.fromCodes(codes.slice(start, start + f.nCodes)).asIndexable
@@ -43,15 +52,16 @@ case class SStructOfArrays(virtualType: TArray, elementsRequired: Boolean, field
 
   def fromSettables(settables: IndexedSeq[Settable[_]]): SSettable = {
     new SStructOfArraysSettable(this,
-      coerce(settables(0)),
-      if (elementsRequired) None else Some(coerce(settables(1))),
+      if (elementsRequired)
+        Right(coerce(settables(0)))
+      else
+        Left(LOOKUP_TYPE.fromSettables(settables.slice(0, LOOKUP_TYPE.nSettables))),
       fields.zipWithIndex.map { case (f, i) =>
         val start = settableStarts(i)
         f.fromSettables(settables.slice(start, start + f.nSettables)).asInstanceOf
       }
     )
   }
-
 
   def canonicalPType(): PType = PType.canonical(virtualType)
 
@@ -67,72 +77,124 @@ case class SStructOfArrays(virtualType: TArray, elementsRequired: Boolean, field
   }
 }
 
+object SStructOfArrays {
+  val MISSING_SENTINEL: Value[Int] = const(-1)
+  private[concrete] val LOOKUP_TYPE: SIndexablePointer = SIndexablePointer(PCanonicalArray(PInt32Required))
+}
+
+object SStructOfArraysSettable {
+  def apply(sb: SettableBuilder, st: SStructOfArrays, name: String): SStructOfArraysSettable = {
+    new SStructOfArraysSettable(st,
+      if (st.elementsRequired)
+        Right(sb.newSettable[Int](s"${name}_length"))
+      else
+        Left(SIndexablePointerSettable(sb, LOOKUP_TYPE, s"${name}_lookup")),
+      st.fields.zip(st.structVirtualType.fields).map { case (st, Field(fieldName, _, _)) =>
+        SSettable(sb, st, s"${name}_${fieldName}").asInstanceOf
+      }
+    )
+  }
+}
+
 class SStructOfArraysSettable(
   val st: SStructOfArrays,
-  val length: Settable[Int],
-  val missing: Option[Settable[Long]],
-  val fields: IndexedSeq[SIndexableValue with SSettable]
+  val lookupOrLength: Either[SIndexablePointerSettable, Settable[Int]],
+  val fields: IndexedSeq[SIndexableSettable]
 ) extends SIndexableValue with SSettable {
-  def loadLength(): Value[Int] = length
+  lookupOrLength match {
+    case Right(_) => require(st.elementsRequired)
+    case Left(lookup) => require(lookup.st == LOOKUP_TYPE)
+  }
 
-  def isElementMissing(i: Code[Int]): Code[Boolean] = missing.map(m => Region.loadBit(m, i.toL)).getOrElse(false)
+  def loadLength(): Value[Int] = lookupOrLength match {
+    case Left(lookup) => lookup.loadLength()
+    case Right(length) => length
+  }
+
+  private def lookupIndex(cb: EmitCodeBuilder, i: Code[Int]): Code[Int] = lookupOrLength match {
+    case Left(lookup) =>
+      lookup.loadElement(cb, i).get(cb, "required cannot be missing").asInt32.intCode(cb)
+    case Right(_) =>
+      i
+  }
+
+  def isElementMissing(cb: EmitCodeBuilder, i: Code[Int]): Code[Boolean] = lookupOrLength match {
+    case Left(_) => lookupIndex(cb, i).ceq(MISSING_SENTINEL)
+    case Right(_) => const(false)
+  }
 
   def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode = {
-    val iv = cb.newLocal("load_element_i", i)
-    IEmitCode(cb, isElementMissing(iv),
+    val iv = cb.newLocal("load_element_real_idx", lookupIndex(cb, i))
+    IEmitCode(cb, iv.ceq(MISSING_SENTINEL),
       new SStackStructCode(st.elementType, fields.map { fv =>
         EmitCode.fromI(cb.emb)(cb => fv.loadElement(cb, iv))
       }
     ))
   }
 
-  def hasMissingValues(cb: EmitCodeBuilder): Code[Boolean] =
-    missing.map(m => Region.containsNonZeroBits(m, loadLength().toL)).getOrElse(false)
+  def hasMissingValues(cb: EmitCodeBuilder): Code[Boolean] = lookupOrLength match {
+    case Left(lookup) => {
+      val hasMissing = cb.newLocal("hasMissing", false)
+      val out = CodeLabel()
+      lookup.forEachDefined(cb) { (cb, _, idxCode) =>
+        cb.assign(hasMissing, idxCode.asInt32.intCode(cb).ceq(MISSING_SENTINEL))
+        cb.ifx(hasMissing, cb.goto(out))
+      }
+      cb.define(out)
+      hasMissing
+    }
+    case Right(_) => const(false)
+  }
 
   def store(cb: EmitCodeBuilder, v: SCode): Unit = {
     val vs: SStructOfArraysCode = v.asInstanceOf
     require(st == vs.st)
-    cb.assign(length, vs.length)
-    missing.foreach(m => cb.assign(m, vs.missing.get))
+    (lookupOrLength, vs.lookupOrLength) match {
+      case (Left(lookupValue), Left(lookupCode)) => cb.assign(lookupValue, lookupCode)
+      case (Right(lengthValue), Right(lengthCode)) => cb.assign(lengthValue, lengthCode)
+    }
     fields.zip(vs.fields).foreach { case (fs, fc) =>
       cb.assign(fs, fc)
     }
   }
 
   def settableTuple(): IndexedSeq[Settable[_]] =
-    FastIndexedSeq(length) ++ missing ++ fields.flatMap(_.settableTuple())
+    (lookupOrLength match {
+      case Left(lookup) => lookup.settableTuple()
+      case Right(length) => FastIndexedSeq(length)
+    }) ++ fields.flatMap(_.settableTuple())
 
-  def get: SCode = new SStructOfArraysCode(st, length, missing.map(_.get), fields.map(_.get.asIndexable))
+  private def getLookupOrLength: Either[SIndexablePointerCode, Code[Int]] = lookupOrLength match {
+    case Left(lookup) => Left(lookup.get)
+    case Right(length) => Right(length)
+  }
+
+  def get: SCode = new SStructOfArraysCode(st, getLookupOrLength, fields.map(_.get.asIndexable))
 }
 
 class SStructOfArraysCode(
   val st: SStructOfArrays,
-  val length: Code[Int],
-  val missing: Option[Code[Long]],
+  val lookupOrLength: Either[SIndexablePointerCode, Code[Int]],
   val fields: IndexedSeq[SIndexableCode]
 ) extends SIndexableCode {
-  require(st.elementsRequired == missing.isEmpty)
+  lookupOrLength match {
+    case Right(_) => require(st.elementsRequired)
+    case Left(lookup) => require(lookup.st == LOOKUP_TYPE)
+  }
 
-  def codeLoadLength(): Code[Int] = length
+  def codeLoadLength(): Code[Int] = lookupOrLength match {
+    case Left(lookup) => lookup.codeLoadLength()
+    case Right(length) => length
+  }
 
   def memoize(cb: EmitCodeBuilder, name: String): SIndexableValue = {
-    val ssas = new SStructOfArraysSettable(
-      st,
-      cb.newLocal(s"${ name }_length"),
-      missing.map(_ => cb.newLocal(s"${ name }_missing")),
-      fields.zipWithIndex.map { case (f, i) => cb.emb.newPLocal(s"${ name }_$i", f.st).asInstanceOf }
-    )
+    val ssas = SStructOfArraysSettable(cb.emb.localBuilder, st, name)
     ssas.store(cb, this)
     ssas
   }
 
   def memoizeField(cb: EmitCodeBuilder, name: String): SIndexableValue = {
-    val ssas = new SStructOfArraysSettable(
-      st,
-      cb.newField(s"${ name }_length"),
-      missing.map(_ => cb.newField(s"${ name }_missing")),
-      fields.zipWithIndex.map { case (f, i) => cb.emb.newPField(s"${ name }_$i", f.st).asInstanceOf }
-    )
+    val ssas = SStructOfArraysSettable(cb.emb.fieldBuilder, st, name)
     ssas.store(cb, this)
     ssas
   }
@@ -140,5 +202,8 @@ class SStructOfArraysCode(
   def castToArray(cb: EmitCodeBuilder): SIndexableCode = this
 
   def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] =
-    FastIndexedSeq(length) ++ missing ++ fields.flatMap(_.makeCodeTuple(cb))
+    (lookupOrLength match {
+      case Left(lookup) => lookup.makeCodeTuple(cb)
+      case Right(length) => FastIndexedSeq(length)
+    }) ++ fields.flatMap(_.makeCodeTuple(cb))
 }
