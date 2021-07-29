@@ -29,6 +29,9 @@ abstract class TBaseStruct extends Type {
 
   lazy val fieldIdx: collection.Map[String, Int] = toMapFast(fields)(_.name, _.index)
 
+  def field(name: String): Field = fields(fieldIdx(name))
+  def hasField(name: String): Boolean = fieldIdx.contains(name)
+
   override def children: Seq[Type] = types
 
   def size: Int

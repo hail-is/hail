@@ -77,10 +77,6 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
 
   def selfField(name: String): Option[Field] = fieldIdx.get(name).map(i => fields(i))
 
-  def hasField(name: String): Boolean = fieldIdx.contains(name)
-
-  def field(name: String): Field = fields(fieldIdx(name))
-
   def fieldType(name: String): Type = types(fieldIdx(name))
 
   override def fieldOption(path: List[String]): Option[Field] =
