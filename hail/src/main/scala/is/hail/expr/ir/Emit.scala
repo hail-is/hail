@@ -709,15 +709,6 @@ class Emit[C](
         val msg = cm.consumeCode(cb, "<exception message missing>", _.asString.loadString())
         cb._throw(Code.newInstance[HailException, String, Int](msg, errorId))
 
-      case ConsoleLog(message, result) =>
-        val cm = emitI(message)
-        val msg = cm.consumeCode(cb, "ConsoleLog with missing message", _.asString.loadString())
-        cb.logInfo(msg)
-        emitI(result)
-
-      case x@WriteMetadata(annotations, writer) =>
-        writer.writeMetadata(emitI(annotations), cb, region)
-
       case CombOpValue(i, value, aggSig) =>
         val AggContainer(_, sc, _) = container.get
         val rvAgg = agg.Extract.getAgg(aggSig)
@@ -2137,6 +2128,12 @@ class Emit[C](
         cb._throw[HailException](Code.newInstance[HailException, String, Int](msg, errorId))
 
         IEmitCode.present(cb, SUnreachable.fromVirtualType(typ).defaultValue)
+
+      case ConsoleLog(message, result) =>
+        val cm = emitI(message)
+        val msg = cm.consumeCode(cb, "ConsoleLog with missing message", _.asString.loadString())
+        cb.logInfo(msg)
+        emitI(result)
 
       case CastToArray(a) =>
         emitI(a).map(cb) { ind => ind.asIndexable.castToArray(cb) }
