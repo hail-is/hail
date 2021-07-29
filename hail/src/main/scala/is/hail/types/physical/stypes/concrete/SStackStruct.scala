@@ -17,9 +17,9 @@ object SStackStruct {
     if (as.length > MAX_FIELDS_FOR_CONSTRUCT) {
       val structType: PCanonicalBaseStruct = t match {
         case ts: TStruct =>
-          PCanonicalStruct(false, ts.fieldNames.zip(as.map(_.emitType)).map { case (f, et) => (f, et.canonicalPType) }: _*)
+          PCanonicalStruct(false, ts.fieldNames.zip(as.map(_.emitType)).map { case (f, et) => (f, et.storageType) }: _*)
         case tt: TTuple =>
-          PCanonicalTuple(tt._types.zip(as.map(_.emitType)).map { case (tf, et) => PTupleField(tf.index, et.canonicalPType) }, false)
+          PCanonicalTuple(tt._types.zip(as.map(_.emitType)).map { case (tf, et) => PTupleField(tf.index, et.storageType) }, false)
       }
       structType.constructFromFields(cb, region, as, false)
     } else {
@@ -39,13 +39,16 @@ case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedSeq[Emi
 
   def fieldIdx(fieldName: String): Int = virtualType.fieldIdx(fieldName)
 
-  override def canonicalPType(): PType = virtualType match {
+  override def storageType(): PType = virtualType match {
     case ts: TStruct =>
-      PCanonicalStruct(false, ts.fieldNames.zip(fieldEmitTypes).map { case (f, et) => (f, et.canonicalPType) }: _*)
+      PCanonicalStruct(false, ts.fieldNames.zip(fieldEmitTypes).map { case (f, et) => (f, et.storageType) }: _*)
     case tt: TTuple =>
-      PCanonicalTuple(tt._types.zip(fieldEmitTypes).map { case (tf, et) => PTupleField(tf.index, et.canonicalPType) }, false)
-
+      PCanonicalTuple(tt._types.zip(fieldEmitTypes).map { case (tf, et) => PTupleField(tf.index, et.storageType) }, false)
   }
+
+  override def copiedType: SType = SStackStruct(virtualType, fieldEmitTypes.map(f => f.copy(st = f.st.copiedType)))
+
+  def containsPointers: Boolean = fieldEmitTypes.exists(_.st.containsPointers)
 
   lazy val codeTupleTypes: IndexedSeq[TypeInfo[_]] = fieldEmitTypes.flatMap(_.codeTupleTypes)
 

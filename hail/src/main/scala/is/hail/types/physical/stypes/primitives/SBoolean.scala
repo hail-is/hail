@@ -37,7 +37,7 @@ case object SBoolean extends SPrimitive {
     new SBooleanCode(x)
   }
 
-  def canonicalPType(): PType = PBoolean()
+  def storageType(): PType = PBoolean()
 }
 
 class SBooleanCode(val code: Code[Boolean]) extends SCode with SPrimitiveCode {

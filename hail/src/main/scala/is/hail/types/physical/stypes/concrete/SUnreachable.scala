@@ -34,7 +34,7 @@ abstract class SUnreachable extends SType {
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq()
 
-  def canonicalPType(): PType = PType.canonical(virtualType, required = false, innerRequired = true)
+  def storageType(): PType = PType.canonical(virtualType, required = false, innerRequired = true)
 
   override def asIdent: String = s"s_unreachable"
 
@@ -47,6 +47,10 @@ abstract class SUnreachable extends SType {
   override def fromCodes(codes: IndexedSeq[Code[_]]): SUnreachableValue = sv
 
   override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = sv
+
+  def copiedType: SType = this
+
+  def containsPointers: Boolean = false
 }
 
 abstract class SUnreachableValue extends SCode with SSettable {
@@ -248,7 +252,7 @@ case class SUnreachableNDArray(virtualType: TNDArray) extends SUnreachable with 
 
   lazy val elementType: SType = SUnreachable.fromVirtualType(virtualType.elementType)
 
-  override def elementPType: PType = elementType.canonicalPType()
+  override def elementPType: PType = PType.canonical(elementType.storageType())
 
   override def pType: PNDArray = PCanonicalNDArray(elementPType.setRequired(true), nDims, false)
 

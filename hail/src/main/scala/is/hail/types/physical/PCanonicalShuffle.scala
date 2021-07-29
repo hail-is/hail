@@ -18,6 +18,8 @@ final case class PCanonicalShuffle(
 
   val representation: PCanonicalBinary = PCanonicalBinary(required)
 
+  override def copiedType: PType = this
+
   def setRequired(required: Boolean) = if (required == this.required) this else PCanonicalShuffle(tShuffle, required)
 
   def unsafeOrdering(): UnsafeOrdering = representation.unsafeOrdering()

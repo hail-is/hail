@@ -40,7 +40,11 @@ case class SStringPointer(pType: PString) extends SString {
     new SStringPointerCode(this, pType.allocateAndStoreString(cb.emb, r, s))
   }
 
-  override def canonicalPType(): PType = pType
+  override def storageType(): PType = pType
+
+  override def copiedType: SType = SStringPointer(pType.copiedType.asInstanceOf)
+
+  def containsPointers: Boolean = pType.containsPointers
 }
 
 

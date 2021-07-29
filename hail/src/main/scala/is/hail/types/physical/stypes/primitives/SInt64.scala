@@ -36,7 +36,7 @@ case object SInt64 extends SPrimitive {
     new SInt64Code(x)
   }
 
-  def canonicalPType(): PType = PInt64()
+  def storageType(): PType = PInt64()
 }
 
 trait SInt64Value extends SValue {

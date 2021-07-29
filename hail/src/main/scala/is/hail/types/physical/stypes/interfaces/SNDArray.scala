@@ -3,6 +3,7 @@ package is.hail.types.physical.stypes.interfaces
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.types.{RNDArray, TypeWithRequiredness}
 import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
 import is.hail.types.physical.{PNDArray, PType}
 import is.hail.utils.{FastIndexedSeq, toRichIterable}
@@ -235,6 +236,8 @@ trait SNDArray extends SType {
   def elementPType: PType
 
   def elementByteSize: Long
+
+  override def _typeWithRequiredness: TypeWithRequiredness = RNDArray(elementType.typeWithRequiredness.setRequired(true).r)
 }
 
 trait SNDArrayValue extends SValue {

@@ -108,7 +108,7 @@ object EmitNDArray {
               val bodyEC = EmitCode.fromI(cb.emb)(cb => emitI(body, cb, env = bodyEnv))
 
               new NDArrayProducer {
-                override def elementType: PType = bodyEC.st.canonicalPType()
+                override def elementType: PType = bodyEC.st.storageType()
 
                 override val shape: IndexedSeq[Value[Long]] = childProducer.shape
                 override val initAll: EmitCodeBuilder => Unit = childProducer.initAll
@@ -140,7 +140,7 @@ object EmitNDArray {
                 val rightBroadcasted = broadcast(cb, rightProducer, "right")
 
                 new NDArrayProducer {
-                  override def elementType: PType = bodyEC.st.canonicalPType()
+                  override def elementType: PType = bodyEC.st.storageType()
 
                   override val shape: IndexedSeq[Value[Long]] = shapeArray
                   override val initAll: EmitCodeBuilder => Unit = {
@@ -264,7 +264,7 @@ object EmitNDArray {
                   cb.assign(requestedShapeValues(i), (tempShapeElement ceq -1L).mux(replacesNegativeOne, tempShapeElement))
                 }
 
-                val childPType = childND.st.canonicalPType().asInstanceOf[PCanonicalNDArray]
+                val childPType = childND.st.storageType().asInstanceOf[PCanonicalNDArray]
                 val rowMajor = fromSValue(childMemo, cb).toSCode(cb, childPType, region, true).memoize(cb, "ndarray_reshape_row_major_layout")
                 // The canonical row major thing is now in the order we want. We just need to read this with the row major striding that
                 // would be generated for something of the new shape.

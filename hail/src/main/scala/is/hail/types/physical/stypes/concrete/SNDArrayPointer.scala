@@ -51,7 +51,11 @@ case class SNDArrayPointer(pType: PCanonicalNDArray) extends SNDArray {
     new SNDArrayPointerCode(this, a)
   }
 
-  def canonicalPType(): PType = pType
+  def storageType(): PType = pType
+
+  def copiedType: SType = SNDArrayPointer(pType.copiedType.asInstanceOf)
+
+  def containsPointers: Boolean = pType.containsPointers
 }
 
 object SNDArrayPointerSettable {

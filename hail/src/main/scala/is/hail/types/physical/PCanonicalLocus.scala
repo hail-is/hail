@@ -31,6 +31,8 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
   def byteSize: Long = representation.byteSize
   override def alignment: Long = representation.alignment
 
+  override def copiedType: PType = this
+
   def rg: ReferenceGenome = rgBc.value
 
   def _asIdent = "locus"

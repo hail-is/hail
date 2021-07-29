@@ -58,4 +58,13 @@ final case class PCanonicalDict(keyType: PType, valueType: PType, required: Bool
     }
     new SIndexablePointerCode(SIndexablePointer(this), contents.asInstanceOf[SIndexablePointerCode].a)
   }
+
+  override def copiedType: PType = {
+    val copiedK = keyType.copiedType
+    val copiedV = valueType.copiedType
+    if (copiedK.eq(keyType) && copiedV.eq(valueType))
+      this
+    else
+      PCanonicalDict(copiedK, copiedV, required)
+  }
 }

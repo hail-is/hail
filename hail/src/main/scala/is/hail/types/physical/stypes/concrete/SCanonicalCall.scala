@@ -39,7 +39,11 @@ case object SCanonicalCall extends SCall {
     new SCanonicalCallCode(call)
   }
 
-  def canonicalPType(): PType = PCanonicalCall(false)
+  def storageType(): PType = PCanonicalCall(false)
+
+  def copiedType: SType = this
+
+  def containsPointers: Boolean = false
 
   def constructFromIntRepr(c: Code[Int]): SCanonicalCallCode = new SCanonicalCallCode(c)
 }
