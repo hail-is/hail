@@ -1,3 +1,4 @@
+from typing import Dict, Optional
 import secrets
 from shlex import quote as shq
 import json
@@ -8,6 +9,7 @@ import aiohttp
 import gidgethub
 import zulip
 import random
+import prometheus_client as pc  # type: ignore
 
 from hailtop.config import get_deploy_config
 from hailtop.batch_client.aioclient import Batch
@@ -26,6 +28,8 @@ deploy_config = get_deploy_config()
 CALLBACK_URL = deploy_config.url('ci', '/api/v1alpha/batch_callback')
 
 zulip_client = zulip.Client(config_file="/zulip-config/.zuliprc")
+
+TRACKED_PRS = pc.Gauge('ci_tracked_prs', 'PRs currently being monitored by CI', ['build_state', 'review_state'])
 
 
 def select_random_teammate(team):
@@ -199,13 +203,27 @@ class PR(Code):
         self.target_branch.state_changed = True
 
     def set_build_state(self, build_state):
+        log.info(f'{self.short_str()}: Build state changing from {self.build_state} => {build_state}')
         if build_state != self.build_state:
+            self.decrement_pr_metric()
             self.build_state = build_state
+            self.increment_pr_metric()
 
             intended_github_status = self.github_status_from_build_state()
             if intended_github_status != self.intended_github_status:
                 self.intended_github_status = intended_github_status
                 self.target_branch.state_changed = True
+
+    def set_review_state(self, review_state):
+        self.decrement_pr_metric()
+        self.review_state = review_state
+        self.increment_pr_metric()
+
+    def decrement_pr_metric(self):
+        TRACKED_PRS.labels(build_state=self.build_state, review_state=self.review_state).dec()
+
+    def increment_pr_metric(self):
+        TRACKED_PRS.labels(build_state=self.build_state, review_state=self.review_state).inc()
 
     async def authorized(self, dbpool):
         if self.author in {user.gh_username for user in AUTHORIZED_USERS}:
@@ -265,7 +283,7 @@ class PR(Code):
     @staticmethod
     def from_gh_json(gh_json, target_branch):
         head = gh_json['head']
-        return PR(
+        pr = PR(
             gh_json['number'],
             gh_json['title'],
             gh_json['body'],
@@ -277,6 +295,8 @@ class PR(Code):
             {user['login'] for user in gh_json['requested_reviewers']},
             {label['name'] for label in gh_json['labels']},
         )
+        pr.increment_pr_metric()
+        return pr
 
     def repo_dir(self):
         return self.target_branch.repo_dir()
@@ -398,7 +418,7 @@ class PR(Code):
                 assert state in ('DISMISSED', 'COMMENTED', 'PENDING'), state
 
         if review_state != self.review_state:
-            self.review_state = review_state
+            self.set_review_state(review_state)
             self.target_branch.state_changed = True
 
     async def _start_build(self, dbpool, batch_client):
@@ -516,6 +536,8 @@ mkdir -p {shq(repo_dir)}
 
         if self.source_sha:
             if self.intended_github_status != self.last_known_github_status:
+                log.info(f'Intended github status for {self.short_str()} is: {self.intended_github_status}')
+                log.info(f'Last known github status for {self.short_str()} is: {self.last_known_github_status}')
                 await self.post_github_status(gh, self.intended_github_status)
                 self.last_known_github_status = self.intended_github_status
 
@@ -523,7 +545,6 @@ mkdir -p {shq(repo_dir)}
             return
 
         if not self.batch or (on_deck and self.batch.attributes['target_sha'] != self.target_branch.sha):
-
             if on_deck or self.target_branch.n_running_batches < 8:
                 self.target_branch.n_running_batches += 1
                 async with repos_lock:
@@ -569,7 +590,7 @@ class WatchedBranch(Code):
         self.branch = branch
         self.deployable = deployable
 
-        self.prs = None
+        self.prs: Optional[Dict[str, PR]] = None
         self.sha = None
 
         # success, failure, pending
