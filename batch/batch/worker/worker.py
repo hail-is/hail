@@ -1681,9 +1681,8 @@ class JVMJob(Job):
 
 
 class ImageData:
-    def __init__(self, id, ref_count=0):
-        self.id = id
-        self.ref_count = ref_count
+    def __init__(self):
+        self.ref_count = 0
         self.time_created = time_msecs()
         self.last_accessed = time_msecs()
         self.lock = asyncio.Lock()
@@ -1699,7 +1698,6 @@ class ImageData:
 
     def __str__(self):
         return f'ImageData(' \
-               f'id={self.id}, ' \
                f'ref_count={self.ref_count}, ' \
                f'time_created={time_msecs_str(self.time_created)}, ' \
                f'last_accessed={time_msecs_str(self.last_accessed)}' \
@@ -1719,8 +1717,8 @@ class Worker:
         self.task_manager = aiotools.BackgroundTaskManager()
         self.jar_download_locks = defaultdict(asyncio.Lock)
 
-        self.image_data: Dict[str, ImageData] = {}
-        self.image_data[BATCH_WORKER_IMAGE_ID] = ImageData(BATCH_WORKER_IMAGE_ID, ref_count=1)
+        self.image_data: Dict[str, ImageData] = defaultdict(ImageData)
+        self.image_data[BATCH_WORKER_IMAGE_ID] += 1
 
         # filled in during activation
         self.log_store = None
