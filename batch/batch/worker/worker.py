@@ -18,7 +18,7 @@ import async_timeout
 import concurrent
 import aiodocker  # type: ignore
 import aiorwlock
-from collections import defaultdict, Counter
+from collections import defaultdict
 import psutil
 from aiodocker.exceptions import DockerError  # type: ignore
 import google.oauth2.service_account  # type: ignore
@@ -438,7 +438,6 @@ class Container:
                     self.image_config = image_configs[self.image_ref_str]
                     self.image_id = self.image_config['Id'].split(":")[1]
                     worker.image_data[self.image_id] += 1
-
 
                     self.rootfs_path = f'/host/rootfs/{self.image_id}'
                     async with worker.image_data[self.image_id].lock:
@@ -1690,11 +1689,13 @@ class ImageData:
     def __add__(self, other):
         self.ref_count += other
         self.last_accessed = time_msecs()
+        return self
 
     def __sub__(self, other):
         self.ref_count -= other
         assert self.ref_count >= 0
         self.last_accessed = time_msecs()
+        return self
 
     def __str__(self):
         return f'ImageData(' \
