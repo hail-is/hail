@@ -2132,7 +2132,7 @@ class Emit[C](
       case ConsoleLog(message, result) =>
         val cm = emitI(message)
         val msg = cm.consumeCode(cb, "ConsoleLog with missing message", _.asString.loadString())
-        cb.logInfo(msg)
+        cb.consoleInfo(msg)
         emitI(result)
 
       case CastToArray(a) =>
