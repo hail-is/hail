@@ -171,7 +171,7 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
 
   val nFields: Int = emitTypes.length
   val fields: Array[EmitSettable] = Array.tabulate(nFields) { i => kb.newEmitField(s"primitiveRVA_${ i }_v", emitTypes(i)) }
-  val storageType = PCanonicalTuple(true, emitTypes.map(_.canonicalPType): _*)
+  val storageType = PCanonicalTuple(true, emitTypes.map(_.typeWithRequiredness.canonicalPType): _*)
   val sStorageType = storageType.sType
 
   def foreachField(f: (Int, EmitSettable) => Unit): Unit = {

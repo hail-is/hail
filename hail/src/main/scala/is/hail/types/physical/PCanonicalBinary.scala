@@ -15,6 +15,8 @@ case object PCanonicalBinaryRequired extends PCanonicalBinary(true)
 abstract class PCanonicalBinary(val required: Boolean) extends PBinary {
   def _asIdent = "binary"
 
+  override def copiedType: PType = this
+
   override def byteSize: Long = 8
 
   override def containsPointers: Boolean = true

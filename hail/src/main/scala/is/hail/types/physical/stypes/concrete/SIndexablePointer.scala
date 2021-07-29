@@ -43,7 +43,11 @@ case class SIndexablePointer(pType: PContainer) extends SContainer {
     new SIndexablePointerCode(this, a)
   }
 
-  def canonicalPType(): PType = pType
+  def storageType(): PType = pType
+
+  def copiedType: SType = SIndexablePointer(pType.copiedType.asInstanceOf)
+
+  def containsPointers: Boolean = pType.containsPointers
 }
 
 

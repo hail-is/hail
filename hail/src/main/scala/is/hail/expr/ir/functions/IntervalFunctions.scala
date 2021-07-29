@@ -17,7 +17,7 @@ object IntervalFunctions extends RegistryFunctions {
     registerIEmitCode4("Interval", tv("T"), tv("T"), TBoolean, TBoolean, TInterval(tv("T")),
       { case (_: Type, startpt, endpt, includesStartET, includesEndET) =>
         EmitType(PCanonicalInterval(
-          InferPType.getCompatiblePType(Seq(startpt.canonicalPType, endpt.canonicalPType)),
+          InferPType.getCompatiblePType(Seq(startpt.typeWithRequiredness.canonicalPType, endpt.typeWithRequiredness.canonicalPType)),
           required = includesStartET.required && includesEndET.required
         ).sType, includesStartET.required && includesEndET.required)
       }) {

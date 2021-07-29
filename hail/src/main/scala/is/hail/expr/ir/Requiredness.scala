@@ -678,7 +678,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           val pt = lookup(a).canonicalPType(a.typ)
           EmitType(pt.sType, pt.required)
         }
-        requiredness.fromPType(x.implementation.computeReturnEmitType(x.returnType, argP).canonicalPType)
+        requiredness.unionFrom(x.implementation.computeReturnEmitType(x.returnType, argP).typeWithRequiredness.r)
       case CollectDistributedArray(ctxs, globs, _, _, body, _) =>
         requiredness.union(lookup(ctxs).required)
         coerce[RIterable](requiredness).elementType.unionFrom(lookup(body))
@@ -693,7 +693,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.union(lookup(path).required)
         requiredness.fromPType(spec.encodedType.decodedPType(rt))
       case In(_, t) => t match {
-        case SCodeEmitParamType(et) => requiredness.fromPType(et.canonicalPType)
+        case SCodeEmitParamType(et) => requiredness.unionFrom(et.typeWithRequiredness.r)
         case SingleCodeEmitParamType(required, StreamSingleCodeType(_, eltType)) => requiredness.fromPType(PCanonicalStream(eltType, required)) // fixme hacky
         case SingleCodeEmitParamType(required, PTypeReferenceSingleCodeType(pt)) => requiredness.fromPType(pt.setRequired(required))
         case SingleCodeEmitParamType(required, _) => requiredness.union(required)

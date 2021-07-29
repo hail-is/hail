@@ -48,4 +48,6 @@ trait PPrimitive extends PType {
   def loadFromNested(addr: Code[Long]): Code[Long] = addr
 
   override def unstagedLoadFromNested(addr: Long): Long = addr
+
+  override def copiedType: PType = this
 }

@@ -1190,8 +1190,8 @@ class Emit[C](
 
           cb.assign(outerSize, groupSizes.size)
           val loadedElementType = sct.loadedSType.asInstanceOf[SBaseStruct]
-          val innerType = PCanonicalArray(loadedElementType.fieldEmitTypes(1).canonicalPType, true)
-          val kt = loadedElementType.fieldEmitTypes(0).canonicalPType
+          val innerType = PCanonicalArray(loadedElementType.fieldEmitTypes(1).storageType, true)
+          val kt = loadedElementType.fieldEmitTypes(0).storageType
           val groupType = PCanonicalStruct(true, ("key", kt), ("value", innerType))
           val dictType = PCanonicalDict(kt, innerType, false)
           val (addGroup, finishOuter) = dictType.arrayRep.constructFromFunctions(cb, region, outerSize, deepCopy = false)
@@ -1255,7 +1255,7 @@ class Emit[C](
             dataIR.typ match {
               case _: TArray =>
                 emitI(dataIR).map(cb) { case dataCode: SIndexableCode =>
-                  val xP = PCanonicalNDArray(dataCode.st.elementType.canonicalPType().setRequired(true), nDims)
+                  val xP = PCanonicalNDArray(PType.canonical(dataCode.st.elementType.storageType().setRequired(true)), nDims)
                   val shapeTupleValue = shapeTupleCode.memoize(cb, "make_ndarray_shape")
                   val memoData = dataCode.memoize(cb, "make_nd_array_memoized_data")
 
@@ -1295,8 +1295,8 @@ class Emit[C](
               case _: TStream =>
                 EmitStream.produce(this, dataIR, cb, region, env, container)
                   .map(cb) {
-                    case stream: SStreamCode => {
-                      val xP = PCanonicalNDArray(stream.st.elementType.canonicalPType().setRequired(true), nDims)
+                    case stream: SStreamCode =>
+                      val xP = PCanonicalNDArray(PType.canonical(stream.st.elementType.storageType().setRequired(true)), nDims)
                       val shapeTupleValue = shapeTupleCode.memoize(cb, "make_ndarray_shape")
                       (0 until nDims).foreach { index =>
                         cb.ifx(shapeTupleValue.isFieldMissing(index),
@@ -1326,7 +1326,6 @@ class Emit[C](
                       val (firstElementAddress, finisher) = xP.constructDataFunction(shapeValues, stridesSettables, cb, region)
                       StreamUtils.storeNDArrayElementsAtAddress(cb, stream.producer, region, firstElementAddress, errorId)
                       finisher(cb)
-                    }
                   }
             }
           }
@@ -1391,7 +1390,7 @@ class Emit[C](
             val leftBroadcastMask = if (lSType.nDims > 2) NDArrayEmitter.broadcastMask(lShape) else IndexedSeq[Value[Long]]()
             val rightBroadcastMask = if (rSType.nDims > 2) NDArrayEmitter.broadcastMask(rShape) else IndexedSeq[Value[Long]]()
 
-            val outputPType = PCanonicalNDArray(lSType.elementType.canonicalPType().setRequired(true),
+            val outputPType = PCanonicalNDArray(lSType.elementType.storageType().setRequired(true),
               TNDArray.matMulNDims(lSType.nDims, rSType.nDims))
 
             if ((lSType.elementType.virtualType == TFloat64 || lSType.elementType.virtualType == TFloat32) && lSType.nDims == 2 && rSType.nDims == 2) {
@@ -1496,7 +1495,7 @@ class Emit[C](
 
               answerFinisher(cb)
             }  else {
-              val numericElementType = coerce[PNumeric](lSType.elementType.canonicalPType())
+              val numericElementType = coerce[PNumeric](PType.canonical(lSType.elementType.storageType().setRequired(true)))
               val eVti = typeToTypeInfo(numericElementType)
 
               val emitter = new NDArrayEmitter(unifiedShape, leftPVal.st.elementType) {
@@ -2285,7 +2284,7 @@ class Emit[C](
         emitStream(contexts, cb, region).map(cb) { case ctxStream: SStreamCode =>
 
           def wrapInTuple(cb: EmitCodeBuilder, region: Value[Region], et: EmitCode): SBaseStructPointerCode = {
-            PCanonicalTuple(true, et.emitType.canonicalPType).constructFromFields(cb, region, FastIndexedSeq(et), deepCopy = false)
+            PCanonicalTuple(true, et.emitType.storageType).constructFromFields(cb, region, FastIndexedSeq(et), deepCopy = false)
           }
 
           val bufferSpec: BufferSpec = BufferSpec.defaultUncompressed
@@ -2293,8 +2292,8 @@ class Emit[C](
           val emitGlobals = EmitCode.fromI(mb)(cb => emitInNewBuilder(cb, globals))
 
           val ctxType = ctxStream.st.elementEmitType
-          val contextPTuple: PTuple = PCanonicalTuple(required = true, ctxType.canonicalPType)
-          val globalPTuple: PTuple = PCanonicalTuple(required = true, emitGlobals.emitType.canonicalPType)
+          val contextPTuple: PTuple = PCanonicalTuple(required = true, ctxType.storageType)
+          val globalPTuple: PTuple = PCanonicalTuple(required = true, emitGlobals.emitType.storageType)
           val contextSpec: TypedCodecSpec = TypedCodecSpec(contextPTuple, bufferSpec)
           val globalSpec: TypedCodecSpec = TypedCodecSpec(globalPTuple, bufferSpec)
 
@@ -2331,7 +2330,7 @@ class Emit[C](
               region,
               EmitCode.fromI(cb.emb)(cb => new Emit(ctx, bodyFB.ecb).emitI(body, cb, env, None)))
 
-            bodySpec = TypedCodecSpec(bodyResult.st.canonicalPType().setRequired(true), bufferSpec)
+            bodySpec = TypedCodecSpec(bodyResult.st.storageType().setRequired(true), bufferSpec)
 
             val bOS = cb.newLocal[ByteArrayOutputStream]("cda_baos", Code.newInstance[ByteArrayOutputStream]())
             val bOB = cb.newLocal[OutputBuffer]("cda_ob", bodySpec.buildCodeOutputBuffer(bOS))
@@ -2380,7 +2379,7 @@ class Emit[C](
             val ib = mb.newLocal[InputBuffer]("decode_ib")
 
             cb.assign(len, encRes.length())
-            val pt = PCanonicalArray(bodySpec.encodedType.decodedSType(bodySpec.encodedVirtualType).asInstanceOf[SBaseStruct].fieldEmitTypes(0).canonicalPType)
+            val pt = PCanonicalArray(bodySpec.encodedType.decodedSType(bodySpec.encodedVirtualType).asInstanceOf[SBaseStruct].fieldEmitTypes(0).storageType)
             pt.asInstanceOf[PCanonicalArray].constructFromElements(cb, region, len, deepCopy = false) { (cb, i) =>
               cb.assign(ib, bodySpec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](encRes(i))))
               val eltTupled = bodySpec.encodedType.buildDecoder(bodySpec.encodedVirtualType, parentCB)

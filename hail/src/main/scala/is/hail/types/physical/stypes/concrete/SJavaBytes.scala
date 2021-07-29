@@ -12,9 +12,13 @@ import is.hail.utils.FastIndexedSeq
 case object SJavaBytes extends SBinary {
   val virtualType: TBinary.type = TBinary
 
-  override def canonicalPType(): PType = PCanonicalBinary(false)
+  override def storageType(): PType = PCanonicalBinary(false)
+
+  override def copiedType: SType = this
 
   override def castRename(t: Type): SType = this
+
+  override def containsPointers: Boolean = false
 
   def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SJavaBytesCode = {
     value.st match {

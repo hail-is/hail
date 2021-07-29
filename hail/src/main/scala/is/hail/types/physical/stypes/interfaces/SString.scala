@@ -3,10 +3,12 @@ package is.hail.types.physical.stypes.interfaces
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, Value}
 import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.types.{RPrimitive, TypeWithRequiredness}
 import is.hail.types.physical.stypes.{SCode, SType, SValue}
 
 trait SString extends SType {
   def constructFromString(cb: EmitCodeBuilder, r: Value[Region], s: Code[String]): SStringCode
+  override def _typeWithRequiredness: TypeWithRequiredness = RPrimitive()
 }
 
 trait SStringValue extends SValue {

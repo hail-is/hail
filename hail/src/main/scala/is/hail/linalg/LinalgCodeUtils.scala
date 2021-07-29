@@ -47,7 +47,7 @@ object LinalgCodeUtils {
 
   def createColumnMajorCode(pndv: SNDArrayValue, cb: EmitCodeBuilder, region: Value[Region]): SNDArrayCode = {
     val shape = pndv.shapes(cb)
-    val pt = PCanonicalNDArray(pndv.st.elementType.canonicalPType().setRequired(true), pndv.st.nDims, false)
+    val pt = PCanonicalNDArray(pndv.st.elementType.storageType().setRequired(true), pndv.st.nDims, false)
     val strides = pt.makeColumnMajorStrides(shape, region, cb)
 
     val (dataFirstElementAddress, dataFinisher) = pt.constructDataFunction(shape, strides, cb, region)

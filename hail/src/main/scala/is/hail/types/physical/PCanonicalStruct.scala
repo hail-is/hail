@@ -118,4 +118,13 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
       PField(tfield.name, pfield.typ.deepRename(tfield.typ), pfield.index)
     }), this.required)
   }
+
+  def copiedType: PType = {
+    val copiedTypes = types.map(_.copiedType)
+    if (types.indices.forall(i => types(i).eq(copiedTypes(i))))
+      this
+    else {
+      PCanonicalStruct(copiedTypes.indices.map(i => fields(i).copy(typ = copiedTypes(i))), required)
+    }
+  }
 }

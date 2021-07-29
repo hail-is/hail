@@ -369,4 +369,13 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     val stridesRow = Row(stridesArray: _*)
     this.representation.unstagedStoreJavaObjectAtAddress(addr, Row(shapeRow, stridesRow, dataFirstElementAddress), region)
   }
+
+
+  override def copiedType: PType = {
+    val copiedElement = elementType.copiedType
+    if (copiedElement.eq(elementType))
+      this
+    else
+      PCanonicalNDArray(copiedElement, nDims, required)
+  }
 }

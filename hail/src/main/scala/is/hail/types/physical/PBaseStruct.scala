@@ -9,32 +9,6 @@ import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SBaseStructVal
 import is.hail.utils._
 
 object PBaseStruct {
-  def getByteSizeAndOffsets(types: Array[PType], nMissingBytes: Long, byteOffsets: Array[Long]): Long = {
-    assert(byteOffsets.length == types.length)
-    val bp = new BytePacker()
-
-    var offset: Long = nMissingBytes
-    types.zipWithIndex.foreach { case (t, i) =>
-      val fSize = t.byteSize
-      val fAlignment = t.alignment
-
-      bp.getSpace(fSize, fAlignment) match {
-        case Some(start) =>
-          byteOffsets(i) = start
-        case None =>
-          val mod = offset % fAlignment
-          if (mod != 0) {
-            val shift = fAlignment - mod
-            bp.insertSpace(shift, offset)
-            offset += (fAlignment - mod)
-          }
-          byteOffsets(i) = offset
-          offset += fSize
-      }
-    }
-    offset
-  }
-
   def alignment(types: Array[PType]): Long = {
     if (types.isEmpty)
       1

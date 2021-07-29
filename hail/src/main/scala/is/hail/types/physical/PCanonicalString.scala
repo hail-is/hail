@@ -19,6 +19,8 @@ abstract class PCanonicalString(val required: Boolean) extends PString {
 
   lazy val binaryRepresentation: PCanonicalBinary = PCanonicalBinary(required)
 
+  override def copiedType: PType = this
+
   override def containsPointers: Boolean = true
 
   def loadLength(boff: Long): Int =

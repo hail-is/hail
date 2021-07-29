@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.stypes.interfaces.{SContainer, SIndexableCode, SIndexableValue}
 import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType}
-import is.hail.types.physical.{PCanonicalArray, PType}
+import is.hail.types.physical.{PCanonicalArray, PCanonicalString, PType}
 import is.hail.types.virtual.{TArray, TString, Type}
 import is.hail.utils.FastIndexedSeq
 
@@ -24,7 +24,11 @@ object SJavaArrayHelpers {
 case class SJavaArrayString(elementRequired: Boolean) extends SContainer {
   def elementType: SType = SJavaString
 
-  override def canonicalPType(): PType = PCanonicalArray(elementEmitType.canonicalPType, false)
+  override def storageType(): PType = PCanonicalArray(PCanonicalString(elementRequired), false)
+
+  override def copiedType: SType = this
+
+  def containsPointers: Boolean = false
 
   lazy val virtualType: Type = TArray(TString)
 

@@ -470,4 +470,11 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
      }
   }
 
+  override def copiedType: PType = {
+    val copiedElement = elementType.copiedType
+    if (copiedElement.eq(elementType))
+      this
+    else
+      PCanonicalArray(copiedElement, required)
+  }
 }

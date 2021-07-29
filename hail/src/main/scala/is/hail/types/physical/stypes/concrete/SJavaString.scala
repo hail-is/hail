@@ -12,7 +12,11 @@ import is.hail.utils.FastIndexedSeq
 case object SJavaString extends SString {
   val virtualType: TString.type = TString
 
-  override def canonicalPType(): PType = PCanonicalString(false)
+  override def storageType(): PType = PCanonicalString(false)
+
+  def copiedType: SType = this
+
+  def containsPointers: Boolean = false
 
   override def castRename(t: Type): SType = this
 

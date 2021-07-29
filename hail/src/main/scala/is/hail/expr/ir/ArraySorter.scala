@@ -140,7 +140,7 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
       case pca: TArray =>
         val len = cb.newLocal[Int]("arraysorter_to_region_len", array.size)
         // fixme element requiredness should be set here
-        val arrayType = PCanonicalArray(array.elt.loadedSType.canonicalPType().setRequired(this.prunedMissing || array.eltRequired))
+        val arrayType = PCanonicalArray(array.elt.loadedSType.storageType().setRequired(this.prunedMissing || array.eltRequired))
 
         arrayType.constructFromElements(cb, r.region, len, deepCopy = false) { (cb, idx) =>
           array.loadFromIndex(cb, r.region, idx)

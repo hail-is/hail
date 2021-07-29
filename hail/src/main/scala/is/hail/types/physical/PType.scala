@@ -322,6 +322,8 @@ abstract class PType extends Serializable with Requiredness with scala.Product {
 
   def sType: SType
 
+  def copiedType: PType
+
   override def toString: String = {
     val sb = new StringBuilder
     pretty(sb, 0, true)

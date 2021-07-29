@@ -3,7 +3,7 @@ package is.hail.types.physical.stypes
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitSettable, SCodeEmitParamType, SCodeParamType}
-import is.hail.types.VirtualTypeWithReq
+import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.types.physical.PType
 import is.hail.types.physical.stypes.concrete.SUnreachable
 import is.hail.types.physical.stypes.interfaces.SStream
@@ -35,8 +35,6 @@ object SType {
       case TFloat64 => x.asDouble.doubleCode(cb)
       case TBoolean => x.asBoolean.boolCode(cb)
     }
-
-  def canonical(st: SType): SType = st.canonicalPType().sType
 }
 
 trait SType {
@@ -63,11 +61,13 @@ trait SType {
 
   def fromCodes(codes: IndexedSeq[Code[_]]): SCode
 
-  def canonicalPType(): PType
+  def storageType(): PType
+
+  def copiedType: SType
 
   def paramType: SCodeParamType = SCodeParamType(this)
 
-  def asIdent: String = canonicalPType().asIdent
+  def asIdent: String = getClass.getSimpleName
 
   def defaultValue: SCode = {
     fromCodes(codeTupleTypes().map(ti => ti.uninitializedValue))
@@ -81,6 +81,12 @@ trait SType {
   def isRealizable: Boolean = !this.isInstanceOf[SStream]
 
   def castRename(t: Type): SType
+
+  protected[stypes] def _typeWithRequiredness: TypeWithRequiredness
+
+  final def typeWithRequiredness: VirtualTypeWithReq = VirtualTypeWithReq(virtualType, _typeWithRequiredness)
+
+  def containsPointers: Boolean
 }
 
 case class EmitType(st: SType, required: Boolean) {
@@ -88,7 +94,11 @@ case class EmitType(st: SType, required: Boolean) {
 
   def paramType: SCodeEmitParamType = SCodeEmitParamType(this)
 
-  def canonicalPType: PType = st.canonicalPType().setRequired(required)
+  def storageType: PType = st.storageType().setRequired(required)
+
+  def copiedType: EmitType = copy(st = st.copiedType)
+
+  def typeWithRequiredness: VirtualTypeWithReq = st.typeWithRequiredness.setRequired(required)
 
   def equalModuloRequired(that: EmitType): Boolean = st == that.st
 
