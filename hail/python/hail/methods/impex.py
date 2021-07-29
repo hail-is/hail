@@ -1293,7 +1293,7 @@ def import_gen(path,
     -------
     :class:`.MatrixTable`
     """
-    
+
     gen_table = import_lines(path, min_partitions)
     sample_table = import_lines(sample_file)
     rg = reference_genome.name if reference_genome else None

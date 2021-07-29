@@ -107,8 +107,8 @@ class StringTableReader(TableReader):
 
     def __eq__(self, other):
         return isinstance(other, StringTableReader) and \
-               other.path == self.path and \
-               other.min_partitions == self.min_partitions
+            other.path == self.path and \
+            other.min_partitions == self.min_partitions
 
 
 class TableFromBlockMatrixNativeReader(TableReader):
