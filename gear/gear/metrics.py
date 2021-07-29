@@ -8,6 +8,7 @@ import prometheus_client as pc  # type: ignore
 from prometheus_async.aio import time as prom_async_time  # type: ignore
 
 import influxdb_client
+from influxdb_client.client.flux_table import FluxTable
 from influxdb_client.client.write_api import ASYNCHRONOUS
 
 # TODO These should be env variables / secrets
@@ -52,6 +53,9 @@ class InfluxClient:
 
         task_manager.ensure_future(periodically_call(every, report))
 
+    def query(self, query) -> List[FluxTable]:
+        return self.query_api.query(query)
+
     @staticmethod
     def make_point(metric_name: str, tags: List[Tuple[str, str]], fields: List[Tuple[str, Any]]):
         p = influxdb_client.Point(metric_name)
@@ -65,6 +69,9 @@ class InfluxClient:
     @classmethod
     def create_client(cls, deploy_config: DeployConfig) -> 'InfluxClient':
         return InfluxClient(deploy_config.base_url('influxdb'))
+
+    def close(self):
+        self._client.close()
 
 
 @web.middleware

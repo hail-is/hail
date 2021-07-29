@@ -89,9 +89,6 @@ class DeployConfig:
     def base_url(self, service, base_scheme='http'):
         return f'{self.scheme(base_scheme)}://{self.domain(service)}{self.base_path(service)}'
 
-    def base_url_with_port(self, service, base_scheme='http', port=80):
-        return f'{self.scheme(base_scheme)}://{self.domain(service)}:{port}{self.base_path(service)}'
-
     def url(self, service, path, base_scheme='http'):
         return f'{self.base_url(service, base_scheme=base_scheme)}{path}'
 

@@ -22,6 +22,7 @@ from collections import defaultdict, Counter
 import psutil
 from aiodocker.exceptions import DockerError  # type: ignore
 import google.oauth2.service_account  # type: ignore
+from gear.metrics import InfluxClient
 from hailtop.utils import (
     time_msecs,
     request_retry_transient_errors,
@@ -1700,8 +1701,12 @@ class Worker:
         self.headers = None
         self.compute_client = None
 
+        self.influxdb_client = InfluxClient.create_client(deploy_config)
+        self.influxdb_client.gauge(self.task_manager, self.report_container_stats, every=1)
+
     async def shutdown(self):
         self.task_manager.shutdown()
+        self.influxdb_client.close()
         if self.compute_client:
             await self.compute_client.close()
 
@@ -2027,6 +2032,49 @@ class Worker:
             raise
         except Exception as e:
             log.exception(f'Error while deleting unused image: {e}')
+
+    async def report_container_stats(self):
+        points = []
+        for (batch_id, job_id), job in self.jobs.items():
+            if isinstance(job, DockerJob):
+                for name, container in job.containers.items():
+                    if container.process is not None:
+                        proc = psutil.Process(container.process.pid)
+                        mem_usage = 0
+                        cpu_usage_percent = 0
+                        children = list(proc.children(recursive=True))
+                        # Calling `cpu_percent` the first time returns
+                        # 0.0 because it measuring from the previous
+                        # invocation
+                        for c in children:
+                            try:
+                                c.cpu_percent()
+                            except psutil.NoSuchProcess:
+                                pass
+                        await asyncio.sleep(0.1)
+                        for c in children:
+                            try:
+                                with c.oneshot():
+                                    mem_usage += c.memory_full_info().uss
+                                    cpu_usage_percent += c.cpu_percent()
+                            except psutil.NoSuchProcess:
+                                pass
+                        cpu_usage_millis = cpu_usage_percent * 10
+                        point = InfluxClient.make_point(
+                            'job_resource_utilization',
+                            [('container_name', name)],
+                            [
+                                ('instance_name', NAME),
+                                ('batch_id', batch_id),
+                                ('job_id', job_id),
+                                ('memory_limit', container.spec['memory']),
+                                ('uss', mem_usage),
+                                ('cpu_limit', container.spec['cpu']),
+                                ('cpu_usage', cpu_usage_millis),
+                            ],
+                        )
+                        points.append(point)
+        return points
 
 
 async def async_main():

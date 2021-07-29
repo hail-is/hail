@@ -12,6 +12,7 @@ import aiohttp
 import signal
 from aiohttp import web
 import aiohttp_session
+from gear.metrics import InfluxClient
 import pymysql
 import google.oauth2.service_account
 import google.api_core.exceptions
@@ -1436,6 +1437,16 @@ async def ui_get_job(request, userdata, batch_id):
         resources['actual_cpu'] = resources['cores_mcpu'] / 1000
         del resources['cores_mcpu']
 
+    data = app['influxdb_client'].query(
+        f'''
+from(bucket: "default_bucket")
+  |> range(start: -5m)
+  |> filter(fn: (r) => r._measurement == "job_resource_utilization")
+  |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
+  |> filter(fn: (r) => r.batch_id == {batch_id} and r.job_id == {job_id})'''
+    )
+    influx_data = [str(r) for t in data for r in t]
+
     page_context = {
         'batch_id': batch_id,
         'job_id': job_id,
@@ -1447,6 +1458,7 @@ async def ui_get_job(request, userdata, batch_id):
         'job_status_str': json.dumps(job, indent=2),
         'step_errors': step_errors,
         'error': job_status.get('error'),
+        'influx_data': influx_data,
     }
     return await render_template('batch', request, userdata, 'job.html', page_context)
 
@@ -1584,8 +1596,10 @@ async def _query_billing(request, user=None):
         where_conditions.append("`time_completed` <= %s")
         where_args.append(end)
     else:
-        where_conditions.append("((`time_completed` IS NOT NULL AND `time_completed` >= %s) OR "
-                                "(`time_closed` IS NOT NULL AND `time_completed` IS NULL))")
+        where_conditions.append(
+            "((`time_completed` IS NOT NULL AND `time_completed` >= %s) OR "
+            "(`time_closed` IS NOT NULL AND `time_completed` IS NULL))"
+        )
         where_args.append(start)
 
     if user is not None:
@@ -2079,6 +2093,7 @@ async def on_startup(app):
     app['task_manager'] = aiotools.BackgroundTaskManager()
     pool = concurrent.futures.ThreadPoolExecutor()
     app['blocking_pool'] = pool
+    app['influxdb_client'] = InfluxClient.create_client(deploy_config)
 
     db = Database()
     await db.async_init()
@@ -2123,16 +2138,17 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
         retry_long_running('delete_batch_loop', run_if_changed, delete_batch_state_changed, delete_batch_loop_body, app)
     )
 
-    app['task_manager'].ensure_future(
-        periodically_call(5, _refresh, app)
-    )
+    app['task_manager'].ensure_future(periodically_call(5, _refresh, app))
 
 
 async def on_cleanup(app):
     try:
         app['blocking_pool'].shutdown()
     finally:
-        app['task_manager'].shutdown()
+        try:
+            app['influxdb_client'].close()
+        finally:
+            app['task_manager'].shutdown()
 
 
 def run():
