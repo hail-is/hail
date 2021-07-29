@@ -510,10 +510,10 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
         ht = ht.annotate_globals(ns=ht.kept_samples.map(lambda one_sample_set: hl.len(one_sample_set)))
 
         if is_chained:
-            log_message = lambda i: ("linear regression_rows[" + hl.str(i) + "] running on " + hl.str(ht.ns[i]) + " samples for " + hl.str(ht.scaled_y_nds[i].shape[1]) + " response variables y,"
+            log_message = lambda i: ("linear regression_rows[" + hl.str(i) + "] running on " + hl.str(ht.ns[i]) + " samples for " + hl.str(ht.scaled_y_nds[i].shape[1]) + " response variables y, "
                                      f"with input variables x, and {len(covariates)} additional covariates...")
         else:
-            log_message = lambda i: ("linear_regression_rows running on " + hl.str(ht.ns[0]) + " samples for " + hl.str(ht.scaled_y_nds[i].shape[1]) + " response variables y,"
+            log_message = lambda i: ("linear_regression_rows running on " + hl.str(ht.ns[0]) + " samples for " + hl.str(ht.scaled_y_nds[i].shape[1]) + " response variables y, "
                                      f"with input variables x, and {len(covariates)} additional covariates...")
 
         ht = ht.annotate_globals(ns=hl.range(num_y_lists).map(lambda i: hl._console_log(log_message(i), ht.ns[i])))
