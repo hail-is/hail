@@ -12,7 +12,7 @@ import is.hail.utils._
 import is.hail.types.physical.stypes.interfaces.SContainer
 
 case class EStructOfArrays(fields: IndexedSeq[EField], elementsRequired: Boolean, override val required: Boolean = false) extends EType {
-  assert(fields.zipWithIndex.forall { case (f, i) => f.index == i  && f.isInstanceOf[EContainer]})
+  assert(fields.zipWithIndex.forall { case (f, i) => f.index == i  && f.typ.isInstanceOf[EContainer]})
 
   val types: Array[EContainer] = fields.map(_.typ.asInstanceOf).toArray
   val fieldIdx: Map[String, Int] = fields.map(f => f.name -> f.index).toMap
