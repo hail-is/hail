@@ -105,11 +105,11 @@ class SIndexablePointerSettable(
   def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode = {
     val iv = cb.newLocal("pcindval_i", i)
     IEmitCode(cb,
-      isElementMissing(iv),
+      isElementMissing(cb, iv),
       pt.elementType.loadCheapSCode(cb, pt.loadElement(a, length, iv))) // FIXME loadElement should take elementsAddress
   }
 
-  def isElementMissing(i: Code[Int]): Code[Boolean] = pt.isElementMissing(a, i)
+  def isElementMissing(cb: EmitCodeBuilder, i: Code[Int]): Code[Boolean] = pt.isElementMissing(a, i)
 
   def store(cb: EmitCodeBuilder, pc: SCode): Unit = {
     cb.assign(a, pc.asInstanceOf[SIndexablePointerCode].a)
@@ -126,7 +126,7 @@ class SIndexablePointerSettable(
         val elementPtr = cb.newLocal[Long]("foreach_pca_elt_ptr", elementsAddress)
         val et = pca.elementType
         cb.whileLoop(idx < length, {
-          cb.ifx(isElementMissing(idx),
+          cb.ifx(isElementMissing(cb, idx),
             {}, // do nothing,
             {
               val elt = et.loadCheapSCode(cb, et.loadFromNested(elementPtr))

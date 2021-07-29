@@ -288,7 +288,7 @@ class SUnreachableContainerValue(val st: SUnreachableContainer) extends SUnreach
 
   override def codeLoadLength(): Code[Int] = const(0)
 
-  def isElementMissing(i: Code[Int]): Code[Boolean] = const(false)
+  def isElementMissing(cb: EmitCodeBuilder, i: Code[Int]): Code[Boolean] = const(false)
 
   def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode = IEmitCode.present(cb, SUnreachable.fromVirtualType(st.virtualType.elementType).defaultValue)
 

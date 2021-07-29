@@ -58,7 +58,7 @@ final case class EArray(val elementType: EType, override val required: Boolean =
         cb.assign(b, 0)
         cb.assign(shift, 0)
         cb.whileLoop(i < prefixLen, {
-          cb.ifx(value.isElementMissing(i), cb.assign(b, b | (const(1) << shift)))
+          cb.ifx(value.isElementMissing(cb, i), cb.assign(b, b | (const(1) << shift)))
           cb.assign(shift, shift + 1)
           cb.assign(i, i + 1)
           cb.ifx(shift.ceq(8), {

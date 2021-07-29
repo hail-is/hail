@@ -3,7 +3,7 @@ package is.hail.types.physical.stypes.interfaces
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.stypes.primitives.SInt32Code
-import is.hail.types.physical.stypes.{EmitType, SCode, SType, SValue}
+import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType, SValue}
 import is.hail.types.{RIterable, TypeWithRequiredness}
 
 trait SContainer extends SType {
@@ -12,14 +12,16 @@ trait SContainer extends SType {
   override def _typeWithRequiredness: TypeWithRequiredness = RIterable(elementEmitType.typeWithRequiredness.r)
 }
 
+trait SIndexableSettable extends SIndexableValue with SSettable
+
 trait SIndexableValue extends SValue {
   def st: SContainer
 
   def loadLength(): Value[Int]
 
-  def isElementMissing(i: Code[Int]): Code[Boolean]
+  def isElementMissing(cb: EmitCodeBuilder, i: Code[Int]): Code[Boolean]
 
-  def isElementDefined(i: Code[Int]): Code[Boolean] = !isElementMissing(i)
+  def isElementDefined(cb: EmitCodeBuilder, i: Code[Int]): Code[Boolean] = !isElementMissing(cb, i)
 
   def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode
 
