@@ -195,10 +195,10 @@ def sample_qc(vds: 'VariantDataset', *, name='sample_qc', gq_bins: 'Sequence[int
         lambda allele_type: hl.tuple(
             hl.agg.count_where(allele_type == i) for i in range(len(allele_ints))
         ),
-        hl.range(0, vmt['GT'].ploidy)
-            .map(lambda i: vmt['GT'][i])
-            .filter(lambda allele_idx: allele_idx > 0)
-            .map(lambda allele_idx: vmt[variant_atypes][allele_idx - 1])
+        (hl.range(0, vmt['GT'].ploidy)
+         .map(lambda i: vmt['GT'][i])
+         .filter(lambda allele_idx: allele_idx > 0)
+         .map(lambda allele_idx: vmt[variant_atypes][allele_idx - 1]))
     )
 
     gq_exprs = hl.agg.filter(

@@ -132,10 +132,10 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
         lambda allele_type: hl.tuple(
             hl.agg.count_where(allele_type == i) for i in range(len(allele_ints))
         ),
-        hl.range(0, mt['GT'].ploidy)
-            .map(lambda i: mt['GT'][i])
-            .filter(lambda allele_idx: allele_idx > 0)
-            .map(lambda allele_idx: mt[variant_atypes][allele_idx - 1])
+        (hl.range(0, mt['GT'].ploidy)
+         .map(lambda i: mt['GT'][i])
+         .filter(lambda allele_idx: allele_idx > 0)
+         .map(lambda allele_idx: mt[variant_atypes][allele_idx - 1]))
     )
 
     result_struct = hl.rbind(
