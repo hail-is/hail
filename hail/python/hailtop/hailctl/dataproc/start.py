@@ -231,8 +231,8 @@ def main(args, pass_through_args):
 
     if args.debug_mode:
         conf.extend_flag('properties', {
-            "spark:spark.driver.extraJavaOptions": "-Xss4M -XX:+HeapDumpOnOutOfMemoryError",
-            "spark:spark.executor.extraJavaOptions": "-Xss4M -XX:+HeapDumpOnOutOfMemoryError",
+            "spark:spark.driver.extraJavaOptions": "-Xss4M -XX:+HeapDumpOnOutOfMemoryError -XX:-OmitStackTraceInFastThrow",
+            "spark:spark.executor.extraJavaOptions": "-Xss4M -XX:+HeapDumpOnOutOfMemoryError -XX:-OmitStackTraceInFastThrow",
         })
 
     # default to highmem machines if using VEP
