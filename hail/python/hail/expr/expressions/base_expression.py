@@ -606,9 +606,12 @@ class Expression(object):
         if step is None:
             step = 1
         start = to_expr(start)
-        stop = to_expr(stop)
         step = to_expr(step)
-        slice_ir = ir.ArraySlice(self._ir, start._ir, stop._ir, step._ir)
+        if stop is not None:
+            stop = to_expr(stop)
+            slice_ir = ir.ArraySlice(self._ir, start._ir, stop._ir, step._ir)
+        else:
+            slice_ir = ir.ArraySlice(self._ir, start._ir, stop, step._ir)
         return expressions.construct_expr(slice_ir, ret_type, self._indices, self._aggregations)
 
     def _ir_lambda_method(self, irf, f, input_type, ret_type_f, *args):

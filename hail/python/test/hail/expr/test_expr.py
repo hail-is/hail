@@ -176,7 +176,7 @@ class Tests(unittest.TestCase):
 
     def test_array_slicing(self):
         schema = hl.tstruct(a=hl.tarray(hl.tint32))
-        rows = [{'a': [1, 2, 3]}]
+        rows = [{'a': [1, 2, 3, 4, 5]}]
         kt = hl.Table.parallelize(rows, schema)
 
         result = convert_struct_to_dict(kt.annotate(
@@ -184,12 +184,17 @@ class Tests(unittest.TestCase):
             x2=kt.a[2],
             x3=kt.a[:],
             x4=kt.a[1:2],
-            x5=kt.a[-1:2],
-            x6=kt.a[:2]
+            x5=kt.a[-1:4],
+            x6=kt.a[:2],
+            x7=kt.a[-20:20:-2],
+            x8=kt.a[20:-20:2],
+            x9=kt.a[-20:20:2],
+            x10=kt.a[20:-20:-2]
         ).take(1)[0])
 
-        expected = {'a': [1, 2, 3], 'x1': 1, 'x2': 3, 'x3': [1, 2, 3],
-                    'x4': [2], 'x5': [], 'x6': [1, 2]}
+        expected = {'a': [1, 2, 3, 4, 5], 'x1': 1, 'x2': 3, 'x3': [1, 2, 3, 4, 5],
+                    'x4': [2], 'x5': [], 'x6': [1, 2], 'x7': [], 'x8': [], 'x9': [1, 3, 5],
+                    'x10': [5, 3, 1]}
 
         self.assertDictEqual(result, expected)
 

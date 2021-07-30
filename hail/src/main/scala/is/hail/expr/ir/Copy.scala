@@ -66,6 +66,17 @@ object Copy {
       case ArrayRef(_, _, errorID) =>
         assert(newChildren.length == 2)
         ArrayRef(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], errorID)
+      case ArraySlice(_,_, stop, _, errorID) =>
+        if (stop.isEmpty) {
+          assert(newChildren.length == 3)
+          ArraySlice(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], None,
+            newChildren(2).asInstanceOf[IR], errorID)
+        }
+        else {
+            assert(newChildren.length == 4)
+            ArraySlice(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], Some(newChildren(2).asInstanceOf[IR]),
+              newChildren(3).asInstanceOf[IR], errorID)
+          }
       case ArrayLen(_) =>
         assert(newChildren.length == 1)
         ArrayLen(newChildren(0).asInstanceOf[IR])

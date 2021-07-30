@@ -1006,20 +1006,24 @@ class Emit[C](
             emitI(step).flatMap(cb) { stepCode =>
               val arrayValue = ac.asIndexable.memoize(cb, "array_slice_value")
               val arrayLength = arrayValue.loadLength()
+              val realStep = cb.newLocal[Int]("array_slice_requestedStep", stepCode.asInt.intCode(cb))
+              cb.ifx(realStep ceq const(0),
+                cb._fatalWithError(const(errorID), const("step cannot be 0 for array slice")))
               val stopI = stop.map {stopIR => emitI(stopIR) }.getOrElse(IEmitCode.present(cb, new SInt32Code(arrayLength)))
               stopI.map(cb) { stopCode =>
-                val realStep = cb.newLocal[Int]("array_slice_requestedStep", stepCode.asInt.intCode(cb))
-                cb.ifx(realStep == const(0), cb._fatalWithError(errorID, const("step cannot be 0 for array slice")))
                 val requestedStart = cb.newLocal[Int]("array_slice_requestedStart", startCode.asInt.intCode(cb))
                 val realStart = cb.newLocal[Int]("array_slice_realStart")
-                cb.ifx(requestedStart > arrayLength, cb.assign(realStart, arrayLength), cb.ifx(requestedStart >= 0, cb.assign(realStart, requestedStart),
+                cb.ifx(requestedStart >= arrayLength, cb.assign(realStart, arrayLength - 1), cb.ifx(requestedStart >= 0, cb.assign(realStart, requestedStart),
                   cb.ifx(arrayLength + requestedStart >= 0, cb.assign(realStart, arrayLength + requestedStart), cb.assign(realStart, 0))))
                 val requestedStop = cb.newLocal[Int]("array_slice_requestedStop", stopCode.asInt.intCode(cb))
                 val realStop = cb.newLocal[Int]("array_slice_realStop")
                 cb.ifx(requestedStop > arrayLength, cb.assign(realStop, arrayLength), cb.ifx(requestedStop >= 0, cb.assign(realStop, requestedStop),
-                  cb.ifx(arrayLength + requestedStop >= 0, cb.assign(realStop, arrayLength + requestedStop), cb.assign(realStop, 0))))
+                  cb.ifx(arrayLength + requestedStop >= 0, cb.assign(realStop, arrayLength + requestedStop), cb.assign(realStop, -1))))
+                cb.println(realStart.toS)
+                cb.println(realStop.toS)
                 val resultLen = cb.newLocal[Int]("array_slice_resultLength")
-                cb.assign(resultLen, (requestedStop - requestedStart) / realStep)
+                cb.assign(resultLen, (realStop - realStart) / realStep)
+                cb.ifx((arrayLength % realStep ceq 0).unary_!, cb.assign(resultLen, resultLen + 1))
                 cb.ifx(resultLen < 0, cb.assign(resultLen, 0))
                 val resultArray = PCanonicalArray(arrayValue.st.elementType.canonicalPType())
                 resultArray.constructFromElements(cb, region, resultLen, false) { (cb, idx) =>

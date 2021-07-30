@@ -9,7 +9,6 @@ object FoldConstants {
       foldConstants(ctx, ir)
     }
 
-
   private def foldConstants(ctx: ExecuteContext, ir: BaseIR): BaseIR =
     RewriteBottomUp(ir, {
       case _: Ref |
