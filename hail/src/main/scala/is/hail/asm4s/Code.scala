@@ -354,9 +354,10 @@ object Code {
   }
 
   private def getEmitLineNum: Int = {
-    val st = Thread.currentThread().getStackTrace
-    val i = st.indexWhere(ste => ste.getFileName == "Emit.scala")
-    if (i == -1) 0 else st(i).getLineNumber
+//    val st = Thread.currentThread().getStackTrace
+//    val i = st.indexWhere(ste => ste.getFileName == "Emit.scala")
+//    if (i == -1) 0 else st(i).getLineNumber
+    0
   }
 
   def _throw[T <: java.lang.Throwable, U](cerr: Code[T])(implicit uti: TypeInfo[U]): Code[U] =
