@@ -66,6 +66,8 @@ def test_sampleqc_old_new_equivalence():
         'r_insertion_deletion'
     ]
 
+    res.sample_qc.describe()
+    sqc.describe()
     assert res.aggregate_cols(hl.all(
         *(hl.agg.all(res.sample_qc[field] == res.sample_qc_new[field]) for field in fields_to_test)
     ))

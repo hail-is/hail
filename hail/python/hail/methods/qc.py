@@ -152,8 +152,8 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
                 'n_hom_var': x.n_called - x.n_hom_ref - x.n_het,
                 'n_non_ref': x.n_called - x.n_hom_ref,
                 'n_singleton': x.n_singleton,
-                'n_snp': (x.allele_type_counts[allele_ints["Transition"]],
-                          + x.allele_type_counts[allele_ints["Transversion"]]),
+                'n_snp': (x.allele_type_counts[allele_ints["Transition"]] +
+                          x.allele_type_counts[allele_ints["Transversion"]]),
                 'n_insertion': x.allele_type_counts[allele_ints["Insertion"]],
                 'n_deletion': x.allele_type_counts[allele_ints["Deletion"]],
                 'n_transition': x.allele_type_counts[allele_ints["Transition"]],
