@@ -20,6 +20,12 @@ class TabixSuite extends HailSuite {
     hc // reference to initialize
   }
 
+  @Test def testLargeNumberOfSequences() {
+    val tbx = new TabixReader(null, fs, Some("src/test/resources/large-tabix.tbi"))
+    // known length of sequences
+    assert(tbx.index.seqs.length == 3366)
+  }
+
   @Test def testSequenceNames() {
     val expectedSeqNames = new Array[String](24);
     for (i <- 1 to 22) {
