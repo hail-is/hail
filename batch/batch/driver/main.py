@@ -49,6 +49,7 @@ from ..batch_configuration import (
     HAIL_SHA,
     HAIL_SHOULD_PROFILE,
     HAIL_SHOULD_CHECK_INVARIANTS,
+    HAIL_SHOULD_MONITOR_SYSTEM,
     PROJECT,
     MACHINE_NAME_PREFIX,
 )
