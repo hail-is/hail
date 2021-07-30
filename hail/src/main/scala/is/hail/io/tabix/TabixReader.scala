@@ -108,7 +108,7 @@ class TabixReader(val filePath: String, fs: FS, idxFilePath: Option[String] = No
     // read the sequence dictionary
     buf = new Array[Byte](readInt(is)) // # sequences
     var (i, j, k) = (0, 0, 0)
-    is.read(buf)
+    is.readFully(buf)
     while (i < buf.length) {
       if (buf(i) == 0) {
         val contig = new String(buf.slice(j, i))
