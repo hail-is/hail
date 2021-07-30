@@ -2,14 +2,14 @@ package is.hail.types.encoded
 
 import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s._
-import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.io.{InputBuffer, OutputBuffer}
-import is.hail.types.physical.PBaseStruct
-import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SStructOfArrays, SStructOfArraysSettable}
+import is.hail.types.physical.{PBaseStruct, PCanonicalArray}
+import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerSettable, SStructOfArrays, SStructOfArraysSettable, SUnreachable, SUnreachableContainer}
 import is.hail.types.physical.stypes.{SCode, SType, SValue}
 import is.hail.types.virtual.{Field, TArray, TBaseStruct, Type}
 import is.hail.utils._
-import is.hail.types.physical.stypes.interfaces.SContainer
+import is.hail.types.physical.stypes.interfaces.{SContainer, primitive}
 
 case class EStructOfArrays(fields: IndexedSeq[EField], elementsRequired: Boolean, override val required: Boolean = false) extends EType {
   assert(fields.zipWithIndex.forall { case (f, i) => f.index == i  && f.typ.isInstanceOf[EContainer]})
@@ -30,28 +30,54 @@ case class EStructOfArrays(fields: IndexedSeq[EField], elementsRequired: Boolean
   def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = {
     v.st match {
       case SIndexablePointer(pc) if pc.elementType.isInstanceOf[PBaseStruct] =>
-        throw new NotImplementedError
+        buildConvertingEncoder(cb, v.asInstanceOf[SIndexablePointerSettable], out)
+      case _: SUnreachableContainer =>
+        cb._fatal("encoder called on unreachable value")
       case _: SStructOfArrays =>
         buildSimpleEncoder(cb, v.asInstanceOf[SStructOfArraysSettable], out)
     }
   }
 
+  private def buildConvertingEncoder(cb: EmitCodeBuilder, v: SIndexablePointerSettable, out: Value[OutputBuffer]): Unit = {
+    val pt = v.st.pType
+    val structType = pt.elementType.asInstanceOf[PBaseStruct]
+    cb += out.writeInt(v.loadLength())
+    if (pt.elementType.required && !elementsRequired) {
+      val i = cb.newLocal[Int]("i")
+      val n = cb.newLocal("N", UnsafeUtils.packBitsToBytes(v.loadLength()))
+      cb.forLoop(cb.assign(i, 0), i < n, cb.assign(i, i + 1), cb += out.writeByte(const(0).toB))
+    } else if (!pt.elementType.required && elementsRequired) {
+      cb.ifx(v.hasMissingValues(cb), cb._fatal("EStructOfArrays converting encoding panic!"))
+    } else if (!pt.elementType.required && !elementsRequired) {
+      cb += out.writeBytes(v.a + const(pt.lengthHeaderBytes), pt.nMissingBytes(v.loadLength()))
+    }
+  }
+
   private def buildSimpleEncoder(cb: EmitCodeBuilder, v: SStructOfArraysSettable, out: Value[OutputBuffer]): Unit = {
-    assert(v.lookupOrLength.isRight == elementsRequired)
     cb += out.writeInt(v.loadLength())
 
     v.lookupOrLength match {
-      case Left(lookup) =>
-        val region = cb.emb.partitionRegion
-        val nbytes = cb.newLocal("n_missing_bytes", UnsafeUtils.packBitsToBytes(v.loadLength()))
-        val mbytes = region.allocate(const(1L), nbytes.toL)
-        cb += Region.setMemory(mbytes, nbytes.toL, const(0).toB)
-        lookup.forEachDefined(cb) { (cb, i, lv) =>
-          cb.ifx(lv.asInt32.intCode(cb).ceq(SStructOfArrays.MISSING_SENTINEL), {
-            cb += Region.setBit(mbytes, i.toL)
-          })
+      case Left(_) =>
+        if (!elementsRequired) { // stype has required elements, etype has optional elements
+          val i = cb.newLocal[Int]("i")
+          val n = cb.newLocal("N", UnsafeUtils.packBitsToBytes(v.loadLength()))
+          cb.forLoop(cb.assign(i, 0), i < n, cb.assign(i, i + 1), cb += out.writeByte(const(0).toB))
         }
-        cb += out.writeBytes(mbytes, nbytes)
+      case Right(lookup) =>
+        if (elementsRequired) {
+          cb.ifx(v.hasMissingValues(cb), cb._fatal("EStructOfArrays encoding panic!"))
+        } else { // stype has optional elements, etype has optional elements
+          val region = cb.emb.partitionRegion
+          val nbytes = cb.newLocal("n_missing_bytes", UnsafeUtils.packBitsToBytes(v.loadLength()))
+          val mbytes = region.allocate(const(1L), nbytes.toL)
+          cb += Region.setMemory(mbytes, nbytes.toL, const(0).toB)
+          lookup.forEachDefined(cb) { (cb, i, lv) =>
+            cb.ifx(lv.asInt32.intCode(cb).ceq(SStructOfArrays.MISSING_SENTINEL), {
+              cb += Region.setBit(mbytes, i.toL)
+            })
+          }
+          cb += out.writeBytes(mbytes, nbytes)
+        }
     }
 
     for ((field, etype) <- v.fields.zip(types)) {
@@ -67,10 +93,27 @@ case class EStructOfArrays(fields: IndexedSeq[EField], elementsRequired: Boolean
 
     val result = SStructOfArraysSettable(cb.localBuilder, st, "decode_result")
     result.lookupOrLength match {
-      case Left(lookup) => throw new NotImplementedError // TODO
-      case Right(length) => cb.assign(length, in.readInt())
+      case Left(length) => cb.assign(length, in.readInt())
+      case Right(lookup) =>
+        cb.assign(lookup.length, in.readInt())
+        val nbytes = cb.newLocal("nbytes", UnsafeUtils.packBitsToBytes(lookup.length))
+        val mbytes = cb.newLocal("mbytes", region.allocate(1L, nbytes))
+        cb += in.readBytes(region, mbytes, nbytes)
+        val idx = cb.newLocal("cur_idx", 0)
+        val i = cb.newLocal[Int]("i")
+        val (push, finish) = SStructOfArrays.LOOKUP_TYPE.pType.asInstanceOf[PCanonicalArray].constructFromFunctions(cb, region, lookup.length, false)
+        cb.forLoop(cb.assign(i, 0), i < lookup.length, cb.assign(i, i + 1), {
+          val value = cb.newLocal[Int]("value", -1)
+          cb.ifx(!Region.loadBit(mbytes, i.toL), {
+            cb.assign(value, idx)
+            cb.assign(idx, idx + 1)
+          })
+          push(cb, IEmitCode.present(cb, primitive(value)))
+        })
+        cb.assign(lookup, finish(cb))
     }
-    fields.foreach { case EField(name, typ, index) =>
+
+    fields.foreach { case EField(name, typ, _) =>
       if (structType.hasField(name)) {
         val rf = structType.field(name)
         val readFieldF = typ.buildDecoder(TArray(rf.typ), cb.emb.ecb)

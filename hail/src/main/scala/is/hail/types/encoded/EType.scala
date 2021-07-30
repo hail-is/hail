@@ -124,11 +124,11 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     { (cb, r, in) => cb.invokeVoid(mb, r, in) }
   }
 
-  def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit
+  protected def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit
 
-  def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SCode
+  protected def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SCode
 
-  def _buildInplaceDecoder(
+  protected def _buildInplaceDecoder(
     cb: EmitCodeBuilder,
     pt: PType,
     region: Value[Region],
@@ -140,7 +140,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     pt.storeAtAddress(cb, addr, region, decoded, false)
   }
 
-  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit
+  protected def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit
 
   final def pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     if (required)
