@@ -1,6 +1,5 @@
 import logging
-import asyncio
-from typing import List, Tuple, Any, List, Awaitable, Callable
+from typing import List, Tuple, Any, Awaitable, Callable
 from aiohttp import web
 from hailtop import aiotools
 from hailtop.config import DeployConfig
