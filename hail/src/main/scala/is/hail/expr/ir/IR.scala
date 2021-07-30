@@ -34,6 +34,15 @@ sealed trait IR extends BaseIR {
   lazy val children: IndexedSeq[BaseIR] =
     Children(this)
 
+  lazy val isSmall: Boolean = isSmallHelper(this.typ)
+
+  def isSmallHelper(irType: Type): Boolean = {
+    irType match {
+      case struct: TBaseStruct => struct.types.forall(fieldType => isSmallHelper(fieldType) == true)
+      case _: TContainer => false
+      case _ => true
+    }
+  }
   override def copy(newChildren: IndexedSeq[BaseIR]): IR =
     Copy(this, newChildren)
 

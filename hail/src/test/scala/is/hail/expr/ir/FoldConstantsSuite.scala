@@ -54,12 +54,20 @@ class FoldConstantsSuite extends HailSuite {
     val makeStreamIR = MakeStream.unify(FastIndexedSeq(12, 2, 4, 8, 6).zipWithIndex.map
                        { case (n, idx) => MakeStruct(FastIndexedSeq("lk" -> (if (n == null)
                          NA(TInt32) else I32(n)), "l" -> I32(idx)))})
-    val makeStreamIRConst = MakeStream(ArrayBuffer(Literal(TStruct(("lk", TInt32),("l", TInt32)), Row(12,0)),
+    val makeStreamIRConstOld = MakeStream(ArrayBuffer(Literal(TStruct(("lk", TInt32),("l", TInt32)), Row(12,0)),
                                                   Literal(TStruct(("lk", TInt32),("l", TInt32)), Row(2,1)),
                                                   Literal(TStruct(("lk", TInt32),("l", TInt32)), Row(4,2)),
                                                   Literal(TStruct(("lk", TInt32),("l", TInt32)), Row(8,3)),
                                                   Literal(TStruct(("lk", TInt32),("l", TInt32)), Row(6,4))),
                                                   TStream(TStruct(("lk", TInt32),("l", TInt32))))
+
+    val makeStreamIRConst = MakeStream(ArrayBuffer(MakeStruct(FastIndexedSeq("lk" -> I32(12), "l" -> I32(0))),
+      MakeStruct(FastIndexedSeq("lk" -> I32(2), "l" -> I32(1))),
+      MakeStruct(FastIndexedSeq("lk" -> I32(4), "l" -> I32(2))),
+      MakeStruct(FastIndexedSeq("lk" -> I32(8), "l" -> I32(3))),
+      MakeStruct(FastIndexedSeq("lk" -> I32(6), "l" -> I32(4)))),
+      TStream(TStruct(("lk", TInt32),("l", TInt32))))
+
     val toArrayStreamFilterIR = ToArray(
                                   StreamFilter(StreamMap( streamIRA, "x",
                                     ApplyBinaryPrimOp(Add(), Ref("x", TInt32), I32(3))), "element",
@@ -74,8 +82,7 @@ class FoldConstantsSuite extends HailSuite {
                                                        MakeTuple.ordered(
                                                          Seq(ApplyBinaryPrimOp(Add(), Ref("x", TInt32),
                                                                               Ref("y", TInt32))))))))
-    val makeTupleSeededIRConst = MakeTuple.ordered(
-                                  ArrayBuffer(Literal(TArray(TInt32), Seq(3,4,5,6,7)),
+    val makeTupleSeededIRConst = MakeTuple.ordered(Seq(ToArray(StreamRange(I32(3), I32(8), I32(1))),
                                               ApplySeeded("rand_norm", Seq(F64(0d), F64(0d)), 0L, TFloat64),
                                               Literal(TTuple(TInt32), Row(11))))
     val randLetIR = Let("y",
