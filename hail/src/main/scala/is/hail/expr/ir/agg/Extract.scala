@@ -128,6 +128,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
       case AggElementsLengthCheck() => true
       case Downsample() => true
       case NDArraySum() => true
+      case Densify() => true
       case _ => false
     }
     aggs.exists(containsBigAggregator)

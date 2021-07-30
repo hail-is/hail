@@ -174,6 +174,20 @@ def assert_all_eval_to(*expr_and_expected):
     assert_evals_to(hl.tuple(exprs), expecteds)
 
 
+def with_flags(*flags):
+    @decorator
+    def wrapper(func, *args, **kwargs):
+        prev_flags = {k: v for k, v in hl._get_flags().items() if k in flags}
+
+        hl._set_flags(**{k: '1' for k in flags})
+
+        try:
+            return func(*args, **kwargs)
+        finally:
+            hl._set_flags(**prev_flags)
+    return wrapper
+
+
 def lower_only():
     @decorator
     def wrapper(func, *args, **kwargs):
