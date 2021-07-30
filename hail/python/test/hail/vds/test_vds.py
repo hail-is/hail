@@ -38,3 +38,38 @@ def test_conversion_equivalence():
     svcr_readback = hl.vds.to_merged_sparse_mt(vds)
 
     assert svcr._same(svcr_readback)
+
+
+@fails_local_backend
+@fails_service_backend
+def test_sampleqc_old_new_equivalence():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+    sqc = hl.vds.sample_qc(vds)
+
+    dense = hl.vds.to_dense_mt(vds)
+    dense = dense.transmute_entries(GT=hl.vds.lgt_to_gt(dense.LGT, dense.LA))
+    res = hl.sample_qc(dense)
+
+    res = res.annotate_cols(sample_qc_new=sqc[res.s])
+
+    fields_to_test = [
+        'n_het',
+        'n_hom_var',
+        'n_non_ref',
+        'n_singleton',
+        'n_snp',
+        'n_insertion',
+        'n_deletion',
+        'n_transition',
+        'n_transversion',
+        'n_star',
+        'r_ti_tv',
+        'r_het_hom_var',
+        'r_insertion_deletion'
+    ]
+
+    res.sample_qc.describe()
+    sqc.describe()
+    assert res.aggregate_cols(hl.all(
+        *(hl.agg.all(res.sample_qc[field] == res.sample_qc_new[field]) for field in fields_to_test)
+    ))

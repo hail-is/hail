@@ -191,15 +191,15 @@ def sample_qc(vds: 'VariantDataset', *, name='sample_qc', gq_bins: 'Sequence[int
         hl.sum(hl.range(0, vmt['GT'].ploidy).map(lambda i: vmt[variant_ac][vmt['GT'][i]] == 1))
     )
 
-    def get_allele_type(allele_idx):
-        return hl.if_else(allele_idx > 0, vmt[variant_atypes][allele_idx - 1], hl.missing(hl.tint32))
-
     bound_exprs['allele_type_counts'] = hl.agg.explode(
-        lambda elt: hl.agg.counter(elt),
-        hl.range(0, vmt['GT'].ploidy).map(lambda i: get_allele_type(vmt['GT'][i]))
+        lambda allele_type: hl.tuple(
+            hl.agg.count_where(allele_type == i) for i in range(len(allele_ints))
+        ),
+        (hl.range(0, vmt['GT'].ploidy)
+         .map(lambda i: vmt['GT'][i])
+         .filter(lambda allele_idx: allele_idx > 0)
+         .map(lambda allele_idx: vmt[variant_atypes][allele_idx - 1]))
     )
-
-    zero = hl.int64(0)
 
     gq_exprs = hl.agg.filter(
         hl.is_defined(vmt.GT),
@@ -215,13 +215,13 @@ def sample_qc(vds: 'VariantDataset', *, name='sample_qc', gq_bins: 'Sequence[int
                 'n_hom_var': x.n_hom_var,
                 'n_non_ref': x.n_het + x.n_hom_var,
                 'n_singleton': x.n_singleton,
-                'n_snp': (x.allele_type_counts.get(allele_ints["Transition"], zero)
-                          + x.allele_type_counts.get(allele_ints["Transversion"], zero)),
-                'n_insertion': x.allele_type_counts.get(allele_ints["Insertion"], zero),
-                'n_deletion': x.allele_type_counts.get(allele_ints["Deletion"], zero),
-                'n_transition': x.allele_type_counts.get(allele_ints["Transition"], zero),
-                'n_transversion': x.allele_type_counts.get(allele_ints["Transversion"], zero),
-                'n_star': x.allele_type_counts.get(allele_ints["Star"], zero)
+                'n_snp': (x.allele_type_counts[allele_ints['Transition']]
+                          + x.allele_type_counts[allele_ints['Transversion']]),
+                'n_insertion': x.allele_type_counts[allele_ints['Insertion']],
+                'n_deletion': x.allele_type_counts[allele_ints['Deletion']],
+                'n_transition': x.allele_type_counts[allele_ints['Transition']],
+                'n_transversion': x.allele_type_counts[allele_ints['Transversion']],
+                'n_star': x.allele_type_counts[allele_ints['Star']]
             }),
             lambda s: s.annotate(
                 r_ti_tv=divide_null(hl.float64(s.n_transition), s.n_transversion),
