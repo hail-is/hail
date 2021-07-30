@@ -25,7 +25,7 @@ case object SVoid extends SType {
 
   def storageType(): PType = throw new UnsupportedOperationException
 
-  override def copiedType(): SType = this
+  override def copiedType: SType = this
 
   override def _typeWithRequiredness: TypeWithRequiredness = throw new UnsupportedOperationException
 
