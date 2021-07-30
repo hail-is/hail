@@ -832,6 +832,7 @@ class InsnX(val op: Int, _ti: TypeInfo[_], var lineNumber: Int = 0) extends Valu
       case F2I => IntInfo
       case D2I => IntInfo
       case IALOAD => IntInfo
+      case ARRAYLENGTH => IntInfo
       // Long
       case LNEG => LongInfo
       case LADD => LongInfo

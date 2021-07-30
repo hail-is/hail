@@ -9,7 +9,7 @@ import is.hail.asm4s.coerce
 import is.hail.experimental.ExperimentalFunctions
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{EmitType, SCode, SType}
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerCode, SCanonicalCall, SCanonicalCallCode, SIndexablePointer, SStringPointer}
+import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
@@ -290,7 +290,7 @@ abstract class RegistryFunctions {
     case TFloat32 => primitive(coerce[Float](value))
     case TFloat64 => primitive(coerce[Double](value))
     case TString =>
-      val sst = st.asInstanceOf[SStringPointer]
+      val sst = st.asInstanceOf[SJavaString.type]
       sst.constructFromString(cb, r, coerce[String](value))
     case TCall =>
       assert(st == SCanonicalCall)
@@ -316,16 +316,8 @@ abstract class RegistryFunctions {
         IEmitCode(cb, elt.isNull, primitive(elt.invoke[Double]("doubleValue")))
       }
     case TArray(TString) =>
-      val ast = st.asInstanceOf[SIndexablePointer]
-      val pca = ast.pType.asInstanceOf[PCanonicalArray]
-      val arr = cb.newLocal[IndexedSeq[String]]("unrwrap_return_array_str_arr", coerce[IndexedSeq[String]](value))
-      val len = cb.newLocal[Int]("unwrap_return_array_str_len", arr.invoke[Int]("length"))
-      pca.constructFromElements(cb, r, len, deepCopy = false) { (cb, idx) =>
-        val st = SStringPointer(pca.elementType.setRequired(false).asInstanceOf[PCanonicalString])
-        val elt = cb.newLocal[String]("unwrap_return_array_str_elt",
-          Code.checkcast[String](arr.invoke[Int, java.lang.Object]("apply", idx)))
-        IEmitCode(cb, elt.isNull, st.constructFromString(cb, r, elt))
-      }
+      val ast = st.asInstanceOf[SJavaArrayString]
+      ast.construct(coerce[Array[String]](value))
     case t: TBaseStruct =>
       val sst = st.asInstanceOf[SBaseStructPointer]
       val pt = sst.pType.asInstanceOf[PCanonicalBaseStruct]
@@ -404,8 +396,13 @@ abstract class RegistryFunctions {
           typeParameters: Seq[Type],
           errorID: Value[Int],
           args: EmitCode*
-        ): IEmitCode = impl(cb, r, rpt, errorID, args.toArray)
-
+        ): IEmitCode = {
+          val res = impl(cb, r, rpt, errorID, args.toArray)
+          if (res.emitType != calculateReturnType(rpt.virtualType, args.map(_.emitType)))
+            throw new RuntimeException(s"type mismatch while registering $name" +
+              s"\n  got ${ res.emitType }, got ${ calculateReturnType(rpt.virtualType, args.map(_.emitType)) }")
+          res
+        }
         override def apply(r: EmitRegion, rpt: SType, typeParameters: Seq[Type], errorID: Value[Int], args: EmitCode*): EmitCode = {
           EmitCode.fromI(r.mb) { cb =>
             apply(cb, r.region, rpt, typeParameters, errorID, args: _*)
@@ -444,23 +441,37 @@ abstract class RegistryFunctions {
       case TString => classTag[String]
       case TArray(TInt32) => classTag[IndexedSeq[Int]]
       case TArray(TFloat64) => classTag[IndexedSeq[Double]]
-      case TArray(TString) => classTag[IndexedSeq[String]]
+      case TArray(TString) => classTag[Array[String]]
       case TSet(TString) => classTag[Set[String]]
       case TDict(TString, TString) => classTag[Map[String, String]]
       case TCall => classTag[Int]
       case t => PrimitiveTypeToIRIntermediateClassTag(t)
     }
 
-    def wrap(cb: EmitCodeBuilder, r: Value[Region], code: SCode): Code[_] = code.st match {
+    def wrap(cb: EmitCodeBuilder, r: Value[Region], code: SCode): Code[_] = code.st.virtualType match {
       case t if t.isPrimitive => SType.extractPrimCode(cb, code)
-      case call: SCall => code.asCall.loadCanonicalRepresentation(cb)
+      case TCall => code.asCall.loadCanonicalRepresentation(cb)
+      case TArray(TString) => code.st match {
+        case _: SJavaArrayString => code.asInstanceOf[SJavaArrayStringCode].array
+        case _ =>
+          val sv = code.asIndexable.memoize(cb, "scode_array_string")
+          val arr = cb.newLocal[Array[String]]("scode_array_string", Code.newArray[String](sv.loadLength()))
+          sv.forEachDefined(cb) { case (cb, idx, elt) =>
+            cb += (arr(idx) = elt.asString.loadString())
+          }
+          arr
+      }
       case _ => scodeToJavaValue(cb, r, code)
     }
 
     registerSCode(name, valueParameterTypes, returnType, calculateReturnType) { case (r, cb, _, rt, args, _) =>
       val cts = valueParameterTypes.map(ct(_).runtimeClass)
-      unwrapReturn(cb, r.region, rt,
-        Code.invokeScalaObject(cls, method, cts, args.map { a => wrap(cb, r.region, a) })(ct(returnType)))
+      try {
+        unwrapReturn(cb, r.region, rt,
+          Code.invokeScalaObject(cls, method, cts, args.map { a => wrap(cb, r.region, a) })(ct(returnType)))
+      } catch {
+        case e: Throwable => throw new RuntimeException(s"error while registering function $name", e)
+      }
     }
   }
 
@@ -689,7 +700,7 @@ abstract class UnseededMissingnessObliviousJVMFunction (
 
   def getAsMethod[C](cb: EmitClassBuilder[C], rpt: SType, typeParameters: Seq[Type], args: SType*): EmitMethodBuilder[C] = {
     val unified = unify(typeParameters, args.map(_.virtualType), rpt.virtualType)
-    assert(unified)
+    assert(unified, name)
     val methodbuilder = cb.genEmitMethod(name, FastIndexedSeq[ParamType](typeInfo[Region], typeInfo[Int]) ++ args.map(_.paramType), rpt.paramType)
     methodbuilder.emitSCode(cb => apply(EmitRegion.default(methodbuilder),
       cb,

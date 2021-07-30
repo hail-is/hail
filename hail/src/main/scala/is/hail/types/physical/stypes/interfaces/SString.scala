@@ -18,5 +18,5 @@ trait SStringCode extends SCode {
 
   def loadString(): Code[String]
 
-  def asBytes(): SBinaryCode
+  def toBytes(): SBinaryCode
 }

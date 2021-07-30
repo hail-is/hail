@@ -4,7 +4,7 @@ import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.types.physical.stypes.SType
-import is.hail.types.physical.stypes.concrete.SStringPointer
+import is.hail.types.physical.stypes.concrete.{SJavaString, SStringPointer}
 import is.hail.types.physical.stypes.primitives.{SBoolean, SInt32}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.{PBoolean, PCanonicalString, PInt32, PLocus, PString, PType}
@@ -30,7 +30,7 @@ object ReferenceGenomeFunctions extends RegistryFunctions {
     registerSCode4t("getReferenceSequenceFromValidLocus",
       Array(LocusFunctions.tlocus("R")),
       TString, TInt32, TInt32, TInt32, TString,
-      (_: Type, _: SType, _: SType, _: SType, _: SType) => SStringPointer(PCanonicalString())) {
+      (_: Type, _: SType, _: SType, _: SType, _: SType) => SJavaString) {
       case (r, cb, Seq(typeParam: TLocus), st, contig, pos, before, after, _) =>
         val scontig = contig.asString.loadString()
         unwrapReturn(cb, r.region, st,

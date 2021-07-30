@@ -2589,7 +2589,7 @@ class Emit[C](
     }
 
     if (result.st.virtualType != ir.typ)
-      throw new RuntimeException(s"type mismatch: EC=${ result.st.virtualType } / IR=${ ir.typ }\n")
+      throw new RuntimeException(s"type mismatch: EC=${ result.st.virtualType } / IR=${ ir.typ }\n${ ir.getClass.getSimpleName }")
     result
   }
 

@@ -19,7 +19,7 @@ object ShuffleOrdering {
             val bcode1 = x.asInstanceOf[SCanonicalShufflePointerCode].binaryRepr
             val bcode2 = y.asInstanceOf[SCanonicalShufflePointerCode].binaryRepr
             val ord = BinaryOrdering.make(bcode1.st, bcode2.st, ecb)
-            ord.compareNonnull(cb, x.asString.asBytes(), y.asString.asBytes())
+            ord.compareNonnull(cb, bcode1, bcode2)
           }
         }
     }

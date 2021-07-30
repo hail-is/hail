@@ -9,7 +9,7 @@ import is.hail.types.virtual._
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.physical.stypes.{SCode, SType, SValue}
 import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SBinaryPointerCode, SBinaryPointerSettable, SStringPointer, SStringPointerCode, SStringPointerSettable}
-import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryValue, SString}
+import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryValue, SString, SStringValue}
 import is.hail.utils._
 
 case object EBinaryOptional extends EBinary(false)
@@ -18,15 +18,26 @@ case object EBinaryRequired extends EBinary(true)
 class EBinary(override val required: Boolean) extends EType {
 
   override def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = {
-    val bin = v.st match {
-      case _: SBinary => v.asInstanceOf[SBinaryValue]
-      case SStringPointer(t) => new SBinaryPointerSettable(SBinaryPointer(t.binaryRepresentation), v.asInstanceOf[SStringPointerSettable].a)
-      case _: SString => v.asString.asBytes().memoize(cb, "encoder_sstring")
+
+    def writeCanonicalBinary(bin: SBinaryPointerSettable): Unit = {
+      val len = cb.newLocal[Int]("len", bin.loadLength())
+      cb += out.writeInt(len)
+      cb += out.writeBytes(bin.bytesAddress(), len)
     }
 
-    val len = cb.newLocal[Int]("len", bin.loadLength())
-    cb += out.writeInt(len)
-    cb += out.writeBytes(bin.bytesAddress(), len)
+    def writeBytes(_bytes: Code[Array[Byte]]): Unit = {
+      val bytes = cb.newLocal[Array[Byte]]("bytes", _bytes)
+      val len = cb.newLocal[Int]("len", bytes.length())
+      cb += out.writeInt(bytes.length())
+      cb += out.write(bytes)
+    }
+
+    v.st match {
+      case SBinaryPointer(_) => writeCanonicalBinary(v.asInstanceOf[SBinaryPointerSettable])
+      case SStringPointer(_) => writeCanonicalBinary(v.asInstanceOf[SStringPointerSettable].binaryRepr())
+      case _: SBinary => writeBytes(v.asInstanceOf[SBinaryValue].loadBytes())
+      case _: SString => writeBytes(v.asString.toBytes().loadBytes())
+    }
   }
 
   override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SCode = {

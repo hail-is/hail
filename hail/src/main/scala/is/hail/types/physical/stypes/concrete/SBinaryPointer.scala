@@ -53,7 +53,7 @@ object SBinaryPointerSettable {
 class SBinaryPointerSettable(val st: SBinaryPointer, val a: Settable[Long]) extends SBinaryValue with SSettable {
   private val pt: PBinary = st.pType
 
-  override def bytesAddress(): Code[Long] = st.pType.bytesAddress(a)
+  def bytesAddress(): Code[Long] = st.pType.bytesAddress(a)
 
   def get: SBinaryPointerCode = new SBinaryPointerCode(st, a)
 
