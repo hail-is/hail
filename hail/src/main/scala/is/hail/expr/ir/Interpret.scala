@@ -260,10 +260,12 @@ object Interpret {
         else {
           val a = aValue.asInstanceOf[IndexedSeq[Any]]
           val requestedStart = startValue.asInstanceOf[Int]
-          val requestedStop = stopValue.getOrElse(a.size).asInstanceOf[Int]
           val requestedStep = stepValue.asInstanceOf[Int]
           if (requestedStep == 0)
             fatal("step cannot be 0 for array slice", errorID)
+          val noneStop = if (requestedStep < 0) -a.size - 1
+            else a.size
+          val requestedStop = stopValue.getOrElse(noneStop).asInstanceOf[Int]
           val realStart = if (requestedStart >= a.size) a.size - 1
             else if (requestedStart >= 0) requestedStart
             else if (requestedStart + a.size >= 0) requestedStart + a.size
@@ -273,7 +275,7 @@ object Interpret {
             else if (requestedStop + a.size > 0) requestedStop + a.size
             else -1
           (realStart until realStop by requestedStep).map(idx => a(idx))
-          }
+        }
       case ArrayLen(a) =>
         val aValue = interpret(a, env, args)
         if (aValue == null)

@@ -178,6 +178,8 @@ class Tests(unittest.TestCase):
         schema = hl.tstruct(a=hl.tarray(hl.tint32))
         rows = [{'a': [1, 2, 3, 4, 5]}]
         kt = hl.Table.parallelize(rows, schema)
+        ha = hl.array(hl.range(100))
+        pa = list(range(100))
 
         result = convert_struct_to_dict(kt.annotate(
             x1=kt.a[0],
@@ -197,6 +199,11 @@ class Tests(unittest.TestCase):
                     'x10': [5, 3, 1]}
 
         self.assertDictEqual(result, expected)
+        self.assertEqual(pa[60:1:-3], hl.eval(ha[60:1:-3]))
+        self.assertEqual(pa[::5], hl.eval(ha[::5]))
+        self.assertEqual(pa[::-3], hl.eval(ha[::-3]))
+        self.assertEqual(pa[:-77:-3], hl.eval(ha[:-77:-3]))
+        self.assertEqual(pa[44::-7], hl.eval(ha[44::-7]))
 
     def test_dict_methods(self):
         schema = hl.tstruct(x=hl.tfloat64)

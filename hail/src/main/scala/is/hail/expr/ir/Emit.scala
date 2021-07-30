@@ -1007,9 +1007,10 @@ class Emit[C](
               val arrayValue = ac.asIndexable.memoize(cb, "array_slice_value")
               val arrayLength = arrayValue.loadLength()
               val realStep = cb.newLocal[Int]("array_slice_requestedStep", stepCode.asInt.intCode(cb))
-              cb.ifx(realStep ceq const(0),
-                cb._fatalWithError(const(errorID), const("step cannot be 0 for array slice")))
-              val stopI = stop.map {stopIR => emitI(stopIR) }.getOrElse(IEmitCode.present(cb, new SInt32Code(arrayLength)))
+              cb.ifx(realStep ceq const(0), cb._fatalWithError(const(errorID), const("step cannot be 0 for array slice")))
+              val noneStop = cb.newLocal[Int]("array_slice_noneStop")
+              cb.ifx(realStep < 0, cb.assign(noneStop, const(-1) * arrayLength - const(1)), cb.assign(noneStop, arrayLength))
+              val stopI = stop.map {stopIR => emitI(stopIR) }.getOrElse(IEmitCode.present(cb, new SInt32Code(noneStop)))
               stopI.map(cb) { stopCode =>
                 val requestedStart = cb.newLocal[Int]("array_slice_requestedStart", startCode.asInt.intCode(cb))
                 val realStart = cb.newLocal[Int]("array_slice_realStart")
@@ -1018,9 +1019,7 @@ class Emit[C](
                 val requestedStop = cb.newLocal[Int]("array_slice_requestedStop", stopCode.asInt.intCode(cb))
                 val realStop = cb.newLocal[Int]("array_slice_realStop")
                 cb.ifx(requestedStop > arrayLength, cb.assign(realStop, arrayLength), cb.ifx(requestedStop >= 0, cb.assign(realStop, requestedStop),
-                  cb.ifx(arrayLength + requestedStop >= 0, cb.assign(realStop, arrayLength + requestedStop), cb.assign(realStop, -1))))
-                cb.println(realStart.toS)
-                cb.println(realStop.toS)
+                  cb.ifx(arrayLength + requestedStop > 0, cb.assign(realStop, arrayLength + requestedStop), cb.assign(realStop, -1))))
                 val resultLen = cb.newLocal[Int]("array_slice_resultLength")
                 cb.assign(resultLen, (realStop - realStart) / realStep)
                 cb.ifx((arrayLength % realStep ceq 0).unary_!, cb.assign(resultLen, resultLen + 1))

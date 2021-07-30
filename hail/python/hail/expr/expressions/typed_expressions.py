@@ -480,6 +480,25 @@ class ArrayExpression(CollectionExpression):
         else:
             return self._method("indexArray", self.dtype.element_type, item)
 
+    def _slice(self, ret_type, start=None, stop=None, step=None):
+        if step is None:
+            step = 1
+        if step >= 0:
+            if start is None:
+                start = 0
+        else:
+            if start is None:
+                start = -1
+
+        start = to_expr(start)
+        step = to_expr(step)
+        if stop is not None:
+            stop = to_expr(stop)
+            slice_ir = ir.ArraySlice(self._ir, start._ir, stop._ir, step._ir)
+        else:
+            slice_ir = ir.ArraySlice(self._ir, start._ir, stop, step._ir)
+        return construct_expr(slice_ir, ret_type, self._indices, self._aggregations)
+
     @typecheck_method(item=expr_any)
     def contains(self, item):
         """Returns a boolean indicating whether `item` is found in the array.
@@ -2502,7 +2521,7 @@ class StringExpression(Expression):
             Substring or character at index `item`.
         """
         if isinstance(item, slice):
-            return self._slice(tstr, item.start, item.stop, item.step)
+            return self._slice(item.start, item.stop, item.step)
         else:
             item = to_expr(item)
             if not item.dtype == tint32:
@@ -2543,6 +2562,24 @@ class StringExpression(Expression):
         if not other.dtype == tstr:
             raise NotImplementedError("'{}' + '{}'".format(other.dtype, self.dtype))
         return self._bin_op_reverse("concat", other, self.dtype)
+
+    def _slice(self, start=None, stop=None, step=None):
+        if step is not None:
+            raise NotImplementedError('Variable slice step size is not currently supported for strings')
+
+        if start is not None:
+            start = to_expr(start)
+            if stop is not None:
+                stop = to_expr(stop)
+                return self._method('slice', tstr, start, stop)
+            else:
+                return self._method('sliceRight', tstr, start)
+        else:
+            if stop is not None:
+                stop = to_expr(stop)
+                return self._method('sliceLeft', tstr, stop)
+            else:
+                return self
 
     def length(self):
         """Returns the length of the string.

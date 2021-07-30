@@ -600,20 +600,6 @@ class Expression(object):
         key = to_expr(key)
         return self._method("index", ret_type, key)
 
-    def _slice(self, ret_type, start=None, stop=None, step=None):
-        if start is None:
-            start = 0
-        if step is None:
-            step = 1
-        start = to_expr(start)
-        step = to_expr(step)
-        if stop is not None:
-            stop = to_expr(stop)
-            slice_ir = ir.ArraySlice(self._ir, start._ir, stop._ir, step._ir)
-        else:
-            slice_ir = ir.ArraySlice(self._ir, start._ir, stop, step._ir)
-        return expressions.construct_expr(slice_ir, ret_type, self._indices, self._aggregations)
-
     def _ir_lambda_method(self, irf, f, input_type, ret_type_f, *args):
         args = (to_expr(arg)._ir for arg in args)
         new_id = Env.get_uid()
