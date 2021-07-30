@@ -27,6 +27,4 @@ case object TString extends Type {
 
   override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[String]], missingEqual)
-
-  override def fundamentalType: Type = TBinary
 }

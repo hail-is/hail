@@ -78,16 +78,6 @@ final case class TTuple(_types: IndexedSeq[TupleField]) extends TBaseStruct {
     sb.append(')')
   }
 
-
-  override lazy val fundamentalType: TTuple = {
-    val fundamentalFieldTypes = _types.map(tf => tf.copy(typ = tf.typ.fundamentalType))
-    if ((_types, fundamentalFieldTypes).zipped
-      .forall { case (t, ft) => t == ft })
-      this
-    else
-      TTuple(fundamentalFieldTypes)
-  }
-
   override def valueSubsetter(subtype: Type): Any => Any = {
     if (this == subtype)
       return identity
