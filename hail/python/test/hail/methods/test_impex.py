@@ -1093,7 +1093,7 @@ class BGENTests(unittest.TestCase):
         bgen_file = resource('example.8bits.bgen')
         bgenmt = hl.import_bgen(bgen_file, ['GT', 'GP'], sample_file)
         self.assertTrue(
-            bgenmt.head(2)._same(genmt.head(2), tolerance=1.0 / 255, absolute=True))
+            bgenmt._same(genmt, tolerance=1.0 / 255, absolute=True))
 
     @fails_service_backend()
     @fails_local_backend()
@@ -1542,9 +1542,9 @@ class GENTests(unittest.TestCase):
         self.assertEqual(mt._force_count_rows(), 3)
 
         with self.assertRaisesRegex(FatalError, 'Invalid locus'):
-             mt = hl.import_gen(resource('skip_invalid_loci.gen'),
-                          resource('skip_invalid_loci.sample'))
-             mt._force_count_rows()
+            mt = hl.import_gen(resource('skip_invalid_loci.gen'),
+                               resource('skip_invalid_loci.sample'))
+            mt._force_count_rows()
 
 
     @fails_service_backend()

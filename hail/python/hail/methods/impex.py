@@ -992,7 +992,7 @@ def import_bgen(path,
 
     >>> ds_result = hl.import_bgen("data/example.8bits.bgen",
     ...                             entry_fields=['dosage'],
-    ...                             sample_file="data/example.8bits.sample")
+    ...                            sample_file="data/example.8bits.sample")
 
     Load a single variant from a BGEN file:
 
@@ -1293,7 +1293,6 @@ def import_gen(path,
     -------
     :class:`.MatrixTable`
     """
-
     gen_table = import_lines(path, min_partitions)
     sample_table = import_lines(sample_file)
     rg = reference_genome.name if reference_genome else None
@@ -1306,40 +1305,43 @@ def import_gen(path,
     gen_table = gen_table.transmute(data=gen_table.text.split(' '))
 
     if chromosome is None:
-        index = 5
+        last_rowf_idx = 5
         contig_holder = gen_table.data[0]
     else:
-        index = 4
+        last_rowf_idx = 4
         contig_holder = chromosome
 
     contig_holder = contig_recoding.get(contig_holder, contig_holder)
 
+    position = hl.int(gen_table.data[last_rowf_idx - 2])
+    alleles = hl.array([hl.str(gen_table.data[last_rowf_idx - 1]), hl.str(gen_table.data[last_rowf_idx])])
+    rsid = gen_table.data[last_rowf_idx - 3]
+    varid = gen_table.data[last_rowf_idx - 4]
     if rg is None:
-        locus = hl.struct(contig=contig_holder, position=hl.int(gen_table.data[index - 2]))
+        locus = hl.struct(contig=contig_holder, position=position)
     else:
         if skip_invalid_loci:
-            locus = hl.if_else(hl.is_valid_locus(contig_holder, hl.int(gen_table.data[index - 2]), rg),
-                               hl.locus(contig_holder, hl.int(gen_table.data[index - 2]), rg),
+            locus = hl.if_else(hl.is_valid_locus(contig_holder, position, rg),
+                               hl.locus(contig_holder, position, rg),
                                hl.missing(hl.tlocus(rg)))
         else:
-            locus = hl.locus(contig_holder, hl.int(gen_table.data[index - 2]), rg)
+            locus = hl.locus(contig_holder, position, rg)
 
-    alleles = hl.array([hl.str(gen_table.data[index - 1]), hl.str(gen_table.data[index])])
-    rsid = gen_table.data[index - 3]
-    varid = gen_table.data[index - 4]
     gen_table = gen_table.annotate(locus=locus, alleles=alleles, rsid=rsid, varid=varid)
-    gen_table = gen_table.annotate(entries=gen_table.data[index + 1:].map(lambda x: hl.float64(x))
+    gen_table = gen_table.annotate(entries=gen_table.data[last_rowf_idx + 1:].map(lambda x: hl.float64(x))
                                    .grouped(3).map(lambda x: hl.struct(GP=x)))
 
-    sample_table_count = sample_table.count() - 2
+    sample_table_count = sample_table.count() - 2  # Skipping first 2 unneeded rows in sample file
     gen_table = gen_table.annotate_globals(cols=hl.range(sample_table_count).map(lambda x: hl.struct(col_idx=x)))
-    gen_table = gen_table.filter(hl.is_defined(gen_table.locus))
+    if skip_invalid_loci:
+        gen_table = gen_table.filter(hl.is_defined(gen_table.locus))
     mt = gen_table._unlocalize_entries('entries', 'cols', ['col_idx'])
 
     sample_table = sample_table.tail(sample_table_count).add_index()
     sample_table = sample_table.annotate(s=sample_table.text.split(' ')[0])
     sample_table = sample_table.key_by(sample_table.idx)
     mt = mt.annotate_cols(s=sample_table[hl.int64(mt.col_idx)].s)
+
     mt = mt.annotate_entries(GP=hl.bind(lambda x: hl.if_else(hl.abs(1.0 - x) > tolerance,
                                                              hl.missing(hl.tarray(hl.tfloat64)),
                                                              hl.abs((1 / x) * mt.GP)),
@@ -1351,9 +1353,9 @@ def import_gen(path,
                              .when(2, hl.call(1, 1))
                              .or_error("error creating gt field."), hl.missing(hl.tcall)), hl.argmax(mt.GP)))
     mt = mt.filter_entries(hl.is_defined(mt.GP))
+
     mt = mt.key_cols_by('s').drop('col_idx', 'file', 'data')
     mt = mt.key_rows_by('locus', 'alleles').select_entries('GT', 'GP')
-
     return mt
 
 
