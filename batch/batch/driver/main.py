@@ -1140,7 +1140,8 @@ SELECT instance_id, internal_token, frozen FROM globals;
 
     app['task_manager'].ensure_future(periodically_call(60, scheduling_cancelling_bump, app))
 
-    app['task_manager'].ensure_future(periodically_call(15, monitor_system, app))
+    if HAIL_SHOULD_MONITOR_SYSTEM:
+        app['task_manager'].ensure_future(periodically_call(15, monitor_system, app))
 
 
 async def on_cleanup(app):
