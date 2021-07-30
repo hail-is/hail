@@ -369,17 +369,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
   def typeAfterSelect(keep: IndexedSeq[Int]): TStruct =
     TStruct(keep.map(i => fieldNames(i) -> types(i)): _*)
 
-  override lazy val fundamentalType: TStruct = {
-    val fundamentalFieldTypes = fields.map(f => f.typ.fundamentalType)
-    if ((fields, fundamentalFieldTypes).zipped
-      .forall { case (f, ft) => f.typ == ft })
-      this
-    else
-      TStruct((fields, fundamentalFieldTypes).zipped.map { case (f, ft) => (f.name, ft) }: _*)
-  }
-
   def toEnv: Env[Type] = Env(fields.map(f => (f.name, f.typ)): _*)
-
 
   override def valueSubsetter(subtype: Type): Any => Any = {
     if (this == subtype)

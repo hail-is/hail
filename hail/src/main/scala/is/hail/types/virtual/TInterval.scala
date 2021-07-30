@@ -10,8 +10,6 @@ import scala.reflect.{ClassTag, classTag}
 
 case class TInterval(pointType: Type) extends Type {
 
-  override def fundamentalType: Type = representation.fundamentalType
-
   override def children = FastSeq(pointType)
 
   def _toPretty = s"""Interval[$pointType]"""
