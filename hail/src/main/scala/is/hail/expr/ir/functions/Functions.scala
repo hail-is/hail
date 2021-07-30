@@ -456,12 +456,8 @@ abstract class RegistryFunctions {
         case _ =>
           val sv = code.asIndexable.memoize(cb, "scode_array_string")
           val arr = cb.newLocal[Array[String]]("scode_array_string", Code.newArray[String](sv.loadLength()))
-          sv.foreach(cb) { case (cb, idx, elt) =>
-            elt.consume(cb,
-              (),
-              { sc =>
-                cb += (arr(idx) = sc.asString.loadString())
-              })
+          sv.forEachDefined(cb) { case (cb, idx, elt) =>
+            cb += (arr(idx) = elt.asString.loadString())
           }
           arr
       }

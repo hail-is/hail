@@ -57,7 +57,7 @@ class SJavaStringCode(val s: Code[String]) extends SStringCode {
   }
 
   private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SValue = {
-    val s = new SJavaStringSettable(sb.newSettable[String]("sjavastring_memoize"))
+    val s = new SJavaStringSettable(sb.newSettable[String](s"${name}_javastring"))
     s.store(cb, this)
     s
   }

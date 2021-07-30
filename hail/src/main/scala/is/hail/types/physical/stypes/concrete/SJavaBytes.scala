@@ -45,7 +45,7 @@ class SJavaBytesCode(val bytes: Code[Array[Byte]]) extends SBinaryCode {
   def loadLength(): Code[Int] = bytes.invoke[Int]("length")
 
   private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SBinaryValue = {
-    val s = new SJavaBytesSettable(sb.newSettable[Array[Byte]]("sjavabytes_memoize"))
+    val s = new SJavaBytesSettable(sb.newSettable[Array[Byte]](s"${name}_javabytearray"))
     s.store(cb, this)
     s
   }
