@@ -304,6 +304,42 @@ object PType {
 
     canonical(t, 0, 0)
   }
+
+  def canonicalize(t: PType, ctx: ExecuteContext, path: List[String]): Option[() => AsmFunction2RegionLongLong] = {
+    def canonicalPath(pt: PType, path: List[String]): PType = {
+      if (path.isEmpty) {
+        PType.canonical(pt)
+      }
+
+      val head :: tail = path
+      pt match {
+        case t@PCanonicalStruct(fields, required) =>
+          assert(t.hasField(head))
+          PCanonicalStruct(fields.map(f => if (f.name == head) f.copy(typ = canonicalPath(f.typ, tail)) else f), required)
+        case PCanonicalArray(element, required) =>
+          assert(head == "element")
+          PCanonicalArray(canonicalPath(element, tail), required)
+        case other =>
+          throw new RuntimeException(s"cannot canonicalize nested path under type $other")
+      }
+    }
+
+    val cpt = canonicalPath(t, path)
+    if (cpt == t)
+      None
+    else {
+      val fb = EmitFunctionBuilder[AsmFunction2RegionLongLong](ctx,
+        "copyFromAddr",
+        FastIndexedSeq[ParamType](classInfo[Region], LongInfo), LongInfo)
+
+      fb.emitWithBuilder { cb =>
+        val region = fb.apply_method.getCodeParam[Region](1)
+        val srcAddr = fb.apply_method.getCodeParam[Long](2)
+        cpt.store(cb, region, t.loadCheapSCode(cb, srcAddr), deepCopy = false)
+      }
+      Some(fb.result())
+    }
+  }
 }
 
 abstract class PType extends Serializable with Requiredness {
