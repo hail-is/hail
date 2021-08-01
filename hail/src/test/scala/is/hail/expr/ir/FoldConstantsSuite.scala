@@ -109,7 +109,7 @@ class FoldConstantsSuite extends HailSuite {
     assert(FoldConstants(ctx, makeStreamIR) == makeStreamIRConst)
     assert(FoldConstants(ctx, toArrayStreamFilterIR) == toArrayStreamFilterIR)
     assert(FoldConstants(ctx, makeTupleSeededIR) == makeTupleSeededIRConst)
-    assert(FoldConstants(ctx, randLetIR) == randLetIRConst)
+    assert(FoldConstants(ctx, randLetIR) == randLetIRConst)   //
 
     val errorCompiled = FoldConstants(ctx, errorIR)
     errorCompiled match {
