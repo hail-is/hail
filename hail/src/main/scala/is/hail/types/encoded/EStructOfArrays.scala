@@ -4,12 +4,12 @@ import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.io.{InputBuffer, OutputBuffer}
-import is.hail.types.physical.{PBaseStruct, PCanonicalArray}
-import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerSettable, SStructOfArrays, SStructOfArraysSettable, SUnreachable, SUnreachableContainer}
+import is.hail.types.physical.stypes.concrete.{SIndexablePointerSettable, SStructOfArrays, SStructOfArraysSettable, SUnreachableContainerValue}
+import is.hail.types.physical.stypes.interfaces.{SContainer, primitive}
 import is.hail.types.physical.stypes.{SCode, SType, SValue}
+import is.hail.types.physical.{PBaseStruct, PCanonicalArray}
 import is.hail.types.virtual.{Field, TArray, TBaseStruct, Type}
 import is.hail.utils._
-import is.hail.types.physical.stypes.interfaces.{SContainer, primitive}
 
 case class EStructOfArrays(fields: IndexedSeq[EField], elementsRequired: Boolean, override val required: Boolean = false) extends EType {
   assert(fields.zipWithIndex.forall { case (f, i) => f.index == i  && f.typ.isInstanceOf[EContainer]})
@@ -28,19 +28,19 @@ case class EStructOfArrays(fields: IndexedSeq[EField], elementsRequired: Boolean
   }
 
   def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = {
-    v.st match {
-      case sip @ SIndexablePointer(pc) if pc.elementType.isInstanceOf[PBaseStruct] =>
-        val ssa = SStructOfArrays.fromIndexablePointer(sip)
-        val sv = ssa.coerceOrCopy(cb, cb.emb.partitionRegion, v, deepCopy = false).memoize(cb, "converted_value")
-        buildSimpleEncoder(cb, sv.asInstanceOf, out)
-      case _: SUnreachableContainer =>
+    v match {
+      case iv: SIndexablePointerSettable if iv.st.pType.elementType.isInstanceOf[PBaseStruct] =>
+        val ssa = SStructOfArrays.fromIndexablePointer(iv.st)
+        val v = ssa.coerceOrCopy(cb, cb.emb.partitionRegion, iv, deepCopy = false).memoize(cb, "converted_value")
+        encode(cb, v.asInstanceOf[SStructOfArraysSettable], out)
+      case v: SStructOfArraysSettable =>
+        encode(cb, v, out)
+      case _: SUnreachableContainerValue =>
         cb._fatal("encoder called on unreachable value")
-      case _: SStructOfArrays =>
-        buildSimpleEncoder(cb, v.asInstanceOf[SStructOfArraysSettable], out)
     }
   }
 
-  private def buildSimpleEncoder(cb: EmitCodeBuilder, v: SStructOfArraysSettable, out: Value[OutputBuffer]): Unit = {
+  private def encode(cb: EmitCodeBuilder, v: SStructOfArraysSettable, out: Value[OutputBuffer]): Unit = {
     cb += out.writeInt(v.loadLength())
 
     v.lookupOrLength match {
