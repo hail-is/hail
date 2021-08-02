@@ -265,15 +265,19 @@ object Interpret {
             fatal("step cannot be 0 for array slice", errorID)
           val noneStop = if (requestedStep < 0) -a.size - 1
             else a.size
+          val maxBound = if(requestedStep > 0) a.size
+            else a.size - 1
+          val minBound = if(requestedStep > 0) 0
+            else - 1
           val requestedStop = stopValue.getOrElse(noneStop).asInstanceOf[Int]
-          val realStart = if (requestedStart >= a.size) a.size - 1
+          val realStart = if (requestedStart >= a.size) maxBound
             else if (requestedStart >= 0) requestedStart
             else if (requestedStart + a.size >= 0) requestedStart + a.size
-            else 0
-          val realStop = if (requestedStop >= a.size) a.size
+            else minBound
+          val realStop = if (requestedStop >= a.size) maxBound
             else if (requestedStop >= 0) requestedStop
             else if (requestedStop + a.size > 0) requestedStop + a.size
-            else -1
+            else minBound
           (realStart until realStop by requestedStep).map(idx => a(idx))
         }
       case ArrayLen(a) =>

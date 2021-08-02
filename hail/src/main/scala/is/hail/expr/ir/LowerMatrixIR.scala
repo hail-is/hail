@@ -535,12 +535,12 @@ object LowerMatrixIR {
       case MatrixRowsTail(child, n) => TableTail(lower(child, ab), n)
 
       case MatrixColsHead(child, n) => lower(child, ab)
-        .mapGlobals('global.insertFields(colsField -> 'global (colsField).invoke("sliceLeft", TArray(child.typ.colType), n)))
-        .mapRows('row.insertFields(entriesField -> 'row (entriesField).invoke("sliceLeft", TArray(child.typ.entryType), n)))
+        .mapGlobals('global.insertFields(colsField -> 'global (colsField).arraySlice(0, Some(n), 1)))
+        .mapRows('row.insertFields(entriesField -> 'row (entriesField).arraySlice(0, Some(n), 1)))
 
       case MatrixColsTail(child, n) => lower(child, ab)
-        .mapGlobals('global.insertFields(colsField -> 'global (colsField).invoke("sliceRight", TArray(child.typ.colType), - n)))
-        .mapRows('row.insertFields(entriesField -> 'row (entriesField).invoke("sliceRight", TArray(child.typ.entryType), - n)))
+        .mapGlobals('global.insertFields(colsField -> 'global (colsField).arraySlice(-n, None, 1)))
+        .mapRows('row.insertFields(entriesField -> 'row (entriesField).arraySlice(-n, None, 1)))
 
       case MatrixExplodeCols(child, path) =>
         val loweredChild = lower(child, ab)

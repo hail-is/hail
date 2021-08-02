@@ -472,7 +472,7 @@ class ArrayExpression(CollectionExpression):
             Element or array slice.
         """
         if isinstance(item, slice):
-            return self._slice(self.dtype, item.start, item.stop, item.step)
+            return self._slice(item.start, item.stop, item.step)
         item = to_expr(item)
         if not item.dtype == tint32:
             raise TypeError("array expects key to be type 'slice' or expression of type 'int32', "
@@ -480,24 +480,18 @@ class ArrayExpression(CollectionExpression):
         else:
             return self._method("indexArray", self.dtype.element_type, item)
 
-    def _slice(self, ret_type, start=None, stop=None, step=None):
+    @typecheck_method(start=nullable(expr_int32), stop=nullable(expr_int32), step=nullable(expr_int32))
+    def _slice(self, start=None, stop=None, step=None):
         if step is None:
-            step = 1
-        if step >= 0:
-            if start is None:
-                start = 0
-        else:
-            if start is None:
-                start = -1
-
-        start = to_expr(start)
-        step = to_expr(step)
+            step = hl.int(1)
+        if start is None:
+            start = hl.if_else(step >= 0, 0, -1)
         if stop is not None:
-            stop = to_expr(stop)
             slice_ir = ir.ArraySlice(self._ir, start._ir, stop._ir, step._ir)
         else:
             slice_ir = ir.ArraySlice(self._ir, start._ir, stop, step._ir)
-        return construct_expr(slice_ir, ret_type, self._indices, self._aggregations)
+
+        return construct_expr(slice_ir, self.dtype, self._indices, self._aggregations)
 
     @typecheck_method(item=expr_any)
     def contains(self, item):

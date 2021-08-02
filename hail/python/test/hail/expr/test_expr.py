@@ -206,6 +206,11 @@ class Tests(unittest.TestCase):
         self.assertEqual(pa[44::-7], hl.eval(ha[44::-7]))
         self.assertEqual(pa[2:59:7], hl.eval(ha[2:59:7]))
         self.assertEqual(pa[4:40:2], hl.eval(ha[4:40:2]))
+        self.assertEqual(pa[-400:-300:2], hl.eval(ha[-400:-300:2]))
+        self.assertEqual(pa[-300:-400:-2], hl.eval(ha[-300:-400:-2]))
+        self.assertEqual(pa[300:400:2], hl.eval(ha[300:400:2]))
+        self.assertEqual(pa[400:300:-2], hl.eval(ha[400:300:-2]))
+
 
         with pytest.raises(hl.utils.HailUserError, match='step cannot be 0 for array slice'):
             hl.eval(ha[::0])
