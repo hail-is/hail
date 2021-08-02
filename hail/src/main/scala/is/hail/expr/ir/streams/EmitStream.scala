@@ -470,14 +470,20 @@ object EmitStream {
           end
       end
          */
-      case SeqSample(totalSize, numToSample) =>
+      case SeqSample(totalSize, numToSample, _requiresMemoryManagementPerElement) =>
         emit(totalSize, cb).flatMap(cb) { totalSizeCode =>
           emit(numToSample, cb).flatMap(cb) { numToSampleCode =>
             val numToSampleVal = numToSampleCode.asInt.memoize(cb, "seq_sample_num_to_sample")
 
             val len = mb.genFieldThisRef[Int]("seq_sample_len")
+            val regionVar = mb.genFieldThisRef[Region]("seq_sample_region")
 
-            new StreamProducer {
+            // ?????
+            val numEmitted = cb.newLocal[Int]("seq_sample_num_emitted", 0)
+            val candidate = cb.newLocal[Int]("seq_sample_candidate", 0)
+            // ??????
+
+            val producer = new StreamProducer {
               override val length: Option[EmitCodeBuilder => Code[Int]] = Some(_ => len)
 
               /**
@@ -494,19 +500,9 @@ object EmitStream {
                 cb.assign(len, numToSampleVal.asInt.intCode(cb))
               }
 
-              /**
-                * Stream element region, into which the `element` is emitted. The assignment, clearing,
-                * and freeing of the element region is the responsibility of the stream consumer.
-                */
-              override val elementRegion: Settable[Region] = _
-              /**
-                * This boolean parameter indicates whether the producer's elements should be allocated in
-                * separate regions (by clearing when elements leave a consumer's scope). This parameter
-                * propagates bottom-up from producers like [[ReadPartition]] and [[StreamRange]], but
-                * it is the responsibility of consumers to implement the right memory management semantics
-                * based on this flag.
-                */
-              override val requiresMemoryManagementPerElement: Boolean = _
+              override val elementRegion: Settable[Region] = regionVar
+
+              override val requiresMemoryManagementPerElement: Boolean = _requiresMemoryManagementPerElement
               /**
                 * The `LproduceElement` label is the mechanism by which consumers drive iteration. A consumer
                 * jumps to `LproduceElement` when it is ready for an element. The code block at this label,
@@ -518,16 +514,14 @@ object EmitStream {
                 * Stream element. This value is valid after the producer jumps to `LproduceElementDone`,
                 * until a consumer jumps to `LproduceElement` again, or calls `close()`.
                 */
-              override val element: EmitCode = _
+              override val element: EmitCode = EmitCode.present(mb, new SInt32Code(candidate))
 
               /**
                 * Stream producer cleanup method. If `initialize` is called, then the `close` method
                 * must be called as well to properly handle owned resources like files.
                 */
-              override def close(cb: EmitCodeBuilder): Unit = ???
+              override def close(cb: EmitCodeBuilder): Unit = {}
             }
-            val numEmitted = cb.newLocal[Int]("seq_sample_num_emitted", 0)
-            val candidate = cb.newLocal[Int]("seq_sample_candidate", 0)
             ???
           }
         }
