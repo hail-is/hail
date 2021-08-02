@@ -8,7 +8,7 @@ import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
-import is.hail.types.TableType
+import is.hail.types.{TableType, TypeWithRequiredness}
 import is.hail.types.physical.stypes.interfaces.{SStream, SStreamCode}
 import is.hail.types.physical.{PStruct, PType}
 import is.hail.types.virtual.{TArray, TStruct, Type}
@@ -25,7 +25,11 @@ class PartitionIteratorLongReader(
   bodyPType: Type => PType,
   body: Type => (Region, Any) => Iterator[Long]) extends PartitionReader {
 
-  def rowPType(requestedType: Type): PType = bodyPType(requestedType.asInstanceOf[TStruct])
+  def rowRequiredness(requestedType: Type): TypeWithRequiredness = {
+    val tr = TypeWithRequiredness.apply(requestedType)
+    tr.fromPType(bodyPType(requestedType.asInstanceOf[TStruct]))
+    tr
+  }
 
   def emitStream(
     ctx: ExecuteContext,

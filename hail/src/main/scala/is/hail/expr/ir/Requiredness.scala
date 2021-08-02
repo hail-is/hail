@@ -684,7 +684,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         coerce[RIterable](requiredness).elementType.unionFrom(lookup(body))
       case ReadPartition(context, rowType, reader) =>
         requiredness.union(lookup(context).required)
-        coerce[RIterable](requiredness).elementType.fromPType(reader.rowPType(rowType))
+        coerce[RIterable](requiredness).elementType.unionFrom(reader.rowRequiredness(rowType))
       case WritePartition(value, writeCtx, writer) =>
         val sType = coerce[PStream](lookup(value).canonicalPType(value.typ))
         val ctxType = lookup(writeCtx).canonicalPType(writeCtx.typ)

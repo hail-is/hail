@@ -526,7 +526,11 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
 trait AbstractNativeReader extends PartitionReader {
   def spec: AbstractTypedCodecSpec
 
-  def rowRequiredness(requestedType: Type): PType = spec.decodedPType(requestedType)
+  override def rowRequiredness(requestedType: Type): TypeWithRequiredness = {
+    val tr = TypeWithRequiredness(requestedType)
+    tr.fromPType(spec.decodedPType(requestedType))
+    tr
+  }
 
   def fullRowType: Type = spec.encodedVirtualType
 }

@@ -9,6 +9,7 @@ import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
 import is.hail.rvd.RVDSpecMaker
+import is.hail.types.TypeWithRequiredness
 import is.hail.types.encoded._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{BooleanSingleCodeType, Float32SingleCodeType, Float64SingleCodeType, Int32SingleCodeType, Int64SingleCodeType, PTypeReferenceSingleCodeType, SType}
@@ -676,7 +677,7 @@ abstract class PartitionReader {
 
   def fullRowType: Type
 
-  def rowPType(requestedType: Type): PType
+  def rowRequiredness(requestedType: Type): TypeWithRequiredness
 
   def emitStream(
     ctx: ExecuteContext,
