@@ -377,7 +377,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  def sType: SIndexablePointer = SIndexablePointer(setRequired(false).asInstanceOf[PCanonicalArray])
+  def sType: SIndexablePointer = SIndexablePointer(setRequired(false))
 
   def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SIndexablePointerCode = new SIndexablePointerCode(sType, addr)
 
@@ -469,29 +469,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   // unsafe StagedArrayBuilder-like interface that gives caller control over pushing elements and finishing
   def constructFromFunctions(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean):
-  (((EmitCodeBuilder, IEmitCode) => Unit, (EmitCodeBuilder => SIndexablePointerCode))) = {
-
-    val addr = cb.newLocal[Long]("pcarray_construct2_addr", allocate(region, length))
-    cb += stagedInitialize(addr, length, setMissing = false)
-    val currentElementIndex = cb.newLocal[Int]("pcarray_construct2_current_idx", 0)
-    val currentElementAddress = cb.newLocal[Long]("pcarray_construct2_current_addr", firstElementOffset(addr, length))
-
-    val push: (EmitCodeBuilder, IEmitCode) => Unit = { case (cb, iec) =>
-      iec.consume(cb,
-        cb += setElementMissing(addr, currentElementIndex),
-        { sc =>
-          elementType.storeAtAddress(cb, currentElementAddress, region, sc, deepCopy = deepCopy)
-        })
-        cb.assign(currentElementIndex, currentElementIndex + 1)
-        cb.assign(currentElementAddress, currentElementAddress + elementByteSize)
-    }
-    val finish: EmitCodeBuilder => SIndexablePointerCode = { (cb: EmitCodeBuilder) =>
-      cb.ifx(currentElementIndex.cne(length), cb._fatal("PCanonicalArray.constructFromFunctions push was called the wrong number of times: len=",
-        length.toS, ", calls=", currentElementIndex.toS))
-      new SIndexablePointerCode(sType, addr)
-    }
-    (push, finish)
-  }
+  (((EmitCodeBuilder, IEmitCode) => Unit, (EmitCodeBuilder => SIndexablePointerCode))) = sType.constructFromFunctions(cb, region, length, deepCopy)
 
   def loadFromNested(addr: Code[Long]): Code[Long] = Region.loadAddress(addr)
 
