@@ -84,7 +84,7 @@ case class EStructOfArrays(fields: IndexedSeq[EField], elementsRequired: Boolean
       case Right(lookup) =>
         cb.assign(lookup.length, in.readInt())
         val nbytes = cb.newLocal("nbytes", UnsafeUtils.packBitsToBytes(lookup.length))
-        val mbytes = cb.newLocal("mbytes", region.allocate(1L, nbytes))
+        val mbytes = cb.newLocal("mbytes", region.allocate(1L, nbytes.toL))
         cb += in.readBytes(region, mbytes, nbytes)
         val idx = cb.newLocal("cur_idx", 0)
         val i = cb.newLocal[Int]("i")

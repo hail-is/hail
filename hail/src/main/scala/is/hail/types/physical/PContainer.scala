@@ -3,10 +3,10 @@ package is.hail.types.physical
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.types.virtual.TArray
+import is.hail.types.virtual.TContainer
 
 abstract class PContainer extends PIterable {
-  def virtualType: TArray
+  def virtualType: TContainer
 
   override def containsPointers: Boolean = true
 

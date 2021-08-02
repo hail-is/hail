@@ -30,7 +30,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   override val byteSize: Long = 8
 
-  def setRequired(required: Boolean) = if (required == this.required) this else PCanonicalArray(elementType, required)
+  def setRequired(required: Boolean): PCanonicalArray = if (required == this.required) this else PCanonicalArray(elementType, required)
 
   def loadLength(aoff: Long): Int =
     Region.loadInt(aoff)

@@ -6,11 +6,11 @@ import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.{PCanonicalArray, PInt32Required, PType}
 import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType}
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SContainer, SIndexableCode, SIndexableSettable, SIndexableValue, primitive}
-import is.hail.types.virtual.{Field, TArray, TBaseStruct, Type}
+import is.hail.types.virtual.{Field, TArray, TBaseStruct, TContainer, Type}
 import is.hail.utils.FastIndexedSeq
 import SStructOfArrays._
 
-case class SStructOfArrays(virtualType: TArray, elementsRequired: Boolean, fields: IndexedSeq[SContainer]) extends SContainer {
+case class SStructOfArrays(virtualType: TContainer, elementsRequired: Boolean, fields: IndexedSeq[SContainer]) extends SContainer {
   require(virtualType.elementType.isInstanceOf[TBaseStruct])
   require(fields.forall(st => st.virtualType.isInstanceOf[TArray]))
 
@@ -108,7 +108,7 @@ case class SStructOfArrays(virtualType: TArray, elementsRequired: Boolean, field
   def canonicalPType(): PType = PType.canonical(virtualType)
 
   def castRename(t: Type): SType = {
-    val arrayType = t.asInstanceOf[TArray]
+    val arrayType = t.asInstanceOf[TContainer]
     val structType = arrayType.elementType.asInstanceOf[TBaseStruct]
 
     SStructOfArrays(

@@ -57,6 +57,23 @@ case class SJavaArrayString(elementRequired: Boolean) extends SContainer {
   }
 
   def construct(arr: Code[Array[String]]): SJavaArrayStringCode = new SJavaArrayStringCode(this, arr)
+
+  def constructFromFunctions(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean): ((EmitCodeBuilder, IEmitCode) => Unit, EmitCodeBuilder => SJavaArrayStringCode) = {
+    val arr = cb.newLocal("javastringarray", Code.newArray[String](length))
+    val i = cb.newLocal[Int]("construct_javastringarray_idx", 0)
+    val push: (EmitCodeBuilder, IEmitCode) => Unit = { (cb, iec) =>
+      iec.consume(cb, {}, { sc => cb += (arr(i) = sc.asString.loadString()) })
+      cb.assign(i, i + 1)
+    }
+    val finish: EmitCodeBuilder => SJavaArrayStringCode = { cb =>
+      cb.ifx(i.cne(length),
+        cb._fatal("SJavaArray.constructFromFunctions push was called the wrong number of times: len=",
+          length.toS, ", calls=", i.toS))
+      new SJavaArrayStringCode(this, arr)
+    }
+
+    push -> finish
+  }
 }
 
 
@@ -103,12 +120,12 @@ class SJavaArrayStringSettable(
     else {
       val iv = cb.newLocal("pcindval_i", i)
       IEmitCode(cb,
-        isElementMissing(iv),
+        isElementMissing(cb, iv),
         new SJavaStringCode(array(i)))
     }
   }
 
-  def isElementMissing(i: Code[Int]): Code[Boolean] = array(i).isNull
+  def isElementMissing(cb: EmitCodeBuilder, i: Code[Int]): Code[Boolean] = array(i).isNull
 
   def store(cb: EmitCodeBuilder, pc: SCode): Unit = {
     cb.assign(array, pc.asInstanceOf[SJavaArrayStringCode].array)

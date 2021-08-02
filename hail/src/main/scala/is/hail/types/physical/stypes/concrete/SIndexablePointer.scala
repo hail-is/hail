@@ -6,14 +6,14 @@ import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.stypes.interfaces.{SContainer, SIndexableCode, SIndexableValue}
 import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType}
 import is.hail.types.physical.{PArray, PArrayBackedContainer, PCanonicalArray, PCanonicalDict, PCanonicalSet, PContainer, PType}
-import is.hail.types.virtual.{TArray, Type}
+import is.hail.types.virtual.{TContainer, Type}
 import is.hail.utils.FastIndexedSeq
 
 
 case class SIndexablePointer(pType: PContainer) extends SContainer {
   require(!pType.required)
 
-  lazy val virtualType: TArray = pType.virtualType
+  lazy val virtualType: TContainer = pType.virtualType
 
   override def castRename(t: Type): SType = SIndexablePointer(pType.deepRename(t).asInstanceOf[PContainer])
 
