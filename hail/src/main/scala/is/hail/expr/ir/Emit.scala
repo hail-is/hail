@@ -709,6 +709,9 @@ class Emit[C](
         val msg = cm.consumeCode(cb, "<exception message missing>", _.asString.loadString())
         cb._throw(Code.newInstance[HailException, String, Int](msg, errorId))
 
+      case x@WriteMetadata(annotations, writer) =>
+        writer.writeMetadata(emitI(annotations), cb, region)
+
       case CombOpValue(i, value, aggSig) =>
         val AggContainer(_, sc, _) = container.get
         val rvAgg = agg.Extract.getAgg(aggSig)
