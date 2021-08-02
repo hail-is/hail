@@ -463,7 +463,6 @@ class BatchPoolFuture:
         self.output_gcs = output_gcs
         self.fetch_coro = asyncio.ensure_future(self._async_fetch_result())
         executor._add_future(self)
-        self._cancelled_batch = False
 
     def cancel(self):
         """Cancel this job if it has not yet been cancelled.
@@ -479,15 +478,8 @@ class BatchPoolFuture:
         ``True`` is returned if the job is cancelled. ``False`` is returned if
         the job has already completed.
         """
-        async def cancel_batch():
-            await self.batch.cancel()
-            self._cancelled_batch = True
 
         if self.fetch_coro.cancelled():
-            status = await self.batch.status()
-            if status['state'] == 'running':
-                await cancel_batch()
-                return True
             return False
 
         if self.fetch_coro.done():
@@ -495,7 +487,7 @@ class BatchPoolFuture:
             self.fetch_coro.result()
             return False
 
-        await cancel_batch()
+        await self.batch.cancel()
         self.fetch_coro.cancel()
         await asyncio.wait([self.fetch_coro])
         return True
@@ -556,6 +548,8 @@ class BatchPoolFuture:
             return await asyncio.wait_for(self.fetch_coro, timeout=timeout)
         except asyncio.TimeoutError as e:
             raise concurrent.futures.TimeoutError() from e
+        finally:
+            await self.batch.cancel()
 
     async def _async_fetch_result(self):
         try:

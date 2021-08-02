@@ -129,7 +129,7 @@ def test_map_chunksize(backend):
         0,  4,  8, 12, 16]
 
 
-def test_map_timeout_foo(backend):
+def test_map_timeout(backend):
     with BatchPoolExecutor(backend=backend, project='hail-vdc', image=PYTHON_DILL_IMAGE) as bpe:
         def sleep_forever():
             while True:
