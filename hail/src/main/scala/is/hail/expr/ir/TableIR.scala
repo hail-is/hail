@@ -463,8 +463,6 @@ object TableNativeReader {
 case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
   override def contextType: Type = TInt32
 
-  override def rowPType(requestedType: Type): PType = rvd.rowPType.subsetTo(requestedType)
-
   override def fullRowType: Type = rvd.rowType
 
   def emitStream(
@@ -484,8 +482,10 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
 
     val upcastCode = mb.getObject[Function3[FS, Int, Region, AsmFunction2RegionLongLong]](upcast)
 
-    assert(upcastPType == rowPType(requestedType),
-      s"ptype mismatch:\n  upcast: $upcastPType\n  computed: ${ rowPType(requestedType) }")
+    val rowPType = rvd.rowPType.subsetTo(requestedType)
+
+    assert(upcastPType == rowPType,
+      s"ptype mismatch:\n  upcast: $upcastPType\n  computed: ${rowPType}")
 
     context.toI(cb).map(cb) { idx =>
       val iterator = mb.genFieldThisRef[Iterator[Long]]("rvdreader_iterator")
@@ -526,7 +526,7 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
 trait AbstractNativeReader extends PartitionReader {
   def spec: AbstractTypedCodecSpec
 
-  def rowPType(requestedType: Type): PType = spec.decodedPType(requestedType)
+  def rowRequiredness(requestedType: Type): PType = spec.decodedPType(requestedType)
 
   def fullRowType: Type = spec.encodedVirtualType
 }
@@ -703,7 +703,7 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
     (leftStruct, rightStruct)
   }
 
-  def rowPType(requestedType: Type): PType = {
+  def rowRequiredness(requestedType: Type): PType = {
     val (leftStruct, rightStruct) = splitRequestedTypes(requestedType)
     specLeft.decodedPType(leftStruct).asInstanceOf[PStruct].insertFields(specRight.decodedPType(rightStruct).asInstanceOf[PStruct].fields.map(f => (f.name, f.typ)))
   }
