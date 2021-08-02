@@ -278,6 +278,8 @@ final case class StreamMap(a: IR, name: String, body: IR) extends IR {
 final case class StreamTake(a: IR, num: IR) extends IR
 final case class StreamDrop(a: IR, num: IR) extends IR
 
+final case class SeqSample(totalSize: IR, numToSample: IR) extends IR
+
 object ArrayZipBehavior extends Enumeration {
   type ArrayZipBehavior = Value
   val AssumeSameLength: Value = Value(0)
