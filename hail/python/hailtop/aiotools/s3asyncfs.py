@@ -1,10 +1,12 @@
 from typing import Any, AsyncIterator, BinaryIO, cast, AsyncContextManager, Dict, List, Optional, Set, Tuple, Type
 from types import TracebackType
+import sys
 from concurrent.futures import ThreadPoolExecutor
 import os.path
 import urllib
 import threading
 import asyncio
+import logging
 import botocore.exceptions
 import boto3
 from hailtop.utils import blocking_to_async
@@ -15,6 +17,9 @@ from .stream import (
     AsyncQueueWritableStream,
     async_writable_blocking_readable_stream_pair,
     blocking_readable_stream_to_async)
+
+
+log = logging.getLogger(__name__)
 
 
 class PageIterator:
@@ -80,13 +85,17 @@ class S3CreateManager(AsyncContextManager[WritableStream]):
         self.async_writable: Optional[AsyncQueueWritableStream] = None
         self._put_thread: Optional[threading.Thread] = None
         self._value: Any = None
+        self._exc: Optional[BaseException] = None
 
     async def __aenter__(self) -> WritableStream:
         async_writable, blocking_readable = async_writable_blocking_readable_stream_pair()
         self.async_writable = async_writable
 
         def put():
-            self._value = self.fs._s3.upload_fileobj(blocking_readable, Bucket=self.bucket, Key=self.name)
+            try:
+                self._value = self.fs._s3.upload_fileobj(blocking_readable, Bucket=self.bucket, Key=self.name)
+            except BaseException as e:
+                self._exc = e
 
         self._put_thread = threading.Thread(target=put)
         self._put_thread.start()
@@ -99,7 +108,14 @@ class S3CreateManager(AsyncContextManager[WritableStream]):
         assert self.async_writable
         assert self._put_thread
         await self.async_writable.wait_closed()
-        await blocking_to_async(self.fs._thread_pool, self._put_thread.join)
+        try:
+            await blocking_to_async(self.fs._thread_pool, self._put_thread.join)
+        finally:
+            if self._exc:
+                _, exc, _ = sys.exc_info()
+                if exc:
+                    log.info('discarding exception', exc_info=True)
+                raise self._exc
 
 
 class S3FileListEntry(FileListEntry):
@@ -150,19 +166,23 @@ class S3CreatePartManager(AsyncContextManager[WritableStream]):
         self._number = number
         self._async_writable: Optional[AsyncQueueWritableStream] = None
         self._put_thread: Optional[threading.Thread] = None
+        self._exc: Optional[BaseException] = None
 
     async def __aenter__(self) -> WritableStream:
         async_writable, blocking_readable = async_writable_blocking_readable_stream_pair()
         self._async_writable = async_writable
 
         def put():
-            self._mpc._etags[self._number] = _upload_part(
-                self._mpc._fs._s3,
-                self._mpc._bucket,
-                self._mpc._name,
-                self._number,
-                blocking_readable,
-                self._mpc._upload_id)
+            try:
+                self._mpc._etags[self._number] = _upload_part(
+                    self._mpc._fs._s3,
+                    self._mpc._bucket,
+                    self._mpc._name,
+                    self._number,
+                    blocking_readable,
+                    self._mpc._upload_id)
+            except BaseException as e:
+                self._exc = e
 
         self._put_thread = threading.Thread(target=put)
         self._put_thread.start()
@@ -175,7 +195,14 @@ class S3CreatePartManager(AsyncContextManager[WritableStream]):
         assert self._async_writable is not None
         assert self._put_thread is not None
         await self._async_writable.wait_closed()
-        await blocking_to_async(self._mpc._fs._thread_pool, self._put_thread.join)
+        try:
+            await blocking_to_async(self._mpc._fs._thread_pool, self._put_thread.join)
+        finally:
+            if self._exc:
+                _, exc, _ = sys.exc_info()
+                if exc:
+                    log.info('discarding exception', exc_info=True)
+                raise self._exc
 
 
 class S3MultiPartCreate(MultiPartCreate):
