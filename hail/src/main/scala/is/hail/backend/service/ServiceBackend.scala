@@ -4,14 +4,13 @@ import java.io._
 import java.net._
 import java.nio.charset.StandardCharsets
 import java.util.concurrent._
-
 import is.hail.HAIL_REVISION
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.{Backend, BackendContext, BroadcastValue, HailTaskContext}
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir.lowering.{DArrayLowering, LoweringPipeline, TableStage, TableStageDependency}
+import is.hail.expr.ir.lowering.{DArrayLowering, LowerDistributedSort, LoweringPipeline, TableStage, TableStageDependency}
 import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, Literal, MakeArray, MakeTuple, ShuffleRead, ShuffleWrite, SortField, ToStream}
 import is.hail.io.fs.{FS, GoogleStorageFS, SeekableDataInputStream, ServiceCacheableFS}
 import is.hail.linalg.BlockMatrix
@@ -299,58 +298,7 @@ class ServiceBackend(
     relationalLetsAbove: Map[String, IR],
     rowTypeRequiredness: RStruct
   ): TableStage = {
-    val region = ctx.r
-    val rowType = stage.rowType
-    val keyFields = sortFields.map(_.field).toArray
-    val keyType = rowType.typeAfterSelectNames(keyFields)
-    val rowEType = EType.fromTypeAndAnalysis(rowType, rowTypeRequiredness).asInstanceOf[EBaseStruct]
-    val keyEType = EType.fromTypeAndAnalysis(keyType, rowTypeRequiredness.select(keyFields)).asInstanceOf[EBaseStruct]
-    val shuffleType = TShuffle(sortFields, rowType, rowEType, keyEType)
-    val shuffleClient = new ShuffleClient(shuffleType, ctx)
-    assert(keyType == shuffleClient.codecs.keyType)
-    val keyDecodedPType = shuffleClient.codecs.keyDecodedPType
-    shuffleClient.start()
-    val uuid = shuffleClient.uuid
-
-    ctx.ownCleanup({ () =>
-      using(new ShuffleClient(shuffleType, uuid, ctx)) { shuffleClient =>
-        shuffleClient.stop()
-      }
-    })
-
-    try {
-      val Some((successfulPartitionIdsAndGlobals, pType)) = execute(
-        ctx,
-        stage.mapCollectWithGlobals
-          (relationalLetsAbove)
-          { partition => ShuffleWrite(Literal(shuffleType, uuid), partition) }
-          { (rows, globals) => MakeTuple.ordered(Seq(rows, globals)) })
-      val globals = SafeRow(
-        successfulPartitionIdsAndGlobals.asInstanceOf[UnsafeRow].t,
-        successfulPartitionIdsAndGlobals.asInstanceOf[UnsafeRow].offset
-      ).get(1)
-
-      val partitionBoundsPointers = shuffleClient.partitionBounds(region, stage.numPartitions)
-      val partitionIntervals = partitionBoundsPointers.zip(partitionBoundsPointers.drop(1)).map { case (l, r) =>
-        Interval(SafeRow(keyDecodedPType, l), SafeRow(keyDecodedPType, r), includesStart = true, includesEnd = false)
-      }
-      val last = partitionIntervals.last
-      partitionIntervals(partitionIntervals.length - 1) = Interval(
-        last.left.point, last.right.point, includesStart = true, includesEnd = true)
-
-      val partitioner = new RVDPartitioner(keyType, partitionIntervals.toFastIndexedSeq)
-
-      TableStage(
-        globals = Literal(stage.globalType, globals),
-        partitioner = partitioner,
-        TableStageDependency.none,
-        contexts = ToStream(MakeArray(
-          partitionIntervals.map(interval => Literal(TInterval(keyType), interval)),
-          TArray(TInterval(keyType)))),
-        interval => ShuffleRead(Literal(shuffleType, uuid), interval))
-    } finally {
-      shuffleClient.close()
-    }
+    LowerDistributedSort.localSort(ctx, stage, sortFields, relationalLetsAbove)
   }
 
   def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String): Unit = ???
