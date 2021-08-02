@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.stypes.interfaces.{SContainer, SIndexableCode, SIndexableValue}
 import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType}
-import is.hail.types.physical.{PArray, PCanonicalArray, PCanonicalDict, PCanonicalSet, PContainer, PType}
+import is.hail.types.physical.{PArray, PArrayBackedContainer, PCanonicalArray, PCanonicalDict, PCanonicalSet, PContainer, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils.FastIndexedSeq
 
@@ -48,6 +48,36 @@ case class SIndexablePointer(pType: PContainer) extends SContainer {
   def copiedType: SType = SIndexablePointer(pType.copiedType.asInstanceOf[PContainer])
 
   def containsPointers: Boolean = pType.containsPointers
+  
+  def constructFromFunctions(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean):
+  ((EmitCodeBuilder, IEmitCode) => Unit, EmitCodeBuilder => SIndexablePointerCode) = {
+    val arrayPType: PCanonicalArray = pType match {
+      case t: PCanonicalArray => t
+      case t: PCanonicalSet => t.arrayRep
+      case t: PCanonicalDict => t.arrayRep
+    }
+
+    val addr = cb.newLocal[Long]("pcarray_construct2_addr", arrayPType.allocate(region, length))
+    cb += arrayPType.stagedInitialize(addr, length, setMissing = false)
+    val currentElementIndex = cb.newLocal[Int]("pcarray_construct2_current_idx", 0)
+    val currentElementAddress = cb.newLocal[Long]("pcarray_construct2_current_addr", arrayPType.firstElementOffset(addr, length))
+
+    val push: (EmitCodeBuilder, IEmitCode) => Unit = { case (cb, iec) =>
+      iec.consume(cb,
+        cb += arrayPType.setElementMissing(addr, currentElementIndex),
+        { sc =>
+          arrayPType.elementType.storeAtAddress(cb, currentElementAddress, region, sc, deepCopy = deepCopy)
+        })
+      cb.assign(currentElementIndex, currentElementIndex + 1)
+      cb.assign(currentElementAddress, currentElementAddress + arrayPType.elementByteSize)
+    }
+    val finish: EmitCodeBuilder => SIndexablePointerCode = { (cb: EmitCodeBuilder) =>
+      cb.ifx(currentElementIndex.cne(length), cb._fatal("SIndexablePointer.constructFromFunctions push was called the wrong number of times: len=",
+        length.toS, ", calls=", currentElementIndex.toS))
+      new SIndexablePointerCode(this, addr)
+    }
+    (push, finish)
+  }
 }
 
 

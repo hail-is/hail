@@ -65,6 +65,8 @@ case class SStructOfArrays(virtualType: TArray, elementsRequired: Boolean, field
     )
   }
 
+  def constructFromFunctions(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean): ((EmitCodeBuilder, IEmitCode) => Unit, EmitCodeBuilder => SIndexableCode) = ???
+
   def canonicalPType(): PType = PType.canonical(virtualType)
 
   def castRename(t: Type): SType = {
