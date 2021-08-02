@@ -74,7 +74,14 @@ case class SSubsetStruct(parent: SBaseStruct, fieldNames: IndexedSeq[String]) ex
     }
   }
 
-  def storageType(): PType = StoredSTypePType(this, false)
+  def storageType(): PType = {
+    val pt = PCanonicalStruct(false, virtualType.fieldNames.zip(fieldEmitTypes.map(_.copiedType.storageType)): _*)
+    assert(pt.virtualType == virtualType, s"pt=$pt, this=$this")
+    pt
+  }
+
+//  aspirational implementation
+//  def storageType(): PType = StoredSTypePType(this, false)
 
   def containsPointers: Boolean = parent.containsPointers
 }

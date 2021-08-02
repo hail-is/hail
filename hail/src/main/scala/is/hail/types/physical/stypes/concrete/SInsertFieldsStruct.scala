@@ -49,7 +49,14 @@ case class SInsertFieldsStruct(virtualType: TStruct, parent: SBaseStruct, insert
     }
   }
 
-  def storageType(): PType = StoredSTypePType(this, false)
+  def storageType(): PType = {
+    val pt = PCanonicalStruct(false, virtualType.fieldNames.zip(fieldEmitTypes.map(_.copiedType.storageType)): _*)
+    assert(pt.virtualType == virtualType, s"cp=$pt, this=$this")
+    pt
+  }
+
+//  aspirational implementation
+//  def storageType(): PType = StoredSTypePType(this, false)
 
   def containsPointers: Boolean = parent.containsPointers || insertedFields.exists(_._2.st.containsPointers)
 

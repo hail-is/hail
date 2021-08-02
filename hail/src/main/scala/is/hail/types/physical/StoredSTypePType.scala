@@ -115,6 +115,10 @@ case class StoredSTypePType(sType: SType, required: Boolean) extends PType {
 
   def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = unsupportedCanonicalMethod
 
+  override def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = unsupportedCanonicalMethod
+
+  override def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = unsupportedCanonicalMethod
+
   override def _asIdent: String = "stored_stype_ptype"
 
   override def copiedType: PType = {
