@@ -495,7 +495,7 @@ class BatchPoolFuture:
     def cancelled(self):
         """Returns ``True`` if :meth:`.cancel` was called before a value was produced.
         """
-        return self.fetch_coro.cancelled() and self._cancelled_batch
+        return self.fetch_coro.cancelled()
 
     def running(self):  # pylint: disable=no-self-use
         """Always returns False.
