@@ -1,8 +1,9 @@
 import aioredis
 import asyncio
 import base64
-import logging
+import concurrent
 import json
+import logging
 import os
 import uvloop
 import signal
@@ -11,9 +12,8 @@ import kubernetes_asyncio as kube
 from prometheus_async.aio.web import server_stats  # type: ignore
 from typing import Set
 
-from hailtop.aiogoogle.client.storage_client import GoogleStorageAsyncFS
-from hailtop.aiogoogle.auth.credentials import Credentials
 from hailtop.config import get_deploy_config
+from hailtop.google_storage import GCS
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
 from hailtop.utils import AsyncWorkerPool, retry_transient_errors, dump_all_stacktraces
@@ -72,9 +72,8 @@ async def get_or_add_user(app, userdata):
         gsa_key_secret = await retry_transient_errors(
             k8s_client.read_namespaced_secret, userdata['gsa_key_secret_name'], DEFAULT_NAMESPACE, _request_timeout=5.0
         )
-        gsa_key = json.loads(base64.b64decode(gsa_key_secret.data['key.json']).decode())
-        credentials = Credentials.from_credentials_data(gsa_key)
-        users[username] = {'fs': GoogleStorageAsyncFS(credentials=credentials)}
+        gsa_key = base64.b64decode(gsa_key_secret.data['key.json']).decode()
+        users[username] = {'fs': GCS(blocking_pool=app['thread_pool'], key=json.loads(gsa_key))}
     return users[username]
 
 
@@ -102,10 +101,10 @@ async def get_file_or_none(app, username, fs, filepath):
     return None
 
 
-async def load_file(redis, files, file_key, fs: GoogleStorageAsyncFS, filepath):
+async def load_file(redis, files, file_key, fs, filepath):
     try:
         log.info(f"memory: {file_key}: reading.")
-        data = await fs.read(filepath)
+        data = await fs.read_binary_gs_file(filepath)
         log.info(f"memory: {file_key}: read {filepath}")
     except Exception as e:
         files.remove(file_key)
@@ -114,17 +113,17 @@ async def load_file(redis, files, file_key, fs: GoogleStorageAsyncFS, filepath):
     await cache_file(redis, files, file_key, filepath, data)
 
 
-async def persist_in_gcs(fs: GoogleStorageAsyncFS, files: Set[str], file_key: str, filepath: str, data: bytes):
+async def persist_in_gcs(fs: GCS, files: Set[str], file_key: str, filepath: str, data: str):
     try:
         log.info(f"memory: {file_key}: persisting.")
-        await fs.write(filepath, data)
+        await fs.write_gs_file_from_string(filepath, data)
         log.info(f"memory: {file_key}: persisted {filepath}")
     except Exception as e:
         files.remove(file_key)
         raise e
 
 
-async def cache_file(redis: aioredis.ConnectionsPool, files: Set[str], file_key: str, filepath: str, data: bytes):
+async def cache_file(redis: aioredis.ConnectionsPool, files: Set[str], file_key: str, filepath: str, data: str):
     try:
         await redis.execute('HMSET', file_key, 'body', data)
         log.info(f"memory: {file_key}: stored {filepath}")
@@ -133,6 +132,7 @@ async def cache_file(redis: aioredis.ConnectionsPool, files: Set[str], file_key:
 
 
 async def on_startup(app):
+    app['thread_pool'] = concurrent.futures.ThreadPoolExecutor()
     app['worker_pool'] = AsyncWorkerPool(parallelism=100, queue_size=10)
     app['files_in_progress'] = set()
     app['users'] = {}
@@ -144,20 +144,16 @@ async def on_startup(app):
 
 async def on_cleanup(app):
     try:
-        app['worker_pool'].shutdown()
+        app['thread_pool'].shutdown()
     finally:
         try:
-            app['redis_pool'].close()
+            app['worker_pool'].shutdown()
         finally:
             try:
+                app['redis_pool'].close()
+            finally:
                 del app['k8s_client']
                 await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
-            finally:
-                for items in app['users'].values():
-                    try:
-                        await items['fs'].close()
-                    except:
-                        pass
 
 
 def run():

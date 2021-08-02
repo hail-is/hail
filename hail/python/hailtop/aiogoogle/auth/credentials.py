@@ -15,10 +15,7 @@ class Credentials(abc.ABC):
     def from_file(credentials_file):
         with open(credentials_file) as f:
             credentials = json.load(f)
-        return Credentials.from_credentials_data(credentials)
 
-    @staticmethod
-    def from_credentials_data(credentials):
         credentials_type = credentials['type']
         if credentials_type == 'service_account':
             return ServiceAccountCredentials(credentials)

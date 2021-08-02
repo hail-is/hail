@@ -21,6 +21,7 @@ import aiorwlock
 from collections import defaultdict, Counter
 import psutil
 from aiodocker.exceptions import DockerError  # type: ignore
+import google.oauth2.service_account  # type: ignore
 from hailtop.utils import (
     time_msecs,
     request_retry_transient_errors,
@@ -58,7 +59,7 @@ from ..utils import (
     cores_mcpu_to_storage_bytes,
 )
 from ..semaphore import FIFOWeightedSemaphore
-from ..file_store import FileStore
+from ..log_store import LogStore
 from ..globals import (
     HTTP_CLIENT_MAX_SIZE,
     STATUS_FORMAT_VERSION,
@@ -915,7 +916,7 @@ class Container:
         return self.process is not None and self.process.returncode is not None
 
     async def upload_log(self):
-        await worker.file_store.write_log_file(
+        await worker.log_store.write_log_file(
             self.job.format_version,
             self.job.batch_id,
             self.job.job_id,
@@ -1606,7 +1607,7 @@ class JVMJob(Job):
 
                 log.info(f'finished {self} with return code {self.process.returncode}')
 
-                await worker.file_store.write_log_file(
+                await worker.log_store.write_log_file(
                     self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', self.logbuffer.decode()
                 )
 
@@ -1695,7 +1696,7 @@ class Worker:
         self.image_ref_count = Counter({BATCH_WORKER_IMAGE_ID: 1})
 
         # filled in during activation
-        self.file_store = None
+        self.log_store = None
         self.headers = None
         self.compute_client = None
 
@@ -1726,7 +1727,7 @@ class Worker:
             start_job_id = body['start_job_id']
             addtl_spec = body['job_spec']
 
-            job_spec = await self.file_store.read_spec_file(batch_id, token, start_job_id, job_id)
+            job_spec = await self.log_store.read_spec_file(batch_id, token, start_job_id, job_id)
             job_spec = json.loads(job_spec)
 
             job_spec['attempt_id'] = addtl_spec['attempt_id']
@@ -1852,7 +1853,6 @@ class Worker:
         finally:
             self.active = False
             log.info('shutting down')
-            await self.file_store.close()
             await site.stop()
             log.info('stopped site')
             await app_runner.cleanup()
@@ -1884,7 +1884,7 @@ class Worker:
 
         if job.format_version.has_full_status_in_gcs():
             await retry_all_errors(f'error while writing status file to gcs for {job}')(
-                self.file_store.write_status_file, job.batch_id, job.job_id, job.attempt_id, json.dumps(full_status)
+                self.log_store.write_status_file, job.batch_id, job.job_id, job.attempt_id, json.dumps(full_status)
             )
 
         db_status = job.format_version.db_status(full_status)
@@ -1990,9 +1990,10 @@ class Worker:
             with open('/worker-key.json', 'w') as f:
                 f.write(json.dumps(resp_json['key']))
 
-            credentials = aiogoogle.auth.credentials.Credentials.from_file('/worker-key.json')
-            fs = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
-            self.file_store = FileStore(fs, BATCH_LOGS_BUCKET_NAME, INSTANCE_ID)
+            credentials = google.oauth2.service_account.Credentials.from_service_account_file('/worker-key.json')
+            self.log_store = LogStore(
+                BATCH_LOGS_BUCKET_NAME, INSTANCE_ID, self.pool, project=PROJECT, credentials=credentials
+            )
 
             credentials = aiogoogle.Credentials.from_file('/worker-key.json')
             self.compute_client = aiogoogle.ComputeClient(PROJECT, credentials=credentials)
