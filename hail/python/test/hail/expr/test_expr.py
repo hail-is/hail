@@ -204,6 +204,8 @@ class Tests(unittest.TestCase):
         self.assertEqual(pa[::-3], hl.eval(ha[::-3]))
         self.assertEqual(pa[:-77:-3], hl.eval(ha[:-77:-3]))
         self.assertEqual(pa[44::-7], hl.eval(ha[44::-7]))
+        self.assertEqual(pa[2:59:7], hl.eval(ha[2:59:7]))
+        self.assertEqual(pa[4:40:2], hl.eval(ha[4:40:2]))
 
     def test_dict_methods(self):
         schema = hl.tstruct(x=hl.tfloat64)

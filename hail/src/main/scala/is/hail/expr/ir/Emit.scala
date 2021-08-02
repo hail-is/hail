@@ -1022,7 +1022,7 @@ class Emit[C](
                   cb.ifx(arrayLength + requestedStop > 0, cb.assign(realStop, arrayLength + requestedStop), cb.assign(realStop, -1))))
                 val resultLen = cb.newLocal[Int]("array_slice_resultLength")
                 cb.assign(resultLen, (realStop - realStart) / realStep)
-                cb.ifx((arrayLength % realStep ceq 0).unary_!, cb.assign(resultLen, resultLen + 1))
+                cb.ifx(((realStop - realStart) % realStep ceq 0).unary_!, cb.assign(resultLen, resultLen + 1))
                 cb.ifx(resultLen < 0, cb.assign(resultLen, 0))
                 val resultArray = PCanonicalArray(arrayValue.st.elementType.canonicalPType())
                 resultArray.constructFromElements(cb, region, resultLen, false) { (cb, idx) =>
