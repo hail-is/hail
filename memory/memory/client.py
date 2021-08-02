@@ -1,9 +1,9 @@
 import aiohttp
-import concurrent
+
+from hailtop.aiogoogle.client.storage_client import GoogleStorageAsyncFS
 
 from hailtop.auth import service_auth_headers
 from hailtop.config import get_deploy_config
-from hailtop.google_storage import GCS
 from hailtop.httpx import client_session
 from hailtop.utils import request_retry_transient_errors
 
@@ -18,9 +18,11 @@ class MemoryClient:
         self.url = self._deploy_config.base_url('memory')
         self.objects_url = f'{self.url}/api/v1alpha/objects'
         self._session = session
+
         if fs is None:
-            fs = GCS(blocking_pool=concurrent.futures.ThreadPoolExecutor(), project=gcs_project)
+            fs = GoogleStorageAsyncFS(project=gcs_project)
         self._fs = fs
+
         self._headers = {}
         if headers:
             self._headers.update(headers)
@@ -37,7 +39,7 @@ class MemoryClient:
         params = {'q': filename}
         try:
             async with await request_retry_transient_errors(
-                self._session, 'get', self.objects_url, params=params, headers=self._headers
+                    self._session, 'get', self.objects_url, params=params, headers=self._headers
             ) as response:
                 return await response.read()
         except aiohttp.ClientResponseError as e:
@@ -49,15 +51,17 @@ class MemoryClient:
         data = await self._get_file_if_exists(filename)
         if data is not None:
             return data
-        return await self._fs.read_binary_gs_file(filename)
+        return await self._fs.read(filename)
 
     async def write_file(self, filename, data):
         params = {'q': filename}
         async with await request_retry_transient_errors(
-            self._session, 'post', self.objects_url, params=params, headers=self._headers, data=data
+                self._session, 'post', self.objects_url, params=params, headers=self._headers, data=data
         ) as response:
             assert response.status == 200
 
     async def close(self):
         await self._session.close()
         self._session = None
+        await self._fs.close()
+        self._fs = None
