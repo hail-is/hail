@@ -1,4 +1,5 @@
 from typing import Optional, Dict, Callable, Tuple, Awaitable, Any
+from shlex import quote as shq
 import os
 import json
 import sys
@@ -377,6 +378,7 @@ class Container:
         self.rootfs_path = None
         scratch = self.spec['scratch']
         self.container_scratch = f'{scratch}/{self.name}'
+        os.makedirs(self.container_scratch)
         self.container_overlay_path = f'{self.container_scratch}/rootfs_overlay'
         self.config_path = f'{self.container_scratch}/config'
         self.log_path = f'{self.container_scratch}/container.log'
@@ -494,9 +496,8 @@ class Container:
                     # FIXME improve the performance of this with a
                     # per-user image cache.
                     auth = self.current_user_access_token()
-                os.makedirs(self.container_scratch, exist_ok=True)
                 authfile_name = f'{self.container_scratch}/podman_auth.json'
-                with open(authfile_name, 'w+') as authfile:
+                with open(authfile_name, 'w') as authfile:
                     creds = base64.b64encode(f'{auth["username"]}:{auth["password"]}'.encode())
                     auth_json = {'auths': {'gcr.io': {'auth': creds.decode()}}}
                     authfile.write(json.dumps(auth_json))
@@ -529,9 +530,10 @@ class Container:
 
     async def extract_rootfs(self):
         assert self.rootfs_path
+        assert self.image_id
         os.makedirs(self.rootfs_path)
         await check_shell(
-            f'id=$(podman create {self.image_id}) && podman export $id | tar -C {self.rootfs_path} -xf - && podman rm $id'
+            f'id=$(podman create {shq(self.image_id)}) && podman export $id | tar -C {self.rootfs_path} -xf - && podman rm $id'
         )
         log.info(f'Extracted rootfs for image {self.image_ref_str}')
 
@@ -1014,6 +1016,7 @@ class Job:
 
         self.token = uuid.uuid4().hex
         self.scratch = f'/batch/{self.token}'
+        os.makedirs(self.scratch)
 
         self.disk = None
         self.state = 'pending'
@@ -1300,8 +1303,6 @@ class DockerJob(Job):
                 log.info(f'{self}: initializing')
                 self.state = 'initializing'
 
-                os.makedirs(f'{self.scratch}/')
-
                 with self.step('setup_io'):
                     await self.setup_io()
 
@@ -1524,8 +1525,6 @@ class JVMJob(Job):
 
                 log.info(f'{self}: initializing')
                 self.state = 'initializing'
-
-                os.makedirs(f'{self.scratch}/')
 
                 await check_shell_output(f'xfs_quota -x -c "project -s -p {self.scratch} {self.project_id}" /host/')
                 await check_shell_output(
