@@ -212,8 +212,7 @@ sealed abstract class TypeWithRequiredness extends BaseTypeWithRequiredness {
 object RPrimitive {
   val supportedTypes: Set[Type] = Set(TBoolean, TInt32, TInt64, TFloat32, TFloat64, TBinary, TString, TCall, TVoid)
   def typeSupported(t: Type): Boolean = RPrimitive.supportedTypes.contains(t) ||
-    t.isInstanceOf[TLocus] ||
-    t.isInstanceOf[TShuffle]
+    t.isInstanceOf[TLocus]
 }
 
 final case class RPrimitive() extends TypeWithRequiredness {

@@ -759,34 +759,6 @@ class PrimitiveIR(val self: IR) extends AnyVal {
   def >=(other: IR): IR = ApplyComparisonOp(GTEQ(self.typ, other.typ), self, other)
 }
 
-final case class ShuffleWith(
-  keyFields: IndexedSeq[SortField],
-  rowType: TStruct,
-  rowEType: EBaseStruct,
-  keyEType: EBaseStruct,
-  name: String,
-  writer: IR,
-  readers: IR
-) extends IR {
-  val shuffleType = TShuffle(keyFields, rowType, rowEType, keyEType)
-  val shufflePType = PCanonicalShuffle(shuffleType, true)
-}
-
-final case class ShuffleWrite(
-  id: IR,
-  rows: IR
-) extends IR
-
-final case class ShufflePartitionBounds(
-  id: IR,
-  nPartitions: IR
-) extends IR
-
-final case class ShuffleRead(
-  id: IR,
-  keyRange: IR
-) extends IR
-
 object ErrorIDs {
   val NO_ERROR = -1
 }

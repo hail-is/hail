@@ -223,12 +223,6 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newValue <- normalize(value, BindingEnv.empty)
           newBody <- normalize(body)
         } yield RelationalLet(name, newValue, newBody)
-      case ShuffleWith(keyFields, rowType, rowEType, keyEType, name, writer, readers) =>
-        val newName = gen()
-        for {
-          newWriter <- normalize(writer, env.copy(eval = env.eval.bind(name, newName)))
-          newReaders <- normalize(readers, env.copy(eval = env.eval.bind(name, newName)))
-        } yield ShuffleWith(keyFields, rowType, rowEType, keyEType, newName, newWriter, newReaders)
       case x =>
         for {
           newChildren <- x.children.iterator.zipWithIndex.map { case (child, i) =>

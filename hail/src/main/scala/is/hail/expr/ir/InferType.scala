@@ -259,14 +259,6 @@ object InferType {
       case ReadValue(_, _, typ) => typ
       case WriteValue(value, path, spec) => TString
       case LiftMeOut(child) => child.typ
-      case ShuffleWith(_, _, _, _, _, _, readers) =>
-        readers.typ
-      case ShuffleWrite(id, _) =>
-        TBinary
-      case ShufflePartitionBounds(id, _) =>
-        TStream(coerce[TShuffle](id.typ).keyType)
-      case ShuffleRead(id, _) =>
-        TStream(coerce[TShuffle](id.typ).rowType)
     }
   }
 }

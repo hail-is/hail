@@ -10,7 +10,6 @@ import is.hail.expr.ir.ndarrays.EmitNDArray
 import is.hail.expr.ir.streams.{EmitStream, StreamProducer, StreamUtils}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
-import is.hail.services.shuffler._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.concrete._
@@ -2190,67 +2189,6 @@ class Emit[C](
 
       case CastToArray(a) =>
         emitI(a).map(cb) { ind => ind.asIndexable.castToArray(cb) }
-
-      case x@ShuffleWith(
-        keyFields,
-        rowType,
-        rowEType,
-        keyEType,
-        name,
-        writerIR,
-        readersIR
-      ) =>
-        val shuffleType = x.shuffleType
-
-        val shuffleST = SCanonicalShufflePointer(PCanonicalShuffle(shuffleType, false))
-        val settable = mb.newPField(shuffleST).asInstanceOf[SCanonicalShufflePointerSettable]
-        val shuffle = CompileTimeShuffleClient.create(cb, settable)
-
-        shuffle.start(cb, region)
-
-        val shuffleEnv = env.bind(name -> EmitSettable.present(settable))
-
-        val successfulShuffleIds: SValue = emitI(writerIR, env = shuffleEnv)
-          .get(cb, "shuffle ID must be non-missing")
-          // just store it so the writer gets run
-          .memoize(cb, "shuffleSuccessfulShuffleIds")
-
-        val shuffleReaders =
-          emitI(readersIR, env = shuffleEnv).memoize(cb, "shuffleReaders")
-
-        shuffle.stop(cb)
-        shuffle.close(cb)
-
-        shuffleReaders.toI(cb)
-      case ShuffleWrite(idIR, rowsIR) =>
-        val rows = emitStream(rowsIR, cb, region)
-          .get(cb, "rows stream was missing in shuffle write")
-          .asStream
-
-        val uuid = emitI(idIR)
-          .get(cb, "shuffle ID must be non-missing")
-          .asInstanceOf[SCanonicalShufflePointerCode]
-          .memoize(cb, "shuffleClientUUID")
-
-        val shuffle = CompileTimeShuffleClient.create(cb, uuid)
-        shuffle.startPut(cb)
-
-        val producer = rows.producer
-        producer.memoryManagedConsume(region, cb) { cb =>
-          producer.element.toI(cb).consume(cb,
-            cb._fatal(s"empty row in shuffle put"),
-            { sc => shuffle.putValue(cb, sc) })
-        }
-
-        shuffle.finishPut(cb)
-        shuffle.close(cb)
-
-        val resPType = PCanonicalBinary()
-        // FIXME: server needs to send uuid for the successful partition
-        val boff = cb.memoize(resPType.loadCheapSCode(cb, resPType.allocate(region, 0)), "shuffleWriteBOff")
-        val baddr = SingleCodeSCode.fromSCode(cb, boff, region)
-        cb += resPType.storeLength(baddr.code.asInstanceOf[Code[Long]], 0)
-        presentPC(boff)
 
       case x@ReadValue(path, spec, requestedType) =>
         emitI(path).map(cb) { pv =>
