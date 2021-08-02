@@ -339,7 +339,59 @@ object LowerBlockMatrixIR {
       case BlockMatrixBroadcast(child, IndexedSeq(0, 1), _, _) =>
         lower(child)
 
-      case BlockMatrixAgg(child, outIndexExpr) => unimplemented(bmir)
+      case a@BlockMatrixAgg(child, axesToSumOut) =>
+        val loweredChild = lower(child)
+        axesToSumOut match {
+          case IndexedSeq(0, 1)  =>
+            val summedChild = loweredChild.mapBody { (ctx, body) =>
+              NDArrayReshape(NDArrayAgg(body, IndexedSeq(0, 1)), MakeTuple.ordered(Seq(I64(1), I64(1))), ErrorIDs.NO_ERROR)
+            }
+            val summedChildType = BlockMatrixType(child.typ.elementType, IndexedSeq[Long](child.typ.nRowBlocks, child.typ.nColBlocks), child.typ.nRowBlocks == 1, 1, BlockMatrixSparsity.dense)
+            val res = NDArrayAgg(summedChild.collectLocal(relationalLetsAbove, summedChildType), IndexedSeq[Int](0, 1))
+            new BlockMatrixStage(summedChild.globalVals, TStruct.empty) {
+              override def blockContext(idx: (Int, Int)): IR = makestruct()
+              override def blockBody(ctxRef: Ref): IR = NDArrayReshape(res, MakeTuple.ordered(Seq(I64(1L), I64(1L))), ErrorIDs.NO_ERROR)
+            }
+          case IndexedSeq(0) => { // Number of rows goes to 1. Number of cols remains the same.
+            new BlockMatrixStage(loweredChild.globalVals, TArray(loweredChild.ctxType)) {
+              override def blockContext(idx: (Int, Int)): IR = {
+                val (row, col) = idx
+                assert(row == 0, s"Asked for idx ${idx}")
+                MakeArray(
+                  (0 until child.typ.nRowBlocks).map(childRow => loweredChild.blockContext((childRow, col))),
+                  TArray(loweredChild.ctxType)
+                )
+              }
+              override def blockBody(ctxRef: Ref): IR = {
+                val summedChildBlocks = mapIR(ToStream(ctxRef))(singleChildCtx => {
+                  bindIR(NDArrayAgg(loweredChild.blockBody(singleChildCtx), axesToSumOut))(aggedND => NDArrayReshape(aggedND, MakeTuple.ordered(Seq(I64(1), GetTupleElement(NDArrayShape(aggedND), 0))), ErrorIDs.NO_ERROR))
+                })
+                val aggVar = genUID()
+                StreamAgg(summedChildBlocks, aggVar, ApplyAggOp(NDArraySum())(Ref(aggVar, summedChildBlocks.typ.asInstanceOf[TStream].elementType)))
+              }
+            }
+          }
+          case IndexedSeq(1) => { // Number of cols goes to 1. Number of rows remains the same.
+            new BlockMatrixStage(loweredChild.globalVals, TArray(loweredChild.ctxType)) {
+              override def blockContext(idx: (Int, Int)): IR = {
+                val (row, col) = idx
+                assert(col == 0, s"Asked for idx ${idx}")
+                MakeArray(
+                  (0 until child.typ.nColBlocks).map(childCol => loweredChild.blockContext((row, childCol))),
+                  TArray(loweredChild.ctxType)
+                )
+              }
+              override def blockBody(ctxRef: Ref): IR = {
+                val summedChildBlocks = mapIR(ToStream(ctxRef))(singleChildCtx => {
+                  bindIR(NDArrayAgg(loweredChild.blockBody(singleChildCtx), axesToSumOut))(aggedND => NDArrayReshape(aggedND, MakeTuple(Seq((0, GetTupleElement(NDArrayShape(aggedND), 0)), (1, I64(1)))), ErrorIDs.NO_ERROR))
+                })
+                val aggVar = genUID()
+                StreamAgg(summedChildBlocks, aggVar, ApplyAggOp(NDArraySum())(Ref(aggVar, summedChildBlocks.typ.asInstanceOf[TStream].elementType)))
+              }
+            }
+          }
+        }
+
       case x@BlockMatrixFilter(child, keep) =>
         val rowDependents = x.rowBlockDependents
         val colDependents = x.colBlockDependents
