@@ -5,10 +5,9 @@ import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.{PCanonicalArray, PInt32Required, PType}
 import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType}
-import is.hail.types.physical.stypes.interfaces.{SContainer, SIndexableCode, SIndexableSettable, SIndexableValue}
+import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SContainer, SIndexableCode, SIndexableSettable, SIndexableValue, primitive}
 import is.hail.types.virtual.{Field, TArray, TBaseStruct, Type}
 import is.hail.utils.FastIndexedSeq
-
 import SStructOfArrays._
 
 case class SStructOfArrays(virtualType: TArray, elementsRequired: Boolean, fields: IndexedSeq[SContainer]) extends SContainer {
@@ -21,8 +20,47 @@ case class SStructOfArrays(virtualType: TArray, elementsRequired: Boolean, field
 
   val elementEmitType: EmitType = EmitType(elementType, elementsRequired)
 
-  protected[stypes] def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
-    ???
+  protected[stypes] def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = value match {
+    case v: SStructOfArraysCode =>
+      new SStructOfArraysCode(this,
+        v.lookupOrLength.map(lookup => lookup.st.coerceOrCopy(cb, region, lookup, deepCopy).asInstanceOf),
+        fields.zip(v.fields).map { case (field, code) =>
+          field.coerceOrCopy(cb, region, code, deepCopy).asIndexable
+        })
+    case vc: SIndexablePointerCode if vc.st.elementType.isInstanceOf[SBaseStruct] =>
+      assert(vc.st.virtualType == virtualType)
+      val v = vc.memoize(cb, "convert_to_structofarrays_arr")
+      val innerLength = cb.newLocal[Int]("inner_length", v.loadLength() - v.numberMissingValues(cb))
+      val lookupConstructor = if (elementsRequired) None else Some({
+        val (push, finish) = LOOKUP_TYPE.constructFromFunctions(cb, region, v.loadLength(), deepCopy)
+        (push, cb.newLocal[Int]("next_lookup", 0), finish)
+      })
+      val fieldConstructors = fields.map(f => f.constructFromFunctions(cb, region, innerLength, deepCopy))
+      val i = cb.newLocal[Int]("i")
+      cb.forLoop(cb.assign(i, 0), i < v.loadLength(), cb.assign(i, i + 1), {
+        v.loadElement(cb, i).consume(cb, {
+          lookupConstructor.foreach { case (push, _, _) =>
+            push(cb, IEmitCode.present(cb, primitive(MISSING_SENTINEL)))
+          }
+        }, { sc =>
+          lookupConstructor.foreach { case (push, next, _) =>
+            push(cb, IEmitCode.present(cb, primitive(next)))
+            cb.assign(next, next + 1)
+          }
+          val structValue = sc.asBaseStruct.memoize(cb, "struct_value")
+          fieldConstructors.indices.foreach { idx =>
+            val push = fieldConstructors(idx)._1
+            val code = structValue.loadField(cb, idx)
+            push(cb, code)
+          }
+        })
+      })
+      val lookupOrLength = lookupConstructor match {
+        case None => Left(v.loadLength().get)
+        case Some((_, _, finish)) => Right(finish(cb))
+      }
+      val fieldCodes = fieldConstructors.map { case (_, finish) => finish(cb) }
+      new SStructOfArraysCode(this, lookupOrLength, fieldCodes)
   }
 
   private lazy val codeStarts = fields.map(_.nCodes).scanLeft(baseCodeTupleTypes.length)(_ + _).init
