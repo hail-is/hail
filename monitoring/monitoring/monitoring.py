@@ -253,9 +253,6 @@ async def monitor_disks(app):
     for zone in app['zones']:
         async for disk in await compute_client.list(f'/zones/{zone}/disks', params={'filter': '(labels.batch = 1)'}):
             namespace = disk['labels']['namespace']
-            if namespace.startswith('pr-'):
-                namespace = 'pr'
-
             size_gb = int(disk['sizeGb'])
 
             creation_timestamp_msecs = parse_timestamp_msecs(disk.get('creationTimestamp'))
@@ -291,14 +288,10 @@ async def monitor_instances(app):
 
     for zone in app['zones']:
         async for instance in await compute_client.list(f'/zones/{zone}/instances', params={'filter': '(labels.role = batch2-agent)'}):
-            namespace = instance['labels']['namespace']
-            if namespace.startswith('pr-'):
-                namespace = 'pr'
-
             instance_labels = InstanceLabels(
                 status=instance['status'],
                 zone=zone,
-                namespace=namespace,
+                namespace=instance['labels']['namespace'],
                 machine_type=instance['machineType'].rsplit('/', 1)[1],
                 preemptible=instance['scheduling']['preemptible']
             )

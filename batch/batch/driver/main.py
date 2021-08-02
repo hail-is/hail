@@ -49,7 +49,6 @@ from ..batch_configuration import (
     HAIL_SHA,
     HAIL_SHOULD_PROFILE,
     HAIL_SHOULD_CHECK_INVARIANTS,
-    HAIL_SHOULD_MONITOR_SYSTEM,
     PROJECT,
     MACHINE_NAME_PREFIX,
 )
@@ -1141,8 +1140,7 @@ SELECT instance_id, internal_token, frozen FROM globals;
 
     app['task_manager'].ensure_future(periodically_call(60, scheduling_cancelling_bump, app))
 
-    if HAIL_SHOULD_MONITOR_SYSTEM:
-        app['task_manager'].ensure_future(periodically_call(15, monitor_system, app))
+    app['task_manager'].ensure_future(periodically_call(15, monitor_system, app))
 
 
 async def on_cleanup(app):

@@ -85,8 +85,6 @@ spec:
 {% if scope != "test" %}
          - name: HAIL_SHOULD_PROFILE
            value: "1"
-         - name: HAIL_SHOULD_MONITOR_SYSTEM
-           value: "1"
 {% endif %}
          - name: HAIL_SCOPE
            value: "{{ scope }}"
