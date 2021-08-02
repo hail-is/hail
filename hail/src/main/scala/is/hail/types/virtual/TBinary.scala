@@ -25,5 +25,7 @@ case object TBinary extends Type {
         java.lang.Byte.toUnsignedInt(y.asInstanceOf[Byte]))
   })
 
+  override lazy val isSmall = true
+
   override val ordering: ExtendedOrdering = mkOrdering()
 }

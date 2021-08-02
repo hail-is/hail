@@ -61,13 +61,6 @@ class FoldConstantsSuite extends HailSuite {
                                                   Literal(TStruct(("lk", TInt32),("l", TInt32)), Row(6,4))),
                                                   TStream(TStruct(("lk", TInt32),("l", TInt32))))
 
-    val makeStreamIRConst = MakeStream(ArrayBuffer(MakeStruct(FastIndexedSeq("lk" -> I32(12), "l" -> I32(0))),
-      MakeStruct(FastIndexedSeq("lk" -> I32(2), "l" -> I32(1))),
-      MakeStruct(FastIndexedSeq("lk" -> I32(4), "l" -> I32(2))),
-      MakeStruct(FastIndexedSeq("lk" -> I32(8), "l" -> I32(3))),
-      MakeStruct(FastIndexedSeq("lk" -> I32(6), "l" -> I32(4)))),
-      TStream(TStruct(("lk", TInt32),("l", TInt32))))
-
     val toArrayStreamFilterIR = ToArray(
                                   StreamFilter(StreamMap( streamIRA, "x",
                                     ApplyBinaryPrimOp(Add(), Ref("x", TInt32), I32(3))), "element",
@@ -106,7 +99,7 @@ class FoldConstantsSuite extends HailSuite {
                                           ApplySeeded("rand_norm", Seq(F64(0d), F64(0d)), 0L, TFloat64), F64(22d)))
 
 
-    assert(FoldConstants(ctx, makeStreamIR) == makeStreamIRConst)
+    assert(FoldConstants(ctx, makeStreamIR) == makeStreamIRConstOld)
     assert(FoldConstants(ctx, toArrayStreamFilterIR) == toArrayStreamFilterIR)
     assert(FoldConstants(ctx, makeTupleSeededIR) == makeTupleSeededIRConst)
     assert(FoldConstants(ctx, randLetIR) == randLetIRConst)   //

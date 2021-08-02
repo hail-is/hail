@@ -40,6 +40,8 @@ final case class TSet(elementType: Type) extends TContainer {
     sb.append("]")
   }
 
+  override lazy val isSmall = false
+
   override lazy val ordering: ExtendedOrdering = mkOrdering()
 
   override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =

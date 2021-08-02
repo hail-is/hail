@@ -52,5 +52,7 @@ case class TShuffle (
 
   override def scalaClassTag: ClassTag[Array[Byte]] = classTag[Array[Byte]]
 
+  override lazy val isSmall = false
+
   override def mkOrdering(missingEqual: Boolean = true): ExtendedOrdering = TBinary.mkOrdering(missingEqual)
 }

@@ -22,6 +22,8 @@ case object TInt32 extends TIntegral {
 
   override def scalaClassTag: ClassTag[java.lang.Integer] = classTag[java.lang.Integer]
 
+  override lazy val isSmall = true
+
   override val ordering: ExtendedOrdering = mkOrdering()
 
   override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =

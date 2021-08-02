@@ -44,6 +44,8 @@ case class TLocus(rgBc: BroadcastRG) extends Type {
 
   override def scalaClassTag: ClassTag[Locus] = classTag[Locus]
 
+  override lazy val isSmall = true
+
   override lazy val ordering: ExtendedOrdering = mkOrdering()
 
   override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =

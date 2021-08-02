@@ -31,6 +31,8 @@ final case class TArray(elementType: Type) extends TContainer {
     case _ => false
   }
 
+  override lazy val isSmall = false
+
   override def subst() = TArray(elementType.subst())
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {

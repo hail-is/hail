@@ -24,8 +24,6 @@ object FoldConstants {
     val rowCompiled = compiled.asInstanceOf[Row]
     val constDict = getIRConstantMapping(rowCompiled, constantsIS)
     replaceConstantTrees(ir, constDict)
-    println(constantsIS.map(ir => println(Pretty(constDict.get(ir).get))))
-    ir
   }
 
   def visitIR(baseIR: BaseIR, memo: Memo[Unit]): Option[Set[String]] = {
@@ -96,7 +94,7 @@ object FoldConstants {
 
   def getConstantIRs(ir: BaseIR, constantSubTrees: Memo[Unit], constants : ArrayBuffer[IR]) : Unit  = {
     ir match {
-      case ir: IR if constantSubTrees.contains(ir) && !IsConstant(ir) && ir.isSmall => constants += ir
+      case ir: IR if constantSubTrees.contains(ir) && !IsConstant(ir) && ir.typ.isSmall => constants += ir
       case _ => ir.children.foreach(child => getConstantIRs(child, constantSubTrees, constants))
     }
   }

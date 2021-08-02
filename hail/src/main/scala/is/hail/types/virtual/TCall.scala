@@ -28,6 +28,8 @@ case object TCall extends Type {
 
   override val ordering: ExtendedOrdering = mkOrdering()
 
+  override lazy val isSmall = true
+
   override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Int]], missingEqual)
 }

@@ -72,6 +72,8 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
 
   override def scalaClassTag: ClassTag[Map[_, _]] = classTag[Map[_, _]]
 
+  override lazy val isSmall = false
+
   override lazy val ordering: ExtendedOrdering = mkOrdering()
 
   override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =

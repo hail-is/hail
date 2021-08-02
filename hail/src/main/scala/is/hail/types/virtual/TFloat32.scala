@@ -39,6 +39,8 @@ case object TFloat32 extends TNumeric {
 
   override def scalaClassTag: ClassTag[java.lang.Float] = classTag[java.lang.Float]
 
+  override lazy val isSmall = true
+
   override val ordering: ExtendedOrdering = mkOrdering()
 
   override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =

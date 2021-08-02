@@ -45,6 +45,8 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
 
   override def truncate(newSize: Int): TStruct = TStruct(fields.take(newSize))
 
+  override lazy val isSmall = types.forall(fieldType => fieldType.isSmall)
+
   override lazy val ordering: ExtendedOrdering = mkOrdering()
 
   override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =

@@ -23,6 +23,8 @@ case object TString extends Type {
 
   override def scalaClassTag: ClassTag[String] = classTag[String]
 
+  override lazy val isSmall = true
+
   override val ordering: ExtendedOrdering = mkOrdering()
 
   override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =

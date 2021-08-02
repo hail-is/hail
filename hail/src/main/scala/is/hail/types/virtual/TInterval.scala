@@ -36,6 +36,8 @@ case class TInterval(pointType: Type) extends Type {
 
   override def scalaClassTag: ClassTag[Interval] = classTag[Interval]
 
+  override lazy val isSmall = true
+
   override lazy val ordering: ExtendedOrdering = mkOrdering()
 
   override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =

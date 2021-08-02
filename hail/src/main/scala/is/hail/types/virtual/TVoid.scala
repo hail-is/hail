@@ -17,4 +17,6 @@ case object TVoid extends Type {
   override def _typeCheck(a: Any): Boolean = throw new UnsupportedOperationException("No elements of Void")
 
   override def isRealizable = false
+
+  override lazy val isSmall = true
 }

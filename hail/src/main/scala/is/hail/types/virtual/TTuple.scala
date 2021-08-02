@@ -19,6 +19,8 @@ final case class TTuple(_types: IndexedSeq[TupleField]) extends TBaseStruct {
 
   lazy val fieldIndex: Map[Int, Int] = _types.zipWithIndex.map { case (tf, idx) => tf.index -> idx }.toMap
 
+  override lazy val isSmall = types.forall(fieldType => fieldType.isSmall)
+
   override lazy val ordering: ExtendedOrdering = mkOrdering()
 
   override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
