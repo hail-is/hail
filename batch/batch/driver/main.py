@@ -3,6 +3,7 @@ import json
 from typing import Dict
 from functools import wraps
 from collections import namedtuple, defaultdict
+import concurrent
 import copy
 import asyncio
 import signal
@@ -10,6 +11,7 @@ import dictdiffer
 from aiohttp import web
 import aiohttp_session
 import kubernetes_asyncio as kube
+import google.oauth2.service_account
 from prometheus_async.aio.web import server_stats
 import prometheus_client as pc  # type: ignore
 from gear import (
@@ -38,7 +40,7 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
 import googlecloudprofiler
 import uvloop
 
-from ..file_store import FileStore
+from ..log_store import LogStore
 from ..batch import cancel_batch_in_db
 from ..batch_configuration import (
     REFRESH_INTERVAL_IN_SECONDS,
@@ -1039,6 +1041,8 @@ async def scheduling_cancelling_bump(app):
 
 async def on_startup(app):
     app['task_manager'] = aiotools.BackgroundTaskManager()
+    pool = concurrent.futures.ThreadPoolExecutor()
+    app['blocking_pool'] = pool
 
     kube.config.load_incluster_config()
     k8s_client = kube.client.CoreV1Api()
@@ -1100,9 +1104,9 @@ SELECT instance_id, internal_token, frozen FROM globals;
     async_worker_pool = AsyncWorkerPool(100, queue_size=100)
     app['async_worker_pool'] = async_worker_pool
 
-    credentials = aiogoogle.auth.credentials.Credentials.from_file('/gsa-key/key.json')
-    fs = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
-    app['file_store'] = FileStore(fs, BATCH_BUCKET_NAME, instance_id)
+    credentials = google.oauth2.service_account.Credentials.from_service_account_file('/gsa-key/key.json')
+    log_store = LogStore(BATCH_BUCKET_NAME, instance_id, pool, credentials=credentials)
+    app['log_store'] = log_store
 
     zone_monitor = ZoneMonitor(app)
     app['zone_monitor'] = zone_monitor
@@ -1141,22 +1145,22 @@ SELECT instance_id, internal_token, frozen FROM globals;
 
 async def on_cleanup(app):
     try:
-        await app['db'].async_close()
+        app['blocking_pool'].shutdown()
     finally:
         try:
-            app['zone_monitor'].shutdown()
+            await app['db'].async_close()
         finally:
             try:
-                app['inst_coll_manager'].shutdown()
+                app['zone_monitor'].shutdown()
             finally:
                 try:
-                    app['canceller'].shutdown()
+                    app['inst_coll_manager'].shutdown()
                 finally:
                     try:
-                        app['gce_event_monitor'].shutdown()
+                        app['canceller'].shutdown()
                     finally:
                         try:
-                            await app['file_store'].close()
+                            app['gce_event_monitor'].shutdown()
                         finally:
                             try:
                                 app['task_manager'].shutdown()
