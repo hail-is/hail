@@ -1043,7 +1043,8 @@ class Emit[C](
                 cb.ifx(((realStop - realStart) % realStep cne 0), cb.assign(resultLen, resultLen + 1))
                 cb.ifx(resultLen < 0, cb.assign(resultLen, 0))
 
-                val resultArray = PCanonicalArray(arrayValue.st.elementType.canonicalPType())
+                val req = typeWithReq.r.required
+                val resultArray = PCanonicalArray(arrayValue.st.elementType.canonicalPType(), req)
                 resultArray.constructFromElements(cb, region, resultLen, false) { (cb, idx) =>
                   arrayValue.loadElement(cb, realStart + realStep * idx)
                 }
