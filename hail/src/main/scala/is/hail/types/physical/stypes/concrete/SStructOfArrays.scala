@@ -122,6 +122,14 @@ case class SStructOfArrays(virtualType: TArray, elementsRequired: Boolean, field
 object SStructOfArrays {
   val MISSING_SENTINEL: Value[Int] = const(-1)
   val LOOKUP_TYPE: SIndexablePointer = SIndexablePointer(PCanonicalArray(PInt32Required))
+
+  def fromIndexablePointer(sip: SIndexablePointer): SStructOfArrays = {
+    // TODO smarter choices for the field SContainers
+    val fields = sip.elementType.asInstanceOf[SBaseStruct].fieldEmitTypes.map { case EmitType(st, required) =>
+      SIndexablePointer(PCanonicalArray(st.canonicalPType().setRequired(required)))
+    }
+    SStructOfArrays(sip.virtualType, sip.elementEmitType.required, fields)
+  }
 }
 
 object SStructOfArraysSettable {

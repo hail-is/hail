@@ -29,27 +29,14 @@ case class EStructOfArrays(fields: IndexedSeq[EField], elementsRequired: Boolean
 
   def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = {
     v.st match {
-      case SIndexablePointer(pc) if pc.elementType.isInstanceOf[PBaseStruct] =>
-        buildConvertingEncoder(cb, v.asInstanceOf[SIndexablePointerSettable], out)
+      case sip @ SIndexablePointer(pc) if pc.elementType.isInstanceOf[PBaseStruct] =>
+        val ssa = SStructOfArrays.fromIndexablePointer(sip)
+        val sv = ssa.coerceOrCopy(cb, cb.emb.partitionRegion, v, deepCopy = false).memoize(cb, "converted_value")
+        buildSimpleEncoder(cb, sv.asInstanceOf, out)
       case _: SUnreachableContainer =>
         cb._fatal("encoder called on unreachable value")
       case _: SStructOfArrays =>
         buildSimpleEncoder(cb, v.asInstanceOf[SStructOfArraysSettable], out)
-    }
-  }
-
-  private def buildConvertingEncoder(cb: EmitCodeBuilder, v: SIndexablePointerSettable, out: Value[OutputBuffer]): Unit = {
-    val pt = v.st.pType
-    val structType = pt.elementType.asInstanceOf[PBaseStruct]
-    cb += out.writeInt(v.loadLength())
-    if (pt.elementType.required && !elementsRequired) {
-      val i = cb.newLocal[Int]("i")
-      val n = cb.newLocal("N", UnsafeUtils.packBitsToBytes(v.loadLength()))
-      cb.forLoop(cb.assign(i, 0), i < n, cb.assign(i, i + 1), cb += out.writeByte(const(0).toB))
-    } else if (!pt.elementType.required && elementsRequired) {
-      cb.ifx(v.hasMissingValues(cb), cb._fatal("EStructOfArrays converting encoding panic!"))
-    } else if (!pt.elementType.required && !elementsRequired) {
-      cb += out.writeBytes(v.a + const(pt.lengthHeaderBytes), pt.nMissingBytes(v.loadLength()))
     }
   }
 

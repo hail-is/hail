@@ -2,10 +2,12 @@ package is.hail.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
-import is.hail.types.physical.stypes.interfaces.{SIndexableCode, SIndexableValue}
+import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.types.virtual.TArray
 
 abstract class PContainer extends PIterable {
+  def virtualType: TArray
+
   override def containsPointers: Boolean = true
 
   def elementByteSize: Long
