@@ -548,8 +548,6 @@ class BatchPoolFuture:
             return await asyncio.wait_for(self.fetch_coro, timeout=timeout)
         except asyncio.TimeoutError as e:
             raise concurrent.futures.TimeoutError() from e
-        finally:
-            await self.batch.cancel()
 
     async def _async_fetch_result(self):
         try:
@@ -567,6 +565,7 @@ class BatchPoolFuture:
             traceback = ''.join(traceback)
             raise ValueError(f'submitted job failed:\n{traceback}')
         finally:
+            await self.batch.cancel()
             self.executor._finish_future()
 
     def exception(self, timeout: Optional[Union[float, int]] = None):
