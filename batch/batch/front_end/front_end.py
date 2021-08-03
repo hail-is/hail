@@ -12,7 +12,6 @@ import aiohttp
 import signal
 from aiohttp import web
 import aiohttp_session
-from gear.metrics import InfluxClient
 import pymysql
 import google.oauth2.service_account
 import google.api_core.exceptions
@@ -47,6 +46,7 @@ from gear import (
     transaction,
     monitor_endpoints_middleware,
 )
+from gear.metrics import InfluxClient
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 
 # import uvloop
