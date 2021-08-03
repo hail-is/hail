@@ -469,33 +469,40 @@ object EmitStream {
               A[num_emitted] = offset + candidate
           end
       end
+
+      function seqsample_algA!(N, n, offset, A)
+          num_emitted = 0
+          candidate = 0
+          while n > 0
+              # n == n0 - num_emitted
+              u = rand(); Fc = (N-candidate-n)/(N-candidate) # Fc is 1-F in paper
+              while Fc > u && candidate < N
+                  candidate += 1
+                  Fc *= (1 - n/(N-candidate))
+              end
+              n = n-1
+              num_emitted += 1
+              A[num_emitted] = offset + candidate
+              candidate += 1
+          end
+      end
          */
       case SeqSample(totalSize, numToSample, _requiresMemoryManagementPerElement) =>
         emit(totalSize, cb).flatMap(cb) { totalSizeCode =>
-          emit(numToSample, cb).flatMap(cb) { numToSampleCode =>
+          emit(numToSample, cb).map(cb) { numToSampleCode =>
+            val totalSizeVal = totalSizeCode.asInt.memoize(cb, "seq_sample_total_size")
             val numToSampleVal = numToSampleCode.asInt.memoize(cb, "seq_sample_num_to_sample")
 
             val len = mb.genFieldThisRef[Int]("seq_sample_len")
             val regionVar = mb.genFieldThisRef[Region]("seq_sample_region")
 
-            // ?????
-            val numEmitted = cb.newLocal[Int]("seq_sample_num_emitted", 0)
+            val nRemaining = cb.newLocal[Int]("seq_sample_num_remaining", numToSampleVal.intCode(cb))
             val candidate = cb.newLocal[Int]("seq_sample_candidate", 0)
-            // ??????
+            val elementToReturn = cb.newLocal[Int]("seq_sample_element_to_return", -1) // -1 should never be returned.
 
             val producer = new StreamProducer {
               override val length: Option[EmitCodeBuilder => Code[Int]] = Some(_ => len)
 
-              /**
-                * Stream producer setup method. If `initialize` is called, then the `close` method
-                * must be called as well to properly handle owned resources like files.
-                *
-                * The stream's element region must be assigned by a consumer before initialize
-                * is called.
-                *
-                * This block cannot jump away, e.g. to `LendOfStream`.
-                *
-                */
               override def initialize(cb: EmitCodeBuilder): Unit = {
                 cb.assign(len, numToSampleVal.asInt.intCode(cb))
               }
@@ -503,18 +510,25 @@ object EmitStream {
               override val elementRegion: Settable[Region] = regionVar
 
               override val requiresMemoryManagementPerElement: Boolean = _requiresMemoryManagementPerElement
-              /**
-                * The `LproduceElement` label is the mechanism by which consumers drive iteration. A consumer
-                * jumps to `LproduceElement` when it is ready for an element. The code block at this label,
-                * defined by the producer, jumps to either `LproduceElementDone` or `LendOfStream`, both of
-                * which the consumer must define.
-                */
-              override val LproduceElement: CodeLabel = _
+
+              override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
+                cb.ifx(nRemaining <= 0, cb.goto(LendOfStream))
+                val u = cb.newLocal[Double]("seq_sample_rand_unif", ???)
+                val fC = cb.newLocal[Double]("seq_sample_Fc", (totalSizeVal.intCode(cb) - candidate - nRemaining).toD / (totalSizeVal.intCode(cb) - candidate).toD)
+
+                cb.whileLoop(fC > u, {
+                  cb.assign(candidate, candidate + 1)
+                  cb.assign(fC, fC * (const(1.0) - (nRemaining.toD / (totalSizeVal.intCode(cb) - candidate).toD)))
+                })
+                cb.assign(nRemaining, nRemaining - 1)
+                cb.assign(elementToReturn, candidate)
+                cb.assign(candidate, candidate + 1)
+              }
               /**
                 * Stream element. This value is valid after the producer jumps to `LproduceElementDone`,
                 * until a consumer jumps to `LproduceElement` again, or calls `close()`.
                 */
-              override val element: EmitCode = EmitCode.present(mb, new SInt32Code(candidate))
+              override val element: EmitCode = EmitCode.present(mb, new SInt32Code(elementToReturn))
 
               /**
                 * Stream producer cleanup method. If `initialize` is called, then the `close` method
@@ -522,7 +536,7 @@ object EmitStream {
                 */
               override def close(cb: EmitCodeBuilder): Unit = {}
             }
-            ???
+            SStreamCode(producer)
           }
         }
       case StreamFilter(a, name, cond) =>

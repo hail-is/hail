@@ -193,6 +193,16 @@ class EmitStreamSuite extends HailSuite {
     assert(range(null) == null)
   }
 
+  @Test def testEmitSeqSample(): Unit = {
+    val seq = evalStream(
+      SeqSample(
+        I32(20),
+        I32(5),
+        false
+      )
+    )
+  }
+
   @Test def testEmitToStream() {
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
       ToStream(MakeArray(Seq[IR](), TArray(TInt32))) -> IndexedSeq(),
