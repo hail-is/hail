@@ -1619,6 +1619,9 @@ class StructExpression(Mapping[str, Expression], Expression):
     def __len__(self):
         return len(self._fields)
 
+    def __bool__(self):
+        return bool(len(self))
+
     @typecheck_method(item=oneof(str, int, slice))
     def __getitem__(self, item):
         """Access a field of the struct by name or index.
@@ -1948,6 +1951,9 @@ class TupleExpression(Expression, Sequence):
         :obj:`int`
         """
         return len(self.dtype.types)
+
+    def __bool__(self):
+        return bool(len(self))
 
     def __iter__(self):
         for i in range(len(self)):
