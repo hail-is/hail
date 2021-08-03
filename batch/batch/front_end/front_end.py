@@ -49,6 +49,7 @@ from gear import (
     transaction,
     monitor_endpoints_middleware,
 )
+from traitlets.traitlets import Instance
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 
 # import uvloop
@@ -72,7 +73,7 @@ from ..inst_coll_config import InstanceCollectionConfigs
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
 from ..batch_configuration import BATCH_BUCKET_NAME, DEFAULT_NAMESPACE, SCOPE
-from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION, memory_to_worker_type
+from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION, memory_to_worker_type, tasks
 from ..spec_writer import SpecWriter
 from ..batch_format_version import BatchFormatVersion
 
@@ -1438,41 +1439,37 @@ async def ui_get_job(request, userdata, batch_id):
     if 'cores_mcpu' in resources:
         resources['actual_cpu'] = resources['cores_mcpu'] / 1000
         del resources['cores_mcpu']
-    
-    output= []
-    for x in ['input', 'main', 'output']:
-        if type (container_statuses[x]) == dict and  container_statuses[x].get('timing')!= None:
-            # print (step_statuses5[x]['timing'])
-            for y in container_statuses[x]['timing'].items():
-                output.append(y)
-                y[1]['step_name']= x
 
     data = []
-    for key, value in output:
-       
-        if value.get('finish_time')!= None and value.get('start_time') != None:
-            plotdict= dict(Stable= "job_1", Name= value['step_name'], Start= datetime.datetime.fromtimestamp(value['start_time']/1000),
-            Finish= datetime.datetime.fromtimestamp(value['finish_time']/1000),
-            Resource= key)
+    for task in tasks:
+        if container_statuses[task]: 
+            for step_name, step_data in container_statuses[task]['timing'].items():
+                plot_dict = {
+                    'title': f'{(batch_id, job_id)}', 
+                    'name': task, 
+                    'start': datetime.datetime.fromtimestamp(step_data['start_time'] / 1000),
+                    'resource': step_name,
+                }
 
-            data.append(plotdict)
-    
-        else:
-            # either value.get finish time is none or value.get start time is none 
-            # pass
-            assert value.get('start_time')!= None
-            # value.get finish time is None 
-            plotdict=  dict(Stable= "job_1", Name= value['step_name'], Start= datetime.datetime.fromtimestamp(value['start_time']/1000),
-            Finish= datetime.datetime.now(),Resource= key)
+                if step_data.get('finish_time') is not None:
+                    plot_dict['finish'] = datetime.datetime.fromtimestamp(step_data['finish_time'] / 1000)
 
-            data.append(plotdict)
+                data.append(plot_dict)
 
     
     df = pd.DataFrame(data)
 
-    fig = px.timeline(df, x_start="Start", x_end="Finish", y="Stable", color="Resource", hover_data=['Name'])
+    fig = px.timeline(
+        df, 
+        x_start='start', 
+        x_end='finish', 
+        y='title', 
+        color='resource', 
+        hover_data=['name'],
+        color_discrete_sequence=px.colors.sequential.dense)
 
     plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+
     page_context = {
         'batch_id': batch_id,
         'job_id': job_id,
