@@ -17,7 +17,7 @@ import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
-import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
+import is.hail.types.{RIterable, TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.utils._
 
 import java.io._
@@ -1044,7 +1044,8 @@ class Emit[C](
                 cb.ifx(resultLen < 0, cb.assign(resultLen, 0))
 
                 val req = typeWithReq.r.required
-                val resultArray = PCanonicalArray(arrayValue.st.elementType.canonicalPType(), req)
+                val elementReq = typeWithReq.r.asInstanceOf[RIterable].elementType.required
+                val resultArray = PCanonicalArray(arrayValue.st.elementType.canonicalPType().setRequired(elementReq), req)
                 resultArray.constructFromElements(cb, region, resultLen, false) { (cb, idx) =>
                   arrayValue.loadElement(cb, realStart + realStep * idx)
                 }
