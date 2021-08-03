@@ -650,6 +650,9 @@ class Expression(object):
         """
         return self._type
 
+    def __bool__(self):
+        raise TypeError("'Expression' objects cannot be converted to a 'bool'. Use 'hl.if_else' instead of Python if statements.")
+
     def __len__(self):
         raise TypeError("'Expression' objects have no static length: use 'hl.len' for the length of collections")
 
