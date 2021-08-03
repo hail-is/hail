@@ -1954,6 +1954,29 @@ class ImportMatrixTableTests(unittest.TestCase):
         ]
 
 
+class ImportLinesTest(unittest.TestCase):
+    def test_import_lines(self):
+        lines_table = hl.import_lines(resource('example.gen'))
+        first_row = lines_table.head(1).collect()[0]
+        assert lines_table.row.dtype == hl.tstruct(file=hl.tstr, text=hl.tstr)
+        assert "01 SNPID_2 RSID_2 2000 A G 0 0 0 0.0278015 0.00863647 0.963531 0.0173645" in first_row.text
+        assert "example.gen" in first_row.file
+        assert lines_table._force_count() == 199
+
+    def test_import_lines_multiple_files(self):
+        lines_table = hl.import_lines((resource('first_half_example.gen'), resource('second_half_example.gen')))
+        first_row = lines_table.head(1).collect()[0]
+        last_row = lines_table.tail(1).collect()[0]
+        assert "01 SNPID_2 RSID_2 2000 A G 0 0 0 0.0278015 0.00863647 0.963531 0.0173645" in first_row.text
+        assert "first_half_example.gen" in first_row.file
+        assert "second_half_example.gen" in last_row.file
+        assert lines_table._force_count() == 199
+
+    def test_import_lines_glob(self):
+        lines_table = hl.import_lines(resource('*_half_example.gen'))
+        assert lines_table._force_count() == 199
+
+
 class ImportTableTests(unittest.TestCase):
     @fails_service_backend()
     @fails_local_backend()

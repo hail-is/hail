@@ -37,8 +37,7 @@ object StringTableReader {
 
 class StringTableReader(
       val params: StringTableReaderParameters ,
-      fileStatuses: IndexedSeq[FileStatus]
-      ) extends TableReader {
+      fileStatuses: IndexedSeq[FileStatus]) extends TableReader {
 
   val fullType: TableType = TableType(TStruct("file"-> TString, "text" -> TString), FastIndexedSeq.empty, TStruct())
   override def renderShort(): String = defaultRender()

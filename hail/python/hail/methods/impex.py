@@ -1330,11 +1330,11 @@ def import_gen(path,
     gen_table = gen_table.annotate(locus=locus, alleles=alleles, rsid=rsid, varid=varid)
     gen_table = gen_table.annotate(entries=gen_table.data[last_rowf_idx + 1:].map(lambda x: hl.float64(x))
                                    .grouped(3).map(lambda x: hl.struct(GP=x)))
+    if skip_invalid_loci:
+        gen_table = gen_table.filter(hl.is_defined(gen_table.locus))
 
     sample_table_count = sample_table.count() - 2  # Skipping first 2 unneeded rows in sample file
     gen_table = gen_table.annotate_globals(cols=hl.range(sample_table_count).map(lambda x: hl.struct(col_idx=x)))
-    if skip_invalid_loci:
-        gen_table = gen_table.filter(hl.is_defined(gen_table.locus))
     mt = gen_table._unlocalize_entries('entries', 'cols', ['col_idx'])
 
     sample_table = sample_table.tail(sample_table_count).add_index()
@@ -1342,16 +1342,18 @@ def import_gen(path,
     sample_table = sample_table.key_by(sample_table.idx)
     mt = mt.annotate_cols(s=sample_table[hl.int64(mt.col_idx)].s)
 
-    mt = mt.annotate_entries(GP=hl.bind(lambda x: hl.if_else(hl.abs(1.0 - x) > tolerance,
-                                                             hl.missing(hl.tarray(hl.tfloat64)),
-                                                             hl.abs((1 / x) * mt.GP)),
-                                        hl.sum(mt.GP)))
-    mt = mt.annotate_entries(GT=hl.bind(lambda x: hl.if_else(hl.len(mt.GP.filter(lambda y: y == mt.GP[x])) == 1,
-                             hl.switch(x)
-                             .when(0, hl.call(0, 0))
-                             .when(1, hl.call(0, 1))
-                             .when(2, hl.call(1, 1))
-                             .or_error("error creating gt field."), hl.missing(hl.tcall)), hl.argmax(mt.GP)))
+    mt = mt.annotate_entries(GP=hl.rbind(hl.sum(mt.GP), lambda gp_sum: hl.if_else(hl.abs(1.0 - gp_sum) > tolerance,
+                                                                                  hl.missing(hl.tarray(hl.tfloat64)),
+                                                                                  hl.abs((1 / gp_sum) * mt.GP))))
+    mt = mt.annotate_entries(GT=hl.rbind(hl.argmax(mt.GP),
+                                         lambda max_idx: hl.if_else(
+                                             hl.len(mt.GP.filter(lambda y: y == mt.GP[max_idx])) == 1,
+                                             hl.switch(max_idx)
+                                             .when(0, hl.call(0, 0))
+                                             .when(1, hl.call(0, 1))
+                                             .when(2, hl.call(1, 1))
+                                             .or_error("error creating gt field."),
+                                             hl.missing(hl.tcall))))
     mt = mt.filter_entries(hl.is_defined(mt.GP))
 
     mt = mt.key_cols_by('s').drop('col_idx', 'file', 'data')

@@ -4,7 +4,7 @@ import json
 import hail as hl
 
 from hail.ir.utils import make_filter_and_replace
-from hail.typecheck import typecheck_method, sequenceof, nullable, anytype
+from hail.typecheck import typecheck_method, sequenceof, nullable, anytype, oneof
 from hail.utils.misc import escape_str
 
 
@@ -95,13 +95,14 @@ class TextTableReader(TableReader):
 
 
 class StringTableReader(TableReader):
-    def __init__(self, path, min_partitions):
-        self.path = path
+    @typecheck_method(paths=oneof(str, sequenceof(str)), min_partitions=nullable(int))
+    def __init__(self, paths, min_partitions):
+        self.paths = paths
         self.min_partitions = min_partitions
 
     def render(self):
         reader = {'name': 'StringTableReader',
-                  'files': self.path,
+                  'files': self.paths,
                   'minPartitions': self.min_partitions}
         return escape_str(json.dumps(reader))
 
