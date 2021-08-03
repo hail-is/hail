@@ -465,6 +465,12 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
 
   override def fullRowType: Type = rvd.rowType
 
+  override def rowRequiredness(requestedType: Type): TypeWithRequiredness = {
+    val tr = TypeWithRequiredness(requestedType)
+    tr.fromPType(rvd.rowPType)
+    tr
+  }
+
   def emitStream(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
@@ -707,9 +713,12 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
     (leftStruct, rightStruct)
   }
 
-  def rowRequiredness(requestedType: Type): PType = {
+  def rowRequiredness(requestedType: Type): TypeWithRequiredness = {
     val (leftStruct, rightStruct) = splitRequestedTypes(requestedType)
-    specLeft.decodedPType(leftStruct).asInstanceOf[PStruct].insertFields(specRight.decodedPType(rightStruct).asInstanceOf[PStruct].fields.map(f => (f.name, f.typ)))
+    val rt = TypeWithRequiredness(requestedType)
+    val pt = specLeft.decodedPType(leftStruct).asInstanceOf[PStruct].insertFields(specRight.decodedPType(rightStruct).asInstanceOf[PStruct].fields.map(f => (f.name, f.typ)))
+    rt.fromPType(pt)
+    rt
   }
 
   def fullRowType: TStruct = specLeft.encodedVirtualType.asInstanceOf[TStruct] ++ specRight.encodedVirtualType.asInstanceOf[TStruct]
