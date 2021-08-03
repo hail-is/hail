@@ -45,7 +45,7 @@ case class SIndexablePointer(pType: PContainer) extends SContainer {
 
   def storageType(): PType = pType
 
-  def copiedType: SType = SIndexablePointer(pType.copiedType.asInstanceOf)
+  def copiedType: SType = SIndexablePointer(pType.copiedType.asInstanceOf[PContainer])
 
   def containsPointers: Boolean = pType.containsPointers
 }
