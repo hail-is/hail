@@ -1953,11 +1953,6 @@ class ImportMatrixTableTests(unittest.TestCase):
             hl.utils.Struct(foo=7, row_id=0, col_id='s2', x=2345)
         ]
 
-class ImportStringTests(unittest.TestCase):
-
-    def test_import_lines(self):
-        t = hl.import_lines(resource('example.gen'))
-        t.show()
 
 class ImportTableTests(unittest.TestCase):
     @fails_service_backend()
