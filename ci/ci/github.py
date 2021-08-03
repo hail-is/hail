@@ -693,7 +693,7 @@ class WatchedBranch(Code):
             self.sha = new_sha
             self.state_changed = True
 
-        new_prs = {}
+        new_prs: Dict[str, PR] = {}
         async for gh_json_pr in gh.getiter(f'/repos/{repo_ss}/pulls?state=open&base={self.branch.name}'):
             number = gh_json_pr['number']
             if self.prs is not None and number in self.prs:
@@ -702,6 +702,10 @@ class WatchedBranch(Code):
             else:
                 pr = PR.from_gh_json(gh_json_pr, self)
             new_prs[number] = pr
+        if self.prs is not None:
+            for number, pr in self.prs.items():
+                if number not in new_prs:
+                    pr.decrement_pr_metric()
         self.prs = new_prs
 
         for pr in new_prs.values():
