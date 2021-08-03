@@ -2132,6 +2132,12 @@ class Emit[C](
 
         IEmitCode.present(cb, SUnreachable.fromVirtualType(typ).defaultValue)
 
+      case ConsoleLog(message, result) =>
+        val cm = emitI(message)
+        val msg = cm.consumeCode(cb, "ConsoleLog with missing message", _.asString.loadString())
+        cb.consoleInfo(msg)
+        emitI(result)
+
       case CastToArray(a) =>
         emitI(a).map(cb) { ind => ind.asIndexable.castToArray(cb) }
 

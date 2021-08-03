@@ -50,6 +50,7 @@ object InferType {
       case _: Begin => TVoid
       case Die(_, t, _) => t
       case Trap(child) => TTuple(TTuple(TString, TInt32), child.typ)
+      case ConsoleLog(message, result) => result.typ
       case If(cond, cnsq, altr) =>
         assert(cond.typ == TBoolean)
         assert(cnsq.typ == altr.typ)

@@ -5997,3 +5997,9 @@ def shuffle(a, seed: builtins.int = None) -> ArrayExpression:
     :class:`.ArrayExpression`
     """
     return sorted(a, key=lambda _: hl.rand_unif(0.0, 1.0, seed=seed))
+
+
+@typecheck(msg=expr_str, result=expr_any)
+def _console_log(msg, result):
+    indices, aggregations = unify_all(msg, result)
+    return construct_expr(ir.ConsoleLog(msg._ir, result._ir), result.dtype, indices, aggregations)

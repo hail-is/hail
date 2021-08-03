@@ -468,6 +468,8 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         childField.union(false)
 
         childField.unionFrom(lookup(child))
+      case x@ConsoleLog(message, result) =>
+        requiredness.unionFrom(lookup(result))
       case x if x.typ == TVoid =>
       case ApplyComparisonOp(EQWithNA(_, _), _, _) | ApplyComparisonOp(NEQWithNA(_, _), _, _) | ApplyComparisonOp(Compare(_, _), _, _) =>
       case ApplyComparisonOp(op, l, r) =>

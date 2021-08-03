@@ -706,6 +706,10 @@ object Interpret {
         } catch {
           case e: HailException => Row(Row(e.msg, e.errorId), null)
         }
+      case ConsoleLog(message, result) =>
+        val message_ = interpret(message).asInstanceOf[String]
+        info(message_)
+        interpret(result)
       case ir@ApplyIR(function, _, functionArgs, _) =>
         interpret(ir.explicitNode, env, args)
       case ApplySpecial("lor", _, Seq(left_, right_), _, _) =>

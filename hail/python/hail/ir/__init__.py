@@ -16,7 +16,7 @@ from .ir import MatrixWrite, MatrixMultiWrite, BlockMatrixWrite, \
     StreamJoinRightDistinct, StreamFor, AggFilter, AggExplode, AggGroupBy, \
     AggArrayPerElement, BaseApplyAggOp, ApplyAggOp, ApplyScanOp, Begin, \
     MakeStruct, SelectFields, InsertFields, GetField, MakeTuple, \
-    GetTupleElement, Die, Apply, ApplySeeded, TableCount, TableGetGlobals, \
+    GetTupleElement, Die, ConsoleLog, Apply, ApplySeeded, TableCount, TableGetGlobals, \
     TableCollect, TableAggregate, MatrixCount, MatrixAggregate, TableWrite, \
     udf, subst, clear_session_functions
 from .register_functions import register_functions
@@ -193,6 +193,7 @@ __all__ = [
     'MakeTuple',
     'GetTupleElement',
     'Die',
+    'ConsoleLog',
     'Apply',
     'ApplySeeded',
     'TableCount',

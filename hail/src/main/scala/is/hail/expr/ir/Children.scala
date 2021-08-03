@@ -187,6 +187,8 @@ object Children {
     case Die(message, typ, errorId) =>
       Array(message)
     case Trap(child) => Array(child)
+    case ConsoleLog(message, result) =>
+      Array(message, result)
     case ApplyIR(_, _, args, _) =>
       args.toFastIndexedSeq
     case Apply(_, _, args, _, _) =>
