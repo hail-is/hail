@@ -15,7 +15,6 @@ trait SStringValue extends SValue {
   override def get: SStringCode
   override def hash(cb: EmitCodeBuilder): SInt32Code = {
     new SInt32Code(get.loadString().invoke[Int]("hashCode"))
-    //new SInt32Code(invokeMethod(get, "hashCode").asInstanceOf[Int])
   }
 }
 

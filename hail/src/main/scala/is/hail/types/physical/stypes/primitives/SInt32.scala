@@ -82,5 +82,4 @@ class SInt32Settable(x: Settable[Int]) extends SInt32Value with SSettable {
   def get: SCode = new SInt32Code(x)
 
   def intCode(cb: EmitCodeBuilder): Code[Int] = x
-
 }
