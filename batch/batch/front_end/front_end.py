@@ -1456,7 +1456,6 @@ async def ui_get_job(request, userdata, batch_id):
 
                 data.append(plot_dict)
 
-    
     df = pd.DataFrame(data)
 
     fig = px.timeline(
