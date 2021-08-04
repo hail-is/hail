@@ -997,7 +997,7 @@ Exception in thread "main" java.lang.RuntimeException: invalid sort order: b
             self.assertEqual(table.tail(11).count(), 10)
             self.assertEqual(table.tail(11)._force_count(), 10)
             self.assertEqual(table.tail(0).count(), 0)
-                self.assertEqual(table.tail(0)._force_count(), 0)
+            self.assertEqual(table.tail(0)._force_count(), 0)
 
     def test_table_order_by_head_rewrite(self):
         rt = hl.utils.range_table(10, 2)
