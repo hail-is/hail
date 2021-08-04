@@ -54,6 +54,11 @@ object Children {
       args.toFastIndexedSeq
     case ArrayRef(a, i, _) =>
       Array(a, i)
+    case ArraySlice(a, start, stop, step, _) =>
+      if (stop.isEmpty)
+        Array(a, start, step)
+      else
+        Array(a, start, stop.get, step)
     case ArrayLen(a) =>
       Array(a)
     case StreamRange(start, stop, step, _, _) =>

@@ -501,7 +501,7 @@ object LowerBlockMatrixIR {
                   NDArrayMatMul(left.blockBody(leftElt), right.blockBody(rightElt), ErrorIDs.NO_ERROR)
                 }
               }
-            foldIR(ToStream(invoke("sliceRight", ctxType, ctxRef, I32(1))),
+            foldIR(ToStream(ArraySlice(ctxRef, I32(1), None)),
               bindIR(ArrayRef(ctxRef, 0))(blockMultiply)) { (sum, elt) =>
               NDArrayMap2(sum, blockMultiply(elt), "l", "r",
                 Ref("l", x.typ.elementType) + Ref("r", x.typ.elementType), ErrorIDs.NO_ERROR)

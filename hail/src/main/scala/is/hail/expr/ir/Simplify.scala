@@ -211,6 +211,18 @@ object Simplify {
 
     case ArrayRef(MakeArray(args, _), I32(i), _) if i >= 0 && i < args.length => args(i)
 
+    case ArraySlice(ToArray(s),I32(0), Some(x@I32(i)), I32(1), _) if s.typ.isInstanceOf[TStream] && i >= 0 =>
+      ToArray(StreamTake(s, x))
+
+    case ArraySlice(z@ToArray(s), x@I32(i), Some(I32(j)), I32(1), _) if s.typ.isInstanceOf[TStream] && i > 0 && j > 0 => {
+      if (j > i) {
+        ToArray(StreamTake(StreamDrop(s, x), I32(j-i)))
+      } else new MakeArray(Seq(), z.typ.asInstanceOf[TArray])
+    }
+
+    case ArraySlice(ToArray(s), x@I32(i), None, I32(1), _) if s.typ.isInstanceOf[TStream] && i >= 0 =>
+      ToArray(StreamDrop(s, x))
+
     case StreamFilter(a, _, True()) => a
 
     case StreamFor(_, _, Begin(Seq())) => Begin(FastIndexedSeq())

@@ -259,53 +259,6 @@ object ArrayFunctions extends RegistryFunctions {
           i), errorID)
     }
 
-    registerIR2("sliceRight", TArray(tv("T")), TInt32, TArray(tv("T"))) { (_, a, i, errorID) =>
-      val idx = genUID()
-      ToArray(StreamMap(
-        StreamRange(
-          If(ApplyComparisonOp(LT(TInt32), i, I32(0)),
-            UtilFunctions.intMax(
-              ApplyBinaryPrimOp(Add(), ArrayLen(a), i),
-              I32(0)),
-            i),
-          ArrayLen(a),
-          I32(1)),
-        idx,
-        ArrayRef(a, Ref(idx, TInt32), errorID)))
-    }
-
-    registerIR2("sliceLeft", TArray(tv("T")), TInt32, TArray(tv("T"))) { (_, a, i, errorID) =>
-      val idx = genUID()
-      If(IsNA(a), a,
-        ToArray(StreamMap(
-          StreamRange(
-            I32(0),
-            If(ApplyComparisonOp(LT(TInt32), i, I32(0)),
-              ApplyBinaryPrimOp(Add(), ArrayLen(a), i),
-              UtilFunctions.intMin(i, ArrayLen(a))),
-            I32(1)),
-          idx,
-          ArrayRef(a, Ref(idx, TInt32), errorID))))
-    }
-
-    registerIR3("slice", TArray(tv("T")), TInt32, TInt32, TArray(tv("T"))) {
-      case(_, a, i, j, errorID) =>
-        val idx = genUID()
-        ToArray(StreamMap(
-          StreamRange(
-            If(ApplyComparisonOp(LT(TInt32), i, I32(0)),
-              UtilFunctions.intMax(
-                ApplyBinaryPrimOp(Add(), ArrayLen(a), i),
-                I32(0)),
-              i),
-            If(ApplyComparisonOp(LT(TInt32), j, I32(0)),
-              ApplyBinaryPrimOp(Add(), ArrayLen(a), j),
-              UtilFunctions.intMin(j, ArrayLen(a))),
-            I32(1), errorID = errorID),
-          idx,
-          ArrayRef(a, Ref(idx, TInt32), errorID)))
-    }
-
     registerIR1("flatten", TArray(TArray(tv("T"))), TArray(tv("T"))) { (_, a, _) =>
       val elt = Ref(genUID(), coerce[TArray](a.typ).elementType)
       ToArray(StreamFlatMap(ToStream(a), elt.name, ToStream(elt)))
