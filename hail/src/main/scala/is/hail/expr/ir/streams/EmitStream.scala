@@ -513,7 +513,8 @@ object EmitStream {
 
               override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
                 cb.ifx(nRemaining <= 0, cb.goto(LendOfStream))
-                val u = cb.newLocal[Double]("seq_sample_rand_unif", ???)
+
+                val u = cb.newLocal[Double]("seq_sample_rand_unif", Code.invokeStatic0[Math, Double]("random"))
                 val fC = cb.newLocal[Double]("seq_sample_Fc", (totalSizeVal.intCode(cb) - candidate - nRemaining).toD / (totalSizeVal.intCode(cb) - candidate).toD)
 
                 cb.whileLoop(fC > u, {
@@ -523,6 +524,7 @@ object EmitStream {
                 cb.assign(nRemaining, nRemaining - 1)
                 cb.assign(elementToReturn, candidate)
                 cb.assign(candidate, candidate + 1)
+                cb.goto(LproduceElementDone)
               }
               /**
                 * Stream element. This value is valid after the producer jumps to `LproduceElementDone`,

@@ -200,7 +200,10 @@ class EmitStreamSuite extends HailSuite {
         I32(5),
         false
       )
-    )
+    ).map(_.asInstanceOf[Int])
+    assert(seq.size == 5)
+    assert(seq.toSet.size == 5)
+    assert(seq.forall(e => e >= 0 && e < 20))
   }
 
   @Test def testEmitToStream() {

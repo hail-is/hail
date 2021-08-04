@@ -146,6 +146,9 @@ object TypeCheck {
         assert(a.typ == TInt32)
         assert(b.typ == TInt32)
         assert(c.typ == TInt32)
+      case SeqSample(totalRange, numToSample, _) =>
+        assert(totalRange.typ == TInt32)
+        assert(numToSample.typ == TInt32)
       case x@ArrayZeros(length) =>
         assert(length.typ == TInt32)
       case x@MakeNDArray(data, shape, rowMajor, _) =>

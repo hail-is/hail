@@ -73,6 +73,9 @@ object Copy {
         assert(newChildren.length == 3)
         StreamRange(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR],
           requiresMemoryManagementPerElement, errorID)
+      case SeqSample(_, _, requiresMemoryManagementPerElement) =>
+        assert(newChildren.length == 2)
+        SeqSample(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], requiresMemoryManagementPerElement)
       case ArrayZeros(_) =>
         assert(newChildren.length == 1)
         ArrayZeros(newChildren(0).asInstanceOf[IR])

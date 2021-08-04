@@ -58,6 +58,8 @@ object Children {
       Array(a)
     case StreamRange(start, stop, step, _, _) =>
       Array(start, stop, step)
+    case SeqSample(totalRange, numToSample, _) =>
+      Array(totalRange, numToSample)
     case ArrayZeros(length) =>
       Array(length)
     case MakeNDArray(data, shape, rowMajor, _) =>
