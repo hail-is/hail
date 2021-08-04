@@ -113,7 +113,7 @@ trait SValue {
 
   def get: SCode
 
-  def hash(cb: EmitCodeBuilder): SInt32Code = throw new UnsupportedOperationException(s"Stype ${SType} has no hashcode")
+  def hash(cb: EmitCodeBuilder): SInt32Code = throw new UnsupportedOperationException(s"Stype ${st} has no hashcode")
 }
 
 
