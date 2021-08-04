@@ -4,11 +4,13 @@ import is.hail.asm4s.Code
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.primitives.SInt32Code
 import is.hail.types.physical.stypes.{SCode, SType, SValue}
+import is.hail.types.{RPrimitive, TypeWithRequiredness}
 import is.hail.variant.{Locus, ReferenceGenome}
 
 trait SLocus extends SType {
   def rg: ReferenceGenome
   def contigType: SString
+  override def _typeWithRequiredness: TypeWithRequiredness = RPrimitive()
 }
 
 trait SLocusValue extends SValue {

@@ -4,10 +4,12 @@ import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.stypes.primitives.SInt32Code
 import is.hail.types.physical.stypes.{EmitType, SCode, SType, SValue}
+import is.hail.types.{RIterable, TypeWithRequiredness}
 
 trait SContainer extends SType {
   def elementType: SType
   def elementEmitType: EmitType
+  override def _typeWithRequiredness: TypeWithRequiredness = RIterable(elementEmitType.typeWithRequiredness.r)
 }
 
 trait SIndexableValue extends SValue {

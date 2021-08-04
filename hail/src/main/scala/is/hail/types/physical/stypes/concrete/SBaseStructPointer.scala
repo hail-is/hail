@@ -43,6 +43,12 @@ case class SBaseStructPointer(pType: PBaseStruct) extends SBaseStruct {
 
   override val fieldTypes: IndexedSeq[SType] = pType.types.map(_.sType)
   override val fieldEmitTypes: IndexedSeq[EmitType] = pType.types.map(t => EmitType(t.sType, t.required))
+
+  def containsPointers: Boolean = pType.containsPointers
+
+  override def storageType(): PType = pType
+
+  def copiedType: SType = SBaseStructPointer(pType.copiedType.asInstanceOf[PBaseStruct])
 }
 
 

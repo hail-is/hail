@@ -5,10 +5,11 @@ import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.primitives.SInt32Code
 import is.hail.types.physical.stypes.{SCode, SType, SValue}
-import is.hail.utils.invokeMethod
+import is.hail.types.{RPrimitive, TypeWithRequiredness}
 
 trait SString extends SType {
   def constructFromString(cb: EmitCodeBuilder, r: Value[Region], s: Code[String]): SStringCode
+  override def _typeWithRequiredness: TypeWithRequiredness = RPrimitive()
 }
 
 trait SStringValue extends SValue {

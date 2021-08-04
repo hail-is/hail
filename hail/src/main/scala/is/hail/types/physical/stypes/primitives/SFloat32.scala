@@ -36,7 +36,7 @@ case object SFloat32 extends SPrimitive {
     new SFloat32Code(x)
   }
 
-  def canonicalPType(): PType = PFloat32()
+  def storageType(): PType = PFloat32()
 }
 
 trait SFloat32Value extends SValue {

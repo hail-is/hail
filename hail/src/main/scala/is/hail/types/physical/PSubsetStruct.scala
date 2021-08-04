@@ -138,4 +138,6 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String]) ext
 
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit =
     throw new UnsupportedOperationException
+
+  override def copiedType: PType = ??? // PSubsetStruct on its way out
 }

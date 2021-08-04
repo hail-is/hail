@@ -12,6 +12,8 @@ import is.hail.utils._
 final case class PCanonicalCall(required: Boolean = false) extends PCall {
   def _asIdent = "call"
 
+  override def copiedType: PType = this
+
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PCCall")
 
   val representation: PInt32 = PInt32(required)

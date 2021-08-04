@@ -5,7 +5,7 @@ import is.hail.asm4s.{Code, Settable, TypeInfo, Value}
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitSettable, IEmitCode}
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode, SStructSettable}
 import is.hail.types.physical.stypes.{EmitType, SCode, SType}
-import is.hail.types.physical.{PCanonicalStruct, PType}
+import is.hail.types.physical.{PCanonicalStruct, PType, StoredSTypePType}
 import is.hail.types.virtual.{TStruct, Type}
 import is.hail.utils.BoxedArrayBuilder
 
@@ -39,7 +39,26 @@ case class SInsertFieldsStruct(virtualType: TStruct, parent: SBaseStruct, insert
 
   override def fieldIdx(fieldName: String): Int = virtualType.fieldIdx(fieldName)
 
-  override def canonicalPType(): PType = PCanonicalStruct(false, virtualType.fieldNames.zip(fieldEmitTypes).map { case (f, et) => (f, et.canonicalPType) }: _*)
+  override def copiedType: SType = {
+    if (virtualType.size < 64)
+      SStackStruct(virtualType, fieldEmitTypes.map(_.copiedType))
+    else {
+      val ct = SBaseStructPointer(PCanonicalStruct(false, virtualType.fieldNames.zip(fieldEmitTypes.map(_.copiedType.storageType)): _*))
+      assert(ct.virtualType == virtualType, s"ct=$ct, this=$this")
+      ct
+    }
+  }
+
+  def storageType(): PType = {
+    val pt = PCanonicalStruct(false, virtualType.fieldNames.zip(fieldEmitTypes.map(_.copiedType.storageType)): _*)
+    assert(pt.virtualType == virtualType, s"cp=$pt, this=$this")
+    pt
+  }
+
+//  aspirational implementation
+//  def storageType(): PType = StoredSTypePType(this, false)
+
+  def containsPointers: Boolean = parent.containsPointers || insertedFields.exists(_._2.st.containsPointers)
 
   lazy val codeTupleTypes: IndexedSeq[TypeInfo[_]] = parent.codeTupleTypes ++ insertedFields.flatMap(_._2.codeTupleTypes)
 

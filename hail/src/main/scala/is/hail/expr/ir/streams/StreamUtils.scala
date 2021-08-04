@@ -23,7 +23,7 @@ object StreamUtils {
   ): Unit = {
     val currentElementIndex = cb.newLocal[Long]("store_ndarray_elements_stream_current_index", 0)
     val currentElementAddress = cb.newLocal[Long]("store_ndarray_elements_stream_current_addr", addr)
-    val elementType = stream.element.st.canonicalPType()
+    val elementType = stream.element.emitType.storageType
     val elementByteSize = elementType.byteSize
 
     var push: (EmitCodeBuilder, IEmitCode) => Unit = null
@@ -52,7 +52,7 @@ object StreamUtils {
     val mb = cb.emb
 
     val xLen = mb.newLocal[Int]("sta_len")
-    val aTyp = PCanonicalArray(stream.element.emitType.canonicalPType, true)
+    val aTyp = PCanonicalArray(stream.element.emitType.storageType, true)
     stream.length match {
       case None =>
         val vab = new StagedArrayBuilder(SingleCodeType.fromSType(stream.element.st), stream.element.required, mb, 0)

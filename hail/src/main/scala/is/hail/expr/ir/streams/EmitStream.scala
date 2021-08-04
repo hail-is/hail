@@ -1244,7 +1244,7 @@ object EmitStream {
 
           // This type shouldn't be a subset struct, since it is copied deeply.
           // We don't want to deep copy the parent.
-          val lastKey = mb.newPField("st_grpby_lastkey", SType.canonical(subsetCode.st))
+          val lastKey = mb.newPField("st_grpby_lastkey", subsetCode.st.copiedType)
 
           val eos = mb.genFieldThisRef[Boolean]("st_grpby_eos")
           val nextGroupReady = mb.genFieldThisRef[Boolean]("streamgroupbykey_nextready")
@@ -1760,7 +1760,7 @@ object EmitStream {
             .st
             .asInstanceOf[SStream]
             .elementType
-            .canonicalPType()
+            .storageType()
             .setRequired(false)
             .asInstanceOf[PCanonicalStruct]
 
@@ -1996,7 +1996,7 @@ object EmitStream {
             .st
             .asInstanceOf[SStream]
             .elementEmitType
-            .canonicalPType
+            .storageType
             .asInstanceOf[PCanonicalStruct]
 
           val region = mb.genFieldThisRef[Region]("smm_region")
