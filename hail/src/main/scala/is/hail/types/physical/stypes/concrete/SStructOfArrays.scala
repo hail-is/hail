@@ -103,9 +103,13 @@ case class SStructOfArrays(virtualType: TContainer, elementsRequired: Boolean, f
     )
   }
 
-  def constructFromFunctions(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean): ((EmitCodeBuilder, IEmitCode) => Unit, EmitCodeBuilder => SIndexableCode) = ???
+  def storageType(): PType = ???
 
-  def canonicalPType(): PType = PType.canonical(virtualType)
+  def copiedType: SType = SStructOfArrays(virtualType, elementsRequired, fields.map(_.copiedType.asInstanceOf[SContainer]))
+
+  def containsPointers: Boolean = (!elementsRequired && LOOKUP_TYPE.containsPointers) || fields.exists(_.containsPointers)
+
+  def constructFromFunctions(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean): ((EmitCodeBuilder, IEmitCode) => Unit, EmitCodeBuilder => SIndexableCode) = ???
 
   def castRename(t: Type): SType = {
     val arrayType = t.asInstanceOf[TContainer]
@@ -126,7 +130,7 @@ object SStructOfArrays {
   def fromIndexablePointer(sip: SIndexablePointer): SStructOfArrays = {
     // TODO smarter choices for the field SContainers
     val fields = sip.elementType.asInstanceOf[SBaseStruct].fieldEmitTypes.map { case EmitType(st, required) =>
-      SIndexablePointer(PCanonicalArray(st.canonicalPType().setRequired(required)))
+      SIndexablePointer(PCanonicalArray(st.storageType().setRequired(required)))
     }
     SStructOfArrays(sip.virtualType, sip.elementEmitType.required, fields)
   }
