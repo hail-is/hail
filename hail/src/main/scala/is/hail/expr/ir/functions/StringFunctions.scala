@@ -82,6 +82,13 @@ object StringFunctions extends RegistryFunctions {
 
   def escapeString(s: String): String = StringEscapeUtils.escapeString(s)
 
+  def splitQuoted(s: String, separator: String, quote: String): Array[String] = {
+    if (quote.size != 1) throw new HailException(s"quote length cannot be greater than 1," +
+                                                 s" quote length entered ${quote.size}")
+    val quoteC = quote.charAt(0)
+    TextTableReader.splitLine(s, separator, quoteC)
+  }
+
   def softBounds(i: IR, len: IR): IR =
     If(i < -len, 0, If(i < 0, i + len, If(i >= len, len, i)))
 
@@ -229,6 +236,10 @@ object StringFunctions extends RegistryFunctions {
     registerWrappedScalaFunction2("mkString", TSet(TString), TString, TString, {
       case (_: Type, _: SType, _: SType) => SJavaString
     })(thisClass, "setMkString")
+
+    registerWrappedScalaFunction3("splitQuoted", TString, TString, TString, TArray(TString), {
+      case (_: Type, _: SType, _SType, _:SType) => SJavaArrayString(true)
+    })(thisClass, "splitQuoted")
 
     registerWrappedScalaFunction2("mkString", TArray(TString), TString, TString, {
       case (_: Type, _: SType, _: SType) => SJavaString
