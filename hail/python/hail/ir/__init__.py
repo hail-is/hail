@@ -47,10 +47,9 @@ from .blockmatrix_ir import BlockMatrixRead, BlockMatrixMap, BlockMatrixMap2, \
     tensor_shape_to_matrix_shape
 from .utils import filter_predicate_with_keep, make_filter_and_replace
 from .matrix_reader import MatrixReader, MatrixNativeReader, MatrixRangeReader, \
-    MatrixVCFReader, MatrixBGENReader, TextMatrixReader, MatrixPLINKReader, \
-    MatrixGENReader
+    MatrixVCFReader, MatrixBGENReader, TextMatrixReader, MatrixPLINKReader
 from .table_reader import TableReader, TableNativeReader, TextTableReader, \
-    TableFromBlockMatrixNativeReader
+    TableFromBlockMatrixNativeReader, StringTableReader
 from .blockmatrix_reader import BlockMatrixReader, BlockMatrixNativeReader, \
     BlockMatrixBinaryReader, BlockMatrixPersistReader
 from .matrix_writer import MatrixWriter, MatrixNativeWriter, MatrixVCFWriter, \
@@ -255,7 +254,6 @@ __all__ = [
     'MatrixBGENReader',
     'TextMatrixReader',
     'MatrixPLINKReader',
-    'MatrixGENReader',
     'MatrixWriter',
     'MatrixNativeWriter',
     'MatrixVCFWriter',
@@ -300,6 +298,7 @@ __all__ = [
     'TableReader',
     'TableNativeReader',
     'TextTableReader',
+    'StringTableReader',
     'TableFromBlockMatrixNativeReader',
     'TableWriter',
     'TableNativeWriter',

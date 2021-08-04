@@ -104,6 +104,7 @@ object TableReader {
       case "TableNativeReader" => TableNativeReader.fromJValue(fs, jv)
       case "TextTableReader" => TextTableReader.fromJValue(fs, jv)
       case "TableFromBlockMatrixNativeReader" => TableFromBlockMatrixNativeReader.fromJValue(fs, jv)
+      case "StringTableReader" => StringTableReader.fromJValue(fs, jv)
       case _ => jv.extract[TableReader]
     }
   }
@@ -1915,7 +1916,6 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val tv = child.execute(ctx)
     val fsBc = ctx.fsBc
-
     val scanRef = genUID()
     val extracted = agg.Extract.apply(newRow, scanRef, Requiredness(this, ctx), isScan = true)
 

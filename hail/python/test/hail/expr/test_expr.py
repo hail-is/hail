@@ -1133,8 +1133,6 @@ class Tests(unittest.TestCase):
         )
         mt.cols()._force_count()
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_aggregator_info_score(self):
         gen_file = resource('infoScoreTest.gen')
         sample_file = resource('infoScoreTest.sample')
