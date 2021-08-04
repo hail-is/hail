@@ -32,6 +32,11 @@ object TStruct {
 
     TStruct(sNames.zip(sTypes): _*)
   }
+
+  def concat(struct1: TStruct, struct2: TStruct): TStruct = {
+    struct2.fieldNames.foreach { field => assert(!struct1.hasField(field)) }
+    TStruct(struct1.fields ++ struct2.fields.map(field => field.copy(index = field.index + struct1.size)))
+  }
 }
 
 final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
