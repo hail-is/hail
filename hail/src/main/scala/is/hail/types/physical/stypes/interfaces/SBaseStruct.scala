@@ -1,13 +1,14 @@
 package is.hail.types.physical.stypes.interfaces
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{Code, Value}
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.{PCanonicalBaseStruct, PCanonicalStruct}
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.concrete.{SInsertFieldsStruct, SInsertFieldsStructCode, SSubsetStruct, SSubsetStructCode}
+import is.hail.types.physical.stypes.primitives.SInt32Code
 import is.hail.types.virtual.{TBaseStruct, TStruct}
 import is.hail.utils._
+import is.hail.asm4s._
 
 trait SBaseStruct extends SType {
   def virtualType: TBaseStruct
@@ -34,6 +35,15 @@ trait SBaseStructValue extends SValue {
   def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode
 
   def loadField(cb: EmitCodeBuilder, fieldName: String): IEmitCode = loadField(cb, st.fieldIdx(fieldName))
+
+  override def hash(cb: EmitCodeBuilder): SInt32Code = {
+    val hash_result = cb.newLocal[Int]("hash_result_struct", 1)
+    (0 until st.size).foreach(i => {
+      loadField(cb, i).consume(cb, { cb.assign(hash_result, hash_result * 31) },
+        {field => cb.assign(hash_result, (hash_result * 31) + field.memoize(cb, "struct_hash").hash(cb).intCode(cb))})
+    })
+    new SInt32Code(hash_result)
+  }
 }
 
 trait SBaseStructCode extends SCode {

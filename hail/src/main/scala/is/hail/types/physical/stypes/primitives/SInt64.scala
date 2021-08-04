@@ -1,6 +1,7 @@
 package is.hail.types.physical.stypes.primitives
 
 import is.hail.annotations.Region
+import is.hail.asm4s.Code.invokeStatic1
 import is.hail.asm4s.{Code, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
@@ -40,6 +41,9 @@ case object SInt64 extends SPrimitive {
 
 trait SInt64Value extends SValue {
   def longCode(cb: EmitCodeBuilder): Code[Long]
+  override def hash(cb: EmitCodeBuilder): SInt32Code = {
+   new SInt32Code(invokeStatic1[java.lang.Long, Long, Int]("hashCode", longCode(cb)))
+  }
 }
 
 class SInt64Code(val code: Code[Long]) extends SCode with SPrimitiveCode {
