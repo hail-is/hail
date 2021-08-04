@@ -33,18 +33,16 @@ case class SStructOfArrays(virtualType: TContainer, elementsRequired: Boolean, f
       val innerLength = cb.newLocal[Int]("inner_length", v.loadLength() - v.numberMissingValues(cb))
       val lookupConstructor = if (elementsRequired) None else Some({
         val (push, finish) = LOOKUP_TYPE.constructFromFunctions(cb, region, v.loadLength(), deepCopy)
-        (push, cb.newLocal[Int]("next_lookup", 0), finish)
+        (push, cb.newLocal[Int]("lookup_value"), cb.newLocal[Int]("next_lookup", 0), finish)
       })
       val fieldConstructors = fields.map(f => f.constructFromFunctions(cb, region, innerLength, deepCopy))
       val i = cb.newLocal[Int]("i")
       cb.forLoop(cb.assign(i, 0), i < v.loadLength(), cb.assign(i, i + 1), {
         v.loadElement(cb, i).consume(cb, {
-          lookupConstructor.foreach { case (push, _, _) =>
-            push(cb, IEmitCode.present(cb, primitive(MISSING_SENTINEL)))
-          }
+          lookupConstructor.foreach(c => cb.assign(c._2, MISSING_SENTINEL))
         }, { sc =>
-          lookupConstructor.foreach { case (push, next, _) =>
-            push(cb, IEmitCode.present(cb, primitive(next)))
+          lookupConstructor.foreach { case (_, lookupValue, next, _) =>
+            cb.assign(lookupValue, next)
             cb.assign(next, next + 1)
           }
           val structValue = sc.asBaseStruct.memoize(cb, "struct_value")
@@ -54,10 +52,13 @@ case class SStructOfArrays(virtualType: TContainer, elementsRequired: Boolean, f
             push(cb, code)
           }
         })
+        lookupConstructor.foreach { case (push, lookupElement, _, _) =>
+          push(cb, IEmitCode.present(cb, primitive(lookupElement)))
+        }
       })
       val lookupOrLength = lookupConstructor match {
         case None => Left(v.loadLength().get)
-        case Some((_, _, finish)) => Right(finish(cb))
+        case Some((_, _, _, finish)) => Right(finish(cb))
       }
       val fieldCodes = fieldConstructors.map { case (_, finish) => finish(cb) }
       new SStructOfArraysCode(this, lookupOrLength, fieldCodes)
