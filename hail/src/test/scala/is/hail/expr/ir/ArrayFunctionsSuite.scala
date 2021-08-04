@@ -221,8 +221,8 @@ class ArrayFunctionsSuite extends HailSuite {
 
   @Test def slicing() {
     val a = IRArray(0, null, 2)
-//    assertEvalsTo(ArraySlice(a, I32(1), None), FastIndexedSeq(null, 2))
-//    assertEvalsTo(ArraySlice(a, I32(-2), None), FastIndexedSeq(null, 2))
+    assertEvalsTo(ArraySlice(a, I32(1), None), FastIndexedSeq(null, 2))
+    assertEvalsTo(ArraySlice(a, I32(-2), None), FastIndexedSeq(null, 2))
     assertEvalsTo(ArraySlice(a, I32(5), None), FastIndexedSeq())
     assertEvalsTo(ArraySlice(a, I32(-5), None), FastIndexedSeq(0, null, 2))
     assertEvalsTo(ArraySlice(naa, I32(1), None), null)
