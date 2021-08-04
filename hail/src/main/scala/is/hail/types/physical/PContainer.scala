@@ -12,6 +12,8 @@ abstract class PContainer extends PIterable {
 
   def elementByteSize: Long
 
+  final def elementByteOffset(off: Code[Int]): Code[Long] = elementByteSize * off
+
   def contentsAlignment: Long
 
   def loadLength(aoff: Long): Int

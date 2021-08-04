@@ -9,7 +9,6 @@ import is.hail.types.physical.{PArray, PArrayBackedContainer, PCanonicalArray, P
 import is.hail.types.virtual.{TContainer, Type}
 import is.hail.utils.FastIndexedSeq
 
-
 case class SIndexablePointer(pType: PContainer) extends SContainer {
   require(!pType.required)
 
@@ -167,5 +166,32 @@ class SIndexablePointerSettable(
         })
       case _ => super.forEachDefined(cb)(f)
     }
+  }
+
+  def reallocate(cb: EmitCodeBuilder, region: Value[Region], newLength: Code[Int], deepCopy: Boolean): Unit = {
+    val len = cb.newLocal("new_len", newLength)
+    val arr = cb.newLocal("new_address", st.pType.allocate(region, len))
+    val elems = cb.newLocal("new_elements", st.pType.firstElementOffset(arr, len))
+    cb += st.pType.stagedInitialize(arr, length)
+
+    val toCopy = cb.newLocal("to_copy", len.min(length))
+    if (!st.pType.elementType.required) {
+      cb += Region.copyFrom(a + st.pType.lengthHeaderBytes, arr + st.pType.lengthHeaderBytes, st.pType.nMissingBytes(toCopy).toL)
+    }
+
+    if (deepCopy && st.pType.elementType.containsPointers) {
+      val out = CodeLabel()
+      forEachDefined(cb) { (cb, i, sc) =>
+        cb.ifx(i >= toCopy, cb.goto(out))
+        st.pType.elementType.storeAtAddress(cb, elems + st.pType.elementByteOffset(i), region, sc, deepCopy)
+      }
+      cb.define(out)
+    } else {
+      cb += Region.copyFrom(elementsAddress, elems, st.pType.elementByteSize * toCopy.toL)
+    }
+
+    cb.assign(a, arr)
+    cb.assign(length, len)
+    cb.assign(elementsAddress, elems)
   }
 }
