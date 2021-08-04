@@ -46,7 +46,6 @@ def register_functions():
     ndarray_floating_point_divide(tfloat64, tfloat64)
 
     register_function("values", (dtype("dict<?key, ?value>"),), dtype("array<?value>"))
-    register_function("sliceRight", (dtype("array<?T>"), dtype("int32"),), dtype("array<?T>"))
     register_function("sliceRight", (dtype("str"), dtype("int32"),), dtype("str"))
     register_function("get", (dtype("dict<?key, ?value>"), dtype("?key"),), dtype("?value"))
     register_function("get", (dtype("dict<?key, ?value>"), dtype("?key"), dtype("?value"),), dtype("?value"))
@@ -65,7 +64,6 @@ def register_functions():
     register_function("sort", (dtype("array<?T>"), dtype("bool"),), dtype("array<?T>"))
     register_function("isSubset", (dtype("set<?T>"), dtype("set<?T>"),), dtype("bool"))
     register_function("slice", (dtype("str"), dtype("int32"), dtype("int32"),), dtype("str"))
-    register_function("slice", (dtype("array<?T>"), dtype("int32"), dtype("int32"),), dtype("array<?T>"))
     register_function("add", (dtype("array<?T:numeric>"), dtype("array<?T>"),), dtype("array<?T>"))
     register_function("add", (dtype("array<?T:numeric>"), dtype("?T"),), dtype("array<?T>"))
     register_function("add", (dtype("?T:numeric"), dtype("array<?T>"),), dtype("array<?T>"))
@@ -80,7 +78,6 @@ def register_functions():
     register_function("pow", (dtype("?T:numeric"), dtype("ndarray<?T, ?nat>"),), dtype("ndarray<?T, ?nat>"))
     register_function("append", (dtype("array<?T>"), dtype("?T"),), dtype("array<?T>"))
     register_function("sliceLeft", (dtype("str"), dtype("int32"),), dtype("str"))
-    register_function("sliceLeft", (dtype("array<?T>"), dtype("int32"),), dtype("array<?T>"))
     register_function("remove", (dtype("set<?T>"), dtype("?T"),), dtype("set<?T>"))
     register_function("index", (dtype("str"), dtype("int32"),), dtype("str"))
     register_function("indexArray", (dtype("array<?T>"), dtype("int32"), dtype("str")), dtype("?T"))

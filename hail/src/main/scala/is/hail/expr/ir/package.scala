@@ -147,7 +147,7 @@ package object ir {
   }
 
   def sliceArrayIR(arrayIR: IR, startIR: IR, stopIR: IR): IR = {
-    invoke("slice", arrayIR.typ, arrayIR, startIR, stopIR)
+    ArraySlice(arrayIR, startIR, Some(stopIR))
   }
 
   def joinIR(left: IR, right: IR, lkey: IndexedSeq[String], rkey: IndexedSeq[String], joinType: String)(f: (Ref, Ref) => IR): IR = {

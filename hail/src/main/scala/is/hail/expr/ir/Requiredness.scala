@@ -508,6 +508,11 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         val aReq = lookupAs[RIterable](a)
         requiredness.unionFrom(aReq.elementType)
         requiredness.union(lookup(i).required && aReq.required)
+      case ArraySlice(a, start, stop, step, errorID) =>
+        val aReq = lookupAs[RIterable](a)
+        requiredness.asInstanceOf[RIterable].elementType.unionFrom(aReq.elementType)
+        val stopReq = if (!stop.isEmpty) lookup(stop.get).required else true
+        requiredness.union(aReq.required && stopReq && lookup(start).required && lookup(step).required)
       case ArraySort(a, l, r, c) =>
         requiredness.unionFrom(lookup(a))
       case ToDict(a) =>

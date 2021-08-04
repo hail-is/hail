@@ -140,6 +140,11 @@ object TypeCheck {
       case x@ArrayRef(a, i, _) =>
         assert(i.typ == TInt32)
         assert(x.typ == coerce[TArray](a.typ).elementType)
+      case x@ArraySlice(a, start, stop, step, _) =>
+        assert(start.typ == TInt32)
+        stop.foreach(ir => assert(ir.typ == TInt32))
+        assert(step.typ == TInt32)
+        assert(x.typ == coerce[TArray](a.typ))
       case ArrayLen(a) =>
         assert(a.typ.isInstanceOf[TArray])
       case x@StreamRange(a, b, c, _, _) =>

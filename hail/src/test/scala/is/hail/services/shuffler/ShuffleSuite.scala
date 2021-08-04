@@ -147,21 +147,19 @@ class ShuffleSuite extends HailSuite {
             ShuffleWrite(
               Ref("id", shuffleType),
               ToStream(
-                invoke(
-                  "slice",
-                  TArray(keyType),
+                ArraySlice(
                   Ref("input", TArray(keyType)),
                   ApplyBinaryPrimOp(
                     Multiply(),
                     Ref("partitionId", TInt32),
                     I32(partSize)),
-                  ApplyBinaryPrimOp(
+                  Some(ApplyBinaryPrimOp(
                     Multiply(),
                     ApplyBinaryPrimOp(
                       Add(),
                       Ref("partitionId", TInt32),
                       I32(1)),
-                    I32(partSize)))))))),
+                    I32(partSize))))))))),
         Let(
           "boundaries",
           ToArray(ShufflePartitionBounds(Ref("id", shuffleType), I32(nParts))),

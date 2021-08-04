@@ -176,22 +176,43 @@ class Tests(unittest.TestCase):
 
     def test_array_slicing(self):
         schema = hl.tstruct(a=hl.tarray(hl.tint32))
-        rows = [{'a': [1, 2, 3]}]
+        rows = [{'a': [1, 2, 3, 4, 5]}]
         kt = hl.Table.parallelize(rows, schema)
+        ha = hl.array(hl.range(100))
+        pa = list(range(100))
 
         result = convert_struct_to_dict(kt.annotate(
             x1=kt.a[0],
             x2=kt.a[2],
             x3=kt.a[:],
             x4=kt.a[1:2],
-            x5=kt.a[-1:2],
-            x6=kt.a[:2]
+            x5=kt.a[-1:4],
+            x6=kt.a[:2],
+            x7=kt.a[-20:20:-2],
+            x8=kt.a[20:-20:2],
+            x9=kt.a[-20:20:2],
+            x10=kt.a[20:-20:-2]
         ).take(1)[0])
 
-        expected = {'a': [1, 2, 3], 'x1': 1, 'x2': 3, 'x3': [1, 2, 3],
-                    'x4': [2], 'x5': [], 'x6': [1, 2]}
+        expected = {'a': [1, 2, 3, 4, 5], 'x1': 1, 'x2': 3, 'x3': [1, 2, 3, 4, 5],
+                    'x4': [2], 'x5': [], 'x6': [1, 2], 'x7': [], 'x8': [], 'x9': [1, 3, 5],
+                    'x10': [5, 3, 1]}
 
         self.assertDictEqual(result, expected)
+        self.assertEqual(pa[60:1:-3], hl.eval(ha[hl.int32(60):hl.int32(1):hl.int32(-3)]))
+        self.assertEqual(pa[::5], hl.eval(ha[::hl.int32(5)]))
+        self.assertEqual(pa[::-3], hl.eval(ha[::-3]))
+        self.assertEqual(pa[:-77:-3], hl.eval(ha[:hl.int32(-77):-3]))
+        self.assertEqual(pa[44::-7], hl.eval(ha[44::-7]))
+        self.assertEqual(pa[2:59:7], hl.eval(ha[2:59:7]))
+        self.assertEqual(pa[4:40:2], hl.eval(ha[4:40:2]))
+        self.assertEqual(pa[-400:-300:2], hl.eval(ha[hl.int32(-400):-300:2]))
+        self.assertEqual(pa[-300:-400:-2], hl.eval(ha[-300:-400:-2]))
+        self.assertEqual(pa[300:400:2], hl.eval(ha[300:400:2]))
+        self.assertEqual(pa[400:300:-2], hl.eval(ha[400:300:-2]))
+
+        with pytest.raises(hl.utils.HailUserError, match='step cannot be 0 for array slice'):
+            hl.eval(ha[::0])
 
     def test_dict_methods(self):
         schema = hl.tstruct(x=hl.tfloat64)
