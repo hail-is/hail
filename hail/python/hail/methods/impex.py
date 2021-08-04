@@ -992,7 +992,7 @@ def import_bgen(path,
 
     >>> ds_result = hl.import_bgen("data/example.8bits.bgen",
     ...                             entry_fields=['dosage'],
-    ...                            sample_file="data/example.8bits.sample")
+    ...                             sample_file="data/example.8bits.sample")
 
     Load a single variant from a BGEN file:
 
@@ -1661,6 +1661,38 @@ def import_table(paths,
 
 @typecheck(paths=oneof(str, sequenceof(str)), min_partitions=nullable(int))
 def import_lines(paths, min_partitions=None) -> Table:
+    """Import lines of file(s) as a :class:`.Table` of strings.
+
+    Examples
+    --------
+
+    To import a file as a table of strings:
+
+    >>> ht = hl.import_lines('data/matrix2.tsv')
+    >>> ht.describe()
+    ----------------------------------------
+    Global fields:
+        None
+    ----------------------------------------
+    Row fields:
+        'file': str
+        'text': str
+    ----------------------------------------
+    Key: []
+    ----------------------------------------
+
+    Parameters
+    ----------
+    paths: :class:`str` or :obj:`list` of :obj:`str`
+        Files to import.
+    min_partitions: :obj:`int` or :obj:`None`
+        Minimum number of partitions.
+
+    Returns
+    -------
+    :class:`.Table`
+        Table constructed from imported data.
+    """
     paths = wrap_to_list(paths)
 
     st_reader = ir.StringTableReader(paths, min_partitions)
