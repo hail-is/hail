@@ -47,7 +47,7 @@ case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
 
   def storageType(): PType = pType
 
-  def copiedType: SType = SCanonicalLocusPointer(pType.copiedType.asInstanceOf)
+  def copiedType: SType = SCanonicalLocusPointer(pType.copiedType.asInstanceOf[PCanonicalLocus])
 
   def containsPointers: Boolean = pType.containsPointers
 }

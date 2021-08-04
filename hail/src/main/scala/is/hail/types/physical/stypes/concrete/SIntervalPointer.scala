@@ -45,7 +45,7 @@ case class SIntervalPointer(pType: PInterval) extends SInterval {
 
   def storageType(): PType = pType
 
-  def copiedType: SType = SIntervalPointer(pType.copiedType.asInstanceOf)
+  def copiedType: SType = SIntervalPointer(pType.copiedType.asInstanceOf[PInterval])
 
   def containsPointers: Boolean = pType.containsPointers
 }

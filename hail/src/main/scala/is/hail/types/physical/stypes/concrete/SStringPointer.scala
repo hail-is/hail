@@ -42,7 +42,7 @@ case class SStringPointer(pType: PString) extends SString {
 
   override def storageType(): PType = pType
 
-  override def copiedType: SType = SStringPointer(pType.copiedType.asInstanceOf)
+  override def copiedType: SType = SStringPointer(pType.copiedType.asInstanceOf[PString])
 
   def containsPointers: Boolean = pType.containsPointers
 }

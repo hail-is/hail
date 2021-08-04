@@ -36,7 +36,7 @@ case class SCanonicalShufflePointer(pType: PCanonicalShuffle) extends SShuffle {
 
   def storageType(): PType = pType
 
-  def copiedType: SType = SCanonicalShufflePointer(pType.copiedType.asInstanceOf)
+  def copiedType: SType = SCanonicalShufflePointer(pType.copiedType.asInstanceOf[PCanonicalShuffle])
 
   def containsPointers: Boolean = pType.containsPointers
 }

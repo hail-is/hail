@@ -48,7 +48,7 @@ case class SBaseStructPointer(pType: PBaseStruct) extends SBaseStruct {
 
   override def storageType(): PType = pType
 
-  def copiedType: SType = SBaseStructPointer(pType.copiedType.asInstanceOf)
+  def copiedType: SType = SBaseStructPointer(pType.copiedType.asInstanceOf[PBaseStruct])
 }
 
 

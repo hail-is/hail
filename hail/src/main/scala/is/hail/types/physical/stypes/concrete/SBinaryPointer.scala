@@ -42,7 +42,7 @@ case class SBinaryPointer(pType: PBinary) extends SBinary {
 
   def storageType(): PType = pType
 
-  override def copiedType: SType = SBinaryPointer(pType.copiedType.asInstanceOf)
+  override def copiedType: SType = SBinaryPointer(pType.copiedType.asInstanceOf[PBinary])
 
   override def containsPointers: Boolean = pType.containsPointers
 
