@@ -806,7 +806,7 @@ object LowerTableIR {
             bindIR(ArrayLen(childContexts)) { totalNumPartitions =>
               bindIR(partitionSizeArray(childContexts, totalNumPartitions)) { partitionSizeArrayRef =>
                 bindIR(answerTuple(partitionSizeArrayRef)) { answerTupleRef =>
-                  val numPartsToDropFromPartitionSizeArray = GetTupleElement(answerTupleRef, 0)
+                  val numPartsToDropFromPartitionSizeArray = ConsoleLog(Apply("str", IndexedSeq(), IndexedSeq(answerTupleRef), TString, -1), GetTupleElement(answerTupleRef, 0))
                   val numElementsFromFirstPart = GetTupleElement(answerTupleRef, 1)
                   val numPartsToDropFromTotal = numPartsToDropFromPartitionSizeArray + (totalNumPartitions - ArrayLen(partitionSizeArrayRef))
                   val onlyNeededPartitions = StreamDrop(ToStream(childContexts), numPartsToDropFromTotal)
