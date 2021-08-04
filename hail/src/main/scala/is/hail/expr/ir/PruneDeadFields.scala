@@ -144,10 +144,11 @@ object PruneDeadFields {
 
   def unifyBaseType(base: BaseType, children: BaseType*): BaseType = unifyBaseTypeSeq(base, children)
 
-  def unifyBaseTypeSeq(base: BaseType, children: Seq[BaseType]): BaseType = {
+  def unifyBaseTypeSeq(base: BaseType, _children: Seq[BaseType]): BaseType = {
     try {
-      if (children.isEmpty)
+      if (_children.isEmpty)
         return minimalBT(base)
+      val children = _children.toArray
       base match {
         case tt: TableType =>
           val ttChildren = children.map(_.asInstanceOf[TableType])
@@ -172,17 +173,77 @@ object PruneDeadFields {
           t match {
             case ts: TStruct =>
               val subStructs = children.map(_.asInstanceOf[TStruct])
-              val subFields = ts.fields.map { f =>
-                f -> subStructs.flatMap(s => s.fieldOption(f.name))
+              val fieldArrays = Array.fill(ts.fields.length)(new BoxedArrayBuilder[Type])
+
+              var nPresent = 0
+              ts.fields.foreach { f =>
+                val idx = f.index
+
+                var found = false
+                subStructs.foreach { s =>
+                  s.fieldIdx.get(f.name).foreach { sIdx =>
+                    if (!found) {
+                      nPresent += 1
+                      found = true
+                    }
+
+                    fieldArrays(idx) += s.types(sIdx)
+                  }
+                }
               }
-                .filter(_._2.nonEmpty)
-                .map { case (f, ss) => f.name -> unifySeq(f.typ, ss.map(_.typ)) }
-              TStruct(subFields: _*)
+
+              val subFields = new Array[Field](nPresent)
+
+              var newIdx = 0
+              var oldIdx = 0
+              while (oldIdx < fieldArrays.length) {
+                val ab = fieldArrays(oldIdx)
+                if (ab.nonEmpty) {
+                  val oldField = ts.fields(oldIdx)
+                  subFields(newIdx) = Field(oldField.name, unifySeq(oldField.typ, ab.result()), newIdx)
+                  newIdx += 1
+                }
+                oldIdx += 1
+              }
+              TStruct(subFields)
             case tt: TTuple =>
               val subTuples = children.map(_.asInstanceOf[TTuple])
-              TTuple(tt._types.map { fd => fd -> subTuples.flatMap(child => child.fieldIndex.get(fd.index).map(child.types)) }
-                .filter(_._2.nonEmpty)
-                .map { case (fd, fdChildren) => TupleField(fd.index, unifySeq(fd.typ, fdChildren)) })
+
+              val fieldArrays = Array.fill(tt.size)(new BoxedArrayBuilder[Type])
+
+              var nPresent = 0
+
+              var typIndex = 0
+              while (typIndex < tt.size) {
+                val tupleField = tt._types(typIndex)
+
+                var found = false
+                subTuples.foreach { s =>
+                  s.fieldIndex.get(tupleField.index).foreach { sIdx =>
+                    if (!found) {
+                      nPresent += 1
+                      found = true
+                    }
+                    fieldArrays(typIndex) += s.types(sIdx)
+                  }
+                }
+                typIndex += 1
+              }
+
+              val subFields = new Array[TupleField](nPresent)
+
+              var newIdx = 0
+              var oldIdx = 0
+              while (oldIdx < fieldArrays.length) {
+                val ab = fieldArrays(oldIdx)
+                if (ab.nonEmpty) {
+                  val oldField = tt._types(oldIdx)
+                  subFields(newIdx) = TupleField(oldField.index, unifySeq(oldField.typ, ab.result()))
+                  newIdx += 1
+                }
+                oldIdx += 1
+              }
+              TTuple(subFields)
             case ta: TArray =>
               TArray(unifySeq(ta.elementType, children.map(_.asInstanceOf[TArray].elementType)))
             case ts: TStream =>
@@ -198,7 +259,7 @@ object PruneDeadFields {
       }
     } catch {
       case e: RuntimeException =>
-        throw new RuntimeException(s"failed to unify children while unifying:\n  base:  ${ base }\n${ children.mkString("\n") }", e)
+        throw new RuntimeException(s"failed to unify children while unifying:\n  base:  ${ base }\n${ _children.mkString("\n") }", e)
     }
   }
 

@@ -824,7 +824,7 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test def testTableAggregateByKey(): Unit = {
-    implicit val execStrats = ExecStrategy.interpretOnly  // FIXME: requires method splitting resolution to make allRelational
+    implicit val execStrats = ExecStrategy.allRelational
     var tir: TableIR = TableRead.native(fs, "src/test/resources/three_key.ht")
     tir = TableKeyBy(tir, FastIndexedSeq("x", "y"), true)
     tir = TableAggregateByKey(tir, MakeStruct(FastSeq(
