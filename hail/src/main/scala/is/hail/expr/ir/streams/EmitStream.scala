@@ -452,42 +452,9 @@ object EmitStream {
           }
         }
 
-        /*
-        function seqsample_algA!(N, n, offset, A)
-          num_emitted = 0
-          candidate = 0
-          while n > 0
-              # n == n0 - num_emitted
-              u = rand(); Fc = (N-candidate-n)/(N-candidate) # Fc is 1-F in paper
-              candidate += 1
-              while Fc > u && candidate < N
-                  Fc *= (1 - n/(N-candidate))
-                  candidate += 1
-              end
-              n = n-1
-              num_emitted += 1
-              A[num_emitted] = offset + candidate
-          end
-      end
 
-      function seqsample_algA!(N, n, offset, A)
-          num_emitted = 0
-          candidate = 0
-          while n > 0
-              # n == n0 - num_emitted
-              u = rand(); Fc = (N-candidate-n)/(N-candidate) # Fc is 1-F in paper
-              while Fc > u && candidate < N
-                  candidate += 1
-                  Fc *= (1 - n/(N-candidate))
-              end
-              n = n-1
-              num_emitted += 1
-              A[num_emitted] = offset + candidate
-              candidate += 1
-          end
-      end
-         */
       case SeqSample(totalSize, numToSample, _requiresMemoryManagementPerElement) =>
+        // Implemented based on http://proceedings.mlr.press/v130/shekelyan21a/shekelyan21a.pdf
         emit(totalSize, cb).flatMap(cb) { totalSizeCode =>
           emit(numToSample, cb).map(cb) { numToSampleCode =>
             val totalSizeVal = totalSizeCode.asInt.memoize(cb, "seq_sample_total_size")
@@ -526,16 +493,9 @@ object EmitStream {
                 cb.assign(candidate, candidate + 1)
                 cb.goto(LproduceElementDone)
               }
-              /**
-                * Stream element. This value is valid after the producer jumps to `LproduceElementDone`,
-                * until a consumer jumps to `LproduceElement` again, or calls `close()`.
-                */
+
               override val element: EmitCode = EmitCode.present(mb, new SInt32Code(elementToReturn))
 
-              /**
-                * Stream producer cleanup method. If `initialize` is called, then the `close` method
-                * must be called as well to properly handle owned resources like files.
-                */
               override def close(cb: EmitCodeBuilder): Unit = {}
             }
             SStreamCode(producer)

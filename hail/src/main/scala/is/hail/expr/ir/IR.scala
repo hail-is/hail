@@ -278,6 +278,7 @@ final case class StreamMap(a: IR, name: String, body: IR) extends IR {
 final case class StreamTake(a: IR, num: IR) extends IR
 final case class StreamDrop(a: IR, num: IR) extends IR
 
+// Generates a stream of numToSample unique random integers in the range totalRange.
 final case class SeqSample(totalRange: IR, numToSample: IR, requiresMemoryManagementPerElement: Boolean) extends IR
 
 object ArrayZipBehavior extends Enumeration {
