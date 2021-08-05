@@ -454,7 +454,7 @@ object EmitStream {
 
 
       case SeqSample(totalSize, numToSample, _requiresMemoryManagementPerElement) =>
-        // Implemented based on http://proceedings.mlr.press/v130/shekelyan21a/shekelyan21a.pdf
+        // Implemented based on http://www.ittc.ku.edu/~jsv/Papers/Vit84.sampling.pdf Algorithm A
         emit(totalSize, cb).flatMap(cb) { totalSizeCode =>
           emit(numToSample, cb).map(cb) { numToSampleCode =>
             val totalSizeVal = totalSizeCode.asInt.memoize(cb, "seq_sample_total_size")
@@ -472,6 +472,9 @@ object EmitStream {
 
               override def initialize(cb: EmitCodeBuilder): Unit = {
                 cb.assign(len, numToSampleVal.asInt.intCode(cb))
+                cb.assign(nRemaining, numToSampleVal.intCode(cb))
+                cb.assign(candidate, 0)
+                cb.assign(elementToReturn, -1)
               }
 
               override val elementRegion: Settable[Region] = regionVar
