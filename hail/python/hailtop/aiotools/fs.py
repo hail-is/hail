@@ -402,7 +402,15 @@ class LocalAsyncFS(AsyncFS):
 
     async def rmtree(self, sema: Optional[asyncio.Semaphore], url: str) -> None:
         path = self._get_path(url)
-        await blocking_to_async(self._thread_pool, shutil.rmtree, path)
+
+        def f():
+            try:
+                shutil.rmtree(path)
+            except FileNotFoundError:
+                # no error if path does not exist
+                pass
+
+        await blocking_to_async(self._thread_pool, f)
 
 
 class FileAndDirectoryError(Exception):
