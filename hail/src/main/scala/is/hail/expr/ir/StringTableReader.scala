@@ -15,7 +15,7 @@ import is.hail.types.physical.{PCanonicalString, PCanonicalStruct, PField, PStru
 import is.hail.types.virtual.{Field, TString, TStruct, Type}
 import is.hail.utils.{FastIndexedSeq, fatal}
 import org.apache.spark.sql.Row
-import org.json4s.{Formats, JValue}
+import org.json4s.{Formats, JValue, Extraction}
 
 case class StringTableReaderParameters(
   files: Array[String],
@@ -110,7 +110,7 @@ case class StringTablePartitionReader(lines: GenericLines) extends PartitionRead
      }
   }
 
-  override def toJValue: JValue = ???
+  override def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
 }
 
 class StringTableReader(
