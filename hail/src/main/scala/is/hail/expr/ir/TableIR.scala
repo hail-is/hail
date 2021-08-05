@@ -832,24 +832,6 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
 
     val (leftRType, rightRType) = splitRequestedTypes(requestedType)
 
-    //    val (leftPType: PStruct, makeLeftDec) = specLeft.buildDecoder(ctx, leftRType)
-    //    val (rightPType: PStruct, makeRightDec) = specRight.buildDecoder(ctx, rightRType)
-
-    //    // copied from TableNativeReader, but hard to pass it through to here and slightly different signature
-    //    // plan is to remove the interpreted readers when we can evaluate TableStage to TableValue
-    //    def fieldInserter(ctx: ExecuteContext, pLeft: PStruct, pRight: PStruct): (PStruct, Function3[FS, java.lang.Integer, Region, AsmFunction3RegionLongLongLong]) = {
-    //      val (Some(PTypeReferenceSingleCodeType(t: PStruct)), mk) = ir.Compile[AsmFunction3RegionLongLongLong](ctx,
-    //        FastIndexedSeq("left" -> SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType((pLeft))), "right" -> SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(pRight))),
-    //        FastIndexedSeq(typeInfo[Region], LongInfo, LongInfo), LongInfo,
-    //        InsertFields(Ref("left", pLeft.virtualType),
-    //          pRight.fieldNames.map(f =>
-    //            f -> GetField(Ref("right", pRight.virtualType), f))))
-    //      (t, { (fs: FS, pidx: java.lang.Integer, r) => mk(fs, pidx, r) })
-    //    }
-
-    //    val (eltType: PStruct, makeInserter) = fieldInserter(ctx, leftPType, rightPType)
-    //    val makeInserterCode = mb.getObject[Function3[FS, java.lang.Integer, Region, AsmFunction3RegionLongLongLong]](makeInserter)
-
     val makeIndexCode = {
       val (keyType, annotationType) = indexSpecLeft.types
       val (leafPType: PStruct, leafDec) = indexSpecLeft.leafCodec.buildDecoder(ctx, indexSpecLeft.leafCodec.encodedVirtualType)
@@ -858,9 +840,6 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
 
       mb.getObject[Function4[FS, String, Int, RegionPool, IndexReader]](mkIndexReader)
     }
-
-    //    val makeLeftDecCode = mb.getObject[(InputStream => Decoder)](makeLeftDec)
-    //    val makeRightDecCode = mb.getObject[(InputStream => Decoder)](makeRightDec)
 
     val leftOffsetFieldIndex = indexSpecLeft.offsetFieldIndex
     val rightOffsetFieldIndex = indexSpecRight.offsetFieldIndex
@@ -904,15 +883,17 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
           val ctxMemo = ctxStruct.asBaseStruct.memoize(cb, "pnri_ctx_struct")
 
           cb.assign(rowsBuffer, specLeft.buildCodeInputBuffer(
-            mb.open(ctxMemo.loadField(cb, "leftPartitionPath")
-              .handle(cb, cb._fatal(""))
-              .asString
-              .loadString(), true)))
+            Code.newInstance[ByteTrackingInputStream, InputStream](
+              mb.open(ctxMemo.loadField(cb, "leftPartitionPath")
+                .handle(cb, cb._fatal(""))
+                .asString
+                .loadString(), true))))
           cb.assign(entriesBuffer, specRight.buildCodeInputBuffer(
-            mb.open(ctxMemo.loadField(cb, "rightPartitionPath")
-              .handle(cb, cb._fatal(""))
-              .asString
-              .loadString(), true)))
+            Code.newInstance[ByteTrackingInputStream, InputStream](
+              mb.open(ctxMemo.loadField(cb, "rightPartitionPath")
+                .handle(cb, cb._fatal(""))
+                .asString
+                .loadString(), true))))
 
           cb.assign(indexReader, getIndexReader(cb, ctxMemo))
           cb.assign(idx,
