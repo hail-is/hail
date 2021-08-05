@@ -128,7 +128,7 @@ object AbstractRVDSpec {
           PartitionNativeReader(specRight.typedCodecSpec)
         )
 
-        val contextsValue: IndexedSeq[Any] = (specLeft.partFiles, specRight.partFiles)
+        val contextsValue: IndexedSeq[Any] = (specLeft.absolutePartPaths(pathLeft), specRight.absolutePartPaths(pathRight))
           .zipped
           .map { case (path1, path2) => Row(path1, path2) }
 

@@ -740,7 +740,9 @@ case class PartitionZippedNativeReader(left: PartitionReader, right: PartitionRe
             override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
             override def initialize(cb: EmitCodeBuilder): Unit = {
+              cb.assign(stream1.elementRegion, elementRegion)
               stream1.initialize(cb)
+              cb.assign(stream2.elementRegion, elementRegion)
               stream2.initialize(cb)
             }
 
@@ -1153,21 +1155,6 @@ case class TableNativeZippedReader(
       options.map(opts => RVDPartitioner.union(specPart.kType, opts.intervals, specPart.kType.size - 1))
     else
       options.map(opts => new RVDPartitioner(specPart.kType, opts.intervals))
-
-    def splitRequestedTypes(requestedType: Type): (TStruct, TStruct) = {
-      val reqStruct = requestedType.asInstanceOf[TStruct]
-      val neededFields = reqStruct.fieldNames.toSet
-
-      val leftProvidedFields = specLeft.table_type.rowType.fieldNames.toSet
-      val rightProvidedFields = specRight.table_type.rowType.fieldNames.toSet
-      val leftNeededFields = leftProvidedFields.intersect(neededFields)
-      val rightNeededFields = rightProvidedFields.intersect(neededFields)
-      assert(leftNeededFields.intersect(rightNeededFields).isEmpty)
-
-      val leftStruct = reqStruct.filterSet(leftNeededFields)._1
-      val rightStruct = reqStruct.filterSet(rightNeededFields)._1
-      (leftStruct, rightStruct)
-    }
 
     AbstractRVDSpec.readZippedLowered(ctx,
       specLeft.rowsSpec, specRight.rowsSpec,
