@@ -866,9 +866,12 @@ def hardy_weinberg_test(n_hom_ref, n_het, n_hom_var) -> StructExpression:
     `Levene-Haldane distribution <../_static/LeveneHaldane.pdf>`__,
     which models the number of heterozygous individuals under equilibrium.
 
-    The mean of this distribution is ``(n_hom_ref * n_hom_var) / (2n - 1)`` where
-    ``n = n_hom_ref + n_het + n_hom_var``. So the expected frequency of heterozygotes
-    under equilibrium, `het_freq_hwe`, is this mean divided by ``n``.
+    The mean of this distribution is ``(n_ref * n_var) / (2n - 1)``, where
+    ``n_ref = 2*n_hom_ref + n_het`` is the number of reference alleles,
+    ``n_var = 2*n_hom_var + n_het`` is the number of variant alleles,
+    and ``n = n_hom_ref + n_het + n_hom_var`` is the number of individuals.
+    So the expected frequency of heterozygotes under equilibrium,
+    `het_freq_hwe`, is this mean divided by ``n``.
 
     Parameters
     ----------
