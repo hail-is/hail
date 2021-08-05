@@ -218,6 +218,16 @@ class AsyncFS(abc.ABC):
         the destination filesystem is used.'''
         return 128 * 1024 * 1024
 
+    async def copy(self,
+                   sema: asyncio.Semaphore,
+                   transfer: Union['Transfer', List['Transfer']],
+                   return_exceptions: bool = False) -> 'CopyReport':
+        copier = Copier(self)
+        copy_report = CopyReport(transfer)
+        await copier.copy(sema, copy_report, transfer, return_exceptions)
+        copy_report.mark_done()
+        return copy_report
+
 
 class LocalStatFileStatus(FileStatus):
     def __init__(self, stat_result):
@@ -897,7 +907,7 @@ class RouterAsyncFS(AsyncFS):
                     scheme_fs[scheme] = fs
                     schemes.add(scheme)
 
-        if default_scheme not in schemes:
+        if default_scheme is not None and default_scheme not in schemes:
             raise ValueError(f'default scheme {default_scheme} not in set of schemes: {", ".join(schemes)}')
 
         self._default_scheme = default_scheme
@@ -982,10 +992,3 @@ class RouterAsyncFS(AsyncFS):
     async def close(self) -> None:
         for fs in self._filesystems:
             await fs.close()
-
-    async def copy(self, sema: asyncio.Semaphore, transfer: Union[Transfer, List[Transfer]], return_exceptions: bool = False) -> CopyReport:
-        copier = Copier(self)
-        copy_report = CopyReport(transfer)
-        await copier.copy(sema, copy_report, transfer, return_exceptions)
-        copy_report.mark_done()
-        return copy_report
