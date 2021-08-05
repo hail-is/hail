@@ -187,7 +187,7 @@ class SIndexablePointerSettable(
       }
       cb.define(out)
     } else {
-      cb += Region.copyFrom(elementsAddress, elems, st.pType.elementByteSize * toCopy.toL)
+      cb += Region.copyFrom(elementsAddress, elems, const(st.pType.elementByteSize) * toCopy.toL)
     }
 
     cb.assign(a, arr)
