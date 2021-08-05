@@ -8,7 +8,7 @@ from hailtop.aiotools.fs import RouterAsyncFS, LocalAsyncFS, Transfer
 from hailtop.aiogoogle import GoogleStorageAsyncFS
 
 
-# This is necessary for the bootsrap process to work.  The bootstrap
+# This is necessary for the bootsrap process to work. The bootstrap
 # executes build.yaml deploy in local mode to bootstrap the services,
 # and no Google credentials are available in the copy steps.
 class GoogleAsyncFSIfNecessary:
