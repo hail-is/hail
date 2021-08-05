@@ -266,15 +266,17 @@ class SUnreachableNDArrayValue(val st: SUnreachableNDArray) extends SUnreachable
 
   def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SCode = SUnreachable.fromVirtualType(st.virtualType.elementType).defaultValue
 
+  def loadElementAddress(indices: IndexedSeq[is.hail.asm4s.Value[Long]],cb: is.hail.expr.ir.EmitCodeBuilder): is.hail.asm4s.Code[Long] = const(0L)
+
   def shapes(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = (0 until st.nDims).map(_ => const(0L))
 
   def strides(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = (0 until st.nDims).map(_ => const(0L))
 
-  def outOfBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Boolean] = const(false)
+  override def outOfBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Boolean] = const(false)
 
-  def assertInBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder, errorId: Int = -1): Code[Unit] = Code._empty
+  override def assertInBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder, errorId: Int = -1): Code[Unit] = Code._empty
 
-  def sameShape(other: SNDArrayValue, cb: EmitCodeBuilder): Code[Boolean] = const(false)
+  override def sameShape(other: SNDArrayValue, cb: EmitCodeBuilder): Code[Boolean] = const(false)
 
   def firstDataAddress(cb: EmitCodeBuilder): Value[Long] = const(0L)
 
