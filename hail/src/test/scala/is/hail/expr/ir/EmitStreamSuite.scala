@@ -194,16 +194,35 @@ class EmitStreamSuite extends HailSuite {
   }
 
   @Test def testEmitSeqSample(): Unit = {
-    val seq = evalStream(
-      SeqSample(
-        I32(20),
-        I32(5),
+    val N = 20
+    val n = 2
+
+    val seqIr = SeqSample(
+        I32(N),
+        I32(n),
         false
       )
-    ).map(_.asInstanceOf[Int])
-    assert(seq.size == 5)
-    assert(seq.toSet.size == 5)
-    assert(seq.forall(e => e >= 0 && e < 20))
+
+    val compiled = compileStream[AsmFunction1RegionLong, Unit](seqIr, FastIndexedSeq()) { (f, r, _) => f(r) }
+
+    // Generate many pairs of numbers between 0 and N, every pair should be equally likely
+    val results = Array.tabulate(N, N){ case(i, j) => 0}
+    (0 until 1000000).foreach { i =>
+      val seq = compiled.apply(()).map(_.asInstanceOf[Int])
+      assert(seq.size == n)
+      results(seq(0))(seq(1)) += 1
+      assert(seq.toSet.size == n)
+      assert(seq.forall(e => e >= 0 && e < N))
+    }
+
+
+    (0 until N).foreach { i =>
+      (i + 1 until N).foreach { j =>
+        val entry = results(i)(j)
+        // Expected value of entry is 5000
+        assert(entry > 4000 && entry < 6000)
+      }
+    }
   }
 
   @Test def testEmitToStream() {
