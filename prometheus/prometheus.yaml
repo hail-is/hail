@@ -157,6 +157,9 @@ spec:
 {% else %}
       nodeSelector:
         preemptible: "true"
+      tolerations:
+       - key: preemptible
+         value: "true"
 {% endif %}
       securityContext:
         fsGroup: 65534
