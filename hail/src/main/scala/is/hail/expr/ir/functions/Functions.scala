@@ -420,10 +420,10 @@ abstract class RegistryFunctions {
     cls: Class[_],
     method: String
   ) {
-    registerSCode(name, valueParameterTypes, returnType, calculateReturnType) { case (r, cb, _, rt, args, errorID) =>
+    registerSCode(name, valueParameterTypes, returnType, calculateReturnType) { case (r, cb, _, rt, args, _) =>
       val cts = valueParameterTypes.map(PrimitiveTypeToIRIntermediateClassTag(_).runtimeClass)
       rt.fromCodes(FastIndexedSeq(
-        Code.invokeScalaObject(cls, method, cts, args.map { a => SType.extractPrimCode(cb, a) }, errorID)(PrimitiveTypeToIRIntermediateClassTag(returnType))
+        Code.invokeScalaObject(cls, method, cts, args.map { a => SType.extractPrimCode(cb, a) })(PrimitiveTypeToIRIntermediateClassTag(returnType))
       ))
     }
   }
@@ -464,11 +464,11 @@ abstract class RegistryFunctions {
       case _ => scodeToJavaValue(cb, r, code)
     }
 
-    registerSCode(name, valueParameterTypes, returnType, calculateReturnType) { case (r, cb, _, rt, args, errorID) =>
+    registerSCode(name, valueParameterTypes, returnType, calculateReturnType) { case (r, cb, _, rt, args, _) =>
       val cts = valueParameterTypes.map(ct(_).runtimeClass)
       try {
         unwrapReturn(cb, r.region, rt,
-          Code.invokeScalaObject(cls, method, cts, args.map { a => wrap(cb, r.region, a) }, errorID)(ct(returnType)))
+          Code.invokeScalaObject(cls, method, cts, args.map { a => wrap(cb, r.region, a) })(ct(returnType)))
       } catch {
         case e: Throwable => throw new RuntimeException(s"error while registering function $name", e)
       }
