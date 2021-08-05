@@ -98,7 +98,7 @@ class PruneSuite extends HailSuite {
         Row(FastIndexedSeq(Row("hi", FastIndexedSeq(Row(1)), "bye", Row(2, FastIndexedSeq(Row("bar"))), "foo")), Row(5, 10))),
       None),
     FastIndexedSeq("3"),
-    false).execute(ctx))
+    false).execute(ctx).asTableValue(ctx))
 
   lazy val tr = TableRead(tab.typ, false, new TableReader {
     override def renderShort(): String = ???
