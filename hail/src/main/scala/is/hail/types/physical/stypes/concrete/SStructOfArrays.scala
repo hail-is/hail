@@ -23,7 +23,10 @@ case class SStructOfArrays(virtualType: TContainer, elementsRequired: Boolean, f
   protected[stypes] def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = value match {
     case v: SStructOfArraysCode =>
       new SStructOfArraysCode(this,
-        v.lookupOrLength.map(lookup => lookup.st.coerceOrCopy(cb, region, lookup, deepCopy).asInstanceOf),
+        v.lookupOrLength match {
+          case Right(lookup) => Right(lookup.st.coerceOrCopy(cb, region, lookup, deepCopy).asInstanceOf[SIndexablePointerCode])
+          case x => x
+        },
         fields.zip(v.fields).map { case (field, code) =>
           field.coerceOrCopy(cb, region, code, deepCopy).asIndexable
         })
