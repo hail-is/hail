@@ -3,23 +3,22 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.HailTaskContext
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, MatrixToTableFunction, StringFunctions, TableToTableFunction}
-import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage, TableStageDependency}
+import is.hail.expr.ir.lowering.{LowerTableIRHelpers, LowererUnsupportedOperation, TableStage, TableStageDependency}
 import is.hail.expr.ir.streams.{StreamArgType, StreamProducer}
 import is.hail.io._
 import is.hail.io.fs.FS
-import is.hail.io.index.{IndexReadIterator, IndexReader, IndexReaderBuilder, LeafChild, MaybeIndexedReadZippedIterator}
+import is.hail.io.index.{IndexReadIterator, IndexReader, IndexReaderBuilder, LeafChild}
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, BlockMatrixReadRowBlockedRDD}
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
 import is.hail.types._
+import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete.SInsertFieldsStruct
-import is.hail.types.physical.{stypes, _}
+import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStreamCode}
 import is.hail.types.physical.stypes.{BooleanSingleCodeType, Int32SingleCodeType, PTypeReferenceSingleCodeType, StreamSingleCodeType}
-import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStream, SStreamCode}
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.TaskContext
@@ -1601,111 +1600,9 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
   }
 
   protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
-    val leftTV = left.execute(ctx, r).asTableValue(ctx)
-    val rightTV = right.execute(ctx, r).asTableValue(ctx)
-
-    val combinedRow = Row.fromSeq(leftTV.globals.javaValue.toSeq ++ rightTV.globals.javaValue.toSeq)
-    val newGlobals = BroadcastRow(ctx, combinedRow, newGlobalType)
-
-    val leftRVDType = leftTV.rvd.typ.copy(key = left.typ.key.take(joinKey))
-    val rightRVDType = rightTV.rvd.typ.copy(key = right.typ.key.take(joinKey))
-
-    val leftRowType = leftRVDType.rowType
-    val rightRowType = rightRVDType.rowType
-    val leftKeyFieldIdx = leftRVDType.kFieldIdx
-    val rightKeyFieldIdx = rightRVDType.kFieldIdx
-    val leftValueFieldIdx = leftRVDType.valueFieldIdx
-    val rightValueFieldIdx = rightRVDType.valueFieldIdx
-
-    def noIndex(pfs: IndexedSeq[PField]): IndexedSeq[(String, PType)] =
-      pfs.map(pf => (pf.name, pf.typ))
-
-    def unionFieldPTypes(ps: PStruct, ps2: PStruct): IndexedSeq[(String, PType)] =
-      ps.fields.zip(ps2.fields).map { case (pf1, pf2) =>
-        (pf1.name, InferPType.getCompatiblePType(Seq(pf1.typ, pf2.typ)))
-      }
-
-    def castFieldRequiredeness(ps: PStruct, required: Boolean): IndexedSeq[(String, PType)] =
-      ps.fields.map(pf => (pf.name, pf.typ.setRequired(required)))
-
-    val (lkT, lvT, rvT) = joinType match {
-      case "inner" =>
-        val keyTypeFields = castFieldRequiredeness(leftRVDType.kType, true)
-        (keyTypeFields, noIndex(leftRVDType.valueType.fields), noIndex(rightRVDType.valueType.fields))
-      case "left" =>
-        val rValueTypeFields = castFieldRequiredeness(rightRVDType.valueType, false)
-        (noIndex(leftRVDType.kType.fields), noIndex(leftRVDType.valueType.fields), rValueTypeFields)
-      case "right" =>
-        val keyTypeFields = leftRVDType.kType.fields.zip(rightRVDType.kType.fields).map({
-          case (pf1, pf2) => {
-            assert(pf1.typ isOfType pf2.typ)
-            (pf1.name, pf2.typ)
-          }
-        })
-        val lValueTypeFields = castFieldRequiredeness(leftRVDType.valueType, false)
-        (keyTypeFields, lValueTypeFields, noIndex(rightRVDType.valueType.fields))
-      case "outer" =>
-        val keyTypeFields = unionFieldPTypes(leftRVDType.kType, rightRVDType.kType)
-        val lValueTypeFields = castFieldRequiredeness(leftRVDType.valueType, false)
-        val rValueTypeFields = castFieldRequiredeness(rightRVDType.valueType, false)
-        (keyTypeFields, lValueTypeFields, rValueTypeFields)
-    }
-
-    val newRowPType = PCanonicalStruct(true, lkT ++ lvT ++ rvT: _*)
-
-    assert(newRowPType.virtualType == newRowType)
-
-    val rvMerger = { (_: RVDContext, it: Iterator[JoinedRegionValue]) =>
-      val rvb = new RegionValueBuilder()
-      val rv = RegionValue()
-      it.map { joined =>
-        val lrv = joined._1
-        val rrv = joined._2
-
-        if (lrv != null)
-          rvb.set(lrv.region)
-        else {
-          assert(rrv != null)
-          rvb.set(rrv.region)
-        }
-
-        rvb.start(newRowPType)
-        rvb.startStruct()
-
-        if (lrv != null)
-          rvb.addFields(leftRowType, lrv, leftKeyFieldIdx)
-        else {
-          assert(rrv != null)
-          rvb.addFields(rightRowType, rrv, rightKeyFieldIdx)
-        }
-
-        if (lrv != null)
-          rvb.addFields(leftRowType, lrv, leftValueFieldIdx)
-        else
-          rvb.skipFields(leftValueFieldIdx.length)
-
-        if (rrv != null)
-          rvb.addFields(rightRowType, rrv, rightValueFieldIdx)
-        else
-          rvb.skipFields(rightValueFieldIdx.length)
-
-        rvb.endStruct()
-        rv.set(rvb.region, rvb.end())
-        rv
-      }
-    }
-
-    val leftRVD = leftTV.rvd
-    val rightRVD = rightTV.rvd
-    val joinedRVD = leftRVD.orderedJoin(
-      rightRVD,
-      joinKey,
-      joinType,
-      rvMerger,
-      RVDType(newRowPType, newKey),
-      ctx)
-
-    new TableValueIntermediate(TableValue(ctx, typ, newGlobals, joinedRVD))
+    val leftTS = left.execute(ctx, r).asTableStage(ctx)
+    val rightTS = right.execute(ctx, r).asTableStage(ctx)
+    new TableStageIntermediate(LowerTableIRHelpers.lowerTableJoin(ctx, this, leftTS, rightTS, r.req))
   }
 }
 
