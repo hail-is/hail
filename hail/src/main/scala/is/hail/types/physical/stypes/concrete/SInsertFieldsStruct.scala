@@ -7,7 +7,26 @@ import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode, S
 import is.hail.types.physical.stypes.{EmitType, SCode, SType}
 import is.hail.types.physical.{PCanonicalStruct, PType, StoredSTypePType}
 import is.hail.types.virtual.{TStruct, Type}
-import is.hail.utils.BoxedArrayBuilder
+import is.hail.utils._
+
+object SInsertFieldsStruct {
+  def merge(cb: EmitCodeBuilder, s1: SBaseStructCode, s2: SBaseStructCode): SInsertFieldsStructCode = {
+    val lt = s1.st.virtualType.asInstanceOf[TStruct]
+    val rt = s2.st.virtualType.asInstanceOf[TStruct]
+    val resultVType = TStruct.concat(lt, rt)
+
+    val st1 = s1.st
+    val st2 = s2.st
+    val st = SInsertFieldsStruct(resultVType, st1, rt.fieldNames.zip(st2.fieldEmitTypes))
+
+    if (st2.size == 1) {
+      new SInsertFieldsStructCode(st, s1, FastIndexedSeq(EmitCode.fromI(cb.emb)(cb => s2.loadSingleField(cb, 0))))
+    } else {
+      val s2m = s2.memoize(cb, "insert_fields_merge")
+      new SInsertFieldsStructCode(st, s1, (0 until st2.size).map(i => EmitCode.fromI(cb.emb)(cb => s2m.loadField(cb, i))))
+    }
+  }
+}
 
 case class SInsertFieldsStruct(virtualType: TStruct, parent: SBaseStruct, insertedFields: IndexedSeq[(String, EmitType)]) extends SBaseStruct {
   override def size: Int = virtualType.size
