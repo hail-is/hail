@@ -404,7 +404,7 @@ def pc_relate_2(call_expr: CallExpression,
     mt = matrix_table_source('pc_relate_2/call_expr', call_expr)
 
     if k and scores_expr is None:
-        _, scores, _ = _hwe_normalized_blanczos(call_expr, k, compute_loadings=False)
+        _, scores, _ = _hwe_normalized_blanczos(call_expr, k, compute_loadings=False, q_iterations=10)
         scores_expr = scores[mt.col_key].scores
     elif not k and scores_expr is not None:
         analyze('pc_relate_2/scores_expr', scores_expr, mt._col_indices)
