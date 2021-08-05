@@ -106,14 +106,20 @@ case class EStructOfArrays(fields: IndexedSeq[EField], elementsRequired: Boolean
         val readFieldF = typ.buildDecoder(TArray(rf.typ), cb.emb.ecb)
         result.fields(rf.index).store(cb, readFieldF.apply(cb, region, in))
       } else {
-        typ.buildSkip(cb.emb).apply(region, in)
+        typ.buildSkip(cb.emb.ecb).apply(cb, region, in)
       }
     }
 
     result
   }
 
-  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = ???
+  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
+    val length = cb.newLocal("len", in.readInt())
+    cb += in.skipBytes(UnsafeUtils.packBitsToBytes(length))
+    fields.foreach { case EField(_, typ, _) =>
+      typ.buildSkip(cb.emb.ecb).apply(cb, r, in)
+    }
+  }
 
   def _asIdent: String = {
     val sb = new StringBuilder
