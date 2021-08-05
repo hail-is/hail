@@ -154,17 +154,26 @@ class BlockingQueueReadableStream(io.RawIOBase):
         if self._saw_eos:
             return 0
 
-        if not self._unread:
-            self._unread = self._q.sync_q.get()
-            if self._unread is None:
-                self._saw_eos = True
-                return 0
-        assert self._unread
+        # If readinto only partially fills b without hitting the end
+        # of stream, then the upload_obj returns an EntityTooSmall
+        # error in some cases.
+        total = 0
+        while total < len(b):
+            if not self._unread:
+                self._unread = self._q.sync_q.get()
+                if self._unread is None:
+                    self._saw_eos = True
+                    print(f'last {total}')
+                    return total
+                assert self._unread
 
-        n = min(len(self._unread), len(b))
-        b[:n] = self._unread[:n]
-        self._unread = self._unread[n:]
-        return n
+            n = min(len(self._unread), len(b) - total)
+            b[total:total+n] = self._unread[:n]
+            self._unread = self._unread[n:]
+            total += n
+            assert total == len(b) or not self._unread
+
+        return total
 
     def close(self):
         self._closed = True
