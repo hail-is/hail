@@ -163,7 +163,6 @@ class BlockingQueueReadableStream(io.RawIOBase):
                 self._unread = self._q.sync_q.get()
                 if self._unread is None:
                     self._saw_eos = True
-                    print(f'last {total}')
                     return total
                 assert self._unread
 
