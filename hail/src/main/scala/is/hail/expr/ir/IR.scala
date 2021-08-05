@@ -632,6 +632,7 @@ object PartitionReader {
       classOf[PartitionNativeReaderIndexed],
       classOf[PartitionZippedNativeReader],
       classOf[AbstractTypedCodecSpec],
+      classOf[StringTablePartitionReader],
       classOf[TypedCodecSpec]),
       typeHintFieldName = "name") + BufferSpec.shortTypeHints
   }  +
