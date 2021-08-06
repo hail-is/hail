@@ -593,7 +593,7 @@ class SourceCopier:
                          part_creator: MultiPartCreate,
                          return_exceptions: bool) -> None:
         try:
-            async with self.xfer_sema.acquire_manager(this_part_size):
+            async with self.xfer_sema.acquire_manager(min(Copier.BUFFER_SIZE, this_part_size)):
                 async with await self.router_fs.open_from(srcfile, part_number * part_size) as srcf:
                     async with await part_creator.create_part(part_number, part_number * part_size, size_hint=this_part_size) as destf:
                         n = this_part_size
@@ -799,7 +799,10 @@ class Copier:
 
     def __init__(self, router_fs):
         self.router_fs = router_fs
-        self.xfer_sema = WeightedSemaphore(80 * 1024 * 1024)
+        # This is essentially a limit on amount of memory in temporary
+        # buffers during copying.  We allow ~10 full-sized copies to
+        # run concurrently.
+        self.xfer_sema = WeightedSemaphore(10 * Copier.BUFFER_SIZE)
 
     async def _dest_type(self, transfer: Transfer):
         '''Return the (real or assumed) type of `dest`.

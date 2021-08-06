@@ -21,6 +21,7 @@ class _AcquireManager:
 
 class WeightedSemaphore:
     def __init__(self, value: int):
+        self.max = value
         self.value = value
         self.events: List[Tuple[int, asyncio.Event]] = []
 
@@ -37,6 +38,7 @@ class WeightedSemaphore:
         return _AcquireManager(self, n)
 
     async def acquire(self, n) -> None:
+        assert n <= self.max
         if self.value >= n:
             self.value -= n
             return
