@@ -636,10 +636,12 @@ class SourceCopier:
         async with part_creator:
             async def f(i):
                 this_part_size = rem if i == n_parts - 1 and rem else part_size
-                self._copy_part(source_report, part_size, srcfile, i, this_part_size, part_creator, return_exceptions)
+                await retry_transient_errors(
+                    self._copy_part,
+                    source_report, part_size, srcfile, i, this_part_size, part_creator, return_exceptions)
 
             await bounded_gather2(sema, *[
-                functools.partial(retry_transient_errors, f, i)
+                functools.partial(f, i)
                 for i in range(n_parts)
             ], cancel_on_error=True)
 
