@@ -505,7 +505,7 @@ class CopyReport:
             else:
                 source_reports.extend(transfer_report._source_report)
 
-        if isinstance(self._transfer_report, Transfer):
+        if isinstance(self._transfer_report, TransferReport):
             total_transfers = 1
             add_source_reports(self._transfer_report)
         else:
