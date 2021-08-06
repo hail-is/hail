@@ -211,6 +211,12 @@ class AsyncFS(abc.ABC):
                         exc_tb: Optional[TracebackType]) -> None:
         await self.close()
 
+    @staticmethod
+    def _copy_part_size():
+        '''Part size when copying using multi-part uploads.  The part size of
+        the destination filesystem is used.'''
+        return 128 * 1024 * 1024
+
 
 class LocalStatFileStatus(FileStatus):
     def __init__(self, stat_result):
@@ -540,8 +546,6 @@ class SourceCopier:
     created for each source.
     '''
 
-    PART_SIZE = 128 * 1024 * 1024
-
     def __init__(self, router_fs: 'RouterAsyncFS', src: str, dest: str, treat_dest_as: str, dest_type_task):
         self.router_fs = router_fs
         self.src = src
@@ -578,11 +582,11 @@ class SourceCopier:
                     written = await destf.write(b)
                     assert written == len(b)
 
-    async def _copy_part(self, source_report, srcfile, part_number, part_creator, return_exceptions):
+    async def _copy_part(self, source_report, srcfile, part_number, part_creator, part_size, return_exceptions):
         try:
-            async with await self.router_fs.open_from(srcfile, part_number * self.PART_SIZE) as srcf:
-                async with await part_creator.create_part(part_number, part_number * self.PART_SIZE) as destf:
-                    n = self.PART_SIZE
+            async with await self.router_fs.open_from(srcfile, part_number * part_size) as srcf:
+                async with await part_creator.create_part(part_number, part_number * part_size) as destf:
+                    n = part_size
                     while n > 0:
                         b = await srcf.read(min(Copier.BUFFER_SIZE, n))
                         # FIXME check expected bytes
@@ -606,11 +610,15 @@ class SourceCopier:
             destfile: str,
             return_exceptions: bool):
         size = await srcstat.size()
-        if size <= self.PART_SIZE:
+
+        dest_fs = self.router_fs._get_fs(destfile)
+        part_size = dest_fs._copy_part_size()
+
+        if size <= part_size:
             await retry_transient_errors(self._copy_file, srcfile, destfile)
             return
 
-        n_parts = int((size + self.PART_SIZE - 1) / self.PART_SIZE)
+        n_parts = int((size + part_size - 1) / part_size)
 
         try:
             part_creator = await self.router_fs.multi_part_create(sema, destfile, n_parts)
@@ -620,7 +628,7 @@ class SourceCopier:
 
         async with part_creator:
             await bounded_gather2(sema, *[
-                functools.partial(retry_transient_errors, self._copy_part, source_report, srcfile, i, part_creator, return_exceptions)
+                functools.partial(retry_transient_errors, self._copy_part, source_report, srcfile, i, part_creator, part_size, return_exceptions)
                 for i in range(n_parts)
             ], cancel_on_error=True)
 
