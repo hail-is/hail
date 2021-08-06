@@ -230,6 +230,9 @@ class BatchPoolExecutor:
                         timeout: Optional[Union[int, float]] = None,
                         chunksize: int = 1):
         """Aysncio compatible version of :meth:`.map`."""
+        if not iterables:
+            return iter([])
+
         if chunksize > 1:
             list_per_argument = [list(x) for x in iterables]
             n = len(list_per_argument[0])
@@ -256,10 +259,9 @@ class BatchPoolExecutor:
         async def async_result_or_cancel_all(future):
             try:
                 return await future.async_result(timeout=timeout)
-            except Exception as err:
-                if bp_futures:
-                    await asyncio.gather(*[bp_fut.async_cancel() for bp_fut in bp_futures], return_exceptions=True)
-                raise err
+            except:
+                await asyncio.gather(*[bp_fut.async_cancel() for bp_fut in bp_futures], return_exceptions=True)
+                raise
 
         if chunksize > 1:
             return (val
