@@ -151,15 +151,16 @@ class S3FileListEntry(FileListEntry):
 
 
 class S3CreatePartManager(AsyncContextManager[WritableStream]):
-    def __init__(self, mpc, number: int):
+    def __init__(self, mpc, number: int, size_hint: int):
         self._mpc = mpc
         self._number = number
+        self._size_hint = size_hint
         self._async_writable: Optional[AsyncQueueWritableStream] = None
         self._put_thread: Optional[threading.Thread] = None
         self._exc: Optional[BaseException] = None
 
     async def __aenter__(self) -> WritableStream:
-        async_writable, blocking_collect = async_writable_blocking_collect_pair(256 * 1024)
+        async_writable, blocking_collect = async_writable_blocking_collect_pair(self._size_hint)
         self._async_writable = async_writable
 
         def put():
@@ -240,8 +241,10 @@ class S3MultiPartCreate(MultiPartCreate):
                                 MultipartUpload={'Parts': parts},
                                 UploadId=self._upload_id)
 
-    async def create_part(self, number: int, start: int) -> S3CreatePartManager:  # pylint: disable=unused-argument
-        return S3CreatePartManager(self, number)
+    async def create_part(self, number: int, start: int, size_hint: Optional[int] = None) -> S3CreatePartManager:  # pylint: disable=unused-argument
+        if size_hint is None:
+            size_hint = 256 * 1024
+        return S3CreatePartManager(self, number, size_hint)
 
 
 class S3AsyncFS(AsyncFS):

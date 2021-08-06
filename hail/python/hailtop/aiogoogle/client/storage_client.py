@@ -478,7 +478,7 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
     def _part_name(self, number: int) -> str:
         return self._tmp_name(f'part-{number}')
 
-    async def create_part(self, number: int, start: int) -> WritableStream:
+    async def create_part(self, number: int, start: int, size_hint: Optional[int] = None) -> WritableStream:  # pylint: disable=unused-argument
         part_name = self._part_name(number)
         params = {
             'uploadType': 'media'
