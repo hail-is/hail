@@ -14,6 +14,7 @@ import humanize
 from hailtop.utils import (
     retry_transient_errors, blocking_to_async, url_basename, url_join, bounded_gather2,
     time_msecs, humanize_timedelta_msecs, OnlineBoundedGather2)
+from .weighted_semaphore import WeightedSemaphore
 from .stream import ReadableStream, WritableStream, blocking_readable_stream_to_async, blocking_writable_stream_to_async
 
 
@@ -546,8 +547,9 @@ class SourceCopier:
     created for each source.
     '''
 
-    def __init__(self, router_fs: 'RouterAsyncFS', src: str, dest: str, treat_dest_as: str, dest_type_task):
+    def __init__(self, router_fs: 'RouterAsyncFS', xfer_sema: WeightedSemaphore, src: str, dest: str, treat_dest_as: str, dest_type_task):
         self.router_fs = router_fs
+        self.xfer_sema = xfer_sema
         self.src = src
         self.dest = dest
         self.treat_dest_as = treat_dest_as
@@ -591,16 +593,16 @@ class SourceCopier:
                          part_creator: MultiPartCreate,
                          return_exceptions: bool) -> None:
         try:
-            async with await self.router_fs.open_from(srcfile, part_number * part_size) as srcf:
-                async with await part_creator.create_part(part_number, part_number * part_size, size_hint=this_part_size) as destf:
-                    n = this_part_size
-                    while n > 0:
-                        b = await srcf.read(min(Copier.BUFFER_SIZE, n))
-                        assert b
-                        print(f'in _copy_part read {len(b)} of {n}')
-                        written = await destf.write(b)
-                        assert written == len(b)
-                        n -= len(b)
+            async with self.xfer_sema.acquire_manager(this_part_size):
+                async with await self.router_fs.open_from(srcfile, part_number * part_size) as srcf:
+                    async with await part_creator.create_part(part_number, part_number * part_size, size_hint=this_part_size) as destf:
+                        n = this_part_size
+                        while n > 0:
+                            b = await srcf.read(min(Copier.BUFFER_SIZE, n))
+                            assert b
+                            written = await destf.write(b)
+                            assert written == len(b)
+                            n -= len(b)
         except Exception as e:
             if return_exceptions:
                 source_report.set_exception(e)
@@ -793,11 +795,11 @@ class Copier:
     This class implements copy for a list of transfers.
     '''
 
-    # BUFFER_SIZE = 256 * 1024
     BUFFER_SIZE = 8 * 1024 * 1024
 
     def __init__(self, router_fs):
         self.router_fs = router_fs
+        self.xfer_sema = WeightedSemaphore(80 * 1024 * 1024)
 
     async def _dest_type(self, transfer: Transfer):
         '''Return the (real or assumed) type of `dest`.
@@ -822,7 +824,7 @@ class Copier:
         return dest_type
 
     async def copy_source(self, sema: asyncio.Semaphore, transfer: Transfer, source_report: SourceReport, src: str, dest_type_task, return_exceptions: bool):
-        src_copier = SourceCopier(self.router_fs, src, transfer.dest, transfer.treat_dest_as, dest_type_task)
+        src_copier = SourceCopier(self.router_fs, self.xfer_sema, src, transfer.dest, transfer.treat_dest_as, dest_type_task)
         await src_copier.copy(sema, source_report, return_exceptions)
 
     async def _copy_one_transfer(self, sema: asyncio.Semaphore, transfer_report: TransferReport, transfer: Transfer, return_exceptions: bool):
