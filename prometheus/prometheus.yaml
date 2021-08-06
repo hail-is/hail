@@ -127,9 +127,10 @@ data:
          replacement: pr
        metric_relabel_configs:
        - source_labels: [namespace]
-         action: drop
+         action: replace
          regex: pr-.*
          replacement: pr
+         target_label: namespace
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -149,9 +150,9 @@ spec:
       labels:
         app: prometheus
     spec:
-      priorityClassName: infrastructure
       serviceAccountName: prometheus
 {% if deploy %}
+      priorityClassName: infrastructure
       nodeSelector:
         preemptible: "false"
 {% else %}
