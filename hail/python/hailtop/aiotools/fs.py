@@ -592,7 +592,7 @@ class SourceCopier:
                          return_exceptions: bool) -> None:
         try:
             async with await self.router_fs.open_from(srcfile, part_number * part_size) as srcf:
-                async with await part_creator.create_part(part_number, part_number * part_size) as destf:  # , size_hint=this_part_size
+                async with await part_creator.create_part(part_number, part_number * part_size, size_hint=this_part_size) as destf:
                     n = this_part_size
                     while n > 0:
                         b = await srcf.read(min(Copier.BUFFER_SIZE, n))
@@ -792,7 +792,8 @@ class Copier:
     This class implements copy for a list of transfers.
     '''
 
-    BUFFER_SIZE = 256 * 1024
+    # BUFFER_SIZE = 256 * 1024
+    BUFFER_SIZE = 8 * 1024 * 1024
 
     def __init__(self, router_fs):
         self.router_fs = router_fs
