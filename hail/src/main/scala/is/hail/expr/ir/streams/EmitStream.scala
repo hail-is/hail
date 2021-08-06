@@ -1092,6 +1092,7 @@ object EmitStream {
                     cb.define(LpullRight)
                     if (rightProducer.requiresMemoryManagementPerElement)
                       cb += rightProducer.elementRegion.clearRegion()
+                    cb.assign(pulledRight, true)
                     cb.goto(rightProducer.LproduceElement)
 
                     cb.define(LpullLeft)
@@ -1113,10 +1114,8 @@ object EmitStream {
                             }
                             cb.goto(Lpush)
                           },
-                            {
-                              cb.assign(pulledRight, true)
-                              cb.goto(LpullRight)
-                            })
+                            cb.goto(LpullRight)
+                          )
                         },
                         {
                           cb.ifx(c < 0,
@@ -1175,10 +1174,8 @@ object EmitStream {
                             cb.goto(Lcompare)
                           }
                         ),
-                        {
-                          cb.assign(pulledRight, true)
-                          cb.goto(LpullRight)
-                        })
+                        cb.goto(LpullRight)
+                      )
                     }
 
                     mb.implementLabel(leftProducer.LendOfStream) { cb =>
@@ -1196,8 +1193,6 @@ object EmitStream {
                               cb.goto(Lpush)
                             },
                             {
-                              cb.assign(pulledRight, true)
-
                               if (rightProducer.requiresMemoryManagementPerElement) {
                                 cb += rightProducer.elementRegion.clearRegion()
                               }
