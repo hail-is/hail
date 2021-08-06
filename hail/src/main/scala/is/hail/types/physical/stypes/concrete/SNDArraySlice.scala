@@ -19,24 +19,28 @@ case class SNDArraySlice(pType: PCanonicalNDArray) extends SNDArray {
 
   override def elementPType: PType = pType.elementType
 
-  lazy val virtualType: TNDArray = pType.virtualType
+  override lazy val virtualType: TNDArray = pType.virtualType
+
+  override def copiedType: SType = SNDArrayPointer(pType)
+
+  override def storageType(): PType = pType
 
   override def castRename(t: Type): SType = SNDArrayPointer(pType.deepRename(t))
 
-  def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = ???
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = ???
 
-  def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
+  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
 
   def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = ???
 
-  def fromSettables(settables: IndexedSeq[Settable[_]]): SNDArraySliceSettable = {
+  override def fromSettables(settables: IndexedSeq[Settable[_]]): SNDArraySliceSettable = {
     val shape = settables.slice(1, 1 + pType.nDims).asInstanceOf[IndexedSeq[Settable[Long@unchecked]]]
     val strides = settables.slice(1 + pType.nDims, 1 + 2 * pType.nDims).asInstanceOf[IndexedSeq[Settable[Long@unchecked]]]
     val dataFirstElementPointer = settables.last.asInstanceOf[Settable[Long]]
     new SNDArraySliceSettable(this, shape, strides, dataFirstElementPointer)
   }
 
-  def fromCodes(codes: IndexedSeq[Code[_]]): SNDArraySliceCode = {
+  override def fromCodes(codes: IndexedSeq[Code[_]]): SNDArraySliceCode = {
     val codesT = codes.asInstanceOf[IndexedSeq[Code[Long@unchecked]]]
     val shape = codesT.slice(0, nDims)
     val strides = codesT.slice(nDims, 2*nDims)
@@ -45,6 +49,8 @@ case class SNDArraySlice(pType: PCanonicalNDArray) extends SNDArray {
   }
 
   def canonicalPType(): PType = pType
+
+  override def containsPointers: Boolean = true
 }
 
 object SNDArraySliceSettable {
@@ -65,17 +71,17 @@ class SNDArraySliceSettable(
 ) extends SNDArrayValue with SSettable {
   val pt: PCanonicalNDArray = st.pType
 
-  def loadElementAddress(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Long] = {
+  override def loadElementAddress(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Long] = {
     assert(indices.size == pt.nDims)
     pt.loadElementFromDataAndStrides(cb, indices, dataFirstElement, strides)
   }
 
-  def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SCode =
+  override def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SCode =
     pt.elementType.loadCheapSCode(cb, loadElementAddress(indices, cb))
 
-  def settableTuple(): IndexedSeq[Settable[_]] = shape ++ strides :+ dataFirstElement
+  override def settableTuple(): IndexedSeq[Settable[_]] = shape ++ strides :+ dataFirstElement
 
-  def store(cb: EmitCodeBuilder, v: SCode): Unit = {
+  override def store(cb: EmitCodeBuilder, v: SCode): Unit = {
     val vSlice = v.asInstanceOf[SNDArraySliceCode]
     shape.zip(vSlice.shape).foreach { case (x, s) => cb.assign(x, s) }
     strides.zip(vSlice.strides).foreach { case (x, s) => cb.assign(x, s) }
@@ -88,9 +94,9 @@ class SNDArraySliceSettable(
 
   override def strides(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = strides
 
-  def firstDataAddress(cb: EmitCodeBuilder): Value[Long] = dataFirstElement
+  override def firstDataAddress(cb: EmitCodeBuilder): Value[Long] = dataFirstElement
 
-  def coiterateMutate(
+  override def coiterateMutate(
     cb: EmitCodeBuilder,
     region: Value[Region],
     deepCopy: Boolean,
