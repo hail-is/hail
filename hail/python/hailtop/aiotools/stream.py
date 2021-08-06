@@ -143,7 +143,7 @@ class BlockingQueueReadableStream(io.RawIOBase):
         self._q = q
         self._saw_eos = False
         self._closed = False
-        self._unread = b''
+        self._unread = memoryview(b'')
         self._off = 0
 
     def readable(self) -> bool:
@@ -160,13 +160,13 @@ class BlockingQueueReadableStream(io.RawIOBase):
         # error in some cases.
         total = 0
         while total < len(b):
-            if self._off == len(self._unread):
+            if self._off == len(self._unread) - self._off:
                 self._unread = self._q.sync_q.get()
-                self._off = 0
                 if self._unread is None:
                     self._saw_eos = True
                     return total
-                assert self._unread
+                self._off = 0
+                self._unread = memoryview(self._unread)
 
             n = min(len(self._unread) - self._off, len(b) - total)
             b[total:total + n] = self._unread[self._off:self._off + n]
