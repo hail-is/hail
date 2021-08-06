@@ -96,10 +96,12 @@ case class StringTablePartitionReader(lines: GenericLines) extends PartitionRead
          }
          override val element: EmitCode = EmitCode.fromI(cb.emb) { cb =>
            val reqType: TStruct = requestedType.asInstanceOf[TStruct]
-
+           val requestedFields = IndexedSeq[Option[EmitCode]](
+             reqType.selfField("file").map(x => EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, SJavaString.construct(fileName)))),
+             reqType.selfField("text").map(x => EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, SJavaString.construct(line))))
+           ).flatten.toIndexedSeq
            IEmitCode.present(cb, SStackStruct.constructFromArgs(cb, elementRegion, reqType,
-             EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, SJavaString.construct(fileName))),
-             EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, SJavaString.construct(line)))))
+             requestedFields: _*))
          }
 
          override def close(cb: EmitCodeBuilder): Unit = {
@@ -123,6 +125,7 @@ class StringTableReader(
 
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
     val fs = ctx.fs
+    println(requestedType.rowType)
     val lines = GenericLines.read(fs, fileStatuses, None, None, params.minPartitions, false, true)
     TableStage(globals = MakeStruct(FastSeq()),
       partitioner = RVDPartitioner.unkeyed(lines.nPartitions),
@@ -136,6 +139,7 @@ class StringTableReader(
 
   override def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
     val ts = lower(ctx, tr.typ)
+    println(tr.typ)
     val (broadCastRow, rVD) = TableStageToRVD.apply(ctx, ts, Map[String, IR]())
     TableValue(ctx, tr.typ, broadCastRow, rVD)
   }
