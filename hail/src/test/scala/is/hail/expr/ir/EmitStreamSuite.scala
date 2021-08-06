@@ -219,8 +219,8 @@ class EmitStreamSuite extends HailSuite {
     (0 until N).foreach { i =>
       (i + 1 until N).foreach { j =>
         val entry = results(i)(j)
-        // Expected value of entry is 5000
-        assert(entry > 4000 && entry < 6000)
+        // Expected value of entry is 5263.
+        assert(entry > 4880 && entry < 5650)
       }
     }
   }
