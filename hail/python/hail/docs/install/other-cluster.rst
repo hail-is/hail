@@ -38,6 +38,10 @@ The next block of commands downloads, builds, and installs Hail from source.
     cd hail/hail
     make install-on-cluster HAIL_COMPILE_NATIVES=1 SCALA_VERSION=2.11.12 SPARK_VERSION=2.4.5
 
+If you forget to install any of the requirements before running `make install-on-cluster`, it's possible
+to get into a bad state where `make` insists you don't have a requirement that you have in fact installed.
+Try doing `make clean` and then a fresh invocation of the `make install-on-cluster` line if this happens.
+
 On every worker node of the cluster, you must install a BLAS and LAPACK library
 such as the Intel MKL or OpenBLAS. On a Debian-like system you might try the
 following on every worker node.
