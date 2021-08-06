@@ -1120,6 +1120,27 @@ Exception in thread "main" java.lang.RuntimeException: invalid sort order: b
         self.assertEqual(inner_join.collect(), inner_join_expected)
         self.assertEqual(outer_join.collect(), outer_join_expected)
 
+    def test_join_types(self):
+        ht1 = hl.utils.range_table(3, 3)
+        ht1 = ht1.key_by(idx=ht1.idx + 1)
+        ht1 = ht1.annotate(L_DUP=hl.range(ht1.idx)).explode('L_DUP')
+        assert ht1.idx.collect() == [1, *([2] * 2), *([3] * 3)]
+
+        ht2 = hl.utils.range_table(3, 3)
+        ht2 = ht2.key_by(idx=ht2.idx + 2)
+        ht2 = ht2.annotate(R_DUP=hl.range(ht2.idx)).explode('R_DUP')
+        assert ht2.idx.collect() == [*([2] * 2), *([3] * 3), *([4] * 4)]
+
+        left = ht1.join(ht2, 'left')
+        right = ht1.join(ht2, 'right')
+        inner = ht1.join(ht2, 'inner')
+        outer = ht1.join(ht2, 'outer')
+
+        assert left.idx.collect() == [1, *([2] * 4), *([3] * 9)]
+        assert right.idx.collect() == [*([2] * 4), *([3] * 9), *([4] * 4)]
+        assert inner.idx.collect() == [*([2] * 4), *([3] * 9)]
+        assert outer.idx.collect() == [1, *([2] * 4), *([3] * 9), *([4] * 4)]
+
     @fails_service_backend()
     @fails_local_backend()
     def test_partitioning_rewrite(self):
