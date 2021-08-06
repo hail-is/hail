@@ -1039,6 +1039,7 @@ object EmitStream {
                 val rxOut = mb.newEmitField(rEltType.copy(required = false)) // right value in joinF (may be missing while rx is not)
 
                 val pulledRight = mb.genFieldThisRef[Boolean]("join_right_distinct_pulledRight")
+                val pushedRight = mb.genFieldThisRef[Boolean]("join_right_distinct_pushedRight")
                 val rightEOS = mb.genFieldThisRef[Boolean]("join_right_distinct_rightEOS")
                 val lOutMissing = mb.genFieldThisRef[Boolean]("join_right_distinct_leftMissing")
                 val rOutMissing = mb.genFieldThisRef[Boolean]("join_right_distinct_rightMissing")
@@ -1105,7 +1106,7 @@ object EmitStream {
                       cb.assign(rOutMissing, false)
                       cb.ifx(c > 0,
                         {
-                          cb.ifx(pulledRight, {
+                          cb.ifx(pulledRight && !pushedRight, {
                             cb.assign(lOutMissing, true)
                             if (rightProducer.requiresMemoryManagementPerElement) {
                               cb += elementRegion.trackAndIncrementReferenceCountOf(rightProducer.elementRegion)
@@ -1146,13 +1147,17 @@ object EmitStream {
                       )
                       cb.ifx(rOutMissing,
                         cb.assign(rxOut, EmitCode.missing(mb, rxOut.st)),
-                        cb.assign(rxOut, rx))
+                         {
+                           cb.assign(rxOut, rx)
+                           cb.assign(pushedRight, true)
+                         })
                       cb.goto(LproduceElementDone)
                     }
 
 
                     mb.implementLabel(rightProducer.LproduceElementDone) { cb =>
                       cb.assign(rx, rightProducer.element)
+                      cb.assign(pushedRight, false)
                       cb.ifx(leftEOS, cb.goto(Lpush), cb.goto(Lcompare))
                     }
 
@@ -1167,8 +1172,6 @@ object EmitStream {
                             cb.goto(Lpush)
                           },
                           {
-                            cb.ifx(c.ceq(0),
-                              cb.assign(pulledRight, false))
                             cb.goto(Lcompare)
                           }
                         ),
