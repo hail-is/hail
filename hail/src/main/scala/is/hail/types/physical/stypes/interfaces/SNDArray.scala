@@ -273,13 +273,15 @@ trait SNDArrayValue extends SValue {
     outOfBounds
   }
 
-  def assertInBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder, errorId: Int): Code[Unit] = {
+  def assertInBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder, errorId: Int): Unit = {
     val shape = this.shapes(cb)
-    Code.foreach(0 until st.nDims) { dimIndex =>
-      val eMsg = const("Index ").concat(indices(dimIndex).toS)
-        .concat(s" is out of bounds for axis $dimIndex with size ")
-        .concat(shape(dimIndex).toS)
-      (indices(dimIndex) >= shape(dimIndex)).orEmpty(Code._fatalWithID[Unit](eMsg, errorId))
+    for (dimIndex <- 0 until st.nDims) {
+      cb.ifx(indices(dimIndex) >= shape(dimIndex), {
+        cb._fatalWithError(errorId,
+          "Index ", indices(dimIndex).toS,
+          s" is out of bounds for axis $dimIndex with size ",
+          shape(dimIndex).toS)
+      })
     }
   }
 

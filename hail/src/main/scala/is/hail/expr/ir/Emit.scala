@@ -1421,7 +1421,7 @@ class Emit[C](
             }
 
             val ndValue = ndCode.memoize(cb, "reffed_ndarray")
-            cb.append(ndValue.assertInBounds(idxValues, cb, errorId))
+            ndValue.assertInBounds(idxValues, cb, errorId)
 
             ndValue.loadElement(idxValues, cb)
           }
