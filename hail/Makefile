@@ -252,18 +252,18 @@ upload-artifacts: $(WHEEL)
 .PHONY: install-editable
 install-editable: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
 install-editable: python/README.md $(PYTHON_JAR)
-	-$(PIP) uninstall -y hail
+	-$(PIP) uninstall -y hail || true
 	cd python && $(PIP) install -e .
 
 .PHONY: install
 install: $(WHEEL)
-	-$(PIP) uninstall -y hail
+	-$(PIP) uninstall -y hail || true
 	$(PIP) install $(WHEEL)
 
 .PHONY: install-on-cluster
 install-on-cluster: $(WHEEL)
 	sed '/^pyspark/d' python/requirements.txt | grep -v '^#' | xargs $(PIP) install -U
-	-$(PIP) uninstall -y hail
+	-$(PIP) uninstall -y hail || true
 	$(PIP) install $(WHEEL) --no-deps
 
 .PHONY: install-hailctl
