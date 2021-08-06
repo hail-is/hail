@@ -350,32 +350,29 @@ object StreamJoin {
 
     // stream of {key, groupField}, where 'groupField' is an array of all rows
     // in 'right' with key 'key'
-    val rightGrouped =
-      mapIR(rightGroupedStream) { group =>
-        bindIR(ToArray(group)) { array =>
-          bindIR(ArrayRef(array, 0)) { head =>
-            MakeStruct(rKey.map { key => key -> GetField(head, key) } :+ groupField -> array)
-          }
+    val rightGrouped = mapIR(rightGroupedStream) { group =>
+      bindIR(ToArray(group)) { array =>
+        bindIR(ArrayRef(array, 0)) { head =>
+          MakeStruct(rKey.map { key => key -> GetField(head, key) } :+ groupField -> array)
         }
       }
+    }
     val rElt = Ref(genUID(), coerce[TStream](rightGrouped.typ).elementType)
-    val nested = bindIR(GetField(rElt, groupField)) { rGroup =>
-      if (joinType == "left" || joinType == "outer") {
-        // Given a left element in 'l' and array of right elements in 'rGroup',
-        // compute array of results of 'joinF'. If 'rGroup' is missing, apply
-        // 'joinF' once to a missing right element.
-        StreamMap(If(IsNA(rGroup), MakeStream.unify(FastSeq(NA(rEltType))), ToStream(rGroup)), r, joinF)
-      } else {
-        StreamMap(ToStream(rGroup), r, joinF)
+    val lElt = Ref(genUID(), lEltType)
+    val makeTupleFromJoin = MakeStruct(FastSeq("left" -> lElt, "rightGroup" -> rElt))
+    val joined = StreamJoinRightDistinct(left, rightGrouped, lKey, rKey, lElt.name, rElt.name, makeTupleFromJoin, joinType)
+
+    // joined is a stream of {leftElement, rightGroup}
+    bindIR(MakeArray(NA(rEltType))) { missingSingleton =>
+      flatMapIR(joined) { x =>
+        Let(l, GetField(x, "left"), bindIR(GetField(GetField(x, "rightGroup"), groupField)) { rightElts =>
+          joinType match {
+            case "left" | "outer" => StreamMap(ToStream(If(IsNA(rightElts), missingSingleton, rightElts)), r, joinF)
+            case "right" | "inner" => StreamMap(ToStream(rightElts), r, joinF)
+          }
+        })
       }
     }
-    val rightDistinctJoinType =
-      if (joinType == "left" || joinType == "inner") "left" else "outer"
-
-    val joined = StreamJoinRightDistinct(left, rightGrouped, lKey, rKey, l, rElt.name, nested, rightDistinctJoinType)
-    val exploded = flatMapIR(joined) { x => x }
-
-    exploded
   }
 }
 

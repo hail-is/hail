@@ -234,8 +234,8 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         }
         states.bind(node, s)
       case StreamJoinRightDistinct(left, right, lKey, rKey, l, r, joinf, joinType) =>
-        addElementBinding(l, left, makeOptional = (joinType == "outer"))
-        addElementBinding(r, right, makeOptional = true)
+        addElementBinding(l, left, makeOptional = (joinType == "outer" || joinType == "right"))
+        addElementBinding(r, right, makeOptional = (joinType == "outer" || joinType == "left"))
       case StreamAgg(a, name, query) =>
         addElementBinding(name, a)
       case StreamAggScan(a, name, query) =>
