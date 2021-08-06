@@ -103,11 +103,16 @@ def test_map_timeout():
             pass
         else:
             assert False
+        finally:
+            for f in bpe.futures:
+                f.cancel()
 
 
 def test_map_error_without_wait_no_error():
     with BatchPoolExecutor(project='hail-vdc', wait_on_exit=False, image=PYTHON_DILL_IMAGE) as bpe:
         bpe.map(lambda _: time.sleep(10), range(5), timeout=2)
+    for f in bpe.futures:
+        f.cancel()
 
 
 def test_exception_in_map():
