@@ -241,30 +241,16 @@ class BatchPoolExecutor:
             fn = chunk(fn)
             iterables = iterables_chunks
 
-        tasks = [asyncio.create_task(self.async_submit(fn, *arguments))
-                 for arguments in zip(*iterables)]
-
+        done, pending = await asyncio.wait([self.async_submit(fn, *arguments)
+                                            for arguments in zip(*iterables)],
+                                           return_when=asyncio.ALL_COMPLETED)
         try:
-            bp_futures: List[BatchPoolFuture] = await asyncio.gather(*tasks)
-        finally:
-            _, exc, _ = sys.exc_info()
-            if exc is not None:
-                for task in tasks:
-                    if not task.done():
-                        task.cancel()
-
-                if tasks:
-                    await asyncio.wait(tasks)
-
-                bp_futures = []
-                for task in tasks:
-                    assert task.done()
-                    if not task.cancelled() and not task.exception():
-                        bp_future = task.result()
-                        bp_futures.append(bp_future)
-
-                if bp_futures:
-                    await asyncio.gather(*[bp_fut.async_cancel() for bp_fut in bp_futures], return_exceptions=True)
+            assert not pending
+            bp_futures = [f.result() for f in done]
+        except:
+            for f in done:
+                if not f.exception():
+                    await f.result().async_cancel()
 
         async def async_result_or_cancel_all(future):
             try:
@@ -397,12 +383,15 @@ with open(\\"{j.ofile}\\", \\"wb\\") as out:
         batch.write_output(j.ofile, output_gcs)
         backend_batch = batch.run(wait=False,
                                   disable_progress_bar=True)._async_batch
-
-        return BatchPoolFuture(self,
-                               backend_batch,
-                               low_level_batch_client.Job.submitted_job(
-                                   backend_batch, 1),
-                               output_gcs)
+        try:
+            return BatchPoolFuture(self,
+                                   backend_batch,
+                                   low_level_batch_client.Job.submitted_job(
+                                       backend_batch, 1),
+                                   output_gcs)
+        except:
+            await backend_batch.cancel()
+            raise
 
     def __exit__(self,
                  exc_type: Optional[Type[BaseException]],
