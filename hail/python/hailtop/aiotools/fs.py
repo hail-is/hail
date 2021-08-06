@@ -592,7 +592,7 @@ class SourceCopier:
                          return_exceptions: bool) -> None:
         try:
             async with await self.router_fs.open_from(srcfile, part_number * part_size) as srcf:
-                async with await part_creator.create_part(part_number, part_number * part_size, size_hint=this_part_size) as destf:
+                async with await part_creator.create_part(part_number, part_number * part_size) as destf:  # , size_hint=this_part_size
                     n = this_part_size
                     while n > 0:
                         b = await srcf.read(min(Copier.BUFFER_SIZE, n))
