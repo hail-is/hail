@@ -338,6 +338,50 @@ class EmitStreamSuite extends HailSuite {
     }
   }
 
+  @Test def testStreamJoinOuterWithKeyRepeats() {
+    val lEltType = TStruct("k" -> TInt32, "idx_left" -> TInt32)
+    val lRows = FastIndexedSeq(
+      Row(1, 1),
+      Row(1, 2),
+      Row(1, 3),
+      Row(3, 4)
+    )
+
+    val a = ToStream(
+      Literal(
+        TArray(lEltType),
+        lRows
+    ))
+
+    val rEltType = TStruct("k" -> TInt32, "idx_right" -> TInt32)
+    val rRows = FastIndexedSeq(
+      Row(1, 1),
+      Row(2, 2),
+      Row(4, 3)
+    )
+    val b = ToStream(
+      Literal(
+        TArray(rEltType),
+        rRows
+      ))
+
+    val ir = StreamJoinRightDistinct(a, b,
+      FastIndexedSeq("k"), FastIndexedSeq("k"),
+      "L", "R",
+      MakeStruct(FastSeq("left" -> Ref("L", lEltType), "right" -> Ref("R", rEltType))),
+      "outer")
+
+    val compiled = evalStream(ir)
+    val expected = FastIndexedSeq(
+      Row( Row(1, 1), Row(1, 1)),
+      Row( Row(1, 2), Row(1, 1)),
+      Row( Row(1, 3), Row(1, 1)),
+      Row( null,  Row(2, 2)),
+      Row( Row(3, 4), null),
+      Row(null, Row(4, 3)))
+    assert(compiled == expected)
+  }
+
   @Test def testEmitScan() {
     def a = Ref("a", TInt32)
 

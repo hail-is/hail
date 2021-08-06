@@ -21,7 +21,7 @@ async def insert_user_if_not_exists(db, username, email):
             ('creating', username, email, 1, 0),
         )
 
-    return await insert(db)
+    return await insert()
 
 
 async def main():

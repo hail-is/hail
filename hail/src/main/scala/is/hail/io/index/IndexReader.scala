@@ -282,7 +282,10 @@ final case class InternalNode(children: IndexedSeq[InternalChild]) extends Index
 final case class LeafChild(
   key: Annotation,
   recordOffset: Long,
-  annotation: Annotation)
+  annotation: Annotation) {
+
+  def longChild(j: Int): Long = annotation.asInstanceOf[Row].getAs[Long](j)
+}
 
 object LeafNode {
   def apply(r: Row): LeafNode = {
