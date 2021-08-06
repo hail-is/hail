@@ -1185,7 +1185,7 @@ object EmitStream {
                           cb.assign(leftEOS, true)
                           cb.assign(lOutMissing, true)
                           cb.assign(rOutMissing, false)
-                          cb.ifx(pulledRight && c.cne(0),
+                          cb.ifx(pulledRight && !pushedRight,
                             {
                               if (rightProducer.requiresMemoryManagementPerElement) {
                                 cb += elementRegion.trackAndIncrementReferenceCountOf(rightProducer.elementRegion)
