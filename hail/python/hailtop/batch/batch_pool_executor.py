@@ -487,7 +487,6 @@ class BatchPoolFuture:
             self.fetch_coro.result()
             return False
 
-        await self.batch.cancel()
         self.fetch_coro.cancel()
         await asyncio.wait([self.fetch_coro])
         return True
@@ -545,7 +544,7 @@ class BatchPoolFuture:
         if self.cancelled():
             raise concurrent.futures.CancelledError()
         try:
-            return await asyncio.wait_for(self.fetch_coro, timeout=timeout)
+            return await asyncio.wait_for(asyncio.shield(self.fetch_coro), timeout=timeout)
         except asyncio.TimeoutError as e:
             raise concurrent.futures.TimeoutError() from e
 
