@@ -150,40 +150,5 @@ class StringTableReader(
     (PCanonicalStruct(IndexedSeq(PField("file", PCanonicalString(true), 0),
                                 PField("text", PCanonicalString(true), 1)), true).subsetTo(requestedType.rowType).asInstanceOf[PStruct],
      PCanonicalStruct.empty(required = true))
-
-  def executeGeneric(ctx: ExecuteContext): GenericTableValue = {
-    val fs = ctx.fs
-    val lines = GenericLines.read(fs, fileStatuses,
-                                  None, None, params.minPartitions, false, true)
-    val partitioner: Option[RVDPartitioner] = None
-    val globals: TStruct => Row = _ => Row.empty
-    val fullRowType = rowAndGlobalPTypes(ctx, fullType)._1
-    val bodyPType: TStruct => PStruct = (requestedRowType: TStruct) => fullRowType.subsetTo(requestedRowType).asInstanceOf[PStruct]
-    val linesBody = lines.body
-    val body = { (requestedRowType: TStruct) =>
-      val requestedPType = bodyPType(requestedRowType)
-      val rowFieldNames = requestedRowType.fieldNames
-
-      { (region: Region, context: Any) =>
-        val rvb = new RegionValueBuilder(region)
-        linesBody(context).map{ bLine =>
-          val line = bLine.toString
-          rvb.start(requestedPType)
-          rvb.startStruct()
-          var i = 0
-          if (rowFieldNames.contains("file")) rvb.addAnnotation(TString, bLine.file)
-          if (rowFieldNames.contains("text")) rvb.addAnnotation(TString, line)
-          rvb.endStruct()
-          rvb.end()
-        }
-      }
-    }
-    new GenericTableValue(partitioner = partitioner,
-      fullTableType = fullType,
-      globals = globals,
-      contextType = lines.contextType,
-      contexts = lines.contexts,
-      bodyPType = bodyPType,
-      body = body)
-  }
+  
 }
