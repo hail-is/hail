@@ -925,6 +925,12 @@ class CodeLong(val lhs: Code[Long]) extends AnyVal {
 
   def >=(rhs: Code[Long]): Code[Boolean] = compare(rhs) >= 0
 
+  def max(rhs: Code[Long]): Code[Long] =
+    Code.invokeStatic2[Math, Long, Long, Long]("max", lhs, rhs)
+
+  def min(rhs: Code[Long]): Code[Long] =
+    Code.invokeStatic2[Math, Long, Long, Long]("min", lhs, rhs)
+
   def ceq(rhs: Code[Long]): Code[Boolean] = compare(rhs) ceq 0
 
   def cne(rhs: Code[Long]): Code[Boolean] = compare(rhs) cne 0
