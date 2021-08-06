@@ -452,6 +452,58 @@ object EmitStream {
           }
         }
 
+
+      case SeqSample(totalSize, numToSample, _requiresMemoryManagementPerElement) =>
+        // Implemented based on http://www.ittc.ku.edu/~jsv/Papers/Vit84.sampling.pdf Algorithm A
+        emit(totalSize, cb).flatMap(cb) { totalSizeCode =>
+          emit(numToSample, cb).map(cb) { numToSampleCode =>
+            val totalSizeVal = totalSizeCode.asInt.memoize(cb, "seq_sample_total_size")
+            val numToSampleVal = numToSampleCode.asInt.memoize(cb, "seq_sample_num_to_sample")
+
+            val len = mb.genFieldThisRef[Int]("seq_sample_len")
+            val regionVar = mb.genFieldThisRef[Region]("seq_sample_region")
+
+            val nRemaining = cb.newLocal[Int]("seq_sample_num_remaining", numToSampleVal.intCode(cb))
+            val candidate = cb.newLocal[Int]("seq_sample_candidate", 0)
+            val elementToReturn = cb.newLocal[Int]("seq_sample_element_to_return", -1) // -1 should never be returned.
+
+            val producer = new StreamProducer {
+              override val length: Option[EmitCodeBuilder => Code[Int]] = Some(_ => len)
+
+              override def initialize(cb: EmitCodeBuilder): Unit = {
+                cb.assign(len, numToSampleVal.asInt.intCode(cb))
+                cb.assign(nRemaining, numToSampleVal.intCode(cb))
+                cb.assign(candidate, 0)
+                cb.assign(elementToReturn, -1)
+              }
+
+              override val elementRegion: Settable[Region] = regionVar
+
+              override val requiresMemoryManagementPerElement: Boolean = _requiresMemoryManagementPerElement
+
+              override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
+                cb.ifx(nRemaining <= 0, cb.goto(LendOfStream))
+
+                val u = cb.newLocal[Double]("seq_sample_rand_unif", Code.invokeStatic0[Math, Double]("random"))
+                val fC = cb.newLocal[Double]("seq_sample_Fc", (totalSizeVal.intCode(cb) - candidate - nRemaining).toD / (totalSizeVal.intCode(cb) - candidate).toD)
+
+                cb.whileLoop(fC > u, {
+                  cb.assign(candidate, candidate + 1)
+                  cb.assign(fC, fC * (const(1.0) - (nRemaining.toD / (totalSizeVal.intCode(cb) - candidate).toD)))
+                })
+                cb.assign(nRemaining, nRemaining - 1)
+                cb.assign(elementToReturn, candidate)
+                cb.assign(candidate, candidate + 1)
+                cb.goto(LproduceElementDone)
+              }
+
+              override val element: EmitCode = EmitCode.present(mb, new SInt32Code(elementToReturn))
+
+              override def close(cb: EmitCodeBuilder): Unit = {}
+            }
+            SStreamCode(producer)
+          }
+        }
       case StreamFilter(a, name, cond) =>
         produce(a, cb)
           .map(cb) { case (childStream: SStreamCode) =>

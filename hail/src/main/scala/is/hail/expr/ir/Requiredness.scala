@@ -451,6 +451,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
            _: StreamLen |
            _: ArrayZeros |
            _: StreamRange |
+           _: SeqSample |
            _: WriteValue =>
         requiredness.union(node.children.forall { case c: IR => lookup(c).required })
       case x: ApplyComparisonOp if x.op.strict =>

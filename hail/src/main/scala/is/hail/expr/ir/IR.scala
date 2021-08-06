@@ -279,6 +279,9 @@ final case class StreamMap(a: IR, name: String, body: IR) extends IR {
 final case class StreamTake(a: IR, num: IR) extends IR
 final case class StreamDrop(a: IR, num: IR) extends IR
 
+// Generate, in ascending order, a uniform random sample, without replacement, of numToSample integers in the range [0, totalRange)
+final case class SeqSample(totalRange: IR, numToSample: IR, requiresMemoryManagementPerElement: Boolean) extends IR
+
 object ArrayZipBehavior extends Enumeration {
   type ArrayZipBehavior = Value
   val AssumeSameLength: Value = Value(0)
