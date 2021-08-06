@@ -243,7 +243,6 @@ class BlockingCollect(_Closable):
                 # Invalid type for parameter Body, value: <memory at 0x7f512801b6d0>, type: <class 'memoryview'>, valid types: <class 'bytes'>, <class 'bytearray'>, file-like object
                 if off == len(buf):
                     return buf
-                print('slicing :-(')
                 return buf[:off]
 
             k = len(b)
@@ -251,7 +250,6 @@ class BlockingCollect(_Closable):
                 new_n = n * 2
                 while k > new_n - off:
                     new_n *= 2
-                print(f'reallocating {n} => {new_n}')
                 new_buf = bytearray(new_n)
                 view = memoryview(buf)
                 new_buf[:off] = view[:off]
