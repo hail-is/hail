@@ -184,9 +184,9 @@ class LocalBackend(Backend[None]):
                     if r._input_path.startswith('gs://'):
                         return [f'gsutil {requester_pays_project} cp -r {shq(r._input_path)} {shq(r._get_path(tmpdir))}']
 
-                    absolute_input_path = os.path.realpath(r._input_path)
+                    absolute_input_path = os.path.realpath(os.path.expanduser(r._input_path))
 
-                    dest = r._get_path(tmpdir)
+                    dest = r._get_path(os.path.expanduser(tmpdir))
                     dir = os.path.dirname(dest)
                     os.makedirs(dir, exist_ok=True)
 
@@ -203,6 +203,7 @@ class LocalBackend(Backend[None]):
         def copy_external_output(r):
             def _cp(dest):
                 if not dest.startswith('gs://'):
+                    dest = os.path.expanduser(dest)
                     dest = os.path.abspath(dest)
                     directory = os.path.dirname(dest)
                     os.makedirs(directory, exist_ok=True)
@@ -238,7 +239,7 @@ class LocalBackend(Backend[None]):
             for job in batch._jobs:
                 async_to_blocking(job._compile(tmpdir, tmpdir))
 
-                os.makedirs(f'{tmpdir}/{job._job_id}/', exist_ok=True)
+                os.makedirs(f'{tmpdir}/{job._dirname}/', exist_ok=True)
 
                 code = new_code_block()
 
@@ -252,7 +253,8 @@ class LocalBackend(Backend[None]):
                 code += [x for r in job._inputs for x in copy_input(job, r)]
                 code += [x for r in job._mentioned for x in symlink_input_resource_group(r)]
 
-                env = [f'export {k}={v}' for k, v in job._env.items()]
+                env = {**job._env, 'BATCH_TMPDIR': tmpdir}
+                env = [f'export {k}={v}' for k, v in env.items()]
                 joined_env = '; '.join(env) + '; ' if env else ''
 
                 job_shell = job._shell if job._shell else DEFAULT_SHELL
@@ -592,7 +594,7 @@ class ServiceBackend(Backend[bc.Batch]):
                 if verbose:
                     print(f"Using image '{default_image}' since no image was specified.")
 
-            make_local_tmpdir = f'mkdir -p {local_tmpdir}/{job._job_id}'
+            make_local_tmpdir = f'mkdir -p {local_tmpdir}/{job._dirname}'
 
             job_command = [cmd.strip() for cmd in job._wrapper_code]
             prepared_job_command = (f'{{\n{x}\n}}' for x in job_command)
@@ -648,6 +650,8 @@ class ServiceBackend(Backend[bc.Batch]):
                 warnings.warn(f'Using an image {image} not in GCR. '
                               f'Jobs may fail due to Docker Hub rate limits.')
 
+            env = {**job._env, 'BATCH_TMPDIR': local_tmpdir}
+
             j = bc_batch.create_job(image=image,
                                     command=[job._shell if job._shell else DEFAULT_SHELL, '-c', cmd],
                                     parents=parents,
@@ -658,7 +662,7 @@ class ServiceBackend(Backend[bc.Batch]):
                                     always_run=job._always_run,
                                     timeout=job._timeout,
                                     gcsfuse=job._gcsfuse if len(job._gcsfuse) > 0 else None,
-                                    env=job._env,
+                                    env=env,
                                     requester_pays_project=batch.requester_pays_project,
                                     mount_tokens=True,
                                     user_code=user_code)

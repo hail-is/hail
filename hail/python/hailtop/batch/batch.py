@@ -87,6 +87,7 @@ class Batch:
         Automatically cancel the batch after N failures have occurred. The default
         behavior is there is no limit on the number of failures. Only
         applicable for the :class:`.ServiceBackend`. Must be greater than 0.
+
     """
 
     _counter = 0
@@ -118,6 +119,7 @@ class Batch:
         self._allocated_files: Set[str] = set()
         self._input_resources: Set[_resource.InputResourceFile] = set()
         self._uid = Batch._get_uid()
+        self._job_tokens: Set[str] = set()
 
         self._backend = backend if backend else _backend.LocalBackend()
 
@@ -147,6 +149,12 @@ class Batch:
         self._DEPRECATED_fs: Optional[RouterAsyncFS] = None
 
         self._cancel_after_n_failures = cancel_after_n_failures
+
+    def _unique_job_token(self, n=5):
+        token = secret_alnum_string(n)
+        while token in self._job_tokens:
+            token = secret_alnum_string(n)
+        return token
 
     @property
     def _fs(self) -> AsyncFS:
@@ -199,7 +207,8 @@ class Batch:
         if shell is None:
             shell = self._default_shell
 
-        j = job.BashJob(batch=self, name=name, attributes=attributes, shell=shell)
+        token = self._unique_job_token()
+        j = job.BashJob(batch=self, token=token, name=name, attributes=attributes, shell=shell)
 
         if self._default_image is not None:
             j.image(self._default_image)
@@ -267,7 +276,8 @@ class Batch:
         if attributes is None:
             attributes = {}
 
-        j = job.PythonJob(batch=self, name=name, attributes=attributes)
+        token = self._unique_job_token()
+        j = job.PythonJob(batch=self, token=token, name=name, attributes=attributes)
 
         if self._default_python_image is not None:
             j.image(self._default_python_image)
@@ -477,9 +487,6 @@ class Batch:
             raise BatchException(f"undefined resource '{name}'\n"
                                  f"Hint: resources must be bound as a result "
                                  f"using the PythonJob 'call' method")
-
-        if isinstance(self._backend, _backend.LocalBackend):
-            dest = os.path.abspath(dest)
 
         resource._add_output_path(dest)
 

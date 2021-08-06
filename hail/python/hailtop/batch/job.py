@@ -58,13 +58,18 @@ class Job:
 
     def __init__(self,
                  batch: 'batch.Batch',
+                 token: str,
+                 *,
                  name: Optional[str] = None,
                  attributes: Optional[Dict[str, str]] = None,
                  shell: Optional[str] = None):
         self._batch = batch
         self._shell = shell
+        self._token = token
+
         self.name = name
         self.attributes = attributes
+
         self._cpu: Optional[str] = None
         self._memory: Optional[str] = None
         self._storage: Optional[str] = None
@@ -89,6 +94,8 @@ class Job:
         self._mentioned: Set[_resource.Resource] = set()  # resources used in the command
         self._valid: Set[_resource.Resource] = set()  # resources declared in the appropriate place
         self._dependencies: Set[Job] = set()
+
+        self._dirname = name.replace(' ', '_') + f'-{self._token}' if name else self._token
 
     def _get_resource(self, item: str) -> '_resource.Resource':
         raise NotImplementedError
@@ -419,7 +426,7 @@ class Job:
 
         return subst_command
 
-    def _interpolate_command_handler(self, command, allow_python_results):
+    def _interpolate_command(self, command, allow_python_results=False):
         def handler(match_obj):
             groups = match_obj.groupdict()
 
@@ -452,25 +459,19 @@ class Job:
                 _add_resource_to_set(self._valid, r)
 
             self._mentioned.add(r)
-            return f'{r_uid}'
-        return handler
+            return '${BATCH_TMPDIR}' + shq(r._get_path(''))
 
-    def _interpolate_command(self, command, allow_python_results=False):
-        handler = self._interpolate_command_handler(command, allow_python_results)
-        return self._process_command(command, handler)
+        regexes = [_resource.ResourceFile._regex_pattern,
+                   _resource.ResourceGroup._regex_pattern,
+                   _resource.PythonResult._regex_pattern,
+                   Job._regex_pattern,
+                   batch.Batch._regex_pattern]
 
-    def _subst_resource_path_handler(self, local_tmpdir):
-        def handler(match_obj):
-            groups = match_obj.groupdict()
-            assert groups['RESOURCE_FILE'] or groups['RESOURCE_GROUP'] or groups['PYTHON_RESULT']
-            r_uid = match_obj.group()
-            r = self._batch._resource_map.get(r_uid)
-            return shq(r._get_path(local_tmpdir))
-        return handler
+        subst_command = re.sub('(' + ')|('.join(regexes) + ')',
+                               handler,
+                               command)
 
-    def _subst_resource_path(self, command, local_tmpdir):
-        handler = self._subst_resource_path_handler(local_tmpdir)
-        return self._process_command(command, handler)
+        return subst_command
 
     def _pretty(self):
         s = f"Job '{self._uid}'" \
@@ -519,10 +520,12 @@ class BashJob(Job):
 
     def __init__(self,
                  batch: 'batch.Batch',
+                 token: str,
+                 *,
                  name: Optional[str] = None,
                  attributes: Optional[Dict[str, str]] = None,
                  shell: Optional[str] = None):
-        super().__init__(batch, name, attributes, shell)
+        super().__init__(batch, token, name=name, attributes=attributes, shell=shell)
         self._command: List[str] = []
 
     def _get_resource(self, item: str) -> '_resource.Resource':
@@ -695,7 +698,6 @@ class BashJob(Job):
         job_command = [cmd.strip() for cmd in self._command]
         job_command = [f'{{\n{x}\n}}' for x in job_command]
         job_command = '\n'.join(job_command)
-        job_command = self._subst_resource_path(job_command, local_tmpdir=local_tmpdir)
 
         job_command = f'''
 #! {job_shell}
@@ -710,8 +712,7 @@ class BashJob(Job):
 
         self._user_code.append(job_command)
 
-        assert self._job_id is not None
-        job_path = f'{remote_tmpdir}/{self._job_id}'
+        job_path = f'{remote_tmpdir}/{self._dirname}'
         code_path = f'{job_path}/code.sh'
         code = self._batch.read_input(code_path)
 
@@ -720,7 +721,6 @@ chmod u+x {code}
 source {code}
 '''
         wrapper_command = self._interpolate_command(wrapper_command)
-        wrapper_command = self._subst_resource_path(wrapper_command, local_tmpdir=local_tmpdir)
         self._wrapper_code.append(wrapper_command)
 
         if not dry_run:
@@ -769,9 +769,11 @@ class PythonJob(Job):
 
     def __init__(self,
                  batch: 'batch.Batch',
+                 token: str,
+                 *,
                  name: Optional[str] = None,
                  attributes: Optional[Dict[str, str]] = None):
-        super().__init__(batch, name, attributes, None)
+        super().__init__(batch, token, name=name, attributes=attributes, shell=None)
         self._resources: Dict[str, _resource.Resource] = {}
         self._resources_inverse: Dict[_resource.Resource, str] = {}
         self._functions: List[Tuple[_resource.PythonResult, Callable, Tuple[Any, ...], Dict[str, Any]]] = []
@@ -1062,7 +1064,6 @@ with open(\\"{result}\\", \\"wb\\") as dill_out:
 "'''
 
             wrapper_code = self._interpolate_command(wrapper_code, allow_python_results=True)
-            wrapper_code = self._subst_resource_path(wrapper_code, local_tmpdir)
             self._wrapper_code.append(wrapper_code)
 
             self._user_code.append(textwrap.dedent(inspect.getsource(unapplied)))
@@ -1070,6 +1071,6 @@ with open(\\"{result}\\", \\"wb\\") as dill_out:
             kwargs = ', '.join([f'{k}={v!r}' for k, (_, v) in kwargs.items()])
             separator = ', ' if args and kwargs else ''
             func_call = f'{unapplied.__name__}({args}{separator}{kwargs})'
-            self._user_code.append(self._subst_resource_path(func_call, local_tmpdir))
+            self._user_code.append(self._interpolate_command(func_call, allow_python_results=True))
 
         return True

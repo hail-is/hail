@@ -132,7 +132,7 @@ class JobResourceFile(ResourceFile):
     def _get_path(self, directory: str) -> str:
         assert self._source is not None
         assert self._value is not None
-        return f'{directory}/{self._source._job_id}/{self._value}'
+        return f'{directory}/{self._source._dirname}/{self._value}'
 
     def add_extension(self, extension: str) -> 'JobResourceFile':
         """
@@ -237,7 +237,7 @@ class ResourceGroup(Resource):
             resource_file._add_resource_group(self)
 
     def _get_path(self, directory: str) -> str:
-        subdir = str(self._source._job_id) if self._source else 'inputs'
+        subdir = str(self._source._dirname) if self._source else 'inputs'
         return directory + '/' + subdir + '/' + self._root
 
     def _add_output_path(self, path: str) -> None:
@@ -329,7 +329,7 @@ class PythonResult(Resource, str):
     def _get_path(self, directory: str) -> str:
         assert self._source is not None
         assert self._value is not None
-        return f'{directory}/{self._source._job_id}/{self._value}'
+        return f'{directory}/{self._source._dirname}/{self._value}'
 
     def _add_converted_resource(self, value):
         jrf = self._source._batch._new_job_resource_file(self._source, value)
