@@ -160,7 +160,7 @@ class BlockingQueueReadableStream(io.RawIOBase):
         # error in some cases.
         total = 0
         while total < len(b):
-            if self._off == len(self._unread) - self._off:
+            if self._off == len(self._unread)
                 self._unread = self._q.sync_q.get()
                 if self._unread is None:
                     self._saw_eos = True
