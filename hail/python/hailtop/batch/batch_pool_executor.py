@@ -251,6 +251,7 @@ class BatchPoolExecutor:
             for f in done:
                 if not f.exception():
                     await f.result().async_cancel()
+            raise
 
         async def async_result_or_cancel_all(future):
             try:
