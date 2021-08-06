@@ -14,17 +14,21 @@ requires:
 - Python 3.6+.
 - A recent C and a C++ compiler, GCC 5.0, LLVM 3.4, or later versions of either
   suffice.
+- The LZ4 library.
 - BLAS and LAPACK.
 
 On a Debian-like system, the following should suffice:
 
 .. code-block:: sh
 
+   apt-get update
    apt-get install \
        openjdk-8-jdk-headless \
        g++ \
        python3 python3-pip \
-       libopenblas-dev liblapack-dev
+       libopenblas-dev liblapack-dev \
+       liblz4-dev
+
 
 The next block of commands downloads, builds, and installs Hail from source.
 
