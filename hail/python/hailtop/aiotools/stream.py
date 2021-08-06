@@ -134,7 +134,13 @@ def blocking_writable_stream_to_async(thread_pool: ThreadPoolExecutor, f: Binary
     return _WritableStreamFromBlocking(thread_pool, f)
 
 
-class BlockingQueueReadableStream(io.RawIOBase):
+class _Closable:
+    def __init__(self, ):
+        super().__init__()
+        self._closed = False
+
+
+class BlockingQueueReadableStream(io.RawIOBase, _Closable):
     # self.closed and self.close() must be multithread safe, because
     # they can be accessed by both the stream reader and writer which
     # are in different threads.
@@ -186,14 +192,14 @@ class BlockingQueueReadableStream(io.RawIOBase):
 
 
 class AsyncQueueWritableStream(WritableStream):
-    def __init__(self, q: janus.Queue, blocking_readable: BlockingQueueReadableStream):
+    def __init__(self, q: janus.Queue, reader: _Closable):
         super().__init__()
         self._sent_eos = False
         self._q = q
-        self._blocking_readable = blocking_readable
+        self._reader = reader
 
     async def write(self, b: bytes) -> int:
-        if self._blocking_readable._closed:
+        if self._reader._closed:
             if not self._sent_eos:
                 await self._q.async_q.put(None)
                 self._sent_eos = True
@@ -213,3 +219,50 @@ def async_writable_blocking_readable_stream_pair() -> Tuple[AsyncQueueWritableSt
     blocking_readable = BlockingQueueReadableStream(q)
     async_writable = AsyncQueueWritableStream(q, blocking_readable)
     return async_writable, blocking_readable
+
+
+class BlockingCollect(_Closable):
+    def __init__(self, q: janus.Queue, size_hint: int):
+        super().__init__()
+        self._q = q
+        self._closed = False
+        self._size_hint = size_hint
+
+    def get(self) -> bytes:
+        n = self._size_hint
+        buf = bytearray(n)
+        off = 0
+        while True:
+            b = self._q.sync_q.get()
+            if b is None:
+                self._closed = True
+
+                # Unfortunately, we can't use a memory view here, we
+                # need to slice/copy buf, since the S3 upload_part API
+                # call requires byte or bytearray:
+                # Invalid type for parameter Body, value: <memory at 0x7f512801b6d0>, type: <class 'memoryview'>, valid types: <class 'bytes'>, <class 'bytearray'>, file-like object
+                if off == len(buf):
+                    return buf
+                return buf[:off]
+
+            k = len(b)
+            if k > n - off:
+                new_n = n * 2
+                while k > new_n - off:
+                    new_n *= 2
+                new_buf = bytearray(new_n)
+                view = memoryview(buf)
+                new_buf[:off] = view[:off]
+                buf = new_buf
+                n = new_n
+            assert k <= n - off
+
+            buf[off:off + k] = b
+            off += k
+
+
+def async_writable_blocking_collect_pair(size_hint: int) -> Tuple[AsyncQueueWritableStream, BlockingCollect]:
+    q: janus.Queue = janus.Queue(maxsize=1)
+    blocking_collect = BlockingCollect(q, size_hint)
+    async_writable = AsyncQueueWritableStream(q, blocking_collect)
+    return async_writable, blocking_collect
