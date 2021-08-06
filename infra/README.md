@@ -16,7 +16,7 @@ Instructions:
 
   ```
   gcloud iam service-accounts create terraform --display-name="Terraform Account"
-  gcloud projects add-iam-policy-binding hail-vdc --member='serviceAccount:terraform@<project-id>.iam.gserviceaccount.com' --role='roles/owner'
+  gcloud projects add-iam-policy-binding <project-id> --member='serviceAccount:terraform@<project-id>.iam.gserviceaccount.com' --role='roles/owner'
   gcloud iam service-accounts keys create $HOME/.hail/terraform_sa_key.json  --iam-account=terraform@<project-id>.iam.gserviceaccount.com
   ```
 
@@ -34,10 +34,11 @@ Instructions:
        logging.googleapis.com \
        cloudprofiler.googleapis.com \
        monitoring.googleapis.com \
-       iam.googleapis.com
+       iam.googleapis.com \
+       artifactregistry.googleapis.com
    ```
 
-- Delete the default network if it exists.  Enabling the networking
+- Delete the default network if it exists. Enabling the networking
   API creates it.
 
 - Install terraform.
@@ -48,14 +49,14 @@ Instructions:
    gsuite_organization = "<gsuite-organization>"
 
    # batch_gcp_regions is a JSON array of string, the names of the gcp
-   # regions to schedule over in Batch.
+   # regions to schedule over in Batch. E.g. "[\"us-central1\"]"
    batch_gcp_regions = "<batch-gcp-regions>"
 
    gcp_project = "<gcp-project-id>"
 
    # This is the bucket location that spans the regions you're going to
    # schedule across in Batch.  If you are running on one region, it can
-   # just be that region.
+   # just be that region. E.g. "US"
    batch_logs_bucket_location = "<bucket-location>"
 
    # The storage class for the batch logs bucket.  It should span the
@@ -66,8 +67,10 @@ Instructions:
 
    gcp_zone = "<gcp-zone>"
 
+   gcp_location = "<gcp-region>"
+
    domain = "<domain>"
-  
+
    # If set to true, pull the base ubuntu image from Artifact Registry.
    # Otherwise, assumes GCR.
    use_artifact_registry = false
@@ -131,10 +134,13 @@ You can now install Hail:
   kubectl -n default get secret global-config -o json | jq '.data | map_values(@base64d)'
   ```
 
+  Make sure that by this point you've registered the `domain` from config.mk with
+  a DNS registry with a record pointing to the Kubernetes external load balancer.
+
 - In `$HAIL/docker/third-party` run:
 
   ```
-  PROJECT=<gcp-project-id> ./copy_images.sh
+  DOCKER_PREFIX=gcr.io/<gcp-project-id> PROJECT=<gcp-project-id> ./copy_images.sh
   ```
 
   This copies some base images from Dockerhub (which now has rate
@@ -144,16 +150,20 @@ You can now install Hail:
 
 - Run `kubectl -n default apply -f $HAIL/ci/bootstrap.yaml`.
 
-- Build the CI utils image.  Run `make push-ci-utils` in $HAIL/ci.
+- Build the CI utils image.  Run `make -C $HAIL/ci build-ci-utils build-hail-buildkit`.
 
-- Deploy the bootstrap gateway.  Run `make deploy` in
-  $HAIL/bootstrap-gateway.
+- Deploy the bootstrap gateway.  Run `make -C $HAIL/bootstrap-gateway deploy`.
 
-- Create Let's Encrypt certs. Run `make run` in $HAIL/letsencrypt.
+- Create Let's Encrypt certs. Run `make -C $HAIL/letsencrypt run`.
 
-- Deploy the gateway.  Run `make deploy` in $HAIL/gateway.
+- Deploy the internal-gateway.  Run `make -C $HAIL/internal-gateway deploy`.
 
-- Deploy the internal-gateway.  Run `make deploy` in $HAIL/internal-gateway.
+- Generate the version info:
+
+  ```
+  make -C $HAIL/hail python-version-info
+  make -C $HAIL/docker hail_version
+  ```
 
 - Go to the Google Cloud console, API & Services, Credentials.
   Configure the consent screen.  Add the scope:
@@ -170,16 +180,22 @@ You can now install Hail:
   kubectl -n default create secret generic auth-oauth2-client-secret --from-file=./client_secret.json
   ```
 
-- Create the batch worker image.  In `$HAIL/batch`, run:
+- Create the batch worker VM image. Run:
 
   ```
-  make create-build-worker-image-instance
+  make -C $HAIL/batch create-build-worker-image-instance
   ```
 
   Wait for the `build-batch-worker-image` instance to be stopped. Then run:
 
   ```
-  make create-worker-image
+  make -C $HAIL/batch create-worker-image
+  ```
+
+- Create the worker Docker image. Run:
+
+  ```
+  make -C $HAIL/batch build-worker
   ```
 
 - Bootstrap the cluster. Make sure to substitute the values for the exported
@@ -190,7 +206,10 @@ You can now install Hail:
   ```
   cd $HAIL
   export HAIL_DOCKER_PREFIX=gcr.io/<gcp-project>
-  export HAIL_CI_UTILS_IMAGE=$HAIL_DOCKER_PREFIX/ci-utils:latest
+  export HAIL_DOCKER_ROOT_IMAGE=ubuntu:18.04
+  export HAIL_CI_UTILS_IMAGE=$HAIL_DOCKER_PREFIX/ci-utils:cache
+  export HAIL_BUILDKIT_IMAGE=$HAIL_DOCKER_PREFIX/hail-buildkit:cache
+  export BATCH_WORKER_IMAGE=$HAIL_DOCKER_PREFIX/batch-worker:cache
   export HAIL_CI_BUCKET_NAME=dummy
   export KUBERNETES_SERVER_URL='<k8s-server-url>'
   export HAIL_DEFAULT_NAMESPACE='default'
@@ -202,11 +221,14 @@ You can now install Hail:
   python3 ci/bootstrap.py hail-is/hail:main $(git rev-parse HEAD) test_batch_0
   ```
 
+- Deploy the gateway. First, edit `$HAIL/letsencrypt/subdomains.txt` to include
+  just the deployed services. Then run `make -C $HAIL/gateway deploy`.
+
 - Create the initial (developer) user. Make sure to use the same environment
   variables as in the block above.
 
   ```
-  [ -z "${HAIL_DOCKER_PREFIX}" ] || python3 ci/bootstrap.py --extra-code-config '{"username":"<username>","email":"<email>"}' hail-is/hail:main $(git rev-parse HEAD) create_initial_user
+  python3 ci/bootstrap.py --extra-code-config '{"username":"<username>","email":"<email>"}' hail-is/hail:main $(git rev-parse HEAD) create_initial_user
   ```
 
   Additional users can be added by the initial user by going to auth.<domain>/users.
