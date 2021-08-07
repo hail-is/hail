@@ -613,12 +613,11 @@ class Emit[C](
       case x@Begin(xs) =>
         if (!ctx.inLoopCriticalPath.contains(x) && xs.forall(x => !ctx.inLoopCriticalPath.contains(x))) {
           xs.grouped(16).zipWithIndex.foreach { case (group, idx) =>
-            val mb = cb.emb.genEmitMethod(s"begin_group_$idx", FastIndexedSeq[ParamType](), UnitInfo)
-            val r = cb.newField[Region]("begin_separate_region", region)
+            val mb = cb.emb.genEmitMethod(s"begin_group_$idx", FastIndexedSeq[ParamType](classInfo[Region]), UnitInfo)
             mb.voidWithBuilder { cb =>
-              group.foreach(x => emitVoid(x, cb, r, env, container, loopEnv))
+              group.foreach(x => emitVoid(x, cb, mb.getCodeParam[Region](1), env, container, loopEnv))
             }
-            cb.invokeVoid(mb)
+            cb.invokeVoid(mb, region)
           }
         } else
           xs.foreach(x => emitVoid(x))

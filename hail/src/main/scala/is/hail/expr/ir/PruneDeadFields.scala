@@ -1040,7 +1040,7 @@ object PruneDeadFields {
         val bodyEnv = memoizeValueIR(body,
           requestedType.asInstanceOf[TStream].elementType,
           memo)
-        val valueTypes = names.zip(as).map { case (name, a) =>
+        val valueTypes = (names, as).zipped.map { case (name, a) =>
           bodyEnv.eval.lookupOption(name).map(ab => unifySeq(coerce[TStream](a.typ).elementType, ab.result()))
         }
         if (behavior == ArrayZipBehavior.AssumeSameLength && valueTypes.forall(_.isEmpty)) {
@@ -1048,7 +1048,7 @@ object PruneDeadFields {
                       Array(bodyEnv.deleteEval(names)): _*)
         } else {
           unifyEnvs(
-            as.zip(valueTypes).map { case (a, vtOption) =>
+            (as, valueTypes).zipped.map { case (a, vtOption) =>
               val at = coerce[TStream](a.typ)
               if (behavior == ArrayZipBehavior.AssumeSameLength) {
                 vtOption.map { vt =>
@@ -1294,13 +1294,13 @@ object PruneDeadFields {
         }
       case ApplyAggOp(initOpArgs, seqOpArgs, sig) =>
         val prunedSig = AggSignature.prune(sig, requestedType)
-        val initEnv = unifyEnvsSeq(initOpArgs.zip(prunedSig.initOpArgs).map { case (arg, req) => memoizeValueIR(arg, req, memo) })
-        val seqOpEnv = unifyEnvsSeq(seqOpArgs.zip(prunedSig.seqOpArgs).map { case (arg, req) => memoizeValueIR(arg, req, memo) })
+        val initEnv = unifyEnvsSeq((initOpArgs, prunedSig.initOpArgs).zipped.map { case (arg, req) => memoizeValueIR(arg, req, memo) })
+        val seqOpEnv = unifyEnvsSeq((seqOpArgs, prunedSig.seqOpArgs).zipped.map { case (arg, req) => memoizeValueIR(arg, req, memo) })
         BindingEnv(eval = initEnv.eval, agg = Some(seqOpEnv.eval))
       case ApplyScanOp(initOpArgs, seqOpArgs, sig) =>
         val prunedSig = AggSignature.prune(sig, requestedType)
-        val initEnv = unifyEnvsSeq(initOpArgs.zip(prunedSig.initOpArgs).map { case (arg, req) => memoizeValueIR(arg, req, memo) })
-        val seqOpEnv = unifyEnvsSeq(seqOpArgs.zip(prunedSig.seqOpArgs).map { case (arg, req) => memoizeValueIR(arg, req, memo) })
+        val initEnv = unifyEnvsSeq((initOpArgs, prunedSig.initOpArgs).zipped.map { case (arg, req) => memoizeValueIR(arg, req, memo) })
+        val seqOpEnv = unifyEnvsSeq((seqOpArgs, prunedSig.seqOpArgs).zipped.map { case (arg, req) => memoizeValueIR(arg, req, memo) })
         BindingEnv(eval = initEnv.eval, scan = Some(seqOpEnv.eval))
       case StreamAgg(a, name, query) =>
         val aType = a.typ.asInstanceOf[TStream]
@@ -1450,7 +1450,7 @@ object PruneDeadFields {
         }
         unifyEnvsSeq(
           IndexedSeq(bodyEnv.deleteEval(params.map(_._1))) ++
-          params.zip(paramTypes).map{ case ((paramName, paramIR), paramType) =>
+            (params, paramTypes).zipped.map{ case ((paramName, paramIR), paramType) =>
             memoizeValueIR(paramIR, paramType, memo)
           }
         )
@@ -1829,7 +1829,8 @@ object PruneDeadFields {
         val a2 = rebuildIR(a, env, memo)
         StreamMap(a2, name, rebuildIR(body, env.bindEval(name, a2.typ.asInstanceOf[TStream].elementType), memo))
       case StreamZip(as, names, body, b, errorID) =>
-        val (newAs, newNames) = as.zip(names)
+        val (newAs, newNames) = (as, names)
+          .zipped
           .flatMap { case (a, name) => if (memo.requestedType.contains(a)) Some((rebuildIR(a, env, memo), name)) else None }
           .unzip
         StreamZip(newAs, newNames, rebuildIR(body,

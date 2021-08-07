@@ -362,7 +362,7 @@ sealed abstract class RBaseStruct extends TypeWithRequiredness {
   def size: Int = fields.length
   val children: Seq[TypeWithRequiredness] = fields.map(_.typ)
   def _unionLiteral(a: Annotation): Unit =
-    children.iterator.zip(rowIterator(a.asInstanceOf[Row])).foreach { case (r, f) => r.unionLiteral(f) }
+    (children, a.asInstanceOf[Row].toSeq).zipped.foreach { case (r, f) => r.unionLiteral(f) }
   def _matchesPType(pt: PType): Boolean =
     coerce[PBaseStruct](pt).fields.forall(f => children(f.index).matchesPType(f.typ))
   def _unionPType(pType: PType): Unit =
@@ -400,7 +400,7 @@ case class RTuple(fields: IndexedSeq[RField]) extends RBaseStruct {
   def field(idx: Int): TypeWithRequiredness = fieldType(idx.toString)
   def copy(newChildren: Seq[BaseTypeWithRequiredness]): RTuple = {
     assert(newChildren.length == fields.length)
-    RTuple(fields.zip(newChildren).map { case (f, c) => RField(f.name, coerce[TypeWithRequiredness](c), f.index) })
+    RTuple((fields, newChildren).zipped.map { case (f, c) => RField(f.name, coerce[TypeWithRequiredness](c), f.index) })
   }
   def _toString: String = s"RTuple[${ fields.map(f => s"${ f.index }: ${ f.typ.toString }").mkString(",") }]"
 }
@@ -441,7 +441,7 @@ case class RTable(rowFields: Seq[(String, TypeWithRequiredness)], globalFields: 
   def unionKeys(req: RStruct): Unit = key.foreach { n => field(n).unionFrom(req.field(n)) }
   def unionKeys(req: RTable): Unit = {
     assert(key.length <= req.key.length)
-    key.zip(req.key).foreach { case (k, rk) => field(k).unionFrom(req.field(rk)) }
+    (key, req.key).zipped.foreach { case (k, rk) => field(k).unionFrom(req.field(rk)) }
   }
 
   def unionValues(req: RStruct): Unit = valueFields.foreach { n => if (req.hasField(n)) field(n).unionFrom(req.field(n)) }
@@ -451,8 +451,8 @@ case class RTable(rowFields: Seq[(String, TypeWithRequiredness)], globalFields: 
 
   def copy(newChildren: Seq[BaseTypeWithRequiredness]): RTable = {
     assert(newChildren.length == rowFields.length + globalFields.length)
-    val newRowFields = rowFields.zip(newChildren.take(rowFields.length)).map { case ((n, _), r: TypeWithRequiredness) => n -> r }
-    val newGlobalFields = globalFields.zip(newChildren.drop(rowFields.length)).map { case ((n, _), r: TypeWithRequiredness) => n -> r }
+    val newRowFields = (rowFields, newChildren.take(rowFields.length)).zipped.map { case ((n, _), r: TypeWithRequiredness) => n -> r }
+    val newGlobalFields = (globalFields, newChildren.drop(rowFields.length)).zipped.map { case ((n, _), r: TypeWithRequiredness) => n -> r }
     RTable(newRowFields, newGlobalFields, key)
   }
 

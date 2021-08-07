@@ -829,7 +829,7 @@ trait FunctionWithBackend {
 object CodeExceptionHandler {
   /**
     * This method assumes that the method referred to by `methodName`
-    * is a 0-argument class method (only takes the class itself as an arg)
+    * is a -argument class method (only takes the class itself as an arg)
     * which returns void.
     */
   def handleUserException(obj: AnyRef, methodName: String): (String, java.lang.Integer) = {
