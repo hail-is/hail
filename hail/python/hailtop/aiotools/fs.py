@@ -566,23 +566,24 @@ class SourceCopier:
         if self.pending == 0:
             self.barrier.set()
 
-    async def _copy_file(self, srcfile: str, size: int, destfile: str) -> None:  # pylint: disable=unused-argument
+    async def _copy_file(self, srcfile: str, size: int, destfile: str) -> None:
         assert not destfile.endswith('/')
 
-        async with await self.router_fs.open(srcfile) as srcf:
-            try:
-                dest_cm = await self.router_fs.create(destfile, retry_writes=False)
-            except FileNotFoundError:
-                await self.router_fs.makedirs(os.path.dirname(destfile), exist_ok=True)
-                dest_cm = await self.router_fs.create(destfile)
+        async with self.xfer_sema.acquire_manager(min(Copier.BUFFER_SIZE, size)):
+            async with await self.router_fs.open(srcfile) as srcf:
+                try:
+                    dest_cm = await self.router_fs.create(destfile, retry_writes=False)
+                except FileNotFoundError:
+                    await self.router_fs.makedirs(os.path.dirname(destfile), exist_ok=True)
+                    dest_cm = await self.router_fs.create(destfile)
 
-            async with dest_cm as destf:
-                while True:
-                    b = await srcf.read(Copier.BUFFER_SIZE)
-                    if not b:
-                        return
-                    written = await destf.write(b)
-                    assert written == len(b)
+                async with dest_cm as destf:
+                    while True:
+                        b = await srcf.read(Copier.BUFFER_SIZE)
+                        if not b:
+                            return
+                        written = await destf.write(b)
+                        assert written == len(b)
 
     async def _copy_part(self,
                          source_report: SourceReport,
