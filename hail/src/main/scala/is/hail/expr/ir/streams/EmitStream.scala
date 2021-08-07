@@ -1080,17 +1080,10 @@ object EmitStream {
                     val LpullRight = CodeLabel()
                     val LpullLeft = CodeLabel()
                     val Lcompare = CodeLabel()
+                    val LmaybePullRight = CodeLabel()
 
                     cb.ifx(leftEOS, cb.goto(Lcompare))
                     cb.ifx(c <= 0, cb.goto(LpullLeft), cb.goto(LpullRight))
-
-                    val LafterLeftPull = CodeLabel()
-                    cb.define(LafterLeftPull)
-
-                    cb.ifx(!pulledRight, {
-                      cb.assign(pulledRight, true)
-                      cb.goto(LpullRight)
-                    })
 
                     cb.define(Lcompare)
                     cb.ifx(leftEOS, {
@@ -1114,14 +1107,21 @@ object EmitStream {
 
                     cb.goto(Lpush)
 
+                    mb.implementLabel(LmaybePullRight) { cb =>
+                      cb.ifx(!pulledRight, {
+                        cb.assign(pulledRight, true)
+                        cb.goto(LpullRight)
+                      },
+                        cb.goto(Lcompare))
+                    }
+
                     mb.implementLabel(LpullLeft) { cb =>
                       if (leftProducer.requiresMemoryManagementPerElement)
                         cb += leftProducer.elementRegion.clearRegion()
                       cb.goto(leftProducer.LproduceElement)
-
                       cb.define(leftProducer.LproduceElementDone)
                       cb.assign(lx, leftProducer.element)
-                      cb.goto(LafterLeftPull)
+                      cb.goto(LmaybePullRight)
                     }
 
                     mb.implementLabel(LpullRight) { cb =>
@@ -1130,7 +1130,6 @@ object EmitStream {
                       cb.goto(rightProducer.LproduceElement)
                       cb.define(rightProducer.LproduceElementDone)
                       cb.assign(rx, rightProducer.element)
-
                       cb.assign(pushedRight, false)
                       cb.goto(Lcompare)
                     }
@@ -1147,7 +1146,7 @@ object EmitStream {
                     mb.implementLabel(leftProducer.LendOfStream) { cb =>
                       cb.assign(lxOut, EmitCode.missing(mb, lxOut.st))
                       cb.assign(leftEOS, true)
-                      cb.goto(Lcompare)
+                      cb.goto(LmaybePullRight)
                     }
 
                     // end if right stream ends
