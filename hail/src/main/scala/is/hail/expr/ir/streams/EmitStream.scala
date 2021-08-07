@@ -1059,6 +1059,7 @@ object EmitStream {
               case "right" =>
                 val leftEOS = mb.genFieldThisRef[Boolean]("left_join_right_distinct_leftEOS")
                 val pulledRight = mb.genFieldThisRef[Boolean]("left_join_right_distinct_pulledRight]")
+                val pushedRight = mb.genFieldThisRef[Boolean]("left_join_right_distinct_pulledRight]")
                 val c = mb.genFieldThisRef[Int]("join_right_distinct_compResult")
 
                 val producer = new StreamProducer {
@@ -1067,6 +1068,8 @@ object EmitStream {
                   override def initialize(cb: EmitCodeBuilder): Unit = {
                     cb.assign(leftEOS, false)
                     cb.assign(pulledRight, false)
+                    cb.assign(pushedRight, false)
+                    cb.assign(c, 0)
                     sharedInit(cb)
                   }
 
@@ -1076,9 +1079,10 @@ object EmitStream {
                     val Lpush = CodeLabel()
                     val LpullRight = CodeLabel()
                     val LpullLeft = CodeLabel()
+                    val Lcompare = CodeLabel()
 
-                    cb.ifx(leftEOS, cb.goto(LpullRight))
-                    cb.goto(LpullLeft)
+                    cb.ifx(leftEOS, cb.goto(Lcompare))
+                    cb.ifx(c <= 0, cb.goto(LpullLeft), cb.goto(LpullRight))
 
                     val LafterLeftPull = CodeLabel()
                     cb.define(LafterLeftPull)
@@ -1088,13 +1092,18 @@ object EmitStream {
                       cb.goto(LpullRight)
                     })
 
-                    val Lcompare = CodeLabel()
                     cb.define(Lcompare)
-                    cb.ifx(leftEOS, cb.goto(Lpush))
+                    cb.ifx(leftEOS, {
+                      cb.ifx(pushedRight,
+                        cb.goto(LpullRight),
+                        cb.goto(Lpush))
+                    })
                     cb.assign(c, compare(cb, lx, rx))
+
                     cb.ifx(c < 0, cb.goto(LpullLeft))
 
                     cb.ifx(c > 0, {
+                      cb.ifx(pushedRight, cb.goto(LpullRight))
                       cb.assign(lxOut, EmitCode.missing(mb, lxOut.st))
                     }, {
                       // c == 0
@@ -1121,6 +1130,8 @@ object EmitStream {
                       cb.goto(rightProducer.LproduceElement)
                       cb.define(rightProducer.LproduceElementDone)
                       cb.assign(rx, rightProducer.element)
+
+                      cb.assign(pushedRight, false)
                       cb.goto(Lcompare)
                     }
 
@@ -1128,6 +1139,7 @@ object EmitStream {
                       if (rightProducer.requiresMemoryManagementPerElement)
                         cb += elementRegion.trackAndIncrementReferenceCountOf(rightProducer.elementRegion)
 
+                      cb.assign(pushedRight, true)
                       cb.goto(LproduceElementDone)
                     }
 
@@ -1135,7 +1147,7 @@ object EmitStream {
                     mb.implementLabel(leftProducer.LendOfStream) { cb =>
                       cb.assign(lxOut, EmitCode.missing(mb, lxOut.st))
                       cb.assign(leftEOS, true)
-                      cb.goto(LpullRight)
+                      cb.goto(Lcompare)
                     }
 
                     // end if right stream ends
@@ -1232,17 +1244,7 @@ object EmitStream {
                     cb.assign(rightEOS, false)
                     cb.assign(c, 0) // lets us start stream with a pull from both
 
-                    if (rightProducer.requiresMemoryManagementPerElement)
-                      cb.assign(rightProducer.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
-                    else
-                      cb.assign(rightProducer.elementRegion, outerRegion)
-                    if (leftProducer.requiresMemoryManagementPerElement)
-                      cb.assign(leftProducer.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
-                    else
-                      cb.assign(leftProducer.elementRegion, outerRegion)
-
-                    leftProducer.initialize(cb)
-                    rightProducer.initialize(cb)
+                    sharedInit(cb)
                   }
 
                   override val elementRegion: Settable[Region] = _elementRegion
