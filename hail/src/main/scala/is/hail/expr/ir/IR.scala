@@ -9,7 +9,7 @@ import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
 import is.hail.rvd.RVDSpecMaker
-import is.hail.types.TypeWithRequiredness
+import is.hail.types.{RIterable, TypeWithRequiredness}
 import is.hail.types.encoded._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{BooleanSingleCodeType, Float32SingleCodeType, Float64SingleCodeType, Int32SingleCodeType, Int64SingleCodeType, PTypeReferenceSingleCodeType, SType}
@@ -705,7 +705,7 @@ abstract class PartitionWriter {
 
   def ctxType: Type
   def returnType: Type
-  def returnPType(ctxType: PType, streamType: PStream): PType
+  def unionTypeRequiredness(r: TypeWithRequiredness, ctxType: TypeWithRequiredness, streamType: RIterable): Unit
 
   def toJValue: JValue = Extraction.decompose(this)(PartitionWriter.formats)
 }

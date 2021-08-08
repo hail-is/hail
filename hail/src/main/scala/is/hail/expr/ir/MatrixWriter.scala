@@ -17,7 +17,7 @@ import is.hail.rvd.{IndexSpec, RVDPartitioner, RVDSpecMaker}
 import is.hail.types.encoded.{EBaseStruct, EBlockMatrixNDArray, EType}
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.{PCanonicalBaseStruct, PCanonicalString, PCanonicalStruct, PInt64, PStream, PStruct, PType}
+import is.hail.types.physical.{PCanonicalBaseStruct, PCanonicalString, PCanonicalStruct, PInt64, PStruct, PType}
 import is.hail.types.virtual._
 import is.hail.types._
 import is.hail.utils._
@@ -173,7 +173,10 @@ case class SplitPartitionNativeWriter(
 
   def ctxType: Type = TString
   def returnType: Type = pResultType.virtualType
-  def returnPType(ctxType: PType, streamType: PStream): PType = pResultType
+  def unionTypeRequiredness(r: TypeWithRequiredness, ctxType: TypeWithRequiredness, streamType: RIterable): Unit = {
+    r.union(ctxType.required)
+    r.union(streamType.required)
+  }
 
   if (stageLocally)
     throw new LowererUnsupportedOperation("stageLocally option not yet implemented")

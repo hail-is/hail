@@ -283,7 +283,6 @@ sealed class RIterable(val elementType: TypeWithRequiredness, eltRequired: Boole
     t match {
       case _: TArray => PCanonicalArray(elt, required = required)
       case _: TSet => PCanonicalSet(elt, required = required)
-      case _: TStream => PCanonicalStream(elt, required = required)
     }
   }
 }
