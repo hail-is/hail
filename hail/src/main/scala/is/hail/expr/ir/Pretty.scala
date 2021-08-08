@@ -342,8 +342,6 @@ object Pretty {
     case ReadValue(_, spec, reqType) =>
       FastSeq(prettyStringLiteral(spec.toString), reqType.parsableString())
     case WriteValue(_, _, spec) => single(prettyStringLiteral(spec.toString))
-    case x@ShuffleWith(_, _, _, _, name, _, _) =>
-      FastSeq(x.shuffleType.parsableString(), prettyIdentifier(name))
     case MakeNDArray(_, _, _, errorId) => FastSeq(errorId.toString)
 
     case _ => Iterable.empty

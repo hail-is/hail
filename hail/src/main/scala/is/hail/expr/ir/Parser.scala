@@ -542,17 +542,6 @@ object IRParser {
         val cases = args.zipWithIndex.map { case ((id, t), i) => Case(id, t, i) }
         TUnion(cases)
       case "Void" => TVoid
-      case "Shuffle" =>
-        punctuation(it, "{")
-        val keyFields = sort_fields(it)
-        punctuation(it, ",")
-        val rowType = type_expr(env)(it).asInstanceOf[TStruct]
-        punctuation(it, ",")
-        val rowEType = EType.eTypeParser(it).asInstanceOf[EBaseStruct]
-        punctuation(it, ",")
-        val keyEType = EType.eTypeParser(it).asInstanceOf[EBaseStruct]
-        punctuation(it, "}")
-        TShuffle(keyFields, rowType, rowEType, keyEType)
     }
     typ
   }
@@ -1428,30 +1417,6 @@ object IRParser {
         ir_value_expr(env)(it).map { context =>
           ReadPartition(context, rowType, reader)
         }
-      case "ShuffleWith" =>
-        val shuffleType = coerce[TShuffle](type_expr(env.typEnv)(it))
-        val name = identifier(it)
-        for {
-          writer <- ir_value_expr(env + (name -> shuffleType))(it)
-          readers <- ir_value_expr(env + (name -> shuffleType))(it)
-        } yield ShuffleWith(
-          shuffleType.keyFields, shuffleType.rowType, shuffleType.rowEType, shuffleType.keyEType,
-          name, writer, readers)
-      case "ShuffleWrite" =>
-        for {
-          id <- ir_value_expr(env)(it)
-          rows <- ir_value_expr(env)(it)
-        } yield ShuffleWrite(id, rows)
-      case "ShufflePartitionBounds" =>
-        for {
-          id <- ir_value_expr(env)(it)
-          nPartitions <- ir_value_expr(env)(it)
-        } yield ShufflePartitionBounds(id, nPartitions)
-      case "ShuffleRead" =>
-        for {
-          id <- ir_value_expr(env)(it)
-          keyRange <- ir_value_expr(env)(it)
-        } yield ShuffleRead(id, keyRange)
     }
   }
 

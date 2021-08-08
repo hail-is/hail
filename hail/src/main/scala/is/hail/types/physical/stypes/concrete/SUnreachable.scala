@@ -20,7 +20,6 @@ object SUnreachable {
       case tnd: TNDArray => SUnreachableNDArray(tnd)
       case tl: TLocus => SUnreachableLocus(tl)
       case ti: TInterval => SUnreachableInterval(ti)
-      case ts: TShuffle => SUnreachableShuffle(ts)
       case TCall => SUnreachableCall
       case TBinary => SUnreachableBinary
       case TString => SUnreachableString
@@ -144,22 +143,6 @@ class SUnreachableStringValue extends SUnreachableValue with SStringValue with S
   override def toBytes(): SBinaryCode = new SUnreachableBinaryValue
 
   override def get: SUnreachableStringValue = this
-}
-
-case class SUnreachableShuffle(virtualType: TShuffle) extends SUnreachable with SShuffle {
-  val sv = new SUnreachableShuffleValue(this)
-}
-
-class SUnreachableShuffleValue(val st: SUnreachableShuffle) extends SUnreachableValue with SShuffleValue with SShuffleCode {
-  override def memoizeField(cb: EmitCodeBuilder, name: String): SUnreachableShuffleValue = this
-
-  override def memoize(cb: EmitCodeBuilder, name: String): SUnreachableShuffleValue = this
-
-  override def loadBytes(): Code[Array[Byte]] = Code._null
-
-  override def loadLength(): Code[Int] = const(0)
-
-  override def get: SUnreachableShuffleValue = this
 }
 
 case class SUnreachableLocus(virtualType: TLocus) extends SUnreachable with SLocus {

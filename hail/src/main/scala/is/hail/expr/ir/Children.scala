@@ -230,13 +230,5 @@ object Children {
     case ReadValue(path, _, _) => Array(path)
     case WriteValue(value, path, spec) => Array(value, path)
     case LiftMeOut(child) => Array(child)
-    case ShuffleWith(keyFields, rowType, rowEType, keyEType, name, writer, readers) =>
-      Array(writer, readers)
-    case ShuffleWrite(id, rows) =>
-      Array(id, rows)
-    case ShufflePartitionBounds(id, nPartitions) =>
-      Array(id, nPartitions)
-    case ShuffleRead(id, keyRange) =>
-      Array(id, keyRange)
   }
 }
