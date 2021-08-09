@@ -976,19 +976,53 @@ object EmitStream {
                 .compare(cb, lhs, rhs, missingEqual = false)
             }
 
+            val lx = mb.newEmitField("streamjoin_lx", lEltType) // last value received from left
+            val rx = mb.newEmitField("streamjoin_rx", rEltType) // last value received from right
+
+            val lxOut: EmitSettable = joinType match {
+              case "inner" | "left" => lx
+              case "outer" | "right" => mb.newEmitField("streamjoin_lxout", lx.emitType.copy(required = false))
+            }
+            val rxOut: EmitSettable = joinType match {
+              case "inner" | "right" => rx
+              case "outer" | "left" => mb.newEmitField("streamjoin_rxout", rx.emitType.copy(required = false))
+            }
+
+            val _elementRegion = mb.genFieldThisRef[Region]("join_right_distinct_element_region")
+            val _requiresMemoryManagementPerElement = leftProducer.requiresMemoryManagementPerElement || rightProducer.requiresMemoryManagementPerElement
+
+            val joinResult = EmitCode.fromI(mb)(cb => emit(joinIR, cb,
+              region = _elementRegion,
+              env = env.bind(leftName -> lxOut, rightName -> rxOut)))
+
+            def sharedInit(cb: EmitCodeBuilder): Unit = {
+              if (rightProducer.requiresMemoryManagementPerElement)
+                cb.assign(rightProducer.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
+              else
+                cb.assign(rightProducer.elementRegion, outerRegion)
+              if (leftProducer.requiresMemoryManagementPerElement)
+                cb.assign(leftProducer.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
+              else
+                cb.assign(leftProducer.elementRegion, outerRegion)
+
+              leftProducer.initialize(cb)
+              rightProducer.initialize(cb)
+            }
+
+            def sharedClose(cb: EmitCodeBuilder): Unit = {
+              leftProducer.close(cb)
+              rightProducer.close(cb)
+              if (leftProducer.requiresMemoryManagementPerElement)
+                cb += leftProducer.elementRegion.invalidate()
+
+              if (rightProducer.requiresMemoryManagementPerElement)
+                cb += rightProducer.elementRegion.invalidate()
+            }
+
             joinType match {
               case "left" =>
-                val lx = mb.newEmitField(lEltType) // last value received from left
-                val rx = mb.newEmitField(rEltType) // last value received from right
-                val rxOut = mb.newEmitField(rEltType.copy(required = false)) // right value in joinF (may be missing while rx is not)
-
-                val joinResult = EmitCode.fromI(mb)(cb => emit(joinIR, cb,
-                  region = leftProducer.elementRegion,
-                  env = env.bind(leftName -> lx, rightName -> rxOut)))
-
                 val rightEOS = mb.genFieldThisRef[Boolean]("left_join_right_distinct_rightEOS")
                 val pulledRight = mb.genFieldThisRef[Boolean]("left_join_right_distinct_pulledRight]")
-                val _elementRegion = mb.genFieldThisRef[Region]("join_right_distinct_element_region")
 
                 val producer = new StreamProducer {
                   override val length: Option[EmitCodeBuilder => Code[Int]] = leftProducer.length
@@ -997,21 +1031,11 @@ object EmitStream {
                     cb.assign(rightEOS, false)
                     cb.assign(pulledRight, false)
 
-                    if (rightProducer.requiresMemoryManagementPerElement)
-                      cb.assign(rightProducer.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
-                    else
-                      cb.assign(rightProducer.elementRegion, outerRegion)
-                    if (leftProducer.requiresMemoryManagementPerElement)
-                      cb.assign(leftProducer.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
-                    else
-                      cb.assign(leftProducer.elementRegion, outerRegion)
-
-                    leftProducer.initialize(cb)
-                    rightProducer.initialize(cb)
+                    sharedInit(cb)
                   }
 
                   override val elementRegion: Settable[Region] = _elementRegion
-                  override val requiresMemoryManagementPerElement: Boolean = leftProducer.requiresMemoryManagementPerElement || rightProducer.requiresMemoryManagementPerElement
+                  override val requiresMemoryManagementPerElement: Boolean = _requiresMemoryManagementPerElement
                   override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
 
                     if (leftProducer.requiresMemoryManagementPerElement)
@@ -1022,6 +1046,8 @@ object EmitStream {
 
                     // if right stream is exhausted, return immediately
                     cb.ifx(rightEOS, cb.goto(LproduceElementDone))
+
+                    val Lpush = CodeLabel()
 
                     val LpullRight = CodeLabel()
                     cb.ifx(!pulledRight, {
@@ -1044,51 +1070,213 @@ object EmitStream {
                       cb.assign(rxOut, rx)
                     })
 
-                    cb.goto(LproduceElementDone)
+                    cb.goto(Lpush)
 
-                    cb.define(LpullRight)
-                    if (rightProducer.requiresMemoryManagementPerElement) {
-                      cb += rightProducer.elementRegion.clearRegion()
+                    mb.implementLabel(Lpush) { cb =>
+                      if (leftProducer.requiresMemoryManagementPerElement)
+                        cb += elementRegion.trackAndIncrementReferenceCountOf(leftProducer.elementRegion)
+
+                      cb.goto(LproduceElementDone)
                     }
 
-                    cb.goto(rightProducer.LproduceElement)
-                    cb.define(rightProducer.LproduceElementDone)
-                    cb.assign(rx, rightProducer.element)
-                    cb.goto(Lcompare)
+                    mb.implementLabel(LpullRight) { cb =>
+                      if (rightProducer.requiresMemoryManagementPerElement) {
+                        cb += rightProducer.elementRegion.clearRegion()
+                      }
+                      cb.goto(rightProducer.LproduceElement)
+                      cb.define(rightProducer.LproduceElementDone)
+                      cb.assign(rx, rightProducer.element)
+                      cb.goto(Lcompare)
+                    }
 
                     // if right stream ends before left
-                    cb.define(rightProducer.LendOfStream)
-                    cb.assign(rxOut, EmitCode.missing(mb, rxOut.st))
-                    cb.assign(rightEOS, true)
+                    mb.implementLabel(rightProducer.LendOfStream) { cb =>
+                      cb.assign(rxOut, EmitCode.missing(mb, rxOut.st))
+                      cb.assign(rightEOS, true)
+                      cb.goto(Lpush)
+                    }
 
-                    if (leftProducer.requiresMemoryManagementPerElement)
-                      cb += elementRegion.trackAndIncrementReferenceCountOf(leftProducer.elementRegion)
-                    cb.goto(LproduceElementDone)
+                    mb.implementLabel(leftProducer.LendOfStream) { cb => cb.goto(LendOfStream) }
                   }
                   override val element: EmitCode = joinResult
 
                   override def close(cb: EmitCodeBuilder): Unit = {
-                    leftProducer.close(cb)
-                    rightProducer.close(cb)
-                    if (rightProducer.requiresMemoryManagementPerElement)
-                      cb += rightProducer.elementRegion.invalidate()
+                    sharedClose(cb)
                   }
                 }
 
-                mb.implementLabel(leftProducer.LendOfStream) { cb =>
-                  cb.goto(producer.LendOfStream)
-                }
+                SStreamCode(producer)
 
+              case "right" =>
+                val leftEOS = mb.genFieldThisRef[Boolean]("left_join_right_distinct_leftEOS")
+                val pulledRight = mb.genFieldThisRef[Boolean]("left_join_right_distinct_pulledRight]")
+                val pushedRight = mb.genFieldThisRef[Boolean]("left_join_right_distinct_pulledRight]")
+                val c = mb.genFieldThisRef[Int]("join_right_distinct_compResult")
+
+                val producer = new StreamProducer {
+                  override val length: Option[EmitCodeBuilder => Code[Int]] = None
+
+                  override def initialize(cb: EmitCodeBuilder): Unit = {
+                    cb.assign(leftEOS, false)
+                    cb.assign(pulledRight, false)
+                    cb.assign(pushedRight, false)
+                    cb.assign(c, 0)
+                    sharedInit(cb)
+                  }
+
+                  override val elementRegion: Settable[Region] = _elementRegion
+                  override val requiresMemoryManagementPerElement: Boolean = _requiresMemoryManagementPerElement
+                  override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
+                    val Lpush = CodeLabel()
+                    val LpullRight = CodeLabel()
+                    val LpullLeft = CodeLabel()
+                    val Lcompare = CodeLabel()
+                    val LmaybePullRight = CodeLabel()
+
+                    cb.ifx(leftEOS, cb.goto(Lcompare))
+                    cb.ifx(c <= 0, cb.goto(LpullLeft), cb.goto(LpullRight))
+
+                    cb.define(Lcompare)
+                    cb.ifx(leftEOS, {
+                      cb.ifx(pushedRight,
+                        cb.goto(LpullRight),
+                        cb.goto(Lpush))
+                    })
+                    cb.assign(c, compare(cb, lx, rx))
+
+                    cb.ifx(c < 0, cb.goto(LpullLeft))
+
+                    cb.ifx(c > 0, {
+                      cb.ifx(pushedRight, cb.goto(LpullRight))
+                      cb.assign(lxOut, EmitCode.missing(mb, lxOut.st))
+                    }, {
+                      // c == 0
+                      if (leftProducer.requiresMemoryManagementPerElement)
+                        cb += elementRegion.trackAndIncrementReferenceCountOf(leftProducer.elementRegion)
+                      cb.assign(lxOut, lx)
+                    })
+
+                    cb.goto(Lpush)
+
+                    mb.implementLabel(LmaybePullRight) { cb =>
+                      cb.ifx(!pulledRight, {
+                        cb.assign(pulledRight, true)
+                        cb.goto(LpullRight)
+                      },
+                        cb.goto(Lcompare))
+                    }
+
+                    mb.implementLabel(LpullLeft) { cb =>
+                      if (leftProducer.requiresMemoryManagementPerElement)
+                        cb += leftProducer.elementRegion.clearRegion()
+                      cb.goto(leftProducer.LproduceElement)
+                      cb.define(leftProducer.LproduceElementDone)
+                      cb.assign(lx, leftProducer.element)
+                      cb.goto(LmaybePullRight)
+                    }
+
+                    mb.implementLabel(LpullRight) { cb =>
+                      if (rightProducer.requiresMemoryManagementPerElement)
+                        cb += rightProducer.elementRegion.clearRegion()
+                      cb.goto(rightProducer.LproduceElement)
+                      cb.define(rightProducer.LproduceElementDone)
+                      cb.assign(rx, rightProducer.element)
+                      cb.assign(pushedRight, false)
+                      cb.goto(Lcompare)
+                    }
+
+                    mb.implementLabel(Lpush) { cb =>
+                      if (rightProducer.requiresMemoryManagementPerElement)
+                        cb += elementRegion.trackAndIncrementReferenceCountOf(rightProducer.elementRegion)
+
+                      cb.assign(pushedRight, true)
+                      cb.goto(LproduceElementDone)
+                    }
+
+                    // if left stream ends before right
+                    mb.implementLabel(leftProducer.LendOfStream) { cb =>
+                      cb.assign(lxOut, EmitCode.missing(mb, lxOut.st))
+                      cb.assign(leftEOS, true)
+                      cb.goto(LmaybePullRight)
+                    }
+
+                    // end if right stream ends
+                    mb.implementLabel(rightProducer.LendOfStream) { cb => cb.goto(LendOfStream) }
+                  }
+
+                  override val element: EmitCode = joinResult
+
+                  override def close(cb: EmitCodeBuilder): Unit = {
+                    sharedClose(cb)
+                  }
+                }
+                SStreamCode(producer)
+
+              case "inner" =>
+                val pulledRight = mb.genFieldThisRef[Boolean]("left_join_right_distinct_pulledRight]")
+
+                val producer = new StreamProducer {
+                  override val length: Option[EmitCodeBuilder => Code[Int]] = leftProducer.length
+
+                  override def initialize(cb: EmitCodeBuilder): Unit = {
+                    cb.assign(pulledRight, false)
+                    sharedInit(cb)
+                  }
+
+                  override val elementRegion: Settable[Region] = _elementRegion
+                  override val requiresMemoryManagementPerElement: Boolean = _requiresMemoryManagementPerElement
+                  override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
+
+                    if (leftProducer.requiresMemoryManagementPerElement)
+                      cb += leftProducer.elementRegion.clearRegion()
+                    cb.goto(leftProducer.LproduceElement)
+                    cb.define(leftProducer.LproduceElementDone)
+                    cb.assign(lx, leftProducer.element)
+
+                    val LpullRight = CodeLabel()
+                    cb.ifx(!pulledRight, {
+                      cb.assign(pulledRight, true)
+                      cb.goto(LpullRight)
+                    })
+
+                    val Lcompare = CodeLabel()
+                    cb.define(Lcompare)
+                    val c = cb.newLocal[Int]("left_join_right_distinct_c", compare(cb, lx, rx))
+                    cb.ifx(c > 0, cb.goto(LpullRight))
+
+                    cb.ifx(c < 0, {
+                      if (leftProducer.requiresMemoryManagementPerElement)
+                        cb += leftProducer.elementRegion.clearRegion()
+                      cb.goto(leftProducer.LproduceElement)
+                    })
+
+                    cb.goto(LproduceElementDone)
+
+                    mb.implementLabel(LpullRight) { cb =>
+                      if (rightProducer.requiresMemoryManagementPerElement)
+                        cb += rightProducer.elementRegion.clearRegion()
+                      cb.goto(rightProducer.LproduceElement)
+                    }
+
+                    mb.implementLabel(rightProducer.LproduceElementDone) { cb =>
+                      cb.assign(rx, rightProducer.element)
+                      cb.goto(Lcompare)
+                    }
+
+                    // Both producer EOS labels should jump directly to EOS
+                    mb.implementLabel(rightProducer.LendOfStream) { cb => cb.goto(LendOfStream) }
+                    mb.implementLabel(leftProducer.LendOfStream) { cb => cb.goto(LendOfStream) }
+                  }
+                  override val element: EmitCode = joinResult
+
+                  override def close(cb: EmitCodeBuilder): Unit = {
+                    sharedClose(cb)
+                  }
+                }
 
                 SStreamCode(producer)
 
               case "outer" =>
-
-                val lx = mb.newEmitField(lEltType) // last value received from left
-                val rx = mb.newEmitField(rEltType) // last value received from right
-                val lxOut = mb.newEmitField(lEltType.copy(required = false)) // left value in joinF (may be missing while lx is not)
-                val rxOut = mb.newEmitField(rEltType.copy(required = false)) // right value in joinF (may be missing while rx is not)
-
                 val pulledRight = mb.genFieldThisRef[Boolean]("join_right_distinct_pulledRight")
                 val pushedRight = mb.genFieldThisRef[Boolean]("join_right_distinct_pushedRight")
                 val rightEOS = mb.genFieldThisRef[Boolean]("join_right_distinct_rightEOS")
@@ -1096,11 +1284,6 @@ object EmitStream {
                 val rOutMissing = mb.genFieldThisRef[Boolean]("join_right_distinct_rightMissing")
                 val leftEOS = mb.genFieldThisRef[Boolean]("join_right_distinct_leftEOS")
                 val c = mb.genFieldThisRef[Int]("join_right_distinct_compResult")
-                val _elementRegion = mb.genFieldThisRef[Region]("join_right_distinct_element_region")
-
-                val joinResult = EmitCode.fromI(mb)(cb => emit(joinIR, cb,
-                  region = _elementRegion,
-                  env = env.bind(leftName -> lxOut, rightName -> rxOut)))
 
                 val producer = new StreamProducer {
                   override val length: Option[EmitCodeBuilder => Code[Int]] = None
@@ -1111,21 +1294,11 @@ object EmitStream {
                     cb.assign(rightEOS, false)
                     cb.assign(c, 0) // lets us start stream with a pull from both
 
-                    if (rightProducer.requiresMemoryManagementPerElement)
-                      cb.assign(rightProducer.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
-                    else
-                      cb.assign(rightProducer.elementRegion, outerRegion)
-                    if (leftProducer.requiresMemoryManagementPerElement)
-                      cb.assign(leftProducer.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
-                    else
-                      cb.assign(leftProducer.elementRegion, outerRegion)
-
-                    leftProducer.initialize(cb)
-                    rightProducer.initialize(cb)
+                    sharedInit(cb)
                   }
 
                   override val elementRegion: Settable[Region] = _elementRegion
-                  override val requiresMemoryManagementPerElement: Boolean = leftProducer.requiresMemoryManagementPerElement || rightProducer.requiresMemoryManagementPerElement
+                  override val requiresMemoryManagementPerElement: Boolean = _requiresMemoryManagementPerElement
                   override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
 
                     val LpullRight = CodeLabel()
@@ -1197,10 +1370,10 @@ object EmitStream {
                       )
                       cb.ifx(rOutMissing,
                         cb.assign(rxOut, EmitCode.missing(mb, rxOut.st)),
-                         {
-                           cb.assign(rxOut, rx)
-                           cb.assign(pushedRight, true)
-                         })
+                        {
+                          cb.assign(rxOut, rx)
+                          cb.assign(pushedRight, true)
+                        })
                       cb.goto(LproduceElementDone)
                     }
 
@@ -1268,10 +1441,7 @@ object EmitStream {
                   override val element: EmitCode = joinResult
 
                   override def close(cb: EmitCodeBuilder): Unit = {
-                    leftProducer.close(cb)
-                    rightProducer.close(cb)
-                    if (rightProducer.requiresMemoryManagementPerElement)
-                      cb += rightProducer.elementRegion.invalidate()
+                    sharedClose(cb)
                   }
                 }
 

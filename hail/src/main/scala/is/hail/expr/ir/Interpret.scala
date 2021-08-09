@@ -635,38 +635,45 @@ object Interpret {
           def joinF(lelt: Any, relt: Any): Any =
             interpret(join, env.bind(l -> lelt, r -> relt), args)
 
-          val builder = scala.collection.mutable.ArrayBuilder.make[Any]
+          val builder = scala.collection.mutable.ArrayBuilder.make[(Option[Int], Option[Int])]
           var i = 0
           var j = 0
+
           while (i < lValue.length && j < rValue.length) {
             val lelt = lValue(i)
             val relt = rValue(j)
             val c = compF(lelt, relt)
             if (c < 0) {
-              builder += joinF(lelt, null)
+              builder += ((Some(i), None))
               i += 1
             } else if (c > 0) {
-              if (joinType == "outer")
-                builder += joinF(null, relt)
+              builder += ((None, Some(j)))
               j += 1
             } else {
-              builder += joinF(lelt, relt)
+              builder += ((Some(i), Some(j)))
               i += 1
               if (i == lValue.length || compF(lValue(i), relt) > 0)
                 j += 1
             }
           }
           while (i < lValue.length) {
-            builder += joinF(lValue(i), null)
+            builder += ((Some(i), None))
             i += 1
           }
-          if (joinType == "outer") {
-            while (j < rValue.length) {
-              builder += joinF(null, rValue(j))
-              j += 1
-            }
+          while (j < rValue.length) {
+            builder += ((None, Some(j)))
+            j += 1
           }
-          builder.result().toFastIndexedSeq
+
+          val outerResult = builder.result()
+          val elts: Iterator[(Option[Int], Option[Int])] = joinType match {
+            case "inner" => outerResult.iterator.filter { case (l, r) => l.isDefined && r.isDefined }
+            case "outer" => outerResult.iterator
+            case "left" => outerResult.iterator.filter { case (l, r) => l.isDefined }
+            case "right" => outerResult.iterator.filter { case (l, r) => r.isDefined }
+          }
+          elts.map { case (lIdx, rIdx) => joinF(lIdx.map(lValue.apply).orNull, rIdx.map(rValue.apply).orNull) }
+            .toFastIndexedSeq
         }
 
       case StreamFor(a, valueName, body) =>
