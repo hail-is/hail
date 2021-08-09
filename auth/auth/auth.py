@@ -573,6 +573,18 @@ async def verify_dev_credentials(request):
     return web.Response(status=200)
 
 
+@routes.get('/api/v1alpha/verify_dev_or_sa_credentials')
+async def verify_dev_credentials(request):
+    session_id = await get_session_id(request)
+    if not session_id:
+        raise web.HTTPUnauthorized()
+    userdata = await get_userinfo(request, session_id)
+    is_developer_or_sa = userdata is not None and (userdata['is_developer'] == 1 or userdata['is_service_account'] == 1)
+    if not is_developer_or_sa:
+        raise web.HTTPUnauthorized()
+    return web.Response(status=200)
+
+
 async def on_startup(app):
     db = Database()
     await db.async_init(maxsize=50)
