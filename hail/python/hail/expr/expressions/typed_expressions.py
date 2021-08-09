@@ -3102,8 +3102,8 @@ class StringExpression(Expression):
         """
         return self._method('translate', tstr, mapping)
 
-    @typecheck_method(regex=expr_str)
-    def matches(self, regex):
+    @typecheck_method(regex=expr_str, fullMatch=nullable(bool))
+    def matches(self, regex, full_match=False):
         """Returns ``True`` if the string contains any match for the given regex.
 
         Examples
@@ -3135,10 +3135,14 @@ class StringExpression(Expression):
 
         Returns
         -------
+        :param full_match:
         :class:`.BooleanExpression`
             ``True`` if the string contains any match for the regex, otherwise ``False``.
         """
-        return regex._method("regexMatch", tbool, self)
+        if full_match is False:
+            return regex._method("regexMatch", tbool, self)
+        else:
+            return regex._method("regexFullMatch", tbool, self)
 
     def reverse(self):
         """Returns the reversed value.
