@@ -34,19 +34,19 @@ object BaseTypeWithRequiredness {
         check(r.endType, typ.asInstanceOf[TInterval].pointType)
       case r: RStruct =>
         val struct = typ.asInstanceOf[TStruct]
-        (r.fields, struct.fields).zipped.map { case (rf, f) =>
+        (r.fields, struct.fields).zipped.map { (rf, f) =>
           assert(rf.name == f.name)
           check(rf.typ, f.typ)
         }
       case r: RTuple =>
         val tuple = typ.asInstanceOf[TTuple]
-        (r.fields, tuple.fields).zipped.map { case (rf, f) =>
+        (r.fields, tuple.fields).zipped.map { (rf, f) =>
           assert(rf.index == f.index)
           check(rf.typ, f.typ)
         }
       case r: RUnion =>
         val union = typ.asInstanceOf[TUnion]
-        (r.cases, union.cases).zipped.map { case (rc, c) =>
+        (r.cases, union.cases).zipped.map { (rc, c) =>
           assert(rc._1 == c.name)
           check(rc._2, c.typ)
         }
@@ -93,7 +93,7 @@ sealed abstract class BaseTypeWithRequiredness {
       throw new AssertionError(
         s"children lengths differed ${children.length} ${newChildren.length}. ${children} ${newChildren} ${this}")
     }
-    (children, newChildren).zipped.foreach { case (r1, r2) =>
+    (children, newChildren).zipped.foreach { (r1, r2) =>
       r1.unionFrom(r2)
     }
   }
@@ -271,7 +271,7 @@ sealed class RIterable(val elementType: TypeWithRequiredness, eltRequired: Boole
 
   def unionElement(newElement: BaseTypeWithRequiredness): Unit = {
     if (eltRequired)
-      (elementType.children, newElement.children).zipped.foreach { case (r1, r2) => r1.unionFrom(r2) }
+      (elementType.children, newElement.children).zipped.foreach { (r1, r2) => r1.unionFrom(r2) }
     else
       elementType.unionFrom(newElement)
   }
@@ -362,7 +362,7 @@ sealed abstract class RBaseStruct extends TypeWithRequiredness {
   def size: Int = fields.length
   val children: Seq[TypeWithRequiredness] = fields.map(_.typ)
   def _unionLiteral(a: Annotation): Unit =
-    (children, a.asInstanceOf[Row].toSeq).zipped.foreach { case (r, f) => r.unionLiteral(f) }
+    (children, a.asInstanceOf[Row].toSeq).zipped.foreach { (r, f) => r.unionLiteral(f) }
   def _matchesPType(pt: PType): Boolean =
     coerce[PBaseStruct](pt).fields.forall(f => children(f.index).matchesPType(f.typ))
   def _unionPType(pType: PType): Unit =
@@ -400,7 +400,7 @@ case class RTuple(fields: IndexedSeq[RField]) extends RBaseStruct {
   def field(idx: Int): TypeWithRequiredness = fieldType(idx.toString)
   def copy(newChildren: Seq[BaseTypeWithRequiredness]): RTuple = {
     assert(newChildren.length == fields.length)
-    RTuple((fields, newChildren).zipped.map { case (f, c) => RField(f.name, coerce[TypeWithRequiredness](c), f.index) })
+    RTuple((fields, newChildren).zipped.map { (f, c) => RField(f.name, coerce[TypeWithRequiredness](c), f.index) })
   }
   def _toString: String = s"RTuple[${ fields.map(f => s"${ f.index }: ${ f.typ.toString }").mkString(",") }]"
 }
@@ -441,7 +441,7 @@ case class RTable(rowFields: Seq[(String, TypeWithRequiredness)], globalFields: 
   def unionKeys(req: RStruct): Unit = key.foreach { n => field(n).unionFrom(req.field(n)) }
   def unionKeys(req: RTable): Unit = {
     assert(key.length <= req.key.length)
-    (key, req.key).zipped.foreach { case (k, rk) => field(k).unionFrom(req.field(rk)) }
+    (key, req.key).zipped.foreach { (k, rk) => field(k).unionFrom(req.field(rk)) }
   }
 
   def unionValues(req: RStruct): Unit = valueFields.foreach { n => if (req.hasField(n)) field(n).unionFrom(req.field(n)) }

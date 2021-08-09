@@ -2058,7 +2058,7 @@ class IRSuite extends HailSuite {
       Let("_right", r,
           Let("_left", l,
               MakeStruct(
-                (lKeys, rKeys).zipped.map { case (lk, rk) => lk -> Coalesce(Seq(getL(lk), getR(rk))) }
+                (lKeys, rKeys).zipped.map { (lk, rk) => lk -> Coalesce(Seq(getL(lk), getR(rk))) }
                   ++ coerce[TStruct](l.typ).fields.filter(f => !lKeys.contains(f.name)).map { f =>
                   f.name -> GetField(Ref("_left", l.typ), f.name)
                 } ++ coerce[TStruct](r.typ).fields.filter(f => !rKeys.contains(f.name)).map { f =>
