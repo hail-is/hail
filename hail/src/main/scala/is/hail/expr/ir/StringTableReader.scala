@@ -59,7 +59,7 @@ case class StringTablePartitionReader(lines: GenericLines) extends PartitionRead
      requestedType: Type): IEmitCode = {
 
      context.toI(cb).map(cb) { partitionContext =>
-       val iter = cb.emb.genFieldThisRef[CloseableIterator[GenericLine]]("iter")
+       val iter = cb.emb.genFieldThisRef[CloseableIterator[GenericLine]]("string_table_reader_iter")
 
        val ctxMemo = partitionContext.asBaseStruct.memoize(cb, "string_table_reader_ctx")
        val fileName = cb.emb.genFieldThisRef[String]("fileName")
@@ -125,13 +125,11 @@ class StringTableReader(
 
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
     val fs = ctx.fs
-    println(requestedType.rowType)
     val lines = GenericLines.read(fs, fileStatuses, None, None, params.minPartitions, false, true)
     TableStage(globals = MakeStruct(FastSeq()),
       partitioner = RVDPartitioner.unkeyed(lines.nPartitions),
       dependency = TableStageDependency.none,
-      //TODO figure out if stream requires memory management per element
-      contexts = ToStream(Literal.coerce(TArray(lines.contextType), lines.contexts), true),
+      contexts = ToStream(Literal.coerce(TArray(lines.contextType), lines.contexts)),
       body = { partitionContext: Ref => ReadPartition(partitionContext, requestedType.rowType, StringTablePartitionReader(lines))
       }
     )
@@ -139,7 +137,6 @@ class StringTableReader(
 
   override def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
     val ts = lower(ctx, tr.typ)
-    println(tr.typ)
     val (broadCastRow, rVD) = TableStageToRVD.apply(ctx, ts, Map[String, IR]())
     TableValue(ctx, tr.typ, broadCastRow, rVD)
   }
