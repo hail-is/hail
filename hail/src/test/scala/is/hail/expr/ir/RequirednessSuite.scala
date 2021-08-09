@@ -433,9 +433,13 @@ class RequirednessSuite extends HailSuite {
   @Test
   def testDataProviders(): Unit = {
     val s = new BoxedArrayBuilder[String]()
-    valueIR().map(v => v(0) -> v(1)).foreach { case (n: IR, t: PType) =>
+    valueIR().map(v => v(0) -> v(1)).foreach {
+      case (n: IR, t: PType) =>
       if (n.typ != t.virtualType)
         s += s"${ n.typ } != ${ t.virtualType }: \n${ Pretty(n) }"
+      case (n: IR, et: EmitType) =>
+        if (n.typ != et.virtualType)
+          s += s"${ n.typ } != ${ et.virtualType }: \n${ Pretty(n) }"
     }
     tableIR().map(v => (v(0), v(1), v(2))).foreach { case (n: TableIR, row: PType, global: PType) =>
       if (n.typ.rowType != row.virtualType || n.typ.globalType != global.virtualType )
