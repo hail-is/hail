@@ -3,16 +3,17 @@ package is.hail.utils
 import java.io.OutputStream
 
 class ArrayOfByteArrayOutputStream(initialBufferCapacity: Int) extends OutputStream {
+
+  val MAX_ARRAY_SIZE = Integer.MAX_VALUE - 8;
+
   /**
     * The buffer where data is stored.
     */
   protected var buf: Array[Array[Byte]] = new Array[Array[Byte]](1)
   buf(0) = new Array[Byte](initialBufferCapacity)
 
-  /**
-    * The number of valid bytes in the buffer.
-    */
-  protected var count = 0L
+  protected var bytesInCurrentArray = 0
+  protected var currentArray = 0
 
   /**
     * Creates a new byte array output stream. The buffer capacity is
@@ -22,9 +23,16 @@ class ArrayOfByteArrayOutputStream(initialBufferCapacity: Int) extends OutputStr
     this(32)
   }
 
+  def ensureNextByte(): Unit = {
+    if (bytesInCurrentArray == MAX_ARRAY_SIZE) {
+      
+    }
+  }
 
   override def write(b: Int): Unit = {
-    ???
-    count += b
+    ensureNextByte()
+
+    buf(currentArray)(bytesInCurrentArray)
+    bytesInCurrentArray += 1
   }
 }
