@@ -46,6 +46,8 @@ object StringFunctions extends RegistryFunctions {
 
   def regexMatch(regex: String, s: String): Boolean = regex.r.findFirstIn(s).isDefined
 
+  def regexFullMatch(regex: String, s: String): Boolean = s.matches(regex)
+
   def concat(s: String, t: String): String = s + t
 
   def replace(str: String, pattern1: String, pattern2: String): String =
@@ -215,6 +217,9 @@ object StringFunctions extends RegistryFunctions {
     registerWrappedScalaFunction2("regexMatch", TString, TString, TBoolean, {
       case (_: Type, _: SType, _: SType) => SBoolean
     })(thisClass, "regexMatch")
+    registerWrappedScalaFunction2("regexFullMatch", TString, TString, TBoolean, {
+      case (_: Type, _: SType, _: SType) => SBoolean
+    })(thisClass, "regexFullMatch")
     registerWrappedScalaFunction2("concat", TString, TString, TString, {
       case (_: Type, _: SType, _: SType) => SJavaString
     })(thisClass, "concat")

@@ -3102,7 +3102,7 @@ class StringExpression(Expression):
         """
         return self._method('translate', tstr, mapping)
 
-    @typecheck_method(regex=expr_str, fullMatch=nullable(bool))
+    @typecheck_method(regex=expr_str, full_match=nullable(bool))
     def matches(self, regex, full_match=False):
         """Returns ``True`` if the string contains any match for the given regex.
 
@@ -3132,12 +3132,15 @@ class StringExpression(Expression):
         ----------
         regex: :class:`.StringExpression`
             Pattern to match.
+        full_match: :obj: `bool`
+            If ``True``, the function considers whether the whole string matches the regex.
+            If ``False``, the function considers whether the string has a partial match for that regex
 
         Returns
         -------
-        :param full_match:
         :class:`.BooleanExpression`
-            ``True`` if the string contains any match for the regex, otherwise ``False``.
+            If full_match is ``False``,``True`` if the string contains any match for the regex, otherwise ``False``.
+            If full_match is ``True``,``True`` if the whole string matches the regex, otherwise ``False``.
         """
         if full_match is False:
             return regex._method("regexMatch", tbool, self)
