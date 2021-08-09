@@ -744,7 +744,7 @@ object LowerTableIR {
               loweredChild.partition(GetField(ctxRef, "old")),
               GetField(ctxRef, "numberToTake")))
 
-        case ir@TableTail(child, targetNumRows) =>
+        case TableTail(child, targetNumRows) =>
           val loweredChild = lower(child)
 
           def partitionSizeArray(childContexts: Ref, totalNumPartitions: Ref): IR = {
@@ -755,7 +755,7 @@ object LowerTableIR {
               FastIndexedSeq(howManyPartsToTry.name -> 4),
               bindIR(
                 loweredChild
-                  .mapContexts(_ => StreamDrop(ToStream(childContexts), maxIR(totalNumPartitions - howManyPartsToTry, 0))) { ctx: IR => ctx }
+                  .mapContexts(_ => StreamDrop(ToStream(childContexts), maxIR(totalNumPartitions - howManyPartsToTry, 0))){ ctx: IR => ctx }
                   .mapCollect(relationalLetsAbove)(StreamLen)
               ) { counts =>
                 If((Cast(streamSumIR(ToStream(counts)), TInt64) >= targetNumRows) || (totalNumPartitions <= ArrayLen(counts)),
