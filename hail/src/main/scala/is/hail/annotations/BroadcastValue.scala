@@ -1,17 +1,18 @@
 package is.hail.annotations
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
-
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream}
 import is.hail.backend.BroadcastValue
 import is.hail.expr.ir.{EncodedLiteral, ExecuteContext}
 import is.hail.types.physical.{PArray, PStruct, PType}
 import is.hail.types.virtual.{TBaseStruct, TStruct}
 import is.hail.io.{BufferSpec, Decoder, TypedCodecSpec}
+import is.hail.utils.ArrayOfByteArrayOutputStream
+import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
 import org.apache.spark.sql.Row
 
-case class SerializableRegionValue(encodedValue: Array[Byte], t: PType, makeDecoder: ByteArrayInputStream => Decoder) {
+case class SerializableRegionValue(encodedValue: Array[Array[Byte]], t: PType, makeDecoder: InputStream => Decoder) {
   def readRegionValue(r: Region): Long = {
-    val dec = makeDecoder(new ByteArrayInputStream(encodedValue))
+    val dec = makeDecoder(new ArrayOfByteArrayInputStream(encodedValue))
     val offset = dec.readRegionValue(r)
     dec.close()
     offset
@@ -46,14 +47,14 @@ trait BroadcastRegionValue {
   lazy val broadcast: BroadcastValue[SerializableRegionValue] = {
     val makeEnc = encoding.buildEncoder(ctx, t)
 
-    val baos = new ByteArrayOutputStream()
+    val baos = new ArrayOfByteArrayOutputStream()
 
     val enc = makeEnc(baos)
     enc.writeRegionValue(value.offset)
     enc.flush()
     enc.close()
 
-    val srv = SerializableRegionValue(baos.toByteArray, decodedPType, makeDec)
+    val srv = SerializableRegionValue(baos.toByteArrays(), decodedPType, makeDec)
     ctx.backend.broadcast(srv)
   }
 

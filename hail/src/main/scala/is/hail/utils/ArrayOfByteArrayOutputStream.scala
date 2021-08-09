@@ -10,7 +10,7 @@ class ArrayOfByteArrayOutputStream(initialBufferCapacity: Int) extends OutputStr
     * The buffer where data is stored.
     */
   protected var buf = new BoxedArrayBuilder[ByteArrayOutputStream](1)
-  buf ++= new ByteArrayOutputStream(initialBufferCapacity)
+  buf += new ByteArrayOutputStream(initialBufferCapacity)
 
   protected var bytesInCurrentArray = 0
   protected var currentArray = 0
@@ -26,7 +26,7 @@ class ArrayOfByteArrayOutputStream(initialBufferCapacity: Int) extends OutputStr
   def ensureNextByte(): Unit = {
     if (bytesInCurrentArray == MAX_ARRAY_SIZE) {
       buf.ensureCapacity(buf.length + 1)
-      buf ++= new ByteArrayOutputStream(initialBufferCapacity)
+      buf += new ByteArrayOutputStream(initialBufferCapacity)
       currentArray += 1
       bytesInCurrentArray = 0
     }
@@ -39,7 +39,7 @@ class ArrayOfByteArrayOutputStream(initialBufferCapacity: Int) extends OutputStr
     bytesInCurrentArray += 1
   }
 
-  def toByteArrays(): Unit = {
+  def toByteArrays(): Array[Array[Byte]] = {
     buf.result().map(_.toByteArray)
   }
 }
