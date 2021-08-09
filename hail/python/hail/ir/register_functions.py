@@ -44,7 +44,6 @@ def register_functions():
     ndarray_floating_point_divide(tint64, tfloat32)
     ndarray_floating_point_divide(tfloat32, tfloat32)
     ndarray_floating_point_divide(tfloat64, tfloat64)
-
     register_function("values", (dtype("dict<?key, ?value>"),), dtype("array<?value>"))
     register_function("sliceRight", (dtype("str"), dtype("int32"),), dtype("str"))
     register_function("get", (dtype("dict<?key, ?value>"), dtype("?key"),), dtype("?value"))

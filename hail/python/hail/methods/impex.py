@@ -1720,15 +1720,7 @@ def import_table(paths,
         line_table = line_table.annotate(text=line_table.text.splitQuoted(delimiter, quote))
 
     if filter is not None:
-        line_table.annotate(text=line_table.text.)
-
-
-
-
-
-
-
-
+        line_table.annotate(text=line_table.text)
 
 @typecheck(paths=oneof(str, sequenceof(str)), min_partitions=nullable(int))
 def import_lines(paths, min_partitions=None) -> Table:
