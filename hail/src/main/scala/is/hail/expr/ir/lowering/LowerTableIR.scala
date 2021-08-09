@@ -750,6 +750,7 @@ object LowerTableIR {
           def partitionSizeArray(childContexts: Ref, totalNumPartitions: Ref): IR = {
             val partitionSizeArrayFunc = genUID()
             val howManyPartsToTry = Ref(genUID(), TInt32)
+
             TailLoop(
               partitionSizeArrayFunc,
               FastIndexedSeq(howManyPartsToTry.name -> 4),
