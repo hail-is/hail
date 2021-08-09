@@ -1,6 +1,6 @@
 package is.hail.utils
 
-import java.io.OutputStream
+import java.io.{ByteArrayOutputStream, OutputStream}
 
 class ArrayOfByteArrayOutputStream(initialBufferCapacity: Int) extends OutputStream {
 
@@ -9,8 +9,8 @@ class ArrayOfByteArrayOutputStream(initialBufferCapacity: Int) extends OutputStr
   /**
     * The buffer where data is stored.
     */
-  protected var buf: Array[Array[Byte]] = new Array[Array[Byte]](1)
-  buf(0) = new Array[Byte](initialBufferCapacity)
+  protected var buf = new BoxedArrayBuilder[ByteArrayOutputStream](1)
+  buf ++= new ByteArrayOutputStream(initialBufferCapacity)
 
   protected var bytesInCurrentArray = 0
   protected var currentArray = 0
@@ -25,14 +25,21 @@ class ArrayOfByteArrayOutputStream(initialBufferCapacity: Int) extends OutputStr
 
   def ensureNextByte(): Unit = {
     if (bytesInCurrentArray == MAX_ARRAY_SIZE) {
-      
+      buf.ensureCapacity(buf.length + 1)
+      buf ++= new ByteArrayOutputStream(initialBufferCapacity)
+      currentArray += 1
+      bytesInCurrentArray = 0
     }
   }
 
   override def write(b: Int): Unit = {
     ensureNextByte()
 
-    buf(currentArray)(bytesInCurrentArray)
+    buf(buf.length - 1).write(b)
     bytesInCurrentArray += 1
+  }
+
+  def toByteArrays(): Unit = {
+    buf.result().map(_.toByteArray)
   }
 }
