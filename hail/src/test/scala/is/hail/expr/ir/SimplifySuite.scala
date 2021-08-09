@@ -287,4 +287,35 @@ class SimplifySuite extends HailSuite {
       case _ => false
     })
   }
+
+  @Test def testSimplifyArraySlice(): Unit = {
+    val stream = StreamRange(I32(0), I32(10), I32(1))
+    val streamSlice1 = Simplify(ArraySlice(ToArray(stream), I32(0), Some(I32(7))))
+    assert(streamSlice1 match {
+      case ToArray(StreamTake(_,_)) => true
+      case _ => false
+    } )
+    assertEvalsTo(streamSlice1.asInstanceOf[IR], FastSeq(0, 1, 2, 3, 4, 5, 6))
+
+    val streamSlice2 = Simplify(ArraySlice(ToArray(stream), I32(3), Some(I32(5))))
+    assert(streamSlice2 match {
+      case ToArray(StreamTake(StreamDrop(_,_), _)) => true
+      case _ => false
+    } )
+    assertEvalsTo(streamSlice2.asInstanceOf[IR], FastSeq(3, 4))
+
+    val streamSlice3 = Simplify(ArraySlice(ToArray(stream), I32(6), Some(I32(2))))
+    assert(streamSlice3 match {
+      case MakeArray(_, _) => true
+      case _ => false
+    } )
+    assertEvalsTo(streamSlice3.asInstanceOf[IR], FastSeq())
+
+    val streamSlice4 = Simplify(ArraySlice(ToArray(stream), I32(0), None))
+    assert(streamSlice4 match {
+      case ToArray(StreamDrop(_, _)) => true
+      case _ => false
+    } )
+    assertEvalsTo(streamSlice4.asInstanceOf[IR], FastSeq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9))
+  }
 }
