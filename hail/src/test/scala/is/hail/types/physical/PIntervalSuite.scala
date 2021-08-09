@@ -39,6 +39,7 @@ class PIntervalSuite extends PhysicalTestUtils {
     runTests(false, true)
   }
 
+  // Just makes sure we can generate code to store an unreachable interval
   @Test def storeUnreachable(): Unit = {
     val ust = SUnreachableInterval(TInterval(TInt32))
     val usv = new SUnreachableIntervalValue(ust)

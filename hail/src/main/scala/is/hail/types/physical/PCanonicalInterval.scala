@@ -4,7 +4,9 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
 import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.{SIntervalPointer, SIntervalPointerCode, SUnreachableInterval}
+import is.hail.types.physical.stypes.concrete.{SIntervalPointer, SIntervalPointerCode, SStackStruct, SUnreachableInterval}
+import is.hail.types.physical.stypes.interfaces.primitive
+import is.hail.types.physical.stypes.primitives.SBooleanCode
 import is.hail.types.virtual.{TInterval, Type}
 import is.hail.utils.{FastIndexedSeq, Interval}
 import org.apache.spark.sql.Row
@@ -77,8 +79,14 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
       case SIntervalPointer(t: PCanonicalInterval) =>
         representation.store(cb, region, t.representation.loadCheapSCode(cb, value.asInstanceOf[SIntervalPointerCode].a), deepCopy)
       case SUnreachableInterval(_) =>
-        cb._fatal("Unreachable, compiler error.")
-        const(0L)
+        val interval = value.asInterval.memoize(cb, "pcinterval_store_at_addr")
+        val start = EmitCode.fromI(cb.emb)(cb => interval.loadStart(cb))
+        val stop = EmitCode.fromI(cb.emb)(cb => interval.loadEnd(cb))
+        val includesStart = EmitCode.present(cb.emb, new SBooleanCode(interval.includesStart()))
+        val includesStop = EmitCode.present(cb.emb, new SBooleanCode(interval.includesEnd()))
+        representation.store(cb, region,
+          SStackStruct.constructFromArgs(cb, region, representation.virtualType,
+            start, stop, includesStart, includesStop), deepCopy)
     }
   }
 
@@ -86,8 +94,16 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
     value.st match {
       case SIntervalPointer(t: PCanonicalInterval) =>
         representation.storeAtAddress(cb, addr, region, t.representation.loadCheapSCode(cb, value.asInstanceOf[SIntervalPointerCode].a), deepCopy)
-      case SUnreachableInterval(_) =>
-        cb._fatal("Unreachable, compiler error.")
+      case _ =>
+        val interval = value.asInterval.memoize(cb, "pcinterval_store_at_addr")
+        val start = EmitCode.fromI(cb.emb)(cb => interval.loadStart(cb))
+        val stop = EmitCode.fromI(cb.emb)(cb => interval.loadEnd(cb))
+        val includesStart = EmitCode.present(cb.emb, new SBooleanCode(interval.includesStart()))
+        val includesStop = EmitCode.present(cb.emb, new SBooleanCode(interval.includesEnd()))
+        representation.storeAtAddress(cb, addr, region,
+          SStackStruct.constructFromArgs(cb, region, representation.virtualType,
+            start, stop, includesStart, includesStop),
+          deepCopy)
     }
   }
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
