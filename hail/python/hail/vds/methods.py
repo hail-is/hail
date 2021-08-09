@@ -383,3 +383,81 @@ def split_multi(vds: 'VariantDataset', *, filter_changed_loci: bool = False) -> 
     """
     variant_data = hl.experimental.sparse_split_multi(vds.variant_data, filter_changed_loci=filter_changed_loci)
     return VariantDataset(vds.reference_data, variant_data)
+
+
+@typecheck(ref=MatrixTable, intervals=Table)
+def segment_reference_blocks(ref: 'MatrixTable', intervals: 'Table') -> 'MatrixTable':
+    """Returns a matrix table of reference blocks segmented according to intervals.
+
+    Loci outside the given intervals are discarded. Reference blocks that start before
+    but span an interval will appear at the interval start locus.
+
+    Note
+    ----
+        Assumes disjoint intervals which do not span contigs.
+
+        Requires start-inclusive intervals.
+
+    Parameters
+    ----------
+    ref : :class:`.MatrixTable`
+        MatrixTable of reference blocks.
+    intervals : :class:`.Table`
+        Table of intervals at which to segment reference blocks.
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+    """
+    interval_field = list(intervals.key)[0]
+    if not intervals[interval_field].dtype == hl.tinterval(ref.locus.dtype):
+        raise ValueError(f"expect intervals to be keyed by intervals of loci matching the VariantDataset:"
+                         f" found {intervals[interval_field].dtype} / {ref.locus.dtype}")
+    intervals = intervals.select(_interval_dup=intervals[interval_field])
+
+    if not intervals.aggregate(
+            hl.agg.all(intervals[interval_field].includes_start &
+                       (intervals[interval_field].start.contig == intervals[interval_field].end.contig))):
+        raise ValueError(f"expect intervals to be start-inclusive")
+
+    starts = intervals.key_by(_start_locus=intervals[interval_field].start)
+    starts = starts.annotate(_include_locus=True)
+    refl = ref.localize_entries('_ref_entries', '_ref_cols')
+    joined = refl.join(starts, how='outer')
+    dense = joined.annotate(
+        dense_ref=hl.or_missing(
+            joined._include_locus,
+            hl.rbind(joined.locus.position,
+                     lambda pos: hl.scan._densify(hl.len(joined._ref_cols), joined._ref_entries)
+                     .map(lambda e: hl.or_missing(e.END >= pos, e))
+                     ))
+    )
+    dense = dense.filter(dense._include_locus).drop('_interval_dup', '_include_locus')
+
+    # at this point, 'dense' is a table with dense rows of reference blocks, keyed by locus
+
+    refl_filtered = refl.annotate(**{interval_field: intervals[refl.locus]._interval_dup})
+
+    # remove rows that are not contained in an interval, and rows that are the start of an
+    # interval (interval starts come from the 'dense' table)
+    refl_filtered = refl_filtered.filter(hl.is_defined(refl_filtered[interval_field]) &
+                                         (refl_filtered.locus != refl_filtered[interval_field].start))
+
+    # union dense interval starts with filtered table
+    refl_filtered = refl_filtered.union(dense.transmute(_ref_entries=dense.dense_ref))
+
+    # rewrite reference blocks to end at the first of (interval end, reference block end)
+    refl_filtered = refl_filtered.annotate(interval_end=refl_filtered[interval_field].end.position - ~refl_filtered[interval_field].includes_end)
+    refl_filtered = refl_filtered.annotate(
+        _ref_entries=refl_filtered._ref_entries.map(
+            lambda entry: entry.annotate(END=hl.min(entry.END, refl_filtered.interval_end))))
+
+    return refl_filtered._unlocalize_entries('_ref_entries', '_ref_cols', list(ref.col_key))
+
+@typecheck(ref=MatrixTable, intervals=Table, min_gq=int)
+def interval_coverage(ref: 'MatrixTable', intervals: 'Table', min_gq = 0) -> 'MatrixTable':
+    split = segment_reference_blocks(ref, intervals)
+    per_interval = split.group_rows_by(interval=intervals.key[0]) \
+        .aggregate(gq_over_0=hl.agg.filter(split.GQ > min_gq, hl.agg.sum(split.END - split.locus.position)))
+
+    return per_interval
