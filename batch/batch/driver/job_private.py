@@ -49,7 +49,7 @@ class JobPrivateInstanceManager(InstanceCollection):
         await super().async_init()
 
         async for record in self.db.select_and_fetchall(
-                            '''
+                '''
 SELECT instances.*, instances_free_cores_mcpu.free_cores_mcpu
 FROM instances
 INNER JOIN instances_free_cores_mcpu

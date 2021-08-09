@@ -51,6 +51,7 @@ class Instance:
         state = 'pending'
         now = time_msecs()
         token = secrets.token_urlsafe(32)
+
         @transaction(db)
         async def insert(tx):
             await tx.just_execute(
@@ -82,7 +83,7 @@ VALUES (%s, %s);
 ''',
                 (name, worker_cores_mcpu,),
             )
-        await insert()
+        await insert()  # pylint: disable=no-value-for-parameter
 
         return Instance(
             app,

@@ -2,13 +2,11 @@ from typing import Optional
 import logging
 from functools import wraps
 import urllib.parse
-import aiohttp
 from aiohttp import web
 import aiohttp_session
 from hailtop.config import get_deploy_config
 from hailtop.auth import async_get_userinfo
 import asyncio
-import concurrent
 
 log = logging.getLogger('gear.auth')
 

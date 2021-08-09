@@ -147,5 +147,5 @@ class StringTableReader(
     (PCanonicalStruct(IndexedSeq(PField("file", PCanonicalString(true), 0),
                                 PField("text", PCanonicalString(true), 1)), true).subsetTo(requestedType.rowType).asInstanceOf[PStruct],
      PCanonicalStruct.empty(required = true))
-  
+
 }

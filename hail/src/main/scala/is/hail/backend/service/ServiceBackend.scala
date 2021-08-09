@@ -13,7 +13,7 @@ import is.hail.backend.{Backend, BackendContext, BroadcastValue, HailTaskContext
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, MakeTuple, SortField}
-import is.hail.io.fs.{FS, GoogleStorageFS}
+import is.hail.io.fs._
 import is.hail.linalg.BlockMatrix
 import is.hail.services._
 import is.hail.services.batch_client.BatchClient

@@ -18,8 +18,8 @@ from hailtop.google_storage import GCS
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
 from hailtop.utils import AsyncWorkerPool, retry_transient_errors, dump_all_stacktraces
-from gear import setup_aiohttp_session, rest_authenticated_users_only, monitor_endpoints_middleware
 from hailtop.httpx import client_session as http_client_session
+from gear import setup_aiohttp_session, rest_authenticated_users_only, monitor_endpoints_middleware
 
 uvloop.install()
 

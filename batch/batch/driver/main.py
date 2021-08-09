@@ -35,6 +35,7 @@ from hailtop.utils import (
     dump_all_stacktraces,
 )
 from hailtop.tls import internal_server_ssl_context
+from hailtop.httpx import client_session
 from hailtop import aiogoogle, aiotools
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 import googlecloudprofiler

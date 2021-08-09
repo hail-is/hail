@@ -614,8 +614,6 @@ def check_service_account_permissions(user, sa):
 @rest_authenticated_users_only
 async def create_jobs(request: aiohttp.web.Request, userdata):
     app = request.app
-    db: Database = app['db']
-    log_store: LogStore = app['log_store']
 
     if app['frozen']:
         log.info('ignoring batch create request; batch is frozen')
@@ -957,7 +955,7 @@ ON DUPLICATE KEY UPDATE
                          resources['ready_cancellable_cores_mcpu'])
                         for inst_coll, resources in inst_coll_resources.items()]
                     await tx.execute_many(
-                            '''
+                        '''
 INSERT INTO batch_inst_coll_cancellable_resources (batch_id, inst_coll, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
 VALUES (%s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE
@@ -1014,6 +1012,7 @@ async def create_batch_fast(request, userdata):
     await _close_batch(app, batch_id, user, db)
     return web.json_response({'id': batch_id})
 
+
 @routes.post('/api/v1alpha/batches/create')
 @rest_authenticated_users_only
 async def create_batch(request, userdata):
@@ -1027,6 +1026,7 @@ async def create_batch(request, userdata):
     batch_spec = await request.json()
     id = await _create_batch(batch_spec, userdata, db)
     return web.json_response({'id': id})
+
 
 async def _create_batch(batch_spec: dict, userdata: dict, db: Database):
     try:
