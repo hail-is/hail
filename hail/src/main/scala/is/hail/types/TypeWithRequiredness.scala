@@ -2,6 +2,7 @@ package is.hail.types
 
 import is.hail.annotations.{Annotation, NDArray}
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.interfaces.SStream
 import is.hail.types.physical.stypes.{EmitType, SType}
 import is.hail.types.virtual._
 import is.hail.utils.{FastSeq, Interval}
@@ -165,8 +166,13 @@ object VirtualTypeWithReq {
 case class VirtualTypeWithReq(t: Type, r: TypeWithRequiredness) {
   lazy val canonicalPType: PType = r.canonicalPType(t)
   lazy val canonicalEmitType: EmitType = {
-    val pt = r.canonicalPType(t)
-    EmitType(pt.sType, pt.required)
+    t match {
+      case ts: TStream =>
+        EmitType(SStream(VirtualTypeWithReq(ts.elementType, r.asInstanceOf[RIterable].elementType).canonicalEmitType), r.required)
+      case t =>
+        val pt = r.canonicalPType(t)
+        EmitType(pt.sType, pt.required)
+    }
   }
 
   def setRequired(newReq: Boolean): VirtualTypeWithReq = {
