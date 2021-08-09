@@ -966,9 +966,11 @@ Exception in thread "main" java.lang.RuntimeException: invalid sort order: b
     def test_table_head_returns_right_number(self):
         rt = hl.utils.range_table(10, 11)
         par = hl.Table.parallelize([hl.Struct(x=x) for x in range(10)], schema='struct{x: int32}', n_partitions=11)
+        f = new_temp_file(extension='ht')
+        chkpt = rt.checkpoint(f)
 
         # test TableRange and TableParallelize rewrite rules
-        tables = [rt, par, rt.cache()]
+        tables = [rt, par, rt.cache(), chkpt]
         for table in tables:
             self.assertEqual(table.head(10).count(), 10)
             self.assertEqual(table.head(10)._force_count(), 10)
@@ -978,6 +980,24 @@ Exception in thread "main" java.lang.RuntimeException: invalid sort order: b
             self.assertEqual(table.head(11)._force_count(), 10)
             self.assertEqual(table.head(0).count(), 0)
             self.assertEqual(table.head(0)._force_count(), 0)
+
+    def test_table_tail_returns_right_number(self):
+        rt = hl.utils.range_table(10, 11)
+        par = hl.Table.parallelize([hl.Struct(x=x) for x in range(10)], schema='struct{x: int32}', n_partitions=11)
+        f = new_temp_file(extension='ht')
+        chkpt = rt.checkpoint(f)
+
+        # test TableRange and TableParallelize rewrite rules
+        tables = [rt, par, rt.cache(), chkpt]
+        for table in tables:
+            self.assertEqual(table.tail(10).count(), 10)
+            self.assertEqual(table.tail(10)._force_count(), 10)
+            self.assertEqual(table.tail(9).count(), 9)
+            self.assertEqual(table.tail(9)._force_count(), 9)
+            self.assertEqual(table.tail(11).count(), 10)
+            self.assertEqual(table.tail(11)._force_count(), 10)
+            self.assertEqual(table.tail(0).count(), 0)
+            self.assertEqual(table.tail(0)._force_count(), 0)
 
     def test_table_order_by_head_rewrite(self):
         rt = hl.utils.range_table(10, 2)
