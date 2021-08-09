@@ -27,16 +27,13 @@ case class SNDArraySlice(pType: PCanonicalNDArray) extends SNDArray {
 
   override def castRename(t: Type): SType = SNDArrayPointer(pType.deepRename(t))
 
-  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
-    if (value.st == this && !deepCopy)
-      value
-    else
-      throw new MatchError(value.st)
-  }
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode =
+    value.st match {
+      case SNDArraySlice(`pType`) if !deepCopy => value
+    }
+
 
   override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = Array.fill(2*nDims + 1)(LongInfo)
-
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = ???
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SNDArraySliceSettable = {
     assert(settables.length == 2*nDims + 1)
