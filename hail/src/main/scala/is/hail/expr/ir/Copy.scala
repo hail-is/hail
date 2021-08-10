@@ -84,6 +84,9 @@ object Copy {
         assert(newChildren.length == 3)
         StreamRange(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR],
           requiresMemoryManagementPerElement, errorID)
+      case SeqSample(_, _, requiresMemoryManagementPerElement) =>
+        assert(newChildren.length == 2)
+        SeqSample(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], requiresMemoryManagementPerElement)
       case ArrayZeros(_) =>
         assert(newChildren.length == 1)
         ArrayZeros(newChildren(0).asInstanceOf[IR])
@@ -377,22 +380,6 @@ object Copy {
         WriteValue(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], spec)
       case LiftMeOut(_) =>
         LiftMeOut(newChildren(0).asInstanceOf[IR])
-      case ShuffleWith(keyFields, rowType, rowEType, keyEType, name, _, _) =>
-        assert(newChildren.length == 2)
-        ShuffleWith(keyFields, rowType, rowEType, keyEType, name,
-          newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
-      case ShuffleWrite(_, _) =>
-        assert(newChildren.length == 2)
-        ShuffleWrite(
-          newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
-      case ShufflePartitionBounds(_, _) =>
-        assert(newChildren.length == 2)
-        ShufflePartitionBounds(
-          newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
-      case ShuffleRead(_, _) =>
-        assert(newChildren.length == 2)
-        ShuffleRead(
-          newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
     }
   }
 }

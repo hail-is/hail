@@ -20,7 +20,6 @@ object SUnreachable {
       case tnd: TNDArray => SUnreachableNDArray(tnd)
       case tl: TLocus => SUnreachableLocus(tl)
       case ti: TInterval => SUnreachableInterval(ti)
-      case ts: TShuffle => SUnreachableShuffle(ts)
       case TCall => SUnreachableCall
       case TBinary => SUnreachableBinary
       case TString => SUnreachableString
@@ -146,22 +145,6 @@ class SUnreachableStringValue extends SUnreachableValue with SStringValue with S
   override def get: SUnreachableStringValue = this
 }
 
-case class SUnreachableShuffle(virtualType: TShuffle) extends SUnreachable with SShuffle {
-  val sv = new SUnreachableShuffleValue(this)
-}
-
-class SUnreachableShuffleValue(val st: SUnreachableShuffle) extends SUnreachableValue with SShuffleValue with SShuffleCode {
-  override def memoizeField(cb: EmitCodeBuilder, name: String): SUnreachableShuffleValue = this
-
-  override def memoize(cb: EmitCodeBuilder, name: String): SUnreachableShuffleValue = this
-
-  override def loadBytes(): Code[Array[Byte]] = Code._null
-
-  override def loadLength(): Code[Int] = const(0)
-
-  override def get: SUnreachableShuffleValue = this
-}
-
 case class SUnreachableLocus(virtualType: TLocus) extends SUnreachable with SLocus {
   val sv = new SUnreachableLocusValue(this)
 
@@ -266,15 +249,17 @@ class SUnreachableNDArrayValue(val st: SUnreachableNDArray) extends SUnreachable
 
   def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SCode = SUnreachable.fromVirtualType(st.virtualType.elementType).defaultValue
 
+  def loadElementAddress(indices: IndexedSeq[is.hail.asm4s.Value[Long]],cb: is.hail.expr.ir.EmitCodeBuilder): is.hail.asm4s.Code[Long] = const(0L)
+
   def shapes(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = (0 until st.nDims).map(_ => const(0L))
 
   def strides(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = (0 until st.nDims).map(_ => const(0L))
 
-  def outOfBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Boolean] = const(false)
+  override def outOfBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Boolean] = const(false)
 
-  def assertInBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder, errorId: Int = -1): Code[Unit] = Code._empty
+  override def assertInBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder, errorId: Int = -1): Unit = {}
 
-  def sameShape(other: SNDArrayValue, cb: EmitCodeBuilder): Code[Boolean] = const(false)
+  override def sameShape(other: SNDArrayValue, cb: EmitCodeBuilder): Code[Boolean] = const(false)
 
   def firstDataAddress(cb: EmitCodeBuilder): Value[Long] = const(0L)
 

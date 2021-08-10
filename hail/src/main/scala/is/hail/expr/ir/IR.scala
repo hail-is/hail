@@ -9,7 +9,7 @@ import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
 import is.hail.rvd.RVDSpecMaker
-import is.hail.types.TypeWithRequiredness
+import is.hail.types.{RIterable, TypeWithRequiredness}
 import is.hail.types.encoded._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{BooleanSingleCodeType, Float32SingleCodeType, Float64SingleCodeType, Int32SingleCodeType, Int64SingleCodeType, PTypeReferenceSingleCodeType, SType}
@@ -279,6 +279,9 @@ final case class StreamMap(a: IR, name: String, body: IR) extends IR {
 final case class StreamTake(a: IR, num: IR) extends IR
 final case class StreamDrop(a: IR, num: IR) extends IR
 
+// Generate, in ascending order, a uniform random sample, without replacement, of numToSample integers in the range [0, totalRange)
+final case class SeqSample(totalRange: IR, numToSample: IR, requiresMemoryManagementPerElement: Boolean) extends IR
+
 object ArrayZipBehavior extends Enumeration {
   type ArrayZipBehavior = Value
   val AssumeSameLength: Value = Value(0)
@@ -350,32 +353,29 @@ object StreamJoin {
 
     // stream of {key, groupField}, where 'groupField' is an array of all rows
     // in 'right' with key 'key'
-    val rightGrouped =
-      mapIR(rightGroupedStream) { group =>
-        bindIR(ToArray(group)) { array =>
-          bindIR(ArrayRef(array, 0)) { head =>
-            MakeStruct(rKey.map { key => key -> GetField(head, key) } :+ groupField -> array)
-          }
+    val rightGrouped = mapIR(rightGroupedStream) { group =>
+      bindIR(ToArray(group)) { array =>
+        bindIR(ArrayRef(array, 0)) { head =>
+          MakeStruct(rKey.map { key => key -> GetField(head, key) } :+ groupField -> array)
         }
       }
+    }
     val rElt = Ref(genUID(), coerce[TStream](rightGrouped.typ).elementType)
-    val nested = bindIR(GetField(rElt, groupField)) { rGroup =>
-      if (joinType == "left" || joinType == "outer") {
-        // Given a left element in 'l' and array of right elements in 'rGroup',
-        // compute array of results of 'joinF'. If 'rGroup' is missing, apply
-        // 'joinF' once to a missing right element.
-        StreamMap(If(IsNA(rGroup), MakeStream.unify(FastSeq(NA(rEltType))), ToStream(rGroup)), r, joinF)
-      } else {
-        StreamMap(ToStream(rGroup), r, joinF)
+    val lElt = Ref(genUID(), lEltType)
+    val makeTupleFromJoin = MakeStruct(FastSeq("left" -> lElt, "rightGroup" -> rElt))
+    val joined = StreamJoinRightDistinct(left, rightGrouped, lKey, rKey, lElt.name, rElt.name, makeTupleFromJoin, joinType)
+
+    // joined is a stream of {leftElement, rightGroup}
+    bindIR(MakeArray(NA(rEltType))) { missingSingleton =>
+      flatMapIR(joined) { x =>
+        Let(l, GetField(x, "left"), bindIR(GetField(GetField(x, "rightGroup"), groupField)) { rightElts =>
+          joinType match {
+            case "left" | "outer" => StreamMap(ToStream(If(IsNA(rightElts), missingSingleton, rightElts)), r, joinF)
+            case "right" | "inner" => StreamMap(ToStream(rightElts), r, joinF)
+          }
+        })
       }
     }
-    val rightDistinctJoinType =
-      if (joinType == "left" || joinType == "inner") "left" else "outer"
-
-    val joined = StreamJoinRightDistinct(left, rightGrouped, lKey, rKey, l, rElt.name, nested, rightDistinctJoinType)
-    val exploded = flatMapIR(joined) { x => x }
-
-    exploded
   }
 }
 
@@ -702,7 +702,7 @@ abstract class PartitionWriter {
 
   def ctxType: Type
   def returnType: Type
-  def returnPType(ctxType: PType, streamType: PStream): PType
+  def unionTypeRequiredness(r: TypeWithRequiredness, ctxType: TypeWithRequiredness, streamType: RIterable): Unit
 
   def toJValue: JValue = Extraction.decompose(this)(PartitionWriter.formats)
 }
@@ -755,34 +755,6 @@ class PrimitiveIR(val self: IR) extends AnyVal {
   def <=(other: IR): IR = ApplyComparisonOp(LTEQ(self.typ, other.typ), self, other)
   def >=(other: IR): IR = ApplyComparisonOp(GTEQ(self.typ, other.typ), self, other)
 }
-
-final case class ShuffleWith(
-  keyFields: IndexedSeq[SortField],
-  rowType: TStruct,
-  rowEType: EBaseStruct,
-  keyEType: EBaseStruct,
-  name: String,
-  writer: IR,
-  readers: IR
-) extends IR {
-  val shuffleType = TShuffle(keyFields, rowType, rowEType, keyEType)
-  val shufflePType = PCanonicalShuffle(shuffleType, true)
-}
-
-final case class ShuffleWrite(
-  id: IR,
-  rows: IR
-) extends IR
-
-final case class ShufflePartitionBounds(
-  id: IR,
-  nPartitions: IR
-) extends IR
-
-final case class ShuffleRead(
-  id: IR,
-  keyRange: IR
-) extends IR
 
 object ErrorIDs {
   val NO_ERROR = -1

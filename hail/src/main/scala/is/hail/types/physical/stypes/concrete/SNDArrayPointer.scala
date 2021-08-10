@@ -3,13 +3,9 @@ package is.hail.types.physical.stypes.concrete
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
-import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SNDArray, SNDArrayCode, SNDArrayValue}
-import is.hail.asm4s.{Code, IntInfo, LongInfo, Settable, SettableBuilder, TypeInfo, Value, const}
-import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
 import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SNDArray, SNDArrayCode, SNDArraySettable, SNDArrayValue}
-import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
-import is.hail.types.physical.{PCanonicalNDArray, PType}
+import is.hail.types.physical.stypes.{SCode, SType, SValue}
+import is.hail.types.physical.{PCanonicalNDArray, PPrimitive, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils.{FastIndexedSeq, toRichIterable}
 
@@ -77,9 +73,14 @@ class SNDArrayPointerSettable(
  ) extends SNDArraySettable {
   val pt: PCanonicalNDArray = st.pType
 
+  def loadElementAddress(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Long] = {
+    assert(indices.size == pt.nDims)
+    pt.loadElementFromDataAndStrides(cb, indices, dataFirstElement, strides)
+  }
+
   def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SCode = {
     assert(indices.size == pt.nDims)
-    pt.elementType.loadCheapSCode(cb, pt.loadElementFromDataAndStrides(cb, indices, dataFirstElement, strides))
+    pt.elementType.loadCheapSCode(cb, loadElementAddress(indices, cb))
   }
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a) ++ shape ++ strides ++ FastIndexedSeq(dataFirstElement)
@@ -93,47 +94,12 @@ class SNDArrayPointerSettable(
 
   override def get: SNDArrayPointerCode = new SNDArrayPointerCode(st, a)
 
-  override def outOfBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Boolean] = {
-    val shape = this.shapes(cb)
-    val outOfBounds = cb.newLocal[Boolean]("sndarray_out_of_bounds", false)
-
-    (0 until pt.nDims).foreach { dimIndex =>
-      cb.assign(outOfBounds, outOfBounds || (indices(dimIndex) >= shape(dimIndex)))
-    }
-    outOfBounds
-  }
-
-  override def assertInBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder, errorId: Int): Code[Unit] = {
-    val shape = this.shapes(cb)
-    Code.foreach(0 until pt.nDims) { dimIndex =>
-      val eMsg = const("Index ").concat(indices(dimIndex).toS)
-        .concat(s" is out of bounds for axis $dimIndex with size ")
-        .concat(shape(dimIndex).toS)
-      (indices(dimIndex) >= shape(dimIndex)).orEmpty(Code._fatalWithID[Unit](eMsg, errorId))
-    }
-  }
-
   override def shapes(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = shape
 
   override def strides(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = strides
 
-  override def sameShape(other: SNDArrayValue, cb: EmitCodeBuilder): Code[Boolean] = {
-    val otherShapes = other.shapes(cb)
-    val b = cb.newLocal[Boolean]("sameShape_b", true)
-    assert(shape.length == otherShapes.length)
-    shape.zip(otherShapes).foreach { case (s1, s2) =>
-      cb.assign(b, b && s1.ceq(s2))
-    }
-    b
-  }
-
   def firstDataAddress(cb: EmitCodeBuilder): Value[Long] = dataFirstElement
 
-  // Note: to iterate through an array in column major order, make sure the indices are in ascending order. E.g.
-  // A.coiterate(cb, region, IndexedSeq("i", "j"), IndexedSeq((A, IndexedSeq(0, 1), "A"), (B, IndexedSeq(0, 1), "B")), {
-  //   SCode.add(cb, a, b)
-  // })
-  // computes A += B.
   def coiterateMutate(
     cb: EmitCodeBuilder,
     region: Value[Region],
@@ -164,9 +130,12 @@ class SNDArrayPointerCode(val st: SNDArrayPointer, val a: Code[Long]) extends SN
     s
   }
 
-  override def memoize(cb: EmitCodeBuilder, name: String): SNDArrayValue = memoize(cb, name, cb.localBuilder)
+  override def memoize(cb: EmitCodeBuilder, name: String): SNDArrayValue =
+    memoize(cb, name, cb.localBuilder)
 
-  override def memoizeField(cb: EmitCodeBuilder, name: String): SValue = memoize(cb, name, cb.fieldBuilder)
+  override def memoizeField(cb: EmitCodeBuilder, name: String): SValue =
+    memoize(cb, name, cb.fieldBuilder)
 
-  override def shape(cb: EmitCodeBuilder): SBaseStructCode = pt.shapeType.loadCheapSCode(cb, pt.representation.loadField(a, "shape"))
+  override def shape(cb: EmitCodeBuilder): SBaseStructCode =
+    pt.shapeType.loadCheapSCode(cb, pt.representation.loadField(a, "shape"))
 }

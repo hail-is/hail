@@ -339,7 +339,8 @@ object Extract {
     val seq = new BoxedArrayBuilder[IR]()
     val let = new BoxedArrayBuilder[AggLet]()
     val ref = Ref(resultName, null)
-    val postAgg = extract(ir, ab, seq, let, ref, r, isScan)
+    val memo = mutable.Map.empty[IR, Int]
+    val postAgg = extract(ir, ab, seq, let, memo, ref, r, isScan)
     val (initOps, pAggSigs) = ab.result().unzip
     val rt = TTuple(initOps.map(_.aggSig.resultType): _*)
     ref._typ = rt
@@ -347,31 +348,39 @@ object Extract {
     Aggs(postAgg, Begin(initOps), addLets(Begin(seq.result()), let.result()), pAggSigs)
   }
 
-  private def extract(ir: IR, ab: BoxedArrayBuilder[(InitOp, PhysicalAggSig)], seqBuilder: BoxedArrayBuilder[IR], letBuilder: BoxedArrayBuilder[AggLet], result: IR, r: RequirednessAnalysis, isScan: Boolean): IR = {
-    def extract(node: IR): IR = this.extract(node, ab, seqBuilder, letBuilder, result, r, isScan)
+  private def extract(ir: IR, ab: BoxedArrayBuilder[(InitOp, PhysicalAggSig)], seqBuilder: BoxedArrayBuilder[IR], letBuilder: BoxedArrayBuilder[AggLet], memo: mutable.Map[IR, Int], result: IR, r: RequirednessAnalysis, isScan: Boolean): IR = {
+    def extract(node: IR): IR = this.extract(node, ab, seqBuilder, letBuilder, memo, result, r, isScan)
+
+    def newMemo: mutable.Map[IR, Int] = mutable.Map.empty[IR, Int]
 
     ir match {
       case x@AggLet(name, value, body, _) =>
         letBuilder += x
         extract(body)
       case x: ApplyAggOp if !isScan =>
-        val i = ab.length
-        val op = x.aggSig.op
-        val state = PhysicalAggSig(op, AggStateSig(op, x.initOpArgs, x.seqOpArgs, r))
-        ab += InitOp(i, x.initOpArgs, state) -> state
-        seqBuilder += SeqOp(i, x.seqOpArgs, state)
-        GetTupleElement(result, i)
+        val idx = memo.getOrElseUpdate(x, {
+          val i = ab.length
+          val op = x.aggSig.op
+          val state = PhysicalAggSig(op, AggStateSig(op, x.initOpArgs, x.seqOpArgs, r))
+          ab += InitOp(i, x.initOpArgs, state) -> state
+          seqBuilder += SeqOp(i, x.seqOpArgs, state)
+          i
+        })
+        GetTupleElement(result, idx)
       case x: ApplyScanOp if isScan =>
-        val i = ab.length
-        val op = x.aggSig.op
-        val state = PhysicalAggSig(op, AggStateSig(op, x.initOpArgs, x.seqOpArgs, r))
-        ab += InitOp(i, x.initOpArgs, state) -> state
-        seqBuilder += SeqOp(i, x.seqOpArgs, state)
-        GetTupleElement(result, i)
+        val idx = memo.getOrElseUpdate(x, {
+          val i = ab.length
+          val op = x.aggSig.op
+          val state = PhysicalAggSig(op, AggStateSig(op, x.initOpArgs, x.seqOpArgs, r))
+          ab += InitOp(i, x.initOpArgs, state) -> state
+          seqBuilder += SeqOp(i, x.seqOpArgs, state)
+          i
+        })
+        GetTupleElement(result, idx)
       case AggFilter(cond, aggIR, _) =>
         val newSeq = new BoxedArrayBuilder[IR]()
         val newLet = new BoxedArrayBuilder[AggLet]()
-        val transformed = this.extract(aggIR, ab, newSeq, newLet, result, r, isScan)
+        val transformed = this.extract(aggIR, ab, newSeq, newLet, newMemo, result, r, isScan)
 
         seqBuilder += If(cond, addLets(Begin(newSeq.result()), newLet.result()), Begin(FastIndexedSeq[IR]()))
         transformed
@@ -379,7 +388,7 @@ object Extract {
       case AggExplode(array, name, aggBody, _) =>
         val newSeq = new BoxedArrayBuilder[IR]()
         val newLet = new BoxedArrayBuilder[AggLet]()
-        val transformed = this.extract(aggBody, ab, newSeq, newLet, result, r, isScan)
+        val transformed = this.extract(aggBody, ab, newSeq, newLet, newMemo, result, r, isScan)
 
         val (dependent, independent) = partitionDependentLets(newLet.result(), name)
         letBuilder ++= independent
@@ -390,7 +399,7 @@ object Extract {
         val newAggs = new BoxedArrayBuilder[(InitOp, PhysicalAggSig)]()
         val newSeq = new BoxedArrayBuilder[IR]()
         val newRef = Ref(genUID(), null)
-        val transformed = this.extract(aggIR, newAggs, newSeq, letBuilder, GetField(newRef, "value"), r, isScan)
+        val transformed = this.extract(aggIR, newAggs, newSeq, letBuilder, newMemo, GetField(newRef, "value"), r, isScan)
 
         val i = ab.length
         val (initOps, pAggSigs) = newAggs.result().unzip
@@ -410,7 +419,7 @@ object Extract {
         val newSeq = new BoxedArrayBuilder[IR]()
         val newLet = new BoxedArrayBuilder[AggLet]()
         val newRef = Ref(genUID(), null)
-        val transformed = this.extract(aggBody, newAggs, newSeq, newLet, newRef, r, isScan)
+        val transformed = this.extract(aggBody, newAggs, newSeq, newLet, newMemo, newRef, r, isScan)
 
         val (dependent, independent) = partitionDependentLets(newLet.result(), elementName)
         letBuilder ++= independent

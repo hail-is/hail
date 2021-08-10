@@ -1,25 +1,17 @@
 package is.hail.backend.service
 
-import java.io._
-import java.net._
-import java.nio.charset.StandardCharsets
-import java.util.concurrent._
-import is.hail.HAIL_REVISION
-import is.hail.HailContext
+import is.hail.{HAIL_REVISION, HailContext}
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.{Backend, BackendContext, BroadcastValue, HailTaskContext}
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir.lowering.{DArrayLowering, LowerDistributedSort, LoweringPipeline, TableStage, TableStageDependency}
-import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, Literal, MakeArray, MakeTuple, ShuffleRead, ShuffleWrite, SortField, ToStream}
-import is.hail.io.fs.{FS, GoogleStorageFS, SeekableDataInputStream, ServiceCacheableFS}
+import is.hail.expr.ir.lowering._
+import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, MakeTuple, SortField}
+import is.hail.io.fs.{FS, GoogleStorageFS}
 import is.hail.linalg.BlockMatrix
-import is.hail.rvd.RVDPartitioner
 import is.hail.services._
 import is.hail.services.batch_client.BatchClient
-import is.hail.services.shuffler.ShuffleClient
 import is.hail.types._
-import is.hail.types.encoded._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual._
@@ -32,6 +24,10 @@ import org.json4s.jackson.JsonMethods
 import org.json4s.{DefaultFormats, Formats}
 import org.newsclub.net.unix.{AFUNIXServerSocket, AFUNIXSocketAddress}
 
+import java.io._
+import java.net._
+import java.nio.charset.StandardCharsets
+import java.util.concurrent._
 import scala.annotation.switch
 import scala.reflect.ClassTag
 

@@ -990,8 +990,8 @@ def monitor_instances(app):
     utilization = defaultdict(list)
     instances = defaultdict(int)
 
-    for pool in inst_coll_manager.pools.values():
-        for instance in pool.name_instance.values():
+    for inst_coll in inst_coll_manager.name_inst_coll.values():
+        for instance in inst_coll.name_instance.values():
             utilized_cores_mcpu = instance.cores_mcpu - instance.free_cores_mcpu
 
             if instance.state != 'deleted':

@@ -63,6 +63,8 @@ object Children {
       Array(a)
     case StreamRange(start, stop, step, _, _) =>
       Array(start, stop, step)
+    case SeqSample(totalRange, numToSample, _) =>
+      Array(totalRange, numToSample)
     case ArrayZeros(length) =>
       Array(length)
     case MakeNDArray(data, shape, rowMajor, _) =>
@@ -228,13 +230,5 @@ object Children {
     case ReadValue(path, _, _) => Array(path)
     case WriteValue(value, path, spec) => Array(value, path)
     case LiftMeOut(child) => Array(child)
-    case ShuffleWith(keyFields, rowType, rowEType, keyEType, name, writer, readers) =>
-      Array(writer, readers)
-    case ShuffleWrite(id, rows) =>
-      Array(id, rows)
-    case ShufflePartitionBounds(id, nPartitions) =>
-      Array(id, nPartitions)
-    case ShuffleRead(id, keyRange) =>
-      Array(id, keyRange)
   }
 }

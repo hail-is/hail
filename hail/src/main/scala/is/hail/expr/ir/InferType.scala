@@ -34,6 +34,7 @@ object InferType {
         TNDArray(coerce[TIterable](data.typ).elementType, Nat(shape.typ.asInstanceOf[TTuple].size))
       case _: ArrayLen => TInt32
       case _: StreamRange => TStream(TInt32)
+      case _: SeqSample => TStream(TInt32)
       case _: ArrayZeros => TArray(TInt32)
       case _: LowerBoundOnOrderedCollection => TInt32
       case _: StreamFor => TVoid
@@ -258,14 +259,6 @@ object InferType {
       case ReadValue(_, _, typ) => typ
       case WriteValue(value, path, spec) => TString
       case LiftMeOut(child) => child.typ
-      case ShuffleWith(_, _, _, _, _, _, readers) =>
-        readers.typ
-      case ShuffleWrite(id, _) =>
-        TBinary
-      case ShufflePartitionBounds(id, _) =>
-        TStream(coerce[TShuffle](id.typ).keyType)
-      case ShuffleRead(id, _) =>
-        TStream(coerce[TShuffle](id.typ).rowType)
     }
   }
 }

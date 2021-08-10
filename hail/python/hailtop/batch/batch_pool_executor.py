@@ -264,14 +264,14 @@ class BatchPoolExecutor:
                         bp_futures.append(bp_future)
 
                 if bp_futures:
-                    await asyncio.wait([bp_fut.async_cancel() for bp_fut in bp_futures])
+                    await asyncio.gather(*[bp_fut.async_cancel() for bp_fut in bp_futures], return_exceptions=True)
 
         async def async_result_or_cancel_all(future):
             try:
                 return await future.async_result(timeout=timeout)
             except Exception as err:
                 if bp_futures:
-                    await asyncio.wait([bp_fut.async_cancel() for bp_fut in bp_futures])
+                    await asyncio.gather(*[bp_fut.async_cancel() for bp_fut in bp_futures], return_exceptions=True)
                 raise err
 
         if chunksize > 1:
@@ -478,13 +478,15 @@ class BatchPoolFuture:
         ``True`` is returned if the job is cancelled. ``False`` is returned if
         the job has already completed.
         """
+
         if self.fetch_coro.cancelled():
             return False
+
         if self.fetch_coro.done():
             # retrieve any exceptions raised
             self.fetch_coro.result()
             return False
-        await self.batch.cancel()
+
         self.fetch_coro.cancel()
         await asyncio.wait([self.fetch_coro])
         return True
@@ -512,6 +514,9 @@ class BatchPoolFuture:
         If the job has been cancelled, this method raises a
         :class:`.concurrent.futures.CancelledError`.
 
+        If the job has timed out, this method raises an
+        :class:`.concurrent.futures.TimeoutError`.
+
         Parameters
         ----------
         timeout:
@@ -525,8 +530,11 @@ class BatchPoolFuture:
     async def async_result(self, timeout: Optional[Union[float, int]] = None):
         """Asynchronously wait until the job is complete.
 
-        If the job has been cancelled, this method rasies a
+        If the job has been cancelled, this method raises a
         :class:`.concurrent.futures.CancelledError`.
+
+        If the job has timed out, this method raises an
+        :class"`.concurrent.futures.TimeoutError`.
 
         Parameters
         ----------
@@ -536,10 +544,9 @@ class BatchPoolFuture:
         if self.cancelled():
             raise concurrent.futures.CancelledError()
         try:
-            return await asyncio.wait_for(self.fetch_coro, timeout=timeout)
-        except asyncio.TimeoutError:
-            await self.async_cancel()
-            raise
+            return await asyncio.wait_for(asyncio.shield(self.fetch_coro), timeout=timeout)
+        except asyncio.TimeoutError as e:
+            raise concurrent.futures.TimeoutError() from e
 
     async def _async_fetch_result(self):
         try:
@@ -557,6 +564,7 @@ class BatchPoolFuture:
             traceback = ''.join(traceback)
             raise ValueError(f'submitted job failed:\n{traceback}')
         finally:
+            await self.batch.cancel()
             self.executor._finish_future()
 
     def exception(self, timeout: Optional[Union[float, int]] = None):

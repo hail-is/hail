@@ -92,8 +92,6 @@ abstract class SCode {
 
   def asStream: SStreamCode = asInstanceOf[SStreamCode]
 
-  def asShuffle: SShuffleCode = asInstanceOf[SShuffleCode]
-
   def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SCode =
     castTo(cb, region, destType, false)
 

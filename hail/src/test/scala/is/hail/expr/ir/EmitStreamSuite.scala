@@ -94,19 +94,19 @@ class EmitStreamSuite extends HailSuite {
     }
   }
 
-  private def compileStreamWithIter(ir: IR, requiresMemoryManagementPerElement: Boolean, streamType: PStream): Iterator[Any] => IndexedSeq[Any] = {
+  private def compileStreamWithIter(ir: IR, requiresMemoryManagementPerElement: Boolean, elementType: PType): Iterator[Any] => IndexedSeq[Any] = {
     trait F {
       def apply(o: Region, a: StreamArgType): Long
     }
     compileStream[F, Iterator[Any]](ir,
-      IndexedSeq(SingleCodeEmitParamType(true, StreamSingleCodeType(requiresMemoryManagementPerElement, streamType.elementType)))) { (f: F, r: Region, it: Iterator[Any]) =>
+      IndexedSeq(SingleCodeEmitParamType(true, StreamSingleCodeType(requiresMemoryManagementPerElement, elementType)))) { (f: F, r: Region, it: Iterator[Any]) =>
       val rvi = new StreamArgType {
         def apply(outerRegion: Region, eltRegion: Region): Iterator[java.lang.Long] =
           new Iterator[java.lang.Long] {
             def hasNext: Boolean = it.hasNext
 
             def next(): java.lang.Long = {
-              ScalaToRegionValue(eltRegion, streamType.elementType, it.next())
+              ScalaToRegionValue(eltRegion, elementType, it.next())
             }
           }
       }
@@ -191,6 +191,38 @@ class EmitStreamSuite extends HailSuite {
     assert(range(Row(0, null, 1)) == null)
     assert(range(Row(0, 10, null)) == null)
     assert(range(null) == null)
+  }
+
+  @Test def testEmitSeqSample(): Unit = {
+    val N = 20
+    val n = 2
+
+    val seqIr = SeqSample(
+        I32(N),
+        I32(n),
+        false
+      )
+
+    val compiled = compileStream[AsmFunction1RegionLong, Unit](seqIr, FastIndexedSeq()) { (f, r, _) => f(r) }
+
+    // Generate many pairs of numbers between 0 and N, every pair should be equally likely
+    val results = Array.tabulate(N, N){ case(i, j) => 0}
+    (0 until 1000000).foreach { i =>
+      val seq = compiled.apply(()).map(_.asInstanceOf[Int])
+      assert(seq.size == n)
+      results(seq(0))(seq(1)) += 1
+      assert(seq.toSet.size == n)
+      assert(seq.forall(e => e >= 0 && e < N))
+    }
+
+
+    (0 until N).foreach { i =>
+      (i + 1 until N).foreach { j =>
+        val entry = results(i)(j)
+        // Expected value of entry is 5263.
+        assert(entry > 4880 && entry < 5650)
+      }
+    }
   }
 
   @Test def testEmitToStream() {
@@ -452,7 +484,7 @@ class EmitStreamSuite extends HailSuite {
   }
 
   @Test def testEmitFromIterator() {
-    val intsPType = PCanonicalStream(PInt32(true))
+    val intsPType = PInt32(true)
 
     val f1 = compileStreamWithIter(
       StreamScan(In(0, SingleCodeEmitParamType(true, StreamSingleCodeType(true, PInt32(true)))),

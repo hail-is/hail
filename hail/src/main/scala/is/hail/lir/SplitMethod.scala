@@ -317,7 +317,7 @@ class SplitMethod(
       case _: ThrowX => UnitInfo
     }
 
-    val splitM = c.newMethod(s"${ m.name }region${ start }_$end", FastIndexedSeq(spillsClass.ti), returnTI)
+    val splitM = c.newMethod(s"${ m.name }_region${ start }_$end", FastIndexedSeq(spillsClass.ti), returnTI)
     splitMethods += splitM
 
     splitM.setEntry(Lstart)

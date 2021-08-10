@@ -4,7 +4,7 @@ import is.hail.expr.ir.functions.GetElement
 import is.hail.methods.ForceCountTable
 import is.hail.types._
 import is.hail.types.physical.stypes.{EmitType, PTypeReferenceSingleCodeType, StreamSingleCodeType}
-import is.hail.types.physical.{PCanonicalStream, PStream, PType}
+import is.hail.types.physical.PType
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.sql.catalyst.expressions.GenericRow
@@ -234,8 +234,8 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         }
         states.bind(node, s)
       case StreamJoinRightDistinct(left, right, lKey, rKey, l, r, joinf, joinType) =>
-        addElementBinding(l, left, makeOptional = (joinType == "outer"))
-        addElementBinding(r, right, makeOptional = true)
+        addElementBinding(l, left, makeOptional = (joinType == "outer" || joinType == "right"))
+        addElementBinding(r, right, makeOptional = (joinType == "outer" || joinType == "left"))
       case StreamAgg(a, name, query) =>
         addElementBinding(name, a)
       case StreamAggScan(a, name, query) =>
@@ -274,10 +274,6 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         addTableBinding(child)
       case TableAggregateByKey(child, expr) =>
         addTableBinding(child)
-      case x@ShuffleWith(keyFields, rowType, rowEType, keyEType, name, writer, readers) =>
-        if (refMap.contains(name)) {
-          refMap(name).foreach { u => defs.bind(u, Array(BaseTypeWithRequiredness(x.shuffleType))) }
-        }
       case TableMapPartitions(child, globalName, partitionStreamName, body) =>
         if (refMap.contains(globalName))
           refMap(globalName).foreach { u => defs.bind(u, Array[BaseTypeWithRequiredness](lookup(child).globalType)) }
@@ -451,6 +447,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
            _: StreamLen |
            _: ArrayZeros |
            _: StreamRange |
+           _: SeqSample |
            _: WriteValue =>
         requiredness.union(node.children.forall { case c: IR => lookup(c).required })
       case x: ApplyComparisonOp if x.op.strict =>
@@ -693,17 +690,21 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.union(lookup(context).required)
         coerce[RIterable](requiredness).elementType.unionFrom(reader.rowRequiredness(rowType))
       case WritePartition(value, writeCtx, writer) =>
-        val sType = coerce[PStream](lookup(value).canonicalPType(value.typ))
-        val ctxType = lookup(writeCtx).canonicalPType(writeCtx.typ)
-        requiredness.fromPType(writer.returnPType(ctxType, sType))
+        val streamtype = coerce[RIterable](lookup(value))
+        val ctxType = lookup(writeCtx)
+        writer.unionTypeRequiredness(requiredness, ctxType, streamtype)
       case ReadValue(path, spec, rt) =>
         requiredness.union(lookup(path).required)
         requiredness.fromPType(spec.encodedType.decodedPType(rt))
       case In(_, t) => t match {
         case SCodeEmitParamType(et) => requiredness.unionFrom(et.typeWithRequiredness.r)
-        case SingleCodeEmitParamType(required, StreamSingleCodeType(_, eltType)) => requiredness.fromPType(PCanonicalStream(eltType, required)) // fixme hacky
-        case SingleCodeEmitParamType(required, PTypeReferenceSingleCodeType(pt)) => requiredness.fromPType(pt.setRequired(required))
-        case SingleCodeEmitParamType(required, _) => requiredness.union(required)
+        case SingleCodeEmitParamType(required, StreamSingleCodeType(_, eltType)) =>
+          requiredness.asInstanceOf[RIterable].elementType.fromPType(eltType)
+          requiredness.union(required)
+        case SingleCodeEmitParamType(required, PTypeReferenceSingleCodeType(pt)) =>
+          requiredness.fromPType(pt.setRequired(required))
+        case SingleCodeEmitParamType(required, _) =>
+          requiredness.union(required)
       }
       case LiftMeOut(f) => requiredness.unionFrom(lookup(f))
       case ResultOp(_, sigs) =>
@@ -731,13 +732,6 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         coerce[RStruct](requiredness).field("global").unionFrom(lookup(c).globalType)
       case BlockMatrixToValueApply(child, GetElement(_)) => // BlockMatrix elements are all required
       case BlockMatrixCollect(child) =>  // BlockMatrix elements are all required
-      case ShuffleWith(keyFields, rowType, rowEType, keyEType, name, writer, readers) =>
-        requiredness.unionFrom(lookup(readers))
-      case ShuffleWrite(id, rows) => // required
-      case ShufflePartitionBounds(id, nPartitions) =>
-        coerce[RIterable](requiredness).elementType.fromPType(coerce[TShuffle](id.typ).keyDecodedPType.setRequired(true))
-      case ShuffleRead(id, keyRange) =>
-        coerce[RIterable](requiredness).elementType.fromPType(coerce[TShuffle](id.typ).rowDecodedPType.setRequired(true))
     }
     requiredness.probeChangedAndReset()
   }
