@@ -13,7 +13,7 @@ import org.apache.spark.sql.Row
 
 import scala.annotation.meta.param
 
-abstract class CloseableIterator[T] extends Iterator[T] with AutoCloseable
+trait CloseableIterator[T] extends Iterator[T] with AutoCloseable
 
 object GenericLines {
   def read(fs: FS, contexts: IndexedSeq[Any], gzAsBGZ: Boolean): GenericLines = {
