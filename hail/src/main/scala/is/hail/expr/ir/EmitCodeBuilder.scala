@@ -68,7 +68,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   }
 
   def assign(is: IndexedSeq[EmitSettable], ix: IndexedSeq[EmitCode]): Unit = {
-    (is, ix).zipped.foreach { case (s, c) => s.store(this, c) }
+    (is, ix).zipped.foreach { (s, c) => s.store(this, c) }
   }
 
   def memoize(pc: SCode, name: String): SValue = pc.memoize(this, name)

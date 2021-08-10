@@ -27,6 +27,7 @@ import scala.collection.{GenTraversableOnce, TraversableOnce, mutable}
 import scala.language.{higherKinds, implicitConversions}
 import scala.reflect.ClassTag
 import is.hail.io.fs.FS
+import org.apache.spark.sql.Row
 
 package utils {
   trait Truncatable {
@@ -291,6 +292,16 @@ package object utils extends Logging
     fname match {
       case partRegex(i) => i.toInt
       case _ => throw new PathIOException(s"invalid partition file '$fname'")
+    }
+  }
+
+  def rowIterator(r: Row): Iterator[Any] = new Iterator[Any] {
+    var idx: Int = 0
+    def hasNext: Boolean = idx < r.size
+    def next: Any = {
+      val a = r(idx)
+      idx += 1
+      a
     }
   }
 

@@ -609,8 +609,17 @@ class Emit[C](
       case Void() =>
         Code._empty
 
-      case Begin(xs) =>
-        xs.foreach(x => emitVoid(x))
+      case x@Begin(xs) =>
+        if (!ctx.inLoopCriticalPath.contains(x) && xs.forall(x => !ctx.inLoopCriticalPath.contains(x))) {
+          xs.grouped(16).zipWithIndex.foreach { case (group, idx) =>
+            val mb = cb.emb.genEmitMethod(s"begin_group_$idx", FastIndexedSeq[ParamType](classInfo[Region]), UnitInfo)
+            mb.voidWithBuilder { cb =>
+              group.foreach(x => emitVoid(x, cb, mb.getCodeParam[Region](1), env, container, loopEnv))
+            }
+            cb.invokeVoid(mb, region)
+          }
+        } else
+          xs.foreach(x => emitVoid(x))
 
       case If(cond, cnsq, altr) =>
         assert(cnsq.typ == TVoid && altr.typ == TVoid)

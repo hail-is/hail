@@ -4,7 +4,7 @@ import is.hail.annotations.{Annotation, NDArray}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{EmitType, SType}
 import is.hail.types.virtual._
-import is.hail.utils.{FastSeq, Interval}
+import is.hail.utils.{FastSeq, Interval, rowIterator, toMapFast}
 import org.apache.spark.sql.Row
 
 object BaseTypeWithRequiredness {
@@ -34,19 +34,19 @@ object BaseTypeWithRequiredness {
         check(r.endType, typ.asInstanceOf[TInterval].pointType)
       case r: RStruct =>
         val struct = typ.asInstanceOf[TStruct]
-        (r.fields, struct.fields).zipped.map { case (rf, f) =>
+        (r.fields, struct.fields).zipped.map { (rf, f) =>
           assert(rf.name == f.name)
           check(rf.typ, f.typ)
         }
       case r: RTuple =>
         val tuple = typ.asInstanceOf[TTuple]
-        (r.fields, tuple.fields).zipped.map { case (rf, f) =>
+        (r.fields, tuple.fields).zipped.map { (rf, f) =>
           assert(rf.index == f.index)
           check(rf.typ, f.typ)
         }
       case r: RUnion =>
         val union = typ.asInstanceOf[TUnion]
-        (r.cases, union.cases).zipped.map { case (rc, c) =>
+        (r.cases, union.cases).zipped.map { (rc, c) =>
           assert(rc._1 == c.name)
           check(rc._2, c.typ)
         }
@@ -93,7 +93,7 @@ sealed abstract class BaseTypeWithRequiredness {
       throw new AssertionError(
         s"children lengths differed ${children.length} ${newChildren.length}. ${children} ${newChildren} ${this}")
     }
-    children.zip(newChildren).foreach { case (r1, r2) =>
+    (children, newChildren).zipped.foreach { (r1, r2) =>
       r1.unionFrom(r2)
     }
   }
@@ -210,13 +210,14 @@ sealed abstract class TypeWithRequiredness extends BaseTypeWithRequiredness {
 }
 
 object RPrimitive {
+  val children: Seq[TypeWithRequiredness] = FastSeq()
   val supportedTypes: Set[Type] = Set(TBoolean, TInt32, TInt64, TFloat32, TFloat64, TBinary, TString, TCall, TVoid)
   def typeSupported(t: Type): Boolean = RPrimitive.supportedTypes.contains(t) ||
     t.isInstanceOf[TLocus]
 }
 
 final case class RPrimitive() extends TypeWithRequiredness {
-  val children: Seq[TypeWithRequiredness] = FastSeq.empty
+  val children: Seq[TypeWithRequiredness] = RPrimitive.children
 
   def _unionLiteral(a: Annotation): Unit = ()
   def _matchesPType(pt: PType): Boolean = RPrimitive.typeSupported(pt.virtualType)
@@ -269,7 +270,7 @@ sealed class RIterable(val elementType: TypeWithRequiredness, eltRequired: Boole
 
   def unionElement(newElement: BaseTypeWithRequiredness): Unit = {
     if (eltRequired)
-      elementType.children.zip(newElement.children).foreach { case (r1, r2) => r1.unionFrom(r2) }
+      (elementType.children, newElement.children).zipped.foreach { (r1, r2) => r1.unionFrom(r2) }
     else
       elementType.unionFrom(newElement)
   }
@@ -360,7 +361,7 @@ sealed abstract class RBaseStruct extends TypeWithRequiredness {
   def size: Int = fields.length
   val children: Seq[TypeWithRequiredness] = fields.map(_.typ)
   def _unionLiteral(a: Annotation): Unit =
-    children.zip(a.asInstanceOf[Row].toSeq).foreach { case (r, f) => r.unionLiteral(f) }
+    (children, a.asInstanceOf[Row].toSeq).zipped.foreach { (r, f) => r.unionLiteral(f) }
   def _matchesPType(pt: PType): Boolean =
     coerce[PBaseStruct](pt).fields.forall(f => children(f.index).matchesPType(f.typ))
   def _unionPType(pType: PType): Unit = {
@@ -372,7 +373,7 @@ sealed abstract class RBaseStruct extends TypeWithRequiredness {
       PCanonicalStruct(required = required,
         fields.map(f => f.name -> f.typ.canonicalPType(ts.fieldType(f.name))): _*)
     case ts: TTuple =>
-      PCanonicalTuple(fields.zip(ts._types).map { case(fr, ft) =>
+      PCanonicalTuple((fields, ts._types).zipped.map { case(fr, ft) =>
         PTupleField(ft.index, fr.typ.canonicalPType(ft.typ))
       }, required = required)
   }
@@ -383,7 +384,7 @@ object RStruct {
     RStruct(Array.tabulate(fields.length)(i => RField(fields(i)._1, fields(i)._2, i)))
 }
 case class RStruct(fields: IndexedSeq[RField]) extends RBaseStruct {
-  val fieldType: Map[String, TypeWithRequiredness] = fields.map(f => f.name -> f.typ).toMap
+  val fieldType: collection.Map[String, TypeWithRequiredness] = toMapFast(fields)(_.name, _.typ)
   def field(name: String): TypeWithRequiredness = fieldType(name)
   def hasField(name: String): Boolean = fieldType.contains(name)
   def copy(newChildren: Seq[BaseTypeWithRequiredness]): RStruct = {
@@ -396,11 +397,11 @@ case class RStruct(fields: IndexedSeq[RField]) extends RBaseStruct {
 }
 
 case class RTuple(fields: IndexedSeq[RField]) extends RBaseStruct {
-  val fieldType: Map[String, TypeWithRequiredness] = fields.map(f => f.name -> f.typ).toMap
+  val fieldType: collection.Map[String, TypeWithRequiredness] = toMapFast(fields)(_.name, _.typ)
   def field(idx: Int): TypeWithRequiredness = fieldType(idx.toString)
   def copy(newChildren: Seq[BaseTypeWithRequiredness]): RTuple = {
     assert(newChildren.length == fields.length)
-    RTuple(fields.zip(newChildren).map { case (f, c) => RField(f.name, coerce[TypeWithRequiredness](c), f.index) })
+    RTuple((fields, newChildren).zipped.map { (f, c) => RField(f.name, coerce[TypeWithRequiredness](c), f.index) })
   }
   def _toString: String = s"RTuple[${ fields.map(f => s"${ f.index }: ${ f.typ.toString }").mkString(",") }]"
 }
@@ -441,7 +442,7 @@ case class RTable(rowFields: Seq[(String, TypeWithRequiredness)], globalFields: 
   def unionKeys(req: RStruct): Unit = key.foreach { n => field(n).unionFrom(req.field(n)) }
   def unionKeys(req: RTable): Unit = {
     assert(key.length <= req.key.length)
-    key.zip(req.key).foreach { case (k, rk) => field(k).unionFrom(req.field(rk)) }
+    (key, req.key).zipped.foreach { (k, rk) => field(k).unionFrom(req.field(rk)) }
   }
 
   def unionValues(req: RStruct): Unit = valueFields.foreach { n => if (req.hasField(n)) field(n).unionFrom(req.field(n)) }
@@ -451,8 +452,8 @@ case class RTable(rowFields: Seq[(String, TypeWithRequiredness)], globalFields: 
 
   def copy(newChildren: Seq[BaseTypeWithRequiredness]): RTable = {
     assert(newChildren.length == rowFields.length + globalFields.length)
-    val newRowFields = rowFields.zip(newChildren.take(rowFields.length)).map { case ((n, _), r: TypeWithRequiredness) => n -> r }
-    val newGlobalFields = globalFields.zip(newChildren.drop(rowFields.length)).map { case ((n, _), r: TypeWithRequiredness) => n -> r }
+    val newRowFields = (rowFields, newChildren.take(rowFields.length)).zipped.map { case ((n, _), r: TypeWithRequiredness) => n -> r }
+    val newGlobalFields = (globalFields, newChildren.drop(rowFields.length)).zipped.map { case ((n, _), r: TypeWithRequiredness) => n -> r }
     RTable(newRowFields, newGlobalFields, key)
   }
 
