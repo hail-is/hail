@@ -3,8 +3,8 @@ package is.hail.types.physical.stypes.interfaces
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
-import is.hail.types.physical.{PNDArray, PType}
 import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
+import is.hail.types.physical.{PNDArray, PType}
 import is.hail.utils.{FastIndexedSeq, toRichIterable}
 
 object SNDArray {
@@ -18,26 +18,39 @@ object SNDArray {
     forEachIndexWithInitAndIncColMajor(cb, shape, shape.map(_ => (cb: EmitCodeBuilder) => ()), shape.map(_ => (cb: EmitCodeBuilder) => ()), context)(f)
   }
 
-  def coiterate(cb: EmitCodeBuilder, region: Value[Region], arrays: IndexedSeq[(SNDArrayCode, String)], body: IndexedSeq[SSettable] => Unit): Unit =
-    coiterate(cb, region, arrays, body, deepCopy=false)
-
-  def coiterate(cb: EmitCodeBuilder, region: Value[Region], arrays: IndexedSeq[(SNDArrayCode, String)], body: IndexedSeq[SSettable] => Unit, deepCopy: Boolean): Unit = {
+  def coiterate(cb: EmitCodeBuilder, arrays: (SNDArrayCode, String)*)(body: IndexedSeq[SCode] => Unit): Unit = {
     if (arrays.isEmpty) return
     val indexVars = Array.tabulate(arrays(0)._1.st.nDims)(i => s"i$i").toFastIndexedSeq
     val indices = Array.range(0, arrays(0)._1.st.nDims).toFastIndexedSeq
-    coiterate(cb, region, indexVars, arrays.map { case (array, name) => (array, indices, name) }, body, deepCopy)
+    coiterate(cb, indexVars, arrays.map { case (array, name) => (array, indices, name) }: _*)(body)
   }
 
-  def coiterate(cb: EmitCodeBuilder, region: Value[Region], indexVars: IndexedSeq[String], arrays: IndexedSeq[(SNDArrayCode, IndexedSeq[Int], String)], body: IndexedSeq[SSettable] => Unit): Unit =
-    coiterate(cb, region, indexVars, arrays, body, deepCopy=false)
-
   // Note: to iterate through an array in column major order, make sure the indices are in ascending order. E.g.
-  // coiterate(cb, region, IndexedSeq("i", "j"), IndexedSeq((A, IndexedSeq(0, 1), "A"), (B, IndexedSeq(0, 1), "B")), {
-  //   case Seq(a, b) => cb.assign(a, SCode.add(cb, a, b))
+  // A.coiterate(cb, region, IndexedSeq("i", "j"), IndexedSeq((A, IndexedSeq(0, 1), "A"), (B, IndexedSeq(0, 1), "B")), {
+  //   SCode.add(cb, a, b)
   // })
   // computes A += B.
-  def coiterate(cb: EmitCodeBuilder, region: Value[Region], indexVars: IndexedSeq[String], arrays: IndexedSeq[(SNDArrayCode, IndexedSeq[Int], String)], body: IndexedSeq[SSettable] => Unit, deepCopy: Boolean): Unit = {
+  def coiterate(
+    cb: EmitCodeBuilder,
+    indexVars: IndexedSeq[String],
+    arrays: (SNDArrayCode, IndexedSeq[Int], String)*
+  )(body: IndexedSeq[SCode] => Unit
+  ): Unit = {
+    _coiterate(cb, indexVars, arrays: _*) { ptrs =>
+      val codes = ptrs.zip(arrays).map { case (ptr, (array, _, _)) =>
+        val pt = array.st.pType.elementType
+        pt.loadCheapSCode(cb, pt.loadFromNested(ptr))
+      }
+      body(codes)
+    }
+  }
 
+  def _coiterate(
+    cb: EmitCodeBuilder,
+    indexVars: IndexedSeq[String],
+    arrays: (SNDArrayCode, IndexedSeq[Int], String)*
+  )(body: IndexedSeq[Value[Long]] => Unit
+  ): Unit = {
     val indexSizes = new Array[Settable[Int]](indexVars.length)
     val indexCoords = Array.tabulate(indexVars.length) { i => cb.newLocal[Int](indexVars(i)) }
 
@@ -45,11 +58,10 @@ object SNDArray {
       array: SNDArrayValue,
       strides: IndexedSeq[Value[Long]],
       pos: IndexedSeq[Settable[Long]],
-      elt: SSettable,
       indexToDim: Map[Int, Int],
       name: String)
 
-    val info = arrays.map { case (_array, indices, name) =>
+    val info = arrays.toIndexedSeq.map { case (_array, indices, name) =>
       for (idx <- indices) assert(idx < indexVars.length && idx >= 0)
       // FIXME: relax this assumption to handle transposing, non-column major
       for (i <- 0 until indices.length - 1) assert(indices(i) < indices(i+1))
@@ -68,22 +80,14 @@ object SNDArray {
       }
       val strides = array.strides(cb)
       val pos = Array.tabulate(array.st.nDims + 1) { i => cb.newLocal[Long](s"$name$i") }
-      val elt = new SSettable {
-        def st: SType = array.st.elementType
-        val pt: PType = array.st.pType.elementType
-
-        // FIXME: need to use `pos` of smallest index var
-        def get: SCode = pt.loadCheapSCode(cb, pt.loadFromNested(pos(0)))
-        def store(cb: EmitCodeBuilder, v: SCode): Unit = pt.storeAtAddress(cb, pos(0), region, v, deepCopy)
-        def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(pos.last)
-      }
       val indexToDim = indices.zipWithIndex.toMap
-      ArrayInfo(array, strides, pos, elt, indexToDim, name)
+      ArrayInfo(array, strides, pos, indexToDim, name)
     }
 
     def recurLoopBuilder(idx: Int): Unit = {
       if (idx < 0) {
-        body(info.map(_.elt))
+        // FIXME: to handle non-column major, need to use `pos` of smallest index var
+        body(info.map(_.pos(0)))
       } else {
         val coord = indexCoords(idx)
         def init(): Unit = {
@@ -229,6 +233,8 @@ trait SNDArray extends SType {
 
   def elementType: SType
   def elementPType: PType
+
+  def elementByteSize: Long
 }
 
 trait SNDArrayValue extends SValue {
@@ -249,7 +255,37 @@ trait SNDArrayValue extends SValue {
   def sameShape(other: SNDArrayValue, cb: EmitCodeBuilder): Code[Boolean]
 
   def firstDataAddress(cb: EmitCodeBuilder): Value[Long]
+
+  def coiterateMutate(cb: EmitCodeBuilder, region: Value[Region], arrays: (SNDArrayCode, String)*)(body: IndexedSeq[SCode] => SCode): Unit =
+    coiterateMutate(cb, region, false, arrays: _*)(body)
+
+  def coiterateMutate(cb: EmitCodeBuilder, region: Value[Region], deepCopy: Boolean, arrays: (SNDArrayCode, String)*)(body: IndexedSeq[SCode] => SCode): Unit = {
+    if (arrays.isEmpty) return
+    val indexVars = Array.tabulate(arrays(0)._1.st.nDims)(i => s"i$i").toFastIndexedSeq
+    val indices = Array.range(0, arrays(0)._1.st.nDims).toFastIndexedSeq
+    coiterateMutate(cb, region, deepCopy, indexVars, indices, arrays.map { case (array, name) => (array, indices, name) }: _*)(body)
+  }
+
+  def coiterateMutate(cb: EmitCodeBuilder, region: Value[Region], indexVars: IndexedSeq[String], destIndices: IndexedSeq[Int], arrays: (SNDArrayCode, IndexedSeq[Int], String)*)(body: IndexedSeq[SCode] => SCode): Unit =
+    coiterateMutate(cb, region, false, indexVars, destIndices, arrays: _*)(body)
+
+  // Note: to iterate through an array in column major order, make sure the indices are in ascending order. E.g.
+  // A.coiterate(cb, region, IndexedSeq("i", "j"), IndexedSeq((A, IndexedSeq(0, 1), "A"), (B, IndexedSeq(0, 1), "B")), {
+  //   SCode.add(cb, a, b)
+  // })
+  // computes A += B.
+  def coiterateMutate(
+    cb: EmitCodeBuilder,
+    region: Value[Region],
+    deepCopy: Boolean,
+    indexVars: IndexedSeq[String],
+    destIndices: IndexedSeq[Int],
+    arrays: (SNDArrayCode, IndexedSeq[Int], String)*
+  )(body: IndexedSeq[SCode] => SCode
+  ): Unit
 }
+
+trait SNDArraySettable extends SNDArrayValue with SSettable
 
 trait SNDArrayCode extends SCode {
   def st: SNDArray

@@ -52,11 +52,11 @@ object Children {
       args.toFastIndexedSeq
     case MakeStream(args, _, _) =>
       args.toFastIndexedSeq
-    case ArrayRef(a, i, s) =>
-      Array(a, i, s)
+    case ArrayRef(a, i, _) =>
+      Array(a, i)
     case ArrayLen(a) =>
       Array(a)
-    case StreamRange(start, stop, step, _) =>
+    case StreamRange(start, stop, step, _, _) =>
       Array(start, stop, step)
     case ArrayZeros(length) =>
       Array(length)
@@ -64,7 +64,7 @@ object Children {
       Array(data, shape, rowMajor)
     case NDArrayShape(nd) =>
       Array(nd)
-    case NDArrayReshape(nd, shape) =>
+    case NDArrayReshape(nd, shape, _) =>
       Array(nd, shape)
     case NDArrayConcat(nds, _) =>
       Array(nds)
@@ -96,7 +96,7 @@ object Children {
       Array(a)
     case StreamMap(a, name, body) =>
       Array(a, body)
-    case StreamZip(as, names, body, _) =>
+    case StreamZip(as, names, body, _, _) =>
       as :+ body
     case StreamZipJoin(as, _, _, _, joinF) =>
       as :+ joinF
@@ -132,19 +132,19 @@ object Children {
       nd +: keep
     case NDArrayMap(nd, _, body) =>
       Array(nd, body)
-    case NDArrayMap2(l, r, _, _, body) =>
+    case NDArrayMap2(l, r, _, _, body, _) =>
       Array(l, r, body)
     case NDArrayReindex(nd, _) =>
       Array(nd)
     case NDArrayAgg(nd, _) =>
       Array(nd)
-    case NDArrayMatMul(l, r) =>
+    case NDArrayMatMul(l, r, _) =>
       Array(l, r)
-    case NDArrayQR(nd, _) =>
+    case NDArrayQR(nd, _, _) =>
       Array(nd)
-    case NDArraySVD(nd, _, _) =>
+    case NDArraySVD(nd, _, _, _) =>
       Array(nd)
-    case NDArrayInv(nd) =>
+    case NDArrayInv(nd, errorID) =>
       Array(nd)
     case NDArrayWrite(nd, path) =>
       Array(nd, path)
@@ -187,13 +187,13 @@ object Children {
     case Die(message, typ, errorId) =>
       Array(message)
     case Trap(child) => Array(child)
-    case ApplyIR(_, _, args) =>
+    case ApplyIR(_, _, args, _) =>
       args.toFastIndexedSeq
-    case Apply(_, _, args, _) =>
+    case Apply(_, _, args, _, _) =>
       args.toFastIndexedSeq
     case ApplySeeded(_, args, seed, _) =>
       args.toFastIndexedSeq
-    case ApplySpecial(_, _, args, _) =>
+    case ApplySpecial(_, _, args, _, _) =>
       args.toFastIndexedSeq
     // from MatrixIR
     case MatrixWrite(child, _) => Array(child)

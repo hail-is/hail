@@ -114,7 +114,7 @@ object InferType {
         TStream(a.typ)
       case StreamMap(a, name, body) =>
         TStream(body.typ)
-      case StreamZip(as, _, body, _) =>
+      case StreamZip(as, _, body, _, _) =>
         TStream(body.typ)
       case StreamZipJoin(_, _, _, _, joinF) =>
         TStream(joinF.typ)
@@ -144,13 +144,13 @@ object InferType {
       case NDArrayShape(nd) =>
         val ndType = nd.typ.asInstanceOf[TNDArray]
         ndType.shapeType
-      case NDArrayReshape(nd, shape) =>
+      case NDArrayReshape(nd, shape, _) =>
         TNDArray(coerce[TNDArray](nd.typ).elementType, Nat(shape.typ.asInstanceOf[TTuple].size))
       case NDArrayConcat(nds, _) =>
         coerce[TArray](nds.typ).elementType
       case NDArrayMap(nd, _, body) =>
         TNDArray(body.typ, coerce[TNDArray](nd.typ).nDimsBase)
-      case NDArrayMap2(l, _, _, _, body) =>
+      case NDArrayMap2(l, _, _, _, body, _) =>
         TNDArray(body.typ, coerce[TNDArray](l.typ).nDimsBase)
       case NDArrayReindex(nd, indexExpr) =>
         TNDArray(coerce[TNDArray](nd.typ).elementType, Nat(indexExpr.length))
@@ -168,11 +168,11 @@ object InferType {
         TNDArray(childTyp.elementType, remainingDims)
       case NDArrayFilter(nd, _) =>
         nd.typ
-      case NDArrayMatMul(l, r) =>
+      case NDArrayMatMul(l, r, _) =>
         val lTyp = coerce[TNDArray](l.typ)
         val rTyp = coerce[TNDArray](r.typ)
         TNDArray(lTyp.elementType, Nat(TNDArray.matMulNDims(lTyp.nDims, rTyp.nDims)))
-      case NDArrayQR(nd, mode) =>
+      case NDArrayQR(nd, mode, _) =>
         if (Array("complete", "reduced").contains(mode)) {
           TTuple(TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)))
         } else if (mode == "raw") {
@@ -182,13 +182,13 @@ object InferType {
         } else {
           throw new NotImplementedError(s"Cannot infer type for mode $mode")
         }
-      case NDArraySVD(nd, _, compute_uv) =>
+      case NDArraySVD(nd, _, compute_uv, _) =>
         if (compute_uv) {
           TTuple(TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(1)), TNDArray(TFloat64, Nat(2)))
         } else {
           TNDArray(TFloat64, Nat(1))
         }
-      case NDArrayInv(_) =>
+      case NDArrayInv(_, _) =>
         TNDArray(TFloat64, Nat(2))
       case NDArrayWrite(_, _) => TVoid
       case AggFilter(_, aggIR, _) =>

@@ -37,7 +37,7 @@ case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedSeq[Emi
 
   override lazy val fieldTypes: IndexedSeq[SType] = fieldEmitTypes.map(_.st)
 
-  def fieldIdx(fieldName: String): Int = virtualType.asInstanceOf[TStruct].fieldIdx(fieldName)
+  def fieldIdx(fieldName: String): Int = virtualType.fieldIdx(fieldName)
 
   override def canonicalPType(): PType = virtualType match {
     case ts: TStruct =>
@@ -68,7 +68,7 @@ case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedSeq[Emi
     })
   }
 
-  override def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     value match {
       case ss: SStackStructCode =>
         if (ss.st == this && !deepCopy)

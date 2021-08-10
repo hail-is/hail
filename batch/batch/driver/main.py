@@ -18,11 +18,10 @@ from gear import (
     web_authenticated_developers_only,
     check_csrf_token,
     transaction,
-    monitor_endpoint,
+    monitor_endpoints_middleware,
 )
 from hailtop.hail_logging import AccessLogger
 from hailtop.config import get_deploy_config
-from hailtop.httpx import client_session
 from hailtop.utils import (
     time_msecs,
     RateLimit,
@@ -30,7 +29,6 @@ from hailtop.utils import (
     Notice,
     periodically_call,
     AsyncWorkerPool,
-    request_retry_transient_errors,
     dump_all_stacktraces,
 )
 from hailtop.tls import internal_server_ssl_context
@@ -160,7 +158,6 @@ async def get_healthcheck(request):  # pylint: disable=W0613
 
 
 @routes.get('/check_invariants')
-@monitor_endpoint
 @rest_authenticated_developers_only
 async def get_check_invariants(request, userdata):  # pylint: disable=unused-argument
     app = request.app
@@ -172,7 +169,6 @@ async def get_check_invariants(request, userdata):  # pylint: disable=unused-arg
 
 
 @routes.patch('/api/v1alpha/batches/{user}/{batch_id}/close')
-@monitor_endpoint
 @batch_only
 async def close_batch(request):
     db = request.app['db']
@@ -201,7 +197,6 @@ def set_cancel_state_changed(app):
 
 
 @routes.post('/api/v1alpha/batches/cancel')
-@monitor_endpoint
 @batch_only
 async def cancel_batch(request):
     set_cancel_state_changed(request.app)
@@ -209,7 +204,6 @@ async def cancel_batch(request):
 
 
 @routes.post('/api/v1alpha/batches/delete')
-@monitor_endpoint
 @batch_only
 async def delete_batch(request):
     set_cancel_state_changed(request.app)
@@ -236,14 +230,12 @@ async def activate_instance_1(request, instance):
 
 
 @routes.get('/api/v1alpha/instances/gsa_key')
-@monitor_endpoint
 @activating_instances_only
 async def get_gsa_key(request, instance):  # pylint: disable=unused-argument
     return await asyncio.shield(get_gsa_key_1(instance))
 
 
 @routes.post('/api/v1alpha/instances/activate')
-@monitor_endpoint
 @activating_instances_only
 async def activate_instance(request, instance):
     return await asyncio.shield(activate_instance_1(request, instance))
@@ -257,7 +249,6 @@ async def deactivate_instance_1(instance):
 
 
 @routes.post('/api/v1alpha/instances/deactivate')
-@monitor_endpoint
 @active_instances_only
 async def deactivate_instance(request, instance):  # pylint: disable=unused-argument
     return await asyncio.shield(deactivate_instance_1(instance))
@@ -305,7 +296,6 @@ async def job_complete_1(request, instance):
 
 
 @routes.post('/api/v1alpha/instances/job_complete')
-@monitor_endpoint
 @active_instances_only
 async def job_complete(request, instance):
     return await asyncio.shield(job_complete_1(request, instance))
@@ -329,7 +319,6 @@ async def job_started_1(request, instance):
 
 
 @routes.post('/api/v1alpha/instances/job_started')
-@monitor_endpoint
 @active_instances_only
 async def job_started(request, instance):
     return await asyncio.shield(job_started_1(request, instance))
@@ -337,7 +326,6 @@ async def job_started(request, instance):
 
 @routes.get('/')
 @routes.get('')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_index(request, userdata):
     app = request.app
@@ -361,6 +349,7 @@ FROM user_inst_coll_resources;
         'ready_cores_mcpu': ready_cores_mcpu,
         'live_total_cores_mcpu': inst_coll_manager.global_live_total_cores_mcpu,
         'live_free_cores_mcpu': inst_coll_manager.global_live_free_cores_mcpu,
+        'frozen': app['frozen'],
     }
     return await render_template('batch-driver', request, userdata, 'index.html', page_context)
 
@@ -381,19 +370,8 @@ def validate_int(session, url_path, name, value, predicate, description):
     return validate(session, url_path, name, i, predicate, description)
 
 
-async def refresh_inst_colls_on_front_end(app):
-    async with client_session() as session:
-        await request_retry_transient_errors(
-            session,
-            'PATCH',
-            deploy_config.url('batch', '/api/v1alpha/inst_colls/refresh'),
-            headers=app['batch_headers'],
-        )
-
-
 @routes.post('/config-update/pool/{pool}')
 @check_csrf_token
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def pool_config_update(request, userdata):  # pylint: disable=unused-argument
     app = request.app
@@ -493,8 +471,6 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
         max_live_instances,
     )
 
-    await refresh_inst_colls_on_front_end(app)
-
     set_message(session, f'Updated configuration for {pool}.', 'info')
 
     return web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
@@ -502,7 +478,6 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
 
 @routes.post('/config-update/jpim')
 @check_csrf_token
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def job_private_config_update(request, userdata):  # pylint: disable=unused-argument
     app = request.app
@@ -534,15 +509,12 @@ async def job_private_config_update(request, userdata):  # pylint: disable=unuse
 
     await job_private_inst_manager.configure(boot_disk_size_gb, max_instances, max_live_instances)
 
-    await refresh_inst_colls_on_front_end(app)
-
     set_message(session, f'Updated configuration for {job_private_inst_manager}.', 'info')
 
     return web.HTTPFound(deploy_config.external_url('batch-driver', url_path))
 
 
 @routes.get('/inst_coll/pool/{pool}')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_pool(request, userdata):
     app = request.app
@@ -577,7 +549,6 @@ async def get_pool(request, userdata):
 
 
 @routes.get('/inst_coll/jpim')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_job_private_inst_manager(request, userdata):
     app = request.app
@@ -608,8 +579,55 @@ async def get_job_private_inst_manager(request, userdata):
     return await render_template('batch-driver', request, userdata, 'job_private.html', page_context)
 
 
+@routes.post('/freeze')
+@check_csrf_token
+@web_authenticated_developers_only()
+async def freeze_batch(request, userdata):  # pylint: disable=unused-argument
+    app = request.app
+    db: Database = app['db']
+    session = await aiohttp_session.get_session(request)
+
+    if app['frozen']:
+        set_message(session, 'Batch is already frozen.', 'info')
+        return web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+
+    await db.execute_update(
+        '''
+UPDATE globals SET frozen = 1;
+''')
+
+    app['frozen'] = True
+
+    set_message(session, 'Froze all instance collections and batch submissions.', 'info')
+
+    return web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+
+
+@routes.post('/unfreeze')
+@check_csrf_token
+@web_authenticated_developers_only()
+async def unfreeze_batch(request, userdata):  # pylint: disable=unused-argument
+    app = request.app
+    db: Database = app['db']
+    session = await aiohttp_session.get_session(request)
+
+    if not app['frozen']:
+        set_message(session, 'Batch is already unfrozen.', 'info')
+        return web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+
+    await db.execute_update(
+        '''
+UPDATE globals SET frozen = 0;
+''')
+
+    app['frozen'] = False
+
+    set_message(session, 'Unfroze all instance collections and batch submissions.', 'info')
+
+    return web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+
+
 @routes.get('/user_resources')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_user_resources(request, userdata):
     app = request.app
@@ -917,7 +935,7 @@ async def on_startup(app):
 
     row = await db.select_and_fetchone(
         '''
-SELECT instance_id, internal_token FROM globals;
+SELECT instance_id, internal_token, frozen FROM globals;
 '''
     )
 
@@ -928,6 +946,8 @@ SELECT instance_id, internal_token FROM globals;
     app['internal_token'] = row['internal_token']
 
     app['batch_headers'] = {'Authorization': f'Bearer {row["internal_token"]}'}
+
+    app['frozen'] = row['frozen']
 
     resources = db.select_and_fetchall('SELECT resource FROM resources;')
 
@@ -1024,10 +1044,16 @@ async def on_cleanup(app):
                             try:
                                 app['task_manager'].shutdown()
                             finally:
-                                del app['k8s_cache'].client
-                                await asyncio.gather(
-                                    *(t for t in asyncio.all_tasks() if t is not asyncio.current_task())
-                                )
+                                try:
+                                    await app['logging_client'].close()
+                                finally:
+                                    try:
+                                        await app['compute_client'].close()
+                                    finally:
+                                        del app['k8s_cache'].client
+                                        await asyncio.gather(
+                                            *(t for t in asyncio.all_tasks() if t is not asyncio.current_task())
+                                        )
 
 
 def run():
@@ -1042,7 +1068,7 @@ def run():
             verbose=3,
         )
 
-    app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)
+    app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE, middlewares=[monitor_endpoints_middleware])
     setup_aiohttp_session(app)
 
     setup_aiohttp_jinja2(app, 'batch.driver')

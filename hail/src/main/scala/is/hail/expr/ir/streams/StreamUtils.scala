@@ -89,7 +89,7 @@ object StreamUtils {
         traverse(a, mult); traverse(i, 2); traverse(s, 2); traverse(r, 2)
       case StreamZipJoin(as, _, _, _, f) =>
         as.foreach(traverse(_, mult)); traverse(f, 2)
-      case StreamZip(as, _, body, _) =>
+      case StreamZip(as, _, body, _, _) =>
         as.foreach(traverse(_, mult)); traverse(body, 2)
       case StreamFold(a, zero, _, _, body) =>
         traverse(a, mult); traverse(zero, mult); traverse(body, 2)
@@ -102,7 +102,7 @@ object StreamUtils {
         traverse(a, mult); traverse(body, 2)
       case NDArrayMap(a, _, body) =>
         traverse(a, mult); traverse(body, 2)
-      case NDArrayMap2(l, r, _, _, body) =>
+      case NDArrayMap2(l, r, _, _, body, _) =>
         traverse(l, mult); traverse(r, mult); traverse(body, 2)
 
       case _ => ir.children.foreach {

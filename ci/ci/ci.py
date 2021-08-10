@@ -15,7 +15,7 @@ from gear import (
     rest_authenticated_developers_only,
     rest_authenticated_users_only,
     web_authenticated_developers_only,
-    monitor_endpoint,
+    monitor_endpoints_middleware,
 )
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 
@@ -32,7 +32,6 @@ routes = web.RouteTableDef()
 
 @routes.get('')
 @routes.get('/')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def index(request, userdata):  # pylint: disable=unused-argument
     # Redirect to /batches.
@@ -40,7 +39,6 @@ async def index(request, userdata):  # pylint: disable=unused-argument
 
 
 @routes.get('/batches')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_batches(request, userdata):
     batch_client = request.app['batch_client']
@@ -51,7 +49,6 @@ async def get_batches(request, userdata):
 
 
 @routes.get('/batches/{batch_id}')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
@@ -66,7 +63,6 @@ async def get_batch(request, userdata):
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_job(request, userdata):
     batch_id = int(request.match_info['batch_id'])
@@ -84,7 +80,6 @@ async def get_job(request, userdata):
 
 
 @routes.post('/api/v1alpha/dev_deploy_branch')
-@monitor_endpoint
 @rest_authenticated_developers_only
 async def dev_deploy_branch(request, userdata):
     app = request.app
@@ -189,7 +184,7 @@ async def on_cleanup(app):
 
 
 def run():
-    app = web.Application()
+    app = web.Application(middlewares=[monitor_endpoints_middleware])
     setup_aiohttp_jinja2(app, 'ci')
     setup_aiohttp_session(app)
 
