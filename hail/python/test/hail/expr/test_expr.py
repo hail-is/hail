@@ -55,7 +55,7 @@ class Tests(unittest.TestCase):
         same_as_python(10, -5, -1)
         same_as_python(10, -5, -4)
 
-        with self.assertRaisesRegex(hl.utils.HailUserError, 'Array range cannot have step size 0'):
+        with self.assertRaisesRegex(hl.utils.FatalError, 'Array range cannot have step size 0'):
             hl.eval(hl.range(0, 1, 0))
 
     def test_zeros(self):
@@ -209,21 +209,14 @@ class Tests(unittest.TestCase):
             x6=kt.a.keys(),
             x7=kt.a.values(),
             x8=kt.a.size(),
-            x9=kt.a.map_values(lambda v: v * 2.0),
-            x10=kt.a.items(),
+            x9=kt.a.map_values(lambda v: v * 2.0)
         ).take(1)[0])
 
         expected = {'a': {'cat': 3, 'dog': 7}, 'x': 2.0, 'x1': 3, 'x2': 7, 'x3': False,
                     'x4': False, 'x5': {'cat', 'dog'}, 'x6': ['cat', 'dog'],
-                    'x7': [3, 7], 'x8': 2, 'x9': {'cat': 6.0, 'dog': 14.0},
-                    'x10': [('cat', 3), ('dog', 7)]}
+                    'x7': [3, 7], 'x8': 2, 'x9': {'cat': 6.0, 'dog': 14.0}}
 
         self.assertDictEqual(result, expected)
-
-    def test_dict_missing_error(self):
-        d = hl.dict({'a': 2, 'b': 3})
-        with pytest.raises(hl.utils.HailUserError, match='Key NA not found in dictionary'):
-            hl.eval(d[hl.missing(hl.tstr)])
 
     def test_numeric_conversion(self):
         schema = hl.tstruct(a=hl.tfloat64, b=hl.tfloat64, c=hl.tint32, d=hl.tint32)

@@ -37,6 +37,8 @@ class Tests(unittest.TestCase):
     def test_write(self):
         create_backward_compatibility_files()
 
+    @fails_service_backend()
+    @fails_local_backend()
     def test_backward_compatability(self):
         import os
 
@@ -79,4 +81,4 @@ class Tests(unittest.TestCase):
                 f = os.path.join(matrix_table_dir, '{}.hmt'.format(i))
                 n += 1
 
-        assert n == 72
+        assert n == 76

@@ -40,8 +40,9 @@ class Credentials(abc.ABC):
 
         log.warning('unable to locate Google Cloud credentials file, will attempt to '
                     'use instance metadata server instead')
-
+        
         return InstanceMetadataCredentials()
+
 
     async def get_access_token(self, session):
         pass
@@ -99,7 +100,6 @@ class ServiceAccountCredentials(Credentials):
                     'assertion': encoded_assertion
                 })) as resp:
             return await resp.json()
-
 
 # https://cloud.google.com/compute/docs/access/create-enable-service-accounts-for-instances#applications
 class InstanceMetadataCredentials():

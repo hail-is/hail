@@ -61,6 +61,4 @@ final case class TSet(elementType: Type) extends TContainer {
     assert(elementType == subtype.asInstanceOf[TSet].elementType)
     identity
   }
-
-  override def arrayElementsRepr: TArray = TArray(elementType)
 }

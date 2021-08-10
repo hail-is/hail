@@ -15,7 +15,6 @@ spec:
       labels:
         app: monitoring
         hail.is/sha: "{{ code.sha }}"
-        grafanak8sapp: "true"
     spec:
       nodeSelector:
         preemptible: "true"
@@ -35,23 +34,11 @@ spec:
           env:
           - name: HAIL_DOMAIN
             value: "{{ global.domain }}"
-          - name: PROJECT
-            value: "{{ global.project }}"
           - name: HAIL_DEPLOY_CONFIG_FILE
             value: /deploy-config/deploy-config.json
           - name: HAIL_SHA
             value: "{{ code.sha }}"
-          - name: HAIL_GCP_REGION
-            valueFrom:
-              secretKeyRef:
-                name: global-config
-                key: gcp_region
-          - name: HAIL_BATCH_GCP_REGIONS
-            valueFrom:
-              secretKeyRef:
-                name: global-config
-                key: batch_gcp_regions
-{% if scope != "test" and scope != "dev" %}
+{% if scope != "test" %}
           - name: HAIL_USE_FULL_QUERY
             value: "1"
 {% endif %}

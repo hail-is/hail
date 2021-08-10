@@ -79,7 +79,7 @@ class IntervalSuite extends HailSuite {
       SetInterval(3, 1, true, false))
 
   def toIRInterval(i: SetInterval): IR =
-    invoke("Interval", TInterval(TInt32), ErrorIDs.NO_ERROR, i.start, i.end, i.includesStart, i.includesEnd)
+    invoke("Interval", TInterval(TInt32), i.start, i.end, i.includesStart, i.includesEnd)
 
   @Test def contains() {
     for (setInterval <- testIntervals; p <- points) {
@@ -91,7 +91,7 @@ class IntervalSuite extends HailSuite {
   @Test def isEmpty() {
     for (setInterval <- testIntervals) {
       val interval = toIRInterval(setInterval)
-      assert(eval(invoke("isEmpty", TBoolean, ErrorIDs.NO_ERROR, interval)) == setInterval.definitelyEmpty())
+      assert(eval(invoke("isEmpty", TBoolean, interval)) == setInterval.definitelyEmpty())
     }
   }
 

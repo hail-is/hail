@@ -887,21 +887,20 @@ object IRParser {
           MakeStream(args, typ, requiresMemoryManagementPerElement)
         }
       case "ArrayRef" =>
-        val errorID = int32_literal(it)
         for {
           a <- ir_value_expr(env)(it)
           i <- ir_value_expr(env)(it)
-        } yield ArrayRef(a, i, errorID)
+          s <- ir_value_expr(env)(it)
+        } yield ArrayRef(a, i, s)
       case "ArrayLen" => ir_value_expr(env)(it).map(ArrayLen)
       case "StreamLen" => ir_value_expr(env)(it).map(StreamLen)
       case "StreamRange" =>
-        val errorID = int32_literal(it)
         val requiresMemoryManagementPerElement = boolean_literal(it)
         for {
           start <- ir_value_expr(env)(it)
           stop <- ir_value_expr(env)(it)
           step <- ir_value_expr(env)(it)
-        } yield StreamRange(start, stop, step, requiresMemoryManagementPerElement, errorID)
+        } yield StreamRange(start, stop, step, requiresMemoryManagementPerElement)
       case "StreamGrouped" =>
         for {
           s <- ir_value_expr(env)(it)
@@ -917,19 +916,18 @@ object IRParser {
           lessThan <- ir_value_expr(env + (l -> elt) + (r -> elt))(it)
         } yield ArraySort(a, l, r, lessThan)
       case "MakeNDArray" =>
-        val errorID = int32_literal(it)
+        val errorId = int32_literal(it)
         for {
           data <- ir_value_expr(env)(it)
           shape <- ir_value_expr(env)(it)
           rowMajor <- ir_value_expr(env)(it)
-        } yield MakeNDArray(data, shape, rowMajor, errorID)
+        } yield MakeNDArray(data, shape, rowMajor, errorId)
       case "NDArrayShape" => ir_value_expr(env)(it).map(NDArrayShape)
       case "NDArrayReshape" =>
-        val errorID = int32_literal(it)
         for {
           nd <- ir_value_expr(env)(it)
           shape <- ir_value_expr(env)(it)
-        } yield NDArrayReshape(nd, shape, errorID)
+        } yield NDArrayReshape(nd, shape)
       case "NDArrayConcat" =>
         val axis = int32_literal(it)
         ir_value_expr(env)(it).map { nds =>
@@ -942,7 +940,6 @@ object IRParser {
           body <- ir_value_expr(env + (name -> coerce[TNDArray](nd.typ).elementType))(it)
         } yield NDArrayMap(nd, name, body)
       case "NDArrayMap2" =>
-        val errorID = int32_literal(it)
         val lName = identifier(it)
         val rName = identifier(it)
         for {
@@ -951,7 +948,7 @@ object IRParser {
           body_env = (env + (lName -> coerce[TNDArray](l.typ).elementType)
             + (rName -> coerce[TNDArray](r.typ).elementType))
           body <- ir_value_expr(body_env)(it)
-        } yield NDArrayMap2(l, r, lName, rName, body, errorID)
+        } yield NDArrayMap2(l, r, lName, rName, body)
       case "NDArrayReindex" =>
         val indexExpr = int32_literals(it)
         ir_value_expr(env)(it).map { nd =>
@@ -963,11 +960,11 @@ object IRParser {
           NDArrayAgg(nd, axes)
         }
       case "NDArrayRef" =>
-        val errorID = int32_literal(it)
+        val errorId = int32_literal(it)
         for {
           nd <- ir_value_expr(env)(it)
           idxs <- ir_value_children(env)(it)
-        } yield NDArrayRef(nd, idxs, errorID)
+        } yield NDArrayRef(nd, idxs, errorId)
       case "NDArraySlice" =>
         for {
           nd <- ir_value_expr(env)(it)
@@ -979,32 +976,27 @@ object IRParser {
           filters <- fillArray(coerce[TNDArray](nd.typ).nDims)(ir_value_expr(env)(it))
         } yield NDArrayFilter(nd, filters.toFastIndexedSeq)
       case "NDArrayMatMul" =>
-        val errorID = int32_literal(it)
         for {
           l <- ir_value_expr(env)(it)
           r <- ir_value_expr(env)(it)
-        } yield NDArrayMatMul(l, r, errorID)
+        } yield NDArrayMatMul(l, r)
       case "NDArrayWrite" =>
         for {
           nd <- ir_value_expr(env)(it)
           path <- ir_value_expr(env)(it)
         } yield NDArrayWrite(nd, path)
       case "NDArrayQR" =>
-        val errorID = int32_literal(it)
         val mode = string_literal(it)
         ir_value_expr(env)(it).map { nd =>
-          NDArrayQR(nd, mode, errorID)
+          NDArrayQR(nd, mode)
         }
       case "NDArraySVD" =>
-        val errorID = int32_literal(it)
         val fullMatrices = boolean_literal(it)
         val computeUV = boolean_literal(it)
         ir_value_expr(env)(it).map { nd =>
-          NDArraySVD(nd, fullMatrices, computeUV, errorID)
+          NDArraySVD(nd, fullMatrices, computeUV)
         }
-      case "NDArrayInv" =>
-        val errorID = int32_literal(it)
-        ir_value_expr(env)(it).map{ nd => NDArrayInv(nd, errorID) }
+      case "NDArrayInv" => ir_value_expr(env)(it).map(NDArrayInv(_))
       case "ToSet" => ir_value_expr(env)(it).map(ToSet)
       case "ToDict" => ir_value_expr(env)(it).map(ToDict)
       case "ToArray" => ir_value_expr(env)(it).map(ToArray)
@@ -1038,7 +1030,6 @@ object IRParser {
           num <- ir_value_expr(env)(it)
         } yield StreamDrop(a, num)
       case "StreamZip" =>
-        val errorID = int32_literal(it)
         val behavior = identifier(it) match {
           case "AssertSameLength" => ArrayZipBehavior.AssertSameLength
           case "TakeMinLength" => ArrayZipBehavior.TakeMinLength
@@ -1049,7 +1040,7 @@ object IRParser {
         for {
           as <- names.mapRecur(_ => ir_value_expr(env)(it))
           body <- ir_value_expr(env ++ names.zip(as.map(a => coerce[TStream](a.typ).elementType)))(it)
-        } yield StreamZip(as, names, body, behavior, errorID)
+        } yield StreamZip(as, names, body, behavior)
       case "StreamFilter" =>
         val name = identifier(it)
         for {
@@ -1264,9 +1255,9 @@ object IRParser {
         }
       case "Die" =>
         val typ = type_expr(env.typEnv)(it)
-        val errorID = int32_literal(it)
+        val errorId = int32_literal(it)
         ir_value_expr(env)(it).map { msg =>
-          Die(msg, typ, errorID)
+          Die(msg, typ, errorId)
         }
       case "Trap" =>
         ir_value_expr(env)(it).map { child =>
@@ -1281,12 +1272,11 @@ object IRParser {
           ApplySeeded(function, args, seed, rt)
         }
       case "ApplyIR" | "ApplySpecial" | "Apply" =>
-        val errorID = int32_literal(it)
         val function = identifier(it)
         val typeArgs = type_exprs(env.typEnv)(it)
         val rt = type_expr(env.typEnv)(it)
         ir_value_children(env)(it).map { args =>
-          invoke(function, rt, typeArgs, errorID, args: _*)
+          invoke(function, rt, typeArgs, args: _*)
         }
       case "MatrixCount" =>
         matrix_ir(env.withRefMap(Map.empty))(it).map(MatrixCount)

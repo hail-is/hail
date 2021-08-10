@@ -213,12 +213,7 @@ WHERE name = %s;
     async def create_instances_from_ready_cores(self, ready_cores_mcpu, zone=None):
         n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
 
-        if zone is None:
-            live_free_cores_mcpu = self.live_free_cores_mcpu
-        else:
-            live_free_cores_mcpu = self.live_free_cores_mcpu_by_zone[zone]
-
-        instances_needed = (ready_cores_mcpu - live_free_cores_mcpu + (self.worker_cores * 1000) - 1) // (
+        instances_needed = (ready_cores_mcpu - self.live_free_cores_mcpu + (self.worker_cores * 1000) - 1) // (
             self.worker_cores * 1000
         )
         instances_needed = min(
@@ -237,10 +232,6 @@ WHERE name = %s;
             await asyncio.gather(*[self.create_instance(zone=zone) for _ in range(instances_needed)])
 
     async def create_instances(self):
-        if self.app['frozen']:
-            log.info(f'not creating instances for {self}; batch is frozen')
-            return
-
         ready_cores_mcpu_per_user = self.db.select_and_fetchall(
             '''
 SELECT user,
@@ -387,10 +378,6 @@ HAVING n_ready_jobs + n_running_jobs > 0;
         return result
 
     async def schedule_loop_body(self):
-        if self.app['frozen']:
-            log.info(f'not scheduling any jobs for {self.pool}; batch is frozen')
-            return True
-
         log.info(f'schedule {self.pool}: starting')
         start = time_msecs()
         n_scheduled = 0
@@ -456,8 +443,7 @@ LIMIT %s;
             while i < len(self.pool.healthy_instances_by_free_cores):
                 instance = self.pool.healthy_instances_by_free_cores[i]
                 assert cores_mcpu <= instance.free_cores_mcpu
-                if user != 'ci' or (user == 'ci' and instance.zone == GCP_ZONE):
-                    return instance
+                return instance
                 i += 1
             histogram = collections.defaultdict(int)
             for instance in self.pool.healthy_instances_by_free_cores:

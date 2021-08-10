@@ -21,7 +21,7 @@ case class SBaseStructPointer(pType: PBaseStruct) extends SBaseStruct {
 
   override def fieldIdx(fieldName: String): Int = pType.fieldIdx(fieldName)
 
-  def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SBaseStructPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 

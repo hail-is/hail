@@ -61,7 +61,7 @@ final case class EArray(val elementType: EType, override val required: Boolean =
           cb.ifx(value.isElementMissing(i), cb.assign(b, b | (const(1) << shift)))
           cb.assign(shift, shift + 1)
           cb.assign(i, i + 1)
-          cb.ifx(shift.ceq(8), {
+          cb.ifx(shift.ceq(7), {
             cb.assign(shift, 0)
             cb += out.writeByte(b.toB)
             cb.assign(b, 0)

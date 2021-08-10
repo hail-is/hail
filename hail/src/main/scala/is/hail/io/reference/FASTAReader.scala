@@ -14,9 +14,9 @@ import is.hail.io.fs.FS
 import scala.language.postfixOps
 import scala.collection.concurrent
 
-case class FASTAReaderConfig(tmpdir: String, fs: FS, rg: ReferenceGenome,
-  fastaFile: String, indexFile: String, blockSize: Int = 4096, capacity: Int = 100
-) {
+case class FASTAReaderConfig(val tmpdir: String, val fsBc: BroadcastValue[FS], val rg: ReferenceGenome,
+  val fastaFile: String, val indexFile: String, val blockSize: Int = 4096, val capacity: Int = 100
+) extends Serializable {
   if (blockSize <= 0)
     fatal(s"'blockSize' must be greater than 0. Found $blockSize.")
   if (capacity <= 0)
@@ -55,10 +55,10 @@ object FASTAReader {
 }
 
 class FASTAReader(val cfg: FASTAReaderConfig) {
-  val FASTAReaderConfig(tmpdir, fs, rg, fastaFile, indexFile, blockSize, capacity) = cfg
+  val FASTAReaderConfig(tmpdir, fsBc, rg, fastaFile, indexFile, blockSize, capacity) = cfg
 
   private[this] def newReader(): ReferenceSequenceFile = {
-    val localFastaFile = FASTAReader.getLocalFastaFile(tmpdir, fs, fastaFile, indexFile)
+    val localFastaFile = FASTAReader.getLocalFastaFile(tmpdir, fsBc.value, fastaFile, indexFile)
     ReferenceSequenceFileFactory.getReferenceSequenceFile(new java.io.File(uriPath(localFastaFile)))
   }
 

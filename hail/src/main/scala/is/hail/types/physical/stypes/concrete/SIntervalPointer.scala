@@ -14,7 +14,7 @@ import is.hail.utils.FastIndexedSeq
 case class SIntervalPointer(pType: PInterval) extends SInterval {
   require(!pType.required)
 
-  def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SIntervalPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 
@@ -111,9 +111,9 @@ class SIntervalPointerCode(val st: SIntervalPointer, val a: Code[Long]) extends 
 
   def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
-  def codeIncludesStart(): Code[Boolean] = pt.includesStart(a)
+  def includesStart(): Code[Boolean] = pt.includesStart(a)
 
-  def codeIncludesEnd(): Code[Boolean] = pt.includesEnd(a)
+  def includesEnd(): Code[Boolean] = pt.includesEnd(a)
 
   def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SIntervalValue = {
     val s = SIntervalPointerSettable(sb, st, name)

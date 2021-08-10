@@ -8,8 +8,7 @@ from .base_expression import Expression, ExpressionException, to_expr, \
     unify_all, unify_types
 from .expression_typecheck import coercer_from_dtype, \
     expr_any, expr_array, expr_set, expr_bool, expr_numeric, expr_int32, \
-    expr_int64, expr_str, expr_dict, expr_interval, expr_tuple, expr_oneof, \
-    expr_ndarray
+    expr_int64, expr_str, expr_dict, expr_interval, expr_tuple, expr_oneof
 from hail.expr.types import HailType, tint32, tint64, tfloat32, \
     tfloat64, tbool, tcall, tset, tarray, tstruct, tdict, ttuple, tstr, \
     tndarray, tlocus, tinterval, is_numeric
@@ -478,7 +477,31 @@ class ArrayExpression(CollectionExpression):
             raise TypeError("array expects key to be type 'slice' or expression of type 'int32', "
                             "found expression of type '{}'".format(item._type))
         else:
-            return self._method("indexArray", self.dtype.element_type, item)
+            import traceback
+            stack = traceback.format_stack()
+            i = len(stack)
+            while i > 0:
+                candidate = stack[i - 1]
+                if 'IPython' in candidate:
+                    break
+                i -= 1
+            filt_stack = []
+
+            forbidden_phrases = [
+                '_ir_lambda_method',
+                'decorator.py',
+                'typecheck/check',
+                'interactiveshell.py',
+                'expressions.construct_variable',
+                'traceback.format_stack()'
+            ]
+            while i < len(stack):
+                candidate = stack[i]
+                i += 1
+                if any(phrase in candidate for phrase in forbidden_phrases):
+                    continue
+                filt_stack.append(candidate)
+            return self._method("indexArray", self.dtype.element_type, item, '\n'.join(filt_stack))
 
     @typecheck_method(item=expr_any)
     def contains(self, item):
@@ -1504,22 +1527,6 @@ class DictExpression(Expression):
             All values in the dictionary.
         """
         return self._method("values", tarray(self.dtype.value_type))
-
-    def items(self):
-        """Returns an array of tuples containing key/value pairs in the dictionary.
-
-        Examples
-        --------
-
-        >>> hl.eval(d.items())  # doctest: +SKIP_OUTPUT_CHECK
-        [('Alice', 430), ('Bob', 330), ('Charles', 440)]
-
-        Returns
-        -------
-        :class:`.ArrayExpression`
-            All key/value pairs in the dictionary.
-        """
-        return hl.array(self)
 
     def _extra_summary_fields(self, agg_result):
         return {
@@ -3920,7 +3927,7 @@ class NDArrayExpression(Expression):
 
     @typecheck_method(f=func_spec(1, expr_any))
     def map(self, f):
-        """Applies an element-wise operation on an NDArray.
+        """Transform each element of an NDArray.
 
         Parameters
         ----------
@@ -3938,37 +3945,6 @@ class NDArrayExpression(Expression):
 
         assert isinstance(self._type, tndarray)
         return ndarray_map
-
-    @typecheck_method(other=oneof(expr_ndarray(), list), f=func_spec(2, expr_any))
-    def map2(self, other, f):
-        """Applies an element-wise binary operation on two NDArrays.
-
-        Parameters
-        ----------
-        other : class:`.NDArrayExpression`, :class:`.ArrayExpression`, numpy NDarray,
-            or nested python list/tuples. Both NDArrays must be the same shape or
-            broadcastable into common shape.
-        f : function ((arg1, arg2)-> :class:`.Expression`)
-            Function to be applied to each element of both NDArrays.
-
-        Returns
-        -------
-        :class:`.NDArrayExpression`.
-            Element-wise result of applying `f` to each index in NDArrays.
-        """
-
-        if isinstance(other, list) or isinstance(other, np.ndarray):
-            other = hl.nd.array(other)
-
-        self_broadcast, other_broadcast = self._broadcast_to_same_ndim(other)
-
-        element_type1 = self_broadcast._type.element_type
-        element_type2 = other_broadcast._type.element_type
-        ndarray_map2 = self_broadcast._ir_lambda_method2(other_broadcast, ir.NDArrayMap2, f, element_type1,
-                                                         element_type2, lambda t: tndarray(t, self_broadcast.ndim))
-
-        assert isinstance(self._type, tndarray)
-        return ndarray_map2
 
     def _broadcast_to_same_ndim(self, other):
         if isinstance(other, NDArrayExpression):
@@ -4187,29 +4163,25 @@ class NDArrayNumericExpression(NDArrayExpression):
         if axis is None:
             axis = tuple(range(self.ndim))
 
-        if self._type.element_type is hl.tbool:
-            return self.map(lambda x: hl.int(x)).sum(axis)
+        axis = wrap_to_tuple(axis)
+        res_ir = ir.NDArrayAgg(self._ir, axis)
 
+        axes_set = set(axis)
+        if len(axes_set) < len(axis):
+            raise ValueError("duplicate value in 'axis'")
+        for element in axes_set:
+            if element < 0 or element >= self.ndim:
+                raise ValueError(f"axis {element} is out of bounds for ndarray of dimension {self.ndim}")
+
+        num_axes_deleted = len(axes_set)
+
+        result_ndim = self.ndim - num_axes_deleted
+        result = construct_expr(res_ir, tndarray(self._type.element_type, result_ndim), self._indices, self._aggregations)
+
+        if result_ndim == 0:
+            return result[()]
         else:
-            axis = wrap_to_tuple(axis)
-            res_ir = ir.NDArrayAgg(self._ir, axis)
-
-            axes_set = set(axis)
-            if len(axes_set) < len(axis):
-                raise ValueError("duplicate value in 'axis'")
-            for element in axes_set:
-                if element < 0 or element >= self.ndim:
-                    raise ValueError(f"axis {element} is out of bounds for ndarray of dimension {self.ndim}")
-
-            num_axes_deleted = len(axes_set)
-
-            result_ndim = self.ndim - num_axes_deleted
-            result = construct_expr(res_ir, tndarray(self._type.element_type, result_ndim), self._indices, self._aggregations)
-
-            if result_ndim == 0:
-                return result[()]
-            else:
-                return result
+            return result
 
 
 scalars = {tbool: BooleanExpression,

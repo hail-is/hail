@@ -2,7 +2,6 @@ import os
 import logging
 import base64
 import json
-import uuid
 
 from hailtop import aiogoogle
 
@@ -101,20 +100,6 @@ async def create_instance(
 #!/bin/bash
 set -x
 
-NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
-ZONE=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
-
-if [ -f "/started" ]; then
-    echo "instance $NAME has previously been started"
-    while true; do
-    gcloud -q compute instances delete $NAME --zone=$ZONE
-    sleep 1
-    done
-    exit
-else
-    touch /started
-fi
-
 curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/run_script"  >./run.sh
 
 nohup /bin/bash run.sh >run.log 2>&1 &
@@ -125,6 +110,30 @@ nohup /bin/bash run.sh >run.log 2>&1 &
                     'value': rf'''
 #!/bin/bash
 set -x
+
+# set up docker networks
+docker network create public --opt com.docker.network.bridge.name=public
+docker network create private --opt com.docker.network.bridge.name=private
+docker network create batch-worker --opt com.docker.network.bridge.name=batch-worker
+
+# wait for docker to create the DOCKER-USER chain
+while ! iptables -L DOCKER-USER ; do sleep 1; done
+
+# [all docker] ban metadata server
+iptables -I DOCKER-USER           -d 169.254.169.254 -j DROP
+
+# [all docker] override: allow udp/53 (dns) to metadata server
+iptables -I DOCKER-USER           -d 169.254.169.254 -p udp -m udp --destination-port 53 -j ACCEPT
+
+# [public docker] ban inter-container communication
+iptables -I DOCKER-USER -i public -d 172.16.0.0/12   -j DROP
+
+# [public docker] ban unused ip address range
+iptables -I DOCKER-USER -i public -d 192.168.0.0/16  -j DROP
+
+# [batch worker] override: allow metadata server for batch worker
+iptables -I DOCKER-USER -i batch-worker -d 169.254.169.254 -j ACCEPT
+
 
 WORKER_DATA_DISK_NAME="{worker_data_disk_name}"
 UNRESERVED_WORKER_DATA_DISK_SIZE_GB="{unreserved_disk_storage_gb}"
@@ -152,15 +161,7 @@ sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/logs /logs
 sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/gcsfuse/
 sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/gcsfuse /gcsfuse
 
-sudo mkdir -p /etc/netns
-
-# private job network = 10.0.0.0/16
-# public job network = 10.1.0.0/16
-# [all networks] Rewrite traffic coming from containers to masquerade as the host
-iptables --table nat --append POSTROUTING --source 10.0.0.0/15 --jump MASQUERADE
-
-# [public] Block public traffic to the metadata server
-iptables --insert FORWARD --source 10.1.0.0/16 --destination 169.254.169.254 --jump DROP
+export HOME=/root
 
 CORES=$(nproc)
 NAMESPACE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/namespace")
@@ -244,8 +245,6 @@ sudo service google-fluentd restart
 docker pull $BATCH_WORKER_IMAGE || \
 (echo 'pull failed, retrying' && sleep 15 && docker pull $BATCH_WORKER_IMAGE)
 
-BATCH_WORKER_IMAGE_ID=$(docker inspect $BATCH_WORKER_IMAGE --format='{{{{.Id}}}}' | cut -d':' -f2)
-
 # So here I go it's my shot.
 docker run \
 -e CORES=$CORES \
@@ -263,17 +262,13 @@ docker run \
 -e MAX_IDLE_TIME_MSECS=$MAX_IDLE_TIME_MSECS \
 -e WORKER_DATA_DISK_MOUNT=/mnt/disks/$WORKER_DATA_DISK_NAME \
 -e BATCH_WORKER_IMAGE=$BATCH_WORKER_IMAGE \
--e BATCH_WORKER_IMAGE_ID=$BATCH_WORKER_IMAGE_ID \
 -e UNRESERVED_WORKER_DATA_DISK_SIZE_GB=$UNRESERVED_WORKER_DATA_DISK_SIZE_GB \
 -v /var/run/docker.sock:/var/run/docker.sock \
--v /var/run/netns:/var/run/netns:shared \
 -v /usr/bin/docker:/usr/bin/docker \
 -v /usr/sbin/xfs_quota:/usr/sbin/xfs_quota \
 -v /batch:/batch:shared \
 -v /logs:/logs \
 -v /gcsfuse:/gcsfuse:shared \
--v /etc/netns:/etc/netns \
--v /sys/fs/cgroup:/sys/fs/cgroup \
 --mount type=bind,source=/mnt/disks/$WORKER_DATA_DISK_NAME,target=/host \
 --mount type=bind,source=/dev,target=/dev,bind-propagation=rshared \
 -p 5000:5000 \
@@ -283,7 +278,7 @@ docker run \
 --privileged \
 --cap-add SYS_ADMIN \
 --security-opt apparmor:unconfined \
---network host \
+--network batch-worker \
 $BATCH_WORKER_IMAGE \
 python3 -u -m batch.worker.worker >worker.log 2>&1
 
@@ -325,9 +320,7 @@ journalctl -u docker.service > dockerd.log
         {'key': 'worker_config', 'value': base64.b64encode(json.dumps(worker_config.config).encode()).decode()}
     )
 
-    params = {'requestId': str(uuid.uuid4())}
-
-    await compute_client.post(f'/zones/{zone}/instances', params=params, json=config)
+    await compute_client.post(f'/zones/{zone}/instances', json=config)
 
     log.info(f'created machine {machine_name}')
 

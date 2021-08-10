@@ -422,9 +422,9 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
         value.asInstanceOf[SIndexablePointerCode].a
       case _ =>
         val newAddr = cb.newLocal[Long]("pcarray_store_newaddr")
-        val valueMemo = value.asIndexable.memoize(cb, "pcarray_store_src_difftype")
-        cb.assign(newAddr, allocate(region, valueMemo.loadLength()))
-        storeContentsAtAddress(cb, newAddr, region, valueMemo, deepCopy)
+        val pcInd = value.asIndexable.memoize(cb, "pcarray_store_src_sametype").asInstanceOf[SIndexablePointerSettable]
+        cb.assign(newAddr, allocate(region, pcInd.loadLength()))
+        storeContentsAtAddress(cb, newAddr, region, pcInd, deepCopy)
         newAddr
     }
 

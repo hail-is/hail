@@ -8,7 +8,7 @@ import is.hail.types.BaseStruct
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{SCode, SType, SValue}
 import is.hail.types.physical.stypes.concrete._
-import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SLocus, SLocusValue}
+import is.hail.types.physical.stypes.interfaces.SBaseStructValue
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -75,7 +75,10 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       case SIntervalPointer(t: PCanonicalInterval) => new SBaseStructPointerSettable(
         SBaseStructPointer(t.representation),
         v.asInstanceOf[SIntervalPointerSettable].a)
-      case _: SLocus => v.asInstanceOf[SLocusValue].structRepr(cb)
+      case SCanonicalLocusPointer(t) =>
+        new SBaseStructPointerSettable(
+          SBaseStructPointer(t.representation),
+          v.asInstanceOf[SCanonicalLocusPointerSettable].a)
       case _ => v.asInstanceOf[SBaseStructValue]
     }
     // write missing bytes

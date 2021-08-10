@@ -24,56 +24,6 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
-## Version 0.2.73
-
-Released 2021-07-22
-
-### Bug fixes
-
-- (hail#10684) Fixed a rare bug reading arrays from disk where short arrays would have their first elements corrupted and long arrays would cause segfaults.
-- (hail#10523) Fixed bug where liftover would fail with "Could not initialize class" errors.
-
----
-
-## Version 0.2.72
-
-Released 2021-07-19
-
-### New Features
-
-- (hail#10655) Revamped many hail error messages to give useful python stack traces.
-- (hail#10663) Added `DictExpression.items()` to mirror python's `dict.items()`.
-- (hail#10657) `hl.map` now supports mapping over multiple lists like Python's built-in `map`.
-
-### Bug fixes
-
-- (hail#10662) Fixed partitioning logic in `hl.import_plink`.
-- (hail#10669) `NDArrayNumericExpression.sum()` now works correctly on ndarrays of booleans.
-
----
-
-## Version 0.2.71
-
-Released 2021-07-08
-
-### New Features
-
-- (hail#10632) Added support for weighted linear regression to `hl.linear_regression_rows`.
-- (hail#10635) Added `hl.nd.maximum` and `hl.nd.minimum`.
-- (hail#10602) Added `hl.starmap`.
-
-### Bug fixes
-
-- (hail#10038) Fixed crashes when writing/reading matrix tables with 0 partitions.
-- (hail#10624) Fixed out of bounds bug with `_quantile_from_cdf`.
-
-
-### hailctl dataproc
-
-- (hail#10633) Added `--scopes` parameter to `hailctl dataproc start`.
-
----
-
 ## Version 0.2.70
 
 Released 2021-06-21
@@ -97,7 +47,7 @@ Released 2021-06-14
 
 ### hailctl dataproc
 
-- (hail#10574) Hail logs will now be stored in `/home/hail` by default.
+- (hail#10574) Hail logs will now be stored in `/home/hail` by default. 
 
 ---
 

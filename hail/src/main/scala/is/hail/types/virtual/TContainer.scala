@@ -9,6 +9,4 @@ abstract class TContainer extends TIterable {
       && (a1.asInstanceOf[Iterable[_]].size == a2.asInstanceOf[Iterable[_]].size)
       && a1.asInstanceOf[Iterable[_]].zip(a2.asInstanceOf[Iterable[_]])
       .forall { case (e1, e2) => elementType.valuesSimilar(e1, e2, tolerance, absolute) })
-
-  def arrayElementsRepr: TArray
 }

@@ -6,11 +6,12 @@ import aiohttp
 
 from gear import Database
 from hailtop import aiotools, aiogoogle
-from hailtop.utils import periodically_call, time_msecs, parse_timestamp_msecs
+from hailtop.utils import periodically_call, time_msecs
 
 from ..batch_configuration import PROJECT, DEFAULT_NAMESPACE
 from .zone_monitor import ZoneMonitor
 from .instance_collection_manager import InstanceCollectionManager
+from ..utils import parse_timestamp_msecs
 
 log = logging.getLogger('gce_event_monitor')
 
@@ -167,8 +168,8 @@ timestamp >= "{mark}"
                 if instance is None:
                     log.exception(f'deleting disk {disk_name} from instance that no longer exists')
                 elif (last_attach_timestamp_msecs is None
-                        and now_msecs - creation_timestamp_msecs > 60 * 60 * 1000):
-                    log.exception(f'deleting disk {disk_name} that has not attached within 60 minutes')
+                        and now_msecs - creation_timestamp_msecs > 10 * 60 * 1000):
+                    log.exception(f'deleting disk {disk_name} that has not attached within 10 minutes')
                 elif (last_detach_timestamp_msecs is not None
                         and now_msecs - last_detach_timestamp_msecs > 5 * 60 * 1000):
                     log.exception(f'deleting detached disk {disk_name} that has not been cleaned up within 5 minutes')
@@ -183,4 +184,4 @@ timestamp >= "{mark}"
                     log.exception(f'error while deleting orphaned disk {disk_name}')
 
     async def delete_orphaned_disks_loop(self):
-        await periodically_call(60, self.delete_orphaned_disks)
+        await periodically_call(15, self.delete_orphaned_disks)

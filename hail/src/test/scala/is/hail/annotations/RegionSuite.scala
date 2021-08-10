@@ -1,11 +1,8 @@
 package is.hail.annotations
 
-import is.hail.expr.ir.LongArrayBuilder
 import is.hail.utils.{info, using}
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
-
-import scala.collection.mutable.ArrayBuffer
 
 class RegionSuite extends TestNGSuite {
 
@@ -233,47 +230,6 @@ class RegionSuite extends TestNGSuite {
 
       assert(pool.numFreeRegions() == 1)
       assert(pool.numFreeBlocks() == 2)
-    }
-  }
-
-  @Test
-  def testChunkCache(): Unit = {
-    RegionPool.scoped { pool =>
-
-      val operations = ArrayBuffer[(String, Long)]()
-
-      def allocate(numBytes: Long): Long = {
-        val pointer = Memory.malloc(numBytes)
-        operations += (("allocate", numBytes))
-        pointer
-      }
-      def free(ptrToFree: Long): Unit = {
-        operations += (("free", 0L))
-        Memory.free(ptrToFree)
-      }
-      val chunkCache = new ChunkCache(allocate, free)
-      val ab = new LongArrayBuilder()
-      var i = 0
-      ab += chunkCache.getChunk(pool, 400L)._1
-      chunkCache.freeChunkToCache(ab.pop())
-      ab += chunkCache.getChunk(pool, 50L)._1
-      assert(operations(0)==("allocate", 512))
-      //512 size chunk freed from cache to not exceed peak memory
-      assert(operations(1)==("free", 0L))
-      assert(operations(2)==("allocate", 64))
-      chunkCache.freeChunkToCache(ab.pop())
-      //No additional allocate should be made as uses cache
-      ab += chunkCache.getChunk(pool, 50L)._1
-      assert(operations.length == 3)
-      ab += chunkCache.getChunk(pool, 40L)._1
-      chunkCache.freeChunksToCache(ab)
-      assert(operations(3) == ("allocate", 64))
-      assert(operations.length == 4)
-      chunkCache.freeAll(pool)
-      assert(operations(4)==("free", 0L))
-      assert(operations(5)==("free", 0L))
-      assert(operations.length == 6)
-
     }
   }
 }

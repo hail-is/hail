@@ -66,6 +66,4 @@ final case class TArray(elementType: Type) extends TContainer {
     val subsetElem = elementType.valueSubsetter(subtype.asInstanceOf[TArray].elementType)
     (a: Any) => a.asInstanceOf[IndexedSeq[Any]].map(subsetElem)
   }
-
-  override def arrayElementsRepr: TArray = this
 }

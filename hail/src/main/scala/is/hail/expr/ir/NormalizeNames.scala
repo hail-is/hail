@@ -85,12 +85,12 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newA <- normalize(a)
           newBody <- normalize(body, env.bindEval(name, newName))
         } yield StreamMap(newA, newName, newBody)
-      case StreamZip(as, names, body, behavior, errorID) =>
+      case StreamZip(as, names, body, behavior) =>
         val newNames = names.map(_ => gen())
         for {
           newAs <- as.mapRecur(normalize(_))
           newBody <- normalize(body, env.bindEval(names.zip(newNames): _*))
-        } yield StreamZip(newAs, newNames, newBody, behavior, errorID)
+        } yield StreamZip(newAs, newNames, newBody, behavior)
       case StreamZipJoin(as, key, curKey, curVals, joinF) =>
         val newCurKey = gen()
         val newCurVals = gen()
@@ -190,14 +190,14 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newNd <- normalize(nd)
           newBody <- normalize(body, env.bindEval(name -> newName))
         } yield NDArrayMap(newNd, newName, newBody)
-      case NDArrayMap2(l, r, lName, rName, body, errorID) =>
+      case NDArrayMap2(l, r, lName, rName, body) =>
         val newLName = gen()
         val newRName = gen()
         for {
           newL <- normalize(l)
           newR <- normalize(r)
           newBody <- normalize(body, env.bindEval(lName -> newLName, rName -> newRName))
-        } yield NDArrayMap2(newL, newR, newLName, newRName, newBody, errorID)
+        } yield NDArrayMap2(newL, newR, newLName, newRName, newBody)
       case AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, isScan) =>
         val newElementName = gen()
         val newIndexName = gen()

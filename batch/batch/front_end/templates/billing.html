@@ -7,31 +7,22 @@
         <form method="GET" action="{{ base_path }}/billing">
             <label for="start">Start:</label>
             <input style="vertical-align:text-bottom;" name="start" size=30 type="text" required
-                   {% if start is not none %}
+                   {% if start %}
                    value = "{{ start }}"
                    {% else %}
                    placeholder="MM/DD/YYYY"
                    {% endif %}
             ><br>
             <label for="end">End:</label>
-            <input style="vertical-align:text-bottom;" name="end" size=30 type="text"
-                   {% if end is not none %}
+            <input style="vertical-align:text-bottom;" name="end" size=30 type="text" required
+                   {% if end %}
                    value = "{{ end }}"
                    {% else %}
-                   placeholder="MM/DD/YYYY (optional)"
+                   placeholder="MM/DD/YYYY"
                    {% endif %}
             ><br>
             <button type="submit">Submit</button>
         </form>
-        <br>
-        <input id="expand-search-syntax-checkbox" class="expand-checkbox" type="checkbox">
-        <label for="expand-search-syntax-checkbox" class="expand-label">Search Help</label>
-        <div class="expand-content" style="max-width:75%;">
-            <p>Start must be a date in the format MM/DD/YYYY. End is an optional date in the format
-                MM/DD/YYYY. Leave End empty to include currently running batches. If End is not empty,
-                then no currently running batches are included. All dates search for batches that have
-                completed within that time interval (inclusive).</p>
-        </div>
     </div>
     <h2>Cost by Billing Project</h2>
     <div class='flex-col' style="overflow: auto;">
