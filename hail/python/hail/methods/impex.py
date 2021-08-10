@@ -1678,7 +1678,7 @@ def import_table(paths,
            find_replace=nullable(sized_tupleof(str, str)),
            force=bool,
            source_file_field=nullable(str))
-def import_table(paths,
+def import_table2(paths,
                  key=None,
                  min_partitions=None,
                  impute=False,
@@ -1700,27 +1700,51 @@ def import_table(paths,
     missing = wrap_to_list(missing)
 
     line_table = hl.import_lines(paths, min_partitions)
-    if not skip_blank_lines:
-        line_table.annotate(text=hl.text.case().when(hl.len(line_table.text != 0, hl.text)
-                                                     .or_error("Blank lines not allowed and skip_blank_lines=false")))
-    else:
-        line_table = line_table.filter(line_table.text.length != 0)
 
     if not no_header:
         header = line_table.head(1).collect.text
         line_table = line_table.filter(line_table.text != header)
 
+    if filter is not None:
+        line_table.annotate(text=line_table.text.filter(not line_table.text.matches(filter)))
+
+    if find_replace is not None:
+        line_table.annotate(text=line_table.text.find_replace(*find_replace))
+
     if comment.len != 0:
         line_table = line_table.filter(hl_comment.any(lambda com: hl.if_else(com.len == 1,
                                                                              line_table.text.startswith(com),
-                                                                             line_table.text.match(com))), keep=False)
+                                                                             line_table.text.match(com, True))),
+                                       keep=False)
+
+    if not skip_blank_lines:
+        line_table.annotate(text=hl.text.case().when(hl.len(line_table.text != 0, hl.text)
+                                                         .or_error("Blank lines not allowed and skip_blank_lines=false")))
+    else:
+        line_table = line_table.filter(line_table.text.length != 0)
+
     if quote is None:
         line_table = line_table.annotate(text=line_table.text.split(delimiter))
     else:
         line_table = line_table.annotate(text=line_table.text.splitQuoted(delimiter, quote))
 
-    if filter is not None:
-        line_table.annotate(text=line_table.text)
+    first_row = line_table.head(1).collect
+    if first_row.first is None:
+        raise ValueError("Invalid file")
+
+    if no_header:
+        field_count = first_row.len
+        fields = hl.range(0, field_count).map(lambda idx: hl.str("f" + hl.str(idx)))
+
+
+
+
+
+
+
+
+
+
 
 @typecheck(paths=oneof(str, sequenceof(str)), min_partitions=nullable(int))
 def import_lines(paths, min_partitions=None) -> Table:

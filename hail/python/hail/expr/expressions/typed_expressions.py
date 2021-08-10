@@ -3104,14 +3104,16 @@ class StringExpression(Expression):
 
     @typecheck_method(regex=expr_str, full_match=nullable(bool))
     def matches(self, regex, full_match=False):
-        """Returns ``True`` if the string contains any match for the given regex.
+        """Returns ``True`` if the string contains any match for the given regex if
+        full_match is false. Returns ``True`` if the whole string matches the
+        given regex if full_match is true.
 
         Examples
         --------
 
         >>> string = hl.literal('NA12878')
 
-        The `regex` parameter does not need to match the entire string:
+        The `regex` parameter does not need to match the entire string if `full_match` is ``False``:
 
         >>> hl.eval(string.matches('12'))
         True
@@ -3119,6 +3121,13 @@ class StringExpression(Expression):
         Regex motifs can be used to match sequences of characters:
 
         >>> hl.eval(string.matches(r'NA\\d+'))
+        True
+
+        >>> string = hl.literal('3412878')
+
+        The `regex` parameter needs to match the entire string if `full_match` is ``True``:
+
+        >>> hl.eval(string.matches('^[0-9]*$'))
         True
 
         Notes
