@@ -6,6 +6,14 @@ from pathlib import Path
 user_config = None
 
 
+def get_user_local_cache_dir(ensure_exists=False):
+    xdg_config_home = os.environ.get('XDG_CONFIG_HOME', os.path.expanduser('~/.config'))
+    cache_dir = Path(xdg_config_home, 'hail', 'cache')
+    if ensure_exists:
+        os.makedirs(cache_dir, exist_ok=True)
+    return cache_dir
+
+
 def get_user_config_path():
     xdg_config_home = os.environ.get('XDG_CONFIG_HOME', os.path.expanduser('~/.config'))
     return Path(xdg_config_home, 'hail', 'config.ini')

@@ -375,6 +375,30 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.if_else(hl.missing(hl.tbool), 1, 2)), None)
         self.assertEqual(hl.eval(hl.if_else(hl.missing(hl.tbool), 1, 2, missing_false=True)), 2)
 
+    @skip_when_service_backend('''intermittent worker failure:
+>       self.assertEqual(table.aggregate(hl.agg.filter(True, hl.agg.array_sum(a))), [10, 20])
+
+Caused by: java.net.URISyntaxException: Illegal character in path at index 0: a8d523b8-d587-4ba9-aa46-2839dd6d8e3b
+	at java.net.URI$Parser.fail(URI.java:2847)
+	at java.net.URI$Parser.checkChars(URI.java:3020)
+	at java.net.URI$Parser.parseHierarchical(URI.java:3104)
+	at java.net.URI$Parser.parse(URI.java:3062)
+	at java.net.URI.<init>(URI.java:588)
+	at is.hail.io.fs.GoogleStorageFS$.getBucketPath(GoogleStorageFS.scala:41)
+	at is.hail.io.fs.GoogleStorageFS.createNoCompression(GoogleStorageFS.scala:197)
+	at is.hail.io.fs.FS.create(FS.scala:154)
+	at is.hail.io.fs.FS.create$(FS.scala:153)
+	at is.hail.io.fs.GoogleStorageFS.create(GoogleStorageFS.scala:101)
+	at __C42collect_distributed_array.applyregion12_37(Unknown Source)
+	at __C42collect_distributed_array.apply(Unknown Source)
+	at __C42collect_distributed_array.apply(Unknown Source)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
+	at is.hail.utils.package$.using(package.scala:627)
+	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
+	at is.hail.backend.service.Worker$.main(Worker.scala:120)
+	at is.hail.backend.service.Worker.main(Worker.scala)
+	... 12 more''')
     def test_aggregators(self):
         table = hl.utils.range_table(10)
         r = table.aggregate(hl.struct(x=hl.agg.count(),
@@ -1161,6 +1185,31 @@ E                   	at java.lang.Thread.run(Thread.java:748)''')
         for aggregation, expected in tests:
             self.assertEqual(aggregation.collect(), expected)
 
+    @skip_when_service_backend('''intermittent worker failure:
+>           self.assertEqual(aggregation.collect(), expected)
+
+Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes, found 0
+	at is.hail.utils.ErrorHandling.fatal(ErrorHandling.scala:11)
+	at is.hail.utils.ErrorHandling.fatal$(ErrorHandling.scala:11)
+	at is.hail.utils.package$.fatal(package.scala:77)
+	at is.hail.utils.richUtils.RichInputStream$.readFully$extension1(RichInputStream.scala:13)
+	at is.hail.io.StreamBlockInputBuffer.readBlock(InputBuffers.scala:546)
+	at is.hail.io.BlockingInputBuffer.readBlock(InputBuffers.scala:382)
+	at is.hail.io.BlockingInputBuffer.ensure(InputBuffers.scala:388)
+	at is.hail.io.BlockingInputBuffer.readInt(InputBuffers.scala:412)
+	at __C493collect_distributed_array.__m501INPLACE_DECODE_r_binary_TO_r_binary(Unknown Source)
+	at __C493collect_distributed_array.__m500INPLACE_DECODE_r_struct_of_r_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryEND_TO_r_tuple_of_r_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryEND(Unknown Source)
+	at __C493collect_distributed_array.__m499INPLACE_DECODE_r_struct_of_r_struct_of_r_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryENDEND_TO_r_struct_of_r_tuple_of_r_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryENDEND(Unknown Source)
+	at __C493collect_distributed_array.__m498DECODE_r_struct_of_r_struct_of_r_struct_of_r_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryENDENDEND_TO_SBaseStructPointer(Unknown Source)
+	at __C493collect_distributed_array.apply(Unknown Source)
+	at __C493collect_distributed_array.apply(Unknown Source)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
+	at is.hail.utils.package$.using(package.scala:627)
+	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
+	at is.hail.backend.service.Worker$.main(Worker.scala:120)
+	at is.hail.backend.service.Worker.main(Worker.scala)
+	... 12 more''')
     def test_scan_group_by(self):
         t = hl.utils.range_table(5)
         tests = [
@@ -1763,6 +1812,22 @@ Compiled method (c1)  124591 4565       3       is.hail.annotations.Region$::loa
         assert tb3 == [0, 1, 2, 3, 4, 5, 6]
         assert tb4 == [['0_0', '0_1', '0_2', '0_3'], ['1_0', '1_1', '1_2', '1_3']]
 
+    @skip_when_service_backend('''intermittent worker failure:
+>           self.assertEqual(t.aggregate(aggfunc(array_with_nan[t.idx])), 0.)
+
+Caused by: java.lang.AssertionError: assertion failed
+	at scala.Predef$.assert(Predef.scala:208)
+	at is.hail.io.MemoryBuffer.readLong(MemoryBuffer.scala:102)
+	at is.hail.io.MemoryInputBuffer.readLong(InputBuffers.scala:180)
+	at __C415collect_distributed_array.apply(Unknown Source)
+	at __C415collect_distributed_array.apply(Unknown Source)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
+	at is.hail.utils.package$.using(package.scala:627)
+	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
+	at is.hail.backend.service.Worker$.main(Worker.scala:120)
+	at is.hail.backend.service.Worker.main(Worker.scala)
+	... 11 more''')
     def test_agg_minmax(self):
         nan = float('nan')
         na = hl.missing(hl.tfloat32)

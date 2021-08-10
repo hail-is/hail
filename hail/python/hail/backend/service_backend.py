@@ -5,6 +5,7 @@ import os
 import json
 import logging
 import contextlib
+from pathlib import Path
 
 from hail.context import TemporaryDirectory, tmp_dir
 from hail.utils import FatalError
@@ -14,13 +15,15 @@ from hail.expr.matrix_type import tmatrix
 from hail.expr.blockmatrix_type import tblockmatrix
 from hail.ir.renderer import CSERenderer
 
-from hailtop.config import get_deploy_config, get_user_config
+from hailtop.config import get_deploy_config, get_user_config, get_user_local_cache_dir
 from hailtop.auth import get_tokens
 from hailtop.utils import async_to_blocking, secret_alnum_string, TransientError, time_msecs
 from hailtop.batch_client import client as hb
 
 from .backend import Backend
 from ..fs.google_fs import GoogleCloudStorageFS
+from ..builtin_references import BUILTIN_REFERENCES
+from ..context import version
 
 
 log = logging.getLogger('backend.service_backend')
@@ -163,6 +166,8 @@ class ServiceBackend(Backend):
         self.async_bc = self.bc._async_client
         self.disable_progress_bar = disable_progress_bar
         self.batch_attributes: Dict[str, str] = dict()
+        self.user_local_reference_cache_dir = Path(get_user_local_cache_dir(), 'references', version())
+        os.makedirs(self.user_local_reference_cache_dir, exist_ok=True)
 
     @property
     def fs(self) -> GoogleCloudStorageFS:
@@ -420,6 +425,13 @@ class ServiceBackend(Backend):
         return async_to_blocking(self._async_get_reference(name))
 
     async def _async_get_reference(self, name):
+        if name in BUILTIN_REFERENCES:
+            try:
+                with open(Path(self.user_local_reference_cache_dir, name)) as f:
+                    return json.load(f)
+            except FileNotFoundError:
+                pass
+
         token = secret_alnum_string()
         with TemporaryDirectory(ensure_exists=False) as dir:
             with self.fs.open(dir + '/in', 'wb') as infile:
@@ -451,7 +463,11 @@ class ServiceBackend(Backend):
                     s = read_str(outfile)
                     try:
                         # FIXME: do we not have to parse the result?
-                        return json.loads(s)
+                        parsed_reference = json.loads(s)
+                        if name in BUILTIN_REFERENCES:
+                            with open(Path(self.user_local_reference_cache_dir, name), 'w') as f:
+                                json.dump(parsed_reference, f)
+                        return parsed_reference
                     except json.decoder.JSONDecodeError as err:
                         raise ValueError(f'could not decode {s}') from err
                 else:

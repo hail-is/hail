@@ -636,6 +636,37 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
         self.assert_sums_agree(bm3, nd)
         self.assert_sums_agree(bm4, nd4)
 
+    @skip_when_service_backend('''intermittent worker failure:
+>           self._assert_eq(bm[indices], nd[indices])
+
+Caused by: java.lang.OutOfMemoryError
+	at sun.misc.Unsafe.allocateMemory(Native Method)
+	at is.hail.annotations.Memory.malloc(Memory.java:157)
+	at is.hail.annotations.RegionPool.$anonfun$chunkCache$1(RegionPool.scala:30)
+	at is.hail.annotations.ChunkCache.newChunk(ChunkCache.scala:75)
+	at is.hail.annotations.ChunkCache.getChunk(ChunkCache.scala:130)
+	at is.hail.annotations.RegionPool.getChunk(RegionPool.scala:73)
+	at is.hail.annotations.RegionMemory.allocateSharedChunk(RegionMemory.scala:293)
+	at is.hail.annotations.Region.allocateSharedChunk(Region.scala:353)
+	at __C3948collect_distributed_array.__m3960INPLACE_DECODE_r_ndarray_of_r_float64_TO_r_ndarray_of_r_float64(Unknown Source)
+	at __C3948collect_distributed_array.__m3959INPLACE_DECODE_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64END_TO_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64END(Unknown Source)
+	at __C3948collect_distributed_array.__m3958INPLACE_DECODE_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64END_TO_r_array_of_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64END(Unknown Source)
+	at __C3948collect_distributed_array.__m3957INPLACE_DECODE_r_array_of_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64END_TO_r_array_of_r_array_of_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64END(Unknown Source)
+	at __C3948collect_distributed_array.__m3956INPLACE_DECODE_r_struct_of_r_array_of_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_struct_of_r_struct_of_r_int64ANDr_int64ANDr_int64ENDANDr_struct_of_r_int64ANDr_int64ANDr_int64ENDENDEND_TO_r_struct_of_r_array_of_r_array_of_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_tuple_of_r_tuple_of_r_int64ANDr_int64ANDr_int64ENDANDr_tuple_of_r_int64ANDr_int64ANDr_int64ENDENDEND(Unknown Source)
+	at __C3948collect_distributed_array.__m3953INPLACE_DECODE_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_struct_of_r_array_of_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_struct_of_r_struct_of_r_int64ANDr_int64ANDr_int64ENDANDr_struct_of_r_int64ANDr_int64ANDr_int64ENDENDENDEND_TO_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_struct_of_r_array_of_r_array_of_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_tuple_of_r_tuple_of_r_int64ANDr_int64ANDr_int64ENDANDr_tuple_of_r_int64ANDr_int64ANDr_int64ENDENDENDEND(Unknown Source)
+	at __C3948collect_distributed_array.__m3952INPLACE_DECODE_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_struct_of_r_array_of_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_struct_of_r_struct_of_r_int64ANDr_int64ANDr_int64ENDANDr_struct_of_r_int64ANDr_int64ANDr_int64ENDENDENDEND_TO_r_array_of_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_struct_of_r_array_of_r_array_of_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_tuple_of_r_tuple_of_r_int64ANDr_int64ANDr_int64ENDANDr_tuple_of_r_int64ANDr_int64ANDr_int64ENDENDENDEND(Unknown Source)
+	at __C3948collect_distributed_array.__m3951INPLACE_DECODE_r_array_of_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_struct_of_r_array_of_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_struct_of_r_struct_of_r_int64ANDr_int64ANDr_int64ENDANDr_struct_of_r_int64ANDr_int64ANDr_int64ENDENDENDEND_TO_r_array_of_r_array_of_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_struct_of_r_array_of_r_array_of_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_tuple_of_r_tuple_of_r_int64ANDr_int64ANDr_int64ENDANDr_tuple_of_r_int64ANDr_int64ANDr_int64ENDENDENDEND(Unknown Source)
+	at __C3948collect_distributed_array.__m3950INPLACE_DECODE_r_struct_of_r_array_of_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_struct_of_r_array_of_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_struct_of_r_struct_of_r_int64ANDr_int64ANDr_int64ENDANDr_struct_of_r_int64ANDr_int64ANDr_int64ENDENDENDENDANDr_struct_of_r_struct_of_r_int64ANDr_int64ANDr_int64ENDANDr_struct_of_r_int64ANDr_int64ANDr_int64ENDENDEND_TO_r_struct_of_r_array_of_r_array_of_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_struct_of_r_array_of_r_array_of_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_tuple_of_r_tuple_of_r_int64ANDr_int64ANDr_int64ENDANDr_tuple_of_r_int64ANDr_int64ANDr_int64ENDENDENDENDANDr_tuple_of_r_tuple_of_r_int64ANDr_int64ANDr_int64ENDANDr_tuple_of_r_int64ANDr_int64ANDr_int64ENDENDEND(Unknown Source)
+	at __C3948collect_distributed_array.__m3949DECODE_r_struct_of_r_struct_of_r_array_of_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_struct_of_r_array_of_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_struct_of_r_struct_of_r_int64ANDr_int64ANDr_int64ENDANDr_struct_of_r_int64ANDr_int64ANDr_int64ENDENDENDENDANDr_struct_of_r_struct_of_r_int64ANDr_int64ANDr_int64ENDANDr_struct_of_r_int64ANDr_int64ANDr_int64ENDENDENDEND_TO_SBaseStructPointer(Unknown Source)
+	at __C3948collect_distributed_array.apply(Unknown Source)
+	at __C3948collect_distributed_array.apply(Unknown Source)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
+	at is.hail.utils.package$.using(package.scala:627)
+	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
+	at is.hail.backend.service.Worker$.main(Worker.scala:120)
+	at is.hail.backend.service.Worker.main(Worker.scala)
+	... 11 more''')
     def test_slicing(self):
         nd = np.array(np.arange(0, 80, dtype=float)).reshape(8, 10)
         bm = BlockMatrix.from_ndarray(hl.literal(nd), block_size=3)
@@ -940,6 +971,26 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
         sparsed = BlockMatrix.from_ndarray(hl.nd.array(sparsed_numpy), block_size=4)._sparsify_blocks(blocks_to_sparsify).to_ndarray()
         self.assertTrue(np.array_equal(sparsed_numpy, hl.eval(sparsed)))
 
+    @skip_when_service_backend('''intermittent worker failure:
+>           self.assertTrue(table._same(entries_table))
+
+Caused by: java.lang.AssertionError: assertion failed
+	at scala.Predef$.assert(Predef.scala:208)
+	at is.hail.io.BlockingInputBuffer.ensure(InputBuffers.scala:389)
+	at is.hail.io.BlockingInputBuffer.readInt(InputBuffers.scala:412)
+	at __C390collect_distributed_array.__m398INPLACE_DECODE_r_binary_TO_r_binary(Unknown Source)
+	at __C390collect_distributed_array.__m397INPLACE_DECODE_r_struct_of_r_binaryEND_TO_r_tuple_of_r_binaryEND(Unknown Source)
+	at __C390collect_distributed_array.__m396INPLACE_DECODE_r_struct_of_r_struct_of_r_binaryENDEND_TO_r_struct_of_r_tuple_of_r_binaryENDEND(Unknown Source)
+	at __C390collect_distributed_array.__m395DECODE_r_struct_of_r_struct_of_r_struct_of_r_binaryENDENDEND_TO_SBaseStructPointer(Unknown Source)
+	at __C390collect_distributed_array.apply(Unknown Source)
+	at __C390collect_distributed_array.apply(Unknown Source)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
+	at is.hail.utils.package$.using(package.scala:627)
+	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
+	at is.hail.backend.service.Worker$.main(Worker.scala:120)
+	at is.hail.backend.service.Worker.main(Worker.scala)
+	... 12 more''')
     def test_block_matrix_entries(self):
         n_rows, n_cols = 5, 3
         rows = [{'i': i, 'j': j, 'entry': float(i + j)} for i in range(n_rows) for j in range(n_cols)]

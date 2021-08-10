@@ -10,7 +10,7 @@ import java.util.concurrent.*;
 import org.newsclub.net.unix.*;
 
 class JVMEntryway {
-  private static final HashMap<String, ClassLoader> classLoaders = new HashMap<>();
+  // private static final HashMap<String, ClassLoader> classLoaders = new HashMap<>();
 
   public static String throwableToString(Throwable t) throws IOException {
     try (StringWriter sw = new StringWriter();
@@ -46,24 +46,40 @@ class JVMEntryway {
         assert realArgs.length >= 2;
         String classPath = realArgs[0];
         String mainClass = realArgs[1];
-        ClassLoader cl = classLoaders.get(classPath);
-        if (cl == null) {
-          System.err.println("no extant classLoader for " + classPath);
-          String[] urlStrings = classPath.split(",");
-          ArrayList<URL> urls = new ArrayList<>();
-          for (int i = 0; i < urlStrings.length; ++i) {
-            File file = new File(urlStrings[i]);
-            urls.add(file.toURI().toURL());
-            if (file.isDirectory()) {
-              for (final File f : file.listFiles()) {
-                urls.add(f.toURI().toURL());
-              }
+
+        String[] urlStrings = classPath.split(",");
+        ArrayList<URL> urls = new ArrayList<>();
+        for (int i = 0; i < urlStrings.length; ++i) {
+          File file = new File(urlStrings[i]);
+          urls.add(file.toURI().toURL());
+          if (file.isDirectory()) {
+            for (final File f : file.listFiles()) {
+              urls.add(f.toURI().toURL());
             }
           }
-          cl = new URLClassLoader(urls.toArray(new URL[0]));
-          classLoaders.put(classPath, cl);
         }
-        System.err.println("have classLoader for " + classPath);
+        ClassLoader cl = new URLClassLoader(urls.toArray(new URL[0]));
+
+        // if (hailRootCL == null) {
+        //   System.err.println("no extant classLoader for " + classPath);
+        //   String[] urlStrings = classPath.split(",");
+        //   ArrayList<URL> urls = new ArrayList<>();
+        //   for (int i = 0; i < urlStrings.length; ++i) {
+        //     File file = new File(urlStrings[i]);
+        //     urls.add(file.toURI().toURL());
+        //     if (file.isDirectory()) {
+        //       for (final File f : file.listFiles()) {
+        //         urls.add(f.toURI().toURL());
+        //       }
+        //     }
+        //   }
+        //   hailRootCL = new URLClassLoader(urls.toArray(new URL[0]));
+        //   classLoaders.put(classPath, hailRootCL);
+        // }
+        // System.err.println("have classLoader for " + classPath);
+        // URL[] emptyURLArray = {};
+        // ClassLoader cl = new URLClassLoader(emptyURLArray, hailRootCL);
+        System.err.println("have fresh classLoader for this job");
         Class<?> klass = cl.loadClass(mainClass);
         System.err.println("class loaded ");
         Method main = klass.getDeclaredMethod("main", String[].class);
@@ -78,6 +94,8 @@ class JVMEntryway {
           System.err.println("submitting main ");
           Future<?> mainThread = gather.submit(new Runnable() {
               public void run() {
+                ClassLoader oldClassLoader = Thread.currentThread().getContextClassLoader();
+                Thread.currentThread().setContextClassLoader(cl);
                 try {
                   System.err.println("main running");
                   String[] mainArgs = new String[nRealArgs - 2];
@@ -89,12 +107,16 @@ class JVMEntryway {
                   System.err.println("done invoking");
                 } catch (IllegalAccessException | InvocationTargetException e) {
                   throw new RuntimeException(e);
+                } finally {
+                  Thread.currentThread().setContextClassLoader(oldClassLoader);
                 }
               }
             }, null);
           System.err.println("submitting shouldCancel");
           Future<?> shouldCancelThread = gather.submit(new Runnable() {
               public void run() {
+                ClassLoader oldClassLoader = Thread.currentThread().getContextClassLoader();
+                Thread.currentThread().setContextClassLoader(cl);
                 try {
                   System.err.println("shouldCancel running");
                   int i = in.readInt();
@@ -102,6 +124,8 @@ class JVMEntryway {
                   assert i == 0 : i;
                 } catch (IOException e) {
                   throw new RuntimeException(e);
+                } finally {
+                  Thread.currentThread().setContextClassLoader(oldClassLoader);
                 }
               }
             }, null);

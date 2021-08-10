@@ -1235,6 +1235,31 @@ Caused by: java.lang.ClassCastException: __C364collect_distributed_array cannot 
         self.assertEqual(mt.rows().r.collect(), sorted_rows)
         self.assertEqual(mt.rows().r.take(1), [sorted_rows[0]])
 
+    @skip_when_service_backend('''
+>       self.assertEqual(ht.order_by(hl.desc('idx')).idx.collect(), list(range(10))[::-1])
+
+Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes, found 0
+	at is.hail.utils.ErrorHandling.fatal(ErrorHandling.scala:11)
+	at is.hail.utils.ErrorHandling.fatal$(ErrorHandling.scala:11)
+	at is.hail.utils.package$.fatal(package.scala:77)
+	at is.hail.utils.richUtils.RichInputStream$.readFully$extension1(RichInputStream.scala:13)
+	at is.hail.io.StreamBlockInputBuffer.readBlock(InputBuffers.scala:546)
+	at is.hail.io.BlockingInputBuffer.readBlock(InputBuffers.scala:382)
+	at is.hail.io.BlockingInputBuffer.ensure(InputBuffers.scala:388)
+	at is.hail.io.BlockingInputBuffer.readInt(InputBuffers.scala:412)
+	at __C4304collect_distributed_array.__m4308INPLACE_DECODE_r_int32_TO_r_int32(Unknown Source)
+	at __C4304collect_distributed_array.__m4307INPLACE_DECODE_r_struct_of_r_int32ANDr_int32ANDr_int32END_TO_r_struct_of_r_int32ANDr_int32ANDr_int32END(Unknown Source)
+	at __C4304collect_distributed_array.__m4306INPLACE_DECODE_r_array_of_r_struct_of_r_int32ANDr_int32ANDr_int32END_TO_r_array_of_r_struct_of_r_int32ANDr_int32ANDr_int32END(Unknown Source)
+	at __C4304collect_distributed_array.__m4305DECODE_r_struct_of_r_array_of_r_struct_of_r_int32ANDr_int32ANDr_int32ENDEND_TO_SBaseStructPointer(Unknown Source)
+	at __C4304collect_distributed_array.apply(Unknown Source)
+	at __C4304collect_distributed_array.apply(Unknown Source)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
+	at is.hail.utils.package$.using(package.scala:627)
+	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
+	at is.hail.backend.service.Worker$.main(Worker.scala:120)
+	at is.hail.backend.service.Worker.main(Worker.scala)
+	... 11 more''')
     def test_order_by(self):
         ht = hl.utils.range_table(10)
         self.assertEqual(ht.order_by('idx').idx.collect(), list(range(10)))
