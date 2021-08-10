@@ -819,16 +819,20 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     secrets.append(
                         {
                             'namespace': DEFAULT_NAMESPACE,
-                            'name': 'gce-deploy-config',
-                            'mount_path': '/deploy-config',
+                            'name': 'ssl-config-batch-user-code',
+                            'mount_path': '/ssl-config',
                             'mount_in_copy': False,
                         }
                     )
+                    if spec.get('network') == 'private':
+                        deploy_config = 'gce-deploy-config'
+                    else:
+                        deploy_config = 'external-deploy-config'
                     secrets.append(
                         {
                             'namespace': DEFAULT_NAMESPACE,
-                            'name': 'ssl-config-batch-user-code',
-                            'mount_path': '/ssl-config',
+                            'name': deploy_config,
+                            'mount_path': '/deploy-config',
                             'mount_in_copy': False,
                         }
                     )
@@ -1584,8 +1588,10 @@ async def _query_billing(request, user=None):
         where_conditions.append("`time_completed` <= %s")
         where_args.append(end)
     else:
-        where_conditions.append("((`time_completed` IS NOT NULL AND `time_completed` >= %s) OR "
-                                "(`time_closed` IS NOT NULL AND `time_completed` IS NULL))")
+        where_conditions.append(
+            "((`time_completed` IS NOT NULL AND `time_completed` >= %s) OR "
+            "(`time_closed` IS NOT NULL AND `time_completed` IS NULL))"
+        )
         where_args.append(start)
 
     if user is not None:
@@ -2123,9 +2129,7 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
         retry_long_running('delete_batch_loop', run_if_changed, delete_batch_state_changed, delete_batch_loop_body, app)
     )
 
-    app['task_manager'].ensure_future(
-        periodically_call(5, _refresh, app)
-    )
+    app['task_manager'].ensure_future(periodically_call(5, _refresh, app))
 
 
 async def on_cleanup(app):

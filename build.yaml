@@ -302,6 +302,14 @@ steps:
       valueFrom: base_image.image
     script: |
       set -ex
+      # external deploy config
+      cat > deploy-config.json <<EOF
+      {"location":"external","default_namespace":"{{ default_ns.name }}","domain":"{{ global.domain }}"}
+      EOF
+      kubectl -n {{ default_ns.name }} create secret generic external-deploy-config \
+              --from-file=./deploy-config.json \
+              --save-config --dry-run=client -o yaml \
+          | kubectl -n {{ default_ns.name }} apply -f -
       # k8s deploy config
       cat > deploy-config.json <<EOF
       {"location":"k8s","default_namespace":"{{ default_ns.name }}","domain":"{{ global.domain }}"}

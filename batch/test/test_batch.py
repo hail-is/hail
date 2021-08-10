@@ -667,11 +667,35 @@ def test_verify_no_access_to_metadata_server(client):
     assert "Could not resolve host" in j.log()['main'], (str(j.log()['main']), status)
 
     builder = client.create_batch()
+    j = builder.create_job(os.environ['HAIL_CURL_IMAGE'], ['curl', '-fsSL', 'batch.hail', '--max-time', '10'])
+    builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Failed', str(status)
+    assert "Could not resolve host" in j.log()['main'], (str(j.log()['main']), status)
+
+    builder = client.create_batch()
     j = builder.create_job(os.environ['HAIL_CURL_IMAGE'], ['curl', '-fsSL', '169.254.169.254', '--max-time', '10'])
     builder.submit()
     status = j.wait()
     assert status['state'] == 'Failed', str(status)
     assert "Connection timed out" in j.log()['main'], (str(j.log()['main']), status)
+
+
+def test_batch_in_batch(client):
+    builder = client.create_batch()
+    bucket_name = get_user_config().get('batch', 'bucket')
+    script = f'''python3 -c 'import hailtop.batch as hb
+backend = hb.ServiceBackend("test", "{bucket_name}")
+b = hb.Batch(backend=backend)
+j = b.new_bash_job()
+j.command("echo hi")
+b.run()
+backend.close()'
+'''
+    j = builder.create_job(os.environ['HAIL_HAIL_BASE_IMAGE'], ['/bin/bash', '-c', f'python3 -c \'{script}\''])
+    builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str(status)
 
 
 def test_can_use_google_credentials(client):

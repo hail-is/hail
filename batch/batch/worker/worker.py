@@ -585,7 +585,7 @@ class Container:
 
     async def setup_network_namespace(self):
         network = self.spec.get('network')
-        if network is None or network is True:
+        if network is None or network == 'public':
             self.netns = await network_allocator.allocate_public()
         else:
             assert network == 'private'
@@ -1698,11 +1698,13 @@ class ImageData:
         return self
 
     def __str__(self):
-        return f'ImageData(' \
-               f'ref_count={self.ref_count}, ' \
-               f'time_created={time_msecs_str(self.time_created)}, ' \
-               f'last_accessed={time_msecs_str(self.last_accessed)}' \
-               f')'
+        return (
+            f'ImageData('
+            f'ref_count={self.ref_count}, '
+            f'time_created={time_msecs_str(self.time_created)}, '
+            f'last_accessed={time_msecs_str(self.last_accessed)}'
+            f')'
+        )
 
 
 class Worker:
