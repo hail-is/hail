@@ -207,8 +207,12 @@ sealed abstract class TypeWithRequiredness extends BaseTypeWithRequiredness {
   }
   def canonicalPType(t: Type): PType
   def canonicalEmitType(t: Type): EmitType = {
-    val pt = canonicalPType(t)
-    EmitType(pt.sType, pt.required)
+    t match {
+      case TStream(element) => EmitType(SStream(this.asInstanceOf[RIterable].elementType.canonicalEmitType(element)), required)
+      case _ =>
+        val pt = canonicalPType(t)
+        EmitType(pt.sType, pt.required)
+    }
   }
   def matchesPType(pt: PType): Boolean = pt.required == required && _matchesPType(pt)
   def _toString: String
