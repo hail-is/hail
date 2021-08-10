@@ -9,7 +9,7 @@ import is.hail.io.fs.FS
 import is.hail.rvd.RVDContext
 import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeType, StreamSingleCodeType}
 import is.hail.types.physical.stypes.interfaces.SStream
-import is.hail.types.physical.{PStream, PStruct, PType}
+import is.hail.types.physical.{PStruct, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils._
 
@@ -265,17 +265,17 @@ object CompileIterator {
 
   def forTableMapPartitions(
     ctx: ExecuteContext,
-    typ0: PStruct, typ1: PStream,
+    typ0: PStruct, streamElementType: PType,
     ir: IR
   ): (PType, (FS, Int, RVDContext, Long, streams.StreamArgType) => Iterator[java.lang.Long]) = {
     assert(typ0.required)
-    assert(typ1.required)
+    assert(streamElementType.required)
     val (eltPType, makeStepper) = compileStepper[TMPStepFunction](
       ctx, ir,
       Array[ParamType](
         CodeParamType(typeInfo[Object]),
         SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(typ0)),
-        SingleCodeEmitParamType(true, StreamSingleCodeType(true, typ1.elementType))),
+        SingleCodeEmitParamType(true, StreamSingleCodeType(true, streamElementType))),
       None)
     (eltPType, (fs, idx, consumerCtx, v0, part) => {
       val stepper = makeStepper(fs, idx, consumerCtx.partitionRegion)

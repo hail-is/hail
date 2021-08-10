@@ -1940,10 +1940,9 @@ case class TableMapPartitions(child: TableIR,
     val rowPType = tv.rvd.rowPType
     val globalPType = tv.globals.t
 
-    val partitionPType = PCanonicalStream(rowPType, required = true)
     val (newRowPType: PStruct, makeIterator) = CompileIterator.forTableMapPartitions(
       ctx,
-      globalPType, partitionPType,
+      globalPType, rowPType,
       Subst(body, BindingEnv(Env(
         globalName -> In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(globalPType))),
         partitionStreamName -> In(1, SingleCodeEmitParamType(true, StreamSingleCodeType(requiresMemoryManagementPerElement = true, rowPType)))))))

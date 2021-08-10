@@ -4,7 +4,7 @@ import is.hail.expr.ir.functions.GetElement
 import is.hail.methods.ForceCountTable
 import is.hail.types._
 import is.hail.types.physical.stypes.{EmitType, PTypeReferenceSingleCodeType, StreamSingleCodeType}
-import is.hail.types.physical.{PCanonicalStream, PStream, PType}
+import is.hail.types.physical.PType
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.sql.catalyst.expressions.GenericRow
@@ -690,17 +690,21 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.union(lookup(context).required)
         coerce[RIterable](requiredness).elementType.unionFrom(reader.rowRequiredness(rowType))
       case WritePartition(value, writeCtx, writer) =>
-        val sType = coerce[PStream](lookup(value).canonicalPType(value.typ))
-        val ctxType = lookup(writeCtx).canonicalPType(writeCtx.typ)
-        requiredness.fromPType(writer.returnPType(ctxType, sType))
+        val streamtype = coerce[RIterable](lookup(value))
+        val ctxType = lookup(writeCtx)
+        writer.unionTypeRequiredness(requiredness, ctxType, streamtype)
       case ReadValue(path, spec, rt) =>
         requiredness.union(lookup(path).required)
         requiredness.fromPType(spec.encodedType.decodedPType(rt))
       case In(_, t) => t match {
         case SCodeEmitParamType(et) => requiredness.unionFrom(et.typeWithRequiredness.r)
-        case SingleCodeEmitParamType(required, StreamSingleCodeType(_, eltType)) => requiredness.fromPType(PCanonicalStream(eltType, required)) // fixme hacky
-        case SingleCodeEmitParamType(required, PTypeReferenceSingleCodeType(pt)) => requiredness.fromPType(pt.setRequired(required))
-        case SingleCodeEmitParamType(required, _) => requiredness.union(required)
+        case SingleCodeEmitParamType(required, StreamSingleCodeType(_, eltType)) =>
+          requiredness.asInstanceOf[RIterable].elementType.fromPType(eltType)
+          requiredness.union(required)
+        case SingleCodeEmitParamType(required, PTypeReferenceSingleCodeType(pt)) =>
+          requiredness.fromPType(pt.setRequired(required))
+        case SingleCodeEmitParamType(required, _) =>
+          requiredness.union(required)
       }
       case LiftMeOut(f) => requiredness.unionFrom(lookup(f))
       case ResultOp(_, sigs) =>

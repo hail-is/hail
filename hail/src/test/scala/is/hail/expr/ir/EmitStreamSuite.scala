@@ -94,19 +94,19 @@ class EmitStreamSuite extends HailSuite {
     }
   }
 
-  private def compileStreamWithIter(ir: IR, requiresMemoryManagementPerElement: Boolean, streamType: PStream): Iterator[Any] => IndexedSeq[Any] = {
+  private def compileStreamWithIter(ir: IR, requiresMemoryManagementPerElement: Boolean, elementType: PType): Iterator[Any] => IndexedSeq[Any] = {
     trait F {
       def apply(o: Region, a: StreamArgType): Long
     }
     compileStream[F, Iterator[Any]](ir,
-      IndexedSeq(SingleCodeEmitParamType(true, StreamSingleCodeType(requiresMemoryManagementPerElement, streamType.elementType)))) { (f: F, r: Region, it: Iterator[Any]) =>
+      IndexedSeq(SingleCodeEmitParamType(true, StreamSingleCodeType(requiresMemoryManagementPerElement, elementType)))) { (f: F, r: Region, it: Iterator[Any]) =>
       val rvi = new StreamArgType {
         def apply(outerRegion: Region, eltRegion: Region): Iterator[java.lang.Long] =
           new Iterator[java.lang.Long] {
             def hasNext: Boolean = it.hasNext
 
             def next(): java.lang.Long = {
-              ScalaToRegionValue(eltRegion, streamType.elementType, it.next())
+              ScalaToRegionValue(eltRegion, elementType, it.next())
             }
           }
       }
@@ -484,7 +484,7 @@ class EmitStreamSuite extends HailSuite {
   }
 
   @Test def testEmitFromIterator() {
-    val intsPType = PCanonicalStream(PInt32(true))
+    val intsPType = PInt32(true)
 
     val f1 = compileStreamWithIter(
       StreamScan(In(0, SingleCodeEmitParamType(true, StreamSingleCodeType(true, PInt32(true)))),

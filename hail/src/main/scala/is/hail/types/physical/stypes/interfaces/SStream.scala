@@ -6,7 +6,7 @@ import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.types.{RIterable, TypeWithRequiredness}
 import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType, SUnrealizableCode, SValue}
-import is.hail.types.physical.{PCanonicalStream, PStream, PType}
+import is.hail.types.physical.PType
 import is.hail.types.virtual.{TStream, Type}
 
 case class SStream(elementEmitType: EmitType) extends SType {

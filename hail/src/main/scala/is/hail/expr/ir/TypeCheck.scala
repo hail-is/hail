@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
 import is.hail.expr.ir.streams.StreamUtils
-import is.hail.types.physical.PStream
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -405,8 +404,8 @@ object TypeCheck {
         assert(x.typ == fd.typ)
       case In(i, typ) =>
         assert(typ != null)
-        typ match {
-          case pstream: PStream => assert(pstream.elementType.isRealizable)
+        typ.virtualType match {
+          case stream: TStream => assert(stream.elementType.isRealizable)
           case _ =>
         }
       case Die(msg, typ, _) =>

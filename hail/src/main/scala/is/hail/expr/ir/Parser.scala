@@ -405,11 +405,6 @@ object IRParser {
         punctuation(it, ")")
         PCanonicalLocus(env.getReferenceGenome(rg), req)
       case "PCCall" => PCanonicalCall(req)
-      case "PCStream" =>
-        punctuation(it, "[")
-        val elementType = ptype_expr(env)(it)
-        punctuation(it, "]")
-        PCanonicalStream(elementType, req)
       case "PCArray" =>
         punctuation(it, "[")
         val elementType = ptype_expr(env)(it)
