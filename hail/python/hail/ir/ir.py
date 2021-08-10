@@ -1142,8 +1142,7 @@ class ToDict(IR):
         self._type = tdict(self.a.typ['key'], self.a.typ['value'])
 
 
-class \
-        ToArray(IR):
+class ToArray(IR):
     @typecheck_method(a=IR)
     def __init__(self, a):
         super().__init__(a)
