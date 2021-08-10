@@ -147,6 +147,7 @@ class Tests(unittest.TestCase):
             x51=[1.0, 2.0, 3.0] <= kt.f,
             x52=[1.0, 2.0, 3.0] >= kt.f,
             x53=hl.tuple([True, 1.0]) < (1.0, 0.0),
+            x54=kt.e * kt.a,
         ).take(1)[0])
 
         expected = {'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3],
@@ -166,7 +167,8 @@ class Tests(unittest.TestCase):
                     'x42': False, 'x43': True, 'x44': True,
                     'x45': True, 'x46': True, 'x47': True,
                     'x48': True, 'x49': False, 'x50': False,
-                    'x51': True, 'x52': True, 'x53': False}
+                    'x51': True, 'x52': True, 'x53': False,
+                    'x54': "hellohellohellohello"}
 
         for k, v in expected.items():
             if isinstance(v, float):
@@ -347,6 +349,14 @@ class Tests(unittest.TestCase):
 
         with pytest.raises(TypeError, match="Expected str collection, int32 found"):
             hl.eval(hl.str(",").join([1, 2, 3]))
+
+    def test_string_multiply(self):
+        # Want to make sure all implict conversions work.
+        ps = "cat"
+        pn = 3
+        s = hl.str(ps)
+        n = hl.int32(pn)
+        assert all([x == "catcatcat" for x in hl.eval(hl.array([ps * n, n * ps, s * pn, pn * s]))])
 
     def test_cond(self):
         self.assertEqual(hl.eval('A' + hl.if_else(True, 'A', 'B')), 'AA')

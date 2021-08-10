@@ -2477,6 +2477,20 @@ class Int32Expression(NumericExpression):
     def _summary_aggs(self):
         return hl.agg.stats(self)
 
+    def __mul__(self, other):
+        other = to_expr(other)
+        if other.dtype == tstr:
+            return other * self
+        else:
+            return NumericExpression.__mul__(self, other)
+
+    def __rmul__(self, other):
+        other = to_expr(other)
+        if other.dtype == tstr:
+            return other * self
+        else:
+            return NumericExpression.__mul__(self, other)
+
 
 class Int64Expression(NumericExpression):
     """Expression of type :py:data:`.tint64`."""
@@ -2562,6 +2576,16 @@ class StringExpression(Expression):
         if not other.dtype == tstr:
             raise NotImplementedError("'{}' + '{}'".format(other.dtype, self.dtype))
         return self._bin_op_reverse("concat", other, self.dtype)
+
+    def __mul__(self, other):
+        other = to_expr(other)
+        if not other.dtype == tint32:
+            raise NotImplementedError("'{}' + '{}'".format(self.dtype, other.dtype))
+        return hl.delimit(hl.range(other).map(lambda x: self), delimiter='')
+
+    def __rmul__(self, other):
+        other = to_expr(other)
+        return other * self
 
     def _slice(self, start=None, stop=None, step=None):
         if step is not None:
