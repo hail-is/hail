@@ -1907,7 +1907,7 @@ class JVM:
             if wait_for_interrupt.done():
                 write_int(writer, 0)
                 await writer.drain()
-                i = read_int(reader)
+                i = await read_int(reader)
                 assert i == 0, i
                 return
 
