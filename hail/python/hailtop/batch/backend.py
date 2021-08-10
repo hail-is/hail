@@ -430,6 +430,9 @@ class ServiceBackend(Backend[bc.Batch]):
         self._batch_client.close()
         async_to_blocking(self._fs.close())
 
+    def __del__(self):
+        self.close()
+
     def _run(self,
              batch: 'batch.Batch',
              dry_run: bool,
