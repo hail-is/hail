@@ -13,6 +13,7 @@ from hail.utils import get_env_or_default
 from hail.utils.java import Env, FatalError, warning
 from hail.backend import Backend
 from hailtop.utils import secret_alnum_string
+from .builtin_references import BUILTIN_REFERENCES
 from .fs.fs import FS
 
 
@@ -70,12 +71,8 @@ class HailContext(object):
 
         Env._hc = self
 
-        grch37, grch38, grcm38, canfam3 = self._backend.get_references(('GRCh37', 'GRCh38', 'GRCm38', 'CanFam3'))
-
-        ReferenceGenome._from_config(grch37, True)
-        ReferenceGenome._from_config(grch38, True)
-        ReferenceGenome._from_config(grcm38, True)
-        ReferenceGenome._from_config(canfam3, True)
+        for ref in self._backend.get_references(BUILTIN_REFERENCES):
+            ReferenceGenome._from_config(ref, True)
 
         if default_reference in ReferenceGenome._references:
             self._default_ref = ReferenceGenome._references[default_reference]
@@ -125,7 +122,7 @@ class HailContext(object):
            min_block_size=int,
            branching_factor=int,
            tmp_dir=nullable(str),
-           default_reference=enumeration('GRCh37', 'GRCh38', 'GRCm38', 'CanFam3'),
+           default_reference=enumeration(*BUILTIN_REFERENCES),
            idempotent=bool,
            global_seed=nullable(int),
            spark_conf=nullable(dictof(str, str)),
@@ -269,7 +266,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     append=bool,
     tmpdir=nullable(str),
     local_tmpdir=nullable(str),
-    default_reference=enumeration('GRCh37', 'GRCh38', 'GRCm38', 'CanFam3'),
+    default_reference=enumeration(*BUILTIN_REFERENCES),
     global_seed=nullable(int),
     skip_logging_configuration=bool,
     disable_progress_bar=bool)
@@ -309,7 +306,7 @@ def init_service(
     append=bool,
     branching_factor=int,
     tmpdir=nullable(str),
-    default_reference=enumeration('GRCh37', 'GRCh38', 'GRCm38', 'CanFam3'),
+    default_reference=enumeration(*BUILTIN_REFERENCES),
     global_seed=nullable(int),
     skip_logging_configuration=bool,
     _optimizer_iterations=nullable(int))
