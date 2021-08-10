@@ -571,12 +571,11 @@ class ServiceBackend(Backend[bc.Batch]):
                         f"You must specify 'image' for Python jobs if you are using a Python version other than 3.6, 3.7, or 3.8 (you are using {version})")
                 job._image = f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
 
-        if len(pyjobs) > 0:
-            with tqdm(total=len(pyjobs), desc='upload python functions', disable=disable_progress_bar) as pbar:
-                async def compile_job(job):
-                    await job._compile(local_tmpdir, batch_remote_tmpdir)
-                    pbar.update(1)
-                await bounded_gather(*[functools.partial(compile_job, j) for j in pyjobs], parallelism=150)
+        with tqdm(total=len(pyjobs), desc='upload python functions', disable=disable_progress_bar) as pbar:
+            async def compile_job(job):
+                await job._compile(local_tmpdir, batch_remote_tmpdir)
+                pbar.update(1)
+            await bounded_gather(*[functools.partial(compile_job, j) for j in pyjobs], parallelism=150)
 
         for job in tqdm(batch._jobs, desc='create job objects', disable=disable_progress_bar):
             inputs = [x for r in job._inputs for x in copy_input(r)]

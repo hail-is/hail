@@ -14,7 +14,7 @@ case object SVoid extends SType {
 
   override def castRename(t: Type): SType = this
 
-  def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = value
+  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = value
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = IndexedSeq()
 

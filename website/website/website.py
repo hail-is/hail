@@ -9,7 +9,7 @@ from prometheus_async.aio.web import server_stats  # type: ignore
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
-from gear import setup_aiohttp_session, web_maybe_authenticated_user, monitor_endpoints_middleware
+from gear import setup_aiohttp_session, web_maybe_authenticated_user, monitor_endpoint
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, sass_compile
 
 
@@ -63,6 +63,7 @@ docs_pages = set(
 
 
 @routes.get('/docs/{tail:.*}')
+@monitor_endpoint
 @web_maybe_authenticated_user
 async def serve_docs(request, userdata):
     tail = request.match_info['tail']
@@ -90,7 +91,7 @@ for fname in os.listdir(f'{MODULE_PATH}/pages'):
 
 
 def run(local_mode):
-    app = web.Application(middlewares=[monitor_endpoints_middleware])
+    app = web.Application()
 
     if local_mode:
         log.error('running in local mode with bogus cookie storage key')

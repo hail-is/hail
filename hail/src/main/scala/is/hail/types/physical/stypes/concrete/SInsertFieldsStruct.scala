@@ -63,7 +63,7 @@ case class SInsertFieldsStruct(virtualType: TStruct, parent: SBaseStruct, insert
     })
   }
 
-  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  override def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     value match {
       case ss: SInsertFieldsStructCode if ss.st == this => value
       case _ => throw new RuntimeException(s"copy insertfields struct")

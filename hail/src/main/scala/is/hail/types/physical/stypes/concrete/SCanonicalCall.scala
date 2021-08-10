@@ -13,7 +13,7 @@ import is.hail.variant.Genotype
 
 
 case object SCanonicalCall extends SCall {
-  def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     value.st match {
       case SCanonicalCall => value
     }

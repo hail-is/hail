@@ -28,9 +28,8 @@ async def make_client() -> AsyncGenerator[Callable[[str], Awaitable[BatchClient]
 
 @pytest.fixture
 async def dev_client() -> AsyncGenerator[BatchClient, Any]:
-    bc = BatchClient(
-        'billing-project-not-needed-but-required-by-BatchClient', token_file=os.environ['HAIL_TEST_DEV_TOKEN_FILE']
-    )
+    bc = BatchClient('billing-project-not-needed-but-required-by-BatchClient',
+                     token_file=os.environ['HAIL_TEST_DEV_TOKEN_FILE'])
     yield bc
     await bc.close()
 
@@ -102,7 +101,7 @@ async def test_get_billing_project(make_client):
     c = await make_client('billing-project-not-needed-but-required-by-BatchClient')
     r = await c.get_billing_project('test')
     assert r['billing_project'] == 'test', r
-    assert {'test', 'test-dev'}.issubset(set(r['users'])), r
+    assert set(r['users']) == {'test', 'test-dev'}, r
     assert r['status'] == 'open', r
 
 
@@ -113,7 +112,7 @@ async def test_list_billing_projects(make_client):
     assert len(test_bps) == 1, r
     bp = test_bps[0]
     assert bp['billing_project'] == 'test', bp
-    assert {'test', 'test-dev'}.issubset(set(bp['users'])), bp
+    assert set(bp['users']) == {'test', 'test-dev'}, bp
     assert bp['status'] == 'open', bp
 
 
@@ -599,9 +598,9 @@ async def test_batch_cannot_be_accessed_by_users_outside_the_billing_project(
 
 
 async def test_deleted_open_batches_do_not_prevent_billing_project_closure(
-    dev_client: BatchClient,
-    make_client: Callable[[str], Awaitable[BatchClient]],
-    get_billing_project_name: Callable[[], str],
+        dev_client: BatchClient,
+        make_client: Callable[[str], Awaitable[BatchClient]],
+        get_billing_project_name: Callable[[], str]
 ):
     try:
         project = await dev_client.create_billing_project(get_billing_project_name())

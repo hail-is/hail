@@ -31,9 +31,9 @@ trait SIntervalValue extends SValue {
 trait SIntervalCode extends SCode {
   def st: SInterval
 
-  def codeIncludesStart(): Code[Boolean]
+  def includesStart(): Code[Boolean]
 
-  def codeIncludesEnd(): Code[Boolean]
+  def includesEnd(): Code[Boolean]
 
   def memoize(cb: EmitCodeBuilder, name: String): SIntervalValue
 

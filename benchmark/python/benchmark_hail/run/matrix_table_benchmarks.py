@@ -352,16 +352,16 @@ def kyle_sex_specific_qc(mt_path):
 
 
 @benchmark()
-def matrix_table_scan_count_rows_2():
+def matrix_table_scan_count_rows():
     mt = hl.utils.range_matrix_table(n_rows=200_000_000, n_cols=10, n_partitions=16)
-    mt = mt.annotate_rows(x=hl.scan.count())
+    mt.annotate_rows(x=hl.scan.count())
     mt._force_count_rows()
 
 
 @benchmark()
-def matrix_table_scan_count_cols_2():
+def matrix_table_scan_count_cols():
     mt = hl.utils.range_matrix_table(n_cols=10_000_000, n_rows=10)
-    mt = mt.annotate_cols(x=hl.scan.count())
+    mt.annotate_cols(x=hl.scan.count())
     mt._force_count_rows()
 
 

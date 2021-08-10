@@ -4,7 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
-import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SBaseStructValue, SLocus, SLocusCode, SLocusValue, SString, SStringCode}
+import is.hail.types.physical.stypes.interfaces.{SLocus, SLocusCode, SLocusValue, SString, SStringCode}
 import is.hail.types.physical.stypes.{SCode, SSettable, SType}
 import is.hail.types.physical.{PCanonicalLocus, PType}
 import is.hail.types.virtual.Type
@@ -23,7 +23,7 @@ case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
 
   override def rg: ReferenceGenome = pType.rg
 
-  def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SCanonicalLocusPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 
@@ -81,9 +81,6 @@ class SCanonicalLocusPointerSettable(
   }
 
   def position(cb: EmitCodeBuilder): Code[Int] = _position
-
-  override def structRepr(cb: EmitCodeBuilder): SBaseStructValue = new SBaseStructPointerSettable(
-    SBaseStructPointer(st.pType.representation), a)
 }
 
 class SCanonicalLocusPointerCode(val st: SCanonicalLocusPointer, val a: Code[Long]) extends SLocusCode {
@@ -113,6 +110,4 @@ class SCanonicalLocusPointerCode(val st: SCanonicalLocusPointer, val a: Code[Lon
   def memoizeField(cb: EmitCodeBuilder, name: String): SCanonicalLocusPointerSettable = memoize(cb, name, cb.fieldBuilder)
 
   def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = Region.storeAddress(dst, a)
-
-  def structRepr(cb: EmitCodeBuilder): SBaseStructCode = new SBaseStructPointerCode(SBaseStructPointer(st.pType.representation), a)
 }

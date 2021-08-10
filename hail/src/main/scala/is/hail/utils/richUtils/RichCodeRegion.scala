@@ -2,7 +2,6 @@ package is.hail.utils.richUtils
 
 import is.hail.annotations.{Region, RegionPool}
 import is.hail.asm4s._
-import is.hail.expr.ir.EmitCodeBuilder
 
 class RichCodeRegion(val region: Code[Region]) extends AnyVal {
   def allocate(alignment: Code[Long], n: Code[Long]): Code[Long] =
@@ -46,9 +45,9 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
 
   def totalManagedBytes(): Code[Long] = region.invoke[Long]("totalManagedBytes")
 
-  def allocateSharedChunk(nBytes: Code[Long]): Code[Long] =
-    region.invoke[Long, Long]("allocateSharedChunk", nBytes)
+  def allocateNDArray(nBytes: Code[Long]): Code[Long] =
+    region.invoke[Long, Long]("allocateNDArray", nBytes)
 
-  def trackSharedChunk(cb: EmitCodeBuilder, addr: Code[Long]): Unit =
-    cb += region.invoke[Long, Unit]("trackSharedChunk", addr)
+  def trackNDArray(addr: Code[Long]): Code[Unit] =
+    region.invoke[Long, Unit]("trackNDArray", addr)
 }

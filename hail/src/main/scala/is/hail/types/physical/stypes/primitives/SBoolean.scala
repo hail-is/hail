@@ -16,7 +16,7 @@ case object SBoolean extends SPrimitive {
 
   override def castRename(t: Type): SType = this
 
-  def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     value.st match {
       case SBoolean =>
         value

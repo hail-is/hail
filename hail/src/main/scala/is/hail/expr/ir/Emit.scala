@@ -323,8 +323,11 @@ case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A, 
     value
   }
 
-  def get(cb: EmitCodeBuilder, errorMsg: Code[String]=s"expected non-missing", errorID: Code[Int] = const(ErrorIDs.NO_ERROR)): A =
-    handle(cb, cb._fatalWithError(errorID, errorMsg))
+  def get(cb: EmitCodeBuilder, errorMsg: String = s"expected non-missing"): A =
+    handle(cb, cb._fatal(errorMsg))
+
+  def get(cb: EmitCodeBuilder, errorMsg: Code[String]): A =
+    handle(cb, cb._fatal(errorMsg))
 
   def consume(cb: EmitCodeBuilder, ifMissing: => Unit, ifPresent: (A) => Unit): Unit = {
     val Lafter = CodeLabel()
@@ -842,7 +845,7 @@ class Emit[C](
         emitI(v)
           .map(cb)(pc => pc.st.castRename(_typ).fromCodes(pc.makeCodeTuple(cb)))
       case NA(typ) =>
-        IEmitCode.missing(cb, SUnreachable.fromVirtualType(typ).defaultValue)
+        IEmitCode(cb, const(true), typeWithReq.canonicalEmitType.st.defaultValue)
       case IsNA(v) =>
         val m = emitI(v).consumeCode(cb, true, _ => false)
         presentPC(primitive(m))
@@ -972,24 +975,40 @@ class Emit[C](
           outputPType.loadCheapSCode(cb, arrayAddress)
         }
 
-      case x@ArrayRef(a, i, errorID) =>
+      case x@ArrayRef(a, i, s) =>
         def boundsCheck(cb: EmitCodeBuilder, index: Value[Int], len: Value[Int]): Unit = {
-            val bcMb = mb.getOrGenEmitMethod("arrayref_bounds_check", "arrayref_bounds_check",
-              IndexedSeq[ParamType](IntInfo, IntInfo, IntInfo), UnitInfo)({ mb =>
-              mb.voidWithBuilder { cb =>
-                val index = mb.getCodeParam[Int](1)
-                val len = mb.getCodeParam[Int](2)
-                val errorID = mb.getCodeParam[Int](3)
-                cb.ifx(index < 0 || index >= len, {
-                  cb._fatalWithError(errorID, const("array index out of bounds: index=")
-                    .concat(index.toS)
-                    .concat(", length=")
-                    .concat(len.toS))
-                })
-
+          s match {
+            case Str(constant) =>
+              val baseMsg = constant match {
+                case "" => s"\n----------\nIR:\n${ Pretty.short(x) }"
+                case c => s"\n----------\nPython traceback:\n$c"
               }
-            })
-            cb.invokeVoid(bcMb, index, len, const(errorID))
+              val bcMb = mb.getOrGenEmitMethod("arrayref_bounds_check", ("arrayref_bounds_check", baseMsg),
+                IndexedSeq[ParamType](IntInfo, IntInfo), UnitInfo)({ mb =>
+                mb.voidWithBuilder { cb =>
+                  val index = mb.getCodeParam[Int](1)
+                  val len = mb.getCodeParam[Int](2)
+                  cb.ifx(index < 0 || index >= len, {
+                    cb._fatal(const("array index out of bounds: index=")
+                      .concat(index.toS)
+                      .concat(", length=")
+                      .concat(len.toS)
+                      .concat(baseMsg))
+                  })
+
+                }
+              })
+              cb.invokeVoid(bcMb, index, len)
+            case s =>
+              cb.ifx(index < 0 || index >= len, {
+                val msg = cb.newLocal[String]("arrayref_msg", const("array index out of bounds: index=")
+                  .concat(index.toS)
+                  .concat(", length=")
+                  .concat(len.toS))
+                emitI(s).consume(cb, (), sc => cb.assign(msg, msg.concat(sc.asString.loadString())))
+                cb._fatal(msg)
+              })
+          }
         }
 
         emitI(a).flatMap(cb) { (ac) =>
@@ -1003,7 +1022,7 @@ class Emit[C](
 
       case ArrayLen(a) =>
         emitI(a).map(cb) { (ac) =>
-          primitive(ac.asIndexable.codeLoadLength())
+          primitive(ac.asIndexable.loadLength())
         }
 
       case GetField(o, name) =>
@@ -1246,7 +1265,7 @@ class Emit[C](
           }
         }
 
-      case x@MakeNDArray(dataIR, shapeIR, rowMajorIR, errorID) =>
+      case x@MakeNDArray(dataIR, shapeIR, rowMajorIR, errorId) =>
 
         emitI(rowMajorIR).flatMap(cb) { isRowMajorCode =>
           emitI(shapeIR).flatMap(cb) { case shapeTupleCode: SBaseStructCode =>
@@ -1261,13 +1280,13 @@ class Emit[C](
 
               cb.ifx(memoData.hasMissingValues(cb), {
                 cb._throw(Code.newInstance[HailException, String, Int](
-                  "Cannot construct an ndarray with missing values.", errorID
+                  "Cannot construct an ndarray with missing values.", errorId
                 ))
               })
 
               (0 until nDims).foreach { index =>
                 cb.ifx(shapeTupleValue.isFieldMissing(index),
-                  cb.append(Code._fatalWithID[Unit](s"shape missing at index $index", errorID)))
+                  cb.append(Code._fatal[Unit](s"shape missing at index $index")))
               }
 
               val stridesSettables = (0 until nDims).map(i => cb.newLocal[Long](s"make_ndarray_stride_$i"))
@@ -1298,14 +1317,14 @@ class Emit[C](
         emitI(ndIR).map(cb) { case pc: SNDArrayCode => pc.shape(cb) }
       case x@NDArrayReindex(child, indexMap) =>
         val childEC = emitI(child)
-        childEC.map(cb) { case sndCode: SNDArrayPointerCode =>
-          val childPType = sndCode.st.pType
-          val sndVal = sndCode.memoize(cb, "ndarray_reindex_child")
-          val childShape = sndVal.shapes(cb)
-          val childStrides = sndVal.strides(cb)
+        childEC.map(cb) { case pndCode: SNDArrayPointerCode =>
+          val childPType = pndCode.st.pType
+          val pndVal = pndCode.memoize(cb, "ndarray_reindex_child")
+          val childShape = pndVal.shapes(cb)
+          val childStrides = pndVal.strides(cb)
 
-          val pndAddr = SingleCodeSCode.fromSCode(cb, sndVal, region)
-          val dataPtr = sndVal.firstDataAddress(cb)
+          val pndAddr = SingleCodeSCode.fromSCode(cb, pndVal, region)
+          val dataArray = childPType.dataType.loadCheapSCode(cb, childPType.dataPArrayPointer(pndAddr.code.asInstanceOf[Code[Long]]))
 
           val newShape = indexMap.map { childIndex =>
             if (childIndex < childPType.nDims) childShape(childIndex) else const(1L)
@@ -1315,10 +1334,10 @@ class Emit[C](
           }
 
           val newPType = childPType.copy(nDims = indexMap.length)
-          newPType.constructByCopyingDataPointer(
+          newPType.constructByCopyingArray(
             newShape,
             newStrides,
-            dataPtr,
+            dataArray,
             cb,
             region)
         }
@@ -1340,30 +1359,31 @@ class Emit[C](
           }
         }
 
-      case NDArrayMatMul(lChild, rChild, errorID) =>
+      case NDArrayMatMul(lChild, rChild) =>
         emitNDArrayStandardStriding(lChild).flatMap(cb) { case (leftPVal: SNDArrayValue, leftIsColumnMajor: Value[Boolean]) =>
           emitNDArrayStandardStriding(rChild).map(cb) { case (rightPVal: SNDArrayValue, rightIsColumnMajor: Value[Boolean]) =>
-            val lSType = leftPVal.st
-            val rSType = rightPVal.st
+            val lPType = leftPVal.st.asInstanceOf[SNDArrayPointer].pType
+            val rPType = rightPVal.st.asInstanceOf[SNDArrayPointer].pType
 
             val lShape = leftPVal.shapes(cb)
             val rShape = rightPVal.shapes(cb)
 
-            val unifiedShape = NDArrayEmitter.matmulShape(cb, lShape, rShape, errorID)
+            val unifiedShape = NDArrayEmitter.matmulShape(cb, lShape, rShape)
 
-            val leftBroadcastMask = if (lSType.nDims > 2) NDArrayEmitter.broadcastMask(lShape) else IndexedSeq[Value[Long]]()
-            val rightBroadcastMask = if (rSType.nDims > 2) NDArrayEmitter.broadcastMask(rShape) else IndexedSeq[Value[Long]]()
+            val leftBroadcastMask = if (lPType.nDims > 2) NDArrayEmitter.broadcastMask(lShape) else IndexedSeq[Value[Long]]()
+            val rightBroadcastMask = if (rPType.nDims > 2) NDArrayEmitter.broadcastMask(rShape) else IndexedSeq[Value[Long]]()
 
-            val outputPType = PCanonicalNDArray(lSType.elementType.canonicalPType().setRequired(true),
-              TNDArray.matMulNDims(lSType.nDims, rSType.nDims))
+            val outputPType = PCanonicalNDArray(lPType.elementType, TNDArray.matMulNDims(lPType.nDims, rPType.nDims))
 
-            if ((lSType.elementType.virtualType == TFloat64 || lSType.elementType.virtualType == TFloat32) && lSType.nDims == 2 && rSType.nDims == 2) {
-              val leftDataAddress = leftPVal.firstDataAddress(cb)
-              val rightDataAddress = rightPVal.firstDataAddress(cb)
+            if ((lPType.elementType.isInstanceOf[PFloat64] || lPType.elementType.isInstanceOf[PFloat32]) && lPType.nDims == 2 && rPType.nDims == 2) {
+              val leftPValAddr = SingleCodeSCode.fromSCode(cb, leftPVal, region)
+              val rightPValAddr = SingleCodeSCode.fromSCode(cb, rightPVal, region)
+              val leftDataAddress = lPType.dataFirstElementPointer(leftPValAddr.code.asInstanceOf[Code[Long]])
+              val rightDataAddress = rPType.dataFirstElementPointer(rightPValAddr.code.asInstanceOf[Code[Long]])
 
-              val M = lShape(lSType.nDims - 2)
-              val N = rShape(rSType.nDims - 1)
-              val K = lShape(lSType.nDims - 1)
+              val M = lShape(lPType.nDims - 2)
+              val N = rShape(rPType.nDims - 1)
+              val K = lShape(lPType.nDims - 1)
 
               val LDA = leftIsColumnMajor.mux(M, K)
               val LDB = rightIsColumnMajor.mux(K, N)
@@ -1379,8 +1399,8 @@ class Emit[C](
                 region)
 
               cb.ifx((M cne 0L) && (N cne 0L) && (K cne 0L), {
-                cb.append(lSType.elementType.virtualType match {
-                  case TFloat32 =>
+                cb.append(lPType.elementType match {
+                  case PFloat32(_) =>
                     Code.invokeScalaObject13[String, String, Int, Int, Int, Float, Long, Int, Long, Int, Float, Long, Int, Unit](BLAS.getClass, method = "sgemm",
                       TRANSA,
                       TRANSB,
@@ -1396,7 +1416,7 @@ class Emit[C](
                       answerFirstElementAddr,
                       LDC.toI
                     )
-                  case TFloat64 =>
+                  case PFloat64(_) =>
                     Code.invokeScalaObject13[String, String, Int, Int, Int, Double, Long, Int, Long, Int, Double, Long, Int, Unit](BLAS.getClass, method = "dgemm",
                       TRANSA,
                       TRANSB,
@@ -1420,46 +1440,8 @@ class Emit[C](
               )
 
               answerFinisher(cb)
-            } else if (lSType.elementType.virtualType == TFloat64 && lSType.nDims == 2 && rSType.nDims == 1) {
-              val leftDataAddress = leftPVal.firstDataAddress(cb)
-              val rightDataAddress = rightPVal.firstDataAddress(cb)
-
-              val numRows = lShape(lSType.nDims - 2)
-              val numCols = lShape(lSType.nDims - 1)
-              val M = cb.newLocal[Long]("dgemv_m", leftIsColumnMajor.mux(numRows, numCols))
-              val N = cb.newLocal[Long]("dgemv_n", leftIsColumnMajor.mux(numCols, numRows))
-              val outputSize = cb.newLocal[Long]("output_size", numRows)
-
-              val alpha = 1.0
-              val beta = 0.0
-
-              val LDA = M
-              val TRANS: Code[String] = leftIsColumnMajor.mux("N", "T")
-
-              val (answerFirstElementAddr, answerFinisher) = outputPType.constructDataFunction(
-                IndexedSeq(outputSize),
-                outputPType.makeColumnMajorStrides(IndexedSeq(outputSize), region, cb),
-                cb,
-                region)
-              
-              cb.append(Code.invokeScalaObject11[String, Int, Int, Double, Long, Int, Long, Int, Double, Long, Int, Unit](BLAS.getClass, method="dgemv",
-                TRANS,
-                M.toI,
-                N.toI,
-                alpha,
-                leftDataAddress,
-                LDA.toI,
-                rightDataAddress,
-                1,
-                beta,
-                answerFirstElementAddr,
-                1
-              ))
-
-
-              answerFinisher(cb)
-            }  else {
-              val numericElementType = coerce[PNumeric](lSType.elementType.canonicalPType())
+            } else {
+              val numericElementType = coerce[PNumeric](lPType.elementType)
               val eVti = typeToTypeInfo(numericElementType)
 
               val emitter = new NDArrayEmitter(unifiedShape, leftPVal.st.elementType) {
@@ -1467,7 +1449,7 @@ class Emit[C](
                   val element = coerce[Any](cb.newField("matmul_element")(eVti))
                   val k = cb.newField[Long]("ndarray_matmul_k")
 
-                  val (lIndices: IndexedSeq[Value[Long]], rIndices: IndexedSeq[Value[Long]]) = (lSType.nDims, rSType.nDims, idxVars) match {
+                  val (lIndices: IndexedSeq[Value[Long]], rIndices: IndexedSeq[Value[Long]]) = (lPType.nDims, rPType.nDims, idxVars) match {
                     case (1, 1, Seq()) => (IndexedSeq(k), IndexedSeq(k))
                     case (1, _, stack :+ m) =>
                       val rStackVars = NDArrayEmitter.zeroBroadcastedDims(stack, rightBroadcastMask)
@@ -1496,7 +1478,7 @@ class Emit[C](
                     }
                   }
 
-                  cb.assign(kLen, lShape(lSType.nDims - 1))
+                  cb.assign(kLen, lShape(lPType.nDims - 1))
                   cb.assign(element, numericElementType.zero)
                   cb.forLoop(cb.assign(k, 0L), k < kLen, cb.assign(k, k + 1L), {
                     val lElem = leftPVal.loadElement(lIndices, cb)
@@ -1511,7 +1493,7 @@ class Emit[C](
             }
           }
         }
-      case NDArrayInv(nd, errorID) =>
+      case NDArrayInv(nd) =>
         // Based on https://github.com/numpy/numpy/blob/v1.19.0/numpy/linalg/linalg.py#L477-L547
         emitNDArrayColumnMajorStrides(nd).map(cb) { case pNDCode: SNDArrayCode =>
           val pndVal = pNDCode.memoize(cb, "ndarray_inverse_nd")
@@ -1537,9 +1519,9 @@ class Emit[C](
           val INFOdgetrf = mb.newLocal[Int]()
           val INFOdgetri = mb.newLocal[Int]()
           val INFOerror = (fun: String, info: LocalRef[Int]) => (info cne 0)
-            .orEmpty(Code._fatalWithID[Unit](const(s"LAPACK error ${ fun }. Error code = ").concat(info.toS), const(errorID)))
+            .orEmpty(Code._fatal[Unit](const(s"LAPACK error ${ fun }. Error code = ").concat(info.toS)))
 
-          cb.append((N cne M).orEmpty(Code._fatalWithID[Unit](const("Can only invert square matrix"), const(errorID))))
+          cb.append((N cne M).orEmpty(Code._fatal[Unit](const("Can only invert square matrix"))))
 
           cb.assign(An, (M * N).toI)
 
@@ -1573,13 +1555,13 @@ class Emit[C](
 
           finish(cb)
         }
-      case x@NDArraySVD(nd, full_matrices, computeUV, errorID) =>
+      case x@NDArraySVD(nd, full_matrices, computeUV) =>
         emitNDArrayColumnMajorStrides(nd).flatMap(cb) { case ndPCode: SNDArrayCode =>
           val ndPVal = ndPCode.memoize(cb, "nd_svd_value")
 
           val infoDGESDDResult = cb.newLocal[Int]("infoDGESDD")
           val infoDGESDDErrorTest = (extraErrorMsg: String) => (infoDGESDDResult cne 0)
-            .orEmpty(Code._fatalWithID[Unit](const(s"LAPACK error DGESDD. $extraErrorMsg Error code = ").concat(infoDGESDDResult.toS), errorID))
+            .orEmpty(Code._fatal[Unit](const(s"LAPACK error DGESDD. $extraErrorMsg Error code = ").concat(infoDGESDDResult.toS)))
 
           val LWORKAddress = mb.newLocal[Long]("svd_lwork_address")
           val shapes = ndPVal.shapes(cb)
@@ -1690,7 +1672,7 @@ class Emit[C](
           IEmitCode(cb, false, resultPCode)
 
         }
-      case x@NDArrayQR(nd, mode, errorID) =>
+      case x@NDArrayQR(nd, mode) =>
         // See here to understand different modes: https://docs.scipy.org/doc/numpy/reference/generated/numpy.linalg.qr.html
         emitNDArrayColumnMajorStrides(nd).map(cb) { case pndCode: SNDArrayCode =>
 
@@ -1732,7 +1714,7 @@ class Emit[C](
 
           val infoDGEQRFResult = cb.newLocal[Int]("ndaray_qr_infoDGEQRFResult")
           val infoDGEQRFErrorTest = (extraErrorMsg: String) => (infoDGEQRFResult cne 0)
-            .orEmpty(Code._fatalWithID[Unit](const(s"LAPACK error DGEQRF. $extraErrorMsg Error code = ").concat(infoDGEQRFResult.toS), errorID))
+            .orEmpty(Code._fatal[Unit](const(s"LAPACK error DGEQRF. $extraErrorMsg Error code = ").concat(infoDGEQRFResult.toS)))
 
           // Computing H and Tau
           cb.assign(aNumElements, ndPT.numElements(shapeArray))
@@ -1836,7 +1818,7 @@ class Emit[C](
 
               val infoDORGQRResult = cb.newLocal[Int]("ndarray_qr_DORGQR_info")
               val infoDORQRErrorTest = (extraErrorMsg: String) => (infoDORGQRResult cne 0)
-                .orEmpty(Code._fatalWithID[Unit](const(s"LAPACK error DORGQR. $extraErrorMsg Error code = ").concat(infoDORGQRResult.toS), errorID))
+                .orEmpty(Code._fatal[Unit](const(s"LAPACK error DORGQR. $extraErrorMsg Error code = ").concat(infoDORGQRResult.toS)))
 
               val qCondition = cb.newLocal[Boolean]("ndarray_qr_qCondition")
               val numColsToUse = cb.newLocal[Long]("ndarray_qr_numColsToUse")
@@ -2093,7 +2075,7 @@ class Emit[C](
           { sc => cb.assign(msg, sc.asString.loadString()) })
         cb._throw[HailException](Code.newInstance[HailException, String, Int](msg, errorId))
 
-        IEmitCode.present(cb, SUnreachable.fromVirtualType(typ).defaultValue)
+        IEmitCode.present(cb, typeWithReq.canonicalEmitType.st.defaultValue)
 
       case CastToArray(a) =>
         emitI(a).map(cb) { ind => ind.asIndexable.castToArray(cb) }
@@ -2490,7 +2472,7 @@ class Emit[C](
         val ev = env.inputValues(i).apply(region)
         ev
 
-      case ir@Apply(fn, typeArgs, args, rt, errorID) =>
+      case ir@Apply(fn, typeArgs, args, rt) =>
         val impl = ir.implementation
         val unified = impl.unify(typeArgs, args.map(_.typ), rt)
         assert(unified)
@@ -2512,16 +2494,16 @@ class Emit[C](
         EmitCode.fromI(mb) { cb =>
           val emitArgs = args.map(a => EmitCode.fromI(cb.emb)(emitI(a, _))).toFastIndexedSeq
           IEmitCode.multiMapEmitCodes(cb, emitArgs) { codeArgs =>
-            cb.invokeSCode(meth, FastIndexedSeq[Param](CodeParam(region), CodeParam(errorID)) ++ codeArgs.map(pc => pc: Param): _*)
+            cb.invokeSCode(meth, FastIndexedSeq[Param](CodeParam(region)) ++ codeArgs.map(pc => pc: Param): _*)
           }
         }
-      case x@ApplySpecial(_, typeArgs, args, rt, errorID) =>
+      case x@ApplySpecial(_, typeArgs, args, rt) =>
         val codeArgs = args.map(a => emit(a))
         val impl = x.implementation
         val unified = impl.unify(typeArgs, args.map(_.typ), rt)
         assert(unified)
         val retType = impl.computeReturnEmitType(x.typ, codeArgs.map(_.emitType))
-        impl.apply(EmitRegion(mb, region), retType.st, typeArgs, errorID, codeArgs: _*)
+        impl.apply(EmitRegion(mb, region), retType.st, typeArgs, codeArgs: _*)
 
       case x@WritePartition(stream, pctx, writer) =>
         val ctxCode = emit(pctx)
@@ -2610,26 +2592,26 @@ object NDArrayEmitter {
     }
   }
 
-  def unifyShapes2(cb: EmitCodeBuilder, leftShape: IndexedSeq[Value[Long]], rightShape: IndexedSeq[Value[Long]], errorID: Int): IndexedSeq[Value[Long]] = {
+  def unifyShapes2(cb: EmitCodeBuilder, leftShape: IndexedSeq[Value[Long]], rightShape: IndexedSeq[Value[Long]]): IndexedSeq[Value[Long]] = {
     val shape = leftShape.zip(rightShape).zipWithIndex.map { case ((left, right), i) =>
       val notSameAndNotBroadcastable = !((left ceq right) || (left ceq 1L) || (right ceq 1L))
       cb.newField[Long](
         s"unify_shapes2_shape$i",
         notSameAndNotBroadcastable.mux(
-          Code._fatalWithID[Long](rightShape.foldLeft[Code[String]](
+          Code._fatal[Long](rightShape.foldLeft[Code[String]](
             leftShape.foldLeft[Code[String]](
-              const("Incompatible NDArray shapes: [ ")
+              const("Incompatible NDArrayshapes: [ ")
             )((accum, v) => accum.concat(v.toS).concat(" "))
               .concat("] vs [ ")
           )((accum, v) => accum.concat(v.toS).concat(" "))
-            .concat("]"), errorID),
+            .concat("]")),
           (left > right).mux(left, right)))
     }
 
     shape
   }
 
-  def matmulShape(cb: EmitCodeBuilder, leftShape: IndexedSeq[Value[Long]], rightShape: IndexedSeq[Value[Long]], errorID: Int): IndexedSeq[Value[Long]] = {
+  def matmulShape(cb: EmitCodeBuilder, leftShape: IndexedSeq[Value[Long]], rightShape: IndexedSeq[Value[Long]]): IndexedSeq[Value[Long]] = {
     val mb = cb.emb
 
     assert(leftShape.nonEmpty)
@@ -2657,7 +2639,7 @@ object NDArrayEmitter {
         rK = rightShape(rightShape.length - 2)
         val unifiedShape = unifyShapes2(cb,
           leftShape.slice(0, leftShape.length - 2),
-          rightShape.slice(0, rightShape.length - 2), errorID)
+          rightShape.slice(0, rightShape.length - 2))
         shape = unifiedShape :+ leftShape(leftShape.length - 2) :+ rightShape.last
       }
     }
@@ -2667,8 +2649,10 @@ object NDArrayEmitter {
 
 
     cb.ifx(lK.cne(rK), {
-      cb._fatalWithError(errorID,"Matrix dimensions incompatible: ", leftShapeString,
-        " can't be multiplied by matrix with dimensions ", rightShapeString)
+      cb._fatal("Matrix dimensions incompatible: ",
+        leftShapeString,
+        " can't be multiplied by matrix with dimensions ",
+        rightShapeString)
     })
 
     shape
@@ -2693,7 +2677,7 @@ abstract class NDArrayEmitter(val outputShape: IndexedSeq[Value[Long]], val elem
 
     SNDArray.forEachIndexColMajor(cb, shapeArray, "ndarrayemitter_emitloops") { case (cb, idxVars) =>
       val element = IEmitCode.present(cb, outputElement(cb, idxVars)).consume(cb, {
-        cb._fatal("NDArray elements cannot be missing")
+        cb._fatal("NDArray elements cannot  be missing")
       }, { elementPc =>
         targetType.elementType.storeAtAddress(cb, firstElementAddress + (idx.toL * targetType.elementType.byteSize), region, elementPc, true)
       })

@@ -16,7 +16,7 @@ object Bindings {
       args.map { case (name, ir) => name -> ir.typ } :+
         name -> TTuple(TTuple(args.map(_._2.typ): _*), body.typ) else empty
     case StreamMap(a, name, _) => if (i == 1) Array(name -> coerce[TStream](a.typ).elementType) else empty
-    case StreamZip(as, names, _, _, _) => if (i == as.length) names.zip(as.map(a => coerce[TStream](a.typ).elementType)) else empty
+    case StreamZip(as, names, _, _) => if (i == as.length) names.zip(as.map(a => coerce[TStream](a.typ).elementType)) else empty
     case StreamZipJoin(as, key, curKey, curVals, _) =>
       val eltType = coerce[TStruct](coerce[TStream](as.head.typ).elementType)
       if (i == as.length)
@@ -42,7 +42,7 @@ object Bindings {
     case ArraySort(a, left, right, _) => if (i == 1) Array(left -> coerce[TStream](a.typ).elementType, right -> coerce[TStream](a.typ).elementType) else empty
     case AggArrayPerElement(a, _, indexName, _, _, _) => if (i == 1) FastIndexedSeq(indexName -> TInt32) else empty
     case NDArrayMap(nd, name, _) => if (i == 1) Array(name -> coerce[TNDArray](nd.typ).elementType) else empty
-    case NDArrayMap2(l, r, lName, rName, _, _) => if (i == 2) Array(lName -> coerce[TNDArray](l.typ).elementType, rName -> coerce[TNDArray](r.typ).elementType) else empty
+    case NDArrayMap2(l, r, lName, rName, _) => if (i == 2) Array(lName -> coerce[TNDArray](l.typ).elementType, rName -> coerce[TNDArray](r.typ).elementType) else empty
     case CollectDistributedArray(contexts, globals, cname, gname, _, _) => if (i == 2) Array(cname -> coerce[TStream](contexts.typ).elementType, gname -> globals.typ) else empty
     case TableAggregate(child, _) => if (i == 1) child.typ.globalEnv.m else empty
     case MatrixAggregate(child, _) => if (i == 1) child.typ.globalEnv.m else empty

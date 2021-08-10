@@ -57,7 +57,7 @@ object StringFunctions extends RegistryFunctions {
     val charD = new mutable.HashMap[Char, String]
     d.foreach { case (k, v) =>
       if (k.length != 1)
-        fatal(s"translate: mapping keys must be one character, found '$k'", ErrorIDs.NO_ERROR)
+        fatal(s"translate: mapping keys must be one character, found '$k'")
       charD += ((k(0), v))
     }
 
@@ -100,20 +100,20 @@ object StringFunctions extends RegistryFunctions {
   def registerAll(): Unit = {
     val thisClass = getClass
 
-    registerSCode1("length", TString, TInt32, (_: Type, _: SType) => SInt32) { case (r: EmitRegion, cb, _, s: SStringCode, _) =>
+    registerSCode1("length", TString, TInt32, (_: Type, _: SType) => SInt32) { case (r: EmitRegion, cb, _, s: SStringCode) =>
       primitive(s.loadString().invoke[Int]("length"))
     }
 
     registerSCode3("substring", TString, TInt32, TInt32, TString, {
       (_: Type, _: SType, _: SType, _: SType) => SStringPointer(PCanonicalString())
     }) {
-      case (r: EmitRegion, cb, st: SString, s, start, end, _) =>
+      case (r: EmitRegion, cb, st: SString, s, start, end) =>
 
         val str = s.asString.loadString().invoke[Int, Int, String]("substring", start.asInt.intCode(cb), end.asInt.intCode(cb))
         st.constructFromString(cb, r.region, str)
     }
 
-    registerIR3("slice", TString, TInt32, TInt32, TString) { (_, str, start, end, _) =>
+    registerIR3("slice", TString, TInt32, TInt32, TString) { (_, str, start, end) =>
       val len = Ref(genUID(), TInt32)
       val s = Ref(genUID(), TInt32)
       val e = Ref(genUID(), TInt32)
@@ -123,7 +123,7 @@ object StringFunctions extends RegistryFunctions {
             invoke("substring", TString, str, s, If(e < s, s, e)))))
     }
 
-    registerIR2("index", TString, TInt32, TString) { (_, s, i, errorID) =>
+    registerIR2("index", TString, TInt32, TString) { (_, s, i) =>
       val len = Ref(genUID(), TInt32)
       val idx = Ref(genUID(), TInt32)
       Let(len.name, invoke("length", TInt32, s),
@@ -133,15 +133,15 @@ object StringFunctions extends RegistryFunctions {
               Str("string index out of bounds: "),
               invoke("concat", TString,
                 invoke("str", TString, i),
-                invoke("concat", TString, Str(" / "), invoke("str", TString, len)))), TInt32, errorID),
+                invoke("concat", TString, Str(" / "), invoke("str", TString, len)))), TInt32, -1),
             If(i < 0, i + len, i)),
           invoke("substring", TString, s, idx, idx + 1)))
     }
 
-    registerIR2("sliceRight", TString, TInt32, TString) { (_, s, start, _) => invoke("slice", TString, s, start, invoke("length", TInt32, s)) }
-    registerIR2("sliceLeft", TString, TInt32, TString) { (_, s, end, _) => invoke("slice", TString, s, I32(0), end) }
+    registerIR2("sliceRight", TString, TInt32, TString) { (_, s, start) => invoke("slice", TString, s, start, invoke("length", TInt32, s)) }
+    registerIR2("sliceLeft", TString, TInt32, TString) { (_, s, end) => invoke("slice", TString, s, I32(0), end) }
 
-    registerSCode1("str", tv("T"), TString, (_: Type, _: SType) => SStringPointer(PCanonicalString())) { case (r, cb, st: SString, a, _) =>
+    registerSCode1("str", tv("T"), TString, (_: Type, _: SType) => SStringPointer(PCanonicalString())) { case (r, cb, st: SString, a) =>
       val annotation = scodeToJavaValue(cb, r.region, a)
       val str = cb.emb.getType(a.st.virtualType).invoke[Any, String]("str", annotation)
       st.constructFromString(cb, r.region, str)
@@ -149,7 +149,7 @@ object StringFunctions extends RegistryFunctions {
 
     registerIEmitCode1("showStr", tv("T"), TString, {
       (_: Type, _: EmitType) => EmitType(SStringPointer(PCanonicalString()), true)
-    }) { case (cb, r, st: SString, _, a) =>
+    }) { case (cb, r, st: SString, a) =>
       val jObj = cb.newLocal("showstr_java_obj")(boxedTypeInfo(a.st.virtualType))
       a.toI(cb).consume(cb,
         cb.assignAny(jObj, Code._null(boxedTypeInfo(a.st.virtualType))),
@@ -162,7 +162,7 @@ object StringFunctions extends RegistryFunctions {
 
     registerIEmitCode2("showStr", tv("T"), TInt32, TString, {
       (_: Type, _: EmitType, truncType: EmitType) => EmitType(SStringPointer(PCanonicalString()), truncType.required)
-    }) { case (cb, r, st: SString, _, a, trunc) =>
+    }) { case (cb, r, st: SString, a, trunc) =>
       val jObj = cb.newLocal("showstr_java_obj")(boxedTypeInfo(a.st.virtualType))
       trunc.toI(cb).map(cb) { trunc =>
 
@@ -176,7 +176,7 @@ object StringFunctions extends RegistryFunctions {
     }
 
     registerIEmitCode1("json", tv("T"), TString, (_: Type, _: EmitType) => EmitType(SStringPointer(PCanonicalString()), true)) {
-      case (cb, r, st: SString, _, a) =>
+      case (cb, r, st: SString, a) =>
         val ti = boxedTypeInfo(a.st.virtualType)
         val inputJavaValue = cb.newLocal("json_func_input_jv")(ti)
         a.toI(cb).consume(cb,
@@ -237,7 +237,7 @@ object StringFunctions extends RegistryFunctions {
 
     registerIEmitCode2("firstMatchIn", TString, TString, TArray(TString), {
       case (_: Type, _: EmitType, _: EmitType) => EmitType(PCanonicalArray(PCanonicalString(true)).sType, false)
-    }) { case (cb: EmitCodeBuilder, region: Value[Region], SIndexablePointer(rt: PCanonicalArray), _,
+    }) { case (cb: EmitCodeBuilder, region: Value[Region], SIndexablePointer(rt: PCanonicalArray),
     s: EmitCode, r: EmitCode) =>
       s.toI(cb).flatMap(cb) { case sc: SStringCode =>
         r.toI(cb).flatMap(cb) { case rc: SStringCode =>
@@ -259,7 +259,7 @@ object StringFunctions extends RegistryFunctions {
 
     registerEmitCode2("hamming", TString, TString, TInt32, {
       case (_: Type, _: EmitType, _: EmitType) => EmitType(SInt32, false)
-    }) { case (r: EmitRegion, rt, _, e1: EmitCode, e2: EmitCode) =>
+    }) { case (r: EmitRegion, rt, e1: EmitCode, e2: EmitCode) =>
       EmitCode.fromI(r.mb) { cb =>
         e1.toI(cb).flatMap(cb) { case (sc1: SStringCode) =>
           e2.toI(cb).flatMap(cb) { case (sc2: SStringCode) =>
@@ -294,7 +294,7 @@ object StringFunctions extends RegistryFunctions {
 
     registerSCode("parse_json", Array(TString), TTuple(tv("T")),
       (rType: Type, _: Seq[SType]) => SType.canonical(rType), typeParameters = Array(tv("T"))
-    ) { case (er, cb, _, resultType, Array(s: SStringCode), _) =>
+    ) { case (er, cb, _, resultType, Array(s: SStringCode)) =>
 
       val warnCtx = cb.emb.genFieldThisRef[mutable.HashSet[String]]("parse_json_context")
       cb.ifx(warnCtx.load().isNull, cb.assign(warnCtx, Code.newInstance[mutable.HashSet[String]]()))

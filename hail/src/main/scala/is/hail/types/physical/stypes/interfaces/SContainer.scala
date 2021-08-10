@@ -40,7 +40,7 @@ trait SIndexableValue extends SValue {
 trait SIndexableCode extends SCode {
   def st: SContainer
 
-  def codeLoadLength(): Code[Int]
+  def loadLength(): Code[Int]
 
   def memoize(cb: EmitCodeBuilder, name: String): SIndexableValue
 

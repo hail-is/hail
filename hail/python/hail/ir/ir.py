@@ -558,26 +558,21 @@ class MakeArray(IR):
 
 
 class ArrayRef(IR):
-    @typecheck_method(a=IR, i=IR, error_id=nullable(int), stack_trace=nullable(str))
-    def __init__(self, a, i, error_id=None, stack_trace=None):
-        super().__init__(a, i)
+    @typecheck_method(a=IR, i=IR, s=IR)
+    def __init__(self, a, i, s):
+        super().__init__(a, i, s)
         self.a = a
         self.i = i
-        self._error_id = error_id
-        self._stack_trace = stack_trace
-        if error_id is None or stack_trace is None:
-            self.save_error_info()
+        self.s = s
 
-    @typecheck_method(a=IR, i=IR)
-    def copy(self, a, i):
-        return ArrayRef(a, i, self._error_id, self._stack_trace)
-
-    def head_str(self):
-        return str(self._error_id)
+    @typecheck_method(a=IR, i=IR, s=IR)
+    def copy(self, a, i, s):
+        return ArrayRef(a, i, s)
 
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
         self.i._compute_type(env, agg_env)
+        self.s._compute_type(env, agg_env)
         self._type = self.a.typ.element_type
 
 
@@ -612,26 +607,20 @@ class ArrayZeros(IR):
 
 
 class StreamRange(IR):
-    @typecheck_method(start=IR, stop=IR, step=IR, requires_memory_management_per_element=bool,
-                      error_id=nullable(int), stack_trace=nullable(str))
-    def __init__(self, start, stop, step, requires_memory_management_per_element=False,
-                 error_id=None, stack_trace=None):
+    @typecheck_method(start=IR, stop=IR, step=IR, requires_memory_management_per_element=bool)
+    def __init__(self, start, stop, step, requires_memory_management_per_element=False):
         super().__init__(start, stop, step)
         self.start = start
         self.stop = stop
         self.step = step
         self.requires_memory_management_per_element = requires_memory_management_per_element
-        self._error_id = error_id
-        self._stack_trace = stack_trace
-        if error_id is None or stack_trace is None:
-            self.save_error_info()
 
     @typecheck_method(start=IR, stop=IR, step=IR)
     def copy(self, start, stop, step):
-        return StreamRange(start, stop, step, error_id=self._error_id, stack_trace=self._stack_trace)
+        return StreamRange(start, stop, step)
 
     def head_str(self):
-        return f'{self._error_id} {self.requires_memory_management_per_element}'
+        return self.requires_memory_management_per_element
 
     def _compute_type(self, env, agg_env):
         self.start._compute_type(env, agg_env)
@@ -699,21 +688,14 @@ class NDArrayShape(IR):
 
 
 class NDArrayReshape(IR):
-    @typecheck_method(nd=IR, shape=IR, error_id=nullable(int), stack_trace=nullable(str))
-    def __init__(self, nd, shape, error_id=None, stack_trace=None):
+    @typecheck_method(nd=IR, shape=IR)
+    def __init__(self, nd, shape):
         super().__init__(nd, shape)
         self.nd = nd
         self.shape = shape
-        self._error_id = error_id
-        self._stack_trace = stack_trace
-        if error_id is None or stack_trace is None:
-            self.save_error_info()
 
     def copy(self, nd, shape):
-        return NDArrayReshape(nd, shape, self._error_id, self._stack_trace)
-
-    def head_str(self):
-        return str(self._error_id)
+        return NDArrayReshape(nd, shape)
 
     def _compute_type(self, env, agg_env):
         self.nd._compute_type(env, agg_env)
@@ -755,51 +737,6 @@ class NDArrayMap(IR):
             else:
                 value = default_value
             return {self.name: value}
-        else:
-            return {}
-
-
-class NDArrayMap2(IR):
-    @typecheck_method(left=IR, right=IR, lname=str, rname=str, body=IR, error_id=nullable(int), stack_trace=nullable(str))
-    def __init__(self, left, right, lname, rname, body, error_id=None, stack_trace=None):
-        super().__init__(left, right, body)
-        self.right = right
-        self.left = left
-        self.lname = lname
-        self.rname = rname
-        self.body = body
-        self._error_id = error_id
-        self._stack_trace = stack_trace
-        if error_id is None or stack_trace is None:
-            self.save_error_info()
-
-    @typecheck_method(l=IR, r=IR, body=IR)
-    def copy(self, left, right, body):
-        return NDArrayMap2(left, right, self.lname, self.rname, body, self._error_id, self._stack_trace)
-
-    def head_str(self):
-        return f'{self._error_id} {escape_id(self.lname)} {escape_id(self.rname)}'
-
-    def _eq(self, other):
-        return self.lname == other.lname and \
-            self.rname == other.rname
-
-    @property
-    def bound_variables(self):
-        return {self.lname, self.rname} | super().bound_variables
-
-    def _compute_type(self, env, agg_env):
-        self.left._compute_type(env, agg_env)
-        self.right._compute_type(env, agg_env)
-        self.body._compute_type(_env_bind(env, self.bindings(2)), agg_env)
-        self._type = tndarray(self.body.typ, self.left.typ.ndim)
-
-    def renderable_bindings(self, i, default_value=None):
-        if i == 2:
-            if default_value is None:
-                return {self.lname: self.left.typ.element_type, self.rname: self.right.typ.element_type}
-            else:
-                return {self.lname: default_value, self.rname: default_value}
         else:
             return {}
 
@@ -893,22 +830,15 @@ class NDArrayAgg(IR):
 
 
 class NDArrayMatMul(IR):
-    @typecheck_method(left=IR, right=IR, error_id=nullable(int), stack_trace=nullable(str))
-    def __init__(self, left, right, error_id=None, stack_trace=None):
+    @typecheck_method(left=IR, right=IR)
+    def __init__(self, left, right):
         super().__init__(left, right)
         self.left = left
         self.right = right
-        self._error_id = error_id
-        self._stack_trace = stack_trace
-        if error_id is None or stack_trace is None:
-            self.save_error_info()
 
     @typecheck_method(left=IR, right=IR)
     def copy(self, left, right):
-        return NDArrayMatMul(left, right, self._error_id, self._stack_trace)
-
-    def head_str(self):
-        return str(self._error_id)
+        return NDArrayMatMul(left, right)
 
     def _compute_type(self, env, agg_env):
         self.left._compute_type(env, agg_env)
@@ -921,21 +851,17 @@ class NDArrayMatMul(IR):
 
 
 class NDArrayQR(IR):
-    @typecheck_method(nd=IR, mode=str, error_id=nullable(int), stack_trace=nullable(str))
-    def __init__(self, nd, mode, error_id=None, stack_trace=None):
+    @typecheck_method(nd=IR, mode=str)
+    def __init__(self, nd, mode):
         super().__init__(nd)
         self.nd = nd
         self.mode = mode
-        self._error_id = error_id
-        self._stack_trace = stack_trace
-        if error_id is None or stack_trace is None:
-            self.save_error_info()
 
     def copy(self):
-        return NDArrayQR(self.nd, self.mode, self._error_id, self._stack_trace)
+        return NDArrayQR(self.nd, self.mode)
 
     def head_str(self):
-        return f'{self._error_id} "{self.mode}"'
+        return f'"{self.mode}"'
 
     def _compute_type(self, env, agg_env):
         self.nd._compute_type(env, agg_env)
@@ -951,22 +877,18 @@ class NDArrayQR(IR):
 
 
 class NDArraySVD(IR):
-    @typecheck_method(nd=IR, full_matrices=bool, compute_uv=bool, error_id=nullable(int), stack_trace=nullable(str))
-    def __init__(self, nd, full_matrices, compute_uv, error_id=None, stack_trace=None):
+    @typecheck_method(nd=IR, full_matrices=bool, compute_uv=bool)
+    def __init__(self, nd, full_matrices, compute_uv):
         super().__init__(nd)
         self.nd = nd
         self.full_matrices = full_matrices
         self.compute_uv = compute_uv
-        self._error_id = error_id
-        self._stack_trace = stack_trace
-        if error_id is None or stack_trace is None:
-            self.save_error_info()
 
     def copy(self):
-        return NDArraySVD(self.nd, self.full_matrices, self.compute_uv, self._error_id, self._stack_trace)
+        return NDArraySVD(self.nd, self.full_matrices, self.compute_uv)
 
     def head_str(self):
-        return f'{self._error_id} {self.full_matrices} {self.compute_uv}'
+        return f'{self.full_matrices} {self.compute_uv}'
 
     def _compute_type(self, env, agg_env):
         self.nd._compute_type(env, agg_env)
@@ -977,20 +899,13 @@ class NDArraySVD(IR):
 
 
 class NDArrayInv(IR):
-    @typecheck_method(nd=IR, error_id=nullable(int), stack_trace=nullable(str))
-    def __init__(self, nd, error_id=None, stack_trace=None):
+    @typecheck_method(nd=IR)
+    def __init__(self, nd):
         super().__init__(nd)
         self.nd = nd
-        self._error_id = error_id
-        self._stack_trace = stack_trace
-        if error_id is None or stack_trace is None:
-            self.save_error_info()
 
     def copy(self):
-        return NDArrayInv(self.nd, self._error_id, self._stack_trace)
-
-    def head_str(self):
-        return str(self._error_id)
+        return NDArrayInv(self.nd)
 
     def _compute_type(self, env, agg_env):
         self.nd._compute_type(env, agg_env)
@@ -1234,25 +1149,20 @@ class StreamMap(IR):
 
 
 class StreamZip(IR):
-    @typecheck_method(streams=sequenceof(IR), names=sequenceof(str), body=IR, behavior=str,
-                      error_id=nullable(int), stack_trace=nullable(str))
-    def __init__(self, streams, names, body, behavior, error_id=None, stack_trace=None):
+    @typecheck_method(streams=sequenceof(IR), names=sequenceof(str), body=IR, behavior=str)
+    def __init__(self, streams, names, body, behavior):
         super().__init__(*streams, body)
         self.streams = streams
         self.names = names
         self.body = body
         self.behavior = behavior
-        self._error_id = error_id
-        self._stack_trace = stack_trace
-        if error_id is None or stack_trace is None:
-            self.save_error_info()
 
     @typecheck_method(children=IR)
     def copy(self, *children):
-        return StreamZip(children[:-1], self.names, children[-1], self.behavior, self._error_id, self._stack_trace)
+        return StreamZip(children[:-1], self.names, children[-1], self.behavior)
 
     def head_str(self):
-        return f'{self._error_id} {escape_id(self.behavior)} ({" ".join(map(escape_id, self.names))})'
+        return f'{escape_id(self.behavior)} ({" ".join(map(escape_id, self.names))})'
 
     def _eq(self, other):
         return self.names == other.names and self.behavior == other.behavior
@@ -2124,25 +2034,20 @@ def udf(*param_types):
 
 
 class Apply(IR):
-    @typecheck_method(function=str, return_type=hail_type, args=IR,
-                      error_id=nullable(int), stack_trace=nullable(str), type_args=tupleof(hail_type))
-    def __init__(self, function, return_type, *args, type_args=(), error_id=None, stack_trace=None,):
+    @typecheck_method(function=str, return_type=hail_type, args=IR, type_args=tupleof(hail_type))
+    def __init__(self, function, return_type, *args, type_args=()):
         super().__init__(*args)
         self.function = function
         self.return_type = return_type
         self.type_args = type_args
         self.args = args
-        self._error_id = error_id
-        self._stack_trace = stack_trace
-        if error_id is None or stack_trace is None:
-            self.save_error_info()
 
     def copy(self, *args):
-        return Apply(self.function, self.return_type, *args, type_args=self.type_args, error_id=self._error_id, stack_trace=self._stack_trace,)
+        return Apply(self.function, self.return_type, *args, type_args=self.type_args)
 
     def head_str(self):
         type_args = "(" + " ".join([a._parsable_string() for a in self.type_args]) + ")"
-        return f'{self._error_id} {escape_id(self.function)} {type_args} {self.return_type._parsable_string()}'
+        return f'{escape_id(self.function)} {type_args} {self.return_type._parsable_string()}'
 
     def _eq(self, other):
         return other.function == self.function and \

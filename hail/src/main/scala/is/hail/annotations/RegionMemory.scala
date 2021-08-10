@@ -57,10 +57,10 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
   def getCurrentBlock(): Long = currentBlock
 
   private def allocateBigChunk(size: Long): Long = {
-    val (chunkPointer, chunkSize) = pool.getChunk(size)
-    bigChunks.add(chunkPointer)
-    totalChunkMemory += chunkSize
-    chunkPointer
+    val o = pool.getChunk(size)
+    bigChunks.add(o)
+    totalChunkMemory += size
+    o
   }
 
   def allocate(n: Long): Long = {
@@ -134,15 +134,18 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     var i = 0
     while (i < ndarrayRefs.size) {
       val addr = this.ndarrayRefs(i)
-      val curCount = Region.getSharedChunkRefCount(addr)
+      val curCount = PNDArray.getReferenceCount(addr)
       if (curCount == 1) {
-        Region.storeSharedChunkRefCount(addr, 0L)
-        pool.freeChunk(addr - Region.sharedChunkHeaderBytes)
+        PNDArray.storeReferenceCount(addr, 0L)
+        val bytesToFree = PNDArray.getByteSize(addr) + PNDArray.headerBytes
+        pool.incrementAllocatedBytes(-bytesToFree)
+        Memory.free(addr - PNDArray.headerBytes)
       } else {
-        Region.storeSharedChunkRefCount(addr, curCount - 1)
+        PNDArray.storeReferenceCount(addr, curCount - 1)
       }
       i += 1
     }
+
     this.ndarrayRefs.clear()
   }
 
@@ -282,27 +285,27 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     references.update(idx, null)
   }
 
-  def allocateSharedChunk(size: Long): Long = {
-    if (size < 0L) {
-      throw new IllegalArgumentException(s"Can't request ndarray of negative memory size, got ${size}")
+  def allocateNDArray(size: Long): Long = {
+    if (size <= 0L) {
+      throw new IllegalArgumentException(s"Can't request ndarray of non-positive memory size, got ${size}")
     }
 
-    val extra = Region.sharedChunkHeaderBytes
+    val extra = PNDArray.headerBytes
 
     // This adjusted address is where the ndarray content starts
-    val (allocatedChunk, _) = pool.getChunk(size + extra)
-    val newChunkPointer = allocatedChunk + extra
+    val allocatedAddr = pool.getChunk(size + extra) + extra
+
     // The reference count and total size are stored just before the content.
-    Region.storeSharedChunkRefCount(newChunkPointer, 0L)
-    Region.storeSharedChunkByteSize(newChunkPointer, size)
-    this.trackSharedChunk(newChunkPointer)
-    newChunkPointer
+    PNDArray.storeReferenceCount(allocatedAddr, 0L)
+    PNDArray.storeByteSize(allocatedAddr, size)
+    this.trackNDArray(allocatedAddr)
+    allocatedAddr
   }
 
-  def trackSharedChunk(alloc: Long): Unit = {
+  def trackNDArray(alloc: Long): Unit = {
     this.ndarrayRefs.add(alloc)
-    val curRefCount = Region.getSharedChunkRefCount(alloc)
-    Region.storeSharedChunkRefCount(alloc, curRefCount + 1L)
+    val curRefCount = Region.loadLong(alloc - 16)
+    Region.storeLong(alloc - 16, curRefCount + 1L)
   }
 
   def listNDArrayRefs(): IndexedSeq[Long] = {

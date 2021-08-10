@@ -261,12 +261,12 @@ object Interpret {
           null
         else
           aValue.asInstanceOf[IndexedSeq[Any]].length
-      case StreamRange(start, stop, step, _, errorID) =>
+      case StreamRange(start, stop, step, _) =>
         val startValue = interpret(start, env, args)
         val stopValue = interpret(stop, env, args)
         val stepValue = interpret(step, env, args)
         if (stepValue == 0)
-          fatal("Array range cannot have step size 0.", errorID)
+          fatal("Array range cannot have step size 0.")
         if (startValue == null || stopValue == null || stepValue == null)
           null
         else
@@ -420,7 +420,7 @@ object Interpret {
             interpret(body, env.bind(name, element), args)
           }
         }
-      case StreamZip(as, names, body, behavior, errorID) =>
+      case StreamZip(as, names, body, behavior) =>
         val aValues = as.map(interpret(_, env, args).asInstanceOf[IndexedSeq[_]])
         if (aValues.contains(null))
           null
@@ -429,7 +429,7 @@ object Interpret {
             case ArrayZipBehavior.AssertSameLength | ArrayZipBehavior.AssumeSameLength =>
               val lengths = aValues.map(_.length).toSet
               if (lengths.size != 1)
-                fatal(s"zip: length mismatch: ${ lengths.mkString(", ") }", errorID)
+                fatal(s"zip: length mismatch: ${ lengths.mkString(", ") }")
               lengths.head
             case ArrayZipBehavior.TakeMinLength =>
               aValues.map(_.length).min
@@ -713,9 +713,9 @@ object Interpret {
         } catch {
           case e: HailException => Row(Row(e.msg, e.errorId), null)
         }
-      case ir@ApplyIR(function, _, functionArgs, _) =>
+      case ir@ApplyIR(function, _, functionArgs) =>
         interpret(ir.explicitNode, env, args)
-      case ApplySpecial("lor", _, Seq(left_, right_), _, _) =>
+      case ApplySpecial("lor", _, Seq(left_, right_), _) =>
         val left = interpret(left_)
         if (left == true)
           true
@@ -727,7 +727,7 @@ object Interpret {
             null
           else false
         }
-      case ApplySpecial("land", _, Seq(left_, right_), _, _) =>
+      case ApplySpecial("land", _, Seq(left_, right_), _) =>
         val left = interpret(left_)
         if (left == false)
           false

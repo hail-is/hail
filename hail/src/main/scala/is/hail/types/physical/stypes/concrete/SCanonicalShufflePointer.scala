@@ -20,7 +20,7 @@ case class SCanonicalShufflePointer(pType: PCanonicalShuffle) extends SShuffle {
 
   lazy val binarySType = SBinaryPointer(pType.representation)
 
-  def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SCanonicalShufflePointerCode(this, pType.representation.loadCheapSCode(cb, pType.store(cb, region, value, deepCopy)))
   }
 

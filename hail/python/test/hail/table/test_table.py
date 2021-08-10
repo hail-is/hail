@@ -794,14 +794,6 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         t2 = hl.read_table(f)
         self.assertTrue(t._same(t2))
 
-    @fails_service_backend()
-    def test_write_no_parts(self):
-        ht = hl.utils.range_table(10, n_partitions=2).filter(False)
-        path = new_temp_file(extension='ht')
-        path2 = new_temp_file(extension='ht')
-        assert ht.checkpoint(path)._same(ht)
-        hl.read_table(path).write(path2)
-
     def test_min_partitions(self):
         assert hl.import_table(resource('variantAnnotations.tsv'), min_partitions=50).n_partitions() == 50
 

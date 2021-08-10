@@ -975,7 +975,7 @@ object PruneDeadFields {
         val reqStructT = coerce[TStruct](coerce[TStream](coerce[TStream](requestedType).elementType).elementType)
         val origStructT = coerce[TStruct](coerce[TStream](a.typ).elementType)
         memoizeValueIR(a, TStream(unify(origStructT, reqStructT, selectKey(origStructT, key))), memo)
-      case StreamZip(as, names, body, behavior, _) =>
+      case StreamZip(as, names, body, behavior) =>
         val bodyEnv = memoizeValueIR(body,
           requestedType.asInstanceOf[TStream].elementType,
           memo)
@@ -1140,7 +1140,7 @@ object PruneDeadFields {
           bodyEnv.deleteEval(valueName),
           memoizeValueIR(nd, ndType.copy(elementType = valueType), memo)
         )
-      case NDArrayMap2(left, right, leftName, rightName, body, _) =>
+      case NDArrayMap2(left, right, leftName, rightName, body) =>
         val leftType = left.typ.asInstanceOf[TNDArray]
         val rightType = right.typ.asInstanceOf[TNDArray]
         val bodyEnv = memoizeValueIR(body, requestedType.asInstanceOf[TNDArray].elementType, memo)
@@ -1761,12 +1761,12 @@ object PruneDeadFields {
       case StreamMap(a, name, body) =>
         val a2 = rebuildIR(a, env, memo)
         StreamMap(a2, name, rebuildIR(body, env.bindEval(name, a2.typ.asInstanceOf[TStream].elementType), memo))
-      case StreamZip(as, names, body, b, errorID) =>
+      case StreamZip(as, names, body, b) =>
         val (newAs, newNames) = as.zip(names)
           .flatMap { case (a, name) => if (memo.requestedType.contains(a)) Some((rebuildIR(a, env, memo), name)) else None }
           .unzip
         StreamZip(newAs, newNames, rebuildIR(body,
-          env.bindEval(newNames.zip(newAs.map(a => a.typ.asInstanceOf[TStream].elementType)): _*), memo), b, errorID)
+          env.bindEval(newNames.zip(newAs.map(a => a.typ.asInstanceOf[TStream].elementType)): _*), memo), b)
       case StreamZipJoin(as, key, curKey, curVals, joinF) =>
         val newAs = as.map(a => rebuildIR(a, env, memo))
         val newEltType = as.head.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
@@ -1840,13 +1840,13 @@ object PruneDeadFields {
       case NDArrayMap(nd, valueName, body) =>
         val nd2 = rebuildIR(nd, env, memo)
         NDArrayMap(nd2, valueName, rebuildIR(body, env.bindEval(valueName, nd2.typ.asInstanceOf[TNDArray].elementType), memo))
-      case NDArrayMap2(left, right, leftName, rightName, body, errorID) =>
+      case NDArrayMap2(left, right, leftName, rightName, body) =>
         val left2 = rebuildIR(left, env, memo)
         val right2 = rebuildIR(right, env, memo)
         val body2 = rebuildIR(body,
           env.bindEval(leftName, left2.typ.asInstanceOf[TNDArray].elementType).bindEval(rightName, right2.typ.asInstanceOf[TNDArray].elementType),
           memo)
-        NDArrayMap2(left2, right2, leftName, rightName, body2, errorID)
+        NDArrayMap2(left2, right2, leftName, rightName, body2)
       case MakeStruct(fields) =>
         val depStruct = requestedType.asInstanceOf[TStruct]
         // drop unnecessary field IRs

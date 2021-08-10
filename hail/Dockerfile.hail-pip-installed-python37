@@ -6,9 +6,7 @@ RUN hail-apt-get-install openjdk-8-jdk-headless
 
 COPY hail/python/requirements.txt requirements.txt
 COPY hail/python/dev-requirements.txt dev-requirements.txt
-RUN file=$(mktemp) && \
-    cat requirements.txt dev-requirements.txt > $file && \
-    hail-pip-install -r $file
+RUN hail-pip-install -r requirements.txt -r dev-requirements.txt
 
 COPY wheel-container.tar wheel-container.tar
 RUN tar -xf wheel-container.tar && \

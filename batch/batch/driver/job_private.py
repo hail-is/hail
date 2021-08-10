@@ -97,10 +97,6 @@ WHERE name = %s;
         self.scheduler_state_changed.set()
 
     async def schedule_jobs_loop_body(self):
-        if self.app['frozen']:
-            log.info(f'not scheduling any jobs for {self}; batch is frozen')
-            return True
-
         log.info(f'starting scheduling jobs for {self}')
         waitable_pool = WaitableSharedPool(self.async_worker_pool)
 
@@ -281,10 +277,6 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
         return (instance, resources)
 
     async def create_instances_loop_body(self):
-        if self.app['frozen']:
-            log.info(f'not creating instances for {self}; batch is frozen')
-            return True
-
         log.info(f'create_instances for {self}: starting')
         start = time_msecs()
         n_instances_created = 0

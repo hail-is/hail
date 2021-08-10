@@ -99,13 +99,11 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     bit_rshift
     bit_not
     exp
-    expit
     is_nan
     is_finite
     is_infinite
     log
     log10
-    logit
     sign
     sqrt
     int

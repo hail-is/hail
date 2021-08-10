@@ -883,10 +883,12 @@ class TableNativeReader(
       else
         params.options.map(opts => new RVDPartitioner(tr.typ.keyType, opts.intervals))
       val rvd = spec.rowsComponent.read(ctx, params.path, tr.typ.rowType, partitioner, filterIntervals)
-      if (!rvd.typ.key.startsWith(tr.typ.key))
-        fatal(s"Error while reading table ${params.path}: legacy table written without key." +
-          s"\n  Read and write with version 0.2.70 or earlier")
-      rvd
+      if (rvd.typ.key startsWith tr.typ.key)
+        rvd
+      else {
+        log.info("Sorting a table after read. Rewrite the table to prevent this in the future.")
+        rvd.changeKey(ctx, tr.typ.key)
+      }
     }
     TableValue(ctx, tr.typ, BroadcastRow(ctx, RegionValue(ctx.r, globalsOffset), globalType.setRequired(true).asInstanceOf[PStruct]), rvd)
   }
@@ -1863,7 +1865,7 @@ case class TableMapPartitions(child: TableIR,
         globalName -> In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(globalPType))),
         partitionStreamName -> In(1, SingleCodeEmitParamType(true, StreamSingleCodeType(requiresMemoryManagementPerElement = true, rowPType)))))))
 
-    val globalsBc = tv.globals.broadcast
+    val globalsOff = tv.globals.value.offset
 
     val fsBc = tv.ctx.fsBc
     val itF = { (idx: Int, consumerCtx: RVDContext, partition: (RVDContext) => Iterator[Long]) =>
@@ -1872,7 +1874,7 @@ case class TableMapPartitions(child: TableIR,
           partition(new RVDContext(outerRegion, eltRegion)).map(box)
       }
       makeIterator(fsBc.value, idx, consumerCtx,
-        globalsBc.value.readRegionValue(consumerCtx.partitionRegion),
+        globalsOff,
         boxedPartition
       ).map(l => l.longValue())
     }

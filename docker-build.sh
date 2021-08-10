@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -ex
-
 CONTEXT="$(cd $1 && pwd)"
 DOCKERFILE="$CONTEXT/$2"
 REMOTE_IMAGE_NAME=$3

@@ -489,10 +489,10 @@ def process_joins(obj, exprs):
 
 def divide_null(num, denom):
     from hail.expr.expressions.base_expression import unify_types_limited
-    from hail.expr import missing, if_else
+    from hail.expr import null, cond
     typ = unify_types_limited(num.dtype, denom.dtype)
     assert typ is not None
-    return if_else(denom != 0, num / denom, missing(typ))
+    return cond(denom != 0, num / denom, null(typ))
 
 
 class HailSeedGenerator(object):

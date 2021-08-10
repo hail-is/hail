@@ -197,13 +197,10 @@ case class MatrixValue(
     val partitionBytesWritten = fileData.map(_.bytesWritten)
     val totalRowsEntriesBytes = partitionBytesWritten.sum
     val totalBytesWritten: Long = totalRowsEntriesBytes + colBytesWritten + globalBytesWritten
-    val (smallestStr, largestStr) = if (fileData.isEmpty) ("N/A", "N/A") else {
-      val smallestPartition = fileData.minBy(_.bytesWritten)
-      val largestPartition = fileData.maxBy(_.bytesWritten)
-      val smallestStr = s"${ smallestPartition.rowsWritten } rows (${ formatSpace(smallestPartition.bytesWritten) })"
-      val largestStr = s"${ largestPartition.rowsWritten } rows (${ formatSpace(largestPartition.bytesWritten) })"
-      (smallestStr, largestStr)
-    }
+    val smallestPartition = fileData.minBy(_.bytesWritten)
+    val largestPartition = fileData.maxBy(_.bytesWritten)
+    val smallestStr = s"${ smallestPartition.rowsWritten } rows (${ formatSpace(smallestPartition.bytesWritten) })"
+    val largestStr = s"${ largestPartition.rowsWritten } rows (${ formatSpace(largestPartition.bytesWritten) })"
 
     printer(s"wrote matrix table with $nRows ${ plural(nRows, "row") } " +
       s"and $nCols ${ plural(nCols, "column") } " +

@@ -156,14 +156,4 @@ class ETypeSuite extends HailSuite {
     assert(encodeDecode(pStructContainingNDArray, eStructContainingNDArray, pOnlyReadB, dataStruct) ==
       Row(3))
   }
-
-  @Test def testArrayOfString(): Unit = {
-    val etype = EArray(EBinary(false), false)
-    val toEncode = PCanonicalArray(PCanonicalStringRequired, false)
-    val toDecode = PCanonicalArray(PCanonicalStringOptional, false)
-    val longListOfStrings = (0 until 36).map(idx => s"foo_name_sample_${idx}")
-    val data = longListOfStrings
-
-    assert(encodeDecode(toEncode, etype, toDecode, data) == data)
-  }
 }

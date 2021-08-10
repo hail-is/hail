@@ -22,17 +22,6 @@ object StringOrdering {
             ord.compareNonnull(cb, x.asString.asBytes(), y.asString.asBytes())
           }
         }
-
-      case (_, _) =>
-        new CodeOrderingCompareConsistentWithOthers {
-
-          val type1: SString = t1
-          val type2: SString = t2
-
-          def _compareNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Int] = {
-            x.asString.loadString().invoke[String, Int]("compareTo", y.asString.loadString())
-          }
-        }
     }
   }
 }

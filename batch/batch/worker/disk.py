@@ -21,9 +21,6 @@ class Disk:
         self.size_in_gb = size_in_gb
         self.mount_path = mount_path
 
-        self._created = False
-        self._attached = False
-
         self.disk_path = f'/dev/disk/by-id/google-{self.name}'
 
     async def __aenter__(self, labels=None):
@@ -48,10 +45,9 @@ class Disk:
                 await self._delete()
 
     async def _unmount(self):
-        if self._attached:
-            await retry_all_errors_n_times(max_errors=10, msg=f'error while unmounting disk {self.name}', error_logging_interval=3)(
-                check_shell_output, f'umount -v {self.disk_path} {self.mount_path}'
-            )
+        await retry_all_errors_n_times(max_errors=10, msg=f'error while unmounting disk {self.name}', error_logging_interval=3)(
+            check_shell_output, f'umount -v {self.disk_path} {self.mount_path}'
+        )
 
     async def _format(self):
         async def format_disk():
@@ -75,7 +71,6 @@ class Disk:
             }
 
             await self.compute_client.create_disk(f'/zones/{self.zone}/disks', json=config)
-            self._created = True
 
     async def _attach(self):
         async with LoggingTimer(f'attaching disk {self.name} to {self.instance_name}'):
@@ -88,19 +83,16 @@ class Disk:
             await self.compute_client.attach_disk(
                 f'/zones/{self.zone}/instances/{self.instance_name}/attachDisk', json=config
             )
-            self._attached = True
 
     async def _detach(self):
         async with LoggingTimer(f'detaching disk {self.name} from {self.instance_name}'):
-            if self._attached:
-                await self.compute_client.detach_disk(
-                    f'/zones/{self.zone}/instances/{self.instance_name}/detachDisk', params={'deviceName': self.name}
-                )
+            await self.compute_client.detach_disk(
+                f'/zones/{self.zone}/instances/{self.instance_name}/detachDisk', params={'deviceName': self.name}
+            )
 
     async def _delete(self):
         async with LoggingTimer(f'deleting disk {self.name}'):
-            if self._created:
-                await self.compute_client.delete_disk(f'/zones/{self.zone}/disks/{self.name}')
+            await self.compute_client.delete_disk(f'/zones/{self.zone}/disks/{self.name}')
 
     def __str__(self):
         return self.name
