@@ -287,7 +287,7 @@ class Tests(unittest.TestCase):
             results[1]['snp_heritability_standard_error'],
             0.0416, places=4)
 
-    @fails_service_backend()
+    @skip_when_service_backend('very slow / nonterminating')
     def test_sparse(self):
         expected_split_mt = hl.import_vcf(resource('sparse_split_test_b.vcf'))
         unsplit_mt = hl.import_vcf(resource('sparse_split_test.vcf'), call_fields=['LGT', 'LPGT'])

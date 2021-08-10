@@ -139,6 +139,7 @@ class Tests(unittest.TestCase):
                 linreg_function([[phenos[mt.s].Pheno]], mt.GT.n_alt_alleles(), [1.0],
                                 pass_through=[mt.filters.length()])
 
+    @skip_when_service_backend('very slow / nonterminating')
     def test_linreg_chained(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
                                  types={'Pheno': hl.tfloat64},
@@ -320,6 +321,7 @@ class Tests(unittest.TestCase):
             self.assertAlmostEqual(results[3].t_stat, 1.5872510, places=6)
             self.assertAlmostEqual(results[3].p_value, 0.2533675, places=6)
 
+    @skip_when_service_backend('very slow / nonterminating')
     def test_linear_regression_with_dosage(self):
 
         covariates = hl.import_table(resource('regressionLinear.cov'),
@@ -465,6 +467,7 @@ class Tests(unittest.TestCase):
 
     logreg_functions = [hl.logistic_regression_rows, hl._logistic_regression_rows_nd] if backend_name == "spark" else [hl._logistic_regression_rows_nd]
 
+    @fails_service_backend('not implemented error: register_ir_function')
     def test_weighted_linear_regression(self):
         covariates = hl.import_table(resource('regressionLinear.cov'),
                                      key='Sample',
@@ -776,6 +779,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(is_constant(results[9]))
             self.assertTrue(is_constant(results[10]))
 
+    @skip_when_service_backend('very slow / nonterminating')
     def test_logistic_regression_wald_dosage(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -1335,7 +1339,6 @@ class Tests(unittest.TestCase):
         ds1 = ds1.drop('was_split', 'a_index')
         self.assertTrue(ds1._same(ds2))
 
-    @fails_service_backend()
     def test_split_multi_shuffle(self):
         ht = hl.utils.range_table(1)
         ht = ht.annotate(keys=[hl.struct(locus=hl.locus('1', 1180), alleles=['A', 'C', 'T']),
@@ -1352,7 +1355,6 @@ class Tests(unittest.TestCase):
         mt._force_count_rows()
         assert mt.alleles.collect() == [['A', 'C'], ['A', 'G'], ['A', 'T']]
 
-    @fails_service_backend()
     def test_issue_4527(self):
         mt = hl.utils.range_matrix_table(1, 1)
         mt = mt.key_rows_by(locus=hl.locus(hl.str(mt.row_idx+1), mt.row_idx+1), alleles=['A', 'T'])
@@ -1452,7 +1454,6 @@ class Tests(unittest.TestCase):
         pruned_table = hl.ld_prune(ds_duplicate.GT)
         self.assertEqual(pruned_table.count(), 1)
 
-    @fails_service_backend()
     def test_balding_nichols_model(self):
         hl.set_global_seed(1)
         ds = hl.balding_nichols_model(2, 20, 25, 3,

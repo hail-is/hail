@@ -74,7 +74,6 @@ class VCFTests(unittest.TestCase):
         self.assertFalse('undeclared' in info_type)
         self.assertFalse('undeclaredFlag' in info_type)
 
-    @fails_service_backend()
     def test_can_import_bad_number_flag(self):
         hl.import_vcf(resource('bad_flag_number.vcf')).rows()._force_count()
 
@@ -107,7 +106,6 @@ class VCFTests(unittest.TestCase):
         mt.rows().show()
         assert mt.aggregate_rows(hl.agg.all(hl.is_missing(mt.rsid)))
 
-    @fails_service_backend()
     def test_haploid(self):
         expected = hl.Table.parallelize(
             [hl.struct(locus = hl.locus("X", 16050036), s = "C1046::HG02024",
@@ -126,7 +124,6 @@ class VCFTests(unittest.TestCase):
         entries = entries.select('GT', 'AD', 'GQ')
         self.assertTrue(entries._same(expected))
 
-    @fails_service_backend()
     def test_call_fields(self):
         expected = hl.Table.parallelize(
             [hl.struct(locus = hl.locus("X", 16050036), s = "C1046::HG02024",
@@ -202,7 +199,6 @@ class VCFTests(unittest.TestCase):
                                         key=['locus', 'alleles'])
         self.assertTrue(mt.rows()._same(expected))
 
-    @fails_service_backend()
     def test_import_vcf_missing_format_field_elements(self):
         mt = hl.import_vcf(resource('missingFormatArray.vcf'), reference_genome='GRCh37', array_elements_required=False)
         mt = mt.select_rows().select_entries('AD', 'PL')
@@ -386,15 +382,12 @@ class VCFTests(unittest.TestCase):
             ref_str = ref.read().decode('utf-8')
             self.assertEqual(ref_str, data)
 
-    @fails_service_backend()
     def test_vcf_parser_golden_master__ex_GRCh37(self):
         self._test_vcf_parser_golden_master(resource('ex.vcf'), 'GRCh37')
 
-    @fails_service_backend()
     def test_vcf_parser_golden_master__sample_GRCh37(self):
         self._test_vcf_parser_golden_master(resource('sample.vcf'), 'GRCh37')
 
-    @fails_service_backend()
     def test_vcf_parser_golden_master__gvcf_GRCh37(self):
         self._test_vcf_parser_golden_master(resource('gvcfs/HG00096.g.vcf.gz'), 'GRCh38')
 
@@ -1561,6 +1554,7 @@ class GENTests(unittest.TestCase):
                          hl.tstruct(contig=hl.tstr, position=hl.tint32))
         self.assertEqual(gen.count_rows(), 199)
 
+    @fails_service_backend('need to convert errors to HailUserError')
     def test_import_gen_skip_invalid_loci(self):
         mt = hl.import_gen(resource('skip_invalid_loci.gen'),
                            resource('skip_invalid_loci.sample'),
@@ -1573,7 +1567,7 @@ class GENTests(unittest.TestCase):
                                resource('skip_invalid_loci.sample'))
             mt._force_count_rows()
 
-    @fails_service_backend()
+    @skip_when_service_backend('very slow / nonterminating')
     @fails_local_backend()
     def test_export_gen(self):
         gen = hl.import_gen(resource('example.gen'),
@@ -1653,7 +1647,6 @@ class LocusIntervalTests(unittest.TestCase):
         self.assertEqual(t.count(), 2)
         self.assertEqual(t.interval.dtype.point_type, hl.tstruct(contig=hl.tstr, position=hl.tint32))
 
-    @fails_service_backend()
     def test_import_locus_intervals_recoding(self):
         interval_file = resource('annotinterall.grch38.no.chr.interval_list')
         t = hl.import_locus_intervals(interval_file,
@@ -1703,7 +1696,6 @@ class LocusIntervalTests(unittest.TestCase):
 
         self.assertEqual(t.interval.collect(), hl.eval(expected))
 
-    @fails_service_backend()
     def test_import_bed_recoding(self):
         bed_file = resource('some-missing-chr-grch38.bed')
         bed = hl.import_bed(bed_file,
@@ -2017,6 +2009,19 @@ class ImportTableTests(unittest.TestCase):
         t2 = hl.import_table(f2, force_bgz=True, impute=True).key_by('idx')
         self.assertTrue(t._same(t2))
 
+    @skip_when_service_backend('''intermittent worker failure:
+>       assert tables.count() == 346
+
+Caused by: java.lang.ClassCastException: __C2829collect_distributed_array cannot be cast to is.hail.expr.ir.FunctionWithObjects
+	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:689)
+	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:670)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
+	at is.hail.utils.package$.using(package.scala:627)
+	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
+	at is.hail.backend.service.Worker$.main(Worker.scala:120)
+	at is.hail.backend.service.Worker.main(Worker.scala)
+	... 11 more''')
     def test_glob(self):
         tables = hl.import_table(resource('variantAnnotations.split.*.tsv'))
         assert tables.count() == 346

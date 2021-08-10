@@ -8,7 +8,6 @@ tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
-    @fails_service_backend()
     def test(self):
         mt = hl.balding_nichols_model(3, 10, 10)
         t = mt.rows()
