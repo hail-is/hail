@@ -64,9 +64,6 @@ object CanLowerEfficiently {
         case t: TableDistinct =>
         case t: TableKeyByAndAggregate => fail("TableKeyByAndAggregate has no map-side combine")
         case t: TableAggregateByKey =>
-        case t: TableOrderBy =>
-          if (!(t.sortFields.forall(_.sortOrder == Ascending) && t.child.typ.key.startsWith(t.sortFields.map(_.field))))
-            fail(s" lowered spark shuffles immediately persist to disk, which makes some benchmarks slower (but more resilient)")
         case t: TableRename =>
         case t: TableFilterIntervals => fail(s"TableFilterIntervals does a linear scan")
         case t: TableToTableApply => fail(s"TableToTableApply")
