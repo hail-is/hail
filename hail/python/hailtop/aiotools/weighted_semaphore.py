@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple, Type
+from typing import Optional, Tuple, Type
 from sortedcontainers import SortedKeyList
 from types import TracebackType
 import asyncio
