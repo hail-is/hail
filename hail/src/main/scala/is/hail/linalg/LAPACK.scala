@@ -22,7 +22,7 @@ object LAPACK {
   private[this] val libraryInstance = ThreadLocal.withInitial(new Supplier[LAPACKLibrary]() {
     def get() = {
       val library_name = if (HailContext.isInitialized && HailContext.getFlag("mkl_path") != null) {
-        NativeLibrary.addSearchPath("mkl_rt", "/Users/pschulz/opt/miniconda3/envs/hail/lib")
+        NativeLibrary.addSearchPath("mkl_rt", HailContext.getFlag("mkl_path"))
         "mkl_rt"
       } else {
         "lapack"
