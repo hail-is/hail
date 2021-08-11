@@ -601,11 +601,7 @@ def is_transient_error(e):
         return True
     if isinstance(e, socket.gaierror):
         # socket.EAI_AGAIN: [Errno -3] Temporary failure in name resolution
-        # socket.EAI_NONAME: [Errno -2] Name or service not known
-
-        # As recently as glibc 2.31, we've observed EAI_NONAME from Google's resolvers when looking
-        # up metadata.google.internal (which should exist).
-        return e.errno in (socket.EAI_AGAIN, socket.EAI_NONAME)
+        return e.errno == socket.EAI_AGAIN
     if isinstance(e, ConnectionResetError):
         return True
     if isinstance(e, google.auth.exceptions.TransportError):
