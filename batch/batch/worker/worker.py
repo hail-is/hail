@@ -1488,6 +1488,7 @@ class JVMJob(Job):
         assert worker is not None
 
         self.jvm = worker.jvms.pop()
+        self.jvm_name = str(self.jvm)
         self.scratch = self.jvm.root_dir
 
         input_files = job_spec.get('input_files')
@@ -1628,12 +1629,14 @@ class JVMJob(Job):
     #   container_statuses: [Container.status],
     #   start_time: int,
     #   end_time: int,
-    #   resources: list of dict, {name: str, quantity: int}
+    #   resources: list of dict, {name: str, quantity: int},
+    #   jvm: str
     # }
     async def status(self):
         status = await super().status()
         status['container_statuses'] = dict()
         status['container_statuses']['main'] = {'name': 'main', 'state': self.state, 'timing': self.timings.to_dict()}
+        status['jvm'] = self.jvm_name
         return status
 
     def __str__(self):
@@ -1811,6 +1814,35 @@ class JVM:
             socket_file)
 
     @classmethod
+    async def create_process_and_connect(cls, index: int, socket_file: str) -> Tuple[BufferedOutputProcess, str]:
+        process = await cls.create_process(socket_file)
+        try:
+            attempts = 0
+            delay = 0.25
+            while True:
+                try:
+                    log.info(f'JVM-{index}: trying to open socket')
+                    reader, writer = await asyncio.open_unix_connection(socket_file)
+                    try:
+                        log.info(f'JVM-{index}: establishing connection')
+                        b = await read_bool(reader)
+                        assert b, f'expected true, got {b}'
+                        writer.write(b'\0x01')
+                        break
+                    finally:
+                        writer.close()
+                except FileNotFoundError:
+                    attempts += 1
+                    if attempts == 240:
+                        raise ValueError(f'JVM-{index}: failed to establish connection after {240 * delay} seconds')
+                    await asyncio.sleep(delay)
+            startup_output = process.retrieve_and_clear_output()
+            return process, startup_output
+        except:
+            process.close()
+            raise
+
+    @classmethod
     async def create(cls, index: int):
         assert worker is not None
 
@@ -1820,7 +1852,8 @@ class JVM:
         output_file = root_dir + '/output'
         should_interrupt = asyncio.Event()
         await blocking_to_async(worker.pool, os.mkdir, root_dir)
-        process = await cls.create_process(socket_file)
+        process, startup_output = await cls.create_process_and_connect(index, socket_file)
+        log.info(f'JVM-{index}: startup output: {startup_output}')
         return cls(index, socket_file, root_dir, output_file, should_interrupt, process)
 
     def __init__(self,
@@ -1833,7 +1866,7 @@ class JVM:
         self.index = index
         self.socket_file = socket_file
         self.root_dir = root_dir
-        self.output_File = output_file
+        self.output_file = output_file
         self.should_interrupt = should_interrupt
         self.process = process
 
@@ -1860,24 +1893,20 @@ class JVM:
         assert worker is not None
 
         log.info(f'{self}: execute')
-        if self.process.returncode is not None:
-            log.warning('{self}: unexpected exit between jobs', extra=dict(output=self.process.output()))
-            os.remove(self.socket_file)
-            self.process = await self.create_process(self.socket_file)
 
         interim_output = self.process.retrieve_and_clear_output()
         if len(interim_output) > 0:
             log.warning(f'{self}: unexpected output between jobs: {interim_output}')
 
+        if self.process.returncode is not None:
+            log.warning(f'{self}: unexpected exit between jobs', extra=dict(output=self.process.output()))
+            os.remove(self.socket_file)
+            self.process = await self.create_process(self.socket_file)
+
         with ExitStack() as stack:
             reader: asyncio.StreamReader
             writer: asyncio.StreamWriter
-            while True:
-                try:
-                    reader, writer = await asyncio.open_unix_connection(self.socket_file)
-                    break
-                except FileNotFoundError:
-                    await asyncio.sleep(0.25)
+            reader, writer = await asyncio.open_unix_connection(self.socket_file)
             stack.callback(writer.close)
             log.info(f'{self}: connection acquired')
 
@@ -2073,6 +2102,7 @@ class Worker:
                 asyncio.wait_for(self.activate(), MAX_IDLE_TIME_MSECS / 1000),
                 asyncio.gather(*[JVM.create(i) for i in range(CORES)]))
             self.jvms = jvms
+            log.info(f'JVMs initialized {self.jvms}')
         except asyncio.TimeoutError:
             log.exception(f'could not activate after trying for {MAX_IDLE_TIME_MSECS} ms, exiting')
             return
@@ -2290,7 +2320,7 @@ async def async_main():
     finally:
         try:
             await worker.shutdown()
-            log.info('worker shutdown')
+            log.info(f'worker shutdown', exc_info=True)
         finally:
             await docker.close()
             log.info('docker closed')

@@ -25,6 +25,14 @@ class JVMEntryway {
     AFUNIXServerSocket server = AFUNIXServerSocket.newInstance();
     server.bind(new AFUNIXSocketAddress(new File(args[0])));
     System.err.println("listening on " + args[0]);
+    try (AFUNIXSocket socket = server.accept()) {
+      System.err.println("negotiating start up with worker");
+      DataInputStream in = new DataInputStream(socket.getInputStream());
+      DataOutputStream out = new DataOutputStream(socket.getOutputStream());
+      System.err.flush();
+      out.writeBoolean(true);
+      assert(in.readBoolean());
+    }
     ExecutorService executor = Executors.newFixedThreadPool(2);
     while (true) {
       try (AFUNIXSocket socket = server.accept()) {
@@ -159,6 +167,7 @@ class JVMEntryway {
         Thread.currentThread().setContextClassLoader(oldClassLoader);
       }
       System.err.println("waiting for next connection");
+      System.err.flush();
     }
   }
 }
