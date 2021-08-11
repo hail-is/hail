@@ -48,7 +48,7 @@ case class SIndexablePointer(pType: PContainer) extends SContainer {
 
   def containsPointers: Boolean = pType.containsPointers
   
-  def constructFromFunctions(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean):
+  def constructFromFunctionsKnownLength(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean):
   ((EmitCodeBuilder, IEmitCode) => Unit, EmitCodeBuilder => SIndexablePointerCode) = {
     val arrayPType: PCanonicalArray = pType match {
       case t: PCanonicalArray => t
@@ -61,7 +61,7 @@ case class SIndexablePointer(pType: PContainer) extends SContainer {
     val currentElementIndex = cb.newLocal[Int]("pcarray_construct2_current_idx", 0)
     val currentElementAddress = cb.newLocal[Long]("pcarray_construct2_current_addr", arrayPType.firstElementOffset(addr, length))
 
-    val push: (EmitCodeBuilder, IEmitCode) => Unit = { case (cb, iec) =>
+    val push: (EmitCodeBuilder, IEmitCode) => Unit = { (cb, iec) =>
       iec.consume(cb,
         cb += arrayPType.setElementMissing(addr, currentElementIndex),
         { sc =>

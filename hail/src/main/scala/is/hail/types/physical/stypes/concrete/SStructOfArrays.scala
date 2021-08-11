@@ -35,10 +35,10 @@ case class SStructOfArrays(virtualType: TContainer, elementsRequired: Boolean, f
       val v = vc.memoize(cb, "convert_to_structofarrays_arr")
       val innerLength = cb.newLocal[Int]("inner_length", v.loadLength() - v.numberMissingValues(cb))
       val lookupConstructor = if (elementsRequired) None else Some({
-        val (push, finish) = LOOKUP_TYPE.constructFromFunctions(cb, region, v.loadLength(), deepCopy)
+        val (push, finish) = LOOKUP_TYPE.constructFromFunctionsKnownLength(cb, region, v.loadLength(), deepCopy)
         (push, cb.newLocal[Int]("lookup_value"), cb.newLocal[Int]("next_lookup", 0), finish)
       })
-      val fieldConstructors = fields.map(f => f.constructFromFunctions(cb, region, innerLength, deepCopy))
+      val fieldConstructors = fields.map(f => f.constructFromFunctionsKnownLength(cb, region, innerLength, deepCopy))
       val i = cb.newLocal[Int]("i")
       cb.forLoop(cb.assign(i, 0), i < v.loadLength(), cb.assign(i, i + 1), {
         v.loadElement(cb, i).consume(cb, {
@@ -113,7 +113,7 @@ case class SStructOfArrays(virtualType: TContainer, elementsRequired: Boolean, f
 
   def containsPointers: Boolean = (!elementsRequired && LOOKUP_TYPE.containsPointers) || fields.exists(_.containsPointers)
 
-  def constructFromFunctions(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean): ((EmitCodeBuilder, IEmitCode) => Unit, EmitCodeBuilder => SStructOfArraysCode) = ???
+  def constructFromFunctionsKnownLength(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean): ((EmitCodeBuilder, IEmitCode) => Unit, EmitCodeBuilder => SStructOfArraysCode) = ???
 
   def castRename(t: Type): SType = {
     val arrayType = t.asInstanceOf[TContainer]

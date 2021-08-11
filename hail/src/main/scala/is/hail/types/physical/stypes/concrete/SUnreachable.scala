@@ -278,7 +278,8 @@ case class SUnreachableContainer(virtualType: TContainer) extends SUnreachable w
 
   lazy val elementEmitType: EmitType = EmitType(elementType, true)
 
-  def constructFromFunctions(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean): ((EmitCodeBuilder, IEmitCode) => Unit, EmitCodeBuilder => SIndexableCode) = {
+  def constructFromFunctionsKnownLength(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean):
+  ((EmitCodeBuilder, IEmitCode) => Unit, EmitCodeBuilder => SIndexableCode) = {
     ((cb: EmitCodeBuilder, iec: IEmitCode) => { iec.consume(cb, {}, _ => ()) },
       _ => new SUnreachableContainerValue(this))
   }

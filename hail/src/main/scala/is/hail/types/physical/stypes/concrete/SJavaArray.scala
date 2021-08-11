@@ -58,7 +58,8 @@ case class SJavaArrayString(elementRequired: Boolean) extends SContainer {
 
   def construct(arr: Code[Array[String]]): SJavaArrayStringCode = new SJavaArrayStringCode(this, arr)
 
-  def constructFromFunctions(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean): ((EmitCodeBuilder, IEmitCode) => Unit, EmitCodeBuilder => SJavaArrayStringCode) = {
+  def constructFromFunctionsKnownLength(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean):
+  ((EmitCodeBuilder, IEmitCode) => Unit, EmitCodeBuilder => SJavaArrayStringCode) = {
     val arr = cb.newLocal("javastringarray", Code.newArray[String](length))
     val i = cb.newLocal[Int]("construct_javastringarray_idx", 0)
     val push: (EmitCodeBuilder, IEmitCode) => Unit = { (cb, iec) =>

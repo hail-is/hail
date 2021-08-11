@@ -469,7 +469,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   // unsafe StagedArrayBuilder-like interface that gives caller control over pushing elements and finishing
   def constructFromFunctions(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean):
-  (((EmitCodeBuilder, IEmitCode) => Unit, (EmitCodeBuilder => SIndexablePointerCode))) = sType.constructFromFunctions(cb, region, length, deepCopy)
+  (((EmitCodeBuilder, IEmitCode) => Unit, (EmitCodeBuilder => SIndexablePointerCode))) = sType.constructFromFunctionsKnownLength(cb, region, length, deepCopy)
 
   def loadFromNested(addr: Code[Long]): Code[Long] = Region.loadAddress(addr)
 
