@@ -600,7 +600,8 @@ class SourceCopier:
                         n = this_part_size
                         while n > 0:
                             b = await srcf.read(min(Copier.BUFFER_SIZE, n))
-                            assert b
+                            if len(b) == 0:
+                                raise UnexpectedEOFError()
                             written = await destf.write(b)
                             assert written == len(b)
                             n -= len(b)
