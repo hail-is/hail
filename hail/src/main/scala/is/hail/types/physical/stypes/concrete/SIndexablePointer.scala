@@ -77,6 +77,57 @@ case class SIndexablePointer(pType: PContainer) extends SContainer {
     }
     (push, finish)
   }
+
+  def constructFromFunctionsUnknownLength(cb: EmitCodeBuilder, region: Value[Region], deepCopy: Boolean):
+  ((EmitCodeBuilder, IEmitCode) => Unit, EmitCodeBuilder => SIndexableCode) = {
+    val arrayPType: PCanonicalArray = pType match {
+      case t: PCanonicalArray => t
+      case t: PCanonicalSet => t.arrayRep
+      case t: PCanonicalDict => t.arrayRep
+    }
+
+    val capacity = cb.newLocal("spointer_construct_length", 8)
+    val addr = cb.newLocal[Long]("spointer_construct_addr", arrayPType.allocate(region, capacity))
+    cb += arrayPType.stagedInitialize(addr, capacity, setMissing = false)
+    val currentElementIndex = cb.newLocal[Int]("spointer_construct_current_idx", 0)
+    val currentElementAddress = cb.newLocal[Long]("spointer_construct_current_addr", arrayPType.firstElementOffset(addr, capacity))
+
+    val push: (EmitCodeBuilder, IEmitCode) => Unit = { (cb, iec) =>
+      cb.ifx(currentElementIndex.ceq(capacity), {
+        cb.assign(capacity, capacity * 2)
+        val newAddr = cb.newLocal("newaddr", arrayPType.allocate(region, capacity))
+        cb += arrayPType.storeLength(newAddr, capacity)
+        if (!arrayPType.elementType.required) {
+          cb += Region.copyFrom(addr + arrayPType.lengthHeaderBytes, newAddr + arrayPType.lengthHeaderBytes, arrayPType.nMissingBytes(currentElementIndex).toL)
+        }
+        cb += Region.copyFrom(arrayPType.firstElementOffset(addr, currentElementIndex), arrayPType.firstElementOffset(newAddr, capacity), arrayPType.elementByteSize * currentElementIndex)
+        cb.assign(addr, newAddr)
+        cb.assign(currentElementAddress, arrayPType.elementOffset(addr, capacity, currentElementIndex))
+      })
+      iec.consume(cb,
+        cb += arrayPType.setElementMissing(addr, currentElementIndex),
+        { sc =>
+          arrayPType.elementType.storeAtAddress(cb, currentElementAddress, region, sc, deepCopy = deepCopy)
+        })
+      cb.assign(currentElementIndex, currentElementIndex + 1)
+      cb.assign(currentElementAddress, currentElementAddress + arrayPType.elementByteSize)
+    }
+    val finish: (EmitCodeBuilder) => SIndexablePointerCode = { cb =>
+      cb.ifx(currentElementIndex.cne(capacity), {
+        val len = currentElementIndex
+        val newAddr = cb.newLocal("newaddr", arrayPType.allocate(region, len))
+        cb += arrayPType.stagedInitialize(newAddr, len, setMissing = false)
+        if (!arrayPType.elementType.required) {
+          cb += Region.copyFrom(addr + arrayPType.lengthHeaderBytes, newAddr + arrayPType.lengthHeaderBytes, arrayPType.nMissingBytes(len).toL)
+        }
+        cb += Region.copyFrom(arrayPType.firstElementOffset(addr, capacity), arrayPType.firstElementOffset(newAddr, len), arrayPType.elementByteSize * len)
+        cb.assign(addr, newAddr)
+      })
+      new SIndexablePointerCode(this, addr)
+    }
+
+    push -> finish
+  }
 }
 
 

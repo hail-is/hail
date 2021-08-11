@@ -72,7 +72,30 @@ case class SJavaArrayString(elementRequired: Boolean) extends SContainer {
           length.toS, ", calls=", i.toS))
       new SJavaArrayStringCode(this, arr)
     }
+    push -> finish
+  }
 
+  def constructFromFunctionsUnknownLength(cb: EmitCodeBuilder, region: Value[Region], deepCopy: Boolean):
+  ((EmitCodeBuilder, IEmitCode) => Unit, EmitCodeBuilder => SJavaArrayStringCode) = {
+    val arr = cb.newLocal("javastringarray2", Code.newArray[String](8))
+    val len = cb.newLocal[Int]("construct2_javastringarray_idx", 0)
+    val push: (EmitCodeBuilder, IEmitCode) => Unit = { (cb, iec) =>
+      cb.ifx(len.ceq(arr.length()), {
+        val narr = cb.newLocal("new_javastringarray2", Code.newArray[String](arr.length() * 2))
+        cb += Code.invokeStatic5[System, Array[String], Int, Array[String], Int, Int, Unit]("arraycopy", arr, 0, narr, 0, arr.length())
+        cb.assign(arr, narr)
+      })
+      iec.consume(cb, {}, { sc => cb += (arr(len) = sc.asString.loadString()) })
+      cb.assign(len, len + 1)
+    }
+    val finish: (EmitCodeBuilder => SJavaArrayStringCode) = { cb =>
+      cb.ifx(len.cne(arr.length()), {
+        val narr = cb.newLocal("final_javastringarray2", Code.newArray[String](len))
+        cb += Code.invokeStatic5[System, Array[String], Int, Array[String], Int, Int, Unit]("arraycopy", arr, 0, narr, 0, len)
+        cb.assign(arr, narr)
+      })
+      new SJavaArrayStringCode(this, arr)
+    }
     push -> finish
   }
 }

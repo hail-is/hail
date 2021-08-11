@@ -114,6 +114,7 @@ case class SStructOfArrays(virtualType: TContainer, elementsRequired: Boolean, f
   def containsPointers: Boolean = (!elementsRequired && LOOKUP_TYPE.containsPointers) || fields.exists(_.containsPointers)
 
   def constructFromFunctionsKnownLength(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean): ((EmitCodeBuilder, IEmitCode) => Unit, EmitCodeBuilder => SStructOfArraysCode) = ???
+  def constructFromFunctionsUnknownLength(cb: EmitCodeBuilder, region: Value[Region], deepCopy: Boolean): ((EmitCodeBuilder, IEmitCode) => Unit, EmitCodeBuilder => SIndexableCode) = ???
 
   def castRename(t: Type): SType = {
     val arrayType = t.asInstanceOf[TContainer]

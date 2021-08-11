@@ -12,6 +12,7 @@ trait SContainer extends SType {
   def elementEmitType: EmitType
   override def _typeWithRequiredness: TypeWithRequiredness = RIterable(elementEmitType.typeWithRequiredness.r)
   def constructFromFunctionsKnownLength(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean): ((EmitCodeBuilder, IEmitCode) => Unit, EmitCodeBuilder => SIndexableCode)
+  def constructFromFunctionsUnknownLength(cb: EmitCodeBuilder, region: Value[Region], deepCopy: Boolean): ((EmitCodeBuilder, IEmitCode) => Unit, EmitCodeBuilder => SIndexableCode)
 }
 
 trait SIndexableSettable extends SIndexableValue with SSettable
