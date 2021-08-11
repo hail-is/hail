@@ -599,22 +599,54 @@ object EmitStream {
             val keyType = pivotsVal.st.elementType.asInstanceOf[SBaseStruct]
             val keyFieldNames = keyType.virtualType.fields.map(_.name)
 
-            // Pass 1: count unique splitters.
-            // Pass 2: Copy each unique splitter into array. If it is seen twice, set a boolean in a parallel array for that
-            // splitter.
-            val numUniqueSplitters = ???
-            val splitterWasDuplicated = ??? // Same length as splitters, but full of booleans of whether it was initially duplicated.
-
-            val splitters = ??? // last element is duplicated, otherwise this is sorted without duplicates.
-            val l: Value[Int] = cb.newLocal[Int]("stream_dist_tree_height", Code.invokeStatic1[Math, Double, Double]("log", (pivotsVal.loadLength() + 1).toD).toI)
-
-            def lessThan(cb: EmitCodeBuilder, lelt: EmitValue, relt: EmitValue): Code[Boolean] = {
+            def compare(cb: EmitCodeBuilder, lelt: EmitValue, relt: EmitValue): Code[Int] = {
               val lhs = EmitCode.fromI(mb)(cb => lelt.toI(cb).map(cb)(_.asBaseStruct.subset(keyFieldNames: _*)))
               val rhs = EmitCode.fromI(mb)(cb => relt.toI(cb).map(cb)(_.asBaseStruct.subset(keyFieldNames: _*)))
               StructOrdering.make(lhs.st.asInstanceOf[SBaseStruct], rhs.st.asInstanceOf[SBaseStruct],
                 cb.emb.ecb, missingFieldsEqual = false)
-                .compare(cb, lhs, rhs, missingEqual = false) < 0
+                .compare(cb, lhs, rhs, missingEqual = false)
             }
+
+            def equal(cb: EmitCodeBuilder, lelt: EmitValue, relt: EmitValue): Code[Boolean] = compare(cb, lelt, relt) == 0
+
+            // Pass 1: count unique splitters.
+            val numUniqueSplitters = cb.newLocal[Int]("stream_distribute_num_unique_splitters")
+            val splittersIdx = cb.newLocal[Int]("stream_distribute_splitters_index")
+            val lastKeySeen = cb.emb.newEmitLocal("stream_distribute_last_seen", keyType, false)
+
+            cb.forLoop(cb.assign(splittersIdx, 0), splittersIdx < pivotsVal.loadLength(), cb.assign(splittersIdx, splittersIdx + 1), {
+              val currentSplitter = pivotsVal.loadElement(cb, splittersIdx).memoize(cb, "stream_distribute_current_splitter")
+              cb.ifx(splittersIdx ceq 0, {
+                cb.assign(numUniqueSplitters, numUniqueSplitters + 1)
+              }, {
+                cb.ifx(!equal(cb, lastKeySeen, currentSplitter), {
+                  cb.assign(numUniqueSplitters, numUniqueSplitters + 1)
+                })
+              })
+              cb.assign(lastKeySeen, currentSplitter)
+            })
+
+            // Pass 2: Copy each unique splitter into array. If it is seen twice, set a boolean in a parallel array for that
+            // splitter.
+            val splitterWasDuplicated = ??? // Same length as splitters, but full of booleans of whether it was initially duplicated.
+            val splitters: SIndexableValue = ??? // last element is duplicated, otherwise this is sorted without duplicates.
+            val tree: SIndexableValue = ??? // 0th element is garbage, tree elements start at idx 1.
+
+            cb.forLoop(cb.assign(splittersIdx, 0), ???, cb.assign(splittersIdx, splittersIdx + 1), {
+              val currentSplitter = pivotsVal.loadElement(cb, splittersIdx).memoize(cb, "stream_distribute_current_splitter")
+              cb.ifx(splittersIdx ceq 0, {
+                // set element at index 0 of splitters
+              }, {
+                cb.ifx(!equal(cb, lastKeySeen, currentSplitter), {
+                  // write to pos in splitters
+                }, {
+                  // Flip boolean in splittersWasDuplicated to true.
+                })
+              })
+            })
+
+            val l: Value[Int] = cb.newLocal[Int]("stream_dist_tree_height", (Code.invokeStatic1[Math, Double, Double]("log", (pivotsVal.loadLength() + 1).toD) / Math.log(2)).toI)
+            val k: Value[Int] = ???
 
             childStream.producer.memoryManagedConsume(outerRegion, cb, ???) { cb =>
               val b = cb.newLocal[Int]("stream_dist_b_i", 1)
@@ -623,25 +655,17 @@ object EmitStream {
 
               val r = cb.newLocal[Int]("stream_dist_r")
               cb.forLoop(cb.assign(r, 0), r < l, cb.assign(r, r + 1), {
-                cb.assign(b, const(2) * b + lessThan(cb, ???, current).toI)
-                cb.assign(b, const(2) * b + 1 - lessThan(current, ???).toI)
+                val treeAtB = tree.loadElement(cb, b).memoize(cb, "stream_dist_tree_b")
+                cb.assign(b, const(2) * b + (compare(cb, treeAtB, current) <= 0).toI)
+                //TODO: Need to use splitterWasDuplicated here to decide whether or not to actually move the element.
+                cb.assign(b, const(2) * b + 1 - (compare(cb, current, splitters.loadElement(cb, treeAtB.get(cb).asInt.intCode(cb) - k / 2).memoize(cb, "stream_dist_splitter_compare")) <= 0).toI)
               })
+
+              // Write current element to bucket b - k?
+              
             }
 
-//            cb.forLoop(???, ???, ???, { // In chunks of size u
-//              val b: SIndexableValue = bType.constructFromElements(cb, outerRegion, const(u), false) { (cb, idx) => IEmitCode.present(cb, new SInt32Code(1))}.memoize(cb, "stream_distribute_b")
-//
-//              // For each level of the tree:
-//              val r = cb.newLocal[Int]("stream_dist_r")
-//              val i = cb.newLocal[Int]("stream_dist_i")
-//              cb.forLoop(cb.assign(r, 0), r < l, cb.assign(r, r + 1), {
-//                cb.forLoop(cb.assign(i, 0), i < const(u), cb.assign(i, i + 1), {
-//
-//                })
-//              })
-//
-//            })
-//            ???
+            ???
           }
         }
       case StreamFilter(a, name, cond) =>
