@@ -1,14 +1,12 @@
 import hail as hl
 import hail.utils as utils
 
-from ...helpers import (fails_spark_backend, resource,
-                        startTestHailContext, stopTestHailContext)
+from ...helpers import resource, startTestHailContext, stopTestHailContext
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
 
 
-@fails_spark_backend()
 def test_pc_relate_2_against_R_truth():
     mt = hl.import_vcf(resource('pc_relate_bn_input.vcf.bgz'))
     hail_kin = hl.pc_relate_2(mt.GT, 0.00, k=2).checkpoint(utils.new_temp_file(extension='ht'))
@@ -27,7 +25,6 @@ def test_pc_relate_2_against_R_truth():
     assert r_kin.select("ibd2")._same(hail_kin.select("ibd2"), tolerance=1.3e-2, absolute=True)
 
 
-@fails_spark_backend()
 def test_pc_relate_2_simple_example():
     gs = hl.literal(
         [[0, 0, 0, 0, 1, 1, 1, 1],
@@ -41,18 +38,18 @@ def test_pc_relate_2_simple_example():
     pcr = hl.pc_relate_2(mt.GT, min_individual_maf=0, scores_expr=mt.scores)
 
     expected = [
-        hl.Struct(i=0, j=1, kin=0.04308803311427006,
-                  ibd0=0.8371964347601548, ibd1=0.1532549980226101, ibd2=0.009548567217235104),
-        hl.Struct(i=0, j=2, kin=-0.02924995111304614,
-                  ibd0=0.8758618068470698, ibd1=0.36527619075804485, ibd2=-0.24113799760511467),
-        hl.Struct(i=0, j=3, kin=0.06218009537126304,
-                  ibd0=0.8278359528633145, ibd1=0.09560771278831892, ibd2=0.07655633434836666),
+        hl.Struct(i=0, j=1, kin=0.04308803298231558,
+                  ibd0=0.8371964352879727, ibd1=0.1532549974947922, ibd2=0.009548567217235075),
+        hl.Struct(i=0, j=2, kin=-0.029249950986196833,
+                  ibd0=0.8758618063396726, ibd1=0.3652761912654421, ibd2=-0.24113799760511467),
+        hl.Struct(i=0, j=3, kin=0.062180094756721,
+                  ibd0=0.8278359553214827, ibd1=0.0956077103301507, ibd2=0.0765563343483666),
         hl.Struct(i=1, j=2, kin=0.08129469602400068,
                   ibd0=-0.1679632749787232, ibd1=2.010747765861444, ibd2=-0.8427844908827204),
-        hl.Struct(i=1, j=3, kin=0.06179990046708038,
-                  ibd0=0.8946584074678073, ibd1=-0.03651641680393625, ibd2=0.14185800933612888),
-        hl.Struct(i=2, j=3, kin=-0.012863506769063277,
-                  ibd0=0.7395091389950708, ibd1=0.5724357490861116, ibd2=-0.31194488808118237)
+        hl.Struct(i=1, j=3, kin=0.061799900251363615,
+                  ibd0=0.8946584083306744, ibd1=-0.03651641766680336, ibd2=0.1418580093361289),
+        hl.Struct(i=2, j=3, kin=-0.012863506706340053,
+                  ibd0=0.7395091387441779, ibd1=0.5724357493370045, ibd2=-0.31194488808118237)
     ]
     ht_expected = hl.Table.parallelize(expected)
     ht_expected = ht_expected.key_by(i=hl.struct(col_idx=ht_expected.i),
@@ -60,7 +57,6 @@ def test_pc_relate_2_simple_example():
     assert ht_expected._same(pcr)
 
 
-@fails_spark_backend()
 def test_pc_relate_2_paths():
     mt = hl.balding_nichols_model(3, 50, 100)
     _, scores3, _ = hl._hwe_normalized_blanczos(mt.GT, k=3, compute_loadings=False, q_iterations=10)
@@ -69,7 +65,7 @@ def test_pc_relate_2_paths():
     kin2 = hl.pc_relate_2(mt.GT, 0.05, k=2, min_kinship=0.01, statistics='kin2', block_size=128).cache()
     kin3 = hl.pc_relate_2(mt.GT, 0.02, k=3, min_kinship=0.1, statistics='kin20', block_size=64).cache()
     kin_s1 = hl.pc_relate_2(mt.GT, 0.10, scores_expr=scores3[mt.col_key].scores[:2],
-                            statistics='kin', block_size=64)
+                            statistics='kin', block_size=32)
 
     assert kin1._same(kin_s1, tolerance=1e-4)
 
@@ -82,7 +78,6 @@ def test_pc_relate_2_paths():
     assert kin3.filter(kin3.kin < 0.1).count() == 0
 
 
-@fails_spark_backend()
 def test_self_kinship():
     mt = hl.balding_nichols_model(3, 10, 50)
     with_self = hl.pc_relate_2(mt.GT, 0.10, k=2, statistics='kin20', block_size=16, include_self_kinship=True)
@@ -102,7 +97,6 @@ def test_self_kinship():
     assert without_self_self_kin_only.count() == 0, without_self_self_kin_only.collect()
 
 
-@fails_spark_backend()
 def test_pc_relate_issue_5263():
     mt = hl.balding_nichols_model(3, 50, 100)
     expected = hl.pc_relate_2(mt.GT, 0.10, k=2, statistics='all')
