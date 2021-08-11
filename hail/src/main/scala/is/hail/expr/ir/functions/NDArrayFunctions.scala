@@ -56,7 +56,7 @@ object  NDArrayFunctions extends RegistryFunctions {
       val infoDTRTRSResult = cb.newLocal[Int]("dtrtrs_result")
 
       val outputPType = coerce[PCanonicalNDArray](outputPt)
-      val output = outputPType.constructByActuallyCopyingData(ndDepColMajor, cb, region).memoize(cb, "triangular_solve_output")
+      val output = outputPType.constructByActuallyCopyingData(ndDepColMajor, cb, region)
 
       cb.assign(infoDTRTRSResult, Code.invokeScalaObject9[String, String, String, Int, Int, Long, Int, Long, Int, Int](LAPACK.getClass, "dtrtrs",
         uplo,
@@ -73,7 +73,7 @@ object  NDArrayFunctions extends RegistryFunctions {
       (output.get, infoDTRTRSResult)
     }
 
-    def linear_solve(a: SNDArrayCode, b: SNDArrayCode, outputPt: PType, cb: EmitCodeBuilder, region: Value[Region], errorID: Value[Int]): (SNDArrayCode, Value[Int]) = {
+    def linear_solve(a: SNDArrayCode, b: SNDArrayCode, outputPt: PType, cb: EmitCodeBuilder, region: Value[Region], errorID: Value[Int]): (SNDArrayValue, Value[Int]) = {
       val aInput = a.asNDArray.memoize(cb, "A")
       val bInput = b.asNDArray.memoize(cb, "B")
 

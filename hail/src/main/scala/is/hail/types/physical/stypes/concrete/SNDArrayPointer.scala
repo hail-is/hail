@@ -64,32 +64,23 @@ object SNDArrayPointerSettable {
   }
 }
 
-class SNDArrayPointerSettable(
-   val st: SNDArrayPointer,
-   val a: Settable[Long],
-   val shape: IndexedSeq[Settable[Long]],
-   val strides: IndexedSeq[Settable[Long]],
-   val dataFirstElement: Settable[Long]
- ) extends SNDArraySettable {
+class SNDArrayPointerValue(
+  val st: SNDArrayPointer,
+  val a: Value[Long],
+  val shape: IndexedSeq[Value[Long]],
+  val strides: IndexedSeq[Value[Long]],
+  val dataFirstElement: Value[Long]
+) extends SNDArrayValue {
   val pt: PCanonicalNDArray = st.pType
 
-  def loadElementAddress(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Long] = {
+  override def loadElementAddress(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Long] = {
     assert(indices.size == pt.nDims)
     pt.loadElementFromDataAndStrides(cb, indices, dataFirstElement, strides)
   }
 
-  def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SCode = {
+  override def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SCode = {
     assert(indices.size == pt.nDims)
     pt.elementType.loadCheapSCode(cb, loadElementAddress(indices, cb))
-  }
-
-  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a) ++ shape ++ strides ++ FastIndexedSeq(dataFirstElement)
-
-  def store(cb: EmitCodeBuilder, v: SCode): Unit = {
-    cb.assign(a, v.asInstanceOf[SNDArrayPointerCode].a)
-    pt.loadShapes(cb, a, shape)
-    pt.loadStrides(cb, a, strides)
-    cb.assign(dataFirstElement, pt.dataFirstElementPointer(a))
   }
 
   override def get: SNDArrayPointerCode = new SNDArrayPointerCode(st, a)
@@ -98,9 +89,9 @@ class SNDArrayPointerSettable(
 
   override def strides(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = strides
 
-  def firstDataAddress(cb: EmitCodeBuilder): Value[Long] = dataFirstElement
+  override def firstDataAddress(cb: EmitCodeBuilder): Value[Long] = dataFirstElement
 
-  def coiterateMutate(
+  override def coiterateMutate(
     cb: EmitCodeBuilder,
     region: Value[Region],
     deepCopy: Boolean,
@@ -116,6 +107,23 @@ class SNDArrayPointerSettable(
       }
       pt.elementType.storeAtAddress(cb, ptrs.head, region, body(codes), deepCopy)
     }
+  }
+}
+
+class SNDArrayPointerSettable(
+  st: SNDArrayPointer,
+  a: Settable[Long],
+  shape: IndexedSeq[Settable[Long]],
+  strides: IndexedSeq[Settable[Long]],
+  dataFirstElement: Settable[Long]
+ ) extends SNDArrayPointerValue(st, a, shape, strides, dataFirstElement) with SNDArraySettable {
+  override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a) ++ shape ++ strides ++ FastIndexedSeq(dataFirstElement)
+
+  override def store(cb: EmitCodeBuilder, v: SCode): Unit = {
+    cb.assign(a, v.asInstanceOf[SNDArrayPointerCode].a)
+    pt.loadShapes(cb, a, shape)
+    pt.loadStrides(cb, a, strides)
+    cb.assign(dataFirstElement, pt.dataFirstElementPointer(a))
   }
 }
 

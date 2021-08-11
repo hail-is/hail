@@ -52,7 +52,7 @@ object LinalgCodeUtils {
 
     val (dataFirstElementAddress, dataFinisher) = pt.constructDataFunction(shape, strides, cb, region)
     // construct an SNDArrayCode with undefined contents
-    val result = dataFinisher(cb).memoize(cb, "col_major_result")
+    val result = dataFinisher(cb)
 
     result.coiterateMutate(cb, region, (pndv.get, "pndv")) { case Seq(l, r) => r }
     result.get
