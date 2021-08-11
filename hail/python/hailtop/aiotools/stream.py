@@ -135,7 +135,7 @@ def blocking_writable_stream_to_async(thread_pool: ThreadPoolExecutor, f: Binary
 
 
 class _Closable:
-    def __init__(self, ):
+    def __init__(self):
         super().__init__()
         self._closed = False
 
