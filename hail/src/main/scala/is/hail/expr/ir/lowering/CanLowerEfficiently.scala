@@ -45,11 +45,11 @@ object CanLowerEfficiently {
             child.typ.key.zip(keys).takeWhile { case (l, r) => l == r }.isEmpty
           if (doesStrangeDNDArrayOneToOneRekey)
             fail(s"TableKeyBy cannot lower the one-to-one rekey done in dndarrays")
+        case t: TableOrderBy =>
         case t: TableFilter =>
-        case t: TableHead => fail("TableHead has no short-circuit using known partition counts")
+        case t: TableHead =>
         case t: TableTail => fail("TableTail has no short-circuit using known partition counts")
         case t: TableJoin if t.joinType == "inner" =>
-          fail("TableJoin with inner join generates a stream that iterates over the entire left stream (no early truncation)")
         case t: TableJoin =>
         case t: TableIntervalJoin => fail(s"TableIntervalJoin has no lowered implementation")
         case t: TableMultiWayZipJoin =>
