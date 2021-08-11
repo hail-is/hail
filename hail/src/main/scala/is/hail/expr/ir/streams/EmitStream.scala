@@ -591,6 +591,31 @@ object EmitStream {
             SStreamCode(producer)
           }
         }
+      case StreamDistribute(child, pivots, pathPrefix) =>
+        emit(pivots, cb).flatMap(cb){ case pivotsCode: SIndexableCode =>
+          produce(child, cb).map(cb) { case childStream: SStreamCode =>
+            val pivotsVal = pivotsCode.memoize(cb, "stream_dist_pivots")
+
+            val splitters = ??? // last element is duplicated, otherwise this is sorted without duplicates.
+            val l: Value[Int] = cb.newLocal[Int]("stream_dist_tree_height", Code.invokeStatic1[Math, Double, Double]("log", (pivotsVal.loadLength() + 1).toD).toI)
+            val bType = PCanonicalArray(PInt32Required, true)
+            
+            cb.forLoop(???, ???, ???, { // In chunks of size u
+              val b: SIndexableValue = bType.constructFromElements(cb, outerRegion, const(u), false) { (cb, idx) => IEmitCode.present(cb, new SInt32Code(1))}.memoize(cb, "stream_distribute_b")
+
+              // For each level of the tree:
+              val r = cb.newLocal[Int]("stream_dist_r")
+              val i = cb.newLocal[Int]("stream_dist_i")
+              cb.forLoop(cb.assign(r, 0), r < l, cb.assign(r, r + 1), {
+                cb.forLoop(cb.assign(i, 0), i < const(u), cb.assign(i, i + 1), {
+
+                })
+              })
+
+            })
+            ???
+          }
+        }
       case StreamFilter(a, name, cond) =>
         produce(a, cb)
           .map(cb) { case (childStream: SStreamCode) =>
