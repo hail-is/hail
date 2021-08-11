@@ -254,6 +254,7 @@ class LocalBackend(Backend[None]):
                 code += [x for r in job._mentioned for x in symlink_input_resource_group(r)]
 
                 env = {**job._env, 'BATCH_TMPDIR': tmpdir}
+                env = [f'export {k}={v}' for k, v in env.items()]
                 joined_env = '; '.join(env) + '; ' if env else ''
 
                 job_shell = job._shell if job._shell else DEFAULT_SHELL
