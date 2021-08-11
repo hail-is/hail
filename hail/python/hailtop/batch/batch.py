@@ -488,6 +488,10 @@ class Batch:
                                  f"Hint: resources must be bound as a result "
                                  f"using the PythonJob 'call' method")
 
+        if isinstance(self._backend, _backend.LocalBackend):
+            if not dest.startswith('gs://'):
+                dest = os.path.abspath(dest)
+
         resource._add_output_path(dest)
 
     def select_jobs(self, pattern: str) -> List[job.Job]:
