@@ -1,4 +1,5 @@
 from typing import List, Optional, Tuple, Type
+from sortedcontainers import SortedKeyList
 from types import TracebackType
 import asyncio
 
@@ -23,16 +24,18 @@ class WeightedSemaphore:
     def __init__(self, value: int):
         self.max = value
         self.value = value
-        self.events: List[Tuple[int, asyncio.Event]] = []
+        self.events: SortedKeyList[Tuple[int, asyncio.Event]] = SortedKeyList(key=lambda x: x[0])
 
     def release(self, n: int) -> None:
         self.value += n
         while self.events:
-            n, event = self.events[-1]
-            if n >= self.value:
-                self.events.pop()
+            n, event = self.events[0]
+            if self.value >= n:
+                self.events.pop(0)
                 self.value -= n
                 event.set()
+            else:
+                break
 
     def acquire_manager(self, n: int) -> _AcquireManager:
         return _AcquireManager(self, n)
@@ -44,5 +47,5 @@ class WeightedSemaphore:
             return
 
         event = asyncio.Event()
-        self.events.append((n, event))
+        self.events.add((n, event))
         await event.wait()
