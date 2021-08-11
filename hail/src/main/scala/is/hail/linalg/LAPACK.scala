@@ -5,7 +5,6 @@ import java.util.function._
 
 import com.sun.jna.{FunctionMapper, Library, Native, NativeLibrary}
 import com.sun.jna.ptr.IntByReference
-import is.hail.HailContext
 
 import scala.util.{Failure, Success, Try}
 import is.hail.utils._
@@ -21,25 +20,28 @@ class UnderscoreFunctionMapper extends FunctionMapper {
 object LAPACK {
   private[this] val libraryInstance = ThreadLocal.withInitial(new Supplier[LAPACKLibrary]() {
     def get() = {
-      val library_name = if (HailContext.isInitialized && HailContext.getFlag("mkl_path") != null) {
-        NativeLibrary.addSearchPath("mkl_rt", HailContext.getFlag("mkl_path"))
-        "mkl_rt"
+      val mklEnvVar = "HAIL_MKL_PATH"
+      val libraryName = if (sys.env.contains(mklEnvVar)) {
+        val mklDir = sys.env(mklEnvVar)
+        val mklLibName = "mkl_rt"
+        NativeLibrary.addSearchPath(mklLibName, mklDir)
+        mklLibName
       } else {
         "lapack"
       }
-      val standard = Native.loadLibrary(library_name, classOf[LAPACKLibrary]).asInstanceOf[LAPACKLibrary]
+      val standard = Native.loadLibrary(libraryName, classOf[LAPACKLibrary]).asInstanceOf[LAPACKLibrary]
 
       versionTest(standard) match {
         case Success(version) =>
-          log.info(s"Imported LAPACK library ${library_name}, version ${version}, with standard names")
+          log.info(s"Imported LAPACK library ${libraryName}, version ${version}, with standard names")
           standard
         case Failure(exception) =>
           val underscoreAfterMap = new java.util.HashMap[String, FunctionMapper]()
           underscoreAfterMap.put(Library.OPTION_FUNCTION_MAPPER, new UnderscoreFunctionMapper)
-          val underscoreAfter = Native.loadLibrary(library_name, classOf[LAPACKLibrary], underscoreAfterMap).asInstanceOf[LAPACKLibrary]
+          val underscoreAfter = Native.loadLibrary(libraryName, classOf[LAPACKLibrary], underscoreAfterMap).asInstanceOf[LAPACKLibrary]
           versionTest(underscoreAfter) match {
             case Success(version) =>
-              log.info(s"Imported LAPACK library ${library_name}, version ${version}, with underscore names")
+              log.info(s"Imported LAPACK library ${libraryName}, version ${version}, with underscore names")
               underscoreAfter
             case Failure(exception) =>
               throw exception
