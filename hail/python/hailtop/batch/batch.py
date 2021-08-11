@@ -490,7 +490,7 @@ class Batch:
 
         if isinstance(self._backend, _backend.LocalBackend):
             if not dest.startswith('gs://'):
-                dest = os.path.abspath(dest)
+                dest = os.path.abspath(os.path.expanduser(dest))
 
         resource._add_output_path(dest)
 
