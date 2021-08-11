@@ -310,7 +310,15 @@ class GetObjectStream(ReadableStream):
 
     async def read(self, n: int = -1) -> bytes:
         assert not self._closed
-        return await self._content.read(n)
+        data = bytearray()
+        while n == -1 or n > 0:
+            b = await self._content.read(n)
+            if not b:
+                break
+            data.extend(b)
+            if n != -1:
+                n -= len(b)
+        return bytes(data)
 
     def headers(self) -> 'CIMultiDictProxy[str]':
         return self._resp.headers
