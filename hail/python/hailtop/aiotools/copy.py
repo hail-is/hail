@@ -33,7 +33,7 @@ def filesystem_from_scheme(scheme, thread_pool=None, gcs_params=None):
     if scheme == 's3':
         assert thread_pool is not None
         return S3AsyncFS(thread_pool)
-    raise ValueError(f'Unrecognized scheme {scheme}')
+    raise ValueError(f'Unsupported scheme: {scheme}')
 
 
 async def copy(requester_pays_project: Optional[str],
