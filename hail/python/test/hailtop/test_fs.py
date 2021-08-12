@@ -1,21 +1,17 @@
 import random
-from typing import Optional
 import os
 import secrets
-import shutil
-from itertools import accumulate
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import pytest
-import concurrent
-import urllib.parse
 from hailtop.utils import secret_alnum_string
 from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS, UnexpectedEOFError
 from hailtop.aiotools.s3asyncfs import S3AsyncFS
+from hailtop.aiotools.azurefs import AzureAsyncFS
 from hailtop.aiogoogle import GoogleStorageAsyncFS
 
 
-@pytest.fixture(params=['file', 'gs', 's3', 'router/file', 'router/gs', 'router/s3'])
+@pytest.fixture(params=['file', 'gs', 's3', 'hail-az', 'router/file', 'router/gs', 'router/s3', 'router/hail-az'])
 async def filesystem(request):
     token = secret_alnum_string()
 
@@ -24,24 +20,31 @@ async def filesystem(request):
             fs = RouterAsyncFS(
                 'file', [LocalAsyncFS(thread_pool),
                          GoogleStorageAsyncFS(),
-                         S3AsyncFS(thread_pool)])
+                         S3AsyncFS(thread_pool),
+                         AzureAsyncFS()])
         elif request.param == 'file':
             fs = LocalAsyncFS(thread_pool)
         elif request.param.endswith('gs'):
             fs = GoogleStorageAsyncFS()
-        else:
-            assert request.param.endswith('s3')
+        elif request.param.endswith('s3'):
             fs = S3AsyncFS(thread_pool)
+        else:
+            assert request.param.endswith('hail-az')
+            fs = AzureAsyncFS()
         async with fs:
             if request.param.endswith('file'):
                 base = f'/tmp/{token}/'
             elif request.param.endswith('gs'):
                 bucket = os.environ['HAIL_TEST_GCS_BUCKET']
                 base = f'gs://{bucket}/tmp/{token}/'
-            else:
-                assert request.param.endswith('s3')
+            elif request.param.endswith('s3'):
                 bucket = os.environ['HAIL_TEST_S3_BUCKET']
                 base = f's3://{bucket}/tmp/{token}/'
+            else:
+                assert request.param.endswith('hail-az')
+                account = os.environ['HAIL_TEST_AZURE_ACCOUNT']
+                container = os.environ['HAIL_TEST_AZURE_CONTAINER']
+                base = f'hail-az://{account}/{container}/tmp/{token}/'
 
             await fs.mkdir(base)
             sema = asyncio.Semaphore(50)
