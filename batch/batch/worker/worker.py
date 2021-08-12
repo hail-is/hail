@@ -1487,10 +1487,6 @@ class JVMJob(Job):
         assert job_spec['process']['type'] == 'jvm'
         assert worker is not None
 
-        self.jvm = worker.jvms.pop()
-        self.jvm_name = str(self.jvm)
-        self.scratch = self.jvm.root_dir
-
         input_files = job_spec.get('input_files')
         output_files = job_spec.get('output_files')
         if input_files or output_files:
@@ -1508,15 +1504,22 @@ class JVMJob(Job):
         self.state = 'pending'
         self.log: Optional[str] = None
 
+        self.jvm = None
+        self.jvm_name = None
+
     def step(self, name):
         return self.timings.step(name)
 
     async def run(self, worker):
-        assert self.jvm is not None
         async with worker.cpu_sem(self.cpu_in_mcpu):
             self.start_time = time_msecs()
 
             try:
+                with self.step('connecting_to_jvm'):
+                    self.jvm = await worker.borrow_jvm()
+                    self.jvm_name = str(self.jvm)
+                    self.scratch = self.jvm.root_dir
+
                 self.task_manager.ensure_future(worker.post_job_started(self))
 
                 log.info(f'{self}: initializing')
@@ -1579,7 +1582,7 @@ class JVMJob(Job):
             # I really want this to be a timed step but I can't skip this ITS CLEAN UP
             # with self.step('retrieve_output'):
             self.log = self.jvm.retrieve_and_clear_output()
-            worker.jvms.append(self.jvm)
+            worker.return_jvm(self.jvm)
             self.jvm = None
 
         if self.log is not None:
@@ -1971,7 +1974,20 @@ class Worker:
         self.headers = None
         self.compute_client = None
 
+        self.jvm_initializer_task = asyncio.ensure_future(self._initialize_jvms())
         self.jvms: List[JVM] = []
+
+    async def _initialize_jvms(self):
+        self.jvms = asyncio.gather(*[JVM.create(i) for i in range(CORES)])
+        log.info(f'JVMs initialized {self.jvms}')
+
+    async def borrow_jvm(self) -> JVM:
+        await self.jvm_initializer_task
+        assert self.jvms
+        return self.jvms.pop()
+
+    def return_jvm(self, jvm: JVM):
+        self.jvms.append(jvm)
 
     async def shutdown(self):
         self.task_manager.shutdown()
@@ -2098,11 +2114,7 @@ class Worker:
         )
 
         try:
-            _, jvms = await asyncio.gather(
-                asyncio.wait_for(self.activate(), MAX_IDLE_TIME_MSECS / 1000),
-                asyncio.gather(*[JVM.create(i) for i in range(CORES)]))
-            self.jvms = jvms
-            log.info(f'JVMs initialized {self.jvms}')
+            await asyncio.wait_for(self.activate(), MAX_IDLE_TIME_MSECS / 1000)
         except asyncio.TimeoutError:
             log.exception(f'could not activate after trying for {MAX_IDLE_TIME_MSECS} ms, exiting')
             return
@@ -2260,6 +2272,7 @@ class Worker:
             headers={'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {os.environ["ACTIVATION_TOKEN"]}'},
         )
         resp_json = await resp.json()
+        self.last_updated = time_msecs()
 
         with open('/worker-key.json', 'w') as f:
             f.write(json.dumps(resp_json['key']))
@@ -2280,6 +2293,7 @@ class Worker:
             headers={'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {os.environ["ACTIVATION_TOKEN"]}'},
         )
         resp_json = await resp.json()
+        self.last_updated = time_msecs()
 
         self.headers = {'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {resp_json["token"]}'}
         self.active = True
