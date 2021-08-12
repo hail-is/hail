@@ -98,7 +98,7 @@ class Job:
         def safe_str(s):
             new_s = ''
             for c in s:
-                if c.isalnum():
+                if c.isalnum() or c == '-':
                     new_s += c
                 else:
                     new_s += '_'
