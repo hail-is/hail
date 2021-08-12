@@ -3101,7 +3101,7 @@ class Table(ExprContainer):
             entries = hl.array([hl.struct(**{entry_field_name: field}) for field in fields])
 
         t = self.transmute(entries=entries)
-        t = t.annotate_globals(cols=hl.array([hl.struct(**{col_field_name: col}) for col in columns]))
+        t = t.annotate_globals(cols=hl.array(columns).map(lambda col: hl.struct(**{col_field_name: col})))
         return t._unlocalize_entries('entries', 'cols', [col_field_name])
 
     @property
