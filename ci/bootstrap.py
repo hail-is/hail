@@ -152,7 +152,7 @@ class LocalBatchBuilder:
                     '/usr/bin/python3',
                     BATCH_WORKER_IMAGE,
                     '-m',
-                    'batch.copy',
+                    'hailtop.aiotools.copy',
                     json.dumps(None),
                     json.dumps(files),
                 )
@@ -285,7 +285,7 @@ users:
                         '/usr/bin/python3',
                         BATCH_WORKER_IMAGE,
                         '-m',
-                        'batch.copy',
+                        'hailtop.aiotools.copy',
                         json.dumps(None),
                         json.dumps(files),
                     )

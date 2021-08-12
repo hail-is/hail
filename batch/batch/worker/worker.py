@@ -982,7 +982,7 @@ def copy_container(job, name, files, volume_mounts, cpu, memory, scratch, reques
         'command': [
             '/usr/bin/python3',
             '-m',
-            'batch.copy',
+            'hailtop.aiotools.copy',
             json.dumps(requester_pays_project),
             json.dumps(files),
         ],
