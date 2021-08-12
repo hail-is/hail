@@ -100,7 +100,7 @@ case class SIndexablePointer(pType: PContainer) extends SContainer {
         if (!arrayPType.elementType.required) {
           cb += Region.copyFrom(addr + arrayPType.lengthHeaderBytes, newAddr + arrayPType.lengthHeaderBytes, arrayPType.nMissingBytes(currentElementIndex).toL)
         }
-        cb += Region.copyFrom(arrayPType.firstElementOffset(addr, currentElementIndex), arrayPType.firstElementOffset(newAddr, capacity), arrayPType.elementByteSize * currentElementIndex)
+        cb += Region.copyFrom(arrayPType.firstElementOffset(addr, currentElementIndex), arrayPType.firstElementOffset(newAddr, capacity), const(arrayPType.elementByteSize) * currentElementIndex.toL)
         cb.assign(addr, newAddr)
         cb.assign(currentElementAddress, arrayPType.elementOffset(addr, capacity, currentElementIndex))
       })
@@ -120,7 +120,7 @@ case class SIndexablePointer(pType: PContainer) extends SContainer {
         if (!arrayPType.elementType.required) {
           cb += Region.copyFrom(addr + arrayPType.lengthHeaderBytes, newAddr + arrayPType.lengthHeaderBytes, arrayPType.nMissingBytes(len).toL)
         }
-        cb += Region.copyFrom(arrayPType.firstElementOffset(addr, capacity), arrayPType.firstElementOffset(newAddr, len), arrayPType.elementByteSize * len)
+        cb += Region.copyFrom(arrayPType.firstElementOffset(addr, capacity), arrayPType.firstElementOffset(newAddr, len), const(arrayPType.elementByteSize) * len.toL)
         cb.assign(addr, newAddr)
       })
       new SIndexablePointerCode(this, addr)
