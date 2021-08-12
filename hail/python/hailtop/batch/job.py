@@ -96,12 +96,13 @@ class Job:
         self._dependencies: Set[Job] = set()
 
         def safe_str(s):
-            new_s = ''
+            new_s = []
             for c in s:
                 if c.isalnum() or c == '-':
-                    new_s += c
+                    new_s.append(c)
                 else:
-                    new_s += '_'
+                    new_s.append('_')
+            return ''.join(new_s)
 
         self._dirname = f'{safe_str(name)}-{self._token}' if name else self._token
 
@@ -420,19 +421,6 @@ class Job:
 
     async def _compile(self, local_tmpdir, remote_tmpdir, *, dry_run=False):
         raise NotImplementedError
-
-    def _process_command(self, command, handler):  # pylint: disable=no-self-use
-        regexes = [_resource.ResourceFile._regex_pattern,
-                   _resource.ResourceGroup._regex_pattern,
-                   _resource.PythonResult._regex_pattern,
-                   Job._regex_pattern,
-                   batch.Batch._regex_pattern]
-
-        subst_command = re.sub('(' + ')|('.join(regexes) + ')',
-                               handler,
-                               command)
-
-        return subst_command
 
     def _interpolate_command(self, command, allow_python_results=False):
         def handler(match_obj):
