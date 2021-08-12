@@ -9,7 +9,7 @@ import is.hail.io.fs.FS
 import is.hail.rvd.RVDContext
 import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeType, StreamSingleCodeType}
 import is.hail.types.physical.stypes.interfaces.SStream
-import is.hail.types.physical.{PStream, PStruct, PType}
+import is.hail.types.physical.{PStruct, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils._
 
@@ -208,8 +208,7 @@ object CompileIterator {
 
       val env = EmitEnv(Env.empty, argTypeInfo.indices.filter(i => argTypeInfo(i).isInstanceOf[EmitParamType]).map(i => stepF.storeEmitParam(i + 1, cb)))
       val optStream = EmitCode.fromI(stepF)(cb => EmitStream.produce(emitter, ir, cb, outerRegion, env, None))
-      returnType = optStream.st.asInstanceOf[SStream].elementEmitType.canonicalPType.setRequired(true)
-      val returnPType = optStream.st.asInstanceOf[SStream].elementType.canonicalPType()
+      returnType = optStream.st.asInstanceOf[SStream].elementEmitType.storageType.setRequired(true)
 
       elementAddress = stepF.genFieldThisRef[Long]("elementAddr")
 
@@ -248,7 +247,7 @@ object CompileIterator {
 
       stepF.implementLabel(producer.LproduceElementDone) { cb =>
         val pc = producer.element.toI(cb).get(cb)
-        cb.assign(elementAddress, returnPType.store(cb, producer.elementRegion, pc, false))
+        cb.assign(elementAddress, returnType.store(cb, producer.elementRegion, pc, false))
         cb.assign(ret, true)
         cb.goto(Lreturn)
       }
@@ -266,17 +265,17 @@ object CompileIterator {
 
   def forTableMapPartitions(
     ctx: ExecuteContext,
-    typ0: PStruct, typ1: PStream,
+    typ0: PStruct, streamElementType: PType,
     ir: IR
   ): (PType, (FS, Int, RVDContext, Long, streams.StreamArgType) => Iterator[java.lang.Long]) = {
     assert(typ0.required)
-    assert(typ1.required)
+    assert(streamElementType.required)
     val (eltPType, makeStepper) = compileStepper[TMPStepFunction](
       ctx, ir,
       Array[ParamType](
         CodeParamType(typeInfo[Object]),
         SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(typ0)),
-        SingleCodeEmitParamType(true, StreamSingleCodeType(true, typ1.elementType))),
+        SingleCodeEmitParamType(true, StreamSingleCodeType(true, streamElementType))),
       None)
     (eltPType, (fs, idx, consumerCtx, v0, part) => {
       val stepper = makeStepper(fs, idx, consumerCtx.partitionRegion)

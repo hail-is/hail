@@ -581,6 +581,39 @@ class ArrayRef(IR):
         self._type = self.a.typ.element_type
 
 
+class ArraySlice(IR):
+    @typecheck_method(a=IR, start=IR, stop=nullable(IR), step=IR, error_id=nullable(int), stack_trace=nullable(str))
+    def __init__(self, a, start, stop, step, error_id=None, stack_trace=None):
+        if stop is not None:
+            super().__init__(a, start, stop, step)
+        else:
+            super().__init__(a, start, step)
+
+        self.a = a
+        self.start = start
+        self.stop = stop
+        self.step = step
+        self._error_id = error_id
+        self._stack_trace = stack_trace
+        if error_id is None or stack_trace is None:
+            self.save_error_info()
+
+    @typecheck_method(a=IR, start=IR, stop=nullable(IR), step=IR)
+    def copy(self, a, start, stop, step):
+        return ArraySlice(a, start, stop, step, self._error_id, self._stack_trace)
+
+    def head_str(self):
+        return str(self._error_id)
+
+    def _compute_type(self, env, agg_env):
+        self.a._compute_type(env, agg_env)
+        self.start._compute_type(env, agg_env)
+        if self.stop is not None:
+            self.stop._compute_type(env, agg_env)
+        self.step._compute_type(env, agg_env)
+        self._type = self.a.typ
+
+
 class ArrayLen(IR):
     @typecheck_method(a=IR)
     def __init__(self, a):
@@ -2069,6 +2102,26 @@ class Die(IR):
 
     def _compute_type(self, env, agg_env):
         self._type = self._typ
+
+    @staticmethod
+    def is_effectful() -> bool:
+        return True
+
+
+class ConsoleLog(IR):
+    @typecheck_method(message=IR, result=IR)
+    def __init__(self, message, result):
+        super().__init__(message, result)
+        self.message = message
+        self.result = result
+
+    def _compute_type(self, env, agg_env):
+        self.message._compute_type(env, agg_env)
+        self.result._compute_type(env, agg_env)
+        self._type = self.result._type
+
+    def copy(self, message, result):
+        return ConsoleLog(message, result)
 
     @staticmethod
     def is_effectful() -> bool:

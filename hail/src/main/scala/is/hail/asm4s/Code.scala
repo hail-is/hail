@@ -354,9 +354,10 @@ object Code {
   }
 
   private def getEmitLineNum: Int = {
-    val st = Thread.currentThread().getStackTrace
-    val i = st.indexWhere(ste => ste.getFileName == "Emit.scala")
-    if (i == -1) 0 else st(i).getLineNumber
+//    val st = Thread.currentThread().getStackTrace
+//    val i = st.indexWhere(ste => ste.getFileName == "Emit.scala")
+//    if (i == -1) 0 else st(i).getLineNumber
+    0
   }
 
   def _throw[T <: java.lang.Throwable, U](cerr: Code[T])(implicit uti: TypeInfo[U]): Code[U] =
@@ -923,6 +924,12 @@ class CodeLong(val lhs: Code[Long]) extends AnyVal {
   def >(rhs: Code[Long]): Code[Boolean] = compare(rhs) > 0
 
   def >=(rhs: Code[Long]): Code[Boolean] = compare(rhs) >= 0
+
+  def max(rhs: Code[Long]): Code[Long] =
+    Code.invokeStatic2[Math, Long, Long, Long]("max", lhs, rhs)
+
+  def min(rhs: Code[Long]): Code[Long] =
+    Code.invokeStatic2[Math, Long, Long, Long]("min", lhs, rhs)
 
   def ceq(rhs: Code[Long]): Code[Boolean] = compare(rhs) ceq 0
 

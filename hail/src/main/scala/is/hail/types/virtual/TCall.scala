@@ -16,8 +16,6 @@ case object TCall extends Type {
   }
   val representation: Type = TInt32
 
-  override def fundamentalType: Type = representation.fundamentalType
-
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Int]
 
   override def genNonmissingValue: Gen[Annotation] = Call.genNonmissingValue

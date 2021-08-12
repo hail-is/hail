@@ -3,6 +3,10 @@
 Change Log
 ==========
 
+**Version 0.2.74**
+
+- Large job commands are now written to GCS to avoid Linux argument length and number limitations.
+
 **Version 0.2.72**
 
 - Made failed Python Jobs have non-zero exit codes.

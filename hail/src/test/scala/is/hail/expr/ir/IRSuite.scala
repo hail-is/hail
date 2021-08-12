@@ -791,73 +791,6 @@ class IRSuite extends HailSuite {
     assert(res == PCanonicalArray(PCanonicalArray(PInt32(false), false), false))
   }
 
-  @Test def testGetNestedPStream() {
-    var types = Seq(PCanonicalStream(PInt32(true), required = true))
-    var res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PInt32(true), required = true))
-
-    types = Seq(PCanonicalStream(PInt32(true), required = false))
-    res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PInt32(true), required = false))
-
-    types = Seq(PCanonicalStream(PInt32(false), required = true))
-    res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PInt32(false), required = true))
-
-    types = Seq(PCanonicalStream(PInt32(false), required = false))
-    res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PInt32(false), required = false))
-
-    types = Seq(
-      PCanonicalStream(PInt32(true), required = true),
-      PCanonicalStream(PInt32(true), required = true)
-    )
-    res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PInt32(true), required = true))
-
-    types = Seq(
-      PCanonicalStream(PInt32(false), required = true),
-      PCanonicalStream(PInt32(true), required = true)
-    )
-    res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PInt32(false), required = true))
-
-    types = Seq(
-      PCanonicalStream(PInt32(false), required = true),
-      PCanonicalStream(PInt32(true), required = false)
-    )
-    res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PInt32(false), required = false))
-
-    types = Seq(
-      PCanonicalStream(PCanonicalStream(PInt32(true), required = true), required = true),
-      PCanonicalStream(PCanonicalStream(PInt32(true), required = true), required = true)
-    )
-    res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PCanonicalStream(PInt32(true), required = true), required = true))
-
-    types = Seq(
-      PCanonicalStream(PCanonicalStream(PInt32(true), required = true), required = true),
-      PCanonicalStream(PCanonicalStream(PInt32(false), required = true), required = true)
-    )
-    res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PCanonicalStream(PInt32(false), required = true), required = true))
-
-    types = Seq(
-      PCanonicalStream(PCanonicalStream(PInt32(true), required = false), required = true),
-      PCanonicalStream(PCanonicalStream(PInt32(false), required = true), required = true)
-    )
-    res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PCanonicalStream(PInt32(false), required = false), required = true))
-
-    types = Seq(
-      PCanonicalStream(PCanonicalStream(PInt32(true), required = false), required = false),
-      PCanonicalStream(PCanonicalStream(PInt32(false), required = true), required = true)
-    )
-    res  = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStream(PCanonicalStream(PInt32(false), required = false), required = false))
-  }
-
   @Test def testGetNestedElementPCanonicalDict() {
     var types = Seq(PCanonicalDict(PInt32(true), PCanonicalString(true), true))
     var res  = InferPType.getCompatiblePType(types)
@@ -2058,7 +1991,7 @@ class IRSuite extends HailSuite {
       Let("_right", r,
           Let("_left", l,
               MakeStruct(
-                (lKeys, rKeys).zipped.map { case (lk, rk) => lk -> Coalesce(Seq(getL(lk), getR(rk))) }
+                (lKeys, rKeys).zipped.map { (lk, rk) => lk -> Coalesce(Seq(getL(lk), getR(rk))) }
                   ++ coerce[TStruct](l.typ).fields.filter(f => !lKeys.contains(f.name)).map { f =>
                   f.name -> GetField(Ref("_left", l.typ), f.name)
                 } ++ coerce[TStruct](r.typ).fields.filter(f => !rKeys.contains(f.name)).map { f =>
@@ -2909,30 +2842,7 @@ class IRSuite extends HailSuite {
       WriteValue(I32(1), Str("foo"), TypedCodecSpec(PInt32(), BufferSpec.default)),
       LiftMeOut(I32(1)),
       RelationalLet("x", I32(0), I32(0)),
-      TailLoop("y", IndexedSeq("x" -> I32(0)), Recur("y", FastSeq(I32(4)), TInt32)),
-      {
-        val keyFields = FastIndexedSeq(SortField("foo", Ascending))
-        val rowType = TStruct("foo" -> TInt32)
-        val rowEType = EBaseStruct(FastIndexedSeq(EField("foo", EInt32Required, 0)))
-        val keyEType = EBaseStruct(FastIndexedSeq(EField("foo", EInt32Required, 0)))
-        val shuffleType = TShuffle(keyFields, rowType, rowEType, keyEType)
-        ShuffleWith(keyFields, rowType, rowEType, keyEType,
-          "id",
-          ShuffleWrite(
-            Ref("id", shuffleType),
-            MakeArray(MakeStruct(FastSeq(("foo", I32(0)))))),
-          Let(
-            "garbage",
-            ShufflePartitionBounds(
-              Ref("id", shuffleType),
-              I32(1)),
-            ShuffleRead(
-              Ref("id", shuffleType),
-              ApplySpecial("Interval",
-                FastSeq(),
-                FastSeq(I32(0), I32(5), True(), False()),
-                TInterval(TInt32), ErrorIDs.NO_ERROR))))
-      }
+      TailLoop("y", IndexedSeq("x" -> I32(0)), Recur("y", FastSeq(I32(4)), TInt32))
       )
     irs.map(x => Array(x))
   }

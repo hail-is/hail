@@ -9,3 +9,6 @@ def arg_max():
     if __ARG_MAX is None:
         __ARG_MAX = int(sp.check_output(['getconf', 'ARG_MAX']))
     return __ARG_MAX
+
+
+DEFAULT_SHELL = '/bin/bash'

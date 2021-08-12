@@ -6,7 +6,7 @@ import dateutil.parser
 import collections
 from typing import Dict
 
-from hailtop.utils import time_msecs, secret_alnum_string, periodically_call
+from hailtop.utils import time_msecs, secret_alnum_string, periodically_call, time_msecs_str
 from hailtop import aiotools, aiogoogle
 from gear import Database
 
@@ -154,12 +154,16 @@ class InstanceCollection:
 
         if gce_state in ('STAGING', 'RUNNING'):
             last_start_timestamp = spec.get('lastStartTimestamp')
-            assert last_start_timestamp is not None, f'lastStartTimestamp does not exist {spec}'
-            last_start_time_msecs = dateutil.parser.isoparse(last_start_timestamp).timestamp() * 1000
-
-            if instance.state == 'pending' and time_msecs() - last_start_time_msecs > 5 * 60 * 1000:
-                log.exception(f'{instance} did not activate within 5m after starting, deleting')
-                await self.call_delete_instance(instance, 'activation_timeout')
+            if last_start_timestamp is not None:
+                last_start_time_msecs = dateutil.parser.isoparse(last_start_timestamp).timestamp() * 1000
+                elapsed_time = time_msecs() - last_start_time_msecs
+                if instance.state == 'pending' and elapsed_time > 5 * 60 * 1000:
+                    log.exception(f'{instance} did not activate within 5m after starting, deleting')
+                    await self.call_delete_instance(instance, 'activation_timeout')
+            else:
+                elapsed_time = time_msecs() - instance.time_created
+                if instance.state == 'pending' and elapsed_time > 5 * 60 * 1000:
+                    log.warning(f'{instance} did not activate within {time_msecs_str(elapsed_time)}, ignoring {spec}')
 
         if instance.state == 'inactive':
             log.info(f'{instance} is inactive, deleting')

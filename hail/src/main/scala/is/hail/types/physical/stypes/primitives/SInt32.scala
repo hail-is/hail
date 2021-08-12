@@ -36,11 +36,12 @@ case object SInt32 extends SPrimitive {
     new SInt32Code(x)
   }
 
-  def canonicalPType(): PType = PInt32()
+  def storageType(): PType = PInt32()
 }
 
 trait SInt32Value extends SValue {
   def intCode(cb: EmitCodeBuilder): Code[Int]
+  override def hash(cb: EmitCodeBuilder): SInt32Code = new SInt32Code(intCode(cb))
 }
 
 class SInt32Code(val code: Code[Int]) extends SCode with SPrimitiveCode {

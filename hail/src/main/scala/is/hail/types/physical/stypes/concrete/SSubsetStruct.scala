@@ -6,7 +6,7 @@ import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, SortOrder}
 import is.hail.types.physical.stypes.{EmitType, SCode, SType}
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode, SBaseStructValue, SStructSettable}
-import is.hail.types.physical.{PCanonicalStruct, PType}
+import is.hail.types.physical.{PCanonicalStruct, PType, StoredSTypePType}
 import is.hail.types.virtual.{TStruct, Type}
 
 case class SSubsetStruct(parent: SBaseStruct, fieldNames: IndexedSeq[String]) extends SBaseStruct {
@@ -64,11 +64,26 @@ case class SSubsetStruct(parent: SBaseStruct, fieldNames: IndexedSeq[String]) ex
     new SSubsetStructCode(this, parent.fromCodes(codes))
   }
 
-  def canonicalPType(): PType = {
-    PCanonicalStruct(fieldNames.zipWithIndex.map { case (f, i) =>
-      (f, parent.fieldEmitTypes(newToOldFieldMapping(i)).canonicalPType)
-    }: _*)
+  override def copiedType: SType = {
+    if (virtualType.size < 64)
+      SStackStruct(virtualType, fieldEmitTypes.map(_.copiedType))
+    else {
+      val ct = SBaseStructPointer(PCanonicalStruct(false, virtualType.fieldNames.zip(fieldEmitTypes.map(_.copiedType.storageType)): _*))
+      assert(ct.virtualType == virtualType, s"ct=$ct, this=$this")
+      ct
+    }
   }
+
+  def storageType(): PType = {
+    val pt = PCanonicalStruct(false, virtualType.fieldNames.zip(fieldEmitTypes.map(_.copiedType.storageType)): _*)
+    assert(pt.virtualType == virtualType, s"pt=$pt, this=$this")
+    pt
+  }
+
+//  aspirational implementation
+//  def storageType(): PType = StoredSTypePType(this, false)
+
+  def containsPointers: Boolean = parent.containsPointers
 }
 
 class SSubsetStructSettable(val st: SSubsetStruct, prev: SStructSettable) extends SStructSettable {

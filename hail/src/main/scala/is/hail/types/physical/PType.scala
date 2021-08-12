@@ -118,12 +118,10 @@ object PType {
       case TFloat64 => PFloat64(required)
       case TBoolean => PBoolean(required)
       case TBinary => PCanonicalBinary(required)
-      case t: TShuffle => PCanonicalShuffle(t, required)
       case TString => PCanonicalString(required)
       case TCall => PCanonicalCall(required)
       case t: TLocus => PCanonicalLocus(t.rg, required)
       case t: TInterval => PCanonicalInterval(canonical(t.pointType, innerRequired, innerRequired), required)
-      case t: TStream => PCanonicalStream(canonical(t.elementType, innerRequired, innerRequired), required = required)
       case t: TArray => PCanonicalArray(canonical(t.elementType, innerRequired, innerRequired), required)
       case t: TSet => PCanonicalSet(canonical(t.elementType, innerRequired, innerRequired), required)
       case t: TDict => PCanonicalDict(canonical(t.keyType, innerRequired, innerRequired), canonical(t.valueType, innerRequired, innerRequired), required)
@@ -147,12 +145,10 @@ object PType {
       case t: PFloat64 => PFloat64(t.required)
       case t: PBoolean => PBoolean(t.required)
       case t: PBinary => PCanonicalBinary(t.required)
-      case t: PShuffle => PCanonicalShuffle(t.tShuffle, t.required)
       case t: PString => PCanonicalString(t.required)
       case t: PCall => PCanonicalCall(t.required)
       case t: PLocus => PCanonicalLocus(t.rg, t.required)
       case t: PInterval => PCanonicalInterval(canonical(t.pointType), t.required)
-      case t: PStream => PCanonicalStream(canonical(t.elementType), required = t.required)
       case t: PArray => PCanonicalArray(canonical(t.elementType), t.required)
       case t: PSet => PCanonicalSet(canonical(t.elementType), t.required)
       case t: PTuple => PCanonicalTuple(t._types.map(pf => PTupleField(pf.index, canonical(pf.typ))), t.required)
@@ -304,6 +300,42 @@ object PType {
 
     canonical(t, 0, 0)
   }
+
+  def canonicalize(t: PType, ctx: ExecuteContext, path: List[String]): Option[() => AsmFunction2RegionLongLong] = {
+    def canonicalPath(pt: PType, path: List[String]): PType = {
+      if (path.isEmpty) {
+        PType.canonical(pt)
+      }
+
+      val head :: tail = path
+      pt match {
+        case t@PCanonicalStruct(fields, required) =>
+          assert(t.hasField(head))
+          PCanonicalStruct(fields.map(f => if (f.name == head) f.copy(typ = canonicalPath(f.typ, tail)) else f), required)
+        case PCanonicalArray(element, required) =>
+          assert(head == "element")
+          PCanonicalArray(canonicalPath(element, tail), required)
+        case other =>
+          throw new RuntimeException(s"cannot canonicalize nested path under type $other")
+      }
+    }
+
+    val cpt = canonicalPath(t, path)
+    if (cpt == t)
+      None
+    else {
+      val fb = EmitFunctionBuilder[AsmFunction2RegionLongLong](ctx,
+        "copyFromAddr",
+        FastIndexedSeq[ParamType](classInfo[Region], LongInfo), LongInfo)
+
+      fb.emitWithBuilder { cb =>
+        val region = fb.apply_method.getCodeParam[Region](1)
+        val srcAddr = fb.apply_method.getCodeParam[Long](2)
+        cpt.store(cb, region, t.loadCheapSCode(cb, srcAddr), deepCopy = false)
+      }
+      Some(fb.result())
+    }
+  }
 }
 
 abstract class PType extends Serializable with Requiredness {
@@ -317,6 +349,8 @@ abstract class PType extends Serializable with Requiredness {
   def virtualType: Type
 
   def sType: SType
+
+  def copiedType: PType
 
   override def toString: String = {
     val sb = new StringBuilder

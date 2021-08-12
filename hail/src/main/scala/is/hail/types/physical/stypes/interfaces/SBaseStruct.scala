@@ -1,12 +1,14 @@
 package is.hail.types.physical.stypes.interfaces
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{Code, Value}
+import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, IEmitCode}
-import is.hail.types.physical.{PCanonicalBaseStruct, PCanonicalStruct}
+import is.hail.types.physical.PCanonicalStruct
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.concrete.{SInsertFieldsStruct, SInsertFieldsStructCode, SSubsetStruct, SSubsetStructCode}
-import is.hail.types.virtual.{TBaseStruct, TStruct}
+import is.hail.types.physical.stypes.primitives.SInt32Code
+import is.hail.types.virtual.{TBaseStruct, TStruct, TTuple}
+import is.hail.types.{RField, RStruct, RTuple, TypeWithRequiredness}
 import is.hail.utils._
 
 trait SBaseStruct extends SType {
@@ -20,6 +22,13 @@ trait SBaseStruct extends SType {
   val fieldEmitTypes: IndexedSeq[EmitType]
 
   def fieldIdx(fieldName: String): Int
+
+  def _typeWithRequiredness: TypeWithRequiredness = {
+    virtualType match {
+      case ts: TStruct => RStruct(ts.fieldNames.zip(fieldEmitTypes).map { case (name, et) => (name, et.typeWithRequiredness.r) })
+      case tt: TTuple => RTuple(tt.fields.zip(fieldEmitTypes).map { case (f, et) => RField(f.name, et.typeWithRequiredness.r, f.index) })
+    }
+  }
 }
 
 trait SStructSettable extends SBaseStructValue with SSettable
@@ -34,6 +43,15 @@ trait SBaseStructValue extends SValue {
   def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode
 
   def loadField(cb: EmitCodeBuilder, fieldName: String): IEmitCode = loadField(cb, st.fieldIdx(fieldName))
+
+  override def hash(cb: EmitCodeBuilder): SInt32Code = {
+    val hash_result = cb.newLocal[Int]("hash_result_struct", 1)
+    (0 until st.size).foreach(i => {
+      loadField(cb, i).consume(cb, { cb.assign(hash_result, hash_result * 31) },
+        {field => cb.assign(hash_result, (hash_result * 31) + field.memoize(cb, "struct_hash").hash(cb).intCode(cb))})
+    })
+    new SInt32Code(hash_result)
+  }
 }
 
 trait SBaseStructCode extends SCode {
@@ -73,7 +91,7 @@ trait SBaseStructCode extends SCode {
     val allFields = newType.fieldNames.map { f =>
       (f, newFieldMap.getOrElse(f, EmitCode.fromI(cb.emb)(cb => oldPV.loadField(cb, f)))) }
 
-    val pcs = PCanonicalStruct(allFields.map { case (f, ec) => (f, ec.emitType.canonicalPType) }: _*)
+    val pcs = PCanonicalStruct(false, allFields.map { case (f, ec) => (f, ec.emitType.storageType) }: _*)
     pcs.constructFromFields(cb, region, allFields.map(_._2), false)
   }
 }

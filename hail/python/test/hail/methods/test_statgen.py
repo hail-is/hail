@@ -138,7 +138,6 @@ class Tests(unittest.TestCase):
                 linreg_function([[phenos[mt.s].Pheno]], mt.GT.n_alt_alleles(), [1.0],
                                 pass_through=[mt.filters.length()])
 
-    @skip_when_service_backend('ShuffleRead non-deterministically causes segfaults')
     def test_linreg_chained(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
                                  types={'Pheno': hl.tfloat64},
@@ -317,8 +316,6 @@ class Tests(unittest.TestCase):
             self.assertAlmostEqual(results[3].t_stat, 1.5872510, places=6)
             self.assertAlmostEqual(results[3].p_value, 0.2533675, places=6)
 
-    @fails_service_backend()
-    @fails_local_backend() # Because of import_gen
     def test_linear_regression_with_dosage(self):
 
         covariates = hl.import_table(resource('regressionLinear.cov'),
@@ -771,8 +768,6 @@ class Tests(unittest.TestCase):
             self.assertTrue(is_constant(results[9]))
             self.assertTrue(is_constant(results[10]))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_logistic_regression_wald_dosage(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',

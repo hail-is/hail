@@ -37,7 +37,7 @@ case object SBoolean extends SPrimitive {
     new SBooleanCode(x)
   }
 
-  def canonicalPType(): PType = PBoolean()
+  def storageType(): PType = PBoolean()
 }
 
 class SBooleanCode(val code: Code[Boolean]) extends SCode with SPrimitiveCode {
@@ -78,4 +78,6 @@ class SBooleanSettable(x: Settable[Boolean]) extends SValue with SSettable {
   def get: SCode = new SBooleanCode(x)
 
   def boolCode(cb: EmitCodeBuilder): Code[Boolean] = x
+
+  override def hash(cb: EmitCodeBuilder): SInt32Code = new SInt32Code(boolCode(cb).toI)
 }

@@ -22,6 +22,8 @@ class PCanonicalString(val required: Boolean) extends PString {
   def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
     binaryRepresentation.copyFromAddress(region, srcPType.asInstanceOf[PString].binaryRepresentation, srcAddress, deepCopy)
 
+  override def copiedType: PType = this
+
   override def containsPointers: Boolean = true
 
   def loadLength(boff: Long): Int =
@@ -67,7 +69,7 @@ class PCanonicalString(val required: Boolean) extends PString {
       case SStringPointer(t) if t.equalModuloRequired(this) && !deepCopy =>
         value.asInstanceOf[SStringPointerCode].a
       case _ =>
-        binaryRepresentation.store(cb, region, value.asString.asBytes(), deepCopy)
+        binaryRepresentation.store(cb, region, value.asString.toBytes(), deepCopy)
     }
   }
 

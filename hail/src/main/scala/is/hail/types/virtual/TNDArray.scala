@@ -24,8 +24,6 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
     nDimsBase.asInstanceOf[Nat].n
   }
 
-  override def fundamentalType: Type = representation.fundamentalType
-
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double, absolute: Boolean): Boolean = {
     if (a1 == null || a2 == null) {
       a1 == a2

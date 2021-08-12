@@ -1,4 +1,5 @@
-from typing import Union, List, Optional
+from typing import Union, List, Optional, Type
+from types import TracebackType
 import sys
 import json
 import asyncio
@@ -7,16 +8,61 @@ from hailtop.aiotools.fs import RouterAsyncFS, LocalAsyncFS, Transfer
 from hailtop.aiogoogle import GoogleStorageAsyncFS
 
 
+# This is necessary for the bootsrap process to work. The bootstrap
+# executes build.yaml deploy in local mode to bootstrap the services,
+# and no Google credentials are available in the copy steps.
+class GoogleAsyncFSIfNecessary:
+    def __init__(self, requester_pays_project: Optional[str], transfer: Union[Transfer, List[Transfer]]):
+        self.requester_pays_project = requester_pays_project
+        self.transfer = transfer
+        self.gs = None
+
+    def _requires_gs(self):
+        transfers = self.transfer
+        if isinstance(transfers, Transfer):
+            transfers = [transfers]
+        for transfer in transfers:
+            if transfer.dest.startswith('gs://'):
+                return True
+            srcs = transfer.src
+            if isinstance(srcs, str):
+                srcs = [srcs]
+            for src in srcs:
+                if src.startswith('gs://'):
+                    return True
+
+        return False
+
+    async def __aenter__(self) -> Optional[GoogleStorageAsyncFS]:
+        if not self._requires_gs():
+            return None
+
+        requester_pays_project = self.requester_pays_project
+        if requester_pays_project:
+            params = {'userProject': requester_pays_project}
+        else:
+            params = None
+        gs = GoogleStorageAsyncFS(params=params)
+        self.gs = gs
+        return gs
+
+    async def __aexit__(
+        self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
+    ) -> None:
+        if self.gs:
+            await self.gs.close()
+
+
 async def copy(requester_pays_project: Optional[str], transfer: Union[Transfer, List[Transfer]]) -> None:
-    if requester_pays_project:
-        params = {'userProject': requester_pays_project}
-    else:
-        params = None
     with ThreadPoolExecutor() as thread_pool:
-        async with RouterAsyncFS('file', [LocalAsyncFS(thread_pool), GoogleStorageAsyncFS(params=params)]) as fs:
-            sema = asyncio.Semaphore(50)
-            async with sema:
-                copy_report = await fs.copy(sema, transfer)
+        async with GoogleAsyncFSIfNecessary(requester_pays_project, transfer) as gs:
+            filesystems = [LocalAsyncFS(thread_pool)]
+            if gs:
+                filesystems.append(gs)
+            async with RouterAsyncFS('file', filesystems) as fs:
+                sema = asyncio.Semaphore(50)
+                async with sema:
+                    copy_report = await fs.copy(sema, transfer)
                 copy_report.summarize()
 
 

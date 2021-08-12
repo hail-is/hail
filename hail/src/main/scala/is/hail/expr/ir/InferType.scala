@@ -31,9 +31,10 @@ object InferType {
       case MakeArray(_, t) => t
       case MakeStream(_, t, _) => t
       case MakeNDArray(data, shape, _, _) =>
-        TNDArray(coerce[TArray](data.typ).elementType, Nat(shape.typ.asInstanceOf[TTuple].size))
+        TNDArray(coerce[TIterable](data.typ).elementType, Nat(shape.typ.asInstanceOf[TTuple].size))
       case _: ArrayLen => TInt32
       case _: StreamRange => TStream(TInt32)
+      case _: SeqSample => TStream(TInt32)
       case _: ArrayZeros => TArray(TInt32)
       case _: LowerBoundOnOrderedCollection => TInt32
       case _: StreamFor => TVoid
@@ -50,6 +51,7 @@ object InferType {
       case _: Begin => TVoid
       case Die(_, t, _) => t
       case Trap(child) => TTuple(TTuple(TString, TInt32), child.typ)
+      case ConsoleLog(message, result) => result.typ
       case If(cond, cnsq, altr) =>
         assert(cond.typ == TBoolean)
         assert(cnsq.typ == altr.typ)
@@ -78,9 +80,14 @@ object InferType {
         val argTypes = a.args.map(_.typ)
         assert(a.implementation.unify(typeArgs, argTypes, a.returnType))
         a.returnType
-      case ArrayRef(a, i, s) =>
+      case ArrayRef(a, i, _) =>
         assert(i.typ == TInt32)
         coerce[TArray](a.typ).elementType
+      case ArraySlice(a, start, stop, step, _) =>
+        assert(start.typ == TInt32)
+        stop.foreach(ir => assert(ir.typ == TInt32))
+        assert(step.typ == TInt32)
+        coerce[TArray](a.typ)
       case ArraySort(a, _, _, lessThan) =>
         assert(lessThan.typ == TBoolean)
         val et = coerce[TStream](a.typ).elementType
@@ -252,14 +259,6 @@ object InferType {
       case ReadValue(_, _, typ) => typ
       case WriteValue(value, path, spec) => TString
       case LiftMeOut(child) => child.typ
-      case ShuffleWith(_, _, _, _, _, _, readers) =>
-        readers.typ
-      case ShuffleWrite(id, _) =>
-        TBinary
-      case ShufflePartitionBounds(id, _) =>
-        TStream(coerce[TShuffle](id.typ).keyType)
-      case ShuffleRead(id, _) =>
-        TStream(coerce[TShuffle](id.typ).rowType)
     }
   }
 }

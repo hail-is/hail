@@ -11,8 +11,6 @@ import scala.reflect.{ClassTag, classTag}
 final case class TDict(keyType: Type, valueType: Type) extends TContainer {
   lazy val elementType: TBaseStruct = (TStruct("key" -> keyType, "value" -> valueType)).asInstanceOf[TBaseStruct]
 
-  override val fundamentalType: TArray = TArray(elementType.fundamentalType)
-
   override def canCompare(other: Type): Boolean = other match {
     case TDict(okt, ovt) => keyType.canCompare(okt) && valueType.canCompare(ovt)
     case _ => false

@@ -161,6 +161,12 @@
       <td>image</td>
       <td>{{ job_specification['image'] }}</td>
     </tr>
+    {% if 'user_code' in job_specification %}
+    <tr>
+      <td>user code</td>
+      <td><pre style="max-height: 10em; max-width: 80em;">{{ job_specification['user_code'] }}</pre></td>
+    </tr>
+    {% endif %}
     <tr>
       <td>command</td>
       <td><pre style="max-height: 10em; max-width: 80em;">{{ "'" + (job_specification['command'] | join("' '")) + "'" }}</pre></td>

@@ -31,4 +31,13 @@ final case class PCanonicalTuple(_types: IndexedSeq[PTupleField], override val r
       PTupleField(pfield.index, pfield.typ.deepRename(tfield.typ))
     }), this.required)
   }
+
+  def copiedType: PType = {
+    val copiedTypes = types.map(_.copiedType)
+    if (types.indices.forall(i => types(i).eq(copiedTypes(i))))
+      this
+    else {
+      PCanonicalTuple(copiedTypes.indices.map(i => _types(i).copy(typ = copiedTypes(i))), required)
+    }
+  }
 }

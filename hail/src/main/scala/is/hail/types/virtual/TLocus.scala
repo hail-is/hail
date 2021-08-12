@@ -27,8 +27,6 @@ object TLocus {
 
 case class TLocus(rgBc: BroadcastRG) extends Type {
 
-  override def fundamentalType: Type = representation.fundamentalType
-
   def rg: ReferenceGenome = rgBc.value
 
   def _toPretty = s"Locus($rg)"

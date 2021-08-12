@@ -332,29 +332,3 @@ class MatrixPLINKReader(MatrixReader):
             other.reference_genome == self.reference_genome and \
             other.contig_recoding == self.contig_recoding and \
             other.skip_invalid_loci == self.skip_invalid_loci
-
-
-class MatrixGENReader(MatrixReader):
-    @typecheck_method(files=sequenceof(str), sample_file=str, chromosome=nullable(str),
-                      min_partitions=nullable(int), tolerance=float, rg=nullable(str),
-                      contig_recoding=dictof(str, str), skip_invalid_loci=bool)
-    def __init__(self, files, sample_file, chromosome, min_partitions, tolerance,
-                 rg, contig_recoding, skip_invalid_loci):
-        self.config = {
-            'name': 'MatrixGENReader',
-            'files': files,
-            'sampleFile': sample_file,
-            'chromosome': chromosome,
-            'nPartitions': min_partitions,
-            'tolerance': tolerance,
-            'rg': rg,
-            'contigRecoding': contig_recoding if contig_recoding else {},
-            'skipInvalidLoci': skip_invalid_loci
-        }
-
-    def render(self, r):
-        return escape_str(json.dumps(self.config))
-
-    def __eq__(self, other):
-        return isinstance(other, MatrixGENReader) and \
-            self.config == other.config

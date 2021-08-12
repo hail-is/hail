@@ -240,23 +240,47 @@ class BatchPoolExecutor:
                 chunk for chunk in iterables_chunks if len(chunk) > 0]
             fn = chunk(fn)
             iterables = iterables_chunks
-        submissions = [self.async_submit(fn, *arguments)
-                       for arguments in zip(*iterables)]
-        futures: List[BatchPoolFuture] = await asyncio.gather(*submissions)
+
+        tasks = [asyncio.create_task(self.async_submit(fn, *arguments))
+                 for arguments in zip(*iterables)]
+
+        try:
+            bp_futures: List[BatchPoolFuture] = await asyncio.gather(*tasks)
+        finally:
+            _, exc, _ = sys.exc_info()
+            if exc is not None:
+                for task in tasks:
+                    if not task.done():
+                        task.cancel()
+
+                if tasks:
+                    await asyncio.wait(tasks)
+
+                bp_futures = []
+                for task in tasks:
+                    assert task.done()
+                    if not task.cancelled() and not task.exception():
+                        bp_future = task.result()
+                        bp_futures.append(bp_future)
+
+                if bp_futures:
+                    await asyncio.gather(*[bp_fut.async_cancel() for bp_fut in bp_futures], return_exceptions=True)
 
         async def async_result_or_cancel_all(future):
             try:
                 return await future.async_result(timeout=timeout)
             except Exception as err:
-                for fut in futures:
-                    fut.cancel()
+                if bp_futures:
+                    await asyncio.gather(*[bp_fut.async_cancel() for bp_fut in bp_futures], return_exceptions=True)
                 raise err
+
         if chunksize > 1:
             return (val
-                    for future in futures
+                    for future in bp_futures
                     for val in await async_result_or_cancel_all(future))
+
         return (await async_result_or_cancel_all(future)
-                for future in futures)
+                for future in bp_futures)
 
     def submit(self,
                fn: Callable,
@@ -324,7 +348,6 @@ class BatchPoolExecutor:
                            **kwargs: Any
                            ) -> 'BatchPoolFuture':
         """Aysncio compatible version of :meth:`BatchPoolExecutor.submit`."""
-
         if self._shutdown:
             raise RuntimeError('BatchPoolExecutor has already been shutdown.')
 
@@ -455,14 +478,17 @@ class BatchPoolFuture:
         ``True`` is returned if the job is cancelled. ``False`` is returned if
         the job has already completed.
         """
+
         if self.fetch_coro.cancelled():
             return False
+
         if self.fetch_coro.done():
             # retrieve any exceptions raised
             self.fetch_coro.result()
             return False
-        await self.batch.cancel()
+
         self.fetch_coro.cancel()
+        await asyncio.wait([self.fetch_coro])
         return True
 
     def cancelled(self):
@@ -488,6 +514,9 @@ class BatchPoolFuture:
         If the job has been cancelled, this method raises a
         :class:`.concurrent.futures.CancelledError`.
 
+        If the job has timed out, this method raises an
+        :class:`.concurrent.futures.TimeoutError`.
+
         Parameters
         ----------
         timeout:
@@ -501,8 +530,11 @@ class BatchPoolFuture:
     async def async_result(self, timeout: Optional[Union[float, int]] = None):
         """Asynchronously wait until the job is complete.
 
-        If the job has been cancelled, this method rasies a
+        If the job has been cancelled, this method raises a
         :class:`.concurrent.futures.CancelledError`.
+
+        If the job has timed out, this method raises an
+        :class"`.concurrent.futures.TimeoutError`.
 
         Parameters
         ----------
@@ -511,7 +543,10 @@ class BatchPoolFuture:
         """
         if self.cancelled():
             raise concurrent.futures.CancelledError()
-        return await asyncio.wait_for(self.fetch_coro, timeout=timeout)
+        try:
+            return await asyncio.wait_for(asyncio.shield(self.fetch_coro), timeout=timeout)
+        except asyncio.TimeoutError as e:
+            raise concurrent.futures.TimeoutError() from e
 
     async def _async_fetch_result(self):
         try:
@@ -529,6 +564,7 @@ class BatchPoolFuture:
             traceback = ''.join(traceback)
             raise ValueError(f'submitted job failed:\n{traceback}')
         finally:
+            await self.batch.cancel()
             self.executor._finish_future()
 
     def exception(self, timeout: Optional[Union[float, int]] = None):

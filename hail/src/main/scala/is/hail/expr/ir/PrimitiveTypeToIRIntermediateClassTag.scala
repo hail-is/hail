@@ -6,7 +6,7 @@ import is.hail.types.virtual._
 import scala.reflect.{ClassTag, classTag}
 
 object PrimitiveTypeToIRIntermediateClassTag {
-  def apply(t: Type): ClassTag[_] = t.fundamentalType match {
+  def apply(t: Type): ClassTag[_] = t match {
     case TBoolean => classTag[Boolean]
     case TInt32 => classTag[Int]
     case TInt64 => classTag[Long]

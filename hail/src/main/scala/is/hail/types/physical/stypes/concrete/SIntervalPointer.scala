@@ -43,7 +43,11 @@ case class SIntervalPointer(pType: PInterval) extends SInterval {
   override def pointType: SType = pType.pointType.sType
   override def pointEmitType: EmitType = EmitType(pType.pointType.sType, pType.pointType.required)
 
-  def canonicalPType(): PType = pType
+  def storageType(): PType = pType
+
+  def copiedType: SType = SIntervalPointer(pType.copiedType.asInstanceOf[PInterval])
+
+  def containsPointers: Boolean = pType.containsPointers
 }
 
 

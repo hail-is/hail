@@ -36,11 +36,14 @@ case object SFloat32 extends SPrimitive {
     new SFloat32Code(x)
   }
 
-  def canonicalPType(): PType = PFloat32()
+  def storageType(): PType = PFloat32()
 }
 
 trait SFloat32Value extends SValue {
   def floatCode(cb: EmitCodeBuilder): Code[Float]
+  override def hash(cb: EmitCodeBuilder): SInt32Code =
+    new SInt32Code(Code.invokeStatic1[java.lang.Float, Float, Int]("floatToIntBits", floatCode(cb)))
+
 
 }
 

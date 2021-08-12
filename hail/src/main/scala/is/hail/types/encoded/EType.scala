@@ -109,8 +109,8 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     })
   }
 
-  final def buildSkip(mb: EmitMethodBuilder[_]): (Code[Region], Code[InputBuffer]) => Code[Unit] = {
-    mb.getOrGenEmitMethod(s"SKIP_${ asIdent }",
+  final def buildSkip(kb: EmitClassBuilder[_]): (EmitCodeBuilder, Code[Region], Code[InputBuffer]) => Unit = {
+    val mb = kb.getOrGenEmitMethod(s"SKIP_${ asIdent }",
       (this, "SKIP"),
       FastIndexedSeq[ParamType](classInfo[Region], classInfo[InputBuffer]),
       UnitInfo)({ mb =>
@@ -119,7 +119,9 @@ abstract class EType extends BaseType with Serializable with Requiredness {
         val in: Value[InputBuffer] = mb.getCodeParam[InputBuffer](2)
         _buildSkip(cb, r, in)
       }
-    }).invokeCode(_, _)
+    })
+
+    { (cb, r, in) => cb.invokeVoid(mb, r, in) }
   }
 
   def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit
@@ -161,7 +163,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   }
 
   final def decodedPType(requestedType: Type): PType = {
-    decodedSType(requestedType).canonicalPType().setRequired(required)
+    decodedSType(requestedType).storageType().setRequired(required)
   }
 
   def _decodedSType(requestedType: Type): SType
@@ -263,7 +265,6 @@ object EType {
     case TFloat64 => EFloat64(r.required)
     case TBoolean => EBoolean(r.required)
     case TBinary => EBinary(r.required)
-    case _: TShuffle => EShuffle(r.required)
     case TString => EBinary(r.required)
     case TLocus(_) =>
       EBaseStruct(Array(

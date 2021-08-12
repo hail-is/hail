@@ -853,33 +853,6 @@ steps:
     dependsOn:
       - default_ns
   - kind: buildImage2
-    name: shuffler_image
-    dockerFile: /io/shuffler/Dockerfile
-    contextPath: /io/shuffler
-    publishAs: shuffler
-    inputs:
-      - from: /repo/shuffler
-        to: /io/shuffler
-      - from: /just-jar/hail.jar
-        to: /io/shuffler/hail.jar
-    dependsOn:
-      - service_base_image
-      - build_hail_jar_only
-      - merge_code
-  - kind: deploy
-    name: deploy_shuffler
-    namespace:
-      valueFrom: default_ns.name
-    config: shuffler/deployment.yaml
-    wait:
-      - kind: Service
-        name: shuffler
-        for: alive
-    dependsOn:
-      - default_ns
-      - shuffler_image
-      - create_certs
-  - kind: buildImage2
     name: hail_repl_image
     dockerFile: /io/hail/Dockerfile.hail-repl
     contextPath: /io/hail
@@ -2299,6 +2272,8 @@ steps:
         script: /io/sql/add-fail-fast.sql
       - name: add-frozen-mode
         script: /io/sql/add-frozen-mode.sql
+      - name: add-instance-config
+        script: /io/sql/add-instance-config.sql
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -2533,7 +2508,6 @@ steps:
     dependsOn:
       - default_ns
       - deploy_batch
-      - deploy_shuffler
       - query_image
       - deploy_query_sa
       - upload_query_jar
@@ -3879,7 +3853,6 @@ steps:
       - hail_run_tests_image
       - build_hail
       - deploy_batch
-      - deploy_shuffler
       - deploy_address
   - kind: runImage
     name: test_batch_invariants

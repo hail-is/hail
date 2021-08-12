@@ -18,10 +18,11 @@ from batch.driver.k8s_cache import K8sCache
 
 KUBERNETES_SERVER_URL = os.environ['KUBERNETES_SERVER_URL']
 DOCKER_PREFIX = os.environ['HAIL_DOCKER_PREFIX']
-DOCKER_ROOT_IMAGE = f'{DOCKER_PREFIX}/ubuntu:18.04'
+DOCKER_ROOT_IMAGE = os.environ['HAIL_DOCKER_ROOT_IMAGE']
+BATCH_WORKER_IMAGE = os.environ['BATCH_WORKER_IMAGE']
 
 
-def populate_secret_host_path(host_path: str, secret_data: Union[str, bytes]):
+def populate_secret_host_path(host_path: str, secret_data: Dict[str, bytes]):
     os.makedirs(host_path)
     if secret_data is not None:
         for filename, data in secret_data.items():
@@ -38,10 +39,11 @@ class LocalJob:
         *,
         env: Optional[Dict[str, str]] = None,
         mount_docker_socket: bool = False,
+        unconfined: bool = False,
         secrets: Optional[List[Dict[str, str]]] = None,
         service_account: Optional[str] = None,
         attributes: Optional[Dict[str, str]] = None,
-        parents: Optional[List[LocalJob]] = None,
+        parents: Optional[List['LocalJob']] = None,
         input_files: Optional[List[Tuple[str, str]]] = None,
         output_files: Optional[List[Tuple[str, str]]] = None,
         **kwargs,
@@ -52,6 +54,7 @@ class LocalJob:
 
         self._env = env
         self._mount_docker_socket = mount_docker_socket
+        self._unconfined = unconfined
         self._parents = parents
         self._secrets = secrets
         self._service_account = service_account
@@ -66,17 +69,17 @@ class LocalJob:
 async def docker_run(*args: str):
     script = ' '.join([shq(a) for a in args])
     outerr = await check_shell_output(script)
+    print(f'Container output: {outerr[0]}\n' f'Container error: {outerr[1]}')
 
     cid = outerr[0].decode('ascii').strip()
 
     outerr = await check_shell_output(f'docker wait {cid}')
-
     exit_code = int(outerr[0].decode('ascii').strip())
     return cid, exit_code == 0
 
 
 class LocalBatchBuilder:
-    def __init__(self, attributes: Dict[str, str], callback: str):
+    def __init__(self, attributes: Dict[str, str], callback: Optional[str]):
         self._attributes = attributes
         self._callback = callback
         self._jobs = []
@@ -86,7 +89,7 @@ class LocalBatchBuilder:
         return self._attributes
 
     @property
-    def callback(self) -> str:
+    def callback(self) -> Optional[str]:
         return self._callback
 
     def create_job(self, image: str, command: List[str], **kwargs):
@@ -127,15 +130,16 @@ class LocalBatchBuilder:
             os.makedirs(f'{job_root}/secrets')
 
             if j._input_files:
-                copy_script = 'set -ex\n'
+                files = []
                 for src, dest in j._input_files:
                     assert src.startswith(prefix), (prefix, src)
                     src = f'/shared{src[len(prefix):]}'
-                    if dest.endswith('/'):
-                        copy_script += f'mkdir -p {dest}\n'
-                    else:
-                        copy_script += f'mkdir -p {os.path.dirname(dest)}\n'
-                    copy_script += f'cp -a {src} {dest}\n'
+                    files.append(
+                        {
+                            'from': src,
+                            'to': dest,
+                        }
+                    )
                 input_cid, input_ok = await docker_run(
                     'docker',
                     'run',
@@ -144,10 +148,13 @@ class LocalBatchBuilder:
                     f'{root}/shared:/shared',
                     '-v',
                     f'{job_root}/io:/io',
-                    DOCKER_ROOT_IMAGE,
-                    '/bin/bash',
-                    '-c',
-                    copy_script,
+                    '--entrypoint',
+                    '/usr/bin/python3',
+                    BATCH_WORKER_IMAGE,
+                    '-m',
+                    'batch.copy',
+                    json.dumps(None),
+                    json.dumps(files),
                 )
 
                 print(f'{j._index}: {job_name}/input: {input_cid} {"OK" if input_ok else "FAILED"}')
@@ -159,7 +166,7 @@ class LocalBatchBuilder:
 
                 env_options = []
                 if j._env:
-                    for key, value in j._env:
+                    for key, value in j._env.items():
                         env_options.extend(['-e', f'{key}={value}'])
 
                 # Reboot the cache on each use.  The kube client isn't
@@ -232,8 +239,22 @@ users:
                 if j._mount_docker_socket:
                     mount_options.extend(['-v', '/var/run/docker.sock:/var/run/docker.sock'])
 
+                if j._unconfined:
+                    security_options = ['--security-opt', 'seccomp=unconfined', '--security-opt', 'apparmor=unconfined']
+                else:
+                    security_options = []
+
                 main_cid, main_ok = await docker_run(
-                    'docker', 'run', '-d', *env_options, *mount_options, j._image, *j._command
+                    'docker',
+                    'run',
+                    '-d',
+                    *env_options,
+                    *mount_options,
+                    *security_options,
+                    '--entrypoint',
+                    j._command[0],
+                    j._image,
+                    *j._command[1:],
                 )
                 print(f'{j._index}: {job_name}/main: {main_cid} {"OK" if main_ok else "FAILED"}')
             else:
@@ -242,15 +263,16 @@ users:
 
             if j._output_files:
                 if main_ok:
-                    copy_script = 'set -ex\n'
+                    files = []
                     for src, dest in j._output_files:
                         assert dest.startswith(prefix), (prefix, dest)
                         dest = f'/shared{dest[len(prefix):]}'
-                        if dest.endswith('/'):
-                            copy_script += f'mkdir -p {dest}\n'
-                        else:
-                            copy_script += f'mkdir -p {os.path.dirname(dest)}\n'
-                        copy_script += f'cp -a {src} {dest}\n'
+                        files.append(
+                            {
+                                'from': src,
+                                'to': dest,
+                            }
+                        )
                     output_cid, output_ok = await docker_run(
                         'docker',
                         'run',
@@ -259,10 +281,13 @@ users:
                         f'{root}/shared:/shared',
                         '-v',
                         f'{job_root}/io:/io',
-                        DOCKER_ROOT_IMAGE,
-                        '/bin/bash',
-                        '-c',
-                        copy_script,
+                        '--entrypoint',
+                        '/usr/bin/python3',
+                        BATCH_WORKER_IMAGE,
+                        '-m',
+                        'batch.copy',
+                        json.dumps(None),
+                        json.dumps(files),
                     )
                     print(f'{j._index}: {job_name}/output: {output_cid} {"OK" if output_ok else "FAILED"}')
                 else:

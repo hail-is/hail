@@ -20,7 +20,6 @@ object SUnreachable {
       case tnd: TNDArray => SUnreachableNDArray(tnd)
       case tl: TLocus => SUnreachableLocus(tl)
       case ti: TInterval => SUnreachableInterval(ti)
-      case ts: TShuffle => SUnreachableShuffle(ts)
       case TCall => SUnreachableCall
       case TBinary => SUnreachableBinary
       case TString => SUnreachableString
@@ -34,7 +33,7 @@ abstract class SUnreachable extends SType {
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq()
 
-  def canonicalPType(): PType = PType.canonical(virtualType, required = false, innerRequired = true)
+  def storageType(): PType = PType.canonical(virtualType, required = false, innerRequired = true)
 
   override def asIdent: String = s"s_unreachable"
 
@@ -47,6 +46,10 @@ abstract class SUnreachable extends SType {
   override def fromCodes(codes: IndexedSeq[Code[_]]): SUnreachableValue = sv
 
   override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = sv
+
+  def copiedType: SType = this
+
+  def containsPointers: Boolean = false
 }
 
 abstract class SUnreachableValue extends SCode with SSettable {
@@ -109,8 +112,6 @@ class SUnreachableBinaryValue extends SUnreachableValue with SBinaryValue with S
 
   override def loadByte(i: Code[Int]): Code[Byte] = const(0.toByte)
 
-  override def bytesAddress(): Code[Long] = const(0L)
-
   override def loadBytes(): Code[Array[Byte]] = Code._null
 
   override def loadLength(): Code[Int] = const(0)
@@ -139,25 +140,9 @@ class SUnreachableStringValue extends SUnreachableValue with SStringValue with S
 
   override def loadString(): Code[String] = Code._null
 
-  override def asBytes(): SBinaryCode = new SUnreachableBinaryValue
+  override def toBytes(): SBinaryCode = new SUnreachableBinaryValue
 
   override def get: SUnreachableStringValue = this
-}
-
-case class SUnreachableShuffle(virtualType: TShuffle) extends SUnreachable with SShuffle {
-  val sv = new SUnreachableShuffleValue(this)
-}
-
-class SUnreachableShuffleValue(val st: SUnreachableShuffle) extends SUnreachableValue with SShuffleValue with SShuffleCode {
-  override def memoizeField(cb: EmitCodeBuilder, name: String): SUnreachableShuffleValue = this
-
-  override def memoize(cb: EmitCodeBuilder, name: String): SUnreachableShuffleValue = this
-
-  override def loadBytes(): Code[Array[Byte]] = Code._null
-
-  override def loadLength(): Code[Int] = const(0)
-
-  override def get: SUnreachableShuffleValue = this
 }
 
 case class SUnreachableLocus(virtualType: TLocus) extends SUnreachable with SLocus {
@@ -205,6 +190,8 @@ class SUnreachableCallValue extends SUnreachableValue with SCallValue with SCall
   def st: SUnreachableCall.type = SUnreachableCall
 
   override def get: SUnreachableCallValue = this
+
+  override def lgtToGT(cb: EmitCodeBuilder, localAlleles: SIndexableValue, errorID: Value[Int]): SCallCode = this
 }
 
 
@@ -248,7 +235,7 @@ case class SUnreachableNDArray(virtualType: TNDArray) extends SUnreachable with 
 
   lazy val elementType: SType = SUnreachable.fromVirtualType(virtualType.elementType)
 
-  override def elementPType: PType = elementType.canonicalPType()
+  override def elementPType: PType = PType.canonical(elementType.storageType())
 
   override def pType: PNDArray = PCanonicalNDArray(elementPType.setRequired(true), nDims, false)
 
@@ -262,15 +249,17 @@ class SUnreachableNDArrayValue(val st: SUnreachableNDArray) extends SUnreachable
 
   def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SCode = SUnreachable.fromVirtualType(st.virtualType.elementType).defaultValue
 
+  def loadElementAddress(indices: IndexedSeq[is.hail.asm4s.Value[Long]],cb: is.hail.expr.ir.EmitCodeBuilder): is.hail.asm4s.Code[Long] = const(0L)
+
   def shapes(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = (0 until st.nDims).map(_ => const(0L))
 
   def strides(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = (0 until st.nDims).map(_ => const(0L))
 
-  def outOfBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Boolean] = const(false)
+  override def outOfBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Boolean] = const(false)
 
-  def assertInBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder, errorId: Int = -1): Code[Unit] = Code._empty
+  override def assertInBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder, errorId: Int = -1): Unit = {}
 
-  def sameShape(other: SNDArrayValue, cb: EmitCodeBuilder): Code[Boolean] = const(false)
+  override def sameShape(other: SNDArrayValue, cb: EmitCodeBuilder): Code[Boolean] = const(false)
 
   def firstDataAddress(cb: EmitCodeBuilder): Value[Long] = const(0L)
 

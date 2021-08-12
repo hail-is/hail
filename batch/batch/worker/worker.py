@@ -18,12 +18,13 @@ import async_timeout
 import concurrent
 import aiodocker  # type: ignore
 import aiorwlock
-from collections import defaultdict, Counter
+from collections import defaultdict
 import psutil
 from aiodocker.exceptions import DockerError  # type: ignore
 import google.oauth2.service_account  # type: ignore
 from hailtop.utils import (
     time_msecs,
+    time_msecs_str,
     request_retry_transient_errors,
     sleep_and_backoff,
     retry_all_errors,
@@ -417,6 +418,9 @@ class Container:
         self.container_scratch = f'{scratch}/{self.name}'
         self.container_overlay_path = f'{self.container_scratch}/rootfs_overlay'
         self.config_path = f'{self.container_scratch}/config'
+        self.log_path = f'{self.container_scratch}/container.log'
+
+        self.fs = LocalAsyncFS(worker.pool)
 
         self.container_name = f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}'
 
@@ -433,12 +437,12 @@ class Container:
                     await self.pull_image()
                     self.image_config = image_configs[self.image_ref_str]
                     self.image_id = self.image_config['Id'].split(":")[1]
-                    worker.image_ref_count[self.image_id] += 1
+                    worker.image_data[self.image_id] += 1
 
                     self.rootfs_path = f'/host/rootfs/{self.image_id}'
-                    async with worker.rootfs_locks[self.image_id]:
+                    async with worker.image_data[self.image_id].lock:
                         if not os.path.exists(self.rootfs_path):
-                            await self.extract_rootfs()
+                            await asyncio.shield(self.extract_rootfs())
                             log.info(f'Added expanded image to cache: {self.image_ref_str}, ID: {self.image_id}')
 
             with self.step('pulling'):
@@ -481,8 +485,7 @@ class Container:
                 await self.delete_container()
             finally:
                 if self.image_id:
-                    worker.image_ref_count[self.image_id] -= 1
-                    assert worker.image_ref_count[self.image_id] >= 0
+                    worker.image_data[self.image_id] -= 1
 
     async def run_until_done_or_deleted(self, f: Callable[[], Awaitable[Any]]):
         step = asyncio.ensure_future(f())
@@ -596,21 +599,21 @@ class Container:
         try:
             await self.write_container_config()
             async with async_timeout.timeout(self.timeout):
-                log.info('Creating the crun run process')
-                self.process = await asyncio.create_subprocess_exec(
-                    'crun',
-                    'run',
-                    '--bundle',
-                    f'{self.container_overlay_path}/merged',
-                    '--config',
-                    f'{self.config_path}/config.json',
-                    self.container_name,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-                await asyncio.gather(self.pipe_to_log(self.process.stdout), self.pipe_to_log(self.process.stderr))
-                await self.process.wait()
-                log.info('crun process completed')
+                with open(self.log_path, 'w') as container_log:
+                    log.info('Creating the crun run process')
+                    self.process = await asyncio.create_subprocess_exec(
+                        'crun',
+                        'run',
+                        '--bundle',
+                        f'{self.container_overlay_path}/merged',
+                        '--config',
+                        f'{self.config_path}/config.json',
+                        self.container_name,
+                        stdout=container_log,
+                        stderr=container_log,
+                    )
+                    await self.process.wait()
+                    log.info('crun process completed')
         except asyncio.TimeoutError:
             return True
         finally:
@@ -859,7 +862,6 @@ class Container:
     async def delete(self):
         log.info(f'deleting {self}')
         self.deleted_event.set()
-        await self.delete_container()
 
     # {
     #   name: str,
@@ -924,12 +926,11 @@ class Container:
         )
 
     async def get_log(self):
-        return self.logbuffer.decode()
-
-    async def pipe_to_log(self, strm: Optional[asyncio.StreamReader]):
-        if strm is not None:
-            while not strm.at_eof() and not strm.exception():
-                self.logbuffer.extend(await strm.readline())
+        if os.path.exists(self.log_path):
+            stream = await self.fs.open(self.log_path)
+            async with stream:
+                return (await stream.read()).decode()
+        return ''
 
     def __str__(self):
         return f'container {self.job.id}/{self.name}'
@@ -1678,6 +1679,32 @@ class JVMJob(Job):
         return f'job {self.id}'
 
 
+class ImageData:
+    def __init__(self):
+        self.ref_count = 0
+        self.time_created = time_msecs()
+        self.last_accessed = time_msecs()
+        self.lock = asyncio.Lock()
+
+    def __add__(self, other):
+        self.ref_count += other
+        self.last_accessed = time_msecs()
+        return self
+
+    def __sub__(self, other):
+        self.ref_count -= other
+        assert self.ref_count >= 0
+        self.last_accessed = time_msecs()
+        return self
+
+    def __str__(self):
+        return f'ImageData(' \
+               f'ref_count={self.ref_count}, ' \
+               f'time_created={time_msecs_str(self.time_created)}, ' \
+               f'last_accessed={time_msecs_str(self.last_accessed)}' \
+               f')'
+
+
 class Worker:
     def __init__(self):
         self.active = False
@@ -1691,8 +1718,8 @@ class Worker:
         self.task_manager = aiotools.BackgroundTaskManager()
         self.jar_download_locks = defaultdict(asyncio.Lock)
 
-        self.rootfs_locks = defaultdict(asyncio.Lock)
-        self.image_ref_count = Counter({BATCH_WORKER_IMAGE_ID: 1})
+        self.image_data: Dict[str, ImageData] = defaultdict(ImageData)
+        self.image_data[BATCH_WORKER_IMAGE_ID] += 1
 
         # filled in during activation
         self.log_store = None
@@ -2012,15 +2039,17 @@ class Worker:
     async def cleanup_old_images(self):
         try:
             async with image_lock.writer_lock:
-                log.info(f"Obtained writer lock. The image ref counts are: {self.image_ref_count}")
-                for image_id in list(self.image_ref_count.keys()):
-                    if self.image_ref_count[image_id] == 0:
+                log.info(f"Obtained writer lock. The image ref counts are: {self.image_data}")
+                for image_id in list(self.image_data.keys()):
+                    now = time_msecs()
+                    image_data = self.image_data[image_id]
+                    if image_data.ref_count == 0 and (now - image_data.last_accessed) > 10 * 60 * 1000:
                         assert image_id != BATCH_WORKER_IMAGE_ID
                         log.info(f'Found an unused image with ID {image_id}')
                         await check_shell(f'docker rmi -f {image_id}')
                         image_path = f'/host/rootfs/{image_id}'
                         await blocking_to_async(self.pool, shutil.rmtree, image_path)
-                        del self.image_ref_count[image_id]
+                        del self.image_data[image_id]
                         log.info(f'Deleted image from cache with ID {image_id}')
         except asyncio.CancelledError:
             raise

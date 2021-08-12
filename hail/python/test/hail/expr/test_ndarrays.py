@@ -488,35 +488,6 @@ def test_ndarray_map2():
     assert hl.eval(missing + present) is None
     assert hl.eval(present + missing) is None
 
-
-@skip_unless_spark_backend()
-@run_with_cxx_compile()
-def test_ndarray_to_numpy():
-    nd = np.array([[1, 2, 3], [4, 5, 6]])
-    np.array_equal(hl.nd.array(nd).to_numpy(), nd)
-
-
-@skip_unless_spark_backend()
-@run_with_cxx_compile()
-def test_ndarray_save():
-    arrs = [
-        np.array([[[1, 2, 3], [4, 5, 6]],
-                  [[7, 8, 9], [10, 11, 12]]], dtype=np.int32),
-        np.array([[1, 2, 3], [4, 5, 6]], dtype=np.int64),
-        np.array(3.0, dtype=np.float32),
-        np.array([3.0], dtype=np.float64),
-        np.array([True, False, True, True])
-    ]
-
-    for expected in arrs:
-        with hl.TemporaryFilename(suffix='.npy') as f:
-            hl.nd.array(expected).save(f.name)
-            actual = np.load(f.name)
-
-            assert expected.dtype == actual.dtype, f'expected: {expected.dtype}, actual: {actual.dtype}'
-            assert np.array_equal(expected, actual)
-
-
 def test_ndarray_sum():
     np_m = np.array([[1, 2], [3, 4]])
     m = hl.nd.array(np_m)

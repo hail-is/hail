@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
 import is.hail.expr.ir.streams.StreamUtils
-import is.hail.types.physical.PStream
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -140,16 +139,24 @@ object TypeCheck {
       case x@ArrayRef(a, i, _) =>
         assert(i.typ == TInt32)
         assert(x.typ == coerce[TArray](a.typ).elementType)
+      case x@ArraySlice(a, start, stop, step, _) =>
+        assert(start.typ == TInt32)
+        stop.foreach(ir => assert(ir.typ == TInt32))
+        assert(step.typ == TInt32)
+        assert(x.typ == coerce[TArray](a.typ))
       case ArrayLen(a) =>
         assert(a.typ.isInstanceOf[TArray])
       case x@StreamRange(a, b, c, _, _) =>
         assert(a.typ == TInt32)
         assert(b.typ == TInt32)
         assert(c.typ == TInt32)
+      case SeqSample(totalRange, numToSample, _) =>
+        assert(totalRange.typ == TInt32)
+        assert(numToSample.typ == TInt32)
       case x@ArrayZeros(length) =>
         assert(length.typ == TInt32)
       case x@MakeNDArray(data, shape, rowMajor, _) =>
-        assert(data.typ.isInstanceOf[TArray])
+        assert(data.typ.isInstanceOf[TArray] || data.typ.isInstanceOf[TStream])
         assert(shape.typ.asInstanceOf[TTuple].types.forall(t => t == TInt64))
         assert(rowMajor.typ == TBoolean)
       case x@NDArrayShape(nd) =>
@@ -397,13 +404,14 @@ object TypeCheck {
         assert(x.typ == fd.typ)
       case In(i, typ) =>
         assert(typ != null)
-        typ match {
-          case pstream: PStream => assert(pstream.elementType.isRealizable)
+        typ.virtualType match {
+          case stream: TStream => assert(stream.elementType.isRealizable)
           case _ =>
         }
       case Die(msg, typ, _) =>
         assert(msg.typ == TString)
       case Trap(child) =>
+      case ConsoleLog(msg, _) => assert(msg.typ == TString)
       case x@ApplyIR(fn, typeArgs, args, _) =>
       case x: AbstractApplyNode[_] =>
         assert(x.implementation.unify(x.typeArgs, x.args.map(_.typ), x.returnType))
@@ -449,22 +457,6 @@ object TypeCheck {
         assert(path.typ == TString)
       case LiftMeOut(_) =>
       case Consume(_) =>
-      case x@ShuffleWith(_, _, _, _, _, writer, readers) =>
-        assert(writer.typ == TArray(TBinary))
-        assert(readers.typ.isRealizable)
-        assert(x.typ == readers.typ)
-      case ShuffleWrite(id, rows) =>
-        val shuffleType = coerce[TShuffle](id.typ)
-        val rowsType = coerce[TStream](rows.typ)
-        assert(rowsType.elementType == shuffleType.rowType)
-      case ShufflePartitionBounds(id, nPartitions) =>
-        assert(id.typ.isInstanceOf[TShuffle])
-        assert(nPartitions.typ == TInt32)
-      case ShuffleRead(id, keyRange) =>
-        val shuffleType = coerce[TShuffle](id.typ)
-        val keyRangeType = coerce[TInterval](keyRange.typ)
-        assert(shuffleType.keyType == keyRangeType.pointType)
-
       case TableMapRows(child, newRow) =>
         val newFieldSet = newRow.typ.asInstanceOf[TStruct].fieldNames.toSet
         assert(child.typ.key.forall(newFieldSet.contains))

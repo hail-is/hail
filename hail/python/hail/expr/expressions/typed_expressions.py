@@ -472,13 +472,26 @@ class ArrayExpression(CollectionExpression):
             Element or array slice.
         """
         if isinstance(item, slice):
-            return self._slice(self.dtype, item.start, item.stop, item.step)
+            return self._slice(item.start, item.stop, item.step)
         item = to_expr(item)
         if not item.dtype == tint32:
             raise TypeError("array expects key to be type 'slice' or expression of type 'int32', "
                             "found expression of type '{}'".format(item._type))
         else:
             return self._method("indexArray", self.dtype.element_type, item)
+
+    @typecheck_method(start=nullable(expr_int32), stop=nullable(expr_int32), step=nullable(expr_int32))
+    def _slice(self, start=None, stop=None, step=None):
+        if step is None:
+            step = hl.int(1)
+        if start is None:
+            start = hl.if_else(step >= 0, 0, -1)
+        if stop is not None:
+            slice_ir = ir.ArraySlice(self._ir, start._ir, stop._ir, step._ir)
+        else:
+            slice_ir = ir.ArraySlice(self._ir, start._ir, stop, step._ir)
+
+        return construct_expr(slice_ir, self.dtype, self._indices, self._aggregations)
 
     @typecheck_method(item=expr_any)
     def contains(self, item):
@@ -1619,6 +1632,9 @@ class StructExpression(Mapping[str, Expression], Expression):
     def __len__(self):
         return len(self._fields)
 
+    def __bool__(self):
+        return bool(len(self))
+
     @typecheck_method(item=oneof(str, int, slice))
     def __getitem__(self, item):
         """Access a field of the struct by name or index.
@@ -1948,6 +1964,9 @@ class TupleExpression(Expression, Sequence):
         :obj:`int`
         """
         return len(self.dtype.types)
+
+    def __bool__(self):
+        return bool(len(self))
 
     def __iter__(self):
         for i in range(len(self)):
@@ -2458,6 +2477,20 @@ class Int32Expression(NumericExpression):
     def _summary_aggs(self):
         return hl.agg.stats(self)
 
+    def __mul__(self, other):
+        other = to_expr(other)
+        if other.dtype == tstr:
+            return other * self
+        else:
+            return NumericExpression.__mul__(self, other)
+
+    def __rmul__(self, other):
+        other = to_expr(other)
+        if other.dtype == tstr:
+            return other * self
+        else:
+            return NumericExpression.__mul__(self, other)
+
 
 class Int64Expression(NumericExpression):
     """Expression of type :py:data:`.tint64`."""
@@ -2502,7 +2535,7 @@ class StringExpression(Expression):
             Substring or character at index `item`.
         """
         if isinstance(item, slice):
-            return self._slice(tstr, item.start, item.stop, item.step)
+            return self._slice(item.start, item.stop, item.step)
         else:
             item = to_expr(item)
             if not item.dtype == tint32:
@@ -2543,6 +2576,34 @@ class StringExpression(Expression):
         if not other.dtype == tstr:
             raise NotImplementedError("'{}' + '{}'".format(other.dtype, self.dtype))
         return self._bin_op_reverse("concat", other, self.dtype)
+
+    def __mul__(self, other):
+        other = to_expr(other)
+        if not other.dtype == tint32:
+            raise NotImplementedError("'{}' + '{}'".format(self.dtype, other.dtype))
+        return hl.delimit(hl.range(other).map(lambda x: self), delimiter='')
+
+    def __rmul__(self, other):
+        other = to_expr(other)
+        return other * self
+
+    def _slice(self, start=None, stop=None, step=None):
+        if step is not None:
+            raise NotImplementedError('Variable slice step size is not currently supported for strings')
+
+        if start is not None:
+            start = to_expr(start)
+            if stop is not None:
+                stop = to_expr(stop)
+                return self._method('slice', tstr, start, stop)
+            else:
+                return self._method('sliceRight', tstr, start)
+        else:
+            if stop is not None:
+                stop = to_expr(stop)
+                return self._method('sliceLeft', tstr, stop)
+            else:
+                return self
 
     def length(self):
         """Returns the length of the string.

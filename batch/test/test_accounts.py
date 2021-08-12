@@ -113,7 +113,7 @@ async def test_list_billing_projects(make_client):
     assert len(test_bps) == 1, r
     bp = test_bps[0]
     assert bp['billing_project'] == 'test', bp
-    assert set(bp['users']) == {'test', 'test-dev'}, bp
+    assert {'test', 'test-dev'}.issubset(set(bp['users'])), bp
     assert bp['status'] == 'open', bp
 
 

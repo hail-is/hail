@@ -4,12 +4,14 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
-import is.hail.types.physical.stypes.interfaces.{SCall, SCallCode, SCallValue}
+import is.hail.types.physical.stypes.interfaces.{SCall, SCallCode, SCallValue, SIndexableValue}
 import is.hail.types.physical.stypes.{SCode, SSettable, SType}
 import is.hail.types.physical.{PCall, PCanonicalCall, PType}
 import is.hail.types.virtual.{TCall, Type}
 import is.hail.utils._
-import is.hail.variant.Genotype
+import is.hail.variant.{AllelePair, Call, Call1, Call2, Genotype}
+
+import scala.reflect.classTag
 
 
 case object SCanonicalCall extends SCall {
@@ -37,7 +39,11 @@ case object SCanonicalCall extends SCall {
     new SCanonicalCallCode(call)
   }
 
-  def canonicalPType(): PType = PCanonicalCall(false)
+  def storageType(): PType = PCanonicalCall(false)
+
+  def copiedType: SType = this
+
+  def containsPointers: Boolean = false
 
   def constructFromIntRepr(c: Code[Int]): SCanonicalCallCode = new SCanonicalCallCode(c)
 }
@@ -90,6 +96,45 @@ class SCanonicalCallSettable(val call: Settable[Int]) extends SCallValue with SS
         cb.ifx(p.cne(0),
           cb.append(Code._fatal[Unit](const("invalid ploidy: ").concat(p.toS)))))
     })
+  }
+
+  def lgtToGT(cb: EmitCodeBuilder, localAlleles: SIndexableValue, errorID: Value[Int]): SCallCode = {
+
+    def checkAndTranslate(cb: EmitCodeBuilder, allele: Code[Int]): Code[Int] = {
+      val av = cb.newLocal[Int](s"allele", allele)
+      cb.ifx(av >= localAlleles.loadLength(),
+        cb._fatalWithError(errorID,
+          s"lgt_to_gt: found allele ", av.toS, ", but there are only ", localAlleles.loadLength().toS, " local alleles"))
+      localAlleles.loadElement(cb, av).get(cb, const("lgt_to_gt: found missing value in local alleles at index ").concat(av.toS), errorID = errorID)
+        .asInt.intCode(cb)
+    }
+
+    val repr = cb.newLocal[Int]("lgt_to_gt_repr")
+    cb += Code.switch(ploidy(),
+      EmitCodeBuilder.scopedVoid(cb.emb)(cb => cb._fatalWithError(errorID, s"ploidy above 2 is not currently supported")),
+      FastIndexedSeq(
+        EmitCodeBuilder.scopedVoid(cb.emb)(cb => cb.assign(repr, call)), // ploidy 0
+        EmitCodeBuilder.scopedVoid(cb.emb) { cb =>
+          val allele = Code.invokeScalaObject1[Int, Int](Call.getClass, "alleleRepr", call)
+          val newCall = Code.invokeScalaObject2[Int, Boolean, Int](Call1.getClass, "apply",
+            checkAndTranslate(cb, allele), isPhased())
+          cb.assign(repr, newCall)
+        }, // ploidy 1
+        EmitCodeBuilder.scopedVoid(cb.emb) { cb =>
+          val allelePair = cb.newLocal[Int]("allelePair", Code.invokeScalaObject1[Int, Int](Call.getClass, "allelePairUnchecked", call))
+          val j = cb.newLocal[Int]("allele_j", Code.invokeScalaObject1[Int, Int](AllelePair.getClass, "j", allelePair))
+          val k = cb.newLocal[Int]("allele_k", Code.invokeScalaObject1[Int, Int](AllelePair.getClass, "k", allelePair))
+
+          cb.ifx(j >= localAlleles.loadLength(), cb._fatalWithError(errorID, "invalid lgt_to_gt: allele "))
+
+          cb.assign(repr, Code.invokeScalaObject3[Int, Int, Boolean, Int](Call2.getClass, "apply",
+            checkAndTranslate(cb, j),
+            checkAndTranslate(cb, k),
+            isPhased()))
+        } // ploidy 2
+      )
+    )
+    new SCanonicalCallCode(repr)
   }
 }
 

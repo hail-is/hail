@@ -36,14 +36,14 @@ trait AggregatorState {
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit
 
   def deserializeFromBytes(cb: EmitCodeBuilder, bytes: SBinaryCode): Unit = {
-    val lazyBuffer = kb.getOrDefineLazyField[MemoryBufferWrapper](Code.newInstance[MemoryBufferWrapper](), (this, "bufferWrapper"))
+    val lazyBuffer = kb.getOrDefineLazyField[MemoryBufferWrapper](Code.newInstance[MemoryBufferWrapper](), ("AggregatorStateBufferWrapper"))
     cb += lazyBuffer.invoke[Array[Byte], Unit]("set", bytes.loadBytes())
     val ib = cb.newLocal("aggstate_deser_from_bytes_ib", lazyBuffer.invoke[InputBuffer]("buffer"))
     deserialize(BufferSpec.defaultUncompressed)(cb, ib)
   }
 
   def serializeToRegion(cb: EmitCodeBuilder, t: PBinary, r: Code[Region]): SCode = {
-    val lazyBuffer = kb.getOrDefineLazyField[MemoryWriterWrapper](Code.newInstance[MemoryWriterWrapper](), (this, "writerWrapper"))
+    val lazyBuffer = kb.getOrDefineLazyField[MemoryWriterWrapper](Code.newInstance[MemoryWriterWrapper](), ("AggregatorStateWriterWrapper"))
     val addr = kb.genFieldThisRef[Long]("addr")
     cb += lazyBuffer.invoke[Unit]("clear")
     val ob = cb.newLocal("aggstate_ser_to_region_ob", lazyBuffer.invoke[OutputBuffer]("buffer"))
@@ -171,7 +171,7 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
 
   val nFields: Int = emitTypes.length
   val fields: Array[EmitSettable] = Array.tabulate(nFields) { i => kb.newEmitField(s"primitiveRVA_${ i }_v", emitTypes(i)) }
-  val storageType = PCanonicalTuple(true, emitTypes.map(_.canonicalPType): _*)
+  val storageType = PCanonicalTuple(true, emitTypes.map(_.typeWithRequiredness.canonicalPType): _*)
   val sStorageType = storageType.sType
 
   def foreachField(f: (Int, EmitSettable) => Unit): Unit = {

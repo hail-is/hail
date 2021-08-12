@@ -58,7 +58,6 @@ class VCFTests(unittest.TestCase):
         for f in _FLOAT_ARRAY_INFO_FIELDS:
             self.assertEqual(mt['info'][f].dtype, hl.tarray(hl.tfloat64))
 
-    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_glob(self):
         full = hl.import_vcf(resource('sample.vcf'))
         parts = hl.import_vcf(resource('samplepart*.vcf'))
@@ -1535,8 +1534,6 @@ class BGENTests(unittest.TestCase):
 
 
 class GENTests(unittest.TestCase):
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_gen(self):
         gen = hl.import_gen(resource('example.gen'),
                             sample_file=resource('example.sample'),
@@ -1546,8 +1543,15 @@ class GENTests(unittest.TestCase):
         self.assertEqual(gen.count(), 199)
         self.assertEqual(gen.locus.dtype, hl.tlocus('GRCh37'))
 
-    @fails_service_backend()
-    @fails_local_backend()
+    def test_import_gen_no_chromosome_in_file(self):
+        gen = hl.import_gen(resource('no_chromosome.gen'),
+                            resource('skip_invalid_loci.sample'),
+                            chromosome="1",
+                            reference_genome=None,
+                            skip_invalid_loci=True)
+
+        self.assertEqual(gen.aggregate_rows(hl.agg.all(gen.locus.contig == "1")), True)
+
     def test_import_gen_no_reference_specified(self):
         gen = hl.import_gen(resource('example.gen'),
                             sample_file=resource('example.sample'),
@@ -1557,19 +1561,17 @@ class GENTests(unittest.TestCase):
                          hl.tstruct(contig=hl.tstr, position=hl.tint32))
         self.assertEqual(gen.count_rows(), 199)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_gen_skip_invalid_loci(self):
         mt = hl.import_gen(resource('skip_invalid_loci.gen'),
                            resource('skip_invalid_loci.sample'),
                            reference_genome='GRCh37',
                            skip_invalid_loci=True)
-        self.assertEqual(mt._force_count_rows(),
-                         3)
+        self.assertEqual(mt._force_count_rows(), 3)
 
         with self.assertRaisesRegex(FatalError, 'Invalid locus'):
-            hl.import_gen(resource('skip_invalid_loci.gen'),
-                          resource('skip_invalid_loci.sample'))
+            mt = hl.import_gen(resource('skip_invalid_loci.gen'),
+                               resource('skip_invalid_loci.sample'))
+            mt._force_count_rows()
 
     @fails_service_backend()
     @fails_local_backend()
@@ -1977,6 +1979,29 @@ class ImportMatrixTableTests(unittest.TestCase):
             hl.utils.Struct(foo=7, row_id=0, col_id='s1', x=1234),
             hl.utils.Struct(foo=7, row_id=0, col_id='s2', x=2345)
         ]
+
+
+class ImportLinesTest(unittest.TestCase):
+    def test_import_lines(self):
+        lines_table = hl.import_lines(resource('example.gen'))
+        first_row = lines_table.head(1).collect()[0]
+        assert lines_table.row.dtype == hl.tstruct(file=hl.tstr, text=hl.tstr)
+        assert "01 SNPID_2 RSID_2 2000 A G 0 0 0 0.0278015 0.00863647 0.963531 0.0173645" in first_row.text
+        assert "example.gen" in first_row.file
+        assert lines_table._force_count() == 199
+
+    def test_import_lines_multiple_files(self):
+        lines_table = hl.import_lines((resource('first_half_example.gen'), resource('second_half_example.gen')))
+        first_row = lines_table.head(1).collect()[0]
+        last_row = lines_table.tail(1).collect()[0]
+        assert "01 SNPID_2 RSID_2 2000 A G 0 0 0 0.0278015 0.00863647 0.963531 0.0173645" in first_row.text
+        assert "first_half_example.gen" in first_row.file
+        assert "second_half_example.gen" in last_row.file
+        assert lines_table._force_count() == 199
+
+    def test_import_lines_glob(self):
+        lines_table = hl.import_lines(resource('*_half_example.gen'))
+        assert lines_table._force_count() == 199
 
 
 class ImportTableTests(unittest.TestCase):

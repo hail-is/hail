@@ -27,7 +27,7 @@ object SingleCodeType {
     case TFloat32 => Float32SingleCodeType
     case TFloat64 => Float64SingleCodeType
     case TBoolean => BooleanSingleCodeType
-    case _ => PTypeReferenceSingleCodeType(t.canonicalPType().setRequired(true))
+    case _ => PTypeReferenceSingleCodeType(t.storageType().setRequired(true))
 
   }
 }

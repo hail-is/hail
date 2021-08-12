@@ -66,6 +66,17 @@ object Copy {
       case ArrayRef(_, _, errorID) =>
         assert(newChildren.length == 2)
         ArrayRef(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], errorID)
+      case ArraySlice(_,_, stop, _, errorID) =>
+        if (stop.isEmpty) {
+          assert(newChildren.length == 3)
+          ArraySlice(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], None,
+            newChildren(2).asInstanceOf[IR], errorID)
+        }
+        else {
+            assert(newChildren.length == 4)
+            ArraySlice(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], Some(newChildren(2).asInstanceOf[IR]),
+              newChildren(3).asInstanceOf[IR], errorID)
+          }
       case ArrayLen(_) =>
         assert(newChildren.length == 1)
         ArrayLen(newChildren(0).asInstanceOf[IR])
@@ -73,6 +84,9 @@ object Copy {
         assert(newChildren.length == 3)
         StreamRange(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR],
           requiresMemoryManagementPerElement, errorID)
+      case SeqSample(_, _, requiresMemoryManagementPerElement) =>
+        assert(newChildren.length == 2)
+        SeqSample(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], requiresMemoryManagementPerElement)
       case ArrayZeros(_) =>
         assert(newChildren.length == 1)
         ArrayZeros(newChildren(0).asInstanceOf[IR])
@@ -285,6 +299,9 @@ object Copy {
       case Trap(child) =>
         assert(newChildren.length == 1)
         Trap(newChildren(0).asInstanceOf[IR])
+      case ConsoleLog(message, result) =>
+        assert(newChildren.length == 2)
+        ConsoleLog(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
       case x@ApplyIR(fn, typeArgs, args, errorID) =>
         val r = ApplyIR(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), errorID)
         r.conversion = x.conversion
@@ -363,22 +380,6 @@ object Copy {
         WriteValue(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], spec)
       case LiftMeOut(_) =>
         LiftMeOut(newChildren(0).asInstanceOf[IR])
-      case ShuffleWith(keyFields, rowType, rowEType, keyEType, name, _, _) =>
-        assert(newChildren.length == 2)
-        ShuffleWith(keyFields, rowType, rowEType, keyEType, name,
-          newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
-      case ShuffleWrite(_, _) =>
-        assert(newChildren.length == 2)
-        ShuffleWrite(
-          newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
-      case ShufflePartitionBounds(_, _) =>
-        assert(newChildren.length == 2)
-        ShufflePartitionBounds(
-          newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
-      case ShuffleRead(_, _) =>
-        assert(newChildren.length == 2)
-        ShuffleRead(
-          newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
     }
   }
 }

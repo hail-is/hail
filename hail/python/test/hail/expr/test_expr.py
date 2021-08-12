@@ -147,6 +147,7 @@ class Tests(unittest.TestCase):
             x51=[1.0, 2.0, 3.0] <= kt.f,
             x52=[1.0, 2.0, 3.0] >= kt.f,
             x53=hl.tuple([True, 1.0]) < (1.0, 0.0),
+            x54=kt.e * kt.a,
         ).take(1)[0])
 
         expected = {'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3],
@@ -166,7 +167,8 @@ class Tests(unittest.TestCase):
                     'x42': False, 'x43': True, 'x44': True,
                     'x45': True, 'x46': True, 'x47': True,
                     'x48': True, 'x49': False, 'x50': False,
-                    'x51': True, 'x52': True, 'x53': False}
+                    'x51': True, 'x52': True, 'x53': False,
+                    'x54': "hellohellohellohello"}
 
         for k, v in expected.items():
             if isinstance(v, float):
@@ -176,22 +178,43 @@ class Tests(unittest.TestCase):
 
     def test_array_slicing(self):
         schema = hl.tstruct(a=hl.tarray(hl.tint32))
-        rows = [{'a': [1, 2, 3]}]
+        rows = [{'a': [1, 2, 3, 4, 5]}]
         kt = hl.Table.parallelize(rows, schema)
+        ha = hl.array(hl.range(100))
+        pa = list(range(100))
 
         result = convert_struct_to_dict(kt.annotate(
             x1=kt.a[0],
             x2=kt.a[2],
             x3=kt.a[:],
             x4=kt.a[1:2],
-            x5=kt.a[-1:2],
-            x6=kt.a[:2]
+            x5=kt.a[-1:4],
+            x6=kt.a[:2],
+            x7=kt.a[-20:20:-2],
+            x8=kt.a[20:-20:2],
+            x9=kt.a[-20:20:2],
+            x10=kt.a[20:-20:-2]
         ).take(1)[0])
 
-        expected = {'a': [1, 2, 3], 'x1': 1, 'x2': 3, 'x3': [1, 2, 3],
-                    'x4': [2], 'x5': [], 'x6': [1, 2]}
+        expected = {'a': [1, 2, 3, 4, 5], 'x1': 1, 'x2': 3, 'x3': [1, 2, 3, 4, 5],
+                    'x4': [2], 'x5': [], 'x6': [1, 2], 'x7': [], 'x8': [], 'x9': [1, 3, 5],
+                    'x10': [5, 3, 1]}
 
         self.assertDictEqual(result, expected)
+        self.assertEqual(pa[60:1:-3], hl.eval(ha[hl.int32(60):hl.int32(1):hl.int32(-3)]))
+        self.assertEqual(pa[::5], hl.eval(ha[::hl.int32(5)]))
+        self.assertEqual(pa[::-3], hl.eval(ha[::-3]))
+        self.assertEqual(pa[:-77:-3], hl.eval(ha[:hl.int32(-77):-3]))
+        self.assertEqual(pa[44::-7], hl.eval(ha[44::-7]))
+        self.assertEqual(pa[2:59:7], hl.eval(ha[2:59:7]))
+        self.assertEqual(pa[4:40:2], hl.eval(ha[4:40:2]))
+        self.assertEqual(pa[-400:-300:2], hl.eval(ha[hl.int32(-400):-300:2]))
+        self.assertEqual(pa[-300:-400:-2], hl.eval(ha[-300:-400:-2]))
+        self.assertEqual(pa[300:400:2], hl.eval(ha[300:400:2]))
+        self.assertEqual(pa[400:300:-2], hl.eval(ha[400:300:-2]))
+
+        with pytest.raises(hl.utils.HailUserError, match='step cannot be 0 for array slice'):
+            hl.eval(ha[::0])
 
     def test_dict_methods(self):
         schema = hl.tstruct(x=hl.tfloat64)
@@ -326,6 +349,14 @@ class Tests(unittest.TestCase):
 
         with pytest.raises(TypeError, match="Expected str collection, int32 found"):
             hl.eval(hl.str(",").join([1, 2, 3]))
+
+    def test_string_multiply(self):
+        # Want to make sure all implict conversions work.
+        ps = "cat"
+        pn = 3
+        s = hl.str(ps)
+        n = hl.int32(pn)
+        assert all([x == "catcatcat" for x in hl.eval(hl.array([ps * n, n * ps, s * pn, pn * s]))])
 
     def test_cond(self):
         self.assertEqual(hl.eval('A' + hl.if_else(True, 'A', 'B')), 'AA')
@@ -509,6 +540,13 @@ class Tests(unittest.TestCase):
                                               hl.utils.Struct(x=(3, 3), y='3,3'),
                                               None]),
         ]
+
+    @with_flags('distributed_scan_comb_op')
+    def test_densify_table(self):
+        ht = hl.utils.range_table(100, n_partitions=33)
+        ht = ht.annotate(arr = hl.range(100).map(lambda idx: hl.or_missing(idx == ht.idx, idx)))
+        ht = ht.annotate(dense = hl.scan._densify(100, ht.arr))
+        assert ht.all(ht.dense == hl.range(100).map(lambda idx: hl.or_missing(idx < ht.idx, idx)))
 
     def test_agg_array_inside_annotate_rows(self):
         n_rows = 10
@@ -1126,8 +1164,6 @@ class Tests(unittest.TestCase):
         )
         mt.cols()._force_count()
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_aggregator_info_score(self):
         gen_file = resource('infoScoreTest.gen')
         sample_file = resource('infoScoreTest.sample')

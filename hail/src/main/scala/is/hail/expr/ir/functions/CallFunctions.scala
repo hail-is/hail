@@ -89,6 +89,11 @@ object CallFunctions extends RegistryFunctions {
           Call.getClass, "downcode", Array(classTag[Int].runtimeClass, classTag[Int].runtimeClass), Array(call.asCall.loadCanonicalRepresentation(cb), downcodedAllele.asInt.intCode(cb))))
     }
 
+    registerSCode2("lgt_to_gt", TCall, TArray(TInt32), TCall, { case (rt: Type, sc: SCall, _:SType) => sc }) {
+      case (er, cb, rt, call, localAlleles, errorID) =>
+        call.asCall.memoize(cb, "lgt_to_gt_call").lgtToGT(cb, localAlleles.asIndexable.memoize(cb, "lgt_to_gt_local_alleles"), errorID)
+    }
+
     registerWrappedScalaFunction2("oneHotAlleles", TCall, TInt32, TArray(TInt32), {
       case (rt: Type, _: SType, _: SType) => SIndexablePointer(PCanonicalArray(PInt32(true)))
     })(Call.getClass, "oneHotAlleles")

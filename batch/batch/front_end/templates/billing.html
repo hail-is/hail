@@ -33,6 +33,8 @@
                 completed within that time interval (inclusive).</p>
         </div>
     </div>
+
+    {% if is_developer %}
     <h2>Cost by Billing Project</h2>
     <div class='flex-col' style="overflow: auto;">
         <table class="data-table" id="billing_by_project">
@@ -52,6 +54,7 @@
             </tbody>
         </table>
     </div>
+
     <h2>Cost by User</h2>
     <div class='flex-col' style="overflow: auto;">
         <table class="data-table" id="billing_by_user">
@@ -71,6 +74,8 @@
             </tbody>
         </table>
     </div>
+    {% endif %}
+
     <h2>Cost by Billing Project and User</h2>
     <div class='flex-col' style="overflow: auto;">
         <table class="data-table" id="billing_by_project_user">

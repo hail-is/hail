@@ -41,4 +41,6 @@ trait PUnrealizable extends PType {
   override def containsPointers: Boolean = {
     throw new UnsupportedOperationException("containsPointers not supported on PUnrealizable")
   }
+
+  override def copiedType: PType = this
 }

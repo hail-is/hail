@@ -81,10 +81,6 @@ object FoldConstants {
           _: ReadPartition |
           _: CollectDistributedArray |
           _: WriteMetadata |
-          _: ShuffleRead |
-          _: ShuffleWith |
-          _: ShuffleWrite |
-          _: ShufflePartitionBounds |
           _: Begin => true
       case ir: IR if ir.typ == TVoid => true
       case _ => false

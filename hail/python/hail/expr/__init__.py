@@ -46,7 +46,7 @@ from .functions import literal, chi_squared_test, if_else, cond, switch, case, \
     uniroot, format, approx_equal, reversed, bit_and, bit_or, bit_xor, \
     bit_lshift, bit_rshift, bit_not, binary_search, logit, expit, \
     _values_similar, _showstr, _sort_by, _compare, _locus_windows_per_contig, \
-    shuffle
+    shuffle, _console_log
 
 __all__ = ['HailType',
            'hail_type',
@@ -306,4 +306,5 @@ __all__ = ['HailType',
            'expr_struct',
            'expr_oneof',
            'expr_numeric',
-           'coercer_from_dtype']
+           'coercer_from_dtype',
+           '_console_log']

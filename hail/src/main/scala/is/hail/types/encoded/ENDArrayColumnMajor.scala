@@ -52,12 +52,12 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
-    val skip = elementType.buildSkip(cb.emb)
+    val skip = elementType.buildSkip(cb.emb.ecb)
 
     val numElements = cb.newLocal[Long]("ndarray_skipper_total_num_elements",
       (0 until nDims).foldLeft(const(1L).get) { (p, i) => p * in.readLong() })
     val i = cb.newLocal[Long]("ndarray_skipper_data_idx")
-    cb.forLoop(cb.assign(i, 0L), i < numElements, cb.assign(i, i + 1L), cb += skip(r, in))
+    cb.forLoop(cb.assign(i, 0L), i < numElements, cb.assign(i, i + 1L), skip(cb, r, in))
   }
 
   def _decodedSType(requestedType: Type): SType = {

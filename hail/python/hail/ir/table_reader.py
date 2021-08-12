@@ -4,7 +4,7 @@ import json
 import hail as hl
 
 from hail.ir.utils import make_filter_and_replace
-from hail.typecheck import typecheck_method, sequenceof, nullable, anytype
+from hail.typecheck import typecheck_method, sequenceof, nullable, anytype, oneof
 from hail.utils.misc import escape_str
 
 
@@ -92,6 +92,24 @@ class TextTableReader(TableReader):
     def __eq__(self, other):
         return isinstance(other, TextTableReader) and \
             other.config == self.config
+
+
+class StringTableReader(TableReader):
+    @typecheck_method(paths=oneof(str, sequenceof(str)), min_partitions=nullable(int))
+    def __init__(self, paths, min_partitions):
+        self.paths = paths
+        self.min_partitions = min_partitions
+
+    def render(self):
+        reader = {'name': 'StringTableReader',
+                  'files': self.paths,
+                  'minPartitions': self.min_partitions}
+        return escape_str(json.dumps(reader))
+
+    def __eq__(self, other):
+        return isinstance(other, StringTableReader) and \
+            other.path == self.path and \
+            other.min_partitions == self.min_partitions
 
 
 class TableFromBlockMatrixNativeReader(TableReader):

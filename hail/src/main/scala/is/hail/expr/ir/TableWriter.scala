@@ -13,9 +13,9 @@ import is.hail.rvd.{AbstractRVDSpec, IndexSpec, RVDPartitioner, RVDSpecMaker}
 import is.hail.types.encoded.EType
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.interfaces.SVoidCode
-import is.hail.types.physical.{PCanonicalBaseStruct, PCanonicalString, PCanonicalStruct, PInt64, PStream, PStruct, PType}
+import is.hail.types.physical.{PCanonicalBaseStruct, PCanonicalString, PCanonicalStruct, PInt64, PStruct, PType}
 import is.hail.types.virtual._
-import is.hail.types.{RTable, TableType}
+import is.hail.types.{RIterable, RTable, TableType, TypeWithRequiredness}
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 import is.hail.variant.ReferenceGenome
@@ -157,7 +157,10 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
 
   def ctxType: Type = TString
   def returnType: Type = pResultType.virtualType
-  def returnPType(ctxType: PType, streamType: PStream): PType = pResultType
+  def unionTypeRequiredness(r: TypeWithRequiredness, ctxType: TypeWithRequiredness, streamType: RIterable): Unit = {
+    r.union(ctxType.required)
+    r.union(streamType.required)
+  }
 
   if (stageLocally)
     throw new LowererUnsupportedOperation("stageLocally option not yet implemented")

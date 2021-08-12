@@ -40,7 +40,11 @@ case class SBinaryPointer(pType: PBinary) extends SBinary {
     new SBinaryPointerCode(this, a)
   }
 
-  def canonicalPType(): PType = pType
+  def storageType(): PType = pType
+
+  override def copiedType: SType = SBinaryPointer(pType.copiedType.asInstanceOf[PBinary])
+
+  override def containsPointers: Boolean = pType.containsPointers
 
   override def castRename(t: Type): SType = this
 }
@@ -53,7 +57,7 @@ object SBinaryPointerSettable {
 class SBinaryPointerSettable(val st: SBinaryPointer, val a: Settable[Long]) extends SBinaryValue with SSettable {
   private val pt: PBinary = st.pType
 
-  override def bytesAddress(): Code[Long] = st.pType.bytesAddress(a)
+  def bytesAddress(): Code[Long] = st.pType.bytesAddress(a)
 
   def get: SBinaryPointerCode = new SBinaryPointerCode(st, a)
 

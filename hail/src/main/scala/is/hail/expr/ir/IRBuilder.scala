@@ -287,6 +287,10 @@ object IRBuilder {
       ToArray(StreamAggScan(ToStream(array), f.s.name, f.body(env.bind(f.s.name -> eltType))))
     }
 
+    def arraySlice(start: IRProxy, stop: Option[IRProxy], step: IRProxy): IRProxy = {
+      (env: E) => ArraySlice(this.ir(env), start.ir(env), stop.map(inner => inner.ir(env)), step.ir(env), ErrorIDs.NO_ERROR)
+    }
+
     def aggElements(elementsSym: Symbol, indexSym: Symbol, knownLength: Option[IRProxy])(aggBody: IRProxy): IRProxy = (env: E) => {
       val array = ir(env)
       val eltType = array.typ.asInstanceOf[TArray].elementType
