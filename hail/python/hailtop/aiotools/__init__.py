@@ -6,6 +6,7 @@ from .fs import (
     FileAndDirectoryError, MultiPartCreate)
 from .utils import FeedableAsyncIterable
 from .tasks import BackgroundTaskManager
+from .weighted_semaphore import WeightedSemaphore
 
 __all__ = [
     'ReadableStream',
@@ -21,5 +22,6 @@ __all__ = [
     'BackgroundTaskManager',
     'Transfer',
     'FileAndDirectoryError',
-    'MultiPartCreate'
+    'MultiPartCreate',
+    'WeightedSemaphore'
 ]

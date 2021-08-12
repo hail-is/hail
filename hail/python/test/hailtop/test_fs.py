@@ -303,7 +303,7 @@ async def test_listfiles(filesystem):
 async def test_multi_part_create(filesystem, permutation):
     sema, fs, base = filesystem
 
-    # S3 has a minimum part size (except for the last part) of 5GiB
+    # S3 has a minimum part size (except for the last part) of 5MiB
     if base.startswith('s3'):
         min_part_size = 5 * 1024 * 1024
         part_data_size = [min_part_size, min_part_size, min_part_size]

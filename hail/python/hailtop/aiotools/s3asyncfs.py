@@ -16,6 +16,7 @@ from hailtop.aiotools import (
 from .stream import (
     AsyncQueueWritableStream,
     async_writable_blocking_readable_stream_pair,
+    async_writable_blocking_collect_pair,
     blocking_readable_stream_to_async)
 
 
@@ -149,38 +150,29 @@ class S3FileListEntry(FileListEntry):
         return self._status
 
 
-def _upload_part(s3, bucket, key, number, f, upload_id):
-    b = f.read()
-    resp = s3.upload_part(
-        Bucket=bucket,
-        Key=key,
-        PartNumber=number + 1,
-        UploadId=upload_id,
-        Body=b)
-    return resp['ETag']
-
-
 class S3CreatePartManager(AsyncContextManager[WritableStream]):
-    def __init__(self, mpc, number: int):
+    def __init__(self, mpc, number: int, size_hint: int):
         self._mpc = mpc
         self._number = number
+        self._size_hint = size_hint
         self._async_writable: Optional[AsyncQueueWritableStream] = None
         self._put_thread: Optional[threading.Thread] = None
         self._exc: Optional[BaseException] = None
 
     async def __aenter__(self) -> WritableStream:
-        async_writable, blocking_readable = async_writable_blocking_readable_stream_pair()
+        async_writable, blocking_collect = async_writable_blocking_collect_pair(self._size_hint)
         self._async_writable = async_writable
 
         def put():
             try:
-                self._mpc._etags[self._number] = _upload_part(
-                    self._mpc._fs._s3,
-                    self._mpc._bucket,
-                    self._mpc._name,
-                    self._number,
-                    blocking_readable,
-                    self._mpc._upload_id)
+                b = blocking_collect.get()
+                resp = self._mpc._fs._s3.upload_part(
+                    Bucket=self._mpc._bucket,
+                    Key=self._mpc._name,
+                    PartNumber=self._number + 1,
+                    UploadId=self._mpc._upload_id,
+                    Body=b)
+                self._mpc._etags[self._number] = resp['ETag']
             except BaseException as e:
                 self._exc = e
 
@@ -249,8 +241,10 @@ class S3MultiPartCreate(MultiPartCreate):
                                 MultipartUpload={'Parts': parts},
                                 UploadId=self._upload_id)
 
-    async def create_part(self, number: int, start: int) -> S3CreatePartManager:  # pylint: disable=unused-argument
-        return S3CreatePartManager(self, number)
+    async def create_part(self, number: int, start: int, size_hint: Optional[int] = None) -> S3CreatePartManager:  # pylint: disable=unused-argument
+        if size_hint is None:
+            size_hint = 256 * 1024
+        return S3CreatePartManager(self, number, size_hint)
 
 
 class S3AsyncFS(AsyncFS):
@@ -452,3 +446,9 @@ class S3AsyncFS(AsyncFS):
 
     async def close(self) -> None:
         pass
+
+    @staticmethod
+    def _copy_part_size():
+        # Because the S3 upload_part API call requires the entire part
+        # be loaded into memory, use a smaller part size.
+        return 8 * 1024 * 1024

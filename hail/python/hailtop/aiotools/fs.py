@@ -14,6 +14,7 @@ import humanize
 from hailtop.utils import (
     retry_transient_errors, blocking_to_async, url_basename, url_join, bounded_gather2,
     time_msecs, humanize_timedelta_msecs, OnlineBoundedGather2)
+from .weighted_semaphore import WeightedSemaphore
 from .stream import ReadableStream, WritableStream, blocking_readable_stream_to_async, blocking_writable_stream_to_async
 
 
@@ -55,7 +56,7 @@ class FileListEntry(abc.ABC):
 
 class MultiPartCreate(abc.ABC):
     @abc.abstractmethod
-    async def create_part(self, number: int, start: int) -> AsyncContextManager[WritableStream]:
+    async def create_part(self, number: int, start: int, size_hint: Optional[int] = None) -> AsyncContextManager[WritableStream]:
         pass
 
     @abc.abstractmethod
@@ -211,6 +212,12 @@ class AsyncFS(abc.ABC):
                         exc_tb: Optional[TracebackType]) -> None:
         await self.close()
 
+    @staticmethod
+    def _copy_part_size():
+        '''Part size when copying using multi-part uploads.  The part size of
+        the destination filesystem is used.'''
+        return 128 * 1024 * 1024
+
 
 class LocalStatFileStatus(FileStatus):
     def __init__(self, stat_result):
@@ -264,7 +271,7 @@ class LocalMultiPartCreate(MultiPartCreate):
         self._path = path
         self._num_parts = num_parts
 
-    async def create_part(self, number: int, start: int):  # pylint: disable=unused-argument
+    async def create_part(self, number: int, start: int, size_hint: Optional[int] = None):  # pylint: disable=unused-argument
         assert 0 <= number < self._num_parts
         f = await blocking_to_async(self._fs._thread_pool, open, self._path, 'r+b')
         f.seek(start)
@@ -402,7 +409,15 @@ class LocalAsyncFS(AsyncFS):
 
     async def rmtree(self, sema: Optional[asyncio.Semaphore], url: str) -> None:
         path = self._get_path(url)
-        await blocking_to_async(self._thread_pool, shutil.rmtree, path)
+
+        def f():
+            try:
+                shutil.rmtree(path)
+            except FileNotFoundError:
+                # no error if path does not exist
+                pass
+
+        await blocking_to_async(self._thread_pool, f)
 
 
 class FileAndDirectoryError(Exception):
@@ -497,7 +512,7 @@ class CopyReport:
             else:
                 source_reports.extend(transfer_report._source_report)
 
-        if isinstance(self._transfer_report, Transfer):
+        if isinstance(self._transfer_report, TransferReport):
             total_transfers = 1
             add_source_reports(self._transfer_report)
         else:
@@ -532,10 +547,9 @@ class SourceCopier:
     created for each source.
     '''
 
-    PART_SIZE = 128 * 1024 * 1024
-
-    def __init__(self, router_fs: 'RouterAsyncFS', src: str, dest: str, treat_dest_as: str, dest_type_task):
+    def __init__(self, router_fs: 'RouterAsyncFS', xfer_sema: WeightedSemaphore, src: str, dest: str, treat_dest_as: str, dest_type_task):
         self.router_fs = router_fs
+        self.xfer_sema = xfer_sema
         self.src = src
         self.dest = dest
         self.treat_dest_as = treat_dest_as
@@ -552,37 +566,45 @@ class SourceCopier:
         if self.pending == 0:
             self.barrier.set()
 
-    async def _copy_file(self, srcfile: str, destfile: str) -> None:
+    async def _copy_file(self, srcfile: str, size: int, destfile: str) -> None:
         assert not destfile.endswith('/')
 
-        async with await self.router_fs.open(srcfile) as srcf:
-            try:
-                dest_cm = await self.router_fs.create(destfile, retry_writes=False)
-            except FileNotFoundError:
-                await self.router_fs.makedirs(os.path.dirname(destfile), exist_ok=True)
-                dest_cm = await self.router_fs.create(destfile)
+        async with self.xfer_sema.acquire_manager(min(Copier.BUFFER_SIZE, size)):
+            async with await self.router_fs.open(srcfile) as srcf:
+                try:
+                    dest_cm = await self.router_fs.create(destfile, retry_writes=False)
+                except FileNotFoundError:
+                    await self.router_fs.makedirs(os.path.dirname(destfile), exist_ok=True)
+                    dest_cm = await self.router_fs.create(destfile)
 
-            async with dest_cm as destf:
-                while True:
-                    b = await srcf.read(Copier.BUFFER_SIZE)
-                    if not b:
-                        return
-                    written = await destf.write(b)
-                    assert written == len(b)
-
-    async def _copy_part(self, source_report, srcfile, part_number, part_creator, return_exceptions):
-        try:
-            async with await self.router_fs.open_from(srcfile, part_number * self.PART_SIZE) as srcf:
-                async with await part_creator.create_part(part_number, part_number * self.PART_SIZE) as destf:
-                    n = self.PART_SIZE
-                    while n > 0:
-                        b = await srcf.read(min(Copier.BUFFER_SIZE, n))
-                        # FIXME check expected bytes
+                async with dest_cm as destf:
+                    while True:
+                        b = await srcf.read(Copier.BUFFER_SIZE)
                         if not b:
                             return
                         written = await destf.write(b)
                         assert written == len(b)
-                        n -= len(b)
+
+    async def _copy_part(self,
+                         source_report: SourceReport,
+                         part_size: int,
+                         srcfile: str,
+                         part_number: int,
+                         this_part_size: int,
+                         part_creator: MultiPartCreate,
+                         return_exceptions: bool) -> None:
+        try:
+            async with self.xfer_sema.acquire_manager(min(Copier.BUFFER_SIZE, this_part_size)):
+                async with await self.router_fs.open_from(srcfile, part_number * part_size) as srcf:
+                    async with await part_creator.create_part(part_number, part_number * part_size, size_hint=this_part_size) as destf:
+                        n = this_part_size
+                        while n > 0:
+                            b = await srcf.read(min(Copier.BUFFER_SIZE, n))
+                            if len(b) == 0:
+                                raise UnexpectedEOFError()
+                            written = await destf.write(b)
+                            assert written == len(b)
+                            n -= len(b)
         except Exception as e:
             if return_exceptions:
                 source_report.set_exception(e)
@@ -598,11 +620,17 @@ class SourceCopier:
             destfile: str,
             return_exceptions: bool):
         size = await srcstat.size()
-        if size <= self.PART_SIZE:
-            await retry_transient_errors(self._copy_file, srcfile, destfile)
+
+        dest_fs = self.router_fs._get_fs(destfile)
+        part_size = dest_fs._copy_part_size()
+
+        if size <= part_size:
+            await retry_transient_errors(self._copy_file, srcfile, size, destfile)
             return
 
-        n_parts = int((size + self.PART_SIZE - 1) / self.PART_SIZE)
+        n_parts, rem = divmod(size, part_size)
+        if rem:
+            n_parts += 1
 
         try:
             part_creator = await self.router_fs.multi_part_create(sema, destfile, n_parts)
@@ -611,8 +639,14 @@ class SourceCopier:
             part_creator = await self.router_fs.multi_part_create(sema, destfile, n_parts)
 
         async with part_creator:
+            async def f(i):
+                this_part_size = rem if i == n_parts - 1 and rem else part_size
+                await retry_transient_errors(
+                    self._copy_part,
+                    source_report, part_size, srcfile, i, this_part_size, part_creator, return_exceptions)
+
             await bounded_gather2(sema, *[
-                functools.partial(retry_transient_errors, self._copy_part, source_report, srcfile, i, part_creator, return_exceptions)
+                functools.partial(f, i)
                 for i in range(n_parts)
             ], cancel_on_error=True)
 
@@ -763,10 +797,14 @@ class Copier:
     This class implements copy for a list of transfers.
     '''
 
-    BUFFER_SIZE = 256 * 1024
+    BUFFER_SIZE = 8 * 1024 * 1024
 
     def __init__(self, router_fs):
         self.router_fs = router_fs
+        # This is essentially a limit on amount of memory in temporary
+        # buffers during copying.  We allow ~10 full-sized copies to
+        # run concurrently.
+        self.xfer_sema = WeightedSemaphore(10 * Copier.BUFFER_SIZE)
 
     async def _dest_type(self, transfer: Transfer):
         '''Return the (real or assumed) type of `dest`.
@@ -791,7 +829,7 @@ class Copier:
         return dest_type
 
     async def copy_source(self, sema: asyncio.Semaphore, transfer: Transfer, source_report: SourceReport, src: str, dest_type_task, return_exceptions: bool):
-        src_copier = SourceCopier(self.router_fs, src, transfer.dest, transfer.treat_dest_as, dest_type_task)
+        src_copier = SourceCopier(self.router_fs, self.xfer_sema, src, transfer.dest, transfer.treat_dest_as, dest_type_task)
         await src_copier.copy(sema, source_report, return_exceptions)
 
     async def _copy_one_transfer(self, sema: asyncio.Semaphore, transfer_report: TransferReport, transfer: Transfer, return_exceptions: bool):
