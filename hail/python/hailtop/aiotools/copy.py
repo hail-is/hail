@@ -1,4 +1,4 @@
-from typing import Union, List, Optional, Dict
+from typing import List, Optional
 import sys
 import json
 import urllib
@@ -33,6 +33,7 @@ def filesystem_from_scheme(scheme, thread_pool=None, gcs_params=None):
     if scheme == 's3':
         assert thread_pool is not None
         return S3AsyncFS(thread_pool)
+    raise ValueError(f'Unrecognized scheme {scheme}')
 
 
 async def copy(requester_pays_project: Optional[str],
