@@ -13,7 +13,7 @@ def referenced_schemes(transfers: List[Transfer]):
     def scheme_from_url(url):
         parsed = urllib.parse.urlparse(url)
         scheme = parsed.scheme
-        if scheme is None:
+        if scheme == '':
             scheme = 'file'
         if scheme not in {'file', 'gs', 's3'}:
             raise ValueError(f'Unsupported scheme: {scheme}')
