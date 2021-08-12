@@ -95,7 +95,15 @@ class Job:
         self._valid: Set[_resource.Resource] = set()  # resources declared in the appropriate place
         self._dependencies: Set[Job] = set()
 
-        self._dirname = name.replace(' ', '_') + f'-{self._token}' if name else self._token
+        def safe_str(s):
+            new_s = ''
+            for c in s:
+                if c.isalnum():
+                    new_s += c
+                else:
+                    new_s += '_'
+
+        self._dirname = f'{safe_str(name)}-{self._token}' if name else self._token
 
     def _get_resource(self, item: str) -> '_resource.Resource':
         raise NotImplementedError
