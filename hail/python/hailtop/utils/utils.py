@@ -590,7 +590,8 @@ def is_transient_error(e):
                             errno.EHOSTUNREACH,
                             errno.ECONNRESET,
                             errno.ENETUNREACH,
-                            errno.EPIPE
+                            errno.EPIPE,
+                            errno.ETIMEDOUT
                             )):
         return True
     if isinstance(e, aiohttp.ClientOSError):

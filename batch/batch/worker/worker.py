@@ -1978,7 +1978,7 @@ class Worker:
         self.jvms: List[JVM] = []
 
     async def _initialize_jvms(self):
-        self.jvms = asyncio.gather(*[JVM.create(i) for i in range(CORES)])
+        self.jvms = await asyncio.gather(*[JVM.create(i) for i in range(CORES)])
         log.info(f'JVMs initialized {self.jvms}')
 
     async def borrow_jvm(self) -> JVM:
