@@ -352,7 +352,7 @@ class PR(Code):
             log.exception(f'{self.short_str()}: Unexpected exception in post to github: {data}')
 
     async def assign_gh_reviewer_if_requested(self, gh_client):
-        if len(self.assignees) == 0 and len(self.reviewers) == 0:
+        if len(self.assignees) == 0 and len(self.reviewers) == 0 and self.body is not None:
             assignees = set()
             if ASSIGN_SERVICES in self.body:
                 assignees.add(select_random_teammate(SERVICES_TEAM).gh_username)

@@ -1710,7 +1710,7 @@ class Emit[C](
           else {
             val outputPType = retPTypeUncast.asInstanceOf[PCanonicalNDArray]
 
-            def noOp(cb: EmitCodeBuilder): SNDArrayCode = {
+            def noOp(cb: EmitCodeBuilder): SNDArrayValue = {
               throw new IllegalStateException("Can't happen")
             }
 
@@ -1780,7 +1780,7 @@ class Emit[C](
             val outputPType = NDArraySVD.pTypes(true, false).asInstanceOf[PCanonicalTuple]
             outputPType.constructFromFields(cb, region, FastIndexedSeq(EmitCode.present(cb.emb, u), EmitCode.present(cb.emb, s), EmitCode.present(cb.emb, vt)), deepCopy = false)
           } else {
-            s
+            s.get
           }
           IEmitCode(cb, false, resultPCode)
 
@@ -1860,14 +1860,13 @@ class Emit[C](
           cb.append(infoDGEQRFErrorTest("Failed to compute H and Tau."))
 
           val h = hFinisher(cb)
-          val hMemo = h.memoize(cb, "ndarray_qr_h_memo")
 
           val result: SCode = if (mode == "raw") {
             val resultType = resultPType.asInstanceOf[PCanonicalBaseStruct]
             val tau = tauFinisher(cb)
 
             resultType.constructFromFields(cb, region, FastIndexedSeq(
-              EmitCode.present(cb.emb, hMemo),
+              EmitCode.present(cb.emb, h),
               EmitCode.present(cb.emb, tau)
             ), deepCopy = false)
 
@@ -1909,7 +1908,7 @@ class Emit[C](
                 cb.append(Region.storeDouble(
                   curWriteAddress,
                   (currCol >= currRow).mux(
-                    hMemo.loadElement(IndexedSeq(currCol, currRow), cb).asDouble.doubleCode(cb),
+                    h.loadElement(IndexedSeq(currCol, currRow), cb).asDouble.doubleCode(cb),
                     0.0
                   )
                 ))
