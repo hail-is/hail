@@ -11,10 +11,10 @@ _transform_variant_function_map = {}
 _transform_reference_fuction_map = {}
 
 
-def make_variants_table(ht: Table, info_to_keep=[]) -> Table:
-    ht = ht.filter(hl.is_missing(ht.info.END))
+def make_variants_table(mt, info_to_keep=[]) -> Table:
+    mt = mt.filter(hl.is_missing(mt.info.END))
 
-    if ht.row.dtype not in _transform_variant_function_map:
+    if mt.row.dtype not in _transform_variant_function_map:
         def get_lgt(e, n_alleles, has_non_ref, row):
             index = e.GT.unphased_diploid_gt_index()
             n_no_nonref = n_alleles - hl.int(has_non_ref)
@@ -79,14 +79,14 @@ def make_variants_table(ht: Table, info_to_keep=[]) -> Table:
                     rsid=row.rsid,
                     __entries=row.__entries.map(
                         lambda e: make_entry_struct(e, alleles_len, has_non_ref, row)))),
-            ht.row.dtype)
-        _transform_variant_function_map[ht.row.dtype] = f
-    transform_row = _transform_variant_function_map[ht.row.dtype]
-    return Table(TableMapRows(ht._tir, Apply(transform_row._name, transform_row._ret_type, TopLevelReference('row'))))
+            mt.row.dtype)
+        _transform_variant_function_map[mt.row.dtype] = f
+    transform_row = _transform_variant_function_map[mt.row.dtype]
+    return Table(TableMapRows(mt._tir, Apply(transform_row._name, transform_row._ret_type, TopLevelReference('row'))))
 
 
-def make_reference_table(ht: Table) -> Table:
-    ht = ht.filter(hl.is_defined(ht.info.END))
+def make_reference_table(mt) -> Table:
+    mt = mt.filter(hl.is_defined(mt.info.END))
 
     def make_entry_struct(e, row):
         reference_fields = {k: v for k, v in e.items() if k in ('DP', 'GQ', 'MIN_DP')}
@@ -94,18 +94,18 @@ def make_reference_table(ht: Table) -> Table:
                   .when(e.GT.is_hom_ref(), hl.struct(END=row.info.END, **reference_fields))
                   .or_error('found END with non reference-genotype at' + hl.str(row.locus)))
 
-    if ht.row.dtype not in _transform_reference_fuction_map:
+    if mt.row.dtype not in _transform_reference_fuction_map:
         f = hl.experimental.define_function(
             lambda row: hl.struct(
                 locus=row.locus,
                 ref_allele=row.alleles[0][0],
                 __entries=row.__entries.map(
                     lambda e: make_entry_struct(e, row))),
-            ht.row.dtype)
-        _transform_reference_fuction_map[ht.row.dtype] = f
+            mt.row.dtype)
+        _transform_reference_fuction_map[mt.row.dtype] = f
 
-    transform_row = _transform_reference_fuction_map[ht.row.dtype]
-    return Table(TableMapRows(ht._tir, Apply(transform_row._name, transform_row._ret_type, TopLevelReference('row'))))
+    transform_row = _transform_reference_fuction_map[mt.row.dtype]
+    return Table(TableMapRows(mt._tir, Apply(transform_row._name, transform_row._ret_type, TopLevelReference('row'))))
 
 
 @typecheck(mt=oneof(Table, MatrixTable), info_to_keep=sequenceof(str))
