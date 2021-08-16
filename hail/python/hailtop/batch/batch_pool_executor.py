@@ -247,7 +247,7 @@ class BatchPoolExecutor:
         submit_tasks = [asyncio.ensure_future(self.async_submit(fn, *arguments))
                         for arguments in zip(*iterables)]
         try:
-            bp_futures = [t.result() for t in submit_tasks]
+            bp_futures = [await t for t in submit_tasks]
         except:
             for t in submit_tasks:
                 if t.done() and not t.exception():
