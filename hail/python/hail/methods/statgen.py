@@ -1013,8 +1013,7 @@ def logistic_score_test(X, y, null_fit, link):
 
     chi_sq = hl.if_else(solve_attempt.failed,
                         hl.missing(hl.tfloat64),
-                        (score * solve_attempt.solution).sum()
-                       )
+                        (score * solve_attempt.solution).sum())
 
     p = hl.pchisqtail(chi_sq, m - m0)
 
