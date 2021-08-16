@@ -244,16 +244,16 @@ class BatchPoolExecutor:
             fn = chunk(fn)
             iterables = iterables_chunks
 
-        done, pending = await asyncio.wait([self.async_submit(fn, *arguments)
-                                            for arguments in zip(*iterables)],
-                                           return_when=asyncio.ALL_COMPLETED)
+        submit_tasks = [asyncio.ensure_future(self.async_submit(fn, *arguments))
+                        for arguments in zip(*iterables)]
         try:
-            assert not pending
-            bp_futures = [f.result() for f in done]
+            bp_futures = [t.result() for t in submit_tasks]
         except:
-            for f in done:
-                if not f.exception():
-                    await f.result().async_cancel()
+            for t in submit_tasks:
+                if t.done() and not t.exception():
+                    await t.result().async_cancel()
+                elif not t.done():
+                    t.cancel()
             raise
 
         async def async_result_or_cancel_all(future):
