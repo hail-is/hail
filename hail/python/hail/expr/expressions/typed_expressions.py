@@ -1426,7 +1426,7 @@ class SetExpression(CollectionExpression):
         Examples
         --------
 
-        >>> hl.eval(s1 | s2)
+        >>> hl.eval(s1 ^ s2)
         frozenset({2, 5})
 
         Parameters
