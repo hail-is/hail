@@ -1,9 +1,9 @@
-from typing import List
+from typing import List, Set
 
 import hail as hl
 from hail import MatrixTable, Table
 from hail.ir import Apply, TableMapRows, TopLevelReference
-from hail.typecheck import oneof, sequenceof, typecheck
+from hail.typecheck import oneof, nullable, sequenceof, typecheck
 from .variant_dataset import VariantDataset
 from hail.experimental.vcf_combiner.vcf_combiner import combine_gvcfs, localize, parse_as_fields, unlocalize
 
@@ -11,7 +11,12 @@ _transform_variant_function_map = {}
 _transform_reference_fuction_map = {}
 
 
-def make_variants_table(mt, info_to_keep=[]) -> Table:
+def make_variants_matrix_table(mt: MatrixTable, info_to_keep=None) -> MatrixTable:
+    if info_to_keep is None:
+        info_to_keep = []
+    if not info_to_keep:
+        info_to_keep = [name for name in mt.info if name not in ['END', 'DP']]
+    mt = localize(mt)
     mt = mt.filter(hl.is_missing(mt.info.END))
 
     if mt.row.dtype not in _transform_variant_function_map:
@@ -82,14 +87,30 @@ def make_variants_table(mt, info_to_keep=[]) -> Table:
             mt.row.dtype)
         _transform_variant_function_map[mt.row.dtype] = f
     transform_row = _transform_variant_function_map[mt.row.dtype]
-    return Table(TableMapRows(mt._tir, Apply(transform_row._name, transform_row._ret_type, TopLevelReference('row'))))
+    return unlocalize(Table(TableMapRows(mt._tir, Apply(transform_row._name, transform_row._ret_type, TopLevelReference('row')))))
 
 
-def make_reference_table(mt) -> Table:
-    mt = mt.filter(hl.is_defined(mt.info.END))
+def get_used_entry_fields(mt: MatrixTable, sample=None) -> Set[str]:
+    if sample is not None:
+        mt = mt.head(sample)
+    used = mt.aggregate_entries(hl.struct(**{
+        k: hl.agg.any(hl.is_defined(v)) for k, v in mt.entry.items()
+    }))
+    return set(k for k in mt.entry if used[k])
+
+
+def make_reference_matrix_table(mt: MatrixTable, entry_to_keep) -> MatrixTable:
+    mt = mt.filter_rows(hl.is_defined(mt.info.END))
+
+    if not entry_to_keep:
+        # set difference here, since all GTs are 0/0 and for a homref call,
+        # LAD and LPL are uninteresting and trivially recreatable assuming
+        # DP is defined (which it should be!).
+        entry_to_keep = get_used_entry_fields(mt, sample=10_000) - {'AD', 'GT', 'PL'}
+
 
     def make_entry_struct(e, row):
-        reference_fields = {k: v for k, v in e.items() if k in ('DP', 'GQ', 'MIN_DP')}
+        reference_fields = {k: v for k, v in e.items() if k in entry_to_keep}
         return (hl.case()
                   .when(e.GT.is_hom_ref(), hl.struct(END=row.info.END, **reference_fields))
                   .or_error('found END with non reference-genotype at' + hl.str(row.locus)))
@@ -105,11 +126,16 @@ def make_reference_table(mt) -> Table:
         _transform_reference_fuction_map[mt.row.dtype] = f
 
     transform_row = _transform_reference_fuction_map[mt.row.dtype]
-    return Table(TableMapRows(mt._tir, Apply(transform_row._name, transform_row._ret_type, TopLevelReference('row'))))
+    mt = localize(mt)
+    return unlocalize(Table(TableMapRows(mt._tir, Apply(transform_row._name, transform_row._ret_type, TopLevelReference('row')))))
 
 
-@typecheck(mt=oneof(Table, MatrixTable), info_to_keep=sequenceof(str))
-def transform_gvcf(mt, info_to_keep=[]) -> VariantDataset:
+@typecheck(mt=MatrixTable,
+           reference_entry_fields_to_keep=nullable(sequenceof(str)),
+           info_to_keep=nullable(sequenceof(str)))
+def transform_gvcf(mt,
+                   reference_entry_fields_to_keep=None,
+                   info_to_keep=None) -> VariantDataset:
     """Transforms a gvcf into a sparse matrix table
 
     The input to this should be some result of either :func:`.import_vcf` or
@@ -120,9 +146,13 @@ def transform_gvcf(mt, info_to_keep=[]) -> VariantDataset:
 
     Parameters
     ----------
-    mt : :obj:`Union[Table, MatrixTable]`
-        The gvcf being transformed, if it is a table, then it must be a localized matrix table with
-        the entries array named ``__entries``
+    mt : :obj:`MatrixTable`
+        The gvcf being transformed.
+    reference_entry_fields_to_keep : :obj:`List[str]`
+        Genotype fields to keep in the reference table. If empty, the first
+        10,000 reference block rows of ``mt`` will be sampled and all fields
+        found to be defined other than ``GT``, ``AD``, and ``PL`` will be entry
+        fields in the resulting reference matrix in the dataset.
     info_to_keep : :obj:`List[str]`
         Any ``INFO`` fields in the gvcf that are to be kept and put in the ``gvcf_info`` entry
         field. By default, all ``INFO`` fields except ``END`` and ``DP`` are kept.
@@ -145,12 +175,9 @@ def transform_gvcf(mt, info_to_keep=[]) -> VariantDataset:
         AS_VarDP
 
     """
-    if not info_to_keep:
-        info_to_keep = [name for name in mt.info if name not in ['END', 'DP']]
-    mt = localize(mt)
-    ref_mt = make_reference_table(mt)
-    var_mt = make_variants_table(mt, info_to_keep)
-    return VariantDataset(unlocalize(ref_mt), unlocalize(var_mt))
+    ref_mt = make_reference_matrix_table(mt, reference_entry_fields_to_keep)
+    var_mt = make_variants_matrix_table(mt, info_to_keep)
+    return VariantDataset(ref_mt, var_mt)
 
 
 _merge_function_map = {}
