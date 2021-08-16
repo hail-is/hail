@@ -1319,10 +1319,10 @@ class Emit[C](
               cb.assign(lastKeySeen, currentSplitter)
             })
 
-            val l: Value[Int] = cb.newLocal[Int]("stream_dist_tree_height", (Code.invokeStatic1[Math, Double, Double]("log", (requestedSplittersVal.loadLength() + 1).toD) / Math.log(2)).toI)
-            val k: Value[Int] = cb.newLocal[Int]("stream_dist_number_of_buckets", (Code.invokeStatic2[Math, Double, Double, Double]("pow", 2, (l + 1).toD).toI))
+            val treeHeight: Value[Int] = cb.newLocal[Int]("stream_dist_tree_height", (Code.invokeStatic1[Math, Double, Double]("log", (requestedSplittersVal.loadLength() + 1).toD) / Math.log(2)).toI)
+            val k: Value[Int] = cb.newLocal[Int]("stream_dist_number_of_buckets", (Code.invokeStatic2[Math, Double, Double, Double]("pow", 2, (treeHeight + 1).toD).toI))
 
-            val paddedSplittersSize = cb.newLocal[Int]("stream_dist_padded_splitter_size", k / 2) // I think?
+            val paddedSplittersSize = cb.newLocal[Int]("stream_dist_padded_splitter_size", k / 2) // TODO: Verify this is correct
 
             // Pass 2: Copy each unique splitter into array. If it is seen twice, set a boolean in a parallel array for that
             // splitter.
@@ -1357,14 +1357,20 @@ class Emit[C](
               })
             })
 
+            // TODO: Finish filling in repeats in paddedsplitter list.
+
             val splitters: SIndexableValue = new SIndexablePointerCode(SIndexablePointer(splittersPType), splittersAddr).memoize(cb, "stream_distribute_splitters_deduplicated") // last element is duplicated, otherwise this is sorted without duplicates.
             val splitterWasDuplicated = new SIndexablePointerCode(SIndexablePointer(splittersWasDuplicatedPType), splittersWasDuplicatedAddr).memoize(cb, "stream_distrib_was_duplicated") // Same length as splitters, but full of booleans of whether it was initially duplicated.
 
             val treePType = splittersPType
-            val treeAddr = treePType.allocate(region, ???)
+            val treeAddr = treePType.allocate(region, paddedSplittersSize)
 
             // TODO: Need to fill in the tree.
 
+            val currentHeight = cb.newLocal[Int]("stream_dist_current_height")
+            cb.forLoop(cb.assign(currentHeight, treeHeight), currentHeight >= 0, cb.assign(currentHeight, currentHeight - 1), {
+              // TODO: Fill in
+            })
             val tree: SIndexableValue = new SIndexablePointerCode(SIndexablePointer(treePType), treeAddr).memoize(cb, "stream_dist_tree") // 0th element is garbage, tree elements start at idx 1.
 
 
@@ -1377,7 +1383,7 @@ class Emit[C](
               cb.assign(current, childStream.producer.element)
 
               val r = cb.newLocal[Int]("stream_dist_r")
-              cb.forLoop(cb.assign(r, 0), r < l, cb.assign(r, r + 1), {
+              cb.forLoop(cb.assign(r, 0), r < treeHeight, cb.assign(r, r + 1), {
                 val treeAtB = tree.loadElement(cb, b).memoize(cb, "stream_dist_tree_b")
                 cb.assign(b, const(2) * b + (compare(cb, treeAtB, current) < 0).toI)
                 //TODO: Need to use splitterWasDuplicated here to decide whether or not to actually move the element.
