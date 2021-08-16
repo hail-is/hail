@@ -3,7 +3,7 @@ from typing import List, Set
 import hail as hl
 from hail import MatrixTable, Table
 from hail.ir import Apply, TableMapRows, TopLevelReference
-from hail.typecheck import oneof, nullable, sequenceof, typecheck
+from hail.typecheck import nullable, sequenceof, typecheck
 from .variant_dataset import VariantDataset
 from hail.experimental.vcf_combiner.vcf_combiner import combine_gvcfs, localize, parse_as_fields, unlocalize
 
@@ -90,7 +90,7 @@ def make_variants_matrix_table(mt: MatrixTable, info_to_keep=None) -> MatrixTabl
     return unlocalize(Table(TableMapRows(mt._tir, Apply(transform_row._name, transform_row._ret_type, TopLevelReference('row')))))
 
 
-def get_used_entry_fields(mt: MatrixTable, sample=None) -> Set[str]:
+def defined_entry_fields(mt: MatrixTable, sample=None) -> Set[str]:
     if sample is not None:
         mt = mt.head(sample)
     used = mt.aggregate_entries(hl.struct(**{
@@ -106,8 +106,7 @@ def make_reference_matrix_table(mt: MatrixTable, entry_to_keep) -> MatrixTable:
         # set difference here, since all GTs are 0/0 and for a homref call,
         # LAD and LPL are uninteresting and trivially recreatable assuming
         # DP is defined (which it should be!).
-        entry_to_keep = get_used_entry_fields(mt, sample=10_000) - {'AD', 'GT', 'PL'}
-
+        entry_to_keep = defined_entry_fields(mt, sample=10_000) - {'AD', 'GT', 'PL'}
 
     def make_entry_struct(e, row):
         reference_fields = {k: v for k, v in e.items() if k in entry_to_keep}
