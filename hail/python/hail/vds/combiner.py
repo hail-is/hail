@@ -4,8 +4,8 @@ import hail as hl
 from hail import MatrixTable, Table
 from hail.ir import Apply, TableMapRows, TopLevelReference
 from hail.typecheck import oneof, sequenceof, typecheck
-from hail.vds import VariantDataset
-from .vcf_combiner import combine_gvcfs, localize, parse_as_fields, unlocalize
+from .variant_dataset import VariantDataset
+from hail.experimental.vcf_combiner.vcf_combiner import combine_gvcfs, localize, parse_as_fields, unlocalize
 
 _transform_variant_function_map = {}
 _transform_reference_fuction_map = {}
