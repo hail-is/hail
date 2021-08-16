@@ -1018,8 +1018,7 @@ def logistic_score_test(X, y, null_fit, link):
 
     p = hl.pchisqtail(chi_sq, m - m0)
 
-    return hl.struct(chi_sq_stat=chi_sq,
-                     p_value=p)
+    return hl.struct(chi_sq_stat=chi_sq, p_value=p)
 
 
 def firth_test(X, y, null_fit, link):
