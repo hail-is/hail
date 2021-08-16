@@ -18,6 +18,7 @@ import socket
 import requests
 import google.auth.exceptions
 import google.api_core.exceptions
+import botocore
 import time
 import weakref
 from requests.adapters import HTTPAdapter
@@ -449,7 +450,7 @@ async def bounded_gather2_return_exceptions(sema: asyncio.Semaphore, *pfs):
         return await asyncio.gather(*tasks)
 
 
-async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *pfs, cancel_on_error: bool = False):
+async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *pfs, cancel_on_error: bool = False, timeout=5):
     '''Run the partial functions `pfs` as tasks with parallelism bounded
     by `sema`, which should be `asyncio.Semaphore` whose initial value
     is the level of parallelism.
@@ -464,19 +465,29 @@ async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *pfs, cancel
     cancel_on_error is True, the unfinished tasks are all cancelled.
 
     '''
-    async def run_with_sema(pf):
-        async with sema:
-            return await pf()
+    i = 0
+    results = [None] * len(pfs)
 
-    tasks = [asyncio.create_task(run_with_sema(pf)) for pf in pfs]
+    async def worker():
+        nonlocal i
+        while i < len(pfs):
+            async with sema:
+                if i < len(pfs):
+                    me = i
+                    i += 1
+                    results[me] = await pfs[me]()
+
+    tasks = [asyncio.create_task(worker()) for _ in range(sema._value)]
 
     if not cancel_on_error:
         async with WithoutSemaphore(sema):
-            return await asyncio.gather(*tasks)
+            await asyncio.gather(*tasks)
+        return results
 
     try:
         async with WithoutSemaphore(sema):
-            return await asyncio.gather(*tasks)
+            await asyncio.gather(*tasks)
+        return results
     finally:
         _, exc, _ = sys.exc_info()
         if exc is not None:
@@ -488,10 +499,10 @@ async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *pfs, cancel
                     await asyncio.wait(tasks)
 
 
-async def bounded_gather2(sema: asyncio.Semaphore, *pfs, return_exceptions: bool = False, cancel_on_error: bool = False):
+async def bounded_gather2(sema: asyncio.Semaphore, *pfs, return_exceptions: bool = False, cancel_on_error: bool = False, timeout=5):
     if return_exceptions:
         return await bounded_gather2_return_exceptions(sema, *pfs)
-    return await bounded_gather2_raise_exceptions(sema, *pfs, cancel_on_error=cancel_on_error)
+    return await bounded_gather2_raise_exceptions(sema, *pfs, cancel_on_error=cancel_on_error, timeout=timeout)
 
 
 RETRYABLE_HTTP_STATUS_CODES = {408, 500, 502, 503, 504}
@@ -610,6 +621,8 @@ def is_transient_error(e):
         return True
     if isinstance(e, google.api_core.exceptions.ServiceUnavailable):
         return True
+    if isinstance(e, botocore.exceptions.ConnectionClosedError):
+        return True
     if isinstance(e, TransientError):
         return True
     return False
@@ -678,7 +691,7 @@ async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs
             if not is_transient_error(e):
                 raise
             errors += 1
-            if errors % 10 == 0:
+            if errors % 2 == 0:
                 st = ''.join(traceback.format_stack())
                 log.warning(f'Encountered {errors} errors. My stack trace is {st}. Most recent error was {e}', exc_info=True)
         delay = await sleep_and_backoff(delay)

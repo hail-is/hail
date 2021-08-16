@@ -172,9 +172,12 @@ class S3CreatePartManager(AsyncContextManager[WritableStream]):
                     PartNumber=self._number + 1,
                     UploadId=self._mpc._upload_id,
                     Body=b)
-                self._mpc._etags[self._number] = resp['ETag']
+                etag = resp['ETag']
+                assert etag is not None
+                self._mpc._etags[self._number] = etag
             except BaseException as e:
-                self._exc = e
+                self._exc = ValueError('error in put', self._mpc._bucket, self._mpc._name, self._mpc._name, self._number + 1, self._mpc._upload_id)
+                self._exc.__cause__ = e
 
         self._put_thread = threading.Thread(target=put)
         self._put_thread.start()
@@ -228,7 +231,7 @@ class S3MultiPartCreate(MultiPartCreate):
         parts = []
         part_number = 1
         for etag in self._etags:
-            assert etag is not None
+            assert etag is not None, f'{len(self._etags)}, {self._etags}'
             parts.append({
                 'ETag': etag,
                 'PartNumber': part_number
@@ -451,4 +454,5 @@ class S3AsyncFS(AsyncFS):
     def _copy_part_size():
         # Because the S3 upload_part API call requires the entire part
         # be loaded into memory, use a smaller part size.
-        return 8 * 1024 * 1024
+        # return 8 * 1024 * 1024
+        return 32 * 1024 * 1024
