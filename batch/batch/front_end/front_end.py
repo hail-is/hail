@@ -1445,8 +1445,8 @@ async def ui_get_job(request, userdata, batch_id):
         if container_statuses[task]: 
             for step_name, step_data in container_statuses[task]['timing'].items():
                 plot_dict = {
-                    'title': f'{(batch_id, job_id)}', 
-                    'name': task, 
+                    'title': f'{(batch_id, job_id)}',
+                    'name': task,
                     'start': datetime.datetime.fromtimestamp(step_data['start_time'] / 1000),
                     'resource': step_name,
                 }
@@ -1459,11 +1459,11 @@ async def ui_get_job(request, userdata, batch_id):
     df = pd.DataFrame(data)
 
     fig = px.timeline(
-        df, 
-        x_start='start', 
-        x_end='finish', 
-        y='title', 
-        color='resource', 
+        df,
+        x_start='start',
+        x_end='finish',
+        y='title',
+        color='resource',
         hover_data=['name'],
         color_discrete_sequence=px.colors.sequential.dense)
 

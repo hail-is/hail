@@ -458,10 +458,12 @@ div .bar {
   display: inline-block;
   margin: 0;
 }
+
 .textbox {
   display: none;
 }
-.progress_bar{
+
+.progress_bar {
   border:1px solid black;
   height:100px;
   width:140px;
@@ -469,6 +471,7 @@ div .bar {
   overflow-x:scroll;
   white-space: nowrap;
 }
+
 .bar:hover .textbox {
   display: block;
   background-color: #fff;
@@ -477,9 +480,11 @@ div .bar {
   margin-top: 10px;
   padding: 9px;
 }
+
 .main .bar {
   border-top: 20px solid blue;
 }
-.main{
+
+.main {
   display: inline-block;
 }
