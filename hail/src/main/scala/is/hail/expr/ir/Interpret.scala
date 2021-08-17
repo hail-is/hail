@@ -568,6 +568,26 @@ object Interpret {
             interpret(cond, env.bind(name, element), args).asInstanceOf[Boolean]
           }
         }
+      case StreamTakeWhile(a, name, cond) =>
+        val aValue = interpret(a, env, args)
+        if (aValue == null)
+          null
+        else {
+          aValue.asInstanceOf[IndexedSeq[Any]].takeWhile { element =>
+            // casting to boolean treats null as false
+            interpret(cond, env.bind(name, element), args).asInstanceOf[Boolean]
+          }
+        }
+      case StreamDropWhile(a, name, cond) =>
+        val aValue = interpret(a, env, args)
+        if (aValue == null)
+          null
+        else {
+          aValue.asInstanceOf[IndexedSeq[Any]].dropWhile { element =>
+            // casting to boolean treats null as false
+            interpret(cond, env.bind(name, element), args).asInstanceOf[Boolean]
+          }
+        }
       case StreamFlatMap(a, name, body) =>
         val aValue = interpret(a, env, args)
         if (aValue == null)

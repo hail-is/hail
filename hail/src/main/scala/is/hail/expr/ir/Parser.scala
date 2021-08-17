@@ -1048,6 +1048,18 @@ object IRParser {
           a <- ir_value_expr(env)(it)
           body <- ir_value_expr(env + (name -> coerce[TStream](a.typ).elementType))(it)
         } yield StreamFilter(a, name, body)
+      case "StreamTakeWhile" =>
+        val name = identifier(it)
+        for {
+          a <- ir_value_expr(env)(it)
+            body <- ir_value_expr(env + (name -> coerce[TStream](a.typ).elementType))(it)
+        } yield StreamTakeWhile(a, name, body)
+      case "StreamDropWhile" =>
+        val name = identifier(it)
+        for {
+          a <- ir_value_expr(env)(it)
+            body <- ir_value_expr(env + (name -> coerce[TStream](a.typ).elementType))(it)
+        } yield StreamDropWhile(a, name, body)
       case "StreamFlatMap" =>
         val name = identifier(it)
         for {

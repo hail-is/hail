@@ -772,4 +772,39 @@ class EmitStreamSuite extends HailSuite {
       foldLength(flatMapIR(mapIR(StreamGrouped(rangeStructs(size), 16)) { x => ToArray(x) }) { a => ToStream(a, false) })
     }
   }
+
+  @Test def testStreamTakeWhile(): Unit = {
+    val makestream = MakeStream(FastSeq(I32(1), I32(2), I32(0), I32(1), I32(-1)), TStream(TInt32))
+    assert(evalStream(takeWhile(makestream) { r => r > 0 }) == IndexedSeq(1, 2))
+    assert(evalStream(StreamTake(makestream, I32(3))) == IndexedSeq(1, 2, 0))
+    assert(evalStream(takeWhile(makestream) { r => NA(TBoolean) }) == IndexedSeq())
+    assert(evalStream(takeWhile(makestream) { r => If(r > 0, True(), NA(TBoolean)) }) == IndexedSeq(1, 2))
+  }
+
+  @Test def testStreamDropWhile(): Unit = {
+    val makestream = MakeStream(FastSeq(I32(1), I32(2), I32(0), I32(1), I32(-1)), TStream(TInt32))
+    assert(evalStream(dropWhile(makestream) { r => r > 0 }) == IndexedSeq(0, 1, -1))
+    assert(evalStream(StreamDrop(makestream, I32(3))) == IndexedSeq(1, -1))
+    assert(evalStream(dropWhile(makestream) { r => NA(TBoolean) }) == IndexedSeq(1, 2, 0, 1, -1))
+    assert(evalStream(dropWhile(makestream) { r => If(r > 0, True(), NA(TBoolean)) }) == IndexedSeq(0, 1, -1))
+
+  }
+
+  @Test def testStreamTakeDropMemory(): Unit = {
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      foldLength(StreamTake(rangeStructs(size), (size / 2).toI))
+    }
+
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      foldLength(StreamDrop(rangeStructs(size), (size / 2).toI))
+    }
+
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      foldLength(dropWhile(zipWithIndex(rangeStructs(size))) { elt => GetField(elt, "idx") < (size / 2).toI })
+    }
+
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      foldLength(takeWhile(zipWithIndex(rangeStructs(size))) { elt => GetField(elt, "idx") < (size / 2).toI })
+    }
+  }
 }

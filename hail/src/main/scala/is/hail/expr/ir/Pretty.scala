@@ -169,6 +169,8 @@ object Pretty {
       FastSeq(prettyIdentifiers(key), prettyIdentifier(curKey), prettyIdentifier(curVals))
     case StreamMultiMerge(_, key) => single(prettyIdentifiers(key))
     case StreamFilter(_, name, _) => single(prettyIdentifier(name))
+    case StreamTakeWhile(_, name, _) => single(prettyIdentifier(name))
+    case StreamDropWhile(_, name, _) => single(prettyIdentifier(name))
     case StreamFlatMap(_, name, _) => single(prettyIdentifier(name))
     case StreamFold(_, _, accumName, valueName, _) => FastSeq(prettyIdentifier(accumName), prettyIdentifier(valueName))
     case StreamFold2(_, acc, valueName, _, _) => FastSeq(prettyIdentifiers(acc.map(_._1)), prettyIdentifier(valueName))

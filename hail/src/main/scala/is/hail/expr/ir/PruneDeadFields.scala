@@ -1083,6 +1083,28 @@ object PruneDeadFields {
           bodyEnv.deleteEval(name),
           memoizeValueIR(a, TStream(valueType), memo)
         )
+      case StreamTakeWhile(a, name, cond) =>
+        val aType = a.typ.asInstanceOf[TStream]
+        val bodyEnv = memoizeValueIR(cond, cond.typ, memo)
+        val valueType = unifySeq(
+          aType.elementType,
+          FastIndexedSeq(requestedType.asInstanceOf[TStream].elementType) ++
+            bodyEnv.eval.lookupOption(name).map(_.result()).getOrElse(Array()))
+        unifyEnvs(
+          bodyEnv.deleteEval(name),
+          memoizeValueIR(a, TStream(valueType), memo)
+        )
+      case StreamDropWhile(a, name, cond) =>
+        val aType = a.typ.asInstanceOf[TStream]
+        val bodyEnv = memoizeValueIR(cond, cond.typ, memo)
+        val valueType = unifySeq(
+          aType.elementType,
+          FastIndexedSeq(requestedType.asInstanceOf[TStream].elementType) ++
+            bodyEnv.eval.lookupOption(name).map(_.result()).getOrElse(Array()))
+        unifyEnvs(
+          bodyEnv.deleteEval(name),
+          memoizeValueIR(a, TStream(valueType), memo)
+        )
       case StreamFlatMap(a, name, body) =>
         val aType = a.typ.asInstanceOf[TStream]
         val bodyEnv = memoizeValueIR(body, requestedType, memo)
@@ -1846,6 +1868,12 @@ object PruneDeadFields {
       case StreamFilter(a, name, cond) =>
         val a2 = rebuildIR(a, env, memo)
         StreamFilter(a2, name, rebuildIR(cond, env.bindEval(name, a2.typ.asInstanceOf[TStream].elementType), memo))
+      case StreamTakeWhile(a, name, cond) =>
+        val a2 = rebuildIR(a, env, memo)
+        StreamTakeWhile(a2, name, rebuildIR(cond, env.bindEval(name, a2.typ.asInstanceOf[TStream].elementType), memo))
+      case StreamDropWhile(a, name, cond) =>
+        val a2 = rebuildIR(a, env, memo)
+        StreamDropWhile(a2, name, rebuildIR(cond, env.bindEval(name, a2.typ.asInstanceOf[TStream].elementType), memo))
       case StreamFlatMap(a, name, body) =>
         val a2 = rebuildIR(a, env, memo)
         StreamFlatMap(a2, name, rebuildIR(body, env.bindEval(name, a2.typ.asInstanceOf[TStream].elementType), memo))

@@ -6,8 +6,8 @@ import is.hail.expr.ir._
 import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.types.physical.stypes.concrete.SUnreachable
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.primitives.SInt32Code
-import is.hail.types.physical.stypes.{EmitType, SType}
+import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Code}
+import is.hail.types.physical.stypes.{EmitType, SCode, SType}
 import is.hail.types.physical.{PCanonicalArray, PCanonicalStruct}
 import is.hail.types.virtual.{TInterval, TStream}
 import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
@@ -655,6 +655,104 @@ object EmitStream {
 
               SStreamCode(producer)
             }
+          }
+
+      case StreamTakeWhile(a, elt, condIR) =>
+        produce(a, cb)
+          .map(cb) { case (childStream: SStreamCode) =>
+            val childProducer = childStream.producer
+
+            val eltSettable = mb.newEmitField("stream_take_while_elt", childProducer.element.emitType)
+
+            val producer = new StreamProducer {
+              override val length: Option[EmitCodeBuilder => Code[Int]] = None
+
+              override def initialize(cb: EmitCodeBuilder): Unit = {
+                childProducer.initialize(cb)
+              }
+
+              override val elementRegion: Settable[Region] = childProducer.elementRegion
+              override val requiresMemoryManagementPerElement: Boolean = childProducer.requiresMemoryManagementPerElement
+              override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
+                cb.goto(childProducer.LproduceElement)
+                cb.define(childProducer.LproduceElementDone)
+                cb.assign(eltSettable, childProducer.element)
+
+                emit(condIR, cb, region = childProducer.elementRegion, env = env.bind(elt, eltSettable))
+                  .consume(cb,
+                    cb.goto(LendOfStream),
+                    code => cb.ifx(code.asBoolean.boolCode(cb),
+                      cb.goto(LproduceElementDone),
+                      cb.goto(LendOfStream)))
+
+                cb.define(childProducer.LendOfStream)
+                cb.goto(LendOfStream)
+              }
+
+              override val element: EmitCode = eltSettable
+
+              override def close(cb: EmitCodeBuilder): Unit = {
+                childProducer.close(cb)
+              }
+            }
+
+            SStreamCode(producer)
+          }
+
+      case StreamDropWhile(a, elt, condIR) =>
+        produce(a, cb)
+          .map(cb) { case (childStream: SStreamCode) =>
+            val childProducer = childStream.producer
+            val eltSettable = mb.newEmitField("stream_take_while_elt", childProducer.element.emitType)
+            val doneComparisons = mb.genFieldThisRef[Boolean]("stream_take_while_donecomparisons")
+
+            val producer = new StreamProducer {
+              override val length: Option[EmitCodeBuilder => Code[Int]] = None
+
+              override def initialize(cb: EmitCodeBuilder): Unit = {
+                childProducer.initialize(cb)
+                cb.assign(doneComparisons, false)
+              }
+
+              override val elementRegion: Settable[Region] = childProducer.elementRegion
+              override val requiresMemoryManagementPerElement: Boolean = childProducer.requiresMemoryManagementPerElement
+              override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
+
+                cb.goto(childProducer.LproduceElement)
+                cb.define(childProducer.LproduceElementDone)
+                cb.assign(eltSettable, childProducer.element)
+
+                cb.ifx(doneComparisons, cb.goto(LproduceElementDone))
+
+                val LdropThis = CodeLabel()
+                val LdoneDropping = CodeLabel()
+                emit(condIR, cb, region = childProducer.elementRegion, env = env.bind(elt, eltSettable))
+                  .consume(cb,
+                    cb.goto(LdoneDropping),
+                    code => cb.ifx(code.asBoolean.boolCode(cb),
+                      cb.goto(LdropThis),
+                      cb.goto(LdoneDropping)))
+
+                cb.define(LdropThis)
+                if (childProducer.requiresMemoryManagementPerElement)
+                  cb += childProducer.elementRegion.clearRegion()
+                cb.goto(childProducer.LproduceElement)
+
+                cb.define(LdoneDropping)
+                cb.assign(doneComparisons, true)
+                cb.goto(LproduceElementDone)
+
+                cb.define(childProducer.LendOfStream)
+                cb.goto(LendOfStream)
+              }
+              override val element: EmitCode = eltSettable
+
+              override def close(cb: EmitCodeBuilder): Unit = {
+                childProducer.close(cb)
+              }
+            }
+
+            SStreamCode(producer)
           }
 
       case StreamMap(a, name, body) =>
