@@ -703,8 +703,8 @@ object EmitStream {
         produce(a, cb)
           .map(cb) { case (childStream: SStreamCode) =>
             val childProducer = childStream.producer
-            val eltSettable = mb.newEmitField("stream_take_while_elt", childProducer.element.emitType)
-            val doneComparisons = mb.genFieldThisRef[Boolean]("stream_take_while_donecomparisons")
+            val eltSettable = mb.newEmitField("stream_drop_while_elt", childProducer.element.emitType)
+            val doneComparisons = mb.genFieldThisRef[Boolean]("stream_drop_while_donecomparisons")
 
             val producer = new StreamProducer {
               override val length: Option[EmitCodeBuilder => Code[Int]] = None

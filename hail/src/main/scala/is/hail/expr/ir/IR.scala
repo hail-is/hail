@@ -230,10 +230,6 @@ final case class ArraySlice(a: IR, start: IR, stop: Option[IR], step:IR = I32(1)
 final case class ArrayLen(a: IR) extends IR
 final case class ArrayZeros(length: IR) extends IR
 
-object StreamRange {
-  def iota(requiresMemoryManagement: Boolean = false): StreamRange = StreamRange(0, Int.MaxValue, 1, requiresMemoryManagement)
-}
-
 final case class StreamRange(start: IR, stop: IR, step: IR, requiresMemoryManagementPerElement: Boolean = false,
                              errorID: Int = ErrorIDs.NO_ERROR) extends IR
 

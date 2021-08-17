@@ -111,17 +111,6 @@ package object ir {
     StreamTakeWhile(v, ref.name, f(ref))
   }
 
-  def zipWithIndex(v: IR): IR = {
-    val eltRef = Ref(genUID(), coerce[TStream](v.typ).elementType)
-    val idxRef = Ref(genUID(), TInt32)
-    StreamZip(
-      FastIndexedSeq(v, StreamRange.iota()),
-      FastIndexedSeq(eltRef.name, idxRef.name),
-      MakeStruct(FastSeq(("element", eltRef), ("idx", idxRef))),
-      ArrayZipBehavior.TakeMinLength
-    )
-  }
-
   def maxIR(a: IR, b: IR): IR = {
     If(a > b, a, b)
   }
