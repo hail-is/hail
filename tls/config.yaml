@@ -88,14 +88,6 @@ principals:
   domains:
     - benchmark-tests
   kind: json
-- name: address
-  domains:
-    - address
-  kind: json
-- name: address-tests
-  domains:
-    - address-tests
-  kind: json
 - name: monitoring
   domains:
     - monitoring
