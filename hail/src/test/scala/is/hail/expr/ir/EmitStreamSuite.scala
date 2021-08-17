@@ -800,11 +800,11 @@ class EmitStreamSuite extends HailSuite {
     }
 
     assertMemoryDoesNotScaleWithStreamSize() { size =>
-      foldLength(dropWhile(zipWithIndex(rangeStructs(size))) { elt => GetField(elt, "idx") < (size / 2).toI })
+      foldLength(dropWhile(rangeStructs(size)) { elt => GetField(elt, "idx") < (size / 2).toI })
     }
 
     assertMemoryDoesNotScaleWithStreamSize() { size =>
-      foldLength(takeWhile(zipWithIndex(rangeStructs(size))) { elt => GetField(elt, "idx") < (size / 2).toI })
+      foldLength(takeWhile(rangeStructs(size)) { elt => GetField(elt, "idx") < (size / 2).toI })
     }
   }
 }
