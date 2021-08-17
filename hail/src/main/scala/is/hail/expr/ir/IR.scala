@@ -295,7 +295,7 @@ final case class StreamDrop(a: IR, num: IR) extends IR
 // Generate, in ascending order, a uniform random sample, without replacement, of numToSample integers in the range [0, totalRange)
 final case class SeqSample(totalRange: IR, numToSample: IR, requiresMemoryManagementPerElement: Boolean) extends IR
 
-final case class StreamDistribute(child: IR, pivots: IR, pathPrefix: String) extends IR
+final case class StreamDistribute(child: IR, pivots: IR, path: IR) extends IR
 
 object ArrayZipBehavior extends Enumeration {
   type ArrayZipBehavior = Value
