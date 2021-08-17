@@ -373,8 +373,9 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
         }
         if DEFAULT_NAMESPACE != 'default':
             default_token_secret = k8s_client.read_namespaced_secret(tokens_secret_name, 'default')
-            default_token = base64.b64decode(default_token_secret.data['default']).decode()
-            tokens['default'] = default_token
+            if 'default' in default_token_secret.data:
+                default_token = base64.b64decode(default_token_secret.data['default']).decode()
+                tokens['default'] = default_token
         await tokens_secret.create(
             tokens_secret_name,
             DEFAULT_NAMESPACE,
