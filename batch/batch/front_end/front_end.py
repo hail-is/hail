@@ -49,7 +49,6 @@ from gear import (
     transaction,
     monitor_endpoints_middleware,
 )
-from traitlets.traitlets import Instance
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 
 # import uvloop
