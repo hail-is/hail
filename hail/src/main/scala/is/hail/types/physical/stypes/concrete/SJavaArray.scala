@@ -21,44 +21,48 @@ object SJavaArrayHelpers {
   }
 }
 
-case class SJavaArrayString(elementRequired: Boolean) extends SContainer {
-  def elementType: SType = SJavaString
+final case class SJavaArrayString(elementRequired: Boolean) extends SContainer {
+  override def elementType: SType = SJavaString
 
   override def storageType(): PType = PCanonicalArray(PCanonicalString(elementRequired), false)
 
   override def copiedType: SType = this
 
-  def containsPointers: Boolean = false
+  override def containsPointers: Boolean = false
 
-  lazy val virtualType: Type = TArray(TString)
+  override lazy val virtualType: Type = TArray(TString)
 
   override def castRename(t: Type): SType = this
 
-  def elementEmitType: EmitType = EmitType(elementType, elementRequired)
+  override def elementEmitType: EmitType = EmitType(elementType, elementRequired)
 
-  def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     value.st match {
       case SJavaArrayString(_) => new SJavaArrayStringCode(this, value.asInstanceOf[SJavaArrayStringCode].array)
     }
   }
 
-  def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(arrayInfo[String])
+  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(arrayInfo[String])
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(arrayInfo[String])
 
-  def fromSettables(settables: IndexedSeq[Settable[_]]): SJavaArrayStringSettable = {
+  override def fromSettables(settables: IndexedSeq[Settable[_]]): SJavaArrayStringSettable = {
     val IndexedSeq(a: Settable[Array[String]@unchecked]) = settables
     new SJavaArrayStringSettable(this, a)
   }
 
-  def fromCodes(codes: IndexedSeq[Code[_]]): SJavaArrayStringCode = {
+  override def fromCodes(codes: IndexedSeq[Code[_]]): SJavaArrayStringCode = {
     val IndexedSeq(a: Code[Array[String]@unchecked]) = codes
     new SJavaArrayStringCode(this, a)
   }
 
+  override def fromValues(values: IndexedSeq[Value[_]]): SJavaArrayStringValue = {
+    val IndexedSeq(a: Value[Array[String]@unchecked]) = values
+    new SJavaArrayStringValue(this, a)
+  }
+
   def construct(arr: Code[Array[String]]): SJavaArrayStringCode = new SJavaArrayStringCode(this, arr)
 }
-
 
 class SJavaArrayStringCode(val st: SJavaArrayString, val array: Code[Array[String]]) extends SIndexableCode {
   def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(array)
@@ -78,26 +82,17 @@ class SJavaArrayStringCode(val st: SJavaArrayString, val array: Code[Array[Strin
   def castToArray(cb: EmitCodeBuilder): SIndexableCode = this
 }
 
-object SJavaArrayStringSettable {
-  def apply(sb: SettableBuilder, st: SJavaArrayString, name: String): SJavaArrayStringSettable = {
-    new SJavaArrayStringSettable(st,
-      sb.newSettable[Array[String]](s"${ name }_arr"))
-  }
-}
-
-class SJavaArrayStringSettable(
+class SJavaArrayStringValue(
   val st: SJavaArrayString,
-  val array: Settable[Array[String]]
-) extends SIndexableValue with SSettable {
-  def get: SIndexableCode = new SJavaArrayStringCode(st, array)
+  val array: Value[Array[String]]
+) extends SIndexableValue {
+  override def get: SIndexableCode = new SJavaArrayStringCode(st, array)
 
-  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(array)
-
-  def loadLength(): Value[Int] = new Value[Int] {
-    def get: Code[Int] = array.length()
+  override def loadLength(): Value[Int] = new Value[Int] {
+    override def get: Code[Int] = array.length()
   }
 
-  def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode = {
+  override def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode = {
     if (st.elementRequired)
       IEmitCode.present(cb, new SJavaStringCode(array(i)))
     else {
@@ -108,16 +103,30 @@ class SJavaArrayStringSettable(
     }
   }
 
-  def isElementMissing(i: Code[Int]): Code[Boolean] = array(i).isNull
-
-  def store(cb: EmitCodeBuilder, pc: SCode): Unit = {
-    cb.assign(array, pc.asInstanceOf[SJavaArrayStringCode].array)
-  }
+  override def isElementMissing(i: Code[Int]): Code[Boolean] = array(i).isNull
 
   override def hasMissingValues(cb: EmitCodeBuilder): Code[Boolean] = {
     if (st.elementRequired)
       const(false)
     else
       Code.invokeScalaObject1[Array[String], Boolean](SJavaArrayHelpers.getClass, "hasNulls", array)
+  }
+}
+
+object SJavaArrayStringSettable {
+  def apply(sb: SettableBuilder, st: SJavaArrayString, name: String): SJavaArrayStringSettable = {
+    new SJavaArrayStringSettable(st,
+      sb.newSettable[Array[String]](s"${ name }_arr"))
+  }
+}
+
+final class SJavaArrayStringSettable(
+  st: SJavaArrayString,
+  override val array: Settable[Array[String]]
+) extends SJavaArrayStringValue(st, array) with SSettable {
+  override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(array)
+
+  override def store(cb: EmitCodeBuilder, pc: SCode): Unit = {
+    cb.assign(array, pc.asInstanceOf[SJavaArrayStringCode].array)
   }
 }

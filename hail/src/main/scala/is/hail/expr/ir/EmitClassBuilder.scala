@@ -401,7 +401,7 @@ class EmitClassBuilder[C](
 
   def freeSerializedAgg(i: Int): Code[Unit] = {
     assert(i < _nSerialized)
-    _aggSerialized.load().update(i, Code._null)
+    _aggSerialized.load().update(i, Code._null[Array[Byte]])
   }
 
   def runMethodWithHailExceptionHandler(mname: String): Code[(String, java.lang.Integer)] = {

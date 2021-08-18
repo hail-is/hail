@@ -10,41 +10,39 @@ import is.hail.types.virtual.{TFloat32, Type}
 import is.hail.utils.FastIndexedSeq
 
 case object SFloat32 extends SPrimitive {
-  def ti: TypeInfo[_] = FloatInfo
+  override def ti: TypeInfo[_] = FloatInfo
 
-  lazy val virtualType: Type = TFloat32
+  override lazy val virtualType: Type = TFloat32
 
   override def castRename(t: Type): SType = this
 
-  def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     value.st match {
       case SFloat32 => value
     }
   }
 
-  def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(FloatInfo)
+  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(FloatInfo)
 
-  def fromSettables(settables: IndexedSeq[Settable[_]]): SFloat32Settable = {
+  override def fromSettables(settables: IndexedSeq[Settable[_]]): SFloat32Settable = {
     val IndexedSeq(x: Settable[Float@unchecked]) = settables
     assert(x.ti == FloatInfo)
     new SFloat32Settable(x)
   }
 
-  def fromCodes(codes: IndexedSeq[Code[_]]): SFloat32Code = {
+  override def fromCodes(codes: IndexedSeq[Code[_]]): SFloat32Code = {
     val IndexedSeq(x: Code[Float@unchecked]) = codes
     assert(x.ti == FloatInfo)
     new SFloat32Code(x)
   }
 
-  def storageType(): PType = PFloat32()
-}
+  override def fromValues(values: IndexedSeq[Value[_]]): SFloat32Value = {
+    val IndexedSeq(x: Value[Float@unchecked]) = values
+    assert(x.ti == FloatInfo)
+    new SFloat32Value(x)
+  }
 
-trait SFloat32Value extends SValue {
-  def floatCode(cb: EmitCodeBuilder): Code[Float]
-  override def hash(cb: EmitCodeBuilder): SInt32Code =
-    new SInt32Code(Code.invokeStatic1[java.lang.Float, Float, Int]("floatToIntBits", floatCode(cb)))
-
-
+  override def storageType(): PType = PFloat32()
 }
 
 class SFloat32Code(val code: Code[Float]) extends SCode with SPrimitiveCode {
@@ -52,9 +50,9 @@ class SFloat32Code(val code: Code[Float]) extends SCode with SPrimitiveCode {
 
   val pt: PFloat32 = PFloat32(false)
 
-  def st: SFloat32.type = SFloat32
+  override def st: SFloat32.type = SFloat32
 
-  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(code)
+  override def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(code)
 
   private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SFloat32Value = {
     val s = new SFloat32Settable(sb.newSettable[Float]("sint64_memoize"))
@@ -62,11 +60,24 @@ class SFloat32Code(val code: Code[Float]) extends SCode with SPrimitiveCode {
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String): SFloat32Value = memoizeWithBuilder(cb, name, cb.localBuilder)
+  override def memoize(cb: EmitCodeBuilder, name: String): SFloat32Value = memoizeWithBuilder(cb, name, cb.localBuilder)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): SFloat32Value = memoizeWithBuilder(cb, name, cb.fieldBuilder)
+  override def memoizeField(cb: EmitCodeBuilder, name: String): SFloat32Value = memoizeWithBuilder(cb, name, cb.fieldBuilder)
 
   def floatCode(cb: EmitCodeBuilder): Code[Float] = code
+}
+
+class SFloat32Value(x: Value[Float]) extends SValue {
+  val pt: PFloat32 = PFloat32()
+
+  override def st: SFloat32.type = SFloat32
+
+  override def get: SCode = new SFloat32Code(x)
+
+  def floatCode(cb: EmitCodeBuilder): Code[Float] = x
+
+  override def hash(cb: EmitCodeBuilder): SInt32Code =
+    new SInt32Code(Code.invokeStatic1[java.lang.Float, Float, Int]("floatToIntBits", floatCode(cb)))
 }
 
 object SFloat32Settable {
@@ -75,16 +86,8 @@ object SFloat32Settable {
   }
 }
 
-class SFloat32Settable(x: Settable[Float]) extends SFloat32Value with SSettable {
-  val pt: PFloat32 = PFloat32()
+final class SFloat32Settable(x: Settable[Float]) extends SFloat32Value(x) with SSettable {
+  override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
 
-  def st: SFloat32.type = SFloat32
-
-  def store(cb: EmitCodeBuilder, v: SCode): Unit = cb.assign(x, v.asFloat.floatCode(cb))
-
-  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
-
-  def get: SCode = new SFloat32Code(x)
-
-  def floatCode(cb: EmitCodeBuilder): Code[Float] = x
+  override def store(cb: EmitCodeBuilder, v: SCode): Unit = cb.assign(x, v.asFloat.floatCode(cb))
 }

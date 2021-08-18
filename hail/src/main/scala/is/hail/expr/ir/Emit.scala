@@ -157,6 +157,31 @@ case class EmitRegion(mb: EmitMethodBuilder[_], region: Value[Region]) {
   def baseRegion: Value[Region] = mb.getCodeParam[Region](1)
 }
 
+object EmitValue {
+  def apply(missing: Option[Value[Boolean]], v: SValue): EmitValue = new EmitValue {
+    lazy val required: Boolean = missing.isEmpty
+
+    override lazy val emitType: EmitType = EmitType(v.st, required)
+
+    override def load: EmitCode = {
+      val ec = EmitCode(Code._empty,
+        if (required) const(false) else missing.get,
+        v)
+      assert(ec.required == required)
+      ec
+    }
+
+    override def get(cb: EmitCodeBuilder): SCode = {
+      if (required) {
+        v
+      } else {
+        cb.ifx(missing.get, cb._fatal(s"Can't convert missing ${ st } to PValue"))
+        v
+      }
+    }
+  }
+}
+
 abstract class EmitValue {
   def emitType: EmitType
 

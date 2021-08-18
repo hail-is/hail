@@ -4,39 +4,45 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, SortOrder}
-import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode, SBaseStructValue, SStructSettable}
+import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode, SBaseStructValue, SBaseStructSettable}
 import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType}
 import is.hail.types.physical.{PBaseStruct, PType}
 import is.hail.types.virtual.{TBaseStruct, Type}
 import is.hail.utils.FastIndexedSeq
 
 
-case class SBaseStructPointer(pType: PBaseStruct) extends SBaseStruct {
+final case class SBaseStructPointer(pType: PBaseStruct) extends SBaseStruct {
   require(!pType.required)
-  def size: Int = pType.size
+  override def size: Int = pType.size
 
-  lazy val virtualType: TBaseStruct = pType.virtualType.asInstanceOf[TBaseStruct]
+  override lazy val virtualType: TBaseStruct = pType.virtualType.asInstanceOf[TBaseStruct]
 
   override def castRename(t: Type): SType = SBaseStructPointer(pType.deepRename(t).asInstanceOf[PBaseStruct])
 
   override def fieldIdx(fieldName: String): Int = pType.fieldIdx(fieldName)
 
-  def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SBaseStructPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 
-  def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
+  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
 
-  def fromSettables(settables: IndexedSeq[Settable[_]]): SBaseStructPointerSettable = {
+  override def fromSettables(settables: IndexedSeq[Settable[_]]): SBaseStructPointerSettable = {
     val IndexedSeq(a: Settable[Long@unchecked]) = settables
     assert(a.ti == LongInfo)
     new SBaseStructPointerSettable(this, a)
   }
 
-  def fromCodes(codes: IndexedSeq[Code[_]]): SBaseStructPointerCode = {
+  override def fromCodes(codes: IndexedSeq[Code[_]]): SBaseStructPointerCode = {
     val IndexedSeq(a: Code[Long@unchecked]) = codes
     assert(a.ti == LongInfo)
     new SBaseStructPointerCode(this, a)
+  }
+
+  override def fromValues(values: IndexedSeq[Value[_]]): SBaseStructPointerValue = {
+    val IndexedSeq(a: Value[Long@unchecked]) = values
+    assert(a.ti == LongInfo)
+    new SBaseStructPointerValue(this, a)
   }
 
   def canonicalPType(): PType = pType
@@ -44,13 +50,31 @@ case class SBaseStructPointer(pType: PBaseStruct) extends SBaseStruct {
   override val fieldTypes: IndexedSeq[SType] = pType.types.map(_.sType)
   override val fieldEmitTypes: IndexedSeq[EmitType] = pType.types.map(t => EmitType(t.sType, t.required))
 
-  def containsPointers: Boolean = pType.containsPointers
+  override def containsPointers: Boolean = pType.containsPointers
 
   override def storageType(): PType = pType
 
-  def copiedType: SType = SBaseStructPointer(pType.copiedType.asInstanceOf[PBaseStruct])
+  override def copiedType: SType = SBaseStructPointer(pType.copiedType.asInstanceOf[PBaseStruct])
 }
 
+class SBaseStructPointerValue(
+  val st: SBaseStructPointer,
+  val a: Value[Long]
+) extends SBaseStructValue {
+  val pt: PBaseStruct = st.pType
+
+  override def get: SBaseStructCode = new SBaseStructPointerCode(st, a)
+
+  override def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
+    IEmitCode(cb,
+      pt.isFieldMissing(a, fieldIdx),
+      pt.fields(fieldIdx).typ.loadCheapSCode(cb, pt.loadField(a, fieldIdx)))
+  }
+
+  override def isFieldMissing(fieldIdx: Int): Code[Boolean] = {
+    pt.isFieldMissing(a, fieldIdx)
+  }
+}
 
 object SBaseStructPointerSettable {
   def apply(sb: SettableBuilder, st: SBaseStructPointer, name: String): SBaseStructPointerSettable = {
@@ -58,28 +82,14 @@ object SBaseStructPointerSettable {
   }
 }
 
-class SBaseStructPointerSettable(
-  val st: SBaseStructPointer,
-  val a: Settable[Long]
-) extends SStructSettable {
-  val pt: PBaseStruct = st.pType
+final class SBaseStructPointerSettable(
+  st: SBaseStructPointer,
+  override val a: Settable[Long]
+) extends SBaseStructPointerValue(st, a) with SSettable {
+  override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
 
-  def get: SBaseStructCode = new SBaseStructPointerCode(st, a)
-
-  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
-
-  def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
-    IEmitCode(cb,
-      pt.isFieldMissing(a, fieldIdx),
-      pt.fields(fieldIdx).typ.loadCheapSCode(cb, pt.loadField(a, fieldIdx)))
-  }
-
-  def store(cb: EmitCodeBuilder, pv: SCode): Unit = {
+  override def store(cb: EmitCodeBuilder, pv: SCode): Unit = {
     cb.assign(a, pv.asInstanceOf[SBaseStructPointerCode].a)
-  }
-
-  def isFieldMissing(fieldIdx: Int): Code[Boolean] = {
-    pt.isFieldMissing(a, fieldIdx)
   }
 }
 

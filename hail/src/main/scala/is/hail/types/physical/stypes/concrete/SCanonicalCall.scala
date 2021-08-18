@@ -39,6 +39,12 @@ case object SCanonicalCall extends SCall {
     new SCanonicalCallCode(call)
   }
 
+  def fromValues(values: IndexedSeq[Value[_]]): SCanonicalCallValue = {
+    val IndexedSeq(call: Value[Int@unchecked]) = values
+    assert(call.ti == IntInfo)
+    new SCanonicalCallValue(call)
+  }
+
   def storageType(): PType = PCanonicalCall(false)
 
   def copiedType: SType = this
@@ -48,32 +54,20 @@ case object SCanonicalCall extends SCall {
   def constructFromIntRepr(c: Code[Int]): SCanonicalCallCode = new SCanonicalCallCode(c)
 }
 
-object SCanonicalCallSettable {
-  def apply(sb: SettableBuilder, name: String): SCanonicalCallSettable =
-    new SCanonicalCallSettable(sb.newSettable[Int](s"${ name }_call"))
-}
-
-class SCanonicalCallSettable(val call: Settable[Int]) extends SCallValue with SSettable {
-
+class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
   val pt: PCall = PCanonicalCall(false)
 
   override def canonicalCall(cb: EmitCodeBuilder): Code[Int] = call
 
-  override def store(cb: EmitCodeBuilder, v: SCode): Unit = cb.assign(call, v.asInstanceOf[SCanonicalCallCode].call)
+  override val st: SCanonicalCall.type = SCanonicalCall
 
-  val st: SCanonicalCall.type = SCanonicalCall
+  override def get: SCallCode = new SCanonicalCallCode(call)
 
-  def get: SCallCode = new SCanonicalCallCode(call)
+  override def ploidy(): Code[Int] = get.ploidy()
 
-  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(call)
+  override def isPhased(): Code[Boolean] = get.isPhased()
 
-  def store(pc: SCode): Code[Unit] = call.store(pc.asInstanceOf[SCanonicalCallCode].call)
-
-  def ploidy(): Code[Int] = get.ploidy()
-
-  def isPhased(): Code[Boolean] = get.isPhased()
-
-  def forEachAllele(cb: EmitCodeBuilder)(alleleCode: Value[Int] => Unit): Unit = {
+  override def forEachAllele(cb: EmitCodeBuilder)(alleleCode: Value[Int] => Unit): Unit = {
     val call2 = cb.newLocal[Int]("fea_call2", call >>> 3)
     val p = cb.newLocal[Int]("fea_ploidy", ploidy())
     val j = cb.newLocal[Int]("fea_j")
@@ -98,7 +92,7 @@ class SCanonicalCallSettable(val call: Settable[Int]) extends SCallValue with SS
     })
   }
 
-  def lgtToGT(cb: EmitCodeBuilder, localAlleles: SIndexableValue, errorID: Value[Int]): SCallCode = {
+  override def lgtToGT(cb: EmitCodeBuilder, localAlleles: SIndexableValue, errorID: Value[Int]): SCallCode = {
 
     def checkAndTranslate(cb: EmitCodeBuilder, allele: Code[Int]): Code[Int] = {
       val av = cb.newLocal[Int](s"allele", allele)
@@ -136,6 +130,18 @@ class SCanonicalCallSettable(val call: Settable[Int]) extends SCallValue with SS
     )
     new SCanonicalCallCode(repr)
   }
+}
+
+object SCanonicalCallSettable {
+  def apply(sb: SettableBuilder, name: String): SCanonicalCallSettable =
+    new SCanonicalCallSettable(sb.newSettable[Int](s"${ name }_call"))
+}
+
+final class SCanonicalCallSettable(override val call: Settable[Int]) extends SCanonicalCallValue(call) with SSettable {
+  override def store(cb: EmitCodeBuilder, v: SCode): Unit =
+    cb.assign(call, v.asInstanceOf[SCanonicalCallCode].call)
+
+  override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(call)
 }
 
 class SCanonicalCallCode(val call: Code[Int]) extends SCallCode {

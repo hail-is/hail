@@ -2,9 +2,9 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, Settable, TypeInfo, Value}
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitSettable, IEmitCode}
-import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode, SStructSettable}
-import is.hail.types.physical.stypes.{EmitType, SCode, SType}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitSettable, EmitValue, IEmitCode}
+import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode, SBaseStructSettable, SBaseStructValue}
+import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType}
 import is.hail.types.physical.{PCanonicalBaseStruct, PCanonicalStruct, PCanonicalTuple, PTupleField, PType}
 import is.hail.types.virtual.{TBaseStruct, TStruct, TTuple, Type}
 
@@ -29,7 +29,7 @@ object SStackStruct {
   }
 }
 
-case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedSeq[EmitType]) extends SBaseStruct {
+final case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedSeq[EmitType]) extends SBaseStruct {
   override def size: Int = virtualType.size
 
   private lazy val codeStarts = fieldEmitTypes.map(_.nCodes).scanLeft(0)(_ + _).init
@@ -37,7 +37,7 @@ case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedSeq[Emi
 
   override lazy val fieldTypes: IndexedSeq[SType] = fieldEmitTypes.map(_.st)
 
-  def fieldIdx(fieldName: String): Int = virtualType.fieldIdx(fieldName)
+  override def fieldIdx(fieldName: String): Int = virtualType.fieldIdx(fieldName)
 
   override def storageType(): PType = virtualType match {
     case ts: TStruct =>
@@ -48,9 +48,9 @@ case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedSeq[Emi
 
   override def copiedType: SType = SStackStruct(virtualType, fieldEmitTypes.map(f => f.copy(st = f.st.copiedType)))
 
-  def containsPointers: Boolean = fieldEmitTypes.exists(_.st.containsPointers)
+  override def containsPointers: Boolean = fieldEmitTypes.exists(_.st.containsPointers)
 
-  lazy val codeTupleTypes: IndexedSeq[TypeInfo[_]] = fieldEmitTypes.flatMap(_.codeTupleTypes)
+  override lazy val codeTupleTypes: IndexedSeq[TypeInfo[_]] = fieldEmitTypes.flatMap(_.codeTupleTypes)
 
   override lazy val settableTupleTypes: IndexedSeq[TypeInfo[_]] = fieldEmitTypes.flatMap(_.settableTupleTypes)
 
@@ -68,6 +68,15 @@ case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedSeq[Emi
       val et = fieldEmitTypes(i)
       val start = settableStarts(i)
       et.fromSettables(settables.slice(start, start + et.nSettables))
+    })
+  }
+
+  override def fromValues(values: IndexedSeq[Value[_]]): SStackStructValue = {
+    assert(values.length == fieldEmitTypes.map(_.nSettables).sum, s"mismatch: ${ values.length } settables, expect ${ fieldEmitTypes.map(_.nSettables).sum }\n  ${ values.map(_.ti).mkString(",") }\n  ${ fieldEmitTypes.map(_.settableTupleTypes).mkString(" | ") }")
+    new SStackStructValue(this, fieldEmitTypes.indices.map { i =>
+      val et = fieldEmitTypes(i)
+      val start = settableStarts(i)
+      et.fromValues(values.slice(start, start + et.nSettables))
     })
   }
 
@@ -112,19 +121,24 @@ case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedSeq[Emi
   }
 }
 
-class SStackStructSettable(val st: SStackStruct, settables: IndexedSeq[EmitSettable]) extends SStructSettable {
-  def get: SStackStructCode = new SStackStructCode(st, settables.map(_.load))
+class SStackStructValue(val st: SStackStruct, settables: IndexedSeq[EmitValue]) extends SBaseStructValue {
+  override def get: SStackStructCode = new SStackStructCode(st, settables.map(_.load))
 
-  def settableTuple(): IndexedSeq[Settable[_]] = settables.flatMap(_.settableTuple())
-
-  def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
+  override def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
     settables(fieldIdx).toI(cb)
   }
 
-  def isFieldMissing(fieldIdx: Int): Code[Boolean] =
+  override def isFieldMissing(fieldIdx: Int): Code[Boolean] =
     settables(fieldIdx).m
+}
 
-  def store(cb: EmitCodeBuilder, pv: SCode): Unit = {
+final class SStackStructSettable(
+  st: SStackStruct,
+  settables: IndexedSeq[EmitSettable]
+) extends SStackStructValue(st, settables) with SSettable {
+  override def settableTuple(): IndexedSeq[Settable[_]] = settables.flatMap(_.settableTuple())
+
+  override def store(cb: EmitCodeBuilder, pv: SCode): Unit = {
     val ssc = pv.asInstanceOf[SStackStructCode]
     settables.zip(ssc.codes).foreach { case (s, c) => s.store(cb, c) }
   }

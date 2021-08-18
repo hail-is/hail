@@ -12,26 +12,26 @@ import is.hail.utils.FastIndexedSeq
 import is.hail.variant.{Locus, ReferenceGenome}
 
 
-case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
+final case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
   require(!pType.required)
 
   override def contigType: SString = pType.contigType.sType
 
-  lazy val virtualType: Type = pType.virtualType
+  override lazy val virtualType: Type = pType.virtualType
 
   override def castRename(t: Type): SType = this
 
   override def rg: ReferenceGenome = pType.rg
 
-  def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SCanonicalLocusPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 
-  def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
+  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo, LongInfo, IntInfo)
 
-  def fromSettables(settables: IndexedSeq[Settable[_]]): SCanonicalLocusPointerSettable = {
+  override def fromSettables(settables: IndexedSeq[Settable[_]]): SCanonicalLocusPointerSettable = {
     val IndexedSeq(a: Settable[Long@unchecked], contig: Settable[Long@unchecked], position: Settable[Int@unchecked]) = settables
     assert(a.ti == LongInfo)
     assert(contig.ti == LongInfo)
@@ -39,19 +39,46 @@ case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
     new SCanonicalLocusPointerSettable(this, a, contig, position)
   }
 
-  def fromCodes(codes: IndexedSeq[Code[_]]): SCanonicalLocusPointerCode = {
+  override def fromCodes(codes: IndexedSeq[Code[_]]): SCanonicalLocusPointerCode = {
     val IndexedSeq(a: Code[Long@unchecked]) = codes
     assert(a.ti == LongInfo)
     new SCanonicalLocusPointerCode(this, a)
   }
 
-  def storageType(): PType = pType
+  override def fromValues(values: IndexedSeq[Value[_]]): SCanonicalLocusPointerValue = {
+    val IndexedSeq(a: Value[Long@unchecked], contig: Value[Long@unchecked], position: Value[Int@unchecked]) = values
+    assert(a.ti == LongInfo)
+    assert(contig.ti == LongInfo)
+    assert(position.ti == IntInfo)
+    new SCanonicalLocusPointerValue(this, a, contig, position)
+  }
 
-  def copiedType: SType = SCanonicalLocusPointer(pType.copiedType.asInstanceOf[PCanonicalLocus])
+  override def storageType(): PType = pType
 
-  def containsPointers: Boolean = pType.containsPointers
+  override def copiedType: SType = SCanonicalLocusPointer(pType.copiedType.asInstanceOf[PCanonicalLocus])
+
+  override def containsPointers: Boolean = pType.containsPointers
 }
 
+class SCanonicalLocusPointerValue(
+  val st: SCanonicalLocusPointer,
+  val a: Value[Long],
+  _contig: Value[Long],
+  val _position: Value[Int]
+) extends SLocusValue {
+  val pt: PCanonicalLocus = st.pType
+
+  override def get = new SCanonicalLocusPointerCode(st, a)
+
+  override def contig(cb: EmitCodeBuilder): SStringCode = {
+    pt.contigType.loadCheapSCode(cb, _contig).asString
+  }
+
+  override def position(cb: EmitCodeBuilder): Code[Int] = _position
+
+  override def structRepr(cb: EmitCodeBuilder): SBaseStructValue = new SBaseStructPointerValue(
+    SBaseStructPointer(st.pType.representation), a)
+}
 
 object SCanonicalLocusPointerSettable {
   def apply(sb: SettableBuilder, st: SCanonicalLocusPointer, name: String): SCanonicalLocusPointerSettable = {
@@ -62,31 +89,21 @@ object SCanonicalLocusPointerSettable {
   }
 }
 
-class SCanonicalLocusPointerSettable(
-  val st: SCanonicalLocusPointer,
-  val a: Settable[Long],
+final class SCanonicalLocusPointerSettable(
+  st: SCanonicalLocusPointer,
+  override val a: Settable[Long],
   _contig: Settable[Long],
-  val _position: Settable[Int]
-) extends SLocusValue with SSettable {
-  val pt: PCanonicalLocus = st.pType
+  override val _position: Settable[Int]
+) extends SCanonicalLocusPointerValue(st, a, _contig, _position) with SSettable {
+  override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a, _contig, _position)
 
-  def get = new SCanonicalLocusPointerCode(st, a)
-
-  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a, _contig, _position)
-
-  def store(cb: EmitCodeBuilder, pc: SCode): Unit = {
+  override def store(cb: EmitCodeBuilder, pc: SCode): Unit = {
     cb.assign(a, pc.asInstanceOf[SCanonicalLocusPointerCode].a)
     cb.assign(_contig, pt.contigAddr(a))
     cb.assign(_position, pt.position(a))
   }
 
-  def contig(cb: EmitCodeBuilder): SStringCode = {
-    pt.contigType.loadCheapSCode(cb, _contig).asString
-  }
-
-  def position(cb: EmitCodeBuilder): Code[Int] = _position
-
-  override def structRepr(cb: EmitCodeBuilder): SBaseStructValue = new SBaseStructPointerSettable(
+  override def structRepr(cb: EmitCodeBuilder): SBaseStructPointerSettable = new SBaseStructPointerSettable(
     SBaseStructPointer(st.pType.representation), a)
 }
 

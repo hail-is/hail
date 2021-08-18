@@ -31,10 +31,12 @@ trait SBaseStruct extends SType {
   }
 }
 
-trait SStructSettable extends SBaseStructValue with SSettable
+trait SBaseStructSettable extends SBaseStructValue with SSettable
 
 trait SBaseStructValue extends SValue {
   def st: SBaseStruct
+
+  override def get: SBaseStructCode
 
   def isFieldMissing(fieldIdx: Int): Code[Boolean]
 

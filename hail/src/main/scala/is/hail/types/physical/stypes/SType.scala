@@ -2,7 +2,7 @@ package is.hail.types.physical.stypes
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitSettable, SCodeEmitParamType, SCodeParamType}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitSettable, EmitValue, SCodeEmitParamType, SCodeParamType}
 import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.types.physical.PType
 import is.hail.types.physical.stypes.concrete.SUnreachable
@@ -59,6 +59,8 @@ trait SType {
 
   def fromSettables(settables: IndexedSeq[Settable[_]]): SSettable
 
+  def fromValues(values: IndexedSeq[Value[_]]): SValue
+
   def fromCodes(codes: IndexedSeq[Code[_]]): SCode
 
   def storageType(): PType
@@ -69,9 +71,8 @@ trait SType {
 
   def asIdent: String = getClass.getSimpleName
 
-  def defaultValue: SCode = {
-    fromCodes(codeTupleTypes().map(ti => ti.uninitializedValue))
-  }
+  def defaultValue: SValue =
+    fromValues(codeTupleTypes().map(ti => ti.uninitializedValue))
 
   def isPrimitive: Boolean = this match {
     case SInt32 | SInt64 | SFloat32 | SFloat64 | SBoolean => true
@@ -131,6 +132,11 @@ case class EmitType(st: SType, required: Boolean) {
   def fromSettables(settables: IndexedSeq[Settable[_]]): EmitSettable = new EmitSettable(
     if (required) None else Some(coerce[Boolean](settables.last)),
     st.fromSettables(settables.take(st.nSettables))
+  )
+
+  def fromValues(values: IndexedSeq[Value[_]]): EmitValue = EmitValue(
+    if (required) None else Some(coerce[Boolean](values.last)),
+    st.fromValues(values.take(st.nSettables))
   )
 
   def nCodes: Int = codeTupleTypes.length

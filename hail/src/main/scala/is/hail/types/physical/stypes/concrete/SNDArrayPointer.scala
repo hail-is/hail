@@ -9,10 +9,10 @@ import is.hail.types.physical.{PCanonicalNDArray, PPrimitive, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils.{FastIndexedSeq, toRichIterable}
 
-case class SNDArrayPointer(pType: PCanonicalNDArray) extends SNDArray {
+final case class SNDArrayPointer(pType: PCanonicalNDArray) extends SNDArray {
   require(!pType.required)
 
-  def nDims: Int = pType.nDims
+  override def nDims: Int = pType.nDims
 
   override def elementByteSize: Long = pType.elementType.byteSize
 
@@ -20,19 +20,19 @@ case class SNDArrayPointer(pType: PCanonicalNDArray) extends SNDArray {
 
   override def elementPType: PType = pType.elementType
 
-  lazy val virtualType: Type = pType.virtualType
+  override lazy val virtualType: Type = pType.virtualType
 
   override def castRename(t: Type): SType = SNDArrayPointer(pType.deepRename(t))
 
-  def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SNDArrayPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 
-  def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
+  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = Array.fill(2 + nDims * 2)(LongInfo)
 
-  def fromSettables(settables: IndexedSeq[Settable[_]]): SNDArrayPointerSettable = {
+  override def fromSettables(settables: IndexedSeq[Settable[_]]): SNDArrayPointerSettable = {
     val a = settables(0).asInstanceOf[Settable[Long@unchecked]]
     val shape = settables.slice(1, 1 + pType.nDims).asInstanceOf[IndexedSeq[Settable[Long@unchecked]]]
     val strides = settables.slice(1 + pType.nDims, 1 + 2 * pType.nDims).asInstanceOf[IndexedSeq[Settable[Long@unchecked]]]
@@ -41,27 +41,26 @@ case class SNDArrayPointer(pType: PCanonicalNDArray) extends SNDArray {
     new SNDArrayPointerSettable(this, a, shape, strides, dataFirstElementPointer)
   }
 
-  def fromCodes(codes: IndexedSeq[Code[_]]): SNDArrayPointerCode = {
+  override def fromCodes(codes: IndexedSeq[Code[_]]): SNDArrayPointerCode = {
     val IndexedSeq(a: Code[Long@unchecked]) = codes
     assert(a.ti == LongInfo)
     new SNDArrayPointerCode(this, a)
   }
 
-  def storageType(): PType = pType
-
-  def copiedType: SType = SNDArrayPointer(pType.copiedType.asInstanceOf[PCanonicalNDArray])
-
-  def containsPointers: Boolean = pType.containsPointers
-}
-
-object SNDArrayPointerSettable {
-  def apply(sb: SettableBuilder, st: SNDArrayPointer, name: String): SNDArrayPointerSettable = {
-    new SNDArrayPointerSettable(st, sb.newSettable[Long](name),
-      Array.tabulate(st.pType.nDims)(i => sb.newSettable[Long](s"${name}_nd_shape_$i")),
-      Array.tabulate(st.pType.nDims)(i => sb.newSettable[Long](s"${name}_nd_strides_$i")),
-      sb.newSettable[Long](s"${name}_nd_first_element")
-    )
+  override def fromValues(values: IndexedSeq[Value[_]]): SNDArrayPointerValue = {
+    val a = values(0).asInstanceOf[Settable[Long@unchecked]]
+    val shape = values.slice(1, 1 + pType.nDims).asInstanceOf[IndexedSeq[Value[Long@unchecked]]]
+    val strides = values.slice(1 + pType.nDims, 1 + 2 * pType.nDims).asInstanceOf[IndexedSeq[Value[Long@unchecked]]]
+    val dataFirstElementPointer = values.last.asInstanceOf[Value[Long]]
+    assert(a.ti == LongInfo)
+    new SNDArrayPointerValue(this, a, shape, strides, dataFirstElementPointer)
   }
+
+  override def storageType(): PType = pType
+
+  override def copiedType: SType = SNDArrayPointer(pType.copiedType.asInstanceOf[PCanonicalNDArray])
+
+  override def containsPointers: Boolean = pType.containsPointers
 }
 
 class SNDArrayPointerValue(
@@ -110,7 +109,17 @@ class SNDArrayPointerValue(
   }
 }
 
-class SNDArrayPointerSettable(
+object SNDArrayPointerSettable {
+  def apply(sb: SettableBuilder, st: SNDArrayPointer, name: String): SNDArrayPointerSettable = {
+    new SNDArrayPointerSettable(st, sb.newSettable[Long](name),
+      Array.tabulate(st.pType.nDims)(i => sb.newSettable[Long](s"${name}_nd_shape_$i")),
+      Array.tabulate(st.pType.nDims)(i => sb.newSettable[Long](s"${name}_nd_strides_$i")),
+      sb.newSettable[Long](s"${name}_nd_first_element")
+    )
+  }
+}
+
+final class SNDArrayPointerSettable(
   st: SNDArrayPointer,
   a: Settable[Long],
   shape: IndexedSeq[Settable[Long]],

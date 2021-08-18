@@ -9,25 +9,27 @@ import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType, SUnreal
 import is.hail.types.physical.PType
 import is.hail.types.virtual.{TStream, Type}
 
-case class SStream(elementEmitType: EmitType) extends SType {
+final case class SStream(elementEmitType: EmitType) extends SType {
   def elementType: SType = elementEmitType.st
 
-  def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     if (deepCopy) throw new NotImplementedError()
 
     assert(value.st == this)
     value
   }
 
-  def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = throw new NotImplementedError()
+  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = throw new NotImplementedError()
 
-  def fromCodes(codes: IndexedSeq[Code[_]]): SCode = throw new NotImplementedError()
+  override def fromCodes(codes: IndexedSeq[Code[_]]): SCode = throw new NotImplementedError()
 
-  def fromSettables(settables: IndexedSeq[Settable[_]]): SSettable = throw new NotImplementedError()
+  override def fromSettables(settables: IndexedSeq[Settable[_]]): SSettable = throw new NotImplementedError()
 
-  def storageType(): PType = throw new NotImplementedError()
+  override def fromValues(values: IndexedSeq[Value[_]]): SValue = throw new NotImplementedError()
 
-  def copiedType: SType = throw new NotImplementedError()
+  override def storageType(): PType = throw new NotImplementedError()
+
+  override def copiedType: SType = throw new NotImplementedError()
 
   override def containsPointers: Boolean = throw new NotImplementedError()
 
