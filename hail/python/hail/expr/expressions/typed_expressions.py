@@ -3118,6 +3118,9 @@ class StringExpression(Expression):
         >>> hl.eval(string.matches('12'))
         True
 
+        >>> hl.eval(string.matches('12'), True)
+        False
+
         Regex motifs can be used to match sequences of characters:
 
         >>> hl.eval(string.matches(r'NA\\d+'))
