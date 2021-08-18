@@ -3,7 +3,7 @@ package is.hail.io
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.lowering.TableStage
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitFunctionBuilder, ExecuteContext, GenericLine, GenericLines, GenericTableValue, IEmitCode, IRParser, IntArrayBuilder, LowerMatrixIR, MatrixHybridReader, TableRead, TableValue, TextReaderOptions}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, GenericLine, GenericLines, GenericTableValue, IEmitCode, IRParser, IntArrayBuilder, LowerMatrixIR, MatrixHybridReader, TableRead, TableValue}
 import is.hail.io.fs.FS
 import is.hail.rvd.RVDPartitioner
 import is.hail.types._

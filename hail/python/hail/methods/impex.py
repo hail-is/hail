@@ -1742,16 +1742,20 @@ def import_table(paths,
                              f"follows:\n" + "\n".join(print_changed_fields))
         return fields_to_check
 
+    if len(delimiter) == 0:
+        raise ValueError("Hail does not currently support 0-character separators")
+
     paths = wrap_to_list(paths)
     comment = wrap_to_list(comment)
     missing = wrap_to_list(missing)
-    if len(delimiter) == 0:
-        raise ValueError("Hail does not currently support 0-character separators")
-    ht = hl.import_lines(paths, min_partitions, force_bgz, force)
-    ht = ht.filter(should_filter_line(ht.text), keep=False)
 
-    find_replace = ('', '') if find_replace is None else find_replace
-    ht = ht.annotate(text=ht['text'].replace(*find_replace))
+    ht = hl.import_lines(paths, min_partitions, force_bgz, force)
+    if skip_blank_lines is not None or len(comment) > 0 or filter is not None:
+        ht = ht.filter(should_filter_line(ht.text), keep=False)
+
+    if find_replace is not None:
+        ht = ht.annotate(text=ht['text'].replace(*find_replace))
+
     first_row = ht.head(1)
     first_row_value = first_row.annotate(header=split_lines(first_row.text)).collect()[0]
 
@@ -1805,7 +1809,7 @@ def import_table(paths,
         strs.append('Finished type imputation')
 
         all_types = dict(**types, **imputed_types)
-        print(all_types)
+
         for f_idx, field in enumerate(fields):
             strs.append(f'  Loading field {field!r} as type {all_types[field]} ({reasons[field]})')
             fields_to_value[field] = parse_type(ht.split_text[f_idx], all_types[field])
@@ -1824,7 +1828,7 @@ def import_table(paths,
         source_file = {source_file_field: ht.file}
         ht = ht.annotate(**source_file)
     ht = ht.drop('file')
-    print("5")
+
     if len(fields) < 30:
         hl.utils.info('\n'.join(strs))
     else:
