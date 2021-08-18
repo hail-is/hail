@@ -37,7 +37,7 @@ deploy: build
 	E=$(JINJA_ENVIRONMENT) && \
 	  python3 ../ci/jinja2_render.py $$E deployment.yaml deployment.yaml.out && \
 	  python3 ../ci/jinja2_render.py $$E service-account.yaml service-account.yaml.out
-	kubectl -n $(NAMESPACE) apply -f service-account.yaml.out
+	kubectl apply -f service-account.yaml.out
 	kubectl -n $(NAMESPACE) apply -f deployment.yaml.out
 
 .PHONY: create-build-worker-image-instance
