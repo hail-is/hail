@@ -1253,6 +1253,201 @@ class SetExpression(CollectionExpression):
                             "    type of 's': '{}'".format(self._type, s._type))
         return self._method("union", self._type, s)
 
+    def __le__(self, other):
+        """Test whether every element in the set is in `other`.
+
+        Parameters
+        ----------
+        other : :class:`.SetExpression`
+            Set expression of the same type.
+
+        Returns
+        -------
+        :class:`.BooleanExpression`
+            ``True`` if every element in the set is in `other`. ``False`` otherwise.
+        """
+        other = to_expr(other)
+        if isinstance(other.dtype, hl.tset):
+            return self.is_subset(other)
+
+        return NotImplemented
+
+    def __lt__(self, other):
+        """Test whether the set is a proper subset of `other` (``set <= other and set != other``).
+
+        Parameters
+        ----------
+        other : :class:`.SetExpression`
+            Set expression of the same type.
+
+        Returns
+        -------
+        :class:`.BooleanExpression`
+            ``True`` if the set is a proper subset of `other`. ``False`` otherwise.
+        """
+        other = to_expr(other)
+        if isinstance(other.dtype, hl.tset):
+            return self.is_subset(other) & (self != other)
+
+        return NotImplemented
+
+    def __ge__(self, other):
+        """Test whether every element in `other` is in the set.
+
+        Parameters
+        ----------
+        other : :class:`.SetExpression`
+            Set expression of the same type.
+
+        Returns
+        -------
+        :class:`.BooleanExpression`
+            ``True`` if every element in `other` is in the set. ``False`` otherwise.
+        """
+        other = to_expr(other)
+        if isinstance(other.dtype, hl.tset):
+            return other.is_subset(self)
+
+        return NotImplemented
+
+    def __gt__(self, other):
+        """Test whether `other` is a proper subset of the set (``other <= set and other != set``).
+
+        Parameters
+        ----------
+        other : :class:`.SetExpression`
+            Set expression of the same type.
+
+        Returns
+        -------
+        :class:`.BooleanExpression`
+            ``True`` if `other` is a proper subset of the set. ``False`` otherwise.
+        """
+        other = to_expr(other)
+        if isinstance(other.dtype, hl.tset):
+            return other.is_subset(self) & (self != other)
+
+        return NotImplemented
+
+    def __sub__(self, other):
+        """Return the difference of the set and `other`.
+
+        Examples
+        --------
+
+        >>> hl.eval(s1 - s2)
+        frozenset({2})
+
+        >>> hl.eval(s2 - s1)
+        frozenset({5})
+
+        Parameters
+        ----------
+        other : :class:`.SetExpression`
+            Set expression of the same type.
+
+        Returns
+        -------
+        :class:`.SetExpression`
+            Set of elements in the set that are not in `other`.
+        """
+        other = to_expr(other)
+        if isinstance(other.dtype, hl.tset):
+            return self.difference(other)
+
+        return NotImplemented
+
+    def __rsub__(self, other):
+        other = to_expr(other)
+        if isinstance(other.dtype, hl.tset):
+            return other.difference(self)
+
+        return NotImplemented
+
+    def __and__(self, other):
+        """Return the intersection of the set and `other`.
+
+        Examples
+        --------
+
+        >>> hl.eval(s1 & s2)
+        frozenset({1, 3})
+
+        Parameters
+        ----------
+        other : :class:`.SetExpression`
+            Set expression of the same type.
+
+        Returns
+        -------
+        :class:`.SetExpression`
+            Set of elements present in both the set and `other`.
+        """
+        other = to_expr(other)
+        if isinstance(other.dtype, hl.tset):
+            return self.intersection(other)
+
+        return NotImplemented
+
+    def __rand__(self, other):
+        return self.__and__(other)
+
+    def __or__(self, other):
+        """Return the union of the set and `other`.
+
+        Examples
+        --------
+
+        >>> hl.eval(s1 | s2)
+        frozenset({1, 2, 3, 5})
+
+        Parameters
+        ----------
+        other : :class:`.SetExpression`
+            Set expression of the same type.
+
+        Returns
+        -------
+        :class:`.SetExpression`
+            Set of elements present in either set.
+        """
+        other = to_expr(other)
+        if isinstance(other.dtype, hl.tset):
+            return self.union(other)
+
+        return NotImplemented
+
+    def __ror__(self, other):
+        return self.__or__(other)
+
+    def __xor__(self, other):
+        """Return the symmetric difference of the set and `other`.
+
+        Examples
+        --------
+
+        >>> hl.eval(s1 ^ s2)
+        frozenset({2, 5})
+
+        Parameters
+        ----------
+        other : :class:`.SetExpression`
+            Set expression of the same type.
+
+        Returns
+        -------
+        :class:`.SetExpression`
+            Set of elements present in either the set or `other` but not both.
+        """
+        other = to_expr(other)
+        if isinstance(other.dtype, hl.tset):
+            return self.union(other).difference(self.intersection(other))
+
+        return NotImplemented
+
+    def __rxor__(self, other):
+        return self.__xor__(other)
+
 
 class SetStructExpression(SetExpression):
     """Expression of type :class:`.tset` that eventually contains structs.
