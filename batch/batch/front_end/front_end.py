@@ -1441,7 +1441,7 @@ async def ui_get_job(request, userdata, batch_id):
 
     data = []
     for task in tasks:
-        if container_statuses[task]: 
+        if container_statuses[task]:
             for step_name, step_data in container_statuses[task]['timing'].items():
                 plot_dict = {
                     'title': f'{(batch_id, job_id)}',
@@ -1479,9 +1479,8 @@ async def ui_get_job(request, userdata, batch_id):
         'job_status_str': json.dumps(job, indent=2),
         'step_errors': step_errors,
         'error': job_status.get('error'),
-        'plot_json':plot_json,
+        'plot_json': plot_json,
     }
-
 
     return await render_template('batch', request, userdata, 'job.html', page_context)
 

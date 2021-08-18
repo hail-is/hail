@@ -7,7 +7,7 @@ export default function BatchesPage() {
 
   return (
     <>
-      <h1>Batches</h1>
+      <h1>Batches </h1>
       {batches ? <BatchTable batches={batches.batches} /> : <div>Loading...</div>}
     </>
   );
