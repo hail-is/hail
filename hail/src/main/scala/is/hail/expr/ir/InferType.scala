@@ -33,6 +33,7 @@ object InferType {
       case MakeNDArray(data, shape, _, _) =>
         TNDArray(coerce[TIterable](data.typ).elementType, Nat(shape.typ.asInstanceOf[TTuple].size))
       case _: ArrayLen => TInt32
+      case _: StreamIota => TStream(TInt32)
       case _: StreamRange => TStream(TInt32)
       case _: SeqSample => TStream(TInt32)
       case _: ArrayZeros => TArray(TInt32)

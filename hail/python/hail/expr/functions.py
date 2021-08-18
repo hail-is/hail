@@ -3596,7 +3596,27 @@ def enumerate(a, start=0, *, index_first=True):
     :class:`.ArrayExpression`
         Array of (index, element) or (element, index) tuples.
     """
-    return range(0, len(a)).map(lambda i: (i + start, a[i]) if index_first else (a[i], i + start))
+    a_ir = a._ir
+    elt = Env.get_uid()
+    idx = Env.get_uid()
+    if index_first:
+        tuple = ir.MakeTuple([ir.Ref(idx), ir.Ref(elt)])
+    else:
+        tuple = ir.MakeTuple([ir.Ref(elt), ir.Ref(idx)])
+    indices, aggs = unify_all(a, start)
+    return construct_expr(
+        ir.ToArray(
+            ir.StreamZip(
+                [ir.ToStream(a_ir), ir.StreamIota(start._ir, ir.I32(1))],
+                [elt, idx],
+                tuple,
+                'TakeMinLength'
+            )
+        ),
+        hl.tarray(hl.ttuple(hl.tint32, a.dtype.element_type) if index_first else hl.ttuple(a.dtype.element_type, hl.tint32)),
+        indices,
+        aggs
+    )
 
 
 @deprecated(version='0.2.56', reason="Replaced by hl.enumerate")

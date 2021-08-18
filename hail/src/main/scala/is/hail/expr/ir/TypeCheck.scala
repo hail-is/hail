@@ -146,6 +146,9 @@ object TypeCheck {
         assert(x.typ == coerce[TArray](a.typ))
       case ArrayLen(a) =>
         assert(a.typ.isInstanceOf[TArray])
+      case StreamIota(start, step, _) =>
+        assert(start.typ == TInt32)
+        assert(step.typ == TInt32)
       case x@StreamRange(a, b, c, _, _) =>
         assert(a.typ == TInt32)
         assert(b.typ == TInt32)

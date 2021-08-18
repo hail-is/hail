@@ -156,6 +156,7 @@ object Pretty {
     case MakeArray(_, typ) => single(typ.parsableString())
     case MakeStream(_, typ, requiresMemoryManagementPerElement) =>
       FastSeq(typ.parsableString(), prettyBooleanLiteral(requiresMemoryManagementPerElement))
+    case StreamIota(_, _, requiresMemoryManagementPerElement) => FastSeq(prettyBooleanLiteral(requiresMemoryManagementPerElement))
     case StreamRange(_, _, _, requiresMemoryManagementPerElement, errorID) => FastSeq(errorID.toString, prettyBooleanLiteral(requiresMemoryManagementPerElement))
     case ToStream(_, requiresMemoryManagementPerElement) => single(prettyBooleanLiteral(requiresMemoryManagementPerElement))
     case StreamMap(_, name, _) => single(prettyIdentifier(name))

@@ -101,6 +101,8 @@ package object ir {
     Let(ref.name, v, body(ref))
   }
 
+  def iota(start: IR, step: IR): IR = StreamIota(start, step)
+
   def dropWhile(v: IR)(f: Ref => IR): IR = {
     val ref = Ref(genUID(), coerce[TStream](v.typ).elementType)
     StreamDropWhile(v, ref.name, f(ref))
@@ -184,6 +186,17 @@ package object ir {
     val r1 = Ref(genUID(), coerce[TStream](s1.typ).elementType)
     val r2 = Ref(genUID(), coerce[TStream](s2.typ).elementType)
     StreamZip(FastSeq(s1, s2), FastSeq(r1.name, r2.name), f(r1, r2), behavior)
+  }
+
+  def zipWithIndex(s: IR): IR = {
+    val r1 = Ref(genUID(), coerce[TStream](s.typ).elementType)
+    val r2 = Ref(genUID(), TInt32)
+    StreamZip(
+      FastIndexedSeq(s, StreamIota(I32(0), I32(1))),
+      FastIndexedSeq(r1.name, r2.name),
+      MakeStruct(FastSeq(("elt", r1), ("idx", r2))),
+      ArrayZipBehavior.TakeMinLength
+    )
   }
 
   def zipIR(ss: IndexedSeq[IR], behavior: ArrayZipBehavior.ArrayZipBehavior)(f: IndexedSeq[Ref] => IR): IR = {
