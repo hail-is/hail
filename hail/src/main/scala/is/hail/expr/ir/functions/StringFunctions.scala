@@ -18,6 +18,7 @@ import org.apache.spark.sql.Row
 import org.json4s.JValue
 import org.json4s.jackson.JsonMethods
 
+import java.util.regex.Pattern
 import scala.collection.mutable
 
 object StringFunctions extends RegistryFunctions {
@@ -88,12 +89,70 @@ object StringFunctions extends RegistryFunctions {
     if (quote.size != 1) throw new HailException(s"quote length cannot be greater than 1," +
                                                  s" quote length entered ${quote.size}")
     val quoteC = quote.charAt(0)
-    TextTableReader.splitLine(s, separator, quoteC)
+    val ab = new BoxedArrayBuilder[String]
+    val sb = new StringBuilder
+
+    val matchSep: Int => Int = separator.length match {
+      case 0 => fatal("Hail does not currently support 0-character separators")
+      case 1 =>
+        val sepChar = separator(0)
+        (i: Int) => if (s(i) == sepChar) 1 else -1
+      case _ =>
+        val p = Pattern.compile(separator)
+        val m = p.matcher(s)
+
+        { (i: Int) =>
+          m.region(i, s.length)
+          if (m.lookingAt())
+            m.end() - m.start()
+          else
+            -1
+        }
+    }
+
+    var i = 0
+    while (i < s.length) {
+      val c = s(i)
+
+      val l = matchSep(i)
+      if (l != -1) {
+        i += l
+        ab += sb.result()
+        sb.clear()
+      } else if (c == quoteC) {
+        if (sb.nonEmpty)
+          fatal(s"opening quote character '$quoteC' not at start of field")
+        i += 1 // skip quote
+
+        while (i < s.length && s(i) != quoteC) {
+          sb += s(i)
+          i += 1
+        }
+
+        if (i == s.length)
+          fatal(s"missing terminating quote character '$quoteC'")
+        i += 1 // skip quote
+
+        // full field must be quoted
+        if (i < s.length) {
+          val l = matchSep(i)
+          if (l == -1)
+            fatal(s"terminating quote character '$quoteC' not at end of field")
+          i += l
+          ab += sb.result()
+          sb.clear()
+        }
+      } else {
+        sb += c
+        i += 1
+      }
+    }
+    ab += sb.result()
+    ab.result()
   }
 
   def softBounds(i: IR, len: IR): IR =
     If(i < -len, 0, If(i < 0, i + len, If(i >= len, len, i)))
-
 
   private val locale: Locale = Locale.US
 
