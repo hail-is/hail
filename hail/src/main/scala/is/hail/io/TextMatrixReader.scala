@@ -20,6 +20,7 @@ import org.json4s.{DefaultFormats, Formats, JValue}
 import scala.collection.mutable
 import scala.io.Source
 import scala.language.{existentials, implicitConversions}
+import scala.util.matching.Regex
 
 case class TextMatrixHeaderInfo(
   headerValues: Array[String],
@@ -291,7 +292,13 @@ case class TextMatrixReaderParameters(
   addRowId: Boolean,
   comment: Array[String])
 
-case class TextMatrixReaderOptions(comment: Array[String], hasHeader: Boolean) extends TextReaderOptions
+case class TextMatrixReaderOptions(comment: Array[String], hasHeader: Boolean) {
+  private lazy val commentStartsWith: Array[String] = comment.filter(_.length == 1)
+  private lazy val commentRegexes: Array[Regex] = comment.filter(_.length > 1).map(_.r)
+
+  final def isComment(line: String): Boolean =
+    commentStartsWith.exists(pattern => line.startsWith(pattern)) || commentRegexes.exists(pattern => pattern.matches(line))
+}
 
 class TextMatrixReader(
   val params: TextMatrixReaderParameters,
