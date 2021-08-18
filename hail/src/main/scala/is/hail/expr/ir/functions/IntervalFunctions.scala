@@ -193,7 +193,7 @@ object IntervalFunctions extends RegistryFunctions {
 
 
     registerSCode2("partitionIntervalContains",
-      TStruct("right" -> endpointT, "right" -> endpointT, "includesLeft" -> TBoolean, "includesRight" -> TBoolean),
+      TStruct("left" -> endpointT, "right" -> endpointT, "includesLeft" -> TBoolean, "includesRight" -> TBoolean),
       tv("T"), TBoolean, (_, _, _) => SBoolean) {
       case (er, cb, _, _interval, _point, _) =>
         val interval = _interval.asBaseStruct.memoize(cb, "partitionInterval_interval")
@@ -201,7 +201,7 @@ object IntervalFunctions extends RegistryFunctions {
 
         val c = cb.newLocal[Int]("partitionInterval_c", 0)
 
-        val leftTuple = interval.loadField(cb, "right").get(cb).asBaseStruct
+        val leftTuple = interval.loadField(cb, "left").get(cb).asBaseStruct
           .memoize(cb, "partitionInterval_lt")
 
         val left = leftTuple.loadField(cb, 0).get(cb).asBaseStruct.memoize(cb, "partitionInterval_left")

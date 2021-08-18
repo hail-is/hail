@@ -262,10 +262,7 @@ class TableStage(
       )
     )
 
-    val intervalUID = genUID()
-    val eltUID = genUID()
     val prevContextUIDPartition = genUID()
-
     val newStage = TableStage(letBindings, broadcastVals, globals, newPartitioner, dependency, newContexts,
       (ctxRef: Ref) => {
         val body = self.partition(Ref(prevContextUIDPartition, self.contexts.typ.asInstanceOf[TStream].elementType))
@@ -276,7 +273,7 @@ class TableStage(
                 ToStream(GetField(ctxRef, "oldContexts"), true),
                 prevContextUIDPartition,
                 body)) { elt =>
-              invoke("partitionIntervalEndpointGreaterThan", TBoolean,
+              !invoke("partitionIntervalEndpointGreaterThan", TBoolean,
                 GetField(interval, "left"),
                 SelectFields(elt, newPartitioner.kType.fieldNames),
                 GetField(interval, "includesLeft"))
@@ -292,7 +289,7 @@ class TableStage(
 
     assert(newStage.rowType == rowType,
       s"\n  repartitioned row type:     ${ newStage.rowType }" +
-      s"\n  old row type: ${rowType}")
+        s"\n  old row type: ${ rowType }")
     newStage
   }
 

@@ -444,6 +444,12 @@ class EmitCode(private val start: CodeLabel, private val iec: IEmitCode) {
       eci
     }
 
+  def memoize(cb: EmitCodeBuilder, name: String): EmitValue = {
+    val v = cb.emb.newEmitLocal(emitType)
+    cb.assign(v, this)
+    v
+  }
+
   def asVoid(): Code[Unit] = {
     require(pv.st == SVoid)
     Code.toUnit(m)
