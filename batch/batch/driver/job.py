@@ -269,6 +269,16 @@ async def unschedule_job(app, record):
     log.info(f'unschedule job {id}, attempt {attempt_id}: called delete job')
 
 
+def merge_user_token_secrets(default_secret, secret, namespace):
+    default_token_json = json.loads(base64.b64decode(default_secret.data['tokens.json']).decode())['default']
+    namespaced_token_json = json.loads(base64.b64decode(secret.data['tokens.json']).decode())[namespace]
+    token_json = {
+        'default': default_token_json,
+        namespace: namespaced_token_json,
+    }
+    return {'tokens.json': base64.b64encode(json.dumps(token_json).encode()).decode()}
+
+
 async def job_config(app, record, attempt_id):
     k8s_cache: K8sCache = app['k8s_cache']
     db: Database = app['db']
@@ -303,13 +313,14 @@ async def job_config(app, record, attempt_id):
     for secret, k8s_secret in zip(secrets, k8s_secrets):
         if secret['name'] == userdata['gsa_key_secret_name']:
             gsa_key = k8s_secret.data
+
         secret['data'] = k8s_secret.data
-        if secret['name'] == userdata['tokens_secret_name']:
+
+        namespace = secret['namespace']
+        if namespace != 'default' and secret['name'] == userdata['tokens_secret_name']:
             default_user_token = await k8s_cache.read_secret(secret['name'], 'default', KUBERNETES_TIMEOUT_IN_SECONDS)
-            log.exception(default_user_token.data)
-            if 'default' in default_user_token.data:
-                default_token = base64.b64decode(default_user_token.data['default']).decode()
-                secret['data']['default'] = default_token
+            if default_user_token:
+                secret['data'] = merge_user_token_secrets(default_user_token, k8s_secret, namespace)
 
     assert gsa_key
 
