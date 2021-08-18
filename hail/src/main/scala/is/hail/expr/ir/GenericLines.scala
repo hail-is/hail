@@ -160,7 +160,15 @@ object GenericLines {
             // move scanned input from buf to lineData
             val n = bufPos - begin
             if (linePos + n > lineData.length) {
-              val newLineData = new Array[Byte]((linePos + n) * 2)
+              val copySize = linePos.toLong + n
+              if (copySize > Int.MaxValue)
+                fatal(s"GenericLines: line size reached: cannot read a line with more than 2^31-1 bytes")
+              val newSize = Math.min(copySize * 2, Int.MaxValue).toInt
+              if (newSize > (1 << 20)) {
+                log.info(s"GenericLines: growing line buffer to $newSize")
+              }
+
+              val newLineData = new Array[Byte](newSize)
               System.arraycopy(lineData, 0, newLineData, 0, linePos)
               lineData = newLineData
               line.data = newLineData
