@@ -61,6 +61,8 @@ object Children {
         Array(a, start, stop.get, step)
     case ArrayLen(a) =>
       Array(a)
+    case StreamIota(start, step, _) =>
+      Array(start, step)
     case StreamRange(start, stop, step, _, _) =>
       Array(start, stop, step)
     case SeqSample(totalRange, numToSample, _) =>

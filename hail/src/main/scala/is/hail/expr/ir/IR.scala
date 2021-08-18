@@ -230,6 +230,13 @@ final case class ArraySlice(a: IR, start: IR, stop: Option[IR], step:IR = I32(1)
 final case class ArrayLen(a: IR) extends IR
 final case class ArrayZeros(length: IR) extends IR
 
+/**
+  * [[StreamIota]] is an infinite stream producer, whose element is an integer starting at `start`, updated by
+  * `step` at each iteration. The name comes from APL:
+  * [[https://stackoverflow.com/questions/9244879/what-does-iota-of-stdiota-stand-for]]
+  */
+final case class StreamIota(start: IR, stop: IR, requiresMemoryManagementPerElement: Boolean = false) extends IR
+
 final case class StreamRange(start: IR, stop: IR, step: IR, requiresMemoryManagementPerElement: Boolean = false,
                              errorID: Int = ErrorIDs.NO_ERROR) extends IR
 

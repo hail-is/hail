@@ -886,6 +886,12 @@ object IRParser {
         }
       case "ArrayLen" => ir_value_expr(env)(it).map(ArrayLen)
       case "StreamLen" => ir_value_expr(env)(it).map(StreamLen)
+      case "StreamIota" =>
+        val requiresMemoryManagementPerElement = boolean_literal(it)
+        for {
+          start <- ir_value_expr(env)(it)
+            step <- ir_value_expr(env)(it)
+        } yield StreamIota(start, step, requiresMemoryManagementPerElement)
       case "StreamRange" =>
         val errorID = int32_literal(it)
         val requiresMemoryManagementPerElement = boolean_literal(it)

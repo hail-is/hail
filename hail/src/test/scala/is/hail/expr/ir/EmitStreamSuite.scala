@@ -807,4 +807,9 @@ class EmitStreamSuite extends HailSuite {
       foldLength(takeWhile(rangeStructs(size)) { elt => GetField(elt, "idx") < (size / 2).toI })
     }
   }
+
+  @Test def testStreamIota(): Unit = {
+    assert(evalStream(takeWhile(iota(0, 2))(elt => elt < 10)) == IndexedSeq(0, 2, 4, 6, 8))
+    assert(evalStream(StreamTake(iota(5, -5), 3)) == IndexedSeq(5, 0, -5))
+  }
 }

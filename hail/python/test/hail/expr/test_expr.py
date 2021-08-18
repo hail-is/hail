@@ -3651,3 +3651,20 @@ class Tests(unittest.TestCase):
             assert 'f5 is the new name of both' in err.args[0]
         else:
             assert False
+
+    def test_enumerate(self):
+        a1 = hl.literal(['foo', 'bar', 'baz'], 'array<str>')
+        a_empty = hl.literal([], 'array<str>')
+
+        exprs = (
+            hl.enumerate(a1),
+            hl.enumerate(a1, start=-1000),
+            hl.enumerate(a1, start=10, index_first=False),
+            hl.enumerate(a_empty, start=5)
+        )
+        assert hl.eval(exprs) == (
+            [(0, 'foo'), (1, 'bar'), (2, 'baz')],
+            [(-1000, 'foo'), (-999, 'bar'), (-998, 'baz')],
+            [('foo', 10), ('bar', 11), ('baz', 12)],
+            []
+        )

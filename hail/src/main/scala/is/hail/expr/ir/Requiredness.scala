@@ -449,6 +449,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
            _: StreamLen |
            _: ArrayZeros |
            _: StreamRange |
+           _: StreamIota |
            _: SeqSample |
            _: WriteValue =>
         requiredness.union(node.children.forall { case c: IR => lookup(c).required })

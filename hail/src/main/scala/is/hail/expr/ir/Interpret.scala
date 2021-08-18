@@ -285,6 +285,7 @@ object Interpret {
           null
         else
           aValue.asInstanceOf[IndexedSeq[Any]].length
+      case StreamIota(start, step, requiresMemoryManagementPerElement) => throw new UnsupportedOperationException
       case StreamRange(start, stop, step, _, errorID) =>
         val startValue = interpret(start, env, args)
         val stopValue = interpret(stop, env, args)
