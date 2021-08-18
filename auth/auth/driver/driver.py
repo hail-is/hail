@@ -368,18 +368,10 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
         tokens_secret = K8sSecretResource(k8s_client)
 
         cleanup.append(tokens_secret.delete)
-        tokens = {
-            DEFAULT_NAMESPACE: tokens_session.session_id,
-        }
-        if DEFAULT_NAMESPACE != 'default':
-            default_token_secret = await k8s_client.read_namespaced_secret(tokens_secret_name, 'default')
-            if 'default' in default_token_secret.data:
-                default_token = base64.b64decode(default_token_secret.data['default']).decode()
-                tokens['default'] = default_token
         await tokens_secret.create(
             tokens_secret_name,
             DEFAULT_NAMESPACE,
-            {'tokens.json': json.dumps(tokens)},
+            {'tokens.json': json.dumps({DEFAULT_NAMESPACE: tokens_session.session_id})},
         )
         updates['tokens_secret_name'] = tokens_secret_name
 

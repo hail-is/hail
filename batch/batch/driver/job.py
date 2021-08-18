@@ -303,12 +303,13 @@ async def job_config(app, record, attempt_id):
     for secret, k8s_secret in zip(secrets, k8s_secrets):
         if secret['name'] == userdata['gsa_key_secret_name']:
             gsa_key = k8s_secret.data
-        elif secret['name'] == userdata['tokens_secret_name']:
+        secret['data'] = k8s_secret.data
+        if secret['name'] == userdata['tokens_secret_name']:
             default_user_token = await k8s_cache.read_secret(secret['name'], 'default', KUBERNETES_TIMEOUT_IN_SECONDS)
+            log.exception(default_user_token.data)
             if 'default' in default_user_token.data:
                 default_token = base64.b64decode(default_user_token.data['default']).decode()
-                k8s_secret.data['default'] = default_token
-        secret['data'] = k8s_secret.data
+                secret['data']['default'] = default_token
 
     assert gsa_key
 
