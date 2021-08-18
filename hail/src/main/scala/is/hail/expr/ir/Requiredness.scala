@@ -206,6 +206,8 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           as.foreach { a => dependents.getOrElseUpdate(a, mutable.Set[RefEquality[BaseIR]]()) ++= uses }
         }
       case StreamFilter(a, name, cond) => addElementBinding(name, a)
+      case StreamTakeWhile(a, name, cond) => addElementBinding(name, a)
+      case StreamDropWhile(a, name, cond) => addElementBinding(name, a)
       case StreamFlatMap(a, name, body) => addElementBinding(name, a)
       case StreamFor(a, name, _) => addElementBinding(name, a)
       case StreamFold(a, zero, accumName, valueName, body) =>
@@ -556,6 +558,10 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.union(as.forall(lookup(_).required))
         coerce[RIterable](requiredness).elementType.unionFrom(as.map(a => coerce[RIterable](lookup(a)).elementType))
       case StreamFilter(a, name, cond) =>
+        requiredness.unionFrom(lookup(a))
+      case StreamTakeWhile(a, name, cond) =>
+        requiredness.unionFrom(lookup(a))
+      case StreamDropWhile(a, name, cond) =>
         requiredness.unionFrom(lookup(a))
       case StreamFlatMap(a, name, body) =>
         requiredness.union(lookup(a).required)

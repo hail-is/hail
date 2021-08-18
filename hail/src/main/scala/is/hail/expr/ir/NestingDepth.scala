@@ -57,6 +57,12 @@ object NestingDepth {
         case StreamFilter(a, name, cond) =>
           computeIR(a, depth)
           computeIR(cond, depth.incrementEval)
+        case StreamTakeWhile(a, name, cond) =>
+          computeIR(a, depth)
+          computeIR(cond, depth.incrementEval)
+        case StreamDropWhile(a, name, cond) =>
+          computeIR(a, depth)
+          computeIR(cond, depth.incrementEval)
         case StreamFold(a, zero, accumName, valueName, body) =>
           computeIR(a, depth)
           computeIR(zero, depth)

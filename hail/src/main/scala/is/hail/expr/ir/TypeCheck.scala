@@ -295,6 +295,14 @@ object TypeCheck {
         assert(a.typ.asInstanceOf[TStream].elementType.isRealizable)
         assert(cond.typ == TBoolean)
         assert(x.typ == a.typ)
+      case x@StreamTakeWhile(a, name, cond) =>
+        assert(a.typ.asInstanceOf[TStream].elementType.isRealizable)
+        assert(cond.typ == TBoolean)
+        assert(x.typ == a.typ)
+      case x@StreamDropWhile(a, name, cond) =>
+        assert(a.typ.asInstanceOf[TStream].elementType.isRealizable)
+        assert(cond.typ == TBoolean)
+        assert(x.typ == a.typ)
       case x@StreamFlatMap(a, name, body) =>
         assert(a.typ.isInstanceOf[TStream])
         assert(body.typ.isInstanceOf[TStream])

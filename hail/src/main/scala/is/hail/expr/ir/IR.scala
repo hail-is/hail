@@ -229,6 +229,7 @@ final case class ArrayRef(a: IR, i: IR, errorID: Int) extends IR
 final case class ArraySlice(a: IR, start: IR, stop: Option[IR], step:IR = I32(1), errorID: Int = ErrorIDs.NO_ERROR) extends IR
 final case class ArrayLen(a: IR) extends IR
 final case class ArrayZeros(length: IR) extends IR
+
 final case class StreamRange(start: IR, stop: IR, step: IR, requiresMemoryManagementPerElement: Boolean = false,
                              errorID: Int = ErrorIDs.NO_ERROR) extends IR
 
@@ -275,6 +276,10 @@ final case class StreamMap(a: IR, name: String, body: IR) extends IR {
   override def typ: TStream = coerce[TStream](super.typ)
   def elementTyp: Type = typ.elementType
 }
+
+final case class StreamTakeWhile(a: IR, elementName: String, body: IR) extends IR
+
+final case class StreamDropWhile(a: IR, elementName: String, body: IR) extends IR
 
 final case class StreamTake(a: IR, num: IR) extends IR
 final case class StreamDrop(a: IR, num: IR) extends IR

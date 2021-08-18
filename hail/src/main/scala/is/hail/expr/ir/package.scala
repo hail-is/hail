@@ -101,6 +101,16 @@ package object ir {
     Let(ref.name, v, body(ref))
   }
 
+  def dropWhile(v: IR)(f: Ref => IR): IR = {
+    val ref = Ref(genUID(), coerce[TStream](v.typ).elementType)
+    StreamDropWhile(v, ref.name, f(ref))
+  }
+
+  def takeWhile(v: IR)(f: Ref => IR): IR = {
+    val ref = Ref(genUID(), coerce[TStream](v.typ).elementType)
+    StreamTakeWhile(v, ref.name, f(ref))
+  }
+
   def maxIR(a: IR, b: IR): IR = {
     If(a > b, a, b)
   }

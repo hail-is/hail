@@ -111,6 +111,10 @@ object Children {
       as
     case StreamFilter(a, name, cond) =>
       Array(a, cond)
+    case StreamTakeWhile(a, name, cond) =>
+      Array(a, cond)
+    case StreamDropWhile(a, name, cond) =>
+      Array(a, cond)
     case StreamFlatMap(a, name, body) =>
       Array(a, body)
     case StreamFold(a, zero, accumName, valueName, body) =>

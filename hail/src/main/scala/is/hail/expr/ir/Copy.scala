@@ -190,6 +190,12 @@ object Copy {
       case StreamFilter(_, name, _) =>
         assert(newChildren.length == 2)
         StreamFilter(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
+      case StreamTakeWhile(_, name, _) =>
+        assert(newChildren.length == 2)
+        StreamTakeWhile(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
+      case StreamDropWhile(_, name, _) =>
+        assert(newChildren.length == 2)
+        StreamDropWhile(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
       case StreamFlatMap(_, name, _) =>
         assert(newChildren.length == 2)
         StreamFlatMap(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])

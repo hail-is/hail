@@ -104,6 +104,18 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newA <- normalize(a)
           newBody <- normalize(body, env.bindEval(name, newName))
         } yield StreamFilter(newA, newName, newBody)
+      case StreamTakeWhile(a, name, body) =>
+        val newName = gen()
+        for {
+          newA <- normalize(a)
+            newBody <- normalize(body, env.bindEval(name, newName))
+        } yield StreamTakeWhile(newA, newName, newBody)
+      case StreamDropWhile(a, name, body) =>
+        val newName = gen()
+        for {
+          newA <- normalize(a)
+            newBody <- normalize(body, env.bindEval(name, newName))
+        } yield StreamDropWhile(newA, newName, newBody)
       case StreamFlatMap(a, name, body) =>
         val newName = gen()
         for {
