@@ -446,7 +446,7 @@ module "auth_gsa_secret" {
   iam_roles = [
     "iam.serviceAccountAdmin",
     "iam.serviceAccountKeyAdmin",
-    "storage.admin",
+    # "storage.admin",
   ]
 }
 
