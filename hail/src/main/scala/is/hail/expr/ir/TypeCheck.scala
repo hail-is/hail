@@ -158,8 +158,8 @@ object TypeCheck {
         assert(numToSample.typ == TInt32)
       case StreamDistribute(child, pivots, path) =>
         assert(path.typ == TString)
-        assert(child.isInstanceOf[TStream])
-        assert(pivots.isInstanceOf[TArray])
+        assert(child.typ.isInstanceOf[TStream])
+        assert(pivots.typ.isInstanceOf[TArray])
       case x@ArrayZeros(length) =>
         assert(length.typ == TInt32)
       case x@MakeNDArray(data, shape, rowMajor, _) =>

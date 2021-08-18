@@ -1289,7 +1289,7 @@ class Emit[C](
             val requestedSplittersVal = pivotsCode.memoize(cb, "stream_dist_pivots")
 
             val keyType = requestedSplittersVal.st.elementType.asInstanceOf[SBaseStruct]
-            val keyPType = typeWithReqx(pivots).asInstanceOf[PContainer].elementType
+            val keyPType = typeWithReqx(pivots).canonicalPType.asInstanceOf[PContainer].elementType
             val keyFieldNames = keyType.virtualType.fields.map(_.name)
 
             def compare(cb: EmitCodeBuilder, lelt: EmitValue, relt: EmitValue): Code[Int] = {
@@ -1300,7 +1300,7 @@ class Emit[C](
                 .compare(cb, lhs, rhs, missingEqual = false)
             }
 
-            def equal(cb: EmitCodeBuilder, lelt: EmitValue, relt: EmitValue): Code[Boolean] = compare(cb, lelt, relt) == 0
+            def equal(cb: EmitCodeBuilder, lelt: EmitValue, relt: EmitValue): Code[Boolean] = compare(cb, lelt, relt) ceq 0
 
             // Pass 1: count unique splitters.
             val numUniqueSplitters = cb.newLocal[Int]("stream_distribute_num_unique_splitters")
@@ -1327,14 +1327,15 @@ class Emit[C](
             // Pass 2: Copy each unique splitter into array. If it is seen twice, set a boolean in a parallel array for that
             // splitter.
 
-            val splittersPType = PCanonicalArray(keyPType, true)
-            val splittersWasDuplicatedPType = PCanonicalArray(PBooleanRequired, true)
+            val splittersPType = PCanonicalArray(keyPType)
+            val splittersWasDuplicatedPType = PCanonicalArray(PBooleanRequired)
 
-            val splittersAddr = splittersPType.allocate(region, paddedSplittersSize)
+            val splittersAddr = cb.newLocal[Long]("stream_dist_splitters_addr", splittersPType.allocate(region, paddedSplittersSize))
             cb += splittersPType.stagedInitialize(splittersAddr, paddedSplittersSize)
 
-            val splittersWasDuplicatedAddr = splittersWasDuplicatedPType.allocate(region, requestedSplittersVal.loadLength())
-            cb += splittersWasDuplicatedPType.stagedInitialize(splittersWasDuplicatedAddr, requestedSplittersVal.loadLength())
+            val splittersWasDuplicatedAddr = cb.newLocal[Long]("stream_dist_dupe_splitters_addr", splittersWasDuplicatedPType.allocate(region, requestedSplittersVal.loadLength()))
+            val splittersWasDuplicatedLength = paddedSplittersSize
+            cb += splittersWasDuplicatedPType.stagedInitialize(splittersWasDuplicatedAddr, splittersWasDuplicatedLength)
 
             val uniqueSplittersIdx = cb.newLocal[Int]("unique_splitters_idx", 0)
 
@@ -1351,7 +1352,7 @@ class Emit[C](
                   cb.assign(uniqueSplittersIdx, uniqueSplittersIdx + 1)
                 }, {
                   // Flip boolean in splittersWasDuplicated to true.
-                  splittersWasDuplicatedPType.elementType.storeAtAddress(cb, splittersWasDuplicatedPType.loadElement(splittersWasDuplicatedAddr, ???, uniqueSplittersIdx - 1), region, new SBooleanCode(true), false)
+                  splittersWasDuplicatedPType.elementType.storeAtAddress(cb, splittersWasDuplicatedPType.loadElement(splittersWasDuplicatedAddr, splittersWasDuplicatedLength, uniqueSplittersIdx - 1), region, new SBooleanCode(true), false)
                 })
               })
             })
@@ -1362,7 +1363,7 @@ class Emit[C](
             val splitterWasDuplicated = new SIndexablePointerCode(SIndexablePointer(splittersWasDuplicatedPType), splittersWasDuplicatedAddr).memoize(cb, "stream_distrib_was_duplicated") // Same length as splitters, but full of booleans of whether it was initially duplicated.
 
             val treePType = splittersPType
-            val treeAddr = treePType.allocate(region, paddedSplittersSize)
+            val treeAddr = cb.newLocal[Long]("stream_dist_tree_addr", treePType.allocate(region, paddedSplittersSize))
             cb += treePType.stagedInitialize(treeAddr, paddedSplittersSize)
 
             /*
@@ -1374,9 +1375,9 @@ class Emit[C](
             cb.forLoop(cb.assign(currentHeight, treeHeight - 1), currentHeight >= 0, cb.assign(currentHeight, currentHeight - 1), {
               val startingPoint: Code[Int] = (const(2) << currentHeight) - 1
               val inner = cb.newLocal[Int]("stream_dist_tree_inner")
-              cb.forLoop(cb.assign(inner, 0), inner < (2 << (treeHeight - 1 - currentHeight)), cb.assign(inner, inner + 1), {
+              cb.forLoop(cb.assign(inner, 0), inner < (const(2) << (treeHeight - 1 - currentHeight)), cb.assign(inner, inner + 1), {
                 keyPType.storeAtAddress(cb, treePType.loadElement(treeAddr, treeFillingIndex), region,
-                  splitters.loadElement(cb, startingPoint + inner * (2 << currentHeight + 1)).get(cb), false)
+                  splitters.loadElement(cb, startingPoint + inner * (const(2) << currentHeight + 1)).get(cb), false)
                 cb.assign(treeFillingIndex, treeFillingIndex + 1)
               })
             })
@@ -1384,7 +1385,7 @@ class Emit[C](
 
 
             // Open file handles: But how many? Well, normally it would be num_splitters + 1. But with duplicates, more annoying. Temporarily let's open numSplitters + 1
-            val numFilesToWrite: Value[Int] = ???
+            val numFilesToWrite: Value[Int] = const(0) // TODO: Obviously more than 0
             val fileData = cb.newLocal[Array[OutputBuffer]]("stream_dist_output_buffers", Code.newArray[OutputBuffer](numFilesToWrite))
             val fileArrayIdx = cb.newLocal[Int]("stream_dist_file_array_idx")
 
@@ -1399,7 +1400,7 @@ class Emit[C](
                 val treeAtB = tree.loadElement(cb, b).memoize(cb, "stream_dist_tree_b")
                 cb.assign(b, const(2) * b + (compare(cb, treeAtB, current) < 0).toI)
                 //TODO: Need to use splitterWasDuplicated here to decide whether or not to actually move the element.
-                cb.assign(b, const(2) * b + 1 - (compare(cb, current, splitters.loadElement(cb, treeAtB.get(cb).asInt.intCode(cb) - k / 2).memoize(cb, "stream_dist_splitter_compare")) < 0).toI)
+                cb.assign(b, const(2) * b + 1 - (compare(cb, current, splitters.loadElement(cb, b - k / 2).memoize(cb, "stream_dist_splitter_compare")) < 0).toI)
               })
 
               // Write current element to bucket b - k?
@@ -1411,10 +1412,13 @@ class Emit[C](
             cb.forLoop(cb.assign(fileArrayIdx, 0), fileArrayIdx < numFilesToWrite, cb.assign(fileArrayIdx, fileArrayIdx + 1), {
               // TODO: Call close on the output buffer.
             })
-            fileData
 
-            // What to return? Let's say an array of Structs, like {start, stop,
-            ???
+            val returnType = PCanonicalArray(PCanonicalStruct(("interval", PCanonicalInterval(keyPType, true)), ("path", PCanonicalStringRequired)), true)
+            returnType.constructFromElements(cb, region, const(0), false){ (cb, idx) =>
+              // TODO: Obviously wrong / tempoary
+              val stackStruct = new SStackStruct(ir.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct], ???)
+              IEmitCode.present(cb, new SStackStructCode(stackStruct, IndexedSeq(???)))
+            }
           }
         }
 
