@@ -73,6 +73,9 @@ class SInt64Value(x: Value[Long]) extends SValue {
   override def get: SCode = new SInt64Code(x)
 
   def longCode(cb: EmitCodeBuilder): Code[Long] = x
+
+  override def hash(cb: EmitCodeBuilder): SInt32Code =
+    new SInt32Code(invokeStatic1[java.lang.Long, Long, Int]("hashCode", longCode(cb)))
 }
 
 object SInt64Settable {
