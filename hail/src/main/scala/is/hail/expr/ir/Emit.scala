@@ -1413,13 +1413,23 @@ class Emit[C](
               // TODO: Call close on the output buffer.
             })
 
-            val returnType = PCanonicalArray(PCanonicalStruct(("interval", PCanonicalInterval(keyPType, true)), ("path", PCanonicalStringRequired)), true)
+            val intervalType = PCanonicalInterval(keyPType, true)
+            val returnType = PCanonicalArray(PCanonicalStruct(("interval", intervalType), ("fileName", PCanonicalStringRequired)), true)
             returnType.constructFromElements(cb, region, const(0), false){ (cb, idx) =>
               // TODO: Obviously wrong / tempoary
-              val stackStruct = new SStackStruct(ir.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct], ???)
-              val sInterval = SIntervalPointer(returnType.elementType.asInstanceOf[PBaseStruct].field("interval").typ).
+              val intervalCode = intervalType.constructFromCodes(cb, region,
+                EmitCode.fromI(cb.emb)(cb => splitters.loadElement(cb, 0)),
+                EmitCode.fromI(cb.emb)(cb => splitters.loadElement(cb, 0)),
+                EmitCode.present(cb.emb, primitive(true)),
+                EmitCode.present(cb.emb, primitive(false))
+              )
+              val stackStruct = new SStackStruct(ir.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct], IndexedSeq(
+                EmitType(intervalCode.st, true),
+                EmitType(SJavaString, true)
+              ))
               IEmitCode.present(cb, new SStackStructCode(stackStruct, IndexedSeq(
-                EmitCode()
+                EmitCode.present(cb.emb, intervalCode),
+                EmitCode.present(cb.emb, SJavaString.construct("fakeFileName"))
               )))
             }
           }
