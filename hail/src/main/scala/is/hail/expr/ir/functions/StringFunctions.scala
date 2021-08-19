@@ -155,7 +155,6 @@ object StringFunctions extends RegistryFunctions {
     }
     ab += testIfMissing(sb.result())
     val a = ab.result()
-    println("reached end")
     a
   }
 
@@ -310,7 +309,7 @@ object StringFunctions extends RegistryFunctions {
     })(thisClass, "setMkString")
 
     registerWrappedScalaFunction4("splitQuoted", TString, TString, TArray(TString),  TString, TArray(TString), {
-      case (_: Type, _: SType, _: SType, _: SType, _:SType) => SJavaArrayString(true)
+      case (_: Type, _: SType, _: SType, _: SType, _:SType) => SJavaArrayString(false)
     })(thisClass, "splitQuoted")
 
     registerWrappedScalaFunction2("mkString", TArray(TString), TString, TString, {

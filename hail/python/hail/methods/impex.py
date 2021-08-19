@@ -1694,19 +1694,12 @@ def import_table(paths,
                  find_replace=None,
                  force=False,
                  source_file_field=None) -> Table:
-    def compute_missing(split_array):
-        missing_values = hl.array(missing)
-        return hl.case().when(hl.len(split_array) == len(fields), split_array.map(lambda t_entry: hl.if_else(
-                                  missing_values.any(lambda m_entry: m_entry == t_entry),
-                                  hl.missing(hl.tstr), t_entry))).or_error(
-            hl.str(f"Expected {len(fields)} {'fields' if len(fields) > 1 else 'field' }, found ")
-            + hl.str(hl.len(split_array)) + hl.if_else(hl.len(split_array) > 1, hl.str(" fields"), hl.str(" field")))
 
     def split_lines(hl_str):
         if quote is None:
-            return hl_str.split(delimiter)
+            return hl_str._split_quoted(delimiter, missing, "~")
         else:
-            return hl_str._split_quoted(delimiter, quote)
+            return hl_str._split_quoted(delimiter, missing, quote)
 
     def should_filter_line(hl_str):
         to_filter = hl_str.matches(filter) if filter is not None else hl.bool(False)
