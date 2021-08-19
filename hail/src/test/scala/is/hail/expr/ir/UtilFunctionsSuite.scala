@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.TestUtils._
-import is.hail.types.virtual.{TBoolean, TStream}
+import is.hail.types.virtual.{TBoolean, TInt32, TStream}
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
@@ -78,5 +78,10 @@ class UtilFunctionsSuite extends HailSuite {
     assertCompiledFatal(na && folded, "it ded")
     assertCompiledFatal(True() && folded, "it ded")
     assert(eval(False() && folded) == false)
+  }
+
+  @Test def testParseFunctionRequiredness() {
+    assertEvalsTo(invoke("toInt32OrMissing", TInt32, Str("123")), 123)
+    assertEvalsTo(invoke("toInt32OrMissing", TInt32, Str("foo")), null)
   }
 }
