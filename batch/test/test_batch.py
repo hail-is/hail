@@ -674,6 +674,27 @@ def test_verify_no_access_to_metadata_server(client):
     assert "Connection timed out" in j.log()['main'], (str(j.log()['main']), status)
 
 
+def test_submit_batch_in_job(client):
+    builder = client.create_batch()
+    bucket_name = get_user_config().get('batch', 'bucket')
+    script = f'''import hailtop.batch as hb
+backend = hb.ServiceBackend("test", "{bucket_name}")
+b = hb.Batch(backend=backend)
+j = b.new_bash_job()
+j.command("echo hi")
+b.run()
+backend.close()
+'''
+    j = builder.create_job(
+        os.environ['HAIL_HAIL_BASE_IMAGE'],
+        ['/bin/bash', '-c', f'''python3 -c \'{script}\''''],
+        mount_tokens=True,
+    )
+    builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str(status)
+
+
 def test_can_use_google_credentials(client):
     token = os.environ["HAIL_TOKEN"]
     bucket_name = get_user_config().get('batch', 'bucket')
