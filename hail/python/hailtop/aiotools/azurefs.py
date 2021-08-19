@@ -7,6 +7,7 @@ import asyncio
 import urllib
 import secrets
 import json
+import logging
 
 from azure.identity.aio import DefaultAzureCredential, ClientSecretCredential
 from azure.storage.blob import BlobProperties
@@ -18,6 +19,9 @@ from hailtop.utils import retry_transient_errors, flatten, OnlineBoundedGather2,
 from .fs import (AsyncFS, ReadableStream, WritableStream, MultiPartCreate, FileListEntry, FileStatus,
                  FileAndDirectoryError)
 from .utils import WriteBuffer
+
+logger = logging.getLogger("azure.core.pipeline.policies.http_logging_policy")
+logger.setLevel(logging.WARNING)
 
 
 class AzureWritableStream(WritableStream):
