@@ -160,7 +160,7 @@ case class StreamSingleCodeType(requiresMemoryManagementPerElement: Boolean, elt
   }
 
   def loadToSValue(cb: EmitCodeBuilder, r: Value[Region], c: Value[_]): SValue = {
-    loadToSCode(cb, r, c).memoize(cb, "")
+    loadToSCode(cb, r, c).memoize(cb, "ltsv")
   }
 
   def coerceSCode(cb: EmitCodeBuilder, pc: SCode, region: Value[Region], deepCopy: Boolean): SingleCodeSCode = throw new UnsupportedOperationException
@@ -174,7 +174,7 @@ case class PTypeReferenceSingleCodeType(pt: PType) extends SingleCodeType {
   def loadToSCode(cb: EmitCodeBuilder, r: Value[Region], c: Code[_]): SCode = pt.loadCheapSCode(cb, coerce[Long](c))
 
   def loadToSValue(cb: EmitCodeBuilder, r: Value[Region], c: Value[_]): SValue =
-    pt.loadCheapSCode(cb, coerce[Long](c)).memoize(cb, "")
+    pt.loadCheapSCode(cb, coerce[Long](c)).memoize(cb, "ltsv")
 
   def virtualType: Type = pt.virtualType
 
