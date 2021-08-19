@@ -172,7 +172,7 @@ final class SInsertFieldsStructSettable(
   st: SInsertFieldsStruct,
   parent: SBaseStructSettable,
   newFields: IndexedSeq[EmitSettable]
-) extends SInsertFieldsStructValue(st, parent, newFields) with SSettable {
+) extends SInsertFieldsStructValue(st, parent, newFields) with SBaseStructSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = parent.settableTuple() ++ newFields.flatMap(_.settableTuple())
 
   override def store(cb: EmitCodeBuilder, pv: SCode): Unit = {

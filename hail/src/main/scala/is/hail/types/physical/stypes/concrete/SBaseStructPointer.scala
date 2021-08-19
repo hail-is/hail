@@ -85,7 +85,7 @@ object SBaseStructPointerSettable {
 final class SBaseStructPointerSettable(
   st: SBaseStructPointer,
   override val a: Settable[Long]
-) extends SBaseStructPointerValue(st, a) with SSettable {
+) extends SBaseStructPointerValue(st, a) with SBaseStructSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
 
   override def store(cb: EmitCodeBuilder, pv: SCode): Unit = {

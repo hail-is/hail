@@ -101,7 +101,7 @@ class SSubsetStructValue(val st: SSubsetStruct, prev: SBaseStructValue) extends 
     prev.isFieldMissing(st.newToOldFieldMapping(fieldIdx))
 }
 
-final class SSubsetStructSettable(st: SSubsetStruct, prev: SBaseStructSettable) extends SSubsetStructValue(st, prev) with SSettable {
+final class SSubsetStructSettable(st: SSubsetStruct, prev: SBaseStructSettable) extends SSubsetStructValue(st, prev) with SBaseStructSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = prev.settableTuple()
 
   override def store(cb: EmitCodeBuilder, pv: SCode): Unit = prev.store(cb, pv.asInstanceOf[SSubsetStructCode].prev)

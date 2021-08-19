@@ -72,7 +72,7 @@ trait SType {
   def asIdent: String = getClass.getSimpleName
 
   def defaultValue: SValue =
-    fromValues(codeTupleTypes().map(ti => ti.uninitializedValue))
+    fromValues(settableTupleTypes().map(ti => ti.uninitializedValue))
 
   def isPrimitive: Boolean = this match {
     case SInt32 | SInt64 | SFloat32 | SFloat64 | SBoolean => true

@@ -135,7 +135,7 @@ class SStackStructValue(val st: SStackStruct, settables: IndexedSeq[EmitValue]) 
 final class SStackStructSettable(
   st: SStackStruct,
   settables: IndexedSeq[EmitSettable]
-) extends SStackStructValue(st, settables) with SSettable {
+) extends SStackStructValue(st, settables) with SBaseStructSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = settables.flatMap(_.settableTuple())
 
   override def store(cb: EmitCodeBuilder, pv: SCode): Unit = {
