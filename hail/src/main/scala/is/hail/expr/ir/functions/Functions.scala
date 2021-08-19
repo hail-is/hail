@@ -488,6 +488,10 @@ abstract class RegistryFunctions {
     pt: (Type, SType, SType, SType) => SType)(cls: Class[_], method: String): Unit =
     registerWrappedScalaFunction(name, Array(a1, a2, a3), returnType, unwrappedApply(pt))(cls, method)
 
+  def registerWrappedScalaFunction4(name: String, a1: Type, a2: Type, a3: Type, a4: Type, returnType: Type,
+                                    pt: (Type, SType, SType, SType, SType) => SType)(cls: Class[_], method: String): Unit =
+    registerWrappedScalaFunction(name, Array(a1, a2, a3, a4), returnType, unwrappedApply(pt))(cls, method)
+
   def registerJavaStaticFunction(name: String, valueParameterTypes: Array[Type], returnType: Type, pt: (Type, Seq[SType]) => SType)(cls: Class[_], method: String) {
     registerCode(name, valueParameterTypes, returnType, pt) { case (r, cb, rt, _, args) =>
       val cts = valueParameterTypes.map(PrimitiveTypeToIRIntermediateClassTag(_).runtimeClass)

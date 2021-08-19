@@ -1770,7 +1770,7 @@ def import_table(paths,
         num_of_fields = list(range(0, len(first_row_value.header)))
         fields = list(map(lambda f_num: "f" + str(f_num), num_of_fields))
 
-    ht = ht.annotate(split_text=hl.case().when(hl.len(ht.text) > 0, compute_missing(split_lines(ht.text)))
+    ht = ht.annotate(split_text=hl.case().when(hl.len(ht.text) > 0, split_lines(ht.text))
                      .or_error(hl.str("Blank line found in file ") + ht.file)).drop('text')
 
     fields_to_value = {}
