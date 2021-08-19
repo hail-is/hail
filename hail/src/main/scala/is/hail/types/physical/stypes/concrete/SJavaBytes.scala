@@ -10,7 +10,7 @@ import is.hail.types.virtual._
 import is.hail.utils.FastIndexedSeq
 
 case object SJavaBytes extends SBinary {
-  val virtualType: TBinary.type = TBinary
+  override val virtualType: TBinary.type = TBinary
 
   override def storageType(): PType = PCanonicalBinary(false)
 
@@ -20,26 +20,30 @@ case object SJavaBytes extends SBinary {
 
   override def containsPointers: Boolean = false
 
-  def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SJavaBytesCode = {
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SJavaBytesCode = {
     value.st match {
       case SJavaBytes => value.asInstanceOf[SJavaBytesCode]
       case _ => new SJavaBytesCode(value.asBinary.loadBytes())
     }
   }
 
-  def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(arrayInfo[Byte])
+  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(arrayInfo[Byte])
 
-  def fromSettables(settables: IndexedSeq[Settable[_]]): SJavaBytesSettable = {
+  override def fromSettables(settables: IndexedSeq[Settable[_]]): SJavaBytesSettable = {
     val IndexedSeq(b: Settable[Array[Byte]@unchecked]) = settables
     new SJavaBytesSettable(b)
   }
 
-  def fromCodes(codes: IndexedSeq[Code[_]]): SJavaBytesCode = {
+  override def fromCodes(codes: IndexedSeq[Code[_]]): SJavaBytesCode = {
     val IndexedSeq(b: Settable[Array[Byte]@unchecked]) = codes
     new SJavaBytesCode(b)
   }
-}
 
+  override def fromValues(values: IndexedSeq[Value[_]]): SJavaBytesValue = {
+    val IndexedSeq(b: Value[Array[Byte]@unchecked]) = values
+    new SJavaBytesValue(b)
+  }
+}
 
 class SJavaBytesCode(val bytes: Code[Array[Byte]]) extends SBinaryCode {
   def st: SBinary = SJavaBytes
@@ -61,26 +65,28 @@ class SJavaBytesCode(val bytes: Code[Array[Byte]]) extends SBinaryCode {
   override def loadBytes(): Code[Array[Byte]] = bytes
 }
 
-object SJavaBytesSettable {
-  def apply(sb: SettableBuilder, name: String): SJavaBytesSettable = {
-    new SJavaBytesSettable(sb.newSettable[Array[Byte]](s"${ name }_bytes"))
-  }
-}
+class SJavaBytesValue(val bytes: Value[Array[Byte]]) extends SBinaryValue {
+  override def st: SBinary = SJavaBytes
 
-class SJavaBytesSettable(val bytes: Settable[Array[Byte]]) extends SBinaryValue with SSettable {
-  def st: SBinary = SJavaBytes
-
-  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(bytes)
-
-  def get: SJavaBytesCode = new SJavaBytesCode(bytes.load())
-
-  def store(cb: EmitCodeBuilder, v: SCode): Unit = {
-    cb.assign(bytes, v.asInstanceOf[SJavaBytesCode].bytes)
-  }
+  override def get: SJavaBytesCode = new SJavaBytesCode(bytes)
 
   override def loadLength(): Code[Int] = bytes.length()
 
   override def loadByte(i: Code[Int]): Code[Byte] = bytes(i)
 
   override def loadBytes(): Code[Array[Byte]] = bytes
+}
+
+object SJavaBytesSettable {
+  def apply(sb: SettableBuilder, name: String): SJavaBytesSettable = {
+    new SJavaBytesSettable(sb.newSettable[Array[Byte]](s"${ name }_bytes"))
+  }
+}
+
+final class SJavaBytesSettable(override val bytes: Settable[Array[Byte]]) extends SJavaBytesValue(bytes) with SSettable {
+  override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(bytes)
+
+  override def store(cb: EmitCodeBuilder, v: SCode): Unit = {
+    cb.assign(bytes, v.asInstanceOf[SJavaBytesCode].bytes)
+  }
 }

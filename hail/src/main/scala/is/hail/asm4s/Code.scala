@@ -349,10 +349,10 @@ object Code {
   def invokeStatic5[T, A1, A2, A3, A4, A5, S](method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5])(implicit tct: ClassTag[T], sct: ClassTag[S], a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5]): Code[S] =
     invokeStatic[S](tct.runtimeClass, method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass), Array[Code[_]](a1, a2, a3, a4, a5))(sct)
 
-  def _null[T >: Null](implicit tti: TypeInfo[T]): Code[T] = Code(lir.insn0(ACONST_NULL, tti))
-  def _uncheckednull(tti: TypeInfo[_]): Code[_] = Code(lir.insn0(ACONST_NULL, tti))
+  def _null[T >: Null](implicit tti: TypeInfo[T]): Value[T] = Value.fromLIR[T](lir.insn0(ACONST_NULL, tti))
+  def _uncheckednull[T](tti: TypeInfo[T]): Value[T] = Value.fromLIR[T](lir.insn0(ACONST_NULL, tti))
 
-  def _empty: Code[Unit] = Code[Unit](null: lir.ValueX)
+  def _empty: Value[Unit] = Value.fromLIR[Unit](null: lir.ValueX)
 
   def _throwAny[T <: java.lang.Throwable]: Thrower[T] = new Thrower[T] {
     def apply[U](cerr: Code[T])(implicit uti: TypeInfo[U]): Code[U] = {
@@ -1236,6 +1236,12 @@ object FieldRef {
       s"when getting field ${ tct.runtimeClass.getName }.$field: ${ f.getType.getName }: wrong type ${ sct.runtimeClass.getName } ")
 
     new FieldRef(f)
+  }
+}
+
+object Value {
+  def fromLIR[T](v: => lir.ValueX): Value[T] = new Value[T] {
+    def get: Code[T] = Code(v)
   }
 }
 

@@ -29,15 +29,15 @@ object SUnreachable {
 }
 
 abstract class SUnreachable extends SType {
-  def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq()
+  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq()
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq()
 
-  def storageType(): PType = PType.canonical(virtualType, required = false, innerRequired = true)
+  override def storageType(): PType = PType.canonical(virtualType, required = false, innerRequired = true)
 
   override def asIdent: String = s"s_unreachable"
 
-  def castRename(t: Type): SType = SUnreachable.fromVirtualType(t)
+  override def castRename(t: Type): SType = SUnreachable.fromVirtualType(t)
 
   val sv: SUnreachableValue
 
@@ -45,11 +45,13 @@ abstract class SUnreachable extends SType {
 
   override def fromCodes(codes: IndexedSeq[Code[_]]): SUnreachableValue = sv
 
+  override def fromValues(values: IndexedSeq[Value[_]]): SUnreachableValue = sv
+
   override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = sv
 
-  def copiedType: SType = this
+  override def copiedType: SType = this
 
-  def containsPointers: Boolean = false
+  override def containsPointers: Boolean = false
 }
 
 abstract class SUnreachableValue extends SCode with SSettable {
@@ -97,6 +99,8 @@ class SUnreachableStructValue(val st: SUnreachableStruct) extends SUnreachableVa
 
   override def _insert(newType: TStruct, fields: (String, EmitCode)*): SBaseStructCode =
     new SUnreachableStructValue(SUnreachableStruct(newType))
+
+  override def get: SBaseStructCode = this
 }
 
 case object SUnreachableBinary extends SUnreachable with SBinary {
@@ -112,7 +116,7 @@ class SUnreachableBinaryValue extends SUnreachableValue with SBinaryValue with S
 
   override def loadByte(i: Code[Int]): Code[Byte] = const(0.toByte)
 
-  override def loadBytes(): Code[Array[Byte]] = Code._null
+  override def loadBytes(): Code[Array[Byte]] = Code._null[Array[Byte]]
 
   override def loadLength(): Code[Int] = const(0)
 
@@ -138,7 +142,7 @@ class SUnreachableStringValue extends SUnreachableValue with SStringValue with S
 
   def st: SUnreachableString.type = SUnreachableString
 
-  override def loadString(): Code[String] = Code._null
+  override def loadString(): Code[String] = Code._null[String]
 
   override def toBytes(): SBinaryCode = new SUnreachableBinaryValue
 

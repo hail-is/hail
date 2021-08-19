@@ -10,42 +10,46 @@ import is.hail.types.virtual.{TString, Type}
 import is.hail.utils.FastIndexedSeq
 
 case object SJavaString extends SString {
-  val virtualType: TString.type = TString
+  override val virtualType: TString.type = TString
 
   override def storageType(): PType = PCanonicalString(false)
 
-  def copiedType: SType = this
+  override def copiedType: SType = this
 
-  def containsPointers: Boolean = false
+  override def containsPointers: Boolean = false
 
   override def castRename(t: Type): SType = this
 
-  def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SJavaStringCode = {
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SJavaStringCode = {
     value.st match {
       case SJavaString => value.asInstanceOf[SJavaStringCode]
       case _ => new SJavaStringCode(value.asString.loadString())
     }
   }
 
-  def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(classInfo[String])
+  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(classInfo[String])
 
-  def fromSettables(settables: IndexedSeq[Settable[_]]): SJavaStringSettable = {
+  override def fromSettables(settables: IndexedSeq[Settable[_]]): SJavaStringSettable = {
     val IndexedSeq(s: Settable[String@unchecked]) = settables
     new SJavaStringSettable(s)
   }
 
-  def fromCodes(codes: IndexedSeq[Code[_]]): SJavaStringCode = {
+  override def fromCodes(codes: IndexedSeq[Code[_]]): SJavaStringCode = {
     val IndexedSeq(s: Code[String@unchecked]) = codes
     new SJavaStringCode(s)
   }
 
-  def constructFromString(cb: EmitCodeBuilder, r: Value[Region], s: Code[String]): SJavaStringCode = {
+  override def fromValues(values: IndexedSeq[Value[_]]): SJavaStringValue = {
+    val IndexedSeq(s: Value[String@unchecked]) = values
+    new SJavaStringValue(s)
+  }
+
+  override def constructFromString(cb: EmitCodeBuilder, r: Value[Region], s: Code[String]): SJavaStringCode = {
     new SJavaStringCode(s)
   }
 
   def construct(s: Code[String]): SJavaStringCode = new SJavaStringCode(s)
 }
-
 
 class SJavaStringCode(val s: Code[String]) extends SStringCode {
   def st: SString = SJavaString
@@ -71,20 +75,22 @@ class SJavaStringCode(val s: Code[String]) extends SStringCode {
   def memoizeField(cb: EmitCodeBuilder, name: String): SValue = memoizeWithBuilder(cb, name, cb.fieldBuilder)
 }
 
+class SJavaStringValue(val s: Value[String]) extends SStringValue {
+  override def st: SString = SJavaString
+
+  override def get: SJavaStringCode = new SJavaStringCode(s)
+}
+
 object SJavaStringSettable {
   def apply(sb: SettableBuilder, name: String): SJavaStringSettable = {
     new SJavaStringSettable(sb.newSettable[String](s"${ name }_str"))
   }
 }
 
-class SJavaStringSettable(val s: Settable[String]) extends SStringValue with SSettable {
-  def st: SString = SJavaString
+final class SJavaStringSettable(override val s: Settable[String]) extends SJavaStringValue(s) with SSettable {
+  override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(s)
 
-  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(s)
-
-  def get: SJavaStringCode = new SJavaStringCode(s.load())
-
-  def store(cb: EmitCodeBuilder, v: SCode): Unit = {
+  override def store(cb: EmitCodeBuilder, v: SCode): Unit = {
     cb.assign(s, v.asInstanceOf[SJavaStringCode].s)
   }
 }

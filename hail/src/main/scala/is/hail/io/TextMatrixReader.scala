@@ -432,9 +432,9 @@ class CompiledLineParser(
 
   fb.cb.emitInit(Code(
     pos := 0,
-    filename := Code._null,
+    filename := Code._null[String],
     lineNumber := 0L,
-    line := Code._null))
+    line := Code._null[String]))
 
 
   @transient private[this] val parseStringMb = fb.genEmitMethod[Region, String]("parseString")

@@ -10,8 +10,8 @@ import is.hail.types.physical.stypes.primitives.SInt64
 import is.hail.types.virtual.{TInt64, TNDArray, TTuple, Type}
 import is.hail.utils.{FastIndexedSeq, toRichIterable}
 
-case class SNDArraySlice(pType: PCanonicalNDArray) extends SNDArray {
-  def nDims: Int = pType.nDims
+final case class SNDArraySlice(pType: PCanonicalNDArray) extends SNDArray {
+  override def nDims: Int = pType.nDims
 
   override def elementByteSize: Long = pType.elementType.byteSize
 
@@ -52,25 +52,23 @@ case class SNDArraySlice(pType: PCanonicalNDArray) extends SNDArray {
     new SNDArraySliceCode(this, shape, strides, dataFirstElement)
   }
 
+  override def fromValues(settables: IndexedSeq[Value[_]]): SNDArraySliceValue = {
+    assert(settables.length == 2*nDims + 1)
+    val shape = settables.slice(0, nDims).asInstanceOf[IndexedSeq[Value[Long@unchecked]]]
+    val strides = settables.slice(nDims, 2 * nDims).asInstanceOf[IndexedSeq[Value[Long@unchecked]]]
+    val dataFirstElementPointer = settables.last.asInstanceOf[Value[Long]]
+    new SNDArraySliceValue(this, shape, strides, dataFirstElementPointer)
+  }
+
   override def containsPointers: Boolean = true
 }
 
-object SNDArraySliceSettable {
-  def apply(sb: SettableBuilder, st: SNDArraySlice, name: String): SNDArraySliceSettable = {
-    new SNDArraySliceSettable(st,
-      Array.tabulate(st.pType.nDims)(i => sb.newSettable[Long](s"${name}_nd_shape_$i")),
-      Array.tabulate(st.pType.nDims)(i => sb.newSettable[Long](s"${name}_nd_strides_$i")),
-      sb.newSettable[Long](s"${name}_nd_first_element")
-    )
-  }
-}
-
-class SNDArraySliceSettable(
+class SNDArraySliceValue(
   val st: SNDArraySlice,
-  val shape: IndexedSeq[Settable[Long]],
-  val strides: IndexedSeq[Settable[Long]],
-  val dataFirstElement: Settable[Long]
-) extends SNDArrayValue with SSettable {
+  val shape: IndexedSeq[Value[Long]],
+  val strides: IndexedSeq[Value[Long]],
+  val dataFirstElement: Value[Long]
+) extends SNDArrayValue {
   val pt: PCanonicalNDArray = st.pType
 
   override def loadElementAddress(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Long] = {
@@ -80,15 +78,6 @@ class SNDArraySliceSettable(
 
   override def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SCode =
     pt.elementType.loadCheapSCode(cb, loadElementAddress(indices, cb))
-
-  override def settableTuple(): IndexedSeq[Settable[_]] = shape ++ strides :+ dataFirstElement
-
-  override def store(cb: EmitCodeBuilder, v: SCode): Unit = {
-    val vSlice = v.asInstanceOf[SNDArraySliceCode]
-    shape.zip(vSlice.shape).foreach { case (x, s) => cb.assign(x, s) }
-    strides.zip(vSlice.strides).foreach { case (x, s) => cb.assign(x, s) }
-    cb.assign(dataFirstElement, vSlice.dataFirstElement)
-  }
 
   override def get: SNDArraySliceCode = new SNDArraySliceCode(st, shape, strides, dataFirstElement)
 
@@ -114,6 +103,32 @@ class SNDArraySliceSettable(
       }
       pt.elementType.storeAtAddress(cb, ptrs.head, region, body(codes), deepCopy)
     }
+  }
+}
+
+object SNDArraySliceSettable {
+  def apply(sb: SettableBuilder, st: SNDArraySlice, name: String): SNDArraySliceSettable = {
+    new SNDArraySliceSettable(st,
+      Array.tabulate(st.pType.nDims)(i => sb.newSettable[Long](s"${name}_nd_shape_$i")),
+      Array.tabulate(st.pType.nDims)(i => sb.newSettable[Long](s"${name}_nd_strides_$i")),
+      sb.newSettable[Long](s"${name}_nd_first_element")
+    )
+  }
+}
+
+final class SNDArraySliceSettable(
+  st: SNDArraySlice,
+  override val shape: IndexedSeq[Settable[Long]],
+  override val strides: IndexedSeq[Settable[Long]],
+  override val dataFirstElement: Settable[Long]
+) extends SNDArraySliceValue(st, shape, strides, dataFirstElement) with SSettable {
+  override def settableTuple(): IndexedSeq[Settable[_]] = shape ++ strides :+ dataFirstElement
+
+  override def store(cb: EmitCodeBuilder, v: SCode): Unit = {
+    val vSlice = v.asInstanceOf[SNDArraySliceCode]
+    shape.zip(vSlice.shape).foreach { case (x, s) => cb.assign(x, s) }
+    strides.zip(vSlice.strides).foreach { case (x, s) => cb.assign(x, s) }
+    cb.assign(dataFirstElement, vSlice.dataFirstElement)
   }
 }
 

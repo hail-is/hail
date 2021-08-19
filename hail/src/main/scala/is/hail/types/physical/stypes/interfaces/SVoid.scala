@@ -15,21 +15,23 @@ case object SVoid extends SType {
 
   override def castRename(t: Type): SType = this
 
-  def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = value
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = value
 
-  def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = IndexedSeq()
+  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = IndexedSeq()
 
-  def fromCodes(codes: IndexedSeq[Code[_]]): SCode = throw new UnsupportedOperationException
+  override def fromCodes(codes: IndexedSeq[Code[_]]): SCode = throw new UnsupportedOperationException
 
-  def fromSettables(settables: IndexedSeq[Settable[_]]): SSettable = throw new UnsupportedOperationException
+  override def fromSettables(settables: IndexedSeq[Settable[_]]): SSettable = throw new UnsupportedOperationException
 
-  def storageType(): PType = throw new UnsupportedOperationException
+  override def fromValues(values: IndexedSeq[Value[_]]): SValue = throw new UnsupportedOperationException
+
+  override def storageType(): PType = throw new UnsupportedOperationException
 
   override def copiedType: SType = this
 
   override def _typeWithRequiredness: TypeWithRequiredness = throw new UnsupportedOperationException
 
-  def containsPointers: Boolean = false
+  override def containsPointers: Boolean = false
 }
 
 case object SVoidCode extends SCode with SUnrealizableCode {
