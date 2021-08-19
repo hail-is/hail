@@ -201,12 +201,12 @@ Plotly.plot('plotly-timeseries', graph, {});
   </thead>
   {% if job_specification %}
   <tbody>
-    {% for envvar in job_specification['env'] %}
+  {% for envvar in job_specification['env'] %}
     <tr>
       <td>{{ envvar['name'] }}</td>
       <td>{{ envvar['value'] }}</td>
     </tr>
-    {% endfor %}
+  {% endfor %}
   </tbody>
   {% endif %}
 </table>

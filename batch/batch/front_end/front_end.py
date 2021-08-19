@@ -72,7 +72,7 @@ from ..inst_coll_config import InstanceCollectionConfigs
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
 from ..batch_configuration import BATCH_BUCKET_NAME, DEFAULT_NAMESPACE, SCOPE
-from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION, memory_to_worker_type, tasks
+from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION, memory_to_worker_type
 from ..spec_writer import SpecWriter
 from ..batch_format_version import BatchFormatVersion
 
