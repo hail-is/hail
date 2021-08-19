@@ -1417,7 +1417,10 @@ class Emit[C](
             returnType.constructFromElements(cb, region, const(0), false){ (cb, idx) =>
               // TODO: Obviously wrong / tempoary
               val stackStruct = new SStackStruct(ir.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct], ???)
-              IEmitCode.present(cb, new SStackStructCode(stackStruct, IndexedSeq(???)))
+              val sInterval = SIntervalPointer(returnType.elementType.asInstanceOf[PBaseStruct].field("interval").typ).
+              IEmitCode.present(cb, new SStackStructCode(stackStruct, IndexedSeq(
+                EmitCode()
+              )))
             }
           }
         }
