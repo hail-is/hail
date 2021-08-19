@@ -262,32 +262,34 @@ class TableStage(
       )
     )
 
-    val intervalUID = genUID()
-    val eltUID = genUID()
     val prevContextUIDPartition = genUID()
-
     val newStage = TableStage(letBindings, broadcastVals, globals, newPartitioner, dependency, newContexts,
       (ctxRef: Ref) => {
         val body = self.partition(Ref(prevContextUIDPartition, self.contexts.typ.asInstanceOf[TStream].elementType))
-        Let(
-          intervalUID,
-          GetField(ctxRef, "partitionBound"),
-          StreamFilter(
-            StreamFlatMap(
-              ToStream(GetField(ctxRef, "oldContexts"), true),
-              prevContextUIDPartition,
-              body
-            ),
-            eltUID,
-            invoke("partitionIntervalContains",
-              TBoolean,
-              Ref(intervalUID, boundType),
-              SelectFields(Ref(eltUID, body.typ.asInstanceOf[TStream].elementType), newPartitioner.kType.fieldNames))))
+        bindIR(GetField(ctxRef, "partitionBound")) { interval =>
+          takeWhile(
+            dropWhile(
+              StreamFlatMap(
+                ToStream(GetField(ctxRef, "oldContexts"), true),
+                prevContextUIDPartition,
+                body)) { elt =>
+              !invoke("partitionIntervalEndpointGreaterThan", TBoolean,
+                GetField(interval, "left"),
+                SelectFields(elt, newPartitioner.kType.fieldNames),
+                GetField(interval, "includesLeft"))
+
+            }) { elt =>
+            invoke("partitionIntervalEndpointLessThan", TBoolean,
+              GetField(interval, "right"),
+              SelectFields(elt, newPartitioner.kType.fieldNames),
+              GetField(interval, "includesRight"))
+          }
+        }
       })
 
     assert(newStage.rowType == rowType,
       s"\n  repartitioned row type:     ${ newStage.rowType }" +
-      s"\n  old row type: ${rowType}")
+        s"\n  old row type: ${ rowType }")
     newStage
   }
 
