@@ -10,7 +10,7 @@ import json
 
 from azure.identity.aio import DefaultAzureCredential, ClientSecretCredential
 from azure.storage.blob import BlobProperties
-from azure.storage.blob.aio import BlobClient, ContainerClient, BlobServiceClient
+from azure.storage.blob.aio import BlobClient, ContainerClient, BlobServiceClient, StorageStreamDownloader
 from azure.storage.blob.aio._list_blobs_helper import BlobPrefix
 import azure.core.exceptions
 from hailtop.utils import retry_transient_errors, flatten, OnlineBoundedGather2, first_extant_file
@@ -67,15 +67,13 @@ class AzureCreatePartManager(AsyncContextManager[WritableStream]):
     def __init__(self, client: BlobClient, block_ids: List[str]):
         self.client = client
         self.block_ids = block_ids
-        self._writable_stream = None
+        self._writable_stream = AzureWritableStream(self.client, self.block_ids)
 
     async def __aenter__(self) -> 'AzureWritableStream':
-        self._writable_stream = AzureWritableStream(self.client, self.block_ids)
         return self._writable_stream
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self._writable_stream.wait_closed()
-        self._writable_stream = None
 
 
 class AzureMultiPartCreate(MultiPartCreate):
@@ -97,17 +95,19 @@ class AzureMultiPartCreate(MultiPartCreate):
         try:
             await self._client.commit_block_list(flatten(self._block_ids))
         except:
-            await self._client.delete_blob()
+            try:
+                await self._client.delete_blob()
+            except azure.core.exceptions.ResourceNotFoundError:
+                pass
             raise
-        finally:
-            self._block_ids = None
 
 
 class AzureCreateManager(AsyncContextManager[WritableStream]):
+    _writable_stream: AzureWritableStream
+
     def __init__(self, client: BlobClient):
         self._client = client
-        self._block_ids = []
-        self._writable_stream = None
+        self._block_ids: List[str] = []
 
     async def __aenter__(self) -> WritableStream:
         self._writable_stream = AzureWritableStream(self._client, self._block_ids)
@@ -118,33 +118,35 @@ class AzureCreateManager(AsyncContextManager[WritableStream]):
             exc_value: Optional[BaseException] = None,
             exc_traceback: Optional[TracebackType] = None) -> None:
         await self._writable_stream.wait_closed()
+
         try:
             await self._client.commit_block_list(self._block_ids)
         except:
-            await self._client.delete_blob()
+            try:
+                await self._client.delete_blob()
+            except azure.core.exceptions.ResourceNotFoundError:
+                pass
             raise
-        finally:
-            self._writable_stream = None
 
 
 class AzureReadableStream(ReadableStream):
+    _downloader: StorageStreamDownloader
+    _chunk_it: AsyncIterator[bytes]
+
     def __init__(self, client: BlobClient, offset: Optional[int] = None):
         super().__init__()
         self._client = client
         self._buffer = bytearray()
         self._offset = offset
-        self._downloader = None
-        self._chunk_it = None
         self._eof = False
-
-    async def async_init(self):
-        downloader = await self._client.download_blob(offset=self._offset)
-        self._downloader = downloader
-        self._chunk_it = downloader.chunks()
 
     async def read(self, n: int = -1):
         if self._eof:
             return b''
+
+        if self._downloader is None:
+            self._downloader = await self._client.download_blob(offset=self._offset)
+            self._chunk_it = self._downloader.chunks()
 
         if n == -1:
             data = await self._downloader.readall()
@@ -167,9 +169,10 @@ class AzureReadableStream(ReadableStream):
         return data
 
     async def _wait_closed(self) -> None:
-        await self._client.close()
-        self._downloader = None
-        self._buffer = None
+        if hasattr(self, '_downloader'):
+            del self._downloader
+        if hasattr(self, '_chunk_it'):
+            del self._chunk_it
 
 
 class AzureFileListEntry(FileListEntry):
@@ -280,13 +283,11 @@ class AzureAsyncFS(AsyncFS):
     async def open(self, url: str) -> ReadableStream:
         client = self.new_blob_client(url)
         stream = AzureReadableStream(client)
-        await stream.async_init()
         return stream
 
     async def open_from(self, url: str, start: int) -> ReadableStream:
         client = self.new_blob_client(url)
         stream = AzureReadableStream(client, offset=start)
-        await stream.async_init()
         return stream
 
     async def create(self, url: str, *, retry_writes: bool = True) -> AsyncContextManager[WritableStream]:  # pylint: disable=unused-argument
@@ -423,9 +424,10 @@ class AzureAsyncFS(AsyncFS):
     async def close(self) -> None:
         if self._credential:
             await self._credential.close()
-            self._credential = None
+            if hasattr(self, '_credential'):
+                del self._credential
 
-        if self._blob_service_clients:
+        if hasattr(self, '_blob_service_clients') and self._blob_service_clients:
             for blob_service_client in self._blob_service_clients.values():
                 await blob_service_client.close()
-            self._blob_service_clients = None
+            del self._blob_service_clients

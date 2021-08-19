@@ -73,7 +73,7 @@ async def router_filesystem(request):
                 await bounded_gather2(sema,
                                       functools.partial(fs.rmtree, sema, file_base),
                                       functools.partial(fs.rmtree, sema, gs_base),
-                                      functools.partial(fs.rmtree, sema, s3_base)
+                                      functools.partial(fs.rmtree, sema, s3_base),
                                       functools.partial(fs.rmtree, sema, azure_base))
 
             assert not await fs.isdir(file_base)
