@@ -159,7 +159,10 @@ case class EmitRegion(mb: EmitMethodBuilder[_], region: Value[Region]) {
 
 object EmitValue {
   def apply(missing: Option[Value[Boolean]], v: SValue): EmitValue = new EmitValue {
-    lazy val required: Boolean = missing.isEmpty
+    lazy val required: Boolean = missing match {
+      case None => true
+      case Some(m) => Code.constBoolValue(m).contains(false)
+    }
 
     override lazy val emitType: EmitType = EmitType(v.st, required)
 
