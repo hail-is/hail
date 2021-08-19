@@ -11,8 +11,8 @@ import is.hail.utils.FastIndexedSeq
 object LinalgCodeUtils {
   def checkColumnMajor(pndv: SNDArrayValue, cb: EmitCodeBuilder): Value[Boolean] = {
     val answer = cb.newField[Boolean]("checkColumnMajorResult")
-    val shapes = pndv.shapes(cb)
-    val strides = pndv.strides(cb)
+    val shapes = pndv.shapes
+    val strides = pndv.strides
     val runningProduct = cb.newLocal[Long]("check_column_major_running_product")
 
     val st = pndv.st
@@ -29,8 +29,8 @@ object LinalgCodeUtils {
 
   def checkRowMajor(pndv: SNDArrayValue, cb: EmitCodeBuilder): Value[Boolean] = {
     val answer = cb.newField[Boolean]("checkColumnMajorResult")
-    val shapes = pndv.shapes(cb)
-    val strides = pndv.strides(cb)
+    val shapes = pndv.shapes
+    val strides = pndv.strides
     val runningProduct = cb.newLocal[Long]("check_column_major_running_product")
 
     val st = pndv.st
@@ -46,7 +46,7 @@ object LinalgCodeUtils {
   }
 
   def createColumnMajorCode(pndv: SNDArrayValue, cb: EmitCodeBuilder, region: Value[Region]): SNDArrayCode = {
-    val shape = pndv.shapes(cb)
+    val shape = pndv.shapes
     val pt = PCanonicalNDArray(pndv.st.elementType.storageType().setRequired(true), pndv.st.nDims, false)
     val strides = pt.makeColumnMajorStrides(shape, region, cb)
 

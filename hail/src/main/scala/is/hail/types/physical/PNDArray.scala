@@ -7,7 +7,7 @@ import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.concrete.{SNDArrayPointerCode, SNDArrayPointerValue}
-import is.hail.types.physical.stypes.interfaces.{SIndexableCode, SNDArrayCode, SNDArrayValue}
+import is.hail.types.physical.stypes.interfaces.{SIndexableCode, SNDArrayCode, SNDArrayValue, SizeValue, SizeValueDyn}
 import is.hail.types.virtual.TNDArray
 
 abstract class PNDArray extends PType {
@@ -48,7 +48,7 @@ abstract class PNDArray extends PType {
     data: SIndexableCode,
     cb: EmitCodeBuilder,
     region: Value[Region]
-  ): SNDArrayCode
+  ): SNDArrayValue
 
   def constructDataFunction(
     shape: IndexedSeq[Value[Long]],
