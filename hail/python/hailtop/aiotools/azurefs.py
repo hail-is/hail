@@ -289,7 +289,7 @@ class AzureAsyncFS(AsyncFS):
         await stream.async_init()
         return stream
 
-    async def create(self, url: str, *, retry_writes: bool = True) -> AsyncContextManager[WritableStream]:
+    async def create(self, url: str, *, retry_writes: bool = True) -> AsyncContextManager[WritableStream]:  # pylint: disable=unused-argument
         client = self.new_blob_client(url)
         return AzureCreateManager(client)
 
@@ -354,7 +354,7 @@ class AzureAsyncFS(AsyncFS):
                 yield AzureFileListEntry(url, item)
 
     async def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
-        _, container, name = self._get_account_container_name(url)
+        _, _, name = self._get_account_container_name(url)
         if name and not name.endswith('/'):
             name = f'{name}/'
 
@@ -403,7 +403,7 @@ class AzureAsyncFS(AsyncFS):
 
     async def _rmtree(self, sema: asyncio.Semaphore, url: str) -> None:
         async with OnlineBoundedGather2(sema) as pool:
-            _, container, name = self._get_account_container_name(url)
+            _, _, name = self._get_account_container_name(url)
             if name and not name.endswith('/'):
                 name = f'{name}/'
 
