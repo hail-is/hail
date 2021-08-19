@@ -62,14 +62,15 @@
 {% endif %}
 
 <h2>Step Status</h2>
-<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 
+{% if plot_json is not none %}
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 <div id="plotly-timeseries"></div>
 <script>
 var graph = {{ plot_json | safe }};
 Plotly.plot('plotly-timeseries', graph, {});
 </script>
-
+{% endif %}
 
 <table class="data-table">
   <thead>

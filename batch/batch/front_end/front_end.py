@@ -1440,33 +1440,45 @@ async def ui_get_job(request, userdata, batch_id):
         del resources['cores_mcpu']
 
     data = []
-    for task in tasks:
-        if container_statuses[task]:
-            for step_name, step_data in container_statuses[task]['timing'].items():
-                plot_dict = {
-                    'title': f'{(batch_id, job_id)}',
-                    'name': task,
-                    'start': datetime.datetime.fromtimestamp(step_data['start_time'] / 1000),
-                    'resource': step_name,
-                }
+    for step in ['input', 'main', 'output']:
+        if container_statuses[step]:
+            for timing_name, timing_data in container_statuses[step]['timing'].items():
+                if timing_data is not None:
+                    plot_dict = {
+                        'Title': f'{(batch_id, job_id)}',
+                        'Step': step,
+                        'Task': timing_name,
+                    }
 
-                if step_data.get('finish_time') is not None:
-                    plot_dict['finish'] = datetime.datetime.fromtimestamp(step_data['finish_time'] / 1000)
+                    if timing_data.get('start_time') is not None:
+                        plot_dict['Start'] = datetime.datetime.fromtimestamp(timing_data['start_time'] / 1000)
+                        
+                        finish_time = timing_data.get('finish_time')
+                        if finish_time is None:
+                            finish_time = time_msecs()
+                        plot_dict['Finish'] = datetime.datetime.fromtimestamp(finish_time / 1000)
 
-                data.append(plot_dict)
+                    data.append(plot_dict)
+    
+    if data: 
+        df = pd.DataFrame(data)
 
-    df = pd.DataFrame(data)
+        fig = px.timeline(
+            df,
+            x_start='Start',
+            x_end='Finish',
+            y='Step',
+            color='Task',
+            hover_data=['Step'],
+            color_discrete_sequence=px.colors.sequential.dense,
+            category_orders={
+                'Step': ['input', 'main', 'output'],
+                'Task': ['pulling', 'setting up overlay', 'setting up network', 'running', 'uploading_log']
+            })
 
-    fig = px.timeline(
-        df,
-        x_start='start',
-        x_end='finish',
-        y='title',
-        color='resource',
-        hover_data=['name'],
-        color_discrete_sequence=px.colors.sequential.dense)
-
-    plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+        plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+    else:
+        plot_json = None
 
     page_context = {
         'batch_id': batch_id,
