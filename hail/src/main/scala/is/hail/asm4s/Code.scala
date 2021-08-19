@@ -1240,7 +1240,7 @@ object FieldRef {
 }
 
 object Value {
-  def fromLIR[T](v: lir.ValueX): Value[T] = new Value[T] {
+  def fromLIR[T](v: => lir.ValueX): Value[T] = new Value[T] {
     def get: Code[T] = Code(v)
   }
 }
