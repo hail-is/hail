@@ -70,6 +70,8 @@ class SCanonicalLocusPointerValue(
 
   override def get = new SCanonicalLocusPointerCode(st, a)
 
+  override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a, _contig, _position)
+
   override def contig(cb: EmitCodeBuilder): SStringCode = {
     pt.contigType.loadCheapSCode(cb, _contig).asString
   }

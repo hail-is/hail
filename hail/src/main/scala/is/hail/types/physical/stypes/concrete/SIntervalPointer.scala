@@ -66,6 +66,8 @@ class SIntervalPointerValue(
 ) extends SIntervalValue {
   override def get: SIntervalCode = new SIntervalPointerCode(st, a)
 
+  override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a, includesStart, includesEnd)
+
   val pt: PInterval = st.pType
 
   override def loadStart(cb: EmitCodeBuilder): IEmitCode =

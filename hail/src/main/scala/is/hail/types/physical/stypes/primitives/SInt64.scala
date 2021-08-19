@@ -45,7 +45,7 @@ case object SInt64 extends SPrimitive {
   override def storageType(): PType = PInt64()
 }
 
-class SInt64Code(val code: Code[Long]) extends SCode with SPrimitiveCode {
+class SInt64Code(val code: Code[Long]) extends SPrimitiveCode {
   override def _primitiveCode: Code[_] = code
 
   def st: SInt64.type = SInt64
@@ -65,8 +65,10 @@ class SInt64Code(val code: Code[Long]) extends SCode with SPrimitiveCode {
   def longCode(cb: EmitCodeBuilder): Code[Long] = code
 }
 
-class SInt64Value(x: Value[Long]) extends SValue {
+class SInt64Value(x: Value[Long]) extends SPrimitiveValue {
   val pt: PInt64 = PInt64(false)
+
+  override def valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(x)
 
   override def st: SInt64.type = SInt64
 

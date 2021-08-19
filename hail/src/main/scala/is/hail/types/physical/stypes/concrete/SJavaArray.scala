@@ -86,6 +86,8 @@ class SJavaArrayStringValue(
   val st: SJavaArrayString,
   val array: Value[Array[String]]
 ) extends SIndexableValue {
+  override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(array)
+
   override def get: SIndexableCode = new SJavaArrayStringCode(st, array)
 
   override def loadLength(): Value[Int] = new Value[Int] {

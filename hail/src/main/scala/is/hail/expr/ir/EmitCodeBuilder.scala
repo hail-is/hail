@@ -6,7 +6,7 @@ import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.lir
 import is.hail.types.physical.stypes.{SCode, SSettable, SValue}
-import is.hail.types.physical.stypes.interfaces.SStreamCode
+import is.hail.types.physical.stypes.interfaces.{SStream, SStreamCode}
 import is.hail.utils._
 
 object EmitCodeBuilder {
@@ -104,7 +104,10 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     if (ec.st.isRealizable) {
       f(memoizeField(ec, name))
     } else {
-      val ev = new EmitUnrealizableValue(ec)
+      assert(ec.st.isInstanceOf[SStream])
+      val m = emb.genFieldThisRef[Boolean](name + "_missing")
+      ec.toI(this).consume(this, assign(m, false), _ => assign(m, true))
+      val ev = new EmitValue(Some(m), ec.pv.memoize(this, ""))
       val res = f(ev)
       ec.pv match {
         case SStreamCode(_, producer) => StreamProducer.defineUnusedLabels(producer, emb)

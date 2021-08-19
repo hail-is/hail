@@ -63,6 +63,8 @@ class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
 
   override def get: SCallCode = new SCanonicalCallCode(call)
 
+  override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(call)
+
   override def ploidy(): Code[Int] = get.ploidy()
 
   override def isPhased(): Code[Boolean] = get.isPhased()

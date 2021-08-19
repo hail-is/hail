@@ -68,6 +68,8 @@ class SJavaBytesCode(val bytes: Code[Array[Byte]]) extends SBinaryCode {
 class SJavaBytesValue(val bytes: Value[Array[Byte]]) extends SBinaryValue {
   override def st: SBinary = SJavaBytes
 
+  override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(bytes)
+
   override def get: SJavaBytesCode = new SJavaBytesCode(bytes)
 
   override def loadLength(): Code[Int] = bytes.length()

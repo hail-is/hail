@@ -906,34 +906,21 @@ class EmitMethodBuilder[C](
       case SingleCodeEmitParamType(required, sct) =>
         val field = cb.newFieldAny(s"storeEmitParam_sct_$emitIndex", mb.getArg(codeIndex)(sct.ti).get)(sct.ti);
         { region: Value[Region] =>
-          val emitCode = EmitCode.fromI(this) { cb =>
-            if (required) {
-              IEmitCode.present(cb, sct.loadToSCode(cb, region, field.load()))
-            } else {
-              IEmitCode(cb, mb.getArg[Boolean](codeIndex + 1).get, sct.loadToSCode(cb, null, field.load()))
-            }
-          }
+          val m = if (required) None else Some(mb.getArg[Boolean](codeIndex + 1))
+          val v = sct.loadToSValue(cb, null, field)
 
-          new EmitValue {
-            evSelf =>
-
-            override def emitType: EmitType = emitCode.emitType
-
-            override def load: EmitCode = emitCode
-
-            override def get(cb: EmitCodeBuilder): SCode = emitCode.toI(cb).get(cb)
-          }
+          EmitValue(m, v)
         }
 
       case SCodeEmitParamType(et) =>
-        val fd = cb.memoizeField(getEmitParam(emitIndex, null), s"storeEmitParam_$emitIndex")
+        val fd = cb.memoizeField(getEmitParam(cb, emitIndex, null), s"storeEmitParam_$emitIndex")
         _ => fd
     }
 
   }
 
   // needs region to support stream arguments
-  def getEmitParam(emitIndex: Int, r: Value[Region]): EmitValue = {
+  def getEmitParam(cb: EmitCodeBuilder, emitIndex: Int, r: Value[Region]): EmitValue = {
     assert(mb.isStatic || emitIndex != 0)
     val static = (!mb.isStatic).toInt
     val et = emitParamTypes(emitIndex - static) match {
@@ -953,44 +940,16 @@ class EmitMethodBuilder[C](
           }
         }
 
-        new EmitValue {
-          evSelf =>
-
-          override def emitType: EmitType = emitCode.emitType
-
-          override def load: EmitCode = emitCode
-
-          override def get(cb: EmitCodeBuilder): SCode = emitCode.toI(cb).get(cb)
-        }
+        EmitValue(if (required) None else Some(mb.getArg[Boolean](codeIndex + 1)), sct.loadToSValue(cb, null, mb.getArg(codeIndex)(sct.ti)))
 
       case SCodeEmitParamType(et) =>
         val ts = et.st.codeTupleTypes()
 
-        new EmitValue {
-          evSelf =>
-          val emitType: EmitType = et
-
-          def load: EmitCode = {
-            EmitCode(Code._empty,
-              if (et.required)
-                const(false)
-              else
-                mb.getArg[Boolean](codeIndex + ts.length),
-              st.fromCodes(ts.zipWithIndex.map { case (t, i) =>
-                mb.getArg(codeIndex + i)(t).get
-              }))
-          }
-
-          override def get(cb: EmitCodeBuilder): SCode = {
-            new SValue {
-              override def get: SCode = st.fromCodes(ts.zipWithIndex.map { case (t, i) =>
-                mb.getArg(codeIndex + i)(t).get
-              })
-
-              override def st: SType = evSelf.st
-            }
-          }
-        }
+        val m = if (et.required) None else Some(mb.getArg[Boolean](codeIndex + ts.length))
+        val v = et.st.fromValues(ts.zipWithIndex.map { case (t, i) =>
+          mb.getArg(codeIndex + i)(t)
+        })
+        EmitValue(m, v)
     }
   }
 
@@ -1077,7 +1036,7 @@ trait WrappedEmitMethodBuilder[C] extends WrappedEmitClassBuilder[C] {
   // EmitMethodBuilder methods
   def getCodeParam[T: TypeInfo](emitIndex: Int): Settable[T] = emb.getCodeParam[T](emitIndex)
 
-  def getEmitParam(emitIndex: Int, r: Value[Region]): EmitValue = emb.getEmitParam(emitIndex, r)
+  def getEmitParam(cb: EmitCodeBuilder, emitIndex: Int, r: Value[Region]): EmitValue = emb.getEmitParam(cb, emitIndex, r)
 
   def newPLocal(st: SType): SSettable = emb.newPLocal(st)
 

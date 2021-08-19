@@ -65,6 +65,8 @@ class SBaseStructPointerValue(
 
   override def get: SBaseStructCode = new SBaseStructPointerCode(st, a)
 
+  override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a)
+
   override def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
     IEmitCode(cb,
       pt.isFieldMissing(a, fieldIdx),

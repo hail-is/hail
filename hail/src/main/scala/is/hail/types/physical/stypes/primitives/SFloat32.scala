@@ -45,7 +45,7 @@ case object SFloat32 extends SPrimitive {
   override def storageType(): PType = PFloat32()
 }
 
-class SFloat32Code(val code: Code[Float]) extends SCode with SPrimitiveCode {
+class SFloat32Code(val code: Code[Float]) extends SPrimitiveCode {
   override def _primitiveCode: Code[_] = code
 
   val pt: PFloat32 = PFloat32(false)
@@ -67,8 +67,10 @@ class SFloat32Code(val code: Code[Float]) extends SCode with SPrimitiveCode {
   def floatCode(cb: EmitCodeBuilder): Code[Float] = code
 }
 
-class SFloat32Value(x: Value[Float]) extends SValue {
+class SFloat32Value(x: Value[Float]) extends SPrimitiveValue {
   val pt: PFloat32 = PFloat32()
+
+  override def valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(x)
 
   override def st: SFloat32.type = SFloat32
 

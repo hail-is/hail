@@ -59,9 +59,61 @@ abstract class SUnreachableValue extends SCode with SSettable {
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq()
 
+  def valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq()
+
   def store(cb: EmitCodeBuilder, v: SCode): Unit = {}
 
   override def get: SCode = this
+
+  // These overrides are needed to disambiguate inheritance from SCode and SValue.
+  // Can remove when SCode is gone.
+  override def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SCode =
+    castTo(cb, region, destType, false)
+
+  override def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType, deepCopy: Boolean): SCode = {
+    destType.coerceOrCopy(cb, region, this, deepCopy)
+  }
+
+  override def asBoolean: Nothing = asInstanceOf[Nothing]
+
+  override def asInt: Nothing = asInstanceOf[Nothing]
+
+  override def asInt32: Nothing = asInstanceOf[Nothing]
+
+  override def asLong: Nothing = asInstanceOf[Nothing]
+
+  override def asInt64: Nothing = asInstanceOf[Nothing]
+
+  override def asFloat: Nothing = asInstanceOf[Nothing]
+
+  override def asFloat32: Nothing = asInstanceOf[Nothing]
+
+  override def asFloat64: Nothing = asInstanceOf[Nothing]
+
+  override def asDouble: Nothing = asInstanceOf[Nothing]
+
+  override def asPrimitive: Nothing = asInstanceOf[Nothing]
+
+  override def asBinary: Nothing = asInstanceOf[Nothing]
+
+  override def asIndexable: Nothing = asInstanceOf[Nothing]
+
+  override def asBaseStruct: Nothing = asInstanceOf[Nothing]
+
+  override def asString: Nothing = asInstanceOf[Nothing]
+
+  override def asInterval: Nothing = asInstanceOf[Nothing]
+
+  override def asNDArray: Nothing = asInstanceOf[Nothing]
+
+  override def asLocus: Nothing = asInstanceOf[Nothing]
+
+  override def asCall: Nothing = asInstanceOf[Nothing]
+
+  override def asStream: Nothing = asInstanceOf[Nothing]
+
+  override def copyToRegion(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SCode =
+    destType.coerceOrCopy(cb, region, this, deepCopy = true)
 }
 
 case class SUnreachableStruct(virtualType: TBaseStruct) extends SUnreachable with SBaseStruct {
@@ -249,7 +301,7 @@ case class SUnreachableNDArray(virtualType: TNDArray) extends SUnreachable with 
 class SUnreachableNDArrayValue(val st: SUnreachableNDArray) extends SUnreachableValue with SNDArraySettable with SNDArrayCode {
   override def memoizeField(cb: EmitCodeBuilder, name: String): SUnreachableNDArrayValue = this
 
-  def shape(cb: EmitCodeBuilder): SBaseStructCode = SUnreachableStruct(TTuple((0 until st.nDims).map(_ => TInt64): _*)).defaultValue.asBaseStruct
+  def shape(cb: EmitCodeBuilder): SBaseStructCode = SUnreachableStruct(TTuple((0 until st.nDims).map(_ => TInt64): _*)).defaultValue.get.asBaseStruct
 
   def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SCode = SUnreachable.fromVirtualType(st.virtualType.elementType).defaultValue
 
@@ -298,5 +350,5 @@ class SUnreachableContainerValue(val st: SUnreachableContainer) extends SUnreach
 
   def hasMissingValues(cb: EmitCodeBuilder): Code[Boolean] = const(false)
 
-  def castToArray(cb: EmitCodeBuilder): SIndexableCode = SUnreachable.fromVirtualType(st.virtualType.arrayElementsRepr).defaultValue.asIndexable
+  def castToArray(cb: EmitCodeBuilder): SIndexableCode = SUnreachable.fromVirtualType(st.virtualType.arrayElementsRepr).defaultValue.get.asIndexable
 }

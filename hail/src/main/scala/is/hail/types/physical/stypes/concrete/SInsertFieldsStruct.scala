@@ -154,6 +154,8 @@ class SInsertFieldsStructValue(
 ) extends SBaseStructValue {
   override def get: SInsertFieldsStructCode = new SInsertFieldsStructCode(st, parent.get, newFields.map(_.load))
 
+  override lazy val valueTuple: IndexedSeq[Value[_]] = parent.valueTuple ++ newFields.flatMap(_.valueTuple())
+
   override def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
     st.getFieldIndexInNewOrParent(fieldIdx) match {
       case Left(parentIdx) => parent.loadField(cb, parentIdx)

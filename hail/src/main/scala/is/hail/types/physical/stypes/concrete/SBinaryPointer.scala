@@ -65,6 +65,8 @@ class SBinaryPointerValue(
 
   override def get: SBinaryPointerCode = new SBinaryPointerCode(st, a)
 
+  override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a)
+
   override def loadLength(): Code[Int] = pt.loadLength(a)
 
   override def loadBytes(): Code[Array[Byte]] = pt.loadBytes(a)

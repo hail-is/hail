@@ -78,6 +78,8 @@ class SJavaStringCode(val s: Code[String]) extends SStringCode {
 class SJavaStringValue(val s: Value[String]) extends SStringValue {
   override def st: SString = SJavaString
 
+  override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(s)
+
   override def get: SJavaStringCode = new SJavaStringCode(s)
 }
 

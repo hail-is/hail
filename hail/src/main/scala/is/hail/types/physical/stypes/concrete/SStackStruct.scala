@@ -121,15 +121,17 @@ final case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedS
   }
 }
 
-class SStackStructValue(val st: SStackStruct, settables: IndexedSeq[EmitValue]) extends SBaseStructValue {
-  override def get: SStackStructCode = new SStackStructCode(st, settables.map(_.load))
+class SStackStructValue(val st: SStackStruct, values: IndexedSeq[EmitValue]) extends SBaseStructValue {
+  override lazy val valueTuple: IndexedSeq[Value[_]] = values.flatMap(_.valueTuple)
+
+  override def get: SStackStructCode = new SStackStructCode(st, values.map(_.load))
 
   override def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
-    settables(fieldIdx).toI(cb)
+    values(fieldIdx).toI(cb)
   }
 
   override def isFieldMissing(fieldIdx: Int): Code[Boolean] =
-    settables(fieldIdx).m
+    values(fieldIdx).m
 }
 
 final class SStackStructSettable(

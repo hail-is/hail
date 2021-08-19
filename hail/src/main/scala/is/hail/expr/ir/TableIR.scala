@@ -937,7 +937,7 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
           cb.goto(LproduceElementDone)
         }
         override val element: EmitCode = EmitCode.fromI(mb)(cb =>
-          IEmitCode.present(cb, SInsertFieldsStruct.merge(cb, rowsValue.asBaseStruct, entriesValue.asBaseStruct)))
+          IEmitCode.present(cb, SInsertFieldsStruct.merge(cb, rowsValue.get.asBaseStruct, entriesValue.get.asBaseStruct)))
 
         override def close(cb: EmitCodeBuilder): Unit = {
           indexReader.invoke[Unit]("close")

@@ -91,7 +91,9 @@ final case class SSubsetStruct(parent: SBaseStruct, fieldNames: IndexedSeq[Strin
 }
 
 class SSubsetStructValue(val st: SSubsetStruct, prev: SBaseStructValue) extends SBaseStructValue {
-  override def get: SSubsetStructCode = new SSubsetStructCode(st, prev.asBaseStruct)
+  override lazy val valueTuple: IndexedSeq[Value[_]] = prev.valueTuple
+
+  override def get: SSubsetStructCode = new SSubsetStructCode(st, prev.get.asBaseStruct)
 
   override def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
     prev.loadField(cb, st.newToOldFieldMapping(fieldIdx))

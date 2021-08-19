@@ -98,6 +98,7 @@ abstract class SCode {
   def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType, deepCopy: Boolean): SCode = {
     destType.coerceOrCopy(cb, region, this, deepCopy)
   }
+
   def copyToRegion(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SCode =
     destType.coerceOrCopy(cb, region, this, deepCopy = true)
 
@@ -109,7 +110,57 @@ abstract class SCode {
 trait SValue {
   def st: SType
 
+  def valueTuple: IndexedSeq[Value[_]]
+
   def get: SCode
+
+  def asBoolean: SBooleanValue = asInstanceOf[SBooleanValue]
+
+  def asInt: SInt32Value = asInstanceOf[SInt32Value]
+
+  def asInt32: SInt32Value = asInstanceOf[SInt32Value]
+
+  def asLong: SInt64Value = asInstanceOf[SInt64Value]
+
+  def asInt64: SInt64Value = asInstanceOf[SInt64Value]
+
+  def asFloat: SFloat32Value = asInstanceOf[SFloat32Value]
+
+  def asFloat32: SFloat32Value = asInstanceOf[SFloat32Value]
+
+  def asFloat64: SFloat64Value = asInstanceOf[SFloat64Value]
+
+  def asDouble: SFloat64Value = asInstanceOf[SFloat64Value]
+
+  def asPrimitive: SPrimitiveValue = asInstanceOf[SPrimitiveValue]
+
+  def asBinary: SBinaryValue = asInstanceOf[SBinaryValue]
+
+  def asIndexable: SIndexableValue = asInstanceOf[SIndexableValue]
+
+  def asBaseStruct: SBaseStructValue = asInstanceOf[SBaseStructValue]
+
+  def asString: SStringValue = asInstanceOf[SStringValue]
+
+  def asInterval: SIntervalValue = asInstanceOf[SIntervalValue]
+
+  def asNDArray: SNDArrayValue = asInstanceOf[SNDArrayValue]
+
+  def asLocus: SLocusValue = asInstanceOf[SLocusValue]
+
+  def asCall: SCallValue = asInstanceOf[SCallValue]
+
+  def asStream: SStreamValue = asInstanceOf[SStreamValue]
+
+  def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SCode =
+    castTo(cb, region, destType, false)
+
+  def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType, deepCopy: Boolean): SCode = {
+    destType.coerceOrCopy(cb, region, this, deepCopy)
+  }
+
+  def copyToRegion(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SCode =
+    destType.coerceOrCopy(cb, region, this, deepCopy = true)
 
   def hash(cb: EmitCodeBuilder): SInt32Code = throw new UnsupportedOperationException(s"Stype ${st} has no hashcode")
 }

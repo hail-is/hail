@@ -1644,7 +1644,7 @@ object EmitStream {
           val xCurElt = mb.newPField("st_grpby_curelt", childProducer.element.st)
 
           val keyRegion = mb.genFieldThisRef[Region]("st_groupby_key_region")
-          def subsetCode = xCurElt.asBaseStruct.subset(key: _*)
+          def subsetCode = xCurElt.get.asBaseStruct.subset(key: _*)
           val curKey = mb.newPField("st_grpby_curkey", subsetCode.st)
 
           // This type shouldn't be a subset struct, since it is copied deeply.
@@ -1692,7 +1692,7 @@ object EmitStream {
               cb.define(LchildProduceDoneInner)
 
               // if not equivalent, end inner stream and prepare for next outer iteration
-              cb.ifx(!equiv(cb, curKey.asBaseStruct, lastKey.asBaseStruct), {
+              cb.ifx(!equiv(cb, curKey.get.asBaseStruct, lastKey.get.asBaseStruct), {
                 if (requiresMemoryManagementPerElement)
                   cb += keyRegion.clearRegion()
 
@@ -1762,7 +1762,7 @@ object EmitStream {
               })
 
               // if equiv, go to next element. Otherwise, fall through to next group
-              cb.ifx(equiv(cb, curKey.asBaseStruct, lastKey.asBaseStruct), {
+              cb.ifx(equiv(cb, curKey.get.asBaseStruct, lastKey.get.asBaseStruct), {
                 if (childProducer.requiresMemoryManagementPerElement)
                   cb += childProducer.elementRegion.clearRegion()
                 cb.goto(childProducer.LproduceElement)

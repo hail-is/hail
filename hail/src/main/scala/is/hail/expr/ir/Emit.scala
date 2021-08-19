@@ -158,56 +158,40 @@ case class EmitRegion(mb: EmitMethodBuilder[_], region: Value[Region]) {
 }
 
 object EmitValue {
-  def apply(missing: Option[Value[Boolean]], v: SValue): EmitValue = new EmitValue {
-    lazy val required: Boolean = missing match {
-      case None => true
-      case Some(m) => Code.constBoolValue(m).contains(false)
-    }
+  def apply(missing: Option[Value[Boolean]], v: SValue): EmitValue = new EmitValue(missing, v)
+}
 
-    override lazy val emitType: EmitType = EmitType(v.st, required)
+class EmitValue(missing: Option[Value[Boolean]], v: SValue) {
+  lazy val required: Boolean = missing match {
+    case None => true
+    case Some(m) => Code.constBoolValue(m).contains(false)
+  }
 
-    override def load: EmitCode = {
-      val ec = EmitCode(Code._empty,
-        if (required) const(false) else missing.get,
-        v)
-      assert(ec.required == required)
-      ec
-    }
+  lazy val emitType: EmitType = EmitType(v.st, required)
 
-    override def get(cb: EmitCodeBuilder): SCode = {
-      if (required) {
-        v
-      } else {
-        cb.ifx(missing.get, cb._fatal(s"Can't convert missing ${ st } to PValue"))
-        v
-      }
+  def valueTuple(): IndexedSeq[Value[_]] = {
+    missing match {
+      case Some(m) => v.valueTuple :+ m
+      case None => v.valueTuple
     }
   }
-}
-
-abstract class EmitValue {
-  def emitType: EmitType
-
-  def st: SType = emitType.st
-
-  def load: EmitCode
-
-  def get(cb: EmitCodeBuilder): SCode
-}
-
-class EmitUnrealizableValue(private val ec: EmitCode) extends EmitValue {
-  val emitType: EmitType = ec.emitType
-
-  assert(st.isInstanceOf[SStream])
-  private[this] var used: Boolean = false
 
   def load: EmitCode = {
-    assert(!used)
-    used = true
+    val ec = EmitCode(Code._empty,
+      if (required) const(false) else missing.get,
+      v)
+    assert(ec.required == required)
     ec
   }
 
-  override def get(cb: EmitCodeBuilder): SCode = throw new UnsupportedOperationException(s"Can't make PValue for unrealizable type ${ ec.st }")
+  def get(cb: EmitCodeBuilder): SCode = {
+    if (required) {
+      v
+    } else {
+      cb.ifx(missing.get, cb._fatal(s"Can't convert missing ${ v.st } to PValue"))
+      v
+    }
+  }
 }
 
 /**
@@ -490,12 +474,8 @@ object EmitSettable {
 
 class EmitSettable(
   missing: Option[Settable[Boolean]], // required if None
-  vs: SSettable) extends EmitValue {
-
-  lazy val required: Boolean = missing.isEmpty
-
-  lazy val emitType: EmitType = EmitType(vs.st, required)
-
+  vs: SSettable
+) extends EmitValue(missing, vs) {
   def settableTuple(): IndexedSeq[Settable[_]] = {
     missing match {
       case Some(m) => vs.settableTuple() :+ m
@@ -505,21 +485,13 @@ class EmitSettable(
 
   def m: Code[Boolean] = missing.map(_.load()).getOrElse(const(false))
 
-  def load: EmitCode = {
-    val ec = EmitCode(Code._empty,
-      if (required) const(false) else missing.get.load(),
-      vs.get)
-    assert(ec.required == required)
-    ec
-  }
-
   def store(cb: EmitCodeBuilder, ec: EmitCode): Unit = {
     store(cb, ec.toI(cb))
   }
 
   def store(cb: EmitCodeBuilder, iec: IEmitCode): Unit =
     if (required)
-      cb.assign(vs, iec.get(cb, s"Required EmitSettable cannot be missing ${ st }"))
+      cb.assign(vs, iec.get(cb, s"Required EmitSettable cannot be missing ${ vs.st }"))
     else
       iec.consume(cb, {
         cb.assign(missing.get, true)
@@ -527,15 +499,6 @@ class EmitSettable(
         cb.assign(missing.get, false)
         cb.assign(vs, value)
       })
-
-  override def get(cb: EmitCodeBuilder): SCode = {
-    if (required) {
-      vs
-    } else {
-      cb.ifx(missing.get, cb._fatal(s"Can't convert missing ${ st } to PValue"))
-      vs
-    }
-  }
 }
 
 class RichIndexedSeqEmitSettable(is: IndexedSeq[EmitSettable]) {
@@ -1383,7 +1346,7 @@ class Emit[C](
                     }
                   })
 
-                  xP.constructByCopyingArray(shapeValues, stridesSettables, memoData.asIndexable, cb, region)
+                  xP.constructByCopyingArray(shapeValues, stridesSettables, memoData.get.asIndexable, cb, region)
                 }
               case _: TStream =>
                 EmitStream.produce(this, dataIR, cb, region, env, container)
@@ -2244,7 +2207,7 @@ class Emit[C](
           val pv = p.memoize(cb, "write_path")
           emitI(value).map(cb) { v =>
             val ob = cb.newLocal[OutputBuffer]("write_ob")
-            cb.assign(ob, spec.buildCodeOutputBuffer(mb.create(pv.asString.loadString())))
+            cb.assign(ob, spec.buildCodeOutputBuffer(mb.create(pv.get.asString.loadString())))
             spec.encodedType.buildEncoder(v.st, cb.emb.ecb)
               .apply(cb, v.memoize(cb, "write_value"), ob)
             cb += ob.invoke[Unit]("close")

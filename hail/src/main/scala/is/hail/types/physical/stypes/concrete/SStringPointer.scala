@@ -79,6 +79,8 @@ class SStringPointerCode(val st: SStringPointer, val a: Code[Long]) extends SStr
 }
 
 class SStringPointerValue(val st: SStringPointer, val a: Value[Long]) extends SStringValue {
+  override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a)
+
   override def get: SStringPointerCode = new SStringPointerCode(st, a)
 
   def binaryRepr(): SBinaryPointerValue = new SBinaryPointerValue(SBinaryPointer(st.pType.binaryRepresentation), a)

@@ -72,6 +72,8 @@ class SNDArrayPointerValue(
 ) extends SNDArrayValue {
   val pt: PCanonicalNDArray = st.pType
 
+  override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a) ++ shape ++ strides ++ FastIndexedSeq(dataFirstElement)
+
   override def loadElementAddress(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Long] = {
     assert(indices.size == pt.nDims)
     pt.loadElementFromDataAndStrides(cb, indices, dataFirstElement, strides)

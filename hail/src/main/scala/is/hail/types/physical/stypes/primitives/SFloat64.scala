@@ -57,7 +57,7 @@ object SFloat64Code {
   def apply(code: Code[Double]): SFloat64Code = new SFloat64Code(code)
 }
 
-class SFloat64Code(val code: Code[Double]) extends SCode with SPrimitiveCode {
+class SFloat64Code(val code: Code[Double]) extends SPrimitiveCode {
   override def _primitiveCode: Code[_] = code
 
   def st: SFloat64.type = SFloat64
@@ -77,8 +77,10 @@ class SFloat64Code(val code: Code[Double]) extends SCode with SPrimitiveCode {
   def doubleCode(cb: EmitCodeBuilder): Code[Double] = code
 }
 
-class SFloat64Value(x: Value[Double]) extends SValue {
+class SFloat64Value(x: Value[Double]) extends SPrimitiveValue {
   val pt: PFloat64 = PFloat64(false)
+
+  override def valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(x)
 
   override def st: SFloat64.type = SFloat64
 

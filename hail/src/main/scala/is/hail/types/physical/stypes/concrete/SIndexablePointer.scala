@@ -97,6 +97,8 @@ class SIndexablePointerValue(
 
   def get: SIndexableCode = new SIndexablePointerCode(st, a)
 
+  override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a, length, elementsAddress)
+
   def loadLength(): Value[Int] = length
 
   def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode = {

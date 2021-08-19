@@ -45,17 +45,11 @@ object SStreamCode{
 }
 
 final case class SStreamCode(st: SStream, producer: StreamProducer) extends SCode with SUnrealizableCode {
-  self =>
-  def memoize(cb: EmitCodeBuilder, name: String): SValue = new SValue {
+  def memoize(cb: EmitCodeBuilder, name: String): SValue = SStreamValue(st, producer)
+}
 
-    override def st: SType = self.st
+final case class SStreamValue(st: SStream, producer: StreamProducer) extends SValue {
+  def valueTuple: IndexedSeq[Value[_]] = throw new NotImplementedError()
 
-    var used: Boolean = false
-
-    def get: SCode = {
-      assert(!used)
-      used = true
-      self
-    }
-  }
+  def get: SStreamCode = SStreamCode(st, producer)
 }

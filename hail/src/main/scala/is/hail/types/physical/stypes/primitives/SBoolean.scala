@@ -46,7 +46,7 @@ case object SBoolean extends SPrimitive {
   override def storageType(): PType = PBoolean()
 }
 
-class SBooleanCode(val code: Code[Boolean]) extends SCode with SPrimitiveCode {
+class SBooleanCode(val code: Code[Boolean]) extends SPrimitiveCode {
   override def _primitiveCode: Code[_] = code
 
   def st: SBoolean.type = SBoolean
@@ -66,10 +66,12 @@ class SBooleanCode(val code: Code[Boolean]) extends SCode with SPrimitiveCode {
   def boolCode(cb: EmitCodeBuilder): Code[Boolean] = code
 }
 
-class SBooleanValue(x: Value[Boolean]) extends SValue {
+class SBooleanValue(x: Value[Boolean]) extends SPrimitiveValue {
   val pt: PBoolean = PBoolean()
 
   override def st: SBoolean.type = SBoolean
+
+  override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(x)
 
   override def get: SCode = new SBooleanCode(x)
 
