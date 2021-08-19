@@ -645,7 +645,8 @@ object PartitionReader {
       classOf[PartitionZippedNativeReader],
       classOf[PartitionZippedIndexedNativeReader],
       classOf[AbstractTypedCodecSpec],
-      classOf[TypedCodecSpec]),
+      classOf[TypedCodecSpec],
+      classOf[is.hail.io.avro.AvroPartitionReader]),
       typeHintFieldName = "name") + BufferSpec.shortTypeHints
   }  +
     new TStructSerializer +
