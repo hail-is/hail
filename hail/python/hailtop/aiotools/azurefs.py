@@ -107,11 +107,10 @@ class AzureMultiPartCreate(MultiPartCreate):
 
 
 class AzureCreateManager(AsyncContextManager[WritableStream]):
-    _writable_stream: AzureWritableStream
-
     def __init__(self, client: BlobClient):
         self._client = client
         self._block_ids: List[str] = []
+        self._writable_stream: Optional[AzureWritableStream] = None
 
     async def __aenter__(self) -> WritableStream:
         self._writable_stream = AzureWritableStream(self._client, self._block_ids)
@@ -121,28 +120,28 @@ class AzureCreateManager(AsyncContextManager[WritableStream]):
             self, exc_type: Optional[Type[BaseException]] = None,
             exc_value: Optional[BaseException] = None,
             exc_traceback: Optional[TracebackType] = None) -> None:
-        await self._writable_stream.wait_closed()
+        if self._writable_stream:
+            await self._writable_stream.wait_closed()
 
-        try:
-            await self._client.commit_block_list(self._block_ids)
-        except:
             try:
-                await self._client.delete_blob()
-            except azure.core.exceptions.ResourceNotFoundError:
-                pass
-            raise
+                await self._client.commit_block_list(self._block_ids)
+            except:
+                try:
+                    await self._client.delete_blob()
+                except azure.core.exceptions.ResourceNotFoundError:
+                    pass
+                raise
 
 
 class AzureReadableStream(ReadableStream):
-    _downloader: StorageStreamDownloader
-    _chunk_it: AsyncIterator[bytes]
-
     def __init__(self, client: BlobClient, offset: Optional[int] = None):
         super().__init__()
         self._client = client
         self._buffer = bytearray()
         self._offset = offset
         self._eof = False
+        self._downloader: Optional[StorageStreamDownloader] = None
+        self._chunk_it: Optional[AsyncIterator[bytes]] = None
 
     async def read(self, n: int = -1):
         if self._eof:
@@ -150,6 +149,7 @@ class AzureReadableStream(ReadableStream):
 
         if self._downloader is None:
             self._downloader = await self._client.download_blob(offset=self._offset)
+        if self._chunk_it is None:
             self._chunk_it = self._downloader.chunks()
 
         if n == -1:
@@ -173,10 +173,8 @@ class AzureReadableStream(ReadableStream):
         return data
 
     async def _wait_closed(self) -> None:
-        if hasattr(self, '_downloader'):
-            del self._downloader
-        if hasattr(self, '_chunk_it'):
-            del self._chunk_it
+        self._downloader = None
+        self._chunk_it = None
 
 
 class AzureFileListEntry(FileListEntry):
@@ -243,7 +241,7 @@ class AzureAsyncFS(AsyncFS):
                 raise ValueError('credential and credential_file cannot both be defined')
 
         self._credential = credential
-        self._blob_service_clients: Dict[str, BlobServiceClient] = {}
+        self._blob_service_clients: Optional[Dict[str, BlobServiceClient]] = {}
 
     def schemes(self) -> Set[str]:
         return {'hail-az'}
@@ -428,10 +426,9 @@ class AzureAsyncFS(AsyncFS):
     async def close(self) -> None:
         if self._credential:
             await self._credential.close()
-            if hasattr(self, '_credential'):
-                del self._credential
+            self._credential = None
 
-        if hasattr(self, '_blob_service_clients') and self._blob_service_clients:
+        if self._blob_service_clients:
             for blob_service_client in self._blob_service_clients.values():
                 await blob_service_client.close()
-            del self._blob_service_clients
+            self._blob_service_clients = None
