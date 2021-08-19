@@ -85,13 +85,19 @@ object StringFunctions extends RegistryFunctions {
 
   def escapeString(s: String): String = StringEscapeUtils.escapeString(s)
 
-  def splitQuoted(s: String, separator: String, quote: String): Array[String] = {
-    if (quote.size != 1) throw new HailException(s"quote length cannot be greater than 1," +
+  def splitQuoted(s: String, separator: String, missing: Array[String], quote: String): Array[String] = {
+    if (quote.size != 1 && quote != null) throw new HailException(s"quote length cannot be greater than 1," +
                                                  s" quote length entered ${quote.size}")
-    val quoteC = quote.charAt(0)
-    val ab = new BoxedArrayBuilder[String]
-    val sb = new StringBuilder
 
+    val quoteC = if (quote == null) '\u0000' else quote.charAt(0)
+
+    val ab = new BoxedArrayBuilder[String]()
+    val sb = new StringBuilder()
+
+    val testIfMissing = (field_entry: String) => {
+      if (!missing.contains(field_entry)) field_entry
+      else null
+    }
     val matchSep: Int => Int = separator.length match {
       case 0 => fatal("Hail does not currently support 0-character separators")
       case 1 =>
@@ -117,9 +123,9 @@ object StringFunctions extends RegistryFunctions {
       val l = matchSep(i)
       if (l != -1) {
         i += l
-        ab += sb.result()
+        ab += testIfMissing(sb.result())
         sb.clear()
-      } else if (c == quoteC) {
+      } else if (quoteC != '\u0000' && c == quoteC) {
         if (sb.nonEmpty)
           fatal(s"opening quote character '$quoteC' not at start of field")
         i += 1 // skip quote
@@ -139,7 +145,7 @@ object StringFunctions extends RegistryFunctions {
           if (l == -1)
             fatal(s"terminating quote character '$quoteC' not at end of field")
           i += l
-          ab += sb.result()
+          ab += testIfMissing(sb.result())
           sb.clear()
         }
       } else {
@@ -147,8 +153,10 @@ object StringFunctions extends RegistryFunctions {
         i += 1
       }
     }
-    ab += sb.result()
-    ab.result()
+    ab += testIfMissing(sb.result())
+    val a = ab.result()
+    println("reached end")
+    a
   }
 
   def softBounds(i: IR, len: IR): IR =
@@ -301,8 +309,8 @@ object StringFunctions extends RegistryFunctions {
       case (_: Type, _: SType, _: SType) => SJavaString
     })(thisClass, "setMkString")
 
-    registerWrappedScalaFunction3("splitQuoted", TString, TString, TString, TArray(TString), {
-      case (_: Type, _: SType, _SType, _:SType) => SJavaArrayString(true)
+    registerWrappedScalaFunction4("splitQuoted", TString, TString, TArray(TString),  TString, TArray(TString), {
+      case (_: Type, _: SType, _: SType, _: SType, _:SType) => SJavaArrayString(true)
     })(thisClass, "splitQuoted")
 
     registerWrappedScalaFunction2("mkString", TArray(TString), TString, TString, {
