@@ -907,7 +907,7 @@ class EmitMethodBuilder[C](
         val field = cb.newFieldAny(s"storeEmitParam_sct_$emitIndex", mb.getArg(codeIndex)(sct.ti).get)(sct.ti);
         { region: Value[Region] =>
           val m = if (required) None else Some(mb.getArg[Boolean](codeIndex + 1))
-          val v = sct.loadToSValue(cb, null, field)
+          val v = sct.loadToSCode(cb, null, field).memoizeField(cb, "storeEmitParam")
 
           EmitValue(m, v)
         }
