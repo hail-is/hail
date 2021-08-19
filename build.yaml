@@ -2417,49 +2417,6 @@ steps:
       - default_ns
       - create_certs
       - deploy_benchmark
-  - kind: buildImage2
-    name: address_image
-    dockerFile: /io/repo/address/Dockerfile
-    contextPath: /io/repo
-    publishAs: address
-    inputs:
-      - from: /repo
-        to: /io/repo
-    dependsOn:
-      - service_base_image
-      - merge_code
-  - kind: runImage
-    name: check_address
-    image:
-      valueFrom: address_image.image
-    script: |
-      set -ex
-      SITE_PACKAGES=$(pip3 show address | grep Location | sed 's/Location: //')
-      python3 -m flake8 $SITE_PACKAGES/address
-      python3 -m pylint --rcfile pylintrc address
-    dependsOn:
-      - address_image
-  - kind: deploy
-    name: deploy_address_sa
-    namespace:
-      valueFrom: default_ns.name
-    config: address/service-account.yaml
-    dependsOn:
-      - default_ns
-  - kind: deploy
-    name: deploy_address
-    namespace:
-      valueFrom: default_ns.name
-    config: address/deployment.yaml
-    wait:
-      - kind: Service
-        name: address
-        for: alive
-    dependsOn:
-      - default_ns
-      - deploy_address_sa
-      - address_image
-      - create_certs
   - kind: runImage
     name: upload_query_jar
     image:
@@ -2510,7 +2467,6 @@ steps:
       - query_image
       - deploy_query_sa
       - upload_query_jar
-      - deploy_address
       - create_certs
   - kind: deploy
     name: deploy_memory
@@ -3777,38 +3733,6 @@ steps:
     scopes:
       - dev
   - kind: runImage
-    name: test_address
-    image:
-      valueFrom: service_base_image.image
-    script: |
-      python3 -m pytest --log-date-format="%Y-%m-%dT%H:%M:%S" --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" --log-cli-level=INFO -s -vv --instafail /io/test/
-    inputs:
-      - from: /repo/address/test
-        to: /io/test
-    port: 5000
-    timeout: 1200
-    secrets:
-      - name: gce-deploy-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /deploy-config
-      - name: ssl-config-address-tests
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /ssl-config
-      - name: test-tokens
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /user-tokens
-    dependsOn:
-      - create_accounts
-      - default_ns
-      - create_deploy_config
-      - merge_code
-      - service_base_image
-      - create_certs
-      - deploy_address
-  - kind: runImage
     name: test_hail_services_java
     image:
       valueFrom: hail_run_tests_image.image
@@ -3852,7 +3776,6 @@ steps:
       - hail_run_tests_image
       - build_hail
       - deploy_batch
-      - deploy_address
   - kind: runImage
     name: test_batch_invariants
     image:
