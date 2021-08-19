@@ -1,5 +1,5 @@
 import os
-from typing import Tuple, Any, Set, Optional, MutableMapping, Dict, AsyncIterator, cast, Type, Iterator, List
+from typing import Tuple, Any, Set, Optional, MutableMapping, Dict, AsyncIterator, cast, Type, List
 from types import TracebackType
 from multidict import CIMultiDictProxy  # pylint: disable=unused-import
 import sys
