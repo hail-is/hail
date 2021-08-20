@@ -28,9 +28,11 @@ push-jar: jar
 	echo >last_uploaded_jar "$(JAR_LOCATION)"
 
 upload-resources-dir:
-	gsutil -m rsync -r ../hail/src/test/resources/ gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources/test/resources/ & \
-		gsutil -m rsync -r ../hail/python/hail/docs/data/ gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources/doctest/data/ & \
-		wait
+	python3 -m hailtop.aiotools.copy 'null' '[ \
+{"from": "../hail/src/test/resources/", \
+ "to": "gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources/test/resources/"}, \
+{"from": "../hail/python/hail/docs/data/", \
+ "to": "gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources/doctest/data/"}]'
 	touch upload-resources-dir
 
 .PHONY: test
