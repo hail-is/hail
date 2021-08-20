@@ -101,10 +101,11 @@ object AvroReader {
       TStruct(schema.getFields.asScala.map(f => (f.name(), _schemaToType(f.schema()))): _*)
     case Schema.Type.UNION =>
       val types = schema.getTypes
-      // we only support ["null", type] for unions as nullable data
-      if (!(types.size() == 2 && types.get(0).getType == Schema.Type.NULL))
+      // we only support ["null", type] (or [type, "null"]) for unions as nullable data
+      val nullIndex = types.asScala.indexWhere(s => s.getType == Schema.Type.NULL)
+      if (!(types.size() == 2 && nullIndex == -1))
         throw new UnsupportedOperationException(s"hail conversion from avro $schema is unsupported")
-      _schemaToType(types.get(1))
+      _schemaToType(types.get(1 - nullIndex))
 
     case _ => throw new UnsupportedOperationException(s"hail conversion from avro $schema is unsupported")
   }
@@ -138,7 +139,8 @@ object AvroReader {
     val realSchema = schema.getType match {
       case Schema.Type.UNION =>
         typ.hardSetRequiredness(false)
-        schema.getTypes.get(1)
+        val nullIndex = schema.getTypes.asScala.indexWhere(s => s.getType == Schema.Type.NULL)
+        schema.getTypes.get(1 - nullIndex)
       case _ =>
         typ.hardSetRequiredness(true)
         schema
