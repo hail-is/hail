@@ -156,7 +156,7 @@ object TypeCheck {
       case SeqSample(totalRange, numToSample, _) =>
         assert(totalRange.typ == TInt32)
         assert(numToSample.typ == TInt32)
-      case StreamDistribute(child, pivots, path) =>
+      case StreamDistribute(child, pivots, path, _) =>
         assert(path.typ == TString)
         assert(child.typ.isInstanceOf[TStream])
         assert(pivots.typ.isInstanceOf[TArray])

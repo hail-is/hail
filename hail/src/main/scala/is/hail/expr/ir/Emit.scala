@@ -1283,7 +1283,7 @@ class Emit[C](
           }
         }
 
-      case StreamDistribute(child, pivots, pathPrefix) => // Need an abstract typed codec spec to do `buildCodeOutputBuffer`
+      case StreamDistribute(child, pivots, pathPrefix, spec) => // Need an abstract typed codec spec to do `buildCodeOutputBuffer`
         emitI(pivots).flatMap(cb){ case pivotsCode: SIndexableCode =>
           emitStream(child, cb, region).map(cb) { case childStream: SStreamCode =>
             val requestedSplittersVal = pivotsCode.memoize(cb, "stream_dist_pivots")
@@ -1375,6 +1375,13 @@ class Emit[C](
             val splitterWasDuplicated = new SIndexablePointerCode(SIndexablePointer(splittersWasDuplicatedPType), splittersWasDuplicatedAddr).memoize(cb, "stream_distrib_was_duplicated") // Same length as splitters, but full of booleans of whether it was initially duplicated.
             cb.println("Splitters was duplicated = ", cb.strValue(splitterWasDuplicated))
 
+            // One file per splitter, plus an extra if its going to end up creating an equality bucket, and then one more at the end.
+            val numFilesToWrite = cb.newLocal[Int]("stream_dist_num_files_to_write", 1)
+            cb.forLoop(cb.assign(uniqueSplittersIdx, 0), uniqueSplittersIdx < numUniqueSplitters, cb.assign(uniqueSplittersIdx, uniqueSplittersIdx + 1), {
+              cb.assign(numFilesToWrite, numFilesToWrite + 1 + splitterWasDuplicated.loadElement(cb, uniqueSplittersIdx).get(cb).asBoolean.boolCode(cb).toI)
+            })
+            cb.println("Num files to write = ", numFilesToWrite.toS)
+
             val treePType = splittersPType
             val treeAddr = cb.newLocal[Long]("stream_dist_tree_addr", treePType.allocate(region, paddedSplittersSize))
             cb += treePType.stagedInitialize(treeAddr, paddedSplittersSize)
@@ -1400,10 +1407,18 @@ class Emit[C](
             val tree: SIndexableValue = new SIndexablePointerCode(SIndexablePointer(treePType), treeAddr).memoize(cb, "stream_dist_tree") // 0th element is garbage, tree elements start at idx 1.
             cb.println("Tree = ", cb.strValue(tree))
 
-            // Open file handles: But how many? Well, normally it would be num_splitters + 1. But with duplicates, more annoying. Temporarily let's open numSplitters + 1
-            val numFilesToWrite: Value[Int] = const(0) // TODO: Obviously more than 0
             val fileData = cb.newLocal[Array[OutputBuffer]]("stream_dist_output_buffers", Code.newArray[OutputBuffer](numFilesToWrite))
             val fileArrayIdx = cb.newLocal[Int]("stream_dist_file_array_idx")
+
+            cb.forLoop(cb.assign(fileArrayIdx, 0), fileArrayIdx < numFilesToWrite, cb.assign(fileArrayIdx, fileArrayIdx + 1), {
+              val ob = cb.newLocal[OutputBuffer]("stream_dist_file_ob")
+              cb.assign(ob, spec.buildCodeOutputBuffer(mb.create(???)))
+              /*
+              spec.encodedType.buildEncoder(v.st, cb.emb.ecb)
+                .apply(cb, v.memoize(cb, "write_value"), ob)
+
+              */
+            })
 
 
             childStream.producer.memoryManagedConsume(region, cb) { cb =>
@@ -1415,7 +1430,6 @@ class Emit[C](
               cb.forLoop(cb.assign(r, 0), r < treeHeight, cb.assign(r, r + 1), {
                 val treeAtB = tree.loadElement(cb, b).memoize(cb, "stream_dist_tree_b")
                 cb.assign(b, const(2) * b + lessThan(cb, treeAtB, current).toI)
-                //TODO: Need to use splitterWasDuplicated here to decide whether or not to actually move the element.
               })
               // cb.println("Before moving, b was ", b.toS, " k is still ", k.toS)
               // TODO: May not be using splitterWasDuplicated correctly here.
@@ -1431,7 +1445,8 @@ class Emit[C](
             }
 
             cb.forLoop(cb.assign(fileArrayIdx, 0), fileArrayIdx < numFilesToWrite, cb.assign(fileArrayIdx, fileArrayIdx + 1), {
-              // TODO: Call close on the output buffer.
+//              val ob = ??? // Somehow load output buffer
+//              cb += ob.invoke[Unit]("close")
             })
 
             val intervalType = PCanonicalInterval(keyPType, true)

@@ -67,7 +67,7 @@ object Children {
       Array(start, stop, step)
     case SeqSample(totalRange, numToSample, _) =>
       Array(totalRange, numToSample)
-    case StreamDistribute(child, pivots, path) =>
+    case StreamDistribute(child, pivots, path, _) =>
       Array(child, pivots, path)
     case ArrayZeros(length) =>
       Array(length)
