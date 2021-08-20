@@ -231,6 +231,7 @@ resource "kubernetes_secret" "global_config" {
     batch_gcp_regions = var.batch_gcp_regions
     batch_logs_bucket = google_storage_bucket.batch_logs.name
     hail_query_gcs_path = "gs://${google_storage_bucket.hail_query.name}"
+    hail_test_gcs_bucket = google_storage_bucket.hail_test_gcs_bucket.name
     default_namespace = "default"
     docker_root_image = local.docker_root_image
     domain = var.domain
@@ -601,6 +602,18 @@ resource "google_storage_bucket" "hail_query" {
   force_destroy = true
   storage_class = var.hail_query_bucket_storage_class
 }
+
+resource "random_id" "hail_test_gcs_bucket_prefix" {
+  byte_length = 5
+}
+
+resource "google_storage_bucket" "hail_test_gcs_bucket" {
+  name = "hail-test-${random_id.hail_test_gcs_bucket_prefix.hex}"
+  location = var.hail_test_gcs_bucket_location
+  force_destroy = true
+  storage_class = var.hail_test_gcs_bucket_storage_class
+}
+
 
 resource "google_dns_managed_zone" "dns_zone" {
   name = "dns-zone"

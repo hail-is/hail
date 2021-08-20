@@ -19,6 +19,7 @@ from .utils import debug_info
 
 
 DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'gcr.io/hail-vdc/ubuntu:18.04')
+HAIL_TEST_GCS_BUCKET = os.environ['HAIL_TEST_GCS_BUCKET']
 
 
 class LocalTests(unittest.TestCase):
@@ -818,7 +819,7 @@ class ServiceTests(unittest.TestCase):
         assert job_status['state'] == 'Cancelled', str(job_status)
 
     def test_service_backend_bucket_parameter(self):
-        backend = ServiceBackend(bucket='hail-test-dmk9z')
+        backend = ServiceBackend(bucket=HAIL_TEST_GCS_BUCKET)
         b = Batch(backend=backend)
         j1 = b.new_job()
         j1.command(f'echo hello > {j1.ofile}')
@@ -827,7 +828,7 @@ class ServiceTests(unittest.TestCase):
         b.run()
 
     def test_service_backend_remote_tempdir_with_trailing_slash(self):
-        backend = ServiceBackend(remote_tmpdir='gs://hail-test-dmk9z/temporary-files/')
+        backend = ServiceBackend(remote_tmpdir=f'gs://{HAIL_TEST_GCS_BUCKET}/temporary-files/')
         b = Batch(backend=backend)
         j1 = b.new_job()
         j1.command(f'echo hello > {j1.ofile}')
@@ -836,7 +837,7 @@ class ServiceTests(unittest.TestCase):
         b.run()
 
     def test_service_backend_remote_tempdir_with_no_trailing_slash(self):
-        backend = ServiceBackend(remote_tmpdir='gs://hail-test-dmk9z/temporary-files')
+        backend = ServiceBackend(remote_tmpdir=f'gs://{HAIL_TEST_GCS_BUCKET}/temporary-files/')
         b = Batch(backend=backend)
         j1 = b.new_job()
         j1.command(f'echo hello > {j1.ofile}')

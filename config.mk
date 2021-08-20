@@ -1,6 +1,7 @@
 PROJECT := hail-vdc
 DOCKER_PREFIX := gcr.io/$(PROJECT)
 DOCKER_ROOT_IMAGE := $(DOCKER_PREFIX)/ubuntu:18.04
+HAIL_TEST_GCS_BUCKET := hail-test-dmk9z
 DOMAIN := hail.is
 INTERNAL_IP := 10.128.0.57
 IP := 35.188.91.25
