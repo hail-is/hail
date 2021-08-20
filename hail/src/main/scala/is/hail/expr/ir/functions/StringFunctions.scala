@@ -23,6 +23,9 @@ import scala.collection.mutable
 
 object StringFunctions extends RegistryFunctions {
 
+  val ab = new BoxedArrayBuilder[String]()
+  val sb = new StringBuilder()
+
   def reverse(s: String): String = {
     val sb = new StringBuilder
     sb.append(s)
@@ -85,14 +88,14 @@ object StringFunctions extends RegistryFunctions {
 
   def escapeString(s: String): String = StringEscapeUtils.escapeString(s)
 
-  def splitQuoted(s: String, separator: String, missing: Array[String], quote: String): Array[String] = {
+  def splitQuoted2(s: String, separator: String, missing: Array[String], quote: String): Array[String] = {
     if (quote.size != 1 && quote != null) throw new HailException(s"quote length cannot be greater than 1," +
                                                  s" quote length entered ${quote.size}")
 
     val quoteC = if (quote == null) '\u0000' else quote.charAt(0)
 
-    val ab = new BoxedArrayBuilder[String]()
-    val sb = new StringBuilder()
+    ab.clear()
+    sb.clear()
 
     val testIfMissing = (field_entry: String) => {
       if (!missing.contains(field_entry)) field_entry
@@ -144,13 +147,111 @@ object StringFunctions extends RegistryFunctions {
           val l = matchSep(i)
           if (l == -1)
             fatal(s"terminating quote character '$quoteC' not at end of field")
-          i += l
           ab += testIfMissing(sb.result())
           sb.clear()
         }
       } else {
         sb += c
         i += 1
+      }
+    }
+    ab += testIfMissing(sb.result())
+    ab.result()
+  }
+
+
+  def splitQuoted(s: String, separator: String, missing: Array[String], quote: String): Array[String] = {
+
+    ab.clear()
+
+    val sepChar = separator(0)
+
+    val testIfMissing = (field_entry: String) => {
+      if (!missing.contains(field_entry)) field_entry
+      else null
+    }
+    val quoteC = quote(0)
+    var offset = 0
+    var nextDelim = s.indexOf(sepChar, offset)
+    var nextQuote = if (quote == null) -1 else s.indexOf(quote, offset)
+    var i = 0
+    while (offset < s.length) {
+      if (nextQuote != -1 && nextQuote <= nextDelim + 1) {
+        if (nextQuote < nextDelim + 1) fatal(s"opening quote character $quote not at start of field")
+        if (nextQuote == nextDelim + 1) {
+          val closingQuote = s.indexOf(quote, nextQuote + 1)
+          nextDelim = s.indexOf(sepChar, closingQuote)
+          if (closingQuote == -1 || (nextDelim != closingQuote + 1 && s.length - 1 != closingQuote))
+            fatal(s"terminating quote character $quote not at end of field")
+            ab += testIfMissing(s.slice(nextQuote + 1, closingQuote))
+            offset = closingQuote + 2
+            nextQuote = s.indexOf(quote, closingQuote + 2)
+        }
+      }
+      else {
+        nextDelim = s.indexOf(sepChar, offset)
+        if (nextDelim != -1) {
+          ab += testIfMissing(s.slice(offset, nextDelim))
+          offset = nextDelim + 1
+        }
+        else {
+          ab += testIfMissing(s.slice(offset, s.length))
+          offset = s.length()
+        }
+
+      }
+    }
+    ab.result()
+  }
+
+  def splitQuoted3(s: String, separator: String, missing: Array[String], quote: String): Array[String] = {
+
+    val missingString = missing.mkString(" ")
+
+    val quoteC = if (quote == null) '\u0000' else quote.charAt(0)
+
+    ab.clear()
+    sb.clear()
+    val sepChar = separator(0)
+
+    val testIfMissing = (field_entry: String) => {
+      if (missingString.indexOf(field_entry) == -1) field_entry
+      else null
+    }
+
+    var offset = 0
+    while (offset < s.length) {
+      val c = s(offset)
+      if (c == sepChar) {
+        ab += testIfMissing(sb.result())
+        sb.clear()
+        offset += 1
+      } else if (quoteC != '\u0000' && c == quoteC) {
+        if (sb.nonEmpty)
+          fatal(s"opening quote character '$quoteC' not at start of field")
+        offset += 1 // skip quote
+
+        var indexOfNextQuote = -1
+        while (offset < s.length) {
+          offset += 1
+          if (s(offset) == quoteC) indexOfNextQuote = offset
+          else sb += s(offset)
+        }
+        if (indexOfNextQuote == -1)
+          fatal(s"missing terminating quote character '$quoteC'")
+        offset += 1 // skip quote
+
+        // full field must be quoted
+        if (offset < s.length - 1) {
+          if (s(offset + 1) != sepChar)
+            fatal(s"terminating quote character '$quoteC' not at end of field")
+          offset += 1
+          ab += testIfMissing(sb.result())
+          sb.clear()
+        }
+      } else {
+        sb += c
+        offset += 1
       }
     }
     ab += testIfMissing(sb.result())
