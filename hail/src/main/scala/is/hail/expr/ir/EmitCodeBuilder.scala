@@ -107,7 +107,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
       assert(ec.st.isInstanceOf[SStream])
       val m = emb.genFieldThisRef[Boolean](name + "_missing")
       ec.toI(this).consume(this, assign(m, false), _ => assign(m, true))
-      val ev = new EmitValue(Some(m), ec.pv.memoize(this, "wsmsv"))
+      val ev = EmitValue(Some(m), ec.pv.memoize(this, "wsmsv"))
       val res = f(ev)
       ec.pv match {
         case SStreamCode(_, producer) => StreamProducer.defineUnusedLabels(producer, emb)

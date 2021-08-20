@@ -182,7 +182,7 @@ class EmitValue protected(missing: Option[Value[Boolean]], v: SValue) {
     ec
   }
 
-  def get(cb: EmitCodeBuilder): SCode = {
+  def get(cb: EmitCodeBuilder): SValue = {
     missing.foreach { m =>
       cb.ifx(m, cb._fatal(s"Can't convert missing ${ v.st } to PValue"))
     }
