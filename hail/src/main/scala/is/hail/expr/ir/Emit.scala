@@ -1297,11 +1297,12 @@ class Emit[C](
               val lhs = EmitCode.fromI(mb)(cb => lelt.toI(cb).map(cb)(_.asBaseStruct.subset(keyFieldNames: _*)))
               val rhs = EmitCode.fromI(mb)(cb => relt.toI(cb).map(cb)(_.asBaseStruct.subset(keyFieldNames: _*)))
               StructOrdering.make(lhs.st.asInstanceOf[SBaseStruct], rhs.st.asInstanceOf[SBaseStruct],
-                cb.emb.ecb, missingFieldsEqual = false)
-                .compare(cb, lhs, rhs, missingEqual = false)
+                cb.emb.ecb, missingFieldsEqual = true)
+                .compare(cb, lhs, rhs, missingEqual = true)
             }
 
             def equal(cb: EmitCodeBuilder, lelt: EmitValue, relt: EmitValue): Code[Boolean] = compare(cb, lelt, relt) ceq 0
+            def lessThan(cb: EmitCodeBuilder, lelt: EmitValue, relt: EmitValue): Code[Boolean] = compare(cb, lelt, relt) < 0
 
             // Pass 1: count unique splitters.
             val numUniqueSplitters = cb.newLocal[Int]("stream_distribute_num_unique_splitters")
@@ -1348,11 +1349,13 @@ class Emit[C](
               cb.ifx(requestedSplittersIdx ceq 0, {
                 // set element at index 0 of splitters
                 splittersPType.elementType.storeAtAddress(cb, splittersPType.loadElement(splittersAddr, paddedSplittersSize, 0), region, currentSplitter.get(cb), false)
+                splittersWasDuplicatedPType.elementType.storeAtAddress(cb, splittersWasDuplicatedPType.loadElement(splittersWasDuplicatedAddr, splittersWasDuplicatedLength, uniqueSplittersIdx), region, new SBooleanCode(false), false)
                 cb.assign(uniqueSplittersIdx, uniqueSplittersIdx + 1)
               }, {
                 cb.ifx(!equal(cb, lastKeySeen, currentSplitter), {
                   // write to pos in splitters
                   splittersPType.elementType.storeAtAddress(cb, splittersPType.loadElement(splittersAddr, paddedSplittersSize, requestedSplittersIdx), region, currentSplitter.get(cb), false)
+                  splittersWasDuplicatedPType.elementType.storeAtAddress(cb, splittersWasDuplicatedPType.loadElement(splittersWasDuplicatedAddr, splittersWasDuplicatedLength, uniqueSplittersIdx), region, new SBooleanCode(false), false)
                   cb.assign(uniqueSplittersIdx, uniqueSplittersIdx + 1)
                 }, {
                   // Flip boolean in splittersWasDuplicated to true.
@@ -1370,7 +1373,6 @@ class Emit[C](
             val splitters: SIndexableValue = new SIndexablePointerCode(SIndexablePointer(splittersPType), splittersAddr).memoize(cb, "stream_distribute_splitters_deduplicated") // last element is duplicated, otherwise this is sorted without duplicates.
             cb.println("Splitters = ", cb.strValue(splitters))
             val splitterWasDuplicated = new SIndexablePointerCode(SIndexablePointer(splittersWasDuplicatedPType), splittersWasDuplicatedAddr).memoize(cb, "stream_distrib_was_duplicated") // Same length as splitters, but full of booleans of whether it was initially duplicated.
-            // TODO: SplittersWasDuplicated is totally incorrect currently.
             cb.println("Splitters was duplicated = ", cb.strValue(splitterWasDuplicated))
 
             val treePType = splittersPType
@@ -1412,10 +1414,15 @@ class Emit[C](
               val r = cb.newLocal[Int]("stream_dist_r")
               cb.forLoop(cb.assign(r, 0), r < treeHeight, cb.assign(r, r + 1), {
                 val treeAtB = tree.loadElement(cb, b).memoize(cb, "stream_dist_tree_b")
-                cb.assign(b, const(2) * b + (compare(cb, treeAtB, current) < 0).toI)
+                cb.assign(b, const(2) * b + lessThan(cb, treeAtB, current).toI)
                 //TODO: Need to use splitterWasDuplicated here to decide whether or not to actually move the element.
-                cb.assign(b, const(2) * b + 1 - (compare(cb, current, splitters.loadElement(cb, b - k / 2).memoize(cb, "stream_dist_splitter_compare")) < 0).toI)
               })
+              // cb.println("Before moving, b was ", b.toS, " k is still ", k.toS)
+              // TODO: May not be using splitterWasDuplicated correctly here.
+              cb.assign(b, const(2) * b + 1 - lessThan(cb, current, splitters.loadElement(cb, b - k / 2).memoize(cb, "stream_dist_splitter_compare")).toI * splitterWasDuplicated.loadElement(cb, b - k / 2).get(cb).asBoolean.boolCode(cb).toI)
+
+              cb.println("Element ", cb.strValue(current), " should go in bucket: ", (b - k).toS)
+
 
               // Write current element to bucket b - k?
 
