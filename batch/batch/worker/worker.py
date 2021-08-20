@@ -844,12 +844,12 @@ class Container:
             except Exception:
                 log.exception('while deleting container', exc_info=True)
 
-            try:
-                await check_shell(f'umount -l {self.container_overlay_path}/merged')
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                log.exception('while unmounting overlay', exc_info=True)
+        try:
+            await check_shell(f'umount -l {self.container_overlay_path}/merged')
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception('while unmounting overlay', exc_info=True)
 
         if self.host_port is not None:
             port_allocator.free(self.host_port)
@@ -1698,11 +1698,13 @@ class ImageData:
         return self
 
     def __str__(self):
-        return f'ImageData(' \
-               f'ref_count={self.ref_count}, ' \
-               f'time_created={time_msecs_str(self.time_created)}, ' \
-               f'last_accessed={time_msecs_str(self.last_accessed)}' \
-               f')'
+        return (
+            f'ImageData('
+            f'ref_count={self.ref_count}, '
+            f'time_created={time_msecs_str(self.time_created)}, '
+            f'last_accessed={time_msecs_str(self.last_accessed)}'
+            f')'
+        )
 
 
 class Worker:
