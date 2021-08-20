@@ -158,39 +158,35 @@ case class EmitRegion(mb: EmitMethodBuilder[_], region: Value[Region]) {
 }
 
 object EmitValue {
-  def apply(missing: Option[Value[Boolean]], v: SValue): EmitValue = new EmitValue(missing, v)
+  def apply(missing: Option[Value[Boolean]], v: SValue): EmitValue =
+    new EmitValue(
+      missing.filterNot(m => Code.constBoolValue(m).contains(false)),
+      v)
 }
 
-class EmitValue(missing: Option[Value[Boolean]], v: SValue) {
-  lazy val required: Boolean = missing match {
-    case None => true
-    case Some(m) => Code.constBoolValue(m).contains(false)
-  }
+class EmitValue protected(missing: Option[Value[Boolean]], v: SValue) {
+  def m: Value[Boolean] = missing.getOrElse(const(false))
+
+  def required: Boolean = missing.isEmpty
 
   lazy val emitType: EmitType = EmitType(v.st, required)
 
-  def valueTuple(): IndexedSeq[Value[_]] = {
-    missing match {
-      case Some(m) => v.valueTuple :+ m
-      case None => v.valueTuple
-    }
+  def valueTuple(): IndexedSeq[Value[_]] = missing match {
+    case Some(m) => v.valueTuple :+ m
+    case None => v.valueTuple
   }
 
   def load: EmitCode = {
-    val ec = EmitCode(Code._empty,
-      if (required) const(false) else missing.get,
-      v)
+    val ec = EmitCode(Code._empty, m, v)
     assert(ec.required == required)
     ec
   }
 
   def get(cb: EmitCodeBuilder): SCode = {
-    if (required) {
-      v
-    } else {
-      cb.ifx(missing.get, cb._fatal(s"Can't convert missing ${ v.st } to PValue"))
-      v
+    missing.foreach { m =>
+      cb.ifx(m, cb._fatal(s"Can't convert missing ${ v.st } to PValue"))
     }
+    v
   }
 }
 
@@ -436,7 +432,7 @@ class EmitCode(private val start: CodeLabel, private val iec: IEmitCode) {
     } else {
       val es = cb.emb.newEmitLocal("ec_makecodetuple", emitType)
       cb.assign(es, toI(cb))
-      es.pv.makeCodeTuple(cb) :+ es.m
+      es.pv.makeCodeTuple(cb) :+ es.m.get
     }
 
     assert(ct.zip(emitParamType.codeTupleTypes).forall { case (p, pt) => p.ti == pt.ti},
@@ -482,8 +478,6 @@ class EmitSettable(
       case None => vs.settableTuple()
     }
   }
-
-  def m: Code[Boolean] = missing.map(_.load()).getOrElse(const(false))
 
   def store(cb: EmitCodeBuilder, ec: EmitCode): Unit = {
     store(cb, ec.toI(cb))
