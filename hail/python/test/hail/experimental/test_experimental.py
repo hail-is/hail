@@ -93,6 +93,30 @@ class Tests(unittest.TestCase):
         ht = x.annotate(fp=hl.if_else(~x.tp, hl.rand_bool(0.2), False))
         _, aucs = hl.experimental.plot_roc_curve(ht, ['score1', 'score2', 'score3'])
 
+    def test_import_keyby_count_ldsc_lowered_shuffle(self):
+        # integration test pulled out of test_ld_score_regression to isolate issues with lowered shuffles
+        # and RDD serialization, 2021-07-06
+        # if this comment no longer reflects the backend system, that's a really good thing
+        ht_scores = hl.import_table(
+            doctest_resource('ld_score_regression.univariate_ld_scores.tsv'),
+            key='SNP', types={'L2': hl.tfloat, 'BP': hl.tint})
+
+        ht_20160 = hl.import_table(
+            doctest_resource('ld_score_regression.20160.sumstats.tsv'),
+            key='SNP', types={'N': hl.tint, 'Z': hl.tfloat})
+
+        j1 = ht_scores[ht_20160['SNP']]
+        ht_20160 = ht_20160.annotate(
+            ld_score=j1['L2'],
+            locus=hl.locus(j1['CHR'],
+                           j1['BP']),
+            alleles=hl.array([ht_20160['A2'], ht_20160['A1']]))
+
+        ht_20160 = ht_20160.key_by(ht_20160['locus'],
+                                   ht_20160['alleles'])
+        assert ht_20160._force_count() == 151
+
+
     @pytest.mark.unchecked_allocator
     @fails_service_backend(reason='''fails this assertion in ShuffleWrite assert(keyPType == shuffleType.keyDecodedPType)''')
     def test_ld_score_regression(self):

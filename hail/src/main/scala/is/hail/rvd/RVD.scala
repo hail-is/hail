@@ -1585,6 +1585,7 @@ object RVD {
 
 class BroadcastRVD(backend: SparkBackend, rvd: RVD) extends Serializable {
   private[this] val crdd = rvd.crdd
+
   private[this] val bcPartitions = backend.broadcast(rvd.crdd.partitions)
 
   def computePartition(idx: Int, region: Region, partitionRegion: Region): Iterator[Long] = {

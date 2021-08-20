@@ -3,10 +3,11 @@ package is.hail.expr.ir
 import is.hail.annotations.{Region, SafeRow}
 import is.hail.asm4s._
 import is.hail.expr.ir.lowering.LoweringPipeline
+import is.hail.types.physical.PTuple
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
-import is.hail.types.physical.{PBaseStruct, PTuple}
-import is.hail.types.virtual.TVoid
+import is.hail.types.virtual.{TVoid, _}
 import is.hail.utils.{FastIndexedSeq, FastSeq}
+import org.apache.spark.sql.Row
 
 object CompileAndEvaluate {
   def apply[T](ctx: ExecuteContext,
@@ -21,6 +22,22 @@ object CompileAndEvaluate {
     }
   }
 
+  def evalToIR(ctx: ExecuteContext,
+    ir0: IR,
+    optimize: Boolean = true
+  ): IR = {
+    _apply(ctx, ir0, optimize) match {
+      case Left(_) => Begin(FastIndexedSeq())
+      case Right((pt, addr)) =>
+        ir0.typ match {
+          case _ if pt.isFieldMissing(addr, 0) => NA(ir0.typ)
+          case TInt32 | TInt64 | TFloat32 | TFloat64 | TBoolean | TString =>
+            Literal.coerce(ir0.typ, SafeRow.read(pt, addr).asInstanceOf[Row].get(0))
+          case _ => EncodedLiteral.fromPTypeAndAddress(pt.types(0), pt.loadField(addr, 0), ctx)
+        }
+    }
+  }
+
   def _apply(
     ctx: ExecuteContext,
     ir0: IR,
@@ -28,9 +45,17 @@ object CompileAndEvaluate {
   ): Either[Unit, (PTuple, Long)] = {
     val ir = LoweringPipeline.relationalLowerer(optimize).apply(ctx, ir0).asInstanceOf[IR]
 
-    if (ir.typ == TVoid)
-      // void is not really supported by IR utilities
+    if (ir.typ == TVoid) {
+      val (_, f) = ctx.timer.time("Compile")(Compile[AsmFunction1RegionUnit](ctx,
+        FastIndexedSeq(),
+        FastIndexedSeq(classInfo[Region]), UnitInfo,
+        ir,
+        print = None, optimize = optimize))
+
+      val fRunnable = ctx.timer.time("InitializeCompiledFunction")(f(ctx.fs, 0, ctx.r))
+      ctx.timer.time("RunCompiledVoidFunction")(fRunnable(ctx.r))
       return Left(())
+    }
 
     val (Some(PTypeReferenceSingleCodeType(resType: PTuple)), f) = ctx.timer.time("Compile")(Compile[AsmFunction1RegionLong](ctx,
       FastIndexedSeq(),
