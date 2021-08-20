@@ -1452,15 +1452,15 @@ async def ui_get_job(request, userdata, batch_id):
 
                     if timing_data.get('start_time') is not None:
                         plot_dict['Start'] = datetime.datetime.fromtimestamp(timing_data['start_time'] / 1000)
-                        
+
                         finish_time = timing_data.get('finish_time')
                         if finish_time is None:
                             finish_time = time_msecs()
                         plot_dict['Finish'] = datetime.datetime.fromtimestamp(finish_time / 1000)
 
                     data.append(plot_dict)
-    
-    if data: 
+
+    if data:
         df = pd.DataFrame(data)
 
         fig = px.timeline(
