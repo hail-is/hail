@@ -45,7 +45,9 @@ object SStreamCode{
 }
 
 final case class SStreamCode(st: SStream, producer: StreamProducer) extends SCode with SUnrealizableCode {
-  def memoize(cb: EmitCodeBuilder, name: String): SValue = SStreamValue(st, producer)
+  override def memoizeField(cb: EmitCodeBuilder, name: String): SValue = SStreamValue(st, producer)
+
+  override def memoize(cb: EmitCodeBuilder, name: String): SValue = SStreamValue(st, producer)
 }
 
 final case class SStreamValue(st: SStream, producer: StreamProducer) extends SValue {
