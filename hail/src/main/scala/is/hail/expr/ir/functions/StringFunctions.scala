@@ -9,7 +9,7 @@ import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes._
-import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SJavaArrayString, SJavaString, SStringPointer}
+import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SJavaArrayString, SJavaArrayStringCode, SJavaArrayStringSettable, SJavaString, SStringPointer}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SBoolean, SInt32, SInt64}
 import is.hail.types.virtual._
@@ -18,7 +18,7 @@ import org.apache.spark.sql.Row
 import org.json4s.JValue
 import org.json4s.jackson.JsonMethods
 
-import java.util.regex.Pattern
+import java.util.regex.{Matcher, Pattern}
 import scala.collection.mutable
 
 object StringFunctions extends RegistryFunctions {
@@ -88,176 +88,137 @@ object StringFunctions extends RegistryFunctions {
 
   def escapeString(s: String): String = StringEscapeUtils.escapeString(s)
 
-  def splitQuoted2(s: String, separator: String, missing: Array[String], quote: String): Array[String] = {
-    if (quote.size != 1 && quote != null) throw new HailException(s"quote length cannot be greater than 1," +
-                                                 s" quote length entered ${quote.size}")
-
-    val quoteC = if (quote == null) '\u0000' else quote.charAt(0)
-
-    ab.clear()
-    sb.clear()
-
-    val testIfMissing = (field_entry: String) => {
-      if (!missing.contains(field_entry)) field_entry
-      else null
+  def addValueOrNull(ab: StringArrayBuilder, value: String, missingValues: Array[String]): Unit = {
+    var i = 0
+    while (i < missingValues.length) {
+      if (missingValues(i) == value) {
+        ab += null
+        return
+      }
+      i += 1
     }
-    val matchSep: Int => Int = separator.length match {
-      case 0 => fatal("Hail does not currently support 0-character separators")
-      case 1 =>
-        val sepChar = separator(0)
-        (i: Int) => if (s(i) == sepChar) 1 else -1
+    ab += value
+  }
+
+  def matchPattern(s: String, i: Int, m: Matcher): Int = {
+    m.region(i, s.length)
+    if (m.lookingAt())
+      m.end() - m.start()
+    else
+      -1
+  }
+
+  def generateSplitQuotedRegex(
+    cb: EmitCodeBuilder,
+    string: Value[String],
+    separator: Either[Value[Char], Value[String]],
+    quoteChar: Option[Value[Char]],
+    missingSV: SIndexableValue,
+    errorID: Value[Int]
+  ): Code[Array[String]] = {
+
+    // note: it will be inefficient to convert a SIndexablePointer to SJavaArrayString to split each line.
+    // We should really choose SJavaArrayString as the stype for a literal if used in a place like this,
+    // but this is a non-local stype decision that is hard in the current system
+    val missing: Value[Array[String]] = missingSV.st match {
+      case SJavaArrayString(elementRequired) => missingSV.asInstanceOf[SJavaArrayStringSettable].array
       case _ =>
-        val p = Pattern.compile(separator)
-        val m = p.matcher(s)
-
-        { (i: Int) =>
-          m.region(i, s.length)
-          if (m.lookingAt())
-            m.end() - m.start()
-          else
-            -1
+        val mb = cb.emb.ecb.newEmitMethod("convert_region_to_str_array", FastIndexedSeq(missingSV.st.paramType), arrayInfo[String])
+        mb.emitWithBuilder[Array[String]] { cb =>
+          val sv = mb.getSCodeParam(1).asIndexable.memoize(cb, "sv")
+          val m = cb.newLocal[Array[String]]("missingvals", Code.newArray[String](sv.loadLength()))
+          sv.forEachDefined(cb) { case (cb, idx, sc) => cb += (m(idx) = sc.asString.loadString()) }
+          m
         }
+        cb.newLocal[Array[String]]("missing_arr", cb.invokeCode(mb, missingSV))
     }
 
-    var i = 0
-    while (i < s.length) {
-      val c = s(i)
+    // lazy field reused across calls to split functions
+    val ab = cb.emb.getOrDefineLazyField[StringArrayBuilder](Code.newInstance[StringArrayBuilder, Int](16), "generate_split_quoted_regex_ab")
+    cb += ab.invoke[Unit]("clear")
 
-      val l = matchSep(i)
-      if (l != -1) {
-        i += l
-        ab += testIfMissing(sb.result())
-        sb.clear()
-      } else if (quoteC != '\u0000' && c == quoteC) {
-        if (sb.nonEmpty)
-          fatal(s"opening quote character '$quoteC' not at start of field")
-        i += 1 // skip quote
-
-        while (i < s.length && s(i) != quoteC) {
-          sb += s(i)
-          i += 1
-        }
-
-        if (i == s.length)
-          fatal(s"missing terminating quote character '$quoteC'")
-        i += 1 // skip quote
-
-        // full field must be quoted
-        if (i < s.length) {
-          val l = matchSep(i)
-          if (l == -1)
-            fatal(s"terminating quote character '$quoteC' not at end of field")
-          ab += testIfMissing(sb.result())
-          sb.clear()
-        }
-      } else {
-        sb += c
-        i += 1
+    // takes the current position and current char value, returns the number of matching chars
+    // in the separator, or -1 if not a separator
+    val getPatternMatch: (Value[Int], Value[Char]) => Value[Int] = {
+      val x = cb.newLocal[Int]("sepCharMatch");
+      separator match {
+        case Left(sepChar) =>
+          (_: Value[Int], char: Value[Char]) => {
+            cb.ifx(char.ceq(sepChar), cb.assign(x, 1), cb.assign(x, -1));
+            x
+          }
+        case Right(regex) =>
+          val m = cb.newLocal[Matcher]("matcher",
+            Code.invokeStatic1[Pattern, String, Pattern]("compile", regex)
+              .invoke[CharSequence, Matcher]("matcher", string));
+          (idx: Value[Int], _: Value[Char]) => {
+            cb.assign(x, Code.invokeScalaObject3[String, Int, Matcher, Int](
+              StringFunctions.getClass, "matchPattern", string, idx, m));
+            x
+          }
       }
     }
-    ab += testIfMissing(sb.result())
-    ab.result()
-  }
 
+    val i = cb.newLocal[Int]("i", 0)
+    val lastFieldStart = cb.newLocal[Int]("lastfieldstart", 0)
 
-  def splitQuoted(s: String, separator: String, missing: Array[String], quote: String): Array[String] = {
-
-    ab.clear()
-
-    val sepChar = separator(0)
-
-    val testIfMissing = (field_entry: String) => {
-      if (!missing.contains(field_entry)) field_entry
-      else null
-    }
-    var offset = 0
-    var nextDelim = s.indexOf(sepChar, offset)
-    var nextQuote = if (quote == null) -1 else s.indexOf(quote, offset)
-    var i = 0
-    while (offset < s.length) {
-      if (nextQuote != -1 && nextQuote <= nextDelim + 1) {
-        if (nextQuote < nextDelim + 1) fatal(s"opening quote character $quote not at start of field")
-        if (nextQuote == nextDelim + 1) {
-          val closingQuote = s.indexOf(quote, nextQuote + 1)
-          nextDelim = s.indexOf(sepChar, closingQuote)
-          if (closingQuote == -1 || (nextDelim != closingQuote + 1 && s.length - 1 != closingQuote))
-            fatal(s"terminating quote character $quote not at end of field")
-            ab += testIfMissing(s.slice(nextQuote + 1, closingQuote))
-            offset = closingQuote + 2
-            nextQuote = s.indexOf(quote, closingQuote + 2)
-        }
-      }
-      else {
-        nextDelim = s.indexOf(sepChar, offset)
-        if (nextDelim != -1) {
-          ab += testIfMissing(s.slice(offset, nextDelim))
-          offset = nextDelim + 1
-        }
-        else {
-          ab += testIfMissing(s.slice(offset, s.length))
-          offset = s.length()
-        }
-
-      }
-    }
-    val a = ab.result()
-    a.map(x => println(x))
-    a
-  }
-
-  def splitQuoted3(s: String, separator: String, missing: Array[String], quote: String): Array[String] = {
-
-    val missingString = missing.mkString(" ")
-
-    val quoteC = if (quote == null) '\u0000' else quote.charAt(0)
-
-    ab.clear()
-    sb.clear()
-    val sepChar = separator(0)
-
-    val testIfMissing = (field_entry: String) => {
-      if (missingString.indexOf(field_entry) == -1) field_entry
-      else null
+    def addValueOrNA(cb: EmitCodeBuilder, endIdx: Code[Int]): Unit = {
+      cb += Code.invokeScalaObject3[StringArrayBuilder, String, Array[String], Unit](
+        StringFunctions.getClass, "addValueOrNull", ab, string.invoke[Int, Int, String]("substring", lastFieldStart, endIdx), missing)
     }
 
-    var offset = 0
-    while (offset < s.length) {
-      val c = s(offset)
-      if (c == sepChar) {
-        ab += testIfMissing(sb.result())
-        sb.clear()
-        offset += 1
-      } else if (quoteC != '\u0000' && c == quoteC) {
-        if (sb.nonEmpty)
-          fatal(s"opening quote character '$quoteC' not at start of field")
-        offset += 1 // skip quote
+    val LreturnWithoutAppending = CodeLabel()
 
-        var indexOfNextQuote = -1
-        while (offset < s.length) {
-          offset += 1
-          if (s(offset) == quoteC) indexOfNextQuote = offset
-          else sb += s(offset)
-        }
-        if (indexOfNextQuote == -1)
-          fatal(s"missing terminating quote character '$quoteC'")
-        offset += 1 // skip quote
+    cb.whileLoop(i < string.length(), {
+      val c = cb.newLocal[Char]("c", string(i))
 
-        // full field must be quoted
-        if (offset < s.length - 1) {
-          if (s(offset + 1) != sepChar)
-            fatal(s"terminating quote character '$quoteC' not at end of field")
-          offset += 1
-          ab += testIfMissing(sb.result())
-          sb.clear()
+      val l = getPatternMatch(i, c)
+      cb.ifx(l.cne(-1), {
+        addValueOrNA(cb, i)
+        cb.assign(i, i + l) // skip delim
+        cb.assign(lastFieldStart, i)
+      }, {
+        quoteChar match {
+          case Some(qc) =>
+            cb.ifx(c.ceq(qc), {
+              cb.ifx(i.cne(lastFieldStart),
+                cb._fatalWithError(errorID, "opening quote character '", qc.toS, "' not at start of field"))
+              cb.assign(i, i + 1) // skip quote
+              cb.assign(lastFieldStart, i)
+
+              cb.whileLoop(i < string.length() && string(i).cne(qc), {
+                cb.assign(i, i + 1)
+              })
+
+              addValueOrNA(cb, i)
+
+              cb.ifx(i.ceq(string.length()),
+                cb._fatalWithError(errorID, "missing terminating quote character '", qc.toS, "'"))
+              cb.assign(i, i + 1) // skip quote
+
+              cb.ifx(i < string.length, {
+                cb.assign(c, string(i))
+                val l = getPatternMatch(i, c)
+                cb.ifx(l.ceq(-1), {
+                  cb._fatalWithError(errorID, "terminating quote character '", qc.toS, "' not at end of field")
+                })
+                cb.assign(i, i + l) // skip delim
+                cb.assign(lastFieldStart, i)
+              }, {
+                cb.goto(LreturnWithoutAppending)
+              })
+            }, {
+              cb.assign(i, i + 1)
+            })
+          case None =>
+            cb.assign(i, i + 1)
         }
-      } else {
-        sb += c
-        offset += 1
-      }
-    }
-    ab += testIfMissing(sb.result())
-    val a = ab.result()
-    a
+      })
+    })
+
+    addValueOrNA(cb, string.length())
+    cb.define(LreturnWithoutAppending)
+    ab.invoke[Array[String]]("result")
   }
 
   def softBounds(i: IR, len: IR): IR =
@@ -410,9 +371,61 @@ object StringFunctions extends RegistryFunctions {
       case (_: Type, _: SType, _: SType) => SJavaString
     })(thisClass, "setMkString")
 
-    registerWrappedScalaFunction4("splitQuoted", TString, TString, TArray(TString),  TString, TArray(TString), {
-      case (_: Type, _: SType, _: SType, _: SType, _:SType) => SJavaArrayString(false)
-    })(thisClass, "splitQuoted")
+    registerSCode4("splitQuotedRegex", TString, TString, TArray(TString), TString, TArray(TString), {
+      case (_: Type, _: SType, _: SType, _: SType, _: SType) => SJavaArrayString(false)
+    }) { case (r, cb, st: SJavaArrayString, s, separator, missing, quote, errorID) =>
+      val quoteStr = cb.newLocal[String]("quoteStr", quote.asString.loadString())
+      val quoteChar = cb.newLocal[Char]("quoteChar")
+      cb.ifx(quoteStr.length().cne(1), cb._fatalWithError(errorID, "quote must be a single character"))
+      cb.assign(quoteChar, quoteStr(0))
+
+      val string = cb.newLocal[String]("string", s.asString.loadString())
+      val sep = cb.newLocal[String]("sep", separator.asString.loadString())
+      val mv = missing.asIndexable.memoize(cb, "mv")
+
+      new SJavaArrayStringCode(st, generateSplitQuotedRegex(cb, string, Right(sep), Some(quoteChar), mv, errorID))
+    }
+
+    registerSCode4("splitQuotedChar", TString, TString, TArray(TString), TString, TArray(TString), {
+      case (_: Type, _: SType, _: SType, _: SType, _: SType) => SJavaArrayString(false)
+    }) { case (r, cb, st: SJavaArrayString, s, separator, missing, quote, errorID) =>
+      val quoteStr = cb.newLocal[String]("quoteStr", quote.asString.loadString())
+      val quoteChar = cb.newLocal[Char]("quoteChar")
+      cb.ifx(quoteStr.length().cne(1), cb._fatalWithError(errorID, "quote must be a single character"))
+      cb.assign(quoteChar, quoteStr(0))
+
+      val string = cb.newLocal[String]("string", s.asString.loadString())
+      val sep = cb.newLocal[String]("sep", separator.asString.loadString())
+      val sepChar = cb.newLocal[Char]("sepChar")
+      cb.ifx(sep.length().cne(1), cb._fatalWithError(errorID, "splitQuotedChar expected a single character for separator"))
+      cb.assign(sepChar, sep(0))
+      val mv = missing.asIndexable.memoize(cb, "mv")
+
+      new SJavaArrayStringCode(st, generateSplitQuotedRegex(cb, string, Left(sepChar), Some(quoteChar), mv, errorID))
+    }
+
+    registerSCode3("splitRegex", TString, TString, TArray(TString), TArray(TString), {
+      case (_: Type, _: SType, _: SType, _: SType) => SJavaArrayString(false)
+    }) { case (r, cb, st: SJavaArrayString, s, separator, missing, errorID) =>
+      val string = cb.newLocal[String]("string", s.asString.loadString())
+      val sep = cb.newLocal[String]("sep", separator.asString.loadString())
+      val mv = missing.asIndexable.memoize(cb, "mv")
+
+      new SJavaArrayStringCode(st, generateSplitQuotedRegex(cb, string, Right(sep), None, mv, errorID))
+    }
+
+    registerSCode3("splitChar", TString, TString, TArray(TString), TArray(TString), {
+      case (_: Type, _: SType, _: SType, _: SType) => SJavaArrayString(false)
+    }) { case (r, cb, st: SJavaArrayString, s, separator, missing, errorID) =>
+      val string = cb.newLocal[String]("string", s.asString.loadString())
+      val sep = cb.newLocal[String]("sep", separator.asString.loadString())
+      val sepChar = cb.newLocal[Char]("sepChar")
+      cb.ifx(sep.length().cne(1), cb._fatalWithError(errorID, "splitChar expected a single character for separator"))
+      cb.assign(sepChar, sep(0))
+      val mv = missing.asIndexable.memoize(cb, "mv")
+
+      new SJavaArrayStringCode(st, generateSplitQuotedRegex(cb, string, Left(sepChar), None, mv, errorID))
+    }
 
     registerWrappedScalaFunction2("mkString", TArray(TString), TString, TString, {
       case (_: Type, _: SType, _: SType) => SJavaString

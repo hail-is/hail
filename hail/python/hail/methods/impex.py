@@ -1695,11 +1695,11 @@ def import_table(paths,
                  force=False,
                  source_file_field=None) -> Table:
 
+    if len(delimiter) < 1:
+        raise ValueError('import_table: empty delimiter is not supported')
+
     def split_lines(hl_str):
-        if quote is None:
-            return hl_str._split_quoted(delimiter, missing, "zz")
-        else:
-            return hl_str._split_quoted(delimiter, missing, quote)
+        return hl_str._split_line(delimiter, missing=wrap_to_list(missing), quote=quote, regex=len(delimiter) > 1)
 
     def should_filter_line(hl_str):
         to_filter = hl_str.matches(filter) if filter is not None else hl.bool(False)
