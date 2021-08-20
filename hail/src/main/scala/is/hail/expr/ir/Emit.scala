@@ -1287,6 +1287,7 @@ class Emit[C](
         emitI(pivots).flatMap(cb){ case pivotsCode: SIndexableCode =>
           emitStream(child, cb, region).map(cb) { case childStream: SStreamCode =>
             val requestedSplittersVal = pivotsCode.memoize(cb, "stream_dist_pivots")
+            cb.println("Requested splitters = ", cb.strValue(requestedSplittersVal))
 
             val keyType = requestedSplittersVal.st.elementType.asInstanceOf[SBaseStruct]
             val keyPType = typeWithReqx(pivots).canonicalPType.asInstanceOf[PContainer].elementType
@@ -1319,10 +1320,13 @@ class Emit[C](
               cb.assign(lastKeySeen, currentSplitter)
             })
 
-            val treeHeight: Value[Int] = cb.newLocal[Int]("stream_dist_tree_height", (Code.invokeStatic1[Math, Double, Double]("log", (requestedSplittersVal.loadLength() + 1).toD) / Math.log(2)).toI)
+            val treeHeight: Value[Int] = cb.newLocal[Int]("stream_dist_tree_height", Code.invokeStatic1[Math, Double, Double]("ceil", (Code.invokeStatic1[Math, Double, Double]("log", (requestedSplittersVal.loadLength() + 1).toD) / Math.log(2))).toI)
             val k: Value[Int] = cb.newLocal[Int]("stream_dist_number_of_buckets", (Code.invokeStatic2[Math, Double, Double, Double]("pow", 2, (treeHeight + 1).toD).toI))
 
             val paddedSplittersSize = cb.newLocal[Int]("stream_dist_padded_splitter_size", k / 2) // TODO: Verify this is correct
+            cb.println(const("numUniqueSplitters = "), numUniqueSplitters.toS)
+            cb.println(const("treeHeight = "), treeHeight.toS)
+            cb.println(const("paddedSplitterSize = "), paddedSplittersSize.toS)
 
             // Pass 2: Copy each unique splitter into array. If it is seen twice, set a boolean in a parallel array for that
             // splitter.
@@ -1355,12 +1359,19 @@ class Emit[C](
                   splittersWasDuplicatedPType.elementType.storeAtAddress(cb, splittersWasDuplicatedPType.loadElement(splittersWasDuplicatedAddr, splittersWasDuplicatedLength, uniqueSplittersIdx - 1), region, new SBooleanCode(true), false)
                 })
               })
+              cb.assign(lastKeySeen, currentSplitter)
             })
 
-            // TODO: Finish filling in repeats in paddedsplitter list.
+            cb.forLoop({}, uniqueSplittersIdx < paddedSplittersSize, cb.assign(uniqueSplittersIdx, uniqueSplittersIdx + 1), {
+              splittersPType.elementType.storeAtAddress(cb, splittersPType.loadElement(splittersAddr, paddedSplittersSize, uniqueSplittersIdx), region, lastKeySeen.get(cb), false)
+            })
+
 
             val splitters: SIndexableValue = new SIndexablePointerCode(SIndexablePointer(splittersPType), splittersAddr).memoize(cb, "stream_distribute_splitters_deduplicated") // last element is duplicated, otherwise this is sorted without duplicates.
+            cb.println("Splitters = ", cb.strValue(splitters))
             val splitterWasDuplicated = new SIndexablePointerCode(SIndexablePointer(splittersWasDuplicatedPType), splittersWasDuplicatedAddr).memoize(cb, "stream_distrib_was_duplicated") // Same length as splitters, but full of booleans of whether it was initially duplicated.
+            // TODO: SplittersWasDuplicated is totally incorrect currently.
+            cb.println("Splitters was duplicated = ", cb.strValue(splitterWasDuplicated))
 
             val treePType = splittersPType
             val treeAddr = cb.newLocal[Long]("stream_dist_tree_addr", treePType.allocate(region, paddedSplittersSize))
@@ -1373,16 +1384,19 @@ class Emit[C](
             val currentHeight = cb.newLocal[Int]("stream_dist_current_height")
             val treeFillingIndex = cb.newLocal[Int]("stream_dist_tree_filling_idx", 1)
             cb.forLoop(cb.assign(currentHeight, treeHeight - 1), currentHeight >= 0, cb.assign(currentHeight, currentHeight - 1), {
-              val startingPoint: Code[Int] = (const(2) << currentHeight) - 1
+              val startingPoint: Value[Int] = cb.newLocal[Int]("stream_dist_starting_point", (const(1) << currentHeight) - 1)
               val inner = cb.newLocal[Int]("stream_dist_tree_inner")
-              cb.forLoop(cb.assign(inner, 0), inner < (const(2) << (treeHeight - 1 - currentHeight)), cb.assign(inner, inner + 1), {
+              cb.forLoop(cb.assign(inner, 0), inner < (const(1) << (treeHeight - 1 - currentHeight)), cb.assign(inner, inner + 1), {
+                val lookupIndex = cb.newLocal[Int]("temp2", startingPoint + inner * (const(1) << (currentHeight + 1)))
+                val elementLoaded = splitters.loadElement(cb, lookupIndex).get(cb).memoize(cb, "temp")
+                cb.println("Storing element ", cb.strValue(elementLoaded), " from index ", lookupIndex.toS, " at index ", treeFillingIndex.toS, " currentHeight = ", currentHeight.toS, " inner = ", inner.toS, " startingPoint = ", startingPoint.toS)
                 keyPType.storeAtAddress(cb, treePType.loadElement(treeAddr, treeFillingIndex), region,
-                  splitters.loadElement(cb, startingPoint + inner * (const(2) << currentHeight + 1)).get(cb), false)
+                  elementLoaded, false)
                 cb.assign(treeFillingIndex, treeFillingIndex + 1)
               })
             })
             val tree: SIndexableValue = new SIndexablePointerCode(SIndexablePointer(treePType), treeAddr).memoize(cb, "stream_dist_tree") // 0th element is garbage, tree elements start at idx 1.
-
+            cb.println("Tree = ", cb.strValue(tree))
 
             // Open file handles: But how many? Well, normally it would be num_splitters + 1. But with duplicates, more annoying. Temporarily let's open numSplitters + 1
             val numFilesToWrite: Value[Int] = const(0) // TODO: Obviously more than 0
