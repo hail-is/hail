@@ -6,12 +6,10 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{Code, CodeLabel, Settable, Value}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, ExecuteContext, IEmitCode, PartitionReader}
-import is.hail.types.TypeWithRequiredness
-import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SStreamCode, primitive}
-import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
+import is.hail.types.{RField, RStruct, TypeWithRequiredness}
 import org.apache.avro.Schema
 import org.apache.avro.file.DataFileStream
 import org.apache.avro.generic.{GenericData, GenericDatumReader, GenericRecord}
@@ -22,9 +20,16 @@ import scala.collection.JavaConverters._
 class AvroPartitionReader(schema: Schema) extends PartitionReader {
   def contextType: Type = TString
 
-  lazy val fullRowType: TStruct = AvroReader.schemaToType(schema)
+  val fullRowType: TStruct = AvroReader.schemaToType(schema)
 
-  def rowRequiredness(requestedType: Type): TypeWithRequiredness = ???
+  def rowRequiredness(requestedType: Type): TypeWithRequiredness = {
+    val req = TypeWithRequiredness.apply(requestedType).asInstanceOf[RStruct]
+    req.fields.foreach { case RField(name, typ, _) =>
+      AvroReader.setRequiredness(schema.getField(name).schema, typ)
+    }
+    req.hardSetRequiredness(true)
+    req
+  }
 
   def emitStream(ctx: ExecuteContext, cb: EmitCodeBuilder, context: EmitCode, partitionRegion: Value[Region], requestedType: Type): IEmitCode = {
     val structType = requestedType.asInstanceOf[TStruct]
@@ -127,5 +132,22 @@ object AvroReader {
     }
 
     SStackStruct.constructFromArgs(cb, region, requestedType, codes: _*)
+  }
+
+  def setRequiredness(schema: Schema, typ: TypeWithRequiredness): Unit = {
+    val realSchema = schema.getType match {
+      case Schema.Type.UNION =>
+        typ.hardSetRequiredness(false)
+        schema.getTypes.get(1)
+      case _ =>
+        typ.hardSetRequiredness(true)
+        schema
+    }
+
+    typ match {
+      case t: RStruct => t.fields.foreach { case RField(name, typ, _) =>
+        setRequiredness(realSchema.getField(name).schema, typ)
+      }
+    }
   }
 }
