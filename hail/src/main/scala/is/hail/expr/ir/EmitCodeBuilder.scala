@@ -79,6 +79,10 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     f
   }
 
+  def memoize[T: TypeInfo](v: Code[T]): Value[T] = {
+    newLocal[T]("memoize", v)
+  }
+
   def memoize(v: EmitCode, name: String): EmitValue = {
     require(v.st.isRealizable)
     val l = emb.newEmitLocal(name, v.emitType)
@@ -159,7 +163,8 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
               EmitCode.fromI(emb) { cb => IEmitCode.present(cb, ec.toI(cb).get(cb)) }
             case _ => ec
           }
-          castEc.makeCodeTuple(this)
+          val castEv = memoize(castEc, "_invoke")
+          castEv.valueTuple().map(_.get)
         case (arg, expected) =>
           throw new RuntimeException(s"invoke ${ callee.mb.methodName }: arg $i: type mismatch:" +
             s"\n  got ${ arg }" +

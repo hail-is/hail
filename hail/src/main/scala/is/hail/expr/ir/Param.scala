@@ -54,7 +54,7 @@ case class SCodeEmitParamType(et: EmitType) extends EmitParamType {
 
   def virtualType: Type = et.st.virtualType
 
-  def definedTupleTypes(): IndexedSeq[TypeInfo[_]] = et.st.codeTupleTypes()
+  def definedTupleTypes(): IndexedSeq[TypeInfo[_]] = et.st.settableTupleTypes()
 }
 
 sealed trait Param

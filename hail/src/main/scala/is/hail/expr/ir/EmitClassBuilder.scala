@@ -943,7 +943,7 @@ class EmitMethodBuilder[C](
         EmitValue(if (required) None else Some(mb.getArg[Boolean](codeIndex + 1)), sct.loadToSValue(cb, null, mb.getArg(codeIndex)(sct.ti)))
 
       case SCodeEmitParamType(et) =>
-        val ts = et.st.codeTupleTypes()
+        val ts = et.st.settableTupleTypes()
 
         val m = if (et.required) None else Some(mb.getArg[Boolean](codeIndex + ts.length))
         val v = et.st.fromValues(ts.zipWithIndex.map { case (t, i) =>
