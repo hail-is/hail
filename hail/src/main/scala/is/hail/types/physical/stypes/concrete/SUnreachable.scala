@@ -5,6 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.{PCanonicalNDArray, PNDArray, PType}
 import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.physical.stypes.primitives.{SBooleanCode, SFloat32Code, SFloat64Code, SInt32Code, SInt64Code, SPrimitiveCode}
 import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType}
 import is.hail.types.virtual._
 import is.hail.utils.FastIndexedSeq
@@ -73,44 +74,6 @@ abstract class SUnreachableValue extends SCode with SSettable {
   override def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType, deepCopy: Boolean): SCode = {
     destType.coerceOrCopy(cb, region, this, deepCopy)
   }
-
-  override def asBoolean: Nothing = asInstanceOf[Nothing]
-
-  override def asInt: Nothing = asInstanceOf[Nothing]
-
-  override def asInt32: Nothing = asInstanceOf[Nothing]
-
-  override def asLong: Nothing = asInstanceOf[Nothing]
-
-  override def asInt64: Nothing = asInstanceOf[Nothing]
-
-  override def asFloat: Nothing = asInstanceOf[Nothing]
-
-  override def asFloat32: Nothing = asInstanceOf[Nothing]
-
-  override def asFloat64: Nothing = asInstanceOf[Nothing]
-
-  override def asDouble: Nothing = asInstanceOf[Nothing]
-
-  override def asPrimitive: Nothing = asInstanceOf[Nothing]
-
-  override def asBinary: Nothing = asInstanceOf[Nothing]
-
-  override def asIndexable: Nothing = asInstanceOf[Nothing]
-
-  override def asBaseStruct: Nothing = asInstanceOf[Nothing]
-
-  override def asString: Nothing = asInstanceOf[Nothing]
-
-  override def asInterval: Nothing = asInstanceOf[Nothing]
-
-  override def asNDArray: Nothing = asInstanceOf[Nothing]
-
-  override def asLocus: Nothing = asInstanceOf[Nothing]
-
-  override def asCall: Nothing = asInstanceOf[Nothing]
-
-  override def asStream: Nothing = asInstanceOf[Nothing]
 
   override def copyToRegion(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SCode =
     destType.coerceOrCopy(cb, region, this, deepCopy = true)
