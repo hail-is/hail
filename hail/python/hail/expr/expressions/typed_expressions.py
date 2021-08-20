@@ -2916,11 +2916,13 @@ class StringExpression(Expression):
         else:
             return self._method("split", tarray(tstr), delim, n)
 
-    @typecheck_method(delim=expr_str, missing=expr_array(), quote=nullable(expr_str))
-    def _split_quoted(self, delim, missing, quote=None):
+    @typecheck_method(delim=expr_str, missing=expr_array(), quote=nullable(expr_str), regex=bool)
+    def _split_line(self, delim, missing, quote, regex):
+        regex_str = 'Regex' if regex else 'Char'
         if quote is None:
-            quote = hl.missing(hl.tstr)
-        return self._method("splitQuoted", tarray(tstr), delim, missing, quote)
+            return self._method(f"split{regex_str}", tarray(tstr), delim, missing)
+        else:
+            return self._method(f"splitQuoted{regex_str}", tarray(tstr), delim, missing, quote)
 
     def lower(self):
         """Returns a copy of the string, but with upper case letters converted
