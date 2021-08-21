@@ -11,6 +11,7 @@ import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SStreamCode, p
 import is.hail.types.virtual._
 import is.hail.types.{RField, RStruct, TypeWithRequiredness}
 import org.apache.avro.Schema
+import org.apache.avro.io.DatumReader
 import org.apache.avro.file.DataFileStream
 import org.apache.avro.generic.{GenericData, GenericDatumReader, GenericRecord}
 import org.json4s.{Extraction, JValue}
@@ -44,12 +45,11 @@ class AvroPartitionReader(schema: Schema) extends PartitionReader {
 
         def initialize(cb: EmitCodeBuilder): Unit = {
           val mb = cb.emb
-          cb.assign(region, partitionRegion)
           val codeSchema = cb.newLocal("schema", mb.getObject(schema))
           cb.assign(record, Code.newInstance[GenericData.Record, Schema](codeSchema))
           val is = mb.open(path.asString.loadString(), false)
           val datumReader = Code.newInstance[GenericDatumReader[GenericRecord], Schema](codeSchema)
-          val dataFileStream = Code.newInstance[DataFileStream[GenericRecord], InputStream, GenericDatumReader[GenericRecord]](is, datumReader)
+          val dataFileStream = Code.newInstance[DataFileStream[GenericRecord], InputStream, DatumReader[GenericRecord]](is, datumReader)
 
           cb.assign(it, dataFileStream)
         }
@@ -58,7 +58,7 @@ class AvroPartitionReader(schema: Schema) extends PartitionReader {
         val requiresMemoryManagementPerElement: Boolean = true
         val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
           cb.ifx(!it.invoke[Boolean]("hasNext"), cb.goto(LendOfStream))
-          cb.assign(record, it.invoke[GenericRecord, GenericRecord]("next", record))
+          cb.assign(record, it.invoke[AnyRef, GenericRecord]("next", record))
           cb.goto(LproduceElementDone)
         }
 
@@ -66,7 +66,7 @@ class AvroPartitionReader(schema: Schema) extends PartitionReader {
           EmitCode.present(mb, AvroReader.recordToHail(cb, region, record, structType))
         }
 
-        def close(cb: EmitCodeBuilder): Unit = cb += it.invoke("close")
+        def close(cb: EmitCodeBuilder): Unit = cb += it.invoke[Unit]("close")
       }
 
       SStreamCode(producer)
@@ -103,7 +103,7 @@ object AvroReader {
       val types = schema.getTypes
       // we only support ["null", type] (or [type, "null"]) for unions as nullable data
       val nullIndex = types.asScala.indexWhere(s => s.getType == Schema.Type.NULL)
-      if (!(types.size() == 2 && nullIndex == -1))
+      if (types.size() != 2 || nullIndex == -1)
         throw new UnsupportedOperationException(s"hail conversion from avro $schema is unsupported")
       _schemaToType(types.get(1 - nullIndex))
 
@@ -112,22 +112,25 @@ object AvroReader {
 
   def recordToHail(cb: EmitCodeBuilder, region: Value[Region], record: Value[GenericRecord], requestedType: TBaseStruct): SBaseStructCode = {
     val codes = requestedType.fields.map { case Field(name, typ, _) =>
+      val v = cb.newLocal[AnyRef]("avro_value")
+      cb.assign(v, record.invoke[String, AnyRef]("get", name))
       typ match {
-        case TBoolean | TInt32 | TInt64 | TFloat32 | TFloat64 =>
-          val v = cb.newLocal[AnyRef](s"primitive_avro_value")
-          cb.assign(v, record.invoke[AnyRef, String]("get", name))
-          EmitCode(Code._empty, v.isNull, primitive(typ, v))
+        case TBoolean =>
+          EmitCode(Code._empty, v.isNull, primitive(Code.booleanValue(Code.checkcast[java.lang.Boolean](v))))
+        case TInt32 =>
+          EmitCode(Code._empty, v.isNull, primitive(Code.intValue(Code.checkcast[java.lang.Number](v))))
+        case TInt64 =>
+          EmitCode(Code._empty, v.isNull, primitive(Code.longValue(Code.checkcast[java.lang.Number](v))))
+        case TFloat32 =>
+          EmitCode(Code._empty, v.isNull, primitive(Code.floatValue(Code.checkcast[java.lang.Number](v))))
+        case TFloat64 =>
+          EmitCode(Code._empty, v.isNull, primitive(Code.doubleValue(Code.checkcast[java.lang.Number](v))))
         case TString =>
-          val v = cb.newLocal[String]("string_avro_value")
-          cb.assignAny(v, record.invoke[AnyRef, String]("get", name))
-          EmitCode(Code._empty, v.isNull, new SJavaStringCode(v))
+          EmitCode(Code._empty, v.isNull, new SJavaStringCode(Code.checkcast[org.apache.avro.util.Utf8](v).invoke[String]("toString")))
         case TBinary =>
-          val v = cb.newLocal[Array[Byte]]("bytearray_avro_value")
-          cb.assignAny(v, record.invoke[AnyRef, String]("get", name))
-          EmitCode(Code._empty, v.isNull, new SJavaBytesCode(v))
+          EmitCode(Code._empty, v.isNull, new SJavaBytesCode(Code.checkcast[Array[Byte]](v)))
         case typ: TBaseStruct =>
-          val v = cb.newLocal[GenericRecord]("record_avro_value")
-          cb.assignAny(v, record.invoke[AnyRef, String]("get", name))
+          val record = cb.newLocal[GenericRecord]("avro_subrecord", Code.checkcast[GenericRecord](v))
           EmitCode(Code._empty, v.isNull, recordToHail(cb, region, record, typ))
       }
     }
@@ -150,6 +153,7 @@ object AvroReader {
       case t: RStruct => t.fields.foreach { case RField(name, typ, _) =>
         setRequiredness(realSchema.getField(name).schema, typ)
       }
+      case _ => // do nothing
     }
   }
 }

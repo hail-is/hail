@@ -12,7 +12,7 @@ import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 class AvroReaderSuite extends HailSuite {
-  implicit val execStrats: Set[ExecStrategy] = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.LoweredJVMCompile)
+  implicit val execStrats: Set[ExecStrategy] = Set(ExecStrategy.LoweredJVMCompile)
 
   @Test def avroReaderWorks(): Unit = {
     val avroFile = ctx.createTmpPath("avro_test", "avro")
@@ -24,7 +24,7 @@ class AvroReaderSuite extends HailSuite {
       .name("a_double").`type`().doubleType().noDefault()
       .name("an_optional_string").`type`().nullable().stringType().noDefault()
       .endRecord()
-    val testValue = Array(
+    val testValue = IndexedSeq(
       Row(0, null, 0f, 0d, null),
       Row(1, 1L, 1.0f, 1.0d, ""),
       Row(-1, -1L, -1.0f, -1.0d, "minus one"),
@@ -34,13 +34,13 @@ class AvroReaderSuite extends HailSuite {
 
     val os = fs.create(avroFile)
     val dw = new DataFileWriter[GenericRecord](new GenericDatumWriter(schema)).create(schema, os)
-    for (Row(i: Int, l: Long, f: Float, d: Double, s: String) <- testValue) {
+    for (Row(int, long, float, double, string) <- testValue) {
       val gr = new GenericRecordBuilder(schema)
-        .set("an_int", i)
-        .set("an_optional_long", l)
-        .set("a_float", f)
-        .set("a_double", d)
-        .set("an_optional_string", s)
+        .set("an_int", int)
+        .set("an_optional_long", long)
+        .set("a_float", float)
+        .set("a_double", double)
+        .set("an_optional_string", string)
         .build()
 
       dw.append(gr)
