@@ -77,7 +77,7 @@ class AvroPartitionReader(schema: Schema) extends PartitionReader {
 }
 
 object AvroReader {
-  def schemaToType(schema: Schema): TStruct = {
+  private[avro] def schemaToType(schema: Schema): TStruct = {
     try {
       if (schema.getType != Schema.Type.RECORD) {
         throw new UnsupportedOperationException("hail conversion from avro is only supported for top level record types")
@@ -110,7 +110,7 @@ object AvroReader {
     case _ => throw new UnsupportedOperationException(s"hail conversion from avro $schema is unsupported")
   }
 
-  def recordToHail(cb: EmitCodeBuilder, region: Value[Region], record: Value[GenericRecord], requestedType: TBaseStruct): SBaseStructCode = {
+  private[avro] def recordToHail(cb: EmitCodeBuilder, region: Value[Region], record: Value[GenericRecord], requestedType: TBaseStruct): SBaseStructCode = {
     val codes = requestedType.fields.map { case Field(name, typ, _) =>
       val v = cb.newLocal[AnyRef]("avro_value")
       cb.assign(v, record.invoke[String, AnyRef]("get", name))
@@ -138,7 +138,7 @@ object AvroReader {
     SStackStruct.constructFromArgs(cb, region, requestedType, codes: _*)
   }
 
-  def setRequiredness(schema: Schema, typ: TypeWithRequiredness): Unit = {
+  private[avro] def setRequiredness(schema: Schema, typ: TypeWithRequiredness): Unit = {
     val realSchema = schema.getType match {
       case Schema.Type.UNION =>
         typ.hardSetRequiredness(false)
