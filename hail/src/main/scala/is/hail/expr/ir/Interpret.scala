@@ -23,12 +23,12 @@ object Interpret {
 
   def apply(tir: TableIR, ctx: ExecuteContext, optimize: Boolean): TableValue = {
     val lowered = LoweringPipeline.legacyRelationalLowerer(optimize)(ctx, tir).asInstanceOf[TableIR]
-    lowered.execute(ctx)
+    lowered.execute(ctx).asTableValue(ctx)
   }
 
   def apply(mir: MatrixIR, ctx: ExecuteContext, optimize: Boolean): TableValue = {
     val lowered = LoweringPipeline.legacyRelationalLowerer(optimize)(ctx, mir).asInstanceOf[TableIR]
-    lowered.execute(ctx)
+    lowered.execute(ctx).asTableValue(ctx)
   }
 
   def apply(bmir: BlockMatrixIR, ctx: ExecuteContext, optimize: Boolean): BlockMatrix = {
@@ -838,23 +838,23 @@ object Interpret {
       case TableCount(child) =>
         child.partitionCounts
           .map(_.sum)
-          .getOrElse(child.execute(ctx).rvd.count())
+          .getOrElse(child.execute(ctx).asTableValue(ctx).rvd.count())
       case TableGetGlobals(child) =>
-        child.execute(ctx).globals.safeJavaValue
+        child.execute(ctx).asTableValue(ctx).globals.safeJavaValue
       case TableCollect(child) =>
-        val tv = child.execute(ctx)
+        val tv = child.execute(ctx).asTableValue(ctx)
         Row(tv.rvd.collect(ctx).toFastIndexedSeq, tv.globals.safeJavaValue)
       case TableMultiWrite(children, writer) =>
-        val tvs = children.map(_.execute(ctx))
+        val tvs = children.map(_.execute(ctx).asTableValue(ctx))
         writer(ctx, tvs)
       case TableWrite(child, writer) =>
-        writer(ctx, child.execute(ctx))
+        writer(ctx, child.execute(ctx).asTableValue(ctx))
       case BlockMatrixWrite(child, writer) =>
         writer(ctx, child.execute(ctx))
       case BlockMatrixMultiWrite(blockMatrices, writer) =>
         writer(ctx, blockMatrices.map(_.execute(ctx)))
       case TableToValueApply(child, function) =>
-        function.execute(ctx, child.execute(ctx))
+        function.execute(ctx, child.execute(ctx).asTableValue(ctx))
       case BlockMatrixToValueApply(child, function) =>
         function.execute(ctx, child.execute(ctx))
       case BlockMatrixCollect(child) =>
@@ -864,7 +864,7 @@ object Interpret {
         val shape = IndexedSeq(bm.nRows, bm.nCols)
         SafeNDArray(shape, breezeMat.toArray)
       case x@TableAggregate(child, query) =>
-        val value = child.execute(ctx)
+        val value = child.execute(ctx).asTableValue(ctx)
         val fsBc = ctx.fsBc
 
         val globalsBc = value.globals.broadcast
