@@ -2224,32 +2224,22 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
 
   lazy val children: IndexedSeq[BaseIR] = Array(child)
 
-  private val childRowType = child.typ.rowType
+  def explodedType(ts: TStruct, path: IndexedSeq[String]): TStruct = {
+    val fieldName = path.head
+    val rest = path.tail
 
-  private val length: IR = {
-    Coalesce(FastIndexedSeq(
-      ArrayLen(CastToArray(
-        path.foldLeft[IR](Ref("row", childRowType))((struct, field) =>
-          GetField(struct, field)))),
-      0))
+    TStruct(ts.fields.map { f =>
+      if (f.name == fieldName) {
+        val newType = if (rest.isEmpty)
+          f.typ.asInstanceOf[TIterable].elementType
+        else
+          explodedType(f.asInstanceOf[TStruct], rest)
+        f.copy(typ = newType)
+      } else f
+    })
   }
 
-  val idx = Ref(genUID(), TInt32)
-  val newRow: InsertFields = {
-    val refs = path.init.scanLeft(Ref("row", childRowType))((struct, name) =>
-      Ref(genUID(), coerce[TStruct](struct.typ).field(name).typ))
-
-    path.zip(refs).zipWithIndex.foldRight[IR](idx) {
-      case (((field, ref), i), arg) =>
-        InsertFields(ref, FastIndexedSeq(field ->
-          (if (i == refs.length - 1)
-            ArrayRef(CastToArray(GetField(ref, field)), arg)
-          else
-            Let(refs(i + 1).name, GetField(ref, field), arg))))
-    }.asInstanceOf[InsertFields]
-  }
-
-  val typ: TableType = child.typ.copy(rowType = newRow.typ)
+  val typ: TableType = child.typ.copy(rowType = explodedType(child.typ.rowType, path))
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableExplode = {
     assert(newChildren.length == 1)
@@ -2257,48 +2247,7 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
   }
 
   protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
-    val prev = child.execute(ctx, r).asTableValue(ctx)
-
-    val (len, l) = Compile[AsmFunction2RegionLongInt](ctx,
-      FastIndexedSeq(("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.rvd.rowPType)))),
-      FastIndexedSeq(classInfo[Region], LongInfo), IntInfo,
-      length)
-    val (Some(PTypeReferenceSingleCodeType(newRowType: PStruct)), f) = Compile[AsmFunction3RegionLongIntLong](
-      ctx,
-      FastIndexedSeq(("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.rvd.rowPType))),
-        (idx.name, SingleCodeEmitParamType(true, Int32SingleCodeType))),
-      FastIndexedSeq(classInfo[Region], LongInfo, IntInfo), LongInfo,
-      newRow)
-    assert(newRowType.virtualType == typ.rowType)
-
-    val rvdType: RVDType = RVDType(
-      newRowType,
-      prev.rvd.typ.key.takeWhile(_ != path.head)
-    )
-    val fsBc = ctx.fsBc
-    new TableValueIntermediate(
-      TableValue(ctx, typ,
-        prev.globals,
-        prev.rvd.boundary.mapPartitionsWithIndex(rvdType) { (i, ctx, it) =>
-          val globalRegion = ctx.partitionRegion
-          val lenF = l(fsBc.value, i, globalRegion)
-          val rowF = f(fsBc.value, i, globalRegion)
-          it.flatMap { ptr =>
-            val len = lenF(ctx.region, ptr)
-            new Iterator[Long] {
-              private[this] var i = 0
-
-              def hasNext: Boolean = i < len
-
-              def next(): Long = {
-                val ret = rowF(ctx.region, ptr, i)
-                i += 1
-                ret
-              }
-            }
-          }
-        })
-    )
+    new TableStageIntermediate(LowerTableIRHelpers.lowerTableExplode(ctx, this, child.execute(ctx, r).asTableStage(ctx)))
   }
 }
 

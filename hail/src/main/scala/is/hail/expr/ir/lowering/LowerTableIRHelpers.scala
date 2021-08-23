@@ -1,6 +1,6 @@
 package is.hail.expr.ir.lowering
 
-import is.hail.expr.ir.{Coalesce, Die, ExecuteContext, GetField, IR, InsertFields, Let, MakeStruct, Ref, RequirednessAnalysis, SelectFields, StreamJoinRightDistinct, TableIR, TableJoin, TableLeftJoinRightDistinct, genUID}
+import is.hail.expr.ir.{Coalesce, Die, ExecuteContext, GetField, IR, InsertFields, Let, MakeStruct, Ref, RequirednessAnalysis, SelectFields, StreamJoinRightDistinct, TableExplode, TableIR, TableJoin, TableLeftJoinRightDistinct, ToStream, flatMapIR, genUID, mapIR}
 import is.hail.types.RTable
 import is.hail.types.virtual.TStruct
 import is.hail.utils.FastSeq
@@ -66,5 +66,28 @@ object LowerTableIRHelpers {
           leftElementRef.name, rightElementRef.name,
           joiningOp, "left")
       })
+  }
+
+  def lowerTableExplode(ctx: ExecuteContext, te: TableExplode, lowered: TableStage): TableStage = {
+    val TableExplode(child, path) = te
+    lowered.mapPartition(Some(child.typ.key.takeWhile(k => k != path(0)))) { rows =>
+      flatMapIR(rows) { row: Ref =>
+        val refs = Array.fill[Ref](path.length + 1)(null)
+        val roots = Array.fill[IR](path.length)(null)
+        var i = 0
+        refs(0) = row
+        while (i < path.length) {
+          roots(i) = GetField(refs(i), path(i))
+          refs(i + 1) = Ref(genUID(), roots(i).typ)
+          i += 1
+        }
+        refs.tail.zip(roots).foldRight(
+          mapIR(ToStream(refs.last)) { elt =>
+            path.zip(refs.init).foldRight[IR](elt) { case ((p, ref), inserted) =>
+              InsertFields(ref, FastSeq(p -> inserted))
+            }
+          }) { case ((ref, root), accum) => Let(ref.name, root, accum) }
+      }
+    }
   }
 }
