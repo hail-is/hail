@@ -50,7 +50,12 @@ abstract sealed class TableIR extends BaseIR {
 
   val rowCountUpperBound: Option[Long]
 
-  protected[ir] def execute(ctx: ExecuteContext): TableExecuteIntermediate =
+  final def analyzeAndExecute(ctx: ExecuteContext): TableExecuteIntermediate = {
+    val r = Requiredness(this, ctx)
+    execute(ctx, new TableRunContext(r))
+  }
+
+  protected[ir] def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate =
     fatal("tried to execute unexecutable IR:\n" + Pretty(this))
 
   override def copy(newChildren: IndexedSeq[BaseIR]): TableIR
@@ -64,6 +69,8 @@ abstract sealed class TableIR extends BaseIR {
 
   def pyUnpersist(): TableIR = unpersist()
 }
+
+class TableRunContext(val req: RequirednessAnalysis)
 
 object TableLiteral {
   def apply(value: TableValue): TableLiteral = {
@@ -86,7 +93,7 @@ case class TableLiteral(typ: TableType, rvd: RVD, enc: AbstractTypedCodecSpec, e
     TableLiteral(typ, rvd, enc, encodedGlobals)
   }
 
-  protected[ir] override def execute(ctx: ExecuteContext): TableExecuteIntermediate = {
+  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
     val (globalPType: PStruct, dec) = enc.buildDecoder(ctx, typ.globalType)
 
     val bais = new ByteArrayInputStream(encodedGlobals)
@@ -1232,7 +1239,7 @@ case class TableRead(typ: TableType, dropRows: Boolean, tr: TableReader) extends
     TableRead(typ, dropRows, tr)
   }
 
-  protected[ir] override def execute(ctx: ExecuteContext): TableExecuteIntermediate = new TableValueIntermediate(tr.apply(this, ctx))
+  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = new TableValueIntermediate(tr.apply(this, ctx))
 }
 
 case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) extends TableIR {
@@ -1257,7 +1264,7 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
     FastIndexedSeq(),
     globalsType)
 
-  protected[ir] override def execute(ctx: ExecuteContext): TableExecuteIntermediate = {
+  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
     val (ptype: PStruct, res) = CompileAndEvaluate._apply(ctx, rowsAndGlobal, optimize = false) match {
       case Right((t, off)) => (t.fields(0).typ, t.loadField(off, 0))
     }
@@ -1344,8 +1351,8 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolea
     TableKeyBy(newChildren(0).asInstanceOf[TableIR], keys, isSorted)
   }
 
-  protected[ir] override def execute(ctx: ExecuteContext): TableExecuteIntermediate = {
-    val tv = child.execute(ctx).asTableValue(ctx)
+  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
+    val tv = child.execute(ctx, r).asTableValue(ctx)
     new TableValueIntermediate(tv.copy(typ = typ, rvd = tv.rvd.enforceKey(ctx, keys, isSorted)))
   }
 }
@@ -1372,7 +1379,7 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
     Array("idx"),
     TStruct.empty)
 
-  protected[ir] override def execute(ctx: ExecuteContext): TableExecuteIntermediate = {
+  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
     val localRowType = PCanonicalStruct(true, "idx" -> PInt32Required)
     val localPartCounts = partCounts
     val partStarts = partCounts.scanLeft(0)(_ + _)
@@ -1414,8 +1421,8 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
     TableFilter(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR])
   }
 
-  protected[ir] override def execute(ctx: ExecuteContext): TableExecuteIntermediate = {
-    val tv = child.execute(ctx).asTableValue(ctx)
+  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
+    val tv = child.execute(ctx, r).asTableValue(ctx)
 
     if (pred == True())
       return new TableValueIntermediate(tv)
@@ -1459,8 +1466,8 @@ trait TableSubset extends TableIR {
     case None => Some(n)
   }
 
-  protected[ir] override def execute(ctx: ExecuteContext): TableExecuteIntermediate = {
-    val prev = child.execute(ctx).asTableValue(ctx)
+  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
+    val prev = child.execute(ctx, r).asTableValue(ctx)
     new TableValueIntermediate(prev.copy(rvd = subsetKind match {
       case TableSubset.HEAD => prev.rvd.head(n, child.partitionCounts)
       case TableSubset.TAIL => prev.rvd.tail(n, child.partitionCounts)
@@ -1506,8 +1513,8 @@ case class TableRepartition(child: TableIR, n: Int, strategy: Int) extends Table
     TableRepartition(newChild, n, strategy)
   }
 
-  protected[ir] override def execute(ctx: ExecuteContext): TableExecuteIntermediate = {
-    val prev = child.execute(ctx).asTableValue(ctx)
+  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
+    val prev = child.execute(ctx, r).asTableValue(ctx)
     val rvd = strategy match {
       case RepartitionStrategy.SHUFFLE => prev.rvd.coalesce(ctx, n, shuffle = true)
       case RepartitionStrategy.COALESCE => prev.rvd.coalesce(ctx, n, shuffle = false)
@@ -1590,9 +1597,9 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
       joinKey)
   }
 
-  protected[ir] override def execute(ctx: ExecuteContext): TableExecuteIntermediate = {
-    val leftTV = left.execute(ctx).asTableValue(ctx)
-    val rightTV = right.execute(ctx).asTableValue(ctx)
+  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
+    val leftTV = left.execute(ctx, r).asTableValue(ctx)
+    val rightTV = right.execute(ctx, r).asTableValue(ctx)
 
     val combinedRow = Row.fromSeq(leftTV.globals.javaValue.toSeq ++ rightTV.globals.javaValue.toSeq)
     val newGlobals = BroadcastRow(ctx, combinedRow, newGlobalType)
@@ -1717,9 +1724,9 @@ case class TableIntervalJoin(
 
   override def partitionCounts: Option[IndexedSeq[Long]] = left.partitionCounts
 
-  protected[ir] override def execute(ctx: ExecuteContext): TableExecuteIntermediate = {
-    val leftValue = left.execute(ctx).asTableValue(ctx)
-    val rightValue = right.execute(ctx).asTableValue(ctx)
+  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
+    val leftValue = left.execute(ctx, r).asTableValue(ctx)
+    val rightValue = right.execute(ctx, r).asTableValue(ctx)
 
     val leftRVDType = leftValue.rvd.typ
     val rightRVDType = rightValue.rvd.typ.copy(key = rightValue.typ.key)
@@ -1814,8 +1821,8 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
   def copy(newChildren: IndexedSeq[BaseIR]): TableMultiWayZipJoin =
     TableMultiWayZipJoin(newChildren.asInstanceOf[IndexedSeq[TableIR]], fieldName, globalName)
 
-  protected[ir] override def execute(ctx: ExecuteContext): TableExecuteIntermediate = {
-    val childValues = children.map(_.execute(ctx).asTableValue(ctx))
+  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
+    val childValues = children.map(_.execute(ctx, r).asTableValue(ctx))
 
     val childRVDs = RVD.unify(childValues.map(_.rvd)).toFastIndexedSeq
     assert(childRVDs.forall(_.typ.key.startsWith(typ.key)))
@@ -1906,9 +1913,9 @@ case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: Strin
     TableLeftJoinRightDistinct(newLeft, newRight, root)
   }
 
-  protected[ir] override def execute(ctx: ExecuteContext): TableExecuteIntermediate = {
-    val leftValue = left.execute(ctx).asTableValue(ctx)
-    val rightValue = right.execute(ctx).asTableValue(ctx)
+  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
+    val leftValue = left.execute(ctx, r).asTableValue(ctx)
+    val rightValue = right.execute(ctx, r).asTableValue(ctx)
 
     val joinKey = math.min(left.typ.key.length, right.typ.key.length)
     new TableValueIntermediate(
@@ -1938,8 +1945,8 @@ case class TableMapPartitions(child: TableIR,
       globalName, partitionStreamName, newChildren(1).asInstanceOf[IR])
   }
 
-  protected[ir] override def execute(ctx: ExecuteContext): TableExecuteIntermediate = {
-    val tv = child.execute(ctx).asTableValue(ctx)
+  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
+    val tv = child.execute(ctx, r).asTableValue(ctx)
     val rowPType = tv.rvd.rowPType
     val globalPType = tv.globals.t
 
@@ -1988,8 +1995,8 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
-  protected[ir] override def execute(ctx: ExecuteContext): TableExecuteIntermediate = {
-    val tv = child.execute(ctx).asTableValue(ctx)
+  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
+    val tv = child.execute(ctx, r).asTableValue(ctx)
     val fsBc = ctx.fsBc
     val scanRef = genUID()
     val extracted = agg.Extract.apply(newRow, scanRef, Requiredness(this, ctx), isScan = true)
@@ -2301,8 +2308,8 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
-  protected[ir] override def execute(ctx: ExecuteContext): TableExecuteIntermediate = {
-    val tv = child.execute(ctx).asTableValue(ctx)
+  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
+    val tv = child.execute(ctx, r).asTableValue(ctx)
 
     val (Some(PTypeReferenceSingleCodeType(resultPType: PStruct)), f) = Compile[AsmFunction2RegionLongLong](ctx,
       FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.globals.t)))),
@@ -2358,8 +2365,8 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
     TableExplode(newChildren(0).asInstanceOf[TableIR], path)
   }
 
-  protected[ir] override def execute(ctx: ExecuteContext): TableExecuteIntermediate = {
-    val prev = child.execute(ctx).asTableValue(ctx)
+  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
+    val prev = child.execute(ctx, r).asTableValue(ctx)
 
     val (len, l) = Compile[AsmFunction2RegionLongInt](ctx,
       FastIndexedSeq(("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.rvd.rowPType)))),
@@ -2423,8 +2430,8 @@ case class TableUnion(children: IndexedSeq[TableIR]) extends TableIR {
 
   val typ: TableType = children(0).typ
 
-  protected[ir] override def execute(ctx: ExecuteContext): TableExecuteIntermediate = {
-    val tvs = children.map(_.execute(ctx).asTableValue(ctx))
+  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
+    val tvs = children.map(_.execute(ctx, r).asTableValue(ctx))
     new TableValueIntermediate(
       tvs(0).copy(
         rvd = RVD.union(RVD.unify(tvs.map(_.rvd)), tvs(0).typ.key.length, ctx)))
@@ -2484,8 +2491,8 @@ case class TableDistinct(child: TableIR) extends TableIR {
 
   val typ: TableType = child.typ
 
-  protected[ir] override def execute(ctx: ExecuteContext): TableExecuteIntermediate = {
-    val prev = child.execute(ctx).asTableValue(ctx)
+  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
+    val prev = child.execute(ctx, r).asTableValue(ctx)
     new TableValueIntermediate(prev.copy(rvd = prev.rvd.truncateKey(prev.typ.key).distinctByKey(ctx)))
   }
 }
@@ -2515,8 +2522,8 @@ case class TableKeyByAndAggregate(
     key = keyType.fieldNames
   )
 
-  protected[ir] override def execute(ctx: ExecuteContext): TableExecuteIntermediate = {
-    val prev = child.execute(ctx).asTableValue(ctx)
+  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
+    val prev = child.execute(ctx, r).asTableValue(ctx)
     val fsBc = ctx.fsBc
 
     val localKeyType = keyType
@@ -2662,8 +2669,8 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
 
   val typ: TableType = child.typ.copy(rowType = child.typ.keyType ++ coerce[TStruct](expr.typ))
 
-  protected[ir] override def execute(ctx: ExecuteContext): TableExecuteIntermediate = {
-    val prev = child.execute(ctx).asTableValue(ctx)
+  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
+    val prev = child.execute(ctx, r).asTableValue(ctx)
     val prevRVD = prev.rvd.truncateKey(child.typ.key)
     val fsBc = ctx.fsBc
 
@@ -2789,8 +2796,8 @@ case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) exten
 
   val typ: TableType = child.typ.copy(key = FastIndexedSeq())
 
-  protected[ir] override def execute(ctx: ExecuteContext): TableExecuteIntermediate = {
-    val prev = child.execute(ctx).asTableValue(ctx)
+  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
+    val prev = child.execute(ctx, r).asTableValue(ctx)
 
     val physicalKey = prev.rvd.typ.key
     if (TableOrderBy.isAlreadyOrdered(sortFields, physicalKey))
@@ -2864,9 +2871,9 @@ case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: M
     TableRename(newChild, rowMap, globalMap)
   }
 
-  protected[ir] override def execute(ctx: ExecuteContext): TableExecuteIntermediate =
+  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate =
     new TableValueIntermediate(
-      child.execute(ctx).asTableValue(ctx).rename(globalMap, rowMap))
+      child.execute(ctx, r).asTableValue(ctx).rename(globalMap, rowMap))
 }
 
 case class TableFilterIntervals(child: TableIR, intervals: IndexedSeq[Interval], keep: Boolean) extends TableIR {
@@ -2881,8 +2888,8 @@ case class TableFilterIntervals(child: TableIR, intervals: IndexedSeq[Interval],
 
   override lazy val typ: TableType = child.typ
 
-  protected[ir] override def execute(ctx: ExecuteContext): TableExecuteIntermediate = {
-    val tv = child.execute(ctx).asTableValue(ctx)
+  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
+    val tv = child.execute(ctx, r).asTableValue(ctx)
     val partitioner = RVDPartitioner.union(
       tv.typ.keyType,
       intervals,
@@ -2923,8 +2930,8 @@ case class TableToTableApply(child: TableIR, function: TableToTableFunction) ext
 
   lazy val rowCountUpperBound: Option[Long] = if (function.preservesPartitionCounts) child.rowCountUpperBound else None
 
-  protected[ir] override def execute(ctx: ExecuteContext): TableExecuteIntermediate = {
-    new TableValueIntermediate(function.execute(ctx, child.execute(ctx).asTableValue(ctx)))
+  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
+    new TableValueIntermediate(function.execute(ctx, child.execute(ctx, r).asTableValue(ctx)))
   }
 }
 
@@ -2945,7 +2952,7 @@ case class BlockMatrixToTableApply(
 
   override lazy val typ: TableType = function.typ(bm.typ, aux.typ)
 
-  protected[ir] override def execute(ctx: ExecuteContext): TableExecuteIntermediate = {
+  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
     val b = bm.execute(ctx)
     val a = CompileAndEvaluate[Any](ctx, aux, optimize = false)
     new TableValueIntermediate(function.execute(ctx, b, a))
@@ -2967,7 +2974,7 @@ case class BlockMatrixToTable(child: BlockMatrixIR) extends TableIR {
     TableType(rvType, Array[String](), TStruct.empty)
   }
 
-  protected[ir] override def execute(ctx: ExecuteContext): TableExecuteIntermediate = {
+  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
     new TableValueIntermediate(child.execute(ctx).entriesTable(ctx))
   }
 }
