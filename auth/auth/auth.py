@@ -574,7 +574,7 @@ async def verify_dev_credentials(request):
 
 
 @routes.get('/api/v1alpha/verify_dev_or_sa_credentials')
-async def verify_dev_credentials(request):
+async def verify_dev_or_sa_credentials(request):
     session_id = await get_session_id(request)
     if not session_id:
         raise web.HTTPUnauthorized()
