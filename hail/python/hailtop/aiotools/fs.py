@@ -192,7 +192,7 @@ class AsyncFS(abc.ABC):
     async def read_range(self, url: str, start: int, end: int) -> bytes:
         n = (end - start) + 1
         async with await self.open_from(url, start) as f:
-            return await f.read(n)
+            return await f.readexactly(n)
 
     async def write(self, url: str, data: bytes) -> None:
         async def _write() -> None:

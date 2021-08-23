@@ -1,4 +1,4 @@
-from typing import BinaryIO, Optional, Tuple, Type
+from typing import BinaryIO, List, Optional, Tuple, Type
 from types import TracebackType
 import abc
 import io
@@ -14,6 +14,9 @@ class ReadableStream(abc.ABC):
         self._waited_closed = False
 
     async def read(self, n: int = -1) -> bytes:
+        raise NotImplementedError
+
+    async def readexactly(self, n: int) -> bytes:
         raise NotImplementedError
 
     def close(self) -> None:
@@ -85,6 +88,10 @@ class WritableStream(abc.ABC):
         await self.wait_closed()
 
 
+class IncompleteRead(Exception):
+    pass
+
+
 class _ReadableStreamFromBlocking(ReadableStream):
     _thread_pool: ThreadPoolExecutor
     _f: BinaryIO
@@ -98,6 +105,20 @@ class _ReadableStreamFromBlocking(ReadableStream):
         if n == -1:
             return await blocking_to_async(self._thread_pool, self._f.read)
         return await blocking_to_async(self._thread_pool, self._f.read, n)
+
+    def _readexactly(self, n: int) -> bytes:
+        assert n >= 0
+        data: List[bytes] = []
+        while n > 0:
+            block = self._f.read(n)
+            if len(block) != n:
+                raise IncompleteRead()
+            data.append(block)
+            n -= len(block)
+        return b''.join(data)
+
+    async def readexactly(self, n: int) -> bytes:
+        return await blocking_to_async(self._thread_pool, self._readexactly, n)
 
     async def _wait_closed(self) -> None:
         await blocking_to_async(self._thread_pool, self._f.close)
