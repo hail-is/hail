@@ -951,36 +951,12 @@ object LowerTableIR {
             sorted
           }
 
-        case TableLeftJoinRightDistinct(left, right, root) =>
-          val commonKeyLength = right.typ.keyType.size
-          val loweredLeft = lower(left).strictify()
-          val leftKeyToRightKeyMap = left.typ.keyType.fieldNames.zip(right.typ.keyType.fieldNames).toMap
-          val newRightPartitioner = loweredLeft.partitioner.coarsen(commonKeyLength)
-            .rename(leftKeyToRightKeyMap)
-          val loweredRight = lower(right).repartitionNoShuffle(newRightPartitioner)
-
-          loweredLeft.zipPartitions(
-            loweredRight,
-            (lGlobals, _) => lGlobals,
-            (leftPart, rightPart) => {
-              val leftElementRef = Ref(genUID(), left.typ.rowType)
-              val rightElementRef = Ref(genUID(), right.typ.rowType)
-
-              val (typeOfRootStruct, _) = right.typ.rowType.filterSet(right.typ.key.toSet, false)
-              val rootStruct = SelectFields(rightElementRef, typeOfRootStruct.fieldNames.toIndexedSeq)
-              val joiningOp = InsertFields(leftElementRef, Seq(root -> rootStruct))
-              StreamJoinRightDistinct(
-                leftPart, rightPart,
-                left.typ.key.take(commonKeyLength), right.typ.key,
-                leftElementRef.name, rightElementRef.name,
-                joiningOp, "left")
-            })
+        case tj@TableLeftJoinRightDistinct(left, right, root) =>
+          LowerTableIRHelpers.lowerTableLeftJoinRightDistinct(ctx, tj, lower(left), lower(right))
 
         case tj@TableJoin(left, right, joinType, joinKey) =>
-          val loweredLeft = lower(left)
-          val loweredRight = lower(right)
+          LowerTableIRHelpers.lowerTableJoin(ctx, tj, lower(left), lower(right), r)
 
-          LowerTableIRHelpers.lowerTableJoin(ctx, tj, loweredLeft, loweredRight, r)
         case x@TableUnion(children) =>
           val lowered = children.map(lower)
           val keyType = x.typ.keyType

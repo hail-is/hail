@@ -1811,15 +1811,9 @@ case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: Strin
   }
 
   protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
-    val leftValue = left.execute(ctx, r).asTableValue(ctx)
-    val rightValue = right.execute(ctx, r).asTableValue(ctx)
-
-    val joinKey = math.min(left.typ.key.length, right.typ.key.length)
-    new TableValueIntermediate(
-      leftValue.copy(
-        typ = typ,
-        rvd = leftValue.rvd
-          .orderedLeftJoinDistinctAndInsert(rightValue.rvd.truncateKey(joinKey), root)))
+    val leftTS = left.execute(ctx, r).asTableStage(ctx)
+    val rightTS = right.execute(ctx, r).asTableStage(ctx)
+    new TableStageIntermediate(LowerTableIRHelpers.lowerTableLeftJoinRightDistinct(ctx, this, leftTS, rightTS))
   }
 }
 
