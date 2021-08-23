@@ -1697,7 +1697,7 @@ def import_table(paths,
 
     def split_lines(hl_str):
         if quote is None:
-            return hl_str._split_quoted(delimiter, missing, "~")
+            return hl_str._split_quoted(delimiter, missing, "zz")
         else:
             return hl_str._split_quoted(delimiter, missing, quote)
 
