@@ -109,9 +109,13 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
       f(memoizeField(ec, name))
     } else {
       assert(ec.st.isInstanceOf[SStream])
-      val m = emb.genFieldThisRef[Boolean](name + "_missing")
-      ec.toI(this).consume(this, assign(m, false), _ => assign(m, true))
-      val ev = EmitValue(Some(m), ec.pv.memoize(this, "wsmsv"))
+      val ev = if (ec.required)
+        EmitValue(None, ec.toI(this).get(this, "").memoize(this, "wsmsv"))
+      else {
+        val m = emb.genFieldThisRef[Boolean](name + "_missing")
+        ec.toI(this).consume(this, assign(m, true), _ => assign(m, false))
+        EmitValue(Some(m), ec.pv.memoize(this, "wsmsv"))
+      }
       val res = f(ev)
       ec.pv match {
         case SStreamCode(_, producer) => StreamProducer.defineUnusedLabels(producer, emb)
