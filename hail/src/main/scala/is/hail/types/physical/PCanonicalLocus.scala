@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SCanonicalLocusPointerCode, SStackStruct, SStringPointer}
+import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SCanonicalLocusPointerCode, SCanonicalLocusPointerValue, SStackStruct, SStringPointer}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.utils.FastIndexedSeq
 import is.hail.variant._
@@ -39,7 +39,8 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
 
   override def _pretty(sb: StringBuilder, indent: Call, compact: Boolean): Unit = sb.append(s"PCLocus($rg)")
 
-  def setRequired(required: Boolean) = if (required == this.required) this else PCanonicalLocus(this.rgBc, required)
+  def setRequired(required: Boolean): PCanonicalLocus =
+    if (required == this.required) this else PCanonicalLocus(this.rgBc, required)
 
   val representation: PCanonicalStruct = PCanonicalLocus.representation(required)
 
@@ -93,9 +94,10 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
     }
   }
 
-  def sType: SCanonicalLocusPointer = SCanonicalLocusPointer(setRequired(false).asInstanceOf[PCanonicalLocus])
+  def sType: SCanonicalLocusPointer = SCanonicalLocusPointer(setRequired(false))
 
-  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SCode = new SCanonicalLocusPointerCode(sType, addr)
+  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SCanonicalLocusPointerValue =
+    new SCanonicalLocusPointerCode(sType, addr).memoize(cb, "loadCheapSCode")
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {

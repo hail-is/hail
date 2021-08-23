@@ -25,8 +25,6 @@ final case class SIndexablePointer(pType: PContainer) extends SContainer {
     new SIndexablePointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 
-  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
-
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo, IntInfo, LongInfo)
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SIndexablePointerSettable = {
@@ -35,12 +33,6 @@ final case class SIndexablePointer(pType: PContainer) extends SContainer {
     assert(length.ti == IntInfo)
     assert(elementsAddress.ti == LongInfo)
     new SIndexablePointerSettable(this, a, length, elementsAddress)
-  }
-
-  override def fromCodes(codes: IndexedSeq[Code[_]]): SIndexablePointerCode = {
-    val IndexedSeq(a: Code[Long@unchecked]) = codes
-    assert(a.ti == LongInfo)
-    new SIndexablePointerCode(this, a)
   }
 
   override def fromValues(values: IndexedSeq[Value[_]]): SIndexablePointerValue = {
@@ -64,19 +56,17 @@ class SIndexablePointerCode(val st: SIndexablePointer, val a: Code[Long]) extend
 
   def code: Code[_] = a
 
-  override def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(a)
-
   override def codeLoadLength(): Code[Int] = pt.loadLength(a)
 
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SIndexableValue = {
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SIndexablePointerValue = {
     val s = SIndexablePointerSettable(sb, st, name)
     cb.assign(s, this)
     s
   }
 
-  override def memoize(cb: EmitCodeBuilder, name: String): SIndexableValue = memoize(cb, name, cb.localBuilder)
+  override def memoize(cb: EmitCodeBuilder, name: String): SIndexablePointerValue = memoize(cb, name, cb.localBuilder)
 
-  override def memoizeField(cb: EmitCodeBuilder, name: String): SIndexableValue = memoize(cb, name, cb.fieldBuilder)
+  override def memoizeField(cb: EmitCodeBuilder, name: String): SIndexablePointerValue = memoize(cb, name, cb.fieldBuilder)
 
   override def castToArray(cb: EmitCodeBuilder): SIndexableCode = {
     pt match {
@@ -95,7 +85,7 @@ class SIndexablePointerValue(
 ) extends SIndexableValue {
   val pt: PContainer = st.pType
 
-  def get: SIndexableCode = new SIndexablePointerCode(st, a)
+  def get: SIndexablePointerCode = new SIndexablePointerCode(st, a)
 
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a, length, elementsAddress)
 

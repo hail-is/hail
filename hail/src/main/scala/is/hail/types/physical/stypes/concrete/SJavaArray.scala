@@ -42,18 +42,11 @@ final case class SJavaArrayString(elementRequired: Boolean) extends SContainer {
     }
   }
 
-  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(arrayInfo[String])
-
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(arrayInfo[String])
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SJavaArrayStringSettable = {
     val IndexedSeq(a: Settable[Array[String]@unchecked]) = settables
     new SJavaArrayStringSettable(this, a)
-  }
-
-  override def fromCodes(codes: IndexedSeq[Code[_]]): SJavaArrayStringCode = {
-    val IndexedSeq(a: Code[Array[String]@unchecked]) = codes
-    new SJavaArrayStringCode(this, a)
   }
 
   override def fromValues(values: IndexedSeq[Value[_]]): SJavaArrayStringValue = {
@@ -65,8 +58,6 @@ final case class SJavaArrayString(elementRequired: Boolean) extends SContainer {
 }
 
 class SJavaArrayStringCode(val st: SJavaArrayString, val array: Code[Array[String]]) extends SIndexableCode {
-  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(array)
-
   def codeLoadLength(): Code[Int] = array.length()
 
   def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SIndexableValue = {

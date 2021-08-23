@@ -50,8 +50,6 @@ final case class SInsertFieldsStruct(virtualType: TStruct, parent: SBaseStruct, 
       case None => parent.fieldEmitTypes(parent.fieldIdx(f))
     }
   }
-
-  private lazy val insertedFieldCodeStarts = insertedFields.map(_._2.nCodes).scanLeft(0)(_ + _).init
   private lazy val insertedFieldSettableStarts = insertedFields.map(_._2.nSettables).scanLeft(0)(_ + _).init
 
   override lazy val fieldTypes: IndexedSeq[SType] = fieldEmitTypes.map(_.st)
@@ -79,18 +77,7 @@ final case class SInsertFieldsStruct(virtualType: TStruct, parent: SBaseStruct, 
 
   override def containsPointers: Boolean = parent.containsPointers || insertedFields.exists(_._2.st.containsPointers)
 
-  override lazy val codeTupleTypes: IndexedSeq[TypeInfo[_]] = parent.codeTupleTypes ++ insertedFields.flatMap(_._2.codeTupleTypes)
-
   override lazy val settableTupleTypes: IndexedSeq[TypeInfo[_]] = parent.settableTupleTypes() ++ insertedFields.flatMap(_._2.settableTupleTypes)
-
-  override def fromCodes(codes: IndexedSeq[Code[_]]): SInsertFieldsStructCode = {
-    assert(codes.map(_.ti) == codeTupleTypes)
-    new SInsertFieldsStructCode(this, parent.fromCodes(codes.take(parent.nCodes)).asInstanceOf[SBaseStructCode], insertedFields.indices.map { i =>
-      val et = insertedFields(i)._2
-      val start = insertedFieldCodeStarts(i) + parent.nCodes
-      et.fromCodes(codes.slice(start, start + et.nCodes))
-    })
-  }
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SInsertFieldsStructSettable = {
     assert(settables.map(_.ti) == settableTupleTypes)
@@ -185,8 +172,6 @@ final class SInsertFieldsStructSettable(
 }
 
 class SInsertFieldsStructCode(val st: SInsertFieldsStruct, val parent: SBaseStructCode, val newFields: IndexedSeq[EmitCode]) extends SBaseStructCode {
-  override def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = parent.makeCodeTuple(cb) ++ newFields.flatMap(_.makeCodeTuple(cb))
-
   override def memoize(cb: EmitCodeBuilder, name: String): SInsertFieldsStructSettable = {
     new SInsertFieldsStructSettable(st, parent.memoize(cb, name + "_parent").asInstanceOf[SBaseStructSettable], newFields.indices.map { i =>
       val code = newFields(i)

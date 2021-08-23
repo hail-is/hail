@@ -22,18 +22,12 @@ final case class SStringPointer(pType: PString) extends SString {
     new SStringPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 
-  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SStringPointerSettable = {
     val IndexedSeq(a: Settable[Long@unchecked]) = settables
     assert(a.ti == LongInfo)
     new SStringPointerSettable(this, a)
-  }
-
-  override def fromCodes(codes: IndexedSeq[Code[_]]): SStringPointerCode = {
-    val IndexedSeq(a: Code[Long@unchecked]) = codes
-    assert(a.ti == LongInfo)
-    new SStringPointerCode(this, a)
   }
 
   override def fromValues(values: IndexedSeq[Value[_]]): SStringPointerValue = {
@@ -57,23 +51,23 @@ final case class SStringPointer(pType: PString) extends SString {
 class SStringPointerCode(val st: SStringPointer, val a: Code[Long]) extends SStringCode {
   val pt: PString = st.pType
 
-  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(a)
-
   def loadLength(): Code[Int] = pt.loadLength(a)
 
   def loadString(): Code[String] = pt.loadString(a)
 
   def toBytes(): SBinaryPointerCode = new SBinaryPointerCode(SBinaryPointer(pt.binaryRepresentation), a)
 
-  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SValue = {
+  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SStringPointerValue = {
     val s = new SStringPointerSettable(st, sb.newSettable[Long]("sstringpointer_memoize"))
     s.store(cb, this)
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String): SValue = memoizeWithBuilder(cb, name, cb.localBuilder)
+  def memoize(cb: EmitCodeBuilder, name: String): SStringPointerValue =
+    memoizeWithBuilder(cb, name, cb.localBuilder)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): SValue = memoizeWithBuilder(cb, name, cb.fieldBuilder)
+  def memoizeField(cb: EmitCodeBuilder, name: String): SStringPointerValue =
+    memoizeWithBuilder(cb, name, cb.fieldBuilder)
 
   def binaryRepr: SBinaryPointerCode = new SBinaryPointerCode(SBinaryPointer(st.pType.binaryRepresentation), a)
 }

@@ -30,8 +30,6 @@ object SUnreachable {
 }
 
 abstract class SUnreachable extends SType {
-  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq()
-
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq()
 
   override def storageType(): PType = PType.canonical(virtualType, required = false, innerRequired = true)
@@ -44,8 +42,6 @@ abstract class SUnreachable extends SType {
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SSettable = sv
 
-  override def fromCodes(codes: IndexedSeq[Code[_]]): SUnreachableValue = sv
-
   override def fromValues(values: IndexedSeq[Value[_]]): SUnreachableValue = sv
 
   override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = sv
@@ -56,8 +52,6 @@ abstract class SUnreachable extends SType {
 }
 
 abstract class SUnreachableValue extends SCode with SSettable {
-  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq()
-
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq()
 
   def valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq()
@@ -88,8 +82,6 @@ case class SUnreachableStruct(virtualType: TBaseStruct) extends SUnreachable wit
   def fieldIdx(fieldName: String): Int = virtualType.fieldIdx(fieldName)
 
   val sv = new SUnreachableStructValue(this)
-
-  override def fromCodes(codes: IndexedSeq[Code[_]]): SUnreachableStructValue = sv
 }
 
 class SUnreachableStructValue(val st: SUnreachableStruct) extends SUnreachableValue with SBaseStructValue with SBaseStructCode {
@@ -103,7 +95,7 @@ class SUnreachableStructValue(val st: SUnreachableStruct) extends SUnreachableVa
 
   override def loadSingleField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = loadField(cb, fieldIdx)
 
-  override def subset(fieldNames: String*): SBaseStructCode = {
+  override def subset(fieldNames: String*): SBaseStructValue = {
     val oldType = st.virtualType.asInstanceOf[TStruct]
     val newType = TStruct(fieldNames.map(f => (f, oldType.fieldType(f))): _*)
     new SUnreachableStructValue(SUnreachableStruct(newType))

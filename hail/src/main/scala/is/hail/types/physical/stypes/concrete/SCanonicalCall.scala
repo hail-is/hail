@@ -25,18 +25,12 @@ case object SCanonicalCall extends SCall {
 
   override def castRename(t: Type): SType = this
 
-  def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(IntInfo)
+  def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(IntInfo)
 
   def fromSettables(settables: IndexedSeq[Settable[_]]): SCanonicalCallSettable = {
     val IndexedSeq(call: Settable[Int@unchecked]) = settables
     assert(call.ti == IntInfo)
     new SCanonicalCallSettable(call)
-  }
-
-  def fromCodes(codes: IndexedSeq[Code[_]]): SCanonicalCallCode = {
-    val IndexedSeq(call: Code[Int@unchecked]) = codes
-    assert(call.ti == IntInfo)
-    new SCanonicalCallCode(call)
   }
 
   def fromValues(values: IndexedSeq[Value[_]]): SCanonicalCallValue = {
@@ -154,21 +148,19 @@ class SCanonicalCallCode(val call: Code[Int]) extends SCallCode {
 
   def code: Code[_] = call
 
-  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(call)
-
   def ploidy(): Code[Int] = (call >>> 1) & 0x3
 
   def isPhased(): Code[Boolean] = (call & 0x1).ceq(1)
 
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SCallValue = {
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SCanonicalCallValue = {
     val s = SCanonicalCallSettable(sb, name)
     cb.assign(s, this)
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String): SCallValue = memoize(cb, name, cb.localBuilder)
+  def memoize(cb: EmitCodeBuilder, name: String): SCanonicalCallValue = memoize(cb, name, cb.localBuilder)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): SCallValue = memoize(cb, name, cb.fieldBuilder)
+  def memoizeField(cb: EmitCodeBuilder, name: String): SCanonicalCallValue = memoize(cb, name, cb.fieldBuilder)
 
   def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = Region.storeInt(dst, call)
 

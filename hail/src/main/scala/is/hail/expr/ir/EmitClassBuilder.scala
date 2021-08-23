@@ -518,17 +518,17 @@ class EmitClassBuilder[C](
   private def getCodeArgsInfo(argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): (IndexedSeq[TypeInfo[_]], TypeInfo[_], AsmTuple[_]) = {
     val codeArgsInfo = argsInfo.flatMap {
       case CodeParamType(ti) => FastIndexedSeq(ti)
-      case t: EmitParamType => t.codeTupleTypes
-      case SCodeParamType(pt) => pt.codeTupleTypes()
+      case t: EmitParamType => t.valueTupleTypes
+      case SCodeParamType(pt) => pt.settableTupleTypes()
     }
     val (codeReturnInfo, asmTuple) = returnInfo match {
       case CodeParamType(ti) => ti -> null
-      case SCodeParamType(pt) if pt.nCodes == 1 => pt.codeTupleTypes().head -> null
+      case SCodeParamType(pt) if pt.nSettables == 1 => pt.settableTupleTypes().head -> null
       case SCodeParamType(pt) =>
-        val asmTuple = modb.tupleClass(pt.codeTupleTypes())
+        val asmTuple = modb.tupleClass(pt.settableTupleTypes())
         asmTuple.ti -> asmTuple
       case t: EmitParamType =>
-        val ts = t.codeTupleTypes
+        val ts = t.valueTupleTypes
         if (ts.length == 1)
           ts.head -> null
         else {
@@ -885,11 +885,11 @@ class EmitMethodBuilder[C](
     val _st = emitParamTypes(emitIndex - static).asInstanceOf[SCodeParamType].st
     assert(_st.isRealizable)
 
-    val ts = _st.codeTupleTypes()
+    val ts = _st.settableTupleTypes()
     val codeIndex = emitParamCodeIndex(emitIndex - static)
 
-    _st.fromCodes(ts.zipWithIndex.map { case (t, i) =>
-      mb.getArg(codeIndex + i)(t).load()
+    _st.fromValues(ts.zipWithIndex.map { case (t, i) =>
+      mb.getArg(codeIndex + i)(t)
     })
   }
 
@@ -984,11 +984,11 @@ class EmitMethodBuilder[C](
 
   def emitSCode(f: (EmitCodeBuilder) => SCode): Unit = {
     emit(EmitCodeBuilder.scopedCode(this) { cb =>
-      val res = f(cb)
-      if (res.st.nCodes == 1)
-        res.makeCodeTuple(cb).head
+      val res = f(cb).memoize(cb, "emitSCode")
+      if (res.st.nSettables == 1)
+        res.valueTuple.head
       else
-        asmTuple.newTuple(res.makeCodeTuple(cb))
+        asmTuple.newTuple(res.valueTuple.map(_.get))
     })
   }
 

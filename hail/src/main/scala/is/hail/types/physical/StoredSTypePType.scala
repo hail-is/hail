@@ -3,7 +3,7 @@ package is.hail.types.physical
 import is.hail.annotations.{Annotation, Region, UnsafeOrdering}
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
-import is.hail.types.physical.stypes.{SCode, SType}
+import is.hail.types.physical.stypes.{SCode, SType, SValue}
 import is.hail.types.virtual.Type
 import is.hail.utils._
 
@@ -67,26 +67,41 @@ class StoredCodeTuple(tis: Array[TypeInfo[_]]) {
       }
     }
   }
+
+  def loadValues(cb: EmitCodeBuilder, addr: Value[Long]): IndexedSeq[Value[_]] = {
+    tis.indices.map { i =>
+      val ti = tis(i)
+      val offset = addr + fieldOffsets(i)
+      val code = ti match {
+        case IntInfo => Region.loadInt(offset)
+        case LongInfo => Region.loadLong(offset)
+        case FloatInfo => Region.loadFloat(offset)
+        case DoubleInfo => Region.loadDouble(offset)
+        case BooleanInfo => Region.loadBoolean(offset)
+      }
+      cb.memoize(code)(ti.asInstanceOf[TypeInfo[AnyVal]])
+    }
+  }
 }
 
 case class StoredSTypePType(sType: SType, required: Boolean) extends PType {
 
-  private[this] lazy val ct = new StoredCodeTuple(sType.codeTupleTypes().toArray)
+  private[this] lazy val ct = new StoredCodeTuple(sType.settableTupleTypes().toArray)
 
   override def virtualType: Type = sType.virtualType
 
   override def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     val addr = cb.newLocal[Long]("stored_stype_ptype_addr", region.allocate(ct.alignment, ct.byteSize))
-    ct.store(cb, addr, value.st.coerceOrCopy(cb, region, value, deepCopy).makeCodeTuple(cb))
+    ct.store(cb, addr, value.st.coerceOrCopy(cb, region, value, deepCopy).memoize(cb, "store").valueTuple.map(_.get))
     addr
   }
 
   override def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
-    ct.store(cb, cb.newLocal[Long]("stored_stype_ptype_addr", addr), value.st.coerceOrCopy(cb, region, value, deepCopy).makeCodeTuple(cb))
+    ct.store(cb, cb.newLocal[Long]("stored_stype_ptype_addr", addr), value.st.coerceOrCopy(cb, region, value, deepCopy).memoize(cb, "storeAtAddress").valueTuple.map(_.get))
   }
 
-  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SCode = {
-    sType.fromCodes(ct.load(cb, cb.newLocal[Long]("stored_stype_ptype_loaded_addr")))
+  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SValue = {
+    sType.fromValues(ct.loadValues(cb, cb.newLocal[Long]("stored_stype_ptype_loaded_addr")))
   }
 
   override def loadFromNested(addr: Code[Long]): Code[Long] = addr

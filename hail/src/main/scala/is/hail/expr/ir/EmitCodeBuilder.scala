@@ -83,6 +83,12 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     newLocal[T]("memoize", v)
   }
 
+  def memoizeAny(v: Code[_], ti: TypeInfo[_]): Value[_] = {
+    val l = newLocal("memoize")(ti)
+    append(l.storeAny(v))
+    l
+  }
+
   def memoize(v: EmitCode, name: String): EmitValue = {
     require(v.st.isRealizable)
     val l = emb.newEmitLocal(name, v.emitType)
@@ -153,7 +159,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
             throw new RuntimeException(s"invoke ${ callee.mb.methodName }: arg $i: type mismatch:" +
               s"\n  got ${ pc.st }" +
               s"\n  expected ${ pcpt.st }")
-          pc.makeCodeTuple(this)
+          memoize(pc, "_invoke").valueTuple.map(_.get)
         case (EmitParam(ec), SCodeEmitParamType(et)) =>
           if (!ec.emitType.equalModuloRequired(et)) {
             throw new RuntimeException(s"invoke ${callee.mb.methodName}: arg $i: type mismatch:" +
@@ -195,11 +201,11 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
 
   def invokeSCode(callee: EmitMethodBuilder[_], args: Param*): SCode = {
     val st = callee.emitReturnType.asInstanceOf[SCodeParamType].st
-    if (st.nCodes == 1)
-      st.fromCodes(FastIndexedSeq(_invoke(callee, args: _*)))
+    if (st.nSettables == 1)
+      st.fromValues(FastIndexedSeq(memoize(_invoke(callee, args: _*))(st.settableTupleTypes()(0))))
     else {
       val tup = newLocal("invokepcode_tuple", _invoke(callee, args: _*))(callee.asmTuple.ti)
-      st.fromCodes(callee.asmTuple.loadElementsAny(tup))
+      st.fromValues(callee.asmTuple.loadElementsAny(tup))
     }
   }
 

@@ -535,7 +535,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
           }
       }.a
     }
-    resultType.loadCheapSCode(cb, cb.invokeCode[Long](mb, _r))
+    resultType.loadCheapSCode(cb, cb.invokeCode[Long](mb, _r)).get
   }
 }
 

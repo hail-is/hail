@@ -22,8 +22,6 @@ final case class SIntervalPointer(pType: PInterval) extends SInterval {
 
   override lazy val virtualType: Type = pType.virtualType
 
-  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
-
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo, BooleanInfo, BooleanInfo)
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SIntervalPointerSettable = {
@@ -32,12 +30,6 @@ final case class SIntervalPointer(pType: PInterval) extends SInterval {
     assert(includesStart.ti == BooleanInfo)
     assert(includesEnd.ti == BooleanInfo)
     new SIntervalPointerSettable(this, a, includesStart, includesEnd)
-  }
-
-  override def fromCodes(codes: IndexedSeq[Code[_]]): SIntervalPointerCode = {
-    val IndexedSeq(a: Code[Long@unchecked]) = codes
-    assert(a.ti == LongInfo)
-    new SIntervalPointerCode(this, a)
   }
 
   override def fromValues(values: IndexedSeq[Value[_]]): SIntervalPointerValue = {
@@ -128,19 +120,17 @@ class SIntervalPointerCode(val st: SIntervalPointer, val a: Code[Long]) extends 
 
   def code: Code[_] = a
 
-  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(a)
-
   def codeIncludesStart(): Code[Boolean] = pt.includesStart(a)
 
   def codeIncludesEnd(): Code[Boolean] = pt.includesEnd(a)
 
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SIntervalValue = {
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SIntervalPointerValue = {
     val s = SIntervalPointerSettable(sb, st, name)
     cb.assign(s, this)
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String): SIntervalValue = memoize(cb, name, cb.localBuilder)
+  def memoize(cb: EmitCodeBuilder, name: String): SIntervalPointerValue = memoize(cb, name, cb.localBuilder)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): SIntervalValue = memoize(cb, name, cb.fieldBuilder)
+  def memoizeField(cb: EmitCodeBuilder, name: String): SIntervalPointerValue = memoize(cb, name, cb.fieldBuilder)
 }

@@ -23,18 +23,12 @@ case object SBoolean extends SPrimitive {
     }
   }
 
-  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(BooleanInfo)
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(BooleanInfo)
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SBooleanSettable = {
     val IndexedSeq(x: Settable[Boolean@unchecked]) = settables
     assert(x.ti == BooleanInfo)
     new SBooleanSettable( x)
-  }
-
-  override def fromCodes(codes: IndexedSeq[Code[_]]): SBooleanCode = {
-    val IndexedSeq(x: Code[Boolean@unchecked]) = codes
-    assert(x.ti == BooleanInfo)
-    new SBooleanCode(x)
   }
 
   override def fromValues(values: IndexedSeq[Value[_]]): SBooleanValue = {
@@ -50,8 +44,6 @@ class SBooleanCode(val code: Code[Boolean]) extends SPrimitiveCode {
   override def _primitiveCode: Code[_] = code
 
   def st: SBoolean.type = SBoolean
-
-  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(code)
 
   private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SBooleanSettable = {
     val s = new SBooleanSettable(sb.newSettable[Boolean]("sboolean_memoize"))

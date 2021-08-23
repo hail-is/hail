@@ -19,7 +19,7 @@ final case class SBinaryPointer(pType: PBinary) extends SBinary {
     new SBinaryPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 
-  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
 
   def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
     if (pt == this.pType)
@@ -32,12 +32,6 @@ final case class SBinaryPointer(pType: PBinary) extends SBinary {
     val IndexedSeq(a: Settable[Long@unchecked]) = settables
     assert(a.ti == LongInfo)
     new SBinaryPointerSettable(this, a)
-  }
-
-  override def fromCodes(codes: IndexedSeq[Code[_]]): SBinaryPointerCode = {
-    val IndexedSeq(a: Code[Long@unchecked]) = codes
-    assert(a.ti == LongInfo)
-    new SBinaryPointerCode(this, a)
   }
 
   override def fromValues(values: IndexedSeq[Value[_]]): SBinaryPointerValue = {
@@ -93,22 +87,20 @@ class SBinaryPointerCode(val st: SBinaryPointer, val a: Code[Long]) extends SBin
 
   def code: Code[_] = a
 
-  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(a)
-
   def loadLength(): Code[Int] = pt.loadLength(a)
 
   def loadBytes(): Code[Array[Byte]] = pt.loadBytes(a)
 
-  def memoize(cb: EmitCodeBuilder, sb: SettableBuilder, name: String): SBinaryPointerSettable = {
+  def memoize(cb: EmitCodeBuilder, sb: SettableBuilder, name: String): SBinaryPointerValue = {
     val s = SBinaryPointerSettable(sb, st, name)
     cb.assign(s, this)
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String): SBinaryPointerSettable =
+  def memoize(cb: EmitCodeBuilder, name: String): SBinaryPointerValue =
     memoize(cb, cb.localBuilder, name)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): SBinaryPointerSettable =
+  def memoizeField(cb: EmitCodeBuilder, name: String): SBinaryPointerValue =
     memoize(cb, cb.fieldBuilder, name)
 
   def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = {

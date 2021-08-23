@@ -22,18 +22,12 @@ case object SInt32 extends SPrimitive {
     }
   }
 
-  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(IntInfo)
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(IntInfo)
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SInt32Settable = {
     val IndexedSeq(x: Settable[Int@unchecked]) = settables
     assert(x.ti == IntInfo)
     new SInt32Settable(x)
-  }
-
-  override def fromCodes(codes: IndexedSeq[Code[_]]): SInt32Code = {
-    val IndexedSeq(x: Code[Int@unchecked]) = codes
-    assert(x.ti == IntInfo)
-    new SInt32Code(x)
   }
 
   override def fromValues(settables: IndexedSeq[Value[_]]): SInt32Value = {
@@ -49,8 +43,6 @@ class SInt32Code(val code: Code[Int]) extends SPrimitiveCode {
   override def _primitiveCode: Code[_] = code
 
   def st: SInt32.type = SInt32
-
-  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(code)
 
   private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SInt32Value = {
     val s = new SInt32Settable(sb.newSettable[Int]("sInt32_memoize"))

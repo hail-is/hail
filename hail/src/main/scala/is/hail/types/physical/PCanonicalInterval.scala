@@ -4,7 +4,7 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
 import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.{SIntervalPointer, SIntervalPointerCode, SStackStruct, SUnreachableInterval}
+import is.hail.types.physical.stypes.concrete.{SIntervalPointer, SIntervalPointerCode, SIntervalPointerValue, SStackStruct, SUnreachableInterval}
 import is.hail.types.physical.stypes.interfaces.primitive
 import is.hail.types.physical.stypes.primitives.SBooleanCode
 import is.hail.types.virtual.{TInterval, Type}
@@ -31,7 +31,8 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
     "includesStart" -> PBooleanRequired,
     "includesEnd" -> PBooleanRequired)
 
-  def setRequired(required: Boolean) = if (required == this.required) this else PCanonicalInterval(this.pointType, required)
+  def setRequired(required: Boolean): PCanonicalInterval =
+    if (required == this.required) this else PCanonicalInterval(this.pointType, required)
 
   def startOffset(off: Code[Long]): Code[Long] = representation.fieldOffset(off, 0)
 
@@ -70,9 +71,10 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
 
   def containsPointers: Boolean = representation.containsPointers
 
-  def sType: SIntervalPointer = SIntervalPointer(setRequired(false).asInstanceOf[PCanonicalInterval])
+  def sType: SIntervalPointer = SIntervalPointer(setRequired(false))
 
-  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SCode = new SIntervalPointerCode(sType, addr)
+  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SIntervalPointerValue =
+    new SIntervalPointerCode(sType, addr).memoize(cb, "loadCheapSCode")
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {

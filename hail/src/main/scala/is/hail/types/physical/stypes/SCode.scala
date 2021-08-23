@@ -50,10 +50,6 @@ abstract class SCode {
 
   def st: SType
 
-  // requires a code builder because forming a code tuple may require appending
-  // straight-line code, e.g. if a SCode contains nested EmitCodes
-  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]]
-
   def asBoolean: SBooleanCode = asInstanceOf[SBooleanCode]
 
   def asInt: SInt32Code = asInstanceOf[SInt32Code]
@@ -185,8 +181,6 @@ trait SUnrealizableCode extends SCode {
     throw new UnsupportedOperationException(s"$this is not realizable")
 
   def code: Code[_] = unsupported
-
-  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = unsupported
 
   def memoizeField(cb: EmitCodeBuilder, name: String): SValue = unsupported
 }

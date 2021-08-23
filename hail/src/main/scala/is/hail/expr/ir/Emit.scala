@@ -426,20 +426,6 @@ class EmitCode(private val start: CodeLabel, private val iec: IEmitCode) {
     EmitCode.fromI(mb)(cb => toI(cb).map(cb)(_.castTo(cb, region, destType)))
   }
 
-  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = {
-    val ct = if (required) {
-      toI(cb).get(cb).makeCodeTuple(cb)
-    } else {
-      val es = cb.emb.newEmitLocal("ec_makecodetuple", emitType)
-      cb.assign(es, toI(cb))
-      es.pv.makeCodeTuple(cb) :+ es.m.get
-    }
-
-    assert(ct.zip(emitParamType.codeTupleTypes).forall { case (p, pt) => p.ti == pt.ti},
-      s"ctt mismatch: $emitType\n  param: ${ct.map(_.ti)}\n  types: ${emitParamType.codeTupleTypes}")
-    ct
-  }
-
   def missingIf(mb: EmitMethodBuilder[_], cond: Code[Boolean]): EmitCode =
     EmitCode.fromI(mb) { cb =>
       val Ltrue = CodeLabel()
@@ -839,7 +825,7 @@ class Emit[C](
         iec.map(cb)(pc => cast(cb, pc))
       case CastRename(v, _typ) =>
         emitI(v)
-          .map(cb)(pc => pc.st.castRename(_typ).fromCodes(pc.makeCodeTuple(cb)))
+          .map(cb)(pc => pc.st.castRename(_typ).fromValues(pc.memoize(cb, "CastRename").valueTuple))
       case NA(typ) =>
         IEmitCode.missing(cb, SUnreachable.fromVirtualType(typ).defaultValue)
       case IsNA(v) =>
@@ -917,7 +903,7 @@ class Emit[C](
 
       case x@SelectFields(oldStruct, fields) =>
         emitI(oldStruct)
-          .map(cb) { case sc: SBaseStructCode => sc.subset(fields: _*) }
+          .map(cb) { case sc: SBaseStructCode => sc.memoize(cb, "SelectFields").subset(fields: _*) }
 
       case x@InsertFields(old, fields, _) =>
         if (fields.isEmpty)

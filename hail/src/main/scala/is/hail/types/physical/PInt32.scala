@@ -4,7 +4,7 @@ import is.hail.annotations.{Region, UnsafeOrdering, _}
 import is.hail.asm4s.{Code, coerce, const, _}
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Code}
+import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Code, SInt32Value}
 import is.hail.types.physical.stypes.{SCode, SType}
 import is.hail.types.virtual.TInt32
 
@@ -40,7 +40,8 @@ class PInt32(override val required: Boolean) extends PNumeric with PPrimitive {
   def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SCode): Unit =
     cb.append(Region.storeInt(addr, value.asInt.intCode(cb)))
 
-  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SCode = new SInt32Code(Region.loadInt(addr))
+  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SInt32Value =
+    new SInt32Code(Region.loadInt(addr)).memoize(cb, "loadCheapSCode")
 
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
     Region.storeInt(addr, annotation.asInstanceOf[Int])

@@ -18,9 +18,7 @@ case object SVoid extends SType {
 
   override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = value
 
-  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = IndexedSeq()
-
-  override def fromCodes(codes: IndexedSeq[Code[_]]): SCode = throw new UnsupportedOperationException
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = IndexedSeq()
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SSettable = throw new UnsupportedOperationException
 

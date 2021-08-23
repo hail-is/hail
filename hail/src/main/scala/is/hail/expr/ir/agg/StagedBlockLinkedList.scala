@@ -209,7 +209,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
       foreachNode(cb, n) { cb =>
         cb += ob.writeBoolean(true)
         cb.assign(b, buffer(n))
-        bufferEType.buildPrefixEncoder(cb, bufferType.loadCheapSCode(cb, b).memoize(cb, "sbll_serialize_v"), ob, count(n))
+        bufferEType.buildPrefixEncoder(cb, bufferType.loadCheapSCode(cb, b), ob, count(n))
       }
       cb += ob.writeBoolean(false)
     }

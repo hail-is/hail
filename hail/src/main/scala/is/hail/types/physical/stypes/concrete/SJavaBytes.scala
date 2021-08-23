@@ -27,16 +27,11 @@ case object SJavaBytes extends SBinary {
     }
   }
 
-  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(arrayInfo[Byte])
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(arrayInfo[Byte])
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SJavaBytesSettable = {
     val IndexedSeq(b: Settable[Array[Byte]@unchecked]) = settables
     new SJavaBytesSettable(b)
-  }
-
-  override def fromCodes(codes: IndexedSeq[Code[_]]): SJavaBytesCode = {
-    val IndexedSeq(b: Settable[Array[Byte]@unchecked]) = codes
-    new SJavaBytesCode(b)
   }
 
   override def fromValues(values: IndexedSeq[Value[_]]): SJavaBytesValue = {
@@ -47,8 +42,6 @@ case object SJavaBytes extends SBinary {
 
 class SJavaBytesCode(val bytes: Code[Array[Byte]]) extends SBinaryCode {
   def st: SBinary = SJavaBytes
-
-  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(bytes)
 
   def loadLength(): Code[Int] = bytes.invoke[Int]("length")
 

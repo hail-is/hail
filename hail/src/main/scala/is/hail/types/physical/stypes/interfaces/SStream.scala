@@ -19,9 +19,7 @@ final case class SStream(elementEmitType: EmitType) extends SType {
     value
   }
 
-  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = throw new NotImplementedError()
-
-  override def fromCodes(codes: IndexedSeq[Code[_]]): SCode = throw new NotImplementedError()
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = throw new NotImplementedError()
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SSettable = throw new NotImplementedError()
 

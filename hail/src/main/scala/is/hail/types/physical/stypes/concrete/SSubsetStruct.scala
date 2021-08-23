@@ -52,16 +52,10 @@ final case class SSubsetStruct(parent: SBaseStruct, fieldNames: IndexedSeq[Strin
     }
   }
 
-  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = parent.codeTupleTypes()
-
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = parent.settableTupleTypes()
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SSubsetStructSettable = {
     new SSubsetStructSettable(this, parent.fromSettables(settables).asInstanceOf[SBaseStructSettable])
-  }
-
-  override def fromCodes(codes: IndexedSeq[Code[_]]): SSubsetStructCode = {
-    new SSubsetStructCode(this, parent.fromCodes(codes))
   }
 
   override def fromValues(values: IndexedSeq[Value[_]]): SSubsetStructValue = {
@@ -110,8 +104,6 @@ final class SSubsetStructSettable(st: SSubsetStruct, prev: SBaseStructSettable) 
 }
 
 class SSubsetStructCode(val st: SSubsetStruct, val prev: SBaseStructCode) extends SBaseStructCode {
-  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = prev.makeCodeTuple(cb)
-
   def memoize(cb: EmitCodeBuilder, name: String): SBaseStructValue = {
     new SSubsetStructSettable(st, prev.memoize(cb, name).asInstanceOf[SBaseStructSettable])
   }

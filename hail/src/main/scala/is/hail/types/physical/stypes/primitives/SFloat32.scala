@@ -22,18 +22,12 @@ case object SFloat32 extends SPrimitive {
     }
   }
 
-  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(FloatInfo)
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(FloatInfo)
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SFloat32Settable = {
     val IndexedSeq(x: Settable[Float@unchecked]) = settables
     assert(x.ti == FloatInfo)
     new SFloat32Settable(x)
-  }
-
-  override def fromCodes(codes: IndexedSeq[Code[_]]): SFloat32Code = {
-    val IndexedSeq(x: Code[Float@unchecked]) = codes
-    assert(x.ti == FloatInfo)
-    new SFloat32Code(x)
   }
 
   override def fromValues(values: IndexedSeq[Value[_]]): SFloat32Value = {
@@ -51,8 +45,6 @@ class SFloat32Code(val code: Code[Float]) extends SPrimitiveCode {
   val pt: PFloat32 = PFloat32(false)
 
   override def st: SFloat32.type = SFloat32
-
-  override def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(code)
 
   private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SFloat32Value = {
     val s = new SFloat32Settable(sb.newSettable[Float]("sint64_memoize"))

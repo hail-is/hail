@@ -27,16 +27,11 @@ case object SJavaString extends SString {
     }
   }
 
-  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(classInfo[String])
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(classInfo[String])
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SJavaStringSettable = {
     val IndexedSeq(s: Settable[String@unchecked]) = settables
     new SJavaStringSettable(s)
-  }
-
-  override def fromCodes(codes: IndexedSeq[Code[_]]): SJavaStringCode = {
-    val IndexedSeq(s: Code[String@unchecked]) = codes
-    new SJavaStringCode(s)
   }
 
   override def fromValues(values: IndexedSeq[Value[_]]): SJavaStringValue = {
@@ -53,8 +48,6 @@ case object SJavaString extends SString {
 
 class SJavaStringCode(val s: Code[String]) extends SStringCode {
   def st: SString = SJavaString
-
-  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(s)
 
   def loadLength(): Code[Int] = s.invoke[Int]("length")
 
