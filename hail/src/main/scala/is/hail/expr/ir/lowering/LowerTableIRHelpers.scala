@@ -1,6 +1,6 @@
 package is.hail.expr.ir.lowering
 
-import is.hail.expr.ir.{Coalesce, Die, ExecuteContext, GetField, IR, InsertFields, Let, MakeStruct, Ref, RequirednessAnalysis, TableIR, TableJoin, genUID}
+import is.hail.expr.ir.{Coalesce, Die, ExecuteContext, GetField, IR, InsertFields, Let, MakeStruct, Ref, RequirednessAnalysis, SelectFields, StreamJoinRightDistinct, TableIR, TableJoin, TableLeftJoinRightDistinct, genUID}
 import is.hail.types.RTable
 import is.hail.types.virtual.TStruct
 import is.hail.utils.FastSeq
@@ -39,5 +39,32 @@ object LowerTableIRHelpers {
 
     assert(joinedStage.rowType == tj.typ.rowType)
     joinedStage
+  }
+
+  def lowerTableLeftJoinRightDistinct(ctx: ExecuteContext, tj: TableLeftJoinRightDistinct, loweredLeftUnstrict: TableStage, loweredRight: TableStage): TableStage = {
+    val TableLeftJoinRightDistinct(left, right, root) = tj
+    val commonKeyLength = right.typ.keyType.size
+    val loweredLeft = loweredLeftUnstrict.strictify()
+    val leftKeyToRightKeyMap = left.typ.keyType.fieldNames.zip(right.typ.keyType.fieldNames).toMap
+    val newRightPartitioner = loweredLeft.partitioner.coarsen(commonKeyLength)
+      .rename(leftKeyToRightKeyMap)
+    val repartitionedRight = loweredRight.repartitionNoShuffle(newRightPartitioner)
+
+    loweredLeft.zipPartitions(
+      repartitionedRight,
+      (lGlobals, _) => lGlobals,
+      (leftPart, rightPart) => {
+        val leftElementRef = Ref(genUID(), left.typ.rowType)
+        val rightElementRef = Ref(genUID(), right.typ.rowType)
+
+        val (typeOfRootStruct, _) = right.typ.rowType.filterSet(right.typ.key.toSet, false)
+        val rootStruct = SelectFields(rightElementRef, typeOfRootStruct.fieldNames.toIndexedSeq)
+        val joiningOp = InsertFields(leftElementRef, Seq(root -> rootStruct))
+        StreamJoinRightDistinct(
+          leftPart, rightPart,
+          left.typ.key.take(commonKeyLength), right.typ.key,
+          leftElementRef.name, rightElementRef.name,
+          joiningOp, "left")
+      })
   }
 }

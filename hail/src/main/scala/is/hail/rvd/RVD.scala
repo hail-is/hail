@@ -976,57 +976,6 @@ class RVD(
 
   // Joining
 
-  def orderedLeftJoinDistinctAndInsert(
-    right: RVD,
-    root: String): RVD = {
-    assert(!typ.key.contains(root))
-
-    val rightRowType = right.typ.rowType
-
-    val newRowType = rowPType.appendKey(root, right.typ.valueType.setRequired(false))
-
-    val localRowType = rowPType
-
-    val rightValueIndices = right.typ.valueFieldIdx
-
-    val joiner = { (ctx: RVDContext, it: Iterator[JoinedRegionValue]) =>
-      val rvb = ctx.rvb
-      val rv = RegionValue()
-
-      it.map { jrv =>
-        val lrv = jrv.rvLeft
-        val rrv = jrv.rvRight
-        rvb.start(newRowType)
-        rvb.startStruct()
-        rvb.addAllFields(localRowType, lrv)
-        if (rrv == null)
-          rvb.setMissing()
-        else {
-          rvb.startStruct()
-          rvb.addFields(rightRowType, rrv, rightValueIndices)
-          rvb.endStruct()
-        }
-        rvb.endStruct()
-        rv.set(ctx.region, rvb.end())
-        rv
-      }
-    }
-    assert(typ.key.length >= right.typ.key.length, s"$typ >= ${ right.typ }\n  $this\n  $right")
-    orderedLeftJoinDistinct(
-      right,
-      right.typ.key.length,
-      joiner,
-      typ.copy(rowType = newRowType))
-  }
-
-  def orderedLeftJoinDistinct(
-    right: RVD,
-    joinKey: Int,
-    joiner: (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue],
-    joinedType: RVDType
-  ): RVD =
-    keyBy(joinKey).orderedLeftJoinDistinct(right.keyBy(joinKey), joiner, joinedType)
-
   def orderedLeftIntervalJoin(
     ctx: ExecuteContext,
     right: RVD,
