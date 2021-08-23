@@ -3562,7 +3562,8 @@ class IRSuite extends HailSuite {
     def makeRowStruct(i: Int) = MakeStruct(Seq(("rowIdx", I32(i))))
     val child = ToStream(MakeArray(IndexedSeq(0, 1, 2, 4, 7, 9, 11, 15, 20, 22, 28, 50, 100).map(makeRowStruct):_*))
     val pivots = MakeArray(IndexedSeq(1, 7, 15, 22, 50).map(makeRowStruct):_*)
-    val dist = StreamDistribute(child, pivots, Str("./testingStreamDist"), ???)
+    val spec = TypedCodecSpec(PCanonicalStruct(("rowIdx", PInt32Required)), BufferSpec.default)
+    val dist = StreamDistribute(child, pivots, Str("/tmp/hail_stream_dist_test"), spec)
     eval(dist)
   }
 }
