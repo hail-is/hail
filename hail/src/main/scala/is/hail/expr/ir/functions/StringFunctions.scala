@@ -22,10 +22,6 @@ import java.util.regex.{Matcher, Pattern}
 import scala.collection.mutable
 
 object StringFunctions extends RegistryFunctions {
-
-  val ab = new BoxedArrayBuilder[String]()
-  val sb = new StringBuilder()
-
   def reverse(s: String): String = {
     val sb = new StringBuilder
     sb.append(s)
