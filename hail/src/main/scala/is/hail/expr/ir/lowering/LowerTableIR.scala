@@ -1045,26 +1045,8 @@ object LowerTableIR {
               ctx, loweredChild, sortFields, relationalLetsAbove, rowRType)
           }
 
-        case TableExplode(child, path) =>
-          lower(child).mapPartition(Some(child.typ.key.takeWhile(k => k != path(0)))) { rows =>
-            flatMapIR(rows) { row: Ref =>
-              val refs = Array.fill[Ref](path.length + 1)(null)
-              val roots = Array.fill[IR](path.length)(null)
-              var i = 0
-              refs(0) = row
-              while (i < path.length) {
-                roots(i) = GetField(refs(i), path(i))
-                refs(i + 1) = Ref(genUID(), roots(i).typ)
-                i += 1
-              }
-              refs.tail.zip(roots).foldRight(
-                mapIR(ToStream(refs.last)) { elt =>
-                  path.zip(refs.init).foldRight[IR](elt) { case ((p, ref), inserted) =>
-                    InsertFields(ref, FastSeq(p -> inserted))
-                  }
-                }) { case ((ref, root), accum) =>  Let(ref.name, root, accum) }
-            }
-          }
+        case te@TableExplode(child, path) =>
+          LowerTableIRHelpers.lowerTableExplode(ctx, te, lower(child))
 
         case TableRename(child, rowMap, globalMap) =>
           val loweredChild = lower(child)
