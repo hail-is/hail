@@ -189,7 +189,7 @@ iptables --append FORWARD --destination $IP_ADDRESS --jump ACCEPT
 # all outgoing packets
 ENS_DEVICE=$(ip link list | grep ens | awk -F": " '{{ print $2 }}')
 iptables --append FORWARD --source 10.1.0.0/16 --out-interface $ENS_DEVICE ! --destination 10.128.0.0/16 --jump ACCEPT
-iptables --append FORWARD ! --source 10.1.0.0./16 --out-interface $ENS_DEVICE --jump ACCEPT
+iptables --append FORWARD ! --source 10.1.0.0/16 --out-interface $ENS_DEVICE --jump ACCEPT
 
 
 # Setup fluentd
