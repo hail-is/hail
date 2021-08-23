@@ -1701,6 +1701,7 @@ def import_table(paths,
     def split_lines(hl_str):
         return hl_str._split_line(delimiter, missing=wrap_to_list(missing), quote=quote, regex=len(delimiter) > 1)
 
+
     def should_filter_line(hl_str):
         to_filter = hl_str.matches(filter) if filter is not None else hl.bool(False)
         if len(comment) > 0:
@@ -1758,7 +1759,7 @@ def import_table(paths,
     if not no_header:
         unchecked_fields = first_row_value.header
         fields = check_fields_for_duplicates(unchecked_fields)
-        ht = ht.filter(ht.text != first_row_value.text)
+        ht = ht.filter(ht.text == first_row_value.text, keep=False)
     else:
         num_of_fields = list(range(0, len(first_row_value.header)))
         fields = list(map(lambda f_num: "f" + str(f_num), num_of_fields))
@@ -1816,7 +1817,6 @@ def import_table(paths,
             strs.append(f'  Loading field {field!r} as type {t} ({reason})')
 
     ht = ht.annotate(**fields_to_value).drop('split_text')
-
     if source_file_field is not None:
         source_file = {source_file_field: ht.file}
         ht = ht.annotate(**source_file)

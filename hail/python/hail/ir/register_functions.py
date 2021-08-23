@@ -211,6 +211,8 @@ def register_functions():
     register_function("split", (dtype("str"), dtype("str"), dtype("int32"),), dtype("array<str>"))
     register_function("split", (dtype("str"), dtype("str"), dtype("str"),), dtype("array<str>"))
     register_function("split", (dtype("str"), dtype("str"),), dtype("array<str>"))
+    register_function("splitQuoted", (dtype("str"), dtype("str"), dtype("array<str>"), dtype("str"),)
+                      , dtype("array<str>"))
     register_function("splitQuotedChar", (dtype("str"), dtype("str"), dtype("array<str>"), dtype("str"),),
                       dtype("array<str>"))
     register_function("splitQuotedRegex", (dtype("str"), dtype("str"), dtype("array<str>"), dtype("str"),),
