@@ -23,12 +23,12 @@ object Interpret {
 
   def apply(tir: TableIR, ctx: ExecuteContext, optimize: Boolean): TableValue = {
     val lowered = LoweringPipeline.legacyRelationalLowerer(optimize)(ctx, tir).asInstanceOf[TableIR]
-    lowered.execute(ctx)
+    lowered.analyzeAndExecute(ctx).asTableValue(ctx)
   }
 
   def apply(mir: MatrixIR, ctx: ExecuteContext, optimize: Boolean): TableValue = {
     val lowered = LoweringPipeline.legacyRelationalLowerer(optimize)(ctx, mir).asInstanceOf[TableIR]
-    lowered.execute(ctx)
+    lowered.analyzeAndExecute(ctx).asTableValue(ctx)
   }
 
   def apply(bmir: BlockMatrixIR, ctx: ExecuteContext, optimize: Boolean): BlockMatrix = {
@@ -73,6 +73,11 @@ object Interpret {
       case True() => true
       case False() => false
       case Literal(_, value) => value
+      case x@EncodedLiteral(codec, value) =>
+        ctx.r.getPool().scopedRegion { r =>
+          val (pt, addr) = codec.decode(ctx, x.typ, value.ba, ctx.r)
+          SafeRow.read(pt, addr)
+        }
       case Void() => ()
       case Cast(v, t) =>
         val vValue = interpret(v, env, args)
@@ -285,6 +290,7 @@ object Interpret {
           null
         else
           aValue.asInstanceOf[IndexedSeq[Any]].length
+      case StreamIota(start, step, requiresMemoryManagementPerElement) => throw new UnsupportedOperationException
       case StreamRange(start, stop, step, _, errorID) =>
         val startValue = interpret(start, env, args)
         val stopValue = interpret(stop, env, args)
@@ -568,6 +574,26 @@ object Interpret {
             interpret(cond, env.bind(name, element), args).asInstanceOf[Boolean]
           }
         }
+      case StreamTakeWhile(a, name, cond) =>
+        val aValue = interpret(a, env, args)
+        if (aValue == null)
+          null
+        else {
+          aValue.asInstanceOf[IndexedSeq[Any]].takeWhile { element =>
+            // casting to boolean treats null as false
+            interpret(cond, env.bind(name, element), args).asInstanceOf[Boolean]
+          }
+        }
+      case StreamDropWhile(a, name, cond) =>
+        val aValue = interpret(a, env, args)
+        if (aValue == null)
+          null
+        else {
+          aValue.asInstanceOf[IndexedSeq[Any]].dropWhile { element =>
+            // casting to boolean treats null as false
+            interpret(cond, env.bind(name, element), args).asInstanceOf[Boolean]
+          }
+        }
       case StreamFlatMap(a, name, body) =>
         val aValue = interpret(a, env, args)
         if (aValue == null)
@@ -812,23 +838,23 @@ object Interpret {
       case TableCount(child) =>
         child.partitionCounts
           .map(_.sum)
-          .getOrElse(child.execute(ctx).rvd.count())
+          .getOrElse(child.analyzeAndExecute(ctx).asTableValue(ctx).rvd.count())
       case TableGetGlobals(child) =>
-        child.execute(ctx).globals.safeJavaValue
+        child.analyzeAndExecute(ctx).asTableValue(ctx).globals.safeJavaValue
       case TableCollect(child) =>
-        val tv = child.execute(ctx)
+        val tv = child.analyzeAndExecute(ctx).asTableValue(ctx)
         Row(tv.rvd.collect(ctx).toFastIndexedSeq, tv.globals.safeJavaValue)
       case TableMultiWrite(children, writer) =>
-        val tvs = children.map(_.execute(ctx))
+        val tvs = children.map(_.analyzeAndExecute(ctx).asTableValue(ctx))
         writer(ctx, tvs)
       case TableWrite(child, writer) =>
-        writer(ctx, child.execute(ctx))
+        writer(ctx, child.analyzeAndExecute(ctx).asTableValue(ctx))
       case BlockMatrixWrite(child, writer) =>
         writer(ctx, child.execute(ctx))
       case BlockMatrixMultiWrite(blockMatrices, writer) =>
         writer(ctx, blockMatrices.map(_.execute(ctx)))
       case TableToValueApply(child, function) =>
-        function.execute(ctx, child.execute(ctx))
+        function.execute(ctx, child.analyzeAndExecute(ctx).asTableValue(ctx))
       case BlockMatrixToValueApply(child, function) =>
         function.execute(ctx, child.execute(ctx))
       case BlockMatrixCollect(child) =>
@@ -838,7 +864,7 @@ object Interpret {
         val shape = IndexedSeq(bm.nRows, bm.nCols)
         SafeNDArray(shape, breezeMat.toArray)
       case x@TableAggregate(child, query) =>
-        val value = child.execute(ctx)
+        val value = child.analyzeAndExecute(ctx).asTableValue(ctx)
         val fsBc = ctx.fsBc
 
         val globalsBc = value.globals.broadcast

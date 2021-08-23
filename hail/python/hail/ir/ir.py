@@ -644,6 +644,28 @@ class ArrayZeros(IR):
         self._type = tarray(tint32)
 
 
+class StreamIota(IR):
+    @typecheck_method(start=IR, step=IR, requires_memory_management_per_element=bool)
+    def __init__(self, start, step, requires_memory_management_per_element=False):
+        super().__init__(start, step)
+        self.start = start
+        self.step = step
+        self.requires_memory_management_per_element = requires_memory_management_per_element
+
+    @typecheck_method(start=IR, step=IR)
+    def copy(self, start, step):
+        return StreamIota(start, step,
+                          requires_memory_management_per_element=self.requires_memory_management_per_element)
+
+    def head_str(self):
+        return f'{self.requires_memory_management_per_element}'
+
+    def _compute_type(self, env, agg_env):
+        self.start._compute_type(env, agg_env)
+        self.step._compute_type(env, agg_env)
+        self._type = tstream(tint32)
+
+
 class StreamRange(IR):
     @typecheck_method(start=IR, stop=IR, step=IR, requires_memory_management_per_element=bool,
                       error_id=nullable(int), stack_trace=nullable(str))

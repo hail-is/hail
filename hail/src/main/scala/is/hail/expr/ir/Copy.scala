@@ -80,6 +80,9 @@ object Copy {
       case ArrayLen(_) =>
         assert(newChildren.length == 1)
         ArrayLen(newChildren(0).asInstanceOf[IR])
+      case StreamIota(_, _, requiresMemoryManagementPerElement) =>
+        assert(newChildren.length == 2)
+        StreamIota(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], requiresMemoryManagementPerElement)
       case StreamRange(_, _, _, requiresMemoryManagementPerElement, errorID) =>
         assert(newChildren.length == 3)
         StreamRange(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR],
@@ -190,6 +193,12 @@ object Copy {
       case StreamFilter(_, name, _) =>
         assert(newChildren.length == 2)
         StreamFilter(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
+      case StreamTakeWhile(_, name, _) =>
+        assert(newChildren.length == 2)
+        StreamTakeWhile(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
+      case StreamDropWhile(_, name, _) =>
+        assert(newChildren.length == 2)
+        StreamDropWhile(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
       case StreamFlatMap(_, name, _) =>
         assert(newChildren.length == 2)
         StreamFlatMap(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])

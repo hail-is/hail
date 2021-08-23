@@ -10,26 +10,26 @@ import is.hail.types.virtual.Type
 import is.hail.utils.FastIndexedSeq
 
 
-case class SIndexablePointer(pType: PContainer) extends SContainer {
+final case class SIndexablePointer(pType: PContainer) extends SContainer {
   require(!pType.required)
 
-  lazy val virtualType: Type = pType.virtualType
+  override lazy val virtualType: Type = pType.virtualType
 
   override def castRename(t: Type): SType = SIndexablePointer(pType.deepRename(t).asInstanceOf[PContainer])
 
   override def elementType: SType = pType.elementType.sType
 
-  def elementEmitType: EmitType = EmitType(elementType, pType.elementType.required)
+  override def elementEmitType: EmitType = EmitType(elementType, pType.elementType.required)
 
-  def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SIndexablePointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 
-  def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
+  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo, IntInfo, LongInfo)
 
-  def fromSettables(settables: IndexedSeq[Settable[_]]): SIndexablePointerSettable = {
+  override def fromSettables(settables: IndexedSeq[Settable[_]]): SIndexablePointerSettable = {
     val IndexedSeq(a: Settable[Long@unchecked], length: Settable[Int@unchecked], elementsAddress: Settable[Long@unchecked]) = settables
     assert(a.ti == LongInfo)
     assert(length.ti == IntInfo)
@@ -37,17 +37,25 @@ case class SIndexablePointer(pType: PContainer) extends SContainer {
     new SIndexablePointerSettable(this, a, length, elementsAddress)
   }
 
-  def fromCodes(codes: IndexedSeq[Code[_]]): SIndexablePointerCode = {
+  override def fromCodes(codes: IndexedSeq[Code[_]]): SIndexablePointerCode = {
     val IndexedSeq(a: Code[Long@unchecked]) = codes
     assert(a.ti == LongInfo)
     new SIndexablePointerCode(this, a)
   }
 
-  def storageType(): PType = pType
+  override def fromValues(values: IndexedSeq[Value[_]]): SIndexablePointerValue = {
+    val IndexedSeq(a: Value[Long@unchecked], length: Value[Int@unchecked], elementsAddress: Value[Long@unchecked]) = values
+    assert(a.ti == LongInfo)
+    assert(length.ti == IntInfo)
+    assert(elementsAddress.ti == LongInfo)
+    new SIndexablePointerValue(this, a, length, elementsAddress)
+  }
 
-  def copiedType: SType = SIndexablePointer(pType.copiedType.asInstanceOf[PContainer])
+  override def storageType(): PType = pType
 
-  def containsPointers: Boolean = pType.containsPointers
+  override def copiedType: SType = SIndexablePointer(pType.copiedType.asInstanceOf[PContainer])
+
+  override def containsPointers: Boolean = pType.containsPointers
 }
 
 
@@ -56,9 +64,9 @@ class SIndexablePointerCode(val st: SIndexablePointer, val a: Code[Long]) extend
 
   def code: Code[_] = a
 
-  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(a)
+  override def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
-  def codeLoadLength(): Code[Int] = pt.loadLength(a)
+  override def codeLoadLength(): Code[Int] = pt.loadLength(a)
 
   def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SIndexableValue = {
     val s = SIndexablePointerSettable(sb, st, name)
@@ -66,11 +74,11 @@ class SIndexablePointerCode(val st: SIndexablePointer, val a: Code[Long]) extend
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String): SIndexableValue = memoize(cb, name, cb.localBuilder)
+  override def memoize(cb: EmitCodeBuilder, name: String): SIndexableValue = memoize(cb, name, cb.localBuilder)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): SIndexableValue = memoize(cb, name, cb.fieldBuilder)
+  override def memoizeField(cb: EmitCodeBuilder, name: String): SIndexableValue = memoize(cb, name, cb.fieldBuilder)
 
-  def castToArray(cb: EmitCodeBuilder): SIndexableCode = {
+  override def castToArray(cb: EmitCodeBuilder): SIndexableCode = {
     pt match {
       case t: PArray => this
       case t: PCanonicalDict => new SIndexablePointerCode(SIndexablePointer(t.arrayRep), a)
@@ -79,26 +87,15 @@ class SIndexablePointerCode(val st: SIndexablePointer, val a: Code[Long]) extend
   }
 }
 
-object SIndexablePointerSettable {
-  def apply(sb: SettableBuilder, st: SIndexablePointer, name: String): SIndexablePointerSettable = {
-    new SIndexablePointerSettable(st,
-      sb.newSettable[Long](s"${ name }_a"),
-      sb.newSettable[Int](s"${ name }_length"),
-      sb.newSettable[Long](s"${ name }_elems_addr"))
-  }
-}
-
-class SIndexablePointerSettable(
+class SIndexablePointerValue(
   val st: SIndexablePointer,
-  val a: Settable[Long],
-  val length: Settable[Int],
-  val elementsAddress: Settable[Long]
-) extends SIndexableValue with SSettable {
+  val a: Value[Long],
+  val length: Value[Int],
+  val elementsAddress: Value[Long]
+) extends SIndexableValue {
   val pt: PContainer = st.pType
 
   def get: SIndexableCode = new SIndexablePointerCode(st, a)
-
-  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a, length, elementsAddress)
 
   def loadLength(): Value[Int] = length
 
@@ -110,12 +107,6 @@ class SIndexablePointerSettable(
   }
 
   def isElementMissing(i: Code[Int]): Code[Boolean] = pt.isElementMissing(a, i)
-
-  def store(cb: EmitCodeBuilder, pc: SCode): Unit = {
-    cb.assign(a, pc.asInstanceOf[SIndexablePointerCode].a)
-    cb.assign(length, pt.loadLength(a))
-    cb.assign(elementsAddress, pt.firstElementOffset(a, length))
-  }
 
   override def hasMissingValues(cb: EmitCodeBuilder): Code[Boolean] = pt.hasMissingValues(a)
 
@@ -137,5 +128,29 @@ class SIndexablePointerSettable(
         })
       case _ => super.forEachDefined(cb)(f)
     }
+  }
+}
+
+object SIndexablePointerSettable {
+  def apply(sb: SettableBuilder, st: SIndexablePointer, name: String): SIndexablePointerSettable = {
+    new SIndexablePointerSettable(st,
+      sb.newSettable[Long](s"${ name }_a"),
+      sb.newSettable[Int](s"${ name }_length"),
+      sb.newSettable[Long](s"${ name }_elems_addr"))
+  }
+}
+
+final class SIndexablePointerSettable(
+  st: SIndexablePointer,
+  override val a: Settable[Long],
+  override val length: Settable[Int],
+  override val elementsAddress: Settable[Long]
+) extends SIndexablePointerValue(st, a, length, elementsAddress) with SSettable {
+  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a, length, elementsAddress)
+
+  def store(cb: EmitCodeBuilder, pc: SCode): Unit = {
+    cb.assign(a, pc.asInstanceOf[SIndexablePointerCode].a)
+    cb.assign(length, pt.loadLength(a))
+    cb.assign(elementsAddress, pt.firstElementOffset(a, length))
   }
 }

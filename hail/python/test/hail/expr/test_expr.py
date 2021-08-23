@@ -3129,6 +3129,39 @@ class Tests(unittest.TestCase):
         self.assert_evals_to(hl.mean(s), 3)
         self.assert_evals_to(hl.median(s), 3)
 
+    def test_set_operators(self):
+        self.assert_evals_to(hl.set([1, 2, 3]) <= hl.set([1, 2]), False)
+        self.assert_evals_to(hl.set([1, 2, 3]) <= hl.set([1, 2, 3]), True)
+        self.assert_evals_to(hl.set([1, 2, 3]) <= hl.set([1, 2, 3, 4]), True)
+
+        self.assert_evals_to(hl.set([1, 2, 3]) < hl.set([1, 2]), False)
+        self.assert_evals_to(hl.set([1, 2, 3]) < hl.set([1, 2, 3]), False)
+        self.assert_evals_to(hl.set([1, 2, 3]) < hl.set([1, 2, 3, 4]), True)
+
+        self.assert_evals_to(hl.set([1, 2]) >= hl.set([1, 2, 3]), False)
+        self.assert_evals_to(hl.set([1, 2, 3]) >= hl.set([1, 2, 3]), True)
+        self.assert_evals_to(hl.set([1, 2, 3, 4]) >= hl.set([1, 2, 3]), True)
+
+        self.assert_evals_to(hl.set([1, 2]) > hl.set([1, 2, 3]), False)
+        self.assert_evals_to(hl.set([1, 2, 3]) > hl.set([1, 2, 3]), False)
+        self.assert_evals_to(hl.set([1, 2, 3, 4]) > hl.set([1, 2, 3]), True)
+
+        self.assert_evals_to(hl.set([1, 2, 3]) - hl.set([1, 3]), set([2]))
+        self.assert_evals_to(hl.set([1, 2, 3]) - set([1, 3]), set([2]))
+        self.assert_evals_to(set([1, 2, 3]) - hl.set([1, 3]), set([2]))
+
+        self.assert_evals_to(hl.set([1, 2, 3]) | hl.set([3, 4, 5]), set([1, 2, 3, 4, 5]))
+        self.assert_evals_to(hl.set([1, 2, 3]) | set([3, 4, 5]), set([1, 2, 3, 4, 5]))
+        self.assert_evals_to(set([1, 2, 3]) | hl.set([3, 4, 5]), set([1, 2, 3, 4, 5]))
+
+        self.assert_evals_to(hl.set([1, 2, 3]) & hl.set([3, 4, 5]), set([3]))
+        self.assert_evals_to(hl.set([1, 2, 3]) & set([3, 4, 5]), set([3]))
+        self.assert_evals_to(set([1, 2, 3]) & hl.set([3, 4, 5]), set([3]))
+
+        self.assert_evals_to(hl.set([1, 2, 3]) ^ hl.set([3, 4, 5]), set([1, 2, 4, 5]))
+        self.assert_evals_to(hl.set([1, 2, 3]) ^ set([3, 4, 5]), set([1, 2, 4, 5]))
+        self.assert_evals_to(set([1, 2, 3]) ^ hl.set([3, 4, 5]), set([1, 2, 4, 5]))
+
     @fails_service_backend()
     def test_uniroot(self):
         tol = 1.220703e-4
@@ -3651,3 +3684,20 @@ class Tests(unittest.TestCase):
             assert 'f5 is the new name of both' in err.args[0]
         else:
             assert False
+
+    def test_enumerate(self):
+        a1 = hl.literal(['foo', 'bar', 'baz'], 'array<str>')
+        a_empty = hl.literal([], 'array<str>')
+
+        exprs = (
+            hl.enumerate(a1),
+            hl.enumerate(a1, start=-1000),
+            hl.enumerate(a1, start=10, index_first=False),
+            hl.enumerate(a_empty, start=5)
+        )
+        assert hl.eval(exprs) == (
+            [(0, 'foo'), (1, 'bar'), (2, 'baz')],
+            [(-1000, 'foo'), (-999, 'bar'), (-998, 'baz')],
+            [('foo', 10), ('bar', 11), ('baz', 12)],
+            []
+        )

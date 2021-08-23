@@ -956,7 +956,7 @@ def logreg_fit(X, y, null_fit=None, max_iter=25, tol=1E-6):
 
 
 def wald_test(X, y, null_fit, link):
-    assert (link == "logistic")
+    assert link == "logistic"
     fit = logreg_fit(X, y, null_fit)
 
     se = hl.nd.diagonal(hl.nd.inv(fit.fisher)).map(lambda e: hl.sqrt(e))
@@ -971,7 +971,7 @@ def wald_test(X, y, null_fit, link):
 
 
 def lrt_test(X, y, null_fit, link):
-    assert (link == "logistic")
+    assert link == "logistic"
     fit = logreg_fit(X, y, null_fit)
 
     chi_sq = hl.if_else(~fit.converged, hl.missing(hl.tfloat64), 2 * (fit.log_lkhd - null_fit.log_lkhd))
@@ -982,6 +982,47 @@ def lrt_test(X, y, null_fit, link):
         chi_sq_stat=chi_sq,
         p_value=p,
         fit=hl.struct(n_iterations=fit.num_iter, converged=fit.converged, exploded=fit.exploded))
+
+
+def logistic_score_test(X, y, null_fit, link):
+    assert link == "logistic"
+    m = X.shape[1]
+    m0 = null_fit.b.shape[0]
+    b = hl.nd.hstack([null_fit.b, hl.nd.zeros((hl.int32(m - m0)))])
+
+    X0 = X[:, 0:m0]
+    X1 = X[:, m0:]
+
+    mu = (X @ b).map(lambda e: hl.expit(e))
+
+    score_0 = null_fit.score
+    score_1 = X1.T @ (y - mu)
+    score = hl.nd.hstack([score_0, score_1])
+
+    fisher00 = null_fit.fisher
+    fisher01 = X0.T @ (X1 * (mu * (1 - mu)).reshape(-1, 1))
+    fisher10 = fisher01.T
+    fisher11 = X1.T @ (X1 * (mu * (1 - mu)).reshape(-1, 1))
+
+    fisher = hl.nd.vstack([
+        hl.nd.hstack([fisher00, fisher01]),
+        hl.nd.hstack([fisher10, fisher11])
+    ])
+
+    solve_attempt = hl.nd.solve(fisher, score, no_crash=True)
+
+    chi_sq = hl.if_else(solve_attempt.failed,
+                        hl.missing(hl.tfloat64),
+                        (score * solve_attempt.solution).sum())
+
+    p = hl.pchisqtail(chi_sq, m - m0)
+
+    return hl.struct(chi_sq_stat=chi_sq, p_value=p)
+
+
+def firth_test(X, y, null_fit, link):
+    assert link == "logistic"
+    raise ValueError("firth not yet supported on lowered backends")
 
 
 @typecheck(test=enumeration('wald', 'lrt', 'score', 'firth'),
@@ -1258,17 +1299,19 @@ def _logistic_regression_rows_nd(test, y, x, covariates, pass_through=()) -> hai
     ht = ht.transmute(x=hl.nd.array(mean_impute(ht.entries[x_field_name])))
 
     if test == "wald":
-        # For each y vector, need to do wald test.
-        covs_and_x = hl.nd.hstack([ht.cov_nd, ht.x.reshape((-1, 1))])
-        wald_structs = hl.range(num_y_fields).map(lambda idx: wald_test(covs_and_x, ht.y_nd[:, idx], ht.nulls[idx], "logistic"))
-        ht = ht.annotate(logistic_regression=wald_structs)
+        test_func = wald_test
     elif test == "lrt":
-        covs_and_x = hl.nd.hstack([ht.cov_nd, ht.x.reshape((-1, 1))])
-        lrt_structs = hl.range(num_y_fields).map(lambda idx: lrt_test(covs_and_x, ht.y_nd[:, idx], ht.nulls[idx], "logistic"))
-        ht = ht.annotate(logistic_regression=lrt_structs)
-
+        test_func = lrt_test
+    elif test == "score":
+        test_func = logistic_score_test
+    elif test == "firth":
+        test_func = firth_test
     else:
-        raise ValueError("Only support wald and lrt so far")
+        raise ValueError(f"Illegal test type {test}")
+
+    covs_and_x = hl.nd.hstack([ht.cov_nd, ht.x.reshape((-1, 1))])
+    test_structs = hl.range(num_y_fields).map(lambda idx: test_func(covs_and_x, ht.y_nd[:, idx], ht.nulls[idx], "logistic"))
+    ht = ht.annotate(logistic_regression=test_structs)
 
     if not y_is_list:
         ht = ht.transmute(**ht.logistic_regression[0])
@@ -2147,7 +2190,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep', *, 
     non-split variants.
 
     >>> bi = mt.filter_rows(hl.len(mt.alleles) == 2)
-    >>> bi = bi.annotate_rows(was_split=False)
+    >>> bi = bi.annotate_rows(a_index=1, was_split=False)
     >>> multi = mt.filter_rows(hl.len(mt.alleles) > 2)
     >>> split = hl.split_multi_hts(multi)
     >>> mt = split.union_rows(bi)

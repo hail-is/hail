@@ -36,7 +36,7 @@ package object physical {
     case LongInfo => 0L
     case FloatInfo => 0.0f
     case DoubleInfo => 0.0
-    case _: ClassInfo[_] => Code._null
+    case _: ClassInfo[_] => Code._null[String]
     case ti => throw new RuntimeException(s"unsupported type found: $ti")
   }
 }

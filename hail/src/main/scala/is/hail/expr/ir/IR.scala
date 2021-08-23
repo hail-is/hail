@@ -92,7 +92,7 @@ object EncodedLiteral {
     EncodedLiteral(codec, new WrappedByteArray(value))
   }
 
-  def hailValueToByteArray(pt: PType, addr: Long, ctx: ExecuteContext): IR = {
+  def fromPTypeAndAddress(pt: PType, addr: Long, ctx: ExecuteContext): IR = {
     val etype = EType.defaultFromPType(pt)
     val codec = TypedCodecSpec(etype, pt.virtualType, BufferSpec.defaultUncompressed)
     val bytes = codec.encode(ctx, pt, addr)
@@ -229,6 +229,14 @@ final case class ArrayRef(a: IR, i: IR, errorID: Int) extends IR
 final case class ArraySlice(a: IR, start: IR, stop: Option[IR], step:IR = I32(1), errorID: Int = ErrorIDs.NO_ERROR) extends IR
 final case class ArrayLen(a: IR) extends IR
 final case class ArrayZeros(length: IR) extends IR
+
+/**
+  * [[StreamIota]] is an infinite stream producer, whose element is an integer starting at `start`, updated by
+  * `step` at each iteration. The name comes from APL:
+  * [[https://stackoverflow.com/questions/9244879/what-does-iota-of-stdiota-stand-for]]
+  */
+final case class StreamIota(start: IR, stop: IR, requiresMemoryManagementPerElement: Boolean = false) extends IR
+
 final case class StreamRange(start: IR, stop: IR, step: IR, requiresMemoryManagementPerElement: Boolean = false,
                              errorID: Int = ErrorIDs.NO_ERROR) extends IR
 
@@ -275,6 +283,10 @@ final case class StreamMap(a: IR, name: String, body: IR) extends IR {
   override def typ: TStream = coerce[TStream](super.typ)
   def elementTyp: Type = typ.elementType
 }
+
+final case class StreamTakeWhile(a: IR, elementName: String, body: IR) extends IR
+
+final case class StreamDropWhile(a: IR, elementName: String, body: IR) extends IR
 
 final case class StreamTake(a: IR, num: IR) extends IR
 final case class StreamDrop(a: IR, num: IR) extends IR

@@ -7,6 +7,7 @@ import is.hail.types.{RNDArray, TypeWithRequiredness}
 import is.hail.types.physical.{PCanonicalNDArray, PNDArray, PType}
 import is.hail.types.physical.stypes.concrete.{SNDArraySlice, SNDArraySliceCode}
 import is.hail.linalg.{BLAS, LAPACK}
+import is.hail.types.physical.stypes.primitives.SFloat64Code
 import is.hail.types.physical.{PCanonicalNDArray, PNDArray, PType}
 import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
 import is.hail.utils.{toRichIterable, valueToRichCodeRegion}
@@ -244,13 +245,72 @@ object SNDArray {
     }
   }
 
+  def copyVector(cb: EmitCodeBuilder, _X: SNDArrayCode, _Y: SNDArrayCode): Unit = {
+    val X = _X.memoize(cb, "copy_X")
+    val Y = _Y.memoize(cb, "copy_Y")
+    assertVector(X, Y)
+    val n = X.shapes(cb)(0)
+    cb.ifx(Y.shapes(cb)(0).cne(n), cb._fatal("copy: vectors have different sizes: ", Y.shapes(cb)(0).toS, ", ", n.toS))
+
+    val ldX = X.eltStride(cb, 0).max(1)
+    val ldY = Y.eltStride(cb, 0).max(1)
+    cb += Code.invokeScalaObject5[Int, Long, Int, Long, Int, Unit](BLAS.getClass, "dcopy",
+      n.toI,
+      X.firstDataAddress(cb), ldX,
+      Y.firstDataAddress(cb), ldY)
+  }
+
+  def scale(cb: EmitCodeBuilder, alpha: SCode, X: SNDArrayCode): Unit =
+    scale(cb, alpha.asInstanceOf[SFloat64Code].code, X)
+
+  def scale(cb: EmitCodeBuilder, alpha: Code[Double], _X: SNDArrayCode): Unit = {
+    val X = _X.memoize(cb, "scale_X")
+    assertVector(X)
+    val n = X.shapes(cb)(0)
+
+    val ldX = X.eltStride(cb, 0).max(1)
+    cb += Code.invokeScalaObject4[Int, Double, Long, Int, Unit](BLAS.getClass, "dscal",
+      n.toI, alpha, X.firstDataAddress(cb), ldX)
+  }
+
+  def gemv(cb: EmitCodeBuilder, trans: String, A: SNDArrayCode, X: SNDArrayCode, Y: SNDArrayCode): Unit = {
+    gemv(cb, trans, 1.0, A, X, 1.0, Y)
+  }
+
+  def gemv(cb: EmitCodeBuilder, trans: String, alpha: Code[Double], _A: SNDArrayCode, _X: SNDArrayCode, beta: Code[Double], _Y: SNDArrayCode): Unit = {
+    val A = _A.memoize(cb, "gemv_A")
+    val X = _X.memoize(cb, "gemv_X")
+    val Y = _Y.memoize(cb, "gemv_Y")
+
+    assertMatrix(A)
+    assertColMajor(cb, A)
+    assertVector(X, Y)
+
+    val Seq(m, n) = A.shapes(cb)
+    if (trans == "N")
+      cb.ifx(X.shapes(cb)(0).cne(n) || Y.shapes(cb)(0).cne(m), cb._fatal("gemv: incompatible dimensions"))
+    else
+      cb.ifx(X.shapes(cb)(0).cne(m) || Y.shapes(cb)(0).cne(n), cb._fatal("gemv: incompatible dimensions"))
+
+    val ldA = A.eltStride(cb, 1).max(1)
+    val ldX = X.eltStride(cb, 0).max(1)
+    val ldY = Y.eltStride(cb, 0).max(1)
+    cb += Code.invokeScalaObject11[String, Int, Int, Double, Long, Int, Long, Int, Double, Long, Int, Unit](BLAS.getClass, "dgemv",
+      trans, m.toI, n.toI,
+      alpha,
+      A.firstDataAddress(cb), ldA,
+      X.firstDataAddress(cb), ldX,
+      beta,
+      Y.firstDataAddress(cb), ldY)
+  }
+
   def gemm(cb: EmitCodeBuilder, tA: String, tB: String, A: SNDArrayCode, B: SNDArrayCode, C: SNDArrayCode): Unit =
     gemm(cb, tA, tB, 1.0, A, B, 1.0, C)
 
   def gemm(cb: EmitCodeBuilder, tA: String, tB: String, alpha: Code[Double], _A: SNDArrayCode, _B: SNDArrayCode, beta: Code[Double], _C: SNDArrayCode): Unit = {
-    val A = _A.memoize(cb, "copy_A")
-    val B = _B.memoize(cb, "copy_B")
-    val C = _C.memoize(cb, "copy_C")
+    val A = _A.memoize(cb, "gemm_A")
+    val B = _B.memoize(cb, "gemm_B")
+    val C = _C.memoize(cb, "gemm_C")
     assertMatrix(A, B, C)
     assertColMajor(cb, A, B, C)
 
@@ -261,9 +321,9 @@ object SNDArray {
     val Seq(c0, c1) = C.shapes(cb)
     cb.ifx(ka.cne(kb) || c0.cne(m) || c1.cne(n), cb._fatal("gemm: incompatible matrix dimensions"))
 
-    val ldA = (A.strides(cb)(1).toI >> 3).max(1)
-    val ldB = (B.strides(cb)(1).toI >> 3).max(1)
-    val ldC = (C.strides(cb)(1).toI >> 3).max(1)
+    val ldA = A.eltStride(cb, 1).max(1)
+    val ldB = B.eltStride(cb, 1).max(1)
+    val ldC = C.eltStride(cb, 1).max(1)
     cb += Code.invokeScalaObject13[String, String, Int, Int, Int, Double, Long, Int, Long, Int, Double, Long, Int, Unit](BLAS.getClass, "dgemm",
       tA, tB, m.toI, n.toI, ka.toI,
       alpha,
@@ -273,8 +333,161 @@ object SNDArray {
       C.firstDataAddress(cb), ldC)
   }
 
+  def trmm(cb: EmitCodeBuilder, side: String, uplo: String, transA: String, diag: String,
+    alpha: Code[Double], _A: SNDArrayCode, _B: SNDArrayCode): Unit = {
+    val A = _A.memoize(cb, "trmm_A")
+    val B = _B.memoize(cb, "trmm_B")
+    assertMatrix(A, B)
+    assertColMajor(cb, A, B)
+
+    val Seq(m, n) = B.shapes(cb)
+    val Seq(a0, a1) = A.shapes(cb)
+    cb.ifx(a1.cne(if (side == "left") m else n), cb._fatal("trmm: incompatible matrix dimensions"))
+    cb.ifx(a0 < a1, cb._fatal("trmm: A has fewer rows than cols: ", a0.toS, ", ", a1.toS))
+
+    val ldA = A.eltStride(cb, 1).max(1)
+    val ldB = B.eltStride(cb, 1).max(1)
+    cb += Code.invokeScalaObject11[String, String, String, String, Int, Int, Double, Long, Int, Long, Int, Unit](BLAS.getClass, "dtrmm",
+      side, uplo, transA, diag,
+      m.toI, n.toI,
+      alpha,
+      A.firstDataAddress(cb), ldA,
+      B.firstDataAddress(cb), ldB)
+  }
+
+  def geqrt(_A: SNDArrayCode, _T: SNDArrayCode, _work: SNDArrayCode, blocksize: Value[Long], cb: EmitCodeBuilder): Unit = {
+    val A = _A.memoize(cb, "geqrt_A")
+    val T = _T.memoize(cb, "geqrt_T")
+    val work = _work.memoize(cb, "copy_work")
+    assertMatrix(A)
+    assertColMajor(cb, A)
+    assertVector(work, T)
+
+    val Seq(m, n) = A.shapes(cb)
+    val nb = blocksize
+    cb.ifx(nb > m.min(n) || nb < 1, cb._fatal("invalid block size"))
+    cb.ifx(T.shapes(cb)(0) < nb*(m.min(n)), cb._fatal("T too small"))
+    cb.ifx(work.shapes(cb)(0) < nb * n, cb._fatal("work array too small"))
+
+    val error = cb.mb.newLocal[Int]()
+    val ldA = A.eltStride(cb, 1).max(1)
+    cb.assign(error, Code.invokeScalaObject8[Int, Int, Int, Long, Int, Long, Int, Long, Int](LAPACK.getClass, "dgeqrt",
+      m.toI, n.toI, nb.toI,
+      A.firstDataAddress(cb), ldA,
+      T.firstDataAddress(cb), nb.toI.max(1),
+      work.firstDataAddress(cb)))
+    cb.ifx(error.cne(0), cb._fatal("LAPACK error dtpqrt. Error code = ", error.toS))
+  }
+
+  def gemqrt(side: String, trans: String, _V: SNDArrayCode, _T: SNDArrayCode, _C: SNDArrayCode, _work: SNDArrayCode, blocksize: Value[Long], cb: EmitCodeBuilder): Unit = {
+    val V = _V.memoize(cb, "gemqrt_V")
+    val T = _T.memoize(cb, "gemqrt_T")
+    val C = _C.memoize(cb, "gemqrt_C")
+    val work = _work.memoize(cb, "copy_work")
+    assertMatrix(C, V)
+    assertColMajor(cb, C, V)
+    assertVector(work, T)
+
+    assert(side == "L" || side == "R")
+    assert(trans == "T" || trans == "N")
+    val Seq(l, k) = V.shapes(cb)
+    val Seq(m, n) = C.shapes(cb)
+    val nb = blocksize
+    cb.ifx(nb > k || nb < 1, cb._fatal("invalid block size"))
+    cb.ifx(T.shapes(cb)(0) < nb*k, cb._fatal("invalid T size"))
+    if (side == "L") {
+      cb.ifx(l.cne(m), cb._fatal("invalid dimensions"))
+      cb.ifx(work.shapes(cb)(0) < nb * n, cb._fatal("work array too small"))
+    } else {
+      cb.ifx(l.cne(n), cb._fatal("invalid dimensions"))
+      cb.ifx(work.shapes(cb)(0) < nb * m, cb._fatal("work array too small"))
+    }
+
+    val error = cb.mb.newLocal[Int]()
+    val ldV = V.eltStride(cb, 1).max(1)
+    val ldC = C.eltStride(cb, 1).max(1)
+    cb.assign(error, Code.invokeScalaObject13[String, String, Int, Int, Int, Int, Long, Int, Long, Int, Long, Int, Long, Int](LAPACK.getClass, "dgemqrt",
+      side, trans, m.toI, n.toI, k.toI, nb.toI,
+      V.firstDataAddress(cb), ldV,
+      T.firstDataAddress(cb), nb.toI.max(1),
+      C.firstDataAddress(cb), ldC,
+      work.firstDataAddress(cb)))
+    cb.ifx(error.cne(0), cb._fatal("LAPACK error dtpqrt. Error code = ", error.toS))
+  }
+
+  def tpqrt(_A: SNDArrayCode, _B: SNDArrayCode, _T: SNDArrayCode, _work: SNDArrayCode, blocksize: Value[Long], cb: EmitCodeBuilder): Unit = {
+    val A = _A.memoize(cb, "tpqrt_A")
+    val B = _B.memoize(cb, "tpqrt_B")
+    val T = _T.memoize(cb, "tpqrt_T")
+    val work = _work.memoize(cb, "copy_work")
+    assertMatrix(A, B)
+    assertColMajor(cb, A, B)
+    assertVector(work, T)
+
+    val Seq(m, n) = B.shapes(cb)
+    val nb = blocksize
+    cb.ifx(nb > n || nb < 1, cb._fatal("invalid block size"))
+    cb.ifx(T.shapes(cb)(0) < nb*n, cb._fatal("T too small"))
+    val Seq(a1, a2) = A.shapes(cb)
+    cb.ifx(a1.cne(n) || a2.cne(n), cb._fatal("invalid A size"))
+    cb.ifx(work.shapes(cb)(0) < nb * n, cb._fatal("work array too small"))
+
+    val error = cb.mb.newLocal[Int]()
+    val ldA = A.eltStride(cb, 1).max(1)
+    val ldB = B.eltStride(cb, 1).max(1)
+    cb.assign(error, Code.invokeScalaObject11[Int, Int, Int, Int, Long, Int, Long, Int, Long, Int, Long, Int](LAPACK.getClass, "dtpqrt",
+      m.toI, n.toI, 0, nb.toI,
+      A.firstDataAddress(cb), ldA,
+      B.firstDataAddress(cb), ldB,
+      T.firstDataAddress(cb), nb.toI.max(1),
+      work.firstDataAddress(cb)))
+    cb.ifx(error.cne(0), cb._fatal("LAPACK error dtpqrt. Error code = ", error.toS))
+  }
+
+  def tpmqrt(side: String, trans: String, _V: SNDArrayCode, _T: SNDArrayCode, _A: SNDArrayCode, _B: SNDArrayCode, _work: SNDArrayCode, blocksize: Value[Long], cb: EmitCodeBuilder): Unit = {
+    val V = _V.memoize(cb, "tpmqrt_V")
+    val T = _T.memoize(cb, "tpmqrt_T")
+    val A = _A.memoize(cb, "tpmqrt_A")
+    val B = _B.memoize(cb, "tpmqrt_B")
+    val work = _work.memoize(cb, "copy_work")
+    assertMatrix(A, B, V)
+    assertColMajor(cb, A, B, V)
+    assertVector(work, T)
+
+    assert(side == "L" || side == "R")
+    assert(trans == "T" || trans == "N")
+    val Seq(l, k) = V.shapes(cb)
+    val Seq(m, n) = B.shapes(cb)
+    val nb = blocksize
+    cb.ifx(nb > k || nb < 1, cb._fatal("invalid block size"))
+    cb.ifx(T.shapes(cb)(0) < nb*k, cb._fatal("T too small"))
+    val Seq(a1, a2) = A.shapes(cb)
+    if (side == "L") {
+      cb.ifx(l.cne(m), cb._fatal("invalid dimensions"))
+      cb.ifx(work.shapes(cb)(0) < nb * n, cb._fatal("work array too small"))
+      cb.ifx(a1.cne(k) || a2.cne(n), cb._fatal("A has wrong dimensions"))
+    } else {
+      cb.ifx(l.cne(n), cb._fatal("invalid dimensions"))
+      cb.ifx(work.shapes(cb)(0) < nb * m, cb._fatal("work array too small"))
+      cb.ifx(a1.cne(m) || a2.cne(k), cb._fatal("A has wrong dimensions"))
+    }
+
+    val error = cb.mb.newLocal[Int]()
+    val ldV = V.eltStride(cb, 1).max(1)
+    val ldA = A.eltStride(cb, 1).max(1)
+    val ldB = B.eltStride(cb, 1).max(1)
+    cb.assign(error, Code.invokeScalaObject16[String, String, Int, Int, Int, Int, Int, Long, Int, Long, Int, Long, Int, Long, Int, Long, Int](LAPACK.getClass, "dtpmqrt",
+      side, trans, m.toI, n.toI, k.toI, 0, nb.toI,
+      V.firstDataAddress(cb), ldV,
+      T.firstDataAddress(cb), nb.toI.max(1),
+      A.firstDataAddress(cb), ldA,
+      B.firstDataAddress(cb), ldB,
+      work.firstDataAddress(cb)))
+    cb.ifx(error.cne(0), cb._fatal("LAPACK error dtpqrt. Error code = ", error.toS))
+  }
+
   def geqrf_query(cb: EmitCodeBuilder, _m: Code[Int], n: Code[Int], region: Value[Region]): Code[Int] = {
-    val m = cb.newLocal[Int]("dgeqrf_m", _m)
+    val m = cb.newLocal[Int]("geqrf_m", _m)
     val LWorkAddress = cb.newLocal[Long]("dgeqrf_lwork_address")
     val LWork = cb.newLocal[Int]("dgeqrf_lwork")
     val info = cb.newLocal[Int]("dgeqrf_info")
@@ -290,9 +503,9 @@ object SNDArray {
   }
 
   def geqrf(cb: EmitCodeBuilder, _A: SNDArrayCode, _T: SNDArrayCode, _work: SNDArrayCode): Unit = {
-    val A = _A.memoize(cb, "copy_A")
-    val T = _T.memoize(cb, "copy_T")
-    val work = _work.memoize(cb, "copy_work")
+    val A = _A.memoize(cb, "geqrf_A")
+    val T = _T.memoize(cb, "geqrf_T")
+    val work = _work.memoize(cb, "geqrf_work")
     assertMatrix(A)
     assertColMajor(cb, A)
     assertVector(T, work)
@@ -302,7 +515,7 @@ object SNDArray {
     val lwork = work.shapes(cb)(0)
     cb.ifx(lwork < n.max(1L), cb._fatal("geqrf: work has wrong size"))
 
-    val ldA = (A.strides(cb)(1).toI >> 3).max(1)
+    val ldA = A.eltStride(cb, 1).max(1)
     val info = cb.newLocal[Int]("dgeqrf_info")
     cb.assign(info, Code.invokeScalaObject7[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgeqrf",
       m.toI, n.toI,
@@ -314,9 +527,9 @@ object SNDArray {
 
   def orgqr(cb: EmitCodeBuilder, _k: Code[Int], _A: SNDArrayCode, _T: SNDArrayCode, _work: SNDArrayCode): Unit = {
     val k = cb.newLocal[Int]("orgqr_k", _k)
-    val A = _A.memoize(cb, "copy_A")
-    val T = _T.memoize(cb, "copy_T")
-    val work = _work.memoize(cb, "copy_work")
+    val A = _A.memoize(cb, "orgqr_A")
+    val T = _T.memoize(cb, "orgqr_T")
+    val work = _work.memoize(cb, "orgqr_work")
     assertMatrix(A)
     assertColMajor(cb, A)
     assertVector(T, work)
@@ -327,7 +540,7 @@ object SNDArray {
     val lwork = work.shapes(cb)(0)
     cb.ifx(lwork < n.max(1L), cb._fatal("orgqr: work has wrong size"))
 
-    val ldA = (A.strides(cb)(1).toI >> 3).max(1)
+    val ldA = A.eltStride(cb, 1).max(1)
     val info = cb.newLocal[Int]("dgeqrf_info")
     cb.assign(info, Code.invokeScalaObject8[Int, Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dorgqr",
       m.toI, n.toI, k.toI,
@@ -370,6 +583,12 @@ trait SNDArrayValue extends SValue {
 
   def strides(cb: EmitCodeBuilder): IndexedSeq[Value[Long]]
 
+  def eltStride(cb: EmitCodeBuilder, i: Int): Code[Int] = st.elementByteSize match {
+    case 4 => strides(cb)(i).toI >> 2
+    case 8 => strides(cb)(i).toI >> 3
+    case eltSize => strides(cb)(i).toI / eltSize.toInt
+  }
+
   def firstDataAddress(cb: EmitCodeBuilder): Value[Long]
 
   def outOfBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Boolean] = {
@@ -393,7 +612,6 @@ trait SNDArrayValue extends SValue {
       })
     }
   }
-
 
   def coiterateMutate(cb: EmitCodeBuilder, region: Value[Region], arrays: (SNDArrayCode, String)*)(body: IndexedSeq[SCode] => SCode): Unit =
     coiterateMutate(cb, region, false, arrays: _*)(body)

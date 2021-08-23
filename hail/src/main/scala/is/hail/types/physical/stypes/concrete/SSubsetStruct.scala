@@ -4,23 +4,23 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{Code, LongInfo, Settable, TypeInfo, Value}
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, SortOrder}
-import is.hail.types.physical.stypes.{EmitType, SCode, SType}
-import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode, SBaseStructValue, SStructSettable}
+import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType}
+import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode, SBaseStructSettable, SBaseStructValue}
 import is.hail.types.physical.{PCanonicalStruct, PType, StoredSTypePType}
 import is.hail.types.virtual.{TStruct, Type}
 
-case class SSubsetStruct(parent: SBaseStruct, fieldNames: IndexedSeq[String]) extends SBaseStruct {
+final case class SSubsetStruct(parent: SBaseStruct, fieldNames: IndexedSeq[String]) extends SBaseStruct {
 
-  val size: Int = fieldNames.size
+  override val size: Int = fieldNames.size
 
   val _fieldIdx: Map[String, Int] = fieldNames.zipWithIndex.toMap
   val newToOldFieldMapping: Map[Int, Int] = _fieldIdx
     .map { case (f, i) => (i, parent.virtualType.asInstanceOf[TStruct].fieldIdx(f)) }
 
-  val fieldTypes: IndexedSeq[SType] = Array.tabulate(size)(i => parent.fieldTypes(newToOldFieldMapping(i)))
-  val fieldEmitTypes: IndexedSeq[EmitType] = Array.tabulate(size)(i => parent.fieldEmitTypes(newToOldFieldMapping(i)))
+  override val fieldTypes: IndexedSeq[SType] = Array.tabulate(size)(i => parent.fieldTypes(newToOldFieldMapping(i)))
+  override val fieldEmitTypes: IndexedSeq[EmitType] = Array.tabulate(size)(i => parent.fieldEmitTypes(newToOldFieldMapping(i)))
 
-  lazy val virtualType: TStruct = {
+  override lazy val virtualType: TStruct = {
     val vparent = parent.virtualType.asInstanceOf[TStruct]
     TStruct(fieldNames.map(f => (f, vparent.field(f).typ)): _*)
   }
@@ -43,7 +43,7 @@ case class SSubsetStruct(parent: SBaseStruct, fieldNames: IndexedSeq[String]) ex
     newType
   }
 
-  def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     if (deepCopy)
       throw new NotImplementedError("Deep copy on subset struct")
     value.st match {
@@ -52,16 +52,20 @@ case class SSubsetStruct(parent: SBaseStruct, fieldNames: IndexedSeq[String]) ex
     }
   }
 
-  def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = parent.codeTupleTypes()
+  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = parent.codeTupleTypes()
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = parent.settableTupleTypes()
 
-  def fromSettables(settables: IndexedSeq[Settable[_]]): SSubsetStructSettable = {
-    new SSubsetStructSettable(this, parent.fromSettables(settables).asInstanceOf[SStructSettable])
+  override def fromSettables(settables: IndexedSeq[Settable[_]]): SSubsetStructSettable = {
+    new SSubsetStructSettable(this, parent.fromSettables(settables).asInstanceOf[SBaseStructSettable])
   }
 
-  def fromCodes(codes: IndexedSeq[Code[_]]): SSubsetStructCode = {
+  override def fromCodes(codes: IndexedSeq[Code[_]]): SSubsetStructCode = {
     new SSubsetStructCode(this, parent.fromCodes(codes))
+  }
+
+  override def fromValues(values: IndexedSeq[Value[_]]): SSubsetStructValue = {
+    new SSubsetStructValue(this, parent.fromValues(values).asInstanceOf[SBaseStructValue])
   }
 
   override def copiedType: SType = {
@@ -83,32 +87,34 @@ case class SSubsetStruct(parent: SBaseStruct, fieldNames: IndexedSeq[String]) ex
 //  aspirational implementation
 //  def storageType(): PType = StoredSTypePType(this, false)
 
-  def containsPointers: Boolean = parent.containsPointers
+  override def containsPointers: Boolean = parent.containsPointers
 }
 
-class SSubsetStructSettable(val st: SSubsetStruct, prev: SStructSettable) extends SStructSettable {
-  def get: SSubsetStructCode = new SSubsetStructCode(st, prev.load().asBaseStruct)
+class SSubsetStructValue(val st: SSubsetStruct, prev: SBaseStructValue) extends SBaseStructValue {
+  override def get: SSubsetStructCode = new SSubsetStructCode(st, prev.asBaseStruct)
 
-  def settableTuple(): IndexedSeq[Settable[_]] = prev.settableTuple()
-
-  def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
+  override def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
     prev.loadField(cb, st.newToOldFieldMapping(fieldIdx))
   }
 
-  def isFieldMissing(fieldIdx: Int): Code[Boolean] =
+  override def isFieldMissing(fieldIdx: Int): Code[Boolean] =
     prev.isFieldMissing(st.newToOldFieldMapping(fieldIdx))
+}
 
-  def store(cb: EmitCodeBuilder, pv: SCode): Unit = prev.store(cb, pv.asInstanceOf[SSubsetStructCode].prev)
+final class SSubsetStructSettable(st: SSubsetStruct, prev: SBaseStructSettable) extends SSubsetStructValue(st, prev) with SBaseStructSettable {
+  override def settableTuple(): IndexedSeq[Settable[_]] = prev.settableTuple()
+
+  override def store(cb: EmitCodeBuilder, pv: SCode): Unit = prev.store(cb, pv.asInstanceOf[SSubsetStructCode].prev)
 }
 
 class SSubsetStructCode(val st: SSubsetStruct, val prev: SBaseStructCode) extends SBaseStructCode {
   def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = prev.makeCodeTuple(cb)
 
   def memoize(cb: EmitCodeBuilder, name: String): SBaseStructValue = {
-    new SSubsetStructSettable(st, prev.memoize(cb, name).asInstanceOf[SStructSettable])
+    new SSubsetStructSettable(st, prev.memoize(cb, name).asInstanceOf[SBaseStructSettable])
   }
 
   def memoizeField(cb: EmitCodeBuilder, name: String): SBaseStructValue = {
-    new SSubsetStructSettable(st, prev.memoizeField(cb, name).asInstanceOf[SStructSettable])
+    new SSubsetStructSettable(st, prev.memoizeField(cb, name).asInstanceOf[SBaseStructSettable])
   }
 }

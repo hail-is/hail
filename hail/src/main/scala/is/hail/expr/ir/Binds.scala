@@ -27,6 +27,8 @@ object Bindings {
     case StreamFor(a, name, _) => if (i == 1) Array(name -> coerce[TStream](a.typ).elementType) else empty
     case StreamFlatMap(a, name, _) => if (i == 1) Array(name -> coerce[TStream](a.typ).elementType) else empty
     case StreamFilter(a, name, _) => if (i == 1) Array(name -> coerce[TStream](a.typ).elementType) else empty
+    case StreamTakeWhile(a, name, _) => if (i == 1) Array(name -> coerce[TStream](a.typ).elementType) else empty
+    case StreamDropWhile(a, name, _) => if (i == 1) Array(name -> coerce[TStream](a.typ).elementType) else empty
     case StreamFold(a, zero, accumName, valueName, _) => if (i == 2) Array(accumName -> zero.typ, valueName -> coerce[TStream](a.typ).elementType) else empty
     case StreamFold2(a, accum, valueName, seq, result) =>
       if (i <= accum.length)

@@ -155,7 +155,7 @@ object AbstractRVDSpec {
         val extendedNewPartitioner = np.extendKey(partitioner.kType)
         val tmpPartitioner = extendedNewPartitioner.intersect(partitioner)
 
-        val reader = PartitionZippedIndexedNativeReader(specLeft.typedCodecSpec, specRight.typedCodecSpec, indexSpecLeft, indexSpecRight, requestedKey)
+        val reader = PartitionZippedIndexedNativeReader(specLeft.typedCodecSpec, specRight.typedCodecSpec, indexSpecLeft, indexSpecRight, specLeft.key)
 
         val absPathLeft = removeFileProtocol(pathLeft)
         val absPathRight = removeFileProtocol(pathRight)

@@ -2756,6 +2756,8 @@ class IRSuite extends HailSuite {
       GroupByKey(da),
       StreamTake(st, I32(10)),
       StreamDrop(st, I32(10)),
+      StreamTakeWhile(st, "v", v < I32(5)),
+      StreamDropWhile(st, "v", v < I32(5)),
       StreamMap(st, "v", v),
       StreamZip(FastIndexedSeq(st, st), FastIndexedSeq("foo", "bar"), True(), ArrayZipBehavior.TakeMinLength),
       StreamFilter(st, "v", b),

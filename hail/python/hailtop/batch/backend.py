@@ -40,6 +40,8 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
     Abstract class for backends.
     """
 
+    _closed = False
+
     @abc.abstractmethod
     def _run(self, batch, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs) -> RunningBatchType:
         """
@@ -56,12 +58,24 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
     def _fs(self) -> AsyncFS:
         raise NotImplementedError()
 
-    # pylint: disable=R0201
-    def close(self):
-        """
-        Close a Hail Batch backend.
-        """
+    def _close(self):  # pylint: disable=R0201
         return
+
+    def close(self):  # pylint: disable=R0201
+        """
+        Close a Hail Batch Backend.
+
+        Notes
+        -----
+        This method should be called after executing your batches at the
+        end of your script.
+        """
+        if not self._closed:
+            self._close()
+            self._closed = True
+
+    def __del__(self):
+        self.close()
 
     def __enter__(self: SelfType) -> SelfType:
         return self
@@ -310,7 +324,7 @@ class LocalBackend(Backend[None]):
 
         return _get_random_name()
 
-    def close(self):
+    def _close(self):
         async_to_blocking(self._fs.close())
 
 
@@ -418,20 +432,9 @@ class ServiceBackend(Backend[bc.Batch]):
     def _fs(self):
         return self.__fs
 
-    def close(self):
-        """
-        Close the connection with the Batch Service.
-
-        Notes
-        -----
-        This method should be called after executing your batches at the
-        end of your script.
-        """
+    def _close(self):
         self._batch_client.close()
         async_to_blocking(self._fs.close())
-
-    def __del__(self):
-        self.close()
 
     def _run(self,
              batch: 'batch.Batch',

@@ -146,6 +146,9 @@ object TypeCheck {
         assert(x.typ == coerce[TArray](a.typ))
       case ArrayLen(a) =>
         assert(a.typ.isInstanceOf[TArray])
+      case StreamIota(start, step, _) =>
+        assert(start.typ == TInt32)
+        assert(step.typ == TInt32)
       case x@StreamRange(a, b, c, _, _) =>
         assert(a.typ == TInt32)
         assert(b.typ == TInt32)
@@ -292,6 +295,14 @@ object TypeCheck {
         assert(x.typ.elementType == eltType)
         assert(key.forall(eltType.hasField))
       case x@StreamFilter(a, name, cond) =>
+        assert(a.typ.asInstanceOf[TStream].elementType.isRealizable)
+        assert(cond.typ == TBoolean)
+        assert(x.typ == a.typ)
+      case x@StreamTakeWhile(a, name, cond) =>
+        assert(a.typ.asInstanceOf[TStream].elementType.isRealizable)
+        assert(cond.typ == TBoolean)
+        assert(x.typ == a.typ)
+      case x@StreamDropWhile(a, name, cond) =>
         assert(a.typ.asInstanceOf[TStream].elementType.isRealizable)
         assert(cond.typ == TBoolean)
         assert(x.typ == a.typ)

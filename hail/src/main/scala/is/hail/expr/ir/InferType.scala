@@ -33,6 +33,7 @@ object InferType {
       case MakeNDArray(data, shape, _, _) =>
         TNDArray(coerce[TIterable](data.typ).elementType, Nat(shape.typ.asInstanceOf[TTuple].size))
       case _: ArrayLen => TInt32
+      case _: StreamIota => TStream(TInt32)
       case _: StreamRange => TStream(TInt32)
       case _: SeqSample => TStream(TInt32)
       case _: ArrayZeros => TArray(TInt32)
@@ -128,6 +129,10 @@ object InferType {
       case StreamMultiMerge(as, _) =>
         TStream(coerce[TStream](as.head.typ).elementType)
       case StreamFilter(a, name, cond) =>
+        a.typ
+      case StreamTakeWhile(a, name, cond) =>
+        a.typ
+      case StreamDropWhile(a, name, cond) =>
         a.typ
       case StreamFlatMap(a, name, body) =>
         TStream(coerce[TStream](body.typ).elementType)

@@ -160,7 +160,19 @@ object GenericLines {
             // move scanned input from buf to lineData
             val n = bufPos - begin
             if (linePos + n > lineData.length) {
-              val newLineData = new Array[Byte]((linePos + n) * 2)
+              val copySize = linePos.toLong + n
+
+              // Maximum array size compatible with common JDK implementations
+              // https://github.com/openjdk/jdk14u/blob/84917a040a81af2863fddc6eace3dda3e31bf4b5/src/java.base/share/classes/jdk/internal/util/ArraysSupport.java#L577
+              val maxArraySize = Int.MaxValue - 8
+              if (copySize > maxArraySize)
+                fatal(s"GenericLines: line size reached: cannot read a line with more than 2^31-1 bytes")
+              val newSize = Math.min(copySize * 2, maxArraySize).toInt
+              if (newSize > (1 << 20)) {
+                log.info(s"GenericLines: growing line buffer to $newSize")
+              }
+
+              val newLineData = new Array[Byte](newSize)
               System.arraycopy(lineData, 0, newLineData, 0, linePos)
               lineData = newLineData
               line.data = newLineData

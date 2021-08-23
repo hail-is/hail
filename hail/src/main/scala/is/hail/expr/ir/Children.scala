@@ -61,6 +61,8 @@ object Children {
         Array(a, start, stop.get, step)
     case ArrayLen(a) =>
       Array(a)
+    case StreamIota(start, step, _) =>
+      Array(start, step)
     case StreamRange(start, stop, step, _, _) =>
       Array(start, stop, step)
     case SeqSample(totalRange, numToSample, _) =>
@@ -110,6 +112,10 @@ object Children {
     case StreamMultiMerge(as, _) =>
       as
     case StreamFilter(a, name, cond) =>
+      Array(a, cond)
+    case StreamTakeWhile(a, name, cond) =>
+      Array(a, cond)
+    case StreamDropWhile(a, name, cond) =>
       Array(a, cond)
     case StreamFlatMap(a, name, body) =>
       Array(a, body)
