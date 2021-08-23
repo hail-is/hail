@@ -170,7 +170,6 @@ object StringFunctions extends RegistryFunctions {
       if (!missing.contains(field_entry)) field_entry
       else null
     }
-    val quoteC = quote(0)
     var offset = 0
     var nextDelim = s.indexOf(sepChar, offset)
     var nextQuote = if (quote == null) -1 else s.indexOf(quote, offset)
@@ -201,7 +200,9 @@ object StringFunctions extends RegistryFunctions {
 
       }
     }
-    ab.result()
+    val a = ab.result()
+    a.map(x => println(x))
+    a
   }
 
   def splitQuoted3(s: String, separator: String, missing: Array[String], quote: String): Array[String] = {
