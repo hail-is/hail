@@ -677,7 +677,8 @@ object LowerTableIR {
                   idx += 1
                 }
                 val partsToKeep = partCounts.slice(0, idx)
-                Literal(TArray(TInt32), partsToKeep.map(partSize => partSize.toInt))
+                val finalParts = partsToKeep.map(partSize => partSize.toInt).toFastIndexedSeq
+                Literal(TArray(TInt32), finalParts)
               case None =>
                 val partitionSizeArrayFunc = genUID()
                 val howManyPartsToTry = Ref(genUID(), TInt32)
@@ -758,7 +759,8 @@ object LowerTableIR {
                   sumSoFar += partCounts(idx)
                   idx -= 1
                 }
-                Literal(TArray(TInt32), (partCounts.length - 1 until idx by -1).map{partIdx => partCounts(partIdx).toInt})
+                val finalParts = (partCounts.length - 1 until idx by -1).map{partIdx => partCounts(partIdx).toInt}.toFastIndexedSeq
+                Literal(TArray(TInt32), finalParts)
 
               case None =>
                 val partitionSizeArrayFunc = genUID()
