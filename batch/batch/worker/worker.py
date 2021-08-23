@@ -420,6 +420,8 @@ class Container:
         self.config_path = f'{self.container_scratch}/config'
         self.log_path = f'{self.container_scratch}/container.log'
 
+        self.overlay_mounted = False
+
         self.fs = LocalAsyncFS(worker.pool)
 
         self.container_name = f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}'
@@ -582,6 +584,7 @@ class Container:
         await check_shell(
             f'mount -t overlay overlay -o lowerdir={lower_dir},upperdir={upper_dir},workdir={work_dir} {merged_dir}'
         )
+        self.overlay_mounted = True
 
     async def setup_network_namespace(self):
         network = self.spec.get('network')
@@ -842,14 +845,16 @@ class Container:
             except asyncio.CancelledError:
                 raise
             except Exception:
-                log.exception('while deleting container', exc_info=True)
+                log.exception(f'while deleting container {self}', exc_info=True)
 
-        try:
-            await check_shell(f'umount -l {self.container_overlay_path}/merged')
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            log.exception('while unmounting overlay', exc_info=True)
+        if self.overlay_mounted:
+            try:
+                await check_shell(f'umount -l {self.container_overlay_path}/merged')
+                self.overlay_mounted = False
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                log.exception(f'while unmounting overlay in {self}', exc_info=True)
 
         if self.host_port is not None:
             port_allocator.free(self.host_port)
