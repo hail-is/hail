@@ -28,8 +28,10 @@ import org.apache.spark.sql.Row
 import org.json4s.JsonAST.JString
 import org.json4s.jackson.JsonMethods
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
-
 import java.io.{ByteArrayInputStream, DataInputStream, DataOutputStream, InputStream}
+
+import is.hail.io.avro.AvroTableReader
+
 import scala.reflect.ClassTag
 
 object TableIR {
@@ -104,7 +106,8 @@ case class TableLiteral(typ: TableType, rvd: RVD, enc: AbstractTypedCodecSpec, e
 
 object TableReader {
   implicit val formats: Formats = RelationalSpec.formats + ShortTypeHints(
-    List(classOf[TableNativeZippedReader])
+    List(classOf[TableNativeZippedReader],
+      classOf[AvroTableReader])
   ) + new NativeReaderOptionsSerializer()
 
   def fromJValue(fs: FS, jv: JValue): TableReader = {
