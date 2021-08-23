@@ -1418,6 +1418,7 @@ class Emit[C](
                 val ob = cb.newLocal[OutputBuffer]("stream_dist_file_ob")
                 val fileName = cb.newLocal[String]("file_to_write", pathVal.asString.loadString() concat const("/sorted_part_") concat (fileArrayIdx.toS))
                 cb.assign(ob, spec.buildCodeOutputBuffer(mb.create(fileName)))
+                cb += fileData.update(fileArrayIdx, ob)
                 /*
               spec.encodedType.buildEncoder(v.st, cb.emb.ecb)
                 .apply(cb, v.memoize(cb, "write_value"), ob)
@@ -1438,7 +1439,7 @@ class Emit[C](
                 })
                 // cb.println("Before moving, b was ", b.toS, " k is still ", k.toS)
                 // TODO: May not be using splitterWasDuplicated correctly here.
-                cb.assign(b, const(2) * b + 1 - lessThan(cb, current, splitters.loadElement(cb, b - k / 2).memoize(cb, "stream_dist_splitter_compare")).toI * splitterWasDuplicated.loadElement(cb, b - k / 2).get(cb).asBoolean.boolCode(cb).toI)
+                cb.assign(b, const(2) * b + 1 - lessThan(cb, current, splitters.loadElement(cb, b - k / 2).memoize(cb, "stream_dist_splitter_compare")).toI * (const(1) - splitterWasDuplicated.loadElement(cb, b - k / 2).get(cb).asBoolean.boolCode(cb).toI))
 
                 cb.println("Element ", cb.strValue(current), " should go in bucket: ", (b - k).toS)
 
@@ -1450,8 +1451,8 @@ class Emit[C](
               }
 
               cb.forLoop(cb.assign(fileArrayIdx, 0), fileArrayIdx < numFilesToWrite, cb.assign(fileArrayIdx, fileArrayIdx + 1), {
-                //              val ob = ??? // Somehow load output buffer
-                //              cb += ob.invoke[Unit]("close")
+                val ob = fileData(fileArrayIdx) // Somehow load output buffer
+                cb += ob.invoke[Unit]("close")
               })
 
               val intervalType = PCanonicalInterval(keyPType, true)
