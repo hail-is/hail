@@ -842,14 +842,14 @@ class Container:
             except asyncio.CancelledError:
                 raise
             except Exception:
-                log.exception('while deleting container', exc_info=True)
+                log.exception(f'while deleting {self}', exc_info=True)
 
         try:
             await check_shell(f'umount -l {self.container_overlay_path}/merged')
         except asyncio.CancelledError:
             raise
         except Exception:
-            log.exception('while unmounting overlay', exc_info=True)
+            log.exception(f'while unmounting overlay in {self}', exc_info=True)
 
         if self.host_port is not None:
             port_allocator.free(self.host_port)
