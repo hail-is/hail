@@ -1808,9 +1808,10 @@ class BufferedOutputProcess:
 class JVM:
     SPARK_HOME = find_spark_home()
 
-    FINISH_EXCEPTION = 0
-    FINISH_NORMAL = 1
-    FINISH_CANCELLED = 2
+    FINISH_USER_EXCEPTION = 0
+    FINISH_ENTRYWAY_EXCEPTION = 1
+    FINISH_NORMAL = 2
+    FINISH_CANCELLED = 3
 
     @classmethod
     async def create_process(cls, socket_file: str) -> BufferedOutputProcess:
@@ -1957,8 +1958,12 @@ class JVM:
             elif message == JVM.FINISH_CANCELLED:
                 assert wait_for_interrupt.done()
                 log.info(f'{self}: was cancelled')
-            elif message == JVM.FINISH_EXCEPTION:
-                log.info(f'{self}: exception encountered (interrupted: {wait_for_interrupt.done()})')
+            elif message == JVM.FINISH_USER_EXCEPTION:
+                log.info(f'{self}: user exception encountered (interrupted: {wait_for_interrupt.done()})')
+                exception = await read_str(reader)
+                raise ValueError(exception)
+            elif message == JVM.FINISH_ENTRYWAY_EXCEPTION:
+                log.info(f'{self}: entryway exception encountered (interrupted: {wait_for_interrupt.done()})')
                 exception = await read_str(reader)
                 raise ValueError(exception)
 

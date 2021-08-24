@@ -20,9 +20,10 @@ class JVMEntryway {
     }
   }
 
-  private static int FINISH_EXCEPTION = 0;
-  private static int FINISH_NORMAL = 1;
-  private static int FINISH_CANCELLED = 2;
+  private static int FINISH_USER_EXCEPTION = 0;
+  private static int FINISH_ENTRYWAY_EXCEPTION = 1;
+  private static int FINISH_NORMAL = 2;
+  private static int FINISH_CANCELLED = 3;
 
   public static void main(String[] args) throws Exception {
     assert args.length == 1;
@@ -101,22 +102,18 @@ class JVMEntryway {
         Future<?> mainThread = null;
         Future<?> shouldCancelThread = null;
         Future<?> completedThread = null;
-        Throwable exception = null;
+        Throwable entrywayException = null;
         try {
-          System.err.println("submitting main ");
           mainThread = gather.submit(new Runnable() {
               public void run() {
                 ClassLoader oldClassLoader = Thread.currentThread().getContextClassLoader();
                 Thread.currentThread().setContextClassLoader(cl);
                 try {
-                  System.err.println("main running");
                   String[] mainArgs = new String[nRealArgs - 2];
                   for (int i = 2; i < nRealArgs; ++i) {
                     mainArgs[i-2] = realArgs[i];
                   }
-                  System.err.println("invoking");
                   main.invoke(null, (Object) mainArgs);
-                  System.err.println("done invoking");
                 } catch (IllegalAccessException | InvocationTargetException e) {
                   throw new RuntimeException(e);
                 } finally {
@@ -124,15 +121,12 @@ class JVMEntryway {
                 }
               }
             }, null);
-          System.err.println("submitting shouldCancel");
           shouldCancelThread = gather.submit(new Runnable() {
               public void run() {
                 ClassLoader oldClassLoader = Thread.currentThread().getContextClassLoader();
                 Thread.currentThread().setContextClassLoader(cl);
                 try {
-                  System.err.println("shouldCancel running");
                   int i = in.readInt();
-                  System.err.println("will cancel");
                   assert i == 0 : i;
                 } catch (IOException e) {
                   throw new RuntimeException(e);
@@ -141,58 +135,102 @@ class JVMEntryway {
                 }
               }
             }, null);
-          System.err.println("waiting");
           completedThread = gather.take();
         } catch (Throwable t) {
-          exception = t;
+          entrywayException = t
         }
 
-        if (exception != null) {
-          System.err.println("Encountered exception during execution");
-          exception.printStackTrace();
+        if (entrywayException != null) {
+          System.err.println("exception in entryway code");
+          entrywayException.printStackTrace();
 
-          mainThread.cancel(true);
-          shouldCancelThread.cancel(true);
+          if (mainThread != null) {
+            Throwable t2 = cancelThreadRetrieveException(mainThread);
+            if (t2 != null) {
+              entrywayException.addSuppressed(t2);
+            }
+          }
 
-          mainThread.get();
-          shouldCancelThread.get();
+          if (shouldCancelThread != null) {
+            Throwable t2 = cancelThreadRetrieveException(shouldCancelThread);
+            if (t2 != null) {
+              entrywayException.addSuppressed(t2);
+            }
+          }
 
-          out.writeInt(FINISH_EXCEPTION);
-          String s = throwableToString(exception);
-          byte[] bytes = s.getBytes(StandardCharsets.UTF_8);
-          out.writeInt(bytes.length);
-          out.write(bytes);
+          finishEntrywayException(entrywayException);
         } else {
           assert(completedThread != null);
+
           if (completedThread == mainThread) {
             System.err.println("main thread done");
-            shouldCancelThread.cancel(true);
-
-            mainThread.get();  // retrieve any exceptions
-            try {
-              shouldCancelThread.get();  // wait for the thread to cancel and retrieve exceptions
-            } catch (CancellationException e) {
-            }
-
-            out.writeInt(FINISH_NORMAL);
+            finishFutures(FINISH_USER_EXCEPTION,
+                          mainThread,
+                          FINISH_ENTRYWAY_EXCEPTION,
+                          shouldCancelThread);
           } else {
-            System.err.println("I was cancelled");
             assert(completedThread == shouldCancelThread);
-            mainThread.cancel(true);
-
-            shouldCancelThread.get();  // retrieve any exceptions
-            try {
-              mainThread.get();  // wait for the thread to cancel and retrieve exceptions
-            } catch (CancellationException e) {
-            }
-
-            out.writeInt(FINISH_CANCELLED);
-            out.flush();
+            System.err.println("cancelled");
+            finishFutures(FINISH_ENTRYWAY_EXCEPTION,
+                          shouldCancelThread,
+                          FINISH_USER_EXCEPTION,
+                          mainThread);
           }
         }
       }
       System.err.println("waiting for next connection");
       System.err.flush();
+      System.out.flush();
+    }
+  }
+
+  private static void finishFutures(int finishedExceptionType,
+                                    Future finished,
+                                    int secondaryExceptionType,
+                                    Future secondary) {
+    Exception finishedException = retrieveException(secondary);
+    Exception secondaryException = cancelThreadRetrieveException(secondary);
+
+    if (finishedException != null) {
+      if (secondaryException != null) {
+        finishedException.addSuppressed(secondaryException);
+      }
+      finishException(finishedExceptionType, finishedException);
+    } else if (secondaryException != null) {
+      finishException(secondaryExceptionType, secondaryException);
+    } else {
+      out.writeInt(FINISH_NORMAL);
+    }
+  }
+
+  private static void finishUserException(OutputStream out, Exception e) {
+    finishException(FINISH_USER_EXCEPTION, out, e);
+  }
+
+  private static void finishEntrywayException(OutputStream out, Exception e) {
+    finishException(FINISH_ENTRYWAY_EXCEPTION, out, e);
+  }
+
+  private static void finishException(int type, OutputStream out, Exception e) {
+    out.writeInt(type);
+    String s = throwableToString(shouldCancelThreadException);
+    byte[] bytes = s.getBytes(StandardCharsets.UTF_8);
+    out.writeInt(bytes.length);
+    out.write(bytes);
+  }
+
+  private static Throwable cancelThreadRetrieveException(Future f) {
+    f.cancel(true);
+    return retrieveException(f);
+  }
+
+  private static Throwable retrieveException(Future f) {
+    try {
+      f.get();
+      return null;
+    } catch (CancellationException e) {
+    } catch (Throwable t) {
+      return t;
     }
   }
 }
