@@ -1576,7 +1576,8 @@ class JVMJob(Job):
                 self.state = 'error'
                 self.error = traceback.format_exc()
                 await self.cleanup()
-            await self.cleanup()
+            else:
+                await self.cleanup()
 
     async def cleanup(self):
         if self.jvm is not None:
@@ -1807,6 +1808,10 @@ class BufferedOutputProcess:
 class JVM:
     SPARK_HOME = find_spark_home()
 
+    FINISH_EXCEPTION = 0
+    FINISH_NORMAL = 1
+    FINISH_CANCELLED = 2
+
     @classmethod
     async def create_process(cls, socket_file: str) -> BufferedOutputProcess:
         return await BufferedOutputProcess.create(
@@ -1907,7 +1912,7 @@ class JVM:
             os.remove(self.socket_file)
             process, startup_output = await self.create_process_and_connect(self.index, self.socket_file)
             self.process = process
-            log.info(f'JVM-{index}: startup output: {startup_output}')
+            log.info(f'JVM-{self.index}: startup output: {startup_output}')
 
         with ExitStack() as stack:
             reader: asyncio.StreamReader
@@ -1928,12 +1933,12 @@ class JVM:
                 write_str(writer, arg)
             await writer.drain()
 
-            wait_for_process = asyncio.ensure_future(read_bool(reader))
-            stack.callback(wait_for_process.cancel)
-            wait_for_interrupt = asyncio.ensure_future(self.should_interrupt.wait())
+            wait_for_message_from_process: asyncio.Future = asyncio.ensure_future(read_int(reader))
+            stack.callback(wait_for_message_from_process.cancel)
+            wait_for_interrupt: asyncio.Future = asyncio.ensure_future(self.should_interrupt.wait())
             stack.callback(wait_for_interrupt.cancel)
 
-            await asyncio.wait([wait_for_process, wait_for_interrupt], return_when=asyncio.FIRST_COMPLETED)
+            await asyncio.wait([wait_for_message_from_process, wait_for_interrupt], return_when=asyncio.FIRST_COMPLETED)
 
             for entry in os.listdir(self.root_dir):
                 if entry not in ('hail-jars', 'jvm-entryway', 'spark'):
@@ -1941,23 +1946,21 @@ class JVM:
 
             if wait_for_interrupt.done():
                 await wait_for_interrupt  # retrieve exceptions
-                if not wait_for_process.done():
-                    # terminate the competing reader before trying to communicate on the socket
-                    wait_for_process.cancel()
-                    await asyncio.wait([wait_for_process])
-
-                    write_int(writer, 0)
+                if not wait_for_message_from_process.done():
+                    write_int(writer, 0)  # tell process to cancel
                     await writer.drain()
-                    i = await read_int(reader)
-                    assert i == 0, i
-                    return
 
-            assert wait_for_process.done()
-            is_success = wait_for_process.result()
-            if not is_success:
+            message = await wait_for_message_from_process
+
+            if message == JVM.FINISH_NORMAL:
+                log.info(f'{self}: finished normally (interrupted: {wait_for_interrupt.done()})')
+            elif message == JVM.FINISH_CANCELLED:
+                assert wait_for_interrupt.done()
+                log.info(f'{self}: was cancelled')
+            elif message == JVM.FINISH_EXCEPTION:
+                log.info(f'{self}: exception encountered (interrupted: {wait_for_interrupt.done()})')
                 exception = await read_str(reader)
                 raise ValueError(exception)
-            return
 
 
 class Worker:

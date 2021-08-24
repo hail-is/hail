@@ -20,6 +20,10 @@ class JVMEntryway {
     }
   }
 
+  private static int FINISH_EXCEPTION = 0;
+  private static int FINISH_NORMAL = 1;
+  private static int FINISH_CANCELLED = 2;
+
   public static void main(String[] args) throws Exception {
     assert args.length == 1;
     AFUNIXServerSocket server = AFUNIXServerSocket.newInstance();
@@ -92,15 +96,15 @@ class JVMEntryway {
         System.err.println("class loaded ");
         Method main = klass.getDeclaredMethod("main", String[].class);
         System.err.println("main method got ");
-        ClassLoader oldClassLoader = Thread.currentThread().getContextClassLoader();
-        Thread.currentThread().setContextClassLoader(cl);
-        System.err.println("context class loader set ");
 
-        Boolean invoked = false;
         CompletionService<?> gather = new ExecutorCompletionService<Object>(executor);
+        Future<?> mainThread = null;
+        Future<?> shouldCancelThread = null;
+        Future<?> completedThread = null;
+        Throwable exception = null;
         try {
           System.err.println("submitting main ");
-          Future<?> mainThread = gather.submit(new Runnable() {
+          mainThread = gather.submit(new Runnable() {
               public void run() {
                 ClassLoader oldClassLoader = Thread.currentThread().getContextClassLoader();
                 Thread.currentThread().setContextClassLoader(cl);
@@ -121,7 +125,7 @@ class JVMEntryway {
               }
             }, null);
           System.err.println("submitting shouldCancel");
-          Future<?> shouldCancelThread = gather.submit(new Runnable() {
+          shouldCancelThread = gather.submit(new Runnable() {
               public void run() {
                 ClassLoader oldClassLoader = Thread.currentThread().getContextClassLoader();
                 Thread.currentThread().setContextClassLoader(cl);
@@ -138,33 +142,54 @@ class JVMEntryway {
               }
             }, null);
           System.err.println("waiting");
-          Future<?> completedThread = gather.take();
-          if (completedThread == mainThread) {
-            System.err.println("main thread done");
-            shouldCancelThread.cancel(true);
-            mainThread.get();
-            invoked = true;
-            out.writeBoolean(true);
-          } else {
-            System.err.println("I was cancelled");
-            assert completedThread == shouldCancelThread;
-            mainThread.cancel(true);
-            shouldCancelThread.get();
-            out.writeInt(0);
-            out.flush();
-          }
+          completedThread = gather.take();
         } catch (Throwable t) {
-          if (invoked) {
-            throw t;
-          }
+          exception = t;
+        }
 
-          out.writeBoolean(false);
-          String s = throwableToString(t);
+        if (exception != null) {
+          System.err.println("Encountered exception during execution");
+          exception.printStackTrace();
+
+          mainThread.cancel(true);
+          shouldCancelThread.cancel(true);
+
+          mainThread.get();
+          shouldCancelThread.get();
+
+          out.writeInt(FINISH_EXCEPTION);
+          String s = throwableToString(exception);
           byte[] bytes = s.getBytes(StandardCharsets.UTF_8);
           out.writeInt(bytes.length);
           out.write(bytes);
+        } else {
+          assert(completedThread != null);
+          if (completedThread == mainThread) {
+            System.err.println("main thread done");
+            shouldCancelThread.cancel(true);
+
+            mainThread.get();  // retrieve any exceptions
+            try {
+              shouldCancelThread.get();  // wait for the thread to cancel and retrieve exceptions
+            } catch (CancellationException e) {
+            }
+
+            out.writeInt(FINISH_NORMAL);
+          } else {
+            System.err.println("I was cancelled");
+            assert(completedThread == shouldCancelThread);
+            mainThread.cancel(true);
+
+            shouldCancelThread.get();  // retrieve any exceptions
+            try {
+              mainThread.get();  // wait for the thread to cancel and retrieve exceptions
+            } catch (CancellationException e) {
+            }
+
+            out.writeInt(FINISH_CANCELLED);
+            out.flush();
+          }
         }
-        Thread.currentThread().setContextClassLoader(oldClassLoader);
       }
       System.err.println("waiting for next connection");
       System.err.flush();
