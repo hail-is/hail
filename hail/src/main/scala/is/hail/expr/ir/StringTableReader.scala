@@ -74,8 +74,8 @@ case class StringTablePartitionReader(lines: GenericLines) extends PartitionRead
            cb.assign(fileName, ctxMemo.loadField(cb, "file").get(cb).asString.loadString())
 
            cb.assign(iter,
-             cb.emb.getObject[(Any) => CloseableIterator[GenericLine]](lines.body)
-               .invoke[Any, CloseableIterator[GenericLine]]("apply", contextAsJavaValue)
+             cb.emb.getObject[(Any, Any) => CloseableIterator[GenericLine]](lines.body)
+               .invoke[Any, Any, CloseableIterator[GenericLine]]("apply", cb.emb.getFS, contextAsJavaValue)
            )
          }
 

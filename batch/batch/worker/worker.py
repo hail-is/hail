@@ -1570,6 +1570,7 @@ class JVMJob(Job):
             except asyncio.CancelledError:
                 raise
             except Exception:
+                # FIXME: this can also be a Hail Query driver error, not a Hail Batch error
                 log.exception(f'while running {self}')
 
                 self.state = 'error'
@@ -1810,7 +1811,7 @@ class JVM:
     async def create_process(cls, socket_file: str) -> BufferedOutputProcess:
         return await BufferedOutputProcess.create(
             'java',
-            '-Xmx10g',  # FIXME: reduce this somehow
+            '-Xmx3500M',
             '-cp',
             f'/jvm-entryway:/jvm-entryway/junixsocket-selftest-2.3.3-jar-with-dependencies.jar:{JVM.SPARK_HOME}/jars/*',
             'is.hail.JVMEntryway',
@@ -1904,7 +1905,9 @@ class JVM:
         if self.process.returncode is not None:
             log.warning(f'{self}: unexpected exit between jobs', extra=dict(output=self.process.output()))
             os.remove(self.socket_file)
-            self.process = await self.create_process(self.socket_file)
+            process, startup_output = await self.create_process_and_connect(self.index, self.socket_file)
+            self.process = process
+            log.info(f'JVM-{index}: startup output: {startup_output}')
 
         with ExitStack() as stack:
             reader: asyncio.StreamReader
@@ -1937,11 +1940,17 @@ class JVM:
                     await blocking_to_async(worker.pool, shutil.rmtree, self.root_dir + '/' + entry)
 
             if wait_for_interrupt.done():
-                write_int(writer, 0)
-                await writer.drain()
-                i = await read_int(reader)
-                assert i == 0, i
-                return
+                await wait_for_interrupt  # retrieve exceptions
+                if not wait_for_process.done():
+                    # terminate the competing reader before trying to communicate on the socket
+                    wait_for_process.cancel()
+                    await asyncio.wait([wait_for_process])
+
+                    write_int(writer, 0)
+                    await writer.drain()
+                    i = await read_int(reader)
+                    assert i == 0, i
+                    return
 
             assert wait_for_process.done()
             is_success = wait_for_process.result()
