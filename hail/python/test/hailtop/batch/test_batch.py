@@ -1,3 +1,4 @@
+import secrets
 import unittest
 import os
 import subprocess as sp
@@ -841,4 +842,12 @@ class ServiceTests(unittest.TestCase):
         j1.command(f'echo hello > {j1.ofile}')
         j2 = b.new_job()
         j2.command(f'cat {j1.ofile}')
+        b.run()
+
+    def test_large_command(self):
+        backend = ServiceBackend(remote_tmpdir='gs://hail-test-dmk9z/temporary-files')
+        b = Batch(backend=backend)
+        j1 = b.new_job()
+        long_str = secrets.token_urlsafe(15 * 1024)
+        j1.command(f'echo "{long_str}"')
         b.run()
