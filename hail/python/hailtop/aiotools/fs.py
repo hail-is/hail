@@ -14,7 +14,7 @@ import humanize
 from hailtop.utils import (
     retry_transient_errors, blocking_to_async, url_basename, url_join, bounded_gather2,
     time_msecs, humanize_timedelta_msecs, OnlineBoundedGather2)
-from .exceptions import UnexpectedEOFError
+from .exceptions import FileAndDirectoryError, UnexpectedEOFError
 from .weighted_semaphore import WeightedSemaphore
 from .stream import ReadableStream, WritableStream, blocking_readable_stream_to_async, blocking_writable_stream_to_async
 
@@ -429,10 +429,6 @@ class LocalAsyncFS(AsyncFS):
                 pass
 
         await blocking_to_async(self._thread_pool, f)
-
-
-class FileAndDirectoryError(Exception):
-    pass
 
 
 class Transfer:
