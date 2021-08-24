@@ -1,6 +1,8 @@
 import abc
 import json
 
+import avro.schema
+
 import hail as hl
 
 from hail.ir.utils import make_filter_and_replace
@@ -131,3 +133,21 @@ class TableFromBlockMatrixNativeReader(TableReader):
             other.path == self.path and \
             other.n_partitions == self.n_partitions and \
             other.maximum_cache_memory_in_bytes == self.maximum_cache_memory_in_bytes
+
+
+class AvroTableReader(TableReader):
+    @typecheck_method(schema=avro.schema.Schema, paths=sequenceof(str))
+    def __init__(self, schema, paths):
+        self.schema = schema
+        self.paths = paths
+
+    def render(self):
+        reader = {'name': 'AvroTableReader',
+                  'partitionReader': {'name': 'AvroPartitionReader',
+                                      'schema': self.schema.to_json()},
+                  'paths': self.paths}
+        return escape_str(json.dumps(reader))
+
+    def __eq__(self, other):
+        return isinstance(other, AvroTableReader) and \
+            other.paths == self.paths

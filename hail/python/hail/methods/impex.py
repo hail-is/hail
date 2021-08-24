@@ -2,6 +2,10 @@ import json
 import re
 from typing import List
 
+import avro.schema
+from avro.datafile import DataFileReader
+from avro.io import DatumReader
+
 import hail as hl
 from hail import ir
 from hail.expr import StructExpression, LocusExpression, \
@@ -2596,3 +2600,11 @@ def export_elasticsearch(t, host, port, index, index_type, block_size, config=No
 
     jdf = t.expand_types().to_spark(flatten=False)._jdf
     Env.hail().io.ElasticsearchConnector.export(jdf, host, port, index, index_type, block_size, config, verbose)
+
+
+@typecheck(paths=sequenceof(str))
+def import_avro(paths):
+    assert paths, 'import_avro requires at least one path'
+    with DataFileReader(hl.current_backend().fs.open(paths[0]), DatumReader) as dfr:
+        tr = ir.AvroTableReader(avro.schema.parse(dfr.schema), paths)
+    return Table(ir.TableRead(tr))
