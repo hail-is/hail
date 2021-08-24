@@ -34,7 +34,10 @@ class PBoolean(override val required: Boolean) extends PType with PPrimitive {
   }
 
   override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBooleanValue =
-    new SBooleanValue(cb.memoize[Boolean](Region.loadBoolean(addr)))
+  new SBooleanCode(Region.loadBoolean(addr)).memoize(cb, "loadCheapSCodeField")
+
+  override def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SBooleanValue =
+    new SBooleanCode(Region.loadBoolean(addr)).memoizeField(cb, "loadCheapSCodeField")
 
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
     Region.storeByte(addr, annotation.asInstanceOf[Boolean].toByte)

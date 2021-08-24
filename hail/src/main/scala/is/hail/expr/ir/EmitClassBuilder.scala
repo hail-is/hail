@@ -907,7 +907,7 @@ class EmitMethodBuilder[C](
         val field = cb.newFieldAny(s"storeEmitParam_sct_$emitIndex", mb.getArg(codeIndex)(sct.ti).get)(sct.ti);
         { region: Value[Region] =>
           val m = if (required) None else Some(mb.getArg[Boolean](codeIndex + 1))
-          val v = sct.loadToSCode(cb, region, field).memoizeField(cb, "storeEmitParam")
+          val v = sct.loadToSValue(cb, region, field)
 
           EmitValue(m, v)
         }
@@ -931,16 +931,10 @@ class EmitMethodBuilder[C](
 
     et match {
       case SingleCodeEmitParamType(required, sct) =>
+        val m = if (required) None else Some(mb.getArg[Boolean](codeIndex + 1))
+        val v = sct.loadToSValue(cb, r, mb.getArg(codeIndex)(sct.ti))
 
-        val emitCode = EmitCode.fromI(this) { cb =>
-          if (required) {
-            IEmitCode.present(cb, sct.loadToSCode(cb, r, mb.getArg(codeIndex)(sct.ti).get))
-          } else {
-            IEmitCode(cb, mb.getArg[Boolean](codeIndex + 1).get, sct.loadToSCode(cb, null, mb.getArg(codeIndex)(sct.ti).get))
-          }
-        }
-
-        EmitValue(if (required) None else Some(mb.getArg[Boolean](codeIndex + 1)), sct.loadToSValue(cb, null, mb.getArg(codeIndex)(sct.ti)))
+        EmitValue(m, v)
 
       case SCodeEmitParamType(et) =>
         val ts = et.st.settableTupleTypes()

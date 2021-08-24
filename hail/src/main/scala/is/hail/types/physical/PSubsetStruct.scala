@@ -126,6 +126,9 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String]) ext
   def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructValue =
     throw new UnsupportedOperationException
 
+  def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructValue =
+    throw new UnsupportedOperationException
+
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
     throw new UnsupportedOperationException
   }

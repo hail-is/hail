@@ -383,6 +383,9 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SIndexablePointerValue =
     new SIndexablePointerCode(sType, addr).memoize(cb, "loadCheapSCode")
 
+  def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SIndexablePointerValue =
+    new SIndexablePointerCode(sType, addr).memoizeField(cb, "loadCheapSCodeField")
+
   def storeContentsAtAddress(cb: EmitCodeBuilder, addr: Value[Long], region: Value[Region], indexable: SIndexableValue, deepCopy: Boolean): Unit = {
     val length = indexable.loadLength()
     indexable.st match {

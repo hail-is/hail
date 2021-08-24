@@ -66,6 +66,9 @@ class PCanonicalString(val required: Boolean) extends PString {
   def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SStringPointerValue =
     new SStringPointerCode(sType, addr).memoize(cb, "loadCheapSCode")
 
+  def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SStringPointerValue =
+    new SStringPointerCode(sType, addr).memoizeField(cb, "loadCheapSCodeField")
+
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {
       case SStringPointer(t) if t.equalModuloRequired(this) && !deepCopy =>

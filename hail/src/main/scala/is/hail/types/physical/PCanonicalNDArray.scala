@@ -334,6 +334,9 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SNDArrayPointerValue =
     new SNDArrayPointerCode(sType, addr).memoize(cb, "loadCheapSCode")
 
+  def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SNDArrayPointerValue =
+    new SNDArrayPointerCode(sType, addr).memoizeField(cb, "loadCheapSCodeField")
+
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     val addr = cb.newField[Long]("pcanonical_ndarray_store", this.representation.allocate(region))
     storeAtAddress(cb, addr, region, value, deepCopy)

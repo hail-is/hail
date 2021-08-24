@@ -144,6 +144,9 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
   def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBinaryPointerValue =
     new SBinaryPointerCode(sType, addr).memoize(cb, "loadCheapSCode")
 
+  def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SBinaryPointerValue =
+    new SBinaryPointerCode(sType, addr).memoizeField(cb, "loadCheapSCodeField")
+
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {
       case SBinaryPointer(PCanonicalBinary(_)) =>

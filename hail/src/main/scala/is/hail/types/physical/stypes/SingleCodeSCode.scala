@@ -152,7 +152,8 @@ case class StreamSingleCodeType(requiresMemoryManagementPerElement: Boolean, elt
         cb.goto(LproduceElementDone)
       }
 
-      override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, eltType.loadCheapSCode(cb, rvAddr)))
+      override val element: EmitCode =
+        EmitCode.fromI(mb)(cb => IEmitCode.present(cb, eltType.loadCheapSCodeField(cb, rvAddr)))
 
       override def close(cb: EmitCodeBuilder): Unit = {}
     }
