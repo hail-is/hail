@@ -48,7 +48,7 @@ async def copy(requester_pays_project: Optional[str],
                                               gcs_params=gcs_params)
                        for s in schemes]
         async with RouterAsyncFS(default_scheme, filesystems) as fs:
-            sema = asyncio.Semaphore(10)
+            sema = asyncio.Semaphore(50)
             async with sema:
                 with tqdm(desc='files', leave=False, position=0, unit='file') as tqdm_files, \
                      tqdm(desc='bytes', leave=False, position=1, unit='byte', unit_scale=True, smoothing=0.1) as tqdm_bytes:
