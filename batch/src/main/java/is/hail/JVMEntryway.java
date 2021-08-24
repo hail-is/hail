@@ -137,7 +137,7 @@ class JVMEntryway {
             }, null);
           completedThread = gather.take();
         } catch (Throwable t) {
-          entrywayException = t
+          entrywayException = t;
         }
 
         if (entrywayException != null) {
@@ -158,20 +158,22 @@ class JVMEntryway {
             }
           }
 
-          finishEntrywayException(entrywayException);
+          finishEntrywayException(out, entrywayException);
         } else {
           assert(completedThread != null);
 
           if (completedThread == mainThread) {
             System.err.println("main thread done");
-            finishFutures(FINISH_USER_EXCEPTION,
+            finishFutures(out,
+                          FINISH_USER_EXCEPTION,
                           mainThread,
                           FINISH_ENTRYWAY_EXCEPTION,
                           shouldCancelThread);
           } else {
             assert(completedThread == shouldCancelThread);
             System.err.println("cancelled");
-            finishFutures(FINISH_ENTRYWAY_EXCEPTION,
+            finishFutures(out,
+                          FINISH_ENTRYWAY_EXCEPTION,
                           shouldCancelThread,
                           FINISH_USER_EXCEPTION,
                           mainThread);
@@ -184,36 +186,37 @@ class JVMEntryway {
     }
   }
 
-  private static void finishFutures(int finishedExceptionType,
+  private static void finishFutures(DataOutputStream out,
+                                    int finishedExceptionType,
                                     Future finished,
                                     int secondaryExceptionType,
-                                    Future secondary) {
-    Exception finishedException = retrieveException(secondary);
-    Exception secondaryException = cancelThreadRetrieveException(secondary);
+                                    Future secondary) throws IOException {
+    Throwable finishedException = retrieveException(secondary);
+    Throwable secondaryException = cancelThreadRetrieveException(secondary);
 
     if (finishedException != null) {
       if (secondaryException != null) {
         finishedException.addSuppressed(secondaryException);
       }
-      finishException(finishedExceptionType, finishedException);
+      finishException(finishedExceptionType, out, finishedException);
     } else if (secondaryException != null) {
-      finishException(secondaryExceptionType, secondaryException);
+      finishException(secondaryExceptionType, out, secondaryException);
     } else {
       out.writeInt(FINISH_NORMAL);
     }
   }
 
-  private static void finishUserException(OutputStream out, Exception e) {
-    finishException(FINISH_USER_EXCEPTION, out, e);
+  private static void finishUserException(DataOutputStream out, Throwable t) throws IOException {
+    finishException(FINISH_USER_EXCEPTION, out, t);
   }
 
-  private static void finishEntrywayException(OutputStream out, Exception e) {
-    finishException(FINISH_ENTRYWAY_EXCEPTION, out, e);
+  private static void finishEntrywayException(DataOutputStream out, Throwable t) throws IOException {
+    finishException(FINISH_ENTRYWAY_EXCEPTION, out, t);
   }
 
-  private static void finishException(int type, OutputStream out, Exception e) {
+  private static void finishException(int type, DataOutputStream out, Throwable t) throws IOException {
     out.writeInt(type);
-    String s = throwableToString(shouldCancelThreadException);
+    String s = throwableToString(t);
     byte[] bytes = s.getBytes(StandardCharsets.UTF_8);
     out.writeInt(bytes.length);
     out.write(bytes);
@@ -227,11 +230,11 @@ class JVMEntryway {
   private static Throwable retrieveException(Future f) {
     try {
       f.get();
-      return null;
     } catch (CancellationException e) {
     } catch (Throwable t) {
       return t;
     }
+    return null;
   }
 }
 
