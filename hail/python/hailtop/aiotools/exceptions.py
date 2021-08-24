@@ -1,0 +1,4 @@
+
+
+class UnexpectedEOFError(Exception):
+    pass

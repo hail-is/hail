@@ -547,6 +547,10 @@ class CopyReport:
             print(f'  {sr._source}: {sr._files} files, {humanize.naturalsize(sr._bytes)}')
 
 
+class UnexpectedEOFError(Exception):
+    pass
+
+
 class SourceCopier:
     '''This class implements copy from a single source.  In general, a
     transfer will have multiple sources, and a SourceCopier will be
