@@ -17,9 +17,13 @@ class ReadableStream(abc.ABC):
         self._closed = False
         self._waited_closed = False
 
+    # Read at most up to n bytes. If n == -1, then
+    # return all bytes up to the end of the file
     async def read(self, n: int = -1) -> bytes:
         raise NotImplementedError
 
+    # Read exactly n bytes. If there is an EOF before
+    # n bytes have been read, raise an UnexpectedEOFError.
     async def readexactly(self, n: int) -> bytes:
         raise NotImplementedError
 
@@ -101,6 +105,9 @@ class _ReadableStreamFromBlocking(ReadableStream):
         self._thread_pool = thread_pool
         self._f = f
 
+    # https://docs.python.org/3/library/io.html#io.RawIOBase.read
+    # Read up to size bytes from the object and return them. As a
+    # convenience, if size is unspecified or -1, all bytes until EOF are returned.
     async def read(self, n: int = -1) -> bytes:
         if n == -1:
             return await blocking_to_async(self._thread_pool, self._f.read)

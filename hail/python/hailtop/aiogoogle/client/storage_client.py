@@ -308,6 +308,9 @@ class GetObjectStream(ReadableStream):
         self._resp = resp
         self._content = resp.content
 
+    # https://docs.aiohttp.org/en/stable/streams.html#aiohttp.StreamReader.read
+    # Read up to n bytes. If n is not provided, or set to -1, read until EOF
+    # and return all read bytes.
     async def read(self, n: int = -1) -> bytes:
         assert not self._closed
         return await self._content.read(n)
