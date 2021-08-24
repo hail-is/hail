@@ -48,10 +48,13 @@ class ETypeSuite extends HailSuite {
 
   def encodeDecode(inPType: PType, eType: EType, outPType: PType, data: Annotation): Annotation = {
     val fb = EmitFunctionBuilder[Long, OutputBuffer, Unit](ctx, "fb")
-    val arg1 = fb.apply_method.getCodeParam[Long](1)
-    val arg2 = fb.apply_method.getCodeParam[OutputBuffer](2)
     val enc = eType.buildEncoderMethod(inPType.sType, fb.apply_method.ecb)
-    fb.emit(enc.invokeCode(arg1, arg2))
+    fb.emitWithBuilder { cb =>
+      val arg1 = inPType.loadCheapSCode(cb, fb.apply_method.getCodeParam[Long](1))
+      val arg2 = fb.apply_method.getCodeParam[OutputBuffer](2)
+      cb.invokeVoid(enc, arg1, arg2)
+      Code._empty
+    }
 
     val x = inPType.unstagedStoreJavaObject(data, ctx.r)
 
