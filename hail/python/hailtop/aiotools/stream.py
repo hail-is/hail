@@ -6,7 +6,8 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 import janus
 from hailtop.utils import blocking_to_async
-from hailtop.exceptions import UnexpectedEOFError
+
+from .exceptions import UnexpectedEOFError
 
 
 class ReadableStream(abc.ABC):

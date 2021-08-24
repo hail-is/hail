@@ -14,6 +14,7 @@ import humanize
 from hailtop.utils import (
     retry_transient_errors, blocking_to_async, url_basename, url_join, bounded_gather2,
     time_msecs, humanize_timedelta_msecs, OnlineBoundedGather2)
+from .exceptions import UnexpectedEOFError
 from .weighted_semaphore import WeightedSemaphore
 from .stream import ReadableStream, WritableStream, blocking_readable_stream_to_async, blocking_writable_stream_to_async
 
@@ -545,10 +546,6 @@ class CopyReport:
         print('Sources:')
         for sr in source_reports:
             print(f'  {sr._source}: {sr._files} files, {humanize.naturalsize(sr._bytes)}')
-
-
-class UnexpectedEOFError(Exception):
-    pass
 
 
 class SourceCopier:
