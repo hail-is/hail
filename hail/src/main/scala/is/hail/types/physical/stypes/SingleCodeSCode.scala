@@ -175,7 +175,7 @@ case class PTypeReferenceSingleCodeType(pt: PType) extends SingleCodeType {
   def loadToSCode(cb: EmitCodeBuilder, r: Value[Region], c: Code[_]): SCode = pt.loadCheapSCode(cb, coerce[Long](c))
 
   def loadToSValue(cb: EmitCodeBuilder, r: Value[Region], c: Value[_]): SValue =
-    pt.loadCheapSCode(cb, coerce[Long](c)).memoize(cb, "ltsv")
+    pt.loadCheapSCodeField(cb, coerce[Long](c))
 
   def virtualType: Type = pt.virtualType
 

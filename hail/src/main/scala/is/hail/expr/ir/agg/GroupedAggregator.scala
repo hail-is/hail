@@ -43,7 +43,7 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
     storageType.isFieldMissing(off, 0)
 
   def loadKey(cb: EmitCodeBuilder, off: Code[Long]): SCode = {
-    kt.loadCheapSCode(cb, storageType.loadField(off, 0))
+    kt.loadCheapSCodeField(cb, storageType.loadField(off, 0))
   }
 
   def initValue(cb: EmitCodeBuilder, destc: Code[Long], k: EmitCode, rIdx: Code[Int]): Unit = {
