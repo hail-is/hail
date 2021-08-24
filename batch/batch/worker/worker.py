@@ -1310,7 +1310,9 @@ class DockerJob(Job):
                     project=PROJECT,
                     instance_name=NAME,
                     name=f'batch-disk-{uid}',
-                    compute_client=worker.compute_client,
+                    compute_client=aiogoogle.ComputeClient(
+                        PROJECT, credentials=aiogoogle.Credentials.from_file('/worker-key.json')
+                    ),
                     size_in_gb=self.external_storage_in_gib,
                     mount_path=self.io_host_path(),
                 )
