@@ -141,8 +141,12 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
       cb.assign(i, 0)
       cb.whileLoop(i < count(n),
         {
-          f(cb, EmitCode(Code._empty, bufferType.isElementMissing(buffer(n), i),
-            elemType.loadCheapSCode(cb, bufferType.loadElement(buffer(n), capacity(n), i))))
+          val elt = EmitCode.fromI(cb.emb) { cb =>
+            IEmitCode(cb,
+              bufferType.isElementMissing(buffer(n), i),
+              elemType.loadCheapSCode(cb, bufferType.loadElement(buffer(n), capacity(n), i)).get)
+          }
+          f(cb, elt)
           cb.assign(i, i + 1)
         })
     }
