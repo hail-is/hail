@@ -10,7 +10,7 @@ import pytest
 import concurrent
 import urllib.parse
 from hailtop.utils import secret_alnum_string
-from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS
+from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS, UnexpectedEOFError
 from hailtop.aiotools.s3asyncfs import S3AsyncFS
 from hailtop.aiogoogle import GoogleStorageAsyncFS
 
@@ -133,8 +133,12 @@ async def test_read_range(filesystem):
     r = await fs.read_range(file, 2, 4)
     assert r == b'cde'
 
-    r = await fs.read_range(file, 2, 10)
-    assert r == b'cde'
+    try:
+        await fs.read_range(file, 2, 10)
+    except UnexpectedEOFError:
+        pass
+    else:
+        assert False
 
 
 @pytest.mark.asyncio
