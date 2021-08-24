@@ -1404,7 +1404,7 @@ class Emit[C](
                 cb.forLoop(cb.assign(inner, 0), inner < (const(1) << (treeHeight - 1 - currentHeight)), cb.assign(inner, inner + 1), {
                   val lookupIndex = cb.newLocal[Int]("temp2", startingPoint + inner * (const(1) << (currentHeight + 1)))
                   val elementLoaded = splitters.loadElement(cb, lookupIndex).get(cb).memoize(cb, "temp")
-                  cb.println("Storing element ", cb.strValue(elementLoaded), " from index ", lookupIndex.toS, " at index ", treeFillingIndex.toS, " currentHeight = ", currentHeight.toS, " inner = ", inner.toS, " startingPoint = ", startingPoint.toS)
+//                  cb.println("Storing element ", cb.strValue(elementLoaded), " from index ", lookupIndex.toS, " at index ", treeFillingIndex.toS, " currentHeight = ", currentHeight.toS, " inner = ", inner.toS, " startingPoint = ", startingPoint.toS)
                   keyPType.storeAtAddress(cb, treePType.loadElement(treeAddr, treeFillingIndex), region,
                     elementLoaded, false)
                   cb.assign(treeFillingIndex, treeFillingIndex + 1)
@@ -1413,14 +1413,14 @@ class Emit[C](
               val tree: SIndexableValue = new SIndexablePointerCode(SIndexablePointer(treePType), treeAddr).memoize(cb, "stream_dist_tree") // 0th element is garbage, tree elements start at idx 1.
               cb.println("Tree = ", cb.strValue(tree))
 
-              val fileData = cb.newLocal[Array[OutputBuffer]]("stream_dist_output_buffers", Code.newArray[OutputBuffer](numFilesToWrite))
+              val outputBuffers = cb.newLocal[Array[OutputBuffer]]("stream_dist_output_buffers", Code.newArray[OutputBuffer](numFilesToWrite))
               val fileArrayIdx = cb.newLocal[Int]("stream_dist_file_array_idx")
 
               cb.forLoop(cb.assign(fileArrayIdx, 0), fileArrayIdx < numFilesToWrite, cb.assign(fileArrayIdx, fileArrayIdx + 1), {
                 val ob = cb.newLocal[OutputBuffer]("stream_dist_file_ob")
                 val fileName = cb.newLocal[String]("file_to_write", pathVal.asString.loadString() concat const("/sorted_part_") concat (fileArrayIdx.toS))
                 cb.assign(ob, spec.buildCodeOutputBuffer(mb.create(fileName)))
-                cb += fileData.update(fileArrayIdx, ob)
+                cb += outputBuffers.update(fileArrayIdx, ob)
               })
 
               // This is tricky. We need to know which file to write to. How to compute this? Scan over splitterWasDuplicated adding 1 for every false and 2 for every true. Idx is file to write to.
@@ -1429,18 +1429,20 @@ class Emit[C](
               cb += fileMappingType.stagedInitialize(fileMappingAddr, k)
 
               val bucketIdx = cb.newLocal[Int]("stream_dist_bucket_idx")
-              val currentStorageSpot = cb.newLocal[Int]("stream_dist_mapping_cur_storage", 0)
-              def currentStorageSCode() = new SInt32Code(currentStorageSpot)
+              val currentFileToMapTo = cb.newLocal[Int]("stream_dist_mapping_cur_storage", 0)
+              def destFileSCode() = new SInt32Code((currentFileToMapTo >= numFilesToWrite).mux(numFilesToWrite - 1, currentFileToMapTo))
               cb.forLoop(cb.assign(bucketIdx, 0), bucketIdx < k, cb.assign(bucketIdx, bucketIdx + 2), {
-                fileMappingType.elementType.storeAtAddress(cb, fileMappingType.loadElement(fileMappingAddr, k, bucketIdx), region, currentStorageSCode(), false)
-                cb.assign(currentStorageSpot, currentStorageSpot + splitterWasDuplicated.loadElement(cb, bucketIdx / 2).get(cb).asBoolean.boolCode(cb).toI)
-                fileMappingType.elementType.storeAtAddress(cb, fileMappingType.loadElement(fileMappingAddr, k, bucketIdx + 1), region, currentStorageSCode(), false)
-                cb.assign(currentStorageSpot, currentStorageSpot + 1)
+                fileMappingType.elementType.storeAtAddress(cb, fileMappingType.loadElement(fileMappingAddr, k, bucketIdx), region, destFileSCode(), false)
+                cb.assign(currentFileToMapTo, currentFileToMapTo + splitterWasDuplicated.loadElement(cb, bucketIdx / 2).get(cb).asBoolean.boolCode(cb).toI)
+                fileMappingType.elementType.storeAtAddress(cb, fileMappingType.loadElement(fileMappingAddr, k, bucketIdx + 1), region, destFileSCode(), false)
+                cb.assign(currentFileToMapTo, currentFileToMapTo + 1)
               })
 
               val fileMapping = new SIndexablePointerCode(SIndexablePointer(fileMappingType), fileMappingAddr).memoize(cb, "stream_dist_file_map")
               cb.println("file mapping = ", cb.strValue(fileMapping))
 
+
+              val encoder = spec.encodedType.buildEncoder(childStream.st.elementType, cb.emb.ecb)
               childStream.producer.memoryManagedConsume(region, cb) { cb =>
                 val b = cb.newLocal[Int]("stream_dist_b_i", 1)
                 val current = mb.newEmitField("stream_dist_current", childStream.st.elementEmitType)
@@ -1451,26 +1453,26 @@ class Emit[C](
                   val treeAtB = tree.loadElement(cb, b).memoize(cb, "stream_dist_tree_b")
                   cb.assign(b, const(2) * b + lessThan(cb, treeAtB, current).toI)
                 })
-                // cb.println("Before moving, b was ", b.toS, " k is still ", k.toS)
                 cb.assign(b, const(2) * b + 1 - lessThan(cb, current, splitters.loadElement(cb, b - k / 2).memoize(cb, "stream_dist_splitter_compare")).toI)
 
                 def fileToUse() = fileMapping.loadElement(cb, b - k).get(cb).asInt.intCode(cb)
 
                 cb.println("Element ", cb.strValue(current), " should go in bucket: ", (b - k).toS, " which maps to file ", fileToUse().toS)
-                val ob = cb.newLocal[OutputBuffer]("outputBuffer_to_write", fileData(fileToUse()))
+                val ob = cb.newLocal[OutputBuffer]("outputBuffer_to_write", outputBuffers(fileToUse()))
 
                 cb += ob.writeByte(1.asInstanceOf[Byte])
-                // TODO: Write element
+                encoder(cb, current.get(cb), ob)
               }
 
               cb.forLoop(cb.assign(fileArrayIdx, 0), fileArrayIdx < numFilesToWrite, cb.assign(fileArrayIdx, fileArrayIdx + 1), {
-                val ob = fileData(fileArrayIdx) // Somehow load output buffer
+                val ob = cb.newLocal[OutputBuffer]("stream_dist_output_buffer_to_clean_up", outputBuffers(fileArrayIdx))
+                cb += ob.writeByte(0.asInstanceOf[Byte])
                 cb += ob.invoke[Unit]("close")
               })
 
               val intervalType = PCanonicalInterval(keyPType, true)
               val returnType = PCanonicalArray(PCanonicalStruct(("interval", intervalType), ("fileName", PCanonicalStringRequired)), true)
-              returnType.constructFromElements(cb, region, const(0), false) { (cb, idx) =>
+              returnType.constructFromElements(cb, region, numFilesToWrite, false) { (cb, idx) =>
                 // TODO: Obviously wrong / tempoary
                 val intervalCode = intervalType.constructFromCodes(cb, region,
                   EmitCode.fromI(cb.emb)(cb => splitters.loadElement(cb, 0)),
@@ -1484,7 +1486,8 @@ class Emit[C](
                 ))
                 IEmitCode.present(cb, new SStackStructCode(stackStruct, IndexedSeq(
                   EmitCode.present(cb.emb, intervalCode),
-                  EmitCode.present(cb.emb, SJavaString.construct("fakeFileName"))
+                  // TODO: Don't repeat file naming logic twice
+                  EmitCode.present(cb.emb, SJavaString.construct(pathVal.asString.loadString() concat const("/sorted_part_") concat (idx.toS)))
                 )))
               }
             }

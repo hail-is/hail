@@ -3564,6 +3564,10 @@ class IRSuite extends HailSuite {
     val pivots = MakeArray(IndexedSeq(1, 7, 7, 15, 22, 50).map(makeRowStruct):_*)
     val spec = TypedCodecSpec(PCanonicalStruct(("rowIdx", PInt32Required)), BufferSpec.default)
     val dist = StreamDistribute(child, pivots, Str("/tmp/hail_stream_dist_test"), spec)
-    eval(dist)
+    println(s"Returned structs were: ${eval(dist)}")
+    val reader = PartitionNativeReader(spec)
+    val read = ToArray(ReadPartition(Str("/tmp/hail_stream_dist_test/sorted_part_0"), spec._vType, reader))
+    print(eval(read))
+    print(reader.contextType)
   }
 }
