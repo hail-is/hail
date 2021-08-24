@@ -8,6 +8,10 @@ import janus
 from hailtop.utils import blocking_to_async
 
 
+class UnexpectedEOFError(Exception):
+    pass
+
+
 class ReadableStream(abc.ABC):
     def __init__(self):
         self._closed = False
@@ -88,10 +92,6 @@ class WritableStream(abc.ABC):
         await self.wait_closed()
 
 
-class IncompleteRead(Exception):
-    pass
-
-
 class _ReadableStreamFromBlocking(ReadableStream):
     _thread_pool: ThreadPoolExecutor
     _f: BinaryIO
@@ -111,8 +111,8 @@ class _ReadableStreamFromBlocking(ReadableStream):
         data: List[bytes] = []
         while n > 0:
             block = self._f.read(n)
-            if len(block) != n:
-                raise IncompleteRead()
+            if len(block) == 0:
+                raise UnexpectedEOFError()
             data.append(block)
             n -= len(block)
         return b''.join(data)
