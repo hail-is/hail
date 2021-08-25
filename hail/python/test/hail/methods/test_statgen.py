@@ -880,6 +880,7 @@ class Tests(unittest.TestCase):
     # scoretest <- anova(logfitnull, logfit, test="Rao")
     # chi2 <- scoretest[["Rao"]][2]
     # pval <- scoretest[["Pr(>Chi)"]][2]
+    @skip_when_service_backend('hangs >3 hours after "Initializing google storage client"')
     def test_logistic_regression_score(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -1004,6 +1005,7 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(firth[16117953].beta, 0.5258, places=4)
         self.assertAlmostEqual(firth[16117953].p_value, 0.22562, places=4)
 
+    @skip_when_service_backend('hangs >3 hours after "Initializing google storage client"')
     def test_logreg_pass_through(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -1454,6 +1456,7 @@ class Tests(unittest.TestCase):
         pruned_table = hl.ld_prune(ds_duplicate.GT)
         self.assertEqual(pruned_table.count(), 1)
 
+    @skip_when_service_backend('hangs >3 hours after "all results complete" in ServiceBackend')
     def test_balding_nichols_model(self):
         hl.set_global_seed(1)
         ds = hl.balding_nichols_model(2, 20, 25, 3,

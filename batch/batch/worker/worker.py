@@ -1614,11 +1614,10 @@ class JVMJob(Job):
         return {'main': self.jvm.output()}
 
     async def delete(self):
-        log.info(f'deleting {self}')
+        log.info(f'deleting {self} {self.jvm}')
         self.deleted = True
-        log.info(f'{self.jvm}')
         if self.jvm is not None:
-            log.info('interrupting')
+            log.info(f'{self.jvm} interrupting')
             self.jvm.interrupt()
 
     # {

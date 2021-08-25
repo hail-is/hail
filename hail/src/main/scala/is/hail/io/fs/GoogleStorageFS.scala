@@ -11,6 +11,7 @@ import com.google.cloud.{ReadChannel, WriteChannel}
 import com.google.cloud.storage.Storage.BlobListOption
 import com.google.cloud.storage.{Blob, BlobId, BlobInfo, Storage, StorageOptions}
 import is.hail.HailContext
+import is.hail.services.retryTransientErrors
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -239,7 +240,9 @@ class GoogleStorageFS(val serviceAccountKey: String) extends FS {
       override def close(): Unit = {
         if (!closed) {
           flush()
-          write.close()
+          retryTransientErrors {
+            write.close()
+          }
           closed = true
         }
       }

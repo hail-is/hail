@@ -191,7 +191,7 @@ class JVMEntryway {
                                     Future finished,
                                     int secondaryExceptionType,
                                     Future secondary) throws IOException {
-    Throwable finishedException = retrieveException(secondary);
+    Throwable finishedException = retrieveException(finished);
     Throwable secondaryException = cancelThreadRetrieveException(secondary);
 
     if (finishedException != null) {

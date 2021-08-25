@@ -273,7 +273,6 @@ E                   	at java.lang.Thread.run(Thread.java:748)''')
         mt = mt.filter_entries((mt.z1 < 5) & (mt.y1 == 3) & (mt.x1 == 5) & (mt.foo == 2))
         mt.count_rows()
 
-    @fails_service_backend()
     def test_aggregate(self):
         mt = self.get_mt()
 
@@ -657,7 +656,6 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         mt = mt.annotate_rows(x=hl.if_else(hl.literal([1,2,3])[mt.row_idx] < hl.rand_unif(10, 11), mt.globals, hl.struct()))
         mt._force_count_rows()
 
-    @fails_service_backend()
     def test_globals_lowering(self):
         mt = hl.utils.range_matrix_table(1, 1).annotate_globals(x=1)
         lit = hl.literal(hl.utils.Struct(x = 0))
@@ -801,6 +799,7 @@ Caused by: java.lang.ClassCastException: __C2308collect_distributed_array cannot
 
         self.assertTrue(orig_mt.union_rows(orig_mt).distinct_by_row()._same(orig_mt))
 
+    @skip_when_service_backend('hangs >40 minutes; hangs after optimize optimize: darrayLowerer')
     def test_distinct_by_col(self):
         orig_mt = hl.utils.range_matrix_table(10, 10)
         mt = orig_mt.key_cols_by(col_idx=orig_mt.col_idx // 2)

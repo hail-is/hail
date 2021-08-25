@@ -56,6 +56,8 @@ package object services {
       case e @ (_: SSLException | _: StorageException) =>
         val cause = e.getCause
         cause != null && recur(cause)
+      case e: UnknownHostException =>
+        true
       case _ =>
         false
     }
