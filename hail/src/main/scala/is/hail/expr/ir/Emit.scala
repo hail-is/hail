@@ -1433,6 +1433,9 @@ class Emit[C](
               })
 
               val fileMapping = new SIndexablePointerCode(SIndexablePointer(fileMappingType), fileMappingAddr).memoize(cb, "stream_dist_file_map")
+              cb.println("splitters = ", cb.strValue(splitters))
+              cb.println("tree = ", cb.strValue(tree))
+              cb.println("fileMapping = ", cb.strValue(fileMapping))
 
               val encoder = spec.encodedType.buildEncoder(childStream.st.elementType, cb.emb.ecb)
               childStream.producer.memoryManagedConsume(region, cb) { cb =>

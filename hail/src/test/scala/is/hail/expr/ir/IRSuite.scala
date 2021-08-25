@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
-import is.hail.annotations.{BroadcastRow, Region, SafeNDArray}
+import is.hail.annotations.{BroadcastRow, ExtendedOrdering, Region, SafeNDArray}
 import is.hail.asm4s.{Code, Value}
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.IRBuilder._
@@ -18,7 +18,7 @@ import is.hail.io.bgen.{IndexBgen, MatrixBGENReader}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix
 import is.hail.methods._
-import is.hail.rvd.{RVD, RVDPartitioner, RVDSpecMaker}
+import is.hail.rvd.{PartitionBoundOrdering, RVD, RVDPartitioner, RVDSpecMaker}
 import is.hail.types.physical.stypes.{EmitType, Float32SingleCodeType, Float64SingleCodeType, Int32SingleCodeType, Int64SingleCodeType, PTypeReferenceSingleCodeType, SType, SingleCodeType}
 import is.hail.utils.{FastIndexedSeq, _}
 import is.hail.variant.{Call2, Locus}
@@ -3567,10 +3567,25 @@ class IRSuite extends HailSuite {
     val dist = StreamDistribute(child, pivots, Str("/tmp/hail_stream_dist_test"), spec)
     val result = eval(dist).asInstanceOf[IndexedSeq[Row]].map(row => (row(0).asInstanceOf[Interval], row(1).asInstanceOf[String]))
     println(s"Result = ${result}")
-    result.foreach { case (interval, path) =>
+    val kord: ExtendedOrdering = PartitionBoundOrdering(pivots.typ.asInstanceOf[TArray].elementType)
+
+    def inInterval(kord: ExtendedOrdering, interval: Interval, element: Row): Boolean = {
+      if (interval.start == null) {
+        true
+      } else if (interval.end == null) {
+        true
+      } else {
+        val contains = interval.contains(kord, element)
+        contains
+      }
+    }
+
+    result.zipWithIndex.foreach { case ((interval, path), fileIdx) =>
       val reader = PartitionNativeReader(spec)
       val read = ToArray(ReadPartition(Str(path), spec._vType, reader))
-      println(eval(read))
+      val rowsFromDisk = eval(read).asInstanceOf[IndexedSeq[Row]]
+      println(s"For interval: ${interval} from file ${fileIdx}, rowsFromDisk = ${rowsFromDisk}")
+      //assert(rowsFromDisk.forall(inInterval(kord, interval, _)))
     }
   }
 }
