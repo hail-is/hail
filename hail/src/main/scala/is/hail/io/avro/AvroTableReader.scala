@@ -1,7 +1,7 @@
 package is.hail.io.avro
 
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
-import is.hail.expr.ir.{ExecuteContext, MakeArray, MakeStruct, PartitionReader, ReadPartition, Str, TableRead, TableReader, TableStageIntermediate, TableValue}
+import is.hail.expr.ir._
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.TableType
 import is.hail.types.physical.{PCanonicalStruct, PStruct}
@@ -29,7 +29,7 @@ class AvroTableReader(partitionReader: AvroPartitionReader, paths: IndexedSeq[St
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
     val partitioner = RVDPartitioner.unkeyed(paths.length)
     val globals = MakeStruct(Seq())
-    val contexts = MakeArray(paths.map(Str): _*)
+    val contexts = ToStream(MakeArray(paths.map(Str): _*))
     TableStage(
       globals,
       partitioner,
