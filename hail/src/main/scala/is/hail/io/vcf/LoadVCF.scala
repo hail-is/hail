@@ -1614,14 +1614,14 @@ object MatrixVCFReader {
             if (hd1.genotypeSignature != hd.genotypeSignature)
               fatal(
                 s"""invalid genotype signature: expected signatures to be identical for all inputs.
-                   |   ${ files(0) }: ${ hd1.genotypeSignature.toString }
-                   |   $file: ${ hd.genotypeSignature.toString }""".stripMargin)
+                   |   ${ files(0) }: ${ hd1.genotypeSignature.virtualType.toString }
+                   |   $file: ${ hd.genotypeSignature.virtualType.toString }""".stripMargin)
 
             if (hd1.vaSignature != hd.vaSignature)
               fatal(
                 s"""invalid variant annotation signature: expected signatures to be identical for all inputs.
-                   |   ${ files(0) }: ${ hd1.vaSignature.toString }
-                   |   $file: ${ hd.vaSignature.toString }""".stripMargin)
+                   |   ${ files(0) }: ${ hd1.vaSignature.virtualType.toString }
+                   |   $file: ${ hd.vaSignature.virtualType.toString }""".stripMargin)
           }
         } else {
           warn("Non-Spark backend: not verifying agreement of headers between input VCF files.")
