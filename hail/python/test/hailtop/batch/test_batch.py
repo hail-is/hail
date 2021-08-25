@@ -846,7 +846,7 @@ class ServiceTests(unittest.TestCase):
         b.run()
 
     def test_large_command(self):
-        backend = ServiceBackend(remote_tmpdir='gs://hail-test-dmk9z/temporary-files')
+        backend = ServiceBackend(remote_tmpdir=f'gs://{HAIL_TEST_GCS_BUCKET}/temporary-files')
         b = Batch(backend=backend)
         j1 = b.new_job()
         long_str = secrets.token_urlsafe(15 * 1024)
