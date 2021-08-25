@@ -915,7 +915,7 @@ steps:
       tar xzf splits.tar.gz
       export HAIL_TEST_SKIP_R=1
       export HAIL_GS_FS_TEST_RESOURCES=gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/test/resources/fs
-      export HAIL_TEST_GCS_BUCKET="{{ global.hail_test_gcs_bucket }}"
+      export HAIL_TEST_GCS_BUCKET={{ global.hail_test_gcs_bucket }}
       java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-0.xml
     inputs:
       - from: /resources.tar.gz
@@ -952,6 +952,7 @@ steps:
       tar xzf splits.tar.gz
       export HAIL_TEST_SKIP_R=1
       export HAIL_GS_FS_TEST_RESOURCES=gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/test/resources/fs
+      export HAIL_TEST_GCS_BUCKET={{ global.hail_test_gcs_bucket }}
       java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-1.xml
     inputs:
       - from: /resources.tar.gz
@@ -988,6 +989,7 @@ steps:
       tar xzf splits.tar.gz
       export HAIL_TEST_SKIP_R=1
       export HAIL_GS_FS_TEST_RESOURCES=gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/test/resources/fs
+      export HAIL_TEST_GCS_BUCKET={{ global.hail_test_gcs_bucket }}
       java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-2.xml
     inputs:
       - from: /resources.tar.gz
@@ -1024,6 +1026,7 @@ steps:
       tar xzf splits.tar.gz
       export HAIL_TEST_SKIP_R=1
       export HAIL_GS_FS_TEST_RESOURCES=gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/test/resources/fs
+      export HAIL_TEST_GCS_BUCKET={{ global.hail_test_gcs_bucket }}
       java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-3.xml
     inputs:
       - from: /resources.tar.gz
@@ -1060,6 +1063,7 @@ steps:
       tar xzf splits.tar.gz
       export HAIL_TEST_SKIP_R=1
       export HAIL_GS_FS_TEST_RESOURCES=gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/test/resources/fs
+      export HAIL_TEST_GCS_BUCKET={{ global.hail_test_gcs_bucket }}
       java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-4.xml
     inputs:
       - from: /resources.tar.gz
