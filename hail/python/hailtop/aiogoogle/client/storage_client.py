@@ -13,7 +13,7 @@ from hailtop.utils import (
     TransientError, retry_transient_errors)
 from hailtop.aiotools import (
     FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS,
-    FeedableAsyncIterable, FileAndDirectoryError, MultiPartCreate)
+    FeedableAsyncIterable, FileAndDirectoryError, MultiPartCreate, UnexpectedEOFError)
 
 from hailtop.aiogoogle.auth import BaseSession
 from .base_client import BaseClient
@@ -317,7 +317,10 @@ class GetObjectStream(ReadableStream):
 
     async def readexactly(self, n: int) -> bytes:
         assert not self._closed and n >= 0
-        return await self._content.readexactly(n)
+        try:
+            return await self._content.readexactly(n)
+        except asyncio.streams.IncompleteReadError as e:
+            raise UnexpectedEOFError() from e
 
     def headers(self) -> 'CIMultiDictProxy[str]':
         return self._resp.headers
