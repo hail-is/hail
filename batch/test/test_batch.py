@@ -20,6 +20,9 @@ deploy_config = get_deploy_config()
 
 DOCKER_PREFIX = os.environ.get('DOCKER_PREFIX')
 DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'gcr.io/hail-vdc/ubuntu:18.04')
+INTERNAL_GATEWAY_IP = os.environ['INTERNAL_GATEWAY_IP']
+DOMAIN = os.environ['DOMAIN']
+NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
 SCOPE = os.environ.get('HAIL_SCOPE', 'test')
 
 
@@ -527,7 +530,7 @@ def test_service_account(client):
     j = b.create_job(
         os.environ['CI_UTILS_IMAGE'],
         ['/bin/sh', '-c', 'kubectl version'],
-        service_account={'namespace': os.environ['HAIL_DEFAULT_NAMESPACE'], 'name': 'test-batch-sa'},
+        service_account={'namespace': NAMESPACE, 'name': 'test-batch-sa'},
     )
     b.submit()
     status = j.wait()
@@ -693,6 +696,82 @@ backend.close()
     builder.submit()
     status = j.wait()
     assert status['state'] == 'Success', str(status)
+
+
+def test_cant_submit_to_default_with_other_ns_creds(client):
+    bucket_name = get_user_config().get('batch', 'bucket')
+    script = f'''import hailtop.batch as hb
+backend = hb.ServiceBackend("test", "{bucket_name}")
+b = hb.Batch(backend=backend)
+j = b.new_bash_job()
+j.command("echo hi")
+b.run()
+backend.close()
+'''
+
+    builder = client.create_batch()
+    j = builder.create_job(
+        os.environ['HAIL_HAIL_BASE_IMAGE'],
+        [
+            '/bin/bash',
+            '-c',
+            f'''
+rm /deploy-config/deploy-config.json
+python3 -c \'{script}\'''',
+        ],
+        mount_tokens=True,
+    )
+    builder.submit()
+    status = j.wait()
+    if NAMESPACE == 'default':
+        assert status['state'] == 'Success', str(status)
+    else:
+        assert status['state'] == 'Failed', str(status)
+
+    builder = client.create_batch()
+    j = builder.create_job(
+        os.environ['HAIL_HAIL_BASE_IMAGE'],
+        [
+            '/bin/bash',
+            '-c',
+            f'''
+jq '.domain = "batch.{DOMAIN}"' /deploy-config/deploy-config.json > /deploy-config/deploy-config.json
+python3 -c \'{script}\'''',
+        ],
+        mount_tokens=True,
+    )
+    builder.submit()
+    status = j.wait()
+    if NAMESPACE == 'default':
+        assert status['state'] == 'Success', str(status)
+    else:
+        assert status['state'] == 'Failed', str(status)
+
+
+def test_cannot_contact_other_internal_ips(client):
+    internal_gateway_last_byte = int(INTERNAL_GATEWAY_IP.rsplit('.', maxsplit=1)[1])
+    assert internal_gateway_last_byte <= 253
+    other_ip = f'10.128.0.{internal_gateway_last_byte + 1}'
+    other_ip_2 = f'10.128.0.{internal_gateway_last_byte + 2}'
+    builder = client.create_batch()
+    script = f'''
+if [ -z ${{HAIL_BATCH_WORKER_IP+x}} ]; then
+    echo HAIL_BATCH_WORKER_IP is not set
+    exit 1;
+fi
+if [ "$HAIL_BATCH_WORKER_IP" == "{other_ip}" ]; then
+    OTHER_IP={other_ip}
+else
+    OTHER_IP={other_ip_2}
+fi
+
+curl -fsSL $OTHER_IP
+'''
+    j = builder.create_job(os.environ['HAIL_CURL_IMAGE'], ['/bin/bash', '-c', script], port=5000)
+    builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Failed', status
+    assert "Connection timed out" in j.log()['main'], (str(j.log()['main']), status)
 
 
 def test_can_use_google_credentials(client):
