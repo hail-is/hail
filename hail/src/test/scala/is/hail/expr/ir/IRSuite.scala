@@ -3559,15 +3559,18 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testStreamDistribute(): Unit = {
-    def makeRowStruct(i: Int) = MakeStruct(Seq(("rowIdx", I32(i))))
+    def makeRowStruct(i: Int) = MakeStruct(Seq(("rowIdx", I32(i)), ("extraInfo", I32(i * i))))
+    def makeKeyStruct(i: Int) = MakeStruct(Seq(("rowIdx", I32(i))))
     val child = ToStream(MakeArray(IndexedSeq(0, 1, 1, 2, 4, 7, 7, 7, 9, 11, 15, 20, 22, 28, 50, 100).map(makeRowStruct):_*))
-    val pivots = MakeArray(IndexedSeq(1, 7, 7, 15, 22, 50).map(makeRowStruct):_*)
-    val spec = TypedCodecSpec(PCanonicalStruct(("rowIdx", PInt32Required)), BufferSpec.default)
+    val pivots = MakeArray(IndexedSeq(1, 7, 7, 15, 22, 50).map(makeKeyStruct):_*)
+    val spec = TypedCodecSpec(PCanonicalStruct(("rowIdx", PInt32Required), ("extraInfo", PInt32Required)), BufferSpec.default)
     val dist = StreamDistribute(child, pivots, Str("/tmp/hail_stream_dist_test"), spec)
-    println(s"Returned structs were: ${eval(dist)}")
-    val reader = PartitionNativeReader(spec)
-    val read = ToArray(ReadPartition(Str("/tmp/hail_stream_dist_test/sorted_part_0"), spec._vType, reader))
-    print(eval(read))
-    print(reader.contextType)
+    val result = eval(dist).asInstanceOf[IndexedSeq[Row]].map(row => (row(0).asInstanceOf[Interval], row(1).asInstanceOf[String]))
+    println(s"Result = ${result}")
+    result.foreach { case (interval, path) =>
+      val reader = PartitionNativeReader(spec)
+      val read = ToArray(ReadPartition(Str(path), spec._vType, reader))
+      println(eval(read))
+    }
   }
 }
