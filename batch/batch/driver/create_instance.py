@@ -185,11 +185,9 @@ iptables --append FORWARD --source 10.1.0.0/16 --destination 169.254.169.254 --j
 iptables --append FORWARD --destination $INTERNAL_GATEWAY_IP --jump ACCEPT
 # And this worker
 iptables --append FORWARD --destination $IP_ADDRESS --jump ACCEPT
-# For public jobs, forbid outgoing requests to cluster-internal IP addresses. For not-public jobs, allow
-# all outgoing packets
+# Forbid outgoing requests to cluster-internal IP addresses
 ENS_DEVICE=$(ip link list | grep ens | awk -F": " '{{ print $2 }}')
-iptables --append FORWARD --source 10.1.0.0/16 --out-interface $ENS_DEVICE ! --destination 10.128.0.0/16 --jump ACCEPT
-iptables --append FORWARD ! --source 10.1.0.0/16 --out-interface $ENS_DEVICE --jump ACCEPT
+iptables --append FORWARD --out-interface $ENS_DEVICE ! --destination 10.128.0.0/16 --jump ACCEPT
 
 
 # Setup fluentd
