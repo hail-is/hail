@@ -19,7 +19,7 @@ import socket
 import requests
 import google.auth.exceptions
 import google.api_core.exceptions
-import botocore
+import botocore.exceptions
 import time
 import weakref
 from requests.adapters import HTTPAdapter

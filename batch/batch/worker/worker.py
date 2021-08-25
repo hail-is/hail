@@ -1888,6 +1888,9 @@ class JVM:
     def interrupt(self):
         self.should_interrupt.set()
 
+    def reset(self):
+        self.should_interrupt.clear()
+
     def kill(self):
         if self.process is not None:
             self.process.kill()
@@ -2003,6 +2006,7 @@ class Worker:
         return self.jvms.pop()
 
     def return_jvm(self, jvm: JVM):
+        jvm.reset()
         self.jvms.append(jvm)
 
     async def shutdown(self):

@@ -165,6 +165,7 @@ class JVMEntryway {
           if (completedThread == mainThread) {
             System.err.println("main thread done");
             finishFutures(out,
+                          FINISH_NORMAL,
                           FINISH_USER_EXCEPTION,
                           mainThread,
                           FINISH_ENTRYWAY_EXCEPTION,
@@ -173,6 +174,7 @@ class JVMEntryway {
             assert(completedThread == shouldCancelThread);
             System.err.println("cancelled");
             finishFutures(out,
+                          FINISH_CANCELLED,
                           FINISH_ENTRYWAY_EXCEPTION,
                           shouldCancelThread,
                           FINISH_USER_EXCEPTION,
@@ -187,6 +189,7 @@ class JVMEntryway {
   }
 
   private static void finishFutures(DataOutputStream out,
+                                    int finishedNormalType,
                                     int finishedExceptionType,
                                     Future finished,
                                     int secondaryExceptionType,
@@ -202,7 +205,7 @@ class JVMEntryway {
     } else if (secondaryException != null) {
       finishException(secondaryExceptionType, out, secondaryException);
     } else {
-      out.writeInt(FINISH_NORMAL);
+      out.writeInt(finishedNormalType);
     }
   }
 

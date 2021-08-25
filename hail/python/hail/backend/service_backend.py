@@ -225,22 +225,24 @@ class ServiceBackend(Backend):
 
             _, (j, b) = await asyncio.gather(create_inputs(), create_batch())
 
-            status = await b.wait(disable_progress_bar=self.disable_progress_bar)
-            if status['n_succeeded'] != 1:
-                raise ValueError(f'batch failed {status} {await j.log()}')
+            try:
+                status = await b.wait(disable_progress_bar=self.disable_progress_bar)
+                if status['n_succeeded'] != 1:
+                    raise ValueError(f'batch failed {status} {await j.log()}')
 
-
-            with self.fs.open(dir + '/out', 'rb') as outfile:
-                success = read_bool(outfile)
-                if success:
-                    s = read_str(outfile)
-                    try:
-                        resp = json.loads(s)
-                    except json.decoder.JSONDecodeError as err:
-                        raise ValueError(f'could not decode {s}') from err
-                else:
-                    jstacktrace = read_str(outfile)
-                    raise FatalError(jstacktrace)
+                with self.fs.open(dir + '/out', 'rb') as outfile:
+                    success = read_bool(outfile)
+                    if success:
+                        s = read_str(outfile)
+                        try:
+                            resp = json.loads(s)
+                        except json.decoder.JSONDecodeError as err:
+                            raise ValueError(f'could not decode {s}') from err
+                    else:
+                        jstacktrace = read_str(outfile)
+                        raise FatalError(jstacktrace)
+            except Exception as e:
+                raise ValueError(f'batch id was {b.id}') from e
 
         typ = dtype(resp['type'])
         if typ == tvoid:
