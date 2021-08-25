@@ -67,8 +67,6 @@ spec:
             name: grafana-configmap-volume
           - mountPath: /etc/grafana/provisioning/datasources
             name: grafana-datasources-configmap-volume
-          - mountPath: /grafana-tokens
-            name: grafana-tokens
           - mountPath: /grafana-shared
             name: grafana-shared
          resources:
@@ -130,7 +128,7 @@ kind: ConfigMap
 metadata:
   name: grafana-datasources-config
 data:
-  prometheus.yaml: |
+  datasources.yaml: |
     apiVersion: 1
     datasources:
       - name: Google Cloud Monitoring
