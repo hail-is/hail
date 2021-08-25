@@ -1,11 +1,12 @@
 package is.hail.io.avro
 
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
-import is.hail.expr.ir.{ExecuteContext, MakeArray, MakeStruct, ReadPartition, Str, TableRead, TableReader, TableStageIntermediate, TableValue, ToStream}
+import is.hail.expr.ir.{ExecuteContext, MakeArray, MakeStruct, PartitionReader, ReadPartition, Str, TableRead, TableReader, TableStageIntermediate, TableValue, ToStream}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.TableType
 import is.hail.types.physical.{PCanonicalStruct, PStruct}
 import is.hail.types.virtual.TStruct
+import org.json4s.{DefaultFormats, JValue}
 
 class AvroTableReader(partitionReader: AvroPartitionReader, paths: IndexedSeq[String]) extends TableReader {
   def pathsUsed: Seq[String] = paths
@@ -35,4 +36,14 @@ class AvroTableReader(partitionReader: AvroPartitionReader, paths: IndexedSeq[St
      PCanonicalStruct(required = true))
 
   def renderShort(): String = defaultRender()
+}
+
+object AvroTableReader {
+  def fromJValue(jv: JValue): AvroTableReader = {
+    implicit val formats = PartitionReader.formats
+    val paths = (jv \ "paths").extract[IndexedSeq[String]]
+    val partitionReader = (jv \ "partitionReader").extract[AvroPartitionReader]
+
+    new AvroTableReader(partitionReader, paths)
+  }
 }

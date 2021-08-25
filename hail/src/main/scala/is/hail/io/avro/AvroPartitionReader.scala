@@ -18,7 +18,7 @@ import org.json4s.{Extraction, JValue}
 
 import scala.collection.JavaConverters._
 
-class AvroPartitionReader(schema: Schema) extends PartitionReader {
+case class AvroPartitionReader(schema: Schema) extends PartitionReader {
   def contextType: Type = TString
 
   val fullRowType: TStruct = AvroReader.schemaToType(schema)
