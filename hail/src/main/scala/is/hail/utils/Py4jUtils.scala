@@ -5,7 +5,7 @@ import java.io.{InputStream, OutputStream}
 import is.hail.HailContext
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.types.virtual.Type
-import is.hail.io.fs.{FS, FileStatus}
+import is.hail.io.fs.{FS, FileStatus, SeekableDataInputStream}
 import org.json4s.JsonAST._
 import org.json4s.jackson.JsonMethods
 
@@ -101,10 +101,19 @@ trait Py4jUtils {
     (n / factor.toDouble).formatted("%.1f")
   }
 
-  def readFile(fs: FS, path: String, buffSize: Int): HadoopPyReader =
+  def readFile(fs: FS, path: String, buffSize: Int): HadoopSeekablePyReader =
+    new HadoopSeekablePyReader(fs.openNoCompression(path), buffSize)
+
+  def readFileCodec(fs: FS, path: String, buffSize: Int): HadoopPyReader =
     new HadoopPyReader(fs.open(path), buffSize)
 
   def writeFile(fs: FS, path: String, exclusive: Boolean): HadoopPyWriter = {
+    if (exclusive && fs.exists(path))
+      fatal(s"a file already exists at '$path'")
+    new HadoopPyWriter(fs.createNoCompression(path))
+  }
+
+  def writeFileCodec(fs: FS, path: String, exclusive: Boolean): HadoopPyWriter = {
     if (exclusive && fs.exists(path))
       fatal(s"a file already exists at '$path'")
     new HadoopPyWriter(fs.create(path))
@@ -151,6 +160,10 @@ class HadoopPyReader(in: InputStream, buffSize: Int) {
   def close() {
     in.close()
   }
+}
+
+class HadoopSeekablePyReader(in: SeekableDataInputStream, buffSize: Int) extends HadoopPyReader(in, buffSize) {
+  def seek(pos: Long) = in.seek(pos)
 }
 
 class HadoopPyWriter(out: OutputStream) {
