@@ -63,6 +63,9 @@ Instructions:
    # batch regions and be compatible with the bucket location.
    batch_logs_bucket_storage_class = "MULTI_REGIONAL"
 
+   hail_test_gcs_bucket_location = "<bucket-location>"
+   hail_test_gcs_bucket_storage_class = "MULTI_REGIONAL"
+
    gcp_region = "<gcp-region>"
 
    gcp_zone = "<gcp-zone>"
