@@ -33,7 +33,7 @@ class NDArrayMultiplyAddAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAgg
   override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     val Array(nextNDTupleCode) = seq
     val seqOpMethod = cb.emb.genEmitMethod("ndarray_add_multiply_aggregator_seq_op", FastIndexedSeq(nextNDTupleCode.emitParamType), CodeParamType(UnitInfo))
-    seqOpMethod.voidWithBuilder {
+    seqOpMethod.voidWithBuilder { cb =>
       val nextNDTupleInput = seqOpMethod.getEmitParam(1, null)
       nextNDTupleInput.toI(cb).consume(cb, {}, { case nextNDArrayTuplePCode: SBaseStructCode =>
         val nextNDTV = nextNDArrayTuplePCode.memoize(cb, "ndarry_add_multiply_seqop_next")
@@ -46,13 +46,14 @@ class NDArrayMultiplyAddAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAgg
             cb += state.storageType.setFieldPresent(state.off, ndarrayFieldNumber)
             val tempRegionForCreation = cb.newLocal[Region]("ndarray_add_multiply_agg_temp_region", Region.stagedCreate(Region.REGULAR, cb.emb.ecb.pool()))
             val uninitializedNDArray = ndTyp.constructUnintialized(NDArrayA.shapes, NDArrayA.strides, cb, tempRegionForCreation).memoize(cb, "ndarray_sum_seq_op_uninitialized")
+
             state.storeNonmissing(cb, uninitializedNDArray)
             cb += tempRegionForCreation.clearRegion()
-            SNDArray.gemm(cb, "N", "N", const(1.0), NDArrayA.get, NDArrayB.get, const(0.0), uninitializedNDArray)
+            SNDArray.gemm(cb, "N", "N", const(1.0), NDArrayA.get, NDArrayB.get, const(0.0), uninitializedNDArray.get)
           },
           { currentNDPCode =>
             val currentNDPValue = currentNDPCode.asNDArray.memoize(cb, "ndarray_add_multiply_current")
-            SNDArray.gemm(cb, "N", "N", NDArrayA.get, NDArrayB.get, currentNDPValue)
+            SNDArray.gemm(cb, "N", "N", NDArrayA.get, NDArrayB.get, currentNDPValue.get)
           }
         )
       })
