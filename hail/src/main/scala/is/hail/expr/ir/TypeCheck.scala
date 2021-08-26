@@ -160,6 +160,7 @@ object TypeCheck {
         assert(path.typ == TString)
         assert(child.typ.isInstanceOf[TStream])
         assert(pivots.typ.isInstanceOf[TArray])
+        assert(pivots.typ.asInstanceOf[TArray].elementType.isInstanceOf[TStruct])
       case x@ArrayZeros(length) =>
         assert(length.typ == TInt32)
       case x@MakeNDArray(data, shape, rowMajor, _) =>
