@@ -1871,35 +1871,45 @@ Caused by: java.lang.AssertionError: assertion failed
         self.assertFalse(hl.eval(s_whitespace.endswith('a')))
 
     def test_str_parsing(self):
-        assert_all_eval_to(*[(hl.bool(x), True) for x in ('true', 'True', 'TRUE')])
-        assert_all_eval_to(*[(hl.bool(x), False) for x in ('false', 'False', 'FALSE')])
+        int_parsers = (hl.int32, hl.int64, hl.parse_int32, hl.parse_int64)
+        float_parsers = (hl.float, hl.float32, hl.float64, hl.parse_float32, hl.parse_float64)
+        infinity_strings = ('inf', 'Inf', 'iNf', 'InF', 'infinity', 'InfiNitY', 'INFINITY')
+        test_cases = [
+            *[(hl.bool(x), True)
+              for x in ('true', 'True', 'TRUE')],
+            *[(hl.bool(x), False)
+              for x in ('false', 'False', 'FALSE')],
+            *[(hl.is_nan(f(sgn + x)), True)
+              for x in ('nan', 'Nan', 'naN', 'NaN')
+              for sgn in ('', '+', '-')
+              for f in float_parsers],
+            *[(hl.is_infinite(f(sgn + x)), True)
+              for x in infinity_strings
+              for sgn in ('', '+', '-')
+              for f in float_parsers],
+            *[(f('-' + x) < 0.0, True)
+              for x in infinity_strings
+              for f in float_parsers],
+            *[(hl.tuple([int_parser(hl.literal(x)), float_parser(hl.literal(x))]),
+                     (int(x), float(x)))
+              for int_parser in int_parsers
+              for float_parser in float_parsers
+              for x in ('0', '1', '-5', '12382421')],
+            *[(hl.tuple([float_parser(hl.literal(x)), flexible_int_parser(hl.literal(x))]), (float(x), None))
+              for float_parser in float_parsers
+              for flexible_int_parser in (hl.parse_int32, hl.parse_int64)
+              for x in ('-1.5', '0.0', '2.5')],
+            *[(flexible_numeric_parser(hl.literal(x)), None)
+              for flexible_numeric_parser in (hl.parse_float32, hl.parse_float64, hl.parse_int32, hl.parse_int64)
+              for x in ('abc', '1abc', '')]
+        ]
 
-        for x in ('nan', 'Nan', 'naN', 'NaN'):
-            for f in (hl.float, hl.float32, hl.float64, hl.parse_float32, hl.parse_float64):
-                assert_all_eval_to(
-                    (hl.is_nan(f(x)), True),
-                    (hl.is_nan(f('+' + x)), True),
-                    (hl.is_nan(f('-' + x)), True)
-                )
-        for x in ('inf', 'Inf', 'iNf', 'InF', 'infinity', 'InfiNitY', 'INFINITY'):
-            for f in (hl.float, hl.float32, hl.float64, hl.parse_float32, hl.parse_float64):
-                assert_all_eval_to(
-                    (hl.is_infinite(f(x)), True),
-                    (hl.is_infinite(f('+' + x)), True),
-                    (hl.is_infinite(f('-' + x)), True),
-                    (f('-' + x) < 0.0, True)
-                )
-
-        for x in ('0', '1', '-5', '12382421'):
-            assert_all_eval_to(*[(f(hl.literal(x)), int(x)) for f in (hl.int32, hl.int64, hl.parse_int32, hl.parse_int64)])
-            assert_all_eval_to(*[(f(hl.literal(x)), float(x)) for f in (hl.float32, hl.float64, hl.parse_float32, hl.parse_float64)])
-
-        for x in ('-1.5', '0.0', '2.5'):
-            assert_all_eval_to(*[(f(hl.literal(x)), float(x)) for f in (hl.float32, hl.float64, hl.parse_float32, hl.parse_float64)])
-            assert_all_eval_to(*[(f(hl.literal(x)), None) for f in (hl.parse_int32, hl.parse_int64)])
-
-        for x in ('abc', '1abc', ''):
-            assert_all_eval_to(*[(f(hl.literal(x)), None) for f in (hl.parse_float32, hl.parse_float64, hl.parse_int32, hl.parse_int64)])
+        expressions = [t[0] for t in test_cases]
+        actuals = hl.eval(hl.tuple(expressions))
+        expecteds = [t[1] for t in test_cases]
+        for actual, expected in zip(actuals, expecteds):
+            if actual != expected:
+                raise ValueError(f'  actual: {actual}\n  expected: {expected}')
 
     def test_str_missingness(self):
         self.assertEqual(hl.eval(hl.str(1)), '1')
