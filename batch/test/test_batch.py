@@ -23,9 +23,12 @@ DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'gcr.io/hail-vdc/ubuntu:
 SCOPE = os.environ.get('HAIL_SCOPE', 'test')
 
 
+pytestmark = pytest.mark.asyncio
+
+
 @pytest.fixture
-def client():
-    client = BatchClient('test')
+async def client():
+    client = await BatchClient.create('test')
     yield client
     client.close()
 
@@ -571,7 +574,7 @@ def test_client_max_size(client):
     builder.submit()
 
 
-def test_restartable_insert(client):
+async def test_restartable_insert(client):
     i = 0
 
     def every_third_time():
@@ -582,7 +585,7 @@ def test_restartable_insert(client):
         return False
 
     with FailureInjectingClientSession(every_third_time) as session:
-        client = BatchClient('test', session=session)
+        client = await BatchClient.create('test', session=session)
         builder = client.create_batch()
 
         for _ in range(9):

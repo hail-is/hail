@@ -45,6 +45,60 @@ def _get_log(log):
 
 
 class HailContext(object):
+    @staticmethod
+    async def create(log: str,
+                     quiet: bool,
+                     append: bool,
+                     tmpdir: str,
+                     local_tmpdir: str,
+                     default_reference: str,
+                     global_seed: Optional[str],
+                     backend: Backend):
+        assert not Env._hc
+        newhc = HailContext.__new__(HailContext)
+
+        super(HailContext, newhc).__init__()
+
+        newhc._log = log
+
+        newhc._tmpdir = tmpdir
+        newhc._local_tmpdir = local_tmpdir
+
+        newhc._backend = backend
+
+        newhc._warn_cols_order = True
+        newhc._warn_entries_order = True
+
+        Env._hc = newhc
+
+        for ref in await newhc._backend._async_get_references(BUILTIN_REFERENCES):
+            ReferenceGenome._from_config(ref, True)
+
+        if default_reference in ReferenceGenome._references:
+            newhc._default_ref = ReferenceGenome._references[default_reference]
+        else:
+            newhc._default_ref = ReferenceGenome.read(default_reference)
+
+        if not quiet:
+            py_version = version()
+            sys.stderr.write(
+                'Welcome to\n'
+                '     __  __     <>__\n'
+                '    / /_/ /__  __/ /\n'
+                '   / __  / _ `/ / /\n'
+                '  /_/ /_/\\_,_/_/_/   version {}\n'.format(py_version))
+
+            if py_version.startswith('devel'):
+                sys.stderr.write('NOTE: This is a beta version. Interfaces may change\n'
+                                 '  during the beta period. We recommend pulling\n'
+                                 '  the latest changes weekly.\n')
+            sys.stderr.write(f'LOGGING: writing to {log}\n')
+
+        if global_seed is None:
+            global_seed = 6348563392232659379
+        Env.set_seed(global_seed)
+        return newhc
+
     @typecheck_method(log=str,
                       quiet=bool,
                       append=bool,
@@ -228,7 +282,9 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
                     ' close the session with hl.stop() first.')
 
     if os.environ.get('HAIL_QUERY_BACKEND') == 'service':
-        return init_service(
+        import asyncio
+        warning('When using the query service backend, use `await init_service\'')
+        return asyncio.get_event_loop().run_until_complete(init_service(
             log=log,
             quiet=quiet,
             append=append,
@@ -236,7 +292,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
             local_tmpdir=local_tmpdir,
             default_reference=default_reference,
             global_seed=global_seed,
-            skip_logging_configuration=skip_logging_configuration)
+            skip_logging_configuration=skip_logging_configuration))
 
     from hail.backend.spark_backend import SparkBackend
 
@@ -270,7 +326,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     global_seed=nullable(int),
     skip_logging_configuration=bool,
     disable_progress_bar=bool)
-def init_service(
+async def init_service(
         billing_project: str = None,
         bucket: str = None,
         log=None,
@@ -284,10 +340,10 @@ def init_service(
         *,
         disable_progress_bar=True):
     from hail.backend.service_backend import ServiceBackend
-    backend = ServiceBackend(billing_project,
-                             bucket,
-                             skip_logging_configuration=skip_logging_configuration,
-                             disable_progress_bar=disable_progress_bar)
+    backend = await ServiceBackend.create(billing_project,
+                                          bucket,
+                                          skip_logging_configuration=skip_logging_configuration,
+                                          disable_progress_bar=disable_progress_bar)
 
     log = _get_log(log)
     if tmpdir is None:
@@ -295,7 +351,7 @@ def init_service(
     assert tmpdir.startswith('gs://')
     local_tmpdir = _get_local_tmpdir(local_tmpdir)
 
-    HailContext(
+    await HailContext.create(
         log, quiet, append, tmpdir, local_tmpdir, default_reference,
         global_seed, backend)
 
@@ -516,6 +572,10 @@ def TemporaryDirectory(*,
 
 def current_backend() -> Backend:
     return Env.hc()._backend
+
+
+async def _async_current_backend() -> Backend:
+    return (await Env._async_hc())._backend
 
 
 def default_reference():

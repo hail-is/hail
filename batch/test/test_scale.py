@@ -6,8 +6,8 @@ from .utils import batch_status_job_counter, legacy_batch_status
 
 
 @pytest.fixture
-def client():
-    client = BatchClient('test')
+async def client():
+    client = await BatchClient.create('test')
     yield client
     client.close()
 

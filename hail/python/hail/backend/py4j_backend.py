@@ -96,3 +96,9 @@ class Py4JBackend(Backend):
                 raise HailUserError(message_and_trace) from None
 
             raise e
+
+    async def _async_execute(self, ir, timed=False):
+        return self.execute(ir, timed=timed)
+
+    async def _async_execute_many(self, *irs, timed=False):
+        return self.execute_many(*irs, timed=timed)

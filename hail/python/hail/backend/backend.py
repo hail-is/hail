@@ -11,8 +11,16 @@ class Backend(abc.ABC):
     def execute(self, ir, timed=False):
         pass
 
+    @abc.abstractmethod
+    async def _async_execute(self, ir, timed=False):
+        pass
+
     def execute_many(self, *irs, timed=False):
         return [self.execute(ir, timed=timed) for ir in irs]
+
+    @abc.abstractmethod
+    async def _async_execute_many(self, *irs, timed=False):
+        pass
 
     @abc.abstractmethod
     def value_type(self, ir):

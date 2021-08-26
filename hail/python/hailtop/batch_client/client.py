@@ -237,14 +237,22 @@ class BatchBuilder:
 
 
 class BatchClient:
+    @staticmethod
+    def from_async(async_client: aioclient.BatchClient):
+        bc = BatchClient.__new__(BatchClient)
+        bc._async_client = async_client
+        return bc
+
     def __init__(self,
                  billing_project: str,
                  deploy_config: Optional[DeployConfig] = None,
                  session: Optional[aiohttp.ClientSession] = None,
                  headers: Optional[Dict[str, str]] = None,
                  _token: Optional[str] = None):
-        self._async_client = aioclient.BatchClient(
-            billing_project, deploy_config, session, headers=headers, _token=_token)
+        self._async_client = async_to_blocking(aioclient.BatchClient.create(
+            billing_project, deploy_config, session, headers=headers, _token=_token))
+
+
 
     @property
     def billing_project(self):

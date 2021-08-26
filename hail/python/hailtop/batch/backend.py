@@ -404,7 +404,7 @@ class ServiceBackend(Backend[bc.Batch]):
                 'the billing_project parameter of ServiceBackend must be set '
                 'or run `hailctl config set batch/billing_project '
                 'MY_BILLING_PROJECT`')
-        self._batch_client = BatchClient(billing_project)
+        self.__batch_client: Optional[BatchClient] = None
         self.__fs: AsyncFS = RouterAsyncFS('file', [LocalAsyncFS(ThreadPoolExecutor()),
                                                     GoogleStorageAsyncFS(project=google_project)])
 
@@ -429,11 +429,17 @@ class ServiceBackend(Backend[bc.Batch]):
         self.remote_tmpdir = remote_tmpdir
 
     @property
+    async def _batch_client(self) -> BatchClient:
+        if self.__batch_client is None:
+            self.__batch_client = await BatchClient.create(billing_project)
+        return self.__batch_client
+
+    @property
     def _fs(self):
         return self.__fs
 
     def _close(self):
-        self._batch_client.close()
+        (await self._batch_client).close()
         async_to_blocking(self._fs.close())
 
     def _run(self,
@@ -505,8 +511,8 @@ class ServiceBackend(Backend[bc.Batch]):
         if batch.name is not None:
             attributes['name'] = batch.name
 
-        bc_batch = self._batch_client.create_batch(attributes=attributes, callback=callback,
-                                                   token=token, cancel_after_n_failures=batch._cancel_after_n_failures)
+        bc_batch = (await self._batch_client).create_batch(attributes=attributes, callback=callback,
+                                                           token=token, cancel_after_n_failures=batch._cancel_after_n_failures)
 
         n_jobs_submitted = 0
         used_remote_tmpdir = False

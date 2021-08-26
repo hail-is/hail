@@ -1,4 +1,4 @@
-from typing import BinaryIO, Dict
+from typing import BinaryIO, Dict, Optional
 import asyncio
 import struct
 import os
@@ -15,10 +15,11 @@ from hail.expr.matrix_type import tmatrix
 from hail.expr.blockmatrix_type import tblockmatrix
 from hail.ir.renderer import CSERenderer
 
-from hailtop.config import get_deploy_config, get_user_config, get_user_local_cache_dir
+from hailtop.config import get_user_config, get_user_local_cache_dir
 from hailtop.auth import get_tokens
 from hailtop.utils import async_to_blocking, secret_alnum_string, TransientError, time_msecs
 from hailtop.batch_client import client as hb
+from hailtop.batch_client import aioclient as aiohb
 
 from .backend import Backend
 from ..fs.google_fs import GoogleCloudStorageFS
@@ -126,13 +127,12 @@ class ServiceBackend(Backend):
     ADD_USER = 12
     GOODBYE = 254
 
-    def __init__(self,
-                 billing_project: str = None,
-                 bucket: str = None,
-                 *,
-                 deploy_config=None,
-                 skip_logging_configuration=None,
-                 disable_progress_bar: bool = True):
+    @staticmethod
+    async def create(billing_project: Optional[str] = None,
+                     bucket: Optional[str] = None,
+                     *,
+                     skip_logging_configuration: Optional[bool] = None,
+                     disable_progress_bar: bool = True):
         del skip_logging_configuration
 
         if billing_project is None:
@@ -158,16 +158,39 @@ class ServiceBackend(Backend):
                 'MY_BUCKET`'
             )
 
+        fs = GoogleCloudStorageFS()
+        async_client = await aiohb.BatchClient.create(billing_project)
+        bc = hb.BatchClient.from_async(async_client)
+        batch_attributes: Dict[str, str] = dict()
+        user_local_reference_cache_dir = Path(get_user_local_cache_dir(), 'references', version())
+        os.makedirs(user_local_reference_cache_dir, exist_ok=True)
+
+        return ServiceBackend(
+            billing_project=billing_project,
+            bucket=bucket,
+            fs=fs,
+            bc=bc,
+            disable_progress_bar=disable_progress_bar,
+            batch_attributes=batch_attributes,
+            user_local_reference_cache_dir=user_local_reference_cache_dir
+        )
+
+    def __init__(self,
+                 billing_project: str,
+                 bucket: str,
+                 fs: GoogleCloudStorageFS,
+                 bc: hb.BatchClient,
+                 disable_progress_bar: bool,
+                 batch_attributes: Dict[str, str],
+                 user_local_reference_cache_dir: Path):
         self.billing_project = billing_project
         self.bucket = bucket
         self._fs = GoogleCloudStorageFS()
-        deploy_config = deploy_config or get_deploy_config()
-        self.bc = hb.BatchClient(self.billing_project)
+        self.bc = bc
         self.async_bc = self.bc._async_client
         self.disable_progress_bar = disable_progress_bar
-        self.batch_attributes: Dict[str, str] = dict()
-        self.user_local_reference_cache_dir = Path(get_user_local_cache_dir(), 'references', version())
-        os.makedirs(self.user_local_reference_cache_dir, exist_ok=True)
+        self.batch_attributes = batch_attributes
+        self.user_local_reference_cache_dir = user_local_reference_cache_dir
 
     @property
     def fs(self) -> GoogleCloudStorageFS:
@@ -225,24 +248,21 @@ class ServiceBackend(Backend):
 
             _, (j, b) = await asyncio.gather(create_inputs(), create_batch())
 
-            try:
-                status = await b.wait(disable_progress_bar=self.disable_progress_bar)
-                if status['n_succeeded'] != 1:
-                    raise ValueError(f'batch failed {status} {await j.log()}')
+            status = await b.wait(disable_progress_bar=self.disable_progress_bar)
+            if status['n_succeeded'] != 1:
+                raise ValueError(f'batch failed {status} {await j.log()}')
 
-                with self.fs.open(dir + '/out', 'rb') as outfile:
-                    success = read_bool(outfile)
-                    if success:
-                        s = read_str(outfile)
-                        try:
-                            resp = json.loads(s)
-                        except json.decoder.JSONDecodeError as err:
-                            raise ValueError(f'could not decode {s}') from err
-                    else:
-                        jstacktrace = read_str(outfile)
-                        raise FatalError(jstacktrace)
-            except Exception as e:
-                raise ValueError(f'batch id was {b.id}') from e
+            with self.fs.open(dir + '/out', 'rb') as outfile:
+                success = read_bool(outfile)
+                if success:
+                    s = read_str(outfile)
+                    try:
+                        resp = json.loads(s)
+                    except json.decoder.JSONDecodeError as err:
+                        raise ValueError(f'batch id was {b.id}\ncould not decode {s}') from err
+                else:
+                    jstacktrace = read_str(outfile)
+                    raise FatalError(f'batch id was {b.id}\n' + jstacktrace)
 
         typ = dtype(resp['type'])
         if typ == tvoid:
