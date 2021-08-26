@@ -1619,7 +1619,7 @@ object MatrixVCFReader {
 
             if (hd1.vaSignature != hd.vaSignature)
               fatal(
-                s"""invalid variant annotation signature: expected signatures to be identical for all inputs.
+                s"""invalid variant annotation signature: expected signatures to be identical for all inputs. Check that all files have same INFO fields.
                    |   ${ files(0) }: ${ hd1.vaSignature.virtualType.toString }
                    |   $file: ${ hd.vaSignature.virtualType.toString }""".stripMargin)
           }
