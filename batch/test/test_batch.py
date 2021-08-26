@@ -765,7 +765,7 @@ else
     OTHER_IP={other_ip_2}
 fi
 
-curl -fsSL $OTHER_IP
+curl -fsSL -m 5 $OTHER_IP
 '''
     j = builder.create_job(os.environ['HAIL_CURL_IMAGE'], ['/bin/bash', '-c', script], port=5000)
     builder.submit()
