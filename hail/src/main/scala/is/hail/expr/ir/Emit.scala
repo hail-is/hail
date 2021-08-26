@@ -1307,25 +1307,8 @@ class Emit[C](
 
               def lessThan(cb: EmitCodeBuilder, lelt: EmitValue, relt: EmitValue): Code[Boolean] = compare(cb, lelt, relt) < 0
 
-              // Count unique splitters.
-              val numUniqueSplitters = cb.newLocal[Int]("stream_distribute_num_unique_splitters")
-              val requestedSplittersIdx = cb.newLocal[Int]("stream_distribute_splitters_index")
-              val lastKeySeen = cb.emb.newEmitLocal("stream_distribute_last_seen", keyType, false)
-
-              cb.forLoop(cb.assign(requestedSplittersIdx, 0), requestedSplittersIdx < requestedSplittersVal.loadLength(), cb.assign(requestedSplittersIdx, requestedSplittersIdx + 1), {
-                val currentSplitter = requestedSplittersVal.loadElement(cb, requestedSplittersIdx).memoize(cb, "stream_distribute_current_splitter")
-                cb.ifx(requestedSplittersIdx ceq 0, {
-                  cb.assign(numUniqueSplitters, numUniqueSplitters + 1)
-                }, {
-                  cb.ifx(!equal(cb, lastKeySeen, currentSplitter), {
-                    cb.assign(numUniqueSplitters, numUniqueSplitters + 1)
-                  })
-                })
-                cb.assign(lastKeySeen, currentSplitter)
-              })
-
               val treeHeight: Value[Int] = cb.newLocal[Int]("stream_dist_tree_height", Code.invokeStatic1[Math, Double, Double]("ceil", (Code.invokeStatic1[Math, Double, Double]("log", (requestedSplittersVal.loadLength() + 1).toD) / Math.log(2))).toI)
-              val numberOfBuckets = cb.newLocal[Int]("stream_dist_number_of_buckets", (Code.invokeStatic2[Math, Double, Double, Double]("pow", 2, (treeHeight + 1).toD).toI))
+              val numberOfBuckets = cb.newLocal[Int]("stream_dist_number_of_buckets", 1 >> (treeHeight + 1))
 
               val paddedSplittersSize = cb.newLocal[Int]("stream_dist_padded_splitter_size", numberOfBuckets / 2)
 
@@ -1338,12 +1321,14 @@ class Emit[C](
               val paddedSplittersAddr = cb.newLocal[Long]("stream_dist_splitters_addr", paddedSplittersPType.allocate(region, paddedSplittersSize))
               cb += paddedSplittersPType.stagedInitialize(paddedSplittersAddr, paddedSplittersSize)
 
-              val splittersWasDuplicatedAddr = cb.newLocal[Long]("stream_dist_dupe_splitters_addr", splittersWasDuplicatedPType.allocate(region, requestedSplittersVal.loadLength()))
               val splittersWasDuplicatedLength = paddedSplittersSize
+              val splittersWasDuplicatedAddr = cb.newLocal[Long]("stream_dist_dupe_splitters_addr", splittersWasDuplicatedPType.allocate(region, splittersWasDuplicatedLength))
               cb += splittersWasDuplicatedPType.stagedInitialize(splittersWasDuplicatedAddr, splittersWasDuplicatedLength)
               val splitters: SIndexableValue = new SIndexablePointerCode(SIndexablePointer(paddedSplittersPType), paddedSplittersAddr).memoize(cb, "stream_distribute_splitters_deduplicated") // last element is duplicated, otherwise this is sorted without duplicates.
 
               val uniqueSplittersIdx = cb.newLocal[Int]("unique_splitters_idx", 0)
+              val requestedSplittersIdx = cb.newLocal[Int]("stream_distribute_splitters_index")
+              val lastKeySeen = cb.emb.newEmitLocal("stream_distribute_last_seen", keyType, false)
 
               cb.forLoop(cb.assign(requestedSplittersIdx, 0), requestedSplittersIdx < requestedSplittersVal.loadLength(), cb.assign(requestedSplittersIdx, requestedSplittersIdx + 1), {
                 val currentSplitter = requestedSplittersVal.loadElement(cb, requestedSplittersIdx).memoize(cb, "stream_distribute_current_splitter")
@@ -1363,6 +1348,8 @@ class Emit[C](
                 })
                 cb.assign(lastKeySeen, currentSplitter)
               })
+
+              val numUniqueSplitters = cb.newLocal[Int]("stream_distribute_num_unique_splitters", uniqueSplittersIdx)
 
               // Pad out the rest of the splitters array so tree later is balanced.
               cb.forLoop({}, uniqueSplittersIdx < paddedSplittersSize, cb.assign(uniqueSplittersIdx, uniqueSplittersIdx + 1), {
