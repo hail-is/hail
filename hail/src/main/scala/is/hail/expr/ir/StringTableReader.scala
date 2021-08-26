@@ -20,7 +20,8 @@ case class StringTableReaderParameters(
   files: Array[String],
   minPartitions: Option[Int],
   forceBGZ: Boolean,
-  forceGZ: Boolean)
+  forceGZ: Boolean,
+  filePerPartition: Boolean)
 
 object StringTableReader {
   def apply(fs: FS, params: StringTableReaderParameters): StringTableReader = {
@@ -132,7 +133,8 @@ class StringTableReader(
 
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
     val fs = ctx.fs
-    val lines = GenericLines.read(fs, fileStatuses, None, None, params.minPartitions, false, true)
+    val lines = GenericLines.read(fs, fileStatuses, None, None, params.minPartitions, false, true,
+      params.filePerPartition)
     TableStage(globals = MakeStruct(FastSeq()),
       partitioner = RVDPartitioner.unkeyed(lines.nPartitions),
       dependency = TableStageDependency.none,

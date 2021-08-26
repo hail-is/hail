@@ -1381,7 +1381,7 @@ def import_gen(path,
            find_replace=nullable(sized_tupleof(str, str)),
            force=bool,
            source_file_field=nullable(str))
-def import_table2(paths,
+def import_table(paths,
                  key=None,
                  min_partitions=None,
                  impute=False,
@@ -1838,8 +1838,8 @@ def import_table(paths,
 
 
 @typecheck(paths=oneof(str, sequenceof(str)), min_partitions=nullable(int), force_bgz=bool,
-           force=bool)
-def import_lines(paths, min_partitions=None, force_bgz=False, force=False) -> Table:
+           force=bool, file_per_partition=bool)
+def import_lines(paths, min_partitions=None, force_bgz=False, force=False, file_per_partition=False) -> Table:
     """Import lines of file(s) as a :class:`.Table` of strings.
 
     Examples
@@ -1876,15 +1876,25 @@ def import_lines(paths, min_partitions=None, force_bgz=False, force=False) -> Ta
         If ``True``, load gzipped files serially on one core. This should
         be used only when absolutely necessary, as processing time will be
         increased due to lack of parallelism.
+    file_per_partition : :obj:`bool`
+        If ``True``, each file will be in a seperate partition. Not recommended
+        for most uses. Error thrown if ``True`` and `min_partitions` is less than
+        the number of files
 
     Returns
     -------
     :class:`.Table`
         Table constructed from imported data.
     """
+
     paths = wrap_to_list(paths)
 
-    st_reader = ir.StringTableReader(paths, min_partitions, force_bgz, force)
+    if file_per_partition and min_partitions is not None:
+        if min_partitions > len(paths):
+            raise FatalError(f'file_per_partition is True while min partitions is {min_partitions} ,which is greater'
+                             f' than the number of files, {len(paths)}')
+
+    st_reader = ir.StringTableReader(paths, min_partitions, force_bgz, force, file_per_partition)
     string_table = Table(ir.TableRead(st_reader))
 
     return string_table

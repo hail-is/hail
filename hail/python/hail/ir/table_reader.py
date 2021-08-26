@@ -98,19 +98,21 @@ class TextTableReader(TableReader):
 
 class StringTableReader(TableReader):
     @typecheck_method(paths=oneof(str, sequenceof(str)), min_partitions=nullable(int), force_bgz=bool,
-                      force=bool)
-    def __init__(self, paths, min_partitions, force_bgz, force):
+                      force=bool, file_per_partition=bool)
+    def __init__(self, paths, min_partitions, force_bgz, force, file_per_partition):
         self.paths = paths
         self.min_partitions = min_partitions
         self.force_bgz = force_bgz
         self.force = force
+        self.file_per_partition = file_per_partition
 
     def render(self):
         reader = {'name': 'StringTableReader',
                   'files': self.paths,
                   'minPartitions': self.min_partitions,
                   'forceBGZ': self.force_bgz,
-                  'forceGZ': self.force}
+                  'forceGZ': self.force,
+                  'filePerPartition': self.file_per_partition}
 
         return escape_str(json.dumps(reader))
 
@@ -119,7 +121,8 @@ class StringTableReader(TableReader):
             other.path == self.path and \
             other.min_partitions == self.min_partitions and \
             other.force_bgz == self.force_bgz and \
-            other.force == self.force
+            other.force == self.force and \
+            other.file_per_partition == self.file_per_partition
 
 
 class TableFromBlockMatrixNativeReader(TableReader):
