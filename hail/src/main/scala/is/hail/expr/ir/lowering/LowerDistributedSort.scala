@@ -78,4 +78,9 @@ object LowerDistributedSort {
         )(ToArray(_)),
       ctxRef => ToStream(ctxRef))
   }
+
+  // Given an IR of type TArray(TTuple(minKey, maxKey)), determine if there's any overlap between these closed intervals.
+  def tuplesAreSorted(arrayOfTuples: IR, sortFields: IndexedSeq[SortField]): IR = {
+    // assume for now array is sorted, could sort later.
+  }
 }
