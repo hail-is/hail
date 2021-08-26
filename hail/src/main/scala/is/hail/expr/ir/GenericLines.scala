@@ -33,11 +33,11 @@ object GenericLines {
           val fs = fsBc.value
           val rawIS = fs.openNoCompression(file)
           val codec = fs.getCodecFromPath(file, gzAsBGZ)
-          if (codec == null && !filePerPartition) {
-            assert(split)
+          if (codec == null) {
+            assert(split || filePerPartition)
             rawIS.seek(start)
             rawIS
-          } else if (codec == BGZipCompressionCodec && !filePerPartition) {
+          } else if (codec == BGZipCompressionCodec) {
             assert(split)
             splitCompressed = true
             val bgzIS = new BGzipInputStream(rawIS, start, end, SplittableCompressionCodec.READ_MODE.BYBLOCK)
@@ -45,7 +45,7 @@ object GenericLines {
               def getPosition: Long = bgzIS.getVirtualOffset
             }
           } else {
-            assert(!split || filePerPartition)
+            assert(!split)
             new CountingInputStream(codec.makeInputStream(rawIS)) with Positioned {
               def getPosition: Long = getByteCount
             }
