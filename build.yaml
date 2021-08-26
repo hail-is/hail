@@ -2587,7 +2587,6 @@ steps:
       export HAIL_HAIL_BASE_IMAGE={{ hail_base_image.image }}
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
-      export INTERNAL_GATEWAY_IP="{{ global.internal_ip }}"
       export DOMAIN="{{ global.domain }}"
       export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
       export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
@@ -2663,7 +2662,6 @@ steps:
       export HAIL_HAIL_BASE_IMAGE={{ hail_base_image.image }}
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
-      export INTERNAL_GATEWAY_IP="{{ global.internal_ip }}"
       export DOMAIN="{{ global.domain }}"
       export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
       export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
@@ -2739,7 +2737,6 @@ steps:
       export HAIL_HAIL_BASE_IMAGE={{ hail_base_image.image }}
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
-      export INTERNAL_GATEWAY_IP="{{ global.internal_ip }}"
       export DOMAIN="{{ global.domain }}"
       export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
       export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
@@ -2815,7 +2812,6 @@ steps:
       export HAIL_HAIL_BASE_IMAGE={{ hail_base_image.image }}
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
-      export INTERNAL_GATEWAY_IP="{{ global.internal_ip }}"
       export DOMAIN="{{ global.domain }}"
       export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
       export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
@@ -2891,7 +2887,6 @@ steps:
       export HAIL_HAIL_BASE_IMAGE={{ hail_base_image.image }}
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
-      export INTERNAL_GATEWAY_IP="{{ global.internal_ip }}"
       export DOMAIN="{{ global.domain }}"
       export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
       export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json

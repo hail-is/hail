@@ -20,7 +20,6 @@ deploy_config = get_deploy_config()
 
 DOCKER_PREFIX = os.environ.get('DOCKER_PREFIX')
 DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'gcr.io/hail-vdc/ubuntu:18.04')
-INTERNAL_GATEWAY_IP = os.environ['INTERNAL_GATEWAY_IP']
 DOMAIN = os.environ['DOMAIN']
 NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
 SCOPE = os.environ.get('HAIL_SCOPE', 'test')
@@ -749,20 +748,19 @@ python3 -c \'{script}\'''',
 
 
 def test_cannot_contact_other_internal_ips(client):
-    internal_gateway_last_byte = int(INTERNAL_GATEWAY_IP.rsplit('.', maxsplit=1)[1])
-    assert internal_gateway_last_byte <= 253
-    other_ip = f'10.128.0.{internal_gateway_last_byte + 1}'
-    other_ip_2 = f'10.128.0.{internal_gateway_last_byte + 2}'
+    internal_ips = [f'10.128.0.{i}' for i in (10, 11, 12)]
     builder = client.create_batch()
     script = f'''
 if [ -z ${{HAIL_BATCH_WORKER_IP+x}} ]; then
     echo HAIL_BATCH_WORKER_IP is not set
     exit 1;
 fi
-if [ "$HAIL_BATCH_WORKER_IP" == "{other_ip}" ]; then
-    OTHER_IP={other_ip}
+if [ "$HAIL_BATCH_WORKER_IP" != "{internal_ips[0]}" ] && ! grep -Fq {internal_ips[0]} /etc/hosts; then
+    OTHER_IP={internal_ips[0]}
+elif [ "$HAIL_BATCH_WORKER_IP" == "{internal_ips[1]}" ] && ! grep -Fq {internal_ips[1]} /etc/hosts; then
+    OTHER_IP={internal_ips[1]}
 else
-    OTHER_IP={other_ip_2}
+    OTHER_IP={internal_ips[2]}
 fi
 
 curl -fsSL -m 5 $OTHER_IP
