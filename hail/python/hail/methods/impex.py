@@ -1699,7 +1699,7 @@ def import_table(paths,
         raise ValueError('import_table: empty delimiter is not supported')
 
     def split_lines(hl_str):
-        return hl_str._split_line(delimiter, missing=wrap_to_list(missing), quote=quote, regex=len(delimiter) > 1)
+        return hl_str._split_line(delimiter, missing=missing, quote=quote, regex=len(delimiter) > 1)
 
 
     def should_filter_line(hl_str):
