@@ -3577,8 +3577,8 @@ class IRSuite extends HailSuite {
     val child = ToStream(MakeArray(data.map(makeRowStruct):_*))
     val pivots = MakeArray(splitters.map(makeKeyStruct):_*)
     val spec = TypedCodecSpec(PCanonicalStruct(("rowIdx", PInt32Required), ("extraInfo", PInt32Required)), BufferSpec.default)
-    val dist = StreamDistribute(child, pivots, Str("/tmp/hail_stream_dist_test"), spec)
-    val result = eval(dist).asInstanceOf[IndexedSeq[Row]].map(row => (row(0).asInstanceOf[Interval], row(1).asInstanceOf[String]))
+    val dist = StreamDistribute(child, pivots, Str(ctx.localTmpdir), spec)
+    val result = eval(dist).asInstanceOf[IndexedSeq[Row]].map(row => (row(0).asInstanceOf[Interval], row(1).asInstanceOf[String], row(2).asInstanceOf[Int]))
     val kord: ExtendedOrdering = PartitionBoundOrdering(pivots.typ.asInstanceOf[TArray].elementType)
 
     def inInterval(kord: ExtendedOrdering, interval: Interval, element: Row): Boolean = {
@@ -3594,10 +3594,11 @@ class IRSuite extends HailSuite {
       }
     }
 
-    result.zipWithIndex.foreach { case ((interval, path), fileIdx) =>
+    result.zipWithIndex.foreach { case ((interval, path, elementCount), fileIdx) =>
       val reader = PartitionNativeReader(spec)
       val read = ToArray(ReadPartition(Str(path), spec._vType, reader))
       val rowsFromDisk = eval(read).asInstanceOf[IndexedSeq[Row]]
+      assert(rowsFromDisk.size == elementCount)
       assert(rowsFromDisk.forall(inInterval(kord, interval, _)))
     }
 

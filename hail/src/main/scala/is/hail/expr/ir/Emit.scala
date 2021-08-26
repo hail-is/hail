@@ -1403,6 +1403,7 @@ class Emit[C](
               val tree: SIndexableValue = new SIndexablePointerCode(SIndexablePointer(treePType), treeAddr).memoize(cb, "stream_dist_tree")
 
               val outputBuffers = cb.newLocal[Array[OutputBuffer]]("stream_dist_output_buffers", Code.newArray[OutputBuffer](numFilesToWrite))
+              val numElementsPerFile = cb.newLocal[Array[Int]]("stream_dist_elements_per_file", Code.newArray[Int](numFilesToWrite))
               val fileArrayIdx = cb.newLocal[Int]("stream_dist_file_array_idx")
 
               def makeFileName(fileIdx: Code[Int]): Code[String] = {
@@ -1414,6 +1415,7 @@ class Emit[C](
                 val fileName = cb.newLocal[String]("file_to_write", makeFileName(fileArrayIdx))
                 cb.assign(ob, spec.buildCodeOutputBuffer(mb.create(fileName)))
                 cb += outputBuffers.update(fileArrayIdx, ob)
+                cb += numElementsPerFile.update(fileArrayIdx, 0)
               })
 
               // The element classifying algorithm acts as though there are identity buckets for every splitter. We only use identity buckets for elements that repeat
@@ -1447,12 +1449,13 @@ class Emit[C](
                 })
                 cb.assign(b, const(2) * b + 1 - lessThan(cb, current, splitters.loadElement(cb, b - numberOfBuckets / 2).memoize(cb, "stream_dist_splitter_compare")).toI)
 
-                def fileToUse() = fileMapping.loadElement(cb, b - numberOfBuckets).get(cb).asInt.intCode(cb)
+                val fileToUse = cb.newLocal[Int]("stream_dist_index_of_file_to_write", fileMapping.loadElement(cb, b - numberOfBuckets).get(cb).asInt.intCode(cb))
 
-                val ob = cb.newLocal[OutputBuffer]("outputBuffer_to_write", outputBuffers(fileToUse()))
+                val ob = cb.newLocal[OutputBuffer]("outputBuffer_to_write", outputBuffers(fileToUse))
 
                 cb += ob.writeByte(1.asInstanceOf[Byte])
                 encoder(cb, current.get(cb), ob)
+                cb += numElementsPerFile.update(fileToUse, numElementsPerFile(fileToUse) + 1)
               }
 
               cb.forLoop(cb.assign(fileArrayIdx, 0), fileArrayIdx < numFilesToWrite, cb.assign(fileArrayIdx, fileArrayIdx + 1), {
@@ -1462,13 +1465,14 @@ class Emit[C](
               })
 
               val intervalType = PCanonicalInterval(keyPType.setRequired(false), true)
-              val returnType = PCanonicalArray(PCanonicalStruct(("interval", intervalType), ("fileName", PCanonicalStringRequired)), true)
+              val returnType = PCanonicalArray(PCanonicalStruct(("interval", intervalType), ("fileName", PCanonicalStringRequired), ("numElements", PInt32Required)), true)
 
               val (pushElement, finisher) = returnType.constructFromFunctions(cb, region, numFilesToWrite, false)
 
               val stackStructType = new SStackStruct(ir.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct], IndexedSeq(
                 EmitType(intervalType.sType, true),
-                EmitType(SJavaString, true)
+                EmitType(SJavaString, true),
+                EmitType(SInt32, true)
               ))
 
               // Add first
@@ -1481,7 +1485,8 @@ class Emit[C](
 
               pushElement(cb, IEmitCode.present(cb, new SStackStructCode(stackStructType, IndexedSeq(
                 EmitCode.present(cb.emb, firstInterval),
-                EmitCode.present(cb.emb, SJavaString.construct(makeFileName(0)))
+                EmitCode.present(cb.emb, SJavaString.construct(makeFileName(0))),
+                EmitCode.present(cb.emb, primitive(numElementsPerFile(0)))
               ))))
 
               cb.forLoop({cb.assign(uniqueSplittersIdx, 0); cb.assign(fileArrayIdx, 1) }, uniqueSplittersIdx < numUniqueSplitters, cb.assign(uniqueSplittersIdx, uniqueSplittersIdx + 1), {
@@ -1490,12 +1495,13 @@ class Emit[C](
                     EmitCode.fromI(cb.emb)(cb => splitters.loadElement(cb, uniqueSplittersIdx - 1)),
                     EmitCode.fromI(cb.emb)(cb => splitters.loadElement(cb, uniqueSplittersIdx)),
                     EmitCode.present(cb.emb, primitive(false)),
-                    EmitCode.present(cb.emb, new SBooleanCode(!splitterWasDuplicated.loadElement(cb, uniqueSplittersIdx).get(cb).asBoolean.boolCode(cb)))
+                    EmitCode.present(cb.emb, primitive(!splitterWasDuplicated.loadElement(cb, uniqueSplittersIdx).get(cb).asBoolean.boolCode(cb)))
                   )
 
                   pushElement(cb, IEmitCode.present(cb, new SStackStructCode(stackStructType, IndexedSeq(
                     EmitCode.present(cb.emb, intervalFromLastToThis),
-                    EmitCode.present(cb.emb, SJavaString.construct(makeFileName(fileArrayIdx)))
+                    EmitCode.present(cb.emb, SJavaString.construct(makeFileName(fileArrayIdx))),
+                    EmitCode.present(cb.emb, primitive(numElementsPerFile(fileArrayIdx)))
                   ))))
 
                   cb.assign(fileArrayIdx, fileArrayIdx + 1)
@@ -1512,7 +1518,8 @@ class Emit[C](
 
                   pushElement(cb, IEmitCode.present(cb, new SStackStructCode(stackStructType, IndexedSeq(
                     EmitCode.present(cb.emb, identityInterval),
-                    EmitCode.present(cb.emb, SJavaString.construct(makeFileName(fileArrayIdx)))
+                    EmitCode.present(cb.emb, SJavaString.construct(makeFileName(fileArrayIdx))),
+                    EmitCode.present(cb.emb, primitive(numElementsPerFile(fileArrayIdx)))
                   ))))
 
                   cb.assign(fileArrayIdx, fileArrayIdx + 1)
@@ -1529,7 +1536,8 @@ class Emit[C](
 
               pushElement(cb, IEmitCode.present(cb, new SStackStructCode(stackStructType, IndexedSeq(
                 EmitCode.present(cb.emb, lastInterval),
-                EmitCode.present(cb.emb, SJavaString.construct(makeFileName(fileArrayIdx)))
+                EmitCode.present(cb.emb, SJavaString.construct(makeFileName(fileArrayIdx))),
+                EmitCode.present(cb.emb,  primitive(numElementsPerFile(fileArrayIdx)))
               ))))
 
               finisher(cb)
