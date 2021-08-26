@@ -102,7 +102,7 @@ trait Py4jUtils {
   }
 
   def readFile(fs: FS, path: String, buffSize: Int): HadoopSeekablePyReader =
-    new HadoopSeekablePyReader(fs.openNoCompression(path), buffSize)
+    new HadoopSeekablePyReader(fs.fileStatus(path), fs.openNoCompression(path), buffSize)
 
   def readFileCodec(fs: FS, path: String, buffSize: Int): HadoopPyReader =
     new HadoopPyReader(fs.open(path), buffSize)
@@ -162,8 +162,25 @@ class HadoopPyReader(in: InputStream, buffSize: Int) {
   }
 }
 
-class HadoopSeekablePyReader(in: SeekableDataInputStream, buffSize: Int) extends HadoopPyReader(in, buffSize) {
-  def seek(pos: Long) = in.seek(pos)
+class HadoopSeekablePyReader(status: FileStatus, in: SeekableDataInputStream, buffSize: Int) extends HadoopPyReader(in, buffSize) {
+  def seek(pos: Long, whence: Int): Long = {
+    // whence corresponds to python arguments to seek
+    // it is validated in python
+    // 0 (SEEK_SET) seek to pos
+    // 1 (SEEK_CUR) seek to getPosition + pos
+    // 2 (SEEK_END) seek to status.getLen + pos
+
+    val new_offset = whence match {
+      case 0 => pos
+      case 1 => getPosition() + pos
+      case 2 => status.getLen + pos
+    }
+
+    in.seek(new_offset)
+    new_offset
+  }
+
+  def getPosition(): Long = in.getPosition
 }
 
 class HadoopPyWriter(out: OutputStream) {
