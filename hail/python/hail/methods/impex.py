@@ -2605,6 +2605,7 @@ def export_elasticsearch(t, host, port, index, index_type, block_size, config=No
 @typecheck(paths=sequenceof(str))
 def import_avro(paths):
     assert paths, 'import_avro requires at least one path'
-    with DataFileReader(hl.current_backend().fs.open(paths[0]), DatumReader) as dfr:
-        tr = ir.AvroTableReader(avro.schema.parse(dfr.schema), paths)
+    with hl.current_backend().fs.open(paths[0], 'rb') as avro_file:
+        with DataFileReader(avro_file, DatumReader()) as data_file_reader:
+            tr = ir.AvroTableReader(avro.schema.parse(data_file_reader.schema), paths)
     return Table(ir.TableRead(tr))
