@@ -3558,22 +3558,36 @@ class IRSuite extends HailSuite {
     }
   }
 
-  @Test def testStreamDistribute(): Unit = {
+  @Test def testStreamDistribute(): Unit =  {
+    val data1 = IndexedSeq(0, 1, 1, 2, 4, 7, 7, 7, 9, 11, 15, 20, 22, 28, 50, 100)
+    val pivots1 = IndexedSeq(1, 7, 7, 15, 22, 50)
+    val pivots2 = IndexedSeq(1, 1, 7, 9, 28, 50)
+    val pivots3 = IndexedSeq(0, 20, 100)
+    val pivots4 = IndexedSeq(4, 7, 7)
+
+    runStreamDistTest(data1, pivots1)
+    runStreamDistTest(data1, pivots2)
+    runStreamDistTest(data1, pivots3)
+    runStreamDistTest(data1, pivots4)
+  }
+
+  def runStreamDistTest(data: IndexedSeq[Int], splitters: IndexedSeq[Int]): Unit = {
     def makeRowStruct(i: Int) = MakeStruct(Seq(("rowIdx", I32(i)), ("extraInfo", I32(i * i))))
     def makeKeyStruct(i: Int) = MakeStruct(Seq(("rowIdx", I32(i))))
-    val child = ToStream(MakeArray(IndexedSeq(0, 1, 1, 2, 4, 7, 7, 7, 9, 11, 15, 20, 22, 28, 50, 100).map(makeRowStruct):_*))
-    val pivots = MakeArray(IndexedSeq(1, 7, 7, 15, 22, 50).map(makeKeyStruct):_*)
+    val child = ToStream(MakeArray(data.map(makeRowStruct):_*))
+    val pivots = MakeArray(splitters.map(makeKeyStruct):_*)
     val spec = TypedCodecSpec(PCanonicalStruct(("rowIdx", PInt32Required), ("extraInfo", PInt32Required)), BufferSpec.default)
     val dist = StreamDistribute(child, pivots, Str("/tmp/hail_stream_dist_test"), spec)
     val result = eval(dist).asInstanceOf[IndexedSeq[Row]].map(row => (row(0).asInstanceOf[Interval], row(1).asInstanceOf[String]))
-    println(s"Result = ${result}")
     val kord: ExtendedOrdering = PartitionBoundOrdering(pivots.typ.asInstanceOf[TArray].elementType)
 
     def inInterval(kord: ExtendedOrdering, interval: Interval, element: Row): Boolean = {
       if (interval.start == null) {
-        true
+        val comp: (Any, Any) => Boolean = if (interval.includesEnd) kord.lteq else kord.lt
+        comp(element, interval.end)
       } else if (interval.end == null) {
-        true
+        val comp: (Any, Any) => Boolean = if (interval.includesStart) kord.lteq else kord.lt
+        comp(interval.start, element)
       } else {
         val contains = interval.contains(kord, element)
         contains
@@ -3584,8 +3598,11 @@ class IRSuite extends HailSuite {
       val reader = PartitionNativeReader(spec)
       val read = ToArray(ReadPartition(Str(path), spec._vType, reader))
       val rowsFromDisk = eval(read).asInstanceOf[IndexedSeq[Row]]
-      println(s"For interval: ${interval} from file ${fileIdx}, rowsFromDisk = ${rowsFromDisk}")
-      //assert(rowsFromDisk.forall(inInterval(kord, interval, _)))
+      assert(rowsFromDisk.forall(inInterval(kord, interval, _)))
+    }
+
+    result.map(_._1).sliding(2).foreach { case IndexedSeq(interval1, interval2) =>
+      assert(interval1.isDisjointFrom(kord, interval2))
     }
   }
 }

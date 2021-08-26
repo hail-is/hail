@@ -1433,9 +1433,6 @@ class Emit[C](
               })
 
               val fileMapping = new SIndexablePointerCode(SIndexablePointer(fileMappingType), fileMappingAddr).memoize(cb, "stream_dist_file_map")
-              cb.println("splitters = ", cb.strValue(splitters))
-              cb.println("tree = ", cb.strValue(tree))
-              cb.println("fileMapping = ", cb.strValue(fileMapping))
 
               val encoder = spec.encodedType.buildEncoder(childStream.st.elementType, cb.emb.ecb)
               childStream.producer.memoryManagedConsume(region, cb) { cb =>
@@ -1469,7 +1466,6 @@ class Emit[C](
 
               val (pushElement, finisher) = returnType.constructFromFunctions(cb, region, numFilesToWrite, false)
 
-              val includesLast = cb.newLocal[Boolean]("stream_dist_includes_last", true)
               val stackStructType = new SStackStruct(ir.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct], IndexedSeq(
                 EmitType(intervalType.sType, true),
                 EmitType(SJavaString, true)
@@ -1480,7 +1476,7 @@ class Emit[C](
                 EmitCode.missing(cb.emb, splitters.st.elementType),
                 EmitCode.fromI(cb.emb)(cb => splitters.loadElement(cb, 0)),
                 EmitCode.present(cb.emb, primitive(false)),
-                EmitCode.present(cb.emb, primitive(false))
+                EmitCode.present(cb.emb,  new SBooleanCode(!splitterWasDuplicated.loadElement(cb, 0).get(cb).asBoolean.boolCode(cb)))
               )
 
               pushElement(cb, IEmitCode.present(cb, new SStackStructCode(stackStructType, IndexedSeq(
@@ -1488,13 +1484,13 @@ class Emit[C](
                 EmitCode.present(cb.emb, SJavaString.construct(makeFileName(0)))
               ))))
 
-              cb.forLoop({cb.assign(uniqueSplittersIdx, 1); cb.assign(fileArrayIdx, 1) }, uniqueSplittersIdx < numUniqueSplitters, cb.assign(uniqueSplittersIdx, uniqueSplittersIdx + 1), {
+              cb.forLoop({cb.assign(uniqueSplittersIdx, 0); cb.assign(fileArrayIdx, 1) }, uniqueSplittersIdx < numUniqueSplitters, cb.assign(uniqueSplittersIdx, uniqueSplittersIdx + 1), {
                 cb.ifx(uniqueSplittersIdx cne 0, {
                   val intervalFromLastToThis = intervalType.constructFromCodes(cb, region,
                     EmitCode.fromI(cb.emb)(cb => splitters.loadElement(cb, uniqueSplittersIdx - 1)),
                     EmitCode.fromI(cb.emb)(cb => splitters.loadElement(cb, uniqueSplittersIdx)),
-                    EmitCode.present(cb.emb, new SBooleanCode(includesLast)),
-                    EmitCode.present(cb.emb, primitive(false))
+                    EmitCode.present(cb.emb, primitive(false)),
+                    EmitCode.present(cb.emb, new SBooleanCode(!splitterWasDuplicated.loadElement(cb, uniqueSplittersIdx).get(cb).asBoolean.boolCode(cb)))
                   )
 
                   pushElement(cb, IEmitCode.present(cb, new SStackStructCode(stackStructType, IndexedSeq(
@@ -1504,8 +1500,6 @@ class Emit[C](
 
                   cb.assign(fileArrayIdx, fileArrayIdx + 1)
                 })
-
-                cb.assign(includesLast, true)
 
                 // Now, maybe have to make an identity bucket.
                 cb.ifx(splitterWasDuplicated.loadElement(cb, uniqueSplittersIdx).get(cb).asBoolean.boolCode(cb), {
@@ -1522,7 +1516,6 @@ class Emit[C](
                   ))))
 
                   cb.assign(fileArrayIdx, fileArrayIdx + 1)
-                  cb.assign(includesLast, false)
                 })
               })
 
@@ -1530,7 +1523,7 @@ class Emit[C](
               val lastInterval = intervalType.constructFromCodes(cb, region,
                 EmitCode.fromI(cb.emb)(cb => splitters.loadElement(cb, uniqueSplittersIdx - 1)),
                 EmitCode.missing(cb.emb, splitters.st.elementType),
-                EmitCode.present(cb.emb, new SBooleanCode(includesLast)),
+                EmitCode.present(cb.emb, primitive(false)),
                 EmitCode.present(cb.emb, primitive(false))
               )
 
