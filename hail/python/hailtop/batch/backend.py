@@ -433,9 +433,9 @@ class ServiceBackend(Backend[bc.Batch]):
         self.remote_tmpdir = remote_tmpdir
 
     @property
-    async def _batch_client(self) -> BatchClient:
+    def _batch_client(self) -> BatchClient:
         if self.__batch_client is None:
-            self.__batch_client = await BatchClient.create(billing_project)
+            self.__batch_client = BatchClient(billing_project)
         return self.__batch_client
 
     @property
@@ -443,7 +443,7 @@ class ServiceBackend(Backend[bc.Batch]):
         return self.__fs
 
     def _close(self):
-        (await self._batch_client).close()
+        self._batch_client.close()
         async_to_blocking(self._fs.close())
 
     def _run(self,
