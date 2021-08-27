@@ -1,7 +1,6 @@
 from types import TracebackType
 from typing import Optional, Type, TypeVar, Mapping
 import abc
-import aiohttp
 import hailtop.httpx
 from hailtop.utils import request_retry_transient_errors, RateLimit, RateLimiter
 from .credentials import Credentials
@@ -61,7 +60,7 @@ class RateLimitedSession(BaseSession):
 
 
 class Session(BaseSession):
-    _session: aiohttp.ClientSession
+    _session: hailtop.httpx.ClientSession
     _access_token: AccessToken
 
     def __init__(self, *, credentials: Credentials = None, params: Optional[Mapping[str, str]] = None, **kwargs):

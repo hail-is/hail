@@ -98,7 +98,13 @@ class Py4JBackend(Backend):
             raise e
 
     async def _async_execute(self, ir, timed=False):
-        return self.execute(ir, timed=timed)
+        raise NotImplementedError('no async available in Py4JBackend')
 
     async def _async_execute_many(self, *irs, timed=False):
-        return self.execute_many(*irs, timed=timed)
+        raise NotImplementedError('no async available in Py4JBackend')
+
+    async def _async_get_reference(self, name):
+        raise NotImplementedError('no async available in Py4JBackend')
+
+    async def _async_get_references(self, names):
+        raise NotImplementedError('no async available in Py4JBackend')

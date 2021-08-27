@@ -11,7 +11,7 @@ from hail.genetics.reference_genome import ReferenceGenome
 from hail.typecheck import sequenceof, nullable, typecheck, typecheck_method, enumeration, dictof
 from hail.utils import get_env_or_default
 from hail.utils.java import Env, FatalError, warning
-from hail.backend import Backend, ServiceBackend
+from hail.backend import Backend
 from hailtop.utils import secret_alnum_string
 from .builtin_references import BUILTIN_REFERENCES
 from .fs.fs import FS
@@ -53,7 +53,7 @@ class HailContext(object):
                            local_tmpdir: str,
                            default_reference: str,
                            global_seed: Optional[str],
-                           backend: ServiceBackend):
+                           backend: Backend):
         references = await backend._async_get_references(BUILTIN_REFERENCES)
         return HailContext(log=log,
                            quiet=quiet,

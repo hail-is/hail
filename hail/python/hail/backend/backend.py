@@ -54,8 +54,16 @@ class Backend(abc.ABC):
     def get_reference(self, name):
         pass
 
+    @abc.abstractmethod
+    async def _async_get_reference(self, name):
+        pass
+
     def get_references(self, names):
         return (self.get_reference(name) for name in names)
+
+    @abc.abstractmethod
+    async def _async_get_references(self, names):
+        pass
 
     @abc.abstractmethod
     def add_sequence(self, name, fasta_file, index_file):

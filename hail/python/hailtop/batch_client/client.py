@@ -1,6 +1,7 @@
 from typing import Optional, Dict, Any
-import aiohttp
 import asyncio
+
+from ..httpx import ClientSession
 
 from ..config import DeployConfig
 from . import aioclient
@@ -246,7 +247,7 @@ class BatchClient:
     def __init__(self,
                  billing_project: str,
                  deploy_config: Optional[DeployConfig] = None,
-                 session: Optional[aiohttp.ClientSession] = None,
+                 session: Optional[ClientSession] = None,
                  headers: Optional[Dict[str, str]] = None,
                  _token: Optional[str] = None):
         self._async_client = async_to_blocking(aioclient.BatchClient.create(

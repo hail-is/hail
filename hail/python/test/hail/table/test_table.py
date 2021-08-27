@@ -1856,26 +1856,23 @@ def test_grouped_flatmap_streams():
 
 
 def make_head_tail_test_data():
-    startTestHailContext()
-    try:
-        rt = hl.utils.range_table(10, 11)
-        par = hl.Table.parallelize([hl.Struct(x=x) for x in range(10)], schema='struct{x: int32}', n_partitions=11)
-        f = new_temp_file(extension='ht')
-        chkpt = rt.checkpoint(f)
-        tables = [('rt', rt), ('par', par), ('rtcache', rt.cache()), ('chkpt', chkpt)]
+    rt = hl.utils.range_table(10, 11)
+    par = hl.Table.parallelize([hl.Struct(x=x) for x in range(10)], schema='struct{x: int32}', n_partitions=11)
+    f = new_temp_file(extension='ht')
+    chkpt = rt.checkpoint(f)
+    tables = [('rt', rt), ('par', par), ('rtcache', rt.cache()), ('chkpt', chkpt)]
 
-        def make_test(table, counter, truncator, n):
-            def test():
-                assert counter(truncator(table, n)) == min(10, n)
-            return test
 
-        return [pytest.param(make_test(table, counter, truncator, n), id=str((name, n, truncator_name, counter_name)))
-                for name, table in tables
-                for n in (10, 9, 11, 0)
-                for truncator_name, truncator in (('head', hl.Table.head), ('tail', hl.Table.tail))
-                for counter_name, counter in (('count', hl.Table.count), ('_force_count', hl.Table._force_count))]
-    finally:
-        stopTestHailContext()
+    def make_test(table, counter, truncator, n):
+        def test():
+            assert counter(truncator(table, n)) == min(10, n)
+        return test
+
+    return [pytest.param(make_test(table, counter, truncator, n), id=str((name, n, truncator_name, counter_name)))
+            for name, table in tables
+            for n in (10, 9, 11, 0)
+            for truncator_name, truncator in (('head', hl.Table.head), ('tail', hl.Table.tail))
+            for counter_name, counter in (('count', hl.Table.count), ('_force_count', hl.Table._force_count))]
 
 head_tail_test_data = make_head_tail_test_data()
 
