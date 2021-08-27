@@ -703,3 +703,4 @@ class ServiceBackend(Backend[bc.Batch]):
             return bc_batch
         except:
             bc_batch.cancel()
+            raise
