@@ -2355,7 +2355,7 @@ async def async_main():
     finally:
         try:
             await worker.shutdown()
-            log.info(f'worker shutdown', exc_info=True)
+            log.info('worker shutdown', exc_info=True)
         finally:
             await docker.close()
             log.info('docker closed')
