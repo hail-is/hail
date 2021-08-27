@@ -903,11 +903,19 @@ class EmitMethodBuilder[C](
     val codeIndex = emitParamCodeIndex(emitIndex - static)
 
     et match {
-      case SingleCodeEmitParamType(required, sct) =>
+      case SingleCodeEmitParamType(required, sct: StreamSingleCodeType) =>
         val field = cb.newFieldAny(s"storeEmitParam_sct_$emitIndex", mb.getArg(codeIndex)(sct.ti).get)(sct.ti);
         { region: Value[Region] =>
           val m = if (required) None else Some(mb.getArg[Boolean](codeIndex + 1))
           val v = sct.loadToSValue(cb, region, field)
+
+          EmitValue(m, v)
+        }
+
+      case SingleCodeEmitParamType(required, sct) =>
+        val v = sct.loadToSValue(cb, null, mb.getArg(codeIndex)(sct.ti));
+        { region: Value[Region] =>
+          val m = if (required) None else Some(mb.getArg[Boolean](codeIndex + 1))
 
           EmitValue(m, v)
         }
