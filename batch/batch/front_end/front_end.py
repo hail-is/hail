@@ -267,7 +267,7 @@ async def _query_batch_jobs(request, batch_id):
 
     sql = f'''
 SELECT jobs.*, batches.user, batches.billing_project,  batches.format_version,
-  job_attributes.value AS name, SUM(`usage` * rate) AS cost
+  job_attributes.value AS name, CAST(COALESCE(SUM(`usage` * rate), 0) AS SIGNED) AS cost
 FROM jobs
 INNER JOIN batches ON jobs.batch_id = batches.id
 LEFT JOIN job_attributes
@@ -560,7 +560,7 @@ async def _query_batches(request, user, q):
         where_args.extend(args)
 
     sql = f'''
-SELECT batches.*, SUM(`usage` * rate) AS cost, batches_cancelled.id IS NOT NULL as cancelled
+SELECT batches.*, CAST(COALESCE(SUM(`usage` * rate), 0) AS SIGNED) AS cost, batches_cancelled.id IS NOT NULL as cancelled
 FROM batches
 LEFT JOIN aggregated_batch_resources
   ON batches.id = aggregated_batch_resources.batch_id
@@ -1064,7 +1064,7 @@ lock in share mode''', (billing_project, user))
             raise web.HTTPForbidden(reason=f'Billing project {billing_project} is closed or deleted.')
 
         cost = await tx.execute_and_fetchone('''
-SELECT SUM(`usage` * rate) as cost
+SELECT CAST(COALESCE(SUM(`usage` * rate), 0) AS SIGNED) as cost
 FROM aggregated_billing_project_resources
 INNER JOIN resources
   ON resources.resource = aggregated_billing_project_resources.resource
@@ -1127,7 +1127,7 @@ async def _get_batch(app, batch_id):
 
     record = await db.select_and_fetchone(
         '''
-SELECT batches.*, SUM(`usage` * rate) AS cost, batches_cancelled.id IS NOT NULL as cancelled
+SELECT batches.*, CAST(COALESCE(SUM(`usage` * rate), 0) AS SIGNED) AS cost, batches_cancelled.id IS NOT NULL as cancelled
 FROM batches
 LEFT JOIN aggregated_batch_resources
        ON batches.id = aggregated_batch_resources.batch_id
@@ -1312,7 +1312,7 @@ async def _get_job(app, batch_id, job_id):
 
     record = await db.select_and_fetchone(
         '''
-SELECT jobs.*, user, billing_project, ip_address, format_version, SUM(`usage` * rate) AS cost
+SELECT jobs.*, user, billing_project, ip_address, format_version, CAST(COALESCE(SUM(`usage` * rate), 0) AS SIGNED) AS cost
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
@@ -1635,7 +1635,7 @@ SELECT
   billing_project,
   `user`,
   CAST(SUM(IF(format_version < 3, batches.msec_mcpu, 0)) AS SIGNED) as msec_mcpu,
-  SUM(IF(format_version >= 3, `usage` * rate, NULL)) as cost
+  CAST(COALESCE(SUM(IF(format_version >= 3, `usage` * rate, NULL)), 0) AS SIGNED) as cost
 FROM batches
 LEFT JOIN aggregated_batch_resources
   ON aggregated_batch_resources.batch_id = batches.id
