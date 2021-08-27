@@ -136,19 +136,53 @@ class TableFromBlockMatrixNativeReader(TableReader):
 
 
 class AvroTableReader(TableReader):
-    @typecheck_method(schema=avro.schema.Schema, paths=sequenceof(str))
-    def __init__(self, schema, paths):
+    @typecheck_method(schema=avro.schema.Schema,
+                      paths=sequenceof(str),
+                      key=nullable(sequenceof(str)),
+                      intervals=nullable(sequenceof(anytype)))
+    def __init__(self, schema, paths, key, intervals):
+        assert (key is None) == (intervals is None)
         self.schema = schema
         self.paths = paths
+        self.key = key
+
+        if intervals is not None:
+            t = hl.expr.impute_type(intervals)
+            if not isinstance(t, hl.tarray) and not isinstance(t.element_type, hl.tinterval):
+                raise TypeError("'intervals' must be an array of tintervals")
+            pt = t.element_type.point_type
+            if isinstance(pt, hl.tstruct):
+                self._interval_type = t
+            else:
+                self._interval_type = hl.tarray(hl.tinterval(hl.tstruct(__point=pt)))
+
+        if intervals is not None and t != self._interval_type:
+            self.intervals = [hl.Interval(hl.Struct(__point=i.start),
+                                          hl.Struct(__point=i.end),
+                                          i.includes_start,
+                                          i.includes_end) for i in intervals]
+        else:
+            self.intervals = intervals
 
     def render(self):
         reader = {'name': 'AvroTableReader',
                   'partitionReader': {'name': 'AvroPartitionReader',
                                       'schema': self.schema.to_json()},
                   'paths': self.paths}
+        if self.key is not None:
+            assert self.intervals is not None
+            assert self._interval_type is not None
+            reader['unsafeOptions'] = {
+                'name': 'UnsafeAvroTableReaderOptions',
+                'key': self.key,
+                'intervals': self._interval_type._convert_to_json(self.intervals),
+                'intervalPointType': self._interval_type.element_type.point_type._parsable_string(),
+            }
         return escape_str(json.dumps(reader))
 
     def __eq__(self, other):
         return isinstance(other, AvroTableReader) and \
             other.schema == self.schema and \
-            other.paths == self.paths
+            other.paths == self.paths and \
+            other.key == self.key and \
+            other.intervals == self.intervals
