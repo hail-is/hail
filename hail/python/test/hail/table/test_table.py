@@ -1079,42 +1079,6 @@ Caused by: java.lang.NullPointerException
             hl.utils.Struct(idx=11, x=None, y=None, z=None),
         ]
 
-    def test_table_head_returns_right_number(self):
-        rt = hl.utils.range_table(10, 11)
-        par = hl.Table.parallelize([hl.Struct(x=x) for x in range(10)], schema='struct{x: int32}', n_partitions=11)
-        f = new_temp_file(extension='ht')
-        chkpt = rt.checkpoint(f)
-
-        # test TableRange and TableParallelize rewrite rules
-        tables = [rt, par, rt.cache(), chkpt]
-        for table in tables:
-            self.assertEqual(table.head(10).count(), 10)
-            self.assertEqual(table.head(10)._force_count(), 10)
-            self.assertEqual(table.head(9).count(), 9)
-            self.assertEqual(table.head(9)._force_count(), 9)
-            self.assertEqual(table.head(11).count(), 10)
-            self.assertEqual(table.head(11)._force_count(), 10)
-            self.assertEqual(table.head(0).count(), 0)
-            self.assertEqual(table.head(0)._force_count(), 0)
-
-    def test_table_tail_returns_right_number(self):
-        rt = hl.utils.range_table(10, 11)
-        par = hl.Table.parallelize([hl.Struct(x=x) for x in range(10)], schema='struct{x: int32}', n_partitions=11)
-        f = new_temp_file(extension='ht')
-        chkpt = rt.checkpoint(f)
-
-        # test TableRange and TableParallelize rewrite rules
-        tables = [rt, par, rt.cache(), chkpt]
-        for table in tables:
-            self.assertEqual(table.tail(10).count(), 10)
-            self.assertEqual(table.tail(10)._force_count(), 10)
-            self.assertEqual(table.tail(9).count(), 9)
-            self.assertEqual(table.tail(9)._force_count(), 9)
-            self.assertEqual(table.tail(11).count(), 10)
-            self.assertEqual(table.tail(11)._force_count(), 10)
-            self.assertEqual(table.tail(0).count(), 0)
-            self.assertEqual(table.tail(0)._force_count(), 0)
-
     def test_table_order_by_head_rewrite(self):
         rt = hl.utils.range_table(10, 2)
         rt = rt.annotate(x = 10 - rt.idx)
@@ -1889,3 +1853,29 @@ def test_grouped_flatmap_streams():
         lambda group: hl.range(hl.len(group)).map(lambda i: group[i].annotate(z=group[0])),
         part.grouped(8)))
     ht._force_count()
+
+
+def make_head_tail_test_data():
+    rt = hl.utils.range_table(10, 11)
+    par = hl.Table.parallelize([hl.Struct(x=x) for x in range(10)], schema='struct{x: int32}', n_partitions=11)
+    f = new_temp_file(extension='ht')
+    chkpt = rt.checkpoint(f)
+    tables = [('rt', rt), ('par', par), ('rtcache', rt.cache()), ('chkpt', chkpt)]
+
+
+    def make_test(table, counter, truncator, n):
+        def test():
+            assert counter(truncator(table, n)) == min(10, n)
+        return test
+
+    return [pytest.param(make_test(table, counter, truncator, n), id=str((name, n, truncator_name, counter_name)))
+            for name, table in tables
+            for n in (10, 9, 11, 0)
+            for truncator_name, truncator in (('head', hl.Table.head), ('tail', hl.Table.tail))
+            for counter_name, counter in (('count', hl.Table.count), ('_force_count', hl.Table._force_count))]
+
+head_tail_test_data = make_head_tail_test_data()
+
+@pytest.mark.parametrize("test", head_tail_test_data)
+def test_table_head_and_tail(test):
+    test()
