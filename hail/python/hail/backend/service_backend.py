@@ -16,7 +16,6 @@ from hail.expr.blockmatrix_type import tblockmatrix
 from hail.ir.renderer import CSERenderer
 
 from hailtop.config import get_user_config, get_user_local_cache_dir
-from hailtop.auth import get_tokens
 from hailtop.utils import async_to_blocking, secret_alnum_string, TransientError, time_msecs
 from hailtop.batch_client import client as hb
 from hailtop.batch_client import aioclient as aiohb
@@ -304,7 +303,6 @@ class ServiceBackend(Backend):
             if status['n_succeeded'] != 1:
                 raise ValueError(f'batch failed {status} {j.log()}')
 
-
             with self.fs.open(dir + '/out', 'rb') as outfile:
                 success = read_bool(outfile)
                 if success:
@@ -342,7 +340,6 @@ class ServiceBackend(Backend):
             status = b.wait(disable_progress_bar=self.disable_progress_bar)
             if status['n_succeeded'] != 1:
                 raise ValueError(f'batch failed {status} {j.log()}')
-
 
             with self.fs.open(dir + '/out', 'rb') as outfile:
                 success = read_bool(outfile)
@@ -382,7 +379,6 @@ class ServiceBackend(Backend):
             if status['n_succeeded'] != 1:
                 raise ValueError(f'batch failed {status} {j.log()}')
 
-
             with self.fs.open(dir + '/out', 'rb') as outfile:
                 success = read_bool(outfile)
                 if success:
@@ -420,7 +416,6 @@ class ServiceBackend(Backend):
             status = b.wait(disable_progress_bar=self.disable_progress_bar)
             if status['n_succeeded'] != 1:
                 raise ValueError(f'batch failed {status} {j.log()}')
-
 
             with self.fs.open(dir + '/out', 'rb') as outfile:
                 success = read_bool(outfile)
@@ -529,7 +524,6 @@ class ServiceBackend(Backend):
             status = b.wait(disable_progress_bar=self.disable_progress_bar)
             if status['n_succeeded'] != 1:
                 raise ValueError(f'batch failed {status} {j.log()}')
-
 
             with self.fs.open(dir + '/out', 'rb') as outfile:
                 success = read_bool(outfile)
