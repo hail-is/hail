@@ -110,7 +110,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(r[1].vqc.gq_stats.stdev, 0)
 
     @skip_when_service_backend('very slow / nonterminating')
-    @fails_local_backend()
     def test_concordance(self):
         dataset = get_dataset()
         glob_conc, cols_conc, rows_conc = hl.concordance(dataset, dataset)
@@ -138,7 +137,6 @@ class Tests(unittest.TestCase):
         cols_conc.write('/tmp/foo.kt', overwrite=True)
         rows_conc.write('/tmp/foo.kt', overwrite=True)
 
-    @fails_local_backend()
     @skip_when_service_backend('very slow / nonterminating')
     def test_concordance_n_discordant(self):
         dataset = get_dataset()
@@ -218,7 +216,6 @@ class Tests(unittest.TestCase):
         ]
 
     @skip_when_service_backend('very slow / nonterminating')
-    @fails_local_backend()
     def test_concordance_no_values_doesnt_error(self):
         dataset = get_dataset().filter_rows(False)
         _, cols_conc, rows_conc = hl.concordance(dataset, dataset)
@@ -250,7 +247,6 @@ Caused by: java.lang.ClassCastException: __C2860collect_distributed_array cannot
             self.assertEqual(hl.filter_alleles(ds, lambda a, i: True).count_rows(), ds.count_rows())
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_filter_alleles_hts(self):
         # 1 variant: A:T,G
         ds = hl.import_vcf(resource('filter_alleles/input.vcf'))

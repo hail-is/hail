@@ -1325,7 +1325,6 @@ class Tests(unittest.TestCase):
         self.assertTrue(ds1._same(ds2))
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_split_multi_table(self):
         ds1 = hl.import_vcf(resource('split_test.vcf')).rows()
         ds1 = hl.split_multi(ds1)
