@@ -844,27 +844,6 @@ steps:
       - hail_ubuntu_image
       - merge_code
   - kind: buildImage2
-    name: query_image
-    dockerFile: /io/query/Dockerfile
-    contextPath: /io/query/
-    publishAs: query
-    inputs:
-      - from: /repo/query
-        to: /io/query
-      - from: /just-jar/hail.jar
-        to: /io/query/hail.jar
-    dependsOn:
-      - service_java_run_base_image
-      - build_hail_jar_only
-      - merge_code
-  - kind: deploy
-    name: deploy_query_sa
-    namespace:
-      valueFrom: default_ns.name
-    config: query/service-account.yaml
-    dependsOn:
-      - default_ns
-  - kind: buildImage2
     name: memory_image
     dockerFile: /io/repo/memory/Dockerfile
     contextPath: /io/repo
@@ -2489,6 +2468,306 @@ steps:
       - build_hail_jar_only
       - merge_code
       - create_test_gsa_keys
+  - kind: runImage
+    name: test_hail_python_service_backend_0
+    image:
+      valueFrom: service_base_image.image
+    resources:
+      cpu: '1'
+    script: |
+      set -ex
+      cd /io
+      tar xzf test.tar.gz
+      tar xvf debug-wheel-container.tar
+      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      {% if deploy %}
+      HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/"
+      HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/"
+      {% else %}
+      HAIL_SHA="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/"
+      HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/"
+      {% endif %}
+      export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/test/resources/"
+      export HAIL_DOCTEST_DATA_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/doctest/data/"
+      export PYTEST_SPLITS=5
+      export PYTEST_SPLIT_INDEX=0
+      export HAIL_QUERY_BACKEND=service
+      python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 -n 4 test
+    inputs:
+      - from: /wheel-container.tar
+        to: /io/wheel-container.tar
+      - from: /test.tar.gz
+        to: /io/test.tar.gz
+    secrets:
+      - name: test-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-gsa-key
+      - name: global-config
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /global-config
+      - name: gce-deploy-config
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /deploy-config
+      - name: test-tokens
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /user-tokens
+      - name: ssl-config-batch-tests
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /ssl-config
+    dependsOn:
+      - default_ns
+      - deploy_batch
+      - create_deploy_config
+      - create_accounts
+      - service_base_image
+      - upload_query_jar
+      - upload_test_resources_to_gcs
+      - build_hail
+  - kind: runImage
+    name: test_hail_python_service_backend_1
+    image:
+      valueFrom: service_base_image.image
+    resources:
+      cpu: '1'
+    script: |
+      set -ex
+      cd /io
+      tar xzf test.tar.gz
+      tar xvf debug-wheel-container.tar
+      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      {% if deploy %}
+      HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/"
+      HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/"
+      {% else %}
+      HAIL_SHA="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/"
+      HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/"
+      {% endif %}
+      export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/test/resources/"
+      export HAIL_DOCTEST_DATA_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/doctest/data/"
+      export PYTEST_SPLITS=5
+      export PYTEST_SPLIT_INDEX=1
+      export HAIL_QUERY_BACKEND=service
+      python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 -n 4 test
+    inputs:
+      - from: /wheel-container.tar
+        to: /io/wheel-container.tar
+      - from: /test.tar.gz
+        to: /io/test.tar.gz
+    secrets:
+      - name: test-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-gsa-key
+      - name: global-config
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /global-config
+      - name: gce-deploy-config
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /deploy-config
+      - name: test-tokens
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /user-tokens
+      - name: ssl-config-batch-tests
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /ssl-config
+    dependsOn:
+      - default_ns
+      - deploy_batch
+      - create_deploy_config
+      - create_accounts
+      - service_base_image
+      - upload_query_jar
+      - upload_test_resources_to_gcs
+      - build_hail
+  - kind: runImage
+    name: test_hail_python_service_backend_2
+    image:
+      valueFrom: service_base_image.image
+    resources:
+      cpu: '1'
+    script: |
+      set -ex
+      cd /io
+      tar xzf test.tar.gz
+      tar xvf debug-wheel-container.tar
+      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      {% if deploy %}
+      HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/"
+      HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/"
+      {% else %}
+      HAIL_SHA="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/"
+      HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/"
+      {% endif %}
+      export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/test/resources/"
+      export HAIL_DOCTEST_DATA_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/doctest/data/"
+      export PYTEST_SPLITS=5
+      export PYTEST_SPLIT_INDEX=2
+      export HAIL_QUERY_BACKEND=service
+      python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 -n 4 test
+    inputs:
+      - from: /wheel-container.tar
+        to: /io/wheel-container.tar
+      - from: /test.tar.gz
+        to: /io/test.tar.gz
+    secrets:
+      - name: test-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-gsa-key
+      - name: global-config
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /global-config
+      - name: gce-deploy-config
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /deploy-config
+      - name: test-tokens
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /user-tokens
+      - name: ssl-config-batch-tests
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /ssl-config
+    dependsOn:
+      - default_ns
+      - deploy_batch
+      - create_deploy_config
+      - create_accounts
+      - service_base_image
+      - upload_query_jar
+      - upload_test_resources_to_gcs
+      - build_hail
+  - kind: runImage
+    name: test_hail_python_service_backend_3
+    image:
+      valueFrom: service_base_image.image
+    resources:
+      cpu: '1'
+    script: |
+      set -ex
+      cd /io
+      tar xzf test.tar.gz
+      tar xvf debug-wheel-container.tar
+      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      {% if deploy %}
+      HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/"
+      HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/"
+      {% else %}
+      HAIL_SHA="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/"
+      HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/"
+      {% endif %}
+      export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/test/resources/"
+      export HAIL_DOCTEST_DATA_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/doctest/data/"
+      export PYTEST_SPLITS=5
+      export PYTEST_SPLIT_INDEX=3
+      export HAIL_QUERY_BACKEND=service
+      python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 -n 4 test
+    inputs:
+      - from: /wheel-container.tar
+        to: /io/wheel-container.tar
+      - from: /test.tar.gz
+        to: /io/test.tar.gz
+    secrets:
+      - name: test-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-gsa-key
+      - name: global-config
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /global-config
+      - name: gce-deploy-config
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /deploy-config
+      - name: test-tokens
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /user-tokens
+      - name: ssl-config-batch-tests
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /ssl-config
+    dependsOn:
+      - default_ns
+      - deploy_batch
+      - create_deploy_config
+      - create_accounts
+      - service_base_image
+      - upload_query_jar
+      - upload_test_resources_to_gcs
+      - build_hail
+  - kind: runImage
+    name: test_hail_python_service_backend_4
+    image:
+      valueFrom: service_base_image.image
+    resources:
+      cpu: '1'
+    script: |
+      set -ex
+      cd /io
+      tar xzf test.tar.gz
+      tar xvf debug-wheel-container.tar
+      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      {% if deploy %}
+      HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/"
+      HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/"
+      {% else %}
+      HAIL_SHA="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/"
+      HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/"
+      {% endif %}
+      export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/test/resources/"
+      export HAIL_DOCTEST_DATA_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/doctest/data/"
+      export PYTEST_SPLITS=5
+      export PYTEST_SPLIT_INDEX=4
+      export HAIL_QUERY_BACKEND=service
+      python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 -n 4 test
+    inputs:
+      - from: /wheel-container.tar
+        to: /io/wheel-container.tar
+      - from: /test.tar.gz
+        to: /io/test.tar.gz
+    secrets:
+      - name: test-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-gsa-key
+      - name: global-config
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /global-config
+      - name: gce-deploy-config
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /deploy-config
+      - name: test-tokens
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /user-tokens
+      - name: ssl-config-batch-tests
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /ssl-config
+    dependsOn:
+      - default_ns
+      - deploy_batch
+      - create_deploy_config
+      - create_accounts
+      - service_base_image
+      - upload_query_jar
+      - upload_test_resources_to_gcs
+      - build_hail
   - kind: deploy
     name: deploy_memory
     namespace:
