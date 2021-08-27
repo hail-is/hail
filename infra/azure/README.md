@@ -104,7 +104,7 @@ terraform init -backend-config=backend-config.tfvars
 Next, create a `global.tfvars` file from the following template and replace in the relevant fields.
 
 ```
-az_resource_group_name = <resource_group_name>
+az_resource_group_name = "<resource_group_name>"
 ```
 
 Run `terraform apply -var-file=global.tfvars`. To sync the kubernetes config, run
