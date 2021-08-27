@@ -5,6 +5,7 @@ import is.hail.asm4s._
 import is.hail.backend.BackendContext
 import is.hail.expr.ir.agg.{AggStateSig, ArrayAggStateSig, GroupedStateSig}
 import is.hail.expr.ir.analyses.{ComputeMethodSplits, ControlFlowPreventsSplit, ParentPointers}
+import is.hail.expr.ir.functions.MathFunctions
 import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.expr.ir.ndarrays.EmitNDArray
 import is.hail.expr.ir.orderings.StructOrdering
@@ -1307,8 +1308,10 @@ class Emit[C](
 
               def lessThan(cb: EmitCodeBuilder, lelt: EmitValue, relt: EmitValue): Code[Boolean] = compare(cb, lelt, relt) < 0
 
-              val treeHeight: Value[Int] = cb.newLocal[Int]("stream_dist_tree_height", Code.invokeStatic1[Math, Double, Double]("ceil", (Code.invokeStatic1[Math, Double, Double]("log", (requestedSplittersVal.loadLength() + 1).toD) / Math.log(2))).toI)
-              val numberOfBuckets = cb.newLocal[Int]("stream_dist_number_of_buckets", 1 >> (treeHeight + 1))
+              val filledInTreeSize = Code.invokeScalaObject1[Int, Int](MathFunctions.getClass, "roundToNextPowerOf2", requestedSplittersVal.loadLength() + 1)
+              val treeHeight: Value[Int] = cb.newLocal[Int]("stream_dist_tree_height", Code.invokeScalaObject1[Int, Int](MathFunctions.getClass, "log2", filledInTreeSize))
+
+              val numberOfBuckets = cb.newLocal[Int]("stream_dist_number_of_buckets", const(1) >> (treeHeight + 1))
 
               val paddedSplittersSize = cb.newLocal[Int]("stream_dist_padded_splitter_size", numberOfBuckets / 2)
 
