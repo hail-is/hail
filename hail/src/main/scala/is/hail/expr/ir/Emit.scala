@@ -1311,7 +1311,7 @@ class Emit[C](
               val filledInTreeSize = Code.invokeScalaObject1[Int, Int](MathFunctions.getClass, "roundToNextPowerOf2", requestedSplittersVal.loadLength() + 1)
               val treeHeight: Value[Int] = cb.newLocal[Int]("stream_dist_tree_height", Code.invokeScalaObject1[Int, Int](MathFunctions.getClass, "log2", filledInTreeSize))
 
-              val numberOfBuckets = cb.newLocal[Int]("stream_dist_number_of_buckets", const(1) >> (treeHeight + 1))
+              val numberOfBuckets = cb.newLocal[Int]("stream_dist_number_of_buckets", const(1) << (treeHeight + 1))
 
               val paddedSplittersSize = cb.newLocal[Int]("stream_dist_padded_splitter_size", numberOfBuckets / 2)
 
