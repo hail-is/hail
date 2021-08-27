@@ -1577,55 +1577,55 @@ object MatrixVCFReader {
 
     if (fileStatuses.length > 1) {
       if (params.headerFile.isEmpty) {
-        if (backend.isInstanceOf[SparkBackend]) {
-          val fsBc = fs.broadcast
-          val header1Bc = backend.broadcast(header1)
+        val header1Bc = backend.broadcast(header1)
 
-          val localCallFields = params.callFields
-          val localFloatType = entryFloatType
-          val files = fileStatuses.map(_.getPath)
-          val localArrayElementsRequired = params.arrayElementsRequired
-          val localFilterAndReplace = params.filterAndReplace
-          SparkBackend.sparkContext("MatrixVCFReader.apply").parallelize(files.tail, math.max(1, files.length - 1)).foreach { file =>
-            val fs = fsBc.value
-            val hd = parseHeader(
-              localCallFields, localFloatType, getHeaderLines(fs, file, localFilterAndReplace),
-              arrayElementsRequired = localArrayElementsRequired)
-            val hd1 = header1Bc.value
+        val localCallFields = params.callFields
+        val localFloatType = entryFloatType
+        val files = fileStatuses.map(_.getPath)
+        val localArrayElementsRequired = params.arrayElementsRequired
+        val localFilterAndReplace = params.filterAndReplace
 
-            if (hd1.sampleIds.length != hd.sampleIds.length) {
-              fatal(
-                s"""invalid sample IDs: expected same number of samples for all inputs.
-                   | ${ files(0) } has ${ hd1.sampleIds.length } ids and
-                   | ${ file } has ${ hd.sampleIds.length } ids.
-           """.stripMargin)
-            }
+        backend.parallelizeAndComputeWithIndex(ctx.backendContext, files.tail.map(_.getBytes), None) { (bytes, htc, fs) =>
+          val file = new String(bytes)
 
-            hd1.sampleIds.iterator.zipAll(hd.sampleIds.iterator, None, None)
-              .zipWithIndex.foreach { case ((s1, s2), i) =>
-              if (s1 != s2) {
-                fatal(
-                  s"""invalid sample IDs: expected sample ids to be identical for all inputs. Found different sample IDs at position $i.
-                     |    ${ files(0) }: $s1
-                     |    $file: $s2""".stripMargin)
-              }
-            }
+          val hd = parseHeader(
+            localCallFields, localFloatType, getHeaderLines(fs, file, localFilterAndReplace),
+            arrayElementsRequired = localArrayElementsRequired)
+          val hd1 = header1Bc.value
 
-            if (hd1.genotypeSignature != hd.genotypeSignature)
-              fatal(
-                s"""invalid genotype signature: expected signatures to be identical for all inputs.
-                   |   ${ files(0) }: ${ hd1.genotypeSignature.toString }
-                   |   $file: ${ hd.genotypeSignature.toString }""".stripMargin)
-
-            if (hd1.vaSignature != hd.vaSignature)
-              fatal(
-                s"""invalid variant annotation signature: expected signatures to be identical for all inputs.
-                   |   ${ files(0) }: ${ hd1.vaSignature.toString }
-                   |   $file: ${ hd.vaSignature.toString }""".stripMargin)
+          if (hd1.sampleIds.length != hd.sampleIds.length) {
+            fatal(
+              s"""invalid sample IDs: expected same number of samples for all inputs.
+                 | ${ files(0) } has ${ hd1.sampleIds.length } ids and
+                 | ${ file } has ${ hd.sampleIds.length } ids.
+         """.stripMargin)
           }
-        } else {
-          warn("Non-Spark backend: not verifying agreement of headers between input VCF files.")
+
+          hd1.sampleIds.iterator.zipAll(hd.sampleIds.iterator, None, None)
+            .zipWithIndex.foreach { case ((s1, s2), i) =>
+            if (s1 != s2) {
+              fatal(
+                s"""invalid sample IDs: expected sample ids to be identical for all inputs. Found different sample IDs at position $i.
+                   |    ${ files(0) }: $s1
+                   |    $file: $s2""".stripMargin)
+            }
+          }
+
+          if (hd1.genotypeSignature != hd.genotypeSignature)
+            fatal(
+              s"""invalid genotype signature: expected signatures to be identical for all inputs.
+                 |   ${ files(0) }: ${ hd1.genotypeSignature.virtualType.toString }
+                 |   $file: ${ hd.genotypeSignature.virtualType.toString }""".stripMargin)
+
+          if (hd1.vaSignature != hd.vaSignature)
+            fatal(
+              s"""invalid variant annotation signature: expected signatures to be identical for all inputs. Check that all files have same INFO fields.
+                 |   ${ files(0) }: ${ hd1.vaSignature.virtualType.toString }
+                 |   $file: ${ hd.vaSignature.virtualType.toString }""".stripMargin)
+
+          bytes
         }
+
       } else {
         warn("Loading user-provided header file. The sample IDs, " +
           "INFO fields, and FORMAT fields were not checked for agreement with input data.")
