@@ -15,6 +15,7 @@ from azure.storage.blob.aio import BlobClient, ContainerClient, BlobServiceClien
 from azure.storage.blob.aio._list_blobs_helper import BlobPrefix
 import azure.core.exceptions
 from hailtop.utils import retry_transient_errors, flatten, OnlineBoundedGather2, first_extant_file
+from hailtop.aiotools import UnexpectedEOFError
 
 from .fs import (AsyncFS, ReadableStream, WritableStream, MultiPartCreate, FileListEntry, FileStatus,
                  FileAndDirectoryError)
@@ -147,15 +148,18 @@ class AzureReadableStream(ReadableStream):
         if self._eof:
             return b''
 
-        if self._downloader is None:
-            self._downloader = await self._client.download_blob(offset=self._offset)
-        if self._chunk_it is None:
-            self._chunk_it = self._downloader.chunks()
-
         if n == -1:
-            data = await self._downloader.readall()
+            downloader = await self._client.download_blob(offset=self._offset)
+            data = await downloader.readall()
+            self._offset += len(data)
             self._eof = True
             return data
+
+        if self._downloader is None:
+            self._downloader = await self._client.download_blob(offset=self._offset)
+
+        if self._chunk_it is None:
+            self._chunk_it = self._downloader.chunks()
 
         while len(self._buffer) < n:
             try:
@@ -166,11 +170,26 @@ class AzureReadableStream(ReadableStream):
 
         data = self._buffer[:n]
         self._buffer = self._buffer[n:]
+        self._offset += len(data)
 
         if len(data) < n:
+            self._buffer = bytearray()
+            self._downloader = None
+            self._chunk_it = None
             self._eof = True
 
         return data
+
+    async def readexactly(self, n: int) -> bytes:
+        assert not self._closed and n >= 0
+
+        try:
+            downloader = await self._client.download_blob(offset=self._offset, length=n)
+            self._offset += n
+            return await downloader.readall()
+        # FIXME: Get actual exception here from tests
+        except asyncio.streams.IncompleteReadError as e:
+            raise UnexpectedEOFError() from e
 
     async def _wait_closed(self) -> None:
         self._downloader = None
