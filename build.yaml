@@ -2490,22 +2490,6 @@ steps:
       - merge_code
       - create_test_gsa_keys
   - kind: deploy
-    name: deploy_query
-    namespace:
-      valueFrom: default_ns.name
-    config: query/deployment.yaml
-    wait:
-      - kind: Service
-        name: query
-        for: alive
-    dependsOn:
-      - default_ns
-      - deploy_batch
-      - query_image
-      - deploy_query_sa
-      - upload_query_jar
-      - create_certs
-  - kind: deploy
     name: deploy_memory
     namespace:
       valueFrom: default_ns.name

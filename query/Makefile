@@ -5,13 +5,6 @@ PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
 
 TOKEN = $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
 
-QUERY_IMAGE := $(DOCKER_PREFIX)/query:$(TOKEN)
-
-.PHONY: check
-check:
-	$(PYTHON) -m flake8  --config ../setup.cfg query
-	$(PYTHON) -m pylint --rcfile ../pylintrc query --score=n
-
 .PHONY: jar
 jar:
 	$(MAKE) -C ../hail shadowJar
@@ -62,12 +55,3 @@ ipython-no-deps:
 	HAIL_SHA='$(HAIL_REVISION)-$(TOKEN)' \
 	HAIL_JAR_URL=$$(cat last_uploaded_jar) \
 	ipython
-
-.PHONY: deploy
-deploy: build
-	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
-	kubectl -n $(NAMESPACE) apply -f service-account.yaml
-	gsutil cp ./hail.jar gs://$(HAIL_TEST_GCS_BUCKET)/$(UPLOAD_QUERY_JAR_TOKEN)/jars/$(HAIL_REVISION).jar
-	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"default_ns":{"name":"$(NAMESPACE)"},"query_image":{"image":"$(QUERY_IMAGE)"},"global":{"project":"$(PROJECT)","domain":"$(DOMAIN)"},"upload_query_jar":{"token":"$(UPLOAD_QUERY_JAR_TOKEN)"}}' deployment.yaml deployment.yaml.out
-	kubectl -n $(NAMESPACE) apply -f deployment.yaml.out
-
