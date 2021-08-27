@@ -1,5 +1,4 @@
 import abc
-from shlex import quote as shq
 from typing import Optional, Set, cast
 
 from . import job  # pylint: disable=cyclic-import
@@ -21,9 +20,6 @@ class Resource:
     @abc.abstractmethod
     def _add_output_path(self, path: str) -> None:
         pass
-
-    def _declare(self, directory: str) -> str:
-        return f"export {self._uid}={shq(self._get_path(directory))}"  # pylint: disable=no-member
 
 
 class ResourceFile(Resource, str):
@@ -73,7 +69,7 @@ class ResourceFile(Resource, str):
         return self._resource_group
 
     def __str__(self):
-        return f'"{self._uid}"'  # pylint: disable=no-member
+        return f'{self._uid}'  # pylint: disable=no-member
 
     def __repr__(self):
         return self._uid  # pylint: disable=no-member
@@ -136,7 +132,7 @@ class JobResourceFile(ResourceFile):
     def _get_path(self, directory: str) -> str:
         assert self._source is not None
         assert self._value is not None
-        return f'{directory}/{self._source._job_id}/{self._value}'
+        return f'{directory}/{self._source._dirname}/{self._value}'
 
     def add_extension(self, extension: str) -> 'JobResourceFile':
         """
@@ -241,7 +237,7 @@ class ResourceGroup(Resource):
             resource_file._add_resource_group(self)
 
     def _get_path(self, directory: str) -> str:
-        subdir = str(self._source._job_id) if self._source else 'inputs'
+        subdir = str(self._source._dirname) if self._source else 'inputs'
         return directory + '/' + subdir + '/' + self._root
 
     def _add_output_path(self, path: str) -> None:
@@ -269,7 +265,7 @@ class ResourceGroup(Resource):
         return other + str(self._uid)
 
     def __str__(self):
-        return f'"{self._uid}"'
+        return f'{self._uid}'
 
 
 class PythonResult(Resource, str):
@@ -333,7 +329,7 @@ class PythonResult(Resource, str):
     def _get_path(self, directory: str) -> str:
         assert self._source is not None
         assert self._value is not None
-        return f'{directory}/{self._source._job_id}/{self._value}'
+        return f'{directory}/{self._source._dirname}/{self._value}'
 
     def _add_converted_resource(self, value):
         jrf = self._source._batch._new_job_resource_file(self._source, value)
@@ -448,7 +444,7 @@ class PythonResult(Resource, str):
         return cast(JobResourceFile, self._repr)
 
     def __str__(self):
-        return f'"{self._uid}"'  # pylint: disable=no-member
+        return f'{self._uid}'  # pylint: disable=no-member
 
     def __repr__(self):
         return self._uid  # pylint: disable=no-member

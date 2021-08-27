@@ -1,19 +1,22 @@
 import logging
 
 from hailtop.utils import check_shell_output, LoggingTimer, retry_all_errors_n_times
+from hailtop import aiogoogle
 
 log = logging.getLogger('disk')
 
 
 class Disk:
-    def __init__(self, compute_client, name, zone, project, instance_name, size_in_gb, mount_path):
+    def __init__(self, name, zone, project, instance_name, size_in_gb, mount_path):
         assert size_in_gb >= 10
         # disk name must be 63 characters or less
         # https://cloud.google.com/compute/docs/reference/rest/v1/disks#resource:-disk
         # under the information for the name field
         assert len(name) <= 63
 
-        self.compute_client = compute_client
+        self.compute_client = aiogoogle.ComputeClient(
+            project, credentials=aiogoogle.Credentials.from_file('/worker-key.json')
+        )
         self.name = name
         self.zone = zone
         self.project = project
@@ -47,20 +50,27 @@ class Disk:
             finally:
                 await self._delete()
 
+    async def close(self):
+        await self.compute_client.close()
+
     async def _unmount(self):
         if self._attached:
-            await retry_all_errors_n_times(max_errors=10, msg=f'error while unmounting disk {self.name}', error_logging_interval=3)(
-                check_shell_output, f'umount -v {self.disk_path} {self.mount_path}'
-            )
+            await retry_all_errors_n_times(
+                max_errors=10, msg=f'error while unmounting disk {self.name}', error_logging_interval=3
+            )(check_shell_output, f'umount -v {self.disk_path} {self.mount_path}')
 
     async def _format(self):
         async def format_disk():
-            await check_shell_output(f'mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard {self.disk_path}')
+            await check_shell_output(
+                f'mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard {self.disk_path}'
+            )
             await check_shell_output(f'mkdir -p {self.mount_path}')
             await check_shell_output(f'mount -o discard,defaults {self.disk_path} {self.mount_path}')
             await check_shell_output(f'chmod a+w {self.mount_path}')
 
-        await retry_all_errors_n_times(max_errors=10, msg=f'error while formatting disk {self.name}', error_logging_interval=3)(format_disk)
+        await retry_all_errors_n_times(
+            max_errors=10, msg=f'error while formatting disk {self.name}', error_logging_interval=3
+        )(format_disk)
 
     async def _create(self, labels=None):
         async with LoggingTimer(f'creating disk {self.name}'):

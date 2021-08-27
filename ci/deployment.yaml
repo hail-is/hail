@@ -86,7 +86,7 @@ spec:
 {% if deploy %}
              value: "hail-ci-bpk3h"
 {% else %}
-             value: "hail-test-dmk9z"
+             value: "{{ global.hail_test_gcs_bucket }}"
 {% endif %}
           ports:
             - containerPort: 5000

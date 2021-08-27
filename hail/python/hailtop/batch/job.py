@@ -3,6 +3,8 @@ import dill
 import os
 import functools
 import inspect
+import textwrap
+from shlex import quote as shq
 from io import BytesIO
 from typing import Union, Optional, Dict, List, Set, Tuple, Callable, Any, cast
 
@@ -56,13 +58,18 @@ class Job:
 
     def __init__(self,
                  batch: 'batch.Batch',
+                 token: str,
+                 *,
                  name: Optional[str] = None,
                  attributes: Optional[Dict[str, str]] = None,
                  shell: Optional[str] = None):
         self._batch = batch
         self._shell = shell
+        self._token = token
+
         self.name = name
         self.attributes = attributes
+
         self._cpu: Optional[str] = None
         self._memory: Optional[str] = None
         self._storage: Optional[str] = None
@@ -87,6 +94,17 @@ class Job:
         self._mentioned: Set[_resource.Resource] = set()  # resources used in the command
         self._valid: Set[_resource.Resource] = set()  # resources declared in the appropriate place
         self._dependencies: Set[Job] = set()
+
+        def safe_str(s):
+            new_s = []
+            for c in s:
+                if c.isalnum() or c == '-':
+                    new_s.append(c)
+                else:
+                    new_s.append('_')
+            return ''.join(new_s)
+
+        self._dirname = f'{safe_str(name)}-{self._token}' if name else self._token
 
     def _get_resource(self, item: str) -> '_resource.Resource':
         raise NotImplementedError
@@ -401,8 +419,55 @@ class Job:
         self._gcsfuse.append((bucket, mount_point, read_only))
         return self
 
-    async def _compile(self, local_tmpdir, remote_tmpdir):
+    async def _compile(self, local_tmpdir, remote_tmpdir, *, dry_run=False):
         raise NotImplementedError
+
+    def _interpolate_command(self, command, allow_python_results=False):
+        def handler(match_obj):
+            groups = match_obj.groupdict()
+
+            if groups['JOB']:
+                raise BatchException(f"found a reference to a Job object in command '{command}'.")
+            if groups['BATCH']:
+                raise BatchException(f"found a reference to a Batch object in command '{command}'.")
+            if groups['PYTHON_RESULT'] and not allow_python_results:
+                raise BatchException(f"found a reference to a PythonResult object. hint: Use one of the methods `as_str`, `as_json` or `as_repr` on a PythonResult. command: '{command}'")
+
+            assert groups['RESOURCE_FILE'] or groups['RESOURCE_GROUP'] or groups['PYTHON_RESULT']
+            r_uid = match_obj.group()
+            r = self._batch._resource_map.get(r_uid)
+
+            if r is None:
+                raise BatchException(f"undefined resource '{r_uid}' in command '{command}'.\n"
+                                     f"Hint: resources must be from the same batch as the current job.")
+
+            if r._source != self:
+                self._add_inputs(r)
+                if r._source is not None:
+                    if r not in r._source._valid:
+                        name = r._source._resources_inverse[r]
+                        raise BatchException(f"undefined resource '{name}'\n"
+                                             f"Hint: resources must be defined within "
+                                             f"the job methods 'command' or 'declare_resource_group'")
+                    self._dependencies.add(r._source)
+                    r._source._add_internal_outputs(r)
+            else:
+                _add_resource_to_set(self._valid, r)
+
+            self._mentioned.add(r)
+            return '${BATCH_TMPDIR}' + shq(r._get_path(''))
+
+        regexes = [_resource.ResourceFile._regex_pattern,
+                   _resource.ResourceGroup._regex_pattern,
+                   _resource.PythonResult._regex_pattern,
+                   Job._regex_pattern,
+                   batch.Batch._regex_pattern]
+
+        subst_command = re.sub('(' + ')|('.join(regexes) + ')',
+                               handler,
+                               command)
+
+        return subst_command
 
     def _pretty(self):
         s = f"Job '{self._uid}'" \
@@ -451,10 +516,12 @@ class BashJob(Job):
 
     def __init__(self,
                  batch: 'batch.Batch',
+                 token: str,
+                 *,
                  name: Optional[str] = None,
                  attributes: Optional[Dict[str, str]] = None,
                  shell: Optional[str] = None):
-        super().__init__(batch, name, attributes, shell)
+        super().__init__(batch, token, name=name, attributes=attributes, shell=shell)
         self._command: List[str] = []
 
     def _get_resource(self, item: str) -> '_resource.Resource':
@@ -541,49 +608,6 @@ class BashJob(Job):
         self._image = image
         return self
 
-    def _interpolate_command(self, command):
-        def handler(match_obj):
-            groups = match_obj.groupdict()
-            if groups['JOB']:
-                raise BatchException(f"found a reference to a Job object in command '{command}'.")
-            if groups['BATCH']:
-                raise BatchException(f"found a reference to a Batch object in command '{command}'.")
-            if groups['PYTHON_RESULT']:
-                raise BatchException(f"found a reference to a PythonResult object. hint: Use one of the methods `as_str`, `as_json` or `as_repr` on a PythonResult. command: '{command}'")
-
-            assert groups['RESOURCE_FILE'] or groups['RESOURCE_GROUP']
-            r_uid = match_obj.group()
-            r = self._batch._resource_map.get(r_uid)
-
-            if r is None:
-                raise BatchException(f"undefined resource '{r_uid}' in command '{command}'.\n"
-                                     f"Hint: resources must be from the same batch as the current job.")
-
-            if r._source != self:
-                self._add_inputs(r)
-                if r._source is not None:
-                    if r not in r._source._valid:
-                        name = r._source._resources_inverse[r]
-                        raise BatchException(f"undefined resource '{name}'\n"
-                                             f"Hint: resources must be defined within "
-                                             f"the job methods 'command' or 'declare_resource_group'")
-                    self._dependencies.add(r._source)
-                    r._source._add_internal_outputs(r)
-            else:
-                _add_resource_to_set(self._valid, r)
-            self._mentioned.add(r)
-            return f"${{{r_uid}}}"
-
-        regexes = [_resource.ResourceFile._regex_pattern,
-                   _resource.ResourceGroup._regex_pattern,
-                   _resource.PythonResult._regex_pattern,
-                   Job._regex_pattern,
-                   batch.Batch._regex_pattern]
-        subst_command = re.sub('(' + ')|('.join(regexes) + ')',
-                               handler,
-                               command)
-        return subst_command
-
     def command(self, command: str) -> 'BashJob':
         """Set the job's command to execute.
 
@@ -657,11 +681,11 @@ class BashJob(Job):
         Same job object with command appended.
         """
 
-        subst_command = self._interpolate_command(command)
-        self._command.append(subst_command)
+        command = self._interpolate_command(command)
+        self._command.append(command)
         return self
 
-    async def _compile(self, local_tmpdir, remote_tmpdir):
+    async def _compile(self, local_tmpdir, remote_tmpdir, *, dry_run=False):
         if len(self._command) == 0:
             return False
 
@@ -684,12 +708,8 @@ class BashJob(Job):
 
         self._user_code.append(job_command)
 
-        assert self._job_id is not None
-        job_path = f'{remote_tmpdir}/{self._job_id}'
+        job_path = f'{remote_tmpdir}/{self._dirname}'
         code_path = f'{job_path}/code.sh'
-
-        await self._batch._fs.makedirs(os.path.dirname(code_path), exist_ok=True)
-        await self._batch._fs.write(code_path, job_command_bytes)
         code = self._batch.read_input(code_path)
 
         wrapper_command = f'''
@@ -698,6 +718,10 @@ source {code}
 '''
         wrapper_command = self._interpolate_command(wrapper_command)
         self._wrapper_code.append(wrapper_command)
+
+        if not dry_run:
+            await self._batch._fs.makedirs(os.path.dirname(code_path), exist_ok=True)
+            await self._batch._fs.write(code_path, job_command_bytes)
 
         return True
 
@@ -741,9 +765,11 @@ class PythonJob(Job):
 
     def __init__(self,
                  batch: 'batch.Batch',
+                 token: str,
+                 *,
                  name: Optional[str] = None,
                  attributes: Optional[Dict[str, str]] = None):
-        super().__init__(batch, name, attributes, None)
+        super().__init__(batch, token, name=name, attributes=attributes, shell=None)
         self._resources: Dict[str, _resource.Resource] = {}
         self._resources_inverse: Dict[_resource.Resource, str] = {}
         self._functions: List[Tuple[_resource.PythonResult, Callable, Tuple[Any, ...], Dict[str, Any]]] = []
@@ -945,7 +971,7 @@ class PythonJob(Job):
 
         return result
 
-    async def _compile(self, local_tmpdir, remote_tmpdir):
+    async def _compile(self, local_tmpdir, remote_tmpdir, *, dry_run=False):
         for i, (result, unapplied, args, kwargs) in enumerate(self._functions):
             def prepare_argument_for_serialization(arg):
                 if isinstance(arg, _resource.PythonResult):
@@ -984,38 +1010,34 @@ class PythonJob(Job):
             job_path = os.path.dirname(result._get_path(remote_tmpdir))
             code_path = f'{job_path}/code{i}.p'
 
-            await self._batch._fs.makedirs(os.path.dirname(code_path), exist_ok=True)
-            await self._batch._fs.write(code_path, pipe.getvalue())
+            if not dry_run:
+                await self._batch._fs.makedirs(os.path.dirname(code_path), exist_ok=True)
+                await self._batch._fs.write(code_path, pipe.getvalue())
 
             code = self._batch.read_input(code_path)
-            self._add_inputs(code)
-            self._mentioned.add(code)
 
             json_write = ''
             if result._json:
-                self._mentioned.add(result._json)
                 json_write = f'''
-            with open(os.environ[\\"{result._json}\\"], \\"w\\") as out:
+            with open(\\"{result._json}\\", \\"w\\") as out:
                 out.write(json.dumps(result) + \\"\\n\\")
 '''
 
             str_write = ''
             if result._str:
-                self._mentioned.add(result._str)
                 str_write = f'''
-            with open(os.environ[\\"{result._str}\\"], \\"w\\") as out:
+            with open(\\"{result._str}\\", \\"w\\") as out:
                 out.write(str(result) + \\"\\n\\")
 '''
 
             repr_write = ''
             if result._repr:
-                self._mentioned.add(result._repr)
                 repr_write = f'''
-            with open(os.environ[\\"{result._repr}\\"], \\"w\\") as out:
+            with open(\\"{result._repr}\\", \\"w\\") as out:
                 out.write(repr(result) + \\"\\n\\")
 '''
 
-            self._wrapper_code.append(f'''python3 -c "
+            wrapper_code = f'''python3 -c "
 import os
 import base64
 import dill
@@ -1023,9 +1045,9 @@ import traceback
 import json
 import sys
 
-with open(os.environ[\\"{result}\\"], \\"wb\\") as dill_out:
+with open(\\"{result}\\", \\"wb\\") as dill_out:
     try:
-        with open(os.environ[\\"{code}\\"], \\"rb\\") as f:
+        with open(\\"{code}\\", \\"rb\\") as f:
             result = dill.load(f)()
             dill.dump(result, dill_out, recurse=True)
             {json_write}
@@ -1035,12 +1057,16 @@ with open(os.environ[\\"{result}\\"], \\"wb\\") as dill_out:
         traceback.print_exc()
         dill.dump((e, traceback.format_exception(type(e), e, e.__traceback__)), dill_out, recurse=True)
         raise e
-"''')
+"'''
 
-            self._user_code.append(inspect.getsource(unapplied))
+            wrapper_code = self._interpolate_command(wrapper_code, allow_python_results=True)
+            self._wrapper_code.append(wrapper_code)
+
+            self._user_code.append(textwrap.dedent(inspect.getsource(unapplied)))
             args = ', '.join([f'{arg!r}' for _, arg in args])
             kwargs = ', '.join([f'{k}={v!r}' for k, (_, v) in kwargs.items()])
             separator = ', ' if args and kwargs else ''
-            self._user_code.append(f'{unapplied.__name__}({args}{separator}{kwargs})')
+            func_call = f'{unapplied.__name__}({args}{separator}{kwargs})'
+            self._user_code.append(self._interpolate_command(func_call, allow_python_results=True))
 
         return True

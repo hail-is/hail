@@ -1,3 +1,4 @@
+import random
 from typing import Optional
 import os
 import secrets
@@ -9,7 +10,7 @@ import pytest
 import concurrent
 import urllib.parse
 from hailtop.utils import secret_alnum_string
-from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS
+from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS, UnexpectedEOFError
 from hailtop.aiotools.s3asyncfs import S3AsyncFS
 from hailtop.aiogoogle import GoogleStorageAsyncFS
 
@@ -66,7 +67,7 @@ async def local_filesystem(request):
 
 
 @pytest.fixture(params=['small', 'multipart', 'large'])
-async def file_data(request):
+def file_data(request):
     if request.param == 'small':
         return [b'foo']
     elif request.param == 'multipart':
@@ -132,8 +133,33 @@ async def test_read_range(filesystem):
     r = await fs.read_range(file, 2, 4)
     assert r == b'cde'
 
-    r = await fs.read_range(file, 2, 10)
-    assert r == b'cde'
+    try:
+        await fs.read_range(file, 2, 10)
+    except UnexpectedEOFError:
+        pass
+    else:
+        assert False
+
+
+@pytest.mark.asyncio
+async def test_write_read_range(filesystem, file_data):
+    sema, fs, base = filesystem
+
+    file = f'{base}foo'
+
+    async with await fs.create(file) as f:
+        for b in file_data:
+            await f.write(b)
+
+    pt1 = random.randint(0, len(file_data))
+    pt2 = random.randint(0, len(file_data))
+    start = min(pt1, pt2)
+    end = max(pt1, pt2)
+
+    expected = b''.join(file_data)[start:end+1]
+    actual = await fs.read_range(file, start, end)  # end is inclusive
+
+    assert expected == actual
 
 
 @pytest.mark.asyncio
