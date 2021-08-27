@@ -2478,7 +2478,7 @@ steps:
       set -ex
       cd /io
       tar xzf test.tar.gz
-      tar xvf debug-wheel-container.tar
+      tar xvf wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       {% if deploy %}
       HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/"
@@ -2538,7 +2538,7 @@ steps:
       set -ex
       cd /io
       tar xzf test.tar.gz
-      tar xvf debug-wheel-container.tar
+      tar xvf wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       {% if deploy %}
       HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/"
@@ -2598,7 +2598,7 @@ steps:
       set -ex
       cd /io
       tar xzf test.tar.gz
-      tar xvf debug-wheel-container.tar
+      tar xvf wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       {% if deploy %}
       HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/"
@@ -2658,7 +2658,7 @@ steps:
       set -ex
       cd /io
       tar xzf test.tar.gz
-      tar xvf debug-wheel-container.tar
+      tar xvf wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       {% if deploy %}
       HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/"
@@ -2718,7 +2718,7 @@ steps:
       set -ex
       cd /io
       tar xzf test.tar.gz
-      tar xvf debug-wheel-container.tar
+      tar xvf wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       {% if deploy %}
       HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/"
