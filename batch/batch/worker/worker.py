@@ -1755,7 +1755,7 @@ class BufferedOutputProcess:
         assert 'stdout' not in kwargs
         assert 'stderr' not in kwargs
 
-        process: asyncio.subprocess.Process = await asyncio.create_subprocess_exec(
+        process = await asyncio.create_subprocess_exec(
             *args,
             **kwargs,
             stdout=asyncio.subprocess.PIPE,
@@ -1765,7 +1765,7 @@ class BufferedOutputProcess:
         return cls(process, stop_event)
 
     def __init__(self,
-                 process: asyncio.subprocess.Process,
+                 process,
                  stop_event: asyncio.Event):
         self.process = process
         self.stop_event = stop_event
@@ -1841,10 +1841,10 @@ class JVM:
                         break
                     finally:
                         writer.close()
-                except FileNotFoundError:
+                except FileNotFoundError as err:
                     attempts += 1
                     if attempts == 240:
-                        raise ValueError(f'JVM-{index}: failed to establish connection after {240 * delay} seconds')
+                        raise ValueError(f'JVM-{index}: failed to establish connection after {240 * delay} seconds') from err
                     await asyncio.sleep(delay)
             startup_output = process.retrieve_and_clear_output()
             return process, startup_output

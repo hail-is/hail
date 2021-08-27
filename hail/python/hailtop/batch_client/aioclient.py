@@ -403,7 +403,7 @@ class BatchBuilder:
 
         self._cancel_after_n_failures = cancel_after_n_failures
 
-    def create_job(self, image, command, env=None, mount_docker_socket=False, *args, **kwargs):
+    def create_job(self, image, command, *args, env=None, mount_docker_socket=False, **kwargs):
         return self._create_job(
             {'command': command, 'image': image, 'mount_docker_socket': mount_docker_socket, 'type': 'docker'}, env=env, *args, **kwargs
         )

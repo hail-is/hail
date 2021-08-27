@@ -455,7 +455,7 @@ async def bounded_gather2_return_exceptions(sema: asyncio.Semaphore, *pfs):
         return await asyncio.gather(*tasks)
 
 
-async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *pfs, cancel_on_error: bool = False, timeout=5):
+async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *pfs, cancel_on_error: bool = False):
     '''Run the partial functions `pfs` as tasks with parallelism bounded
     by `sema`, which should be `asyncio.Semaphore` whose initial value
     is the level of parallelism.
@@ -470,29 +470,19 @@ async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *pfs, cancel
     cancel_on_error is True, the unfinished tasks are all cancelled.
 
     '''
-    i = 0
-    results = [None] * len(pfs)
+    async def run_with_sema(pf):
+        async with sema:
+            return await pf()
 
-    async def worker():
-        nonlocal i
-        while i < len(pfs):
-            async with sema:
-                if i < len(pfs):
-                    me = i
-                    i += 1
-                    results[me] = await pfs[me]()
-
-    tasks = [asyncio.create_task(worker()) for _ in range(sema._value)]
+    tasks = [asyncio.create_task(run_with_sema(pf)) for pf in pfs]
 
     if not cancel_on_error:
         async with WithoutSemaphore(sema):
-            await asyncio.gather(*tasks)
-        return results
+            return await asyncio.gather(*tasks)
 
     try:
         async with WithoutSemaphore(sema):
-            await asyncio.gather(*tasks)
-        return results
+            return await asyncio.gather(*tasks)
     finally:
         _, exc, _ = sys.exc_info()
         if exc is not None:
@@ -504,10 +494,10 @@ async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *pfs, cancel
                     await asyncio.wait(tasks)
 
 
-async def bounded_gather2(sema: asyncio.Semaphore, *pfs, return_exceptions: bool = False, cancel_on_error: bool = False, timeout=5):
+async def bounded_gather2(sema: asyncio.Semaphore, *pfs, return_exceptions: bool = False, cancel_on_error: bool = False):
     if return_exceptions:
         return await bounded_gather2_return_exceptions(sema, *pfs)
-    return await bounded_gather2_raise_exceptions(sema, *pfs, cancel_on_error=cancel_on_error, timeout=timeout)
+    return await bounded_gather2_raise_exceptions(sema, *pfs, cancel_on_error=cancel_on_error)
 
 
 RETRYABLE_HTTP_STATUS_CODES = {408, 500, 502, 503, 504}
@@ -683,9 +673,6 @@ def retry_all_errors_n_times(max_errors=10, msg=None, error_logging_interval=10)
                     raise
             delay = await sleep_and_backoff(delay)
     return _wrapper
-
-
-T = TypeVar('T')  # pylint: disable=invalid-name
 
 
 async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
