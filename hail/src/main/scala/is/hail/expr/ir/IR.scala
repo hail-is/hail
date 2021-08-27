@@ -7,7 +7,7 @@ import is.hail.expr.ir.agg.{AggStateSig, PhysicalAggSig}
 import is.hail.expr.ir.functions._
 import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.expr.ir.streams.StreamProducer
-import is.hail.io.avro.{AvroPartitionReader, SchemaSerializer => AvroSchemaSerializer}
+import is.hail.io.avro.{AvroPartitionReader, AvroSchemaSerializer}
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
 import is.hail.rvd.RVDSpecMaker
 import is.hail.types.{RIterable, TypeWithRequiredness}
