@@ -1844,6 +1844,7 @@ steps:
       - dev
     dependsOn:
       - default_ns
+      - base_image
       - grafana_nginx_image
       - create_certs
   - kind: runImage
