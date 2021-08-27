@@ -150,4 +150,5 @@ class AvroTableReader(TableReader):
 
     def __eq__(self, other):
         return isinstance(other, AvroTableReader) and \
+            other.schema == self.schema and \
             other.paths == self.paths
