@@ -8,7 +8,7 @@ from pyspark import SparkContext
 
 import hail
 from hail.genetics.reference_genome import ReferenceGenome
-from hail.typecheck import nullable, typecheck, typecheck_method, enumeration, dictof
+from hail.typecheck import sequenceof, nullable, typecheck, typecheck_method, enumeration, dictof
 from hail.utils import get_env_or_default
 from hail.utils.java import Env, FatalError, warning
 from hail.backend import Backend

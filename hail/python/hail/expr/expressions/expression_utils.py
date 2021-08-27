@@ -128,6 +128,7 @@ def analyze(caller: str,
             error('{}'.format(e.msg))
         raise errors[0]
 
+
 def _eval_many(*expressions, timed=False, name='_eval_many'):
     from hail.utils.java import Env
 
