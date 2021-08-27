@@ -46,6 +46,26 @@ def _get_log(log):
 
 class HailContext(object):
     @staticmethod
+    async def async_create(log: str,
+                           quiet: bool,
+                           append: bool,
+                           tmpdir: str,
+                           local_tmpdir: str,
+                           default_reference: str,
+                           global_seed: Optional[str],
+                           backend: Backend):
+        references = await backend._async_get_references(BUILTIN_REFERENCES)
+        return HailContext(log=log,
+                           quiet=quiet,
+                           append=append,
+                           tmpdir=tmpdir,
+                           local_tmpdir=local_tmpdir,
+                           default_reference=default_reference,
+                           references=references,
+                           global_seed=global_seed,
+                           backend=backend)
+
+    @staticmethod
     async def create(log: str,
                      quiet: bool,
                      append: bool,
@@ -54,50 +74,16 @@ class HailContext(object):
                      default_reference: str,
                      global_seed: Optional[str],
                      backend: Backend):
-        assert not Env._hc
-        newhc = HailContext.__new__(HailContext)
-
-        super(HailContext, newhc).__init__()
-
-        newhc._log = log
-
-        newhc._tmpdir = tmpdir
-        newhc._local_tmpdir = local_tmpdir
-
-        newhc._backend = backend
-
-        newhc._warn_cols_order = True
-        newhc._warn_entries_order = True
-
-        Env._hc = newhc
-
-        for ref in await newhc._backend._async_get_references(BUILTIN_REFERENCES):
-            ReferenceGenome._from_config(ref, True)
-
-        if default_reference in ReferenceGenome._references:
-            newhc._default_ref = ReferenceGenome._references[default_reference]
-        else:
-            newhc._default_ref = ReferenceGenome.read(default_reference)
-
-        if not quiet:
-            py_version = version()
-            sys.stderr.write(
-                'Welcome to\n'
-                '     __  __     <>__\n'
-                '    / /_/ /__  __/ /\n'
-                '   / __  / _ `/ / /\n'
-                '  /_/ /_/\\_,_/_/_/   version {}\n'.format(py_version))
-
-            if py_version.startswith('devel'):
-                sys.stderr.write('NOTE: This is a beta version. Interfaces may change\n'
-                                 '  during the beta period. We recommend pulling\n'
-                                 '  the latest changes weekly.\n')
-            sys.stderr.write(f'LOGGING: writing to {log}\n')
-
-        if global_seed is None:
-            global_seed = 6348563392232659379
-        Env.set_seed(global_seed)
-        return newhc
+        references = backend.get_references(BUILTIN_REFERENCES)
+        return HailContext(log=log,
+                           quiet=quiet,
+                           append=append,
+                           tmpdir=tmpdir,
+                           local_tmpdir=local_tmpdir,
+                           default_reference=default_reference,
+                           references=references,
+                           global_seed=global_seed,
+                           backend=backend)
 
     @typecheck_method(log=str,
                       quiet=bool,
@@ -105,13 +91,12 @@ class HailContext(object):
                       tmpdir=str,
                       local_tmpdir=str,
                       default_reference=str,
+                      references=sequenceof(dict),
                       global_seed=nullable(int),
                       backend=Backend)
     def __init__(self, log, quiet, append, tmpdir, local_tmpdir,
-                 default_reference, global_seed, backend):
+                 default_reference, references, global_seed, backend):
         assert not Env._hc
-
-        super(HailContext, self).__init__()
 
         self._log = log
 
@@ -125,7 +110,7 @@ class HailContext(object):
 
         Env._hc = self
 
-        for ref in self._backend.get_references(BUILTIN_REFERENCES):
+        for ref in references:
             ReferenceGenome._from_config(ref, True)
 
         if default_reference in ReferenceGenome._references:
@@ -309,7 +294,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     if not backend.fs.exists(tmpdir):
         backend.fs.mkdir(tmpdir)
 
-    HailContext(
+    HailContext.create(
         log, quiet, append, tmpdir, local_tmpdir, default_reference,
         global_seed, backend)
 
@@ -351,7 +336,7 @@ async def init_service(
     assert tmpdir.startswith('gs://')
     local_tmpdir = _get_local_tmpdir(local_tmpdir)
 
-    await HailContext.create(
+    await HailContext.async_create(
         log, quiet, append, tmpdir, local_tmpdir, default_reference,
         global_seed, backend)
 
@@ -389,7 +374,7 @@ def init_local(
     if not backend.fs.exists(tmpdir):
         backend.fs.mkdir(tmpdir)
 
-    HailContext(
+    HailContext.create(
         log, quiet, append, tmpdir, tmpdir, default_reference,
         global_seed, backend)
 
