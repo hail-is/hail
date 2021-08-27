@@ -11,12 +11,19 @@ class HadoopFS(FS):
         self._jfs = jfs
 
     def open(self, path: str, mode: str = 'r', buffer_size: int = 8192):
+        return self._open(path, mode, buffer_size, use_codec=False)
+
+    def legacy_open(self, path: str, mode: str = 'r', buffer_size: int = 8192):
+        # this method for combatibility with hadoop_open in 0.2
+        return self._open(path, mode, buffer_size, use_codec=True)
+
+    def _open(self, path: str, mode: str = 'r', buffer_size: int = 8192, use_codec: bool = False):
         if 'r' in mode:
-            handle = io.BufferedReader(HadoopReader(self, path, buffer_size), buffer_size=buffer_size)
+            handle = io.BufferedReader(HadoopReader(self, path, buffer_size, use_codec=use_codec), buffer_size=buffer_size)
         elif 'w' in mode:
-            handle = io.BufferedWriter(HadoopWriter(self, path), buffer_size=buffer_size)
+            handle = io.BufferedWriter(HadoopWriter(self, path, use_codec=use_codec), buffer_size=buffer_size)
         elif 'x' in mode:
-            handle = io.BufferedWriter(HadoopWriter(self, path, exclusive=True), buffer_size=buffer_size)
+            handle = io.BufferedWriter(HadoopWriter(self, path, exclusive=True, use_codec=use_codec), buffer_size=buffer_size)
 
         if 'b' in mode:
             return handle
@@ -55,15 +62,27 @@ class HadoopFS(FS):
 
 
 class HadoopReader(io.RawIOBase):
-    def __init__(self, hfs, path, buffer_size):
+    def __init__(self, hfs, path, buffer_size, use_codec=False):
         super(HadoopReader, self).__init__()
-        self._jfile = hfs._utils_package_object.readFile(hfs._jfs, path, buffer_size)
+        self._seekable = not use_codec
+        if use_codec:
+            self._jfile = hfs._utils_package_object.readFileCodec(hfs._jfs, path, buffer_size)
+        else:
+            self._jfile = hfs._utils_package_object.readFile(hfs._jfs, path, buffer_size)
 
     def close(self):
         self._jfile.close()
 
     def readable(self):
         return True
+
+    def seekable(self):
+        return self._seekable
+
+    def seek(self, offset, whence=io.SEEK_SET):
+        if whence != io.SEEK_SET:
+            raise io.UnsupportedOperation('only SEEK_SET is supported')
+        self._jfile.seek(offset)
 
     def readinto(self, b):
         b_from_java = self._jfile.read(len(b))
@@ -73,9 +92,12 @@ class HadoopReader(io.RawIOBase):
 
 
 class HadoopWriter(io.RawIOBase):
-    def __init__(self, hfs, path, exclusive=False):
-        self._jfile = hfs._utils_package_object.writeFile(hfs._jfs, path, exclusive)
+    def __init__(self, hfs, path, exclusive=False, use_codec=False):
         super(HadoopWriter, self).__init__()
+        if use_codec:
+            self._jfile = hfs._utils_package_object.writeFileCodec(hfs._jfs, path, exclusive)
+        else:
+            self._jfile = hfs._utils_package_object.writeFile(hfs._jfs, path, exclusive)
 
     def writable(self):
         return True

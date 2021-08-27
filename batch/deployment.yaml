@@ -100,7 +100,7 @@ spec:
          - name: HAIL_SHOULD_CHECK_INVARIANTS
            value: "1"
          - name: HAIL_BATCH_BUCKET_NAME
-           value: hail-test-dmk9z
+           value: "{{ global.hail_test_gcs_bucket }}"
          - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
            value: "300"
 {% endif %}
@@ -236,7 +236,7 @@ spec:
            value: "7200" # 2 hours
 {% else %}
          - name: HAIL_BATCH_BUCKET_NAME
-           value: hail-test-dmk9z
+           value: "{{ global.hail_test_gcs_bucket }}"
          - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
            value: "300"
 {% endif %}

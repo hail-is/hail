@@ -377,6 +377,11 @@ sealed abstract class RBaseStruct extends TypeWithRequiredness {
     pType.asInstanceOf[PBaseStruct].fields.foreach(f => children(f.index).fromPType(f.typ))
   }
 
+  def unionFields(other: RStruct): Unit = {
+    assert(fields.length == other.fields.length)
+    (fields, other.fields).zipped.foreach { (fd1, fd2) => fd1.typ.unionFrom(fd2.typ) }
+  }
+
   def canonicalPType(t: Type): PType = t match {
     case ts: TStruct =>
       PCanonicalStruct(required = required,
