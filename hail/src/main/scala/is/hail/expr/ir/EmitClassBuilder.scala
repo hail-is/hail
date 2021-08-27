@@ -441,14 +441,6 @@ class EmitClassBuilder[C](
     }
 
     val i = _objects.size
-    using(new ObjectOutputStream(new ByteArrayOutputStream())) { os =>
-      try {
-        os.writeObject(obj)
-      } catch {
-        case e: Exception =>
-          fatal(obj.toString, e)
-      }
-    }
     _objects += obj
     Code.checkcast[T](toCodeArray(_objectsField).apply(i))
   }
