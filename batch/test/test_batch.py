@@ -27,8 +27,8 @@ pytestmark = pytest.mark.asyncio
 
 
 @pytest.fixture
-async def client():
-    client = await BatchClient.create('test')
+def client():
+    client = BatchClient('test')
     yield client
     client.close()
 
@@ -574,7 +574,7 @@ def test_client_max_size(client):
     builder.submit()
 
 
-async def test_restartable_insert(client):
+def test_restartable_insert(client):
     i = 0
 
     def every_third_time():
@@ -585,7 +585,7 @@ async def test_restartable_insert(client):
         return False
 
     with FailureInjectingClientSession(every_third_time) as session:
-        client = await BatchClient.create('test', session=session)
+        client = BatchClient('test', session=session)
         builder = client.create_batch()
 
         for _ in range(9):
