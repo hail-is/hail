@@ -1179,7 +1179,7 @@ async def on_cleanup(app):
                                             del app['k8s_cache'].client
                                         finally:
                                             try:
-                                                app['client_session'].close()
+                                                await app['client_session'].close()
                                             finally:
                                                 await asyncio.gather(
                                                     *(t for t in asyncio.all_tasks() if t is not asyncio.current_task())
