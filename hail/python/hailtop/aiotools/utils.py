@@ -35,7 +35,7 @@ class FeedableAsyncIterable(AsyncIterator[_T]):
 class WriteBuffer:
     def __init__(self):
         """Long writes that might fail need to be broken into smaller chunks
-        that can be retried.  _WriteBuffer stores data at the end of
+        that can be retried. WriteBuffer stores data at the end of
         the write stream that has not been committed and may be needed
         to retry the failed write of a chunk."""
         self._buffers = collections.deque()

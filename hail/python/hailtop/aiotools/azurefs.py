@@ -287,32 +287,33 @@ class AzureAsyncFS(AsyncFS):
 
         return (account, container, name)
 
-    def new_blob_client(self, url):
-        account, container, name = AzureAsyncFS._get_account_container_name(url)
+    def get_blob_service_client(self, account):
         if account not in self._blob_service_clients:
             self._blob_service_clients[account] = BlobServiceClient(f'https://{account}.blob.core.windows.net', credential=self._credential)
-        blob_service_client = self._blob_service_clients[account]
+        return self._blob_service_clients[account]
+
+    def get_blob_client(self, url):
+        account, container, name = AzureAsyncFS._get_account_container_name(url)
+        blob_service_client = self.get_blob_service_client(account)
         return blob_service_client.get_blob_client(container, name)
 
-    def new_container_client(self, url):
+    def get_container_client(self, url):
         account, container, _ = AzureAsyncFS._get_account_container_name(url)
-        if account not in self._blob_service_clients:
-            self._blob_service_clients[account] = BlobServiceClient(f'https://{account}.blob.core.windows.net', credential=self._credential)
-        blob_service_client = self._blob_service_clients[account]
+        blob_service_client = self.get_blob_service_client(account)
         return blob_service_client.get_container_client(container)
 
     async def open(self, url: str) -> ReadableStream:
-        client = self.new_blob_client(url)
+        client = self.get_blob_client(url)
         stream = AzureReadableStream(client)
         return stream
 
     async def open_from(self, url: str, start: int) -> ReadableStream:
-        client = self.new_blob_client(url)
+        client = self.get_blob_client(url)
         stream = AzureReadableStream(client, offset=start)
         return stream
 
     async def create(self, url: str, *, retry_writes: bool = True) -> AsyncContextManager[WritableStream]:  # pylint: disable=unused-argument
-        client = self.new_blob_client(url)
+        client = self.get_blob_client(url)
         return AzureCreateManager(client)
 
     async def multi_part_create(
@@ -320,7 +321,7 @@ class AzureAsyncFS(AsyncFS):
             sema: asyncio.Semaphore,
             url: str,
             num_parts: int) -> MultiPartCreate:
-        client = self.new_blob_client(url)
+        client = self.get_blob_client(url)
         return AzureMultiPartCreate(sema, client, num_parts)
 
     async def isfile(self, url: str) -> bool:
@@ -330,12 +331,12 @@ class AzureAsyncFS(AsyncFS):
         if not name:
             return False
 
-        return await self.new_blob_client(url).exists()
+        return await self.get_blob_client(url).exists()
 
     async def isdir(self, url: str) -> bool:
         _, _, name = self._get_account_container_name(url)
         assert not name or name.endswith('/'), name
-        client = self.new_container_client(url)
+        client = self.get_container_client(url)
         async for _ in client.walk_blobs(name_starts_with=name,
                                          include=['metadata'],
                                          delimiter='/'):
@@ -350,7 +351,7 @@ class AzureAsyncFS(AsyncFS):
 
     async def statfile(self, url: str) -> FileStatus:
         try:
-            blob_props = await self.new_blob_client(url).get_blob_properties()
+            blob_props = await self.get_blob_client(url).get_blob_properties()
             return AzureFileStatus(blob_props)
         except azure.core.exceptions.ResourceNotFoundError as e:
             raise FileNotFoundError(url) from e
@@ -380,7 +381,7 @@ class AzureAsyncFS(AsyncFS):
         if name and not name.endswith('/'):
             name = f'{name}/'
 
-        client = self.new_container_client(url)
+        client = self.get_container_client(url)
         if recursive:
             it = self._listfiles_recursive(client, name)
         else:
@@ -419,7 +420,7 @@ class AzureAsyncFS(AsyncFS):
 
     async def remove(self, url: str) -> None:
         try:
-            await self.new_blob_client(url).delete_blob()
+            await self.get_blob_client(url).delete_blob()
         except azure.core.exceptions.ResourceNotFoundError as e:
             raise FileNotFoundError(url) from e
 
@@ -429,7 +430,7 @@ class AzureAsyncFS(AsyncFS):
             if name and not name.endswith('/'):
                 name = f'{name}/'
 
-            client = self.new_container_client(url)
+            client = self.get_container_client(url)
             it = self._listfiles_recursive(client, name)
             async for entry in it:
                 await pool.call(self._remove_doesnt_exist_ok, await entry.url())
@@ -447,7 +448,4 @@ class AzureAsyncFS(AsyncFS):
             await self._credential.close()
             self._credential = None
 
-        if self._blob_service_clients:
-            for blob_service_client in self._blob_service_clients.values():
-                await blob_service_client.close()
-            self._blob_service_clients = None
+        await asyncio.wait(client.close() for client in self._blob_service_clients.values())
