@@ -1031,7 +1031,7 @@ async def create_batch(request, userdata):
 
         if len(billing_projects) != 1:
             assert len(billing_projects) == 0
-            raise web.HTTPForbidden(reason=f'unknown billing project {billing_project}')
+            raise web.HTTPForbidden(reason=f'Unknown Hail Batch billing project {billing_project}.')
         assert billing_projects[0]['status'] is not None
         if billing_projects[0]['status'] in {'closed', 'deleted'}:
             raise web.HTTPForbidden(reason=f'Billing project {billing_project} is closed or deleted.')
@@ -1709,7 +1709,7 @@ async def get_billing_project(request, userdata):
     billing_projects = await query_billing_projects(db, user=user, billing_project=billing_project)
 
     if not billing_projects:
-        raise web.HTTPForbidden(reason=f'unknown billing project {billing_project}')
+        raise web.HTTPForbidden(reason=f'Unknown Hail Batch billing project {billing_project}.')
 
     assert len(billing_projects) == 1
     return web.json_response(data=billing_projects[0])
