@@ -15,8 +15,8 @@ DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'gcr.io/hail-vdc/ubuntu:
 
 
 @pytest.fixture
-async def client():
-    client = await BatchClient.create('test')
+def client():
+    client = BatchClient('test')
     yield client
     client.close()
 
