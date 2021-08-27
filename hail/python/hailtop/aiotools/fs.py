@@ -13,7 +13,7 @@ import functools
 import humanize
 from hailtop.utils import (
     retry_transient_errors, blocking_to_async, url_basename, url_join, bounded_gather2,
-    time_msecs, humanize_timedelta_msecs, OnlineBoundedGather2, tqdm)
+    time_msecs, humanize_timedelta_msecs, OnlineBoundedGather2)
 from .exceptions import FileAndDirectoryError, UnexpectedEOFError
 from .weighted_semaphore import WeightedSemaphore
 from .stream import ReadableStream, WritableStream, blocking_readable_stream_to_async, blocking_writable_stream_to_async
@@ -453,7 +453,7 @@ class Transfer:
 
 
 class SourceReport:
-    def __init__(self, source, tqdm_files: Optional[Any]=None, tqdm_bytes: Optional[Any]=None):
+    def __init__(self, source, tqdm_files: Optional[Any] = None, tqdm_bytes: Optional[Any] = None):
         self._source = source
         self._source_type: Optional[str] = None
         self._files = 0
@@ -639,7 +639,7 @@ class SourceCopier:
                         while n > 0:
                             b = await srcf.read(min(Copier.BUFFER_SIZE, n))
                             n_read = len(b)
-                            if n_read  == 0:
+                            if n_read == 0:
                                 raise UnexpectedEOFError()
                             written = await destf.write(b)
                             assert written == n_read

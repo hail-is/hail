@@ -9,6 +9,7 @@ from hailtop.aiogoogle import GoogleStorageAsyncFS
 from hailtop.aiotools.s3asyncfs import S3AsyncFS
 from hailtop.utils import tqdm
 
+
 def referenced_schemes(transfers: List[Transfer]):
     def scheme_from_url(url):
         parsed = urllib.parse.urlparse(url)
@@ -61,35 +62,10 @@ async def main() -> None:
     requster_pays_project = json.loads(sys.argv[1])
     files = json.loads(sys.argv[2])
 
-    import cProfile, pstats, io
-    from pstats import SortKey
-    pr = cProfile.Profile()
-    pr.enable()
-    collecting_stats = asyncio.Event()
-
-    async def dump_stats():
-        while True:
-            done, pending = await asyncio.wait([asyncio.sleep(60), collecting_stats.wait()],
-                                               return_when=asyncio.FIRST_COMPLETED)
-            for t in pending:
-                t.cancel()
-            for t in done:
-                await t
-            if collecting_stats.is_set():
-                return
-            ps = pstats.Stats(pr).sort_stats(SortKey.TIME)
-            ps.print_stats(10)
-            pr.enable()
-
-    stats_fut = asyncio.ensure_future(dump_stats())
-
     await copy(
         requster_pays_project,
         [Transfer(f['from'], f['to'], treat_dest_as=Transfer.DEST_IS_TARGET) for f in files]
     )
-    pr.disable()
-    collecting_stats.set()
-    await stats_fut
 
 
 if __name__ == '__main__':

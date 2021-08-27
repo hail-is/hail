@@ -619,7 +619,7 @@ def is_transient_error(e):
     if isinstance(e, socket.gaierror):
         # socket.EAI_AGAIN: [Errno -3] Temporary failure in name resolution
         # socket.EAI_NONAME: [Errno 8] nodename nor servname provided, or not known
-        return e.errno in (socket.EAI_AGAIN, EAI_NONAME)
+        return e.errno in (socket.EAI_AGAIN, socket.EAI_NONAME)
     if isinstance(e, ConnectionResetError):
         return True
     if isinstance(e, google.auth.exceptions.TransportError):

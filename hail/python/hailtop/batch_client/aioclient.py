@@ -625,7 +625,7 @@ class BatchBuilder:
                           for bunch, size in zip(byte_job_specs_bunches, bunch_sizes)
                           ],
                         parallelism=6,
-                )
+                    )
                 await self._client._patch(f'/api/v1alpha/batches/{id}/close')
 
         log.info(f'created batch {id}')

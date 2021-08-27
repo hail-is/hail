@@ -252,8 +252,6 @@ class BatchClient:
         self._async_client = async_to_blocking(aioclient.BatchClient.create(
             billing_project, deploy_config, session, headers=headers, _token=_token))
 
-
-
     @property
     def billing_project(self):
         return self._async_client.billing_project
