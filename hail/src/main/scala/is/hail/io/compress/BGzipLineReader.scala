@@ -2,22 +2,20 @@ package is.hail.io.compress
 
 import java.nio.charset.StandardCharsets
 
-import is.hail.backend.BroadcastValue
 import is.hail.io.fs.FS
-import is.hail.utils._
 
 final class BGzipLineReader(
-  private val fsBc: BroadcastValue[FS],
+  private val fs: FS,
   private val filePath: String
 )
   extends java.lang.AutoCloseable
 {
-  private var is = new BGzipInputStream(fsBc.value.openNoCompression(filePath))
+  private var is = new BGzipInputStream(fs.openNoCompression(filePath))
 
   // The line iterator buffer and associated state, we use this to avoid making
   // endless calls to read() (the no arg version returning int) on the input
   // stream, we start with 64k to make to make sure that we can always read
-  // a block, and then grow it as neccessary if a line is too large.
+  // a block, and then grow it as necessary if a line is too large.
   //
   // The key invariant here is that bufferCursor should, except possibly in
   // readLine itself, be less than bufferLen. Should bufferCursor be greater
@@ -75,7 +73,7 @@ final class BGzipLineReader(
     var start = bufferCursor
 
     while (true) {
-      var str: String = null;
+      var str: String = null
       while (bufferCursor < bufferLen && buffer(bufferCursor) != '\n') {
         bufferCursor += 1
       }
@@ -123,7 +121,7 @@ final class BGzipLineReader(
     throw new AssertionError()
   }
 
-  override def close() {
+  override def close(): Unit = {
     if (is != null) {
       is.close()
       is = null

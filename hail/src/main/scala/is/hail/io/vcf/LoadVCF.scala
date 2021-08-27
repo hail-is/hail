@@ -1,35 +1,33 @@
 package is.hail.io.vcf
 
 import htsjdk.variant.vcf._
-import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.backend.BroadcastValue
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering.TableStage
-import is.hail.expr.ir.{ExecuteContext, GenericLine, GenericLines, GenericTableValue, IR, IRParser, Literal, LowerMatrixIR, LoweredTableReader, MatrixHybridReader, MatrixIR, MatrixLiteral, PruneDeadFields, TableRead, TableValue}
-import is.hail.types._
-import is.hail.types.physical.{PBoolean, PCall, PCanonicalArray, PCanonicalCall, PCanonicalLocus, PCanonicalSet, PCanonicalString, PCanonicalStruct, PField, PFloat64, PInt32, PStruct, PType}
-import is.hail.types.virtual._
+import is.hail.expr.ir.{ExecuteContext, GenericLines, GenericTableValue, IR, IRParser, Literal, LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, TableRead, TableValue}
 import is.hail.io.fs.{FS, FileStatus}
 import is.hail.io.tabix._
 import is.hail.io.vcf.LoadVCF.{getHeaderLines, parseHeader, parseLines}
 import is.hail.io.{VCFAttributes, VCFMetadata}
-import is.hail.rvd.{RVD, RVDCoercer, RVDContext, RVDPartitioner, RVDType}
+import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
 import is.hail.sparkextras.ContextRDD
+import is.hail.types._
+import is.hail.types.physical._
+import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import org.apache.spark.{Partition, SparkContext, TaskContext}
-import org.json4s.JsonAST.{JInt, JObject}
-import org.json4s.jackson.{JsonMethods, Serialization}
+import org.apache.spark.{Partition, TaskContext}
+import org.json4s.jackson.JsonMethods
+import org.json4s.{DefaultFormats, Formats, JValue}
 
 import scala.annotation.meta.param
 import scala.annotation.switch
 import scala.collection.JavaConverters._
 import scala.language.implicitConversions
-import org.json4s.{DefaultFormats, Extraction, Formats, JValue}
 
 class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble.readers.LineIterator {
   override def peek(): String = bit.head
@@ -1499,7 +1497,7 @@ class PartitionedVCFRDD(
     if (reg.isEmpty)
       return Iterator.empty
 
-    val lines = new TabixLineIterator(fsBc, file, reg)
+    val lines = new TabixLineIterator(fsBc.value, file, reg)
 
     // clean up
     val context = TaskContext.get
