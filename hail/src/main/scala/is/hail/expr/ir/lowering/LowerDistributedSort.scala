@@ -4,8 +4,9 @@ import is.hail.annotations.{Annotation, ExtendedOrdering, Region, SafeRow, Unsaf
 import is.hail.asm4s.{AsmFunction1RegionLong, LongInfo, classInfo}
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
+import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.types.physical.{PArray, PStruct, PTuple}
-import is.hail.types.virtual.{TStream, TStruct, Type}
+import is.hail.types.virtual.{TArray, TStream, TStruct, TTuple, Type}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.utils._
@@ -82,5 +83,15 @@ object LowerDistributedSort {
   // Given an IR of type TArray(TTuple(minKey, maxKey)), determine if there's any overlap between these closed intervals.
   def tuplesAreSorted(arrayOfTuples: IR, sortFields: IndexedSeq[SortField]): IR = {
     // assume for now array is sorted, could sort later.
+
+    val intervalElementType = arrayOfTuples.typ.asInstanceOf[TArray].elementType.asInstanceOf[TTuple].types(0)
+
+    // Make a code ordering:
+
+    mapIR(rangeIR(1, ArrayLen(arrayOfTuples)), { idxOfTuple =>
+      ApplyComparisonOp(LTEQ(intervalElementType), ArrayRef(arrayOfTuples, idxOfTuple - 1), ArrayRef(arrayOfTuples, idxOfTuple))
+    })
+
+    ???
   }
 }
