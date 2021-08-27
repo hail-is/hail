@@ -5,7 +5,7 @@ import is.hail.expr.ir._
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.TableType
 import is.hail.types.physical.{PCanonicalStruct, PStruct}
-import is.hail.types.virtual.TStruct
+import is.hail.types.virtual.{TArray, TString, TStruct}
 import org.json4s.JValue
 
 class AvroTableReader(partitionReader: AvroPartitionReader, paths: IndexedSeq[String]) extends TableReader {
@@ -29,7 +29,7 @@ class AvroTableReader(partitionReader: AvroPartitionReader, paths: IndexedSeq[St
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
     val partitioner = RVDPartitioner.unkeyed(paths.length)
     val globals = MakeStruct(Seq())
-    val contexts = ToStream(MakeArray(paths.map(Str): _*))
+    val contexts = ToStream(Literal(TArray(TString), paths))
     TableStage(
       globals,
       partitioner,
