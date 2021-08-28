@@ -66,14 +66,14 @@ class HailContext(object):
                            backend=backend)
 
     @staticmethod
-    async def create(log: str,
-                     quiet: bool,
-                     append: bool,
-                     tmpdir: str,
-                     local_tmpdir: str,
-                     default_reference: str,
-                     global_seed: Optional[str],
-                     backend: Backend):
+    def create(log: str,
+               quiet: bool,
+               append: bool,
+               tmpdir: str,
+               local_tmpdir: str,
+               default_reference: str,
+               global_seed: Optional[str],
+               backend: Backend):
         references = backend.get_references(BUILTIN_REFERENCES)
         return HailContext(log=log,
                            quiet=quiet,
