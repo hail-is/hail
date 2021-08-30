@@ -117,8 +117,7 @@ object EmitStreamDistribute {
               val startingPoint: Value[Int] = cb.newLocal[Int]("stream_dist_starting_point", (const(1) << currentHeight) - 1)
               val inner = cb.newLocal[Int]("stream_dist_tree_inner")
               cb.forLoop(cb.assign(inner, 0), inner < (const(1) << (treeHeight - 1 - currentHeight)), cb.assign(inner, inner + 1), {
-                val lookupIndex = cb.newLocal[Int]("temp2", startingPoint + inner * (const(1) << (currentHeight + 1)))
-                val elementLoaded = paddedSplitters.loadElement(cb, lookupIndex).get(cb).memoize(cb, "temp")
+                val elementLoaded = paddedSplitters.loadElement(cb, startingPoint + inner * (const(1) << (currentHeight + 1))).get(cb)
                 keyPType.storeAtAddress(cb, treePType.loadElement(treeAddr, treeFillingIndex), region,
                   elementLoaded, false)
                 cb.assign(treeFillingIndex, treeFillingIndex + 1)
