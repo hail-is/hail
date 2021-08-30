@@ -1282,8 +1282,16 @@ class Emit[C](
           }
         }
 
-      case sd@StreamDistribute(child, pivots, path, spec) =>
-        EmitStreamDistribute.emit(this, sd, cb, region, env, typeWithReqx, container, loopEnv)
+      case StreamDistribute(child, pivots, path, spec) =>
+        emitI(path).flatMap(cb) { pathCode =>
+          val pathValue = pathCode.memoize(cb, "stream_dist_path")
+          emitI(pivots).flatMap(cb) { case pivotsCode: SIndexableCode =>
+            val pivotsVal = pivotsCode.memoize(cb, "stream_dist_pivots_and_ends")
+            emitStream(child, cb, region).map(cb) { case childStream: SStreamCode =>
+              EmitStreamDistribute.emit(cb, region, pivotsVal, childStream, pathValue, spec)
+            }
+          }
+        }
       case x@MakeNDArray(dataIR, shapeIR, rowMajorIR, errorId) =>
         val nDims = x.typ.nDims
 
