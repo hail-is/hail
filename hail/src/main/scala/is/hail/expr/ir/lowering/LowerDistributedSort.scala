@@ -80,7 +80,7 @@ object LowerDistributedSort {
       ctxRef => ToStream(ctxRef))
   }
 
-  def samplePartition(dataStream: IR, sampleIndices: IR): IR = {
+  def samplePartition(dataStream: IR, sampleIndices: IR, keyFields: IndexedSeq[String]): IR = {
     // Step 1: Join the dataStream zippedWithIdx on sampleIndices?
     // That requires sampleIndices to be a stream of structs
     val samplingIndexName = "samplingPartitionIndex"
@@ -97,14 +97,18 @@ object LowerDistributedSort {
       "left")
 
     // Step 2: Aggregate over joined, figure out how to collect only the rows that are marked "shouldKeep"
-    val aggElementName = genUID()
-    val aggElementRef = Ref(aggElementName, ???)
-    StreamAgg(joined, aggElementName, {
+    val streamElementName = genUID()
+    val streamElementRef = Ref(streamElementName, joined.typ.asInstanceOf[TStream].elementType)
+    val eltName = genUID()
+    val eltRef = Ref(eltName, dataStream.typ.asInstanceOf[TStream].elementType)
 
-      ???
+    StreamAgg(joined, streamElementName, {
+      AggLet(eltName, GetField(streamElementRef, "elt"),
+        MakeStruct(Seq(
+          ("min", ApplyAggOp(Min())(SelectFields(eltRef, keyFields))),
+          ("max", ApplyAggOp(Max())(SelectFields(eltRef, keyFields)))
+        )), false)
     })
-
-    joined
   }
 
   // Given an IR of type TArray(TTuple(minKey, maxKey)), determine if there's any overlap between these closed intervals.

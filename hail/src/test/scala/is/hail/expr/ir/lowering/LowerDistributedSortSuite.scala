@@ -17,7 +17,7 @@ class LowerDistributedSortSuite extends HailSuite {
     val data1 = ToStream(Literal(TArray(elementType), dataKeys.map(x => Row(x, x * x))))
     val sampleSeq = ToStream(Literal(TArray(TInt32), IndexedSeq(0, 2, 3, 7)))
 
-    val sampled = ToArray(samplePartition(data1, sampleSeq))
+    val sampled = samplePartition(data1, sampleSeq, IndexedSeq("key"))
 
     assertEvalsTo(sampled, null)
   }
