@@ -80,9 +80,12 @@ class HadoopReader(io.RawIOBase):
         return self._seekable
 
     def seek(self, offset, whence=io.SEEK_SET):
-        if whence != io.SEEK_SET:
-            raise io.UnsupportedOperation('only SEEK_SET is supported')
-        self._jfile.seek(offset)
+        if not 0 <= whence <= 2:
+            raise io.UnsupportedOperation(f'unsupported whence value {whence}')
+        return self._jfile.seek(offset, whence)
+
+    def tell(self):
+        return self._jfile.getPosition()
 
     def readinto(self, b):
         b_from_java = self._jfile.read(len(b))
