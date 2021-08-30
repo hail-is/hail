@@ -162,8 +162,10 @@ class GenericTableValue(
     }
   }
 
-  def toContextRDD(fs: FS, requestedRowType: TStruct): ContextRDD[Long] =
-    ContextRDD(new GenericTableValueRDD(contexts, body(requestedRowType)(_, fs, _)))
+  def toContextRDD(fs: FS, requestedRowType: TStruct): ContextRDD[Long] = {
+    val localBody = body(requestedRowType)
+    ContextRDD(new GenericTableValueRDD(contexts, localBody(_, fs, _)))
+  }
 
   private[this] var rvdCoercer: RVDCoercer = _
 

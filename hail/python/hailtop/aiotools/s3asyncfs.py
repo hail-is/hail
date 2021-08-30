@@ -202,6 +202,7 @@ class S3CreatePartManager(AsyncContextManager[WritableStream]):
 
 class S3MultiPartCreate(MultiPartCreate):
     def __init__(self, sema: asyncio.Semaphore, fs: 'S3AsyncFS', bucket: str, name: str, num_parts: int):
+        assert num_parts <= 10000
         self._sema = sema
         self._fs = fs
         self._bucket = bucket
