@@ -80,6 +80,33 @@ object LowerDistributedSort {
       ctxRef => ToStream(ctxRef))
   }
 
+  def samplePartition(dataStream: IR, sampleIndices: IR): IR = {
+    // Step 1: Join the dataStream zippedWithIdx on sampleIndices?
+    // That requires sampleIndices to be a stream of structs
+    val samplingIndexName = "samplingPartitionIndex"
+    val structSampleIndices = mapIR(sampleIndices)(sampleIndex => MakeStruct(Seq((samplingIndexName, sampleIndex))))
+    val dataWithIdx = zipWithIndex(dataStream)
+
+    val leftName = genUID()
+    val rightName = genUID()
+    val leftRef = Ref(leftName, dataWithIdx.typ.asInstanceOf[TStream].elementType)
+    val rightRef = Ref(rightName, structSampleIndices.typ.asInstanceOf[TStream].elementType)
+
+    val joined = StreamJoin(dataWithIdx, structSampleIndices, IndexedSeq("idx"), IndexedSeq(samplingIndexName), leftName, rightName,
+      MakeStruct(Seq(("elt", GetField(leftRef, "elt")), ("shouldKeep", ApplyUnaryPrimOp(Bang(), IsNA(rightRef))))),
+      "left")
+
+    // Step 2: Aggregate over joined, figure out how to collect only the rows that are marked "shouldKeep"
+    val aggElementName = genUID()
+    val aggElementRef = Ref(aggElementName, ???)
+    StreamAgg(joined, aggElementName, {
+
+      ???
+    })
+
+    joined
+  }
+
   // Given an IR of type TArray(TTuple(minKey, maxKey)), determine if there's any overlap between these closed intervals.
   def tuplesAreSorted(arrayOfTuples: IR, sortFields: IndexedSeq[SortField]): IR = {
     // assume for now array is sorted, could sort later.
@@ -88,9 +115,9 @@ object LowerDistributedSort {
 
     // Make a code ordering:
 
-    mapIR(rangeIR(1, ArrayLen(arrayOfTuples)), { idxOfTuple =>
+    mapIR(rangeIR(1, ArrayLen(arrayOfTuples))) { idxOfTuple =>
       ApplyComparisonOp(LTEQ(intervalElementType), ArrayRef(arrayOfTuples, idxOfTuple - 1), ArrayRef(arrayOfTuples, idxOfTuple))
-    })
+    }
 
     ???
   }
