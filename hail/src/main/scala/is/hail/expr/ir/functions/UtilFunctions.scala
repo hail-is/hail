@@ -165,7 +165,7 @@ object UtilFunctions extends RegistryFunctions {
     String.format(f, args.toSeq.map(_.asInstanceOf[java.lang.Object]): _*)
   } catch {
     case e: IllegalFormatConversionException =>
-      fatal(s"Encountered invalid type for format string $f: format specifier ${e.getConversion} does not accept type ${e.getArgumentClass.getCanonicalName}", e)
+      fatal(s"Encountered invalid type for format string $f: format specifier ${e.getConversion} does not accept type ${e.getArgumentClass.getCanonicalName}")
   }
 
   def registerAll() {
