@@ -59,7 +59,7 @@ class Backend(abc.ABC):
         pass
 
     def get_references(self, names):
-        return (self.get_reference(name) for name in names)
+        return [self.get_reference(name) for name in names]
 
     @abc.abstractmethod
     async def _async_get_references(self, names):
