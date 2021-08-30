@@ -2471,7 +2471,7 @@ steps:
   - kind: runImage
     name: test_hail_python_service_backend_0
     image:
-      valueFrom: service_base_image.image
+      valueFrom: hail_run_tests_image.image
     resources:
       cpu: '1'
     script: |
@@ -2524,14 +2524,14 @@ steps:
       - deploy_batch
       - create_deploy_config
       - create_accounts
-      - service_base_image
+      - hail_run_tests_image
       - upload_query_jar
       - upload_test_resources_to_gcs
       - build_hail
   - kind: runImage
     name: test_hail_python_service_backend_1
     image:
-      valueFrom: service_base_image.image
+      valueFrom: hail_run_tests_image.image
     resources:
       cpu: '1'
     script: |
@@ -2584,14 +2584,14 @@ steps:
       - deploy_batch
       - create_deploy_config
       - create_accounts
-      - service_base_image
+      - hail_run_tests_image
       - upload_query_jar
       - upload_test_resources_to_gcs
       - build_hail
   - kind: runImage
     name: test_hail_python_service_backend_2
     image:
-      valueFrom: service_base_image.image
+      valueFrom: hail_run_tests_image.image
     resources:
       cpu: '1'
     script: |
@@ -2644,14 +2644,14 @@ steps:
       - deploy_batch
       - create_deploy_config
       - create_accounts
-      - service_base_image
+      - hail_run_tests_image
       - upload_query_jar
       - upload_test_resources_to_gcs
       - build_hail
   - kind: runImage
     name: test_hail_python_service_backend_3
     image:
-      valueFrom: service_base_image.image
+      valueFrom: hail_run_tests_image.image
     resources:
       cpu: '1'
     script: |
@@ -2704,14 +2704,14 @@ steps:
       - deploy_batch
       - create_deploy_config
       - create_accounts
-      - service_base_image
+      - hail_run_tests_image
       - upload_query_jar
       - upload_test_resources_to_gcs
       - build_hail
   - kind: runImage
     name: test_hail_python_service_backend_4
     image:
-      valueFrom: service_base_image.image
+      valueFrom: hail_run_tests_image.image
     resources:
       cpu: '1'
     script: |
@@ -2764,7 +2764,7 @@ steps:
       - deploy_batch
       - create_deploy_config
       - create_accounts
-      - service_base_image
+      - hail_run_tests_image
       - upload_query_jar
       - upload_test_resources_to_gcs
       - build_hail
