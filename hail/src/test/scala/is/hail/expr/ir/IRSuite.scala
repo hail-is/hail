@@ -3592,5 +3592,21 @@ class IRSuite extends HailSuite {
     result.map(_._1).sliding(2).foreach { case IndexedSeq(interval1, interval2) =>
       assert(interval1.isDisjointFrom(kord, interval2))
     }
+
+
+    val splitterValueDuplicated = splitters.counter().mapValues(_ > 1)
+    val intBuilder = new IntArrayBuilder()
+    splitters.toSet.toIndexedSeq.sorted.foreach { e =>
+      intBuilder.add(e)
+      if (splitterValueDuplicated(e)) {
+        intBuilder.add(e)
+      }
+    }
+    val expectedStartsAndEnds = intBuilder.result().sliding(2).toIndexedSeq
+
+    result.map(_._1).zip(expectedStartsAndEnds).foreach { case (interval, splitterPair) =>
+      assert(interval.start.asInstanceOf[Row](0) == splitterPair(0))
+      assert(interval.end.asInstanceOf[Row](0) == splitterPair(1))
+    }
   }
 }

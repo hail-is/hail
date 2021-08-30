@@ -66,8 +66,9 @@ trait SIndexableValue extends SValue {
   }
 
   def sliceArray(cb: EmitCodeBuilder, region: Value[Region], pt: PCanonicalArray, start: Code[Int], end: Code[Int], deepCopy: Boolean = false): SIndexableCode = {
-    pt.constructFromElements(cb, region, cb.newLocal[Int]("slice_length", end - start), deepCopy){ (cb, idx) =>
-      this.loadElement(cb, idx)
+    val startMemo = cb.newLocal[Int]("sindexable_slice_array_start_memo", start)
+    pt.constructFromElements(cb, region, cb.newLocal[Int]("slice_length", end - startMemo), deepCopy){ (cb, idx) =>
+      this.loadElement(cb, idx + startMemo)
     }
   }
 }
