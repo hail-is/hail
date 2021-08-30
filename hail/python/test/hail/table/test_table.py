@@ -1855,26 +1855,29 @@ def test_grouped_flatmap_streams():
     ht._force_count()
 
 
-def make_head_tail_test_data():
-    rt = hl.utils.range_table(10, 11)
-    par = hl.Table.parallelize([hl.Struct(x=x) for x in range(10)], schema='struct{x: int32}', n_partitions=11)
-    f = new_temp_file(extension='ht')
-    chkpt = rt.checkpoint(f)
-    tables = [('rt', rt), ('par', par), ('rtcache', rt.cache()), ('chkpt', chkpt)]
+# NOTE: we cannot use Hail during test parameter initialization
+def make_test(table_name, counter, truncator, n):
+    def test():
+        if table_name == 'rt':
+            table = hl.utils.range_table(10, 11)
+        elif table_name == 'par':
+            table = hl.Table.parallelize([hl.Struct(x=x) for x in range(10)], schema='struct{x: int32}', n_partitions=11)
+        elif table_name == 'rtcache':
+            table = hl.utils.range_table(10, 11).cache()
+        else:
+            assert table_name == 'chkpt'
+            table = hl.utils.range_table(10, 11).checkpoint(new_temp_file(extension='ht'))
+        assert counter(truncator(table, n)) == min(10, n)
+    return test
 
 
-    def make_test(table, counter, truncator, n):
-        def test():
-            assert counter(truncator(table, n)) == min(10, n)
-        return test
+head_tail_test_data = [
+    pytest.param(make_test(table_name, counter, truncator, n), id=str((table_name, n, truncator_name, counter_name)))
+    for table_name in ['rt', 'par', 'rtcache', 'chkpt']
+    for n in (10, 9, 11, 0)
+    for truncator_name, truncator in (('head', hl.Table.head), ('tail', hl.Table.tail))
+    for counter_name, counter in (('count', hl.Table.count), ('_force_count', hl.Table._force_count))]
 
-    return [pytest.param(make_test(table, counter, truncator, n), id=str((name, n, truncator_name, counter_name)))
-            for name, table in tables
-            for n in (10, 9, 11, 0)
-            for truncator_name, truncator in (('head', hl.Table.head), ('tail', hl.Table.tail))
-            for counter_name, counter in (('count', hl.Table.count), ('_force_count', hl.Table._force_count))]
-
-head_tail_test_data = make_head_tail_test_data()
 
 @pytest.mark.parametrize("test", head_tail_test_data)
 def test_table_head_and_tail(test):
