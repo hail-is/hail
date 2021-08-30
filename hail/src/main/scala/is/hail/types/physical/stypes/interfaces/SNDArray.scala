@@ -25,7 +25,7 @@ object SNDArray {
     forEachIndexWithInitAndIncColMajor(cb, shape, shape.map(_ => (cb: EmitCodeBuilder) => ()), shape.map(_ => (cb: EmitCodeBuilder) => ()), context)(f)
   }
 
-  def coiterate(cb: EmitCodeBuilder, arrays: (SNDArrayCode, String)*)(body: IndexedSeq[SCode] => Unit): Unit = {
+  def coiterate(cb: EmitCodeBuilder, arrays: (SNDArrayCode, String)*)(body: IndexedSeq[SValue] => Unit): Unit = {
     if (arrays.isEmpty) return
     val indexVars = Array.tabulate(arrays(0)._1.st.nDims)(i => s"i$i").toFastIndexedSeq
     val indices = Array.range(0, arrays(0)._1.st.nDims).toFastIndexedSeq
@@ -41,7 +41,7 @@ object SNDArray {
     cb: EmitCodeBuilder,
     indexVars: IndexedSeq[String],
     arrays: (SNDArrayCode, IndexedSeq[Int], String)*
-  )(body: IndexedSeq[SCode] => Unit
+  )(body: IndexedSeq[SValue] => Unit
   ): Unit = {
     _coiterate(cb, indexVars, arrays: _*) { ptrs =>
       val codes = ptrs.zip(arrays).map { case (ptr, (array, _, _)) =>

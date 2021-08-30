@@ -49,19 +49,13 @@ trait SType {
 
   protected[stypes] def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode
 
-  def codeTupleTypes(): IndexedSeq[TypeInfo[_]]
-
-  def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = codeTupleTypes()
-
-  lazy val nCodes: Int = codeTupleTypes().length
+  def settableTupleTypes(): IndexedSeq[TypeInfo[_]]
 
   lazy val nSettables: Int = settableTupleTypes().length
 
   def fromSettables(settables: IndexedSeq[Settable[_]]): SSettable
 
   def fromValues(values: IndexedSeq[Value[_]]): SValue
-
-  def fromCodes(codes: IndexedSeq[Code[_]]): SCode
 
   def storageType(): PType
 
@@ -103,30 +97,12 @@ case class EmitType(st: SType, required: Boolean) {
 
   def equalModuloRequired(that: EmitType): Boolean = st == that.st
 
-  lazy val codeTupleTypes: IndexedSeq[TypeInfo[_]] = {
-    val tc = st.codeTupleTypes()
-    if (required)
-      tc
-    else
-      tc :+ BooleanInfo
-  }
-
   lazy val settableTupleTypes: IndexedSeq[TypeInfo[_]] = {
     val tc = st.settableTupleTypes()
     if (required)
       tc
     else
       tc :+ BooleanInfo
-  }
-
-  def fromCodes(codes: IndexedSeq[Code[_]]): EmitCode = {
-    val scode = st.fromCodes(codes.take(st.nCodes))
-    val m: Code[Boolean] = if (required) const(false) else coerce[Boolean](codes.last)
-    val ec = EmitCode(Code._empty, m, scode)
-    if (ec.required && !this.required)
-      ec.setOptional
-    else
-      ec
   }
 
   def fromSettables(settables: IndexedSeq[Settable[_]]): EmitSettable = new EmitSettable(
@@ -138,8 +114,6 @@ case class EmitType(st: SType, required: Boolean) {
     if (required) None else Some(coerce[Boolean](values.last)),
     st.fromValues(values.take(st.nSettables))
   )
-
-  def nCodes: Int = codeTupleTypes.length
 
   def nSettables: Int = settableTupleTypes.length
 }

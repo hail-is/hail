@@ -8,6 +8,7 @@ import is.hail.types.{RPrimitive, TypeWithRequiredness}
 import is.hail.types.physical.stypes.{SCode, SSettable, SType, SUnrealizableCode, SValue}
 import is.hail.types.physical.{PType, PVoid}
 import is.hail.types.virtual.{TVoid, Type}
+import is.hail.utils.FastIndexedSeq
 
 case object SVoid extends SType {
 
@@ -17,9 +18,7 @@ case object SVoid extends SType {
 
   override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = value
 
-  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = IndexedSeq()
-
-  override def fromCodes(codes: IndexedSeq[Code[_]]): SCode = throw new UnsupportedOperationException
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = IndexedSeq()
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SSettable = throw new UnsupportedOperationException
 
@@ -42,9 +41,10 @@ case object SVoidCode extends SCode with SUnrealizableCode {
   override def code: Code[_] = Code._empty
 
   def memoize(cb: EmitCodeBuilder, name: String): SValue = new SValue {
-    val pt: PType = PVoid
-    val st: SType = SVoid
+    override val st: SType = SVoid
 
-    def get: SCode = self
+    override def valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq()
+
+    override def get: SCode = self
   }
 }

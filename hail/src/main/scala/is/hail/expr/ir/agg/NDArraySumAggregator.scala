@@ -37,7 +37,7 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
     val seqOpMethod = cb.emb.genEmitMethod("ndarray_sum_aggregator_seq_op", FastIndexedSeq(nextNDCode.emitParamType), CodeParamType(UnitInfo))
 
     seqOpMethod.voidWithBuilder { cb =>
-      val nextNDInput = seqOpMethod.getEmitParam(1, null) // no streams here
+      val nextNDInput = seqOpMethod.getEmitParam(cb, 1, null) // no streams here
       nextNDInput.toI(cb).consume(cb, {}, { case nextNDArrayPCode: SNDArrayCode =>
         val nextNDPV = nextNDArrayPCode.memoize(cb, "ndarray_sum_seqop_next")
         val statePV = state.storageType.loadCheapSCode(cb, state.off).asBaseStruct.memoize(cb, "ndarray_sum_seq_op_state")

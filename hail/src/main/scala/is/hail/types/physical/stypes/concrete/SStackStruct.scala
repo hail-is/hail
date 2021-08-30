@@ -32,7 +32,6 @@ object SStackStruct {
 final case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedSeq[EmitType]) extends SBaseStruct {
   override def size: Int = virtualType.size
 
-  private lazy val codeStarts = fieldEmitTypes.map(_.nCodes).scanLeft(0)(_ + _).init
   private lazy val settableStarts = fieldEmitTypes.map(_.nSettables).scanLeft(0)(_ + _).init
 
   override lazy val fieldTypes: IndexedSeq[SType] = fieldEmitTypes.map(_.st)
@@ -50,17 +49,7 @@ final case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedS
 
   override def containsPointers: Boolean = fieldEmitTypes.exists(_.st.containsPointers)
 
-  override lazy val codeTupleTypes: IndexedSeq[TypeInfo[_]] = fieldEmitTypes.flatMap(_.codeTupleTypes)
-
   override lazy val settableTupleTypes: IndexedSeq[TypeInfo[_]] = fieldEmitTypes.flatMap(_.settableTupleTypes)
-
-  override def fromCodes(codes: IndexedSeq[Code[_]]): SBaseStructCode = {
-    new SStackStructCode(this, fieldEmitTypes.indices.map { i =>
-      val et = fieldEmitTypes(i)
-      val start = codeStarts(i)
-      et.fromCodes(codes.slice(start, start + et.nCodes))
-    })
-  }
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SStackStructSettable = {
     assert(settables.length == fieldEmitTypes.map(_.nSettables).sum, s"mismatch: ${ settables.length } settables, expect ${ fieldEmitTypes.map(_.nSettables).sum }\n  ${ settables.map(_.ti).mkString(",") }\n  ${ fieldEmitTypes.map(_.settableTupleTypes).mkString(" | ") }")
@@ -121,15 +110,24 @@ final case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedS
   }
 }
 
-class SStackStructValue(val st: SStackStruct, settables: IndexedSeq[EmitValue]) extends SBaseStructValue {
-  override def get: SStackStructCode = new SStackStructCode(st, settables.map(_.load))
+class SStackStructValue(val st: SStackStruct, values: IndexedSeq[EmitValue]) extends SBaseStructValue {
+  override lazy val valueTuple: IndexedSeq[Value[_]] = values.flatMap(_.valueTuple)
+
+  override def get: SStackStructCode = new SStackStructCode(st, values.map(_.load))
 
   override def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
-    settables(fieldIdx).toI(cb)
+    values(fieldIdx).toI(cb)
   }
 
   override def isFieldMissing(fieldIdx: Int): Code[Boolean] =
-    settables(fieldIdx).m
+    values(fieldIdx).m
+
+  override def subset(fieldNames: String*): SStackStructValue = {
+    val newToOld = fieldNames.map(st.fieldIdx).toArray
+    val oldVType = st.virtualType.asInstanceOf[TStruct]
+    val newVirtualType = TStruct(newToOld.map(i => (oldVType.fieldNames(i), oldVType.types(i))): _*)
+    new SStackStructValue(SStackStruct(newVirtualType, newToOld.map(st.fieldEmitTypes)), newToOld.map(values))
+  }
 }
 
 final class SStackStructSettable(
@@ -145,8 +143,6 @@ final class SStackStructSettable(
 }
 
 class SStackStructCode(val st: SStackStruct, val codes: IndexedSeq[EmitCode]) extends SBaseStructCode {
-  override def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = codes.flatMap(_.makeCodeTuple(cb))
-
   override def memoize(cb: EmitCodeBuilder, name: String): SStackStructSettable = {
     new SStackStructSettable(st, codes.indices.map { i =>
       val code = codes(i)
@@ -167,12 +163,5 @@ class SStackStructCode(val st: SStackStruct, val codes: IndexedSeq[EmitCode]) ex
 
   override def loadSingleField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
     codes(fieldIdx).toI(cb)
-  }
-
-  override def subset(fieldNames: String*): SStackStructCode = {
-    val newToOld = fieldNames.map(st.fieldIdx).toArray
-    val oldVType = st.virtualType.asInstanceOf[TStruct]
-    val newVirtualType = TStruct(newToOld.map(i => (oldVType.fieldNames(i), oldVType.types(i))): _*)
-    new SStackStructCode(SStackStruct(newVirtualType, newToOld.map(st.fieldEmitTypes)), newToOld.map(codes))
   }
 }

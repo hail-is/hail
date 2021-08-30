@@ -452,7 +452,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
           .memoize(cb, "downsample_insert_x")
         val y = mb.getSCodeParam(2)
           .memoize(cb, "downsample_insert_y")
-        val l = mb.getEmitParam(3, region)
+        val l = mb.getEmitParam(cb, 3, region)
 
         def xx = x.asDouble.doubleCode(cb)
 

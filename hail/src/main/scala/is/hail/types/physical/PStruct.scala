@@ -4,7 +4,7 @@ import is.hail.annotations._
 import is.hail.asm4s.Code
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
-import is.hail.types.physical.stypes.interfaces.SBaseStructCode
+import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SBaseStructValue}
 import is.hail.types.virtual.{Field, TStruct}
 
 trait PStruct extends PBaseStruct {
@@ -54,5 +54,5 @@ trait PStruct extends PBaseStruct {
 
   def insertFields(fieldsToInsert: TraversableOnce[(String, PType)]): PStruct
 
-  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructCode
+  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructValue
 }

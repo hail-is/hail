@@ -355,7 +355,8 @@ abstract class RegistryFunctions {
       new UnseededMissingnessObliviousJVMFunction(name, typeParameters, valueParameterTypes, returnType, calculateReturnType) {
         override def apply(r: EmitRegion, cb: EmitCodeBuilder, returnSType: SType, typeParameters: Seq[Type], errorID: Value[Int], args: SCode*): SCode = {
           assert(unify(typeParameters, args.map(_.st.virtualType), returnSType.virtualType))
-          returnSType.fromCodes(FastIndexedSeq(impl(r, cb, returnSType, typeParameters.toArray, args.toArray)))
+          val returnValue = cb.memoizeAny(impl(r, cb, returnSType, typeParameters.toArray, args.toArray), returnSType.settableTupleTypes()(0))
+          returnSType.fromValues(FastIndexedSeq(returnValue))
         }
       })
   }
@@ -422,9 +423,11 @@ abstract class RegistryFunctions {
   ) {
     registerSCode(name, valueParameterTypes, returnType, calculateReturnType) { case (r, cb, _, rt, args, _) =>
       val cts = valueParameterTypes.map(PrimitiveTypeToIRIntermediateClassTag(_).runtimeClass)
-      rt.fromCodes(FastIndexedSeq(
-        Code.invokeScalaObject(cls, method, cts, args.map { a => SType.extractPrimCode(cb, a) })(PrimitiveTypeToIRIntermediateClassTag(returnType))
-      ))
+
+      val returnValue = cb.memoizeAny(
+        Code.invokeScalaObject(cls, method, cts, args.map { a => SType.extractPrimCode(cb, a) })(PrimitiveTypeToIRIntermediateClassTag(returnType)),
+        rt.settableTupleTypes()(0))
+      rt.fromValues(FastIndexedSeq(returnValue))
     }
   }
 

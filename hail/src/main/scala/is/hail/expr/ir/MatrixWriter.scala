@@ -242,7 +242,7 @@ case class SplitPartitionNativeWriter(
       }
 
       val pctx = ctxCode.memoize(cb, "context")
-      cb.assign(filename1, pctx.asString.loadString())
+      cb.assign(filename1, pctx.get.asString.loadString())
       if (hasIndex) {
         val indexFile = cb.newLocal[String]("indexFile")
         cb.assign(indexFile, const(index.get._1).concat(filename1).concat(".idx"))

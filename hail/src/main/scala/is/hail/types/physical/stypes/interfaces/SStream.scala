@@ -19,9 +19,7 @@ final case class SStream(elementEmitType: EmitType) extends SType {
     value
   }
 
-  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = throw new NotImplementedError()
-
-  override def fromCodes(codes: IndexedSeq[Code[_]]): SCode = throw new NotImplementedError()
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = throw new NotImplementedError()
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SSettable = throw new NotImplementedError()
 
@@ -45,17 +43,13 @@ object SStreamCode{
 }
 
 final case class SStreamCode(st: SStream, producer: StreamProducer) extends SCode with SUnrealizableCode {
-  self =>
-  def memoize(cb: EmitCodeBuilder, name: String): SValue = new SValue {
+  override def memoizeField(cb: EmitCodeBuilder, name: String): SValue = SStreamValue(st, producer)
 
-    override def st: SType = self.st
+  override def memoize(cb: EmitCodeBuilder, name: String): SValue = SStreamValue(st, producer)
+}
 
-    var used: Boolean = false
+final case class SStreamValue(st: SStream, producer: StreamProducer) extends SValue {
+  def valueTuple: IndexedSeq[Value[_]] = throw new NotImplementedError()
 
-    def get: SCode = {
-      assert(!used)
-      used = true
-      self
-    }
-  }
+  def get: SStreamCode = SStreamCode(st, producer)
 }

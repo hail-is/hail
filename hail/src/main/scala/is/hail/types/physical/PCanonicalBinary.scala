@@ -4,7 +4,7 @@ import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SBinaryPointerCode, SBinaryPointerSettable}
+import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SBinaryPointerCode, SBinaryPointerSettable, SBinaryPointerValue}
 import is.hail.types.physical.stypes.interfaces.SBinary
 import is.hail.utils._
 
@@ -102,7 +102,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
     val len = cb.newLocal[Int]("pcbin_len", ba.length())
     val addr = cb.newLocal[Long]("pcbin_addr", allocate(region, len))
     cb += store(addr, ba)
-    loadCheapSCode(cb, addr)
+    loadCheapSCode(cb, addr).get
   }
 
   def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] = {
@@ -139,9 +139,13 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
     }
   }
 
-  def sType: SBinaryPointer = SBinaryPointer(setRequired(false).asInstanceOf[PCanonicalBinary])
+  def sType: SBinaryPointer = SBinaryPointer(setRequired(false))
 
-  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBinaryPointerCode = new SBinaryPointerCode(sType, addr)
+  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBinaryPointerValue =
+    new SBinaryPointerCode(sType, addr).memoize(cb, "loadCheapSCode")
+
+  def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SBinaryPointerValue =
+    new SBinaryPointerCode(sType, addr).memoizeField(cb, "loadCheapSCodeField")
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {
@@ -174,7 +178,8 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
     Region.storeAddress(addr, copyFromAddress(region, srcArray, srcAddress, deepCopy))
   }
 
-  def setRequired(required: Boolean) = if (required == this.required) this else PCanonicalBinary(required)
+  def setRequired(required: Boolean): PCanonicalBinary =
+    if (required == this.required) this else PCanonicalBinary(required)
 
   def loadFromNested(addr: Code[Long]): Code[Long] = Region.loadAddress(addr)
 
