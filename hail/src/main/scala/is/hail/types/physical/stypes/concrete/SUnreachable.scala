@@ -255,17 +255,19 @@ class SUnreachableNDArrayValue(val st: SUnreachableNDArray) extends SUnreachable
 
   def loadElementAddress(indices: IndexedSeq[is.hail.asm4s.Value[Long]],cb: is.hail.expr.ir.EmitCodeBuilder): is.hail.asm4s.Code[Long] = const(0L)
 
-  def shapes(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = (0 until st.nDims).map(_ => const(0L))
+  def shapes: IndexedSeq[SizeValue] = (0 until st.nDims).map(_ => SizeValueStatic(0L))
 
-  def strides(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = (0 until st.nDims).map(_ => const(0L))
+  def strides: IndexedSeq[Value[Long]] = (0 until st.nDims).map(_ => const(0L))
 
   override def outOfBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Boolean] = const(false)
 
   override def assertInBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder, errorId: Int = -1): Unit = {}
 
-  override def sameShape(other: SNDArrayValue, cb: EmitCodeBuilder): Code[Boolean] = const(false)
+  override def sameShape(cb: EmitCodeBuilder, other: SNDArrayValue): Code[Boolean] = const(false)
 
-  def firstDataAddress(cb: EmitCodeBuilder): Value[Long] = const(0L)
+  override def coerceToShape(cb: EmitCodeBuilder, otherShape: IndexedSeq[SizeValue]): SNDArrayValue = this
+
+  def firstDataAddress: Value[Long] = const(0L)
 
   override def memoize(cb: EmitCodeBuilder, name: String): SUnreachableNDArrayValue = this
 

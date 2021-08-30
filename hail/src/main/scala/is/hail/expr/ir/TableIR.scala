@@ -28,8 +28,10 @@ import org.apache.spark.sql.Row
 import org.json4s.JsonAST.JString
 import org.json4s.jackson.JsonMethods
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
-
 import java.io.{ByteArrayInputStream, DataInputStream, DataOutputStream, InputStream}
+
+import is.hail.io.avro.AvroTableReader
+
 import scala.reflect.ClassTag
 
 object TableIR {
@@ -113,6 +115,7 @@ object TableReader {
       case "TextTableReader" => TextTableReader.fromJValue(fs, jv)
       case "TableFromBlockMatrixNativeReader" => TableFromBlockMatrixNativeReader.fromJValue(fs, jv)
       case "StringTableReader" => StringTableReader.fromJValue(fs, jv)
+      case "AvroTableReader" => AvroTableReader.fromJValue(jv)
       case _ => jv.extract[TableReader]
     }
   }
