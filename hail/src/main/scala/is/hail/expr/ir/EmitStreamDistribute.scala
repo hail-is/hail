@@ -56,52 +56,102 @@ object EmitStreamDistribute {
 
           val paddedSplittersSize = cb.newLocal[Int]("stream_dist_padded_splitter_size", numberOfBuckets / 2)
 
-          // Copy each unique splitter into array. If it is seen twice, set a boolean in a parallel array for that
-          // splitter, so we know what identity buckets to make later
-
-          val paddedSplittersPType = PCanonicalArray(keyPType)
-          val splittersWasDuplicatedPType = PCanonicalArray(PBooleanRequired)
-
-          val paddedSplittersAddr = cb.newLocal[Long]("stream_dist_splitters_addr", paddedSplittersPType.allocate(region, paddedSplittersSize))
-          cb += paddedSplittersPType.stagedInitialize(paddedSplittersAddr, paddedSplittersSize)
-
-          val splittersWasDuplicatedLength = paddedSplittersSize
-          val splittersWasDuplicatedAddr = cb.newLocal[Long]("stream_dist_dupe_splitters_addr", splittersWasDuplicatedPType.allocate(region, splittersWasDuplicatedLength))
-          cb += splittersWasDuplicatedPType.stagedInitialize(splittersWasDuplicatedAddr, splittersWasDuplicatedLength)
-          val splitters: SIndexableValue = new SIndexablePointerCode(SIndexablePointer(paddedSplittersPType), paddedSplittersAddr).memoize(cb, "stream_distribute_splitters_deduplicated") // last element is duplicated, otherwise this is sorted without duplicates.
-
           val uniqueSplittersIdx = cb.newLocal[Int]("unique_splitters_idx", 0)
-          val requestedSplittersIdx = cb.newLocal[Int]("stream_distribute_splitters_index")
-          val lastKeySeen = cb.emb.newEmitLocal("stream_distribute_last_seen", keyType, false)
 
-          cb.forLoop(cb.assign(requestedSplittersIdx, 0), requestedSplittersIdx < requestedSplittersVal.loadLength(), cb.assign(requestedSplittersIdx, requestedSplittersIdx + 1), {
-            val currentSplitter = requestedSplittersVal.loadElement(cb, requestedSplittersIdx).memoize(cb, "stream_distribute_current_splitter")
-            cb.ifx(requestedSplittersIdx ceq 0, {
-              paddedSplittersPType.elementType.storeAtAddress(cb, paddedSplittersPType.loadElement(paddedSplittersAddr, paddedSplittersSize, 0), region, currentSplitter.get(cb), false)
-              splittersWasDuplicatedPType.elementType.storeAtAddress(cb, splittersWasDuplicatedPType.loadElement(splittersWasDuplicatedAddr, splittersWasDuplicatedLength, uniqueSplittersIdx), region, new SBooleanCode(false), false)
-              cb.assign(uniqueSplittersIdx, uniqueSplittersIdx + 1)
-            }, {
-              cb.ifx(!equal(cb, lastKeySeen, currentSplitter), {
-                // write to pos in splitters
-                paddedSplittersPType.elementType.storeAtAddress(cb, paddedSplittersPType.loadElement(paddedSplittersAddr, paddedSplittersSize, uniqueSplittersIdx), region, currentSplitter.get(cb), false)
+          def cleanupSplitters() = {
+            // Copy each unique splitter into array. If it is seen twice, set a boolean in a parallel array for that
+            // splitter, so we know what identity buckets to make later
+            val paddedSplittersPType = PCanonicalArray(keyPType)
+            val splittersWasDuplicatedPType = PCanonicalArray(PBooleanRequired)
+
+            val paddedSplittersAddr = cb.newLocal[Long]("stream_dist_splitters_addr", paddedSplittersPType.allocate(region, paddedSplittersSize))
+            cb += paddedSplittersPType.stagedInitialize(paddedSplittersAddr, paddedSplittersSize)
+
+            val splittersWasDuplicatedLength = paddedSplittersSize
+            val splittersWasDuplicatedAddr = cb.newLocal[Long]("stream_dist_dupe_splitters_addr", splittersWasDuplicatedPType.allocate(region, splittersWasDuplicatedLength))
+            cb += splittersWasDuplicatedPType.stagedInitialize(splittersWasDuplicatedAddr, splittersWasDuplicatedLength)
+            val splitters: SIndexableValue = new SIndexablePointerCode(SIndexablePointer(paddedSplittersPType), paddedSplittersAddr).memoize(cb, "stream_distribute_splitters_deduplicated") // last element is duplicated, otherwise this is sorted without duplicates.
+
+            val requestedSplittersIdx = cb.newLocal[Int]("stream_distribute_splitters_index")
+            val lastKeySeen = cb.emb.newEmitLocal("stream_distribute_last_seen", keyType, false)
+
+            cb.forLoop(cb.assign(requestedSplittersIdx, 0), requestedSplittersIdx < requestedSplittersVal.loadLength(), cb.assign(requestedSplittersIdx, requestedSplittersIdx + 1), {
+              val currentSplitter = requestedSplittersVal.loadElement(cb, requestedSplittersIdx).memoize(cb, "stream_distribute_current_splitter")
+              cb.ifx(requestedSplittersIdx ceq 0, {
+                paddedSplittersPType.elementType.storeAtAddress(cb, paddedSplittersPType.loadElement(paddedSplittersAddr, paddedSplittersSize, 0), region, currentSplitter.get(cb), false)
                 splittersWasDuplicatedPType.elementType.storeAtAddress(cb, splittersWasDuplicatedPType.loadElement(splittersWasDuplicatedAddr, splittersWasDuplicatedLength, uniqueSplittersIdx), region, new SBooleanCode(false), false)
                 cb.assign(uniqueSplittersIdx, uniqueSplittersIdx + 1)
               }, {
-                splittersWasDuplicatedPType.elementType.storeAtAddress(cb, splittersWasDuplicatedPType.loadElement(splittersWasDuplicatedAddr, splittersWasDuplicatedLength, uniqueSplittersIdx - 1), region, new SBooleanCode(true), false)
+                cb.ifx(!equal(cb, lastKeySeen, currentSplitter), {
+                  // write to pos in splitters
+                  paddedSplittersPType.elementType.storeAtAddress(cb, paddedSplittersPType.loadElement(paddedSplittersAddr, paddedSplittersSize, uniqueSplittersIdx), region, currentSplitter.get(cb), false)
+                  splittersWasDuplicatedPType.elementType.storeAtAddress(cb, splittersWasDuplicatedPType.loadElement(splittersWasDuplicatedAddr, splittersWasDuplicatedLength, uniqueSplittersIdx), region, new SBooleanCode(false), false)
+                  cb.assign(uniqueSplittersIdx, uniqueSplittersIdx + 1)
+                }, {
+                  splittersWasDuplicatedPType.elementType.storeAtAddress(cb, splittersWasDuplicatedPType.loadElement(splittersWasDuplicatedAddr, splittersWasDuplicatedLength, uniqueSplittersIdx - 1), region, new SBooleanCode(true), false)
+                })
+              })
+              cb.assign(lastKeySeen, currentSplitter)
+            })
+
+            val numUniqueSplitters = cb.newLocal[Int]("stream_distribute_num_unique_splitters", uniqueSplittersIdx)
+
+            // Pad out the rest of the splitters array so tree later is balanced.
+            cb.forLoop({}, uniqueSplittersIdx < paddedSplittersSize, cb.assign(uniqueSplittersIdx, uniqueSplittersIdx + 1), {
+              paddedSplittersPType.elementType.storeAtAddress(cb, paddedSplittersPType.loadElement(paddedSplittersAddr, paddedSplittersSize, uniqueSplittersIdx), region, lastKeySeen.get(cb), false)
+            })
+
+            val splitterWasDuplicated = new SIndexablePointerCode(SIndexablePointer(splittersWasDuplicatedPType), splittersWasDuplicatedAddr).memoize(cb, "stream_distrib_was_duplicated") // Same length as splitters, but full of booleans of whether it was initially duplicated.
+            (splitters, numUniqueSplitters, splitterWasDuplicated)
+          }
+
+          def buildTree(paddedSplitters: SIndexableValue, treePType: PCanonicalArray): SIndexableValue = {
+            val treeAddr = cb.newLocal[Long]("stream_dist_tree_addr", treePType.allocate(region, paddedSplittersSize))
+            cb += treePType.stagedInitialize(treeAddr, paddedSplittersSize)
+
+            /*
+            Walk through the array one level of the tree at a time, filling in the tree as you go to get a breadth
+            first traversal of the tree.
+           */
+            val currentHeight = cb.newLocal[Int]("stream_dist_current_height")
+            val treeFillingIndex = cb.newLocal[Int]("stream_dist_tree_filling_idx", 1)
+            cb.forLoop(cb.assign(currentHeight, treeHeight - 1), currentHeight >= 0, cb.assign(currentHeight, currentHeight - 1), {
+              val startingPoint: Value[Int] = cb.newLocal[Int]("stream_dist_starting_point", (const(1) << currentHeight) - 1)
+              val inner = cb.newLocal[Int]("stream_dist_tree_inner")
+              cb.forLoop(cb.assign(inner, 0), inner < (const(1) << (treeHeight - 1 - currentHeight)), cb.assign(inner, inner + 1), {
+                val lookupIndex = cb.newLocal[Int]("temp2", startingPoint + inner * (const(1) << (currentHeight + 1)))
+                val elementLoaded = paddedSplitters.loadElement(cb, lookupIndex).get(cb).memoize(cb, "temp")
+                keyPType.storeAtAddress(cb, treePType.loadElement(treeAddr, treeFillingIndex), region,
+                  elementLoaded, false)
+                cb.assign(treeFillingIndex, treeFillingIndex + 1)
               })
             })
-            cb.assign(lastKeySeen, currentSplitter)
-          })
+            // 0th element is garbage, tree elements start at idx 1.
+            new SIndexablePointerCode(SIndexablePointer(treePType), treeAddr).memoize(cb, "stream_dist_tree")
+          }
 
-          val numUniqueSplitters = cb.newLocal[Int]("stream_distribute_num_unique_splitters", uniqueSplittersIdx)
+          def createFileMapping(numFilesToWrite: Value[Int], splitterWasDuplicated: SIndexableValue) = {
+            // The element classifying algorithm acts as though there are identity buckets for every splitter. We only use identity buckets for elements that repeat
+            // in splitters list. Since We don't want many empty files, we need to make an array mapping output buckets to files.
+            val fileMappingType = PCanonicalArray(PInt32Required)
+            val fileMappingAddr = cb.newLocal("stream_dist_file_map_addr", fileMappingType.allocate(region, numberOfBuckets))
+            cb += fileMappingType.stagedInitialize(fileMappingAddr, numberOfBuckets)
 
-          // Pad out the rest of the splitters array so tree later is balanced.
-          cb.forLoop({}, uniqueSplittersIdx < paddedSplittersSize, cb.assign(uniqueSplittersIdx, uniqueSplittersIdx + 1), {
-            paddedSplittersPType.elementType.storeAtAddress(cb, paddedSplittersPType.loadElement(paddedSplittersAddr, paddedSplittersSize, uniqueSplittersIdx), region, lastKeySeen.get(cb), false)
-          })
+            val bucketIdx = cb.newLocal[Int]("stream_dist_bucket_idx")
+            val currentFileToMapTo = cb.newLocal[Int]("stream_dist_mapping_cur_storage", 0)
+            def destFileSCode() = new SInt32Code((currentFileToMapTo >= numFilesToWrite).mux(numFilesToWrite - 1, currentFileToMapTo))
+            cb.forLoop(cb.assign(bucketIdx, 0), bucketIdx < numberOfBuckets, cb.assign(bucketIdx, bucketIdx + 2), {
+              fileMappingType.elementType.storeAtAddress(cb, fileMappingType.loadElement(fileMappingAddr, numberOfBuckets, bucketIdx), region, destFileSCode(), false)
+              cb.assign(currentFileToMapTo, currentFileToMapTo + splitterWasDuplicated.loadElement(cb, bucketIdx / 2).get(cb).asBoolean.boolCode(cb).toI)
+              fileMappingType.elementType.storeAtAddress(cb, fileMappingType.loadElement(fileMappingAddr, numberOfBuckets, bucketIdx + 1), region, destFileSCode(), false)
+              cb.assign(currentFileToMapTo, currentFileToMapTo + 1)
+            })
 
+            new SIndexablePointerCode(SIndexablePointer(fileMappingType), fileMappingAddr).memoize(cb, "stream_dist_file_map")
+          }
 
-          val splitterWasDuplicated = new SIndexablePointerCode(SIndexablePointer(splittersWasDuplicatedPType), splittersWasDuplicatedAddr).memoize(cb, "stream_distrib_was_duplicated") // Same length as splitters, but full of booleans of whether it was initially duplicated.
+          val (paddedSplitters, numUniqueSplitters, splitterWasDuplicated) = cleanupSplitters()
+          val tree = buildTree(paddedSplitters, PCanonicalArray(keyPType))
 
           // Without identity buckets you'd have numUniqueSplitters + 1 buckets, but we have to add an extra for each identity bucket.
           val numFilesToWrite = cb.newLocal[Int]("stream_dist_num_files_to_write", 1)
@@ -109,29 +159,8 @@ object EmitStreamDistribute {
             cb.assign(numFilesToWrite, numFilesToWrite + 1 + splitterWasDuplicated.loadElement(cb, uniqueSplittersIdx).get(cb).asBoolean.boolCode(cb).toI)
           })
 
-          val treePType = paddedSplittersPType
-          val treeAddr = cb.newLocal[Long]("stream_dist_tree_addr", treePType.allocate(region, paddedSplittersSize))
-          cb += treePType.stagedInitialize(treeAddr, paddedSplittersSize)
+          val fileMapping = createFileMapping(numFilesToWrite, splitterWasDuplicated)
 
-          /*
-          Walk through the array one level of the tree at a time, filling in the tree as you go to get a breadth
-          first traversal of the tree.
-         */
-          val currentHeight = cb.newLocal[Int]("stream_dist_current_height")
-          val treeFillingIndex = cb.newLocal[Int]("stream_dist_tree_filling_idx", 1)
-          cb.forLoop(cb.assign(currentHeight, treeHeight - 1), currentHeight >= 0, cb.assign(currentHeight, currentHeight - 1), {
-            val startingPoint: Value[Int] = cb.newLocal[Int]("stream_dist_starting_point", (const(1) << currentHeight) - 1)
-            val inner = cb.newLocal[Int]("stream_dist_tree_inner")
-            cb.forLoop(cb.assign(inner, 0), inner < (const(1) << (treeHeight - 1 - currentHeight)), cb.assign(inner, inner + 1), {
-              val lookupIndex = cb.newLocal[Int]("temp2", startingPoint + inner * (const(1) << (currentHeight + 1)))
-              val elementLoaded = splitters.loadElement(cb, lookupIndex).get(cb).memoize(cb, "temp")
-              keyPType.storeAtAddress(cb, treePType.loadElement(treeAddr, treeFillingIndex), region,
-                elementLoaded, false)
-              cb.assign(treeFillingIndex, treeFillingIndex + 1)
-            })
-          })
-          // 0th element is garbage, tree elements start at idx 1.
-          val tree: SIndexableValue = new SIndexablePointerCode(SIndexablePointer(treePType), treeAddr).memoize(cb, "stream_dist_tree")
 
           val outputBuffers = cb.newLocal[Array[OutputBuffer]]("stream_dist_output_buffers", Code.newArray[OutputBuffer](numFilesToWrite))
           val numElementsPerFile = cb.newLocal[Array[Int]]("stream_dist_elements_per_file", Code.newArray[Int](numFilesToWrite))
@@ -148,24 +177,8 @@ object EmitStreamDistribute {
             cb += outputBuffers.update(fileArrayIdx, ob)
             cb += numElementsPerFile.update(fileArrayIdx, 0)
           })
-
           // The element classifying algorithm acts as though there are identity buckets for every splitter. We only use identity buckets for elements that repeat
           // in splitters list. Since We don't want many empty files, we need to make an array mapping output buckets to files.
-          val fileMappingType = PCanonicalArray(PInt32Required)
-          val fileMappingAddr = cb.newLocal("stream_dist_file_map_addr", fileMappingType.allocate(region, numberOfBuckets))
-          cb += fileMappingType.stagedInitialize(fileMappingAddr, numberOfBuckets)
-
-          val bucketIdx = cb.newLocal[Int]("stream_dist_bucket_idx")
-          val currentFileToMapTo = cb.newLocal[Int]("stream_dist_mapping_cur_storage", 0)
-          def destFileSCode() = new SInt32Code((currentFileToMapTo >= numFilesToWrite).mux(numFilesToWrite - 1, currentFileToMapTo))
-          cb.forLoop(cb.assign(bucketIdx, 0), bucketIdx < numberOfBuckets, cb.assign(bucketIdx, bucketIdx + 2), {
-            fileMappingType.elementType.storeAtAddress(cb, fileMappingType.loadElement(fileMappingAddr, numberOfBuckets, bucketIdx), region, destFileSCode(), false)
-            cb.assign(currentFileToMapTo, currentFileToMapTo + splitterWasDuplicated.loadElement(cb, bucketIdx / 2).get(cb).asBoolean.boolCode(cb).toI)
-            fileMappingType.elementType.storeAtAddress(cb, fileMappingType.loadElement(fileMappingAddr, numberOfBuckets, bucketIdx + 1), region, destFileSCode(), false)
-            cb.assign(currentFileToMapTo, currentFileToMapTo + 1)
-          })
-
-          val fileMapping = new SIndexablePointerCode(SIndexablePointer(fileMappingType), fileMappingAddr).memoize(cb, "stream_dist_file_map")
 
           val encoder = spec.encodedType.buildEncoder(childStream.st.elementType, cb.emb.ecb)
           childStream.producer.memoryManagedConsume(region, cb) { cb =>
@@ -178,7 +191,7 @@ object EmitStreamDistribute {
               val treeAtB = tree.loadElement(cb, b).memoize(cb, "stream_dist_tree_b")
               cb.assign(b, const(2) * b + lessThan(cb, treeAtB, current).toI)
             })
-            cb.assign(b, const(2) * b + 1 - lessThan(cb, current, splitters.loadElement(cb, b - numberOfBuckets / 2).memoize(cb, "stream_dist_splitter_compare")).toI)
+            cb.assign(b, const(2) * b + 1 - lessThan(cb, current, paddedSplitters.loadElement(cb, b - numberOfBuckets / 2).memoize(cb, "stream_dist_splitter_compare")).toI)
 
             val fileToUse = cb.newLocal[Int]("stream_dist_index_of_file_to_write", fileMapping.loadElement(cb, b - numberOfBuckets).get(cb).asInt.intCode(cb))
 
@@ -209,7 +222,7 @@ object EmitStreamDistribute {
           // Add first
           val firstInterval = intervalType.constructFromCodes(cb, region,
             EmitCode.fromI(cb.emb)(cb => requestedSplittersAndEndsVal.loadElement(cb, 0)),
-            EmitCode.fromI(cb.emb)(cb => splitters.loadElement(cb, 0)),
+            EmitCode.fromI(cb.emb)(cb => paddedSplitters.loadElement(cb, 0)),
             EmitCode.present(cb.emb, primitive(false)),
             EmitCode.present(cb.emb,  new SBooleanCode(!splitterWasDuplicated.loadElement(cb, 0).get(cb).asBoolean.boolCode(cb)))
           )
@@ -223,8 +236,8 @@ object EmitStreamDistribute {
           cb.forLoop({cb.assign(uniqueSplittersIdx, 0); cb.assign(fileArrayIdx, 1) }, uniqueSplittersIdx < numUniqueSplitters, cb.assign(uniqueSplittersIdx, uniqueSplittersIdx + 1), {
             cb.ifx(uniqueSplittersIdx cne 0, {
               val intervalFromLastToThis = intervalType.constructFromCodes(cb, region,
-                EmitCode.fromI(cb.emb)(cb => splitters.loadElement(cb, uniqueSplittersIdx - 1)),
-                EmitCode.fromI(cb.emb)(cb => splitters.loadElement(cb, uniqueSplittersIdx)),
+                EmitCode.fromI(cb.emb)(cb => paddedSplitters.loadElement(cb, uniqueSplittersIdx - 1)),
+                EmitCode.fromI(cb.emb)(cb => paddedSplitters.loadElement(cb, uniqueSplittersIdx)),
                 EmitCode.present(cb.emb, primitive(false)),
                 EmitCode.present(cb.emb, primitive(!splitterWasDuplicated.loadElement(cb, uniqueSplittersIdx).get(cb).asBoolean.boolCode(cb)))
               )
@@ -241,8 +254,8 @@ object EmitStreamDistribute {
             // Now, maybe have to make an identity bucket.
             cb.ifx(splitterWasDuplicated.loadElement(cb, uniqueSplittersIdx).get(cb).asBoolean.boolCode(cb), {
               val identityInterval = intervalType.constructFromCodes(cb, region,
-                EmitCode.fromI(cb.emb)(cb => splitters.loadElement(cb, uniqueSplittersIdx)),
-                EmitCode.fromI(cb.emb)(cb => splitters.loadElement(cb, uniqueSplittersIdx)),
+                EmitCode.fromI(cb.emb)(cb => paddedSplitters.loadElement(cb, uniqueSplittersIdx)),
+                EmitCode.fromI(cb.emb)(cb => paddedSplitters.loadElement(cb, uniqueSplittersIdx)),
                 EmitCode.present(cb.emb, primitive(true)),
                 EmitCode.present(cb.emb, primitive(true))
               )
@@ -259,7 +272,7 @@ object EmitStreamDistribute {
 
           // Add last
           val lastInterval = intervalType.constructFromCodes(cb, region,
-            EmitCode.fromI(cb.emb)(cb => splitters.loadElement(cb, uniqueSplittersIdx - 1)),
+            EmitCode.fromI(cb.emb)(cb => paddedSplitters.loadElement(cb, uniqueSplittersIdx - 1)),
             EmitCode.fromI(cb.emb)(cb => requestedSplittersAndEndsVal.loadElement(cb, requestedSplittersAndEndsVal.loadLength() - 1)),
             EmitCode.present(cb.emb, primitive(false)),
             EmitCode.present(cb.emb, primitive(false))
