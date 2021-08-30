@@ -44,10 +44,10 @@ object  NDArrayFunctions extends RegistryFunctions {
       val ndCoefColMajor = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(ndCoefInput, cb, region)
       val ndDepColMajor = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(ndDepInput, cb, region)
 
-      val IndexedSeq(ndCoefRow, ndCoefCol) = ndCoefColMajor.shapes(cb)
+      val IndexedSeq(ndCoefRow, ndCoefCol) = ndCoefColMajor.shapes
       cb.ifx(ndCoefRow cne ndCoefCol, cb._fatalWithError(errorID, "hail.nd.solve_triangular: matrix a must be square."))
 
-      val IndexedSeq(ndDepRow, ndDepCol) = ndDepColMajor.shapes(cb)
+      val IndexedSeq(ndDepRow, ndDepCol) = ndDepColMajor.shapes
       cb.ifx(ndCoefRow  cne ndDepRow, cb._fatalWithError(errorID,"hail.nd.solve_triangular: Solve dimensions incompatible"))
 
       val uplo = cb.newLocal[String]("dtrtrs_uplo")
@@ -64,9 +64,9 @@ object  NDArrayFunctions extends RegistryFunctions {
         const("N"),
         ndDepRow.toI,
         ndDepCol.toI,
-        ndCoefColMajor.firstDataAddress(cb),
+        ndCoefColMajor.firstDataAddress,
         ndDepRow.toI,
-        output.firstDataAddress(cb),
+        output.firstDataAddress,
         ndDepRow.toI
       ))
 
@@ -80,11 +80,11 @@ object  NDArrayFunctions extends RegistryFunctions {
       val aColMajor = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(aInput, cb, region)
       val bColMajor = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(bInput, cb, region)
 
-      val IndexedSeq(n0, n1) = aColMajor.shapes(cb)
+      val IndexedSeq(n0, n1) = aColMajor.shapes
 
       cb.ifx(n0 cne n1, cb._fatalWithError(errorID, "hail.nd.solve: matrix a must be square."))
 
-      val IndexedSeq(n, nrhs) = bColMajor.shapes(cb)
+      val IndexedSeq(n, nrhs) = bColMajor.shapes
 
       cb.ifx(n0 cne n, cb._fatalWithError(errorID, "hail.nd.solve: Solve dimensions incompatible"))
 
@@ -97,7 +97,7 @@ object  NDArrayFunctions extends RegistryFunctions {
       def aNumBytes = n * n * 8L
 
       cb.assign(aCopy, Code.invokeStatic1[Memory, Long, Long]("malloc", aNumBytes))
-      val aColMajorFirstElement = aColMajor.firstDataAddress(cb)
+      val aColMajorFirstElement = aColMajor.firstDataAddress
 
       cb.append(Region.copyFrom(aColMajorFirstElement, aCopy, aNumBytes))
 
@@ -105,7 +105,7 @@ object  NDArrayFunctions extends RegistryFunctions {
       val outputShape = IndexedSeq(n, nrhs)
       val (outputAddress, outputFinisher) = outputPType.constructDataFunction(outputShape, outputPType.makeColumnMajorStrides(outputShape, region, cb), cb, region)
 
-      cb.append(Region.copyFrom(bColMajor.firstDataAddress(cb), outputAddress, n * nrhs * 8L))
+      cb.append(Region.copyFrom(bColMajor.firstDataAddress, outputAddress, n * nrhs * 8L))
 
       cb.assign(infoDGESVResult, Code.invokeScalaObject7[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgesv",
         n.toI,

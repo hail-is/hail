@@ -208,7 +208,7 @@ object EmitNDArray {
               // Plan: Run through the child row major, make an array. Then jump around it as needed.
               val childMemo = childND.memoize(cb, "ndarray_reshape_child")
 
-              val childShapeValues = childMemo.shapes(cb)
+              val childShapeValues = childMemo.shapes
               val outputNDims = x.typ.nDims
 
               val requestedShapeValues = Array.tabulate(outputNDims)(i => cb.newLocal[Long](s"ndarray_reindex_request_shape_$i")).toIndexedSeq
@@ -270,7 +270,7 @@ object EmitNDArray {
                 // would be generated for something of the new shape.
                 val outputPType = PCanonicalNDArray(rowMajor.st.elementPType.setRequired(true), x.typ.nDims, true) // TODO Should it be required?
                 val rowMajorStriding = outputPType.makeRowMajorStrides(requestedShapeValues, region, cb)
-                fromShapeStridesFirstAddress(rowMajor.st.elementPType, requestedShapeValues, rowMajorStriding, rowMajor.firstDataAddress(cb), cb)
+                fromShapeStridesFirstAddress(rowMajor.st.elementPType, requestedShapeValues, rowMajorStriding, rowMajor.firstDataAddress, cb)
               }
             }
 
@@ -306,7 +306,7 @@ object EmitNDArray {
 
                 val newShape = (0 until x.typ.nDims).map { dimIdx =>
                   val localDim = cb.newLocal[Long](s"ndarray_concat_output_shape_element_${dimIdx}")
-                  val ndShape = firstND.shapes(cb)
+                  val ndShape = firstND.shapes
                   cb.assign(localDim, ndShape(dimIdx))
                   if (dimIdx == axis) {
                     pushElement(cb, EmitCode(Code._empty, false, primitive(localDim)).toI(cb))
@@ -601,10 +601,10 @@ object EmitNDArray {
   }
 
   def fromSValue(ndSv: SNDArrayValue, cb: EmitCodeBuilder): NDArrayProducer = {
-    val ndSvShape = ndSv.shapes(cb)
-    val strides = ndSv.strides(cb)
+    val ndSvShape = ndSv.shapes
+    val strides = ndSv.strides
 
-    fromShapeStridesFirstAddress(ndSv.st.elementPType, ndSvShape, strides, ndSv.firstDataAddress(cb), cb)
+    fromShapeStridesFirstAddress(ndSv.st.elementPType, ndSvShape, strides, ndSv.firstDataAddress, cb)
   }
 
   def fromShapeStridesFirstAddress(newElementType: PType, ndSvShape: IndexedSeq[Value[Long]], strides: IndexedSeq[Value[Long]], firstDataAddress: Value[Long], cb: EmitCodeBuilder): NDArrayProducer = {

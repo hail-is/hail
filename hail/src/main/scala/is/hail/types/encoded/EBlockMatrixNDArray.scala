@@ -23,7 +23,7 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
 
   override def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = {
     val ndarray = v.asInstanceOf[SNDArrayValue]
-    val shapes = ndarray.shapes(cb)
+    val shapes = ndarray.shapes
     val r = cb.newLocal[Long]("r", shapes(0))
     val c = cb.newLocal[Long]("c", shapes(1))
     val i = cb.newLocal[Long]("i")
