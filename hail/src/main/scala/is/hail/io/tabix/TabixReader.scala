@@ -1,13 +1,13 @@
 package is.hail.io.tabix
 
 import java.io.InputStream
+
 import htsjdk.samtools.util.FileExtensions
 import htsjdk.tribble.util.ParsingUtils
+import is.hail.expr.ir.IntArrayBuilder
 import is.hail.io.compress.BGzipLineReader
 import is.hail.io.fs.FS
 import is.hail.utils._
-import is.hail.backend.BroadcastValue
-import is.hail.expr.ir.IntArrayBuilder
 
 import scala.collection.mutable
 import scala.language.implicitConversions
@@ -293,7 +293,7 @@ class TabixReader(val filePath: String, fs: FS, idxFilePath: Option[String] = No
 }
 
 final class TabixLineIterator(
-  private val fsBc: BroadcastValue[FS],
+  private val fs: FS,
   private val filePath: String,
   private val offsets: Array[TbiPair]
 )
@@ -301,7 +301,7 @@ final class TabixLineIterator(
 {
   private var i: Int = -1
   private var isEof = false
-  private var lines = new BGzipLineReader(fsBc, filePath)
+  private var lines = new BGzipLineReader(fs, filePath)
 
   def next(): String = {
     var s: String = null

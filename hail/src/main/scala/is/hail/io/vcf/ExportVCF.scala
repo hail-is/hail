@@ -1,21 +1,18 @@
 package is.hail.io.vcf
 
-import is.hail
-import is.hail.HailContext
-import is.hail.backend.BroadcastValue
-import is.hail.annotations.Region
-import is.hail.expr.ir.{ExecuteContext, MatrixValue}
-import is.hail.types.physical._
-import is.hail.types.virtual._
-import is.hail.io.{VCFAttributes, VCFFieldAttributes, VCFMetadata}
-import is.hail.io.compress.{BGzipOutputStream, BGzipLineReader}
-import is.hail.io.fs.FS
-import is.hail.utils._
-import is.hail.variant.{Call, RegionValueVariant}
-
 import htsjdk.samtools.util.FileExtensions
 import htsjdk.tribble.SimpleFeature
-import htsjdk.tribble.index.tabix.{TabixIndexCreator, TabixFormat}
+import htsjdk.tribble.index.tabix.{TabixFormat, TabixIndexCreator}
+import is.hail
+import is.hail.annotations.Region
+import is.hail.expr.ir.{ExecuteContext, MatrixValue}
+import is.hail.io.compress.{BGzipLineReader, BGzipOutputStream}
+import is.hail.io.fs.FS
+import is.hail.io.{VCFAttributes, VCFFieldAttributes, VCFMetadata}
+import is.hail.types.physical._
+import is.hail.types.virtual._
+import is.hail.utils._
+import is.hail.variant.{Call, RegionValueVariant}
 
 import scala.io.Source
 
@@ -465,13 +462,12 @@ object ExportVCF {
       exportType match {
         case ExportType.CONCATENATED =>
           info(s"Writing tabix index for $path")
-          TabixVCF(ctx.fsBc, path)
+          TabixVCF(fs, path)
         case ExportType.PARALLEL_SEPARATE_HEADER | ExportType.PARALLEL_HEADER_IN_SHARD =>
-          val localFsBc = ctx.fsBc
           val files = fs.glob(path + "/part-*").map(_.getPath.getBytes)
           info(s"Writing tabix index for ${ files.length } in $path")
-          ctx.backend.parallelizeAndComputeWithIndex(ctx.backendContext, files)({ (pathBytes, _, _) =>
-                      TabixVCF(localFsBc, new String(pathBytes))
+          ctx.backend.parallelizeAndComputeWithIndex(ctx.backendContext, files)({ (pathBytes, _, fs) =>
+                      TabixVCF(fs, new String(pathBytes))
                       Array.empty
                     })
         case ExportType.PARALLEL_COMPOSABLE =>
@@ -482,13 +478,13 @@ object ExportVCF {
 }
 
 object TabixVCF {
-   def apply(fsBc: BroadcastValue[FS], filePath: String) {
-     val idx = using (new BGzipLineReader(fsBc, filePath)) { lines =>
+   def apply(fs: FS, filePath: String) {
+     val idx = using (new BGzipLineReader(fs, filePath)) { lines =>
        val tabix = new TabixIndexCreator(TabixFormat.VCF)
        var fileOffset = lines.getVirtualOffset
        var s = lines.readLine()
        while (s != null) {
-         if (!s.isEmpty && s.charAt(0) != '#') {
+         if (s.nonEmpty && s.charAt(0) != '#') {
            val Array(chrom, posStr, _*) = s.split("\t", 3)
            val pos = posStr.toInt
            val feature = new SimpleFeature(chrom, pos, pos)
@@ -502,7 +498,7 @@ object TabixVCF {
        tabix.finalizeIndex(fileOffset)
      }
      val tabixPath = htsjdk.tribble.util.ParsingUtils.appendToPath(filePath, FileExtensions.TABIX_INDEX)
-     using (new BGzipOutputStream(fsBc.value.createNoCompression(tabixPath))) { bgzos =>
+     using (new BGzipOutputStream(fs.createNoCompression(tabixPath))) { bgzos =>
        using (new htsjdk.tribble.util.LittleEndianOutputStream(bgzos)) { os => idx.write(os) }
      }
    }
