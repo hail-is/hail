@@ -3581,13 +3581,22 @@ class IRSuite extends HailSuite {
     val result = eval(dist).asInstanceOf[IndexedSeq[Row]].map(row => (row(0).asInstanceOf[Interval], row(1).asInstanceOf[String], row(2).asInstanceOf[Int]))
     val kord: ExtendedOrdering = PartitionBoundOrdering(pivots.typ.asInstanceOf[TArray].elementType)
 
+    var dataIdx = 0
+
     result.foreach { case (interval, path, elementCount) =>
       val reader = PartitionNativeReader(spec)
       val read = ToArray(ReadPartition(Str(path), spec._vType, reader))
       val rowsFromDisk = eval(read).asInstanceOf[IndexedSeq[Row]]
       assert(rowsFromDisk.size == elementCount)
       assert(rowsFromDisk.forall(interval.contains(kord, _)))
+
+      rowsFromDisk.foreach { row =>
+        assert(row(0) == data(dataIdx))
+        dataIdx += 1
+      }
     }
+
+    assert(dataIdx == data.size)
 
     result.map(_._1).sliding(2).foreach { case IndexedSeq(interval1, interval2) =>
       assert(interval1.isDisjointFrom(kord, interval2))
