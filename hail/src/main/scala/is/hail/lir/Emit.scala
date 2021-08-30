@@ -197,7 +197,7 @@ object Emit {
     }
 
     for (m <- c.methods) {
-      val instructionCount = emitMethod(cv, m, false) // c.sourceFile.isDefined)
+      val instructionCount = emitMethod(cv, m, c.sourceFile.isDefined)
       if (logMethodSizes) {
         log.info(s"instruction count: $instructionCount: ${ c.name }.${ m.name }")
         if (instructionCount > 8000)
