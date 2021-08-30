@@ -54,16 +54,16 @@ class HailContext(object):
                            default_reference: str,
                            global_seed: Optional[str],
                            backend: Backend):
+        hc = HailContext(log=log,
+                         quiet=quiet,
+                         append=append,
+                         tmpdir=tmpdir,
+                         local_tmpdir=local_tmpdir,
+                         global_seed=global_seed,
+                         backend=backend)
         references = await backend._async_get_references(BUILTIN_REFERENCES)
-        return HailContext(log=log,
-                           quiet=quiet,
-                           append=append,
-                           tmpdir=tmpdir,
-                           local_tmpdir=local_tmpdir,
-                           default_reference=default_reference,
-                           references=references,
-                           global_seed=global_seed,
-                           backend=backend)
+        hc.initailize_references(references, default_reference)
+        return hc
 
     @staticmethod
     def create(log: str,
@@ -74,28 +74,25 @@ class HailContext(object):
                default_reference: str,
                global_seed: Optional[str],
                backend: Backend):
+        hc = HailContext(log=log,
+                         quiet=quiet,
+                         append=append,
+                         tmpdir=tmpdir,
+                         local_tmpdir=local_tmpdir,
+                         global_seed=global_seed,
+                         backend=backend)
         references = backend.get_references(BUILTIN_REFERENCES)
-        return HailContext(log=log,
-                           quiet=quiet,
-                           append=append,
-                           tmpdir=tmpdir,
-                           local_tmpdir=local_tmpdir,
-                           default_reference=default_reference,
-                           references=references,
-                           global_seed=global_seed,
-                           backend=backend)
+        hc.initailize_references(references, default_reference)
+        return hc
 
     @typecheck_method(log=str,
                       quiet=bool,
                       append=bool,
                       tmpdir=str,
                       local_tmpdir=str,
-                      default_reference=str,
-                      references=sequenceof(dict),
                       global_seed=nullable(int),
                       backend=Backend)
-    def __init__(self, log, quiet, append, tmpdir, local_tmpdir,
-                 default_reference, references, global_seed, backend):
+    def __init__(self, log, quiet, append, tmpdir, local_tmpdir, global_seed, backend):
         assert not Env._hc
 
         self._log = log
@@ -108,15 +105,7 @@ class HailContext(object):
         self._warn_cols_order = True
         self._warn_entries_order = True
 
-        Env._hc = self
-
-        for ref in references:
-            ReferenceGenome._from_config(ref, True)
-
-        if default_reference in ReferenceGenome._references:
-            self._default_ref = ReferenceGenome._references[default_reference]
-        else:
-            self._default_ref = ReferenceGenome.read(default_reference)
+        self._default_ref: Optional[ReferenceGenome] = None
 
         if not quiet:
             py_version = version()
@@ -136,9 +125,20 @@ class HailContext(object):
         if global_seed is None:
             global_seed = 6348563392232659379
         Env.set_seed(global_seed)
+        Env._hc = self
+
+    def initailize_references(self, references, default_reference):
+        for ref in references:
+            ReferenceGenome._from_config(ref, True)
+
+        if default_reference in ReferenceGenome._references:
+            self._default_ref = ReferenceGenome._references[default_reference]
+        else:
+            self._default_ref = ReferenceGenome.read(default_reference)
 
     @property
-    def default_reference(self):
+    def default_reference(self) -> ReferenceGenome:
+        assert self._default_ref is not None, '_default_ref should have been initialized in HailContext.create'
         return self._default_ref
 
     def stop(self):
