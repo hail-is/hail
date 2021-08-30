@@ -3560,10 +3560,10 @@ class IRSuite extends HailSuite {
 
   @Test def testStreamDistribute(): Unit =  {
     val data1 = IndexedSeq(0, 1, 1, 2, 4, 7, 7, 7, 9, 11, 15, 20, 22, 28, 50, 100)
-    val pivots1 = IndexedSeq(1, 7, 7, 15, 22, 50)
-    val pivots2 = IndexedSeq(1, 1, 7, 9, 28, 50)
-    val pivots3 = IndexedSeq(0, 20, 100)
-    val pivots4 = IndexedSeq(4, 7, 7)
+    val pivots1 = IndexedSeq(-10, 1, 7, 7, 15, 22, 50, 200)
+    val pivots2 = IndexedSeq(-10, 1, 1, 7, 9, 28, 50, 200)
+    val pivots3 = IndexedSeq(-3, 0, 20, 100, 200)
+    val pivots4 = IndexedSeq(-8, 4, 7, 7, 150)
 
     runStreamDistTest(data1, pivots1)
     runStreamDistTest(data1, pivots2)
@@ -3581,25 +3581,12 @@ class IRSuite extends HailSuite {
     val result = eval(dist).asInstanceOf[IndexedSeq[Row]].map(row => (row(0).asInstanceOf[Interval], row(1).asInstanceOf[String], row(2).asInstanceOf[Int]))
     val kord: ExtendedOrdering = PartitionBoundOrdering(pivots.typ.asInstanceOf[TArray].elementType)
 
-    def inInterval(kord: ExtendedOrdering, interval: Interval, element: Row): Boolean = {
-      if (interval.start == null) {
-        val comp: (Any, Any) => Boolean = if (interval.includesEnd) kord.lteq else kord.lt
-        comp(element, interval.end)
-      } else if (interval.end == null) {
-        val comp: (Any, Any) => Boolean = if (interval.includesStart) kord.lteq else kord.lt
-        comp(interval.start, element)
-      } else {
-        val contains = interval.contains(kord, element)
-        contains
-      }
-    }
-
-    result.zipWithIndex.foreach { case ((interval, path, elementCount), fileIdx) =>
+    result.foreach { case (interval, path, elementCount) =>
       val reader = PartitionNativeReader(spec)
       val read = ToArray(ReadPartition(Str(path), spec._vType, reader))
       val rowsFromDisk = eval(read).asInstanceOf[IndexedSeq[Row]]
       assert(rowsFromDisk.size == elementCount)
-      assert(rowsFromDisk.forall(inInterval(kord, interval, _)))
+      assert(rowsFromDisk.forall(interval.contains(kord, _)))
     }
 
     result.map(_._1).sliding(2).foreach { case IndexedSeq(interval1, interval2) =>

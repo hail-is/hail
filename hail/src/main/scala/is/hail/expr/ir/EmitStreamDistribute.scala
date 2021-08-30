@@ -30,7 +30,8 @@ object EmitStreamDistribute {
 
       emitI(pivots).flatMap(cb) { case pivotsCode: SIndexableCode =>
         emitStream(child, cb, region).map(cb) { case childStream: SStreamCode =>
-          val requestedSplittersVal = pivotsCode.memoize(cb, "stream_dist_pivots")
+          val requestedSplittersAndEndsVal = pivotsCode.memoize(cb, "stream_dist_pivots")
+          val requestedSplittersVal = requestedSplittersAndEndsVal.sliceArray(cb, region, typeWithReqx(pivots).canonicalPType.asInstanceOf[PCanonicalArray], 1, requestedSplittersAndEndsVal.loadLength() - 1).memoize(cb, "foo")
 
           val keyType = requestedSplittersVal.st.elementType.asInstanceOf[SBaseStruct]
           val keyPType = typeWithReqx(pivots).canonicalPType.asInstanceOf[PContainer].elementType
@@ -207,7 +208,7 @@ object EmitStreamDistribute {
 
           // Add first
           val firstInterval = intervalType.constructFromCodes(cb, region,
-            EmitCode.missing(cb.emb, splitters.st.elementType),
+            EmitCode.fromI(cb.emb)(cb => requestedSplittersAndEndsVal.loadElement(cb, 0)),
             EmitCode.fromI(cb.emb)(cb => splitters.loadElement(cb, 0)),
             EmitCode.present(cb.emb, primitive(false)),
             EmitCode.present(cb.emb,  new SBooleanCode(!splitterWasDuplicated.loadElement(cb, 0).get(cb).asBoolean.boolCode(cb)))
@@ -259,7 +260,7 @@ object EmitStreamDistribute {
           // Add last
           val lastInterval = intervalType.constructFromCodes(cb, region,
             EmitCode.fromI(cb.emb)(cb => splitters.loadElement(cb, uniqueSplittersIdx - 1)),
-            EmitCode.missing(cb.emb, splitters.st.elementType),
+            EmitCode.fromI(cb.emb)(cb => requestedSplittersAndEndsVal.loadElement(cb, requestedSplittersAndEndsVal.loadLength() - 1)),
             EmitCode.present(cb.emb, primitive(false)),
             EmitCode.present(cb.emb, primitive(false))
           )
