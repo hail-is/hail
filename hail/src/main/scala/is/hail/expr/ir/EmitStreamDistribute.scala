@@ -52,9 +52,7 @@ object EmitStreamDistribute {
           val filledInTreeSize = Code.invokeScalaObject1[Int, Int](MathFunctions.getClass, "roundToNextPowerOf2", requestedSplittersVal.loadLength() + 1)
           val treeHeight: Value[Int] = cb.newLocal[Int]("stream_dist_tree_height", Code.invokeScalaObject1[Int, Int](MathFunctions.getClass, "log2", filledInTreeSize))
 
-          val numberOfBuckets = cb.newLocal[Int]("stream_dist_number_of_buckets", const(1) << (treeHeight + 1))
-
-          val paddedSplittersSize = cb.newLocal[Int]("stream_dist_padded_splitter_size", numberOfBuckets / 2)
+          val paddedSplittersSize = cb.newLocal[Int]("stream_dist_padded_splitter_size", const(1) << treeHeight)
 
           val uniqueSplittersIdx = cb.newLocal[Int]("unique_splitters_idx", 0)
 
@@ -130,7 +128,7 @@ object EmitStreamDistribute {
             new SIndexablePointerCode(SIndexablePointer(treePType), treeAddr).memoize(cb, "stream_dist_tree")
           }
 
-          def createFileMapping(numFilesToWrite: Value[Int], splitterWasDuplicated: SIndexableValue) = {
+          def createFileMapping(numFilesToWrite: Value[Int], splitterWasDuplicated: SIndexableValue, numberOfBuckets: Value[Int], shouldUseIdentityBuckets: Value[Boolean]) = {
             // The element classifying algorithm acts as though there are identity buckets for every splitter. We only use identity buckets for elements that repeat
             // in splitters list. Since We don't want many empty files, we need to make an array mapping output buckets to files.
             val fileMappingType = PCanonicalArray(PInt32Required)
@@ -140,10 +138,16 @@ object EmitStreamDistribute {
             val bucketIdx = cb.newLocal[Int]("stream_dist_bucket_idx")
             val currentFileToMapTo = cb.newLocal[Int]("stream_dist_mapping_cur_storage", 0)
             def destFileSCode() = new SInt32Code((currentFileToMapTo >= numFilesToWrite).mux(numFilesToWrite - 1, currentFileToMapTo))
-            cb.forLoop(cb.assign(bucketIdx, 0), bucketIdx < numberOfBuckets, cb.assign(bucketIdx, bucketIdx + 2), {
+
+            val indexIncrement = cb.newLocal[Int]("stream_dist_create_file_mapping_increment")
+            cb.ifx(shouldUseIdentityBuckets, cb.assign(indexIncrement, 2), cb.assign(indexIncrement, 1))
+
+            cb.forLoop(cb.assign(bucketIdx, 0), bucketIdx < numberOfBuckets, cb.assign(bucketIdx, bucketIdx + indexIncrement), {
               fileMappingType.elementType.storeAtAddress(cb, fileMappingType.loadElement(fileMappingAddr, numberOfBuckets, bucketIdx), region, destFileSCode(), false)
-              cb.assign(currentFileToMapTo, currentFileToMapTo + splitterWasDuplicated.loadElement(cb, bucketIdx / 2).get(cb).asBoolean.boolCode(cb).toI)
-              fileMappingType.elementType.storeAtAddress(cb, fileMappingType.loadElement(fileMappingAddr, numberOfBuckets, bucketIdx + 1), region, destFileSCode(), false)
+              cb.ifx(shouldUseIdentityBuckets, {
+                cb.assign(currentFileToMapTo, currentFileToMapTo + splitterWasDuplicated.loadElement(cb, bucketIdx / 2).get(cb).asBoolean.boolCode(cb).toI)
+                fileMappingType.elementType.storeAtAddress(cb, fileMappingType.loadElement(fileMappingAddr, numberOfBuckets, bucketIdx + 1), region, destFileSCode(), false)
+              })
               cb.assign(currentFileToMapTo, currentFileToMapTo + 1)
             })
 
@@ -153,14 +157,19 @@ object EmitStreamDistribute {
           val (paddedSplitters, numUniqueSplitters, splitterWasDuplicated) = cleanupSplitters()
           val tree = buildTree(paddedSplitters, PCanonicalArray(keyPType))
 
+          val shouldUseIdentityBuckets = cb.newLocal[Boolean]("stream_dist_use_identity_buckets", numUniqueSplitters < requestedSplittersVal.loadLength())
+          val numberOfBuckets = cb.newLocal[Int]("stream_dist_number_of_buckets")
+          cb.ifx(shouldUseIdentityBuckets,
+            cb.assign(numberOfBuckets, const(1) << (treeHeight + 1)),
+            cb.assign(numberOfBuckets, const(1) << treeHeight))
+
           // Without identity buckets you'd have numUniqueSplitters + 1 buckets, but we have to add an extra for each identity bucket.
           val numFilesToWrite = cb.newLocal[Int]("stream_dist_num_files_to_write", 1)
           cb.forLoop(cb.assign(uniqueSplittersIdx, 0), uniqueSplittersIdx < numUniqueSplitters, cb.assign(uniqueSplittersIdx, uniqueSplittersIdx + 1), {
             cb.assign(numFilesToWrite, numFilesToWrite + 1 + splitterWasDuplicated.loadElement(cb, uniqueSplittersIdx).get(cb).asBoolean.boolCode(cb).toI)
           })
 
-          val fileMapping = createFileMapping(numFilesToWrite, splitterWasDuplicated)
-
+          val fileMapping = createFileMapping(numFilesToWrite, splitterWasDuplicated, numberOfBuckets, shouldUseIdentityBuckets)
 
           val outputBuffers = cb.newLocal[Array[OutputBuffer]]("stream_dist_output_buffers", Code.newArray[OutputBuffer](numFilesToWrite))
           val numElementsPerFile = cb.newLocal[Array[Int]]("stream_dist_elements_per_file", Code.newArray[Int](numFilesToWrite))
@@ -191,7 +200,9 @@ object EmitStreamDistribute {
               val treeAtB = tree.loadElement(cb, b).memoize(cb, "stream_dist_tree_b")
               cb.assign(b, const(2) * b + lessThan(cb, treeAtB, current).toI)
             })
-            cb.assign(b, const(2) * b + 1 - lessThan(cb, current, paddedSplitters.loadElement(cb, b - numberOfBuckets / 2).memoize(cb, "stream_dist_splitter_compare")).toI)
+            cb.ifx(shouldUseIdentityBuckets, {
+              cb.assign(b, const(2) * b + 1 - lessThan(cb, current, paddedSplitters.loadElement(cb, b - numberOfBuckets / 2).memoize(cb, "stream_dist_splitter_compare")).toI)
+            })
 
             val fileToUse = cb.newLocal[Int]("stream_dist_index_of_file_to_write", fileMapping.loadElement(cb, b - numberOfBuckets).get(cb).asInt.intCode(cb))
 
