@@ -96,7 +96,7 @@ BEGIN
       INSERT INTO user_inst_coll_resources (user, inst_coll, token, n_cancelled_creating_jobs)
       VALUES (cur_user, OLD.inst_coll, rand_token, -1)
       ON DUPLICATE KEY UPDATE
-        n_cancelled_creating_jobs = n_creating_creating_jobs - 1;
+        n_cancelled_creating_jobs = n_creating_jobs - 1;
     ELSE
       # creating
       INSERT INTO user_inst_coll_resources (user, inst_coll, token, n_creating_jobs)
