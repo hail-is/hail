@@ -38,7 +38,7 @@ them. Either to create the service principal or reset it, run the following
 az ad sp create-for-rbac --role="Contributor" --scopes="/subscriptions/${ARM_SUBSCRIPTION_ID}" --name="terraform-principal" > terraform_principal.json
 ```
 
-Note: Your developer Azure account must be an owner of the terraform principal service principal.
+Note: Your developer Azure account must be an owner of the terraform service principal.
 To grant ownership to another developer, go in the Azure portal to
 Azure Active Directory > App registrations > terraform-principal > Owners.
 
