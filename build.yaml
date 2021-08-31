@@ -2482,11 +2482,11 @@ steps:
       tar xvf wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       {% if deploy %}
-      export HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/"
-      export HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/"
+      export HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
+      export HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
       {% else %}
-      export HAIL_SHA="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/"
-      export HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/"
+      export HAIL_SHA="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/$(cat /io/git_version).jar"
+      export HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/$(cat /io/git_version).jar"
       {% endif %}
       export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/doctest/data/"
@@ -2504,6 +2504,8 @@ steps:
         to: /io/wheel-container.tar
       - from: /test.tar.gz
         to: /io/test.tar.gz
+      - from: /git_version
+        to: /io/git_version
     secrets:
       - name: test-gsa-key
         namespace:
@@ -2527,6 +2529,7 @@ steps:
         mountPath: /ssl-config
     dependsOn:
       - default_ns
+      - merge_code
       - deploy_batch
       - create_deploy_config
       - create_accounts
@@ -2547,11 +2550,11 @@ steps:
       tar xvf wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       {% if deploy %}
-      HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/"
-      HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/"
+      HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
+      HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
       {% else %}
-      HAIL_SHA="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/"
-      HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/"
+      HAIL_SHA="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/$(cat /io/git_version).jar"
+      HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/$(cat /io/git_version).jar"
       {% endif %}
       export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/doctest/data/"
@@ -2569,6 +2572,8 @@ steps:
         to: /io/wheel-container.tar
       - from: /test.tar.gz
         to: /io/test.tar.gz
+      - from: /git_version
+        to: /io/git_version
     secrets:
       - name: test-gsa-key
         namespace:
@@ -2592,6 +2597,7 @@ steps:
         mountPath: /ssl-config
     dependsOn:
       - default_ns
+      - merge_code
       - deploy_batch
       - create_deploy_config
       - create_accounts
@@ -2612,11 +2618,11 @@ steps:
       tar xvf wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       {% if deploy %}
-      HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/"
-      HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/"
+      HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
+      HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
       {% else %}
-      HAIL_SHA="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/"
-      HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/"
+      HAIL_SHA="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/$(cat /io/git_version).jar"
+      HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/$(cat /io/git_version).jar"
       {% endif %}
       export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/doctest/data/"
@@ -2634,6 +2640,8 @@ steps:
         to: /io/wheel-container.tar
       - from: /test.tar.gz
         to: /io/test.tar.gz
+      - from: /git_version
+        to: /io/git_version
     secrets:
       - name: test-gsa-key
         namespace:
@@ -2657,6 +2665,7 @@ steps:
         mountPath: /ssl-config
     dependsOn:
       - default_ns
+      - merge_code
       - deploy_batch
       - create_deploy_config
       - create_accounts
@@ -2677,11 +2686,11 @@ steps:
       tar xvf wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       {% if deploy %}
-      HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/"
-      HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/"
+      HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
+      HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
       {% else %}
-      HAIL_SHA="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/"
-      HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/"
+      HAIL_SHA="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/$(cat /io/git_version).jar"
+      HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/$(cat /io/git_version).jar"
       {% endif %}
       export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/doctest/data/"
@@ -2699,6 +2708,8 @@ steps:
         to: /io/wheel-container.tar
       - from: /test.tar.gz
         to: /io/test.tar.gz
+      - from: /git_version
+        to: /io/git_version
     secrets:
       - name: test-gsa-key
         namespace:
@@ -2722,6 +2733,7 @@ steps:
         mountPath: /ssl-config
     dependsOn:
       - default_ns
+      - merge_code
       - deploy_batch
       - create_deploy_config
       - create_accounts
@@ -2742,11 +2754,11 @@ steps:
       tar xvf wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       {% if deploy %}
-      HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/"
-      HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/"
+      HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
+      HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
       {% else %}
-      HAIL_SHA="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/"
-      HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/"
+      HAIL_SHA="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/$(cat /io/git_version).jar"
+      HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/$(cat /io/git_version).jar"
       {% endif %}
       export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/doctest/data/"
@@ -2764,6 +2776,8 @@ steps:
         to: /io/wheel-container.tar
       - from: /test.tar.gz
         to: /io/test.tar.gz
+      - from: /git_version
+        to: /io/git_version
     secrets:
       - name: test-gsa-key
         namespace:
@@ -2787,6 +2801,7 @@ steps:
         mountPath: /ssl-config
     dependsOn:
       - default_ns
+      - merge_code
       - deploy_batch
       - create_deploy_config
       - create_accounts
