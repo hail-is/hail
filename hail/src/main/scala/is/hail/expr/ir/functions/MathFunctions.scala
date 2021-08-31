@@ -13,6 +13,29 @@ import org.apache.commons.math3.special.Gamma
 object MathFunctions extends RegistryFunctions {
   def log(x: Double, b: Double): Double = math.log(x) / math.log(b)
 
+  // This does a truncating log2, always rounnds down
+  def log2(x: Int): Int = {
+    var v = x
+    var r = if (v > 0xFFFF) 16 else 0
+    v >>= r
+    if (v > 0xFF) { v >>= 8; r |= 8 }
+    if (v > 0xF) { v >>= 4; r |= 4 }
+    if (v > 0x3) { v >>= 2; r |= 2 }
+    r |= v >> 1
+    r
+  }
+
+  def roundToNextPowerOf2(x: Int): Int = {
+    var v = x - 1
+    v |= v >> 1
+    v |= v >> 2
+    v |= v >> 4
+    v |= v >> 8
+    v |= v >> 16
+    v + 1
+  }
+
+
   def gamma(x: Double): Double = Gamma.gamma(x)
 
   def floor(x: Float): Float = math.floor(x).toFloat
@@ -116,6 +139,8 @@ object MathFunctions extends RegistryFunctions {
     registerScalaFunction("sqrt", Array(TFloat64), TFloat64, null)(mathPackageClass, "sqrt")
     registerScalaFunction("log", Array(TFloat64), TFloat64, null)(mathPackageClass, "log")
     registerScalaFunction("log", Array(TFloat64, TFloat64), TFloat64, null)(thisClass, "log")
+    registerScalaFunction("log2", Array(TInt32), TInt32, null)(thisClass, "log2")
+    registerScalaFunction("roundToNextPowerOf2", Array(TInt32), TInt32, null)(thisClass, "roundToNextPowerOf2")
     registerScalaFunction("gamma", Array(TFloat64), TFloat64, null)(thisClass, "gamma")
     registerScalaFunction("binomTest", Array(TInt32, TInt32, TFloat64, TInt32), TFloat64, null)(statsPackageClass, "binomTest")
 

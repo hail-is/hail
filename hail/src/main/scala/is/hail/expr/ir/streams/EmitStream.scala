@@ -591,6 +591,7 @@ object EmitStream {
             SStreamCode(producer)
           }
         }
+
       case StreamFilter(a, name, cond) =>
         produce(a, cb)
           .map(cb) { case (childStream: SStreamCode) =>
