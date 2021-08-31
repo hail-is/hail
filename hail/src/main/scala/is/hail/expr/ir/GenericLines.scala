@@ -369,5 +369,8 @@ class GenericLines(
 
   def nPartitions: Int = contexts.length
 
-  def toRDD(fs: FS): RDD[GenericLine] = new GenericLinesRDD(contexts, body(fs, _))
+  def toRDD(fs: FS): RDD[GenericLine] = {
+    val localBody = body
+    new GenericLinesRDD(contexts, localBody(fs, _))
+  }
 }
