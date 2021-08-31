@@ -2157,10 +2157,10 @@ def import_matrix_table2(paths,
 
     def find_duplicates(list_to_check):
         time_name_encountered = {}
-        dups = str("")
+        dups = []
         for item in list_to_check:
             if time_name_encountered.get(item) is not None:
-                dups = dups + item + "\n"
+                dups.append(item)
                 time_name_encountered[item] = time_name_encountered[item] + 1
             time_name_encountered[item] = 1
         return time_name_encountered, dups
@@ -2168,25 +2168,26 @@ def import_matrix_table2(paths,
     def validate_row_fields(header_dict):
         if not no_header:
             dups = find_duplicates(header_dict.row_fields)[1]
-            if dups > 0:
-                raise FatalError(f"Found following duplicate row fields in header: {dups}")
+            if len(dups) > 0:
+                raise FatalError(f"Found following duplicate row fields in header:\n" + '\n'.join(dups))
 
+        verified_row_fields = {}
         for header_rowf in header_dict.row_fields:
-            if row_fields.get(header_rowf) is None:
+            rowf_type = row_fields.get(header_rowf)
+            if rowf_type is None:
                 import itertools as it
                 import functools as ft
                 row_fields_string = '\n'.join(it.starmap(
                     lambda row_field, row_type:f"{row_field}: {str(row_type)}\n      "), list(row_fields.items()))
                 header_fields_string = ft.reduce(lambda header_field, to_print:
-                                                 header_field + "\n      " + to_print, header_info.header_values)
+                                                 header_field + "\n      " + to_print, header_dict.header_values)
                 raise FatalError(f"In file: {header_dict.file} a row field, {header_rowf}, was found thats not in "
                                  f"'row fields':\n    "
                                  f"row fields found in file: {header_fields_string}    row_fields: {row_fields_string}")
-        header_dict['fields_type_dict']= row_fields
-        return header_dict
-
-    def warn_duplicate_column_fields(header_info):
-        dups = find_duplicates(header_info.column)[1]
+            verified_row_fields[header_rowf] = rowf_type
+        if add_row_id:
+            verified_row_fields['row_id'] = hl.tint64
+        return verified_row_fields
 
     ht = hl.import_lines(paths, min_partitions, force_bgz)
 
@@ -2195,7 +2196,6 @@ def import_matrix_table2(paths,
     if len(row_key) == 0:
         add_row_id = True
         row_key = ['row_id']
-
 
     if sep is not None:
         if delimiter is not None:
@@ -2263,7 +2263,7 @@ def import_matrix_table2(paths,
                                      f" ... rowField${num_of_row_fields} colId0 colId1 ...\nor\n colId0 colId1 ...\n"
                                      f"Instead the first two lines were:\nInstead the first two lines were:\n "
                                      f"{header_line.text}\n{first_data_line.text}\nThe first line contained"
-                                     f" {num_of_header_values} seperated values and the second line"
+                                     f" {num_of_header_values} separated values and the second line"
                                      f" contained {num_of_data_line_values}")
             else:
                 header_info.row_fields = header_line.split_array[:num_of_row_fields]
@@ -2273,10 +2273,18 @@ def import_matrix_table2(paths,
             return header_info
 
         header_info_dict = validate_header_get_info(first_two_lines[0], first_two_lines[1])
+        final_row_fields = validate_row_fields(header_info_dict)
+        time_id_encountered_dict, dups = find_duplicates(header_info_dict.column_ids)[0]
+        if time_id_encountered_dict:
+            import itertools as it
+            duplicates_to_print = list({dup_field:time_id_encountered_dict(dup_field) for dup_field in dups}.items())
+            duplicates_to_print_formated = it.starmap(lambda dup,time_found: )
+            ht.utils.warning(f"Found {len(dups)}")
+
 
         all_file_headers = import_lines(paths, force_bgz=force_bgz, file_per_partition=True)
         all_file_headers = all_file_headers._map_partition(lambda rows: rows[:2]).add_index()
-        header_or_error_msg =  hl.if_else(ht.idx/2==0, ht.text, header_no_lines_of_data(ht.text))
+        header_or_error_msg =  hl.if_else(ht.idx/2==0, ht.text, header_no_lines_of_data(ht.text, ht.idx - 1))
 
         .when(hl.if_else)\
             .when(ht.text != header & ht.idx/2 != 0, ht.text)\
