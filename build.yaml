@@ -2485,11 +2485,11 @@ steps:
       export HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
       export HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
       {% else %}
-      export HAIL_SHA="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/$(cat /io/git_version).jar"
-      export HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/$(cat /io/git_version).jar"
+      export HAIL_SHA="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_query_jar.token }}/jars/$(cat /io/git_version).jar"
+      export HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_query_jar.token }}/jars/$(cat /io/git_version).jar"
       {% endif %}
-      export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/test/resources/"
-      export HAIL_DOCTEST_DATA_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/doctest/data/"
+      export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/test/resources/"
+      export HAIL_DOCTEST_DATA_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/doctest/data/"
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=0
@@ -2550,14 +2550,14 @@ steps:
       tar xvf wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       {% if deploy %}
-      HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
-      HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
+      export HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
+      export HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
       {% else %}
-      HAIL_SHA="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/$(cat /io/git_version).jar"
-      HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/$(cat /io/git_version).jar"
+      export HAIL_SHA="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_query_jar.token }}/jars/$(cat /io/git_version).jar"
+      export HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_query_jar.token }}/jars/$(cat /io/git_version).jar"
       {% endif %}
-      export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/test/resources/"
-      export HAIL_DOCTEST_DATA_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/doctest/data/"
+      export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/test/resources/"
+      export HAIL_DOCTEST_DATA_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/doctest/data/"
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=1
@@ -2618,14 +2618,14 @@ steps:
       tar xvf wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       {% if deploy %}
-      HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
-      HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
+      export HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
+      export HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
       {% else %}
-      HAIL_SHA="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/$(cat /io/git_version).jar"
-      HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/$(cat /io/git_version).jar"
+      export HAIL_SHA="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_query_jar.token }}/jars/$(cat /io/git_version).jar"
+      export HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_query_jar.token }}/jars/$(cat /io/git_version).jar"
       {% endif %}
-      export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/test/resources/"
-      export HAIL_DOCTEST_DATA_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/doctest/data/"
+      export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/test/resources/"
+      export HAIL_DOCTEST_DATA_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/doctest/data/"
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=2
@@ -2686,14 +2686,14 @@ steps:
       tar xvf wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       {% if deploy %}
-      HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
-      HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
+      export HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
+      export HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
       {% else %}
-      HAIL_SHA="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/$(cat /io/git_version).jar"
-      HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/$(cat /io/git_version).jar"
+      export HAIL_SHA="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_query_jar.token }}/jars/$(cat /io/git_version).jar"
+      export HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_query_jar.token }}/jars/$(cat /io/git_version).jar"
       {% endif %}
-      export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/test/resources/"
-      export HAIL_DOCTEST_DATA_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/doctest/data/"
+      export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/test/resources/"
+      export HAIL_DOCTEST_DATA_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/doctest/data/"
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=3
@@ -2754,14 +2754,14 @@ steps:
       tar xvf wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       {% if deploy %}
-      HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
-      HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
+      export HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
+      export HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
       {% else %}
-      HAIL_SHA="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/$(cat /io/git_version).jar"
-      HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/$(cat /io/git_version).jar"
+      export HAIL_SHA="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_query_jar.token }}/jars/$(cat /io/git_version).jar"
+      export HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_query_jar.token }}/jars/$(cat /io/git_version).jar"
       {% endif %}
-      export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/test/resources/"
-      export HAIL_DOCTEST_DATA_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/doctest/data/"
+      export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/test/resources/"
+      export HAIL_DOCTEST_DATA_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/doctest/data/"
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=4
