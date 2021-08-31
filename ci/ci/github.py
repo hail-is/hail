@@ -36,6 +36,17 @@ def select_random_teammate(team):
     return random.choice([user for user in AUTHORIZED_USERS if team in user.teams])
 
 
+def send_zulip_deploy_failure_message(message):
+    request = {
+        'type': 'stream',
+        'to': 'team',
+        'topic': 'CI Deploy Failure',
+        'content': message,
+    }
+    result = zulip_client.send_message(request)
+    log.info(result)
+
+
 class Repo:
     def __init__(self, owner, name):
         assert isinstance(owner, str)
@@ -761,18 +772,8 @@ branch: {self.branch.short_str()}
 sha: {self.sha}
 url: {url}
 '''
-                    self.send_zulip_deploy_failure_message(deploy_failure_message)
+                    send_zulip_deploy_failure_message(deploy_failure_message)
                 self.state_changed = True
-
-    def send_zulip_deploy_failure_message(self, message):
-        request = {
-            'type': 'stream',
-            'to': 'team',
-            'topic': 'CI Deploy Failure',
-            'content': message,
-        }
-        result = zulip_client.send_message(request)
-        log.info(result)
 
     async def _heal_deploy(self, batch_client):
         assert self.deployable
@@ -870,7 +871,7 @@ Deploy config failed to build with exception:
 {e}
 ```
 '''
-                self.send_zulip_deploy_failure_message(deploy_failure_message)
+                send_zulip_deploy_failure_message(deploy_failure_message)
                 raise
             deploy_batch = await deploy_batch.submit()
             self.deploy_batch = deploy_batch
