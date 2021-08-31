@@ -736,7 +736,8 @@ object LowerTableIR {
           }
 
           val letBindNewCtx = TableStage.wrapInBindings(newCtxs, loweredChild.letBindings)
-          val newCtxSeq = CompileAndEvaluate(ctx, ToArray(letBindNewCtx)).asInstanceOf[IndexedSeq[Any]]
+          val bindRelationLetsNewCtx = LowerToCDA.substLets(letBindNewCtx, relationalLetsAbove)
+          val newCtxSeq = CompileAndEvaluate(ctx, ToArray(bindRelationLetsNewCtx)).asInstanceOf[IndexedSeq[Any]]
           val numNewParts = newCtxSeq.length
           val oldParts = loweredChild.partitioner.rangeBounds
           val newIntervals = (0 until numNewParts).map(newPartIdx => oldParts(newPartIdx))
