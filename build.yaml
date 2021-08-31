@@ -2490,6 +2490,7 @@ steps:
       {% endif %}
       export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/doctest/data/"
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=0
       export HAIL_QUERY_BACKEND=service
@@ -2554,6 +2555,7 @@ steps:
       {% endif %}
       export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/doctest/data/"
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=1
       export HAIL_QUERY_BACKEND=service
@@ -2618,6 +2620,7 @@ steps:
       {% endif %}
       export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/doctest/data/"
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=2
       export HAIL_QUERY_BACKEND=service
@@ -2682,6 +2685,7 @@ steps:
       {% endif %}
       export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/doctest/data/"
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=3
       export HAIL_QUERY_BACKEND=service
@@ -2746,6 +2750,7 @@ steps:
       {% endif %}
       export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/doctest/data/"
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=4
       export HAIL_QUERY_BACKEND=service
