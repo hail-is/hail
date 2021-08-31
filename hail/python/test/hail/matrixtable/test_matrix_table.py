@@ -1401,7 +1401,7 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
                         hl.Table.parallelize([expected]))
 
     @fails_local_backend()
-    @fails_service_backend('filtering locus position using numeric comparison operators always returns no rows')
+    @fails_service_backend(reason='filtering locus position using numeric comparison operators always returns no rows')
     def test_hardy_weinberg_test(self):
         mt = hl.import_vcf(resource('HWE_test.vcf'))
         mt = mt.select_rows(**hl.agg.hardy_weinberg_test(mt.GT))

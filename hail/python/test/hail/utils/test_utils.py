@@ -181,7 +181,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(s.annotate(**{'a': 5, 'x': 10, 'y': 15}),
                          Struct(a=5, b=2, c=3, x=10, y=15))
 
-    @fails_service_backend('''worker error not propagated to client.
+    @fails_service_backend(reason='''worker error not propagated to client.
 
 falsCaused by: is.hail.utils.HailException: array index out of bounds: index=5, length=2
 	at __C23409collect_distributed_array.__m23435arrayref_bounds_check(Unknown Source)

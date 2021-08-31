@@ -613,7 +613,7 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
         self.assert_sums_agree(bm, nd)
 
     @fails_local_backend
-    @fails_service_backend('ExecuteContext.scoped requires SparkBackend')
+    @fails_service_backend(reason='ExecuteContext.scoped requires SparkBackend')
     def test_sum_with_sparsify(self):
         nd = np.zeros(shape=(5, 7))
         nd[2, 4] = 1.0

@@ -64,7 +64,7 @@ class Tests(unittest.TestCase):
         test_random_function(lambda: hl.rand_cat(hl.array([1, 1, 1, 1])))
         test_random_function(lambda: hl.rand_dirichlet(hl.array([1, 1, 1, 1])))
 
-    @fails_service_backend('need to convert errors to HailUserError')
+    @fails_service_backend(reason='need to convert errors to HailUserError')
     def test_range(self):
         def same_as_python(*args):
             self.assertEqual(hl.eval(hl.range(*args)), list(range(*args)))
@@ -199,7 +199,7 @@ class Tests(unittest.TestCase):
             else:
                 self.assertEqual(v, result[k], msg=k)
 
-    @fails_service_backend('need to convert errors to HailUserError')
+    @fails_service_backend(reason='need to convert errors to HailUserError')
     def test_array_slicing(self):
         schema = hl.tstruct(a=hl.tarray(hl.tint32))
         rows = [{'a': [1, 2, 3, 4, 5]}]
@@ -267,7 +267,7 @@ class Tests(unittest.TestCase):
 
         self.assertDictEqual(result, expected)
 
-    @fails_service_backend('need to convert errors to HailUserError')
+    @fails_service_backend(reason='need to convert errors to HailUserError')
     def test_dict_missing_error(self):
         d = hl.dict({'a': 2, 'b': 3})
         with pytest.raises(hl.utils.HailUserError, match='Key NA not found in dictionary'):
@@ -624,7 +624,7 @@ Compiled method (c1)   65989 6954       3       is.hail.annotations.Region$::loa
                                               None]),
         ]
 
-    @fails_service_backend('service backend needs to support flags')
+    @fails_service_backend(reason='service backend needs to support flags')
     @with_flags('distributed_scan_comb_op')
     def test_densify_table(self):
         ht = hl.utils.range_table(100, n_partitions=33)
