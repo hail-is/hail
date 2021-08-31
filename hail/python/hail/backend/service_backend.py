@@ -249,7 +249,7 @@ class ServiceBackend(Backend):
 
             status = await b.wait(disable_progress_bar=self.disable_progress_bar)
             if status['n_succeeded'] != 1:
-                raise ValueError(f'batch failed {status} {await j.log()}')
+                raise ValueError(f'batch failed {status} {await j.log()} {await j.status()}')
 
             with self.fs.open(dir + '/out', 'rb') as outfile:
                 success = read_bool(outfile)
