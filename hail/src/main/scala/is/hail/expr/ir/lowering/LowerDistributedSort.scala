@@ -105,8 +105,9 @@ object LowerDistributedSort {
     StreamAgg(joined, streamElementName, {
       AggLet(eltName, GetField(streamElementRef, "elt"),
         MakeStruct(Seq(
-          ("min", ApplyAggOp(Min())(SelectFields(eltRef, keyFields))),
-          ("max", ApplyAggOp(Max())(SelectFields(eltRef, keyFields)))
+          ("min", ApplyAggOp(Min())(GetField(eltRef, "key"))), //TODO: Can't hardcode getField key here.
+          ("max", ApplyAggOp(Max())(GetField(eltRef, "key"))),
+          ("samples", AggFilter(GetField(streamElementRef, "shouldKeep"), ApplyAggOp(Collect())(eltRef), false)),
         )), false)
     })
   }
