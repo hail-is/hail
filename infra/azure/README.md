@@ -38,6 +38,10 @@ them. Either to create the service principal or reset it, run the following
 az ad sp create-for-rbac --role="Contributor" --scopes="/subscriptions/${ARM_SUBSCRIPTION_ID}" --name="terraform-principal" > terraform_principal.json
 ```
 
+Note: Your developer Azure account must be an owner of the terraform principal service principal.
+To grant ownership to another developer, go in the Azure portal to
+Azure Active Directory > App registrations > terraform-principal > Owners.
+
 and then run the following block to log in using those credentials. It is not
 possible to programmatically retrieve the SP credentials [without resetting
 them](https://stackoverflow.com/questions/60535578/how-do-i-retrieve-the-service-principal-password-after-creation-using-the-azure/60537958).
