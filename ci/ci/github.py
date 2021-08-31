@@ -737,6 +737,7 @@ class WatchedBranch(Code):
                     self.deploy_batch = max(deploy_batches, key=lambda b: b.id)
 
         if self.deploy_batch:
+            assert isinstance(self.deploy_batch, Batch)
             try:
                 status = await self.deploy_batch.status()
             except aiohttp.client_exceptions.ClientResponseError as exc:
@@ -753,22 +754,25 @@ class WatchedBranch(Code):
 
                 if not is_test_deployment and self.deploy_state == 'failure':
                     url = deploy_config.external_url('ci', f'/batches/{self.deploy_batch.id}')
-                    request = {
-                        'type': 'stream',
-                        'to': 'team',
-                        'topic': 'CI Deploy Failure',
-                        'content': f'''
-@**daniel king**
+                    deploy_failure_message = f'''
+@**Daniel Goldstein**
 state: {self.deploy_state}
 branch: {self.branch.short_str()}
 sha: {self.sha}
 url: {url}
-''',
-                    }
-                    result = zulip_client.send_message(request)
-                    log.info(result)
-
+'''
+                    self.send_zulip_deploy_failure_message(deploy_failure_message)
                 self.state_changed = True
+
+    def send_zulip_deploy_failure_message(self, message):
+        request = {
+            'type': 'stream',
+            'to': 'team',
+            'topic': 'CI Deploy Failure',
+            'content': message,
+        }
+        result = zulip_client.send_message(request)
+        log.info(result)
 
     async def _heal_deploy(self, batch_client):
         assert self.deployable
@@ -854,7 +858,20 @@ mkdir -p {shq(repo_dir)}
                 },
                 callback=CALLBACK_URL,
             )
-            config.build(deploy_batch, self, scope='deploy')
+            try:
+                config.build(deploy_batch, self, scope='deploy')
+            except Exception as e:
+                deploy_failure_message = f'''
+@**Daniel Goldstein**
+branch: {self.branch.short_str()}
+sha: {self.sha}
+Deploy config failed to build with exception:
+```python
+{e}
+```
+'''
+                self.send_zulip_deploy_failure_message(deploy_failure_message)
+                raise
             deploy_batch = await deploy_batch.submit()
             self.deploy_batch = deploy_batch
         except concurrent.futures.CancelledError:
