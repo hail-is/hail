@@ -1106,7 +1106,6 @@ def test_hstack():
 
 @skip_when_service_backend('slow >800s')
 def test_eye():
-    results = hl.eval([[hl.nd.eye(i, y) for y in range(13)] for i in range(13)])
     for i in range(13):
         assert_ndarrays_eq(*[(hl.nd.eye(i, y), np.eye(i, y)) for y in range(13)])
 
