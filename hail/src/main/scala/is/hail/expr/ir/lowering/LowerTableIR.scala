@@ -735,11 +735,18 @@ object LowerTableIR {
             }
           }
 
+          val letBindNewCtx = TableStage.wrapInBindings(newCtxs, loweredChild.letBindings)
+          val newCtxSeq = CompileAndEvaluate(ctx, ToArray(letBindNewCtx)).asInstanceOf[IndexedSeq[Any]]
+          val numNewParts = newCtxSeq.length
+          val oldParts = loweredChild.partitioner.rangeBounds
+          val newIntervals = (0 until numNewParts).map(newPartIdx => oldParts(newPartIdx))
+          val newPartitioner = loweredChild.partitioner.copy(rangeBounds = newIntervals)
+
           TableStage(
             loweredChild.letBindings,
             loweredChild.broadcastVals,
             loweredChild.globals,
-            loweredChild.partitioner,
+            newPartitioner,
             loweredChild.dependency,
             newCtxs,
             (ctxRef: Ref) => StreamTake(
@@ -832,12 +839,10 @@ object LowerTableIR {
           }
 
           val letBindNewCtx = TableStage.wrapInBindings(newCtxs, loweredChild.letBindings)
-          println(Pretty(newCtxs))
-          val newCtxSeq = CompileAndEvaluate(ctx, newCtxs)
-          println("Made it past compilation")
-          val numNewParts = 1
+          val newCtxSeq = CompileAndEvaluate(ctx, ToArray(letBindNewCtx)).asInstanceOf[IndexedSeq[Any]]
+          val numNewParts = newCtxSeq.length
           val oldParts = loweredChild.partitioner.rangeBounds
-          val newIntervals = (oldParts.size -1 to oldParts.size - numNewParts by -1).map(newPartIdx => oldParts(newPartIdx))
+          val newIntervals = (oldParts.size - numNewParts until oldParts.size).map(newPartIdx => oldParts(newPartIdx))
           val newPartitioner = loweredChild.partitioner.copy(rangeBounds = newIntervals)
           TableStage(
             loweredChild.letBindings,
