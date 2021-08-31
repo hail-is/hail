@@ -2124,6 +2124,185 @@ def import_matrix_table(paths,
     return mt
 
 
+@typecheck(paths=oneof(str, sequenceof(str)),
+           row_fields=dictof(str, hail_type),
+           row_key=oneof(str, sequenceof(str)),
+           entry_type=enumeration(tint32, tint64, tfloat32, tfloat64, tstr),
+           missing=str,
+           min_partitions=nullable(int),
+           no_header=bool,
+           force_bgz=bool,
+           sep=nullable(str),
+           delimiter=nullable(str),
+           comment=oneof(str, sequenceof(str)),
+           )
+def import_matrix_table2(paths,
+                         row_fields={},
+                         row_key=[],
+                         entry_type=tint32,
+                         missing="NA",
+                         min_partitions=None,
+                         no_header=False,
+                         force_bgz=False,
+                         sep=None,
+                         delimiter=None,
+                         comment=()) -> MatrixTable:
+    row_key = wrap_to_list(row_key)
+    comment = wrap_to_list(comment)
+    paths = wrap_to_list(paths)
+    hl_paths = hl.array(paths)
+
+    def match_file_name_to_index(file_name):
+        return hl_paths.index(lambda path: path.endswith(file_name) | file_name.endswith(path))
+
+    def find_duplicates(list_to_check):
+        time_name_encountered = {}
+        dups = str("")
+        for item in list_to_check:
+            if time_name_encountered.get(item) is not None:
+                dups = dups + item + "\n"
+                time_name_encountered[item] = time_name_encountered[item] + 1
+            time_name_encountered[item] = 1
+        return time_name_encountered, dups
+
+    def validate_row_fields(header_dict):
+        if not no_header:
+            dups = find_duplicates(header_dict.row_fields)[1]
+            if dups > 0:
+                raise FatalError(f"Found following duplicate row fields in header: {dups}")
+
+        for header_rowf in header_dict.row_fields:
+            if row_fields.get(header_rowf) is None:
+                import itertools as it
+                import functools as ft
+                row_fields_string = '\n'.join(it.starmap(
+                    lambda row_field, row_type:f"{row_field}: {str(row_type)}\n      "), list(row_fields.items()))
+                header_fields_string = ft.reduce(lambda header_field, to_print:
+                                                 header_field + "\n      " + to_print, header_info.header_values)
+                raise FatalError(f"In file: {header_dict.file} a row field, {header_rowf}, was found thats not in "
+                                 f"'row fields':\n    "
+                                 f"row fields found in file: {header_fields_string}    row_fields: {row_fields_string}")
+        header_dict['fields_type_dict']= row_fields
+        return header_dict
+
+    def warn_duplicate_column_fields(header_info):
+        dups = find_duplicates(header_info.column)[1]
+
+    ht = hl.import_lines(paths, min_partitions, force_bgz)
+
+    num_of_row_fields = len(row_fields.keys())
+    add_row_id = False
+    if len(row_key) == 0:
+        add_row_id = True
+        row_key = ['row_id']
+
+
+    if sep is not None:
+        if delimiter is not None:
+            raise ValueError(
+                f'expecting either sep or delimiter but received both: '
+                f'{sep}, {delimiter}')
+        delimiter = sep
+    del sep
+
+    if delimiter is None:
+        delimiter = '\t'
+    if len(delimiter) != 1:
+        raise FatalError('delimiter or sep must be a single character')
+
+    if add_row_id:
+        if 'row_id' in row_fields:
+            raise FatalError(
+                "import_matrix_table reserves the field name 'row_id' for"
+                'its own use, please use a different name')
+
+    for k, v in row_fields.items():
+        if v not in {tint32, tint64, tfloat32, tfloat64, tstr}:
+            raise FatalError(
+                f'import_matrix_table expects field types to be one of:'
+                f"'int32', 'int64', 'float32', 'float64', 'str': field {repr(k)} had type '{v}'")
+
+    if entry_type not in {tint32, tint64, tfloat32, tfloat64, tstr}:
+        raise FatalError("""import_matrix_table expects entry types to be one of:
+        'int32', 'int64', 'float32', 'float64', 'str': found '{}'""".format(entry_type))
+
+    hl_comment = hl.array(comment)
+    if len(comment) > 0:
+        ht = ht.filter(hl_comment.any(lambda com: hl.if_else(hl.len(com) == 1,
+                                                         ht.text.startswith(com),
+                                                         ht.text.matches(com, False))), keep=hl.bool(False))
+
+    first_two_lines = ht.head(2).annotate(split_array=ht.text._split_line(delimiter, missing, None, False)).collect()
+
+    if not no_header:
+        def header_no_lines_of_data(header_line, index):
+            hl.utils.warning(hl.str(f"File {hl_paths[match_file_name_to_index(header_line.file) - 1]} contains ") +
+                             hl.str(f"header but no lines of data"))
+            return header_line
+
+        def validate_header_get_info(header_line, first_data_line):
+            header_info = {}
+            num_of_data_line_values = len(first_data_line.split_array)
+            num_of_header_values = len(header_line.split_array)
+            if header_line is None or match_file_name_to_index(header_line.file) != 0:
+                raise ValueError(f"Expected header in every file but found empty file: {paths[0]}")
+            elif first_data_line is None or first_data_line.file != header_line.file:
+                hl.utils.warning(f"File {header_line.file} contains a header, but no lines of data")
+                if num_of_header_values < num_of_data_line_values:
+                    raise ValueError(f"File {header_line.file} contains one line assumed to be the header."
+                                     f"The header had a length of {num_of_header_values} while the number"
+                                     f"of row fields is {num_of_row_fields}")
+                header_info.row_fields = header_line.split_array[:num_of_row_fields]
+                header_info.column_ids = header_line.split_array[num_of_row_fields:]
+            elif num_of_data_line_values != num_of_header_values:
+                if num_of_data_line_values == num_of_header_values + num_of_row_fields:
+                    header_info.row_fields = ["f" + str(f_idx) for f_idx in list(range(0, num_of_row_fields))]
+                    header_info.column_ids = header_line.split_array
+                else:
+                    raise ValueError(f"In file $file, expected the header line to match either:\n rowField0 rowField1"
+                                     f" ... rowField${num_of_row_fields} colId0 colId1 ...\nor\n colId0 colId1 ...\n"
+                                     f"Instead the first two lines were:\nInstead the first two lines were:\n "
+                                     f"{header_line.text}\n{first_data_line.text}\nThe first line contained"
+                                     f" {num_of_header_values} seperated values and the second line"
+                                     f" contained {num_of_data_line_values}")
+            else:
+                header_info.row_fields = header_line.split_array[:num_of_row_fields]
+                header_info.column_ids = header_line.split_array[num_of_row_fields:]
+            header_info.text = header_line.text
+            header_info.header_values = header_line.split_array
+            return header_info
+
+        header_info_dict = validate_header_get_info(first_two_lines[0], first_two_lines[1])
+
+        all_file_headers = import_lines(paths, force_bgz=force_bgz, file_per_partition=True)
+        all_file_headers = all_file_headers._map_partition(lambda rows: rows[:2]).add_index()
+        header_or_error_msg =  hl.if_else(ht.idx/2==0, ht.text, header_no_lines_of_data(ht.text))
+
+        .when(hl.if_else)\
+            .when(ht.text != header & ht.idx/2 != 0, ht.text)\
+            .default()
+
+        line_below_or_error_msg = hl.case().when(ht.idx/2==0, hl.str(""))
+
+        all_file_headers = all_file_headers(
+            text = hl.case().when(all_file_headers.idx < len(paths) * 2 and all_file_headers.idx/2 == 0
+                                  and,
+                                  all_file_headers.text)
+                .when(all_file_headers.idx < len(paths) * 2 and all_file_headers.idx/2 != 0 and
+                      all_file_headers.text != header, hl.missing(tstr))
+                .or_error(f"File {all_file_headers.file} contains a header but no lines of data"))
+        check_line_under_header = all_file_headers._map_partition(lambda rows: rows[:2]).add_index()
+
+        def not_valid_header(header_line):
+            if header_line is None:
+                return hl.str(f"Expected header in every file, but found empty file: {header_line.file}")
+            header_line = header_line.text.split(delimiter)
+            if
+    else:
+
+
+
+
 @typecheck(bed=str,
            bim=str,
            fam=str,
