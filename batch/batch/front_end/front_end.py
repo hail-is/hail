@@ -267,7 +267,7 @@ async def _query_batch_jobs(request, batch_id):
 
     sql = f'''
 SELECT jobs.*, batches.user, batches.billing_project,  batches.format_version,
-  job_attributes.value AS name, CAST(COALESCE(SUM(`usage` * rate), 0) AS SIGNED) AS cost
+  job_attributes.value AS name, SUM(`usage` * rate) AS cost
 FROM jobs
 INNER JOIN batches ON jobs.batch_id = batches.id
 LEFT JOIN job_attributes
@@ -560,17 +560,17 @@ async def _query_batches(request, user, q):
         where_args.extend(args)
 
     sql = f'''
-SELECT batches.*, CAST(COALESCE(SUM(`usage` * rate), 0) AS SIGNED) AS cost, batches_cancelled.id IS NOT NULL as cancelled
+SELECT batches.*, batches_cancelled.id IS NOT NULL AS cancelled, SUM(`usage` * rate) AS cost
 FROM batches
+LEFT JOIN batches_cancelled
+  ON batches.id = batches_cancelled.id
 LEFT JOIN aggregated_batch_resources
   ON batches.id = aggregated_batch_resources.batch_id
 LEFT JOIN resources
   ON aggregated_batch_resources.resource = resources.resource
-LEFT JOIN batches_cancelled
-  ON batches.id = batches_cancelled.id
 WHERE {' AND '.join(where_conditions)}
-GROUP BY batches.id
-ORDER BY batches.id DESC
+GROUP BY batches.id, batches_cancelled.id
+ORDER BY batches.id, batches_cancelled.id DESC
 LIMIT 51;
 '''
     sql_args = where_args
@@ -1064,7 +1064,7 @@ lock in share mode''', (billing_project, user))
             raise web.HTTPForbidden(reason=f'Billing project {billing_project} is closed or deleted.')
 
         cost = await tx.execute_and_fetchone('''
-SELECT CAST(COALESCE(SUM(`usage` * rate), 0) AS SIGNED) as cost
+SELECT CAST(COALESCE(SUM(`usage` * rate), 0) AS SIGNED) AS cost
 FROM aggregated_billing_project_resources
 INNER JOIN resources
   ON resources.resource = aggregated_billing_project_resources.resource
@@ -1127,16 +1127,16 @@ async def _get_batch(app, batch_id):
 
     record = await db.select_and_fetchone(
         '''
-SELECT batches.*, CAST(COALESCE(SUM(`usage` * rate), 0) AS SIGNED) AS cost, batches_cancelled.id IS NOT NULL as cancelled
+SELECT batches.*, batches_cancelled.id IS NOT NULL AS cancelled, SUM(`usage` * rate) AS cost
 FROM batches
+LEFT JOIN batches_cancelled
+       ON batches.id = batches_cancelled.id
 LEFT JOIN aggregated_batch_resources
        ON batches.id = aggregated_batch_resources.batch_id
 LEFT JOIN resources
        ON aggregated_batch_resources.resource = resources.resource
-LEFT JOIN batches_cancelled
-       ON batches.id = batches_cancelled.id
 WHERE batches.id = %s AND NOT deleted
-GROUP BY batches.id;
+GROUP BY batches.id, batches_cancelled.id;
 ''',
         (batch_id),
     )
@@ -1312,7 +1312,7 @@ async def _get_job(app, batch_id, job_id):
 
     record = await db.select_and_fetchone(
         '''
-SELECT jobs.*, user, billing_project, ip_address, format_version, CAST(COALESCE(SUM(`usage` * rate), 0) AS SIGNED) AS cost
+SELECT jobs.*, user, billing_project, ip_address, format_version, SUM(`usage` * rate) AS cost
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
@@ -1635,7 +1635,7 @@ SELECT
   billing_project,
   `user`,
   CAST(SUM(IF(format_version < 3, batches.msec_mcpu, 0)) AS SIGNED) as msec_mcpu,
-  CAST(COALESCE(SUM(IF(format_version >= 3, `usage` * rate, NULL)), 0) AS SIGNED) as cost
+  SUM(IF(format_version >= 3, `usage` * rate, NULL)) as cost
 FROM batches
 LEFT JOIN aggregated_batch_resources
   ON aggregated_batch_resources.batch_id = batches.id
