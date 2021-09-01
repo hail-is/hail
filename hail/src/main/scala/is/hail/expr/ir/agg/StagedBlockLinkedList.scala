@@ -111,7 +111,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
     initWithCapacity(cb, r, defaultBlockCap)
 
   private def pushNewBlockNode(cb: EmitCodeBuilder, r: Value[Region], cap: Code[Int]): Unit = {
-    val newNode = cb.emb.newLocal[Long]()
+    val newNode = cb.newLocal[Long]("sbll_push_new_block_node")
     allocateNode(cb, newNode)(r, cap)
     setNext(cb, lastNode, newNode)
     cb.assign(lastNode, newNode)
