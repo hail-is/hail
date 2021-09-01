@@ -765,7 +765,7 @@ object LowerTableIR {
                   sumSoFar += partCounts(idx)
                   idx -= 1
                 }
-                val finalParts = (partCounts.length - 1 until idx by -1).map{partIdx => partCounts(partIdx).toInt}.toFastIndexedSeq
+                val finalParts = (idx + 1 until partCounts.length).map{partIdx => partCounts(partIdx).toInt}.toFastIndexedSeq
                 Literal(TArray(TInt32), finalParts)
 
               case None =>
