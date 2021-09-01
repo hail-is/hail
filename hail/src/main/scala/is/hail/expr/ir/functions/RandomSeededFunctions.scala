@@ -9,7 +9,7 @@ import is.hail.types.physical.stypes.primitives._
 import is.hail.types.physical.{PBoolean, PCanonicalArray, PFloat64, PInt32, PType}
 import is.hail.types.virtual._
 import net.sourceforge.jdistlib.rng.MersenneTwister
-import net.sourceforge.jdistlib.{Beta, Gamma, Poisson}
+import net.sourceforge.jdistlib.{Beta, Gamma, HyperGeometric, Poisson}
 
 class IRRandomness(seed: Long) {
 
@@ -37,6 +37,8 @@ class IRRandomness(seed: Long) {
   def rbeta(a: Double, b: Double): Double = Beta.random(a, b, random)
 
   def rgamma(shape: Double, scale: Double): Double = Gamma.random(shape, scale, random)
+
+  def rhyper(numSuccessStates: Double, numFailureStates: Double, numToDraw: Double): Double = HyperGeometric.random(numSuccessStates, numFailureStates, numToDraw, random)
 
   def rcat(prob: Array[Double]): Int = {
     var i = 0

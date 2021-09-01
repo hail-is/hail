@@ -4,6 +4,7 @@ import is.hail.annotations.{Annotation, ExtendedOrdering, Region, SafeRow, Unsaf
 import is.hail.asm4s.{AsmFunction1RegionLong, LongInfo, classInfo}
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
+import is.hail.expr.ir.functions.IRRandomness
 import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.types.physical.{PArray, PStruct, PTuple}
 import is.hail.types.virtual.{TArray, TStream, TStruct, TTuple, Type}
@@ -78,6 +79,24 @@ object LowerDistributedSort {
           I32(itemsPerPartition))
         )(ToArray(_)),
       ctxRef => ToStream(ctxRef))
+  }
+
+  def howManySamplesPerPartition(rand: IRRandomness, totalNumberOfRecords: Int, initialNumSamplesToSelect: Int, partitionCounts: IndexedSeq[Int]): IndexedSeq[Int] = {
+    var successStatesRemaining = initialNumSamplesToSelect
+    var failureStatesRemaining = totalNumberOfRecords - successStatesRemaining
+
+    val ans = new Array[Int](partitionCounts.size)
+
+    var i = 0
+    while (i < partitionCounts.size) {
+      val numSuccesses = rand.rhyper(successStatesRemaining, failureStatesRemaining, partitionCounts(i)).toInt
+      successStatesRemaining -= numSuccesses
+      failureStatesRemaining -= (partitionCounts(i) - numSuccesses)
+      ans(i) = numSuccesses
+      i += 1
+    }
+
+    ans
   }
 
   def samplePartition(dataStream: IR, sampleIndices: IR, keyFields: IndexedSeq[String]): IR = {
