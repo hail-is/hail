@@ -24,8 +24,8 @@ trait PArrayBackedContainer extends PContainer {
   override def loadLength(aoff: Code[Long]): Code[Int] =
     arrayRep.loadLength(aoff)
 
-  override def storeLength(cb: EmitCodeBuilder, length: Code[Int], aoff: Code[Long]): Unit =
-    arrayRep.storeLength(cb, length, aoff)
+  override def storeLength(cb: EmitCodeBuilder, aoff: Code[Long], length: Code[Int]): Unit =
+    arrayRep.storeLength(cb, aoff, length)
 
   override def nMissingBytes(len: Code[Int]): Code[Int] =
     arrayRep.nMissingBytes(len)
@@ -51,8 +51,8 @@ trait PArrayBackedContainer extends PContainer {
   override def setElementMissing(aoff: Long, i: Int) =
     arrayRep.setElementMissing(aoff, i)
 
-  override def setElementMissing(cb: EmitCodeBuilder, i: Code[Int], aoff: Code[Long]): Unit =
-    arrayRep.setElementMissing(cb, i, aoff)
+  override def setElementMissing(cb: EmitCodeBuilder, aoff: Code[Long], i: Code[Int]): Unit =
+    arrayRep.setElementMissing(cb, aoff, i)
 
   override def setElementPresent(aoff: Long, i: Int) {
       arrayRep.setElementPresent(aoff, i)

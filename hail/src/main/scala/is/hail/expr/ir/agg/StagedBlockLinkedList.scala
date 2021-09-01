@@ -90,7 +90,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
   }
 
   private def pushMissing(cb: EmitCodeBuilder, n: Node): Unit = {
-    bufferType.setElementMissing(cb, count(n), buffer(n))
+    bufferType.setElementMissing(cb, buffer(n), count(n))
     incrCount(cb, n)
   }
 
@@ -254,7 +254,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
       other.foreach(cb) { (cb, elt) =>
         elt.toI(cb)
           .consume(cb,
-            bufferType.setElementMissing(cb, i, buf),
+            bufferType.setElementMissing(cb, buf, i),
             { sc =>
               bufferType.setElementPresent(cb, buf, i)
               elemType.storeAtAddress(cb, bufferType.elementOffset(buf, i), r, sc, deepCopy = true)

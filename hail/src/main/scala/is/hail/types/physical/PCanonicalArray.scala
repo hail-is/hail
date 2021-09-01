@@ -42,7 +42,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def storeLength(aoff: Long, length: Int): Unit =
     Region.storeInt(aoff, length)
 
-  def storeLength(cb: EmitCodeBuilder, length: Code[Int], aoff: Code[Long]): Unit =
+  def storeLength(cb: EmitCodeBuilder, aoff: Code[Long], length: Code[Int]): Unit =
     cb += Region.storeInt(aoff, length)
 
   def nMissingBytes(len: Code[Int]): Code[Int] = UnsafeUtils.packBitsToBytes(len)
@@ -104,7 +104,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       Region.setBit(aoff + lengthHeaderBytes, i)
   }
 
-  def setElementMissing(cb: EmitCodeBuilder, i: Code[Int], aoff: Code[Long]): Unit =
+  def setElementMissing(cb: EmitCodeBuilder, aoff: Code[Long], i: Code[Int]): Unit =
     if (!elementRequired)
       cb += Region.setBit(aoff + lengthHeaderBytes, i.toL)
     else
@@ -407,7 +407,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
             .loadElement(cb, idx)
             .consume(
               cb,
-              { setElementMissing(cb, idx, addr) },
+              { setElementMissing(cb, addr, idx) },
               { pc => elementType.storeAtAddress(cb, elementOffset(addr, length, idx), region, pc, deepCopy) }
             )
           cb.assign(idx, idx + 1)
@@ -456,7 +456,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     val firstElementAddr = cb.newLocal[Long]("pcarray_construct1_firstelementaddr", firstElementOffset(addr, length))
     cb.whileLoop(i < length, {
       f(cb, i).consume(cb,
-        setElementMissing(cb, i, addr),
+        setElementMissing(cb, addr, i),
         { sc =>
           elementType.storeAtAddress(cb, elementOffsetFromFirst(firstElementAddr, i), region, sc, deepCopy = deepCopy)
         })
@@ -478,7 +478,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
     val push: (EmitCodeBuilder, IEmitCode) => Unit = { case (cb, iec) =>
       iec.consume(cb,
-        setElementMissing(cb, currentElementIndex, addr),
+        setElementMissing(cb, addr, currentElementIndex),
         { sc =>
           elementType.storeAtAddress(cb, currentElementAddress, region, sc, deepCopy = deepCopy)
         })

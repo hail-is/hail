@@ -16,7 +16,7 @@ abstract class PContainer extends PIterable {
 
   def loadLength(aoff: Code[Long]): Code[Int]
 
-  def storeLength(cb: EmitCodeBuilder, length: Code[Int], aoff: Code[Long]): Unit
+  def storeLength(cb: EmitCodeBuilder, aoff: Code[Long], length: Code[Int]): Unit
 
   def nMissingBytes(len: Code[Int]): Code[Int]
 
@@ -36,7 +36,7 @@ abstract class PContainer extends PIterable {
 
   def setElementMissing(aoff: Long, i: Int)
 
-  def setElementMissing(cb: EmitCodeBuilder, i: Code[Int], aoff: Code[Long]): Unit
+  def setElementMissing(cb: EmitCodeBuilder, aoff: Code[Long], i: Code[Int]): Unit
 
   def setElementPresent(aoff: Long, i: Int)
 

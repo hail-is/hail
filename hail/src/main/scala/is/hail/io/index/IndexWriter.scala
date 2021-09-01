@@ -120,7 +120,7 @@ class IndexWriterArrayBuilder(name: String, maxSize: Int, sb: SettableBuilder, r
     cb.assign(len, 0)
   }
 
-  def storeLength(cb: EmitCodeBuilder): Unit = arrayType.storeLength(cb, length, aoff)
+  def storeLength(cb: EmitCodeBuilder): Unit = arrayType.storeLength(cb, aoff, length)
 
   def setFieldValue(cb: EmitCodeBuilder, name: String, field: SCode): Unit = {
     cb += eltType.setFieldPresent(elt.a, name)
