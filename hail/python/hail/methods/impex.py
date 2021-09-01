@@ -2152,6 +2152,15 @@ def import_matrix_table2(paths,
     paths = wrap_to_list(paths)
     hl_paths = hl.array(paths)
 
+    def truncate(string_array, delim=", ", hl_value=False):
+        if not hl_value:
+            if len(string_array) > 10:
+                string_array = string_array[:10]
+                string_array.append("...")
+            return delim.join(string_array)
+        return hl.if_else(hl.len(string_array) > 10, hl.str(delim).join(string_array[:10].append("...")),
+                          hl.str(delim).join(string_array))
+
     def match_file_name_to_index(file_name):
         return hl_paths.index(lambda path: path.endswith(file_name) | file_name.endswith(path))
 
@@ -2232,8 +2241,6 @@ def import_matrix_table2(paths,
                                                          ht.text.startswith(com),
                                                          ht.text.matches(com, False))), keep=hl.bool(False))
 
-
-
     if not no_header:
         def header_no_lines_of_data(header_line, index):
             hl.utils.warning(hl.str(f"File {hl_paths[match_file_name_to_index(header_line.file) - 1]} contains ") +
@@ -2282,19 +2289,14 @@ def import_matrix_table2(paths,
                 duplicates_to_print.append(("...", ""))
             duplicates_to_print_formatted = it.starmap(lambda dup,time_found: time_found + " " + dup)
             ht.utils.warning(f"Found {len(duplicate_cols)} duplicate{'s' if len(dups) > 1 else ''}\n"
-                         + '\n'.join(duplicates_to_print))
+                         + '\n'.join(duplicates_to_print_formatted))
 
-        def duplicate_fields_error(header, error_header, error_header_path):
+        def row_fields_error(header, error_header, error_header_path):
             zipped_headers = hl.zip(header.header_values, error_header)
             non_match_idx =  zipped_headers.index(lambda header_tuple: header_tuple[0] != header_tuple[1])
             return hl.str("Invalid header: expected elements to be identical for all input paths. Found different"
-                          " elements at position ") \
-                   + hl.str(non_match_idx) + hl.str(f".\n{header.path}:") + hl.str(zipped_headers(non_match_idx)[0])
-        
-
-
-
-
+                          " elements at position ")  + hl.str(non_match_idx) +\
+                   hl.str(f".\n{header.path}:") + hl.str(zipped_headers(non_match_idx)[0])
 
         first_two_lines = ht.head(2).annotate(split_array=ht.text._split_line(delimiter, missing, None, False)).collect()
         header_info_dict = validate_header_get_info(first_two_lines[0], first_two_lines[1])
@@ -2309,13 +2311,12 @@ def import_matrix_table2(paths,
         all_file_headers = all_file_headers._map_partition(lambda rows: rows[:1])
         all_file_headers.annotate(text=hl.rbind(ht.text.split(), lambda split_header:
                     hl.rbind(hl.case.when(all_file_headers.text == header_info_dict.text, all_file_headers.text)
-                             .when(len(header_info_dict.header_values) == hl.len(all_file_headers.split_header),
-                                   ))))
-
-
-
-
-
+                             .when(len(header_info_dict.header_values) == hl.len(split_header),
+                                   row_fields_error(header_info_dict, split_header, all_file_headers.file)
+                             .defualt(
+                        hl.str(f"invalid header: lengths of headers differ.\n {len(header_info_dict.header_values)}" +
+                               f"elements in {header_info_dict.path}\n{header_info_dict.header_values)}")\
+                        + hl.str()))      ))))
 
 @typecheck(bed=str,
            bim=str,

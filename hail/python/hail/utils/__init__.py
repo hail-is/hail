@@ -4,7 +4,7 @@ from .struct import Struct
 from .linkedlist import LinkedList
 from .interval import Interval
 from .frozendict import frozendict
-from .java import error, error_typed, warning, info, FatalError, HailUserError
+from .java import error, warning, info, FatalError, HailUserError
 from .tutorial import get_1kg, get_hgdp, get_movie_lens
 from .deduplicate import deduplicate
 
@@ -30,7 +30,6 @@ __all__ = ['hadoop_open',
            'Interval',
            'frozendict',
            'error',
-           'error_typed',
            'warning',
            'info',
            'FatalError',
