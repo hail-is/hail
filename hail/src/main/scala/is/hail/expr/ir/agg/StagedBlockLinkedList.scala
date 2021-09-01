@@ -65,8 +65,8 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
   private def count(n: Node): Code[Int] =
     Region.loadInt(nodeType.fieldOffset(n, "count"))
 
-  private def incrCount(n: Node): Code[Unit] =
-    Region.storeInt(nodeType.fieldOffset(n, "count"), count(n) + 1)
+  private def incrCount(cb: EmitCodeBuilder, n: Node): Unit =
+    cb += Region.storeInt(nodeType.fieldOffset(n, "count"), count(n) + 1)
 
   private def next(n: Node): Code[Long] =
     Region.loadAddress(nodeType.fieldOffset(n, "next"))
@@ -86,12 +86,12 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
   private def pushPresent(cb: EmitCodeBuilder, n: Node)(store: (EmitCodeBuilder, Code[Long]) => Unit): Unit = {
     bufferType.setElementPresent(cb, buffer(n), count(n))
     store(cb, bufferType.elementOffset(buffer(n), capacity(n), count(n)))
-    cb += incrCount(n)
+    incrCount(cb, n)
   }
 
   private def pushMissing(cb: EmitCodeBuilder, n: Node): Unit = {
     bufferType.setElementMissing(cb, count(n), buffer(n))
-    cb += incrCount(n)
+    incrCount(cb, n)
   }
 
   private def allocateNode(cb: EmitCodeBuilder, dstNode: Settable[Long])(r: Value[Region], cap: Code[Int]): Unit = {
@@ -259,7 +259,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
               bufferType.setElementPresent(cb, buf, i)
               elemType.storeAtAddress(cb, bufferType.elementOffset(buf, i), r, sc, deepCopy = true)
             })
-        cb += incrCount(firstNode)
+        incrCount(cb, firstNode)
         cb.assign(i, i + 1)
       }
       cb.assign(totalCount, other.totalCount)
