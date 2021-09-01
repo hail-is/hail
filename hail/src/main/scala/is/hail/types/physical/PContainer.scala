@@ -16,7 +16,7 @@ abstract class PContainer extends PIterable {
 
   def loadLength(aoff: Code[Long]): Code[Int]
 
-  def storeLength(aoff: Code[Long], length: Code[Int]): Code[Unit]
+  def storeLength(cb: EmitCodeBuilder, length: Code[Int], aoff: Code[Long]): Unit
 
   def nMissingBytes(len: Code[Int]): Code[Int]
 
@@ -36,11 +36,11 @@ abstract class PContainer extends PIterable {
 
   def setElementMissing(aoff: Long, i: Int)
 
-  def setElementMissing(aoff: Code[Long], i: Code[Int]): Code[Unit]
+  def setElementMissing(cb: EmitCodeBuilder, i: Code[Int], aoff: Code[Long]): Unit
 
   def setElementPresent(aoff: Long, i: Int)
 
-  def setElementPresent(aoff: Code[Long], i: Code[Int]): Code[Unit]
+  def setElementPresent(cb: EmitCodeBuilder, aoff: Code[Long], i: Code[Int]): Unit
 
   def firstElementOffset(aoff: Long, length: Int): Long
 
@@ -74,11 +74,11 @@ abstract class PContainer extends PIterable {
 
   def initialize(aoff: Long, length: Int, setMissing: Boolean = false)
 
-  def stagedInitialize(aoff: Code[Long], length: Code[Int], setMissing: Boolean = false): Code[Unit]
+  def stagedInitialize(cb: EmitCodeBuilder, aoff: Code[Long], length: Code[Int], setMissing: Boolean = false): Unit
 
   def zeroes(region: Region, length: Int): Long
 
-  def zeroes(mb: EmitMethodBuilder[_], region: Value[Region], length: Code[Int]): Code[Long]
+  def zeroes(cb: EmitCodeBuilder, region: Value[Region], length: Code[Int]): Code[Long]
 
   def forEach(mb: EmitMethodBuilder[_], aoff: Code[Long], body: Code[Long] => Code[Unit]): Code[Unit]
 

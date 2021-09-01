@@ -53,7 +53,7 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
     cb += region.setNumParents((lenRef + 1) * nStates)
     cb.assign(aoff, arrayType.allocate(region, lenRef))
     cb += Region.storeAddress(typ.fieldOffset(off, 1), aoff)
-    cb += arrayType.stagedInitialize(aoff, lenRef)
+    arrayType.stagedInitialize(cb, aoff, lenRef)
     cb += typ.setFieldPresent(off, 1)
   }
 
@@ -240,7 +240,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
       ifMissing(cb),
       {
         val resultAddr = cb.newLocal[Long]("arrayagg_result_addr", resultType.allocate(region, len))
-        cb += resultType.stagedInitialize(resultAddr, len, setMissing = false)
+        resultType.stagedInitialize(cb, resultAddr, len, setMissing = false)
         val i = cb.newLocal[Int]("arrayagg_result_i", 0)
 
         cb.whileLoop(i < len, {

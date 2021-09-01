@@ -952,7 +952,7 @@ class Emit[C](
           val elementSize = outputPType.elementByteSize
           val numElements = cb.newLocal[Int]("n_elements", n.intCode(cb))
           val arrayAddress = cb.newLocal[Long]("array_addr", outputPType.allocate(region, numElements))
-          cb += outputPType.stagedInitialize(arrayAddress, numElements)
+          outputPType.stagedInitialize(cb, arrayAddress, numElements)
           cb += Region.setMemory(outputPType.firstElementOffset(arrayAddress), numElements.toL * elementSize, 0.toByte)
           outputPType.loadCheapSCode(cb, arrayAddress)
         }
@@ -1625,7 +1625,7 @@ class Emit[C](
           cb.assign(An, (M * N).toI)
 
           cb.assign(IPIVaddr, IPIVptype.allocate(region, N.toI))
-          cb.append(IPIVptype.stagedInitialize(IPIVaddr, N.toI))
+          IPIVptype.stagedInitialize(cb, IPIVaddr, N.toI)
 
           val (aAadrFirstElement, finish) = ndPT.constructDataFunction(shapeArray, stridesArray, cb, region)
           cb.append(Region.copyFrom(dataFirstAddress,

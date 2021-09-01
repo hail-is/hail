@@ -288,7 +288,7 @@ class GroupedAggregator(ktV: VirtualTypeWithReq, nestedAggs: Array[StagedAggrega
 
     val len = state.size
     val resultAddr = cb.newLocal[Long]("groupedagg_result_addr", resultType.allocate(region, len))
-    cb += arrayRep.stagedInitialize(resultAddr, len, setMissing = false)
+    arrayRep.stagedInitialize(cb, resultAddr, len, setMissing = false)
     val i = cb.newLocal[Int]("groupedagg_result_i", 0)
 
     state.foreach(cb) { (cb, k) =>

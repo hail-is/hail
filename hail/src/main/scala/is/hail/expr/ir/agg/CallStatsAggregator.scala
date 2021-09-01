@@ -120,10 +120,10 @@ class CallStatsAggregator extends StagedAggregator {
           cb.assign(state.nAlleles, n)
           cb.assign(state.off, state.region.allocate(CallStatsState.stateType.alignment, CallStatsState.stateType.byteSize))
           cb.assign(addr, CallStatsState.callStatsInternalArrayType.allocate(state.region, n))
-          cb += CallStatsState.callStatsInternalArrayType.stagedInitialize(addr, n)
+          CallStatsState.callStatsInternalArrayType.stagedInitialize(cb, addr, n)
           cb += Region.storeAddress(state.alleleCountsOffset, addr)
           cb.assign(addr, CallStatsState.callStatsInternalArrayType.allocate(state.region, n))
-          cb += CallStatsState.callStatsInternalArrayType.stagedInitialize(addr, n)
+          CallStatsState.callStatsInternalArrayType.stagedInitialize(cb, addr, n)
           cb += Region.storeAddress(state.homCountsOffset, addr)
           cb.assign(i, 0)
           cb.whileLoop(i < n,
