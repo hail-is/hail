@@ -2173,7 +2173,7 @@ async def on_cleanup(app):
         try:
             app['task_manager'].shutdown()
         finally:
-            app['client_session'].close()
+            await app['client_session'].close()
 
 
 def run():
