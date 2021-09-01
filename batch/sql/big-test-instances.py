@@ -15,7 +15,7 @@ async def main():
     await db.execute_update(
         '''
 UPDATE inst_colls
-SET max_instances = 8, pool_size = 8;
+SET max_instances = 8, max_live_instances = 8
 WHERE `name` = 'standard'
 ''')
 
