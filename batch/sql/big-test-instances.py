@@ -16,14 +16,14 @@ async def main():
         '''
 UPDATE inst_colls
 SET max_instances = 8, max_live_instances = 8
-WHERE `name` = 'standard'
+WHERE `name` = 'standard';
 ''')
 
     await db.execute_update(
         '''
 UPDATE pools
-SET worker_cores = 8;
-WHERE `name` = 'standard' AND `worker_type` = 'standard'
+SET worker_cores = 8
+WHERE `name` = 'standard' AND `worker_type` = 'standard';
 ''')
 
 loop = asyncio.get_event_loop()
