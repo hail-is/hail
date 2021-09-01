@@ -2482,10 +2482,10 @@ steps:
       tar xvf wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       {% if deploy %}
-      export HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
+      export HAIL_SHA="$(cat /io/git_version)"
       export HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
       {% else %}
-      export HAIL_SHA="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_query_jar.token }}/jars/$(cat /io/git_version).jar"
+      export HAIL_SHA="$(cat /io/git_version)-{{ upload_query_jar.token }}"
       export HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_query_jar.token }}/jars/$(cat /io/git_version).jar"
       {% endif %}
       export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/test/resources/"
@@ -2550,10 +2550,10 @@ steps:
       tar xvf wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       {% if deploy %}
-      export HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
+      export HAIL_SHA="$(cat /io/git_version)"
       export HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
       {% else %}
-      export HAIL_SHA="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_query_jar.token }}/jars/$(cat /io/git_version).jar"
+      export HAIL_SHA="$(cat /io/git_version)-{{ upload_query_jar.token }}"
       export HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_query_jar.token }}/jars/$(cat /io/git_version).jar"
       {% endif %}
       export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/test/resources/"
@@ -2618,10 +2618,10 @@ steps:
       tar xvf wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       {% if deploy %}
-      export HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
+      export HAIL_SHA="$(cat /io/git_version)"
       export HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
       {% else %}
-      export HAIL_SHA="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_query_jar.token }}/jars/$(cat /io/git_version).jar"
+      export HAIL_SHA="$(cat /io/git_version)-{{ upload_query_jar.token }}"
       export HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_query_jar.token }}/jars/$(cat /io/git_version).jar"
       {% endif %}
       export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/test/resources/"
@@ -2686,10 +2686,10 @@ steps:
       tar xvf wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       {% if deploy %}
-      export HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
+      export HAIL_SHA="$(cat /io/git_version)"
       export HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
       {% else %}
-      export HAIL_SHA="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_query_jar.token }}/jars/$(cat /io/git_version).jar"
+      export HAIL_SHA="$(cat /io/git_version)-{{ upload_query_jar.token }}"
       export HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_query_jar.token }}/jars/$(cat /io/git_version).jar"
       {% endif %}
       export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/test/resources/"
@@ -2754,10 +2754,10 @@ steps:
       tar xvf wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       {% if deploy %}
-      export HAIL_SHA="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
+      export HAIL_SHA="$(cat /io/git_version)"
       export HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
       {% else %}
-      export HAIL_SHA="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_query_jar.token }}/jars/$(cat /io/git_version).jar"
+      export HAIL_SHA="$(cat /io/git_version)-{{ upload_query_jar.token }}"
       export HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_query_jar.token }}/jars/$(cat /io/git_version).jar"
       {% endif %}
       export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/test/resources/"
