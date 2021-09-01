@@ -236,7 +236,7 @@ def test_list_batches(client):
 
     def assert_batch_ids(expected, q=None):
         # list_batches returns all batches for all prev run tests so we set a limit
-        batches = client.list_batches(q, limit=200)
+        batches = client.list_batches(q, last_batch_id=expected, limit=200)
         actual = set([b.id for b in batches]).intersection({b1.id, b2.id})
         assert actual == expected
 
