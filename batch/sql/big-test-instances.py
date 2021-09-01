@@ -15,14 +15,14 @@ async def main():
     await db.execute_update(
         '''
 UPDATE inst_colls
-WHERE `name`='standard'
+WHERE `name` = 'standard'
 SET max_instances = 8, pool_size = 8;
 ''')
 
     await db.execute_update(
         '''
 UPDATE pools
-WHERE `name`='standard' AND `worker_type`='standard'
+WHERE `name` = 'standard' AND `worker_type` = 'standard'
 SET worker_cores = 8;
 ''')
 
