@@ -2165,7 +2165,7 @@ def import_matrix_table2(paths,
             time_name_encountered[item] = 1
         return time_name_encountered, dups
 
-    def validate_row_fields(header_dict):
+    def get_final_row_fields(header_dict):
         if not no_header:
             dups = find_duplicates(header_dict.row_fields)[1]
             if len(dups) > 0:
@@ -2232,7 +2232,7 @@ def import_matrix_table2(paths,
                                                          ht.text.startswith(com),
                                                          ht.text.matches(com, False))), keep=hl.bool(False))
 
-    first_two_lines = ht.head(2).annotate(split_array=ht.text._split_line(delimiter, missing, None, False)).collect()
+
 
     if not no_header:
         def header_no_lines_of_data(header_line, index):
@@ -2270,43 +2270,49 @@ def import_matrix_table2(paths,
                 header_info.column_ids = header_line.split_array[num_of_row_fields:]
             header_info.text = header_line.text
             header_info.header_values = header_line.split_array
+            header_info.path = header_line.file
             return header_info
 
-        header_info_dict = validate_header_get_info(first_two_lines[0], first_two_lines[1])
-        final_row_fields = validate_row_fields(header_info_dict)
-        time_id_encountered_dict, dups = find_duplicates(header_info_dict.column_ids)[0]
-        if time_id_encountered_dict:
+        def warn_duplicates(col_id_dic, duplicate_cols):
             import itertools as it
-            duplicates_to_print = list({dup_field:time_id_encountered_dict(dup_field) for dup_field in dups}.items())
-            duplicates_to_print_formated = it.starmap(lambda dup,time_found: )
-            ht.utils.warning(f"Found {len(dups)}")
+            duplicates_to_print = sorted(list({'"' + dup_field + '"': '('+ str(col_id_dic(dup_field)) + ')'
+                                           for dup_field in duplicate_cols}.items()), key=lambda dup_values: dup_values[1])
+            if len(duplicates_to_print) > 10:
+                duplicates_to_print = duplicates_to_print[:10]
+                duplicates_to_print.append(("...", ""))
+            duplicates_to_print_formatted = it.starmap(lambda dup,time_found: time_found + " " + dup)
+            ht.utils.warning(f"Found {len(duplicate_cols)} duplicate{'s' if len(dups) > 1 else ''}\n"
+                         + '\n'.join(duplicates_to_print))
 
+        def duplicate_fields_error(header, error_header, error_header_path):
+            zipped_headers = hl.zip(header.header_values, error_header)
+            non_match_idx =  zipped_headers.index(lambda header_tuple: header_tuple[0] != header_tuple[1])
+            return hl.str("Invalid header: expected elements to be identical for all input paths. Found different"
+                          " elements at position ") \
+                   + hl.str(non_match_idx) + hl.str(f".\n{header.path}:") + hl.str(zipped_headers(non_match_idx)[0])
+        
+
+
+
+
+
+        first_two_lines = ht.head(2).annotate(split_array=ht.text._split_line(delimiter, missing, None, False)).collect()
+        header_info_dict = validate_header_get_info(first_two_lines[0], first_two_lines[1])
+
+        final_row_fields = get_final_row_fields(header_info_dict)
+
+        time_col_id_encountered_dict, dups = find_duplicates(header_info_dict.column_ids)
+        if time_col_id_encountered_dict:
+            warn_duplicates(time_col_id_encountered_dict, dups)
 
         all_file_headers = import_lines(paths, force_bgz=force_bgz, file_per_partition=True)
-        all_file_headers = all_file_headers._map_partition(lambda rows: rows[:2]).add_index()
-        header_or_error_msg =  hl.if_else(ht.idx/2==0, ht.text, header_no_lines_of_data(ht.text, ht.idx - 1))
+        all_file_headers = all_file_headers._map_partition(lambda rows: rows[:1])
+        all_file_headers.annotate(text=hl.rbind(ht.text.split(), lambda split_header:
+                    hl.rbind(hl.case.when(all_file_headers.text == header_info_dict.text, all_file_headers.text)
+                             .when(len(header_info_dict.header_values) == hl.len(all_file_headers.split_header),
+                                   ))))
 
-        .when(hl.if_else)\
-            .when(ht.text != header & ht.idx/2 != 0, ht.text)\
-            .default()
 
-        line_below_or_error_msg = hl.case().when(ht.idx/2==0, hl.str(""))
-
-        all_file_headers = all_file_headers(
-            text = hl.case().when(all_file_headers.idx < len(paths) * 2 and all_file_headers.idx/2 == 0
-                                  and,
-                                  all_file_headers.text)
-                .when(all_file_headers.idx < len(paths) * 2 and all_file_headers.idx/2 != 0 and
-                      all_file_headers.text != header, hl.missing(tstr))
-                .or_error(f"File {all_file_headers.file} contains a header but no lines of data"))
-        check_line_under_header = all_file_headers._map_partition(lambda rows: rows[:2]).add_index()
-
-        def not_valid_header(header_line):
-            if header_line is None:
-                return hl.str(f"Expected header in every file, but found empty file: {header_line.file}")
-            header_line = header_line.text.split(delimiter)
-            if
-    else:
 
 
 
