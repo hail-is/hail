@@ -5,20 +5,20 @@ import is.hail.asm4s.{UnitInfo, Value}
 import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SNDArray}
-import is.hail.types.physical.{PCanonicalNDArray, PType}
+import is.hail.types.physical.{PCanonicalBaseStruct, PCanonicalNDArray, PCanonicalTuple, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils.{FastIndexedSeq, valueToRichCodeRegion}
 import is.hail.asm4s.{Code, _}
 
-class NDArrayMultiplyAddAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator {
-  private val ndTyp = ndVTyp.canonicalPType.setRequired(false).asInstanceOf[PCanonicalNDArray]
+class NDArrayMultiplyAddAggregator(tupleNDVTyp: VirtualTypeWithReq) extends StagedAggregator {
+  private val ndTyp = tupleNDVTyp.canonicalPType.setRequired(false).asInstanceOf[PCanonicalTuple].types(0).asInstanceOf[PCanonicalNDArray]
   override type State = TypedRegionBackedAggState
 
   override def resultType: PType = ndTyp
 
   override def initOpTypes: Seq[Type] = Array[Type]()
 
-  override def seqOpTypes: Seq[Type] = Array(ndVTyp.t)
+  override def seqOpTypes: Seq[Type] = Array(tupleNDVTyp.t)
 
   val ndarrayFieldNumber = 0
 
@@ -37,17 +37,18 @@ class NDArrayMultiplyAddAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAgg
       val nextNDTupleInput = seqOpMethod.getEmitParam(1, null)
       nextNDTupleInput.toI(cb).consume(cb, {}, { case nextNDArrayTuplePCode: SBaseStructCode =>
         val nextNDTV = nextNDArrayTuplePCode.memoize(cb, "ndarry_add_multiply_seqop_next")
-        val NDArrayA = nextNDTV.loadField(cb, 1).get(cb).asNDArray.memoize(cb, "ndarray_add_mutiply_seqop_A")
-        val NDArrayB = nextNDTV.loadField(cb, 2).get(cb).asNDArray.memoize(cb, "ndarray_add_mutiply_seqop_B")
+        val NDArrayA = nextNDTV.loadField(cb, 0).get(cb).asNDArray.memoize(cb, "ndarray_add_mutiply_seqop_A")
+        val NDArrayB = nextNDTV.loadField(cb, 1).get(cb).asNDArray.memoize(cb, "ndarray_add_mutiply_seqop_B")
         val statePV = state.storageType.loadCheapSCode(cb, state.off).asBaseStruct.memoize(cb, "mdarray_add_multiply_seqop_state")
         statePV.loadField(cb, ndarrayFieldNumber).consume(cb,
           {
             cb += state.region.getNewRegion(Region.TINY)
             cb += state.storageType.setFieldPresent(state.off, ndarrayFieldNumber)
             val tempRegionForCreation = cb.newLocal[Region]("ndarray_add_multiply_agg_temp_region", Region.stagedCreate(Region.REGULAR, cb.emb.ecb.pool()))
-            val uninitializedNDArray = ndTyp.constructUnintialized(NDArrayA.shapes, NDArrayA.strides, cb, tempRegionForCreation).memoize(cb, "ndarray_sum_seq_op_uninitialized")
 
-            state.storeNonmissing(cb, uninitializedNDArray)
+            val uninitializedNDArray = ndTyp.constructUnintialized(NDArrayA.shapes, NDArrayA.strides, cb, tempRegionForCreation).memoize(cb, "ndarray_sum_seq_op_uninitialized")
+            state.storeNonmissing(cb, uninitializedNDArray.get)
+
             cb += tempRegionForCreation.clearRegion()
             SNDArray.gemm(cb, "N", "N", const(1.0), NDArrayA.get, NDArrayB.get, const(0.0), uninitializedNDArray.get)
           },
