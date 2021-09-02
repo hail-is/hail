@@ -80,8 +80,6 @@ abstract class PContainer extends PIterable {
 
   def zeroes(cb: EmitCodeBuilder, region: Value[Region], length: Code[Int]): Code[Long]
 
-  def forEach(mb: EmitMethodBuilder[_], aoff: Code[Long], body: Code[Long] => Code[Unit]): Code[Unit]
-
   def hasMissingValues(sourceOffset: Code[Long]): Code[Boolean]
 
   def nextElementAddress(currentOffset: Long): Long

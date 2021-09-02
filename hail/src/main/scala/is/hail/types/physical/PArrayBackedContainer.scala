@@ -118,9 +118,6 @@ trait PArrayBackedContainer extends PContainer {
   override def zeroes(cb: EmitCodeBuilder, region: Value[Region], length: Code[Int]): Code[Long] =
     arrayRep.zeroes(cb, region, length)
 
-  override def forEach(mb: EmitMethodBuilder[_], aoff: Code[Long], body: Code[Long] => Code[Unit]): Code[Unit] =
-    arrayRep.forEach(mb, aoff, body)
-
   override def hasMissingValues(sourceOffset: Code[Long]): Code[Boolean] =
     arrayRep.hasMissingValues(sourceOffset)
 

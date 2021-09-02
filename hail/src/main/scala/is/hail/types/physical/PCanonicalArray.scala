@@ -246,19 +246,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     aoff
   }
 
-  def forEach(mb: EmitMethodBuilder[_], aoff: Code[Long], body: Code[Long] => Code[Unit]): Code[Unit] = {
-    val i = mb.newLocal[Int]()
-    val n = mb.newLocal[Int]()
-    Code(
-      n := loadLength(aoff),
-      i := 0,
-      Code.whileLoop(i < n,
-        isElementDefined(aoff, i).mux(
-          body(loadElement(aoff, n, i)),
-          Code._empty
-        )))
-  }
-
   override def unsafeOrdering(): UnsafeOrdering =
     unsafeOrdering(this)
 
