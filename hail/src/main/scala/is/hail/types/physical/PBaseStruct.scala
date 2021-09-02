@@ -130,11 +130,11 @@ abstract class PBaseStruct extends PType {
 
   def setFieldMissing(offset: Long, fieldIdx: Int): Unit
 
-  def setFieldMissing(offset: Code[Long], fieldIdx: Int): Code[Unit]
+  def setFieldMissing(cb: EmitCodeBuilder, offset: Code[Long], fieldIdx: Int): Unit
 
   def setFieldPresent(offset: Long, fieldIdx: Int): Unit
 
-  def setFieldPresent(offset: Code[Long], fieldIdx: Int): Code[Unit]
+  def setFieldPresent(cb: EmitCodeBuilder, offset: Code[Long], fieldIdx: Int): Unit
 
   def fieldOffset(structAddress: Long, fieldIdx: Int): Long
 

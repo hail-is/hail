@@ -54,7 +54,7 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
     cb.assign(aoff, arrayType.allocate(region, lenRef))
     cb += Region.storeAddress(typ.fieldOffset(off, 1), aoff)
     arrayType.stagedInitialize(cb, aoff, lenRef)
-    cb += typ.setFieldPresent(off, 1)
+    typ.setFieldPresent(cb, off, 1)
   }
 
   def seq(cb: EmitCodeBuilder, init: => Unit, initPerElt: => Unit, seqOp: => Unit): Unit = {
@@ -90,7 +90,7 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
     initOp(cb)
     initContainer.store(cb)
     if (initLen) {
-      cb += typ.setFieldMissing(off, 1)
+      typ.setFieldMissing(cb, off, 1)
     }
   }
 
@@ -137,7 +137,7 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
         initLen = false)
       cb.assign(lenRef, ib.readInt())
       cb.ifx(lenRef < 0, {
-        cb += typ.setFieldMissing(off, 1)
+        typ.setFieldMissing(cb, off, 1)
       }, {
         seq(cb, {
           nested.toCodeWithArgs(cb,
@@ -158,7 +158,7 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
 
     init(cb, cb => initContainer.copyFrom(cb, initOffset), initLen = false)
     cb.ifx(typ.isFieldMissing(srcOff, 1), {
-      cb += typ.setFieldMissing(off, 1)
+      typ.setFieldMissing(cb, off, 1)
       cb.assign(lenRef, -1)
     }, {
       cb.assign(lenRef, arrayType.loadLength(typ.loadField(srcOff, 1)))
@@ -251,7 +251,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
           state.nested.toCode { case (nestedIdx, nestedState) =>
             val nestedAddr = cb.newLocal[Long](s"arrayagg_result_nested_addr_$nestedIdx", resultEltType.fieldOffset(addrAtI, nestedIdx))
             nestedAggs(nestedIdx).storeResult(cb, nestedState, resultEltType.types(nestedIdx), nestedAddr, region,
-              (cb: EmitCodeBuilder) => cb += resultEltType.setFieldMissing(addrAtI, nestedIdx))
+              (cb: EmitCodeBuilder) => resultEltType.setFieldMissing(cb, addrAtI, nestedIdx))
           }
           state.store(cb)
           cb.assign(i, i + 1)

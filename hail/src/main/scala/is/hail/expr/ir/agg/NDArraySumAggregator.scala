@@ -44,7 +44,7 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
         statePV.loadField(cb, ndarrayFieldNumber).consume(cb,
           {
             cb += state.region.getNewRegion(Region.TINY)
-            cb += state.storageType.setFieldPresent(state.off, ndarrayFieldNumber)
+            state.storageType.setFieldPresent(cb, state.off, ndarrayFieldNumber)
             val tempRegionForCreation = cb.newLocal[Region]("ndarray_sum_agg_temp_region", Region.stagedCreate(Region.REGULAR, cb.emb.ecb.pool()))
             val fullyCopiedNDArray = ndTyp.constructByActuallyCopyingData(nextNDPV, cb, tempRegionForCreation).memoize(cb, "ndarray_sum_seq_op_full_copy")
             state.storeNonmissing(cb, fullyCopiedNDArray)

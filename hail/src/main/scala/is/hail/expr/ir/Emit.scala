@@ -2006,7 +2006,7 @@ class Emit[C](
           val rvAgg = agg.Extract.getAgg(sig(j))
           val fieldAddr = cb.newLocal(s"resultop_field_addr_$j", pt.fieldOffset(addr, j))
           rvAgg.storeResult(cb, sc.states(idx), pt.types(j), fieldAddr, region,
-            (cb: EmitCodeBuilder) => cb += pt.setFieldMissing(addr, j))
+            (cb: EmitCodeBuilder) => pt.setFieldMissing(cb, addr, j))
         }
 
         presentPC(pt.loadCheapSCode(cb, addr))

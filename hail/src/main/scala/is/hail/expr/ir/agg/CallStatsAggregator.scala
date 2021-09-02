@@ -195,7 +195,7 @@ class CallStatsAggregator extends StagedAggregator {
     acType.storeAtAddress(cb, rt.fieldOffset(addr, "AC"), region, ac, deepCopy = false)
 
     cb.ifx(alleleNumber.ceq(0),
-      cb += rt.setFieldMissing(addr, "AF"),
+      rt.setFieldMissing(cb, addr, "AF"),
       {
         val afType = resultType.fieldType("AF").asInstanceOf[PCanonicalArray]
         val af = afType.constructFromElements(cb, region, state.nAlleles, deepCopy = true) { (cb, i) =>

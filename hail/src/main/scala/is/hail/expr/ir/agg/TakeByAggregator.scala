@@ -311,10 +311,10 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
     k.toI(cb)
       .consume(cb,
         {
-          cb += indexedKeyType.setFieldMissing(keyStage, 0)
+          indexedKeyType.setFieldMissing(cb, keyStage, 0)
         },
         { sc =>
-          cb += indexedKeyType.setFieldPresent(keyStage, 0)
+          indexedKeyType.setFieldPresent(cb, keyStage, 0)
           keyType.storeAtAddress(cb, indexedKeyType.fieldOffset(keyStage, 0), region, sc, deepCopy = false)
         }
       )
@@ -334,10 +334,10 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
     value.toI(cb)
       .consume(cb,
         {
-          cb += eltTuple.setFieldMissing(staging, 1)
+          eltTuple.setFieldMissing(cb, staging, 1)
         },
         { v =>
-          cb += eltTuple.setFieldPresent(staging, 1)
+          eltTuple.setFieldPresent(cb, staging, 1)
           valueType.storeAtAddress(cb, eltTuple.fieldOffset(staging, 1), region, v, deepCopy = false)
         })
   }

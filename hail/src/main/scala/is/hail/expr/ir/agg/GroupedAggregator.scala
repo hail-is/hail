@@ -51,10 +51,10 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
     k.toI(cb)
       .consume(cb,
         {
-          cb += storageType.setFieldMissing(dest, 0)
+          storageType.setFieldMissing(cb, dest, 0)
         },
         { sc =>
-          cb += storageType.setFieldPresent(dest, 0)
+          storageType.setFieldPresent(cb, dest, 0)
           storageType.fieldType("kt")
             .storeAtAddress(cb, storageType.fieldOffset(dest, 0), region, sc, deepCopy = true)
         })
@@ -295,7 +295,7 @@ class GroupedAggregator(ktV: VirtualTypeWithReq, nestedAggs: Array[StagedAggrega
       val addrAtI = cb.newLocal[Long]("groupedagg_result_addr_at_i", arrayRep.elementOffset(resultAddr, len, i))
       cb += dictElt.stagedInitialize(addrAtI, setMissing = false)
       k.toI(cb).consume(cb,
-        cb += dictElt.setFieldMissing(addrAtI, "key"),
+        dictElt.setFieldMissing(cb, addrAtI, "key"),
         { sc =>
           dictElt.fieldType("key").storeAtAddress(cb, dictElt.fieldOffset(addrAtI, "key"), region, sc, deepCopy = true)
         })
@@ -305,7 +305,7 @@ class GroupedAggregator(ktV: VirtualTypeWithReq, nestedAggs: Array[StagedAggrega
       state.nested.toCode { case (nestedIdx, nestedState) =>
         val nestedAddr = cb.newLocal[Long](s"groupedagg_result_nested_addr_$nestedIdx", resultEltType.fieldOffset(valueAddr, nestedIdx))
         nestedAggs(nestedIdx).storeResult(cb, nestedState, resultEltType.types(nestedIdx), nestedAddr, region,
-          (cb: EmitCodeBuilder) => cb += resultEltType.setFieldMissing(valueAddr, nestedIdx))
+          (cb: EmitCodeBuilder) => resultEltType.setFieldMissing(cb, valueAddr, nestedIdx))
 
       }
 

@@ -132,12 +132,12 @@ abstract class AbstractTypedRegionBackedAggState(val ptype: PType) extends Regio
   }
 
   def storeMissing(cb: EmitCodeBuilder): Unit = {
-    cb += storageType.setFieldMissing(off, 0)
+    storageType.setFieldMissing(cb, off, 0)
   }
 
   def storeNonmissing(cb: EmitCodeBuilder, sc: SCode): Unit = {
     cb += region.getNewRegion(const(regionSize))
-    cb += storageType.setFieldPresent(off, 0)
+    storageType.setFieldPresent(cb, off, 0)
     ptype.storeAtAddress(cb, storageType.fieldOffset(off, 0), region, sc, deepCopy = true)
   }
 

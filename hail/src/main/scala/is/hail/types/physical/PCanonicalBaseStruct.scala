@@ -60,11 +60,11 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     Region.setBit(offset, missingIdx(fieldIdx))
   }
 
-  def setFieldMissing(offset: Code[Long], fieldIdx: Int): Code[Unit] = {
+  def setFieldMissing(cb: EmitCodeBuilder, offset: Code[Long], fieldIdx: Int): Unit = {
     if (!fieldRequired(fieldIdx))
-      Region.setBit(offset, missingIdx(fieldIdx).toLong)
+      cb += Region.setBit(offset, missingIdx(fieldIdx).toLong)
     else
-      Code._fatal[Unit](s"Required field cannot be missing")
+      cb._fatal(s"Required field cannot be missing")
   }
 
   def setFieldPresent(offset: Long, fieldIdx: Int) {
@@ -72,11 +72,9 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
       Region.clearBit(offset, missingIdx(fieldIdx))
   }
 
-  def setFieldPresent(offset: Code[Long], fieldIdx: Int): Code[Unit] = {
+  def setFieldPresent(cb: EmitCodeBuilder, offset: Code[Long], fieldIdx: Int): Unit = {
     if (!fieldRequired(fieldIdx))
-      Region.clearBit(offset, missingIdx(fieldIdx).toLong)
-    else
-      Code._empty
+      cb += Region.clearBit(offset, missingIdx(fieldIdx).toLong)
   }
 
   def fieldOffset(structAddress: Long, fieldIdx: Int): Long =
@@ -190,7 +188,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
           pcs.loadField(cb, f.index)
             .consume(cb,
               {
-                cb += setFieldMissing(addrVar, f.index)
+                setFieldMissing(cb, addrVar, f.index)
               },
               {
                 f.typ.storeAtAddress(cb, fieldOffset(addrVar, f.index), region, _, deepCopy)
@@ -206,7 +204,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     emitFields.zipWithIndex.foreach { case (ev, i) =>
       ev.toI(cb)
         .consume(cb,
-          cb += setFieldMissing(addr, i),
+          setFieldMissing(cb, addr, i),
           { sc =>
             types(i).storeAtAddress(cb, fieldOffset(addr, i), region, sc, deepCopy = deepCopy)
           }
