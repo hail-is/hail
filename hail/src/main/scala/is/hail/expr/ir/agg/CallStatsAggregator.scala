@@ -180,7 +180,7 @@ class CallStatsAggregator extends StagedAggregator {
   protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
     val rt = CallStatsState.resultType
     assert(pt == rt)
-    cb += rt.stagedInitialize(addr, setMissing = false)
+    rt.stagedInitialize(cb, addr, setMissing = false)
     val alleleNumber = cb.newLocal[Int]("callstats_result_alleleNumber", 0)
 
     val acType = resultType.fieldType("AC").asInstanceOf[PCanonicalArray]

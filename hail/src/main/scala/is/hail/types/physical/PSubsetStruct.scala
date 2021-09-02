@@ -97,8 +97,8 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String]) ext
   override def initialize(structAddress: Long, setMissing: Boolean): Unit =
     ps.initialize(structAddress, setMissing)
 
-  override def stagedInitialize(structAddress: Code[Long], setMissing: Boolean): Code[Unit] =
-    ps.stagedInitialize(structAddress, setMissing)
+  override def stagedInitialize(cb: EmitCodeBuilder, structAddress: Code[Long], setMissing: Boolean): Unit =
+    ps.stagedInitialize(cb, structAddress, setMissing)
 
   def allocate(region: Region): Long =
     ps.allocate(region)

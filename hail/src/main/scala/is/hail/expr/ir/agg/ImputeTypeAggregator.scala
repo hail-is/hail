@@ -147,7 +147,7 @@ class ImputeTypeAggregator() extends StagedAggregator {
   protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
     val rt = ImputeTypeState.resultType
     assert(pt == rt)
-    cb += rt.stagedInitialize(addr, setMissing = false)
+    rt.stagedInitialize(cb, addr, setMissing = false)
     Array(state.getAnyNonMissing, state.getAllDefined, state.getSupportsBool,
       state.getSupportsI32, state.getSupportsI64, state.getSupportsF64)
       .zipWithIndex.foreach { case (b, idx) =>

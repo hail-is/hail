@@ -293,7 +293,7 @@ class GroupedAggregator(ktV: VirtualTypeWithReq, nestedAggs: Array[StagedAggrega
 
     state.foreach(cb) { (cb, k) =>
       val addrAtI = cb.newLocal[Long]("groupedagg_result_addr_at_i", arrayRep.elementOffset(resultAddr, len, i))
-      cb += dictElt.stagedInitialize(addrAtI, setMissing = false)
+      dictElt.stagedInitialize(cb, addrAtI, setMissing = false)
       k.toI(cb).consume(cb,
         dictElt.setFieldMissing(cb, addrAtI, "key"),
         { sc =>
@@ -301,7 +301,7 @@ class GroupedAggregator(ktV: VirtualTypeWithReq, nestedAggs: Array[StagedAggrega
         })
 
       val valueAddr = cb.newLocal[Long]("groupedagg_value_addr", dictElt.fieldOffset(addrAtI, "value"))
-      cb += resultEltType.stagedInitialize(valueAddr, setMissing = false)
+      resultEltType.stagedInitialize(cb, valueAddr, setMissing = false)
       state.nested.toCode { case (nestedIdx, nestedState) =>
         val nestedAddr = cb.newLocal[Long](s"groupedagg_result_nested_addr_$nestedIdx", resultEltType.fieldOffset(valueAddr, nestedIdx))
         nestedAggs(nestedIdx).storeResult(cb, nestedState, resultEltType.types(nestedIdx), nestedAddr, region,

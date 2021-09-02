@@ -47,8 +47,8 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
 
   private def createNode(cb: EmitCodeBuilder, nodeBucket: Settable[Long]): Unit = {
     cb.assign(nodeBucket, region.allocate(storageType.alignment, storageType.byteSize))
-    cb += storageType.stagedInitialize(nodeBucket, true)
-    cb += elementsType.stagedInitialize(elements(nodeBucket), true)
+    storageType.stagedInitialize(cb, nodeBucket, true)
+    elementsType.stagedInitialize(cb, elements(nodeBucket), true)
   }
 
   private def isRoot(node: Code[Long]): Code[Boolean] = storageType.isFieldMissing(node, 0)

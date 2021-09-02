@@ -1999,7 +1999,7 @@ class Emit[C](
         val pt = PCanonicalTuple(false, sig.map(_.pResultType): _*)
 
         val addr = cb.newLocal("resultop_tuple_addr", pt.allocate(region))
-        cb += pt.stagedInitialize(addr, setMissing = false)
+        pt.stagedInitialize(cb, addr, setMissing = false)
 
         (0 until aggs.length).foreach { j =>
           val idx = start + j

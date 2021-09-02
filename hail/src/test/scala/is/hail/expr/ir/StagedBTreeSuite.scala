@@ -27,7 +27,7 @@ class TestBTreeKey(mb: EmitMethodBuilder[_]) extends BTreeKey {
 
   def storeKey(cb: EmitCodeBuilder, _off: Code[Long], m: Code[Boolean], v: Code[Long]): Unit = {
     val off = cb.memoize[Long](_off)
-    cb += storageType.stagedInitialize(off)
+    storageType.stagedInitialize(cb, off)
     cb.ifx(m,
       storageType.setFieldMissing(cb, off, 0),
       cb += Region.storeLong(storageType.fieldOffset(off, 0), v)

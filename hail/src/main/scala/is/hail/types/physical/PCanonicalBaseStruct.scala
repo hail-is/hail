@@ -38,12 +38,10 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     Region.setMemory(structAddress, nMissingBytes.toLong, if (setMissing) 0xFF.toByte else 0.toByte)
   }
 
-  def stagedInitialize(structAddress: Code[Long], setMissing: Boolean = false): Code[Unit] = {
-    if (allFieldsRequired) {
-      return Code._empty
+  override def stagedInitialize(cb: EmitCodeBuilder, structAddress: Code[Long], setMissing: Boolean = false): Unit = {
+    if (!allFieldsRequired) {
+      cb += Region.setMemory(structAddress, const(nMissingBytes.toLong), const(if (setMissing) 0xFF.toByte else 0.toByte))
     }
-
-    Region.setMemory(structAddress, const(nMissingBytes.toLong), const(if (setMissing) 0xFF.toByte else 0.toByte))
   }
 
   def isFieldDefined(offset: Long, fieldIdx: Int): Boolean =
@@ -182,7 +180,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
       case _ =>
         val addrVar = cb.newLocal[Long]("pcbasestruct_store_dest_addr2", addr)
         val pcs = value.asBaseStruct.memoize(cb, "pcbasestruct_store_src")
-        cb += stagedInitialize(addrVar, setMissing = false)
+        stagedInitialize(cb, addrVar, setMissing = false)
 
         fields.foreach { f =>
           pcs.loadField(cb, f.index)
@@ -200,7 +198,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
   def constructFromFields(cb: EmitCodeBuilder, region: Value[Region], emitFields: IndexedSeq[EmitCode], deepCopy: Boolean): SBaseStructPointerCode = {
     require(emitFields.length == size)
     val addr = cb.newLocal[Long]("pcbs_construct_fields", allocate(region))
-    cb += stagedInitialize(addr, setMissing = false)
+    stagedInitialize(cb, addr, setMissing = false)
     emitFields.zipWithIndex.foreach { case (ev, i) =>
       ev.toI(cb)
         .consume(cb,

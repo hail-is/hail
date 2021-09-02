@@ -245,7 +245,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
 
         cb.whileLoop(i < len, {
           val addrAtI = cb.newLocal[Long]("arrayagg_result_addr_at_i", resultType.elementOffset(resultAddr, len, i))
-          cb += resultEltType.stagedInitialize(addrAtI, setMissing = false)
+          resultEltType.stagedInitialize(cb, addrAtI, setMissing = false)
           cb.assign(state.idx, i)
           state.load(cb)
           state.nested.toCode { case (nestedIdx, nestedState) =>

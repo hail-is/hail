@@ -117,7 +117,7 @@ abstract class PBaseStruct extends PType {
 
   def initialize(structAddress: Long, setMissing: Boolean = false): Unit
 
-  def stagedInitialize(structAddress: Code[Long], setMissing: Boolean = false): Code[Unit]
+  def stagedInitialize(cb: EmitCodeBuilder, structAddress: Code[Long], setMissing: Boolean = false): Unit
 
   def isFieldDefined(offset: Long, fieldIdx: Int): Boolean
 
