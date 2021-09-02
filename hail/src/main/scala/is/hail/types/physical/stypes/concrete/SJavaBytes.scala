@@ -3,9 +3,9 @@ package is.hail.types.physical.stypes.concrete
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryCode, SBinaryValue}
 import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
-import is.hail.types.physical.{PCanonicalBinary, PCanonicalString, PString, PType}
-import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryCode, SBinaryValue, SString, SStringValue}
+import is.hail.types.physical.{PCanonicalBinary, PType}
 import is.hail.types.virtual._
 import is.hail.utils.FastIndexedSeq
 
@@ -20,12 +20,11 @@ case object SJavaBytes extends SBinary {
 
   override def containsPointers: Boolean = false
 
-  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SJavaBytesCode = {
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SJavaBytesValue =
     value.st match {
-      case SJavaBytes => value.asInstanceOf[SJavaBytesCode]
-      case _ => new SJavaBytesCode(value.asBinary.loadBytes())
+      case SJavaBytes => value.asInstanceOf[SJavaBytesValue]
+      case _ => new SJavaBytesValue(cb.memoize(value.asBinaryValue.loadBytes()))
     }
-  }
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(arrayInfo[Byte])
 

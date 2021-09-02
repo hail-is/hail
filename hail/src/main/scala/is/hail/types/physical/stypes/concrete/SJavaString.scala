@@ -3,9 +3,9 @@ package is.hail.types.physical.stypes.concrete
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
-import is.hail.types.physical.{PCanonicalString, PString, PType}
-import is.hail.types.physical.stypes.interfaces.{SBinaryCode, SBinaryValue, SString, SStringCode, SStringValue}
+import is.hail.types.physical.{PCanonicalString, PType}
 import is.hail.types.virtual.{TString, Type}
 import is.hail.utils.FastIndexedSeq
 
@@ -20,10 +20,10 @@ case object SJavaString extends SString {
 
   override def castRename(t: Type): SType = this
 
-  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SJavaStringCode = {
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SJavaStringValue = {
     value.st match {
-      case SJavaString => value.asInstanceOf[SJavaStringCode]
-      case _ => new SJavaStringCode(value.asString.loadString())
+      case SJavaString => value.asInstanceOf[SJavaStringValue]
+      case _ => new SJavaStringValue(value.asStringValue.loadString(cb))
     }
   }
 

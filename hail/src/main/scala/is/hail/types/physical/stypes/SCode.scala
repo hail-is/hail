@@ -92,11 +92,11 @@ abstract class SCode {
     castTo(cb, region, destType, false)
 
   def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType, deepCopy: Boolean): SCode = {
-    destType.coerceOrCopy(cb, region, this, deepCopy)
+    destType.coerceOrCopy(cb, region, this.memoize(cb, "castTo"), deepCopy)
   }
 
   def copyToRegion(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SCode =
-    destType.coerceOrCopy(cb, region, this, deepCopy = true)
+    destType.coerceOrCopy(cb, region, this.memoize(cb, "copyToRegion"), deepCopy = true)
 
   def memoize(cb: EmitCodeBuilder, name: String): SValue
 

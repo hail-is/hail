@@ -3,13 +3,12 @@ package is.hail.types.physical.stypes.concrete
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, IEmitCode}
-import is.hail.types.physical.{PCanonicalNDArray, PNDArray, PType}
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.primitives.{SBooleanCode, SFloat32Code, SFloat64Code, SInt32Code, SInt64Code, SPrimitiveCode}
-import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType}
+import is.hail.types.physical.stypes._
+import is.hail.types.physical.{PCanonicalNDArray, PNDArray, PType}
 import is.hail.types.virtual._
 import is.hail.utils.FastIndexedSeq
-import is.hail.variant.ReferenceGenome
+import is.hail.variant.{Locus, ReferenceGenome}
 
 object SUnreachable {
   def fromVirtualType(t: Type): SType = {
@@ -44,7 +43,7 @@ abstract class SUnreachable extends SType {
 
   override def fromValues(values: IndexedSeq[Value[_]]): SUnreachableValue = sv
 
-  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = sv
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = sv
 
   override def copiedType: SType = this
 
@@ -170,18 +169,31 @@ case class SUnreachableLocus(virtualType: TLocus) extends SUnreachable with SLoc
   override def rg: ReferenceGenome = virtualType.rg
 }
 
-class SUnreachableLocusValue(val st: SUnreachableLocus) extends SUnreachableValue with SLocusValue with SLocusCode {
+class SUnreachableLocusValue(val st: SUnreachableLocus) extends SUnreachableValue with SLocusValue {
   override def memoizeField(cb: EmitCodeBuilder, name: String): SUnreachableLocusValue = this
 
   override def memoize(cb: EmitCodeBuilder, name: String): SUnreachableLocusValue = this
+
+  override def position(cb: EmitCodeBuilder): Value[Int] = const(0)
+
+  override def contig(cb: EmitCodeBuilder): SStringCode = new SUnreachableStringValue
+
+  override def contigLong(cb: EmitCodeBuilder): Value[Long] = const(0)
+
+  override def structRepr(cb: EmitCodeBuilder): SBaseStructValue = SUnreachableStruct(TStruct("contig" -> TString, "position" -> TInt32)).defaultValue.asInstanceOf[SUnreachableStructValue]
+}
+
+class SUnreachableLocusCode(val st: SUnreachableLocus) extends SUnreachableValue with SLocusCode {
+  override def memoizeField(cb: EmitCodeBuilder, name: String): SUnreachableLocusValue = new SUnreachableLocusValue(st)
+
+  override def memoize(cb: EmitCodeBuilder, name: String): SUnreachableLocusValue = new SUnreachableLocusValue(st)
 
   override def position(cb: EmitCodeBuilder): Code[Int] = const(0)
 
   override def contig(cb: EmitCodeBuilder): SStringCode = new SUnreachableStringValue
 
-  override def structRepr(cb: EmitCodeBuilder): SBaseStructValue = SUnreachableStruct(TStruct("contig" -> TString, "position" -> TInt32)).defaultValue.asInstanceOf[SUnreachableStructValue]
+  def getLocusObj(cb: EmitCodeBuilder): Code[Locus] = Code._null[Locus]
 }
-
 
 case object SUnreachableCall extends SUnreachable with SCall {
   override def virtualType: Type = TCall

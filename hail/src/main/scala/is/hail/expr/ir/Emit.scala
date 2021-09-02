@@ -162,12 +162,16 @@ object EmitValue {
     new EmitValue(
       missing.filterNot(m => Code.constBoolValue(m).contains(false)),
       v)
+
+  def present(v: SValue): EmitValue = EmitValue(None, v)
 }
 
 class EmitValue protected(missing: Option[Value[Boolean]], v: SValue) {
   def m: Value[Boolean] = missing.getOrElse(const(false))
 
   def required: Boolean = missing.isEmpty
+
+  def setOptional: EmitValue = new EmitValue(Some(missing.getOrElse(false)), v)
 
   lazy val emitType: EmitType = EmitType(v.st, required)
 
@@ -187,6 +191,15 @@ class EmitValue protected(missing: Option[Value[Boolean]], v: SValue) {
       cb.ifx(m, cb._fatal(s"Can't convert missing ${ v.st } to PValue"))
     }
     v
+  }
+
+  def map(cb: EmitCodeBuilder)(f: SValue => SValue): EmitValue = missing match {
+    case None => new EmitValue(None, f(v))
+    case Some(m) =>
+      var newV: SValue = null
+      cb.ifx(!m, { newV = f(v) })
+      new EmitValue(missing, newV)
+
   }
 }
 

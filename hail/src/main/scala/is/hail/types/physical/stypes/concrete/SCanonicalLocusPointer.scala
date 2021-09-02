@@ -2,10 +2,9 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
-import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SBaseStructValue, SLocus, SLocusCode, SLocusValue, SString, SStringCode}
-import is.hail.types.physical.stypes.{SCode, SSettable, SType}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
 import is.hail.types.physical.{PCanonicalLocus, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils.FastIndexedSeq
@@ -23,9 +22,11 @@ final case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
 
   override def rg: ReferenceGenome = pType.rg
 
-  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
-    new SCanonicalLocusPointerCode(this, pType.store(cb, region, value.memoize(cb, "_coerceOrCopy"), deepCopy))
-  }
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue =
+    value match {
+      case value: SLocusValue =>
+        new SCanonicalLocusPointerValue(this, pType.store(cb, region, value, deepCopy), value.contigLong(cb), value.position(cb))
+    }
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo, LongInfo, IntInfo)
 
@@ -55,7 +56,7 @@ final case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
 class SCanonicalLocusPointerValue(
   val st: SCanonicalLocusPointer,
   val a: Value[Long],
-  _contig: Value[Long],
+  val _contig: Value[Long],
   val _position: Value[Int]
 ) extends SLocusValue {
   val pt: PCanonicalLocus = st.pType
@@ -68,7 +69,9 @@ class SCanonicalLocusPointerValue(
     pt.contigType.loadCheapSCode(cb, _contig).asString
   }
 
-  override def position(cb: EmitCodeBuilder): Code[Int] = _position
+  override def contigLong(cb: EmitCodeBuilder): Value[Long] = _contig
+
+  override def position(cb: EmitCodeBuilder): Value[Int] = _position
 
   override def structRepr(cb: EmitCodeBuilder): SBaseStructValue = new SBaseStructPointerValue(
     SBaseStructPointer(st.pType.representation), a)

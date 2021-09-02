@@ -12,7 +12,7 @@ import is.hail.types.virtual.{TStream, Type}
 final case class SStream(elementEmitType: EmitType) extends SType {
   def elementType: SType = elementEmitType.st
 
-  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = {
     if (deepCopy) throw new NotImplementedError()
 
     assert(value.st == this)

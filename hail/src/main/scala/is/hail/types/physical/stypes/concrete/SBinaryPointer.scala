@@ -2,10 +2,9 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryCode, SBinaryValue}
-import is.hail.types.physical.stypes.{SCode, SSettable, SType}
+import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
 import is.hail.types.physical.{PBinary, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils._
@@ -15,8 +14,8 @@ final case class SBinaryPointer(pType: PBinary) extends SBinary {
   require(!pType.required)
 
   override lazy val virtualType: Type = pType.virtualType
-  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
-    new SBinaryPointerCode(this, pType.store(cb, region, value.memoize(cb, "_coerceOrCopy"), deepCopy))
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = {
+    new SBinaryPointerValue(this, pType.store(cb, region, value, deepCopy))
   }
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)

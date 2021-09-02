@@ -1,7 +1,6 @@
 package is.hail.types.physical
 
-import is.hail.HailSuite
-import is.hail.annotations.{Annotation, Region, ScalaToRegionValue}
+import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.types.physical.stypes.concrete.{SUnreachableInterval, SUnreachableIntervalValue}
