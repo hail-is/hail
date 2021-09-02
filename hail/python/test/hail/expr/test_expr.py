@@ -1543,6 +1543,8 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.str(1)), '1')
         self.assertEqual(hl.eval(hl.str(hl.missing('int32'))), None)
 
+    def test_missing_with_field_starting_with_number(self):
+        assert hl.eval(hl.missing(hl.tstruct(**{"1kg": hl.tint32}))) is None
 
     def check_expr(self, expr, expected, expected_type):
         self.assertEqual(expected_type, expr.dtype)
