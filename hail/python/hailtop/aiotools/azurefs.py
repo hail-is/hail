@@ -139,7 +139,7 @@ class AzureReadableStream(ReadableStream):
         super().__init__()
         self._client = client
         self._buffer = bytearray()
-        self._offset = offset
+        self._offset = offset or 0
         self._eof = False
         self._downloader: Optional[StorageStreamDownloader] = None
         self._chunk_it: Optional[AsyncIterator[bytes]] = None
@@ -260,7 +260,7 @@ class AzureAsyncFS(AsyncFS):
                 raise ValueError('credential and credential_file cannot both be defined')
 
         self._credential = credential
-        self._blob_service_clients: Optional[Dict[str, BlobServiceClient]] = {}
+        self._blob_service_clients: Dict[str, BlobServiceClient] = {}
 
     def schemes(self) -> Set[str]:
         return {'hail-az'}
@@ -287,17 +287,17 @@ class AzureAsyncFS(AsyncFS):
 
         return (account, container, name)
 
-    def get_blob_service_client(self, account):
+    def get_blob_service_client(self, account: str) -> BlobServiceClient:
         if account not in self._blob_service_clients:
             self._blob_service_clients[account] = BlobServiceClient(f'https://{account}.blob.core.windows.net', credential=self._credential)
         return self._blob_service_clients[account]
 
-    def get_blob_client(self, url):
+    def get_blob_client(self, url: str) -> BlobClient:
         account, container, name = AzureAsyncFS._get_account_container_name(url)
         blob_service_client = self.get_blob_service_client(account)
         return blob_service_client.get_blob_client(container, name)
 
-    def get_container_client(self, url):
+    def get_container_client(self, url: str) -> ContainerClient:
         account, container, _ = AzureAsyncFS._get_account_container_name(url)
         blob_service_client = self.get_blob_service_client(account)
         return blob_service_client.get_container_client(container)
@@ -448,4 +448,4 @@ class AzureAsyncFS(AsyncFS):
             await self._credential.close()
             self._credential = None
 
-        await asyncio.wait(client.close() for client in self._blob_service_clients.values())
+        await asyncio.wait([client.close() for client in self._blob_service_clients.values()])

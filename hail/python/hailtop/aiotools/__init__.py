@@ -4,7 +4,7 @@ from .stream import (
     blocking_writable_stream_to_async)
 from .fs import (
     FileStatus, FileListEntry, AsyncFS, LocalAsyncFS, RouterAsyncFS, Transfer,
-    FileAndDirectoryError, MultiPartCreate)
+    MultiPartCreate)
 from .azurefs import AzureAsyncFS
 from .utils import FeedableAsyncIterable, WriteBuffer
 from .tasks import BackgroundTaskManager
