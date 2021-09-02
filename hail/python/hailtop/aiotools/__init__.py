@@ -5,7 +5,6 @@ from .stream import (
 from .fs import (
     FileStatus, FileListEntry, AsyncFS, LocalAsyncFS, RouterAsyncFS, Transfer,
     MultiPartCreate)
-from .azurefs import AzureAsyncFS
 from .utils import FeedableAsyncIterable, WriteBuffer
 from .tasks import BackgroundTaskManager
 from .weighted_semaphore import WeightedSemaphore
@@ -19,7 +18,6 @@ __all__ = [
     'FileListEntry',
     'AsyncFS',
     'LocalAsyncFS',
-    'AzureAsyncFS',
     'RouterAsyncFS',
     'FeedableAsyncIterable',
     'BackgroundTaskManager',
