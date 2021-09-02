@@ -448,4 +448,5 @@ class AzureAsyncFS(AsyncFS):
             await self._credential.close()
             self._credential = None
 
-        await asyncio.wait([client.close() for client in self._blob_service_clients.values()])
+        if self._blob_service_clients:
+            await asyncio.wait([client.close() for client in self._blob_service_clients.values()])
