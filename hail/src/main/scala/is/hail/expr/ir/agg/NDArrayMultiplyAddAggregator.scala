@@ -47,6 +47,7 @@ class NDArrayMultiplyAddAggregator(tupleNDVTyp: VirtualTypeWithReq) extends Stag
             val tempRegionForCreation = cb.newLocal[Region]("ndarray_add_multiply_agg_temp_region", Region.stagedCreate(Region.REGULAR, cb.emb.ecb.pool()))
 
             val uninitializedNDArray = ndTyp.constructUnintialized(NDArrayA.shapes, NDArrayA.strides, cb, tempRegionForCreation).memoize(cb, "ndarray_sum_seq_op_uninitialized")
+
             state.storeNonmissing(cb, uninitializedNDArray.get)
 
             cb += tempRegionForCreation.clearRegion()

@@ -314,7 +314,6 @@ object SNDArray {
     assertMatrix(A, B, C)
     val Seq(m, n) = C.shapes
     val k = if (tA == "N") A.shapes(1) else A.shapes(0)
-
     val errMsg = "gemm: incompatible matrix dimensions"
     if (tA == "N")
       A.assertHasShape(cb, FastIndexedSeq(m, k), errMsg)

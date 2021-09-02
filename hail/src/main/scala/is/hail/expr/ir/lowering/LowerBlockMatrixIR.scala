@@ -495,17 +495,13 @@ object LowerBlockMatrixIR {
           }
 
           def blockBody(ctxRef: Ref): IR = {
-            def blockMultiply(elt: Ref) =
-              bindIR(GetTupleElement(elt, 0)) { leftElt =>
-                bindIR(GetTupleElement(elt, 1)) { rightElt =>
-                  NDArrayMatMul(left.blockBody(leftElt), right.blockBody(rightElt), ErrorIDs.NO_ERROR)
-                }
-              }
-            foldIR(ToStream(ArraySlice(ctxRef, I32(1), None)),
-              bindIR(ArrayRef(ctxRef, 0))(blockMultiply)) { (sum, elt) =>
-              NDArrayMap2(sum, blockMultiply(elt), "l", "r",
-                Ref("l", x.typ.elementType) + Ref("r", x.typ.elementType), ErrorIDs.NO_ERROR)
-            }
+            println(ctxRef.typ)
+            val tupleNDArrayStream = ToStream(ctxRef)
+            val streamElementName = genUID()
+            val streamElementRef = Ref(streamElementName, tupleNDArrayStream.typ.asInstanceOf[TStream].elementType)
+            StreamAgg(tupleNDArrayStream, streamElementName,
+              ApplyAggOp(NDArrayMultiplyAdd())(streamElementRef)
+            )
           }
         }
     }
