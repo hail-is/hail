@@ -103,9 +103,9 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
     loadCheapSCode(cb, addr).get
   }
 
-  def constructAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] = {
+  def constructAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Unit = {
     val srcBinary = srcPType.asInstanceOf[PBinary]
-    Region.storeAddress(addr, constructOrCopy(cb, region, srcBinary, srcAddress, deepCopy))
+    cb += Region.storeAddress(addr, constructOrCopy(cb, region, srcBinary, srcAddress, deepCopy))
   }
 
   private def constructOrCopy(cb: EmitCodeBuilder, region: Value[Region], srcBinary: PBinary, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
