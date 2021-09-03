@@ -144,7 +144,7 @@ class AzureReadableStream(ReadableStream):
         self._downloader: Optional[StorageStreamDownloader] = None
         self._chunk_it: Optional[AsyncIterator[bytes]] = None
 
-    async def read(self, n: int = -1):
+    async def read(self, n: int = -1) -> bytes:
         if self._eof:
             return b''
 
@@ -157,20 +157,18 @@ class AzureReadableStream(ReadableStream):
 
         if self._downloader is None:
             self._downloader = await self._client.download_blob(offset=self._offset)
-
-        if self._chunk_it is None:
             self._chunk_it = self._downloader.chunks()
 
         while len(self._buffer) < n:
             try:
                 chunk = await self._chunk_it.__anext__()
                 self._buffer.extend(chunk)
+                self._offset += len(chunk)
             except StopAsyncIteration:
                 break
 
         data = self._buffer[:n]
         self._buffer = self._buffer[n:]
-        self._offset += len(data)
 
         if len(data) < n:
             self._buffer = bytearray()
@@ -182,14 +180,10 @@ class AzureReadableStream(ReadableStream):
 
     async def readexactly(self, n: int) -> bytes:
         assert not self._closed and n >= 0
-
-        try:
-            downloader = await self._client.download_blob(offset=self._offset, length=n)
-            self._offset += n
-            return await downloader.readall()
-        # FIXME: Get actual exception here from tests
-        except asyncio.streams.IncompleteReadError as e:
-            raise UnexpectedEOFError() from e
+        data = await self.read(n)
+        if len(data) != n:
+            raise UnexpectedEOFError()
+        return data
 
     async def _wait_closed(self) -> None:
         self._downloader = None
