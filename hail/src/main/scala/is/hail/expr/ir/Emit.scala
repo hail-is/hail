@@ -803,7 +803,7 @@ class Emit[C](
       case x@UUID4(_) =>
         val pt = PCanonicalString()
         presentPC(pt.loadCheapSCode(cb, pt.
-          allocateAndStoreString(mb, region, Code.invokeScalaObject0[String](
+          allocateAndStoreString(cb, region, Code.invokeScalaObject0[String](
             Class.forName("is.hail.expr.ir.package$"), "uuid4"))))
       case x@Literal(t, v) =>
         presentPC(mb.addLiteral(v, typeWithReq))
