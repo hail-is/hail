@@ -139,7 +139,11 @@ class AzureReadableStream(ReadableStream):
         super().__init__()
         self._client = client
         self._buffer = bytearray()
-        self._offset = offset or 0
+
+        # cannot set the default to 0 because this will fail on an empty file
+        # offset means to start at the first byte
+        self._offset = offset
+
         self._eof = False
         self._downloader: Optional[StorageStreamDownloader] = None
         self._chunk_it: Optional[AsyncIterator[bytes]] = None
@@ -151,7 +155,6 @@ class AzureReadableStream(ReadableStream):
         if n == -1:
             downloader = await self._client.download_blob(offset=self._offset)
             data = await downloader.readall()
-            self._offset += len(data)
             self._eof = True
             return data
 
@@ -165,12 +168,15 @@ class AzureReadableStream(ReadableStream):
             try:
                 chunk = await self._chunk_it.__anext__()
                 self._buffer.extend(chunk)
-                self._offset += len(chunk)
             except StopAsyncIteration:
                 break
 
         data = self._buffer[:n]
         self._buffer = self._buffer[n:]
+
+        if self._offset is None:
+            self._offset = 0
+        self._offset += len(data)
 
         if len(data) < n:
             self._buffer = bytearray()
