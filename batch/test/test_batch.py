@@ -20,8 +20,8 @@ deploy_config = get_deploy_config()
 
 DOCKER_PREFIX = os.environ.get('DOCKER_PREFIX')
 DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'gcr.io/hail-vdc/ubuntu:18.04')
-DOMAIN = os.environ['DOMAIN']
-NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
+DOMAIN = os.environ.get('DOMAIN')
+NAMESPACE = os.environ.get('HAIL_DEFAULT_NAMESPACE')
 SCOPE = os.environ.get('HAIL_SCOPE', 'test')
 
 
