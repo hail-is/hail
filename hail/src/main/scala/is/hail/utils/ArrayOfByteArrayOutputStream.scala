@@ -39,6 +39,18 @@ class ArrayOfByteArrayOutputStream(initialBufferCapacity: Int) extends OutputStr
     bytesInCurrentArray += 1
   }
 
+  override def write(b: Array[Byte], off: Int, len: Int): Unit = {
+    var bytesWritten = 0
+
+    while (bytesWritten < len) {
+      ensureNextByte()
+      val remainingBytesAllowed = MAX_ARRAY_SIZE - bytesInCurrentArray
+      val bytesToWrite = math.min(remainingBytesAllowed, len - bytesWritten)
+      buf(buf.length - 1).write(b, off + bytesWritten, bytesToWrite)
+      bytesWritten += bytesToWrite
+    }
+  }
+
   def toByteArrays(): Array[Array[Byte]] = {
     buf.result().map(_.toByteArray)
   }
