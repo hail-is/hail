@@ -451,6 +451,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
            _: StreamRange |
            _: StreamIota |
            _: SeqSample |
+           _: StreamDistribute |
            _: WriteValue =>
         requiredness.union(node.children.forall { case c: IR => lookup(c).required })
       case x: ApplyComparisonOp if x.op.strict =>
@@ -558,7 +559,10 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         eltType.unionFrom(lookup(joinF))
       case StreamMultiMerge(as, _) =>
         requiredness.union(as.forall(lookup(_).required))
-        coerce[RIterable](requiredness).elementType.unionFrom(as.map(a => coerce[RIterable](lookup(a)).elementType))
+        val elt = coerce[RStruct](coerce[RIterable](requiredness).elementType)
+        as.foreach { a =>
+          elt.unionFields(coerce[RStruct](coerce[RIterable](lookup(a)).elementType))
+        }
       case StreamFilter(a, name, cond) =>
         requiredness.unionFrom(lookup(a))
       case StreamTakeWhile(a, name, cond) =>

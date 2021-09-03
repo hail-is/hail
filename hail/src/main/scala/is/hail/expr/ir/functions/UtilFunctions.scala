@@ -1,5 +1,7 @@
 package is.hail.expr.ir.functions
 
+import java.util.IllegalFormatConversionException
+
 import is.hail.asm4s.{coerce => _, _}
 import is.hail.expr.ir._
 import is.hail.types.physical.stypes._
@@ -159,8 +161,12 @@ object UtilFunctions extends RegistryFunctions {
 
   def intMax(a: IR, b: IR): IR = If(ApplyComparisonOp(GT(a.typ), a, b), a, b)
 
-  def format(f: String, args: Row): String =
+  def format(f: String, args: Row): String = try {
     String.format(f, args.toSeq.map(_.asInstanceOf[java.lang.Object]): _*)
+  } catch {
+    case e: IllegalFormatConversionException =>
+      fatal(s"Encountered invalid type for format string $f: format specifier ${e.getConversion} does not accept type ${e.getArgumentClass.getCanonicalName}")
+  }
 
   def registerAll() {
     val thisClass = getClass

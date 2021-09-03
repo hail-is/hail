@@ -2,7 +2,7 @@ package is.hail.expr.ir.lowering
 
 import is.hail.expr.ir.agg.Extract
 import is.hail.expr.ir._
-import is.hail.utils.FastSeq
+import is.hail.utils._
 
 trait LoweringPass {
   val before: IRState
@@ -14,6 +14,7 @@ trait LoweringPass {
       ctx.timer.time("Verify")(before.verify(ir))
       val result = ctx.timer.time("LoweringTransformation")(transform(ctx: ExecuteContext, ir))
       ctx.timer.time("Verify")(after.verify(result))
+
       result
     }
   }

@@ -4,6 +4,7 @@ import is.hail.HailContext
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.TableToValueFunction
 import is.hail.io.TextMatrixReader
+import is.hail.io.avro.AvroTableReader
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.io.plink.MatrixPLINKReader
 import is.hail.io.vcf.MatrixVCFReader
@@ -32,6 +33,7 @@ object CanLowerEfficiently {
         case TableRead(_, _, _: StringTableReader) =>
         case TableRead(_, _, _: MatrixPLINKReader) =>
         case TableRead(_, _, _: MatrixVCFReader) =>
+        case TableRead(_, _, _: AvroTableReader) =>
         case TableRead(_, _, _: MatrixBGENReader) =>
           fail(s"no lowering for MatrixBGENReader")
         case TableRead(_, _, _: TableFromBlockMatrixNativeReader) =>
@@ -42,14 +44,10 @@ object CanLowerEfficiently {
         case t: TableParallelize =>
         case t: TableRange =>
         case TableKeyBy(child, keys, isSorted) =>
-          val doesStrangeDNDArrayOneToOneRekey = isSorted &&
-            child.typ.key.zip(keys).takeWhile { case (l, r) => l == r }.isEmpty
-          if (doesStrangeDNDArrayOneToOneRekey)
-            fail(s"TableKeyBy cannot lower the one-to-one rekey done in dndarrays")
         case t: TableOrderBy =>
         case t: TableFilter =>
         case t: TableHead =>
-        case t: TableTail => fail("TableTail has no short-circuit using known partition counts")
+        case t: TableTail =>
         case t: TableJoin =>
         case t: TableIntervalJoin => fail(s"TableIntervalJoin has no lowered implementation")
         case t: TableMultiWayZipJoin =>

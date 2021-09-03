@@ -1310,7 +1310,6 @@ class DockerJob(Job):
                     project=PROJECT,
                     instance_name=NAME,
                     name=f'batch-disk-{uid}',
-                    compute_client=worker.compute_client,
                     size_in_gb=self.external_storage_in_gib,
                     mount_path=self.io_host_path(),
                 )
@@ -1420,6 +1419,8 @@ class DockerJob(Job):
                             log.info(f'deleted disk {self.disk.name} for {self.id}')
                         except Exception:
                             log.exception(f'while detaching and deleting disk {self.disk.name} for {self.id}')
+                        finally:
+                            await self.disk.close()
                     else:
                         worker.data_disk_space_remaining.value += self.external_storage_in_gib
 

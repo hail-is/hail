@@ -23,10 +23,28 @@ spec:
         - name: grafana-configmap-volume
           configMap:
             name: grafana-config
+        - name: grafana-datasources-configmap-volume
+          configMap:
+            name: grafana-datasources-config
         - name: ssl-config-grafana
           secret:
             optional: false
             secretName: ssl-config-grafana
+        - name: grafana-tokens
+          secret:
+            secretName: grafana-tokens
+        - name: grafana-shared
+          emptyDir: {}
+      initContainers:
+       - name: setup-tokens
+         image: {{ base_image.image }}
+         command: ["/bin/bash"]
+         args: ["-c", "jq -r '.{{ default_ns.name }}' /grafana-tokens/tokens.json > /grafana-shared/token"]
+         volumeMounts:
+           - mountPath: /grafana-tokens
+             name: grafana-tokens
+           - mountPath: /grafana-shared
+             name: grafana-shared
       containers:
        - name: grafana
          image: grafana/grafana:8.0.2
@@ -47,6 +65,10 @@ spec:
             name: grafana-storage
           - mountPath: /etc/grafana
             name: grafana-configmap-volume
+          - mountPath: /etc/grafana/provisioning/datasources
+            name: grafana-datasources-configmap-volume
+          - mountPath: /grafana-shared
+            name: grafana-shared
          resources:
            requests:
              cpu: "100m"
@@ -100,6 +122,29 @@ data:
     root_url = %(protocol)s://%(domain)/{{ default_ns.name }}/grafana/
     serve_from_sub_path = true
 {% endif %}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources-config
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Google Cloud Monitoring
+        type: stackdriver
+        access: proxy
+        jsonData:
+          authenticationType: gce
+          defaultProject: {{ global.project }}
+        editable: true
+      - name: prometheus
+        type: prometheus
+        jsonData:
+          httpHeaderName1: 'Authorization'
+        secureJsonData:
+          httpHeaderValue1: 'Bearer $__file{/grafana-shared/token}'
+        editable: true
 ---
 apiVersion: v1
 kind: Service

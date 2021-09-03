@@ -122,7 +122,7 @@ class DensifyState(val arrayVType: VirtualTypeWithReq, val kb: EmitClassBuilder[
   }
 
   def result(cb: EmitCodeBuilder, region: Value[Region]): SIndexablePointerCode = {
-    arrayStorageType.loadCheapSCode(cb, arrayAddr)
+    arrayStorageType.loadCheapSCode(cb, arrayAddr).get
   }
 
   def copyFrom(cb: EmitCodeBuilder, srcCode: Code[Long]): Unit = {

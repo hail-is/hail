@@ -1,4 +1,4 @@
-from typing import BinaryIO, Optional, Tuple, Type
+from typing import BinaryIO, List, Optional, Tuple, Type
 from types import TracebackType
 import abc
 import io
@@ -7,13 +7,22 @@ from concurrent.futures import ThreadPoolExecutor
 import janus
 from hailtop.utils import blocking_to_async
 
+from .exceptions import UnexpectedEOFError
+
 
 class ReadableStream(abc.ABC):
     def __init__(self):
         self._closed = False
         self._waited_closed = False
 
+    # Read at most up to n bytes. If n == -1, then
+    # return all bytes up to the end of the file
     async def read(self, n: int = -1) -> bytes:
+        raise NotImplementedError
+
+    # Read exactly n bytes. If there is an EOF before
+    # n bytes have been read, raise an UnexpectedEOFError.
+    async def readexactly(self, n: int) -> bytes:
         raise NotImplementedError
 
     def close(self) -> None:
@@ -94,10 +103,27 @@ class _ReadableStreamFromBlocking(ReadableStream):
         self._thread_pool = thread_pool
         self._f = f
 
+    # https://docs.python.org/3/library/io.html#io.RawIOBase.read
+    # Read up to size bytes from the object and return them. As a
+    # convenience, if size is unspecified or -1, all bytes until EOF are returned.
     async def read(self, n: int = -1) -> bytes:
         if n == -1:
             return await blocking_to_async(self._thread_pool, self._f.read)
         return await blocking_to_async(self._thread_pool, self._f.read, n)
+
+    def _readexactly(self, n: int) -> bytes:
+        assert n >= 0
+        data: List[bytes] = []
+        while n > 0:
+            block = self._f.read(n)
+            if len(block) == 0:
+                raise UnexpectedEOFError()
+            data.append(block)
+            n -= len(block)
+        return b''.join(data)
+
+    async def readexactly(self, n: int) -> bytes:
+        return await blocking_to_async(self._thread_pool, self._readexactly, n)
 
     async def _wait_closed(self) -> None:
         await blocking_to_async(self._thread_pool, self._f.close)

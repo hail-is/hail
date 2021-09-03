@@ -59,7 +59,7 @@ class BinarySearch[C](mb: EmitMethodBuilder[C], containerType: SContainer, eltTy
   findElt.emitWithBuilder[Int] { cb =>
     val indexable = findElt.getSCodeParam(1).asIndexable.memoize(cb, "findElt_indexable")
 
-    val elt = findElt.getEmitParam(2, null) // no streams
+    val elt = findElt.getEmitParam(cb, 2, null) // no streams
 
     val len = cb.newLocal[Int]("findelt_length", indexable.loadLength())
     val low = cb.newLocal("findelt_low", 0)

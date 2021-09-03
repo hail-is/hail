@@ -158,56 +158,36 @@ case class EmitRegion(mb: EmitMethodBuilder[_], region: Value[Region]) {
 }
 
 object EmitValue {
-  def apply(missing: Option[Value[Boolean]], v: SValue): EmitValue = new EmitValue {
-    lazy val required: Boolean = missing match {
-      case None => true
-      case Some(m) => Code.constBoolValue(m).contains(false)
-    }
+  def apply(missing: Option[Value[Boolean]], v: SValue): EmitValue =
+    new EmitValue(
+      missing.filterNot(m => Code.constBoolValue(m).contains(false)),
+      v)
+}
 
-    override lazy val emitType: EmitType = EmitType(v.st, required)
+class EmitValue protected(missing: Option[Value[Boolean]], v: SValue) {
+  def m: Value[Boolean] = missing.getOrElse(const(false))
 
-    override def load: EmitCode = {
-      val ec = EmitCode(Code._empty,
-        if (required) const(false) else missing.get,
-        v)
-      assert(ec.required == required)
-      ec
-    }
+  def required: Boolean = missing.isEmpty
 
-    override def get(cb: EmitCodeBuilder): SCode = {
-      if (required) {
-        v
-      } else {
-        cb.ifx(missing.get, cb._fatal(s"Can't convert missing ${ st } to PValue"))
-        v
-      }
-    }
+  lazy val emitType: EmitType = EmitType(v.st, required)
+
+  def valueTuple(): IndexedSeq[Value[_]] = missing match {
+    case Some(m) => v.valueTuple :+ m
+    case None => v.valueTuple
   }
-}
-
-abstract class EmitValue {
-  def emitType: EmitType
-
-  def st: SType = emitType.st
-
-  def load: EmitCode
-
-  def get(cb: EmitCodeBuilder): SCode
-}
-
-class EmitUnrealizableValue(private val ec: EmitCode) extends EmitValue {
-  val emitType: EmitType = ec.emitType
-
-  assert(st.isInstanceOf[SStream])
-  private[this] var used: Boolean = false
 
   def load: EmitCode = {
-    assert(!used)
-    used = true
+    val ec = EmitCode(Code._empty, m, v)
+    assert(ec.required == required)
     ec
   }
 
-  override def get(cb: EmitCodeBuilder): SCode = throw new UnsupportedOperationException(s"Can't make PValue for unrealizable type ${ ec.st }")
+  def get(cb: EmitCodeBuilder): SValue = {
+    missing.foreach { m =>
+      cb.ifx(m, cb._fatal(s"Can't convert missing ${ v.st } to PValue"))
+    }
+    v
+  }
 }
 
 /**
@@ -446,20 +426,6 @@ class EmitCode(private val start: CodeLabel, private val iec: IEmitCode) {
     EmitCode.fromI(mb)(cb => toI(cb).map(cb)(_.castTo(cb, region, destType)))
   }
 
-  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = {
-    val ct = if (required) {
-      toI(cb).get(cb).makeCodeTuple(cb)
-    } else {
-      val es = cb.emb.newEmitLocal("ec_makecodetuple", emitType)
-      cb.assign(es, toI(cb))
-      es.pv.makeCodeTuple(cb) :+ es.m
-    }
-
-    assert(ct.zip(emitParamType.codeTupleTypes).forall { case (p, pt) => p.ti == pt.ti},
-      s"ctt mismatch: $emitType\n  param: ${ct.map(_.ti)}\n  types: ${emitParamType.codeTupleTypes}")
-    ct
-  }
-
   def missingIf(mb: EmitMethodBuilder[_], cond: Code[Boolean]): EmitCode =
     EmitCode.fromI(mb) { cb =>
       val Ltrue = CodeLabel()
@@ -490,27 +456,13 @@ object EmitSettable {
 
 class EmitSettable(
   missing: Option[Settable[Boolean]], // required if None
-  vs: SSettable) extends EmitValue {
-
-  lazy val required: Boolean = missing.isEmpty
-
-  lazy val emitType: EmitType = EmitType(vs.st, required)
-
+  vs: SSettable
+) extends EmitValue(missing, vs) {
   def settableTuple(): IndexedSeq[Settable[_]] = {
     missing match {
       case Some(m) => vs.settableTuple() :+ m
       case None => vs.settableTuple()
     }
-  }
-
-  def m: Code[Boolean] = missing.map(_.load()).getOrElse(const(false))
-
-  def load: EmitCode = {
-    val ec = EmitCode(Code._empty,
-      if (required) const(false) else missing.get.load(),
-      vs.get)
-    assert(ec.required == required)
-    ec
   }
 
   def store(cb: EmitCodeBuilder, ec: EmitCode): Unit = {
@@ -519,7 +471,7 @@ class EmitSettable(
 
   def store(cb: EmitCodeBuilder, iec: IEmitCode): Unit =
     if (required)
-      cb.assign(vs, iec.get(cb, s"Required EmitSettable cannot be missing ${ st }"))
+      cb.assign(vs, iec.get(cb, s"Required EmitSettable cannot be missing ${ vs.st }"))
     else
       iec.consume(cb, {
         cb.assign(missing.get, true)
@@ -527,15 +479,6 @@ class EmitSettable(
         cb.assign(missing.get, false)
         cb.assign(vs, value)
       })
-
-  override def get(cb: EmitCodeBuilder): SCode = {
-    if (required) {
-      vs
-    } else {
-      cb.ifx(missing.get, cb._fatal(s"Can't convert missing ${ st } to PValue"))
-      vs
-    }
-  }
 }
 
 class RichIndexedSeqEmitSettable(is: IndexedSeq[EmitSettable]) {
@@ -882,7 +825,7 @@ class Emit[C](
         iec.map(cb)(pc => cast(cb, pc))
       case CastRename(v, _typ) =>
         emitI(v)
-          .map(cb)(pc => pc.st.castRename(_typ).fromCodes(pc.makeCodeTuple(cb)))
+          .map(cb)(pc => pc.st.castRename(_typ).fromValues(pc.memoize(cb, "CastRename").valueTuple))
       case NA(typ) =>
         IEmitCode.missing(cb, SUnreachable.fromVirtualType(typ).defaultValue)
       case IsNA(v) =>
@@ -960,7 +903,7 @@ class Emit[C](
 
       case x@SelectFields(oldStruct, fields) =>
         emitI(oldStruct)
-          .map(cb) { case sc: SBaseStructCode => sc.subset(fields: _*) }
+          .map(cb) { case sc: SBaseStructCode => sc.memoize(cb, "SelectFields").subset(fields: _*) }
 
       case x@InsertFields(old, fields, _) =>
         if (fields.isEmpty)
@@ -1339,7 +1282,16 @@ class Emit[C](
           }
         }
 
-
+      case StreamDistribute(child, pivots, path, spec) =>
+        emitI(path).flatMap(cb) { pathCode =>
+          val pathValue = pathCode.memoize(cb, "stream_dist_path")
+          emitI(pivots).flatMap(cb) { case pivotsCode: SIndexableCode =>
+            val pivotsVal = pivotsCode.memoize(cb, "stream_dist_pivots_and_ends")
+            emitStream(child, cb, region).map(cb) { case childStream: SStreamCode =>
+              EmitStreamDistribute.emit(cb, region, pivotsVal, childStream, pathValue, spec)
+            }
+          }
+        }
       case x@MakeNDArray(dataIR, shapeIR, rowMajorIR, errorId) =>
         val nDims = x.typ.nDims
 
@@ -1383,7 +1335,7 @@ class Emit[C](
                     }
                   })
 
-                  xP.constructByCopyingArray(shapeValues, stridesSettables, memoData.asIndexable, cb, region)
+                  xP.constructByCopyingArray(shapeValues, stridesSettables, memoData.get.asIndexable, cb, region)
                 }
               case _: TStream =>
                 EmitStream.produce(this, dataIR, cb, region, env, container)
@@ -1430,14 +1382,14 @@ class Emit[C](
         childEC.map(cb) { case sndCode: SNDArrayPointerCode =>
           val childPType = sndCode.st.pType
           val sndVal = sndCode.memoize(cb, "ndarray_reindex_child")
-          val childShape = sndVal.shapes(cb)
-          val childStrides = sndVal.strides(cb)
+          val childShape = sndVal.shapes
+          val childStrides = sndVal.strides
 
           val pndAddr = SingleCodeSCode.fromSCode(cb, sndVal, region)
-          val dataPtr = sndVal.firstDataAddress(cb)
+          val dataPtr = sndVal.firstDataAddress
 
           val newShape = indexMap.map { childIndex =>
-            if (childIndex < childPType.nDims) childShape(childIndex) else const(1L)
+            if (childIndex < childPType.nDims) childShape(childIndex) else SizeValueStatic(1L)
           }
           val newStrides = indexMap.map { childIndex =>
             if (childIndex < childPType.nDims) childStrides(childIndex) else const(0L)
@@ -1475,8 +1427,8 @@ class Emit[C](
             val lSType = leftPVal.st
             val rSType = rightPVal.st
 
-            val lShape = leftPVal.shapes(cb)
-            val rShape = rightPVal.shapes(cb)
+            val lShape = leftPVal.shapes
+            val rShape = rightPVal.shapes
 
             val unifiedShape = NDArrayEmitter.matmulShape(cb, lShape, rShape, errorID)
 
@@ -1487,8 +1439,8 @@ class Emit[C](
               TNDArray.matMulNDims(lSType.nDims, rSType.nDims))
 
             if ((lSType.elementType.virtualType == TFloat64 || lSType.elementType.virtualType == TFloat32) && lSType.nDims == 2 && rSType.nDims == 2) {
-              val leftDataAddress = leftPVal.firstDataAddress(cb)
-              val rightDataAddress = rightPVal.firstDataAddress(cb)
+              val leftDataAddress = leftPVal.firstDataAddress
+              val rightDataAddress = rightPVal.firstDataAddress
 
               val M = lShape(lSType.nDims - 2)
               val N = rShape(rSType.nDims - 1)
@@ -1507,7 +1459,7 @@ class Emit[C](
                 cb,
                 region)
 
-              cb.ifx((M cne 0L) && (N cne 0L) && (K cne 0L), {
+              cb.ifx((M.get cne 0L) && (N.get cne 0L) && (K.get cne 0L), {
                 cb.append(lSType.elementType.virtualType match {
                   case TFloat32 =>
                     Code.invokeScalaObject13[String, String, Int, Int, Int, Float, Long, Int, Long, Int, Float, Long, Int, Unit](BLAS.getClass, method = "sgemm",
@@ -1550,8 +1502,8 @@ class Emit[C](
 
               answerFinisher(cb)
             } else if (lSType.elementType.virtualType == TFloat64 && lSType.nDims == 2 && rSType.nDims == 1) {
-              val leftDataAddress = leftPVal.firstDataAddress(cb)
-              val rightDataAddress = rightPVal.firstDataAddress(cb)
+              val leftDataAddress = leftPVal.firstDataAddress
+              val rightDataAddress = rightPVal.firstDataAddress
 
               val numRows = lShape(lSType.nDims - 2)
               val numCols = lShape(lSType.nDims - 1)
@@ -1646,7 +1598,7 @@ class Emit[C](
           val pndVal = pNDCode.memoize(cb, "ndarray_inverse_nd")
           val ndPT = pndVal.st.asInstanceOf[SNDArrayPointer].pType
 
-          val shapeArray = pndVal.shapes(cb)
+          val shapeArray = pndVal.shapes
           val stridesArray = ndPT.makeColumnMajorStrides(shapeArray, region, cb)
 
 
@@ -1656,7 +1608,7 @@ class Emit[C](
           val N = shapeArray(1)
           val LDA = M
 
-          val dataFirstAddress = pndVal.firstDataAddress(cb)
+          val dataFirstAddress = pndVal.firstDataAddress
 
           val IPIVptype = PCanonicalArray(PInt32Required, true)
           val IPIVaddr = mb.genFieldThisRef[Long]()
@@ -1711,7 +1663,7 @@ class Emit[C](
             .orEmpty(Code._fatalWithID[Unit](const(s"LAPACK error DGESDD. $extraErrorMsg Error code = ").concat(infoDGESDDResult.toS), errorID))
 
           val LWORKAddress = mb.newLocal[Long]("svd_lwork_address")
-          val shapes = ndPVal.shapes(cb)
+          val shapes = ndPVal.shapes
           val M = shapes(0)
           val N = shapes(1)
           val K = cb.newLocal[Long]("nd_svd_K")
@@ -1722,7 +1674,7 @@ class Emit[C](
           val LDVT = if (full_matrices) N else K
           val IWORK = cb.newLocal[Long]("dgesdd_IWORK_address")
           val A = cb.newLocal[Long]("dgesdd_A_address")
-          val firstElementDataAddress = ndPVal.firstDataAddress(cb)
+          val firstElementDataAddress = ndPVal.firstDataAddress
 
           cb.assign(LWORKAddress, Code.invokeStatic1[Memory, Long, Long]("malloc", 8L))
 
@@ -1830,7 +1782,7 @@ class Emit[C](
           // the PCanonicalNDArray representation.
           val pType = pndValue.st.asInstanceOf[SNDArrayPointer].pType
 
-          val shapeArray = pndValue.shapes(cb)
+          val shapeArray = pndValue.shapes
 
           val LWORKAddress = cb.newLocal[Long]("dgeqrf_lwork_address")
 
@@ -1846,7 +1798,7 @@ class Emit[C](
           def LWORK = (Region.loadDouble(LWORKAddress).toI > 0).mux(Region.loadDouble(LWORKAddress).toI, 1)
 
           val ndPT = pType
-          val dataFirstElementAddress = pndValue.firstDataAddress(cb)
+          val dataFirstElementAddress = pndValue.firstDataAddress
 
           val hPType = ndPT
           val hShapeArray = FastIndexedSeq[Value[Long]](N, M)
@@ -2244,7 +2196,7 @@ class Emit[C](
           val pv = p.memoize(cb, "write_path")
           emitI(value).map(cb) { v =>
             val ob = cb.newLocal[OutputBuffer]("write_ob")
-            cb.assign(ob, spec.buildCodeOutputBuffer(mb.create(pv.asString.loadString())))
+            cb.assign(ob, spec.buildCodeOutputBuffer(mb.create(pv.get.asString.loadString())))
             spec.encodedType.buildEncoder(v.st, cb.emb.ecb)
               .apply(cb, v.memoize(cb, "write_value"), ob)
             cb += ob.invoke[Unit]("close")

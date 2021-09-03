@@ -7,6 +7,7 @@ import is.hail.expr.ir.agg.{AggStateSig, PhysicalAggSig}
 import is.hail.expr.ir.functions._
 import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.expr.ir.streams.StreamProducer
+import is.hail.io.avro.{AvroPartitionReader, AvroSchemaSerializer}
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
 import is.hail.rvd.RVDSpecMaker
 import is.hail.types.{RIterable, TypeWithRequiredness}
@@ -293,6 +294,10 @@ final case class StreamDrop(a: IR, num: IR) extends IR
 
 // Generate, in ascending order, a uniform random sample, without replacement, of numToSample integers in the range [0, totalRange)
 final case class SeqSample(totalRange: IR, numToSample: IR, requiresMemoryManagementPerElement: Boolean) extends IR
+
+// Take the child stream and sort each element into buckets based on the provided pivots. The first and last elements of
+// pivots are the endpoints of the first and last interval respectively, should not be contained in the dataset.
+final case class StreamDistribute(child: IR, pivots: IR, path: IR, spec: AbstractTypedCodecSpec) extends IR
 
 object ArrayZipBehavior extends Enumeration {
   type ArrayZipBehavior = Value
@@ -645,13 +650,15 @@ object PartitionReader {
       classOf[PartitionZippedNativeReader],
       classOf[PartitionZippedIndexedNativeReader],
       classOf[AbstractTypedCodecSpec],
-      classOf[TypedCodecSpec]),
+      classOf[TypedCodecSpec],
+      classOf[AvroPartitionReader]),
       typeHintFieldName = "name") + BufferSpec.shortTypeHints
   }  +
     new TStructSerializer +
     new TypeSerializer +
     new PTypeSerializer +
-    new ETypeSerializer
+    new ETypeSerializer +
+    new AvroSchemaSerializer
 }
 
 object PartitionWriter {

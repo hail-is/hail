@@ -5,6 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.{PCanonicalNDArray, PNDArray, PType}
 import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.physical.stypes.primitives.{SBooleanCode, SFloat32Code, SFloat64Code, SInt32Code, SInt64Code, SPrimitiveCode}
 import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType}
 import is.hail.types.virtual._
 import is.hail.utils.FastIndexedSeq
@@ -29,8 +30,6 @@ object SUnreachable {
 }
 
 abstract class SUnreachable extends SType {
-  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq()
-
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq()
 
   override def storageType(): PType = PType.canonical(virtualType, required = false, innerRequired = true)
@@ -43,8 +42,6 @@ abstract class SUnreachable extends SType {
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SSettable = sv
 
-  override def fromCodes(codes: IndexedSeq[Code[_]]): SUnreachableValue = sv
-
   override def fromValues(values: IndexedSeq[Value[_]]): SUnreachableValue = sv
 
   override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = sv
@@ -55,13 +52,25 @@ abstract class SUnreachable extends SType {
 }
 
 abstract class SUnreachableValue extends SCode with SSettable {
-  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq()
-
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq()
+
+  def valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq()
 
   def store(cb: EmitCodeBuilder, v: SCode): Unit = {}
 
   override def get: SCode = this
+
+  // These overrides are needed to disambiguate inheritance from SCode and SValue.
+  // Can remove when SCode is gone.
+  override def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SCode =
+    castTo(cb, region, destType, false)
+
+  override def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType, deepCopy: Boolean): SCode = {
+    destType.coerceOrCopy(cb, region, this, deepCopy)
+  }
+
+  override def copyToRegion(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SCode =
+    destType.coerceOrCopy(cb, region, this, deepCopy = true)
 }
 
 case class SUnreachableStruct(virtualType: TBaseStruct) extends SUnreachable with SBaseStruct {
@@ -73,8 +82,6 @@ case class SUnreachableStruct(virtualType: TBaseStruct) extends SUnreachable wit
   def fieldIdx(fieldName: String): Int = virtualType.fieldIdx(fieldName)
 
   val sv = new SUnreachableStructValue(this)
-
-  override def fromCodes(codes: IndexedSeq[Code[_]]): SUnreachableStructValue = sv
 }
 
 class SUnreachableStructValue(val st: SUnreachableStruct) extends SUnreachableValue with SBaseStructValue with SBaseStructCode {
@@ -88,7 +95,7 @@ class SUnreachableStructValue(val st: SUnreachableStruct) extends SUnreachableVa
 
   override def loadSingleField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = loadField(cb, fieldIdx)
 
-  override def subset(fieldNames: String*): SBaseStructCode = {
+  override def subset(fieldNames: String*): SBaseStructValue = {
     val oldType = st.virtualType.asInstanceOf[TStruct]
     val newType = TStruct(fieldNames.map(f => (f, oldType.fieldType(f))): _*)
     new SUnreachableStructValue(SUnreachableStruct(newType))
@@ -249,23 +256,25 @@ case class SUnreachableNDArray(virtualType: TNDArray) extends SUnreachable with 
 class SUnreachableNDArrayValue(val st: SUnreachableNDArray) extends SUnreachableValue with SNDArraySettable with SNDArrayCode {
   override def memoizeField(cb: EmitCodeBuilder, name: String): SUnreachableNDArrayValue = this
 
-  def shape(cb: EmitCodeBuilder): SBaseStructCode = SUnreachableStruct(TTuple((0 until st.nDims).map(_ => TInt64): _*)).defaultValue.asBaseStruct
+  def shape(cb: EmitCodeBuilder): SBaseStructCode = SUnreachableStruct(TTuple((0 until st.nDims).map(_ => TInt64): _*)).defaultValue.get.asBaseStruct
 
   def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SCode = SUnreachable.fromVirtualType(st.virtualType.elementType).defaultValue
 
   def loadElementAddress(indices: IndexedSeq[is.hail.asm4s.Value[Long]],cb: is.hail.expr.ir.EmitCodeBuilder): is.hail.asm4s.Code[Long] = const(0L)
 
-  def shapes(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = (0 until st.nDims).map(_ => const(0L))
+  def shapes: IndexedSeq[SizeValue] = (0 until st.nDims).map(_ => SizeValueStatic(0L))
 
-  def strides(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = (0 until st.nDims).map(_ => const(0L))
+  def strides: IndexedSeq[Value[Long]] = (0 until st.nDims).map(_ => const(0L))
 
   override def outOfBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Boolean] = const(false)
 
   override def assertInBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder, errorId: Int = -1): Unit = {}
 
-  override def sameShape(other: SNDArrayValue, cb: EmitCodeBuilder): Code[Boolean] = const(false)
+  override def sameShape(cb: EmitCodeBuilder, other: SNDArrayValue): Code[Boolean] = const(false)
 
-  def firstDataAddress(cb: EmitCodeBuilder): Value[Long] = const(0L)
+  override def coerceToShape(cb: EmitCodeBuilder, otherShape: IndexedSeq[SizeValue]): SNDArrayValue = this
+
+  def firstDataAddress: Value[Long] = const(0L)
 
   override def memoize(cb: EmitCodeBuilder, name: String): SUnreachableNDArrayValue = this
 
@@ -298,5 +307,5 @@ class SUnreachableContainerValue(val st: SUnreachableContainer) extends SUnreach
 
   def hasMissingValues(cb: EmitCodeBuilder): Code[Boolean] = const(false)
 
-  def castToArray(cb: EmitCodeBuilder): SIndexableCode = SUnreachable.fromVirtualType(st.virtualType.arrayElementsRepr).defaultValue.asIndexable
+  def castToArray(cb: EmitCodeBuilder): SIndexableCode = SUnreachable.fromVirtualType(st.virtualType.arrayElementsRepr).defaultValue.get.asIndexable
 }

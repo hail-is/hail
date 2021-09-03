@@ -1,9 +1,12 @@
 import json
 import os
+import shutil
 import unittest
 from unittest import mock
 
-import shutil
+from avro.datafile import DataFileReader
+from avro.io import DatumReader
+
 import pytest
 import hail as hl
 from ..helpers import *
@@ -698,6 +701,11 @@ class VCFTests(unittest.TestCase):
             with mock.patch("hail.methods.impex.warning", autospec=True) as warning:
                 hl.export_vcf(mt.annotate_rows(info=mt.info.annotate(**{invalid_field: True})), t)
                 assert warning.call_count == 1
+
+    def test_vcf_different_info_errors(self):
+        with self.assertRaisesRegex(FatalError, "Check that all files have same INFO fields"):
+            mt = hl.import_vcf([resource('different_info_test1.vcf'), resource('different_info_test2.vcf')])
+            mt.rows()._force_count()
 
 class PLINKTests(unittest.TestCase):
     @fails_service_backend()
@@ -2119,6 +2127,16 @@ class GrepTests(unittest.TestCase):
                                                'HG00121_B_B\t966.4\t4822']}
 
         assert hl.grep('HG0012[0-1]', resource('*.tsv'), show=False) == expected
+
+
+class AvroTests(unittest.TestCase):
+    def test_simple_avro(self):
+        avro_file = resource('avro/weather.avro')
+        with DataFileReader(open(avro_file, 'rb'), DatumReader()) as avro:
+            expected = list(avro)
+        data = hl.import_avro([avro_file]).collect()
+        data = [dict(**s) for s in data]
+        self.assertEqual(expected, data)
 
 
 @fails_service_backend()

@@ -50,10 +50,6 @@ abstract class SCode {
 
   def st: SType
 
-  // requires a code builder because forming a code tuple may require appending
-  // straight-line code, e.g. if a SCode contains nested EmitCodes
-  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]]
-
   def asBoolean: SBooleanCode = asInstanceOf[SBooleanCode]
 
   def asInt: SInt32Code = asInstanceOf[SInt32Code]
@@ -98,6 +94,7 @@ abstract class SCode {
   def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType, deepCopy: Boolean): SCode = {
     destType.coerceOrCopy(cb, region, this, deepCopy)
   }
+
   def copyToRegion(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SCode =
     destType.coerceOrCopy(cb, region, this, deepCopy = true)
 
@@ -109,7 +106,55 @@ abstract class SCode {
 trait SValue {
   def st: SType
 
+  def valueTuple: IndexedSeq[Value[_]]
+
   def get: SCode
+
+  def asBooleanValue: SBooleanValue = asInstanceOf[SBooleanValue]
+
+  def asIntValue: SInt32Value = asInstanceOf[SInt32Value]
+
+  def asInt32Value: SInt32Value = asInstanceOf[SInt32Value]
+
+  def asLongValue: SInt64Value = asInstanceOf[SInt64Value]
+
+  def asInt64Value: SInt64Value = asInstanceOf[SInt64Value]
+
+  def asFloat32Value: SFloat32Value = asInstanceOf[SFloat32Value]
+
+  def asFloat64Value: SFloat64Value = asInstanceOf[SFloat64Value]
+
+  def asDoubleValue: SFloat64Value = asInstanceOf[SFloat64Value]
+
+  def asPrimitiveValue: SPrimitiveValue = asInstanceOf[SPrimitiveValue]
+
+  def asBinaryValue: SBinaryValue = asInstanceOf[SBinaryValue]
+
+  def asIndexableValue: SIndexableValue = asInstanceOf[SIndexableValue]
+
+  def asBaseStructValue: SBaseStructValue = asInstanceOf[SBaseStructValue]
+
+  def asStringValue: SStringValue = asInstanceOf[SStringValue]
+
+  def asIntervalValue: SIntervalValue = asInstanceOf[SIntervalValue]
+
+  def asNDArrayValue: SNDArrayValue = asInstanceOf[SNDArrayValue]
+
+  def asLocusValue: SLocusValue = asInstanceOf[SLocusValue]
+
+  def asCallValue: SCallValue = asInstanceOf[SCallValue]
+
+  def asStreamValue: SStreamValue = asInstanceOf[SStreamValue]
+
+  def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SCode =
+    castTo(cb, region, destType, false)
+
+  def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType, deepCopy: Boolean): SCode = {
+    destType.coerceOrCopy(cb, region, this, deepCopy)
+  }
+
+  def copyToRegion(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SCode =
+    destType.coerceOrCopy(cb, region, this, deepCopy = true)
 
   def hash(cb: EmitCodeBuilder): SInt32Code = throw new UnsupportedOperationException(s"Stype ${st} has no hashcode")
 }
@@ -136,8 +181,6 @@ trait SUnrealizableCode extends SCode {
     throw new UnsupportedOperationException(s"$this is not realizable")
 
   def code: Code[_] = unsupported
-
-  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = unsupported
 
   def memoizeField(cb: EmitCodeBuilder, name: String): SValue = unsupported
 }

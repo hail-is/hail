@@ -141,8 +141,12 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
       cb.assign(i, 0)
       cb.whileLoop(i < count(n),
         {
-          f(cb, EmitCode(Code._empty, bufferType.isElementMissing(buffer(n), i),
-            elemType.loadCheapSCode(cb, bufferType.loadElement(buffer(n), capacity(n), i))))
+          val elt = EmitCode.fromI(cb.emb) { cb =>
+            IEmitCode(cb,
+              bufferType.isElementMissing(buffer(n), i),
+              elemType.loadCheapSCode(cb, bufferType.loadElement(buffer(n), capacity(n), i)).get)
+          }
+          f(cb, elt)
           cb.assign(i, i + 1)
         })
     }
@@ -169,7 +173,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
     pushF.voidWithBuilder { cb =>
       pushImpl(cb,
         pushF.getCodeParam[Region](1),
-        pushF.getEmitParam(2, null)) // don't need region
+        pushF.getEmitParam(cb, 2, null)) // don't need region
     }
     cb.invokeVoid(pushF, region, elt)
   }
@@ -209,7 +213,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
       foreachNode(cb, n) { cb =>
         cb += ob.writeBoolean(true)
         cb.assign(b, buffer(n))
-        bufferEType.buildPrefixEncoder(cb, bufferType.loadCheapSCode(cb, b).memoize(cb, "sbll_serialize_v"), ob, count(n))
+        bufferEType.buildPrefixEncoder(cb, bufferType.loadCheapSCode(cb, b), ob, count(n))
       }
       cb += ob.writeBoolean(false)
     }

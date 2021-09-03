@@ -246,8 +246,8 @@ object LocusFunctions extends RegistryFunctions {
       case (r, cb, SCanonicalLocusPointer(rt: PCanonicalLocus), contig, pos, _) =>
         val contigMemo = contig.memoize(cb, "locus_contig")
         val posMemo = pos.memoize(cb, "locus_pos")
-        cb += rgCode(r.mb, rt.rg).invoke[String, Int, Unit]("checkLocus", contigMemo.asString.loadString(), posMemo.asInt.intCode(cb))
-        rt.constructFromPositionAndString(cb, r.region, contigMemo.asString.loadString(), posMemo.asInt.intCode(cb))
+        cb += rgCode(r.mb, rt.rg).invoke[String, Int, Unit]("checkLocus", contigMemo.get.asString.loadString(), posMemo.asInt.intCode(cb))
+        rt.constructFromPositionAndString(cb, r.region, contigMemo.get.asString.loadString(), posMemo.asInt.intCode(cb))
     }
 
     registerSCode1("LocusAlleles", TString, tvariant("T"), {

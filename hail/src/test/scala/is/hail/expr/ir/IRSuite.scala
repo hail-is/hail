@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
-import is.hail.annotations.{BroadcastRow, Region, SafeNDArray}
+import is.hail.annotations.{BroadcastRow, ExtendedOrdering, Region, SafeNDArray}
 import is.hail.asm4s.{Code, Value}
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.IRBuilder._
@@ -18,7 +18,7 @@ import is.hail.io.bgen.{IndexBgen, MatrixBGENReader}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix
 import is.hail.methods._
-import is.hail.rvd.{RVD, RVDPartitioner, RVDSpecMaker}
+import is.hail.rvd.{PartitionBoundOrdering, RVD, RVDPartitioner, RVDSpecMaker}
 import is.hail.types.physical.stypes.{EmitType, Float32SingleCodeType, Float64SingleCodeType, Int32SingleCodeType, Int64SingleCodeType, PTypeReferenceSingleCodeType, SType, SingleCodeType}
 import is.hail.utils.{FastIndexedSeq, _}
 import is.hail.variant.{Call2, Locus}
@@ -3555,6 +3555,66 @@ class IRSuite extends HailSuite {
         behavior)
 
       assertEvalsTo(ToArray(zip), Array.fill(10)(Row("foo", "bar")).toFastIndexedSeq)
+    }
+  }
+
+  @Test def testStreamDistribute(): Unit =  {
+    val data1 = IndexedSeq(0, 1, 1, 2, 4, 7, 7, 7, 9, 11, 15, 20, 22, 28, 50, 100)
+    val pivots1 = IndexedSeq(-10, 1, 7, 7, 15, 22, 50, 200)
+    val pivots2 = IndexedSeq(-10, 1, 1, 7, 9, 28, 50, 200)
+    val pivots3 = IndexedSeq(-3, 0, 20, 100, 200)
+    val pivots4 = IndexedSeq(-8, 4, 7, 7, 150)
+
+    runStreamDistTest(data1, pivots1)
+    runStreamDistTest(data1, pivots2)
+    runStreamDistTest(data1, pivots3)
+    runStreamDistTest(data1, pivots4)
+  }
+
+  def runStreamDistTest(data: IndexedSeq[Int], splitters: IndexedSeq[Int]): Unit = {
+    def makeRowStruct(i: Int) = MakeStruct(Seq(("rowIdx", I32(i)), ("extraInfo", I32(i * i))))
+    def makeKeyStruct(i: Int) = MakeStruct(Seq(("rowIdx", I32(i))))
+    val child = ToStream(MakeArray(data.map(makeRowStruct):_*))
+    val pivots = MakeArray(splitters.map(makeKeyStruct):_*)
+    val spec = TypedCodecSpec(PCanonicalStruct(("rowIdx", PInt32Required), ("extraInfo", PInt32Required)), BufferSpec.default)
+    val dist = StreamDistribute(child, pivots, Str(ctx.localTmpdir), spec)
+    val result = eval(dist).asInstanceOf[IndexedSeq[Row]].map(row => (row(0).asInstanceOf[Interval], row(1).asInstanceOf[String], row(2).asInstanceOf[Int]))
+    val kord: ExtendedOrdering = PartitionBoundOrdering(pivots.typ.asInstanceOf[TArray].elementType)
+
+    var dataIdx = 0
+
+    result.foreach { case (interval, path, elementCount) =>
+      val reader = PartitionNativeReader(spec)
+      val read = ToArray(ReadPartition(Str(path), spec._vType, reader))
+      val rowsFromDisk = eval(read).asInstanceOf[IndexedSeq[Row]]
+      assert(rowsFromDisk.size == elementCount)
+      assert(rowsFromDisk.forall(interval.contains(kord, _)))
+
+      rowsFromDisk.foreach { row =>
+        assert(row(0) == data(dataIdx))
+        dataIdx += 1
+      }
+    }
+
+    assert(dataIdx == data.size)
+
+    result.map(_._1).sliding(2).foreach { case IndexedSeq(interval1, interval2) =>
+      assert(interval1.isDisjointFrom(kord, interval2))
+    }
+
+    val splitterValueDuplicated = splitters.counter().mapValues(_ > 1)
+    val intBuilder = new IntArrayBuilder()
+    splitters.toSet.toIndexedSeq.sorted.foreach { e =>
+      intBuilder.add(e)
+      if (splitterValueDuplicated(e)) {
+        intBuilder.add(e)
+      }
+    }
+    val expectedStartsAndEnds = intBuilder.result().sliding(2).toIndexedSeq
+
+    result.map(_._1).zip(expectedStartsAndEnds).foreach { case (interval, splitterPair) =>
+      assert(interval.start.asInstanceOf[Row](0) == splitterPair(0))
+      assert(interval.end.asInstanceOf[Row](0) == splitterPair(1))
     }
   }
 }

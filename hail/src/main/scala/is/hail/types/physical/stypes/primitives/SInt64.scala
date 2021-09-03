@@ -22,18 +22,12 @@ case object SInt64 extends SPrimitive {
     }
   }
 
-  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SInt64Settable = {
     val IndexedSeq(x: Settable[Long@unchecked]) = settables
     assert(x.ti == LongInfo)
     new SInt64Settable(x)
-  }
-
-  override def fromCodes(codes: IndexedSeq[Code[_]]): SInt64Code = {
-    val IndexedSeq(x: Code[Long@unchecked]) = codes
-    assert(x.ti == LongInfo)
-    new SInt64Code(x)
   }
 
   override def fromValues(settables: IndexedSeq[Value[_]]): SInt64Value = {
@@ -45,12 +39,10 @@ case object SInt64 extends SPrimitive {
   override def storageType(): PType = PInt64()
 }
 
-class SInt64Code(val code: Code[Long]) extends SCode with SPrimitiveCode {
+class SInt64Code(val code: Code[Long]) extends SPrimitiveCode {
   override def _primitiveCode: Code[_] = code
 
   def st: SInt64.type = SInt64
-
-  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(code)
 
   private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SInt64Value = {
     val s = new SInt64Settable(sb.newSettable[Long]("sint64_memoize"))
@@ -65,8 +57,10 @@ class SInt64Code(val code: Code[Long]) extends SCode with SPrimitiveCode {
   def longCode(cb: EmitCodeBuilder): Code[Long] = code
 }
 
-class SInt64Value(x: Value[Long]) extends SValue {
+class SInt64Value(x: Value[Long]) extends SPrimitiveValue {
   val pt: PInt64 = PInt64(false)
+
+  override def valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(x)
 
   override def st: SInt64.type = SInt64
 

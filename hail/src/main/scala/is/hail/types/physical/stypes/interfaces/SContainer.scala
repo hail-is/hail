@@ -1,7 +1,9 @@
 package is.hail.types.physical.stypes.interfaces
 
+import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
+import is.hail.types.physical.PCanonicalArray
 import is.hail.types.physical.stypes.primitives.SInt32Code
 import is.hail.types.physical.stypes.{EmitType, SCode, SType, SValue}
 import is.hail.types.{RIterable, TypeWithRequiredness}
@@ -61,6 +63,13 @@ trait SIndexableValue extends SValue {
       { case (cb, idx, element) => cb.assign(hash_result, hash_result * 31 + element.memoize(cb, "array_hash_element").hash(cb).intCode(cb))
       })
     new SInt32Code(hash_result)
+  }
+
+  def sliceArray(cb: EmitCodeBuilder, region: Value[Region], pt: PCanonicalArray, start: Code[Int], end: Code[Int], deepCopy: Boolean = false): SIndexableCode = {
+    val startMemo = cb.newLocal[Int]("sindexable_slice_array_start_memo", start)
+    pt.constructFromElements(cb, region, cb.newLocal[Int]("slice_length", end - startMemo), deepCopy){ (cb, idx) =>
+      this.loadElement(cb, idx + startMemo)
+    }
   }
 }
 trait SIndexableCode extends SCode {

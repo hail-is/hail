@@ -43,7 +43,7 @@ class ApproxCDFState(val kb: EmitClassBuilder[_]) extends AggregatorState {
   }
 
   def result(cb: EmitCodeBuilder, region: Value[Region]): SBaseStructPointerCode = {
-    QuantilesAggregator.resultType.loadCheapSCode(cb, aggr.invoke[Region, Long]("rvResult", region))
+    QuantilesAggregator.resultType.loadCheapSCode(cb, aggr.invoke[Region, Long]("rvResult", region)).get
   }
 
   def newState(cb: EmitCodeBuilder, off: Code[Long]): Unit = cb += region.getNewRegion(regionSize)

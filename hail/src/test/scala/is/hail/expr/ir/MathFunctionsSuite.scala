@@ -16,6 +16,22 @@ class MathFunctionsSuite extends HailSuite {
 
   val tfloat = TFloat64
 
+  @Test def log2(): Unit = {
+    assertEvalsTo(invoke("log2", TInt32, I32(2)), 1)
+    assertEvalsTo(invoke("log2", TInt32, I32(32)), 5)
+    assertEvalsTo(invoke("log2", TInt32, I32(33)), 5)
+    assertEvalsTo(invoke("log2", TInt32, I32(63)), 5)
+    assertEvalsTo(invoke("log2", TInt32, I32(64)), 6)
+  }
+
+  @Test def roundToNextPowerOf2(): Unit = {
+    assertEvalsTo(invoke("roundToNextPowerOf2", TInt32, I32(2)), 2)
+    assertEvalsTo(invoke("roundToNextPowerOf2", TInt32, I32(32)), 32)
+    assertEvalsTo(invoke("roundToNextPowerOf2", TInt32, I32(33)), 64)
+    assertEvalsTo(invoke("roundToNextPowerOf2", TInt32, I32(63)), 64)
+    assertEvalsTo(invoke("roundToNextPowerOf2", TInt32, I32(64)), 64)
+  }
+
   @Test def isnan() {
     implicit val execStrats = ExecStrategy.javaOnly
 

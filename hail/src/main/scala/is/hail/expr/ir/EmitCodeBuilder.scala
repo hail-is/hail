@@ -6,7 +6,7 @@ import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.lir
 import is.hail.types.physical.stypes.{SCode, SSettable, SValue}
-import is.hail.types.physical.stypes.interfaces.SStreamCode
+import is.hail.types.physical.stypes.interfaces.{SStream, SStreamCode}
 import is.hail.utils._
 
 object EmitCodeBuilder {
@@ -79,6 +79,20 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     f
   }
 
+  def memoize[T: TypeInfo](v: Code[T]): Value[T] = {
+    newLocal[T]("memoize", v)
+  }
+
+  def memoizeField[T: TypeInfo](v: Code[T]): Value[T] = {
+    newField[T]("memoize", v)
+  }
+
+  def memoizeAny(v: Code[_], ti: TypeInfo[_]): Value[_] = {
+    val l = newLocal("memoize")(ti)
+    append(l.storeAny(v))
+    l
+  }
+
   def memoize(v: EmitCode, name: String): EmitValue = {
     require(v.st.isRealizable)
     val l = emb.newEmitLocal(name, v.emitType)
@@ -104,7 +118,14 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     if (ec.st.isRealizable) {
       f(memoizeField(ec, name))
     } else {
-      val ev = new EmitUnrealizableValue(ec)
+      assert(ec.st.isInstanceOf[SStream])
+      val ev = if (ec.required)
+        EmitValue(None, ec.toI(this).get(this, "").memoize(this, "wsmsv"))
+      else {
+        val m = emb.genFieldThisRef[Boolean](name + "_missing")
+        ec.toI(this).consume(this, assign(m, true), _ => assign(m, false))
+        EmitValue(Some(m), ec.pv.memoize(this, "wsmsv"))
+      }
       val res = f(ev)
       ec.pv match {
         case SStreamCode(_, producer) => StreamProducer.defineUnusedLabels(producer, emb)
@@ -142,7 +163,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
             throw new RuntimeException(s"invoke ${ callee.mb.methodName }: arg $i: type mismatch:" +
               s"\n  got ${ pc.st }" +
               s"\n  expected ${ pcpt.st }")
-          pc.makeCodeTuple(this)
+          memoize(pc, "_invoke").valueTuple.map(_.get)
         case (EmitParam(ec), SCodeEmitParamType(et)) =>
           if (!ec.emitType.equalModuloRequired(et)) {
             throw new RuntimeException(s"invoke ${callee.mb.methodName}: arg $i: type mismatch:" +
@@ -156,7 +177,8 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
               EmitCode.fromI(emb) { cb => IEmitCode.present(cb, ec.toI(cb).get(cb)) }
             case _ => ec
           }
-          castEc.makeCodeTuple(this)
+          val castEv = memoize(castEc, "_invoke")
+          castEv.valueTuple().map(_.get)
         case (arg, expected) =>
           throw new RuntimeException(s"invoke ${ callee.mb.methodName }: arg $i: type mismatch:" +
             s"\n  got ${ arg }" +
@@ -183,11 +205,11 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
 
   def invokeSCode(callee: EmitMethodBuilder[_], args: Param*): SCode = {
     val st = callee.emitReturnType.asInstanceOf[SCodeParamType].st
-    if (st.nCodes == 1)
-      st.fromCodes(FastIndexedSeq(_invoke(callee, args: _*)))
+    if (st.nSettables == 1)
+      st.fromValues(FastIndexedSeq(memoize(_invoke(callee, args: _*))(st.settableTupleTypes()(0))))
     else {
       val tup = newLocal("invokepcode_tuple", _invoke(callee, args: _*))(callee.asmTuple.ti)
-      st.fromCodes(callee.asmTuple.loadElementsAny(tup))
+      st.fromValues(callee.asmTuple.loadElementsAny(tup))
     }
   }
 

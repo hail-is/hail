@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
 import is.hail.types.physical.{PCanonicalNDArray, PNDArray, PNumeric, PPrimitive, PType}
 import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType, SValue}
-import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SNDArray, SNDArrayCode, SNDArrayValue, primitive}
+import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SNDArray, SNDArrayCode, SNDArrayValue, SizeValue, SizeValueDyn, primitive}
 import is.hail.types.physical.stypes.primitives.SInt64
 import is.hail.types.virtual.{TInt64, TNDArray, TTuple, Type}
 import is.hail.utils.{FastIndexedSeq, toRichIterable}
@@ -33,7 +33,7 @@ final case class SNDArraySlice(pType: PCanonicalNDArray) extends SNDArray {
     }
 
 
-  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = Array.fill(2*nDims + 1)(LongInfo)
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = Array.fill(2*nDims + 1)(LongInfo)
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SNDArraySliceSettable = {
     assert(settables.length == 2*nDims + 1)
@@ -43,49 +43,41 @@ final case class SNDArraySlice(pType: PCanonicalNDArray) extends SNDArray {
     new SNDArraySliceSettable(this, shape, strides, dataFirstElementPointer)
   }
 
-  override def fromCodes(codes: IndexedSeq[Code[_]]): SNDArraySliceCode = {
-    val codesT = codes.asInstanceOf[IndexedSeq[Code[Long@unchecked]]]
-    assert(codesT.length == 2*nDims + 1)
-    val shape = codesT.slice(0, nDims)
-    val strides = codesT.slice(nDims, 2*nDims)
-    val dataFirstElement = codesT.last
-    new SNDArraySliceCode(this, shape, strides, dataFirstElement)
-  }
-
   override def fromValues(settables: IndexedSeq[Value[_]]): SNDArraySliceValue = {
     assert(settables.length == 2*nDims + 1)
     val shape = settables.slice(0, nDims).asInstanceOf[IndexedSeq[Value[Long@unchecked]]]
     val strides = settables.slice(nDims, 2 * nDims).asInstanceOf[IndexedSeq[Value[Long@unchecked]]]
     val dataFirstElementPointer = settables.last.asInstanceOf[Value[Long]]
-    new SNDArraySliceValue(this, shape, strides, dataFirstElementPointer)
+    new SNDArraySliceValue(this, shape.map(SizeValueDyn.apply), strides, dataFirstElementPointer)
   }
 
   override def containsPointers: Boolean = true
 }
 
 class SNDArraySliceValue(
-  val st: SNDArraySlice,
-  val shape: IndexedSeq[Value[Long]],
-  val strides: IndexedSeq[Value[Long]],
-  val dataFirstElement: Value[Long]
+  override val st: SNDArraySlice,
+  override val shapes: IndexedSeq[SizeValue],
+  override val strides: IndexedSeq[Value[Long]],
+  override val firstDataAddress: Value[Long]
 ) extends SNDArrayValue {
   val pt: PCanonicalNDArray = st.pType
 
+  override lazy val valueTuple: IndexedSeq[Value[_]] = shapes ++ strides :+ firstDataAddress
+
   override def loadElementAddress(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Long] = {
     assert(indices.size == pt.nDims)
-    pt.loadElementFromDataAndStrides(cb, indices, dataFirstElement, strides)
+    pt.loadElementFromDataAndStrides(cb, indices, firstDataAddress, strides)
   }
 
   override def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SCode =
     pt.elementType.loadCheapSCode(cb, loadElementAddress(indices, cb))
 
-  override def get: SNDArraySliceCode = new SNDArraySliceCode(st, shape, strides, dataFirstElement)
+  override def get: SNDArraySliceCode = new SNDArraySliceCode(st, shapes, strides, firstDataAddress)
 
-  override def shapes(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = shape
-
-  override def strides(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = strides
-
-  override def firstDataAddress(cb: EmitCodeBuilder): Value[Long] = dataFirstElement
+  def coerceToShape(cb: EmitCodeBuilder, otherShape: IndexedSeq[SizeValue]): SNDArrayValue = {
+    cb.ifx(!hasShape(cb, otherShape), cb._fatal("incompatible shapes"))
+    new SNDArraySliceValue(st, otherShape, strides, firstDataAddress)
+  }
 
   override def coiterateMutate(
     cb: EmitCodeBuilder,
@@ -99,7 +91,7 @@ class SNDArraySliceValue(
     SNDArray._coiterate(cb, indexVars, (this.get, destIndices, "dest") +: arrays: _*) { ptrs =>
       val codes = (this.get +: arrays.map(_._1)).zip(ptrs).toFastIndexedSeq.map { case (array, ptr) =>
         val pt: PType = array.st.pType.elementType
-        pt.loadCheapSCode(cb, pt.loadFromNested(ptr))
+        pt.loadCheapSCode(cb, pt.loadFromNested(ptr)).get
       }
       pt.elementType.storeAtAddress(cb, ptrs.head, region, body(codes), deepCopy)
     }
@@ -118,23 +110,21 @@ object SNDArraySliceSettable {
 
 final class SNDArraySliceSettable(
   st: SNDArraySlice,
-  override val shape: IndexedSeq[Settable[Long]],
+  shape: IndexedSeq[Settable[Long]],
   override val strides: IndexedSeq[Settable[Long]],
-  override val dataFirstElement: Settable[Long]
-) extends SNDArraySliceValue(st, shape, strides, dataFirstElement) with SSettable {
-  override def settableTuple(): IndexedSeq[Settable[_]] = shape ++ strides :+ dataFirstElement
+  override val firstDataAddress: Settable[Long]
+) extends SNDArraySliceValue(st, shape.map(SizeValueDyn.apply), strides, firstDataAddress) with SSettable {
+  override def settableTuple(): IndexedSeq[Settable[_]] = shape ++ strides :+ firstDataAddress
 
   override def store(cb: EmitCodeBuilder, v: SCode): Unit = {
     val vSlice = v.asInstanceOf[SNDArraySliceCode]
     shape.zip(vSlice.shape).foreach { case (x, s) => cb.assign(x, s) }
     strides.zip(vSlice.strides).foreach { case (x, s) => cb.assign(x, s) }
-    cb.assign(dataFirstElement, vSlice.dataFirstElement)
+    cb.assign(firstDataAddress, vSlice.dataFirstElement)
   }
 }
 
 class SNDArraySliceCode(val st: SNDArraySlice, val shape: IndexedSeq[Code[Long]], val strides: IndexedSeq[Code[Long]], val dataFirstElement: Code[Long]) extends SNDArrayCode {
-  override def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = shape ++ strides :+ dataFirstElement
-
   def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SNDArrayValue = {
     val s = SNDArraySliceSettable(sb, st, name)
     cb.assign(s, this)
