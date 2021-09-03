@@ -109,14 +109,16 @@ Next, create a `global.tfvars` file from the following template and replace in t
 
 ```
 az_resource_group_name = "<resource_group_name>"
+# Omit this field to have the container registry name default to the resource group name
 acr_name               = "<azure_container_registry_name>"
 ```
 
-Run `terraform apply -var-file=global.tfvars`. To sync the kubernetes config and login with docker, run
+Run `terraform apply -var-file=global.tfvars`. To sync the kubernetes config and authenticate
+docker with the container registry, run
 
 ```
 az aks get-credentials --name vdc --resource-group $AZ_RESOURCE_GROUP_NAME
-az acr login --name <aczure_container_registry_name>
+az acr login --name <azure_container_registry_name>
 ```
 
 you can now use `kubectl` to communicate with AKS cluster.
