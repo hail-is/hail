@@ -458,33 +458,3 @@ div .bar {
   display: inline-block;
   margin: 0;
 }
-
-.textbox {
-  display: none;
-}
-
-.progress_bar {
-  border:1px solid black;
-  height:100px;
-  width:140px;
-  overflow-y:hidden;
-  overflow-x:scroll;
-  white-space: nowrap;
-}
-
-.bar:hover .textbox {
-  display: block;
-  background-color: #fff;
-  border: 1px solid black;
-  position: absolute;
-  margin-top: 10px;
-  padding: 9px;
-}
-
-.main .bar {
-  border-top: 20px solid blue;
-}
-
-.main {
-  display: inline-block;
-}
