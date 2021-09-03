@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.{SCanonicalCall, SCanonicalCallCode}
+import is.hail.types.physical.stypes.concrete.{SCanonicalCall, SCanonicalCallCode, SCanonicalCallValue}
 import is.hail.types.physical.stypes.interfaces.SCall
 import is.hail.utils._
 
@@ -42,7 +42,11 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
 
   def sType: SCall = SCanonicalCall
 
-  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SCode = new SCanonicalCallCode(Region.loadInt(addr))
+  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SCanonicalCallValue =
+    new SCanonicalCallCode(Region.loadInt(addr)).memoize(cb, "loadCheapSCode")
+
+  def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SCanonicalCallValue =
+    new SCanonicalCallCode(Region.loadInt(addr)).memoizeField(cb, "loadCheapSCodeField")
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {

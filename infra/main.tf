@@ -18,6 +18,8 @@ variable "batch_logs_bucket_location" {}
 variable "batch_logs_bucket_storage_class" {}
 variable "hail_query_bucket_location" {}
 variable "hail_query_bucket_storage_class" {}
+variable "hail_test_gcs_bucket_location" {}
+variable "hail_test_gcs_bucket_storage_class" {}
 variable "gcp_region" {}
 variable "gcp_zone" {}
 variable "gcp_location" {}
@@ -229,9 +231,9 @@ resource "kubernetes_secret" "global_config" {
 
   data = {
     batch_gcp_regions = var.batch_gcp_regions
-    batch_logs_bucket = google_storage_bucket.batch_logs.name
-    hail_query_gcs_path = "gs://${google_storage_bucket.hail_query.name}"
-    hail_test_gcs_bucket = google_storage_bucket.hail_test_gcs_bucket.name
+    batch_logs_bucket = module.batch_logs.name
+    hail_query_gcs_path = "gs://${module.hail_query.name}"
+    hail_test_gcs_bucket = module.hail_test_gcs_bucket.name
     default_namespace = "default"
     docker_root_image = local.docker_root_image
     domain = var.domain
@@ -390,50 +392,8 @@ resource "kubernetes_secret" "gcr_push_key" {
   }
 }
 
-resource "kubernetes_namespace" "ukbb_rg" {
-  metadata {
-    name = "ukbb-rg"
-  }
-}
-
-resource "kubernetes_service" "ukbb_rb_browser" {
-  metadata {
-    name = "ukbb-rg-browser"
-    namespace = kubernetes_namespace.ukbb_rg.metadata[0].name
-    labels = {
-      app = "ukbb-rg-browser"
-    }
-  }
-  spec {
-    port {
-      port = 80
-      protocol = "TCP"
-      target_port = 80
-    }
-    selector = {
-      app = "ukbb-rg-browser"
-    }
-  }
-}
-
-resource "kubernetes_service" "ukbb_rb_static" {
-  metadata {
-    name = "ukbb-rg-static"
-    namespace = kubernetes_namespace.ukbb_rg.metadata[0].name
-    labels = {
-      app = "ukbb-rg-static"
-    }
-  }
-  spec {
-    port {
-      port = 80
-      protocol = "TCP"
-      target_port = 80
-    }
-    selector = {
-      app = "ukbb-rg-static"
-    }
-  }
+module "ukbb" {
+  source = "./ukbb"
 }
 
 module "atgu_gsa_secret" {
@@ -468,13 +428,13 @@ module "query_gsa_secret" {
 }
 
 resource "google_storage_bucket_iam_member" "query_hail_query_bucket_storage_admin" {
-  bucket = google_storage_bucket.hail_query.name
+  bucket = module.hail_query.name
   role = "roles/storage.admin"
   member = "serviceAccount:${module.query_gsa_secret.email}"
 }
 
 resource "google_storage_bucket_iam_member" "batch_hail_query_bucket_storage_viewer" {
-  bucket = google_storage_bucket.hail_query.name
+  bucket = module.hail_query.name
   role = "roles/storage.objectViewer"
   member = "serviceAccount:${module.batch_gsa_secret.email}"
 }
@@ -581,39 +541,26 @@ resource "google_compute_firewall" "vdc_to_batch_worker" {
   }
 }
 
-resource "random_id" "batch_logs_bucket_name_suffix" {
-  byte_length = 2
-}
-
-resource "google_storage_bucket" "batch_logs" {
-  name = "batch-logs-${random_id.batch_logs_bucket_name_suffix.hex}"
-  location = var.batch_logs_bucket_location
-  force_destroy = true
+module "batch_logs" {
+  source        = "./gcs_bucket"
+  short_name    = "batch-logs"
+  location      = var.batch_logs_bucket_location
   storage_class = var.batch_logs_bucket_storage_class
 }
 
-resource "random_id" "hail_query_bucket_name_suffix" {
-  byte_length = 2
-}
-
-resource "google_storage_bucket" "hail_query" {
-  name = "hail-query-${random_id.hail_query_bucket_name_suffix.hex}"
-  location = var.hail_query_bucket_location
-  force_destroy = true
+module "hail_query" {
+  source        = "./gcs_bucket"
+  short_name    = "hail-query"
+  location      = var.hail_query_bucket_location
   storage_class = var.hail_query_bucket_storage_class
 }
 
-resource "random_id" "hail_test_gcs_bucket_prefix" {
-  byte_length = 5
-}
-
-resource "google_storage_bucket" "hail_test_gcs_bucket" {
-  name = "hail-test-${random_id.hail_test_gcs_bucket_prefix.hex}"
-  location = var.hail_test_gcs_bucket_location
-  force_destroy = true
+module "hail_test_gcs_bucket" {
+  source        = "./gcs_bucket"
+  short_name    = "hail-test"
+  location      = var.hail_test_gcs_bucket_location
   storage_class = var.hail_test_gcs_bucket_storage_class
 }
-
 
 resource "google_dns_managed_zone" "dns_zone" {
   name = "dns-zone"

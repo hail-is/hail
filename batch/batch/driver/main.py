@@ -994,7 +994,8 @@ def monitor_instances(app):
 
     for inst_coll in inst_coll_manager.name_inst_coll.values():
         for instance in inst_coll.name_instance.values():
-            utilized_cores_mcpu = instance.cores_mcpu - instance.free_cores_mcpu
+            # free cores mcpu can be negatively temporarily if the worker is oversubscribed
+            utilized_cores_mcpu = instance.cores_mcpu - max(0, instance.free_cores_mcpu)
 
             if instance.state != 'deleted':
                 if instance.worker_config:

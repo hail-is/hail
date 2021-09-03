@@ -41,7 +41,6 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   def loadShapes(cb: EmitCodeBuilder, addr: Value[Long], settables: IndexedSeq[Settable[Long]]): Unit = {
     assert(settables.length == nDims, s"got ${ settables.length } settables, expect ${ nDims } dims")
     val shapeTuple = shapeType.loadCheapSCode(cb, representation.loadField(addr, "shape"))
-      .memoize(cb, "pcndarray_shapetuple")
     (0 until nDims).foreach { dimIdx =>
       cb.assign(settables(dimIdx), shapeTuple.loadField(cb, dimIdx).get(cb).asLong.longCode(cb))
     }
@@ -50,7 +49,6 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   def loadStrides(cb: EmitCodeBuilder, addr: Value[Long], settables: IndexedSeq[Settable[Long]]): Unit = {
     assert(settables.length == nDims)
     val strideTuple = strideType.loadCheapSCode(cb, representation.loadField(addr, "strides"))
-      .memoize(cb, "pcndarray_stridetuple")
     (0 until nDims).foreach { dimIdx =>
       cb.assign(settables(dimIdx), strideTuple.loadField(cb, dimIdx).get(cb).asLong.longCode(cb))
     }
@@ -298,7 +296,8 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   private def deepRenameNDArray(t: TNDArray) =
     PCanonicalNDArray(this.elementType.deepRename(t.elementType), this.nDims, this.required)
 
-  def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalNDArray(elementType, nDims, required)
+  def setRequired(required: Boolean): PCanonicalNDArray =
+    if(required == this.required) this else PCanonicalNDArray(elementType, nDims, required)
 
   def unstagedStoreAtAddress(destAddress: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
     val srcNDPType = srcPType.asInstanceOf[PCanonicalNDArray]
@@ -341,9 +340,13 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     }
   }
 
-  def sType: SNDArrayPointer = SNDArrayPointer(setRequired(false).asInstanceOf[PCanonicalNDArray])
+  def sType: SNDArrayPointer = SNDArrayPointer(setRequired(false))
 
-  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SCode = new SNDArrayPointerCode(sType, addr)
+  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SNDArrayPointerValue =
+    new SNDArrayPointerCode(sType, addr).memoize(cb, "loadCheapSCode")
+
+  def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SNDArrayPointerValue =
+    new SNDArrayPointerCode(sType, addr).memoizeField(cb, "loadCheapSCodeField")
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     val addr = cb.newField[Long]("pcanonical_ndarray_store", this.representation.allocate(region))

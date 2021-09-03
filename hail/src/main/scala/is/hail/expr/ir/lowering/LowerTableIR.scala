@@ -50,6 +50,9 @@ object TableStage {
 
     new TableStage(letBindings, broadcastVals, globals, partitioner, dependency, contexts, ctxRef.name, partition(ctxRef))
   }
+  def wrapInBindings(body: IR, letBindings: IndexedSeq[(String, IR)]): IR = letBindings.foldRight[IR](body) {
+    case ((name, value), body) => Let(name, value, body)
+  }
 }
 
 // Scope structure:
@@ -108,10 +111,6 @@ class TableStage(
   }
 
   def numPartitions: Int = partitioner.numPartitions
-
-  private def wrapInBindings(body: IR): IR = letBindings.foldRight[IR](body) {
-    case ((name, value), body) => Let(name, value, body)
-  }
 
   def mapPartition(newKey: Option[IndexedSeq[String]])(f: IR => IR): TableStage = {
     val part = newKey match {
@@ -199,7 +198,7 @@ class TableStage(
         Let(name, GetField(glob, name), accum)
       }, Some(dependency))
 
-    LowerToCDA.substLets(wrapInBindings(body(cda, globals)), relationalBindings)
+    LowerToCDA.substLets(TableStage.wrapInBindings(body(cda, globals), letBindings), relationalBindings)
   }
 
   def collectWithGlobals(relationalBindings: Map[String, IR]): IR =
@@ -209,9 +208,9 @@ class TableStage(
         "global" -> globals))
     }
 
-  def getGlobals(): IR = wrapInBindings(globals)
+  def getGlobals(): IR = TableStage.wrapInBindings(globals, letBindings)
 
-  def getNumPartitions(): IR = wrapInBindings(StreamLen(contexts))
+  def getNumPartitions(): IR = TableStage.wrapInBindings(StreamLen(contexts), letBindings)
 
   def changePartitionerNoRepartition(newPartitioner: RVDPartitioner): TableStage =
     copy(partitioner = newPartitioner)
@@ -677,7 +676,8 @@ object LowerTableIR {
                   idx += 1
                 }
                 val partsToKeep = partCounts.slice(0, idx)
-                MakeArray.apply(partsToKeep.map(partSize => I32(partSize.toInt)), TArray(TInt32))
+                val finalParts = partsToKeep.map(partSize => partSize.toInt).toFastIndexedSeq
+                Literal(TArray(TInt32), finalParts)
               case None =>
                 val partitionSizeArrayFunc = genUID()
                 val howManyPartsToTry = Ref(genUID(), TInt32)
@@ -735,11 +735,18 @@ object LowerTableIR {
             }
           }
 
+          val letBindNewCtx = TableStage.wrapInBindings(newCtxs, loweredChild.letBindings)
+          val bindRelationLetsNewCtx = LowerToCDA.substLets(letBindNewCtx, relationalLetsAbove)
+          val newCtxSeq = CompileAndEvaluate(ctx, ToArray(bindRelationLetsNewCtx)).asInstanceOf[IndexedSeq[Any]]
+          val numNewParts = newCtxSeq.length
+          val newIntervals = loweredChild.partitioner.rangeBounds.slice(0,numNewParts)
+          val newPartitioner = loweredChild.partitioner.copy(rangeBounds = newIntervals)
+
           TableStage(
             loweredChild.letBindings,
             loweredChild.broadcastVals,
             loweredChild.globals,
-            loweredChild.partitioner,
+            newPartitioner,
             loweredChild.dependency,
             newCtxs,
             (ctxRef: Ref) => StreamTake(
@@ -750,21 +757,34 @@ object LowerTableIR {
           val loweredChild = lower(child)
 
           def partitionSizeArray(childContexts: Ref, totalNumPartitions: Ref): IR = {
-            val partitionSizeArrayFunc = genUID()
-            val howManyPartsToTry = Ref(genUID(), TInt32)
+            child.partitionCounts match {
+              case Some(partCounts) =>
+                var idx = partCounts.length - 1
+                var sumSoFar = 0L
+                while(idx >= 0 && sumSoFar < targetNumRows) {
+                  sumSoFar += partCounts(idx)
+                  idx -= 1
+                }
+                val finalParts = (idx + 1 until partCounts.length).map{partIdx => partCounts(partIdx).toInt}.toFastIndexedSeq
+                Literal(TArray(TInt32), finalParts)
 
-            TailLoop(
-              partitionSizeArrayFunc,
-              FastIndexedSeq(howManyPartsToTry.name -> 4),
-              bindIR(
-                loweredChild
-                  .mapContexts(_ => StreamDrop(ToStream(childContexts), maxIR(totalNumPartitions - howManyPartsToTry, 0))){ ctx: IR => ctx }
-                  .mapCollect(relationalLetsAbove)(StreamLen)
-              ) { counts =>
-                If((Cast(streamSumIR(ToStream(counts)), TInt64) >= targetNumRows) || (totalNumPartitions <= ArrayLen(counts)),
-                  counts,
-                  Recur(partitionSizeArrayFunc, FastIndexedSeq(howManyPartsToTry * 4), TArray(TInt32)))
-              })
+              case None =>
+                val partitionSizeArrayFunc = genUID()
+                val howManyPartsToTry = Ref(genUID(), TInt32)
+
+                TailLoop(
+                  partitionSizeArrayFunc,
+                  FastIndexedSeq(howManyPartsToTry.name -> 4),
+                  bindIR(
+                    loweredChild
+                      .mapContexts(_ => StreamDrop(ToStream(childContexts), maxIR(totalNumPartitions - howManyPartsToTry, 0))){ ctx: IR => ctx }
+                      .mapCollect(relationalLetsAbove)(StreamLen)
+                  ) { counts =>
+                    If((Cast(streamSumIR(ToStream(counts)), TInt64) >= targetNumRows) || (totalNumPartitions <= ArrayLen(counts)),
+                      counts,
+                      Recur(partitionSizeArrayFunc, FastIndexedSeq(howManyPartsToTry * 4), TArray(TInt32)))
+                  })
+            }
           }
 
           // First element is how many partitions to drop from partitionSizeArrayRef, second is how many to keep from first kept element.
@@ -818,11 +838,17 @@ object LowerTableIR {
             }
           }
 
+          val letBindNewCtx = TableStage.wrapInBindings(newCtxs, loweredChild.letBindings)
+          val newCtxSeq = CompileAndEvaluate(ctx, ToArray(letBindNewCtx)).asInstanceOf[IndexedSeq[Any]]
+          val numNewParts = newCtxSeq.length
+          val oldParts = loweredChild.partitioner.rangeBounds
+          val newIntervals = oldParts.slice(oldParts.length - numNewParts, oldParts.length)
+          val newPartitioner = loweredChild.partitioner.copy(rangeBounds = newIntervals)
           TableStage(
             loweredChild.letBindings,
             loweredChild.broadcastVals,
             loweredChild.globals,
-            loweredChild.partitioner,
+            newPartitioner,
             loweredChild.dependency,
             newCtxs,
             (ctxRef: Ref) => bindIR(GetField(ctxRef, "old")) { oldRef =>

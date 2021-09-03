@@ -28,7 +28,7 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
       val comp = kb.getOrderingFunction(compType.sType, k.st, CodeOrdering.Compare())
       val off = mb.getCodeParam[Long](1)
       val ev1 = loadCompKey(cb, off)
-      val ev2 = mb.getEmitParam(2, null) // don't need region
+      val ev2 = mb.getEmitParam(cb, 2, null) // don't need region
       mb.emitWithBuilder(comp(_, ev1, ev2))
     }
     cb.invokeCode(mb, off, k)
@@ -43,7 +43,7 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
     storageType.isFieldMissing(off, 0)
 
   def loadKey(cb: EmitCodeBuilder, off: Code[Long]): SCode = {
-    kt.loadCheapSCode(cb, storageType.loadField(off, 0))
+    kt.loadCheapSCodeField(cb, storageType.loadField(off, 0))
   }
 
   def initValue(cb: EmitCodeBuilder, destc: Code[Long], k: EmitCode, rIdx: Code[Int]): Unit = {

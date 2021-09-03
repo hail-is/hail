@@ -4,7 +4,7 @@ import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s.{Code, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.{SStringPointer, SStringPointerCode}
+import is.hail.types.physical.stypes.concrete.{SStringPointer, SStringPointerCode, SStringPointerValue}
 
 case object PCanonicalStringOptional extends PCanonicalString(false)
 
@@ -58,11 +58,16 @@ class PCanonicalString(val required: Boolean) extends PString {
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
     binaryRepresentation.unstagedStoreAtAddress(addr, region, srcPType.asInstanceOf[PString].binaryRepresentation, srcAddress, deepCopy)
 
-  def setRequired(required: Boolean) = if (required == this.required) this else PCanonicalString(required)
+  def setRequired(required: Boolean): PCanonicalString =
+    if (required == this.required) this else PCanonicalString(required)
 
-  def sType: SStringPointer = SStringPointer(setRequired(false).asInstanceOf[PCanonicalString])
+  def sType: SStringPointer = SStringPointer(setRequired(false))
 
-  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SCode = new SStringPointerCode(sType, addr)
+  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SStringPointerValue =
+    new SStringPointerCode(sType, addr).memoize(cb, "loadCheapSCode")
+
+  def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SStringPointerValue =
+    new SStringPointerCode(sType, addr).memoizeField(cb, "loadCheapSCodeField")
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {

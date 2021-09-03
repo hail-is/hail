@@ -358,8 +358,8 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
       UnitInfo)
 
     mb.voidWithBuilder { cb =>
-      val value = mb.getEmitParam(1, null) // don't need region
-      val key = mb.getEmitParam(2, null) // don't need region
+      val value = mb.getEmitParam(cb, 1, null) // don't need region
+      val key = mb.getEmitParam(cb, 2, null) // don't need region
 
       cb.ifx(maxSize > 0, {
         cb.ifx(ab.size < maxSize, {
@@ -535,7 +535,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
           }
       }.a
     }
-    resultType.loadCheapSCode(cb, cb.invokeCode[Long](mb, _r))
+    resultType.loadCheapSCode(cb, cb.invokeCode[Long](mb, _r)).get
   }
 }
 

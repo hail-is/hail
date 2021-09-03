@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
 import is.hail.types.BaseStruct
 import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerCode, SBaseStructPointerSettable}
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerCode, SBaseStructPointerSettable, SBaseStructPointerValue}
 import is.hail.types.physical.stypes.interfaces.SBaseStruct
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -155,7 +155,11 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
 
   def sType: SBaseStructPointer = SBaseStructPointer(setRequired(false).asInstanceOf[PCanonicalBaseStruct])
 
-  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructPointerCode = new SBaseStructPointerCode(sType, addr)
+  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructPointerValue =
+    new SBaseStructPointerCode(sType, addr).memoize(cb, "loadCheapSCode")
+
+  def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructPointerValue =
+    new SBaseStructPointerCode(sType, addr).memoizeField(cb, "loadCheapSCodeField")
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {

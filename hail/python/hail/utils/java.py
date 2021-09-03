@@ -156,7 +156,7 @@ def jiterable_to_list(it):
         return None
 
 
-_parsable_str = re.compile(r'[\w_]+')
+_parsable_str = re.compile(r'[_a-zA-Z][\w_]*')
 
 
 def escape_parsable(s):

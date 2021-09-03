@@ -527,7 +527,7 @@ object Code {
     t.newTuple(elems)
   }
 
-  def loadTuple(modb: ModuleBuilder, elemTypes: IndexedSeq[TypeInfo[_]], v: Value[_]): IndexedSeq[Code[_]] = {
+  def loadTuple(modb: ModuleBuilder, elemTypes: IndexedSeq[TypeInfo[_]], v: Value[_]): IndexedSeq[Value[_]] = {
     val t = modb.tupleClass(elemTypes)
     t.loadElementsAny(v)
   }

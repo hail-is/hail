@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.PCanonicalStruct
 import is.hail.types.physical.stypes._
-import is.hail.types.physical.stypes.concrete.{SInsertFieldsStruct, SInsertFieldsStructCode, SSubsetStruct, SSubsetStructCode}
+import is.hail.types.physical.stypes.concrete.{SInsertFieldsStruct, SInsertFieldsStructCode, SSubsetStruct, SSubsetStructCode, SSubsetStructValue}
 import is.hail.types.physical.stypes.primitives.SInt32Code
 import is.hail.types.virtual.{TBaseStruct, TStruct, TTuple}
 import is.hail.types.{RField, RStruct, RTuple, TypeWithRequiredness}
@@ -13,8 +13,6 @@ import is.hail.utils._
 
 trait SBaseStruct extends SType {
   def virtualType: TBaseStruct
-
-  override def fromCodes(codes: IndexedSeq[Code[_]]): SBaseStructCode
 
   def size: Int
 
@@ -46,6 +44,11 @@ trait SBaseStructValue extends SValue {
 
   def loadField(cb: EmitCodeBuilder, fieldName: String): IEmitCode = loadField(cb, st.fieldIdx(fieldName))
 
+  def subset(fieldNames: String*): SBaseStructValue = {
+    val st = SSubsetStruct(this.st, fieldNames.toIndexedSeq)
+    new SSubsetStructValue(st, this)
+  }
+
   override def hash(cb: EmitCodeBuilder): SInt32Code = {
     val hash_result = cb.newLocal[Int]("hash_result_struct", 1)
     (0 until st.size).foreach(i => {
@@ -69,11 +72,6 @@ trait SBaseStructCode extends SCode {
   def loadSingleField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
     memoize(cb, "structcode_loadsinglefield")
       .loadField(cb, fieldIdx)
-  }
-
-  def subset(fieldNames: String*): SBaseStructCode = {
-    val st = SSubsetStruct(self.st, fieldNames.toIndexedSeq)
-    new SSubsetStructCode(st, self)
   }
 
   protected[stypes] def _insert(newType: TStruct, fields: (String, EmitCode)*): SBaseStructCode = {

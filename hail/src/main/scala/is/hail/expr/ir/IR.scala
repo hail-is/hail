@@ -295,6 +295,10 @@ final case class StreamDrop(a: IR, num: IR) extends IR
 // Generate, in ascending order, a uniform random sample, without replacement, of numToSample integers in the range [0, totalRange)
 final case class SeqSample(totalRange: IR, numToSample: IR, requiresMemoryManagementPerElement: Boolean) extends IR
 
+// Take the child stream and sort each element into buckets based on the provided pivots. The first and last elements of
+// pivots are the endpoints of the first and last interval respectively, should not be contained in the dataset.
+final case class StreamDistribute(child: IR, pivots: IR, path: IR, spec: AbstractTypedCodecSpec) extends IR
+
 object ArrayZipBehavior extends Enumeration {
   type ArrayZipBehavior = Value
   val AssumeSameLength: Value = Value(0)

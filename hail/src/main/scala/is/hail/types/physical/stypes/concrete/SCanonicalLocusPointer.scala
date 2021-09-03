@@ -27,8 +27,6 @@ final case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
     new SCanonicalLocusPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 
-  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
-
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo, LongInfo, IntInfo)
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SCanonicalLocusPointerSettable = {
@@ -37,12 +35,6 @@ final case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
     assert(contig.ti == LongInfo)
     assert(position.ti == IntInfo)
     new SCanonicalLocusPointerSettable(this, a, contig, position)
-  }
-
-  override def fromCodes(codes: IndexedSeq[Code[_]]): SCanonicalLocusPointerCode = {
-    val IndexedSeq(a: Code[Long@unchecked]) = codes
-    assert(a.ti == LongInfo)
-    new SCanonicalLocusPointerCode(this, a)
   }
 
   override def fromValues(values: IndexedSeq[Value[_]]): SCanonicalLocusPointerValue = {
@@ -69,6 +61,8 @@ class SCanonicalLocusPointerValue(
   val pt: PCanonicalLocus = st.pType
 
   override def get = new SCanonicalLocusPointerCode(st, a)
+
+  override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a, _contig, _position)
 
   override def contig(cb: EmitCodeBuilder): SStringCode = {
     pt.contigType.loadCheapSCode(cb, _contig).asString
@@ -111,8 +105,6 @@ class SCanonicalLocusPointerCode(val st: SCanonicalLocusPointer, val a: Code[Lon
   val pt: PCanonicalLocus = st.pType
 
   def code: Code[_] = a
-
-  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
   def contig(cb: EmitCodeBuilder): SStringCode = pt.contigType.loadCheapSCode(cb, pt.contigAddr(a)).asString
 

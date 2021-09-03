@@ -25,18 +25,12 @@ final case class SBaseStructPointer(pType: PBaseStruct) extends SBaseStruct {
     new SBaseStructPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 
-  override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SBaseStructPointerSettable = {
     val IndexedSeq(a: Settable[Long@unchecked]) = settables
     assert(a.ti == LongInfo)
     new SBaseStructPointerSettable(this, a)
-  }
-
-  override def fromCodes(codes: IndexedSeq[Code[_]]): SBaseStructPointerCode = {
-    val IndexedSeq(a: Code[Long@unchecked]) = codes
-    assert(a.ti == LongInfo)
-    new SBaseStructPointerCode(this, a)
   }
 
   override def fromValues(values: IndexedSeq[Value[_]]): SBaseStructPointerValue = {
@@ -63,7 +57,9 @@ class SBaseStructPointerValue(
 ) extends SBaseStructValue {
   val pt: PBaseStruct = st.pType
 
-  override def get: SBaseStructCode = new SBaseStructPointerCode(st, a)
+  override def get: SBaseStructPointerCode = new SBaseStructPointerCode(st, a)
+
+  override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a)
 
   override def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
     IEmitCode(cb,
@@ -98,15 +94,13 @@ class SBaseStructPointerCode(val st: SBaseStructPointer, val a: Code[Long]) exte
 
   def code: Code[_] = a
 
-  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(a)
-
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SBaseStructValue = {
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SBaseStructPointerValue = {
     val s = SBaseStructPointerSettable(sb, st, name)
     cb.assign(s, this)
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String): SBaseStructValue = memoize(cb, name, cb.localBuilder)
+  def memoize(cb: EmitCodeBuilder, name: String): SBaseStructPointerValue = memoize(cb, name, cb.localBuilder)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): SBaseStructValue = memoize(cb, name, cb.fieldBuilder)
+  def memoizeField(cb: EmitCodeBuilder, name: String): SBaseStructPointerValue = memoize(cb, name, cb.fieldBuilder)
 }
