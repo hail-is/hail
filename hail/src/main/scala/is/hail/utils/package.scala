@@ -595,13 +595,11 @@ package object utils extends Logging
     "part-" + StringUtils.leftPad(is, numDigits, "0")
   }
 
-  def partSuffix(ctx: TaskContext): String = {
-    val rng = new java.security.SecureRandom()
-    val fileUUID = new java.util.UUID(rng.nextLong(), rng.nextLong())
-    s"${ ctx.stageId() }-${ ctx.partitionId() }-${ ctx.attemptNumber() }-$fileUUID"
-  }
+  def partSuffix(ctx: TaskContext): String =
+    s"${ ctx.stageId() }-${ ctx.partitionId() }-${ ctx.attemptNumber() }"
 
-  def partFile(d: Int, i: Int, ctx: TaskContext): String = s"${ partFile(d, i) }-${ partSuffix(ctx) }"
+  def partFile(d: Int, i: Int, ctx: TaskContext): String =
+    s"${ java.util.UUID.randomUUID() }-${ partFile(d, i) }-${ partSuffix(ctx) }"
 
   def mangle(strs: Array[String], formatter: Int => String = "_%d".format(_)): (Array[String], Array[(String, String)]) = {
     val b = new BoxedArrayBuilder[String]
