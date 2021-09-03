@@ -43,26 +43,22 @@ class NDArrayMultiplyAddAggregator(tupleNDVTyp: VirtualTypeWithReq) extends Stag
         val tempRegionForCreation = cb.newLocal[Region]("ndarray_add_multily_agg_temp_region", Region.stagedCreate(Region.REGULAR, cb.emb.ecb.pool()))
         val NDArrayA = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(checkA, cb, tempRegionForCreation)
         val NDArrayB = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(checkB, cb, tempRegionForCreation)
-        cb += tempRegionForCreation.clearRegion()
         val statePV = state.storageType.loadCheapSCode(cb, state.off).asBaseStruct.memoize(cb, "ndarray_add_multiply_seqop_state")
         statePV.loadField(cb, ndarrayFieldNumber).consume(cb,
           {
-            cb += state.region.getNewRegion(Region.TINY)
+            cb += state.region.getNewRegion(Region.REGULAR)
             cb += state.storageType.setFieldPresent(state.off, ndarrayFieldNumber)
             val shape = IndexedSeq(NDArrayA.shapes(0), NDArrayB.shapes(1))
-            val tempRegionForCreation = cb.newLocal[Region]("ndarray_add_multiply_agg_temp_region", Region.stagedCreate(Region.REGULAR, cb.emb.ecb.pool()))
             val uninitializedNDArray = ndTyp.constructUnintialized(shape, ndTyp.makeColumnMajorStrides(shape, tempRegionForCreation, cb), cb, tempRegionForCreation)
             state.storeNonmissing(cb, uninitializedNDArray.get)
-
-            cb += tempRegionForCreation.clearRegion()
             SNDArray.gemm(cb, "N", "N", const(1.0), NDArrayA.get, NDArrayB.get, const(0.0), uninitializedNDArray.get)
           },
           { currentNDPCode =>
-            cb.println(const(3).toS)
             val currentNDPValue = currentNDPCode.asNDArray.memoize(cb, "ndarray_add_multiply_current")
             SNDArray.gemm(cb, "N", "N", NDArrayA.get, NDArrayB.get, currentNDPValue.get)
           }
         )
+        cb += tempRegionForCreation.clearRegion()
       })
     }
     cb.invokeVoid(seqOpMethod, nextNDTupleCode)

@@ -313,6 +313,7 @@ object SNDArray {
     val C = _C.memoize(cb, "gemm_C")
 
     assertMatrix(A, B, C)
+<<<<<<< HEAD
     val Seq(m, n) = C.shapes
     val k = if (tA == "N") A.shapes(1) else A.shapes(0)
     val errMsg = "gemm: incompatible matrix dimensions"
@@ -329,6 +330,21 @@ object SNDArray {
     val ldA = A.eltStride(1).max(1)
     val ldB = B.eltStride(1).max(1)
     val ldC = C.eltStride(1).max(1)
+=======
+    assertColMajor(cb, A, B, C)
+
+    val Seq(a0, a1) = A.shapes(cb)
+    val (m, ka) = if (tA == "N") (a0, a1) else (a1, a0)
+    val Seq(b0, b1) = B.shapes(cb)
+    val (kb, n) = if (tB == "N") (b0, b1) else (b1, b0)
+    val Seq(c0, c1) = C.shapes(cb)
+
+    cb.ifx(ka.cne(kb) || c0.cne(m) || c1.cne(n), cb._fatal(s"gemm: incompatible matrix dimensions A"))
+
+    val ldA = A.eltStride(cb, 1).max(1)
+    val ldB = B.eltStride(cb, 1).max(1)
+    val ldC = C.eltStride(cb, 1).max(1)
+>>>>>>> 44d1ebd1f (Accounted for NDArrays not being in col major)
     cb += Code.invokeScalaObject13[String, String, Int, Int, Int, Double, Long, Int, Long, Int, Double, Long, Int, Unit](BLAS.getClass, "dgemm",
       tA, tB, m.toI, n.toI, k.toI,
       alpha,
