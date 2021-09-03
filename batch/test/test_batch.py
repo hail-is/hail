@@ -104,12 +104,24 @@ def test_invalid_resource_requests(client):
         builder.submit()
 
     builder = client.create_batch()
-    resources = {'cpu': '0.1', 'memory': 'foo', 'storage': '1Gi'}
+    resources = {'cpu': '0.25', 'memory': 'foo', 'storage': '1Gi'}
     builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     with pytest.raises(
         aiohttp.client.ClientResponseError,
         match=".*.resources.memory must match regex:.*.resources.memory must be one of:.*",
     ):
+        builder.submit()
+
+    builder = client.create_batch()
+    resources = {'cpu': '0.25', 'memory': '500Mi', 'storage': '10000000Gi'}
+    builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    with pytest.raises(aiohttp.client.ClientResponseError, match='resource requests.*unsatisfiable'):
+        builder.submit()
+
+    builder = client.create_batch()
+    resources = {'cpu': '0.25', 'memory': '500Mi', 'storage': '10000000Gi', 'machine_type': 'n1-standard-1'}
+    builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    with pytest.raises(aiohttp.client.ClientResponseError, match='resource requests.*unsatisfiable'):
         builder.submit()
 
 

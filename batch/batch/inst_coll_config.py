@@ -86,6 +86,8 @@ class PoolConfig(InstanceCollectionConfig):
 
     def convert_requests_to_resources(self, cores_mcpu, memory_bytes, storage_bytes):
         storage_gib = requested_storage_bytes_to_actual_storage_gib(storage_bytes)
+        if storage_gib is None:
+            return None
 
         cores_mcpu = adjust_cores_for_memory_request(cores_mcpu, memory_bytes, self.worker_type)
         cores_mcpu = adjust_cores_for_packability(cores_mcpu)
@@ -118,6 +120,8 @@ class JobPrivateInstanceManagerConfig(InstanceCollectionConfig):
     def convert_requests_to_resources(self, machine_type, storage_bytes):
         # minimum storage for a GCE instance is 10Gi
         storage_gib = max(10, requested_storage_bytes_to_actual_storage_gib(storage_bytes))
+        if storage_gib is None:
+            return None
 
         machine_type_dict = machine_type_to_dict(machine_type)
         cores = int(machine_type_dict['cores'])
