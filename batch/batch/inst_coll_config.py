@@ -30,10 +30,10 @@ def machine_type_to_dict(machine_type: str) -> Optional[Dict[str, Any]]:
     return match.groupdict()
 
 
-def requested_storage_bytes_to_actual_storage_gib(storage_bytes):
+def requested_storage_bytes_to_actual_storage_gib(storage_bytes, allow_zero_storage):
     if storage_bytes > MAX_PERSISTENT_SSD_SIZE_GIB * 1024 ** 3:
         return None
-    if storage_bytes == 0:
+    if allow_zero_storage and storage_bytes == 0:
         return storage_bytes
     # minimum storage for a GCE instance is 10Gi
     return max(10, round_storage_bytes_to_gib(storage_bytes))
@@ -86,7 +86,7 @@ class PoolConfig(InstanceCollectionConfig):
         self.worker_config = WorkerConfig.from_pool_config(self)
 
     def convert_requests_to_resources(self, cores_mcpu, memory_bytes, storage_bytes):
-        storage_gib = requested_storage_bytes_to_actual_storage_gib(storage_bytes)
+        storage_gib = requested_storage_bytes_to_actual_storage_gib(storage_bytes, allow_zero_storage=True)
         if storage_gib is None:
             return None
 
@@ -119,7 +119,7 @@ class JobPrivateInstanceManagerConfig(InstanceCollectionConfig):
         self.max_live_instances = max_live_instances
 
     def convert_requests_to_resources(self, machine_type, storage_bytes):
-        storage_gib = requested_storage_bytes_to_actual_storage_gib(storage_bytes)
+        storage_gib = requested_storage_bytes_to_actual_storage_gib(storage_bytes, allow_zero_storage=False)
         if storage_gib is None:
             return None
 
