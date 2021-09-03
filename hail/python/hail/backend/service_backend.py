@@ -283,6 +283,8 @@ class ServiceBackend(Backend):
             with self.fs.open(dir + '/in', 'wb') as infile:
                 write_int(infile, ServiceBackend.VALUE_TYPE)
                 write_str(infile, tmp_dir())
+                write_str(infile, self.billing_project)
+                write_str(infile, self.bucket)
                 write_str(infile, self.render(ir))
 
             batch_attributes = self.batch_attributes
@@ -321,6 +323,8 @@ class ServiceBackend(Backend):
             with self.fs.open(dir + '/in', 'wb') as infile:
                 write_int(infile, ServiceBackend.TABLE_TYPE)
                 write_str(infile, tmp_dir())
+                write_str(infile, self.billing_project)
+                write_str(infile, self.bucket)
                 write_str(infile, self.render(tir))
 
             batch_attributes = self.batch_attributes
@@ -359,6 +363,8 @@ class ServiceBackend(Backend):
             with self.fs.open(dir + '/in', 'wb') as infile:
                 write_int(infile, ServiceBackend.MATRIX_TABLE_TYPE)
                 write_str(infile, tmp_dir())
+                write_str(infile, self.billing_project)
+                write_str(infile, self.bucket)
                 write_str(infile, self.render(mir))
 
             batch_attributes = self.batch_attributes
@@ -397,6 +403,8 @@ class ServiceBackend(Backend):
             with self.fs.open(dir + '/in', 'wb') as infile:
                 write_int(infile, ServiceBackend.BLOCK_MATRIX_TYPE)
                 write_str(infile, tmp_dir())
+                write_str(infile, self.billing_project)
+                write_str(infile, self.bucket)
                 write_str(infile, self.render(bmir))
 
             batch_attributes = self.batch_attributes
@@ -454,6 +462,8 @@ class ServiceBackend(Backend):
             with self.fs.open(dir + '/in', 'wb') as infile:
                 write_int(infile, ServiceBackend.REFERENCE_GENOME)
                 write_str(infile, tmp_dir())
+                write_str(infile, self.billing_project)
+                write_str(infile, self.bucket)
                 write_str(infile, name)
 
             batch_attributes = self.batch_attributes
