@@ -751,13 +751,9 @@ def test_cannot_contact_other_internal_ips(client):
     internal_ips = [f'10.128.0.{i}' for i in (10, 11, 12)]
     builder = client.create_batch()
     script = f'''
-if [ -z ${{HAIL_BATCH_WORKER_IP+x}} ]; then
-    echo HAIL_BATCH_WORKER_IP is not set
-    exit 1;
-fi
 if [ "$HAIL_BATCH_WORKER_IP" != "{internal_ips[0]}" ] && ! grep -Fq {internal_ips[0]} /etc/hosts; then
     OTHER_IP={internal_ips[0]}
-elif [ "$HAIL_BATCH_WORKER_IP" == "{internal_ips[1]}" ] && ! grep -Fq {internal_ips[1]} /etc/hosts; then
+elif [ "$HAIL_BATCH_WORKER_IP" != "{internal_ips[1]}" ] && ! grep -Fq {internal_ips[1]} /etc/hosts; then
     OTHER_IP={internal_ips[1]}
 else
     OTHER_IP={internal_ips[2]}
