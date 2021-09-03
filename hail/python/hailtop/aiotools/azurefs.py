@@ -157,6 +157,8 @@ class AzureReadableStream(ReadableStream):
 
         if self._downloader is None:
             self._downloader = await self._client.download_blob(offset=self._offset)
+
+        if self._chunk_it is None:
             self._chunk_it = self._downloader.chunks()
 
         while len(self._buffer) < n:
