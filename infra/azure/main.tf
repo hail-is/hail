@@ -16,6 +16,10 @@ provider "azurerm" {
   features {}
 }
 
+locals {
+  acr_name = var.acr_name == "" ? var.az_resource_group_name : var.acr_name
+}
+
 data "azurerm_resource_group" "rg" {
   name = var.az_resource_group_name
 }
@@ -82,7 +86,7 @@ resource "azurerm_public_ip" "gateway_ip" {
 }
 
 resource "azurerm_container_registry" "acr" {
-  name                = var.acr_name
+  name                = local.acr_name
   resource_group_name = data.azurerm_resource_group.rg.name
   location            = data.azurerm_resource_group.rg.location
   sku                 = var.acr_sku

@@ -4,6 +4,7 @@ variable az_resource_group_name {
 
 variable acr_name {
   type = string
+  default = ""
 }
 
 variable acr_sku {
