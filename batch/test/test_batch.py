@@ -119,7 +119,7 @@ def test_invalid_resource_requests(client):
         builder.submit()
 
     builder = client.create_batch()
-    resources = {'cpu': '0.25', 'memory': '500Mi', 'storage': '10000000Gi', 'machine_type': 'n1-standard-1'}
+    resources = {'storage': '10000000Gi', 'machine_type': 'n1-standard-1'}
     builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     with pytest.raises(aiohttp.client.ClientResponseError, match='resource requests.*unsatisfiable'):
         builder.submit()
