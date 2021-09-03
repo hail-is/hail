@@ -176,6 +176,6 @@ resource "azurerm_shared_image" "batch_worker" {
   identifier {
     publisher = "Canonical"
     offer     = "UbuntuServer"
-    sku       = "18.04-LTS"
+    sku       = "20.04-LTS"
   }
 }
