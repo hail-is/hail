@@ -35,7 +35,7 @@ class NDArrayMultiplyAddAggregator(tupleNDVTyp: VirtualTypeWithReq) extends Stag
     val Array(nextNDTupleCode) = seq
     val seqOpMethod = cb.emb.genEmitMethod("ndarray_add_multiply_aggregator_seq_op", FastIndexedSeq(nextNDTupleCode.emitParamType), CodeParamType(UnitInfo))
     seqOpMethod.voidWithBuilder { cb =>
-      val nextNDTupleInput = seqOpMethod.getEmitParam(1, null)
+      val nextNDTupleInput = seqOpMethod.getEmitParam(cb, 1, null)
       nextNDTupleInput.toI(cb).consume(cb, {}, { case nextNDArrayTuplePCode: SBaseStructCode =>
         val nextNDTV = nextNDArrayTuplePCode.memoize(cb, "ndarry_add_multiply_seqop_next")
         val checkA = nextNDTV.loadField(cb, 0).get(cb).asNDArray.memoize(cb, "ndarray_add_mutiply_seqop_A")
