@@ -495,13 +495,19 @@ object LowerBlockMatrixIR {
           }
 
           def blockBody(ctxRef: Ref): IR = {
-            println(ctxRef.typ)
             val tupleNDArrayStream = ToStream(ctxRef)
             val streamElementName = genUID()
             val streamElementRef = Ref(streamElementName, tupleNDArrayStream.typ.asInstanceOf[TStream].elementType)
-            StreamAgg(tupleNDArrayStream, streamElementName,
-              ApplyAggOp(NDArrayMultiplyAdd())(streamElementRef)
-            )
+            val leftName = genUID()
+            val rightName = genUID()
+            val leftRef = Ref(leftName, tupleNDArrayStream.typ.asInstanceOf[TStream].elementType.asInstanceOf[TTuple].types(0))
+            val rightRef = Ref(rightName, tupleNDArrayStream.typ.asInstanceOf[TStream].elementType.asInstanceOf[TTuple].types(1))
+            StreamAgg(tupleNDArrayStream, streamElementName, {
+              AggLet(leftName, GetTupleElement(streamElementRef, 0),
+                AggLet(rightName, GetTupleElement(streamElementRef, 1),
+              ApplyAggOp(NDArrayMultiplyAdd())(MakeTuple.ordered(FastSeq(left.blockBody(leftRef),
+                right.blockBody(rightRef)))), isScan=false), isScan=false)
+            })
           }
         }
     }

@@ -241,7 +241,8 @@ object SNDArray {
 
   def assertColMajor(cb: EmitCodeBuilder, nds: SNDArrayValue*): Unit = {
     for (nd <- nds) {
-      cb.ifx(nd.strides(0).cne(nd.st.pType.elementType.byteSize), cb._fatal("Require column major: found row stride ", nd.strides(0).toS, ", expected ", nd.st.pType.elementType.byteSize.toString))
+      cb.ifx(nd.strides(0).cne(nd.st.pType.elementType.byteSize),
+        cb._fatal("Require column major: found row stride ", nd.strides(0).toS, ", expected ", nd.st.pType.elementType.byteSize.toString))
     }
   }
 
