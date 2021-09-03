@@ -13,10 +13,8 @@ function BatchTableRow({ batch }: { batch: Batch }) {
 
 export default function BatchTable({ batches }: { batches: Batch[] }) {
   return (
-    <tbody>
-      {batches.map((b) => 
-      <tr key={b.id}><BatchTableRow batch={b} /></tr>
-      )}
-    </tbody>
+    <ul>
+      {batches.map((b) => <li key={b.id}><BatchTableRow batch={b} /></li>)}
+    </ul>
   );
 }
