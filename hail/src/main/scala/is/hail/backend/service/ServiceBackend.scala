@@ -421,8 +421,8 @@ class ServiceBackend(
 
   private[this] def serviceBackendExecuteContext[T](
     methodName: String,
-    sessionId: String,
     tmpdir: String,
+    sessionId: String,
     billingProject: String,
     bucket: String
   )(body: ExecuteContext => T): T = ExecutionTimer.logTime(methodName) { timer =>
