@@ -727,6 +727,10 @@ python3 -c \'{script}\'''',
     else:
         assert status['state'] == 'Failed', str(status)
 
+    if DOMAIN.startswith('internal'):
+        without_internal = DOMAIN.split('.', maxsplit=1)[1]
+    else:
+        without_internal = DOMAIN
     builder = client.create_batch()
     j = builder.create_job(
         os.environ['HAIL_HAIL_BASE_IMAGE'],
@@ -734,7 +738,8 @@ python3 -c \'{script}\'''',
             '/bin/bash',
             '-c',
             f'''
-jq '.domain = "batch.{DOMAIN}"' /deploy-config/deploy-config.json > /deploy-config/deploy-config.json
+jq '.domain = "{without_internal}"' /deploy-config/deploy-config.json > tmp.json
+mv tmp.json /deploy-config/deploy-config.json
 python3 -c \'{script}\'''',
         ],
         mount_tokens=True,
