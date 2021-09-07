@@ -2155,8 +2155,8 @@ class Emit[C](
           cb.assign(tv, EmitCode.missing(cb.emb, errTuple))
           cb.assign(maybeMissingEV, ev)
         }, {
-          val str = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, sst.constructFromString(cb, region, maybeException.invoke[String]("_1"))))
-          val errorId = EmitCode.fromI(mb)(cb =>
+          val str = EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, sst.constructFromString(cb, region, maybeException.invoke[String]("_1"))))
+          val errorId = EmitCode.fromI(cb.emb)(cb =>
             IEmitCode.present(cb, primitive(maybeException.invoke[java.lang.Integer]("_2").invoke[Int]("intValue"))))
           cb.assign(tv, IEmitCode.present(cb, SStackStruct.constructFromArgs(cb, region, errTupleType, str, errorId)))
           cb.assign(maybeMissingEV, EmitCode.missing(cb.emb, ev.st))

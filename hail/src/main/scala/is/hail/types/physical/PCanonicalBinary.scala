@@ -89,8 +89,8 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
   }
 
   override def store(cb: EmitCodeBuilder, _addr: Code[Long], _bytes: Code[Array[Byte]]): Unit = {
-    val addr = cb.memoize(_addr)
-    val bytes = cb.memoize(_bytes)
+    val addr = cb.memoize(_addr, "pcanonical_binary_store_addr")
+    val bytes = cb.memoize(_bytes, "pcanonical_binary_store_bytes")
     cb += Region.storeInt(addr, bytes.length())
     cb += Region.storeBytes(bytesAddress(addr), bytes)
   }
