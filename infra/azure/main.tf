@@ -4,9 +4,9 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "=2.74.0"
     }
-    kubernetes = {
-      source  = "hashicorp/kubernetes"
-      version = "1.13.3"
+    http = {
+      source = "hashicorp/http"
+      version = "2.1.0"
     }
   }
   backend "azurerm" {}
@@ -18,6 +18,7 @@ provider "azurerm" {
 
 locals {
   acr_name = var.acr_name == "" ? var.az_resource_group_name : var.acr_name
+  internal_ip = "10.128.255.254"
 }
 
 data "azurerm_resource_group" "rg" {
@@ -56,8 +57,9 @@ resource "azurerm_kubernetes_cluster" "vdc" {
   default_node_pool {
     name           = "default"
     node_count     = 1
-    vm_size        = "Standard_D2_v2"
+    vm_size        = var.k8s_machine_type
     vnet_subnet_id = azurerm_subnet.k8s_subnet.id
+    type           = "VirtualMachineScaleSets"
   }
 
   identity {
@@ -65,16 +67,42 @@ resource "azurerm_kubernetes_cluster" "vdc" {
   }
 }
 
-resource "azurerm_kubernetes_cluster_node_pool" "vdc_pool" {
-  name                  = "pool"
+resource "azurerm_kubernetes_cluster_node_pool" "vdc_noonpreemptible_pool" {
+  name                  = "nonpreempt"
   kubernetes_cluster_id = azurerm_kubernetes_cluster.vdc.id
-  vm_size               = "Standard_D2_v2"
+  vm_size               = var.k8s_machine_type
   vnet_subnet_id        = azurerm_subnet.k8s_subnet.id
 
   enable_auto_scaling = true
 
   min_count = 0
   max_count = 200
+
+  node_labels = {
+    "preemptible" = "false"
+  }
+}
+
+resource "azurerm_kubernetes_cluster_node_pool" "vdc_preemptible_pool" {
+  name                  = "preempt"
+  kubernetes_cluster_id = azurerm_kubernetes_cluster.vdc.id
+  vm_size               = var.k8s_machine_type
+  vnet_subnet_id        = azurerm_subnet.k8s_subnet.id
+
+  enable_auto_scaling = true
+
+  min_count = 0
+  max_count = 200
+
+  priority        = "Spot"
+  eviction_policy = "Delete"
+  node_labels = {
+    "preemptible"                           = "true"
+    "kubernetes.azure.com/scalesetpriority" = "spot"
+  }
+  node_taints = [
+    "kubernetes.azure.com/scalesetpriority=spot:NoSchedule"
+  ]
 }
 
 resource "azurerm_public_ip" "gateway_ip" {
@@ -134,6 +162,10 @@ resource "azurerm_mysql_server" "db" {
   public_network_access_enabled = false
 }
 
+data "http" "db_ca_cert" {
+  url = "https://www.digicert.com/CACerts/BaltimoreCyberTrustRoot.crt.pem"
+}
+
 resource "azurerm_private_endpoint" "db_endpoint" {
   name                = "${azurerm_mysql_server.db.name}-endpoint"
   resource_group_name = data.azurerm_resource_group.rg.name
@@ -145,12 +177,13 @@ resource "azurerm_private_endpoint" "db_endpoint" {
     private_connection_resource_id = azurerm_mysql_server.db.id
     subresource_names              = [ "mysqlServer" ]
     is_manual_connection           = false
+  }
+}
 
 resource "azurerm_user_assigned_identity" "batch_worker" {
+  name                = "batch-worker"
   resource_group_name = data.azurerm_resource_group.rg.name
   location            = data.azurerm_resource_group.rg.location
-
-  name = "batch-worker"
 }
 
 resource "azurerm_role_assignment" "batch_worker" {
@@ -160,7 +193,7 @@ resource "azurerm_role_assignment" "batch_worker" {
 }
 
 resource "azurerm_shared_image_gallery" "batch" {
-  name                = "batch"
+  name                = "${data.azurerm_resource_group.rg.name}_batch"
   resource_group_name = data.azurerm_resource_group.rg.name
   location            = data.azurerm_resource_group.rg.location
 }
@@ -171,7 +204,7 @@ resource "azurerm_shared_image" "batch_worker" {
   resource_group_name = data.azurerm_resource_group.rg.name
   location            = data.azurerm_resource_group.rg.location
   os_type             = "Linux"
-  specialized	      = false
+  specialized	        = false
 
   identifier {
     publisher = "Canonical"
