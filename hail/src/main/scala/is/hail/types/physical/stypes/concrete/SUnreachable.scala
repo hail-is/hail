@@ -354,7 +354,7 @@ class SUnreachableContainerValue(override val st: SUnreachableContainer) extends
   override def hasMissingValues(cb: EmitCodeBuilder): Code[Boolean] = const(false)
 
   override def castToArray(cb: EmitCodeBuilder): SIndexableValue =
-    SUnreachable.fromVirtualType(st.virtualType.arrayElementsRepr).defaultValue.asIndexableValue
+    SUnreachable.fromVirtualType(st.virtualType.arrayElementsRepr).defaultValue.asIndexable
 
   override def get: SUnreachableCode = st.sc
 }

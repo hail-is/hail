@@ -23,7 +23,7 @@ case object SJavaBytes extends SBinary {
   override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SJavaBytesValue =
     value.st match {
       case SJavaBytes => value.asInstanceOf[SJavaBytesValue]
-      case _ => new SJavaBytesValue(cb.memoize(value.asBinaryValue.loadBytes()))
+      case _ => new SJavaBytesValue(cb.memoize(value.asBinary.loadBytes()))
     }
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(arrayInfo[Byte])

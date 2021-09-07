@@ -23,7 +23,7 @@ case object SJavaString extends SString {
   override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SJavaStringValue = {
     value.st match {
       case SJavaString => value.asInstanceOf[SJavaStringValue]
-      case _ => new SJavaStringValue(value.asStringValue.loadString(cb))
+      case _ => new SJavaStringValue(value.asString.loadString(cb))
     }
   }
 

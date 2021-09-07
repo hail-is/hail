@@ -84,7 +84,7 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
       case SIntervalPointer(t: PCanonicalInterval) =>
         representation.store(cb, region, t.representation.loadCheapSCode(cb, value.asInstanceOf[SIntervalPointerValue].a), deepCopy)
       case _ =>
-        val interval = value.asIntervalValue
+        val interval = value.asInterval
         val start = EmitCode.fromI(cb.emb)(cb => interval.loadStart(cb))
         val stop = EmitCode.fromI(cb.emb)(cb => interval.loadEnd(cb))
         val includesStart = EmitCode.present(cb.emb, new SBooleanCode(interval.includesStart()))

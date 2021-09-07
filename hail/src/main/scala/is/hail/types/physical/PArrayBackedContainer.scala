@@ -148,7 +148,7 @@ trait PArrayBackedContainer extends PContainer {
     new SIndexablePointerCode(sType, addr).memoizeField(cb, "loadCheapSCodeField")
 
   override def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] =
-    arrayRep.store(cb, region, value.asIndexableValue.castToArray(cb), deepCopy)
+    arrayRep.store(cb, region, value.asIndexable.castToArray(cb), deepCopy)
 
   override def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit =
     arrayRep.storeAtAddress(cb, addr, region, value.asIndexable.castToArray(cb), deepCopy)

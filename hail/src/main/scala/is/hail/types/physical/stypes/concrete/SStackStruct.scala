@@ -84,7 +84,7 @@ final case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedS
             }
           })
       case _ =>
-        val sv = value.asBaseStructValue
+        val sv = value.asBaseStruct
         new SStackStructValue(this, Array.tabulate[EmitValue](size) { i =>
           val newType = fieldEmitTypes(i)
           val ec = EmitCode.fromI(cb.emb) { cb =>

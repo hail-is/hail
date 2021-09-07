@@ -408,7 +408,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       case SIndexablePointer(PCanonicalArray(otherElementType, _)) if otherElementType == elementType && !deepCopy =>
         value.asInstanceOf[SIndexablePointerValue].a
       case _ =>
-        val idxValue = value.asIndexableValue
+        val idxValue = value.asIndexable
         val newAddr = cb.memoize(allocate(region, idxValue.loadLength()))
         storeContentsAtAddress(cb, newAddr, region, idxValue, deepCopy)
         newAddr

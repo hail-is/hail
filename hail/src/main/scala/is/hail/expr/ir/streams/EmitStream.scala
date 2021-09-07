@@ -1645,7 +1645,7 @@ object EmitStream {
           val xCurElt = mb.newPField("st_grpby_curelt", childProducer.element.st)
 
           val keyRegion = mb.genFieldThisRef[Region]("st_groupby_key_region")
-          def subsetCode = xCurElt.asBaseStructValue.subset(key: _*)
+          def subsetCode = xCurElt.asBaseStruct.subset(key: _*)
           val curKey = mb.newPField("st_grpby_curkey", subsetCode.st)
 
           // This type shouldn't be a subset struct, since it is copied deeply.
@@ -2468,8 +2468,8 @@ object EmitStream {
             * left when key fields are missing.
             */
           def comp(cb: EmitCodeBuilder, li: Code[Int], lv: Code[Long], ri: Code[Int], rv: Code[Long]): Code[Boolean] = {
-            val l = unifiedType.loadCheapSCode(cb, lv).asBaseStructValue.subset(key: _*)
-            val r = unifiedType.loadCheapSCode(cb, rv).asBaseStructValue.subset(key: _*)
+            val l = unifiedType.loadCheapSCode(cb, lv).asBaseStruct.subset(key: _*)
+            val r = unifiedType.loadCheapSCode(cb, rv).asBaseStruct.subset(key: _*)
             val ord1 = StructOrdering.make(l.asBaseStruct.st, r.asBaseStruct.st, cb.emb.ecb, missingFieldsEqual = false)
             val ord2 = StructOrdering.make(r.asBaseStruct.st, l.asBaseStruct.st, cb.emb.ecb, missingFieldsEqual = false)
             val b = cb.newLocal[Boolean]("stream_merge_comp_result")

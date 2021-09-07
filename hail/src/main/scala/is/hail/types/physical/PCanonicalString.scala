@@ -73,7 +73,7 @@ class PCanonicalString(val required: Boolean) extends PString {
       case SStringPointer(t) if t.equalModuloRequired(this) && !deepCopy =>
         value.asInstanceOf[SStringPointerValue].a
       case _ =>
-        binaryRepresentation.store(cb, region, value.asStringValue.toBytes(cb), deepCopy)
+        binaryRepresentation.store(cb, region, value.asString.toBytes(cb), deepCopy)
     }
   }
 

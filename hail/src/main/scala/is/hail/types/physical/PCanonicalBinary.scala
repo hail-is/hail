@@ -155,7 +155,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
         } else
           value.asInstanceOf[SBinaryPointerValue].a
       case _ =>
-        val bv = value.asBinaryValue
+        val bv = value.asBinary
         val len = cb.newLocal[Int]("pcbinary_store_len", bv.loadLength())
         val newAddr = cb.memoize(allocate(region, len))
         storeLength(cb, newAddr, len)
