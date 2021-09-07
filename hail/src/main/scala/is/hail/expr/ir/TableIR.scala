@@ -6,7 +6,7 @@ import is.hail.asm4s._
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, MatrixToTableFunction, StringFunctions, TableToTableFunction}
-import is.hail.expr.ir.lowering.{LowerTableIRHelpers, LowererUnsupportedOperation, TableStage, TableStageDependency}
+import is.hail.expr.ir.lowering.{LowerTableIR, LowerTableIRHelpers, LowererUnsupportedOperation, TableStage, TableStageDependency}
 import is.hail.expr.ir.streams.{StreamArgType, StreamProducer}
 import is.hail.io._
 import is.hail.io.fs.FS
@@ -1385,32 +1385,7 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
     TStruct.empty)
 
   protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
-    val localRowType = PCanonicalStruct(true, "idx" -> PInt32Required)
-    val localPartCounts = partCounts
-    val partStarts = partCounts.scanLeft(0)(_ + _)
-    new TableValueIntermediate(TableValue(ctx, typ,
-      BroadcastRow.empty(ctx),
-      new RVD(
-        RVDType(localRowType, Array("idx")),
-        new RVDPartitioner(Array("idx"), typ.rowType,
-          Array.tabulate(nPartitionsAdj) { i =>
-            val start = partStarts(i)
-            val end = partStarts(i + 1)
-            Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
-          }),
-        ContextRDD.parallelize(Range(0, nPartitionsAdj), nPartitionsAdj)
-          .cmapPartitionsWithIndex { case (i, ctx, _) =>
-            val region = ctx.region
-
-            val start = partStarts(i)
-            Iterator.range(start, start + localPartCounts(i))
-              .map { j =>
-                val off = localRowType.allocate(region)
-                localRowType.setFieldPresent(off, 0)
-                Region.storeInt(localRowType.fieldOffset(off, 0), j)
-                off
-              }
-          })))
+    new TableStageIntermediate(LowerTableIRHelpers.lowerTableRange(ctx, this))
   }
 }
 
@@ -1457,14 +1432,6 @@ trait TableSubset extends TableIR {
     case Some(c) => Some(c.min(n))
     case None => Some(n)
   }
-
-  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
-    val prev = child.execute(ctx, r).asTableValue(ctx)
-    new TableValueIntermediate(prev.copy(rvd = subsetKind match {
-      case TableSubset.HEAD => prev.rvd.head(n, child.partitionCounts)
-      case TableSubset.TAIL => prev.rvd.tail(n, child.partitionCounts)
-    }))
-  }
 }
 
 case class TableHead(child: TableIR, n: Long) extends TableSubset {
@@ -1475,6 +1442,11 @@ case class TableHead(child: TableIR, n: Long) extends TableSubset {
     val IndexedSeq(newChild: TableIR) = newChildren
     TableHead(newChild, n)
   }
+
+  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
+    val prev = child.execute(ctx, r).asTableStage(ctx)
+    new TableStageIntermediate(LowerTableIRHelpers.lowerTableHead(ctx, this, prev, Map.empty))
+  }
 }
 
 case class TableTail(child: TableIR, n: Long) extends TableSubset {
@@ -1484,6 +1456,11 @@ case class TableTail(child: TableIR, n: Long) extends TableSubset {
   def copy(newChildren: IndexedSeq[BaseIR]): TableTail = {
     val IndexedSeq(newChild: TableIR) = newChildren
     TableTail(newChild, n)
+  }
+
+  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
+    val prev = child.execute(ctx, r).asTableStage(ctx)
+    new TableStageIntermediate(LowerTableIRHelpers.lowerTableTail(ctx, this, prev, Map.empty))
   }
 }
 
@@ -1830,37 +1807,7 @@ case class TableMapPartitions(child: TableIR,
   }
 
   protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
-    val tv = child.execute(ctx, r).asTableValue(ctx)
-    val rowPType = tv.rvd.rowPType
-    val globalPType = tv.globals.t
-
-    val (newRowPType: PStruct, makeIterator) = CompileIterator.forTableMapPartitions(
-      ctx,
-      globalPType, rowPType,
-      Subst(body, BindingEnv(Env(
-        globalName -> In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(globalPType))),
-        partitionStreamName -> In(1, SingleCodeEmitParamType(true, StreamSingleCodeType(requiresMemoryManagementPerElement = true, rowPType)))))))
-
-    val globalsBc = tv.globals.broadcast
-
-    val fsBc = tv.ctx.fsBc
-    val itF = { (idx: Int, consumerCtx: RVDContext, partition: (RVDContext) => Iterator[Long]) =>
-      val boxedPartition = new StreamArgType {
-        def apply(outerRegion: Region, eltRegion: Region): Iterator[java.lang.Long] =
-          partition(new RVDContext(outerRegion, eltRegion)).map(box)
-      }
-      makeIterator(fsBc.value, idx, consumerCtx,
-        globalsBc.value.readRegionValue(consumerCtx.partitionRegion),
-        boxedPartition
-      ).map(l => l.longValue())
-    }
-
-    new TableValueIntermediate(
-      tv.copy(
-        typ = typ,
-        rvd = tv.rvd
-          .mapPartitionsWithContextAndIndex(RVDType(newRowPType, typ.key))(itF))
-    )
+    new TableStageIntermediate(LowerTableIRHelpers.lowerTableMapPartitions(ctx, this, child.execute(ctx, r).asTableStage(ctx)))
   }
 }
 
@@ -2163,19 +2110,7 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
-    val tv = child.execute(ctx, r).asTableValue(ctx)
-
-    val (Some(PTypeReferenceSingleCodeType(resultPType: PStruct)), f) = Compile[AsmFunction2RegionLongLong](ctx,
-      FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.globals.t)))),
-      FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
-      Coalesce(FastIndexedSeq(
-        newGlobals,
-        Die("Internal error: TableMapGlobals: globals missing", newGlobals.typ))))
-
-    val resultOff = f(ctx.fs, 0, ctx.r)(ctx.r, tv.globals.value.offset)
-    new TableValueIntermediate(
-      tv.copy(typ = typ,
-        globals = BroadcastRow(ctx, RegionValue(ctx.r, resultOff), resultPType)))
+    new TableStageIntermediate(LowerTableIRHelpers.lowerTableMapGlobals(ctx, this, child.execute(ctx, r).asTableStage(ctx)))
   }
 }
 
