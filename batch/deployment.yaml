@@ -63,11 +63,6 @@ spec:
            value: "{{ global.docker_root_image }}"
          - name: HAIL_DOCKER_PREFIX
            value: "{{ global.docker_prefix }}"
-         - name: HAIL_INTERNAL_IP
-           valueFrom:
-             secretKeyRef:
-               name: global-config
-               key: internal_ip
          - name: HAIL_GCP_REGION
            valueFrom:
              secretKeyRef:

@@ -2593,7 +2593,6 @@ steps:
       export HAIL_HAIL_BASE_IMAGE={{ hail_base_image.image }}
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
-      export DOMAIN="{{ global.domain }}"
       export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
       export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
       export HAIL_TOKEN="{{ token }}"
@@ -2668,7 +2667,6 @@ steps:
       export HAIL_HAIL_BASE_IMAGE={{ hail_base_image.image }}
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
-      export DOMAIN="{{ global.domain }}"
       export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
       export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
       export HAIL_TOKEN="{{ token }}"
@@ -2743,7 +2741,6 @@ steps:
       export HAIL_HAIL_BASE_IMAGE={{ hail_base_image.image }}
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
-      export DOMAIN="{{ global.domain }}"
       export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
       export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
       export HAIL_TOKEN="{{ token }}"
@@ -2818,7 +2815,6 @@ steps:
       export HAIL_HAIL_BASE_IMAGE={{ hail_base_image.image }}
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
-      export DOMAIN="{{ global.domain }}"
       export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
       export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
       export HAIL_TOKEN="{{ token }}"
@@ -2893,7 +2889,6 @@ steps:
       export HAIL_HAIL_BASE_IMAGE={{ hail_base_image.image }}
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
-      export DOMAIN="{{ global.domain }}"
       export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
       export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
       export HAIL_TOKEN="{{ token }}"
