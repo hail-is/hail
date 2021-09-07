@@ -170,3 +170,8 @@ upload-secret() {
 	  kubectl create secret generic $name --namespace $namespace $(for i in $(ls contents); do echo "--from-file=contents/$i" ; done) --save-config --dry-run=client -o yaml \
 	      | kubectl apply -f -
 }
+
+switchproject() {
+    gcloud config set project $1
+    gcloud container clusters get-credentials --zone us-central1-a vdc
+}
