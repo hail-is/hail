@@ -505,8 +505,8 @@ object LowerBlockMatrixIR {
             StreamAgg(tupleNDArrayStream, streamElementName, {
               AggLet(leftName, GetTupleElement(streamElementRef, 0),
                 AggLet(rightName, GetTupleElement(streamElementRef, 1),
-              ApplyAggOp(NDArrayMultiplyAdd())(MakeTuple.ordered(FastSeq(left.blockBody(leftRef),
-                right.blockBody(rightRef)))), isScan=false), isScan=false)
+              ApplyAggOp(NDArrayMultiplyAdd())(left.blockBody(leftRef),
+                right.blockBody(rightRef)), isScan=false), isScan=false)
             })
           }
         }

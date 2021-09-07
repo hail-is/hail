@@ -963,14 +963,16 @@ class TableIRSuite extends HailSuite {
       (0 until 10).map(i => Row(i, "foo")),
       0 until 5))
   }
+
   @Test def testNDArrayMultiplyAddAggregator(): Unit = {
     implicit val execStrats = ExecStrategy.allRelational
     var tir: TableIR = TableRange(6, 3)
     val nDArray1 = Literal(TNDArray(TFloat64, Nat(2)), SafeNDArray(IndexedSeq(2L,2L), IndexedSeq(1.0,1.0,1.0,1.0)))
     val nDArray2 = Literal(TNDArray(TFloat64, Nat(2)), SafeNDArray(IndexedSeq(2L,2L), IndexedSeq(2.0,2.0,2.0,2.0)))
     tir = TableMapRows(tir, InsertFields(Ref("row", tir.typ.rowType),
-      FastSeq("nDArrayTuple" -> MakeTuple.ordered(FastSeq(nDArray1, nDArray2)))))
-    val x = TableAggregate(tir, ApplyAggOp(NDArrayMultiplyAdd())(GetField(Ref("row", tir.typ.rowType), "nDArrayTuple")))
+      FastSeq("nDArrayA" -> nDArray1, "ndArrayB" -> nDArray2)))
+    val x = TableAggregate(tir, ApplyAggOp(NDArrayMultiplyAdd())(GetField(Ref("row", tir.typ.rowType), "nDArrayA"),
+      GetField(Ref("row", tir.typ.rowType), "nDArrayB")))
     assertEvalsTo(x, SafeNDArray(Vector(2, 2), IndexedSeq(24.0, 24.0, 24.0, 24.0)))
   }
 

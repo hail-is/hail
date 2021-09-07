@@ -69,8 +69,8 @@ object AggStateSig {
     case ArrayAggStateSig(nested) => new ArrayElementState(cb, StateTuple(nested.map(sig => AggStateSig.getState(sig, cb)).toArray))
     case GroupedStateSig(kt, nested) => new DictState(cb, kt, StateTuple(nested.map(sig => AggStateSig.getState(sig, cb)).toArray))
     case NDArraySumStateSig(nda) => new TypedRegionBackedAggState(nda, cb)
-    case NDArrayMultiplyAddStateSig(tupleNDA) =>
-      new TypedRegionBackedAggState(VirtualTypeWithReq.apply(tupleNDA.canonicalPType.asInstanceOf[PCanonicalTuple].types(0).setRequired(false)), cb)
+    case NDArrayMultiplyAddStateSig(nda) =>
+      new TypedRegionBackedAggState(nda, cb)
     case LinearRegressionStateSig() => new LinearRegressionAggregatorState(cb)
   }
 }
@@ -312,8 +312,12 @@ object Extract {
     case AggSignature(ApproxCDF(), _, _) => QuantilesAggregator.resultType.virtualType
     case AggSignature(Downsample(), _, Seq(_, _, label)) => DownsampleAggregator.resultType
     case AggSignature(NDArraySum(), _, Seq(t)) => t
-    case AggSignature(NDArrayMultiplyAdd(), _, Seq(t: TTuple)) => t.types(0)
-    case _ => throw new UnsupportedExtraction(aggSig.toString)  }
+    case AggSignature(NDArrayMultiplyAdd(), _, Seq(a : TNDArray, _)) => a
+    case _ =>  println("aggSig to String" + aggSig.toString)
+      println("strack trace" + aggSig.st)
+      throw new UnsupportedExtraction(aggSig.toString)
+
+  }
 
   def getAgg(sig: PhysicalAggSig): StagedAggregator = sig match {
     case PhysicalAggSig(Sum(), TypedStateSig(t)) => new SumAggregator(t.t)
