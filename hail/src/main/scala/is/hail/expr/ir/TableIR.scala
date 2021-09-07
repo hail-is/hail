@@ -51,7 +51,8 @@ abstract sealed class TableIR extends BaseIR {
 
   final def analyzeAndExecute(ctx: ExecuteContext): TableExecuteIntermediate = {
     val r = Requiredness(this, ctx)
-    execute(ctx, new TableRunContext(r))
+    val rand = ContainsSeededRandomness.analyze(this)
+    execute(ctx, new TableRunContext(r, rand))
   }
 
   protected[ir] def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate =
@@ -69,7 +70,9 @@ abstract sealed class TableIR extends BaseIR {
   def pyUnpersist(): TableIR = unpersist()
 }
 
-class TableRunContext(val req: RequirednessAnalysis)
+class TableRunContext(val req: RequirednessAnalysis, randomnessAnalysis: Memo[Boolean]) {
+  def containsSeededRandomness(ir: IR): Boolean = randomnessAnalysis.lookup(ir)
+}
 
 object TableLiteral {
   def apply(value: TableValue): TableLiteral = {
@@ -1421,22 +1424,9 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
   }
 
   protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
-    val tv = child.execute(ctx, r).asTableValue(ctx)
-
-    if (pred == True())
-      return new TableValueIntermediate(tv)
-    else if (pred == False())
-      return new TableValueIntermediate(tv.copy(rvd = RVD.empty(typ.canonicalRVDType)))
-
-    val (Some(BooleanSingleCodeType), f) = ir.Compile[AsmFunction3RegionLongLongBoolean](
-      ctx,
-      FastIndexedSeq(("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.rvd.rowPType))),
-        ("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.globals.t)))),
-      FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), BooleanInfo,
-      Coalesce(FastIndexedSeq(pred, False())))
-
-    new TableValueIntermediate(
-      tv.filterWithPartitionOp(ctx.fsBc, f)((rowF, ctx, ptr, globalPtr) => rowF(ctx.region, ptr, globalPtr)))
+    val lc = child.execute(ctx, r).asTableStage(ctx)
+    val lcb = if (r.containsSeededRandomness(pred)) lc.randomnessBoundary(ctx) else lc
+    new TableStageIntermediate(LowerTableIRHelpers.lowerTableFilter(ctx, this, lcb))
   }
 }
 
@@ -1887,47 +1877,17 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
+    if (!ContainsScan(newRow)) {
+      val lc = child.execute(ctx, r).asTableStage(ctx)
+      val lcb = if (r.containsSeededRandomness(newRow)) lc.randomnessBoundary(ctx) else lc
+       return new TableStageIntermediate(
+        LowerTableIRHelpers.lowerTableMapRows(ctx, this, lcb, r.req, Map.empty))
+    }
+
     val tv = child.execute(ctx, r).asTableValue(ctx)
     val fsBc = ctx.fsBc
     val scanRef = genUID()
     val extracted = agg.Extract.apply(newRow, scanRef, Requiredness(this, ctx), isScan = true)
-
-    if (extracted.aggs.isEmpty) {
-      val (Some(PTypeReferenceSingleCodeType(rTyp)), f) = ir.Compile[AsmFunction3RegionLongLongLong](
-        ctx,
-        FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.globals.t))),
-          ("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.rvd.rowPType)))),
-        FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
-        Coalesce(FastIndexedSeq(
-          extracted.postAggIR,
-          Die("Internal error: TableMapRows: row expression missing", extracted.postAggIR.typ))))
-
-      val rowIterationNeedsGlobals = Mentions(extracted.postAggIR, "global")
-      val globalsBc =
-        if (rowIterationNeedsGlobals)
-          tv.globals.broadcast
-        else
-          null
-
-      val fsBc = ctx.fsBc
-      val itF = { (i: Int, ctx: RVDContext, it: Iterator[Long]) =>
-        val globalRegion = ctx.partitionRegion
-        val globals = if (rowIterationNeedsGlobals)
-          globalsBc.value.readRegionValue(globalRegion)
-        else
-          0
-
-        val newRow = f(fsBc.value, i, globalRegion)
-        it.map { ptr =>
-          newRow(ctx.r, globals, ptr)
-        }
-      }
-
-      return new TableValueIntermediate(
-        tv.copy(
-          typ = typ,
-          rvd = tv.rvd.mapPartitionsWithIndex(RVDType(rTyp.asInstanceOf[PStruct], typ.key))(itF)))
-    }
 
     val scanInitNeedsGlobals = Mentions(extracted.init, "global")
     val scanSeqNeedsGlobals = Mentions(extracted.seqPerElt, "global")

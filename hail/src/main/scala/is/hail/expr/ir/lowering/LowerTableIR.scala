@@ -376,6 +376,12 @@ class TableStage(
     val repartitionedRight = right.repartitionNoShuffle(newRightPartitioner)
     zipPartitions(repartitionedRight, globalJoiner, joiner)
   }
+
+  // inserts a value/stage boundary that guarantees correct partition index seeding for directly
+  // downstream operations
+  def randomnessBoundary(ctx: ExecuteContext): TableStage = {
+    new TableValueIntermediate(new TableStageIntermediate(this).asTableValue(ctx)).asTableStage(ctx)
+  }
 }
 
 object LowerTableIR {
@@ -560,12 +566,8 @@ object LowerTableIR {
               }
             }
 
-        case TableFilter(child, cond) =>
-          val loweredChild = lower(child)
-          loweredChild.mapPartition(None) { rows =>
-            Let("global", loweredChild.globals,
-                StreamFilter(rows, "row", cond))
-          }
+        case tf@TableFilter(child, _) =>
+          LowerTableIRHelpers.lowerTableFilter(ctx, tf, lower(child))
 
         case TableFilterIntervals(child, intervals, keep) =>
           val loweredChild = lower(child)
@@ -829,103 +831,8 @@ object LowerTableIR {
               StreamDrop(loweredChild.partition(oldRef), GetField(ctxRef, "numberToDrop"))
             })
 
-        case TableMapRows(child, newRow) =>
-          val lc = lower(child)
-          if (!ContainsScan(newRow)) {
-            lc.mapPartition(Some(child.typ.key)) { rows =>
-              Let("global", lc.globals,
-                mapIR(rows)(row => Let("row", row, newRow)))
-            }
-          } else{
-              val resultUID = genUID()
-              val aggs = agg.Extract(newRow, resultUID, r, isScan = true)
-              val initState = RunAgg(
-                aggs.init,
-                MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }),
-                aggs.states
-              )
-              val initStateRef = Ref(genUID(), initState.typ)
-              val lcWithInitBinding = lc.copy(
-                letBindings = lc.letBindings ++ FastIndexedSeq((initStateRef.name, initState)),
-                broadcastVals = lc.broadcastVals ++ FastIndexedSeq((initStateRef.name, initStateRef)))
-
-              val initFromSerializedStates = Begin(aggs.aggs.zipWithIndex.map { case (agg, i) =>
-                InitFromSerializedValue(i, GetTupleElement(initStateRef, i), agg.state)
-              })
-
-              val partitionAggs = lcWithInitBinding.mapCollectWithGlobals(relationalLetsAbove)({ part: IR =>
-                Let("global", lc.globals,
-                  RunAgg(
-                    Begin(FastIndexedSeq(
-                      initFromSerializedStates,
-                      StreamFor(part,
-                        "row",
-                        aggs.seqPerElt
-                      )
-                    )),
-                    MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }),
-                    aggs.states
-                  ))
-              }) { case (collected, globals) =>
-                Let("global",
-                  globals,
-                  ToArray(StreamTake({
-                    val acc = Ref(genUID(), initStateRef.typ)
-                    val value = Ref(genUID(), collected.typ.asInstanceOf[TArray].elementType)
-                    StreamScan(
-                      ToStream(collected),
-                      initStateRef,
-                      acc.name,
-                      value.name,
-                      RunAgg(
-                        Begin(FastIndexedSeq(
-                          Begin(aggs.aggs.zipWithIndex.map { case (agg, i) =>
-                            InitFromSerializedValue(i, GetTupleElement(acc, i), agg.state)
-                          }),
-                          Begin(aggs.aggs.zipWithIndex.map { case (sig, i) => CombOpValue(i, GetTupleElement(value, i), sig) }))),
-                        MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }),
-                        aggs.states
-                      )
-                    )
-                  }, ArrayLen(collected))))
-              }
-
-              val partitionAggsRef = Ref(genUID(), partitionAggs.typ)
-              val zipOldContextRef = Ref(genUID(), lc.contexts.typ.asInstanceOf[TStream].elementType)
-              val zipPartAggUID = Ref(genUID(), partitionAggs.typ.asInstanceOf[TArray].elementType)
-              TableStage.apply(
-                letBindings = lc.letBindings ++ FastIndexedSeq((partitionAggsRef.name, partitionAggs)),
-                broadcastVals = lc.broadcastVals,
-                partitioner = lc.partitioner,
-                dependency = lc.dependency,
-                globals = lc.globals,
-                contexts = StreamZip(
-                  FastIndexedSeq(lc.contexts, ToStream(partitionAggsRef)),
-                  FastIndexedSeq(zipOldContextRef.name, zipPartAggUID.name),
-                  MakeStruct(FastSeq(("oldContext", zipOldContextRef), ("scanState", zipPartAggUID))),
-                  ArrayZipBehavior.AssertSameLength
-                ),
-                partition = { (partitionRef: Ref) =>
-                  bindIRs(GetField(partitionRef, "oldContext"), GetField(partitionRef, "scanState")) { case Seq(oldContext, scanState) =>
-                    Let("global", lc.globals,
-                      RunAggScan(
-                        lc.partition(oldContext),
-                        "row",
-                        Begin(aggs.aggs.zipWithIndex.map { case (agg, i) =>
-                          InitFromSerializedValue(i, GetTupleElement(scanState, i), agg.state)
-                        }),
-                        aggs.seqPerElt,
-                        Let(
-                          resultUID,
-                          ResultOp(0, aggs.aggs),
-                          aggs.postAggIR),
-                        aggs.states
-                      )
-                    )
-                  }
-                }
-              )
-            }
+        case tmr@TableMapRows(child, _) =>
+          LowerTableIRHelpers.lowerTableMapRows(ctx, tmr, lower(child), r, relationalLetsAbove)
 
         case TableKeyBy(child, newKey, isSorted: Boolean) =>
           val loweredChild = lower(child)
