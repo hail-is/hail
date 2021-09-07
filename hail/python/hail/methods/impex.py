@@ -5,6 +5,7 @@ from typing import List
 import avro.schema
 from avro.datafile import DataFileReader
 from avro.io import DatumReader
+
 import hail as hl
 from hail import ir
 from hail.expr import StructExpression, LocusExpression, \
@@ -257,7 +258,6 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None):
 def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=None,
                  mat_id=None, is_female=None, pheno=None, varid=None,
                  cm_position=None):
-
     """Export a :class:`.MatrixTable` as
     `PLINK2 <https://www.cog-genomics.org/plink2/formats>`__
     BED, BIM and FAM files.
@@ -512,7 +512,8 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
     invalid_info_fields = [f for f in info_fields if not re.fullmatch(r"^([A-Za-z_][0-9A-Za-z_.]*|1000G)", f)]
     if invalid_info_fields:
         invalid_info_str = ''.join(f'\n    {f!r}' for f in invalid_info_fields)
-        warning('export_vcf: the following info field names are invalid in VCF 4.3 and may not work with some tools: ' + invalid_info_str)
+        warning(
+            'export_vcf: the following info field names are invalid in VCF 4.3 and may not work with some tools: ' + invalid_info_str)
 
     row_fields_used = {'rsid', 'info', 'filters', 'qual'}
 
@@ -822,7 +823,8 @@ def import_bed(path,
                                                   reference_genome,
                                                   skip_invalid_intervals))
 
-    elif len(t.row) >= 4 and tstruct(**dict([(n, typ) for n, typ in t.row.dtype._field_types.items()][:4])) == tstruct(f0=tstr, f1=tint32, f2=tint32, f3=tstr):
+    elif len(t.row) >= 4 and tstruct(**dict([(n, typ) for n, typ in t.row.dtype._field_types.items()][:4])) == tstruct(
+            f0=tstr, f1=tint32, f2=tint32, f3=tstr):
         t = t.select(interval=locus_interval_expr(recode_contig(t['f0']),
                                                   t['f1'] + 1,
                                                   t['f2'] + 1,
@@ -1148,20 +1150,23 @@ def import_bgen(path,
                 variants = hl.struct(locus=variants)
 
             if len(variants.dtype) == 0 or not variants.dtype._is_prefix_of(expected_vtype):
-                raise TypeError("'import_bgen' requires the expression type for 'variants' is a non-empty prefix of the BGEN key type: \n"
-                                + f"\tFound: {repr(variants.dtype)}\n"
-                                + f"\tExpected: {repr(expected_vtype)}\n")
+                raise TypeError(
+                    "'import_bgen' requires the expression type for 'variants' is a non-empty prefix of the BGEN key type: \n"
+                    + f"\tFound: {repr(variants.dtype)}\n"
+                    + f"\tExpected: {repr(expected_vtype)}\n")
 
             uid = Env.get_uid()
             fnames = list(variants.dtype)
-            name, variants = variants._to_table(uid)  # This will add back the other key fields of the source, which we don't want
+            name, variants = variants._to_table(
+                uid)  # This will add back the other key fields of the source, which we don't want
             variants = variants.key_by(**{fname: variants[name][fname] for fname in fnames})
             variants = variants.select()
         elif isinstance(variants, Table):
             if len(variants.key) == 0 or not variants.key.dtype._is_prefix_of(expected_vtype):
-                raise TypeError("'import_bgen' requires the row key type for 'variants' is a non-empty prefix of the BGEN key type: \n"
-                                + f"\tFound: {repr(variants.key.dtype)}\n"
-                                + f"\tExpected: {repr(expected_vtype)}\n")
+                raise TypeError(
+                    "'import_bgen' requires the row key type for 'variants' is a non-empty prefix of the BGEN key type: \n"
+                    + f"\tFound: {repr(variants.key.dtype)}\n"
+                    + f"\tExpected: {repr(expected_vtype)}\n")
             variants = variants.select()
         else:
             assert isinstance(variants, list)
@@ -1187,7 +1192,8 @@ def import_bgen(path,
                                                             schema=expected_vtype,
                                                             key=['locus', 'alleles'])
             except Exception:
-                raise TypeError(f"'import_bgen' requires all elements in 'variants' are a non-empty prefix of the BGEN key type: {repr(expected_vtype)}")
+                raise TypeError(
+                    f"'import_bgen' requires all elements in 'variants' are a non-empty prefix of the BGEN key type: {repr(expected_vtype)}")
 
     reader = ir.MatrixBGENReader(path, sample_file, index_file_map, n_partitions, block_size, variants)
 
@@ -2161,7 +2167,9 @@ def import_matrix_table2(paths,
         return hl.if_else(hl.len(string_array) > 10, hl.str(delim).join(string_array[:10].append("...")),
                           hl.str(delim).join(string_array))
 
-    def match_file_name_to_index(file_name):
+    def match_file_name_to_index(file_name, hl_value=False):
+        if hl_value:
+            return paths.index(lambda path: path.endswith(file_name) | file_name.endswith(path))
         return hl_paths.index(lambda path: path.endswith(file_name) | file_name.endswith(path))
 
     def find_duplicates(list_to_check):
@@ -2185,20 +2193,31 @@ def import_matrix_table2(paths,
             rowf_type = row_fields.get(header_rowf)
             if rowf_type is None:
                 import itertools as it
-                import functools as ft
                 row_fields_string = '\n'.join(it.starmap(
-                    lambda row_field, row_type:f"{row_field}: {str(row_type)}\n      "), list(row_fields.items()))
-                header_fields_string = ft.reduce(lambda header_field, to_print:
-                                                 header_field + "\n      " + to_print, header_dict.header_values)
-                raise FatalError(f"In file: {header_dict.file} a row field, {header_rowf}, was found thats not in "
-                                 f"'row fields':\n    "
+                    lambda row_field, row_type: f"{row_field}: {str(row_type)}\n      "), list(row_fields.items()))
+                header_fields_string = "\n      ".join(header_dict.row_fields)
+                raise FatalError(f"In file {header_dict.file}, found a row field, {header_rowf}, was found thats not "
+                                 f"in 'row fields':\n"
                                  f"row fields found in file: {header_fields_string}    row_fields: {row_fields_string}")
             verified_row_fields[header_rowf] = rowf_type
-        if add_row_id:
-            verified_row_fields['row_id'] = hl.tint64
         return verified_row_fields
 
-    ht = hl.import_lines(paths, min_partitions, force_bgz)
+    def get_start_row_per_file_dict(first_rows):
+        return {paths[match_file_name_to_index(first_row.file)]: first_row.row_idx for first_row in first_rows}
+
+    def parse_entries(row, column_start, num_columns):
+        entry_array = row.split_array[column_start:]
+        return hl.rbind(entry_array.map(lambda entry: parse_type(entry, entry_type)), lambda parsed_array: hl.case()
+                        .when(hl.len(parsed_array) == num_columns, parsed_array)
+                        .or_error(""))
+
+    def parse_rows(row, column_start, num_rows, final_rows):
+        row_array = row.split_array[:column_start]
+        return {row_name: parse_type(row_array[idx], row_type) for idx in range(num_rows)
+                for row_name, row_type in list(final_rows.items())}
+
+    def get_line_number(row):
+        return row.row_idx - file_start_dict[match_file_name_to_index(row.file, True)]
 
     num_of_row_fields = len(row_fields.keys())
     add_row_id = False
@@ -2235,23 +2254,19 @@ def import_matrix_table2(paths,
         raise FatalError("""import_matrix_table expects entry types to be one of:
         'int32', 'int64', 'float32', 'float64', 'str': found '{}'""".format(entry_type))
 
-    hl_comment = hl.array(comment)
-    if len(comment) > 0:
-        ht = ht.filter(hl_comment.any(lambda com: hl.if_else(hl.len(com) == 1,
-                                                         ht.text.startswith(com),
-                                                         ht.text.matches(com, False))), keep=hl.bool(False))
+    if missing.contains(delimiter):
+        raise FatalError(f"Missing value {missing} contains delimiter {delimiter}")
 
+    ht = import_lines(paths, min_partitions, force_bgz=force_bgz).add_index()
+    file_per_partition = import_lines(paths, force_bgz=force_bgz, file_per_partition=True)
+    first_lines = file_per_partition._map_partition(lambda rows: rows[:1]).add_index().collect()
+    file_start_dict = get_start_row_per_file_dict(first_lines)
     if not no_header:
-        def header_no_lines_of_data(header_line, index):
-            hl.utils.warning(hl.str(f"File {hl_paths[match_file_name_to_index(header_line.file) - 1]} contains ") +
-                             hl.str(f"header but no lines of data"))
-            return header_line
-
-        def validate_header_get_info(header_line, first_data_line):
-            header_info = {}
+        def validate_header_get_info_dict(header_line, first_data_line):
+            header_dict = {}
             num_of_data_line_values = len(first_data_line.split_array)
             num_of_header_values = len(header_line.split_array)
-            if header_line is None or match_file_name_to_index(header_line.file) != 0:
+            if header_line is None or match_file_name_to_index(header_line.file, True) != 0:
                 raise ValueError(f"Expected header in every file but found empty file: {paths[0]}")
             elif first_data_line is None or first_data_line.file != header_line.file:
                 hl.utils.warning(f"File {header_line.file} contains a header, but no lines of data")
@@ -2259,12 +2274,12 @@ def import_matrix_table2(paths,
                     raise ValueError(f"File {header_line.file} contains one line assumed to be the header."
                                      f"The header had a length of {num_of_header_values} while the number"
                                      f"of row fields is {num_of_row_fields}")
-                header_info.row_fields = header_line.split_array[:num_of_row_fields]
-                header_info.column_ids = header_line.split_array[num_of_row_fields:]
+                header_dict.row_fields = header_line.split_array[:num_of_row_fields]
+                header_dict.column_ids = header_line.split_array[num_of_row_fields:]
             elif num_of_data_line_values != num_of_header_values:
                 if num_of_data_line_values == num_of_header_values + num_of_row_fields:
-                    header_info.row_fields = ["f" + str(f_idx) for f_idx in list(range(0, num_of_row_fields))]
-                    header_info.column_ids = header_line.split_array
+                    header_dict.row_fields = ["f" + str(f_idx) for f_idx in list(range(0, num_of_row_fields))]
+                    header_dict.column_ids = header_line.split_array
                 else:
                     raise ValueError(f"In file $file, expected the header line to match either:\n rowField0 rowField1"
                                      f" ... rowField${num_of_row_fields} colId0 colId1 ...\nor\n colId0 colId1 ...\n"
@@ -2273,50 +2288,92 @@ def import_matrix_table2(paths,
                                      f" {num_of_header_values} separated values and the second line"
                                      f" contained {num_of_data_line_values}")
             else:
-                header_info.row_fields = header_line.split_array[:num_of_row_fields]
-                header_info.column_ids = header_line.split_array[num_of_row_fields:]
-            header_info.text = header_line.text
-            header_info.header_values = header_line.split_array
-            header_info.path = header_line.file
-            return header_info
+                header_dict.row_fields = header_line.split_array[:num_of_row_fields]
+                header_dict.column_ids = header_line.split_array[num_of_row_fields:]
+            header_dict.text = header_line.text
+            header_dict.header_values = header_line.split_array
+            header_dict.path = header_line.file
+            return header_dict
 
         def warn_duplicates(col_id_dic, duplicate_cols):
             import itertools as it
-            duplicates_to_print = sorted(list({'"' + dup_field + '"': '('+ str(col_id_dic(dup_field)) + ')'
-                                           for dup_field in duplicate_cols}.items()), key=lambda dup_values: dup_values[1])
+            duplicates_to_print = sorted(list({'"' + dup_field + '"': '(' + str(col_id_dic(dup_field)) + ')'
+                                               for dup_field in duplicate_cols}.items()),
+                                         key=lambda dup_values: dup_values[1])
             if len(duplicates_to_print) > 10:
                 duplicates_to_print = duplicates_to_print[:10]
                 duplicates_to_print.append(("...", ""))
-            duplicates_to_print_formatted = it.starmap(lambda dup,time_found: time_found + " " + dup)
+            duplicates_to_print_formatted = it.starmap(lambda dup, time_found: time_found + " " + dup)
             ht.utils.warning(f"Found {len(duplicate_cols)} duplicate{'s' if len(dups) > 1 else ''}\n"
-                         + '\n'.join(duplicates_to_print_formatted))
+                             + '\n'.join(duplicates_to_print_formatted))
 
-        def row_fields_error(header, error_header, error_header_path):
-            zipped_headers = hl.zip(header.header_values, error_header)
-            non_match_idx =  zipped_headers.index(lambda header_tuple: header_tuple[0] != header_tuple[1])
+        def header_same_len_dif_elem_error(header_dict, error_header, error_header_path):
+            zipped_headers = hl.zip(header_dict.header_values, error_header)
+            non_match_idx = zipped_headers.index(lambda header_tuple: header_tuple[0] != header_tuple[1])
             return hl.str("Invalid header: expected elements to be identical for all input paths. Found different"
-                          " elements at position ")  + hl.str(non_match_idx) +\
-                   hl.str(f".\n{header.path}:") + hl.str(zipped_headers(non_match_idx)[0])
+                          " elements at position ") + hl.str(non_match_idx) + \
+                   hl.str(f".\n{header_dict.path}:") + hl.str(zipped_headers(non_match_idx)[0])
 
-        first_two_lines = ht.head(2).annotate(split_array=ht.text._split_line(delimiter, missing, None, False)).collect()
-        header_info_dict = validate_header_get_info(first_two_lines[0], first_two_lines[1])
+        def validate_all_headers(header_dict):
+            all_headers = first_lines
+            all_headers.annotate(text=hl.rbind(
+                ht.text.split(), lambda split_header: hl.rbind(hl.case
+                                                               .when(all_headers.text == header_dict.text,
+                                                                     all_headers.text)
+                                                               .when(len(header_dict.header_values) ==
+                                                                     hl.len(split_header),
+                                                                     header_same_len_dif_elem_error(header_dict,
+                                                                                                    split_header,
+                                                                                                    all_headers.file)
+                                                                     .defualt(
+                                                                         hl.str(
+                                                                             f"invalid header: lengths of headers "
+                                                                             f"differ.\n"
+                                                                             f"{len(header_dict.header_values)}" +
+                                                                             f"elements in {header_dict.path}\n"
+                                                                             f"{truncate(header_dict.header_values)}")
+                                                                         + hl.str(hl.len(split_header)) + hl.str(
+                                                                             "elements in" + all_headers.file + "\n" +
+                                                                             truncate(split_header, hl_value=True))))),
+                lambda text_or_error: hl.case().when(text_or_error == all_headers.text)
+                    .or_error(text_or_error)))
 
-        final_row_fields = get_final_row_fields(header_info_dict)
-
-        time_col_id_encountered_dict, dups = find_duplicates(header_info_dict.column_ids)
+        first_two_lines = ht.head(2).annotate(
+            split_array=ht.text._split_line(delimiter, missing, None, False)).collect()
+        header_info = validate_header_get_info_dict(first_two_lines[0], first_two_lines[1])
+        time_col_id_encountered_dict, dups = find_duplicates(header_info.column_ids)
         if time_col_id_encountered_dict:
             warn_duplicates(time_col_id_encountered_dict, dups)
+        validate_all_headers(header_info)
 
-        all_file_headers = import_lines(paths, force_bgz=force_bgz, file_per_partition=True)
-        all_file_headers = all_file_headers._map_partition(lambda rows: rows[:1])
-        all_file_headers.annotate(text=hl.rbind(ht.text.split(), lambda split_header:
-                    hl.rbind(hl.case.when(all_file_headers.text == header_info_dict.text, all_file_headers.text)
-                             .when(len(header_info_dict.header_values) == hl.len(split_header),
-                                   row_fields_error(header_info_dict, split_header, all_file_headers.file)
-                             .defualt(
-                        hl.str(f"invalid header: lengths of headers differ.\n {len(header_info_dict.header_values)}" +
-                               f"elements in {header_info_dict.path}\n{header_info_dict.header_values)}")\
-                        + hl.str()))      ))))
+    else:
+        first_line = ht.head(1).annotate(split_array=ht.text._split_line(delimiter, missing, None, False)).collect()
+        if first_line is None or match_file_name_to_index(first_line.file, False) != 0:
+            hl.utils.warning(
+                f"File {first_line.file} is empty and has no header, so we assume no columns")  # if the file has no lines will empty line show up?
+            header_info = {'header_values': [],
+                           'row_fields': ["f" + str(f_idx) for f_idx in list(range(0, num_of_row_fields))],
+                           'column_ids': []
+                           }
+        else:
+            header_info = {'header_values': [],
+                           'row_fields': ["f" + str(f_idx) for f_idx in list(range(0, num_of_row_fields))],
+                           'column_ids':
+                               [col_id for col_id in list(range(0, len(first_line.split_array) - num_of_row_fields))]
+                           }
+
+    final_row_types = get_final_row_fields(header_info)
+    hl_comment = hl.array(comment)
+    ht = ht.filter(
+        hl.len(ht.text) > 0 | hl.if_else(len(comment > 0),
+                                         hl_comment.any(lambda com: hl.if_else(hl.len(com) == 1,
+                                                                               ht.text.startswith(com),
+                                                                               ht.text.matches(com, False))),
+                                         keep=hl.bool(False)))
+
+    ht = ht.annotate(split_array=ht.text._split_line(delimiter, missing, regex=False)).add_index('row_id')
+    ht = ht.annotate(text=hl.rbind(hl.if_else(ht.split))hl.case().when(hl.len(ht.split_array[]))
+
 
 @typecheck(bed=str,
            bim=str,
@@ -2816,7 +2873,8 @@ def import_gvcfs(path,
     rg = reference_genome.name if reference_genome else None
 
     if partitions is not None:
-        partitions, partitions_type = hl.utils._dumps_partitions(partitions, hl.tstruct(locus=hl.tlocus(rg), alleles=hl.tarray(hl.tstr)))
+        partitions, partitions_type = hl.utils._dumps_partitions(partitions, hl.tstruct(locus=hl.tlocus(rg),
+                                                                                        alleles=hl.tarray(hl.tstr)))
     else:
         partitions_type = None
 
