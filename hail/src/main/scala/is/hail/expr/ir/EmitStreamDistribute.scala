@@ -165,7 +165,7 @@ object EmitStreamDistribute {
     val fileArrayIdx = cb.newLocal[Int]("stream_dist_file_array_idx")
 
     def makeFileName(fileIdx: Code[Int]): Code[String] = {
-      pathVal.asString.loadString() concat const("/sorted_part_") concat (fileIdx.toS)
+      pathVal.get.asString.loadString() concat const("/sorted_part_") concat (fileIdx.toS)
     }
 
     cb.forLoop(cb.assign(fileArrayIdx, 0), fileArrayIdx < numFilesToWrite, cb.assign(fileArrayIdx, fileArrayIdx + 1), {

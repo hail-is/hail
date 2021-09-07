@@ -116,7 +116,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   }
 
   private def getElementAddress(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], nd: Value[Long]): Value[Long] = {
-    val ndarrayValue = loadCheapSCode(cb, nd).asNDArray.memoize(cb, "getElementAddressNDValue")
+    val ndarrayValue = loadCheapSCode(cb, nd).asNDArray
     val stridesTuple = ndarrayValue.strides
 
     cb.newLocal[Long]("pcndarray_get_element_addr", indices.zipWithIndex.map { case (requestedElementIndex, strideIndex) =>
