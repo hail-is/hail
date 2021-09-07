@@ -120,10 +120,10 @@ class CallStatsAggregator extends StagedAggregator {
           cb.assign(state.nAlleles, n)
           cb.assign(state.off, state.region.allocate(CallStatsState.stateType.alignment, CallStatsState.stateType.byteSize))
           cb.assign(addr, CallStatsState.callStatsInternalArrayType.allocate(state.region, n))
-          cb += CallStatsState.callStatsInternalArrayType.stagedInitialize(addr, n)
+          CallStatsState.callStatsInternalArrayType.stagedInitialize(cb, addr, n)
           cb += Region.storeAddress(state.alleleCountsOffset, addr)
           cb.assign(addr, CallStatsState.callStatsInternalArrayType.allocate(state.region, n))
-          cb += CallStatsState.callStatsInternalArrayType.stagedInitialize(addr, n)
+          CallStatsState.callStatsInternalArrayType.stagedInitialize(cb, addr, n)
           cb += Region.storeAddress(state.homCountsOffset, addr)
           cb.assign(i, 0)
           cb.whileLoop(i < n,
@@ -180,7 +180,7 @@ class CallStatsAggregator extends StagedAggregator {
   protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
     val rt = CallStatsState.resultType
     assert(pt == rt)
-    cb += rt.stagedInitialize(addr, setMissing = false)
+    rt.stagedInitialize(cb, addr, setMissing = false)
     val alleleNumber = cb.newLocal[Int]("callstats_result_alleleNumber", 0)
 
     val acType = resultType.fieldType("AC").asInstanceOf[PCanonicalArray]
@@ -195,7 +195,7 @@ class CallStatsAggregator extends StagedAggregator {
     acType.storeAtAddress(cb, rt.fieldOffset(addr, "AC"), region, ac, deepCopy = false)
 
     cb.ifx(alleleNumber.ceq(0),
-      cb += rt.setFieldMissing(addr, "AF"),
+      rt.setFieldMissing(cb, addr, "AF"),
       {
         val afType = resultType.fieldType("AF").asInstanceOf[PCanonicalArray]
         val af = afType.constructFromElements(cb, region, state.nAlleles, deepCopy = true) { (cb, i) =>

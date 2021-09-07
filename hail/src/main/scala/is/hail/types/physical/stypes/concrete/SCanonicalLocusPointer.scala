@@ -125,7 +125,5 @@ class SCanonicalLocusPointerCode(val st: SCanonicalLocusPointer, val a: Code[Lon
 
   def memoizeField(cb: EmitCodeBuilder, name: String): SCanonicalLocusPointerSettable = memoize(cb, name, cb.fieldBuilder)
 
-  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = Region.storeAddress(dst, a)
-
   def structRepr(cb: EmitCodeBuilder): SBaseStructCode = new SBaseStructPointerCode(SBaseStructPointer(st.pType.representation), a)
 }

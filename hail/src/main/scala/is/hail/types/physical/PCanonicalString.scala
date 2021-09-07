@@ -45,14 +45,13 @@ class PCanonicalString(val required: Boolean) extends PString {
     dstAddrss
   }
 
-  def allocateAndStoreString(mb: EmitMethodBuilder[_], region: Value[Region], str: Code[String]): Code[Long] = {
-    val dstAddress = mb.genFieldThisRef[Long]()
-    val byteRep = mb.genFieldThisRef[Array[Byte]]()
-    Code(
-      byteRep := str.invoke[Array[Byte]]("getBytes"),
-      dstAddress := binaryRepresentation.allocate(region, byteRep.length),
-      binaryRepresentation.store(dstAddress, byteRep),
-      dstAddress)
+  def allocateAndStoreString(cb: EmitCodeBuilder, region: Value[Region], str: Code[String]): Code[Long] = {
+    val dstAddress = cb.newField[Long]("pcanonical_string_alloc_dst_address")
+    val byteRep = cb.newField[Array[Byte]]("pcanonical_string_alloc_byte_rep")
+    cb.assign(byteRep, str.invoke[Array[Byte]]("getBytes"))
+    cb.assign(dstAddress, binaryRepresentation.allocate(region, byteRep.length))
+    binaryRepresentation.store(cb, dstAddress, byteRep)
+    dstAddress
   }
 
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =

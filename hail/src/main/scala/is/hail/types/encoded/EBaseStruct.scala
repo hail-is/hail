@@ -149,12 +149,12 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
         if (f.typ.required) {
           readElemF(cb, region, rFieldAddr, in)
           if (!rf.typ.required)
-            cb += structType.setFieldPresent(addr, rf.index)
+            structType.setFieldPresent(cb, addr, rf.index)
         } else {
           cb.ifx(Region.loadBit(mbytes, const(missingIdx(f.index).toLong)), {
-            cb += structType.setFieldMissing(addr, rf.index)
+            structType.setFieldMissing(cb, addr, rf.index)
           }, {
-            cb += structType.setFieldPresent(addr, rf.index)
+            structType.setFieldPresent(cb, addr, rf.index)
             readElemF(cb, region, rFieldAddr, in)
           })
         }

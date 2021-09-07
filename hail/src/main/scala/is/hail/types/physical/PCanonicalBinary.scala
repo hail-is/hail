@@ -77,7 +77,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
 
   def storeLength(boff: Long, len: Int): Unit = Region.storeInt(boff, len)
 
-  def storeLength(boff: Code[Long], len: Code[Int]): Code[Unit] = Region.storeInt(boff, len)
+  def storeLength(cb: EmitCodeBuilder, boff: Code[Long], len: Code[Int]): Unit = cb += Region.storeInt(boff, len)
 
   def bytesAddress(boff: Long): Long = boff + lengthHeaderBytes
 
@@ -88,54 +88,49 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
     Region.storeBytes(bytesAddress(addr), bytes)
   }
 
-  def store(addr: Code[Long], bytes: Code[Array[Byte]]): Code[Unit] =
-    Code.memoize(addr, "pcbin_store_addr") { addr =>
-      Code.memoize(bytes, "pcbin_store_bytes") { bytes =>
-        Code(
-          Region.storeInt(addr, bytes.length),
-          Region.storeBytes(bytesAddress(addr), bytes))
-      }
-    }
+  override def store(cb: EmitCodeBuilder, _addr: Code[Long], _bytes: Code[Array[Byte]]): Unit = {
+    val addr = cb.memoize(_addr, "pcanonical_binary_store_addr")
+    val bytes = cb.memoize(_bytes, "pcanonical_binary_store_bytes")
+    cb += Region.storeInt(addr, bytes.length())
+    cb += Region.storeBytes(bytesAddress(addr), bytes)
+  }
 
   def constructFromByteArray(cb: EmitCodeBuilder, region: Value[Region], bytes: Code[Array[Byte]]): SBinaryPointerCode = {
     val ba = cb.newLocal[Array[Byte]]("pcbin_ba", bytes)
     val len = cb.newLocal[Int]("pcbin_len", ba.length())
     val addr = cb.newLocal[Long]("pcbin_addr", allocate(region, len))
-    cb += store(addr, ba)
+    store(cb, addr, ba)
     loadCheapSCode(cb, addr).get
   }
 
-  def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] = {
+  def constructAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Unit = {
     val srcBinary = srcPType.asInstanceOf[PBinary]
-    Region.storeAddress(addr, constructOrCopy(mb, region, srcBinary, srcAddress, deepCopy))
+    cb += Region.storeAddress(addr, constructOrCopy(cb, region, srcBinary, srcAddress, deepCopy))
   }
 
-  private def constructOrCopy(mb: EmitMethodBuilder[_], region: Value[Region], srcBinary: PBinary, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
+  private def constructOrCopy(cb: EmitCodeBuilder, region: Value[Region], srcBinary: PBinary, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
     if (srcBinary == this) {
       if (deepCopy) {
-        val srcAddrVar = mb.newLocal[Long]()
-        val len = mb.newLocal[Int]()
-        val newAddr = mb.newLocal[Long]()
-        Code(
-          srcAddrVar := srcAddress,
-          len := srcBinary.loadLength(srcAddrVar),
-          newAddr := allocate(region, len),
-          Region.copyFrom(srcAddrVar, newAddr, contentByteSize(len)),
-          newAddr)
+        val srcAddrVar = cb.newLocal[Long]("pcanonical_binary_construct_or_copy_src_addr")
+        val len = cb.newLocal[Int]("pcanonical_binary_construct_or_copy_len")
+        val newAddr = cb.newLocal[Long]("pcanonical_binary_construct_or_copy_new_addr")
+        cb.assign(srcAddrVar, srcAddress)
+        cb.assign(len, srcBinary.loadLength(srcAddrVar))
+        cb.assign(newAddr, allocate(region, len))
+        cb += Region.copyFrom(srcAddrVar, newAddr, contentByteSize(len))
+        newAddr
       } else
         srcAddress
     } else {
-      val srcAddrVar = mb.newLocal[Long]()
-      val len = mb.newLocal[Int]()
-      val newAddr = mb.newLocal[Long]()
-      Code(
-        srcAddrVar := srcAddress,
-        len := srcBinary.loadLength(srcAddrVar),
-        newAddr := allocate(region, len),
-        storeLength(newAddr, len),
-        Region.copyFrom(srcAddrVar + srcBinary.lengthHeaderBytes, newAddr + lengthHeaderBytes, len.toL),
-        newAddr
-      )
+      val srcAddrVar = cb.newLocal[Long]("pcanonical_binary_construct_or_copy_src_addr")
+      val len = cb.newLocal[Int]("pcanonical_binary_construct_or_copy_len")
+      val newAddr = cb.newLocal[Long]("pcanonical_binary_construct_or_copy_new_addr")
+      cb.assign(srcAddrVar, srcAddress)
+      cb.assign(len, srcBinary.loadLength(srcAddrVar))
+      cb.assign(newAddr, allocate(region, len))
+      storeLength(cb, newAddr, len)
+      cb += Region.copyFrom(srcAddrVar + srcBinary.lengthHeaderBytes, newAddr + lengthHeaderBytes, len.toL)
+      newAddr
     }
   }
 
@@ -154,7 +149,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
           val bv = value.asInstanceOf[SBinaryPointerCode].memoize(cb, "pcbin_store")
           val len = cb.newLocal[Int]("pcbinary_store_len", bv.loadLength())
           val newAddr = cb.newLocal[Long]("pcbinary_store_newaddr", allocate(region, len))
-          cb += storeLength(newAddr, len)
+          storeLength(cb, newAddr, len)
           cb += Region.copyFrom(bytesAddress(bv.a), bytesAddress(newAddr), len.toL)
           newAddr
         } else
@@ -163,7 +158,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
         val bv = value.asBinary.memoize(cb, "pcbin_store")
         val len = cb.newLocal[Int]("pcbinary_store_len", bv.loadLength())
         val newAddr = cb.newLocal[Long]("pcbinary_store_newaddr", allocate(region, len))
-        cb += storeLength(newAddr, len)
+        storeLength(cb, newAddr, len)
         cb += Region.storeBytes(bytesAddress(newAddr), bv.loadBytes())
         newAddr
     }

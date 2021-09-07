@@ -47,8 +47,8 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
 
   private def createNode(cb: EmitCodeBuilder, nodeBucket: Settable[Long]): Unit = {
     cb.assign(nodeBucket, region.allocate(storageType.alignment, storageType.byteSize))
-    cb += storageType.stagedInitialize(nodeBucket, true)
-    cb += elementsType.stagedInitialize(elements(nodeBucket), true)
+    storageType.stagedInitialize(cb, nodeBucket, true)
+    elementsType.stagedInitialize(cb, elements(nodeBucket), true)
   }
 
   private def isRoot(node: Code[Long]): Code[Boolean] = storageType.isFieldMissing(node, 0)
@@ -62,11 +62,11 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
   private def hasKey(node: Code[Long], i: Int): Code[Boolean] = elementsType.isFieldDefined(elements(node), i)
 
   private def setKeyPresent(cb: EmitCodeBuilder, node: Code[Long], i: Int): Unit = {
-    cb += elementsType.setFieldPresent(elements(node), i)
+    elementsType.setFieldPresent(cb, elements(node), i)
   }
 
   private def setKeyMissing(cb: EmitCodeBuilder, node: Code[Long], i: Int): Unit = {
-    cb += elementsType.setFieldMissing(elements(node), i)
+    elementsType.setFieldMissing(cb, elements(node), i)
   }
 
   private def isFull(node: Code[Long]): Code[Boolean] = hasKey(node, maxElements - 1)
@@ -89,9 +89,9 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
     val child = cb.newLocal[Long]("aobt_set_child_child", childC)
 
     if (i == -1)
-      cb += storageType.setFieldPresent(parent, 1)
+      storageType.setFieldPresent(cb, parent, 1)
     cb += Region.storeAddress(childOffset(parent, i), child)
-    cb += storageType.setFieldPresent(child, 0)
+    storageType.setFieldPresent(cb, child, 0)
     cb += Region.storeAddress(storageType.fieldOffset(child, 0), parent)
   }
 

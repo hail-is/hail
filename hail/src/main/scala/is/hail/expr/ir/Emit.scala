@@ -803,7 +803,7 @@ class Emit[C](
       case x@UUID4(_) =>
         val pt = PCanonicalString()
         presentPC(pt.loadCheapSCode(cb, pt.
-          allocateAndStoreString(mb, region, Code.invokeScalaObject0[String](
+          allocateAndStoreString(cb, region, Code.invokeScalaObject0[String](
             Class.forName("is.hail.expr.ir.package$"), "uuid4"))))
       case x@Literal(t, v) =>
         presentPC(mb.addLiteral(v, typeWithReq))
@@ -952,7 +952,7 @@ class Emit[C](
           val elementSize = outputPType.elementByteSize
           val numElements = cb.newLocal[Int]("n_elements", n.intCode(cb))
           val arrayAddress = cb.newLocal[Long]("array_addr", outputPType.allocate(region, numElements))
-          cb += outputPType.stagedInitialize(arrayAddress, numElements)
+          outputPType.stagedInitialize(cb, arrayAddress, numElements)
           cb += Region.setMemory(outputPType.firstElementOffset(arrayAddress), numElements.toL * elementSize, 0.toByte)
           outputPType.loadCheapSCode(cb, arrayAddress)
         }
@@ -1625,7 +1625,7 @@ class Emit[C](
           cb.assign(An, (M * N).toI)
 
           cb.assign(IPIVaddr, IPIVptype.allocate(region, N.toI))
-          cb.append(IPIVptype.stagedInitialize(IPIVaddr, N.toI))
+          IPIVptype.stagedInitialize(cb, IPIVaddr, N.toI)
 
           val (aAadrFirstElement, finish) = ndPT.constructDataFunction(shapeArray, stridesArray, cb, region)
           cb.append(Region.copyFrom(dataFirstAddress,
@@ -1999,14 +1999,14 @@ class Emit[C](
         val pt = PCanonicalTuple(false, sig.map(_.pResultType): _*)
 
         val addr = cb.newLocal("resultop_tuple_addr", pt.allocate(region))
-        cb += pt.stagedInitialize(addr, setMissing = false)
+        pt.stagedInitialize(cb, addr, setMissing = false)
 
         (0 until aggs.length).foreach { j =>
           val idx = start + j
           val rvAgg = agg.Extract.getAgg(sig(j))
           val fieldAddr = cb.newLocal(s"resultop_field_addr_$j", pt.fieldOffset(addr, j))
           rvAgg.storeResult(cb, sc.states(idx), pt.types(j), fieldAddr, region,
-            (cb: EmitCodeBuilder) => cb += pt.setFieldMissing(addr, j))
+            (cb: EmitCodeBuilder) => pt.setFieldMissing(cb, addr, j))
         }
 
         presentPC(pt.loadCheapSCode(cb, addr))
@@ -2155,8 +2155,8 @@ class Emit[C](
           cb.assign(tv, EmitCode.missing(cb.emb, errTuple))
           cb.assign(maybeMissingEV, ev)
         }, {
-          val str = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, sst.constructFromString(cb, region, maybeException.invoke[String]("_1"))))
-          val errorId = EmitCode.fromI(mb)(cb =>
+          val str = EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, sst.constructFromString(cb, region, maybeException.invoke[String]("_1"))))
+          val errorId = EmitCode.fromI(cb.emb)(cb =>
             IEmitCode.present(cb, primitive(maybeException.invoke[java.lang.Integer]("_2").invoke[Int]("intValue"))))
           cb.assign(tv, IEmitCode.present(cb, SStackStruct.constructFromArgs(cb, region, errTupleType, str, errorId)))
           cb.assign(maybeMissingEV, EmitCode.missing(cb.emb, ev.st))

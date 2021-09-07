@@ -23,16 +23,16 @@ class TestBTreeKey(mb: EmitMethodBuilder[_]) extends BTreeKey {
   def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Code[Boolean] =
     storageType.isFieldMissing(off, 1)
   def initializeEmpty(cb: EmitCodeBuilder, off: Code[Long]): Unit =
-    cb += storageType.setFieldMissing(off, 1)
+    storageType.setFieldMissing(cb, off, 1)
 
-  def storeKey(cb: EmitCodeBuilder, off: Code[Long], m: Code[Boolean], v: Code[Long]): Unit =
-    cb += Code.memoize(off, "off") { off =>
-      Code(
-        storageType.stagedInitialize(off),
-        m.mux(
-          storageType.setFieldMissing(off, 0),
-          Region.storeLong(storageType.fieldOffset(off, 0), v)))
-    }
+  def storeKey(cb: EmitCodeBuilder, _off: Code[Long], m: Code[Boolean], v: Code[Long]): Unit = {
+    val off = cb.memoize[Long](_off)
+    storageType.stagedInitialize(cb, off)
+    cb.ifx(m,
+      storageType.setFieldMissing(cb, off, 0),
+      cb += Region.storeLong(storageType.fieldOffset(off, 0), v)
+    )
+  }
 
   def copy(cb: EmitCodeBuilder, src: Code[Long], dest: Code[Long]): Unit =
     cb += Region.copyFrom(src, dest, storageType.byteSize)

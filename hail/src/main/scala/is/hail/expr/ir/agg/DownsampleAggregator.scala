@@ -464,9 +464,9 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
         pointType.fieldType("y").storeAtAddress(cb, pointType.fieldOffset(pointStaging, "y"), region, y, deepCopy = true)
         l.toI(cb)
           .consume(cb,
-            cb += pointType.setFieldMissing(pointStaging, "label"),
+            pointType.setFieldMissing(cb, pointStaging, "label"),
             { sc =>
-              cb += pointType.setFieldPresent(pointStaging, "label")
+              pointType.setFieldPresent(cb, pointStaging, "label")
               pointType.fieldType("label").storeAtAddress(cb, pointType.fieldOffset(pointStaging, "label"), region, sc, deepCopy = true)
             }
           )

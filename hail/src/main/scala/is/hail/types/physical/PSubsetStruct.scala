@@ -80,25 +80,25 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String]) ext
   override def loadField(structAddress: Code[Long], fieldIdx: Int): Code[Long] =
     ps.loadField(structAddress, idxMap(fieldIdx))
 
-  override def setFieldPresent(structAddress: Code[Long], fieldName: String): Code[Unit] = ???
+  override def setFieldPresent(cb: EmitCodeBuilder, structAddress: Code[Long], fieldName: String): Unit = ???
 
-  override def setFieldMissing(structAddress: Code[Long], fieldName: String): Code[Unit] = ???
+  override def setFieldMissing(cb: EmitCodeBuilder, structAddress: Code[Long], fieldName: String): Unit = ???
 
   override def setFieldMissing(structAddress: Long, fieldIdx: Int): Unit = ???
 
-  override def setFieldMissing(structAddress: Code[Long], fieldIdx: Int): Code[Unit] = ???
+  override def setFieldMissing(cb: EmitCodeBuilder, structAddress: Code[Long], fieldIdx: Int): Unit = ???
 
   override def setFieldPresent(structAddress: Long, fieldIdx: Int): Unit = ???
 
-  override def setFieldPresent(structAddress: Code[Long], fieldIdx: Int): Code[Unit] = ???
+  override def setFieldPresent(cb: EmitCodeBuilder, structAddress: Code[Long], fieldIdx: Int): Unit = ???
 
   def insertFields(fieldsToInsert: TraversableOnce[(String, PType)]): PSubsetStruct = ???
 
   override def initialize(structAddress: Long, setMissing: Boolean): Unit =
     ps.initialize(structAddress, setMissing)
 
-  override def stagedInitialize(structAddress: Code[Long], setMissing: Boolean): Code[Unit] =
-    ps.stagedInitialize(structAddress, setMissing)
+  override def stagedInitialize(cb: EmitCodeBuilder, structAddress: Code[Long], setMissing: Boolean): Unit =
+    ps.stagedInitialize(cb, structAddress, setMissing)
 
   def allocate(region: Region): Long =
     ps.allocate(region)
