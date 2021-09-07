@@ -766,8 +766,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if result is None:
                     raise web.HTTPBadRequest(
                         reason=f'resource requests for job {id} are unsatisfiable: '
-                        f'cpu={resources["req_cpu"]}, '
-                        f'memory={resources["req_memory"]}, '
+                        f'cpu={resources.get("req_cpu")}, '
+                        f'memory={resources.get("req_memory")}, '
                         f'storage={resources["req_storage"]}, '
                         f'preemptible={preemptible}, '
                         f'machine_type={machine_type}'
