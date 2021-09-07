@@ -3,6 +3,14 @@
 Change Log
 ==========
 
+**Version 0.2.75**
+
+- Fixed a bug introduced in 0.2.74 where large commands were not interpolated correctly
+- Made resource files be represented as an explicit path in the command rather than using environment
+  variables
+- Fixed ``Backend.close`` to be idempotent
+- Fixed ``BatchPoolExecutor`` to always cancel all batches on errors
+
 **Version 0.2.74**
 
 - Large job commands are now written to GCS to avoid Linux argument length and number limitations.
