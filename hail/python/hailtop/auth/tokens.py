@@ -21,9 +21,12 @@ def session_id_decode_from_str(session_id_str: str) -> bytes:
 class Tokens(collections.abc.MutableMapping):
     @staticmethod
     def get_tokens_file():
+        deploy_config = get_deploy_config()
+        location = deploy_config.location()
+        if location == 'external':
+            return os.path.expanduser('~/.hail/tokens.json')
         return first_extant_file(
             os.environ.get('HAIL_TOKENS_FILE'),
-            os.path.expanduser('~/.hail/tokens.json'),
             '/user-tokens/tokens.json'
         )
 
