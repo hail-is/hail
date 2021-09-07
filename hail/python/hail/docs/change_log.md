@@ -24,6 +24,28 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.75
+
+Released 2021-09-07
+
+### Bug fixes
+
+- (hail#10733) Fix a bug in tabix parsing when the size of the list of all sequences is large.
+- (hail#10765) Fix rare bug where valid pipelines would fail to compile if intervals were created conditionally.
+- (hail#10746) Various compiler improvements, decrease likelihood of `ClassTooLarge` errors.
+- (hail#10829) Fix a bug where `hl.missing` and `CaseBuilder.or_error` failed if their type was a struct containing a field starting with a number. 
+
+### New features
+
+- (hail#10768) Support multiplying `StringExpression`s to repeat them, as with normal python strings.
+
+### Performance improvements
+
+- (hail#10625) Reduced need to copy strings around, pipelines with many string operations should get faster. 
+- (hail#10775) Improved performance of `to_matrix_table_row_major` on both `BlockMatrix` and `Table`. 
+
+---
+
 ## Version 0.2.74
 
 Released 2021-07-26
