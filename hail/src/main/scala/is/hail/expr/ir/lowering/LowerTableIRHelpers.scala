@@ -1,9 +1,9 @@
 package is.hail.expr.ir.lowering
 
-import is.hail.expr.ir.{Coalesce, Die, ExecuteContext, GetField, IR, InsertFields, Let, MakeStruct, Ref, RequirednessAnalysis, SelectFields, StreamJoinRightDistinct, TableExplode, TableIR, TableJoin, TableLeftJoinRightDistinct, ToStream, flatMapIR, genUID, mapIR}
+import is.hail.expr.ir.{AggStateValue, ArrayLen, ArrayZipBehavior, Begin, Coalesce, CombOpValue, ContainsScan, Die, ExecuteContext, GetField, GetTupleElement, IR, InitFromSerializedValue, InsertFields, Let, MakeStruct, MakeTuple, Ref, RequirednessAnalysis, ResultOp, RunAgg, RunAggScan, SelectFields, StreamFilter, StreamFor, StreamJoinRightDistinct, StreamScan, StreamTake, StreamZip, TableExplode, TableFilter, TableIR, TableJoin, TableLeftJoinRightDistinct, TableMapRows, ToArray, ToStream, agg, bindIRs, flatMapIR, genUID, mapIR}
 import is.hail.types.RTable
-import is.hail.types.virtual.TStruct
-import is.hail.utils.FastSeq
+import is.hail.types.virtual.{TArray, TStream, TStruct}
+import is.hail.utils.{FastIndexedSeq, FastSeq}
 
 object LowerTableIRHelpers {
 
@@ -88,6 +88,113 @@ object LowerTableIRHelpers {
             }
           }) { case ((ref, root), accum) => Let(ref.name, root, accum) }
       }
+    }
+  }
+
+  def lowerTableFilter(ctx: ExecuteContext, tf: TableFilter, lowered: TableStage): TableStage = {
+    val TableFilter(_, cond) = tf
+    lowered.mapPartition(None) { rows =>
+      Let("global", lowered.globals,
+        StreamFilter(rows, "row", cond))
+    }
+  }
+
+  def lowerTableMapRows(ctx: ExecuteContext, tmr: TableMapRows, lc: TableStage, r: RequirednessAnalysis, relationalLetsAbove: Map[String, IR]): TableStage = {
+    val TableMapRows(child, newRow) = tmr
+    if (!ContainsScan(newRow)) {
+      lc.mapPartition(Some(child.typ.key)) { rows =>
+        Let("global", lc.globals,
+          mapIR(rows)(row => Let("row", row, newRow)))
+      }
+    } else {
+      val resultUID = genUID()
+      val aggs = agg.Extract(newRow, resultUID, r, isScan = true)
+      val initState = RunAgg(
+        aggs.init,
+        MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }),
+        aggs.states
+      )
+      val initStateRef = Ref(genUID(), initState.typ)
+      val lcWithInitBinding = lc.copy(
+        letBindings = lc.letBindings ++ FastIndexedSeq((initStateRef.name, initState)),
+        broadcastVals = lc.broadcastVals ++ FastIndexedSeq((initStateRef.name, initStateRef)))
+
+      val initFromSerializedStates = Begin(aggs.aggs.zipWithIndex.map { case (agg, i) =>
+        InitFromSerializedValue(i, GetTupleElement(initStateRef, i), agg.state)
+      })
+
+      val partitionAggs = lcWithInitBinding.mapCollectWithGlobals(relationalLetsAbove)({ part: IR =>
+        Let("global", lc.globals,
+          RunAgg(
+            Begin(FastIndexedSeq(
+              initFromSerializedStates,
+              StreamFor(part,
+                "row",
+                aggs.seqPerElt
+              )
+            )),
+            MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }),
+            aggs.states
+          ))
+      }) { case (collected, globals) =>
+        Let("global",
+          globals,
+          ToArray(StreamTake({
+            val acc = Ref(genUID(), initStateRef.typ)
+            val value = Ref(genUID(), collected.typ.asInstanceOf[TArray].elementType)
+            StreamScan(
+              ToStream(collected),
+              initStateRef,
+              acc.name,
+              value.name,
+              RunAgg(
+                Begin(FastIndexedSeq(
+                  Begin(aggs.aggs.zipWithIndex.map { case (agg, i) =>
+                    InitFromSerializedValue(i, GetTupleElement(acc, i), agg.state)
+                  }),
+                  Begin(aggs.aggs.zipWithIndex.map { case (sig, i) => CombOpValue(i, GetTupleElement(value, i), sig) }))),
+                MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }),
+                aggs.states
+              )
+            )
+          }, ArrayLen(collected))))
+      }
+
+      val partitionAggsRef = Ref(genUID(), partitionAggs.typ)
+      val zipOldContextRef = Ref(genUID(), lc.contexts.typ.asInstanceOf[TStream].elementType)
+      val zipPartAggUID = Ref(genUID(), partitionAggs.typ.asInstanceOf[TArray].elementType)
+      TableStage.apply(
+        letBindings = lc.letBindings ++ FastIndexedSeq((partitionAggsRef.name, partitionAggs)),
+        broadcastVals = lc.broadcastVals,
+        partitioner = lc.partitioner,
+        dependency = lc.dependency,
+        globals = lc.globals,
+        contexts = StreamZip(
+          FastIndexedSeq(lc.contexts, ToStream(partitionAggsRef)),
+          FastIndexedSeq(zipOldContextRef.name, zipPartAggUID.name),
+          MakeStruct(FastSeq(("oldContext", zipOldContextRef), ("scanState", zipPartAggUID))),
+          ArrayZipBehavior.AssertSameLength
+        ),
+        partition = { (partitionRef: Ref) =>
+          bindIRs(GetField(partitionRef, "oldContext"), GetField(partitionRef, "scanState")) { case Seq(oldContext, scanState) =>
+            Let("global", lc.globals,
+              RunAggScan(
+                lc.partition(oldContext),
+                "row",
+                Begin(aggs.aggs.zipWithIndex.map { case (agg, i) =>
+                  InitFromSerializedValue(i, GetTupleElement(scanState, i), agg.state)
+                }),
+                aggs.seqPerElt,
+                Let(
+                  resultUID,
+                  ResultOp(0, aggs.aggs),
+                  aggs.postAggIR),
+                aggs.states
+              )
+            )
+          }
+        }
+      )
     }
   }
 }
