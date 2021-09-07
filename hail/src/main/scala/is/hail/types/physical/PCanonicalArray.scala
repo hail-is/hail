@@ -372,7 +372,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     val length = indexable.loadLength()
     indexable.st match {
       case SIndexablePointer(PCanonicalArray(otherElementType, _)) if otherElementType == elementType =>
-          cb += Region.copyFrom(indexable.asInstanceOf[SIndexablePointerSettable].a, addr, contentsByteSize(length))
+          cb += Region.copyFrom(indexable.asInstanceOf[SIndexablePointerValue].a, addr, contentsByteSize(length))
           deepPointerCopy(cb, region, addr, length)
       case SIndexablePointer(otherType@PCanonicalArray(otherElementType, _)) if otherElementType.equalModuloRequired(elementType) =>
         // other is optional, constructing required
@@ -382,7 +382,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
         }
         stagedInitialize(cb, addr, indexable.loadLength(), setMissing = false)
 
-        cb += Region.copyFrom(otherType.firstElementOffset(indexable.asInstanceOf[SIndexablePointerSettable].a), this.firstElementOffset(addr), length.toL * otherType.elementByteSize)
+        cb += Region.copyFrom(otherType.firstElementOffset(indexable.asInstanceOf[SIndexablePointerValue].a), this.firstElementOffset(addr), length.toL * otherType.elementByteSize)
         if (deepCopy)
           deepPointerCopy(cb, region, addr, length)
       case _ =>
