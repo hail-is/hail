@@ -90,8 +90,8 @@ case class StoredSTypePType(sType: SType, required: Boolean) extends PType {
 
   override def virtualType: Type = sType.virtualType
 
-  override def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
-    val addr = cb.newLocal[Long]("stored_stype_ptype_addr", region.allocate(ct.alignment, ct.byteSize))
+  override def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
+    val addr = cb.memoize(region.allocate(ct.alignment, ct.byteSize))
     ct.store(cb, addr, value.st.coerceOrCopy(cb, region, value, deepCopy).memoize(cb, "store").valueTuple.map(_.get))
     addr
   }

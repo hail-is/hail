@@ -147,11 +147,17 @@ class SUnreachableStringValue extends SUnreachableValue with SStringValue with S
 
   override def loadLength(): Code[Int] = const(0)
 
-  def st: SUnreachableString.type = SUnreachableString
+  override def st: SUnreachableString.type = SUnreachableString
 
   override def loadString(): Code[String] = Code._null[String]
 
   override def toBytes(): SBinaryCode = new SUnreachableBinaryValue
+
+  override def loadLength(cb: EmitCodeBuilder): Value[Int] = const(0)
+
+  override def loadString(cb: EmitCodeBuilder): Value[String] = Code._null[String]
+
+  override def toBytes(cb: EmitCodeBuilder): SBinaryValue = new SUnreachableBinaryValue
 
   override def get: SUnreachableStringValue = this
 }
@@ -292,20 +298,30 @@ case class SUnreachableContainer(virtualType: TContainer) extends SUnreachable w
   lazy val elementEmitType: EmitType = EmitType(elementType, true)
 }
 
-class SUnreachableContainerValue(val st: SUnreachableContainer) extends SUnreachableValue with SIndexableValue with SIndexableCode {
+class SUnreachableContainerValue(val st: SUnreachableContainer) extends SUnreachableValue with SIndexableValue {
   override def memoizeField(cb: EmitCodeBuilder, name: String): SUnreachableContainerValue = this
 
   override def memoize(cb: EmitCodeBuilder, name: String): SUnreachableContainerValue = this
 
-  def loadLength(): Value[Int] = const(0)
+  override def loadLength(): Value[Int] = const(0)
+
+  override def isElementMissing(i: Code[Int]): Code[Boolean] = const(false)
+
+  override def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode = IEmitCode.present(cb, SUnreachable.fromVirtualType(st.virtualType.elementType).defaultValue)
+
+  override def hasMissingValues(cb: EmitCodeBuilder): Code[Boolean] = const(false)
+
+  override def castToArray(cb: EmitCodeBuilder): SIndexableValue =
+    SUnreachable.fromVirtualType(st.virtualType.arrayElementsRepr).defaultValue.asIndexableValue
+}
+
+class SUnreachableContainerCode(val st: SUnreachableContainer) extends SUnreachableValue with SIndexableCode {
+  override def memoizeField(cb: EmitCodeBuilder, name: String): SUnreachableContainerValue = new SUnreachableContainerValue(st)
+
+  override def memoize(cb: EmitCodeBuilder, name: String): SUnreachableContainerValue = new SUnreachableContainerValue(st)
 
   override def codeLoadLength(): Code[Int] = const(0)
 
-  def isElementMissing(i: Code[Int]): Code[Boolean] = const(false)
-
-  def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode = IEmitCode.present(cb, SUnreachable.fromVirtualType(st.virtualType.elementType).defaultValue)
-
-  def hasMissingValues(cb: EmitCodeBuilder): Code[Boolean] = const(false)
-
-  def castToArray(cb: EmitCodeBuilder): SIndexableCode = SUnreachable.fromVirtualType(st.virtualType.arrayElementsRepr).defaultValue.get.asIndexable
+  override def castToArray(cb: EmitCodeBuilder): SIndexableCode =
+    SUnreachable.fromVirtualType(st.virtualType.arrayElementsRepr).defaultValue.get.asIndexable
 }

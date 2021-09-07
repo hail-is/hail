@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
 import is.hail.types.physical.{PCanonicalString, PString, PType}
-import is.hail.types.physical.stypes.interfaces.{SBinaryCode, SString, SStringCode, SStringValue}
+import is.hail.types.physical.stypes.interfaces.{SBinaryCode, SBinaryValue, SString, SStringCode, SStringValue}
 import is.hail.types.virtual.{TString, Type}
 import is.hail.utils.FastIndexedSeq
 
@@ -74,6 +74,14 @@ class SJavaStringValue(val s: Value[String]) extends SStringValue {
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(s)
 
   override def get: SJavaStringCode = new SJavaStringCode(s)
+
+  override def loadLength(cb: EmitCodeBuilder): Value[Int] =
+    cb.memoize(s.invoke[Int]("length"))
+
+  override def loadString(cb: EmitCodeBuilder): Value[String] = s
+
+  override def toBytes(cb: EmitCodeBuilder): SBinaryValue =
+    new SJavaBytesValue(cb.memoize(s.invoke[Array[Byte]]("getBytes")))
 }
 
 object SJavaStringSettable {

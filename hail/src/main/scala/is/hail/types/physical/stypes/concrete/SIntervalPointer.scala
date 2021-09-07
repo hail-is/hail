@@ -15,7 +15,7 @@ final case class SIntervalPointer(pType: PInterval) extends SInterval {
   require(!pType.required)
 
   override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
-    new SIntervalPointerCode(this, pType.store(cb, region, value, deepCopy))
+    new SIntervalPointerCode(this, pType.store(cb, region, value.memoize(cb, "_coerceOrCopy"), deepCopy))
   }
 
   override def castRename(t: Type): SType = SIntervalPointer(pType.deepRename(t).asInstanceOf[PInterval])

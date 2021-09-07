@@ -25,7 +25,7 @@ final case class SNDArrayPointer(pType: PCanonicalNDArray) extends SNDArray {
   override def castRename(t: Type): SType = SNDArrayPointer(pType.deepRename(t))
 
   override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
-    new SNDArrayPointerCode(this, pType.store(cb, region, value, deepCopy))
+    new SNDArrayPointerCode(this, pType.store(cb, region, value.memoize(cb, "_coerceOrCopy"), deepCopy))
   }
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = Array.fill(2 + nDims * 2)(LongInfo)

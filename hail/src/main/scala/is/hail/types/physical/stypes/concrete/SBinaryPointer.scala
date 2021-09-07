@@ -16,7 +16,7 @@ final case class SBinaryPointer(pType: PBinary) extends SBinary {
 
   override lazy val virtualType: Type = pType.virtualType
   override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
-    new SBinaryPointerCode(this, pType.store(cb, region, value, deepCopy))
+    new SBinaryPointerCode(this, pType.store(cb, region, value.memoize(cb, "_coerceOrCopy"), deepCopy))
   }
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)

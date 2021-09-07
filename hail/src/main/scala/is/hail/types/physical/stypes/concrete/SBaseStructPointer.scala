@@ -22,7 +22,7 @@ final case class SBaseStructPointer(pType: PBaseStruct) extends SBaseStruct {
   override def fieldIdx(fieldName: String): Int = pType.fieldIdx(fieldName)
 
   override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
-    new SBaseStructPointerCode(this, pType.store(cb, region, value, deepCopy))
+    new SBaseStructPointerCode(this, pType.store(cb, region, value.memoize(cb, "_coerceOrCopy"), deepCopy))
   }
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)

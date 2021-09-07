@@ -104,6 +104,8 @@ class SJavaArrayStringValue(
     else
       Code.invokeScalaObject1[Array[String], Boolean](SJavaArrayHelpers.getClass, "hasNulls", array)
   }
+
+  override def castToArray(cb: EmitCodeBuilder): SIndexableValue = this
 }
 
 object SJavaArrayStringSettable {

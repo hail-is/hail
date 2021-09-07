@@ -71,7 +71,7 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
       cb.assign(capacity, ib.readInt())
 
       val decValue = codecSpec.encodedType.buildDecoder(eltArray.virtualType, kb)
-        .apply(cb, region, ib)
+        .apply(cb, region, ib).memoize(cb, "StagedArrayBuilder_deserialize")
       cb.assign(data, eltArray.store(cb, region, decValue, deepCopy = false))
 
       cb += ib.readInt()

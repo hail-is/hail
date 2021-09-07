@@ -24,7 +24,7 @@ final case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
   override def rg: ReferenceGenome = pType.rg
 
   override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
-    new SCanonicalLocusPointerCode(this, pType.store(cb, region, value, deepCopy))
+    new SCanonicalLocusPointerCode(this, pType.store(cb, region, value.memoize(cb, "_coerceOrCopy"), deepCopy))
   }
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo, LongInfo, IntInfo)

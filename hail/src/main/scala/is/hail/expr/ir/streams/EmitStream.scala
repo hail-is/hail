@@ -2369,7 +2369,7 @@ object EmitStream {
                 cb.goto(LrunMatch)
 
                 cb.define(p.LproduceElementDone)
-                val storedElt = eltType.store(cb, p.elementRegion, p.element.toI(cb).get(cb), false)
+                val storedElt = eltType.store(cb, p.elementRegion, p.element.toI(cb).get(cb).memoize(cb, "StreamZipJoin_storedElt"), false)
                 cb += (heads(idx) = storedElt)
                 cb.assign(matchIdx, (idx + k) >>> 1)
                 cb.goto(LrunMatch)
@@ -2572,7 +2572,7 @@ object EmitStream {
                 cb.goto(LrunMatch)
 
                 cb.define(p.LproduceElementDone)
-                cb += (heads(idx) = unifiedType.store(cb, p.elementRegion, p.element.toI(cb).get(cb), false))
+                cb += (heads(idx) = unifiedType.store(cb, p.elementRegion, p.element.toI(cb).get(cb).memoize(cb, "StreamMultiMerge_heads"), false))
                 cb.assign(matchIdx, (idx + k) >>> 1)
                 cb.goto(LrunMatch)
               }

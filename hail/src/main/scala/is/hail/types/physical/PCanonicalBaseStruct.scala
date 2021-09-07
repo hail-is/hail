@@ -4,7 +4,7 @@ import is.hail.annotations.{Annotation, Region, UnsafeRow, UnsafeUtils}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
 import is.hail.types.BaseStruct
-import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.{SCode, SValue}
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerCode, SBaseStructPointerSettable, SBaseStructPointerValue}
 import is.hail.types.physical.stypes.interfaces.SBaseStruct
 import is.hail.utils._
@@ -157,13 +157,12 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
   def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructPointerValue =
     new SBaseStructPointerCode(sType, addr).memoizeField(cb, "loadCheapSCodeField")
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
     value.st match {
       case SBaseStructPointer(t) if t.equalModuloRequired(this) && !deepCopy =>
-        value.asInstanceOf[SBaseStructPointerCode].a
+        value.asInstanceOf[SBaseStructPointerValue].a
       case _ =>
-        val newAddr = cb.newLocal[Long]("pcbasestruct_store_newaddr")
-        cb.assign(newAddr, allocate(region))
+        val newAddr = cb.memoize(allocate(region))
         storeAtAddress(cb, newAddr, region, value, deepCopy)
         newAddr
     }

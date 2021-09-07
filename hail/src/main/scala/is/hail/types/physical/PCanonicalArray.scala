@@ -3,7 +3,7 @@ package is.hail.types.physical
 import is.hail.annotations.{Region, _}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
-import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.{SCode, SValue}
 import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerCode, SIndexablePointerSettable, SIndexablePointerValue}
 import is.hail.types.physical.stypes.interfaces.{SContainer, SIndexableValue}
 import is.hail.types.virtual.{TArray, Type}
@@ -402,24 +402,21 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
     assert(value.st.virtualType.isInstanceOf[TArray])
     value.st match {
       case SIndexablePointer(PCanonicalArray(otherElementType, _)) if otherElementType == elementType && !deepCopy =>
-        value.asInstanceOf[SIndexablePointerCode].a
+        value.asInstanceOf[SIndexablePointerValue].a
       case _ =>
-        val newAddr = cb.newLocal[Long]("pcarray_store_newaddr")
-        val valueMemo = value.asIndexable.memoize(cb, "pcarray_store_src_difftype")
-        cb.assign(newAddr, allocate(region, valueMemo.loadLength()))
-        storeContentsAtAddress(cb, newAddr, region, valueMemo, deepCopy)
+        val idxValue = value.asIndexableValue
+        val newAddr = cb.memoize(allocate(region, idxValue.loadLength()))
+        storeContentsAtAddress(cb, newAddr, region, idxValue, deepCopy)
         newAddr
     }
-
-
   }
 
   def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
-    cb += Region.storeAddress(addr, store(cb, region, value, deepCopy))
+    cb += Region.storeAddress(addr, store(cb, region, value.memoize(cb, "storeAtAddress"), deepCopy))
   }
 
 

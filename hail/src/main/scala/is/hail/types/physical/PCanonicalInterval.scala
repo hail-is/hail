@@ -3,9 +3,9 @@ package is.hail.types.physical
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
-import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.{SCode, SValue}
 import is.hail.types.physical.stypes.concrete.{SIntervalPointer, SIntervalPointerCode, SIntervalPointerValue, SStackStruct, SUnreachableInterval}
-import is.hail.types.physical.stypes.interfaces.primitive
+import is.hail.types.physical.stypes.interfaces.{SIntervalValue, primitive}
 import is.hail.types.physical.stypes.primitives.SBooleanCode
 import is.hail.types.virtual.{TInterval, Type}
 import is.hail.utils.{FastIndexedSeq, Interval}
@@ -79,19 +79,19 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
   def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SIntervalPointerValue =
     new SIntervalPointerCode(sType, addr).memoizeField(cb, "loadCheapSCodeField")
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
     value.st match {
       case SIntervalPointer(t: PCanonicalInterval) =>
-        representation.store(cb, region, t.representation.loadCheapSCode(cb, value.asInstanceOf[SIntervalPointerCode].a), deepCopy)
+        representation.store(cb, region, t.representation.loadCheapSCode(cb, value.asInstanceOf[SIntervalPointerValue].a), deepCopy)
       case _ =>
-        val interval = value.asInterval.memoize(cb, "pcinterval_store_at_addr")
+        val interval = value.asIntervalValue
         val start = EmitCode.fromI(cb.emb)(cb => interval.loadStart(cb))
         val stop = EmitCode.fromI(cb.emb)(cb => interval.loadEnd(cb))
         val includesStart = EmitCode.present(cb.emb, new SBooleanCode(interval.includesStart()))
         val includesStop = EmitCode.present(cb.emb, new SBooleanCode(interval.includesEnd()))
         representation.store(cb, region,
           SStackStruct.constructFromArgs(cb, region, representation.virtualType,
-            start, stop, includesStart, includesStop), deepCopy)
+            start, stop, includesStart, includesStop).memoize(cb, "store"), deepCopy)
     }
   }
 

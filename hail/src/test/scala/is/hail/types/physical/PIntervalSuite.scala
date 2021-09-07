@@ -48,6 +48,6 @@ class PIntervalSuite extends PhysicalTestUtils {
     val fb = EmitFunctionBuilder[Region, Long](ctx, "pinterval_store_unreachable")
     val codeRegion = fb.getCodeParam[Region](1)
 
-    fb.emitWithBuilder(cb => pt.store(cb, codeRegion, usv.get, true))
+    fb.emitWithBuilder(cb => pt.store(cb, codeRegion, usv, true))
   }
 }
