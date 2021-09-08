@@ -420,7 +420,16 @@ object LoweredTableReader {
 abstract class TableReader {
   def pathsUsed: Seq[String]
 
-  def apply(tr: TableRead, ctx: ExecuteContext): TableValue
+  def read(tr: TableRead, ctx: ExecuteContext): TableExecuteIntermediate = {
+    try {
+      new TableStageIntermediate(lower(ctx, tr.typ))
+    } catch {
+      case _: LowererUnsupportedOperation =>
+        new TableValueIntermediate(execute(tr, ctx))
+    }
+  }
+
+  def execute(tr: TableRead, ctx: ExecuteContext): TableValue
 
   def partitionCounts: Option[IndexedSeq[Long]]
 
@@ -987,7 +996,7 @@ class TableNativeReader(
         .typedCodecSpec.encodedType.decodedPType(requestedType.globalType))
   }
 
-  def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
+  def execute(tr: TableRead, ctx: ExecuteContext): TableValue = {
     val (globalType, globalsOffset) = spec.globalsComponent.readLocalSingleRow(ctx, params.path, tr.typ.globalType)
     val rvd = if (tr.dropRows) {
       RVD.empty(tr.typ.canonicalRVDType)
@@ -1097,7 +1106,7 @@ case class TableNativeZippedReader(
     (t, mk)
   }
 
-  def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
+  def execute(tr: TableRead, ctx: ExecuteContext): TableValue = {
     val fs = ctx.fs
     val (globalPType: PStruct, globalsOffset) = specLeft.globalsComponent.readLocalSingleRow(ctx, pathLeft, tr.typ.globalType)
     val rvd = if (tr.dropRows) {
@@ -1203,7 +1212,7 @@ case class TableFromBlockMatrixNativeReader(params: TableFromBlockMatrixNativeRe
       PCanonicalStruct.empty(required = true)
   }
 
-  def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
+  def execute(tr: TableRead, ctx: ExecuteContext): TableValue = {
     val rowsRDD = new BlockMatrixReadRowBlockedRDD(ctx.fsBc, params.path, partitionRanges, metadata,
       maybeMaximumCacheMemoryInBytes = params.maximumCacheMemoryInBytes)
 
@@ -1244,7 +1253,7 @@ case class TableRead(typ: TableType, dropRows: Boolean, tr: TableReader) extends
     TableRead(typ, dropRows, tr)
   }
 
-  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = new TableValueIntermediate(tr.apply(this, ctx))
+  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = tr.read(this, ctx)
 }
 
 case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) extends TableIR {

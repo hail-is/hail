@@ -463,7 +463,7 @@ class MatrixBGENReader(
     settings.rowPType -> PType.canonical(requestedType.globalType, required = true).asInstanceOf[PStruct]
   }
 
-  def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
+  def execute(tr: TableRead, ctx: ExecuteContext): TableValue = {
     val requestedType = tr.typ
 
     assert(requestedType.keyType == indexKeyType)

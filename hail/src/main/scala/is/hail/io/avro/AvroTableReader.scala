@@ -37,7 +37,7 @@ class AvroTableReader(
 
   def renderShort(): String = defaultRender()
 
-  def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
+  def execute(tr: TableRead, ctx: ExecuteContext): TableValue = {
     val ts = lower(ctx, tr.typ)
     new TableStageIntermediate(ts).asTableValue(ctx)
   }

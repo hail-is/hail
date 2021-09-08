@@ -105,7 +105,7 @@ class PruneSuite extends HailSuite {
 
     def pathsUsed: Seq[String] = FastSeq()
 
-    def apply(tr: TableRead, ctx: ExecuteContext): TableValue = ???
+    def execute(tr: TableRead, ctx: ExecuteContext): TableValue = ???
 
     def partitionCounts: Option[IndexedSeq[Long]] = ???
 

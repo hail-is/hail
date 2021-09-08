@@ -372,7 +372,7 @@ class TextMatrixReader(
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
     executeGeneric(ctx).toTableStage(ctx, requestedType)
 
-  def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
+  def execute(tr: TableRead, ctx: ExecuteContext): TableValue = {
     executeGeneric(ctx).toTableValue(ctx, tr.typ)
   }
 

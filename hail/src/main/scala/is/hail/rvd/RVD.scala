@@ -42,7 +42,8 @@ class RVD(
   val crdd: ContextRDD[Long]
 ) {
   self =>
-  require(crdd.getNumPartitions == partitioner.numPartitions)
+  require(crdd.getNumPartitions == partitioner.numPartitions,
+    s"crdd: ${ crdd.getNumPartitions }, partitioner: ${ partitioner.numPartitions }")
 
   require(typ.kType.virtualType isIsomorphicTo partitioner.kType)
 

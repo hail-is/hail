@@ -457,7 +457,7 @@ class MatrixPLINKReader(
       body)
   }
 
-  def apply(tr: TableRead, ctx: ExecuteContext): TableValue =
+  def execute(tr: TableRead, ctx: ExecuteContext): TableValue =
     executeGeneric(ctx).toTableValue(ctx, tr.typ)
 
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {

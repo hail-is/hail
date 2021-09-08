@@ -135,7 +135,7 @@ class StringTableReader(
     )
   }
 
-  override def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
+  override def execute(tr: TableRead, ctx: ExecuteContext): TableValue = {
     val ts = lower(ctx, tr.typ)
     val (broadCastRow, rVD) = TableStageToRVD.apply(ctx, ts, Map[String, IR]())
     TableValue(ctx, tr.typ, broadCastRow, rVD)
