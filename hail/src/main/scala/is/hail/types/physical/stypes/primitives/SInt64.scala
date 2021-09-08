@@ -16,7 +16,7 @@ case object SInt64 extends SPrimitive {
 
   override def castRename(t: Type): SType = this
 
-  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = {
     value.st match {
       case SInt64 => value
     }

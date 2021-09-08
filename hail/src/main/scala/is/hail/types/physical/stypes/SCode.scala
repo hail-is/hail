@@ -92,11 +92,11 @@ abstract class SCode {
     castTo(cb, region, destType, false)
 
   def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType, deepCopy: Boolean): SCode = {
-    destType.coerceOrCopy(cb, region, this, deepCopy)
+    destType.coerceOrCopy(cb, region, this.memoize(cb, "castTo"), deepCopy)
   }
 
   def copyToRegion(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SCode =
-    destType.coerceOrCopy(cb, region, this, deepCopy = true)
+    destType.coerceOrCopy(cb, region, this.memoize(cb, "copyToRegion"), deepCopy = true)
 
   def memoize(cb: EmitCodeBuilder, name: String): SValue
 
@@ -110,41 +110,41 @@ trait SValue {
 
   def get: SCode
 
-  def asBooleanValue: SBooleanValue = asInstanceOf[SBooleanValue]
+  def asBoolean: SBooleanValue = asInstanceOf[SBooleanValue]
 
-  def asIntValue: SInt32Value = asInstanceOf[SInt32Value]
+  def asInt: SInt32Value = asInstanceOf[SInt32Value]
 
-  def asInt32Value: SInt32Value = asInstanceOf[SInt32Value]
+  def asInt32: SInt32Value = asInstanceOf[SInt32Value]
 
-  def asLongValue: SInt64Value = asInstanceOf[SInt64Value]
+  def asLong: SInt64Value = asInstanceOf[SInt64Value]
 
-  def asInt64Value: SInt64Value = asInstanceOf[SInt64Value]
+  def asInt64: SInt64Value = asInstanceOf[SInt64Value]
 
-  def asFloat32Value: SFloat32Value = asInstanceOf[SFloat32Value]
+  def asFloat32: SFloat32Value = asInstanceOf[SFloat32Value]
 
-  def asFloat64Value: SFloat64Value = asInstanceOf[SFloat64Value]
+  def asFloat64: SFloat64Value = asInstanceOf[SFloat64Value]
 
-  def asDoubleValue: SFloat64Value = asInstanceOf[SFloat64Value]
+  def asDouble: SFloat64Value = asInstanceOf[SFloat64Value]
 
-  def asPrimitiveValue: SPrimitiveValue = asInstanceOf[SPrimitiveValue]
+  def asPrimitive: SPrimitiveValue = asInstanceOf[SPrimitiveValue]
 
-  def asBinaryValue: SBinaryValue = asInstanceOf[SBinaryValue]
+  def asBinary: SBinaryValue = asInstanceOf[SBinaryValue]
 
-  def asIndexableValue: SIndexableValue = asInstanceOf[SIndexableValue]
+  def asIndexable: SIndexableValue = asInstanceOf[SIndexableValue]
 
-  def asBaseStructValue: SBaseStructValue = asInstanceOf[SBaseStructValue]
+  def asBaseStruct: SBaseStructValue = asInstanceOf[SBaseStructValue]
 
-  def asStringValue: SStringValue = asInstanceOf[SStringValue]
+  def asString: SStringValue = asInstanceOf[SStringValue]
 
-  def asIntervalValue: SIntervalValue = asInstanceOf[SIntervalValue]
+  def asInterval: SIntervalValue = asInstanceOf[SIntervalValue]
 
-  def asNDArrayValue: SNDArrayValue = asInstanceOf[SNDArrayValue]
+  def asNDArray: SNDArrayValue = asInstanceOf[SNDArrayValue]
 
-  def asLocusValue: SLocusValue = asInstanceOf[SLocusValue]
+  def asLocus: SLocusValue = asInstanceOf[SLocusValue]
 
-  def asCallValue: SCallValue = asInstanceOf[SCallValue]
+  def asCall: SCallValue = asInstanceOf[SCallValue]
 
-  def asStreamValue: SStreamValue = asInstanceOf[SStreamValue]
+  def asStream: SStreamValue = asInstanceOf[SStreamValue]
 
   def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SCode =
     castTo(cb, region, destType, false)

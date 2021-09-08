@@ -274,7 +274,7 @@ abstract class RegistryFunctions {
       case _: SLocus => sc.asLocus.getLocusObj(cb)
       case t =>
         val pt = PType.canonical(t.storageType())
-        val addr = pt.store(cb, r, sc, deepCopy = false)
+        val addr = pt.store(cb, r, sc.memoize(cb, "scodeToJavaValue"), deepCopy = false)
         Code.invokeScalaObject3[PType, Region, Long, AnyRef](
           UnsafeRow.getClass, "readAnyRef",
           cb.emb.getPType(pt),

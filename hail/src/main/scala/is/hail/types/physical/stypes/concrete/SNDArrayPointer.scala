@@ -3,9 +3,9 @@ package is.hail.types.physical.stypes.concrete
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
-import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SNDArray, SNDArrayCode, SNDArraySettable, SNDArrayValue, SizeValue, SizeValueDyn}
+import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.{SCode, SType, SValue}
-import is.hail.types.physical.{PCanonicalNDArray, PPrimitive, PType}
+import is.hail.types.physical.{PCanonicalNDArray, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils.{FastIndexedSeq, toRichIterable}
 
@@ -24,9 +24,12 @@ final case class SNDArrayPointer(pType: PCanonicalNDArray) extends SNDArray {
 
   override def castRename(t: Type): SType = SNDArrayPointer(pType.deepRename(t))
 
-  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
-    new SNDArrayPointerCode(this, pType.store(cb, region, value, deepCopy))
-  }
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue =
+    value match {
+      case value: SNDArrayValue =>
+        val a = pType.store(cb, region, value, deepCopy)
+        new SNDArrayPointerValue(this, a, value.shapes, value.strides, cb.memoize(pType.dataFirstElementPointer(a)))
+    }
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = Array.fill(2 + nDims * 2)(LongInfo)
 

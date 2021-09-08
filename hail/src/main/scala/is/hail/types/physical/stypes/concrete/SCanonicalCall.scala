@@ -2,20 +2,17 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.interfaces.{SCall, SCallCode, SCallValue, SIndexableValue}
-import is.hail.types.physical.stypes.{SCode, SSettable, SType}
+import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
 import is.hail.types.physical.{PCall, PCanonicalCall, PType}
 import is.hail.types.virtual.{TCall, Type}
 import is.hail.utils._
-import is.hail.variant.{AllelePair, Call, Call1, Call2, Genotype}
-
-import scala.reflect.classTag
+import is.hail.variant._
 
 
 case object SCanonicalCall extends SCall {
-  def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = {
     value.st match {
       case SCanonicalCall => value
     }

@@ -4,7 +4,7 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.{SCode, SValue}
 import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SCanonicalLocusPointerCode, SCanonicalLocusPointerValue, SStackStruct, SStringPointer}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.utils.FastIndexedSeq
@@ -102,12 +102,12 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
   def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SCanonicalLocusPointerValue =
     new SCanonicalLocusPointerCode(sType, addr).memoizeField(cb, "loadCheapSCodeField")
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
     value.st match {
       case SCanonicalLocusPointer(pt) =>
-        representation.store(cb, region, pt.representation.loadCheapSCode(cb, value.asInstanceOf[SCanonicalLocusPointerCode].a), deepCopy)
+        representation.store(cb, region, pt.representation.loadCheapSCode(cb, value.asInstanceOf[SCanonicalLocusPointerValue].a), deepCopy)
       case _ =>
-        val addr = representation.allocate(region)
+        val addr = cb.memoize(representation.allocate(region))
         storeAtAddress(cb, addr, region, value, deepCopy)
         addr
     }

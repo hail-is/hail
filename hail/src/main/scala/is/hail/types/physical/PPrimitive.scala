@@ -3,7 +3,7 @@ package is.hail.types.physical
 import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.{SCode, SValue}
 import is.hail.utils._
 
 trait PPrimitive extends PType {
@@ -29,8 +29,8 @@ trait PPrimitive extends PType {
     Region.copyFrom(srcAddress, addr, byteSize)
   }
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
-    val newAddr = cb.newLocal[Long]("pprimitive_store_addr", region.allocate(alignment, byteSize))
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
+    val newAddr = cb.memoize(region.allocate(alignment, byteSize))
     storeAtAddress(cb, newAddr, region, value, deepCopy)
     newAddr
   }

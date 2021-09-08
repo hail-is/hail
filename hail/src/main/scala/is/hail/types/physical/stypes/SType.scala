@@ -40,14 +40,14 @@ object SType {
 trait SType {
   def virtualType: Type
 
-  final def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  final def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = {
     value.st match {
       case _: SUnreachable => this.defaultValue
       case _ => _coerceOrCopy(cb, region, value, deepCopy)
     }
   }
 
-  protected[stypes] def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode
+  protected[stypes] def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue
 
   def settableTupleTypes(): IndexedSeq[TypeInfo[_]]
 

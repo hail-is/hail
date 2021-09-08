@@ -180,7 +180,7 @@ case class PTypeReferenceSingleCodeType(pt: PType) extends SingleCodeType {
   def virtualType: Type = pt.virtualType
 
   def coerceSCode(cb: EmitCodeBuilder, pc: SCode, region: Value[Region], deepCopy: Boolean): SingleCodeSCode = {
-    SingleCodeSCode(this, pt.store(cb, region, pc, deepCopy = deepCopy))
+    SingleCodeSCode(this, pt.store(cb, region, pc.memoize(cb, "coerceSCode"), deepCopy = deepCopy))
   }
 }
 

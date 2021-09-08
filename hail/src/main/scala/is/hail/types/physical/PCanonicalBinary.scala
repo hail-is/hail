@@ -3,9 +3,9 @@ package is.hail.types.physical
 import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.{SCode, SValue}
 import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SBinaryPointerCode, SBinaryPointerSettable, SBinaryPointerValue}
-import is.hail.types.physical.stypes.interfaces.SBinary
+import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryValue}
 import is.hail.utils._
 
 case object PCanonicalBinaryOptional extends PCanonicalBinary(false)
@@ -142,22 +142,22 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
   def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SBinaryPointerValue =
     new SBinaryPointerCode(sType, addr).memoizeField(cb, "loadCheapSCodeField")
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
     value.st match {
       case SBinaryPointer(PCanonicalBinary(_)) =>
         if (deepCopy) {
-          val bv = value.asInstanceOf[SBinaryPointerCode].memoize(cb, "pcbin_store")
+          val bv = value.asInstanceOf[SBinaryPointerValue]
           val len = cb.newLocal[Int]("pcbinary_store_len", bv.loadLength())
-          val newAddr = cb.newLocal[Long]("pcbinary_store_newaddr", allocate(region, len))
+          val newAddr = cb.memoize(allocate(region, len))
           storeLength(cb, newAddr, len)
           cb += Region.copyFrom(bytesAddress(bv.a), bytesAddress(newAddr), len.toL)
           newAddr
         } else
-          value.asInstanceOf[SBinaryPointerCode].a
+          value.asInstanceOf[SBinaryPointerValue].a
       case _ =>
-        val bv = value.asBinary.memoize(cb, "pcbin_store")
+        val bv = value.asBinary
         val len = cb.newLocal[Int]("pcbinary_store_len", bv.loadLength())
-        val newAddr = cb.newLocal[Long]("pcbinary_store_newaddr", allocate(region, len))
+        val newAddr = cb.memoize(allocate(region, len))
         storeLength(cb, newAddr, len)
         cb += Region.storeBytes(bytesAddress(newAddr), bv.loadBytes())
         newAddr
@@ -165,7 +165,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
   }
 
   def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
-    cb += Region.storeAddress(addr, store(cb, region, value, deepCopy))
+    cb += Region.storeAddress(addr, store(cb, region, value.memoize(cb, "storeAtAddress"), deepCopy))
   }
 
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {

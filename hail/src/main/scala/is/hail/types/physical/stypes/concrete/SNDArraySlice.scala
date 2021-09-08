@@ -3,12 +3,12 @@ package is.hail.types.physical.stypes.concrete
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
-import is.hail.types.physical.{PCanonicalNDArray, PNDArray, PNumeric, PPrimitive, PType}
-import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType, SValue}
-import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SNDArray, SNDArrayCode, SNDArrayValue, SizeValue, SizeValueDyn, primitive}
+import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.SInt64
-import is.hail.types.virtual.{TInt64, TNDArray, TTuple, Type}
-import is.hail.utils.{FastIndexedSeq, toRichIterable}
+import is.hail.types.physical.stypes._
+import is.hail.types.physical.{PCanonicalNDArray, PType}
+import is.hail.types.virtual.{TNDArray, Type}
+import is.hail.utils.toRichIterable
 
 final case class SNDArraySlice(pType: PCanonicalNDArray) extends SNDArray {
   override def nDims: Int = pType.nDims
@@ -27,7 +27,7 @@ final case class SNDArraySlice(pType: PCanonicalNDArray) extends SNDArray {
 
   override def castRename(t: Type): SType = SNDArrayPointer(pType.deepRename(t))
 
-  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode =
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue =
     value.st match {
       case SNDArraySlice(`pType`) if !deepCopy => value
     }
