@@ -603,7 +603,7 @@ class Container:
             await self.write_container_config()
             async with async_timeout.timeout(self.timeout):
                 with open(self.log_path, 'w') as container_log:
-                    log.info('Creating the crun run process')
+                    log.info(f'Creating the crun run process for {self}')
                     self.process = await asyncio.create_subprocess_exec(
                         'crun',
                         'run',
@@ -616,7 +616,7 @@ class Container:
                         stderr=container_log,
                     )
                     await self.process.wait()
-                    log.info('crun process completed')
+                    log.info(f'crun process completed for {self}')
         except asyncio.TimeoutError:
             return True
         finally:
@@ -841,7 +841,12 @@ class Container:
                 log.info(f'{self} container is still running, killing crun process')
                 self.process.terminate()
                 self.process = None
-                await check_exec_output('crun', 'kill', '--all', self.container_name, 'SIGTERM')
+                try:
+                    await check_exec_output('crun', 'state', self.container_name)
+                except CalledProcessError:
+                    log.info(f'container {self} cannot be killed because it does not exist', exc_info=True)
+                else:
+                    await check_exec_output('crun', 'kill', '--all', self.container_name, 'SIGTERM')
             except asyncio.CancelledError:
                 raise
             except Exception:
