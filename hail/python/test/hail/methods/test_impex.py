@@ -391,6 +391,7 @@ class VCFTests(unittest.TestCase):
     def test_vcf_parser_golden_master__sample_GRCh37(self):
         self._test_vcf_parser_golden_master(resource('sample.vcf'), 'GRCh37')
 
+    @skip_when_service_backend('intermittent jvm crashes (either OOM or segfault)')
     def test_vcf_parser_golden_master__gvcf_GRCh37(self):
         self._test_vcf_parser_golden_master(resource('gvcfs/HG00096.g.vcf.gz'), 'GRCh38')
 
@@ -695,6 +696,7 @@ class VCFTests(unittest.TestCase):
                 hl.export_vcf(mt.annotate_rows(info=mt.info.annotate(**{invalid_field: True})), t)
                 assert warning.call_count == 1
 
+    @fails_service_backend('need to convert errors on worker into FatalError')
     def test_vcf_different_info_errors(self):
         with self.assertRaisesRegex(FatalError, "Check that all files have same INFO fields"):
             mt = hl.import_vcf([resource('different_info_test1.vcf'), resource('different_info_test2.vcf')])
@@ -2135,9 +2137,44 @@ class GrepTests(unittest.TestCase):
 
 
 class AvroTests(unittest.TestCase):
+    @fails_service_backend('''
+E                   java.io.NotSerializableException: org.apache.avro.Schema$RecordSchema
+E                   	at java.io.ObjectOutputStream.writeObject0(ObjectOutputStream.java:1184)
+E                   	at java.io.ObjectOutputStream.writeArray(ObjectOutputStream.java:1378)
+E                   	at java.io.ObjectOutputStream.writeObject0(ObjectOutputStream.java:1174)
+E                   	at java.io.ObjectOutputStream.defaultWriteFields(ObjectOutputStream.java:1548)
+E                   	at java.io.ObjectOutputStream.writeSerialData(ObjectOutputStream.java:1509)
+E                   	at java.io.ObjectOutputStream.writeOrdinaryObject(ObjectOutputStream.java:1432)
+E                   	at java.io.ObjectOutputStream.writeObject0(ObjectOutputStream.java:1178)
+E                   	at java.io.ObjectOutputStream.writeArray(ObjectOutputStream.java:1378)
+E                   	at java.io.ObjectOutputStream.writeObject0(ObjectOutputStream.java:1174)
+E                   	at java.io.ObjectOutputStream.defaultWriteFields(ObjectOutputStream.java:1548)
+E                   	at java.io.ObjectOutputStream.writeSerialData(ObjectOutputStream.java:1509)
+E                   	at java.io.ObjectOutputStream.writeOrdinaryObject(ObjectOutputStream.java:1432)
+E                   	at java.io.ObjectOutputStream.writeObject0(ObjectOutputStream.java:1178)
+E                   	at java.io.ObjectOutputStream.writeObject(ObjectOutputStream.java:348)
+E                   	at is.hail.backend.service.ServiceBackend.$anonfun$parallelizeAndComputeWithIndex$3(ServiceBackend.scala:119)
+E                   	at is.hail.backend.service.ServiceBackend.$anonfun$parallelizeAndComputeWithIndex$3$adapted(ServiceBackend.scala:118)
+E                   	at is.hail.utils.package$.using(package.scala:638)
+E                   	at is.hail.backend.service.ServiceBackend.$anonfun$parallelizeAndComputeWithIndex$2(ServiceBackend.scala:118)
+E                   	at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:23)
+E                   	at is.hail.services.package$.retryTransientErrors(package.scala:71)
+E                   	at is.hail.backend.service.ServiceBackend.$anonfun$parallelizeAndComputeWithIndex$1(ServiceBackend.scala:117)
+E                   	at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:23)
+E                   	at scala.concurrent.Future$.$anonfun$apply$1(Future.scala:659)
+E                   	at scala.util.Success.$anonfun$map$1(Try.scala:255)
+E                   	at scala.util.Success.map(Try.scala:213)
+E                   	at scala.concurrent.Future.$anonfun$map$1(Future.scala:292)
+E                   	at scala.concurrent.impl.Promise.liftedTree1$1(Promise.scala:33)
+E                   	at scala.concurrent.impl.Promise.$anonfun$transform$1(Promise.scala:33)
+E                   	at scala.concurrent.impl.CallbackRunnable.run(Promise.scala:64)
+E                   	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+E                   	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+E                   	at java.lang.Thread.run(Thread.java:748)
+''')
     def test_simple_avro(self):
         avro_file = resource('avro/weather.avro')
-        with DataFileReader(open(avro_file, 'rb'), DatumReader()) as avro:
+        with DataFileReader(hl.hadoop_open(avro_file, 'rb'), DatumReader()) as avro:
             expected = list(avro)
         data = hl.import_avro([avro_file]).collect()
         data = [dict(**s) for s in data]
