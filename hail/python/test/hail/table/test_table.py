@@ -1874,7 +1874,7 @@ def make_test(table_name, num_parts, counter, truncator, n):
 
 head_tail_test_data = [
     pytest.param(make_test(table_name, num_parts, counter, truncator, n),
-                 id=str((table_name, num_parts, n, truncator_name, counter_name)))
+                 id='__'.join([table_name, str(num_parts), str(n), truncator_name, counter_name]))
     for table_name in ['rt', 'par', 'rtcache', 'chkpt']
     for num_parts in [3, 11]
     for n in (10, 9, 11, 0, 7)

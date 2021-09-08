@@ -2137,7 +2137,7 @@ class GrepTests(unittest.TestCase):
 
 
 class AvroTests(unittest.TestCase):
-    @fails_service_backend('''
+    @fails_service_backend(reason='''
 E                   java.io.NotSerializableException: org.apache.avro.Schema$RecordSchema
 E                   	at java.io.ObjectOutputStream.writeObject0(ObjectOutputStream.java:1184)
 E                   	at java.io.ObjectOutputStream.writeArray(ObjectOutputStream.java:1378)
