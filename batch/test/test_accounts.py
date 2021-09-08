@@ -80,7 +80,7 @@ async def new_billing_project(dev_client, make_client, get_billing_project_name)
         assert r['status'] != 'deleted', r
         try:
             client = await make_client(project)
-            async for batch in client.list_batches():
+            async for batch in client.list_batches(f'billing_project:{project}'):
                 await batch.delete()
         finally:
             if r['status'] == 'open':
