@@ -1064,7 +1064,7 @@ lock in share mode''', (billing_project, user))
             raise web.HTTPForbidden(reason=f'Billing project {billing_project} is closed or deleted.')
 
         cost = await tx.execute_and_fetchone('''
-SELECT CAST(COALESCE(SUM(`usage` * rate), 0) AS SIGNED) AS cost
+SELECT COALESCE(SUM(`usage` * rate), 0) AS cost
 FROM aggregated_billing_project_resources
 INNER JOIN resources
   ON resources.resource = aggregated_billing_project_resources.resource
