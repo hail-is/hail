@@ -52,9 +52,10 @@ abstract sealed class TableIR extends BaseIR {
   val rowCountUpperBound: Option[Long]
 
   final def analyzeAndExecute(ctx: ExecuteContext): TableExecuteIntermediate = {
-    val r = Requiredness(this, ctx)
-    val rand = ContainsSeededRandomness.analyze(this)
-    execute(ctx, new TableRunContext(r, rand))
+    val ns = this.noSharing
+    val r = Requiredness(ns, ctx)
+    val rand = ContainsSeededRandomness.analyze(ns)
+    ns.execute(ctx, new TableRunContext(r, rand))
   }
 
   protected[ir] def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate =

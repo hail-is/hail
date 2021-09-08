@@ -863,11 +863,12 @@ object Interpret {
         val breezeMat = bm.transpose().toBreezeMatrix()
         val shape = IndexedSeq(bm.nRows, bm.nCols)
         SafeNDArray(shape, breezeMat.toArray)
-      case x@TableAggregate(child, query) =>
-        val r = Requiredness(x, ctx)
-        val rand = ContainsSeededRandomness.analyze(x)
-        val loweredChild = child.execute(ctx, new TableRunContext(r, rand)).asTableStage(ctx)
-        val loweredIR = LowerTableIRHelpers.lowerTableAggregate(ctx, x, loweredChild, r, Map.empty)
+      case x@TableAggregate(child, _) =>
+        val ns = x.noSharing.asInstanceOf[TableAggregate]
+        val r = Requiredness(ns, ctx)
+        val rand = ContainsSeededRandomness.analyze(ns)
+        val loweredChild = ns.child.execute(ctx, new TableRunContext(r, rand)).asTableStage(ctx)
+        val loweredIR = LowerTableIRHelpers.lowerTableAggregate(ctx, ns, loweredChild, r, Map.empty)
         CompileAndEvaluate(ctx, loweredIR)
       case LiftMeOut(child) =>
         val (Some(PTypeReferenceSingleCodeType(rt)), makeFunction) = Compile[AsmFunction1RegionLong](ctx,
