@@ -696,7 +696,7 @@ class VCFTests(unittest.TestCase):
                 hl.export_vcf(mt.annotate_rows(info=mt.info.annotate(**{invalid_field: True})), t)
                 assert warning.call_count == 1
 
-    @fails_service_backend('need to convert errors on worker into FatalError')
+    @fails_service_backend(reason='need to convert errors on worker into FatalError')
     def test_vcf_different_info_errors(self):
         with self.assertRaisesRegex(FatalError, "Check that all files have same INFO fields"):
             mt = hl.import_vcf([resource('different_info_test1.vcf'), resource('different_info_test2.vcf')])
@@ -2174,7 +2174,8 @@ E                   	at java.lang.Thread.run(Thread.java:748)
 ''')
     def test_simple_avro(self):
         avro_file = resource('avro/weather.avro')
-        with DataFileReader(hl.hadoop_open(avro_file, 'rb'), DatumReader()) as avro:
+        fs = hl.current_backend().fs
+        with DataFileReader(fs.open(avro_file, 'rb'), DatumReader()) as avro:
             expected = list(avro)
         data = hl.import_avro([avro_file]).collect()
         data = [dict(**s) for s in data]
