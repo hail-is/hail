@@ -391,6 +391,11 @@ object Extract {
           i
         })
         GetTupleElement(result, idx)
+      case x@AggFold(zero, combine) =>
+        val idx = memo.getOrElseUpdate(x, {
+          ???
+        })
+        GetTupleElement(result, idx)
       case AggFilter(cond, aggIR, _) =>
         val newSeq = new BoxedArrayBuilder[IR]()
         val newLet = new BoxedArrayBuilder[AggLet]()
