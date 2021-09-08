@@ -2140,7 +2140,7 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
         val newType = if (rest.isEmpty)
           f.typ.asInstanceOf[TIterable].elementType
         else
-          explodedType(f.asInstanceOf[TStruct], rest)
+          explodedType(f.typ.asInstanceOf[TStruct], rest)
         f.copy(typ = newType)
       } else f
     })
