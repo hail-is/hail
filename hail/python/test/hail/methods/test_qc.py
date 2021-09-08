@@ -246,7 +246,7 @@ Caused by: java.lang.ClassCastException: __C2860collect_distributed_array cannot
                 hl.filter_alleles(ds, lambda a, i: False).count_rows(), 0)
             self.assertEqual(hl.filter_alleles(ds, lambda a, i: True).count_rows(), ds.count_rows())
 
-    @fails_service_backend()
+    @skip_when_service_backend('slow (at least 45 minutes)')
     def test_filter_alleles_hts(self):
         # 1 variant: A:T,G
         ds = hl.import_vcf(resource('filter_alleles/input.vcf'))
