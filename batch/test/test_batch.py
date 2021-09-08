@@ -1,3 +1,4 @@
+from typing import Set
 import random
 import datetime
 import math
@@ -234,14 +235,13 @@ def test_list_batches(client):
     b2.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
     b2 = b2.submit()
 
-    def assert_batch_ids(expected, q=None):
+    def assert_batch_ids(expected: Set[int], q=None):
         # list_batches returns all batches for all prev run tests so we set a limit
-        ids = [x.id for x in expected]
-        max_expected_id = max(ids)
-        min_expeccted_id = min(ids)
+        max_expected_id = max(expected)
+        min_expeccted_id = min(expected)
         span = max_expected_id - min_expeccted_id + 1
         batches = client.list_batches(q, last_batch_id=max_expected_id + 1, limit=span)
-        actual = set([b.id for b in batches]).intersection({b1.id, b2.id})
+        actual = {b.id for b in batches}.intersection({b1.id, b2.id})
         assert actual == expected
 
     assert_batch_ids({b1.id, b2.id})
