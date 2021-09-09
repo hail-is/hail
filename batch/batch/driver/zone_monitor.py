@@ -1,11 +1,16 @@
+import abc
 import logging
 import random
+from typing import TYPE_CHECKING
 
-from hailtop import aiotools, aiogoogle
-from hailtop.utils import periodically_call, url_basename
+from hailtop import aiotools
+from hailtop.utils import periodically_call
 
 from ..utils import WindowFractionCounter
-from ..batch_configuration import BATCH_GCP_REGIONS, GCP_ZONE
+from ..batch_configuration import GCP_ZONE
+if TYPE_CHECKING:
+    from .compute_manager import BaseComputeManager  # pylint: disable=cyclic-import
+
 
 log = logging.getLogger('zone_monitor')
 
@@ -47,22 +52,19 @@ class ZoneSuccessRate:
         return f'global {self._global_counter}, zones {self._zone_counters}'
 
 
-class ZoneMonitor:
-    def __init__(self, app):
-        self.app = app
-        self.compute_client: aiogoogle.ComputeClient = app['compute_client']
-
+class BaseZoneMonitor(abc.ABC):
+    def __init__(self, compute_manager: 'BaseComputeManager'):
+        self.compute_manager = compute_manager
+        self.app = compute_manager.app
         self.zone_success_rate = ZoneSuccessRate()
-
         self.region_info = None
         self.zones = []
-
         self.task_manager = aiotools.BackgroundTaskManager()
 
     async def async_init(self):
         self.task_manager.ensure_future(self.update_region_quotas_loop())
 
-    def shutdown(self):
+    async def shutdown(self):
         self.task_manager.shutdown()
 
     def get_zone(self, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb):
@@ -86,34 +88,18 @@ class ZoneMonitor:
             zone = random.choices(zones, zone_prob_weights)[0]
         return zone
 
+    @abc.abstractmethod
+    def _zone_weights(self, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb):
+        pass
+
     def zone_weights(self, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb):
         if not self.region_info:
             return None
+        return self._zone_weights(worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)
 
-        _zone_weights = []
-        for r in self.region_info.values():
-            quota_remaining = {q['metric']: q['limit'] - q['usage'] for q in r['quotas']}
-
-            remaining = quota_remaining['PREEMPTIBLE_CPUS'] / worker_cores
-            if worker_local_ssd_data_disk:
-                remaining = min(remaining, quota_remaining['LOCAL_SSD_TOTAL_GB'] / 375)
-            else:
-                remaining = min(remaining, quota_remaining['SSD_TOTAL_GB'] / worker_pd_ssd_data_disk_size_gb)
-
-            weight = max(remaining / len(r['zones']), 1)
-            for z in r['zones']:
-                zone_name = url_basename(z)
-                _zone_weights.append(ZoneWeight(zone_name, weight))
-
-        log.info(f'zone_weights {_zone_weights}')
-        return _zone_weights
-
+    @abc.abstractmethod
     async def update_region_quotas(self):
-        self.region_info = {name: await self.compute_client.get(f'/regions/{name}') for name in BATCH_GCP_REGIONS}
-
-        self.zones = [url_basename(z) for r in self.region_info.values() for z in r['zones']]
-
-        log.info('updated region quotas')
+        pass
 
     async def update_region_quotas_loop(self):
         await periodically_call(60, self.update_region_quotas)

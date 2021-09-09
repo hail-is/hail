@@ -19,7 +19,6 @@ from hailtop.utils import (
 from ..batch_format_version import BatchFormatVersion
 from ..batch_configuration import WORKER_MAX_IDLE_TIME_MSECS
 from ..inst_coll_config import machine_type_to_dict, JobPrivateInstanceManagerConfig
-from .create_instance import create_instance, create_instance_config
 from .instance_collection import InstanceCollection
 from .instance import Instance
 from .job import mark_job_creating, schedule_job
@@ -248,13 +247,13 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
         cores_mcpu = cores * 1000
         worker_type = machine_type_dict['machine_type']
 
-        zone = self.zone_monitor.get_zone(cores, False, storage_gb)
+        zone = self.compute_manager.zone_monitor.get_zone(cores, False, storage_gb)
         if zone is None:
             return
 
         activation_token = secrets.token_urlsafe(32)
 
-        config, worker_config = create_instance_config(
+        config, worker_config = self.compute_manager.create_instance_config(
             app=self.app,
             zone=zone,
             machine_name=machine_name,
@@ -274,8 +273,7 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
         self.add_instance(instance)
         log.info(f'created {instance} for {(batch_id, job_id)}')
 
-        await create_instance(
-            app=self.app,
+        await self.compute_manager.create_instance(
             machine_name=machine_name,
             zone=zone,
             config=config,

@@ -2,16 +2,13 @@ import os
 import logging
 import base64
 import json
-import uuid
 from typing import Tuple, Dict, Any
 
-from hailtop import aiogoogle
-
-from ..batch_configuration import PROJECT, DOCKER_ROOT_IMAGE, DOCKER_PREFIX, DEFAULT_NAMESPACE
-from ..inst_coll_config import machine_type_to_dict
-from ..worker_config import WorkerConfig
-from ..log_store import LogStore
-from ..utils import unreserved_worker_data_disk_size_gib
+from ...batch_configuration import PROJECT, DOCKER_ROOT_IMAGE, DOCKER_PREFIX, DEFAULT_NAMESPACE
+from ...inst_coll_config import machine_type_to_dict
+from ...worker_config import WorkerConfig
+from ...log_store import LogStore
+from ...utils import unreserved_worker_data_disk_size_gib
 
 log = logging.getLogger('create_instance')
 
@@ -340,10 +337,3 @@ journalctl -u docker.service > dockerd.log
     )
 
     return (config, worker_config)
-
-
-async def create_instance(app, machine_name, zone, config):
-    compute_client: aiogoogle.ComputeClient = app['compute_client']
-    params = {'requestId': str(uuid.uuid4())}
-    await compute_client.post(f'/zones/{zone}/instances', params=params, json=config)
-    log.info(f'created machine {machine_name}')

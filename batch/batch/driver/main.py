@@ -27,7 +27,6 @@ from hailtop.hail_logging import AccessLogger
 from hailtop.config import get_deploy_config
 from hailtop.utils import (
     time_msecs,
-    RateLimit,
     serialization,
     Notice,
     periodically_call,
@@ -35,7 +34,7 @@ from hailtop.utils import (
     dump_all_stacktraces,
 )
 from hailtop.tls import internal_server_ssl_context
-from hailtop import aiogoogle, aiotools
+from hailtop import aiotools
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 import googlecloudprofiler
 import uvloop
@@ -49,14 +48,11 @@ from ..batch_configuration import (
     HAIL_SHA,
     HAIL_SHOULD_PROFILE,
     HAIL_SHOULD_CHECK_INVARIANTS,
-    PROJECT,
     MACHINE_NAME_PREFIX,
 )
 from ..globals import HTTP_CLIENT_MAX_SIZE
 from ..inst_coll_config import InstanceCollectionConfigs
 
-from .zone_monitor import ZoneMonitor
-from .gce import GCEEventMonitor
 from .canceller import Canceller
 from .instance_collection_manager import InstanceCollectionManager
 from .job import mark_job_complete, mark_job_started
@@ -64,6 +60,8 @@ from .k8s_cache import K8sCache
 from .pool import Pool
 from ..utils import query_billing_projects, unreserved_worker_data_disk_size_gib, batch_only, authorization_token
 from ..exceptions import BatchUserError
+
+from ..gcp.driver.compute_manager import ComputeManager as GCPComputeManager
 
 uvloop.install()
 
@@ -1073,23 +1071,6 @@ SELECT instance_id, internal_token, frozen FROM globals;
     resources = db.select_and_fetchall('SELECT resource, rate FROM resources;')
     app['resource_rates'] = {record['resource']: record['rate'] async for record in resources}
 
-    aiogoogle_credentials = aiogoogle.Credentials.from_file('/gsa-key/key.json')
-    compute_client = aiogoogle.ComputeClient(PROJECT, credentials=aiogoogle_credentials)
-    app['compute_client'] = compute_client
-
-    logging_client = aiogoogle.LoggingClient(
-        credentials=aiogoogle_credentials,
-        # The project-wide logging quota is 60 request/m.  The event
-        # loop sleeps 15s per iteration, so the max rate is 4
-        # iterations/m.  Note, the event loop could make multiple
-        # logging requests per iteration, so these numbers are not
-        # quite comparable.  I didn't want to consume the entire quota
-        # since there will be other users of the logging API (us at
-        # the web console, test deployments, etc.)
-        rate_limit=RateLimit(10, 60),
-    )
-    app['logging_client'] = logging_client
-
     scheduler_state_changed = Notice()
     app['scheduler_state_changed'] = scheduler_state_changed
 
@@ -1109,9 +1090,9 @@ SELECT instance_id, internal_token, frozen FROM globals;
     log_store = LogStore(BATCH_BUCKET_NAME, instance_id, pool, credentials=credentials)
     app['log_store'] = log_store
 
-    zone_monitor = ZoneMonitor(app)
-    app['zone_monitor'] = zone_monitor
-    await zone_monitor.async_init()
+    compute_manager = GCPComputeManager(app, MACHINE_NAME_PREFIX)
+    app['compute_manager'] = compute_manager
+    await compute_manager.async_init()
 
     inst_coll_configs = InstanceCollectionConfigs(app)
     await inst_coll_configs.async_init()
@@ -1123,10 +1104,6 @@ SELECT instance_id, internal_token, frozen FROM globals;
     canceller = Canceller(app)
     app['canceller'] = canceller
     await canceller.async_init()
-
-    gce_event_monitor = GCEEventMonitor(app, MACHINE_NAME_PREFIX)
-    app['gce_event_monitor'] = gce_event_monitor
-    await gce_event_monitor.async_init()
 
     app['check_incremental_error'] = None
     app['check_resource_aggregation_error'] = None
@@ -1152,30 +1129,21 @@ async def on_cleanup(app):
             await app['db'].async_close()
         finally:
             try:
-                app['zone_monitor'].shutdown()
+                app['inst_coll_manager'].shutdown()
             finally:
                 try:
-                    app['inst_coll_manager'].shutdown()
+                    app['canceller'].shutdown()
                 finally:
                     try:
-                        app['canceller'].shutdown()
+                        app['task_manager'].shutdown()
                     finally:
                         try:
-                            app['gce_event_monitor'].shutdown()
+                            await app['compute_manager'].shutdown()
                         finally:
-                            try:
-                                app['task_manager'].shutdown()
-                            finally:
-                                try:
-                                    await app['logging_client'].close()
-                                finally:
-                                    try:
-                                        await app['compute_client'].close()
-                                    finally:
-                                        del app['k8s_cache'].client
-                                        await asyncio.gather(
-                                            *(t for t in asyncio.all_tasks() if t is not asyncio.current_task())
-                                        )
+                            del app['k8s_cache'].client
+                            await asyncio.gather(
+                                *(t for t in asyncio.all_tasks() if t is not asyncio.current_task())
+                            )
 
 
 def run():

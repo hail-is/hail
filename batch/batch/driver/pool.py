@@ -27,7 +27,6 @@ from ..utils import (
     adjust_cores_for_packability,
     adjust_cores_for_storage_request,
 )
-from .create_instance import create_instance, create_instance_config
 from .instance import Instance
 from .instance_collection import InstanceCollection
 from .job import schedule_job
@@ -175,7 +174,7 @@ WHERE name = %s;
         machine_name = self.generate_machine_name()
 
         if zone is None:
-            zone = self.zone_monitor.get_zone(cores, self.worker_local_ssd_data_disk, self.worker_pd_ssd_data_disk_size_gb)
+            zone = self.compute_manager.zone_monitor.get_zone(cores, self.worker_local_ssd_data_disk, self.worker_pd_ssd_data_disk_size_gb)
             if zone is None:
                 return
 
@@ -183,7 +182,7 @@ WHERE name = %s;
 
         activation_token = secrets.token_urlsafe(32)
 
-        config, worker_config = create_instance_config(
+        config, worker_config = self.compute_manager.create_instance_config(
             app=self.app,
             zone=zone,
             machine_name=machine_name,
@@ -212,8 +211,7 @@ WHERE name = %s;
         self.add_instance(instance)
         log.info(f'created {instance}')
 
-        await create_instance(
-            app=self.app,
+        await self.compute_manager.create_instance(
             machine_name=machine_name,
             zone=zone,
             config=config,
