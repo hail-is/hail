@@ -19,7 +19,7 @@ class TypedKey(typ: PType, kb: EmitClassBuilder[_], region: Value[Region]) exten
   def isKeyMissing(src: Code[Long]): Code[Boolean] = storageType.isFieldMissing(src, 0)
 
   def loadKey(cb: EmitCodeBuilder, src: Code[Long]): SCode = {
-    typ.loadCheapSCode(cb, storageType.loadField(src, 0))
+    typ.loadCheapSCode(cb, storageType.loadField(src, 0)).get
   }
 
   def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Code[Boolean] = storageType.isFieldMissing(off, 1)
@@ -46,7 +46,7 @@ class TypedKey(typ: PType, kb: EmitClassBuilder[_], region: Value[Region]) exten
     cb += Region.copyFrom(src, dest, storageType.byteSize)
 
   def deepCopy(cb: EmitCodeBuilder, er: EmitRegion, dest: Code[Long], src: Code[Long]): Unit = {
-    storageType.storeAtAddress(cb, dest, region, storageType.loadCheapSCode(cb, src), deepCopy = true)
+    storageType.storeAtAddress(cb, dest, region, storageType.loadCheapSCode(cb, src).get, deepCopy = true)
   }
 
   def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = {

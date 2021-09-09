@@ -208,12 +208,12 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
                   deepCopy = false))
             },
               ob.invoke[Long]("indexOffset"),
-              IEmitCode.present(cb, PCanonicalStruct().loadCheapSCode(cb, 0L)))
+              IEmitCode.present(cb, PCanonicalStruct().loadCheapSCode(cb, 0L).get))
           }
         cb += ob.writeByte(1.asInstanceOf[Byte])
 
         spec.encodedType.buildEncoder(row.st, cb.emb.ecb)
-          .apply(cb, row, ob)
+          .apply(cb, row.get, ob)
 
         cb.assign(n, n + 1L)
       }
@@ -240,9 +240,9 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
         indexWriter.close(cb)
       cb += ob.flush()
       cb += os.invoke[Unit]("close")
-      filenameType.storeAtAddress(cb, pResultType.fieldOffset(result, "filePath"), region, pctx, false)
+      filenameType.storeAtAddress(cb, pResultType.fieldOffset(result, "filePath"), region, pctx.get, false)
       cb += Region.storeLong(pResultType.fieldOffset(result, "partitionCounts"), n)
-      pResultType.loadCheapSCode(cb, result.get)
+      pResultType.loadCheapSCode(cb, result.get).get
     }
   }
 }

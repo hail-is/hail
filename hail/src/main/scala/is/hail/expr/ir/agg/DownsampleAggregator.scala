@@ -33,12 +33,12 @@ class DownsampleBTreeKey(binType: PBaseStruct, pointType: PBaseStruct, kb: EmitC
     val src = cb.newLocal[Long]("dsa_deep_copy_src", srcc)
     cb.ifx(Region.loadBoolean(storageType.loadField(src, "empty")),
       cb += Code._fatal[Unit]("key empty!"))
-    storageType.storeAtAddress(cb, dest, er.region, storageType.loadCheapSCode(cb, src), deepCopy = true)
+    storageType.storeAtAddress(cb, dest, er.region, storageType.loadCheapSCode(cb, src).get, deepCopy = true)
   }
 
   def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = kcomp(cb, k1, k2)
 
-  def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitCode = EmitCode.present(cb.emb, binType.loadCheapSCode(cb, storageType.loadField(off, "bin")))
+  def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitCode = EmitCode.present(cb.emb, binType.loadCheapSCode(cb, storageType.loadField(off, "bin")).get)
 }
 
 
@@ -209,10 +209,10 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
           val src = cb.newLocal("downsample_state_ser_src", srcCode)
           cb += Region.loadBoolean(key.storageType.loadField(src, "empty")).orEmpty(Code._fatal[Unit]("bad"))
           val binCode = binType.loadCheapSCode(cb, key.storageType.loadField(src, "bin"))
-          binET.buildEncoder(binCode.st, kb).apply(cb, binCode, ob)
+          binET.buildEncoder(binCode.st, kb).apply(cb, binCode.get, ob)
 
           val pointCode = pointType.loadCheapSCode(cb, key.storageType.loadField(src, "point"))
-          pointET.buildEncoder(pointCode.st, kb).apply(cb, pointCode, ob)
+          pointET.buildEncoder(pointCode.st, kb).apply(cb, pointCode.get, ob)
         }
         cb += ob.writeInt(DownsampleState.serializationEndMarker)
         Code._empty
@@ -291,13 +291,13 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
         cb += Region.storeInt(binType.fieldOffset(binStaging, "x"), binX)
         cb += Region.storeInt(binType.fieldOffset(binStaging, "y"), binY)
         cb.assign(insertOffset,
-          tree.getOrElseInitialize(cb, EmitCode.present(cb.emb, storageType.fieldType("binStaging").loadCheapSCode(cb, binStaging))))
+          tree.getOrElseInitialize(cb, EmitCode.present(cb.emb, storageType.fieldType("binStaging").loadCheapSCode(cb, binStaging).get)))
         cb.ifx(key.isEmpty(cb, insertOffset), {
           cb.assign(binOffset, key.storageType.loadField(insertOffset, "bin"))
           cb += Region.storeInt(binType.loadField(binOffset, "x"), binX)
           cb += Region.storeInt(binType.loadField(binOffset, "y"), binY)
           cb.assign(insertedPointOffset, key.storageType.loadField(insertOffset, "point"))
-          pointType.storeAtAddress(cb, insertedPointOffset, region, pointType.loadCheapSCode(cb, point), deepCopy = deepCopy)
+          pointType.storeAtAddress(cb, insertedPointOffset, region, pointType.loadCheapSCode(cb, point).get, deepCopy = deepCopy)
           cb += Region.storeBoolean(key.storageType.loadField(insertOffset, "empty"), false)
           cb.assign(treeSize, treeSize + 1)
         })
@@ -368,7 +368,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
               val yc = point.loadField(cb, "y").get(cb).asFloat64.doubleCode(cb)
               val x = cb.newLocal[Double]("x", xc)
               val y = cb.newLocal[Double]("y", yc)
-              val pointc = SingleCodeSCode.fromSCode(cb, point, region).code.asInstanceOf[Code[Long]]
+              val pointc = SingleCodeSCode.fromSCode(cb, point.get, region).code.asInstanceOf[Code[Long]]
               insertIntoTree(cb, xBinCoordinate(x), yBinCoordinate(y), pointc, deepCopy = true)
             })
             cb.assign(i, i + 1)
@@ -394,7 +394,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
         cb.assign(bufferRight, max(bufferRight, x))
         cb.assign(bufferBottom, min(bufferBottom, y))
         cb.assign(bufferTop, max(bufferTop, y))
-        buffer.append(cb, pointType.loadCheapSCode(cb, point))
+        buffer.append(cb, pointType.loadCheapSCode(cb, point).get)
         cb.ifx(buffer.size >= maxBufferSize, dumpBuffer(cb))
       }
     }
@@ -460,8 +460,8 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
 
         cb.ifx((!(isFinite(xx) && isFinite(yy))), cb += Code._return[Unit](Code._empty))
         cb.assign(pointStaging, storageType.loadField(off, "pointStaging"))
-        pointType.fieldType("x").storeAtAddress(cb, pointType.fieldOffset(pointStaging, "x"), region, x, deepCopy = true)
-        pointType.fieldType("y").storeAtAddress(cb, pointType.fieldOffset(pointStaging, "y"), region, y, deepCopy = true)
+        pointType.fieldType("x").storeAtAddress(cb, pointType.fieldOffset(pointStaging, "x"), region, x.get, deepCopy = true)
+        pointType.fieldType("y").storeAtAddress(cb, pointType.fieldOffset(pointStaging, "y"), region, y.get, deepCopy = true)
         l.toI(cb)
           .consume(cb,
             pointType.setFieldMissing(cb, pointStaging, "label"),
@@ -537,7 +537,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
     cb.ifx(treeSize > 0, {
       tree.foreach(cb) { (cb, tv) =>
         val pointCode = pointType.loadCheapSCode(cb, key.storageType.loadField(tv, "point"))
-        pushElement(cb, IEmitCode.present(cb, pointCode))
+        pushElement(cb, IEmitCode.present(cb, pointCode.get))
       }
     })
     finish(cb)

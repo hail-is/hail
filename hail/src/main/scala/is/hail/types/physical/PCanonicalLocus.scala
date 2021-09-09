@@ -108,7 +108,7 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
         representation.store(cb, region, pt.representation.loadCheapSCode(cb, value.asInstanceOf[SCanonicalLocusPointerValue].a), deepCopy)
       case _ =>
         val addr = cb.memoize(representation.allocate(region))
-        storeAtAddress(cb, addr, region, value, deepCopy)
+        storeAtAddress(cb, addr, region, value.get, deepCopy)
         addr
     }
   }
@@ -116,7 +116,7 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
   def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
     value.st match {
       case SCanonicalLocusPointer(pt) =>
-        representation.storeAtAddress(cb, addr, region, pt.representation.loadCheapSCode(cb, value.asInstanceOf[SCanonicalLocusPointerCode].a), deepCopy)
+        representation.storeAtAddress(cb, addr, region, pt.representation.loadCheapSCode(cb, value.asInstanceOf[SCanonicalLocusPointerCode].a).get, deepCopy)
       case _ =>
         val loc = value.asLocus.memoize(cb, "pclocus_store")
         representation.storeAtAddress(cb, addr, region,

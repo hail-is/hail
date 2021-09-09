@@ -42,11 +42,11 @@ class PNDArraySuite extends PhysicalTestUtils {
         // Region 1 just gets 1 ndarray.
         val (_, snd1Finisher) = nd.constructDataFunction(shapeSeq, shapeSeq, cb, codeRegion1)
 
-        val snd1 = snd1Finisher(cb).memoize(cb, "snd1")
+        val snd1 = snd1Finisher(cb)
 
         // Region 2 gets an ndarray at ndaddress2, plus a reference to the one at ndarray 1.
         val (_, snd2Finisher) = nd.constructDataFunction(shapeSeq, shapeSeq, cb, codeRegion2)
-        val snd2 = snd2Finisher(cb).memoize(cb, "snd2")
+        val snd2 = snd2Finisher(cb)
         cb.assign(r2PointerToNDAddress1, nd.store(cb, codeRegion2, snd1, true))
 
         // Return the 1st ndarray

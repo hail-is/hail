@@ -52,7 +52,7 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
     value.st match {
       case SCanonicalCall =>
         val newAddr = cb.memoize(region.allocate(representation.alignment, representation.byteSize))
-        storeAtAddress(cb, newAddr, region, value, deepCopy)
+        storeAtAddress(cb, newAddr, region, value.get, deepCopy)
         newAddr
     }
   }

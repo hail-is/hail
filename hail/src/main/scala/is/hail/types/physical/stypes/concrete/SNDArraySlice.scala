@@ -70,7 +70,7 @@ class SNDArraySliceValue(
   }
 
   override def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SCode =
-    pt.elementType.loadCheapSCode(cb, loadElementAddress(indices, cb))
+    pt.elementType.loadCheapSCode(cb, loadElementAddress(indices, cb)).get
 
   override def get: SNDArraySliceCode = new SNDArraySliceCode(st, shapes, strides, firstDataAddress)
 
