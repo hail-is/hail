@@ -244,6 +244,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         addElementBinding(name, a)
       case RunAggScan(a, name, init, seqs, result, signature) =>
         addElementBinding(name, a)
+      case AggFold(zero, combine, accumName) =>
+        addBinding(accumName, zero)
+        // TODO: Needs more I think.
       case AggExplode(a, name, aggBody, isScan) =>
         addElementBinding(name, a)
       case AggArrayPerElement(a, elt, idx, body, knownLength, isScan) =>
@@ -614,6 +617,10 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           initOpArgs.map(i => i -> lookup(i)),
           seqOpArgs.map(s => s -> lookup(s)))).emitResultType
         requiredness.fromEmitType(emitResult)
+      case AggFold(zero, combine, accumName) =>
+        // TODO: Probably not enough
+        requiredness.unionFrom(lookup(zero))
+        requiredness.unionFrom(lookup(combine))
       case MakeNDArray(data, shape, rowMajor, _) =>
         requiredness.unionFrom(lookup(data))
         requiredness.union(lookup(shape).required)

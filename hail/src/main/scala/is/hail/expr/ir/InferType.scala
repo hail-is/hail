@@ -217,6 +217,8 @@ object InferType {
         aggSig.returnType
       case ApplyScanOp(_, _, aggSig) =>
         aggSig.returnType
+      case AggFold(zero, combine, accumName) =>
+        zero.typ
       case MakeStruct(fields) =>
         TStruct(fields.map { case (name, a) =>
           (name, a.typ)

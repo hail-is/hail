@@ -191,6 +191,8 @@ object Children {
       initOpArgs ++ seqOpArgs
     case ApplyScanOp(initOpArgs, seqOpArgs, aggSig) =>
       initOpArgs ++ seqOpArgs
+    case AggFold(zero, combine, accumName) =>
+      Array(zero, combine)
     case GetField(o, name) =>
       Array(o)
     case MakeTuple(fields) =>

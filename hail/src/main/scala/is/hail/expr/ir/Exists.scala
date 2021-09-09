@@ -49,6 +49,7 @@ object IsScanResult {
 object IsAggResult {
   def apply(root: IR): Boolean = root match {
     case _: ApplyAggOp => true
+    case _: AggFold => true
     case AggFilter(_, _, isScan) => !isScan
     case AggExplode(_, _, _, isScan) => !isScan
     case AggGroupBy(_, _, isScan) => !isScan

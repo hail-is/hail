@@ -803,4 +803,12 @@ class AggregatorsSuite extends HailSuite {
     runAggregator(ImputeType(), TString, FastIndexedSeq("1231", "123"), Row(true, true, false, true, true, true))
     runAggregator(ImputeType(), TString, FastIndexedSeq("true", "false"), Row(true, true, true, false, false, false))
   }
+
+  @Test def testFold(): Unit = {
+    val myIR = StreamAgg(mapIR(rangeIR(100)){ idx => makestruct(("idx", idx))}, "foo",
+      AggFold(I32(0), Ref("bar", TInt32) + GetField(Ref("foo", TStruct("idx" -> TInt32)), "idx"), "bar")
+    )
+    TypeCheck(myIR)
+    assertEvalsTo(myIR, null)
+  }
 }

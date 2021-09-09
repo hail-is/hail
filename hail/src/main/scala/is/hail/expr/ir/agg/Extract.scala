@@ -46,7 +46,11 @@ object AggStateSig {
         DownsampleStateSig(labelType)
       case ImputeType() => ImputeTypeStateSig()
       case NDArraySum() => NDArraySumStateSig(seqVTypes.head.setRequired(false)) // set required to false to handle empty aggs
+<<<<<<< HEAD
       case NDArrayMultiplyAdd() => NDArrayMultiplyAddStateSig(seqVTypes.head.setRequired(false))
+=======
+      case Fold() => FoldStateSig(seqVTypes.head)
+>>>>>>> 1461e3842 (WIP on folding)
       case _ => throw new UnsupportedExtraction(op.toString)
     }
   }
@@ -96,6 +100,7 @@ case class NDArraySumStateSig(nda: VirtualTypeWithReq) extends AggStateSig(Array
 case class NDArrayMultiplyAddStateSig(nda: VirtualTypeWithReq) extends AggStateSig(Array[VirtualTypeWithReq](nda), None) {
   require(!nda.r.required)
 }
+case class FoldStateSig(vt: VirtualTypeWithReq) extends AggStateSig(Array(vt), None)
 
 object PhysicalAggSig {
   def apply(op: AggOp, state: AggStateSig): PhysicalAggSig = BasicPhysicalAggSig(op, state)
@@ -344,8 +349,13 @@ object Extract {
       new GroupedAggregator(k, nested.map(getAgg).toArray)
     case PhysicalAggSig(NDArraySum(), NDArraySumStateSig(nda)) =>
       new NDArraySumAggregator(nda)
+<<<<<<< HEAD
     case PhysicalAggSig(NDArrayMultiplyAdd(), NDArrayMultiplyAddStateSig(nda)) =>
       new NDArrayMultiplyAddAggregator(nda)
+=======
+    case PhysicalAggSig(Fold(), FoldStateSig(vt)) =>
+      new FoldAggregator(???, ???, ???)
+>>>>>>> 1461e3842 (WIP on folding)
   }
 
   def apply(ir: IR, resultName: String, r: RequirednessAnalysis, isScan: Boolean = false): Aggs = {
@@ -391,9 +401,18 @@ object Extract {
           i
         })
         GetTupleElement(result, idx)
-      case x@AggFold(zero, combine) =>
+      case x@AggFold(zero, combine, accumName) =>
         val idx = memo.getOrElseUpdate(x, {
-          ???
+          val i = ab.length
+          val initOpArgs = IndexedSeq(zero)
+          val seqOpArgs = IndexedSeq(combine)
+          val op = Fold()
+          val signature = PhysicalAggSig(op, AggStateSig(op, initOpArgs, seqOpArgs, r))
+          ab += InitOp(i, initOpArgs, signature) -> signature
+          // So combine has to be able to reference accumName
+          val seq = Let(accumName, ResultOp(i, IndexedSeq(signature)), SeqOp(i, seqOpArgs, signature))
+          seqBuilder += seq
+          i
         })
         GetTupleElement(result, idx)
       case AggFilter(cond, aggIR, _) =>

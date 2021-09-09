@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.expr.ir.Bindings.empty
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -43,6 +44,7 @@ object Bindings {
     case StreamJoinRightDistinct(ll, rr, _, _, l, r, _, _) => if (i == 2) Array(l -> coerce[TStream](ll.typ).elementType, r -> coerce[TStream](rr.typ).elementType) else empty
     case ArraySort(a, left, right, _) => if (i == 1) Array(left -> coerce[TStream](a.typ).elementType, right -> coerce[TStream](a.typ).elementType) else empty
     case AggArrayPerElement(a, _, indexName, _, _, _) => if (i == 1) FastIndexedSeq(indexName -> TInt32) else empty
+    case AggFold(zero, _, accumName) => if (i == 1) FastIndexedSeq(accumName -> zero.typ) else empty
     case NDArrayMap(nd, name, _) => if (i == 1) Array(name -> coerce[TNDArray](nd.typ).elementType) else empty
     case NDArrayMap2(l, r, lName, rName, _, _) => if (i == 2) Array(lName -> coerce[TNDArray](l.typ).elementType, rName -> coerce[TNDArray](r.typ).elementType) else empty
     case CollectDistributedArray(contexts, globals, cname, gname, _, _) => if (i == 2) Array(cname -> coerce[TStream](contexts.typ).elementType, gname -> globals.typ) else empty
@@ -93,6 +95,7 @@ object AggBindings {
       case RelationalLet(_, _, _) => None
       case CollectDistributedArray(_, _, _, _, _, _) if (i == 2) => None
       case _: ApplyAggOp => None
+      case _: AggFold => None
       case _: IR => base
 
       case TableAggregateByKey(child, _) => if (i == 1) Some(child.typ.rowEnv.m) else None
@@ -177,6 +180,7 @@ object ChildEnvWithoutBindings {
       case StreamAggScan(_, _, _) => if (i == 1) BindingEnv(eval = env.eval, agg = env.agg.map(_ => Env.empty), scan = Some(env.eval), relational = env.relational) else env
       case ApplyAggOp(init, _, _) => if (i < init.length) env.copy(agg = None) else env.promoteAgg
       case ApplyScanOp(init, _, _) => if (i < init.length) env.copy(scan = None) else env.promoteScan
+      case AggFold(zero, _, name) => if (i == 0) env.copy(agg = None) else env.promoteAgg //TODO Idk what I'm doing here.
       case CollectDistributedArray(_, _, _, _, _, _) => if (i == 2) BindingEnv(relational = env.relational) else env
       case MatrixAggregate(_, _) => if (i == 0) BindingEnv(relational = env.relational) else BindingEnv(Env.empty, agg = Some(Env.empty), relational = env.relational)
       case TableAggregate(_, _) => if (i == 0) BindingEnv(relational = env.relational) else BindingEnv(Env.empty, agg = Some(Env.empty), relational = env.relational)

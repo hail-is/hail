@@ -11,12 +11,22 @@ class FoldAggregator(val initOpTypes: Seq[Type], val seqOpTypes: Seq[Type], val 
   override type State = TypedRegionBackedAggState
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
-    ???
+    val Array(initEC) = init
+    initEC.toI(cb).consume(cb, state.storeMissing(cb), sc => state.storeNonmissing(cb, sc))
   }
 
-  override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = ???
+  override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
+    val Array(elt: EmitCode) = seq
+    elt.toI(cb).consume(cb, state.storeMissing(cb), sc => state.storeNonmissing(cb, sc))
+  }
 
-  override protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = ???
+  override protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
 
-  override protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = ???
+  }
+
+  override protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
+    state.get(cb).consume(cb,
+      ifMissing(cb),
+      { sc => pt.storeAtAddress(cb, addr, region, sc, deepCopy = true) })
+  }
 }

@@ -297,6 +297,8 @@ object Copy {
           args.take(x.nInitArgs),
           args.drop(x.nInitArgs),
           aggSig)
+      case AggFold(_, _, accumName) =>
+        AggFold(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], accumName)
       case MakeTuple(fields) =>
         assert(fields.length == newChildren.length)
         MakeTuple(fields.zip(newChildren).map { case ((i, _), newValue) => (i, newValue.asInstanceOf[IR]) })

@@ -25,7 +25,7 @@ case class BindingEnv[V](
   def allEmpty: Boolean = eval.isEmpty && agg.forall(_.isEmpty) && scan.forall(_.isEmpty) && relational.isEmpty
 
   def promoteAgg: BindingEnv[V] = {
-    BindingEnv(agg.get, scan = scan, relational = relational)
+    BindingEnv(agg.getOrElse(Env.empty[V]), scan = scan, relational = relational)
   }
 
   def promoteScan: BindingEnv[V] = {
