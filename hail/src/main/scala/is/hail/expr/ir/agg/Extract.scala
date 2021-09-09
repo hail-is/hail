@@ -313,10 +313,7 @@ object Extract {
     case AggSignature(Downsample(), _, Seq(_, _, label)) => DownsampleAggregator.resultType
     case AggSignature(NDArraySum(), _, Seq(t)) => t
     case AggSignature(NDArrayMultiplyAdd(), _, Seq(a : TNDArray, _)) => a
-    case _ =>  println("aggSig to String" + aggSig.toString)
-      println("strack trace" + aggSig.st)
-      throw new UnsupportedExtraction(aggSig.toString)
-
+    case _ => throw new UnsupportedExtraction(aggSig.toString)
   }
 
   def getAgg(sig: PhysicalAggSig): StagedAggregator = sig match {

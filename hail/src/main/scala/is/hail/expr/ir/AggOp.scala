@@ -29,7 +29,6 @@ case class AggSignature(
 
   // only to be used with virtual non-nested signatures on ApplyAggOp and ApplyScanOp
   lazy val returnType: Type = Extract.getResultType(this)
-  val st = Thread.currentThread().getStackTrace.mkString("\n")
 }
 
 sealed trait AggOp {}

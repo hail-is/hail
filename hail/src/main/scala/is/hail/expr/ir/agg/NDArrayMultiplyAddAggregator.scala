@@ -50,7 +50,7 @@ class NDArrayMultiplyAddAggregator(nDVTyp: VirtualTypeWithReq) extends StagedAgg
           statePV.loadField(cb, ndarrayFieldNumber).consume(cb,
             {
               cb += state.region.getNewRegion(Region.REGULAR)
-              cb += state.storageType.setFieldPresent(state.off, ndarrayFieldNumber)
+              cb += state.storageType.setFieldPresent(state.off.get, ndarrayFieldNumber)
               val shape = IndexedSeq(NDArrayA.shapes(0), NDArrayB.shapes(1))
               val uninitializedNDArray = ndTyp.constructUnintialized(shape, ndTyp.makeColumnMajorStrides(shape, tempRegionForCreation, cb), cb, tempRegionForCreation)
               state.storeNonmissing(cb, uninitializedNDArray.get)
