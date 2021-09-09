@@ -48,7 +48,7 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
     combine(cb, ev, update)
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
+  protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: PrimitiveRVAState, other: PrimitiveRVAState): Unit = {
     val ev1 = state.fields(0)
     val ev2 = other.fields(0)
     combine(cb, ev1, ev2)

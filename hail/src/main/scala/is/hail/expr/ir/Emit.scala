@@ -664,7 +664,7 @@ class Emit[C](
         val AggContainer(aggs, sc, _) = container.get
         assert(sig.state == aggs(i1) && sig.state == aggs(i2))
         val rvAgg = agg.Extract.getAgg(sig)
-        rvAgg.combOp(cb, sc.states(i1), sc.states(i2))
+        rvAgg.combOp(ctx.executeContext, cb, sc.states(i1), sc.states(i2))
 
       case x@SerializeAggs(start, sIdx, spec, sigs) =>
         val AggContainer(_, sc, _) = container.get
@@ -727,7 +727,7 @@ class Emit[C](
             tempState.createState(cb)
             tempState.newState(cb)
             tempState.deserializeFromBytes(cb, serializedValue)
-            rvAgg.combOp(cb, sc.states(i), tempState)
+            rvAgg.combOp(ctx.executeContext, cb, sc.states(i), tempState)
           }
         )
 

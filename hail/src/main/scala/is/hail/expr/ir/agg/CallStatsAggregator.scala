@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitContext, ExecuteContext, IEmitCode}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.EmitType
@@ -163,7 +163,7 @@ class CallStatsAggregator extends StagedAggregator {
     })
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
+  protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: CallStatsState, other: CallStatsState): Unit = {
     val i = state.kb.genFieldThisRef[Int]()
     cb.ifx(other.nAlleles.cne(state.nAlleles),
       cb += Code._fatal[Unit]("length mismatch"),

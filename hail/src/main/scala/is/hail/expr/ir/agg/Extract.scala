@@ -46,11 +46,8 @@ object AggStateSig {
         DownsampleStateSig(labelType)
       case ImputeType() => ImputeTypeStateSig()
       case NDArraySum() => NDArraySumStateSig(seqVTypes.head.setRequired(false)) // set required to false to handle empty aggs
-<<<<<<< HEAD
       case NDArrayMultiplyAdd() => NDArrayMultiplyAddStateSig(seqVTypes.head.setRequired(false))
-=======
       case Fold() => FoldStateSig(seqVTypes.head)
->>>>>>> 1461e3842 (WIP on folding)
       case _ => throw new UnsupportedExtraction(op.toString)
     }
   }
@@ -252,7 +249,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
 
       for (i <- 0 until nAggs) {
         val rvAgg = agg.Extract.getAgg(aggs(i))
-        rvAgg.combOp(cb, leftAggState.states(i), rightAggState.states(i))
+        rvAgg.combOp(ctx, cb, leftAggState.states(i), rightAggState.states(i))
       }
 
       leftAggState.store(cb)

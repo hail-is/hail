@@ -1,7 +1,7 @@
 package is.hail.expr.ir.agg
 import is.hail.annotations.Region
 import is.hail.asm4s.Value
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, ExecuteContext}
 import is.hail.types.physical.PType
 import is.hail.types.virtual.Type
 
@@ -20,7 +20,7 @@ class FoldAggregator(val initOpTypes: Seq[Type], val seqOpTypes: Seq[Type], val 
     elt.toI(cb).consume(cb, state.storeMissing(cb), sc => state.storeNonmissing(cb, sc))
   }
 
-  override protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
+  override protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: TypedRegionBackedAggState, other: TypedRegionBackedAggState): Unit = {
 
   }
 
