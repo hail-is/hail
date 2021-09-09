@@ -563,7 +563,8 @@ def is_transient_error(e):
             and 'QUOTA_EXCEEDED' in e.error_codes):
         return True
     if isinstance(e, hailtop.httpx.ClientResponseError) and (
-            e.status == 403 and 'rateLimitExceeded' in e.body):
+            (e.status in RETRYABLE_HTTP_STATUS_CODES) or
+            (e.status == 403 and 'rateLimitExceeded' in e.body)):
         return True
     if isinstance(e, aiohttp.ServerTimeoutError):
         return True
