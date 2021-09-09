@@ -711,6 +711,8 @@ class BatchClient:
             resp = await self._get('/api/v1alpha/batches', params=params)
             body = await resp.json()
 
+            print(f'request: /api/v1alpha/batches {params}\n  return: {body}')
+
             for batch in body['batches']:
                 if n >= limit:
                     return
