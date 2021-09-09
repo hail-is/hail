@@ -2183,12 +2183,9 @@ def import_matrix_table2(paths,
         return time_name_encountered, dups
 
     def get_final_row_fields(header_dict):
-        if not no_header:
-            dups = find_duplicates(header_dict.row_fields)[1]
-            if len(dups) > 0:
-                raise FatalError(f"Found following duplicate row fields in header:\n" + '\n'.join(dups))
-
-        verified_row_fields = {}
+        unique_fields = {}
+        duplicates = []
+        header_idx = 0
         for header_rowf in header_dict.row_fields:
             rowf_type = row_fields.get(header_rowf)
             if rowf_type is None:
@@ -2199,25 +2196,56 @@ def import_matrix_table2(paths,
                 raise FatalError(f"In file {header_dict.file}, found a row field, {header_rowf}, was found thats not "
                                  f"in 'row fields':\n"
                                  f"row fields found in file: {header_fields_string}    row_fields: {row_fields_string}")
-            verified_row_fields[header_rowf] = rowf_type
-        return verified_row_fields
+            if header_rowf in unique_fields:
+                duplicates.append(header_rowf)
+            else:
+                unique_fields[header_rowf] = True
+            header_idx += 1
+        if len(dups) > 0:
+            raise FatalError(f"Found following duplicate row fields in header:\n" + '\n'.join(dups))
 
     def get_start_row_per_file_dict(first_rows):
         return {paths[match_file_name_to_index(first_row.file)]: first_row.row_idx for first_row in first_rows}
 
-    def parse_entries(row, column_start, num_columns):
-        entry_array = row.split_array[column_start:]
-        return hl.rbind(entry_array.map(lambda entry: parse_type(entry, entry_type)), lambda parsed_array: hl.case()
-                        .when(hl.len(parsed_array) == num_columns, parsed_array)
-                        .or_error(""))
+    def parse_entries(row, column_ids):
+        num_columns = len(column_ids)
+        entry_array = row.split_array[num_of_row_fields: num_columns + num_of_row_fields]
+        return hl.range(0, num_columns).map(lambda entry_idx: parse_type_or_error(entry_array[entry_idx], entry_type,
+                                                                                  row, column_ids[entry_idx], False))
 
-    def parse_rows(row, column_start, num_rows, final_rows):
-        row_array = row.split_array[:column_start]
-        return {row_name: parse_type(row_array[idx], row_type) for idx in range(num_rows)
-                for row_name, row_type in list(final_rows.items())}
+    def parse_rows(row):
+        row_array = row.split_array[:num_of_row_fields]
+        rows_list = list(row_fields.items())
+        return {rows_list[idx][0]:
+                parse_type_or_error(row_array[idx], rows_list[idx][1], row,
+                                    rows_list[idx][0]) for idx in range(num_of_row_fields)}
 
     def get_line_number(row):
-        return row.row_idx - file_start_dict[match_file_name_to_index(row.file, True)]
+        return row.row_idx - file_start_dict[paths[match_file_name_to_index(row.file, True)]]
+
+    def error_msg(row, value, msg):
+        return hl.str("in file ") + hl.str(row.file) + hl.str(" on line ") + hl.str(get_line_number(row)) \
+               + hl.str(" at value ") + hl.str(value) + hl.str(": ") + hl.str(msg)
+
+    def parse_type_or_error(value, hail_type, row, identifier, row_field=True):
+        if hail_type == hl.tint32:
+            parsed_type = hl.parse_int32(value)
+        elif hail_type == hl.tint64:
+            parsed_type = hl.parse_int64(value)
+        elif hail_type == hl.tfloat32:
+            parsed_type = hl.parse_float32()
+        elif hail_type == hl.tfloat64:
+            parsed_type = hl.parse_float64()
+        else:
+            parsed_type = value
+
+        error_clarify_msg = f" at row field '{identifier}'" if row_field else\
+            f" at column id '{identifier}' for entry field 'x'"
+
+        return hl.if_else(hl.is_missing(value), hl.missing(hail_type),
+                          hl.case().when(not hl.is_missing(parsed_type), parsed_type)
+                          .or_error(error_msg(row, value,
+                                              f"error parsing value into {str(hail_type)}" + error_clarify_msg)))
 
     num_of_row_fields = len(row_fields.keys())
     add_row_id = False
@@ -2263,7 +2291,6 @@ def import_matrix_table2(paths,
     file_start_dict = get_start_row_per_file_dict(first_lines)
     if not no_header:
         def validate_header_get_info_dict(header_line, first_data_line):
-            header_dict = {}
             num_of_data_line_values = len(first_data_line.split_array)
             num_of_header_values = len(header_line.split_array)
             if header_line is None or match_file_name_to_index(header_line.file, True) != 0:
@@ -2274,12 +2301,12 @@ def import_matrix_table2(paths,
                     raise ValueError(f"File {header_line.file} contains one line assumed to be the header."
                                      f"The header had a length of {num_of_header_values} while the number"
                                      f"of row fields is {num_of_row_fields}")
-                header_dict.row_fields = header_line.split_array[:num_of_row_fields]
-                header_dict.column_ids = header_line.split_array[num_of_row_fields:]
+                user_row_fields = header_line.split_array[num_of_row_fields:]
+                column_ids = header_line.split_array[num_of_row_fields:]
             elif num_of_data_line_values != num_of_header_values:
                 if num_of_data_line_values == num_of_header_values + num_of_row_fields:
-                    header_dict.row_fields = ["f" + str(f_idx) for f_idx in list(range(0, num_of_row_fields))]
-                    header_dict.column_ids = header_line.split_array
+                    user_row_fields = ["f" + str(f_idx) for f_idx in list(range(0, num_of_row_fields))]
+                    column_ids = header_line.split_array
                 else:
                     raise ValueError(f"In file $file, expected the header line to match either:\n rowField0 rowField1"
                                      f" ... rowField${num_of_row_fields} colId0 colId1 ...\nor\n colId0 colId1 ...\n"
@@ -2288,12 +2315,10 @@ def import_matrix_table2(paths,
                                      f" {num_of_header_values} separated values and the second line"
                                      f" contained {num_of_data_line_values}")
             else:
-                header_dict.row_fields = header_line.split_array[:num_of_row_fields]
-                header_dict.column_ids = header_line.split_array[num_of_row_fields:]
-            header_dict.text = header_line.text
-            header_dict.header_values = header_line.split_array
-            header_dict.path = header_line.file
-            return header_dict
+                user_row_fields = header_line.split_array[:num_of_row_fields]
+                column_ids = header_line.split_array[num_of_row_fields:]
+            return {'text': header_line.text, 'header_values': header_line.split_array, 'path': header_line.file,
+                    row_fields: user_row_fields, column_ids: column_ids}
 
         def warn_duplicates(col_id_dic, duplicate_cols):
             import itertools as it
@@ -2362,17 +2387,36 @@ def import_matrix_table2(paths,
                                [col_id for col_id in list(range(0, len(first_line.split_array) - num_of_row_fields))]
                            }
 
-    final_row_types = get_final_row_fields(header_info)
+    get_final_row_fields(header_info)
     hl_comment = hl.array(comment)
     ht = ht.filter(
-        hl.len(ht.text) > 0 | hl.if_else(len(comment > 0),
+        hl.len(ht.text) == 0 | hl.if_else(len(comment > 0),
                                          hl_comment.any(lambda com: hl.if_else(hl.len(com) == 1,
                                                                                ht.text.startswith(com),
-                                                                               ht.text.matches(com, False))),
-                                         keep=hl.bool(False)))
+                                                                               ht.text.matches(com, False))), False)
+                                          | hl.if_else(no_header, False, ht.text == header_info['text']), False)
 
     ht = ht.annotate(split_array=ht.text._split_line(delimiter, missing, regex=False)).add_index('row_id')
-    ht = ht.annotate(text=hl.rbind(hl.if_else(ht.split))hl.case().when(hl.len(ht.split_array[]))
+    ht = ht.annotate(text=hl.rbind(
+        hl.if_else(hl.len(ht.split_array) < num_of_row_fields,
+                   error_msg(ht, hl.len(ht.split_array), " unexpected end of line while reading row field"),
+                   hl.if_else(
+                       len(header_info.column_ids) >
+                       hl.len(ht.split_array[num_of_row_fields: num_of_row_fields + len(header_info['column_ids'])]),
+                       error_msg(ht, hl.len(ht.split_array), " unexpected end of line while reading entries"),
+                       ht.text)), lambda text_or_error: hl.case().when(text_or_error == ht.text, ht.text)
+        .or_error(text_or_error)), **parse_rows(ht),
+        entries=parse_entries(ht, header_info.column_ids).map(lambda entry: hl.struct(x=entry)))\
+        .drop('text', 'split_array', 'file')
+
+    ht = ht.annotate_globals(cols=hl.range(0, len(header_info.column_ids))
+                             .map(lambda col_idx: hl.struct(col_idx=header_info.column_ids[col_idx])))
+
+    if not add_row_id:
+        ht = ht.drop('row_id')
+
+    mt = ht._unlocalize_entries('entries', 'cols', ['col_idx'])
+    mt = mt.key_rows_by(*row_key)
 
 
 @typecheck(bed=str,
