@@ -73,3 +73,32 @@ def test_sampleqc_old_new_equivalence():
     assert res.aggregate_cols(hl.all(
         *(hl.agg.all(res.sample_qc[field] == res.sample_qc_new[field]) for field in fields_to_test)
     ))
+
+
+@fails_local_backend
+@fails_service_backend
+def test_combiner_works(self):
+    from hail.vds.combiner import combine_varant_datasets, transform_gvcf
+    _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
+    paths = [resource(p) for p in _paths]
+    parts = [
+        hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 17821257, reference_genome='GRCh38')),
+                    end=hl.Struct(locus=hl.Locus('chr20', 18708366, reference_genome='GRCh38')),
+                    includes_end=True),
+        hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 18708367, reference_genome='GRCh38')),
+                    end=hl.Struct(locus=hl.Locus('chr20', 19776611, reference_genome='GRCh38')),
+                    includes_end=True),
+        hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 19776612, reference_genome='GRCh38')),
+                    end=hl.Struct(locus=hl.Locus('chr20', 21144633, reference_genome='GRCh38')),
+                    includes_end=True)
+    ]
+    vcfs = [transform_gvcf(mt.annotate_rows(info=mt.info.annotate(
+        MQ_DP=hl.missing(hl.tint32),
+        VarDP=hl.missing(hl.tint32),
+        QUALapprox=hl.missing(hl.tint32))))
+            for mt in hl.import_gvcfs(paths, parts, reference_genome='GRCh38',
+                                      array_elements_required=False)]
+    comb = combine_varant_datasets(vcfs)
+    self.assertEqual(len(parts), comb.variant_data.n_partitions())
+    vds_path = new_temp_file()
+    comb.write(vds_path)
