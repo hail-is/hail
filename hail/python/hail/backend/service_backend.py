@@ -5,6 +5,7 @@ import os
 import json
 import logging
 import contextlib
+import re
 from pathlib import Path
 
 from hail.context import TemporaryDirectory, tmp_dir
@@ -112,6 +113,8 @@ class Timings:
 
 
 class ServiceBackend(Backend):
+    HAIL_BATCH_FAILURE_EXCEPTION_MESSAGE_RE = re.compile("is.hail.backend.service.HailBatchFailure: ([0-9]+)\n")
+
     LOAD_REFERENCES_FROM_DATASET = 1
     VALUE_TYPE = 2
     TABLE_TYPE = 3
@@ -261,6 +264,20 @@ class ServiceBackend(Backend):
                         raise ValueError(f'batch id was {b.id}\ncould not decode {s}') from err
                 else:
                     jstacktrace = read_str(outfile)
+                    maybe_id = ServiceBackend.HAIL_BATCH_FAILURE_EXCEPTION_MESSAGE_RE.match(jstacktrace)
+                    if maybe_id:
+                        batch_id = maybe_id.groups()[0]
+                        b2 = self.async_bc.get_batch(batch_id)
+                        b2_status = await b2.status()
+                        assert b2_status['state'] != 'success'
+                        failed_jobs = []
+                        async for j in b2.jobs():
+                            j_status = await j.status()
+                            if j_status['state'] != 'Success':
+                                failed_jobs += {'status': j_status, 'log': await j.log()}
+                        debug_info = {'batch_status': b2_status, 'failed_jobs': failed_jobs}
+                        raise FatalError(json.dumps(
+                            {'id': batch_id, 'batch_status': b2_status, 'failed_jobs': failed_jobs}))
                     raise FatalError(f'batch id was {b.id}\n' + jstacktrace)
 
         typ = dtype(resp['type'])

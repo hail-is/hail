@@ -37,6 +37,7 @@ import java.util.concurrent._
 import scala.annotation.switch
 import scala.reflect.ClassTag
 import scala.{concurrent => scalaConcurrent}
+import scala.collection.mutable
 
 
 class ServiceBackendContext(
@@ -182,8 +183,9 @@ class ServiceBackend(
     implicit val formats: Formats = DefaultFormats
     val batchID = (batch \ "id").extract[Int]
     val batchState = (batch \ "state").extract[String]
-    if (batchState != "success")
-      throw new RuntimeException(s"batch $batchID failed: $batchState")
+    if (batchState != "success") {
+      throw new HailBatchFailure(s"$batchID")
+    }
 
     log.info(s"parallelizeAndComputeWithIndex: $token: reading results")
 
@@ -439,6 +441,7 @@ class ServiceBackend(
 }
 
 class EndOfInputException extends RuntimeException
+class HailBatchFailure extends RuntimeException
 
 object ServiceBackendSocketAPI2 {
   def main(argv: Array[String]): Unit = {
