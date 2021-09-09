@@ -1821,6 +1821,10 @@ steps:
 
       PYTHONPATH=$PYTHONPATH:$(pwd)/hail/python make -C hail hail-docs-no-test batch-docs
 
+      gsutil cp gs://hail-common/builds/0.1/docs/hail-0.1-docs-5a6778710097.tar.gz .
+      mkdir ../hail/build/www/docs/0.1
+      tar -xvzf hail-0.1-docs-5a6778710097.tar.gz -C ../hail/build/www/docs/0.1 --strip-components 2
+
       tar czf /io/docs.tar.gz -C hail/build/www .
     resources:
       memory: 7.5G

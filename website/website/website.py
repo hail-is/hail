@@ -42,10 +42,14 @@ redirect('/docs/batch', 'batch/index.html')
 redirect('/docs/batch/', 'index.html')
 redirect('/docs/0.2', '0.2/index.html')
 redirect('/docs/0.2/', 'index.html')
+redirect('/docs/0.1', '0.1/index.html')
+redirect('/docs/0.1/', 'index.html')
 
 
 DOCS_PATH = f'{MODULE_PATH}/docs/'
-STATIC_DOCS_PATHS = ['0.2/_static', '0.2/_sources', 'batch']
+STATIC_DOCS_PATHS = ['0.2/_static', '0.2/_sources',
+                     'batch',
+                     '0.1']
 FQ_STATIC_DOCS_PATHS: Set[str] = set()
 
 
