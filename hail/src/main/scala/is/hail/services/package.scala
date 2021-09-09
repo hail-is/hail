@@ -45,6 +45,8 @@ package object services {
         true
       case e: NoRouteToHostException =>
         true
+      case e: SocketTimeoutException =>
+        true
       case e: SocketException =>
         e.getMessage != null && (
           e.getMessage.contains("Connection reset") ||
