@@ -115,21 +115,21 @@ class IndexWriterArrayBuilder(name: String, maxSize: Int, sb: SettableBuilder, r
 
   def create(cb: EmitCodeBuilder, dest: Code[Long]): Unit = {
     cb.assign(aoff, arrayType.allocate(region, maxSize))
-    cb += arrayType.stagedInitialize(aoff, maxSize)
+    arrayType.stagedInitialize(cb, aoff, maxSize)
     arrayType.storeAtAddress(cb, dest, region, arrayType.loadCheapSCode(cb, aoff), deepCopy = false)
     cb.assign(len, 0)
   }
 
-  def storeLength(cb: EmitCodeBuilder): Unit = cb += arrayType.storeLength(aoff, length)
+  def storeLength(cb: EmitCodeBuilder): Unit = arrayType.storeLength(cb, aoff, length)
 
   def setFieldValue(cb: EmitCodeBuilder, name: String, field: SCode): Unit = {
-    cb += eltType.setFieldPresent(elt.a, name)
+    eltType.setFieldPresent(cb, elt.a, name)
     eltType.fieldType(name).storeAtAddress(cb, eltType.fieldOffset(elt.a, name), region, field, deepCopy = true)
   }
 
   def setField(cb: EmitCodeBuilder, name: String, v: => IEmitCode): Unit =
     v.consume(cb,
-      cb += eltType.setFieldMissing(elt.a, name),
+      eltType.setFieldMissing(cb, elt.a, name),
       setFieldValue(cb, name, _))
 
   def addChild(cb: EmitCodeBuilder): Unit = {

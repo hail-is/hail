@@ -4,7 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.stypes.interfaces.{SContainer, SIndexableCode, SIndexableValue}
-import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType}
+import is.hail.types.physical.stypes._
 import is.hail.types.physical.{PCanonicalArray, PCanonicalString, PType}
 import is.hail.types.virtual.{TArray, TString, Type}
 import is.hail.utils.FastIndexedSeq
@@ -36,9 +36,9 @@ final case class SJavaArrayString(elementRequired: Boolean) extends SContainer {
 
   override def elementEmitType: EmitType = EmitType(elementType, elementRequired)
 
-  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = {
     value.st match {
-      case SJavaArrayString(_) => new SJavaArrayStringCode(this, value.asInstanceOf[SJavaArrayStringCode].array)
+      case SJavaArrayString(_) => new SJavaArrayStringValue(this, value.asInstanceOf[SJavaArrayStringValue].array)
     }
   }
 
@@ -104,6 +104,8 @@ class SJavaArrayStringValue(
     else
       Code.invokeScalaObject1[Array[String], Boolean](SJavaArrayHelpers.getClass, "hasNulls", array)
   }
+
+  override def castToArray(cb: EmitCodeBuilder): SIndexableValue = this
 }
 
 object SJavaArrayStringSettable {

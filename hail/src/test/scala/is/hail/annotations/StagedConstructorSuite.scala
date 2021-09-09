@@ -26,7 +26,7 @@ class StagedConstructorSuite extends HailSuite {
     fb.emitWithBuilder { cb =>
       val st = SStringPointer(rt)
       val region = fb.emb.getCodeParam[Region](1)
-      rt.store(cb, region, st.constructFromString(cb, region, fb.getCodeParam[String](2)), deepCopy = false)
+      rt.store(cb, region, st.constructFromString(cb, region, fb.getCodeParam[String](2)).memoize(cb, "test"), deepCopy = false)
     }
 
     val region = Region(pool=pool)
@@ -63,7 +63,7 @@ class StagedConstructorSuite extends HailSuite {
     val fb = EmitFunctionBuilder[Region, Int, Long](ctx, "fb")
 
     fb.emitWithBuilder { cb =>
-      rt.store(cb, fb.emb.getCodeParam[Region](1), primitive(fb.getCodeParam[Int](2)), deepCopy = false)
+      rt.store(cb, fb.emb.getCodeParam[Region](1), primitive(fb.getCodeParam[Int](2)).memoize(cb, "test"), deepCopy = false)
     }
 
     val region = Region(pool=pool)

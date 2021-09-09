@@ -53,11 +53,11 @@ object EmitStreamDistribute {
       val splittersWasDuplicatedPType = PCanonicalArray(PBooleanRequired)
 
       val paddedSplittersAddr = cb.newLocal[Long]("stream_dist_splitters_addr", paddedSplittersPType.allocate(region, paddedSplittersSize))
-      cb += paddedSplittersPType.stagedInitialize(paddedSplittersAddr, paddedSplittersSize)
+      paddedSplittersPType.stagedInitialize(cb, paddedSplittersAddr, paddedSplittersSize)
 
       val splittersWasDuplicatedLength = paddedSplittersSize
       val splittersWasDuplicatedAddr = cb.newLocal[Long]("stream_dist_dupe_splitters_addr", splittersWasDuplicatedPType.allocate(region, splittersWasDuplicatedLength))
-      cb += splittersWasDuplicatedPType.stagedInitialize(splittersWasDuplicatedAddr, splittersWasDuplicatedLength)
+      splittersWasDuplicatedPType.stagedInitialize(cb, splittersWasDuplicatedAddr, splittersWasDuplicatedLength)
       val splitters: SIndexableValue = new SIndexablePointerCode(SIndexablePointer(paddedSplittersPType), paddedSplittersAddr).memoize(cb, "stream_distribute_splitters_deduplicated") // last element is duplicated, otherwise this is sorted without duplicates.
 
       val requestedSplittersIdx = cb.newLocal[Int]("stream_distribute_splitters_index")
@@ -95,7 +95,7 @@ object EmitStreamDistribute {
 
     def buildTree(paddedSplitters: SIndexableValue, treePType: PCanonicalArray): SIndexableValue = {
       val treeAddr = cb.newLocal[Long]("stream_dist_tree_addr", treePType.allocate(region, paddedSplittersSize))
-      cb += treePType.stagedInitialize(treeAddr, paddedSplittersSize)
+      treePType.stagedInitialize(cb, treeAddr, paddedSplittersSize)
 
       /*
       Walk through the array one level of the tree at a time, filling in the tree as you go to get a breadth
@@ -122,7 +122,7 @@ object EmitStreamDistribute {
       // in splitters list. Since We don't want many empty files, we need to make an array mapping output buckets to files.
       val fileMappingType = PCanonicalArray(PInt32Required)
       val fileMappingAddr = cb.newLocal("stream_dist_file_map_addr", fileMappingType.allocate(region, numberOfBuckets))
-      cb += fileMappingType.stagedInitialize(fileMappingAddr, numberOfBuckets)
+      fileMappingType.stagedInitialize(cb, fileMappingAddr, numberOfBuckets)
 
       val bucketIdx = cb.newLocal[Int]("stream_dist_bucket_idx")
       val currentFileToMapTo = cb.newLocal[Int]("stream_dist_mapping_cur_storage", 0)
@@ -165,7 +165,7 @@ object EmitStreamDistribute {
     val fileArrayIdx = cb.newLocal[Int]("stream_dist_file_array_idx")
 
     def makeFileName(fileIdx: Code[Int]): Code[String] = {
-      pathVal.asString.loadString() concat const("/sorted_part_") concat (fileIdx.toS)
+      pathVal.get.asString.loadString() concat const("/sorted_part_") concat (fileIdx.toS)
     }
 
     cb.forLoop(cb.assign(fileArrayIdx, 0), fileArrayIdx < numFilesToWrite, cb.assign(fileArrayIdx, fileArrayIdx + 1), {

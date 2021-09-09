@@ -105,7 +105,7 @@ You can now install Hail:
   ssh forwarding rule to the default network.
 
 - Standardize file permissions.  This is for docker, which considers
-  permissions for caching.  Run `echo 'umask 022' > ~/.profile`.  You
+  permissions for caching.  Run `echo 'umask 022' >> ~/.profile`.  You
   will need to log out/in or run `umask 022`.
 
 - Clone the Hail Github repository:

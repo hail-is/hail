@@ -61,7 +61,7 @@ abstract class PBinary extends PType {
 
   def storeLength(boff: Long, len: Int): Unit
 
-  def storeLength(boff: Code[Long], len: Code[Int]): Code[Unit]
+  def storeLength(cb: EmitCodeBuilder, boff: Code[Long], len: Code[Int]): Unit
 
   def bytesAddress(boff: Long): Long
 
@@ -69,5 +69,5 @@ abstract class PBinary extends PType {
 
   def store(addr: Long, bytes: Array[Byte]): Unit
 
-  def store(addr: Code[Long], bytes: Code[Array[Byte]]): Code[Unit]
+  def store(cb: EmitCodeBuilder, addr: Code[Long], bytes: Code[Array[Byte]]): Unit
 }

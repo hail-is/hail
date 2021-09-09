@@ -25,19 +25,19 @@ class TypedKey(typ: PType, kb: EmitClassBuilder[_], region: Value[Region]) exten
   def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Code[Boolean] = storageType.isFieldMissing(off, 1)
 
   def initializeEmpty(cb: EmitCodeBuilder, off: Code[Long]): Unit =
-    cb += storageType.setFieldMissing(off, 1)
+    storageType.setFieldMissing(cb, off, 1)
 
   def store(cb: EmitCodeBuilder, destc: Code[Long], k: EmitCode): Unit = {
     val dest = cb.newLocal("casa_store_dest", destc)
 
-    cb += storageType.setFieldPresent(dest, 1)
+    storageType.setFieldPresent(cb, dest, 1)
     k.toI(cb)
       .consume(cb,
         {
-          cb += storageType.setFieldMissing(dest, 0)
+          storageType.setFieldMissing(cb, dest, 0)
         },
         { sc =>
-          cb += storageType.setFieldPresent(dest, 0)
+          storageType.setFieldPresent(cb, dest, 0)
           typ.storeAtAddress(cb, storageType.fieldOffset(dest, 0), region, sc, deepCopy = true)
         })
   }

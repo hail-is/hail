@@ -12,7 +12,10 @@ import aiohttp
 import signal
 from aiohttp import web
 import aiohttp_session
+import pandas as pd
 import pymysql
+import plotly.express as px
+import plotly
 import google.oauth2.service_account
 import google.api_core.exceptions
 import humanize
@@ -763,8 +766,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if result is None:
                     raise web.HTTPBadRequest(
                         reason=f'resource requests for job {id} are unsatisfiable: '
-                        f'cpu={resources["req_cpu"]}, '
-                        f'memory={resources["req_memory"]}, '
+                        f'cpu={resources.get("req_cpu")}, '
+                        f'memory={resources.get("req_memory")}, '
                         f'storage={resources["req_storage"]}, '
                         f'preemptible={preemptible}, '
                         f'machine_type={machine_type}'
@@ -1436,6 +1439,47 @@ async def ui_get_job(request, userdata, batch_id):
         resources['actual_cpu'] = resources['cores_mcpu'] / 1000
         del resources['cores_mcpu']
 
+    data = []
+    for step in ['input', 'main', 'output']:
+        if container_statuses[step]:
+            for timing_name, timing_data in container_statuses[step]['timing'].items():
+                if timing_data is not None:
+                    plot_dict = {
+                        'Title': f'{(batch_id, job_id)}',
+                        'Step': step,
+                        'Task': timing_name,
+                    }
+
+                    if timing_data.get('start_time') is not None:
+                        plot_dict['Start'] = datetime.datetime.fromtimestamp(timing_data['start_time'] / 1000)
+
+                        finish_time = timing_data.get('finish_time')
+                        if finish_time is None:
+                            finish_time = time_msecs()
+                        plot_dict['Finish'] = datetime.datetime.fromtimestamp(finish_time / 1000)
+
+                    data.append(plot_dict)
+
+    if data:
+        df = pd.DataFrame(data)
+
+        fig = px.timeline(
+            df,
+            x_start='Start',
+            x_end='Finish',
+            y='Step',
+            color='Task',
+            hover_data=['Step'],
+            color_discrete_sequence=px.colors.sequential.dense,
+            category_orders={
+                'Step': ['input', 'main', 'output'],
+                'Task': ['pulling', 'setting up overlay', 'setting up network', 'running', 'uploading_log']
+            })
+
+        plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+    else:
+        plot_json = None
+
     page_context = {
         'batch_id': batch_id,
         'job_id': job_id,
@@ -1447,7 +1491,9 @@ async def ui_get_job(request, userdata, batch_id):
         'job_status_str': json.dumps(job, indent=2),
         'step_errors': step_errors,
         'error': job_status.get('error'),
+        'plot_json': plot_json,
     }
+
     return await render_template('batch', request, userdata, 'job.html', page_context)
 
 

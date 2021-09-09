@@ -30,7 +30,7 @@ class TakeByAggregatorSuite extends HailSuite {
           cb += (i := 0L)
           cb.whileLoop(i < n.toLong, {
             cb += argR.invoke[Unit]("clear")
-            cb += (off := stringPT.allocateAndStoreString(fb.apply_method, argR, const("str").concat(i.toS)))
+            cb.assign(off, stringPT.allocateAndStoreString(cb, argR, const("str").concat(i.toS)))
             tba.seqOp(cb, false, off, false, -i)
             cb += (i := i + 1L)
           })

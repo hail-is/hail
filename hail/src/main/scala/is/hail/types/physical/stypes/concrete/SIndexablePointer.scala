@@ -4,7 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.stypes.interfaces.{SContainer, SIndexableCode, SIndexableValue}
-import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType}
+import is.hail.types.physical.stypes._
 import is.hail.types.physical.{PArray, PCanonicalArray, PCanonicalDict, PCanonicalSet, PContainer, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils.FastIndexedSeq
@@ -21,9 +21,12 @@ final case class SIndexablePointer(pType: PContainer) extends SContainer {
 
   override def elementEmitType: EmitType = EmitType(elementType, pType.elementType.required)
 
-  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
-    new SIndexablePointerCode(this, pType.store(cb, region, value, deepCopy))
-  }
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue =
+    value match {
+      case value: SIndexableValue =>
+        val a = pType.store(cb, region, value, deepCopy)
+        new SIndexablePointerValue(this, a, value.loadLength(), cb.memoize(pType.firstElementOffset(a)))
+    }
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo, IntInfo, LongInfo)
 
@@ -78,29 +81,37 @@ class SIndexablePointerCode(val st: SIndexablePointer, val a: Code[Long]) extend
 }
 
 class SIndexablePointerValue(
-  val st: SIndexablePointer,
+  override val st: SIndexablePointer,
   val a: Value[Long],
   val length: Value[Int],
   val elementsAddress: Value[Long]
 ) extends SIndexableValue {
   val pt: PContainer = st.pType
 
-  def get: SIndexablePointerCode = new SIndexablePointerCode(st, a)
+  override def get: SIndexablePointerCode = new SIndexablePointerCode(st, a)
 
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a, length, elementsAddress)
 
-  def loadLength(): Value[Int] = length
+  override def loadLength(): Value[Int] = length
 
-  def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode = {
+  override def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode = {
     val iv = cb.newLocal("pcindval_i", i)
     IEmitCode(cb,
       isElementMissing(iv),
       pt.elementType.loadCheapSCode(cb, pt.loadElement(a, length, iv))) // FIXME loadElement should take elementsAddress
   }
 
-  def isElementMissing(i: Code[Int]): Code[Boolean] = pt.isElementMissing(a, i)
+  override def isElementMissing(i: Code[Int]): Code[Boolean] = pt.isElementMissing(a, i)
 
   override def hasMissingValues(cb: EmitCodeBuilder): Code[Boolean] = pt.hasMissingValues(a)
+
+  override def castToArray(cb: EmitCodeBuilder): SIndexableValue = {
+    pt match {
+      case t: PArray => this
+      case t: PCanonicalDict => new SIndexablePointerValue(SIndexablePointer(t.arrayRep), a, length, elementsAddress)
+      case t: PCanonicalSet => new SIndexablePointerValue(SIndexablePointer(t.arrayRep), a, length, elementsAddress)
+    }
+  }
 
   override def forEachDefined(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, Value[Int], SCode) => Unit) {
     st.pType match {

@@ -47,8 +47,8 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
 
   private def createNode(cb: EmitCodeBuilder, nodeBucket: Settable[Long]): Unit = {
     cb.assign(nodeBucket, region.allocate(storageType.alignment, storageType.byteSize))
-    cb += storageType.stagedInitialize(nodeBucket, true)
-    cb += elementsType.stagedInitialize(elements(nodeBucket), true)
+    storageType.stagedInitialize(cb, nodeBucket, true)
+    elementsType.stagedInitialize(cb, elements(nodeBucket), true)
   }
 
   private def isRoot(node: Code[Long]): Code[Boolean] = storageType.isFieldMissing(node, 0)
@@ -62,11 +62,11 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
   private def hasKey(node: Code[Long], i: Int): Code[Boolean] = elementsType.isFieldDefined(elements(node), i)
 
   private def setKeyPresent(cb: EmitCodeBuilder, node: Code[Long], i: Int): Unit = {
-    cb += elementsType.setFieldPresent(elements(node), i)
+    elementsType.setFieldPresent(cb, elements(node), i)
   }
 
   private def setKeyMissing(cb: EmitCodeBuilder, node: Code[Long], i: Int): Unit = {
-    cb += elementsType.setFieldMissing(elements(node), i)
+    elementsType.setFieldMissing(cb, elements(node), i)
   }
 
   private def isFull(node: Code[Long]): Code[Boolean] = hasKey(node, maxElements - 1)
@@ -89,15 +89,15 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
     val child = cb.newLocal[Long]("aobt_set_child_child", childC)
 
     if (i == -1)
-      cb += storageType.setFieldPresent(parent, 1)
+      storageType.setFieldPresent(cb, parent, 1)
     cb += Region.storeAddress(childOffset(parent, i), child)
-    cb += storageType.setFieldPresent(child, 0)
+    storageType.setFieldPresent(cb, child, 0)
     cb += Region.storeAddress(storageType.fieldOffset(child, 0), parent)
   }
 
   private def insert(cb: EmitCodeBuilder, nodec: Code[Long], insertIdxc: Code[Int], kc: EmitCode, childC: Code[Long]): Code[Long] = {
     val kt = key.compType.sType
-    val castKCode = EmitCode.fromI(cb.emb)(cb => kc.toI(cb).map(cb)(k => kt.coerceOrCopy(cb, region, k, false)))
+    val castKCode = EmitCode.fromI(cb.emb)(cb => kc.toI(cb).map(cb)(k => kt.coerceOrCopy(cb, region, k.memoize(cb, "btree_insert"), false)))
     val insertAt = kb.getOrGenEmitMethod("btree_insert", (this, "insert", kt),
       FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Int], castKCode.emitParamType, typeInfo[Long]), typeInfo[Long]) { insertAt =>
       val node: Value[Long] = insertAt.getCodeParam[Long](1)

@@ -35,7 +35,7 @@ and client secret credentials from another developer who has them, or reset
 them. Either to create the service principal or reset it, run the following
 
 ```
-az ad sp create-for-rbac --role="Contributor" --scopes="/subscriptions/${ARM_SUBSCRIPTION_ID}" --name="terraform-principal" > terraform_principal.json
+az ad sp create-for-rbac --role="Owner" --scopes="/subscriptions/${ARM_SUBSCRIPTION_ID}" --name="terraform-principal" > terraform_principal.json
 ```
 
 Note: Your developer Azure account must be an owner of the terraform service principal.
@@ -109,12 +109,16 @@ Next, create a `global.tfvars` file from the following template and replace in t
 
 ```
 az_resource_group_name = "<resource_group_name>"
+# Omit this field to have the container registry name default to the resource group name
+acr_name               = "<azure_container_registry_name>"
 ```
 
-Run `terraform apply -var-file=global.tfvars`. To sync the kubernetes config, run
+Run `terraform apply -var-file=global.tfvars`. To sync the kubernetes config and authenticate
+docker with the container registry, run
 
 ```
 az aks get-credentials --name vdc --resource-group $AZ_RESOURCE_GROUP_NAME
+az acr login --name <azure_container_registry_name>
 ```
 
 you can now use `kubectl` to communicate with AKS cluster.

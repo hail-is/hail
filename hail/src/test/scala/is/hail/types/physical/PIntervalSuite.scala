@@ -1,7 +1,6 @@
 package is.hail.types.physical
 
-import is.hail.HailSuite
-import is.hail.annotations.{Annotation, Region, ScalaToRegionValue}
+import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.types.physical.stypes.concrete.{SUnreachableInterval, SUnreachableIntervalValue}
@@ -48,6 +47,6 @@ class PIntervalSuite extends PhysicalTestUtils {
     val fb = EmitFunctionBuilder[Region, Long](ctx, "pinterval_store_unreachable")
     val codeRegion = fb.getCodeParam[Region](1)
 
-    fb.emitWithBuilder(cb => pt.store(cb, codeRegion, usv.get, true))
+    fb.emitWithBuilder(cb => pt.store(cb, codeRegion, usv, true))
   }
 }

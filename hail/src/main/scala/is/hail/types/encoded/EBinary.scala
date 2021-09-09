@@ -47,10 +47,10 @@ class EBinary(override val required: Boolean) extends EType {
       case SBinaryPointer(t) => t
     }
 
-    val bT = pt.asInstanceOf[PBinary]
+    val bT = pt
     val len = cb.newLocal[Int]("len", in.readInt())
     val barray = cb.newLocal[Long]("barray", bT.allocate(region, len))
-    cb += bT.storeLength(barray, len)
+    bT.storeLength(cb, barray, len)
     cb += in.readBytes(region, bT.bytesAddress(barray), len)
     t1 match {
       case t: SStringPointer => new SStringPointerCode(t, barray)

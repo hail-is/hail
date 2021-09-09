@@ -53,8 +53,8 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
     cb += region.setNumParents((lenRef + 1) * nStates)
     cb.assign(aoff, arrayType.allocate(region, lenRef))
     cb += Region.storeAddress(typ.fieldOffset(off, 1), aoff)
-    cb += arrayType.stagedInitialize(aoff, lenRef)
-    cb += typ.setFieldPresent(off, 1)
+    arrayType.stagedInitialize(cb, aoff, lenRef)
+    typ.setFieldPresent(cb, off, 1)
   }
 
   def seq(cb: EmitCodeBuilder, init: => Unit, initPerElt: => Unit, seqOp: => Unit): Unit = {
@@ -90,7 +90,7 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
     initOp(cb)
     initContainer.store(cb)
     if (initLen) {
-      cb += typ.setFieldMissing(off, 1)
+      typ.setFieldMissing(cb, off, 1)
     }
   }
 
@@ -137,7 +137,7 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
         initLen = false)
       cb.assign(lenRef, ib.readInt())
       cb.ifx(lenRef < 0, {
-        cb += typ.setFieldMissing(off, 1)
+        typ.setFieldMissing(cb, off, 1)
       }, {
         seq(cb, {
           nested.toCodeWithArgs(cb,
@@ -158,7 +158,7 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
 
     init(cb, cb => initContainer.copyFrom(cb, initOffset), initLen = false)
     cb.ifx(typ.isFieldMissing(srcOff, 1), {
-      cb += typ.setFieldMissing(off, 1)
+      typ.setFieldMissing(cb, off, 1)
       cb.assign(lenRef, -1)
     }, {
       cb.assign(lenRef, arrayType.loadLength(typ.loadField(srcOff, 1)))
@@ -240,18 +240,18 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
       ifMissing(cb),
       {
         val resultAddr = cb.newLocal[Long]("arrayagg_result_addr", resultType.allocate(region, len))
-        cb += resultType.stagedInitialize(resultAddr, len, setMissing = false)
+        resultType.stagedInitialize(cb, resultAddr, len, setMissing = false)
         val i = cb.newLocal[Int]("arrayagg_result_i", 0)
 
         cb.whileLoop(i < len, {
           val addrAtI = cb.newLocal[Long]("arrayagg_result_addr_at_i", resultType.elementOffset(resultAddr, len, i))
-          cb += resultEltType.stagedInitialize(addrAtI, setMissing = false)
+          resultEltType.stagedInitialize(cb, addrAtI, setMissing = false)
           cb.assign(state.idx, i)
           state.load(cb)
           state.nested.toCode { case (nestedIdx, nestedState) =>
             val nestedAddr = cb.newLocal[Long](s"arrayagg_result_nested_addr_$nestedIdx", resultEltType.fieldOffset(addrAtI, nestedIdx))
             nestedAggs(nestedIdx).storeResult(cb, nestedState, resultEltType.types(nestedIdx), nestedAddr, region,
-              (cb: EmitCodeBuilder) => cb += resultEltType.setFieldMissing(addrAtI, nestedIdx))
+              (cb: EmitCodeBuilder) => resultEltType.setFieldMissing(cb, addrAtI, nestedIdx))
           }
           state.store(cb)
           cb.assign(i, i + 1)

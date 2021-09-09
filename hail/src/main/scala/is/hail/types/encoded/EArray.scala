@@ -97,7 +97,7 @@ final case class EArray(val elementType: EType, override val required: Boolean =
 
     val len = cb.newLocal[Int]("len", in.readInt())
     val array = cb.newLocal[Long]("array", arrayType.allocate(region, len))
-    cb += arrayType.storeLength(array, len)
+    arrayType.storeLength(cb, array, len)
 
     val i = cb.newLocal[Int]("i")
     val readElemF = elementType.buildInplaceDecoder(arrayType.elementType, cb.emb.ecb)

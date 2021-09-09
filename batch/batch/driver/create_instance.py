@@ -16,6 +16,7 @@ from ..utils import unreserved_worker_data_disk_size_gib
 log = logging.getLogger('create_instance')
 
 BATCH_WORKER_IMAGE = os.environ['HAIL_BATCH_WORKER_IMAGE']
+INTERNAL_GATEWAY_IP = os.environ['HAIL_INTERNAL_IP']
 
 log.info(f'BATCH_WORKER_IMAGE {BATCH_WORKER_IMAGE}')
 
@@ -153,14 +154,6 @@ sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/gcsfuse /gcsfuse
 
 sudo mkdir -p /etc/netns
 
-# private job network = 10.0.0.0/16
-# public job network = 10.1.0.0/16
-# [all networks] Rewrite traffic coming from containers to masquerade as the host
-iptables --table nat --append POSTROUTING --source 10.0.0.0/15 --jump MASQUERADE
-
-# [public] Block public traffic to the metadata server
-iptables --insert FORWARD --source 10.1.0.0/16 --destination 169.254.169.254 --jump DROP
-
 CORES=$(nproc)
 NAMESPACE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/namespace")
 ACTIVATION_TOKEN=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/activation_token")
@@ -177,6 +170,25 @@ ZONE=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/zone 
 BATCH_WORKER_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_worker_image")
 DOCKER_ROOT_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/docker_root_image")
 DOCKER_PREFIX=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/docker_prefix")
+
+INTERNAL_GATEWAY_IP=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/internal_ip")
+
+# private job network = 10.0.0.0/16
+# public job network = 10.1.0.0/16
+# [all networks] Rewrite traffic coming from containers to masquerade as the host
+iptables --table nat --append POSTROUTING --source 10.0.0.0/15 --jump MASQUERADE
+
+# [public]
+# Block public traffic to the metadata server
+iptables --append FORWARD --source 10.1.0.0/16 --destination 169.254.169.254 --jump DROP
+# But allow the internal gateway
+iptables --append FORWARD --destination $INTERNAL_GATEWAY_IP --jump ACCEPT
+# And this worker
+iptables --append FORWARD --destination $IP_ADDRESS --jump ACCEPT
+# Forbid outgoing requests to cluster-internal IP addresses
+ENS_DEVICE=$(ip link list | grep ens | awk -F": " '{{ print $2 }}')
+iptables --append FORWARD --out-interface $ENS_DEVICE ! --destination 10.128.0.0/16 --jump ACCEPT
+
 
 # Setup fluentd
 touch /worker.log
@@ -264,6 +276,7 @@ docker run \
 -e BATCH_WORKER_IMAGE=$BATCH_WORKER_IMAGE \
 -e BATCH_WORKER_IMAGE_ID=$BATCH_WORKER_IMAGE_ID \
 -e UNRESERVED_WORKER_DATA_DISK_SIZE_GB=$UNRESERVED_WORKER_DATA_DISK_SIZE_GB \
+-e INTERNAL_GATEWAY_IP=$INTERNAL_GATEWAY_IP \
 -v /var/run/docker.sock:/var/run/docker.sock \
 -v /var/run/netns:/var/run/netns:shared \
 -v /usr/bin/docker:/usr/bin/docker \
@@ -310,6 +323,7 @@ journalctl -u docker.service > dockerd.log
                 {'key': 'docker_root_image', 'value': DOCKER_ROOT_IMAGE},
                 {'key': 'docker_prefix', 'value': DOCKER_PREFIX},
                 {'key': 'namespace', 'value': DEFAULT_NAMESPACE},
+                {'key': 'internal_ip', 'value': INTERNAL_GATEWAY_IP},
                 {'key': 'batch_logs_bucket_name', 'value': log_store.batch_logs_bucket_name},
                 {'key': 'instance_id', 'value': log_store.instance_id},
                 {'key': 'max_idle_time_msecs', 'value': max_idle_time_msecs},

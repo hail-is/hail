@@ -79,8 +79,8 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     f
   }
 
-  def memoize[T: TypeInfo](v: Code[T]): Value[T] = {
-    newLocal[T]("memoize", v)
+  def memoize[T: TypeInfo](v: Code[T], optionalName: String = ""): Value[T] = {
+    newLocal[T]("memoize" + optionalName, v)
   }
 
   def memoizeField[T: TypeInfo](v: Code[T]): Value[T] = {

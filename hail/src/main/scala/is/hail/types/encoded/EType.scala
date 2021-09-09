@@ -243,7 +243,7 @@ object EType {
       val in: Code[InputBuffer] = mb.getCodeParam[InputBuffer](2)
 
       mb.emitWithBuilder[Long] { cb =>
-        val pc = f(cb, region, in)
+        val pc = f(cb, region, in).memoize(cb, "buildDecoderToRegionValue")
         pt.store(cb, region, pc, false)
       }
 

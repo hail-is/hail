@@ -48,9 +48,9 @@ trait PStruct extends PBaseStruct {
 
   def fieldOffset(offset: Code[Long], fieldName: String): Code[Long]
 
-  def setFieldPresent(offset: Code[Long], fieldName: String): Code[Unit]
+  def setFieldPresent(cb: EmitCodeBuilder, offset: Code[Long], fieldName: String): Unit
 
-  def setFieldMissing(offset: Code[Long], fieldName: String): Code[Unit]
+  def setFieldMissing(cb: EmitCodeBuilder, offset: Code[Long], fieldName: String): Unit
 
   def insertFields(fieldsToInsert: TraversableOnce[(String, PType)]): PStruct
 

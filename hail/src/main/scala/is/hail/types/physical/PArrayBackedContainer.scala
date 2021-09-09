@@ -24,8 +24,8 @@ trait PArrayBackedContainer extends PContainer {
   override def loadLength(aoff: Code[Long]): Code[Int] =
     arrayRep.loadLength(aoff)
 
-  override def storeLength(aoff: Code[Long], length: Code[Int]): Code[Unit] =
-    arrayRep.storeLength(aoff, length)
+  override def storeLength(cb: EmitCodeBuilder, aoff: Code[Long], length: Code[Int]): Unit =
+    arrayRep.storeLength(cb, aoff, length)
 
   override def nMissingBytes(len: Code[Int]): Code[Int] =
     arrayRep.nMissingBytes(len)
@@ -51,15 +51,15 @@ trait PArrayBackedContainer extends PContainer {
   override def setElementMissing(aoff: Long, i: Int) =
     arrayRep.setElementMissing(aoff, i)
 
-  override def setElementMissing(aoff: Code[Long], i: Code[Int]): Code[Unit] =
-    arrayRep.setElementMissing(aoff, i)
+  override def setElementMissing(cb: EmitCodeBuilder, aoff: Code[Long], i: Code[Int]): Unit =
+    arrayRep.setElementMissing(cb, aoff, i)
 
   override def setElementPresent(aoff: Long, i: Int) {
       arrayRep.setElementPresent(aoff, i)
   }
 
-  override def setElementPresent(aoff: Code[Long], i: Code[Int]): Code[Unit] =
-    arrayRep.setElementPresent(aoff, i)
+  override def setElementPresent(cb: EmitCodeBuilder, aoff: Code[Long], i: Code[Int]): Unit =
+    arrayRep.setElementPresent(cb, aoff, i)
 
   override def firstElementOffset(aoff: Long, length: Int): Long =
     arrayRep.firstElementOffset(aoff, length)
@@ -109,17 +109,14 @@ trait PArrayBackedContainer extends PContainer {
   override def initialize(aoff: Long, length: Int, setMissing: Boolean = false) =
     arrayRep.initialize(aoff, length, setMissing)
 
-  override def stagedInitialize(aoff: Code[Long], length: Code[Int], setMissing: Boolean = false): Code[Unit] =
-    arrayRep.stagedInitialize(aoff, length, setMissing)
+  override def stagedInitialize(cb: EmitCodeBuilder, aoff: Code[Long], length: Code[Int], setMissing: Boolean = false): Unit =
+    arrayRep.stagedInitialize(cb, aoff, length, setMissing)
 
   override def zeroes(region: Region, length: Int): Long =
     arrayRep.zeroes(region, length)
 
-  override def zeroes(mb: EmitMethodBuilder[_], region: Value[Region], length: Code[Int]): Code[Long] =
-    arrayRep.zeroes(mb, region, length)
-
-  override def forEach(mb: EmitMethodBuilder[_], aoff: Code[Long], body: Code[Long] => Code[Unit]): Code[Unit] =
-    arrayRep.forEach(mb, aoff, body)
+  override def zeroes(cb: EmitCodeBuilder, region: Value[Region], length: Code[Int]): Code[Long] =
+    arrayRep.zeroes(cb, region, length)
 
   override def hasMissingValues(sourceOffset: Code[Long]): Code[Boolean] =
     arrayRep.hasMissingValues(sourceOffset)
@@ -150,7 +147,8 @@ trait PArrayBackedContainer extends PContainer {
   override def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SIndexablePointerValue =
     new SIndexablePointerCode(sType, addr).memoizeField(cb, "loadCheapSCodeField")
 
-  override def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = arrayRep.store(cb, region, value.asIndexable.castToArray(cb), deepCopy)
+  override def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] =
+    arrayRep.store(cb, region, value.asIndexable.castToArray(cb), deepCopy)
 
   override def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit =
     arrayRep.storeAtAddress(cb, addr, region, value.asIndexable.castToArray(cb), deepCopy)

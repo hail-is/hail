@@ -117,7 +117,7 @@ abstract class PBaseStruct extends PType {
 
   def initialize(structAddress: Long, setMissing: Boolean = false): Unit
 
-  def stagedInitialize(structAddress: Code[Long], setMissing: Boolean = false): Code[Unit]
+  def stagedInitialize(cb: EmitCodeBuilder, structAddress: Code[Long], setMissing: Boolean = false): Unit
 
   def isFieldDefined(offset: Long, fieldIdx: Int): Boolean
 
@@ -130,11 +130,11 @@ abstract class PBaseStruct extends PType {
 
   def setFieldMissing(offset: Long, fieldIdx: Int): Unit
 
-  def setFieldMissing(offset: Code[Long], fieldIdx: Int): Code[Unit]
+  def setFieldMissing(cb: EmitCodeBuilder, offset: Code[Long], fieldIdx: Int): Unit
 
   def setFieldPresent(offset: Long, fieldIdx: Int): Unit
 
-  def setFieldPresent(offset: Code[Long], fieldIdx: Int): Code[Unit]
+  def setFieldPresent(cb: EmitCodeBuilder, offset: Code[Long], fieldIdx: Int): Unit
 
   def fieldOffset(structAddress: Long, fieldIdx: Int): Long
 
