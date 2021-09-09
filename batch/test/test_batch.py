@@ -238,11 +238,12 @@ def test_list_batches(client):
     def assert_batch_ids(expected: Set[int], q=None):
         # list_batches returns all batches for all prev run tests so we set a limit
         max_expected_id = max(expected)
-        min_expeccted_id = min(expected)
-        span = max_expected_id - min_expeccted_id + 1
+        min_expected_id = min(expected)
+        span = max_expected_id - min_expected_id + 1
         batches = client.list_batches(q, last_batch_id=max_expected_id + 1, limit=span)
-        actual = {b.id for b in batches}.intersection({b1.id, b2.id})
-        assert actual == expected
+        full_actual = {b.id for b in batches}
+        actual = full_actual.intersection({b1.id, b2.id})
+        assert actual == expected, (full_actual, max_expected_id, span)
 
     assert_batch_ids({b1.id, b2.id})
 
