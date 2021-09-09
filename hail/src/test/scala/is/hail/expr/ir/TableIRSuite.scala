@@ -970,7 +970,7 @@ class TableIRSuite extends HailSuite {
     val nDArray1 = Literal(TNDArray(TFloat64, Nat(2)), SafeNDArray(IndexedSeq(2L,2L), IndexedSeq(1.0,1.0,1.0,1.0)))
     val nDArray2 = Literal(TNDArray(TFloat64, Nat(2)), SafeNDArray(IndexedSeq(2L,2L), IndexedSeq(2.0,2.0,2.0,2.0)))
     tir = TableMapRows(tir, InsertFields(Ref("row", tir.typ.rowType),
-      FastSeq("nDArrayA" -> nDArray1, "ndArrayB" -> nDArray2)))
+      FastSeq("nDArrayA" -> nDArray1, "nDArrayB" -> nDArray2)))
     val x = TableAggregate(tir, ApplyAggOp(NDArrayMultiplyAdd())(GetField(Ref("row", tir.typ.rowType), "nDArrayA"),
       GetField(Ref("row", tir.typ.rowType), "nDArrayB")))
     assertEvalsTo(x, SafeNDArray(Vector(2, 2), IndexedSeq(24.0, 24.0, 24.0, 24.0)))

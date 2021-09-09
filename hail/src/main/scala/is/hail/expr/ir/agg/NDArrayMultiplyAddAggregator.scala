@@ -46,11 +46,11 @@ class NDArrayMultiplyAddAggregator(nDVTyp: VirtualTypeWithReq) extends StagedAgg
           val tempRegionForCreation = cb.newLocal[Region]("ndarray_add_multily_agg_temp_region", Region.stagedCreate(Region.REGULAR, cb.emb.ecb.pool()))
           val NDArrayA = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(checkA, cb, tempRegionForCreation)
           val NDArrayB = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(checkB, cb, tempRegionForCreation)
-          val statePV = state.storageType.loadCheapSCode(cb, state.off).asBaseStruct.memoize(cb, "ndarray_add_multiply_seqop_state")
+          val statePV = state.storageType.loadCheapSCode(cb, state.off).asBaseStruct
           statePV.loadField(cb, ndarrayFieldNumber).consume(cb,
             {
               cb += state.region.getNewRegion(Region.REGULAR)
-              cb += state.storageType.setFieldPresent(state.off.get, ndarrayFieldNumber)
+              state.storageType.setFieldPresent(cb, state.off.get, ndarrayFieldNumber)
               val shape = IndexedSeq(NDArrayA.shapes(0), NDArrayB.shapes(1))
               val uninitializedNDArray = ndTyp.constructUnintialized(shape, ndTyp.makeColumnMajorStrides(shape, tempRegionForCreation, cb), cb, tempRegionForCreation)
               state.storeNonmissing(cb, uninitializedNDArray.get)
@@ -72,14 +72,14 @@ class NDArrayMultiplyAddAggregator(nDVTyp: VirtualTypeWithReq) extends StagedAgg
     val combOpMethod = cb.emb.genEmitMethod[Unit]("ndarraymutiply_add_agg_comb_op")
 
     combOpMethod.voidWithBuilder { cb =>
-      val rightPV = other.storageType.loadCheapSCode(cb, other.off).asBaseStruct.memoize(cb, "ndarray_mutiply_add_comb_op_right")
+      val rightPV = other.storageType.loadCheapSCode(cb, other.off).asBaseStruct
       rightPV.loadField(cb, ndarrayFieldNumber).consume(cb, {},
         { rightNDPC =>
           val rightNdValue = rightNDPC.asNDArray.memoize(cb, "right_ndarray_mutiply_add_agg")
-          val leftPV = state.storageType.loadCheapSCode(cb, state.off).asBaseStruct.memoize(cb, "ndarray_mutiply_add_comb_op_left")
+          val leftPV = state.storageType.loadCheapSCode(cb, state.off).asBaseStruct
           leftPV.loadField(cb, ndarrayFieldNumber).consume(cb,
             {
-              state.storeNonmissing(cb, rightNdValue)
+              state.storeNonmissing(cb, rightNdValue.get)
             },
             { leftNDPC =>
               val leftNdValue = leftNDPC.asNDArray.memoize(cb, "left_ndarray_mutiply_add_agg")
@@ -94,9 +94,6 @@ class NDArrayMultiplyAddAggregator(nDVTyp: VirtualTypeWithReq) extends StagedAgg
   override protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
     state.get(cb).consume(cb,
       ifMissing(cb),
-      { sc =>
-        val lastNDInAggState = sc.asNDArray.memoize(cb, "ndarray_multiply_add_agg_last_state")
-        pt.storeAtAddress(cb, addr, region, lastNDInAggState, deepCopy = true)
-      })
+      { sc => pt.storeAtAddress(cb, addr, region, sc.asNDArray, deepCopy = true) })
   }
 }

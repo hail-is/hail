@@ -105,3 +105,4 @@ object NDArraySumAggregator {
         newElement.copyToRegion(cb, region, leftNdValue.st.elementType)
     }
   }
+}
