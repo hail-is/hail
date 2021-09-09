@@ -9,7 +9,7 @@ import is.hail.rvd.RVDPartitioner
 import is.hail.types._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.{SIndexablePointerCode, SStackStruct, SStringPointer}
+import is.hail.types.physical.stypes.concrete.{SIndexablePointerCode, SIndexablePointerValue, SStackStruct, SStringPointer}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -446,7 +446,7 @@ class CompiledLineParser(
 
   @transient private[this] def parseEntriesOpt(cb: EmitCodeBuilder): Option[EmitCode] = entriesType.map { entriesType =>
     val sc = parseEntries(cb, entriesType)
-    EmitCode.present(cb.emb, sc)
+    EmitCode.present(cb.emb, sc.get)
   }
 
   mb.emitWithBuilder[Long] { cb =>
@@ -638,7 +638,7 @@ class CompiledLineParser(
     fieldEmitCodes
   }
 
-  private[this] def parseEntries(cb: EmitCodeBuilder, entriesType: PCanonicalArray): SIndexablePointerCode = {
+  private[this] def parseEntries(cb: EmitCodeBuilder, entriesType: PCanonicalArray): SIndexablePointerValue = {
     val entryType = entriesType.elementType.asInstanceOf[PCanonicalStruct]
     assert(entryType.fields.size == 1)
     val (push, finish) = entriesType.constructFromFunctions(cb, region, nCols, false)

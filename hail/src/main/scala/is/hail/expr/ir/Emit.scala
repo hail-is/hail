@@ -957,7 +957,7 @@ class Emit[C](
         for (arg <- emittedArgs) {
           pushElement(cb, arg.toI(cb))
         }
-        presentPC(finish(cb))
+        presentPC(finish(cb).get)
 
       case ArrayZeros(length) =>
         emitI(length).map(cb) { case n: SInt32Code =>
@@ -1044,7 +1044,7 @@ class Emit[C](
                 val resultArray = typeWithReq.canonicalPType.asInstanceOf[PCanonicalArray]
                 resultArray.constructFromElements(cb, region, resultLen, false) { (cb, idx) =>
                   arrayValue.loadElement(cb, realStart + realStep * idx)
-                }
+                }.get
               }
             }
           }
@@ -1262,14 +1262,14 @@ class Emit[C](
                 cb.assign(eltIdx, eltIdx + 1)
                 cb.assign(withinGrpIdx, withinGrpIdx + 1)
               })
-              IEmitCode.present(cb, finishInner(cb))
+              IEmitCode.present(cb, finishInner(cb).get)
             }
             val elt = groupType.constructFromFields(cb, region, FastIndexedSeq(key, group), deepCopy = false)
             addGroup(cb, IEmitCode.present(cb, elt))
             cb.assign(grpIdx, grpIdx + 1)
           })
 
-          dictType.construct(finishOuter(cb))
+          dictType.construct(finishOuter(cb).get)
         }
 
       case x@StreamLen(a) =>
@@ -1301,7 +1301,7 @@ class Emit[C](
           emitI(pivots).flatMap(cb) { case pivotsCode: SIndexableCode =>
             val pivotsVal = pivotsCode.memoize(cb, "stream_dist_pivots_and_ends")
             emitStream(child, cb, region).map(cb) { case childStream: SStreamCode =>
-              EmitStreamDistribute.emit(cb, region, pivotsVal, childStream, pathValue, spec)
+              EmitStreamDistribute.emit(cb, region, pivotsVal, childStream, pathValue, spec).get
             }
           }
         }
@@ -2389,7 +2389,7 @@ class Emit[C](
                 .asBaseStruct
                 .memoize(cb, "cda_eltTupled")
               eltTupled.loadField(cb, 0)
-            }
+            }.get
           }
 
           cb.assign(baos, Code.newInstance[ByteArrayOutputStream]())

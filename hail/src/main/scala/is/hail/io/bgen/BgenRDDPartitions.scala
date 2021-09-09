@@ -306,7 +306,7 @@ object CompileDecoder {
         })
 
         val allelesArr = finish(cb)
-        structFieldCodes += EmitCode.present(cb.emb, allelesArr)
+        structFieldCodes += EmitCode.present(cb.emb, allelesArr.get)
       }
 
       if (settings.hasField("rsid"))
@@ -401,7 +401,7 @@ object CompileDecoder {
                     pushElement(cb, IEmitCode.present(cb, primitive(d1.toD / divisor)))
                     pushElement(cb, IEmitCode.present(cb, primitive(d2.toD / divisor)))
 
-                    IEmitCode.present(cb, finish(cb))
+                    IEmitCode.present(cb, finish(cb).get)
                   }
 
 
@@ -527,7 +527,7 @@ object CompileDecoder {
 
           val pc = finish(cb)
 
-          structFieldCodes += EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, pc))
+          structFieldCodes += EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, pc.get))
       }
 
       rowType.constructFromFields(cb, region, structFieldCodes.result(), deepCopy = false).a

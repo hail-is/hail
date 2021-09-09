@@ -313,8 +313,14 @@ class StagedConstructorSuite extends HailSuite {
     fb.emitWithBuilder { cb =>
       val region = fb.emb.getCodeParam[Region](1)
       rt.constructFromFields(cb, region, FastIndexedSeq(
-        EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, SStringPointer(PCanonicalString()).constructFromString(cb, region, fb.getCodeParam[String](2)))),
-        EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, tArray.constructFromElements(cb, region, const(2), deepCopy = false) {(cb, idx) => IEmitCode.present(cb, primitive(idx + 1))}))
+        EmitCode.fromI(cb.emb)(cb =>
+          IEmitCode.present(cb,
+            SStringPointer(PCanonicalString()).constructFromString(cb, region, fb.getCodeParam[String](2)))),
+        EmitCode.fromI(cb.emb)(cb =>
+          IEmitCode.present(cb,
+            tArray.constructFromElements(cb, region, const(2), deepCopy = false) { (cb, idx) =>
+              IEmitCode.present(cb, primitive(idx + 1))
+            }.get))
       ), deepCopy = false).a
     }
 

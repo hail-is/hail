@@ -177,6 +177,6 @@ class CollectAsSetAggregator(elem: VirtualTypeWithReq) extends StagedAggregator 
       pushElement(cb, elt.toI(cb))
     }
     // deepCopy is handled by `storeElement` above
-    resultType.storeAtAddress(cb, addr, region, finish(cb), deepCopy = false)
+    resultType.storeAtAddress(cb, addr, region, finish(cb).get, deepCopy = false)
   }
 }

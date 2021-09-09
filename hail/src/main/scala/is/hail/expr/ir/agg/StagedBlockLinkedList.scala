@@ -7,7 +7,7 @@ import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.encoded._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.{SIndexablePointerCode, SIndexablePointerSettable}
+import is.hail.types.physical.stypes.concrete.{SIndexablePointerCode, SIndexablePointerSettable, SIndexablePointerValue}
 import is.hail.utils._
 
 object StagedBlockLinkedList {
@@ -188,7 +188,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
     cb.invokeVoid(appF, region)
   }
 
-  def resultArray(cb: EmitCodeBuilder, region: Value[Region], resType: PCanonicalArray): SIndexablePointerCode = {
+  def resultArray(cb: EmitCodeBuilder, region: Value[Region], resType: PCanonicalArray): SIndexablePointerValue = {
     val (pushElement, finish) = resType.constructFromFunctions(cb, region, totalCount, deepCopy = true)
     foreach(cb) { (cb, elt) =>
       pushElement(cb, elt.toI(cb))

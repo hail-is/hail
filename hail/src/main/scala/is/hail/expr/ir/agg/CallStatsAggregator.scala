@@ -192,7 +192,7 @@ class CallStatsAggregator extends StagedAggregator {
       IEmitCode.present(cb, primitive(acAtIndex))
     }
 
-    acType.storeAtAddress(cb, rt.fieldOffset(addr, "AC"), region, ac, deepCopy = false)
+    acType.storeAtAddress(cb, rt.fieldOffset(addr, "AC"), region, ac.get, deepCopy = false)
 
     cb.ifx(alleleNumber.ceq(0),
       rt.setFieldMissing(cb, addr, "AF"),
@@ -202,7 +202,7 @@ class CallStatsAggregator extends StagedAggregator {
           val acAtIndex = cb.newLocal[Int]("callstats_result_acAtIndex", state.alleleCountAtIndex(i, state.nAlleles))
           IEmitCode.present(cb, primitive(acAtIndex.toD / alleleNumber.toD))
         }
-        afType.storeAtAddress(cb, rt.fieldOffset(addr, "AF"), region, af, deepCopy = false)
+        afType.storeAtAddress(cb, rt.fieldOffset(addr, "AF"), region, af.get, deepCopy = false)
       })
 
     val anType = resultType.fieldType("AN")
@@ -216,6 +216,6 @@ class CallStatsAggregator extends StagedAggregator {
       IEmitCode.present(cb, primitive(homCountAtIndex))
     }
 
-    homCountType.storeAtAddress(cb, rt.fieldOffset(addr, "homozygote_count"), region, homCount, deepCopy = false)
+    homCountType.storeAtAddress(cb, rt.fieldOffset(addr, "homozygote_count"), region, homCount.get, deepCopy = false)
   }
 }

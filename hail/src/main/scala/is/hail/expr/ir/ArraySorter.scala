@@ -144,7 +144,7 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
 
         arrayType.constructFromElements(cb, r.region, len, deepCopy = false) { (cb, idx) =>
           array.loadFromIndex(cb, r.region, idx)
-        }
+        }.get
       case td: TDict =>
         PCanonicalDict.coerceArrayCode(toRegion(cb, TArray(td.elementType)))
       case ts: TSet =>

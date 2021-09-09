@@ -356,7 +356,7 @@ class SUnreachableContainerValue(override val st: SUnreachableContainer) extends
   override def castToArray(cb: EmitCodeBuilder): SIndexableValue =
     SUnreachable.fromVirtualType(st.virtualType.arrayElementsRepr).defaultValue.asIndexable
 
-  override def get: SUnreachableCode = st.sc
+  override def get: SUnreachableContainerCode = st.sc
 }
 
 class SUnreachableContainerCode(override val st: SUnreachableContainer) extends SUnreachableCode with SIndexableCode {

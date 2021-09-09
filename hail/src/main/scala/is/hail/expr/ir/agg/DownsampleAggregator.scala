@@ -3,13 +3,13 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitParamType, EmitRegion, IEmitCode, SCodeEmitParamType, ParamType}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitParamType, EmitRegion, IEmitCode, ParamType, SCodeEmitParamType}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.encoded.EType
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.SingleCodeSCode
-import is.hail.types.physical.stypes.concrete.SIndexablePointerCode
+import is.hail.types.physical.stypes.concrete.{SIndexablePointerCode, SIndexablePointerValue}
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -527,7 +527,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
     cb.invokeVoid(mb)
   }
 
-  def resultArray(cb: EmitCodeBuilder, region: Value[Region], resType: PCanonicalArray): SIndexablePointerCode = {
+  def resultArray(cb: EmitCodeBuilder, region: Value[Region], resType: PCanonicalArray): SIndexablePointerValue = {
     // dump all elements into tree for simplicity
     dumpBuffer(cb)
 
@@ -576,6 +576,6 @@ class DownsampleAggregator(arrayType: VirtualTypeWithReq) extends StagedAggregat
   protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
     assert(pt == resultType)
     // deepCopy is handled by state.resultArray
-    pt.storeAtAddress(cb, addr, region, state.resultArray(cb, region, resultType), deepCopy = false)
+    pt.storeAtAddress(cb, addr, region, state.resultArray(cb, region, resultType).get, deepCopy = false)
   }
 }

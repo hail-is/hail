@@ -9,7 +9,7 @@ import is.hail.io.{AbstractTypedCodecSpec, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.{PBooleanRequired, PCanonicalArray, PCanonicalInterval, PCanonicalStringRequired, PCanonicalStruct, PContainer, PInt32Required}
 import is.hail.types.physical.stypes.{EmitType, SValue}
-import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerCode, SJavaString, SStackStruct, SStackStructCode}
+import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerCode, SIndexablePointerValue, SJavaString, SStackStruct, SStackStructCode}
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SIndexableCode, SIndexableValue, SStreamCode, SStringCode, primitive}
 import is.hail.types.physical.stypes.primitives.{SBooleanCode, SInt32, SInt32Code}
 import is.hail.types.virtual.{TArray, TBaseStruct, TStruct}
@@ -18,7 +18,7 @@ import is.hail.asm4s._
 
 object EmitStreamDistribute {
 
-  def emit(cb: EmitCodeBuilder, region: Value[Region], requestedSplittersAndEndsVal: SIndexableValue, childStream: SStreamCode, pathVal: SValue, spec: AbstractTypedCodecSpec): SIndexableCode = {
+  def emit(cb: EmitCodeBuilder, region: Value[Region], requestedSplittersAndEndsVal: SIndexableValue, childStream: SStreamCode, pathVal: SValue, spec: AbstractTypedCodecSpec): SIndexableValue = {
     val mb = cb.emb
     val pivotsPType = requestedSplittersAndEndsVal.st.storageType().asInstanceOf[PCanonicalArray]
     val requestedSplittersVal = requestedSplittersAndEndsVal.sliceArray(cb, region, pivotsPType, 1, requestedSplittersAndEndsVal.loadLength() - 1).memoize(cb, "foo")
@@ -117,7 +117,7 @@ object EmitStreamDistribute {
       new SIndexablePointerCode(SIndexablePointer(treePType), treeAddr).memoize(cb, "stream_dist_tree")
     }
 
-    def createFileMapping(numFilesToWrite: Value[Int], splitterWasDuplicated: SIndexableValue, numberOfBuckets: Value[Int], shouldUseIdentityBuckets: Value[Boolean]) = {
+    def createFileMapping(numFilesToWrite: Value[Int], splitterWasDuplicated: SIndexableValue, numberOfBuckets: Value[Int], shouldUseIdentityBuckets: Value[Boolean]): SIndexablePointerValue = {
       // The element classifying algorithm acts as though there are identity buckets for every splitter. We only use identity buckets for elements that repeat
       // in splitters list. Since We don't want many empty files, we need to make an array mapping output buckets to files.
       val fileMappingType = PCanonicalArray(PInt32Required)

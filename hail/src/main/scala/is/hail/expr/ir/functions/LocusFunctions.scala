@@ -48,7 +48,7 @@ object LocusFunctions extends RegistryFunctions {
         push(cb, IEmitCode.present(cb, ss.constructFromString(cb, r, all.invoke[Int, String]("apply", i))))
         cb.assign(i, i + 1)
       })
-      IEmitCode.present(cb, finish(cb))
+      IEmitCode.present(cb, finish(cb).get)
     }
     rt.constructFromFields(cb, r, FastIndexedSeq(locus, alleles), deepCopy = false)
   }
@@ -206,7 +206,7 @@ object LocusFunctions extends RegistryFunctions {
             })
             cb.assign(offset, offset + len)
           }
-          IEmitCode.present(cb, finish(cb))
+          IEmitCode.present(cb, finish(cb).get)
         }
 
 

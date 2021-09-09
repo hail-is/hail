@@ -304,7 +304,7 @@ abstract class RegistryFunctions {
         val elt = cb.newLocal[java.lang.Integer]("unwrap_return_array_int32_elt",
           Code.checkcast[java.lang.Integer](arr.invoke[Int, java.lang.Object]("apply", idx)))
         IEmitCode(cb, elt.isNull, primitive(elt.invoke[Int]("intValue")))
-      }
+      }.get
     case TArray(TFloat64) =>
       val ast = st.asInstanceOf[SIndexablePointer]
       val pca = ast.pType.asInstanceOf[PCanonicalArray]
@@ -314,7 +314,7 @@ abstract class RegistryFunctions {
         val elt = cb.newLocal[java.lang.Double]("unwrap_return_array_float64_elt",
           Code.checkcast[java.lang.Double](arr.invoke[Int, java.lang.Object]("apply", idx)))
         IEmitCode(cb, elt.isNull, primitive(elt.invoke[Double]("doubleValue")))
-      }
+      }.get
     case TArray(TString) =>
       val ast = st.asInstanceOf[SJavaArrayString]
       ast.construct(coerce[Array[String]](value))

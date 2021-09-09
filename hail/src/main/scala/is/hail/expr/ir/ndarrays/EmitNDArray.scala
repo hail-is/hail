@@ -331,7 +331,7 @@ object EmitNDArray {
                   localDim
                 }
 
-                val stagedArrayOfSizes = finish(cb).memoize(cb, "ndarray_concat_staged_array_of_sizes")
+                val stagedArrayOfSizes = finish(cb)
 
                 new NDArrayProducer {
                   override def elementType: PType = firstND.st.elementPType
