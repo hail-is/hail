@@ -24,7 +24,7 @@ final case class SBinaryPointer(pType: PBinary) extends SBinary {
     if (pt == this.pType)
       new SBinaryPointerCode(this, addr)
     else
-      coerceOrCopy(cb, region, pt.loadCheapSCode(cb, addr), deepCopy = false)
+      coerceOrCopy(cb, region, pt.loadCheapSCode(cb, addr), deepCopy = false).get
   }
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SBinaryPointerSettable = {

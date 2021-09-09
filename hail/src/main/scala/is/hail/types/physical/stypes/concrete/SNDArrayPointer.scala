@@ -76,7 +76,7 @@ class SNDArrayPointerValue(
 
   override def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SCode = {
     assert(indices.size == pt.nDims)
-    pt.elementType.loadCheapSCode(cb, loadElementAddress(indices, cb))
+    pt.elementType.loadCheapSCode(cb, loadElementAddress(indices, cb)).get
   }
 
   override def get: SNDArrayPointerCode = new SNDArrayPointerCode(st, a)

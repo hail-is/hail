@@ -92,11 +92,11 @@ abstract class SCode {
     castTo(cb, region, destType, false)
 
   def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType, deepCopy: Boolean): SCode = {
-    destType.coerceOrCopy(cb, region, this.memoize(cb, "castTo"), deepCopy)
+    destType.coerceOrCopy(cb, region, this.memoize(cb, "castTo"), deepCopy).get
   }
 
   def copyToRegion(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SCode =
-    destType.coerceOrCopy(cb, region, this.memoize(cb, "copyToRegion"), deepCopy = true)
+    destType.coerceOrCopy(cb, region, this.memoize(cb, "copyToRegion"), deepCopy = true).get
 
   def memoize(cb: EmitCodeBuilder, name: String): SValue
 
@@ -119,6 +119,8 @@ trait SValue {
   def asLong: SInt64Value = asInstanceOf[SInt64Value]
 
   def asInt64: SInt64Value = asInstanceOf[SInt64Value]
+
+  def asFloat: SFloat32Value = asInstanceOf[SFloat32Value]
 
   def asFloat32: SFloat32Value = asInstanceOf[SFloat32Value]
 
@@ -150,11 +152,11 @@ trait SValue {
     castTo(cb, region, destType, false)
 
   def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType, deepCopy: Boolean): SCode = {
-    destType.coerceOrCopy(cb, region, this, deepCopy)
+    destType.coerceOrCopy(cb, region, this, deepCopy).get
   }
 
   def copyToRegion(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SCode =
-    destType.coerceOrCopy(cb, region, this, deepCopy = true)
+    destType.coerceOrCopy(cb, region, this, deepCopy = true).get
 
   def hash(cb: EmitCodeBuilder): SInt32Code = throw new UnsupportedOperationException(s"Stype ${st} has no hashcode")
 }

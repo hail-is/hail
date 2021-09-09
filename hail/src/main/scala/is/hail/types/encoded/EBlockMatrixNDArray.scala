@@ -71,7 +71,7 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
       cb.assign(currElementAddress, currElementAddress + pt.elementType.byteSize)
     })
 
-    tFinisher(cb)
+    tFinisher(cb).get
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {

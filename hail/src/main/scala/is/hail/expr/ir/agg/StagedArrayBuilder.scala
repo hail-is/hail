@@ -58,7 +58,7 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
       cb += ob.writeInt(size)
       cb += ob.writeInt(capacity)
       codecSpec.encodedType.buildEncoder(eltArray.sType, kb)
-        .apply(cb, eltArray.loadCheapSCode(cb, data), ob)
+        .apply(cb, eltArray.loadCheapSCode(cb, data).get, ob)
       cb += ob.writeInt(const(StagedArrayBuilder.END_SERIALIZATION))
     }
   }
@@ -110,7 +110,7 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
 
   def loadElement(cb: EmitCodeBuilder, idx: Value[Int]): EmitCode = {
     val m = eltArray.isElementMissing(data, idx)
-    EmitCode(Code._empty, m, eltType.loadCheapSCode(cb, eltArray.loadElement(data, capacity, idx)))
+    EmitCode(Code._empty, m, eltType.loadCheapSCode(cb, eltArray.loadElement(data, capacity, idx)).get)
   }
 
   private def resize(cb: EmitCodeBuilder): Unit = {

@@ -62,7 +62,7 @@ class StagedInternalNodeBuilder(maxSize: Int, keyType: PType, annotationType: PT
   }
 
   def allocate(cb: EmitCodeBuilder): Unit = {
-    node.store(cb, pType.loadCheapSCode(cb, pType.allocate(region)))
+    node.store(cb, pType.loadCheapSCode(cb, pType.allocate(region)).get)
     ab.create(cb, pType.fieldOffset(node.a, "children"))
   }
 
@@ -74,7 +74,7 @@ class StagedInternalNodeBuilder(maxSize: Int, keyType: PType, annotationType: PT
   def encode(cb: EmitCodeBuilder, ob: Value[OutputBuffer]): Unit = {
     val enc = EType.defaultFromPType(pType).buildEncoder(SBaseStructPointer(pType), cb.emb.ecb)
     ab.storeLength(cb)
-    enc(cb, node, ob)
+    enc(cb, node.get, ob)
   }
 
   def nodeAddress: SBaseStructValue = node

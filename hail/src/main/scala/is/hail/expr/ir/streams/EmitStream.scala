@@ -179,7 +179,7 @@ object EmitStream {
           override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
             cb.goto(LendOfStream)
           }
-          override val element: EmitCode = EmitCode.present(mb, st.elementType.defaultValue)
+          override val element: EmitCode = EmitCode.present(mb, st.elementType.defaultValue.get)
 
           override def close(cb: EmitCodeBuilder): Unit = {}
         }
@@ -1156,8 +1156,8 @@ object EmitStream {
               assert(lelt.emitType == lEltType)
               assert(relt.emitType == rEltType)
 
-              val lhs = EmitCode.fromI(mb)(cb => lelt.toI(cb).map(cb)(_.asBaseStruct.memoize(cb, "SJRD_lhs").subset(lKey: _*)))
-              val rhs = EmitCode.fromI(mb)(cb => relt.toI(cb).map(cb)(_.asBaseStruct.memoize(cb, "SJRD_rhs").subset(rKey: _*)))
+              val lhs = EmitCode.fromI(mb)(cb => lelt.toI(cb).map(cb)(_.asBaseStruct.memoize(cb, "SJRD_lhs").subset(lKey: _*).get))
+              val rhs = EmitCode.fromI(mb)(cb => relt.toI(cb).map(cb)(_.asBaseStruct.memoize(cb, "SJRD_rhs").subset(rKey: _*).get))
               StructOrdering.make(lhs.st.asInstanceOf[SBaseStruct], rhs.st.asInstanceOf[SBaseStruct],
                 cb.emb.ecb, missingFieldsEqual = false)
                 .compare(cb, lhs, rhs, missingEqual = false)
@@ -1711,7 +1711,7 @@ object EmitStream {
 
               cb.goto(LproduceElementDone)
             }
-            override val element: EmitCode = EmitCode.present(mb, xCurElt)
+            override val element: EmitCode = EmitCode.present(mb, xCurElt.get)
 
             override def close(cb: EmitCodeBuilder): Unit = {}
           }
@@ -1801,7 +1801,7 @@ object EmitStream {
 
           mb.implementLabel(childProducer.LproduceElementDone) { cb =>
             cb.assign(xCurElt, childProducer.element.toI(cb).get(cb))
-            cb.assign(curKey, subsetCode)
+            cb.assign(curKey, subsetCode.get)
             cb.ifx(inOuter, cb.goto(LchildProduceDoneOuter), cb.goto(LchildProduceDoneInner))
           }
 
@@ -2278,9 +2278,9 @@ object EmitStream {
               })
 
               cb.define(Lpush)
-              cb.assign(xKey, EmitCode.present(cb.emb, curKey))
+              cb.assign(xKey, EmitCode.present(cb.emb, curKey.get))
               cb.assign(xElts, EmitCode.present(cb.emb, curValsType.constructFromElements(cb, elementRegion, k, false) { (cb, i) =>
-                IEmitCode(cb, result(i).ceq(0L), eltType.loadCheapSCode(cb, result(i)))
+                IEmitCode(cb, result(i).ceq(0L), eltType.loadCheapSCode(cb, result(i)).get)
               }))
               cb.goto(LproduceElementDone)
 
@@ -2322,7 +2322,7 @@ object EmitStream {
                 val left = eltType.loadCheapSCode(cb, heads(challenger)).subset(key: _*)
                 val right = eltType.loadCheapSCode(cb, heads(winner)).subset(key: _*)
                 val ord = StructOrdering.make(left.st, right.st, cb.emb.ecb, missingFieldsEqual = false)
-                cb.ifx(ord.lteqNonnull(cb, left, right),
+                cb.ifx(ord.lteqNonnull(cb, left.get, right.get),
                   cb.goto(LchallengerWins),
                   cb.goto(LafterChallenge))
 
@@ -2352,7 +2352,7 @@ object EmitStream {
                   val right = curKey
                   val ord = StructOrdering.make(left.st, right.st.asInstanceOf[SBaseStruct],
                     cb.emb.ecb, missingFieldsEqual = false)
-                  cb.ifx(ord.equivNonnull(cb, left, right), cb.goto(LaddToResult), cb.goto(Lpush))
+                  cb.ifx(ord.equivNonnull(cb, left.get, right.get), cb.goto(LaddToResult), cb.goto(Lpush))
                 })
               }, {
                 // We're still in the setup phase
@@ -2474,8 +2474,8 @@ object EmitStream {
             val ord2 = StructOrdering.make(r.asBaseStruct.st, l.asBaseStruct.st, cb.emb.ecb, missingFieldsEqual = false)
             val b = cb.newLocal[Boolean]("stream_merge_comp_result")
             cb.ifx(li < ri,
-              cb.assign(b, ord1.compareNonnull(cb, l, r) <= 0),
-              cb.assign(b, ord2.compareNonnull(cb, r, l) > 0))
+              cb.assign(b, ord1.compareNonnull(cb, l.get, r.get) <= 0),
+              cb.assign(b, ord2.compareNonnull(cb, r.get, l.get) > 0))
             b
           }
 
@@ -2578,7 +2578,7 @@ object EmitStream {
               }
             }
 
-            override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, unifiedType.loadCheapSCode(cb, heads(winner))))
+            override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, unifiedType.loadCheapSCode(cb, heads(winner)).get))
 
             override def close(cb: EmitCodeBuilder): Unit = {
               producers.foreach { p =>

@@ -529,7 +529,7 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
           cb.assign(next, upcastF.invoke[Region, Long, Long]("apply", region, Code.longValue(iterator.invoke[java.lang.Long]("next"))))
           cb.goto(LproduceElementDone)
         }
-        override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, upcastPType.loadCheapSCode(cb, next)))
+        override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, upcastPType.loadCheapSCode(cb, next).get))
 
         override def close(cb: EmitCodeBuilder): Unit = {}
       }
@@ -585,7 +585,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends AbstractN
           cb.goto(LproduceElementDone)
         }
 
-        override val element: EmitCode = EmitCode.present(mb, next)
+        override val element: EmitCode = EmitCode.present(mb, next.get)
 
         override def close(cb: EmitCodeBuilder): Unit = cb += xRowBuf.close()
       }
@@ -684,7 +684,7 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
           cb.goto(LproduceElementDone)
 
         }
-        override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, eltType.loadCheapSCode(cb, next)))
+        override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, eltType.loadCheapSCode(cb, next).get))
 
         override def close(cb: EmitCodeBuilder): Unit = cb += it.invoke[Unit]("close")
       }

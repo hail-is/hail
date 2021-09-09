@@ -61,7 +61,7 @@ object LinalgCodeUtils {
   def checkColMajorAndCopyIfNeeded(aInput: SNDArrayValue, cb: EmitCodeBuilder, region: Value[Region]): SNDArrayValue = {
     val aIsColumnMajor = LinalgCodeUtils.checkColumnMajor(aInput, cb)
     val aColMajor = cb.emb.newPField("ndarray_output_column_major", aInput.st).asInstanceOf[SNDArraySettable]
-    cb.ifx(aIsColumnMajor, {cb.assign(aColMajor, aInput)},
+    cb.ifx(aIsColumnMajor, {cb.assign(aColMajor, aInput.get)},
       {
         cb.assign(aColMajor, LinalgCodeUtils.createColumnMajorCode(aInput, cb, region))
       })
@@ -74,9 +74,9 @@ object LinalgCodeUtils {
 
     val aIsColumnMajor = LinalgCodeUtils.checkColumnMajor(aInput, cb)
     val a = cb.emb.newPField("ndarray_output_standardized", aInput.st).asInstanceOf[SNDArraySettable]
-    cb.ifx(aIsColumnMajor, {cb.assign(a, aInput)}, {
+    cb.ifx(aIsColumnMajor, {cb.assign(a, aInput.get)}, {
       val isRowMajor = LinalgCodeUtils.checkRowMajor(aInput, cb)
-      cb.ifx(isRowMajor, {cb.assign(a, aInput)}, {
+      cb.ifx(isRowMajor, {cb.assign(a, aInput.get)}, {
         cb.assign(a, LinalgCodeUtils.createColumnMajorCode(aInput, cb, region))
       })
     })

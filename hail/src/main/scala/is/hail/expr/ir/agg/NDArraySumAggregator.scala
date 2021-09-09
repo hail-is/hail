@@ -46,8 +46,8 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
             cb += state.region.getNewRegion(Region.TINY)
             state.storageType.setFieldPresent(cb, state.off, ndarrayFieldNumber)
             val tempRegionForCreation = cb.newLocal[Region]("ndarray_sum_agg_temp_region", Region.stagedCreate(Region.REGULAR, cb.emb.ecb.pool()))
-            val fullyCopiedNDArray = ndTyp.constructByActuallyCopyingData(nextNDPV, cb, tempRegionForCreation).memoize(cb, "ndarray_sum_seq_op_full_copy")
-            state.storeNonmissing(cb, fullyCopiedNDArray)
+            val fullyCopiedNDArray = ndTyp.constructByActuallyCopyingData(nextNDPV, cb, tempRegionForCreation)
+            state.storeNonmissing(cb, fullyCopiedNDArray.get)
             cb += tempRegionForCreation.clearRegion()
           },
           { currentNDPCode =>
@@ -71,7 +71,7 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
           val leftPV = state.storageType.loadCheapSCode(cb, state.off).asBaseStruct
           leftPV.loadField(cb, ndarrayFieldNumber).consume(cb,
             {
-              state.storeNonmissing(cb, rightNdValue)
+              state.storeNonmissing(cb, rightNdValue.get)
             },
             { leftNDPC =>
               val leftNdValue = leftNDPC.asNDArray.memoize(cb, "left_ndarray_sum_agg")
@@ -99,7 +99,7 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
       ifMissing(cb),
       { sc =>
         val lastNDInAggState = sc.asNDArray.memoize(cb, "ndarray_sum_agg_last_state")
-        pt.storeAtAddress(cb, addr, region, lastNDInAggState, deepCopy = true)
+        pt.storeAtAddress(cb, addr, region, lastNDInAggState.get, deepCopy = true)
       })
   }
 }
