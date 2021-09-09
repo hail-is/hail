@@ -1918,7 +1918,7 @@ def import_lines(paths, min_partitions=None, force_bgz=False, force=False, file_
            delimiter=nullable(str),
            comment=oneof(str, sequenceof(str)),
            )
-def import_matrix_table(paths,
+def import_matrix_table2(paths,
                         row_fields={},
                         row_key=[],
                         entry_type=tint32,
@@ -2142,7 +2142,7 @@ def import_matrix_table(paths,
            delimiter=nullable(str),
            comment=oneof(str, sequenceof(str)),
            )
-def import_matrix_table2(paths,
+def import_matrix_table(paths,
                          row_fields={},
                          row_key=[],
                          entry_type=tint32,
@@ -2169,8 +2169,11 @@ def import_matrix_table2(paths,
 
     def match_file_name_to_index(file_name, hl_value=False):
         if hl_value:
-            return paths.index(lambda path: path.endswith(file_name) | file_name.endswith(path))
-        return hl_paths.index(lambda path: path.endswith(file_name) | file_name.endswith(path))
+            return hl_paths.index(lambda path: path.endswith(file_name) | file_name.endswith(path))
+        for idx, path in enumerate(paths):
+            if path.endswith(file_name) or file_name.endswith(path):
+                return idx
+        return -1  # will never be reached
 
     def find_duplicates(list_to_check):
         time_name_encountered = {}
@@ -2205,7 +2208,12 @@ def import_matrix_table2(paths,
             raise FatalError(f"Found following duplicate row fields in header:\n" + '\n'.join(dups))
 
     def get_start_row_per_file_dict(first_rows):
-        return {paths[match_file_name_to_index(first_row.file)]: first_row.row_idx for first_row in first_rows}
+        start_dict = {}
+        for first_row in first_rows:
+            path = match_file_name_to_index(first_row.file)
+            if path not in start_dict:
+                start_dict[path] = first_row.idx
+        return start_dict
 
     def parse_entries(row, column_ids):
         num_columns = len(column_ids)
@@ -2217,8 +2225,8 @@ def import_matrix_table2(paths,
         row_array = row.split_array[:num_of_row_fields]
         rows_list = list(row_fields.items())
         return {rows_list[idx][0]:
-                parse_type_or_error(row_array[idx], rows_list[idx][1], row,
-                                    rows_list[idx][0]) for idx in range(num_of_row_fields)}
+                    parse_type_or_error(row_array[idx], rows_list[idx][1], row,
+                                        rows_list[idx][0]) for idx in range(num_of_row_fields)}
 
     def get_line_number(row):
         return row.row_idx - file_start_dict[paths[match_file_name_to_index(row.file, True)]]
@@ -2239,7 +2247,7 @@ def import_matrix_table2(paths,
         else:
             parsed_type = value
 
-        error_clarify_msg = f" at row field '{identifier}'" if row_field else\
+        error_clarify_msg = f" at row field '{identifier}'" if row_field else \
             f" at column id '{identifier}' for entry field 'x'"
 
         return hl.if_else(hl.is_missing(value), hl.missing(hail_type),
@@ -2282,12 +2290,13 @@ def import_matrix_table2(paths,
         raise FatalError("""import_matrix_table expects entry types to be one of:
         'int32', 'int64', 'float32', 'float64', 'str': found '{}'""".format(entry_type))
 
-    if missing.contains(delimiter):
+    if missing in delimiter:
         raise FatalError(f"Missing value {missing} contains delimiter {delimiter}")
 
-    ht = import_lines(paths, min_partitions, force_bgz=force_bgz).add_index()
+    ht = import_lines(paths, min_partitions, force_bgz=force_bgz).add_index(name='row_idx')
     file_per_partition = import_lines(paths, force_bgz=force_bgz, file_per_partition=True)
-    first_lines = file_per_partition._map_partition(lambda rows: rows[:1]).add_index().collect()
+    first_lines = file_per_partition._map_partitions(lambda rows: rows[:2])
+    first_lines = first_lines.annotate(split_array=ht.text.split(delimiter)).add_index().collect()
     file_start_dict = get_start_row_per_file_dict(first_lines)
     if not no_header:
         def validate_header_get_info_dict(header_line, first_data_line):
@@ -2360,19 +2369,16 @@ def import_matrix_table2(paths,
                                                                          + hl.str(hl.len(split_header)) + hl.str(
                                                                              "elements in" + all_headers.file + "\n" +
                                                                              truncate(split_header, hl_value=True))))),
-                lambda text_or_error: hl.case().when(text_or_error == all_headers.text)
-                    .or_error(text_or_error)))
+                lambda text_or_error: hl.case().when(text_or_error == all_headers.text).or_error(text_or_error)))
 
-        first_two_lines = ht.head(2).annotate(
-            split_array=ht.text._split_line(delimiter, missing, None, False)).collect()
-        header_info = validate_header_get_info_dict(first_two_lines[0], first_two_lines[1])
+        header_info = validate_header_get_info_dict(first_lines[0], first_lines[1])
         time_col_id_encountered_dict, dups = find_duplicates(header_info.column_ids)
         if time_col_id_encountered_dict:
             warn_duplicates(time_col_id_encountered_dict, dups)
         validate_all_headers(header_info)
 
     else:
-        first_line = ht.head(1).annotate(split_array=ht.text._split_line(delimiter, missing, None, False)).collect()
+        first_line = first_lines[0]
         if first_line is None or match_file_name_to_index(first_line.file, False) != 0:
             hl.utils.warning(
                 f"File {first_line.file} is empty and has no header, so we assume no columns")  # if the file has no lines will empty line show up?
@@ -2391,10 +2397,10 @@ def import_matrix_table2(paths,
     hl_comment = hl.array(comment)
     ht = ht.filter(
         hl.len(ht.text) == 0 | hl.if_else(len(comment > 0),
-                                         hl_comment.any(lambda com: hl.if_else(hl.len(com) == 1,
-                                                                               ht.text.startswith(com),
-                                                                               ht.text.matches(com, False))), False)
-                                          | hl.if_else(no_header, False, ht.text == header_info['text']), False)
+                                          hl_comment.any(lambda com: hl.if_else(hl.len(com) == 1,
+                                                                                ht.text.startswith(com),
+                                                                                ht.text.matches(com, False))), False)
+        | hl.if_else(no_header, False, ht.text == header_info['text']), False)
 
     ht = ht.annotate(split_array=ht.text._split_line(delimiter, missing, regex=False)).add_index('row_id')
     ht = ht.annotate(text=hl.rbind(
@@ -2405,8 +2411,8 @@ def import_matrix_table2(paths,
                        hl.len(ht.split_array[num_of_row_fields: num_of_row_fields + len(header_info['column_ids'])]),
                        error_msg(ht, hl.len(ht.split_array), " unexpected end of line while reading entries"),
                        ht.text)), lambda text_or_error: hl.case().when(text_or_error == ht.text, ht.text)
-        .or_error(text_or_error)), **parse_rows(ht),
-        entries=parse_entries(ht, header_info.column_ids).map(lambda entry: hl.struct(x=entry)))\
+            .or_error(text_or_error)), **parse_rows(ht),
+        entries=parse_entries(ht, header_info.column_ids).map(lambda entry: hl.struct(x=entry))) \
         .drop('text', 'split_array', 'file')
 
     ht = ht.annotate_globals(cols=hl.range(0, len(header_info.column_ids))
@@ -2417,6 +2423,7 @@ def import_matrix_table2(paths,
 
     mt = ht._unlocalize_entries('entries', 'cols', ['col_idx'])
     mt = mt.key_rows_by(*row_key)
+    return mt
 
 
 @typecheck(bed=str,
