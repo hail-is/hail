@@ -387,8 +387,9 @@ object TypeCheck {
         assert(x.typ == aggSig.returnType)
         assert(initOpArgs.map(_.typ).zip(aggSig.initOpArgs).forall { case (l, r) => l == r })
         assert(seqOpArgs.map(_.typ).zip(aggSig.seqOpArgs).forall { case (l, r) => l == r })
-      case x@AggFold(zero, combine, accumName) =>
-        assert(zero.typ == combine.typ)
+      case x@AggFold(zero, seqOp, combOp, elementName, accumName) =>
+        assert(zero.typ == seqOp.typ)
+        assert(zero.typ == combOp.typ)
       case x@MakeStruct(fields) =>
         assert(x.typ == TStruct(fields.map { case (name, a) =>
           (name, a.typ)

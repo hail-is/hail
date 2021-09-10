@@ -11,6 +11,7 @@ from hail.expr import (ExpressionException, Expression, ArrayExpression,
                        to_expr)
 from hail.expr.types import (hail_type, tint32, tint64, tfloat32, tfloat64,
                              tbool, tcall, tset, tarray, tstruct, tdict, ttuple, tstr)
+from hail.expr.expressions.typed_expressions import construct_variable
 from hail.expr.functions import rbind, float32, _quantile_from_cdf
 import hail.ir as ir
 from hail.typecheck import (TypeChecker, typecheck_method, typecheck,
@@ -1855,6 +1856,19 @@ def fold(initial_value, seq_op, comb_op, field):
     """
 
     # Roughly, what do I need to do?
-    #
+    # - Check that all the types work out:
+
+    indices, aggregations = unify_all(initial_value, field)
+    accum_name = Env.get_uid()
+    elt_name = Env.get_uid()
+
+    accum_ref = construct_variable(accum_name, initial_value.dtype, indices, aggregations)
+
+    if seq_op.dtype != comb_op.dtype or seq_op.dtype != initial_value.dtype:
+        raise ExpressionException("'hail.agg.fold' initial_value, seq_op's result and comb_op's result must "
+                                  "all be of the same expression type: \n"
+                                  f"   initial_value.dtype: {initial_value.dtype}\n"
+                                  f"   seq_op.dtype: {seq_op.dtype}\n"
+                                  f"   comb_op.dtype: {comb_op.dtype}")
 
     pass

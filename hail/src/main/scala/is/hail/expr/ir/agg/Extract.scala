@@ -346,13 +346,10 @@ object Extract {
       new GroupedAggregator(k, nested.map(getAgg).toArray)
     case PhysicalAggSig(NDArraySum(), NDArraySumStateSig(nda)) =>
       new NDArraySumAggregator(nda)
-<<<<<<< HEAD
     case PhysicalAggSig(NDArrayMultiplyAdd(), NDArrayMultiplyAddStateSig(nda)) =>
       new NDArrayMultiplyAddAggregator(nda)
-=======
     case PhysicalAggSig(Fold(), FoldStateSig(vt)) =>
-      new FoldAggregator(???, ???, ???)
->>>>>>> 1461e3842 (WIP on folding)
+      new FoldAggregator(???, ???, ???, ???)
   }
 
   def apply(ir: IR, resultName: String, r: RequirednessAnalysis, isScan: Boolean = false): Aggs = {
@@ -398,17 +395,17 @@ object Extract {
           i
         })
         GetTupleElement(result, idx)
-      case x@AggFold(zero, combine, accumName) =>
+      case x@AggFold(zero, seqOp, combOp, elementName, accumName) =>
         val idx = memo.getOrElseUpdate(x, {
           val i = ab.length
           val initOpArgs = IndexedSeq(zero)
-          val seqOpArgs = IndexedSeq(combine)
+          val seqOpArgs = IndexedSeq(seqOp)
           val op = Fold()
           val signature = PhysicalAggSig(op, AggStateSig(op, initOpArgs, seqOpArgs, r))
           ab += InitOp(i, initOpArgs, signature) -> signature
           // So combine has to be able to reference accumName
-          val seq = Let(accumName, ResultOp(i, IndexedSeq(signature)), SeqOp(i, seqOpArgs, signature))
-          seqBuilder += seq
+          val seqWithLet = Let(accumName, ResultOp(i, IndexedSeq(signature)), SeqOp(i, seqOpArgs, signature))
+          seqBuilder += seqWithLet
           i
         })
         GetTupleElement(result, idx)
