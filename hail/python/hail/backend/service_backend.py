@@ -275,7 +275,6 @@ class ServiceBackend(Backend):
                             j_status = await j.status()
                             if j_status['state'] != 'Success':
                                 failed_jobs += {'status': j_status, 'log': await j.log()}
-                        debug_info = {'batch_status': b2_status, 'failed_jobs': failed_jobs}
                         raise FatalError(json.dumps(
                             {'id': batch_id, 'batch_status': b2_status, 'failed_jobs': failed_jobs}))
                     raise FatalError(f'batch id was {b.id}\n' + jstacktrace)

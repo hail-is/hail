@@ -441,7 +441,7 @@ class ServiceBackend(
 }
 
 class EndOfInputException extends RuntimeException
-class HailBatchFailure extends RuntimeException
+class HailBatchFailure(message: String) extends RuntimeException(message)
 
 object ServiceBackendSocketAPI2 {
   def main(argv: Array[String]): Unit = {
