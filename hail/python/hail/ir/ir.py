@@ -1887,6 +1887,13 @@ class ApplyScanOp(BaseApplyAggOp):
         return i == 1
 
 
+class AggFold(IR):
+    @typecheck_method(zero=IR, seq_op=IR, comb_op=IR, element_name=str, accum_name=str, other_state_name=str)
+    def __init__(self, zero, seq_op, comb_ob, element_name, accum_name):
+        super().__init__(zero, seq_op, comb_ob)
+        # TODO: Fill in
+
+
 class Begin(IR):
     @typecheck_method(xs=sequenceof(IR))
     def __init__(self, xs):

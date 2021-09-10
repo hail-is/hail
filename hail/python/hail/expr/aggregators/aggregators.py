@@ -1859,10 +1859,15 @@ def fold(initial_value, seq_op, comb_op, field):
     # - Check that all the types work out:
 
     indices, aggregations = unify_all(initial_value, field)
+    element_name = Env.get_uid()
     accum_name = Env.get_uid()
-    elt_name = Env.get_uid()
+    other_accum_name = Env.get_uid()
 
+    element_ref = construct_variable(element_name, field.dtype, ..., ...)
     accum_ref = construct_variable(accum_name, initial_value.dtype, indices, aggregations)
+    other_accum_ref = construct_variable(other_accum_name, initial_value.dtype, indices, aggregations)
+
+    to_expr(seq_op())
 
     if seq_op.dtype != comb_op.dtype or seq_op.dtype != initial_value.dtype:
         raise ExpressionException("'hail.agg.fold' initial_value, seq_op's result and comb_op's result must "
@@ -1871,4 +1876,4 @@ def fold(initial_value, seq_op, comb_op, field):
                                   f"   seq_op.dtype: {seq_op.dtype}\n"
                                   f"   comb_op.dtype: {comb_op.dtype}")
 
-    pass
+    ir.AggFold()
