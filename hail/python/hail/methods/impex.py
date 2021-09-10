@@ -2156,6 +2156,7 @@ def import_matrix_table(paths,
     row_key = wrap_to_list(row_key)
     comment = wrap_to_list(comment)
     paths = wrap_to_list(paths)
+    missing_list = wrap_to_list(missing)
     hl_paths = hl.array(paths)
 
     def truncate(string_array, delim=", ", hl_value=False):
@@ -2198,7 +2199,7 @@ def import_matrix_table(paths,
             raise FatalError(f"Found following duplicate row fields in header:\n" + '\n'.join(dups))
 
     def parse_entries(row, column_ids):
-        num_columns = len(column_ids)
+        num_columns = hl.len(column_ids)
         entry_array = row.split_array[num_of_row_fields: num_columns + num_of_row_fields]
         return hl.range(0, num_columns).map(lambda entry_idx: parse_type_or_error(entry_array[entry_idx], entry_type,
                                                                                   row, column_ids[entry_idx], False))
@@ -2237,7 +2238,7 @@ def import_matrix_table(paths,
             f" at column id '{identifier}' for entry field 'x'"
 
         return hl.if_else(hl.is_missing(value), hl.missing(hail_type),
-                          hl.case().when(not hl.is_missing(parsed_type), parsed_type)
+                          hl.case().when(~hl.is_missing(parsed_type), parsed_type)
                           .or_error(error_msg(row, value,
                                               f"error parsing value into {str(hail_type)}" + error_clarify_msg)))
 
@@ -2391,18 +2392,14 @@ def import_matrix_table(paths,
                            }
 
     validate_row_fields()
-    ht = ht.filter(
-        hl.len(ht.text) == 0 | hl.rbind(hl.array(comment), lambda hl_comment:
-        hl_comment.any(lambda com: hl.if_else(hl.len(com) == 1,
-                                              ht.text.startswith(com),
-                                              ht.text.matches(com, False))))
-        | hl.if_else(no_header, False, ht.text == header_dict['text']), False)
     comment_filter = hl.rbind(hl.array(comment), lambda hl_comment:
-                hl_comment.any(lambda com: hl.if_else(hl.len(com) == 1,
-                                          ht.text.startswith(com),
-                                          ht.text.matches(com, False))))
+    hl_comment.any(lambda com: hl.if_else(hl.len(com) == 1, ht.text.startswith(com),
+                                          ht.text.matches(com, False)))) if len(comment) > 0 else False
+    header_filter = ht.text == header_dict['text'] if not no_header else False
+    ht = ht.filter(hl.bool(hl.len(ht.text) == 0) | comment_filter | header_filter, False)
 
-    ht = ht.annotate(split_array=ht.text._split_line(delimiter, missing, regex=False)).add_index('row_id')
+    hl_columns = hl.array(header_dict['column_ids'])
+    ht = ht.annotate(split_array=ht.text._split_line(delimiter, missing_list, quote=None, regex=False)).add_index('row_id')
     ht = ht.annotate(text=hl.rbind(
         hl.if_else(hl.len(ht.split_array) < num_of_row_fields,
                    error_msg(ht, hl.len(ht.split_array), " unexpected end of line while reading row field"),
@@ -2412,14 +2409,14 @@ def import_matrix_table(paths,
                        error_msg(ht, hl.len(ht.split_array), " unexpected end of line while reading entries"),
                        ht.text)), lambda text_or_error: hl.case().when(text_or_error == ht.text, ht.text)
             .or_error(text_or_error)), **parse_rows(ht),
-        entries=parse_entries(ht, header_dict['column_ids']).map(lambda entry: hl.struct(x=entry))) \
+        entries=parse_entries(ht, hl_columns).map(lambda entry: hl.struct(x=entry))) \
         .drop('text', 'split_array', 'file')
 
     ht = ht.annotate_globals(cols=hl.range(0, len(header_dict['column_ids']))
-                             .map(lambda col_idx: hl.struct(col_idx=header_dict.column_ids[col_idx])))
+                             .map(lambda col_idx: hl.struct(col_idx=hl_columns[col_idx])))
 
     if not add_row_id:
-        ht = ht.drop('row_id')
+        ht = ht.drop('row_idx')
 
     mt = ht._unlocalize_entries('entries', 'cols', ['col_idx'])
     mt = mt.key_rows_by(*row_key)
