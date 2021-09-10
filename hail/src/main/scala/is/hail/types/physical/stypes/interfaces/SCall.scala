@@ -17,7 +17,7 @@ trait SCallValue extends SValue {
 
   def forEachAllele(cb: EmitCodeBuilder)(alleleCode: Value[Int] => Unit): Unit
 
-  def canonicalCall(cb: EmitCodeBuilder): Code[Int]
+  def canonicalCall(cb: EmitCodeBuilder): Value[Int]
 
   def lgtToGT(cb: EmitCodeBuilder, localAlleles: SIndexableValue, errorID: Value[Int]): SCallCode
 

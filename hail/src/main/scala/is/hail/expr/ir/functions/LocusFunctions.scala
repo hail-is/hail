@@ -28,7 +28,7 @@ object LocusFunctions extends RegistryFunctions {
     val loc = cb.newLocal[Locus]("emit_locus_memo", locus)
     rt.constructFromPositionAndString(cb, r,
       loc.invoke[String]("contig"),
-      loc.invoke[Int]("position"))
+      loc.invoke[Int]("position")).get
   }
 
   def emitVariant(cb: EmitCodeBuilder, r: Value[Region], variantCode: Code[(Locus, IndexedSeq[String])], rt: PCanonicalStruct): SBaseStructPointerCode = {
@@ -45,12 +45,12 @@ object LocusFunctions extends RegistryFunctions {
       val (push, finish) = pAlleles.constructFromFunctions(cb, r, len, deepCopy = false)
       val i = cb.newLocal[Int]("locus_alleles_i", 0)
       cb.whileLoop(i < len, {
-        push(cb, IEmitCode.present(cb, ss.constructFromString(cb, r, all.invoke[Int, String]("apply", i))))
+        push(cb, IEmitCode.present(cb, ss.constructFromString(cb, r, all.invoke[Int, String]("apply", i)).get))
         cb.assign(i, i + 1)
       })
       IEmitCode.present(cb, finish(cb).get)
     }
-    rt.constructFromFields(cb, r, FastIndexedSeq(locus, alleles), deepCopy = false)
+    rt.constructFromFields(cb, r, FastIndexedSeq(locus, alleles), deepCopy = false).get
   }
 
   def emitLocusInterval(cb: EmitCodeBuilder, r: Value[Region], intervalCode: Code[Interval], pt: PCanonicalInterval): SIntervalPointerCode = {
@@ -60,9 +60,9 @@ object LocusFunctions extends RegistryFunctions {
       r,
       EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, emitLocus(cb, r, interval.invoke[Locus]("start"), pointType))),
       EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, emitLocus(cb, r, interval.invoke[Locus]("end"), pointType))),
-      EmitCode.present(cb.emb, primitive(interval.invoke[Boolean]("includesStart"))),
-      EmitCode.present(cb.emb, primitive(interval.invoke[Boolean]("includesEnd")))
-    )
+      cb.memoize(interval.invoke[Boolean]("includesStart")),
+      cb.memoize(interval.invoke[Boolean]("includesEnd"))
+    ).get
   }
 
   def registerLocusCode(methodName: String)(f: IR => IR): Unit =
@@ -226,7 +226,7 @@ object LocusFunctions extends RegistryFunctions {
               .asDouble.doubleCode(cb) >= (coords.loadElement(cb, idx)
               .get(cb, "locus_windows: missing value for 'coord_expr'").asDouble.doubleCode(cb) - radius)
             })
-          ), deepCopy = false)
+          ), deepCopy = false).get
     }
 
     registerSCode1("Locus", TString, tlocus("T"), {
@@ -247,7 +247,7 @@ object LocusFunctions extends RegistryFunctions {
         val contigMemo = contig.memoize(cb, "locus_contig")
         val posMemo = pos.memoize(cb, "locus_pos")
         cb += rgCode(r.mb, rt.rg).invoke[String, Int, Unit]("checkLocus", contigMemo.get.asString.loadString(), posMemo.asInt.intCode(cb))
-        rt.constructFromPositionAndString(cb, r.region, contigMemo.get.asString.loadString(), posMemo.asInt.intCode(cb))
+        rt.constructFromPositionAndString(cb, r.region, contigMemo.get.asString.loadString(), posMemo.asInt.intCode(cb)).get
     }
 
     registerSCode1("LocusAlleles", TString, tvariant("T"), {
@@ -355,7 +355,7 @@ object LocusFunctions extends RegistryFunctions {
       case (r, cb, SCanonicalLocusPointer(rt: PCanonicalLocus), globalPos, _) =>
         val locus = cb.newLocal[Locus]("global_pos_locus",
           rgCode(r.mb, rt.rg).invoke[Long, Locus]("globalPosToLocus", globalPos.asLong.longCode(cb)))
-        rt.constructFromPositionAndString(cb, r.region, locus.invoke[String]("contig"), locus.invoke[Int]("position"))
+        rt.constructFromPositionAndString(cb, r.region, locus.invoke[String]("contig"), locus.invoke[Int]("position")).get
     }
 
     registerSCode1("locusToGlobalPos", tlocus("T"), TInt64, (_: Type, _: SType) => SInt64) {
@@ -400,7 +400,7 @@ object LocusFunctions extends RegistryFunctions {
             val structCode = rt.constructFromFields(cb, r, FastIndexedSeq(locusCode, negativeStrandCode), deepCopy = false)
 
             cb.goto(Ldefined)
-            IEmitCode(Lmissing, Ldefined, structCode, false)
+            IEmitCode(Lmissing, Ldefined, structCode.get, false)
           }
         }
     }
@@ -442,7 +442,7 @@ object LocusFunctions extends RegistryFunctions {
 
 
             cb.goto(Ldefined)
-            IEmitCode(Lmissing, Ldefined, structCode, false)
+            IEmitCode(Lmissing, Ldefined, structCode.get, false)
           }
         }
     }

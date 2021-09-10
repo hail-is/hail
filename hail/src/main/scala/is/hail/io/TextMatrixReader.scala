@@ -585,7 +585,7 @@ class CompiledLineParser(
         primitive(Code.invokeStatic1[java.lang.Double, String, Double]("parseDouble", cb.invokeCode(parseStringMb, region)))
       case t: PString =>
         val st = SStringPointer(t)
-        st.constructFromString(cb, region, cb.invokeCode[String](parseStringMb, region))
+        st.constructFromString(cb, region, cb.invokeCode[String](parseStringMb, region)).get
     }
     if (t.required)
       IEmitCode.present(cb, parseDefinedValue(cb))
@@ -648,7 +648,7 @@ class CompiledLineParser(
       cb.ifx(pos >= line.length, parseError(cb, const("unexpected end of line while reading entry ").concat(i.toS)))
 
       val ec = EmitCode.fromI(cb.emb)(cb => parseValueOfType(cb, entryType.fields(0).typ))
-      push(cb, IEmitCode.present(cb, SStackStruct.constructFromArgs(cb, region, entryType.virtualType, ec)))
+      push(cb, IEmitCode.present(cb, SStackStruct.constructFromArgs(cb, region, entryType.virtualType, ec).get))
       cb.assign(pos, pos + 1)
       cb.assign(i, i + 1)
     })

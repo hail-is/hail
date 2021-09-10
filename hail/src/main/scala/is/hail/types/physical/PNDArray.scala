@@ -5,7 +5,7 @@ import is.hail.asm4s.{Code, _}
 import is.hail.expr.Nat
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.{SCode, SValue}
 import is.hail.types.physical.stypes.concrete.{SNDArrayPointerCode, SNDArrayPointerValue}
 import is.hail.types.physical.stypes.interfaces.{SIndexableCode, SNDArrayCode, SNDArrayValue, SizeValue, SizeValueDyn}
 import is.hail.types.virtual.TNDArray
@@ -40,7 +40,7 @@ abstract class PNDArray extends PType {
 
   def getElementAddress(indices: IndexedSeq[Long], nd: Long): Long
 
-  def loadElement(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndAddress: Value[Long]): SCode
+  def loadElement(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndAddress: Value[Long]): SValue
 
   def constructByCopyingArray(
     shape: IndexedSeq[Value[Long]],

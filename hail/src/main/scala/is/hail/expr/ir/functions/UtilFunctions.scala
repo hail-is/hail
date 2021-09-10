@@ -301,7 +301,7 @@ object UtilFunctions extends RegistryFunctions {
       case (r, cb, st: SJavaString.type, format, args, _) =>
         val javaObjArgs = Code.checkcast[Row](scodeToJavaValue(cb, r.region, args))
         val formatted = Code.invokeScalaObject2[String, Row, String](thisClass, "format", format.asString.loadString(), javaObjArgs)
-        st.construct(formatted)
+        st.construct(cb, formatted).get
     }
 
     registerIEmitCode2("land", TBoolean, TBoolean, TBoolean, (_: Type, tl: EmitType, tr: EmitType) => EmitType(SBoolean, tl.required && tr.required)) {

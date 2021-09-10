@@ -223,13 +223,13 @@ object EmitStreamDistribute {
     val firstInterval = intervalType.constructFromCodes(cb, region,
       EmitCode.fromI(cb.emb)(cb => requestedSplittersAndEndsVal.loadElement(cb, 0)),
       EmitCode.fromI(cb.emb)(cb => paddedSplitters.loadElement(cb, 0)),
-      EmitCode.present(cb.emb, primitive(false)),
-      EmitCode.present(cb.emb,  new SBooleanCode(!splitterWasDuplicated.loadElement(cb, 0).get(cb).asBoolean.boolCode(cb)))
+      false,
+      cb.memoize(!splitterWasDuplicated.loadElement(cb, 0).get(cb).asBoolean.boolCode(cb))
     )
 
     pushElement(cb, IEmitCode.present(cb, new SStackStructCode(stackStructType, IndexedSeq(
-      EmitCode.present(cb.emb, firstInterval),
-      EmitCode.present(cb.emb, SJavaString.construct(makeFileName(0))),
+      EmitCode.present(cb.emb, firstInterval.get),
+      EmitCode.present(cb.emb, SJavaString.construct(cb, makeFileName(0)).get),
       EmitCode.present(cb.emb, primitive(numElementsPerFile(0)))
     ))))
 
@@ -238,13 +238,13 @@ object EmitStreamDistribute {
         val intervalFromLastToThis = intervalType.constructFromCodes(cb, region,
           EmitCode.fromI(cb.emb)(cb => paddedSplitters.loadElement(cb, uniqueSplittersIdx - 1)),
           EmitCode.fromI(cb.emb)(cb => paddedSplitters.loadElement(cb, uniqueSplittersIdx)),
-          EmitCode.present(cb.emb, primitive(false)),
-          EmitCode.present(cb.emb, primitive(!splitterWasDuplicated.loadElement(cb, uniqueSplittersIdx).get(cb).asBoolean.boolCode(cb)))
+          false,
+          cb.memoize(!splitterWasDuplicated.loadElement(cb, uniqueSplittersIdx).get(cb).asBoolean.boolCode(cb))
         )
 
         pushElement(cb, IEmitCode.present(cb, new SStackStructCode(stackStructType, IndexedSeq(
-          EmitCode.present(cb.emb, intervalFromLastToThis),
-          EmitCode.present(cb.emb, SJavaString.construct(makeFileName(fileArrayIdx))),
+          EmitCode.present(cb.emb, intervalFromLastToThis.get),
+          EmitCode.present(cb.emb, SJavaString.construct(cb, makeFileName(fileArrayIdx)).get),
           EmitCode.present(cb.emb, primitive(numElementsPerFile(fileArrayIdx)))
         ))))
 
@@ -256,13 +256,13 @@ object EmitStreamDistribute {
         val identityInterval = intervalType.constructFromCodes(cb, region,
           EmitCode.fromI(cb.emb)(cb => paddedSplitters.loadElement(cb, uniqueSplittersIdx)),
           EmitCode.fromI(cb.emb)(cb => paddedSplitters.loadElement(cb, uniqueSplittersIdx)),
-          EmitCode.present(cb.emb, primitive(true)),
-          EmitCode.present(cb.emb, primitive(true))
+          true,
+          true
         )
 
         pushElement(cb, IEmitCode.present(cb, new SStackStructCode(stackStructType, IndexedSeq(
-          EmitCode.present(cb.emb, identityInterval),
-          EmitCode.present(cb.emb, SJavaString.construct(makeFileName(fileArrayIdx))),
+          EmitCode.present(cb.emb, identityInterval.get),
+          EmitCode.present(cb.emb, SJavaString.construct(cb, makeFileName(fileArrayIdx)).get),
           EmitCode.present(cb.emb, primitive(numElementsPerFile(fileArrayIdx)))
         ))))
 
@@ -274,13 +274,13 @@ object EmitStreamDistribute {
     val lastInterval = intervalType.constructFromCodes(cb, region,
       EmitCode.fromI(cb.emb)(cb => paddedSplitters.loadElement(cb, uniqueSplittersIdx - 1)),
       EmitCode.fromI(cb.emb)(cb => requestedSplittersAndEndsVal.loadElement(cb, requestedSplittersAndEndsVal.loadLength() - 1)),
-      EmitCode.present(cb.emb, primitive(false)),
-      EmitCode.present(cb.emb, primitive(false))
+      false,
+      false
     )
 
     pushElement(cb, IEmitCode.present(cb, new SStackStructCode(stackStructType, IndexedSeq(
-      EmitCode.present(cb.emb, lastInterval),
-      EmitCode.present(cb.emb, SJavaString.construct(makeFileName(fileArrayIdx))),
+      EmitCode.present(cb.emb, lastInterval.get),
+      EmitCode.present(cb.emb, SJavaString.construct(cb, makeFileName(fileArrayIdx)).get),
       EmitCode.present(cb.emb,  primitive(numElementsPerFile(fileArrayIdx)))
     ))))
 

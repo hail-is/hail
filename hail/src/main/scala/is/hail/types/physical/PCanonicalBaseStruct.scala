@@ -194,7 +194,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     }
   }
 
-  def constructFromFields(cb: EmitCodeBuilder, region: Value[Region], emitFields: IndexedSeq[EmitCode], deepCopy: Boolean): SBaseStructPointerCode = {
+  def constructFromFields(cb: EmitCodeBuilder, region: Value[Region], emitFields: IndexedSeq[EmitCode], deepCopy: Boolean): SBaseStructPointerValue = {
     require(emitFields.length == size)
     val addr = cb.newLocal[Long]("pcbs_construct_fields", allocate(region))
     stagedInitialize(cb, addr, setMissing = false)
@@ -208,7 +208,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
         )
     }
 
-    new SBaseStructPointerCode(sType, addr)
+    new SBaseStructPointerValue(sType, addr)
   }
 
   override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {

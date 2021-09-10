@@ -135,7 +135,7 @@ object AvroReader {
       }
     }
 
-    SStackStruct.constructFromArgs(cb, region, requestedType, codes: _*)
+    SStackStruct.constructFromArgs(cb, region, requestedType, codes: _*).get
   }
 
   private[avro] def setRequiredness(schema: Schema, typ: TypeWithRequiredness): Unit = {

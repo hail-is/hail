@@ -291,7 +291,7 @@ abstract class RegistryFunctions {
     case TFloat64 => primitive(coerce[Double](value))
     case TString =>
       val sst = st.asInstanceOf[SJavaString.type]
-      sst.constructFromString(cb, r, coerce[String](value))
+      sst.constructFromString(cb, r, coerce[String](value)).get
     case TCall =>
       assert(st == SCanonicalCall)
       new SCanonicalCallCode(coerce[Int](value))
@@ -317,7 +317,7 @@ abstract class RegistryFunctions {
       }.get
     case TArray(TString) =>
       val ast = st.asInstanceOf[SJavaArrayString]
-      ast.construct(coerce[Array[String]](value))
+      ast.construct(cb, coerce[Array[String]](value)).get
     case t: TBaseStruct =>
       val sst = st.asInstanceOf[SBaseStructPointer]
       val pt = sst.pType.asInstanceOf[PCanonicalBaseStruct]

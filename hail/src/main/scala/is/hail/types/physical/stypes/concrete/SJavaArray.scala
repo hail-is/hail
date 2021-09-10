@@ -54,7 +54,8 @@ final case class SJavaArrayString(elementRequired: Boolean) extends SContainer {
     new SJavaArrayStringValue(this, a)
   }
 
-  def construct(arr: Code[Array[String]]): SJavaArrayStringCode = new SJavaArrayStringCode(this, arr)
+  def construct(cb: EmitCodeBuilder, arr: Code[Array[String]]): SJavaArrayStringValue =
+    new SJavaArrayStringValue(this, cb.memoize(arr))
 }
 
 class SJavaArrayStringCode(val st: SJavaArrayString, val array: Code[Array[String]]) extends SIndexableCode {

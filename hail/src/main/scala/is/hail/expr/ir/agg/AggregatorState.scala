@@ -200,7 +200,7 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
     storageType.storeAtAddress(cb,
       dest,
       null,
-      SStackStruct.constructFromArgs(cb, null, storageType.virtualType, fields.map(_.load): _*),
+      SStackStruct.constructFromArgs(cb, null, storageType.virtualType, fields.map(_.load): _*).get,
       false)
   }
 

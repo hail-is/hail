@@ -281,10 +281,10 @@ object CompileDecoder {
             val strT = t.field("contig").typ.asInstanceOf[PCanonicalString]
             val contigPC = strT.sType.constructFromString(cb, region, contigRecoded)
             t.constructFromFields(cb, region,
-              FastIndexedSeq(EmitCode.present(cb.emb, contigPC), EmitCode.present(cb.emb, primitive(position))),
+              FastIndexedSeq(EmitCode.present(cb.emb, contigPC.get), EmitCode.present(cb.emb, primitive(position))),
               deepCopy = false)
         }
-        structFieldCodes += EmitCode.present(cb.emb, pc)
+        structFieldCodes += EmitCode.present(cb.emb, pc.get)
       }
 
       cb.assign(nAlleles, cbfis.invoke[Int]("readShort"))
@@ -301,7 +301,7 @@ object CompileDecoder {
         cb.whileLoop(i < nAlleles, {
           val st = SStringPointer(alleleStringType)
           val strCode = st.constructFromString(cb, region, cbfis.invoke[Int, String]("readLengthAndString", 4))
-          pushElement(cb, IEmitCode.present(cb, strCode))
+          pushElement(cb, IEmitCode.present(cb, strCode.get))
           cb.assign(i, i + 1)
         })
 
@@ -310,9 +310,9 @@ object CompileDecoder {
       }
 
       if (settings.hasField("rsid"))
-        structFieldCodes += EmitCode.present(cb.emb, SStringPointer(PCanonicalString(false)).constructFromString(cb, region, rsid))
+        structFieldCodes += EmitCode.present(cb.emb, SStringPointer(PCanonicalString(false)).constructFromString(cb, region, rsid).get)
       if (settings.hasField("varid"))
-        structFieldCodes += EmitCode.present(cb.emb, SStringPointer(PCanonicalString(false)).constructFromString(cb, region, varid))
+        structFieldCodes += EmitCode.present(cb.emb, SStringPointer(PCanonicalString(false)).constructFromString(cb, region, varid).get)
       if (settings.hasField("offset"))
         structFieldCodes += EmitCode.present(cb.emb, primitive(offset))
       if (settings.hasField("file_idx"))
@@ -411,7 +411,7 @@ object CompileDecoder {
                   }
 
                 push(cb, IEmitCode.present(cb,
-                  SStackStruct.constructFromArgs(cb, partRegion, entryType.virtualType, entryFieldCodes.result(): _*)))
+                  SStackStruct.constructFromArgs(cb, partRegion, entryType.virtualType, entryFieldCodes.result(): _*).get))
 
                 cb.assign(d1, d1 + 1)
               })

@@ -905,14 +905,14 @@ class Emit[C](
           fields.map { case (_, x) =>
             EmitCode.fromI(cb.emb)(cb => emitInNewBuilder(cb, x))
           }: _*
-        ))
+        ).get)
 
       case x@MakeTuple(fields) =>
         presentPC(SStackStruct.constructFromArgs(cb, region, x.typ.asInstanceOf[TBaseStruct],
           fields.map { case (_, x) =>
             EmitCode.fromI(cb.emb)(cb => emitInNewBuilder(cb, x))
           }: _*
-        ))
+        ).get)
 
       case x@SelectFields(oldStruct, fields) =>
         emitI(oldStruct)
@@ -1082,7 +1082,7 @@ class Emit[C](
           StreamUtils.writeToArrayBuilder(cb, stream.producer, vab, region)
           val sorter = new ArraySorter(EmitRegion(mb, region), vab)
           sorter.sort(cb, region, makeDependentSortingFunction(cb, sct, lessThan, env, emitSelf, Array(left, right)))
-          sorter.toRegion(cb, x.typ)
+          sorter.toRegion(cb, x.typ).get
         }
 
       case x@ToSet(a) =>
@@ -1108,7 +1108,7 @@ class Emit[C](
           }
 
           sorter.distinctFromSorted(cb, region, skipNext)
-          sorter.toRegion(cb, x.typ)
+          sorter.toRegion(cb, x.typ).get
         }
 
       case x@ToDict(a) =>
@@ -1158,7 +1158,7 @@ class Emit[C](
           }
 
           sorter.distinctFromSorted(cb, region, skipNext)
-          sorter.toRegion(cb, x.typ)
+          sorter.toRegion(cb, x.typ).get
         }
 
       case GroupByKey(collection) =>
@@ -1265,11 +1265,11 @@ class Emit[C](
               IEmitCode.present(cb, finishInner(cb).get)
             }
             val elt = groupType.constructFromFields(cb, region, FastIndexedSeq(key, group), deepCopy = false)
-            addGroup(cb, IEmitCode.present(cb, elt))
+            addGroup(cb, IEmitCode.present(cb, elt.get))
             cb.assign(grpIdx, grpIdx + 1)
           })
 
-          dictType.construct(finishOuter(cb).get)
+          dictType.construct(finishOuter(cb)).get
         }
 
       case x@StreamLen(a) =>
@@ -1779,9 +1779,9 @@ class Emit[C](
             val outputPType = NDArraySVD.pTypes(true, false).asInstanceOf[PCanonicalTuple]
             outputPType.constructFromFields(cb, region, FastIndexedSeq(EmitCode.present(cb.emb, u.get), EmitCode.present(cb.emb, s.get), EmitCode.present(cb.emb, vt.get)), deepCopy = false)
           } else {
-            s.get
+            s
           }
-          IEmitCode(cb, false, resultPCode)
+          IEmitCode(cb, false, resultPCode.get)
 
         }
       case x@NDArrayQR(nd, mode, errorID) =>
@@ -1860,7 +1860,7 @@ class Emit[C](
 
           val h = hFinisher(cb)
 
-          val result: SCode = if (mode == "raw") {
+          val result: SValue = if (mode == "raw") {
             val resultType = resultPType.asInstanceOf[PCanonicalBaseStruct]
             val tau = tauFinisher(cb)
 
@@ -1918,7 +1918,7 @@ class Emit[C](
             val computeR = rFinisher(cb)
 
             if (mode == "r") {
-              computeR.get
+              computeR
             }
             else {
               val crPType = resultPType.asInstanceOf[PCanonicalTuple]
@@ -1986,7 +1986,7 @@ class Emit[C](
               ), deepCopy = false)
             }
           }
-          result
+          result.get
         }
       case x: NDArrayMap => emitDeforestedNDArrayI(x)
       case x: NDArrayMap2 => emitDeforestedNDArrayI(x)
@@ -2168,14 +2168,14 @@ class Emit[C](
           cb.assign(tv, EmitCode.missing(cb.emb, errTuple))
           cb.assign(maybeMissingEV, ev)
         }, {
-          val str = EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, sst.constructFromString(cb, region, maybeException.invoke[String]("_1"))))
+          val str = EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, sst.constructFromString(cb, region, maybeException.invoke[String]("_1")).get))
           val errorId = EmitCode.fromI(cb.emb)(cb =>
             IEmitCode.present(cb, primitive(maybeException.invoke[java.lang.Integer]("_2").invoke[Int]("intValue"))))
-          cb.assign(tv, IEmitCode.present(cb, SStackStruct.constructFromArgs(cb, region, errTupleType, str, errorId)))
+          cb.assign(tv, IEmitCode.present(cb, SStackStruct.constructFromArgs(cb, region, errTupleType, str, errorId).get))
           cb.assign(maybeMissingEV, EmitCode.missing(cb.emb, ev.st))
         })
         IEmitCode.present(cb, {
-          SStackStruct.constructFromArgs(cb, region, t.typ.asInstanceOf[TBaseStruct], tv, maybeMissingEV)
+          SStackStruct.constructFromArgs(cb, region, t.typ.asInstanceOf[TBaseStruct], tv, maybeMissingEV).get
         })
 
       case Die(m, typ, errorId) =>
@@ -2286,7 +2286,7 @@ class Emit[C](
         emitStream(contexts, cb, region).map(cb) { case ctxStream: SStreamCode =>
 
           def wrapInTuple(cb: EmitCodeBuilder, region: Value[Region], et: EmitCode): SBaseStructPointerCode = {
-            PCanonicalTuple(true, et.emitType.storageType).constructFromFields(cb, region, FastIndexedSeq(et), deepCopy = false)
+            PCanonicalTuple(true, et.emitType.storageType).constructFromFields(cb, region, FastIndexedSeq(et), deepCopy = false).get
           }
 
           val bufferSpec: BufferSpec = BufferSpec.defaultUncompressed

@@ -144,7 +144,7 @@ case object SUnreachableString extends SUnreachable with SString {
 
   override val sc = new SUnreachableStringCode
 
-  override def constructFromString(cb: EmitCodeBuilder, r: Value[Region], s: Code[String]): SStringCode = sc
+  override def constructFromString(cb: EmitCodeBuilder, r: Value[Region], s: Code[String]): SStringValue = sv
 }
 
 class SUnreachableStringCode extends SUnreachableCode with SStringCode {
@@ -236,7 +236,7 @@ class SUnreachableCallValue extends SUnreachableValue with SCallValue {
 
   override def ploidy(): Code[Int] = const(0)
 
-  override def canonicalCall(cb: EmitCodeBuilder): Code[Int] = const(0)
+  override def canonicalCall(cb: EmitCodeBuilder): Value[Int] = const(0)
 
   override def st: SUnreachableCall.type = SUnreachableCall
 

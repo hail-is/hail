@@ -205,7 +205,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
               IEmitCode.present(cb, keyType.asInstanceOf[PCanonicalBaseStruct]
                 .constructFromFields(cb, stream.elementRegion,
                   keyType.fields.map(f => EmitCode.fromI(cb.emb)(cb => row.loadField(cb, f.name))),
-                  deepCopy = false))
+                  deepCopy = false).get)
             },
               ob.invoke[Long]("indexOffset"),
               IEmitCode.present(cb, PCanonicalStruct().loadCheapSCode(cb, 0L).get))
