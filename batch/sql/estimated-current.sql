@@ -140,7 +140,6 @@ CREATE TABLE IF NOT EXISTS `batches` (
   `callback` TEXT,
   `state` VARCHAR(40) NOT NULL,
   `deleted` BOOLEAN NOT NULL DEFAULT FALSE,
-  `cancelled` BOOLEAN NOT NULL DEFAULT FALSE,
   `n_jobs` INT NOT NULL,
   `n_completed` INT NOT NULL DEFAULT 0,
   `n_succeeded` INT NOT NULL DEFAULT 0,
@@ -156,7 +155,7 @@ CREATE TABLE IF NOT EXISTS `batches` (
   PRIMARY KEY (`id`),
   FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name)
 ) ENGINE = InnoDB;
-CREATE INDEX `batches_user_state_cancelled` ON `batches` (`user`, `state`, `cancelled`);
+CREATE INDEX `batches_user_state` ON `batches` (`user`, `state`);
 CREATE INDEX `batches_deleted` ON `batches` (`deleted`);
 CREATE INDEX `batches_token` ON `batches` (`token`);
 CREATE INDEX `batches_time_completed` ON `batches` (`time_completed`);

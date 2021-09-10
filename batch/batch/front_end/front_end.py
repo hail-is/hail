@@ -569,8 +569,8 @@ LEFT JOIN aggregated_batch_resources
 LEFT JOIN resources
   ON aggregated_batch_resources.resource = resources.resource
 WHERE {' AND '.join(where_conditions)}
-GROUP BY batches.id, batches_cancelled.id
-ORDER BY batches.id DESC, batches_cancelled.id
+GROUP BY batches.id
+ORDER BY batches.id DESC
 LIMIT 51;
 '''
     sql_args = where_args
