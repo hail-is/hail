@@ -1055,6 +1055,7 @@ async def _create_batch(batch_spec: dict, userdata: dict, db: Database):
 select billing_projects.status, billing_projects.limit
 from billing_project_users
 inner join billing_projects
+  on billing_projects.name = billing_project_users.billing_project
 where billing_project = %s and user = %s
 lock in share mode''', (billing_project, user))
 
