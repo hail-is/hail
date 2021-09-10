@@ -49,14 +49,14 @@ class StagedLeafNodeBuilder(maxSize: Int, keyType: PType, annotationType: PType,
 
   def reset(cb: EmitCodeBuilder, firstIdx: Code[Long]): Unit = {
     cb += region.invoke[Unit]("clear")
-    node.store(cb, pType.loadCheapSCode(cb, pType.allocate(region)))
+    node.store(cb, pType.loadCheapSCode(cb, pType.allocate(region)).get)
     idxType.storePrimitiveAtAddress(cb, pType.fieldOffset(node.a, "first_idx"), primitive(firstIdx))
     ab.create(cb, pType.fieldOffset(node.a, "keys"))
   }
 
   def create(cb: EmitCodeBuilder, firstIdx: Code[Long]): Unit = {
     cb.assign(region, Region.stagedCreate(Region.REGULAR, cb.emb.ecb.pool()))
-    node.store(cb, pType.loadCheapSCode(cb, pType.allocate(region)))
+    node.store(cb, pType.loadCheapSCode(cb, pType.allocate(region)).get)
     idxType.storePrimitiveAtAddress(cb, pType.fieldOffset(node.a, "first_idx"), primitive(firstIdx))
     ab.create(cb, pType.fieldOffset(node.a, "keys"))
   }
@@ -64,7 +64,7 @@ class StagedLeafNodeBuilder(maxSize: Int, keyType: PType, annotationType: PType,
   def encode(cb: EmitCodeBuilder, ob: Value[OutputBuffer]): Unit = {
     val enc = EType.defaultFromPType(pType).buildEncoder(SBaseStructPointer(pType), cb.emb.ecb)
     ab.storeLength(cb)
-    enc(cb, node, ob)
+    enc(cb, node.get, ob)
   }
 
   def nodeAddress: SBaseStructValue = node
@@ -78,5 +78,5 @@ class StagedLeafNodeBuilder(maxSize: Int, keyType: PType, annotationType: PType,
 
   def loadChild(cb: EmitCodeBuilder, idx: Code[Int]): Unit = ab.loadChild(cb, idx)
   def getLoadedChild: SBaseStructValue = ab.getLoadedChild
-  def firstIdx(cb: EmitCodeBuilder): SCode = idxType.loadCheapSCode(cb, pType.fieldOffset(node.a, "first_idx"))
+  def firstIdx(cb: EmitCodeBuilder): SCode = idxType.loadCheapSCode(cb, pType.fieldOffset(node.a, "first_idx")).get
 }

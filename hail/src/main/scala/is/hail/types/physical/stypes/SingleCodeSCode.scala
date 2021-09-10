@@ -153,7 +153,7 @@ case class StreamSingleCodeType(requiresMemoryManagementPerElement: Boolean, elt
       }
 
       override val element: EmitCode =
-        EmitCode.fromI(mb)(cb => IEmitCode.present(cb, eltType.loadCheapSCodeField(cb, rvAddr)))
+        EmitCode.fromI(mb)(cb => IEmitCode.present(cb, eltType.loadCheapSCodeField(cb, rvAddr).get))
 
       override def close(cb: EmitCodeBuilder): Unit = {}
     }
@@ -172,7 +172,7 @@ case class PTypeReferenceSingleCodeType(pt: PType) extends SingleCodeType {
 
   override def loadedSType: SType = pt.sType
 
-  def loadToSCode(cb: EmitCodeBuilder, r: Value[Region], c: Code[_]): SCode = pt.loadCheapSCode(cb, coerce[Long](c))
+  def loadToSCode(cb: EmitCodeBuilder, r: Value[Region], c: Code[_]): SCode = pt.loadCheapSCode(cb, coerce[Long](c)).get
 
   def loadToSValue(cb: EmitCodeBuilder, r: Value[Region], c: Value[_]): SValue =
     pt.loadCheapSCodeField(cb, coerce[Long](c))

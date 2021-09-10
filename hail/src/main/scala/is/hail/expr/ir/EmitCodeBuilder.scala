@@ -206,10 +206,10 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   def invokeSCode(callee: EmitMethodBuilder[_], args: Param*): SCode = {
     val st = callee.emitReturnType.asInstanceOf[SCodeParamType].st
     if (st.nSettables == 1)
-      st.fromValues(FastIndexedSeq(memoize(_invoke(callee, args: _*))(st.settableTupleTypes()(0))))
+      st.fromValues(FastIndexedSeq(memoize(_invoke(callee, args: _*))(st.settableTupleTypes()(0)))).get
     else {
       val tup = newLocal("invokepcode_tuple", _invoke(callee, args: _*))(callee.asmTuple.ti)
-      st.fromValues(callee.asmTuple.loadElementsAny(tup))
+      st.fromValues(callee.asmTuple.loadElementsAny(tup)).get
     }
   }
 

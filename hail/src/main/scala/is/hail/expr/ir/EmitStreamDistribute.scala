@@ -28,8 +28,8 @@ object EmitStreamDistribute {
     val keyFieldNames = keyType.virtualType.fields.map(_.name)
 
     def compare(cb: EmitCodeBuilder, lelt: EmitValue, relt: EmitValue): Code[Int] = {
-      val lhs = EmitCode.fromI(mb)(cb => lelt.toI(cb).map(cb)(_.asBaseStruct.memoize(cb, "stream_dist_comp_lhs").subset(keyFieldNames: _*)))
-      val rhs = EmitCode.fromI(mb)(cb => relt.toI(cb).map(cb)(_.asBaseStruct.memoize(cb, "stream_dist_comp_rhs").subset(keyFieldNames: _*)))
+      val lhs = EmitCode.fromI(mb)(cb => lelt.toI(cb).map(cb)(_.asBaseStruct.memoize(cb, "stream_dist_comp_lhs").subset(keyFieldNames: _*).get))
+      val rhs = EmitCode.fromI(mb)(cb => relt.toI(cb).map(cb)(_.asBaseStruct.memoize(cb, "stream_dist_comp_rhs").subset(keyFieldNames: _*).get))
       StructOrdering.make(lhs.st.asInstanceOf[SBaseStruct], rhs.st.asInstanceOf[SBaseStruct],
         cb.emb.ecb, missingFieldsEqual = true)
         .compare(cb, lhs, rhs, missingEqual = true)
@@ -66,13 +66,13 @@ object EmitStreamDistribute {
       cb.forLoop(cb.assign(requestedSplittersIdx, 0), requestedSplittersIdx < requestedSplittersVal.loadLength(), cb.assign(requestedSplittersIdx, requestedSplittersIdx + 1), {
         val currentSplitter = requestedSplittersVal.loadElement(cb, requestedSplittersIdx).memoize(cb, "stream_distribute_current_splitter")
         cb.ifx(requestedSplittersIdx ceq 0, {
-          paddedSplittersPType.elementType.storeAtAddress(cb, paddedSplittersPType.loadElement(paddedSplittersAddr, paddedSplittersSize, 0), region, currentSplitter.get(cb), false)
+          paddedSplittersPType.elementType.storeAtAddress(cb, paddedSplittersPType.loadElement(paddedSplittersAddr, paddedSplittersSize, 0), region, currentSplitter.get(cb).get, false)
           splittersWasDuplicatedPType.elementType.storeAtAddress(cb, splittersWasDuplicatedPType.loadElement(splittersWasDuplicatedAddr, splittersWasDuplicatedLength, uniqueSplittersIdx), region, new SBooleanCode(false), false)
           cb.assign(uniqueSplittersIdx, uniqueSplittersIdx + 1)
         }, {
           cb.ifx(!equal(cb, lastKeySeen, currentSplitter), {
             // write to pos in splitters
-            paddedSplittersPType.elementType.storeAtAddress(cb, paddedSplittersPType.loadElement(paddedSplittersAddr, paddedSplittersSize, uniqueSplittersIdx), region, currentSplitter.get(cb), false)
+            paddedSplittersPType.elementType.storeAtAddress(cb, paddedSplittersPType.loadElement(paddedSplittersAddr, paddedSplittersSize, uniqueSplittersIdx), region, currentSplitter.get(cb).get, false)
             splittersWasDuplicatedPType.elementType.storeAtAddress(cb, splittersWasDuplicatedPType.loadElement(splittersWasDuplicatedAddr, splittersWasDuplicatedLength, uniqueSplittersIdx), region, new SBooleanCode(false), false)
             cb.assign(uniqueSplittersIdx, uniqueSplittersIdx + 1)
           }, {
@@ -86,7 +86,7 @@ object EmitStreamDistribute {
 
       // Pad out the rest of the splitters array so tree later is balanced.
       cb.forLoop({}, uniqueSplittersIdx < paddedSplittersSize, cb.assign(uniqueSplittersIdx, uniqueSplittersIdx + 1), {
-        paddedSplittersPType.elementType.storeAtAddress(cb, paddedSplittersPType.loadElement(paddedSplittersAddr, paddedSplittersSize, uniqueSplittersIdx), region, lastKeySeen.get(cb), false)
+        paddedSplittersPType.elementType.storeAtAddress(cb, paddedSplittersPType.loadElement(paddedSplittersAddr, paddedSplittersSize, uniqueSplittersIdx), region, lastKeySeen.get(cb).get, false)
       })
 
       val splitterWasDuplicated = new SIndexablePointerCode(SIndexablePointer(splittersWasDuplicatedPType), splittersWasDuplicatedAddr).memoize(cb, "stream_distrib_was_duplicated") // Same length as splitters, but full of booleans of whether it was initially duplicated.
@@ -198,7 +198,7 @@ object EmitStreamDistribute {
       val ob = cb.newLocal[OutputBuffer]("outputBuffer_to_write", outputBuffers(fileToUse))
 
       cb += ob.writeByte(1.asInstanceOf[Byte])
-      encoder(cb, current.get(cb), ob)
+      encoder(cb, current.get(cb).get, ob)
       cb += numElementsPerFile.update(fileToUse, numElementsPerFile(fileToUse) + 1)
     }
 

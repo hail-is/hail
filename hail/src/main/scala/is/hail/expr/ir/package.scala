@@ -229,7 +229,7 @@ package object ir {
 
   implicit def sCodeToSCodeParam(sc: SCode): SCodeParam = SCodeParam(sc)
 
-  implicit def sValueToSCodeParam(sv: SValue): SCodeParam = SCodeParam(sv)
+  implicit def sValueToSCodeParam(sv: SValue): SCodeParam = SCodeParam(sv.get)
 
   implicit def toEmitParam(ec: EmitCode): EmitParam = EmitParam(ec)
 

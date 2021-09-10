@@ -98,7 +98,7 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
   def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
     value.st match {
       case SIntervalPointer(t: PCanonicalInterval) =>
-        representation.storeAtAddress(cb, addr, region, t.representation.loadCheapSCode(cb, value.asInstanceOf[SIntervalPointerCode].a), deepCopy)
+        representation.storeAtAddress(cb, addr, region, t.representation.loadCheapSCode(cb, value.asInstanceOf[SIntervalPointerCode].a).get, deepCopy)
       case _ =>
         val interval = value.asInterval.memoize(cb, "pcinterval_store_at_addr")
         val start = EmitCode.fromI(cb.emb)(cb => interval.loadStart(cb))
