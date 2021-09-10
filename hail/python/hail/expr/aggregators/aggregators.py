@@ -1841,3 +1841,20 @@ class ScanFunctions(object):
             raise AttributeError("hl.scan.{} does not exist. Did you mean:\n    {}".format(
                 field,
                 "\n    ".join(field_matches)))
+
+
+@typecheck(inital_value=expr_any, seq_op=func_spec(2, expr_any), comb_op=func_spec(2, expr_any), field=expr_any)
+def fold(initial_value, seq_op, comb_op, field):
+    """
+
+    :param initialValue: B
+    :param seqOp: (B, A) => B
+    :param combOp: (B, B) => B
+    :param field: A
+    :return:
+    """
+
+    # Roughly, what do I need to do?
+    #
+
+    pass
