@@ -2228,9 +2228,9 @@ def import_matrix_table(paths,
         elif hail_type == hl.tint64:
             parsed_type = hl.parse_int64(value)
         elif hail_type == hl.tfloat32:
-            parsed_type = hl.parse_float32()
+            parsed_type = hl.parse_float32(value)
         elif hail_type == hl.tfloat64:
-            parsed_type = hl.parse_float64()
+            parsed_type = hl.parse_float64(value)
         else:
             parsed_type = value
 
@@ -2290,7 +2290,7 @@ def import_matrix_table(paths,
             two_first_lines = file_per_partition.head(2)
             two_first_lines = two_first_lines.annotate(split_array=two_first_lines.text.split(delimiter)).collect()
             header_line = two_first_lines[0]
-            first_data_line = two_first_lines[0]
+            first_data_line = two_first_lines[1]
             num_of_data_line_values = len(first_data_line.split_array)
             num_of_header_values = len(header_line.split_array)
             if header_line is None or match_file_name_to_index(header_line.file) != 0:
@@ -2376,7 +2376,8 @@ def import_matrix_table(paths,
         validate_all_headers()
 
     else:
-        first_line = ht.head(1).collect()[0]
+        first_line = ht.head(1)
+        first_line = first_line.annotate(split_array=first_line.text.split(delimiter)).collect()[0]
         if first_line is None or match_file_name_to_index(first_line.file) != 0:
             hl.utils.warning(
                 f"File {format_file(first_line.file)} is empty and has no header, so we assume no columns")
@@ -2393,12 +2394,14 @@ def import_matrix_table(paths,
 
     validate_row_fields()
     comment_filter = hl.rbind(hl.array(comment), lambda hl_comment:
-    hl_comment.any(lambda com: hl.if_else(hl.len(com) == 1, ht.text.startswith(com),
-                                          ht.text.matches(com, False)))) if len(comment) > 0 else False
+                              hl_comment.any(lambda com: hl.if_else(hl.len(com) == 1, ht.text.startswith(com),
+                                                                    ht.text.matches(com, False))))\
+        if len(comment) > 0 else False
     header_filter = ht.text == header_dict['text'] if not no_header else False
+
     ht = ht.filter(hl.bool(hl.len(ht.text) == 0) | comment_filter | header_filter, False)
 
-    hl_columns = hl.array(header_dict['column_ids'])
+    hl_columns = hl.array(header_dict['column_ids']) if len(header_dict['column_ids']) > 0 else hl.empty_array(hl.tstr)
     ht = ht.annotate(split_array=ht.text._split_line(delimiter, missing_list, quote=None, regex=False)).add_index('row_id')
     ht = ht.annotate(text=hl.rbind(
         hl.if_else(hl.len(ht.split_array) < num_of_row_fields,
@@ -2413,12 +2416,12 @@ def import_matrix_table(paths,
         .drop('text', 'split_array', 'file')
 
     ht = ht.annotate_globals(cols=hl.range(0, len(header_dict['column_ids']))
-                             .map(lambda col_idx: hl.struct(col_idx=hl_columns[col_idx])))
+                             .map(lambda col_idx: hl.struct(col_id=hl_columns[col_idx])))
 
     if not add_row_id:
         ht = ht.drop('row_idx')
 
-    mt = ht._unlocalize_entries('entries', 'cols', ['col_idx'])
+    mt = ht._unlocalize_entries('entries', 'cols', ['col_id'])
     mt = mt.key_rows_by(*row_key)
     return mt
 
