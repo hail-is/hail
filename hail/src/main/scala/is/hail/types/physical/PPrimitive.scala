@@ -31,7 +31,7 @@ trait PPrimitive extends PType {
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
     val newAddr = cb.memoize(region.allocate(alignment, byteSize))
-    storeAtAddress(cb, newAddr, region, value, deepCopy)
+    storeAtAddress(cb, newAddr, region, value.get, deepCopy)
     newAddr
   }
 

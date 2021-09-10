@@ -890,7 +890,7 @@ class EmitMethodBuilder[C](
 
     _st.fromValues(ts.zipWithIndex.map { case (t, i) =>
       mb.getArg(codeIndex + i)(t)
-    })
+    }).get
   }
 
   def storeEmitParam(emitIndex: Int, cb: EmitCodeBuilder): Value[Region] => EmitValue = {

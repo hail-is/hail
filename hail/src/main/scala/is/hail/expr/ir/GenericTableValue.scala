@@ -64,7 +64,7 @@ class PartitionIteratorLongReader(
 
           cb.goto(LproduceElementDone)
         }
-        override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, eltPType.loadCheapSCode(cb, rv)))
+        override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, eltPType.loadCheapSCode(cb, rv).get))
 
         override def close(cb: EmitCodeBuilder): Unit = {}
       }

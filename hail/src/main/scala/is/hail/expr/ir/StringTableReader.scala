@@ -69,7 +69,7 @@ case class StringTablePartitionReader(lines: GenericLines) extends PartitionRead
          override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
          override def initialize(cb: EmitCodeBuilder): Unit = {
-           val contextAsJavaValue = coerce[Any](StringFunctions.scodeToJavaValue(cb, partitionRegion, ctxMemo))
+           val contextAsJavaValue = coerce[Any](StringFunctions.scodeToJavaValue(cb, partitionRegion, ctxMemo.get))
 
            cb.assign(fileName, ctxMemo.loadField(cb, "file").get(cb).asString.loadString())
 

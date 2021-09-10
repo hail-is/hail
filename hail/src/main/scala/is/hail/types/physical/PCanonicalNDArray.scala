@@ -141,7 +141,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   def loadElement(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndAddress: Value[Long]): SCode = {
     val off = getElementAddress(cb, indices, ndAddress)
-    elementType.loadCheapSCode(cb, elementType.loadFromNested(off))
+    elementType.loadCheapSCode(cb, elementType.loadFromNested(off)).get
   }
 
   def loadElementFromDataAndStrides(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndDataAddress: Value[Long], strides: IndexedSeq[Value[Long]]): Code[Long] = {
@@ -207,7 +207,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
             })
         }
 
-        result
+        result.get
       }
     }
 
@@ -350,7 +350,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
     val addr = cb.memoize(this.representation.allocate(region))
-    storeAtAddress(cb, addr, region, value, deepCopy)
+    storeAtAddress(cb, addr, region, value.get, deepCopy)
     addr
   }
 

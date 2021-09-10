@@ -22,7 +22,7 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
     SNDArray.coiterate(cb, (ndarray.get, "A")){
       case Seq(elt) =>
         elementType.buildEncoder(elt.st, cb.emb.ecb)
-          .apply(cb, elt, out)
+          .apply(cb, elt.get, out)
     }
   }
 
@@ -48,7 +48,7 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
       cb.assign(currElementAddress, currElementAddress + pnd.elementType.byteSize)
     })
 
-    pndFinisher(cb)
+    pndFinisher(cb).get
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {

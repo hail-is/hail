@@ -88,7 +88,7 @@ final case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedS
         new SStackStructValue(this, Array.tabulate[EmitValue](size) { i =>
           val newType = fieldEmitTypes(i)
           val ec = EmitCode.fromI(cb.emb) { cb =>
-            sv.loadField(cb, i).map(cb) { field => newType.st.coerceOrCopy(cb, region, field.memoize(cb, "_coerceOrCopy"), deepCopy) }
+            sv.loadField(cb, i).map(cb) { field => newType.st.coerceOrCopy(cb, region, field.memoize(cb, "_coerceOrCopy"), deepCopy).get }
           }
           val ev = ec.memoize(cb, "_coerceOrCopy")
           (newType.required, ev.required) match {

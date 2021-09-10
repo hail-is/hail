@@ -232,12 +232,12 @@ case class SplitPartitionNativeWriter(
         cb += ob1.writeByte(1.asInstanceOf[Byte])
 
         spec1.encodedType.buildEncoder(row.st, cb.emb.ecb)
-          .apply(cb, row, ob1)
+          .apply(cb, row.get, ob1)
 
         cb += ob2.writeByte(1.asInstanceOf[Byte])
 
         spec2.encodedType.buildEncoder(row.st, cb.emb.ecb)
-          .apply(cb, row, ob2)
+          .apply(cb, row.get, ob2)
         cb.assign(n, n + 1L)
       }
 
@@ -269,9 +269,9 @@ case class SplitPartitionNativeWriter(
       cb += ob2.flush()
       cb += os1.invoke[Unit]("close")
       cb += os2.invoke[Unit]("close")
-      filenameType.storeAtAddress(cb, pResultType.fieldOffset(result, "filePath"), region, pctx, false)
+      filenameType.storeAtAddress(cb, pResultType.fieldOffset(result, "filePath"), region, pctx.get, false)
       cb += Region.storeLong(pResultType.fieldOffset(result, "partitionCounts"), n)
-      pResultType.loadCheapSCode(cb, result.get)
+      pResultType.loadCheapSCode(cb, result.get).get
     }
   }
 }
