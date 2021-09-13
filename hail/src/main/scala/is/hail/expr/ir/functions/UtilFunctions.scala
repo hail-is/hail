@@ -306,63 +306,66 @@ object UtilFunctions extends RegistryFunctions {
 
     registerIEmitCode2("land", TBoolean, TBoolean, TBoolean, (_: Type, tl: EmitType, tr: EmitType) => EmitType(SBoolean, tl.required && tr.required)) {
       case (cb, _, rt,_ , l, r) =>
+        if (l.required && r.required) {
+          IEmitCode.present(cb, primitive(cb.memoize(l.toI(cb).get(cb).asBoolean.boolCode(cb) && r.toI(cb).get(cb).asBoolean.boolCode(cb))))
+        } else {
+          // 00 ... 00 rv rm lv lm
+          val w = cb.newLocal[Int]("land_w")
 
-        // 00 ... 00 rv rm lv lm
-        val w = cb.newLocal[Int]("land_w")
+          // m/m, t/m, m/t
+          val M = const((1 << 5) | (1 << 6) | (1 << 9))
 
-        // m/m, t/m, m/t
-        val M = const((1 << 5) | (1 << 6) | (1 << 9))
-
-        l.toI(cb)
-          .consume(cb,
-            cb.assign(w, 1),
-            b1 => cb.assign(w, b1.asBoolean.boolCode(cb).mux(const(2), const(0)))
-          )
-
-        cb.ifx(w.cne(0),
-          {
-            r.toI(cb).consume(cb,
-              cb.assign(w, w | const(4)),
-              { b2 =>
-                cb.assign(w, w | b2.asBoolean.boolCode(cb).mux(const(8), const(0)))
-              }
+          l.toI(cb)
+            .consume(cb,
+              cb.assign(w, 1),
+              b1 => cb.assign(w, b1.asBoolean.boolCode(cb).mux(const(2), const(0)))
             )
-          })
 
-        val Lpresent = CodeLabel()
-        val Lmissing = CodeLabel()
-        cb.ifx(((M >> w) & 1).cne(0), cb.goto(Lmissing), cb.goto(Lpresent))
-        IEmitCode(Lmissing, Lpresent, primitive(cb.memoize(w.ceq(10))), l.required && r.required)
+          cb.ifx(w.cne(0),
+            {
+              r.toI(cb).consume(cb,
+                cb.assign(w, w | const(4)),
+                { b2 =>
+                  cb.assign(w, w | b2.asBoolean.boolCode(cb).mux(const(8), const(0)))
+                }
+              )
+            })
+
+          IEmitCode(cb, ((M >> w) & 1).cne(0), primitive(cb.memoize(w.ceq(10))))
+        }
     }
 
     registerIEmitCode2("lor", TBoolean, TBoolean, TBoolean, (_: Type, tl: EmitType, tr: EmitType) => EmitType(SBoolean, tl.required && tr.required)) {
       case (cb, _, rt,_, l, r) =>
-        // 00 ... 00 rv rm lv lm
-        val w = cb.newLocal[Int]("lor_w")
+        if (l.required && r.required) {
+          IEmitCode.present(cb, primitive(cb.memoize(l.toI(cb).get(cb).asBoolean.boolCode(cb) || r.toI(cb).get(cb).asBoolean.boolCode(cb))))
+        } else {
+          // 00 ... 00 rv rm lv lm
+          val w = cb.newLocal[Int]("lor_w")
 
-        // m/m, f/m, m/f
-        val M = const((1 << 5) | (1 << 1) | (1 << 4))
+          // m/m, f/m, m/f
+          val M = const((1 << 5) | (1 << 1) | (1 << 4))
 
-        l.toI(cb)
-          .consume(cb,
-            cb.assign(w, 1),
-            b1 => cb.assign(w, b1.asBoolean.boolCode(cb).mux(const(2), const(0)))
-          )
-
-        cb.ifx(w.cne(2),
-          {
-            r.toI(cb).consume(cb,
-              cb.assign(w, w | const(4)),
-              { b2 =>
-                cb.assign(w, w | b2.asBoolean.boolCode(cb).mux(const(8), const(0)))
-              }
+          l.toI(cb)
+            .consume(cb,
+              cb.assign(w, 1),
+              b1 => cb.assign(w, b1.asBoolean.boolCode(cb).mux(const(2), const(0)))
             )
-          })
 
-        val Lpresent = CodeLabel()
-        val Lmissing = CodeLabel()
-        cb.ifx(((M >> w) & 1).cne(0), cb.goto(Lmissing), cb.goto(Lpresent))
-        IEmitCode(Lmissing, Lpresent, primitive(cb.memoize(w.cne(0))), l.required && r.required)
+          cb.ifx(w.cne(2),
+            {
+              r.toI(cb).consume(cb,
+                cb.assign(w, w | const(4)),
+                { b2 =>
+                  cb.assign(w, w | b2.asBoolean.boolCode(cb).mux(const(8), const(0)))
+                }
+              )
+            })
+
+          val Lpresent = CodeLabel()
+          val Lmissing = CodeLabel()
+          IEmitCode(cb, ((M >> w) & 1).cne(0), primitive(cb.memoize(w.cne(0))))
+        }
     }
   }
 }

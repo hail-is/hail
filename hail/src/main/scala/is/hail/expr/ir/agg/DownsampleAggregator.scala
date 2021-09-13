@@ -367,7 +367,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
             buffer.loadElement(cb, i).toI(cb).consume(cb, {}, { case point: SBaseStructValue =>
               val x = point.loadField(cb, "x").get(cb).asFloat64.doubleCode(cb)
               val y = point.loadField(cb, "y").get(cb).asFloat64.doubleCode(cb)
-              val pointc = SingleCodeSCode.fromSCode(cb, point, region).code.asInstanceOf[Code[Long]]
+              val pointc = coerce[Long](SingleCodeSCode.fromSCode(cb, point, region).code)
               insertIntoTree(cb, xBinCoordinate(x), yBinCoordinate(y), pointc, deepCopy = true)
             })
             cb.assign(i, i + 1)
@@ -515,7 +515,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
       cb.assign(i, 0)
       cb.whileLoop(i < other.buffer.size, {
         val point = SingleCodeSCode.fromSCode(cb, other.buffer.loadElement(cb, i).pv, region)
-        deepCopyAndInsertPoint(cb, point.code.asInstanceOf[Code[Long]])
+        deepCopyAndInsertPoint(cb, coerce[Long](point.code))
         cb.assign(i, i + 1)
       })
       other.tree.foreach(cb) { (cb, value) =>

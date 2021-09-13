@@ -305,7 +305,7 @@ case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A, 
 
   lazy val emitType: EmitType = {
     value match {
-      case pc: SCode => EmitType(pc.st, required)
+      case pc: SValue => EmitType(pc.st, required)
       case _ => throw new UnsupportedOperationException(s"emitType on $value")
     }
   }
@@ -721,11 +721,11 @@ class Emit[C](
         val v = emitI(value)
         v.consume(cb,
           cb._fatal("cannot combOp a missing value"),
-          { case serializedValue: SBinaryCode =>
+          { case serializedValue: SBinaryValue =>
             cb.assign(aggStateOffset, region.allocate(tempState.storageType.alignment, tempState.storageType.byteSize))
             tempState.createState(cb)
             tempState.newState(cb)
-            tempState.deserializeFromBytes(cb, serializedValue)
+            tempState.deserializeFromBytes(cb, serializedValue.get)
             rvAgg.combOp(cb, sc.states(i), tempState)
           }
         )
@@ -737,10 +737,10 @@ class Emit[C](
         val v = emitI(value)
         v.consume(cb,
           cb._fatal("cannot initialize aggs from a missing value"),
-          { case serializedValue: SBinaryCode =>
+          { case serializedValue: SBinaryValue =>
             sc.states(i).createState(cb)
             sc.newState(cb, i)
-            sc.states(i).deserializeFromBytes(cb, serializedValue)
+            sc.states(i).deserializeFromBytes(cb, serializedValue.get)
           }
         )
     }
@@ -778,8 +778,7 @@ class Emit[C](
     def emitDeforestedNDArrayI(ir: IR): IEmitCode = EmitNDArray(this, ir, cb, region, env, container, loopEnv)
 
     def emitNDArrayColumnMajorStrides(ir: IR): IEmitCode = {
-      emitI(ir).map(cb) { case pNDCode: SNDArrayCode =>
-        val pNDValue = pNDCode.memoize(cb, "ndarray_column_major_check")
+      emitI(ir).map(cb) { case pNDValue: SNDArrayValue =>
         LinalgCodeUtils.checkColMajorAndCopyIfNeeded(pNDValue, cb, region)
       }
     }
@@ -787,8 +786,7 @@ class Emit[C](
     // Returns an IEmitCode along with a Boolean that is true if the returned value is column major. If false it's row
     // major instead.
     def emitNDArrayStandardStriding(ir: IR): IEmitCodeGen[(SNDArrayValue, Value[Boolean])] = {
-      emitI(ir).map(cb) { case pNDCode: SNDArrayCode =>
-        val pNDValue = pNDCode.memoize(cb, "ndarray_standard_striding_check")
+      emitI(ir).map(cb) { case pNDValue: SNDArrayValue =>
         LinalgCodeUtils.checkStandardStriding(pNDValue, cb, region)
       }
     }

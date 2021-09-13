@@ -7,7 +7,7 @@ import is.hail.expr.ir.{Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, 
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointerCode, SIndexablePointerCode}
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointerValue, SIndexablePointerCode}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.{SCode, SValue}
 import is.hail.types.virtual.{TInt32, Type}
@@ -531,8 +531,8 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
       resultType.constructFromElements(cb, r, ab.size, deepCopy = true) { case (cb, idx) =>
         val sortedIdx = cb.newLocal[Int]("tba_result_sortedidx", Region.loadInt(indexOffset(idx)))
         ab.loadElement(cb, sortedIdx).toI(cb)
-          .flatMap(cb) { case pct: SBaseStructPointerCode =>
-            pct.memoize(cb, "takeby_result_tuple").loadField(cb, 1)
+          .flatMap(cb) { case pct: SBaseStructPointerValue =>
+            pct.loadField(cb, 1)
           }
       }.a
     }

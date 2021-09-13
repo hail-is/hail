@@ -205,11 +205,9 @@ object EmitNDArray {
               }
             }
           case x@NDArrayReshape(childND, shape, errorID) =>
-            emitI(childND, cb).flatMap(cb) { case childND: SNDArrayCode =>
+            emitI(childND, cb).flatMap(cb) { case childND: SNDArrayValue =>
               // Plan: Run through the child row major, make an array. Then jump around it as needed.
-              val childMemo = childND.memoize(cb, "ndarray_reshape_child")
-
-              val childShapeValues = childMemo.shapes
+              val childShapeValues = childND.shapes
               val outputNDims = x.typ.nDims
 
               val requestedShapeValues = Array.tabulate(outputNDims)(i => cb.newLocal[Long](s"ndarray_reindex_request_shape_$i")).toIndexedSeq
@@ -263,7 +261,7 @@ object EmitNDArray {
                 }
 
                 val childPType = childND.st.storageType().asInstanceOf[PCanonicalNDArray]
-                val rowMajor = fromSValue(childMemo, cb).toSCode(cb, childPType, region, true)
+                val rowMajor = fromSValue(childND, cb).toSCode(cb, childPType, region, true)
                 // The canonical row major thing is now in the order we want. We just need to read this with the row major striding that
                 // would be generated for something of the new shape.
                 val outputPType = PCanonicalNDArray(rowMajor.st.elementPType.setRequired(true), x.typ.nDims, true) // TODO Should it be required?
