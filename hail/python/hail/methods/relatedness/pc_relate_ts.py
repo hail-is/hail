@@ -106,15 +106,15 @@ def _AtB_plus_BtA(A: Table, B: Table) -> array:
     return temp.aggregate(hl.agg.ndarray_sum(temp.ndarray), _localize=False)
 
 
-def pc_relate_2(call_expr: CallExpression,
-                min_individual_maf: float,
-                *,
-                k: Optional[int] = None,
-                scores_expr: Optional[ArrayNumericExpression] = None,
-                min_kinship: Optional[float] = None,
-                statistics: str = "all",
-                block_size: Optional[int] = None,
-                include_self_kinship: bool = False) -> Table:
+def pc_relate_ts(call_expr: CallExpression,
+                 min_individual_maf: float,
+                 *,
+                 k: Optional[int] = None,
+                 scores_expr: Optional[ArrayNumericExpression] = None,
+                 min_kinship: Optional[float] = None,
+                 statistics: str = "all",
+                 block_size: Optional[int] = None,
+                 include_self_kinship: bool = False) -> Table:
     r"""Compute relatedness estimates between individuals using a variant of the
     PC-Relate method.
 
@@ -127,18 +127,18 @@ def pc_relate_2(call_expr: CallExpression,
     allele frequency filter of 0.01 and 10 principal components to control
     for population structure.
 
-    >>> rel = hl.pc_relate_2(dataset.GT, 0.01, k=10)
+    >>> rel = hl.pc_relate_ts(dataset.GT, 0.01, k=10)
 
     Only compute the kinship statistic. This is more efficient than
     computing all statistics.
 
-    >>> rel = hl.pc_relate_2(dataset.GT, 0.01, k=10, statistics='kin')
+    >>> rel = hl.pc_relate_ts(dataset.GT, 0.01, k=10, statistics='kin')
 
     Compute all statistics, excluding sample-pairs with kinship less
     than 0.1. This is more efficient than producing the full table and
     then filtering using :meth:`.Table.filter`.
 
-    >>> rel = hl.pc_relate_2(dataset.GT, 0.01, k=10, min_kinship=0.1)
+    >>> rel = hl.pc_relate_ts(dataset.GT, 0.01, k=10, min_kinship=0.1)
 
     One can also pass in pre-computed principal component scores.
     To produce the same results as in the previous example:
@@ -146,10 +146,10 @@ def pc_relate_2(call_expr: CallExpression,
     >>> _, scores_table, _ = hl.hwe_normalized_pca(dataset.GT,
     ...                                            k=10,
     ...                                            compute_loadings=False)
-    >>> rel = hl.pc_relate_2(dataset.GT,
-    ...                      0.01,
-    ...                      scores_expr=scores_table[dataset.col_key].scores,
-    ...                      min_kinship=0.1)
+    >>> rel = hl.pc_relate_ts(dataset.GT,
+    ...                       0.01,
+    ...                       scores_expr=scores_table[dataset.col_key].scores,
+    ...                       min_kinship=0.1)
 
     Notes
     -----
@@ -282,7 +282,7 @@ def pc_relate_2(call_expr: CallExpression,
     implementation is available in the `GENESIS Bioconductor package
     <https://bioconductor.org/packages/release/bioc/html/GENESIS.html>`_ .
 
-    :func:`.pc_relate_2` differs from the reference implementation in a few
+    :func:`.pc_relate_ts` differs from the reference implementation in a few
     ways:
 
      - if ``k`` is supplied, samples scores are computed via PCA on all samples,
@@ -385,18 +385,18 @@ def pc_relate_2(call_expr: CallExpression,
     assert (0.0 <= min_individual_maf <= 1.0), \
         f"invalid argument: min_individual_maf={min_individual_maf}. " \
         f"Must have min_individual_maf on interval [0.0, 1.0]."
-    mt = matrix_table_source('pc_relate_2/call_expr', call_expr)
+    mt = matrix_table_source('pc_relate_ts/call_expr', call_expr)
 
     if k and scores_expr is None:
         _, scores, _ = _hwe_normalized_blanczos(call_expr, k, compute_loadings=False, q_iterations=10)
         scores_expr = scores[mt.col_key].scores
     elif not k and scores_expr is not None:
-        analyze('pc_relate_2/scores_expr', scores_expr, mt._col_indices)
+        analyze('pc_relate_ts/scores_expr', scores_expr, mt._col_indices)
     elif k and scores_expr is not None:
-        raise ValueError("pc_relate_2: exactly one of 'k' and 'scores_expr' "
+        raise ValueError("pc_relate_ts: exactly one of 'k' and 'scores_expr' "
                          "must be set, found both")
     else:
-        raise ValueError("pc_relate_2: exactly one of 'k' and 'scores_expr' "
+        raise ValueError("pc_relate_ts: exactly one of 'k' and 'scores_expr' "
                          "must be set, found neither")
 
     scores_table = mt.select_cols(__scores=scores_expr) \
@@ -482,7 +482,9 @@ def pc_relate_2(call_expr: CallExpression,
             _k0_cutoff = 2.0 ** (-5.0 / 2.0)
             k0 = (ibs0 / k0_denom)
             results = results.annotate(k0=hl.linalg.BlockMatrix.from_ndarray(k0).entries()[results.key].entry)
-            results = results.annotate(k0=hl.if_else(results.kin <= _k0_cutoff, 1.0 - (4.0 * results.kin) + results.k2, results.k0)).persist()
+            results = results.annotate(k0=hl.if_else(results.kin <= _k0_cutoff,
+                                                     1.0 - (4.0 * results.kin) + results.k2,
+                                                     results.k0)).persist()
 
             if statistics == "all":
                 results = results.annotate(k1=1.0 - (results.k2 + results.k0)).persist()
