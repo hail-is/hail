@@ -622,11 +622,13 @@ trait SNDArrayValue extends SValue {
 
   override def get: SNDArrayCode
 
-  def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SCode
+  def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SValue
 
   def loadElementAddress(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Long]
 
   def shapes: IndexedSeq[SizeValue]
+
+  def shapeStruct(cb: EmitCodeBuilder): SBaseStructValue
 
   def strides: IndexedSeq[Value[Long]]
 

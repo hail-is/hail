@@ -2,7 +2,7 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, IEmitCode}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitValue, IEmitCode}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.{PCanonicalNDArray, PNDArray, PType}
@@ -101,6 +101,12 @@ class SUnreachableStructValue(override val st: SUnreachableStruct) extends SUnre
     val newType = TStruct(fieldNames.map(f => (f, oldType.fieldType(f))): _*)
     new SUnreachableStructValue(SUnreachableStruct(newType))
   }
+
+  override def insert(cb: EmitCodeBuilder, region: Value[Region], newType: TStruct, fields: (String, EmitValue)*): SBaseStructValue =
+    new SUnreachableStructValue(SUnreachableStruct(newType))
+
+  override def _insert(newType: TStruct, fields: (String, EmitCode)*): SBaseStructValue =
+    new SUnreachableStructValue(SUnreachableStruct(newType))
 
   override def get: SBaseStructCode = st.sc
 }
@@ -306,15 +312,17 @@ class SUnreachableNDArrayCode(override val st: SUnreachableNDArray) extends SUnr
 
   override def memoize(cb: EmitCodeBuilder, name: String): SUnreachableNDArrayValue = st.sv
 
-  override def shape(cb: EmitCodeBuilder): SBaseStructCode = SUnreachableStruct(TTuple((0 until st.nDims).map(_ => TInt64): _*)).defaultValue.get.asBaseStruct
+  override def shape(cb: EmitCodeBuilder): SBaseStructCode = SUnreachableStruct(TTuple((0 until st.nDims).map(_ => TInt64): _*)).sc
 }
 
 class SUnreachableNDArrayValue(override val st: SUnreachableNDArray) extends SUnreachableValue with SNDArraySettable {
-  override def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SCode = SUnreachable.fromVirtualType(st.virtualType.elementType).defaultValue.get
+  override def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SValue = SUnreachable.fromVirtualType(st.virtualType.elementType).defaultValue
 
   override def loadElementAddress(indices: IndexedSeq[is.hail.asm4s.Value[Long]],cb: is.hail.expr.ir.EmitCodeBuilder): is.hail.asm4s.Code[Long] = const(0L)
 
   override def shapes: IndexedSeq[SizeValue] = (0 until st.nDims).map(_ => SizeValueStatic(0L))
+
+  override def shapeStruct(cb: EmitCodeBuilder): SBaseStructValue = SUnreachableStruct(TTuple((0 until st.nDims).map(_ => TInt64): _*)).sv
 
   override def strides: IndexedSeq[Value[Long]] = (0 until st.nDims).map(_ => const(0L))
 

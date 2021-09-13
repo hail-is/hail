@@ -37,7 +37,7 @@ sealed trait SingleCodeType {
 
   def loadToSCode(cb: EmitCodeBuilder, r: Value[Region], c: Code[_]): SCode
 
-  def loadToSValue(cb: EmitCodeBuilder, r: Value[Region], c: Value[_]): SValue
+  def loadToSValue(cb: EmitCodeBuilder, r: Value[Region], c: Value[Any]): SValue
 
   def virtualType: Type
 

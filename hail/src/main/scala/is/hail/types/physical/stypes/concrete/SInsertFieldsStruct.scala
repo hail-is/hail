@@ -155,6 +155,15 @@ class SInsertFieldsStructValue(
       case Left(parentIdx) => parent.isFieldMissing(parentIdx)
       case Right(newFieldsIdx) => newFields(newFieldsIdx).m
     }
+
+  override def _insert(newType: TStruct, fields: (String, EmitValue)*): SBaseStructValue = {
+    val newFieldSet = fields.map(_._1).toSet
+    val filteredNewFields = st.insertedFields.map(_._1)
+      .zipWithIndex
+      .filter { case (name, idx) => !newFieldSet.contains(name) }
+      .map { case (name, idx) => (name, newFields(idx)) }
+    parent._insert(newType, filteredNewFields ++ fields: _*)
+  }
 }
 
 final class SInsertFieldsStructSettable(

@@ -43,7 +43,7 @@ object SCode {
     }
   }
 
-  def _empty: SCode = SVoidCode
+  def _empty: SValue = SVoidValue
 }
 
 abstract class SCode {
@@ -148,15 +148,15 @@ trait SValue {
 
   def asStream: SStreamValue = asInstanceOf[SStreamValue]
 
-  def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SCode =
+  def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SValue =
     castTo(cb, region, destType, false)
 
-  def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType, deepCopy: Boolean): SCode = {
-    destType.coerceOrCopy(cb, region, this, deepCopy).get
+  def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType, deepCopy: Boolean): SValue = {
+    destType.coerceOrCopy(cb, region, this, deepCopy)
   }
 
-  def copyToRegion(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SCode =
-    destType.coerceOrCopy(cb, region, this, deepCopy = true).get
+  def copyToRegion(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SValue =
+    destType.coerceOrCopy(cb, region, this, deepCopy = true)
 
   def hash(cb: EmitCodeBuilder): SInt32Code = throw new UnsupportedOperationException(s"Stype ${st} has no hashcode")
 }
@@ -182,7 +182,7 @@ trait SUnrealizableCode extends SCode {
   private def unsupported: Nothing =
     throw new UnsupportedOperationException(s"$this is not realizable")
 
-  def code: Code[_] = unsupported
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SValue = unsupported
+  override def memoizeField(cb: EmitCodeBuilder, name: String): SValue = unsupported
 }
+
+trait SUnrealizableValue extends SValue

@@ -5,7 +5,7 @@ import is.hail.asm4s.{Code, Settable, TypeInfo, Value}
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.types.{RIterable, TypeWithRequiredness}
-import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType, SUnrealizableCode, SValue}
+import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType, SUnrealizableCode, SUnrealizableValue, SValue}
 import is.hail.types.physical.PType
 import is.hail.types.virtual.{TStream, Type}
 
@@ -48,7 +48,7 @@ final case class SStreamCode(st: SStream, producer: StreamProducer) extends SCod
   override def memoize(cb: EmitCodeBuilder, name: String): SValue = SStreamValue(st, producer)
 }
 
-final case class SStreamValue(st: SStream, producer: StreamProducer) extends SValue {
+final case class SStreamValue(st: SStream, producer: StreamProducer) extends SUnrealizableValue {
   def valueTuple: IndexedSeq[Value[_]] = throw new NotImplementedError()
 
   def get: SStreamCode = SStreamCode(st, producer)

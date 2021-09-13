@@ -39,7 +39,7 @@ object CodeOrdering {
 
   final case class Neq(missingEqual: Boolean = true) extends BooleanOp
 
-  type F[R] = (EmitCodeBuilder, EmitCode, EmitCode) => Code[R]
+  type F[R] = (EmitCodeBuilder, EmitCode, EmitCode) => Value[R]
 
   def makeOrdering(t1: SType, t2: SType, ecb: EmitClassBuilder[_]): CodeOrdering = {
     val canCompare = (t1.virtualType, t2.virtualType) match {

@@ -68,7 +68,7 @@ class SFloat32Value(x: Value[Float]) extends SPrimitiveValue {
 
   override def get: SCode = new SFloat32Code(x)
 
-  def floatCode(cb: EmitCodeBuilder): Code[Float] = x
+  def floatCode(cb: EmitCodeBuilder): Value[Float] = x
 
   override def hash(cb: EmitCodeBuilder): SInt32Code =
     new SInt32Code(Code.invokeStatic1[java.lang.Float, Float, Int]("floatToIntBits", floatCode(cb)))

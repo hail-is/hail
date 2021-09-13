@@ -66,7 +66,7 @@ class SInt64Value(x: Value[Long]) extends SPrimitiveValue {
 
   override def get: SCode = new SInt64Code(x)
 
-  def longCode(cb: EmitCodeBuilder): Code[Long] = x
+  def longCode(cb: EmitCodeBuilder): Value[Long] = x
 
   override def hash(cb: EmitCodeBuilder): SInt32Code =
     new SInt32Code(invokeStatic1[java.lang.Long, Long, Int]("hashCode", longCode(cb)))

@@ -78,7 +78,7 @@ class SFloat64Value(x: Value[Double]) extends SPrimitiveValue {
 
   override def get: SCode = new SFloat64Code(x)
 
-  def doubleCode(cb: EmitCodeBuilder): Code[Double] = x
+  def doubleCode(cb: EmitCodeBuilder): Value[Double] = x
 
   override def hash(cb: EmitCodeBuilder): SInt32Code = {
     new SInt32Code(invokeStatic1[java.lang.Double, Double, Int]("hashCode", doubleCode(cb)))
