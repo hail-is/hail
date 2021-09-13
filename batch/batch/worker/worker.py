@@ -1761,7 +1761,7 @@ class BufferedOutputProcess:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
-        stop_event = asyncio.Event()
+        stop_event = asyncio.Event()  # FIXME: this seems unused
         return cls(process, stop_event)
 
     def __init__(self,
@@ -1841,6 +1841,10 @@ class JVM:
                         break
                     finally:
                         writer.close()
+                except ConnectionRefusedError as err:
+                    process.close()
+                    output = process.retrieve_and_clear_output()
+                    raise ValueError(f'JVM-{index}: connection refused. {output}') from err
                 except FileNotFoundError as err:
                     attempts += 1
                     if attempts == 240:

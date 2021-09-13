@@ -267,7 +267,7 @@ class ServiceBackend(Backend):
                     maybe_id = ServiceBackend.HAIL_BATCH_FAILURE_EXCEPTION_MESSAGE_RE.match(jstacktrace)
                     if maybe_id:
                         batch_id = maybe_id.groups()[0]
-                        b2 = self.async_bc.get_batch(batch_id)
+                        b2 = await self.async_bc.get_batch(batch_id)
                         b2_status = await b2.status()
                         assert b2_status['state'] != 'success'
                         failed_jobs = []
