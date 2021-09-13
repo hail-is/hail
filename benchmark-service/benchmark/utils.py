@@ -41,10 +41,10 @@ def enumerate_list_of_trials(list_of_trials):
     return res_dict
 
 
-async def list_benchmark_files(gs_reader: aiogoogle.GoogleStorageAsyncFS):
+async def list_benchmark_files(fs: aiogoogle.GoogleStorageAsyncFS):
     list_of_files = []
     for bucket in BENCHMARK_BUCKETS:
-        files = await gs_reader.listfiles(f'gs://{bucket}/', recursive=True)
+        files = await fs.listfiles(f'gs://{bucket}/', recursive=True)
         list_of_files.extend(files)
     return list_of_files
 

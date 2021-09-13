@@ -322,9 +322,14 @@ class StorageClient(BaseClient):
         assert 'alt' not in params
         params['alt'] = 'media'
 
-        resp = await self._session.get(
-            f'https://storage.googleapis.com/storage/v1/b/{bucket}/o/{urllib.parse.quote(name, safe="")}', **kwargs)
-        return GetObjectStream(resp)
+        try:
+            resp = await self._session.get(
+                f'https://storage.googleapis.com/storage/v1/b/{bucket}/o/{urllib.parse.quote(name, safe="")}', **kwargs)
+            return GetObjectStream(resp)
+        except aiohttp.ClientResponseError as e:
+            if e.status == 404:
+                raise FileNotFoundError from e
+            raise
 
     async def get_object_metadata(self, bucket: str, name: str, **kwargs) -> Dict[str, str]:
         assert name

@@ -39,7 +39,7 @@ class MemoryClient:
         params = {'q': filename}
         try:
             async with await request_retry_transient_errors(
-                    self._session, 'get', self.objects_url, params=params, headers=self._headers
+                self._session, 'get', self.objects_url, params=params, headers=self._headers
             ) as response:
                 return await response.read()
         except aiohttp.ClientResponseError as e:
@@ -56,7 +56,7 @@ class MemoryClient:
     async def write_file(self, filename, data):
         params = {'q': filename}
         async with await request_retry_transient_errors(
-                self._session, 'post', self.objects_url, params=params, headers=self._headers, data=data
+            self._session, 'post', self.objects_url, params=params, headers=self._headers, data=data
         ) as response:
             assert response.status == 200
 

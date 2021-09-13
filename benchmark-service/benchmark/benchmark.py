@@ -30,7 +30,6 @@ import pandas as pd
 import gidgethub
 import gidgethub.aiohttp
 from .config import START_POINT, BENCHMARK_RESULTS_PATH
-import google
 
 configure_logging()
 router = web.RouteTableDef()
@@ -55,11 +54,11 @@ with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r')
 
 async def get_benchmarks(app, file_path):
     log.info(f'get_benchmarks file_path={file_path}')
-    gs_reader: aiogoogle.GoogleStorageAsyncFS = app['gs_reader']
+    fs: aiotools.AsyncFS = app['fs']
     try:
-        json_data = (await gs_reader.read(file_path)).decode('utf-8')
+        json_data = (await fs.read(file_path)).decode('utf-8')
         pre_data = json.loads(json_data)
-    except google.api_core.exceptions.NotFound:
+    except FileNotFoundError:
         message = f'could not find file, {file_path}'
         log.info('could not get blob: ' + message, exc_info=True)
         return None
@@ -221,7 +220,7 @@ async def lookup(request, userdata):  # pylint: disable=unused-argument
     context = {
         'file': file,
         'benchmarks': benchmarks_context,
-        'benchmark_file_list': await list_benchmark_files(app['gs_reader']),
+        'benchmark_file_list': await list_benchmark_files(app['fs']),
     }
     return await render_template('benchmark', request, userdata, 'lookup.html', context)
 
@@ -248,7 +247,7 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
         'benchmarks1': benchmarks_context1,
         'benchmarks2': benchmarks_context2,
         'comparisons': comparisons,
-        'benchmark_file_list': await list_benchmark_files(app['gs_reader']),
+        'benchmark_file_list': await list_benchmark_files(app['fs']),
     }
     return await render_template('benchmark', request, userdata, 'compare.html', context)
 
@@ -305,7 +304,7 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
     log.info(f'get_commit sha={sha}')
     github_client = app['github_client']
     batch_client = app['batch_client']
-    gs_reader: aiogoogle.GoogleStorageAsyncFS = app['gs_reader']
+    fs: aiotools.AsyncFS = app['fs']
 
     file_path = f'{BENCHMARK_RESULTS_PATH}/0-{sha}.json'
     request_string = f'/repos/hail-is/hail/commits/{sha}'
@@ -317,7 +316,7 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
     pr_id = message_dict['pr_id']
     title = message_dict['title']
 
-    has_results_file = await gs_reader.exists(file_path)
+    has_results_file = await fs.exists(file_path)
     batch_statuses = [b._last_known_status async for b in batch_client.list_batches(q=f'sha={sha} user:benchmark')]
     complete_batch_statuses = [bs for bs in batch_statuses if bs['complete']]
     running_batch_statuses = [bs for bs in batch_statuses if not bs['complete']]
@@ -353,7 +352,7 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
 async def update_commit(app, sha):  # pylint: disable=unused-argument
     log.info('in update_commit')
     global benchmark_data
-    gs_reader: aiogoogle.GoogleStorageAsyncFS = app['gs_reader']
+    fs: aiotools.AsyncFS = app['fs']
     commit = await get_commit(app, sha)
     file_path = f'{BENCHMARK_RESULTS_PATH}/0-{sha}.json'
 
@@ -367,7 +366,7 @@ async def update_commit(app, sha):  # pylint: disable=unused-argument
         benchmark_data['commits'][sha] = commit
         return commit
 
-    has_results_file = await gs_reader.exists(file_path)
+    has_results_file = await fs.exists(file_path)
     if has_results_file and sha in benchmark_data['commits']:
         benchmarks = await get_benchmarks(app, file_path)
         commit['geo_mean'] = benchmarks['geometric_mean']
@@ -394,13 +393,13 @@ async def get_status(request):  # pylint: disable=unused-argument
 async def delete_commit(request):  # pylint: disable=unused-argument
     global benchmark_data
     app = request.app
-    gs_reader: aiogoogle.GoogleStorageAsyncFS = app['gs_reader']
+    fs: aiotools.AsyncFS = app['fs']
     batch_client = app['batch_client']
     sha = str(request.match_info['sha'])
     file_path = f'{BENCHMARK_RESULTS_PATH}/0-{sha}.json'
 
-    if await gs_reader.exists(file_path):
-        await gs_reader.remove(file_path)
+    if await fs.exists(file_path):
+        await fs.remove(file_path)
         log.info(f'deleted file for sha {sha}')
 
     async for b in batch_client.list_batches(q=f'sha={sha} user:benchmark'):
@@ -432,7 +431,7 @@ async def github_polling_loop(app):
 
 async def on_startup(app):
     credentials = aiogoogle.auth.Credentials.from_file('/benchmark-gsa-key/key.json')
-    app['gs_reader'] = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
+    app['fs'] = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
     app['gh_client_session'] = aiohttp.ClientSession()
     app['github_client'] = gidgethub.aiohttp.GitHubAPI(
         app['gh_client_session'], 'hail-is/hail', oauth_token=oauth_token
@@ -447,7 +446,7 @@ async def on_cleanup(app):
         await app['gh_client_session'].close()
     finally:
         try:
-            await app['gs_reader'].close()
+            await app['fs'].close()
         finally:
             app['task_manager'].shutdown()
 

@@ -11,6 +11,7 @@ import kubernetes_asyncio as kube
 from prometheus_async.aio.web import server_stats  # type: ignore
 from typing import Set
 
+from hailtop.aiotools import AsyncFS
 from hailtop.aiogoogle.client.storage_client import GoogleStorageAsyncFS
 from hailtop.aiogoogle.auth.credentials import Credentials
 from hailtop.config import get_deploy_config
@@ -59,7 +60,7 @@ async def write_object(request, userdata):
     files = request.app['files_in_progress']
     files.add(file_key)
 
-    await persist_in_gcs(userinfo['fs'], files, file_key, filepath, data)
+    await persist(userinfo['fs'], files, file_key, filepath, data)
     await cache_file(request.app['redis_pool'], files, file_key, filepath, data)
     return web.Response(status=200)
 
@@ -82,7 +83,7 @@ def make_redis_key(username, filepath):
     return f'{ username }_{ filepath }'
 
 
-async def get_file_or_none(app, username, fs, filepath):
+async def get_file_or_none(app, username, fs: AsyncFS, filepath):
     file_key = make_redis_key(username, filepath)
     redis_pool: aioredis.ConnectionsPool = app['redis_pool']
 
@@ -102,7 +103,7 @@ async def get_file_or_none(app, username, fs, filepath):
     return None
 
 
-async def load_file(redis, files, file_key, fs: GoogleStorageAsyncFS, filepath):
+async def load_file(redis, files, file_key, fs: AsyncFS, filepath):
     try:
         log.info(f"memory: {file_key}: reading.")
         data = await fs.read(filepath)
@@ -114,7 +115,7 @@ async def load_file(redis, files, file_key, fs: GoogleStorageAsyncFS, filepath):
     await cache_file(redis, files, file_key, filepath, data)
 
 
-async def persist_in_gcs(fs: GoogleStorageAsyncFS, files: Set[str], file_key: str, filepath: str, data: bytes):
+async def persist(fs: AsyncFS, files: Set[str], file_key: str, filepath: str, data: bytes):
     try:
         log.info(f"memory: {file_key}: persisting.")
         await fs.write(filepath, data)

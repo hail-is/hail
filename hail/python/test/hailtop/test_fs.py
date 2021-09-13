@@ -112,6 +112,36 @@ async def test_open_from(filesystem):
 
 
 @pytest.mark.asyncio
+async def test_open_nonexistent_file(filesystem):
+    sema, fs, base = filesystem
+
+    file = f'{base}foo'
+
+    try:
+        async with await fs.open(file) as f:
+            await f.read()
+    except FileNotFoundError:
+        pass
+    else:
+        assert False
+
+
+@pytest.mark.asyncio
+async def test_open_from_nonexistent_file(filesystem):
+    sema, fs, base = filesystem
+
+    file = f'{base}foo'
+
+    try:
+        async with await fs.open_from(file, 2) as f:
+            await f.read()
+    except FileNotFoundError:
+        pass
+    else:
+        assert False
+
+
+@pytest.mark.asyncio
 async def test_read_from(filesystem):
     sema, fs, base = filesystem
 

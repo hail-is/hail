@@ -132,7 +132,7 @@ class BatchPoolExecutor:
         self.directory = self.backend.remote_tmpdir + f'batch-pool-executor/{self.name}/'
         self.inputs = self.directory + 'inputs/'
         self.outputs = self.directory + 'outputs/'
-        self.gcs_fs = aiogoogle.GoogleStorageAsyncFS(project=project)
+        self.fs = aiogoogle.GoogleStorageAsyncFS(project=project)
         self.futures: List[BatchPoolFuture] = []
         self.finished_future_count = 0
         self._shutdown = False
@@ -354,9 +354,9 @@ class BatchPoolExecutor:
         pipe = BytesIO()
         dill.dump(functools.partial(unapplied, *args, **kwargs), pipe, recurse=True)
         pipe.seek(0)
-        pickledfun_gcs = self.inputs + f'{name}/pickledfun'
-        await self.gcs_fs.write(pickledfun_gcs, pipe.getvalue())
-        pickledfun_local = batch.read_input(pickledfun_gcs)
+        pickledfun_remote = self.inputs + f'{name}/pickledfun'
+        await self.fs.write(pickledfun_remote, pipe.getvalue())
+        pickledfun_local = batch.read_input(pickledfun_remote)
 
         thread_limit = "1"
         if self.cpus_per_job:
@@ -437,8 +437,8 @@ with open(\\"{j.ofile}\\", \\"wb\\") as out:
 
     def _cleanup(self):
         if self.cleanup_bucket:
-            async_to_blocking(self.gcs_fs.rmtree(None, self.directory))
-        async_to_blocking(self.gcs_fs.close())
+            async_to_blocking(self.fs.rmtree(None, self.directory))
+        async_to_blocking(self.fs.close())
         self.backend.close()
 
 
@@ -447,11 +447,11 @@ class BatchPoolFuture:
                  executor: BatchPoolExecutor,
                  batch: low_level_batch_client.Batch,
                  job: low_level_batch_client.Job,
-                 output_gcs: str):
+                 output_file: str):
         self.executor = executor
         self.batch = batch
         self.job = job
-        self.output_gcs = output_gcs
+        self.output_file = output_file
         self.fetch_coro = asyncio.ensure_future(self._async_fetch_result())
         executor._add_future(self)
 
@@ -547,7 +547,7 @@ class BatchPoolFuture:
                 raise ValueError(
                     f"submitted job failed:\n{main_container_status['error']}")
             value, traceback = dill.loads(
-                await self.executor.gcs_fs.read(self.output_gcs))
+                await self.executor.fs.read(self.output_file))
             if traceback is None:
                 return value
             assert isinstance(value, BaseException)
