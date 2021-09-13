@@ -9,9 +9,9 @@ tearDownModule = stopTestHailContext
 
 
 @fails_spark_backend()
-def test_pc_relate_2_against_R_truth():
+def test_pc_relate_bm_against_R_truth():
     mt = hl.import_vcf(resource('pc_relate_bn_input.vcf.bgz'))
-    hail_kin = hl.pc_relate_2(mt.GT, 0.00, k=2).checkpoint(utils.new_temp_file(extension='ht'))
+    hail_kin = hl.pc_relate_bm(mt.GT, 0.00, k=2).checkpoint(utils.new_temp_file(extension='ht'))
 
     r_kin = hl.import_table(resource('pc_relate_r_truth.tsv.bgz'),
                             types={'i': 'struct{s:str}',
@@ -28,7 +28,7 @@ def test_pc_relate_2_against_R_truth():
 
 
 @fails_spark_backend()
-def test_pc_relate_2_simple_example():
+def test_pc_relate_bm_simple_example():
     gs = hl.literal(
         [[0, 0, 0, 0, 1, 1, 1, 1],
          [0, 0, 1, 1, 0, 0, 1, 1],
@@ -38,7 +38,7 @@ def test_pc_relate_2_simple_example():
     mt = hl.utils.range_matrix_table(n_rows=8, n_cols=4)
     mt = mt.annotate_entries(GT=hl.unphased_diploid_gt_index_call(gs[mt.col_idx][mt.row_idx]))
     mt = mt.annotate_cols(scores=scores[mt.col_idx])
-    pcr = hl.pc_relate_2(mt.GT, min_individual_maf=0, scores_expr=mt.scores)
+    pcr = hl.pc_relate_bm(mt.GT, min_individual_maf=0, scores_expr=mt.scores)
 
     expected = [
         hl.Struct(i=0, j=1, kin=0.04308803311427006,
@@ -61,15 +61,15 @@ def test_pc_relate_2_simple_example():
 
 
 @fails_spark_backend()
-def test_pc_relate_2_paths():
+def test_pc_relate_bm_paths():
     mt = hl.balding_nichols_model(3, 50, 100)
     _, scores3, _ = hl._hwe_normalized_blanczos(mt.GT, k=3, compute_loadings=False, q_iterations=10)
 
-    kin1 = hl.pc_relate_2(mt.GT, 0.10, k=2, statistics='kin', block_size=64)
-    kin2 = hl.pc_relate_2(mt.GT, 0.05, k=2, min_kinship=0.01, statistics='kin2', block_size=128).cache()
-    kin3 = hl.pc_relate_2(mt.GT, 0.02, k=3, min_kinship=0.1, statistics='kin20', block_size=64).cache()
-    kin_s1 = hl.pc_relate_2(mt.GT, 0.10, scores_expr=scores3[mt.col_key].scores[:2],
-                            statistics='kin', block_size=64)
+    kin1 = hl.pc_relate_bm(mt.GT, 0.10, k=2, statistics='kin', block_size=64)
+    kin2 = hl.pc_relate_bm(mt.GT, 0.05, k=2, min_kinship=0.01, statistics='kin2', block_size=128).cache()
+    kin3 = hl.pc_relate_bm(mt.GT, 0.02, k=3, min_kinship=0.1, statistics='kin20', block_size=64).cache()
+    kin_s1 = hl.pc_relate_bm(mt.GT, 0.10, scores_expr=scores3[mt.col_key].scores[:2],
+                             statistics='kin', block_size=64)
 
     assert kin1._same(kin_s1, tolerance=1e-4)
 
@@ -85,8 +85,8 @@ def test_pc_relate_2_paths():
 @fails_spark_backend()
 def test_self_kinship():
     mt = hl.balding_nichols_model(3, 10, 50)
-    with_self = hl.pc_relate_2(mt.GT, 0.10, k=2, statistics='kin20', block_size=16, include_self_kinship=True)
-    without_self = hl.pc_relate_2(mt.GT, 0.10, k=2, statistics='kin20', block_size=16)
+    with_self = hl.pc_relate_bm(mt.GT, 0.10, k=2, statistics='kin20', block_size=16, include_self_kinship=True)
+    without_self = hl.pc_relate_bm(mt.GT, 0.10, k=2, statistics='kin20', block_size=16)
 
     assert with_self.count() == 55
     assert without_self.count() == 45
@@ -105,8 +105,8 @@ def test_self_kinship():
 @fails_spark_backend()
 def test_pc_relate_issue_5263():
     mt = hl.balding_nichols_model(3, 50, 100)
-    expected = hl.pc_relate_2(mt.GT, 0.10, k=2, statistics='all')
+    expected = hl.pc_relate_bm(mt.GT, 0.10, k=2, statistics='all')
     mt = mt.select_entries(GT2=mt.GT,
                            GT=hl.call(hl.rand_bool(0.5), hl.rand_bool(0.5)))
-    actual = hl.pc_relate_2(mt.GT2, 0.10, k=2, statistics='all')
+    actual = hl.pc_relate_bm(mt.GT2, 0.10, k=2, statistics='all')
     assert expected._same(actual, tolerance=1e-6, absolute=True)

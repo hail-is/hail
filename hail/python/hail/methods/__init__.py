@@ -15,7 +15,7 @@ from .statgen import (skat, impute_sex, genetic_relatedness_matrix, realized_rel
                       linear_mixed_regression_rows, lambda_gc)
 from .qc import sample_qc, variant_qc, vep, concordance, nirvana, summarize_variants
 from .misc import rename_duplicates, maximal_independent_set, segment_intervals, filter_intervals
-from .relatedness import identity_by_descent, king, pc_relate, pc_relate_2
+from .relatedness import identity_by_descent, king, pc_relate, pc_relate_bm
 
 __all__ = ['trio_matrix',
            'linear_mixed_model',
@@ -83,5 +83,5 @@ __all__ = ['trio_matrix',
            'row_correlation',
            'ld_matrix',
            'king',
-           'pc_relate_2'
+           'pc_relate_bm'
            ]

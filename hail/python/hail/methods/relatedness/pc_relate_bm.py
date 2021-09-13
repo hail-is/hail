@@ -122,15 +122,15 @@ def _replace_nan(M: BlockMatrix, value: float) -> BlockMatrix:
     return M._map_dense(lambda x: hl.if_else(hl.is_nan(x), value, x))
 
 
-def pc_relate_2(call_expr: CallExpression,
-                min_individual_maf: float,
-                *,
-                k: Optional[int] = None,
-                scores_expr: Optional[ArrayNumericExpression] = None,
-                min_kinship: Optional[float] = None,
-                statistics: str = "all",
-                block_size: Optional[int] = None,
-                include_self_kinship: bool = False) -> Table:
+def pc_relate_bm(call_expr: CallExpression,
+                 min_individual_maf: float,
+                 *,
+                 k: Optional[int] = None,
+                 scores_expr: Optional[ArrayNumericExpression] = None,
+                 min_kinship: Optional[float] = None,
+                 statistics: str = "all",
+                 block_size: Optional[int] = None,
+                 include_self_kinship: bool = False) -> Table:
     r"""Compute relatedness estimates between individuals using a variant of the
     PC-Relate method.
 
@@ -143,18 +143,18 @@ def pc_relate_2(call_expr: CallExpression,
     allele frequency filter of 0.01 and 10 principal components to control
     for population structure.
 
-    >>> rel = hl.pc_relate_2(dataset.GT, 0.01, k=10)
+    >>> rel = hl.pc_relate_bm(dataset.GT, 0.01, k=10)
 
     Only compute the kinship statistic. This is more efficient than
     computing all statistics.
 
-    >>> rel = hl.pc_relate_2(dataset.GT, 0.01, k=10, statistics='kin')
+    >>> rel = hl.pc_relate_bm(dataset.GT, 0.01, k=10, statistics='kin')
 
     Compute all statistics, excluding sample-pairs with kinship less
     than 0.1. This is more efficient than producing the full table and
     then filtering using :meth:`.Table.filter`.
 
-    >>> rel = hl.pc_relate_2(dataset.GT, 0.01, k=10, min_kinship=0.1)
+    >>> rel = hl.pc_relate_bm(dataset.GT, 0.01, k=10, min_kinship=0.1)
 
     One can also pass in pre-computed principal component scores.
     To produce the same results as in the previous example:
@@ -162,10 +162,10 @@ def pc_relate_2(call_expr: CallExpression,
     >>> _, scores_table, _ = hl.hwe_normalized_pca(dataset.GT,
     ...                                            k=10,
     ...                                            compute_loadings=False)
-    >>> rel = hl.pc_relate_2(dataset.GT,
-    ...                      0.01,
-    ...                      scores_expr=scores_table[dataset.col_key].scores,
-    ...                      min_kinship=0.1)
+    >>> rel = hl.pc_relate_bm(dataset.GT,
+    ...                       0.01,
+    ...                       scores_expr=scores_table[dataset.col_key].scores,
+    ...                       min_kinship=0.1)
 
     Notes
     -----
@@ -298,7 +298,7 @@ def pc_relate_2(call_expr: CallExpression,
     implementation is available in the `GENESIS Bioconductor package
     <https://bioconductor.org/packages/release/bioc/html/GENESIS.html>`_ .
 
-    :func:`.pc_relate_2` differs from the reference implementation in a few
+    :func:`.pc_relate_bm` differs from the reference implementation in a few
     ways:
 
      - if ``k`` is supplied, samples scores are computed via PCA on all samples,
@@ -401,18 +401,18 @@ def pc_relate_2(call_expr: CallExpression,
     assert (0.0 <= min_individual_maf <= 1.0), \
         f"invalid argument: min_individual_maf={min_individual_maf}. " \
         f"Must have min_individual_maf on interval [0.0, 1.0]."
-    mt = matrix_table_source('pc_relate_2/call_expr', call_expr)
+    mt = matrix_table_source('pc_relate_bm/call_expr', call_expr)
 
     if k and scores_expr is None:
         _, scores, _ = _hwe_normalized_blanczos(call_expr, k, compute_loadings=False, q_iterations=10)
         scores_expr = scores[mt.col_key].scores
     elif not k and scores_expr is not None:
-        analyze('pc_relate_2/scores_expr', scores_expr, mt._col_indices)
+        analyze('pc_relate_bm/scores_expr', scores_expr, mt._col_indices)
     elif k and scores_expr is not None:
-        raise ValueError("pc_relate_2: exactly one of 'k' and 'scores_expr' "
+        raise ValueError("pc_relate_bm: exactly one of 'k' and 'scores_expr' "
                          "must be set, found both")
     else:
-        raise ValueError("pc_relate_2: exactly one of 'k' and 'scores_expr' "
+        raise ValueError("pc_relate_bm: exactly one of 'k' and 'scores_expr' "
                          "must be set, found neither")
 
     scores_table = mt.select_cols(__scores=scores_expr) \
@@ -447,27 +447,27 @@ def pc_relate_2(call_expr: CallExpression,
     V = hl.nd.hstack((ones_normalized, V0))
 
     beta = (BlockMatrix.from_ndarray(((1 / S) * V).T, block_size=block_size) @ g.T)\
-        .checkpoint(new_temp_file("pcrelate2/beta", "bm"))
+        .checkpoint(new_temp_file("pc_relate_bm/beta", "bm"))
     mu = (0.5 * (BlockMatrix.from_ndarray(V * S, block_size=block_size) @ beta).T)\
-        .checkpoint(new_temp_file("pcrelate2/pre-mu", "bm"))
+        .checkpoint(new_temp_file("pc_relate_bm/pre-mu", "bm"))
 
     # Define NaN to use instead of missing, otherwise cannot go back to block matrix
-    nan = hl.literal(0) / 0
+    nan = hl.float64(float("NaN"))
 
     # Replace bad entries in g and pre_mu with NaNs
-    g = g._map_dense(lambda x: hl.if_else(_bad_gt(x), nan, x)).checkpoint(new_temp_file("pcrelate2/g", "bm"))
+    g = g._map_dense(lambda x: hl.if_else(_bad_gt(x), nan, x)).checkpoint(new_temp_file("pc_relate_bm/g", "bm"))
     pre_mu = mu._map_dense(lambda x: hl.if_else(_bad_mu(x, min_individual_maf), nan, x))
 
     # If an entry at an index in either g or pre_mu is NaN, set mu to NaN
     mu = pre_mu._apply_map2(lambda _mu, _g: hl.if_else(hl.is_nan(_mu) | hl.is_nan(_g), nan, _mu),
                             g,
-                            sparsity_strategy="NeedsDense").checkpoint(new_temp_file("pcrelate2/mu", "bm"))
+                            sparsity_strategy="NeedsDense").checkpoint(new_temp_file("pc_relate_bm/mu", "bm"))
 
-    variance = _replace_nan(mu * (1.0 - mu), 0.0).checkpoint(new_temp_file("pcrelate2/variance", "bm"))
+    variance = _replace_nan(mu * (1.0 - mu), 0.0).checkpoint(new_temp_file("pc_relate_bm/variance", "bm"))
     std_dev = variance.sqrt()
 
     centered_af = _replace_nan(g - (2.0 * mu), 0.0)
-    phi = (_gram(centered_af) / (4.0 * _gram(std_dev))).checkpoint(new_temp_file("pcrelate2/phi", "bm"))
+    phi = (_gram(centered_af) / (4.0 * _gram(std_dev))).checkpoint(new_temp_file("pc_relate_bm/phi", "bm"))
 
     ht = phi.entries().rename({'entry': 'kin'})
     ht = ht.annotate(k0=hl.missing(hl.tfloat64),
@@ -482,7 +482,7 @@ def pc_relate_2(call_expr: CallExpression,
         gd = g._apply_map2(lambda _g, _mu: _dominance_encoding(_g, _mu),
                            mu,
                            sparsity_strategy="NeedsDense")
-        normalized_gd = (gd - variance * (1.0 + f_i)).checkpoint(new_temp_file("pcrelate2/normalized_gd", "bm"))
+        normalized_gd = (gd - variance * (1.0 + f_i)).checkpoint(new_temp_file("pc_relate_bm/normalized_gd", "bm"))
 
         # Compute IBD2 (k2) estimate
         k2 = (_gram(normalized_gd) / _gram(variance))
@@ -496,12 +496,12 @@ def pc_relate_2(call_expr: CallExpression,
             hom_ref = g._apply_map2(lambda _g, _mu: hl.if_else((_g != 0.0) | hl.is_nan(_mu), 0.0, 1.0),
                                     mu,
                                     sparsity_strategy="NeedsDense")
-            ibs0 = _AtB_plus_BtA(hom_alt, hom_ref).checkpoint(new_temp_file("pcrelate2/ibs0", "bm"))
+            ibs0 = _AtB_plus_BtA(hom_alt, hom_ref).checkpoint(new_temp_file("pc_relate_bm/ibs0", "bm"))
 
             # Compute denominator for IBD0 (k0) estimates
             mu2 = _replace_nan(mu ** 2.0, 0.0)
             one_minus_mu2 = _replace_nan((1.0 - mu) ** 2.0, 0.0)
-            k0_denom = _AtB_plus_BtA(mu2, one_minus_mu2).checkpoint(new_temp_file("pcrelate2/k0_denom", "bm"))
+            k0_denom = _AtB_plus_BtA(mu2, one_minus_mu2).checkpoint(new_temp_file("pc_relate_bm/k0_denom", "bm"))
 
             # Compute all IBD0 (k0) estimates assuming phi > _k0_cutoff
             _k0_cutoff = 2.0 ** (-5.0 / 2.0)
