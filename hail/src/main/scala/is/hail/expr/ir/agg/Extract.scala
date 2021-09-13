@@ -395,7 +395,7 @@ object Extract {
           i
         })
         GetTupleElement(result, idx)
-      case x@AggFold(zero, seqOp, combOp, elementName, accumName) =>
+      case x@AggFold(zero, seqOp, combOp, accumName, otherAccumName) =>
         val idx = memo.getOrElseUpdate(x, {
           val i = ab.length
           val initOpArgs = IndexedSeq(zero)
@@ -403,7 +403,7 @@ object Extract {
           val op = Fold()
           val signature = PhysicalAggSig(op, AggStateSig(op, initOpArgs, seqOpArgs, r))
           ab += InitOp(i, initOpArgs, signature) -> signature
-          // So combine has to be able to reference accumName
+          // So seqOp has to be able to reference accumName.
           val seqWithLet = Let(accumName, ResultOp(i, IndexedSeq(signature)), SeqOp(i, seqOpArgs, signature))
           seqBuilder += seqWithLet
           i

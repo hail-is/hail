@@ -44,7 +44,11 @@ object Bindings {
     case StreamJoinRightDistinct(ll, rr, _, _, l, r, _, _) => if (i == 2) Array(l -> coerce[TStream](ll.typ).elementType, r -> coerce[TStream](rr.typ).elementType) else empty
     case ArraySort(a, left, right, _) => if (i == 1) Array(left -> coerce[TStream](a.typ).elementType, right -> coerce[TStream](a.typ).elementType) else empty
     case AggArrayPerElement(a, _, indexName, _, _, _) => if (i == 1) FastIndexedSeq(indexName -> TInt32) else empty
-    case AggFold(zero, seqOp, combOp, elementName, accumName) => if (i == 1) FastIndexedSeq(accumName -> zero.typ) else empty
+    case AggFold(zero, seqOp, combOp, accumName, otherAccumName) => {
+      if (i == 1) FastIndexedSeq(accumName -> zero.typ)
+      else if (i == 2) FastIndexedSeq(accumName -> zero.typ, otherAccumName -> zero.typ)
+      else empty
+    }
     case NDArrayMap(nd, name, _) => if (i == 1) Array(name -> coerce[TNDArray](nd.typ).elementType) else empty
     case NDArrayMap2(l, r, lName, rName, _, _) => if (i == 2) Array(lName -> coerce[TNDArray](l.typ).elementType, rName -> coerce[TNDArray](r.typ).elementType) else empty
     case CollectDistributedArray(contexts, globals, cname, gname, _, _) => if (i == 2) Array(cname -> coerce[TStream](contexts.typ).elementType, gname -> globals.typ) else empty
