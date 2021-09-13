@@ -16,6 +16,8 @@ spec:
         app: memory
         hail.is/sha: "{{ code.sha }}"
         grafanak8sapp: "true"
+      annotations:
+        "cluster-autoscaler.kubernetes.io/safe-to-evict": "true"
     spec:
       serviceAccountName: memory
 {% if deploy %}
