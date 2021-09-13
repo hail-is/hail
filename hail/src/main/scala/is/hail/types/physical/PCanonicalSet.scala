@@ -41,7 +41,7 @@ final case class PCanonicalSet(elementType: PType,  required: Boolean = false) e
   }
 
   def construct(_contents: SIndexableValue): SIndexableValue = {
-    val contents = _contents.asInstanceOf[SIndexablePointerCode]
+    val contents = _contents.asInstanceOf[SIndexablePointerValue]
     assert(contents.pt.equalModuloRequired(arrayRep), s"\n  contents:  ${ contents.pt }\n  arrayrep: ${ arrayRep }")
     val cont = contents.asInstanceOf[SIndexablePointerValue]
     new SIndexablePointerValue(SIndexablePointer(this), cont.a, cont.length, cont.elementsAddress)
