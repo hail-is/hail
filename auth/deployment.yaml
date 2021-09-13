@@ -39,16 +39,25 @@ spec:
           - -m
           - auth.driver
          env:
+          - name: HAIL_DEFAULT_NAMESPACE
+            value: "{{ default_ns.name }}"
           - name: HAIL_DEPLOY_CONFIG_FILE
             value: /deploy-config/deploy-config.json
           - name: HAIL_DOMAIN
-            value: "{{ global.domain }}"
+            valueFrom:
+              secretKeyRef:
+                name: global-config
+                key: domain
           - name: PROJECT
-            value: "{{ global.project }}"
+            valueFrom:
+              secretKeyRef:
+                name: global-config
+                key: gcp_project
           - name: ZONE
-            value: "{{ global.zone }}"
-          - name: HAIL_DEFAULT_NAMESPACE
-            value: "{{ default_ns.name }}"
+            valueFrom:
+              secretKeyRef:
+                name: global-config
+                key: gcp_zone
           - name: HAIL_GSUITE_ORGANIZATION
             valueFrom:
               secretKeyRef:
@@ -149,16 +158,25 @@ spec:
           - -m
           - auth
          env:
+          - name: HAIL_DEFAULT_NAMESPACE
+            value: "{{ default_ns.name }}"
           - name: HAIL_DEPLOY_CONFIG_FILE
             value: /deploy-config/deploy-config.json
           - name: HAIL_DOMAIN
-            value: "{{ global.domain }}"
+            valueFrom:
+              secretKeyRef:
+                name: global-config
+                key: domain
           - name: PROJECT
-            value: "{{ global.project }}"
+            valueFrom:
+              secretKeyRef:
+                name: global-config
+                key: gcp_project
           - name: ZONE
-            value: "{{ global.zone }}"
-          - name: HAIL_DEFAULT_NAMESPACE
-            value: "{{ default_ns.name }}"
+            valueFrom:
+              secretKeyRef:
+                name: global-config
+                key: gcp_zone
           - name: HAIL_GSUITE_ORGANIZATION
             valueFrom:
               secretKeyRef:
