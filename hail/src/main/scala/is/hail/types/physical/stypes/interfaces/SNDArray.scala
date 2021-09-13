@@ -241,7 +241,8 @@ object SNDArray {
 
   def assertColMajor(cb: EmitCodeBuilder, nds: SNDArrayValue*): Unit = {
     for (nd <- nds) {
-      cb.ifx(nd.strides(0).cne(nd.st.pType.elementType.byteSize), cb._fatal("Require column major: found row stride ", nd.strides(0).toS, ", expected ", nd.st.pType.elementType.byteSize.toString))
+      cb.ifx(nd.strides(0).cne(nd.st.pType.elementType.byteSize),
+        cb._fatal("Require column major: found row stride ", nd.strides(0).toS, ", expected ", nd.st.pType.elementType.byteSize.toString))
     }
   }
 
@@ -314,8 +315,8 @@ object SNDArray {
     assertMatrix(A, B, C)
     val Seq(m, n) = C.shapes
     val k = if (tA == "N") A.shapes(1) else A.shapes(0)
-
     val errMsg = "gemm: incompatible matrix dimensions"
+
     if (tA == "N")
       A.assertHasShape(cb, FastIndexedSeq(m, k), errMsg)
     else

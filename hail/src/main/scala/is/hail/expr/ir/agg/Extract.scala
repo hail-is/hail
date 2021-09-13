@@ -8,7 +8,7 @@ import is.hail.expr.ir._
 import is.hail.io.BufferSpec
 import is.hail.types.physical._
 import is.hail.types.virtual._
-import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
+import is.hail.types.{BaseTypeWithRequiredness, TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.utils._
 import org.apache.spark.TaskContext
 
@@ -45,6 +45,7 @@ object AggStateSig {
         DownsampleStateSig(labelType)
       case ImputeType() => ImputeTypeStateSig()
       case NDArraySum() => NDArraySumStateSig(seqVTypes.head.setRequired(false)) // set required to false to handle empty aggs
+      case NDArrayMultiplyAdd() => NDArrayMultiplyAddStateSig(seqVTypes.head.setRequired(false))
       case _ => throw new UnsupportedExtraction(op.toString)
     }
   }
@@ -68,6 +69,8 @@ object AggStateSig {
     case ArrayAggStateSig(nested) => new ArrayElementState(cb, StateTuple(nested.map(sig => AggStateSig.getState(sig, cb)).toArray))
     case GroupedStateSig(kt, nested) => new DictState(cb, kt, StateTuple(nested.map(sig => AggStateSig.getState(sig, cb)).toArray))
     case NDArraySumStateSig(nda) => new TypedRegionBackedAggState(nda, cb)
+    case NDArrayMultiplyAddStateSig(nda) =>
+      new TypedRegionBackedAggState(nda, cb)
     case LinearRegressionStateSig() => new LinearRegressionAggregatorState(cb)
   }
 }
@@ -87,6 +90,9 @@ case class GroupedStateSig(kt: VirtualTypeWithReq, nested: Seq[AggStateSig]) ext
 case class ApproxCDFStateSig() extends AggStateSig(Array[VirtualTypeWithReq](), None)
 case class LinearRegressionStateSig() extends AggStateSig(Array[VirtualTypeWithReq](), None)
 case class NDArraySumStateSig(nda: VirtualTypeWithReq) extends AggStateSig(Array[VirtualTypeWithReq](nda), None) {
+  require(!nda.r.required)
+}
+case class NDArrayMultiplyAddStateSig(nda: VirtualTypeWithReq) extends AggStateSig(Array[VirtualTypeWithReq](nda), None) {
   require(!nda.r.required)
 }
 
@@ -128,6 +134,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
       case AggElementsLengthCheck() => true
       case Downsample() => true
       case NDArraySum() => true
+      case NDArrayMultiplyAdd() => true
       case Densify() => true
       case _ => false
     }
@@ -305,7 +312,9 @@ object Extract {
     case AggSignature(ApproxCDF(), _, _) => QuantilesAggregator.resultType.virtualType
     case AggSignature(Downsample(), _, Seq(_, _, label)) => DownsampleAggregator.resultType
     case AggSignature(NDArraySum(), _, Seq(t)) => t
-    case _ => throw new UnsupportedExtraction(aggSig.toString)  }
+    case AggSignature(NDArrayMultiplyAdd(), _, Seq(a : TNDArray, _)) => a
+    case _ => throw new UnsupportedExtraction(aggSig.toString)
+  }
 
   def getAgg(sig: PhysicalAggSig): StagedAggregator = sig match {
     case PhysicalAggSig(Sum(), TypedStateSig(t)) => new SumAggregator(t.t)
@@ -332,6 +341,8 @@ object Extract {
       new GroupedAggregator(k, nested.map(getAgg).toArray)
     case PhysicalAggSig(NDArraySum(), NDArraySumStateSig(nda)) =>
       new NDArraySumAggregator(nda)
+    case PhysicalAggSig(NDArrayMultiplyAdd(), NDArrayMultiplyAddStateSig(nda)) =>
+      new NDArrayMultiplyAddAggregator(nda)
   }
 
   def apply(ir: IR, resultName: String, r: RequirednessAnalysis, isScan: Boolean = false): Aggs = {
