@@ -9,9 +9,8 @@ SELECT id
 FROM batches
 WHERE batches.cancelled;
 
-ALTER TABLE batches
-  DROP COLUMN cancelled
-  RENAME INDEX `batches_user_state_cancelled` TO `batches_user_state`;
+ALTER TABLE batches DROP COLUMN cancelled,
+                    RENAME INDEX `batches_user_state_cancelled` TO `batches_user_state`;
 
 DELIMITER $$
 
