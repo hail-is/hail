@@ -37,7 +37,6 @@ import java.util.concurrent._
 import scala.annotation.switch
 import scala.reflect.ClassTag
 import scala.{concurrent => scalaConcurrent}
-import scala.collection.mutable
 
 
 class ServiceBackendContext(
