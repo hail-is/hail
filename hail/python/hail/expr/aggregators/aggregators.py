@@ -1844,36 +1844,38 @@ class ScanFunctions(object):
                 "\n    ".join(field_matches)))
 
 
-@typecheck(inital_value=expr_any, seq_op=func_spec(2, expr_any), comb_op=func_spec(2, expr_any), field=expr_any)
-def fold(initial_value, seq_op, comb_op, field):
+@typecheck(initial_value=expr_any, seq_op=func_spec(1, expr_any), comb_op=func_spec(2, expr_any))
+def fold(initial_value, seq_op, comb_op):
     """
 
     :param initialValue: B
     :param seqOp: (B, A) => B
     :param combOp: (B, B) => B
-    :param field: A
     :return:
     """
 
     # Roughly, what do I need to do?
     # - Check that all the types work out:
 
-    indices, aggregations = unify_all(initial_value, field)
-    element_name = Env.get_uid()
+    indices, aggregations = unify_all(initial_value)
     accum_name = Env.get_uid()
     other_accum_name = Env.get_uid()
 
-    element_ref = construct_variable(element_name, field.dtype, ..., ...)
     accum_ref = construct_variable(accum_name, initial_value.dtype, indices, aggregations)
     other_accum_ref = construct_variable(other_accum_name, initial_value.dtype, indices, aggregations)
 
-    to_expr(seq_op())
+    seq_op_expr = to_expr(seq_op(accum_ref))
+    comb_op_expr = to_expr(comb_op(accum_ref, other_accum_ref))
 
-    if seq_op.dtype != comb_op.dtype or seq_op.dtype != initial_value.dtype:
+    if seq_op_expr.dtype != comb_op_expr.dtype or seq_op_expr.dtype != initial_value.dtype:
         raise ExpressionException("'hail.agg.fold' initial_value, seq_op's result and comb_op's result must "
                                   "all be of the same expression type: \n"
                                   f"   initial_value.dtype: {initial_value.dtype}\n"
-                                  f"   seq_op.dtype: {seq_op.dtype}\n"
-                                  f"   comb_op.dtype: {comb_op.dtype}")
+                                  f"   seq_op.dtype: {seq_op_expr.dtype}\n"
+                                  f"   comb_op.dtype: {comb_op_expr.dtype}")
 
-    ir.AggFold()
+
+    return construct_expr(ir.AggFold(initial_value._ir, seq_op_expr._ir, comb_op_expr._ir, accum_name, other_accum_name),
+                          initial_value.dtype,
+                          indices,
+                          aggregations)

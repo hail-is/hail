@@ -1888,10 +1888,44 @@ class ApplyScanOp(BaseApplyAggOp):
 
 
 class AggFold(IR):
-    @typecheck_method(zero=IR, seq_op=IR, comb_op=IR, element_name=str, accum_name=str, other_state_name=str)
-    def __init__(self, zero, seq_op, comb_ob, element_name, accum_name):
-        super().__init__(zero, seq_op, comb_ob)
+    @typecheck_method(zero=IR, seq_op=IR, comb_op=IR, accum_name=str, other_accum_name=str)
+    def __init__(self, zero, seq_op, comb_op, accum_name, other_accum_name):
+        super().__init__(zero, seq_op, comb_op)
         # TODO: Fill in
+        self.zero = zero
+        self.seq_op = seq_op
+        self.comb_op = comb_op
+        self.accum_name = accum_name
+        self.other_accum_name = other_accum_name
+
+    def copy(self, zero, seq_op, comb_op):
+        return AggFold(zero, seq_op, comb_op, self.accum_name, self.other_accum_name)
+
+    def _compute_type(self, env, agg_env):
+        self.zero._compute_type(env, agg_env)
+        self.seq_op._compute_type(_env_bind(env, self.bindings(1)), agg_env)
+        self.comb_op._compute_type(_env_bind(env, self.bindings(2)), agg_env)
+
+        assert self.zero._type == self.seq_op._type
+        assert self.zero._type == self.comb_op._type
+
+        self._type = self.zero._type
+
+    def renderable_bindings(self, i: int, default_value=None):
+        dict_so_far = {}
+        if i == 1 or i == 2:
+            if default_value is None:
+                dict_so_far[self.accum_name] = self.zero.typ
+            else:
+                raise ValueError("TODO: Not sure")
+
+        if i == 2:
+            if default_value is None:
+                dict_so_far[self.other_accum_name] = self.zero.typ
+            else:
+                raise ValueError("TODO: Still note sure.")
+
+        return dict_so_far
 
 
 class Begin(IR):
