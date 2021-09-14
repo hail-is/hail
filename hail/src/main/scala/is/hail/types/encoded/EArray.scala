@@ -3,13 +3,12 @@ package is.hail.types.encoded
 import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
-import is.hail.types.BaseType
-import is.hail.types.physical._
-import is.hail.types.virtual._
 import is.hail.io.{InputBuffer, OutputBuffer}
-import is.hail.types.physical.stypes.{SCode, SType, SValue}
-import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerCode, SIndexablePointerSettable}
+import is.hail.types.physical._
+import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerCode, SIndexablePointerValue}
 import is.hail.types.physical.stypes.interfaces.SIndexableValue
+import is.hail.types.physical.stypes.{SCode, SType, SValue}
+import is.hail.types.virtual._
 import is.hail.utils._
 
 final case class EArray(val elementType: EType, override val required: Boolean = false) extends EContainer {
@@ -43,7 +42,7 @@ final case class EArray(val elementType: EType, override val required: Boolean =
           case t: PCanonicalDict => t.arrayRep
         }
 
-        val array = value.asInstanceOf[SIndexablePointerSettable].a
+        val array = value.asInstanceOf[SIndexablePointerValue].a
         if (!elementType.required) {
           val nMissingLocal = cb.newLocal[Int]("nMissingBytes", pArray.nMissingBytes(prefixLen))
           cb.ifx(nMissingLocal > 0, {

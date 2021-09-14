@@ -6,7 +6,7 @@ import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.concrete.SIndexablePointerCode
+import is.hail.types.physical.stypes.concrete.SIndexablePointerValue
 import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.virtual.{TInt32, Type}
 import is.hail.utils._
@@ -120,8 +120,8 @@ class DensifyState(val arrayVType: VirtualTypeWithReq, val kb: EmitClassBuilder[
     gc(cb)
   }
 
-  def result(cb: EmitCodeBuilder, region: Value[Region]): SIndexablePointerCode = {
-    arrayStorageType.loadCheapSCode(cb, arrayAddr).get
+  def result(cb: EmitCodeBuilder, region: Value[Region]): SIndexablePointerValue = {
+    arrayStorageType.loadCheapSCode(cb, arrayAddr)
   }
 
   def copyFrom(cb: EmitCodeBuilder, srcCode: Code[Long]): Unit = {

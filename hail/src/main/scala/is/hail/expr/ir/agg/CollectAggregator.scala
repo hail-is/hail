@@ -82,6 +82,6 @@ class CollectAggregator(val elemType: VirtualTypeWithReq) extends StagedAggregat
   protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
     assert(pt == resultType)
     // deepCopy is handled by the blocked linked list
-    pt.storeAtAddress(cb, addr, region, state.bll.resultArray(cb, region, resultType).get, deepCopy = false)
+    pt.storeAtAddress(cb, addr, region, state.bll.resultArray(cb, region, resultType), deepCopy = false)
   }
 }

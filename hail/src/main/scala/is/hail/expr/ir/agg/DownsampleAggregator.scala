@@ -34,7 +34,7 @@ class DownsampleBTreeKey(binType: PBaseStruct, pointType: PBaseStruct, kb: EmitC
     val src = cb.newLocal[Long]("dsa_deep_copy_src", srcc)
     cb.ifx(Region.loadBoolean(storageType.loadField(src, "empty")),
       cb += Code._fatal[Unit]("key empty!"))
-    storageType.storeAtAddress(cb, dest, er.region, storageType.loadCheapSCode(cb, src).get, deepCopy = true)
+    storageType.storeAtAddress(cb, dest, er.region, storageType.loadCheapSCode(cb, src), deepCopy = true)
   }
 
   def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = kcomp(cb, k1, k2)
@@ -299,7 +299,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
           cb += Region.storeInt(binType.loadField(binOffset, "x"), binX)
           cb += Region.storeInt(binType.loadField(binOffset, "y"), binY)
           cb.assign(insertedPointOffset, key.storageType.loadField(insertOffset, "point"))
-          pointType.storeAtAddress(cb, insertedPointOffset, region, pointType.loadCheapSCode(cb, point).get, deepCopy = deepCopy)
+          pointType.storeAtAddress(cb, insertedPointOffset, region, pointType.loadCheapSCode(cb, point), deepCopy = deepCopy)
           cb += Region.storeBoolean(key.storageType.loadField(insertOffset, "empty"), false)
           cb.assign(treeSize, treeSize + 1)
         })
@@ -393,7 +393,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
         cb.assign(bufferRight, max(bufferRight, x))
         cb.assign(bufferBottom, min(bufferBottom, y))
         cb.assign(bufferTop, max(bufferTop, y))
-        buffer.append(cb, pointType.loadCheapSCode(cb, point).get)
+        buffer.append(cb, pointType.loadCheapSCode(cb, point))
         cb.ifx(buffer.size >= maxBufferSize, dumpBuffer(cb))
       }
     }
@@ -448,9 +448,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
       val pointStaging = mb.newLocal[Long]("pointStaging")
       mb.voidWithBuilder { cb =>
         val x = mb.getSCodeParam(1)
-          .memoize(cb, "downsample_insert_x")
         val y = mb.getSCodeParam(2)
-          .memoize(cb, "downsample_insert_y")
         val l = mb.getEmitParam(cb, 3, region)
 
         def xx = x.asDouble.doubleCode(cb)
@@ -459,14 +457,14 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
 
         cb.ifx((!(isFinite(xx) && isFinite(yy))), cb += Code._return[Unit](Code._empty))
         cb.assign(pointStaging, storageType.loadField(off, "pointStaging"))
-        pointType.fieldType("x").storeAtAddress(cb, pointType.fieldOffset(pointStaging, "x"), region, x.get, deepCopy = true)
-        pointType.fieldType("y").storeAtAddress(cb, pointType.fieldOffset(pointStaging, "y"), region, y.get, deepCopy = true)
+        pointType.fieldType("x").storeAtAddress(cb, pointType.fieldOffset(pointStaging, "x"), region, x, deepCopy = true)
+        pointType.fieldType("y").storeAtAddress(cb, pointType.fieldOffset(pointStaging, "y"), region, y, deepCopy = true)
         l.toI(cb)
           .consume(cb,
             pointType.setFieldMissing(cb, pointStaging, "label"),
             { sc =>
               pointType.setFieldPresent(cb, pointStaging, "label")
-              pointType.fieldType("label").storeAtAddress(cb, pointType.fieldOffset(pointStaging, "label"), region, sc.get, deepCopy = true)
+              pointType.fieldType("label").storeAtAddress(cb, pointType.fieldOffset(pointStaging, "label"), region, sc, deepCopy = true)
             }
           )
         binAndInsert(cb, xx, yy, pointStaging, deepCopy = false)
@@ -573,6 +571,6 @@ class DownsampleAggregator(arrayType: VirtualTypeWithReq) extends StagedAggregat
   protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
     assert(pt == resultType)
     // deepCopy is handled by state.resultArray
-    pt.storeAtAddress(cb, addr, region, state.resultArray(cb, region, resultType).get, deepCopy = false)
+    pt.storeAtAddress(cb, addr, region, state.resultArray(cb, region, resultType), deepCopy = false)
   }
 }

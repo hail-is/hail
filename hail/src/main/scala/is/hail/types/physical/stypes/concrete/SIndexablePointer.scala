@@ -113,7 +113,7 @@ class SIndexablePointerValue(
     }
   }
 
-  override def forEachDefined(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, Value[Int], SCode) => Unit) {
+  override def forEachDefined(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, Value[Int], SValue) => Unit) {
     st.pType match {
       case pca: PCanonicalArray =>
         val idx = cb.newLocal[Int]("foreach_pca_idx", 0)
@@ -124,7 +124,7 @@ class SIndexablePointerValue(
             {}, // do nothing,
             {
               val elt = et.loadCheapSCode(cb, et.loadFromNested(elementPtr))
-              f(cb, idx, elt.get)
+              f(cb, idx, elt)
             })
           cb.assign(idx, idx + 1)
           cb.assign(elementPtr, elementPtr + pca.elementByteSize)

@@ -56,7 +56,7 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
         { sc =>
           storageType.setFieldPresent(cb, dest, 0)
           storageType.fieldType("kt")
-            .storeAtAddress(cb, storageType.fieldOffset(dest, 0), region, sc.get, deepCopy = true)
+            .storeAtAddress(cb, storageType.fieldOffset(dest, 0), region, sc, deepCopy = true)
         })
     storeRegionIdx(cb, dest, rIdx)
     container.newState(cb)
@@ -82,11 +82,11 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
     cb += Region.storeInt(storageType.fieldOffset(off, 1), -1)
 
   def copy(cb: EmitCodeBuilder, src: Code[Long], dest: Code[Long]): Unit =
-    storageType.storeAtAddress(cb, dest, region, storageType.loadCheapSCode(cb, src).get, deepCopy = false)
+    storageType.storeAtAddress(cb, dest, region, storageType.loadCheapSCode(cb, src), deepCopy = false)
 
   def deepCopy(cb: EmitCodeBuilder, er: EmitRegion, dest: Code[Long], srcCode: Code[Long]): Unit = {
     val src = cb.newLocal("ga_deep_copy_src", srcCode)
-    storageType.storeAtAddress(cb, dest, region, storageType.loadCheapSCode(cb, src).get, deepCopy = true)
+    storageType.storeAtAddress(cb, dest, region, storageType.loadCheapSCode(cb, src), deepCopy = true)
     container.copyFrom(cb, containerOffset(src))
     container.store(cb)
   }
@@ -297,7 +297,7 @@ class GroupedAggregator(ktV: VirtualTypeWithReq, nestedAggs: Array[StagedAggrega
       k.toI(cb).consume(cb,
         dictElt.setFieldMissing(cb, addrAtI, "key"),
         { sc =>
-          dictElt.fieldType("key").storeAtAddress(cb, dictElt.fieldOffset(addrAtI, "key"), region, sc.get, deepCopy = true)
+          dictElt.fieldType("key").storeAtAddress(cb, dictElt.fieldOffset(addrAtI, "key"), region, sc, deepCopy = true)
         })
 
       val valueAddr = cb.newLocal[Long]("groupedagg_value_addr", dictElt.fieldOffset(addrAtI, "value"))
@@ -313,6 +313,6 @@ class GroupedAggregator(ktV: VirtualTypeWithReq, nestedAggs: Array[StagedAggrega
     }
 
     // don't need to deep copy because that's done in nested aggregators
-    pt.storeAtAddress(cb, addr, region, resultType.loadCheapSCode(cb, resultAddr).get, deepCopy = false)
+    pt.storeAtAddress(cb, addr, region, resultType.loadCheapSCode(cb, resultAddr), deepCopy = false)
   }
 }

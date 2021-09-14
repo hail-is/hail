@@ -38,7 +38,7 @@ class TypedKey(typ: PType, kb: EmitClassBuilder[_], region: Value[Region]) exten
         },
         { sc =>
           storageType.setFieldPresent(cb, dest, 0)
-          typ.storeAtAddress(cb, storageType.fieldOffset(dest, 0), region, sc.get, deepCopy = true)
+          typ.storeAtAddress(cb, storageType.fieldOffset(dest, 0), region, sc, deepCopy = true)
         })
   }
 
@@ -46,7 +46,7 @@ class TypedKey(typ: PType, kb: EmitClassBuilder[_], region: Value[Region]) exten
     cb += Region.copyFrom(src, dest, storageType.byteSize)
 
   def deepCopy(cb: EmitCodeBuilder, er: EmitRegion, dest: Code[Long], src: Code[Long]): Unit = {
-    storageType.storeAtAddress(cb, dest, region, storageType.loadCheapSCode(cb, src).get, deepCopy = true)
+    storageType.storeAtAddress(cb, dest, region, storageType.loadCheapSCode(cb, src), deepCopy = true)
   }
 
   def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = {
@@ -177,6 +177,6 @@ class CollectAsSetAggregator(elem: VirtualTypeWithReq) extends StagedAggregator 
       pushElement(cb, elt.toI(cb))
     }
     // deepCopy is handled by `storeElement` above
-    resultType.storeAtAddress(cb, addr, region, finish(cb).get, deepCopy = false)
+    resultType.storeAtAddress(cb, addr, region, finish(cb), deepCopy = false)
   }
 }

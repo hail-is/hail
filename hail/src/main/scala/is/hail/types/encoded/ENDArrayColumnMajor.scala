@@ -19,7 +19,7 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
     val shapes = ndarray.shapes
     shapes.foreach(s => cb += out.writeLong(s))
 
-    SNDArray.coiterate(cb, (ndarray.get, "A")){
+    SNDArray.coiterate(cb, (ndarray, "A")){
       case Seq(elt) =>
         elementType.buildEncoder(elt.st, cb.emb.ecb)
           .apply(cb, elt.get, out)

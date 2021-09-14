@@ -90,7 +90,7 @@ abstract class CodeOrdering {
       mb.emitWithBuilder[T] { cb =>
         val arg1 = mb.getSCodeParam(1)
         val arg2 = mb.getSCodeParam(2)
-        f(cb, arg1, arg2)
+        f(cb, arg1.get, arg2.get)
       }
     }
     cb.invokeCode[T](mb, arg1, arg2)

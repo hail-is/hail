@@ -57,7 +57,7 @@ class BinarySearch[C](mb: EmitMethodBuilder[C], containerType: SContainer, eltTy
 
   // Returns smallest i, 0 <= i < n, for which a(i) >= key, or returns n if a(i) < key for all i
   findElt.emitWithBuilder[Int] { cb =>
-    val indexable = findElt.getSCodeParam(1).asIndexable.memoize(cb, "findElt_indexable")
+    val indexable = findElt.getSCodeParam(1).asIndexable
 
     val elt = findElt.getEmitParam(cb, 2, null) // no streams
 

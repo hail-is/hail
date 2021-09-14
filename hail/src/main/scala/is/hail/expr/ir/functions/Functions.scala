@@ -460,7 +460,7 @@ abstract class RegistryFunctions {
           val sv = code.asIndexable.memoize(cb, "scode_array_string")
           val arr = cb.newLocal[Array[String]]("scode_array_string", Code.newArray[String](sv.loadLength()))
           sv.forEachDefined(cb) { case (cb, idx, elt) =>
-            cb += (arr(idx) = elt.asString.loadString())
+            cb += (arr(idx) = elt.asString.loadString(cb))
           }
           arr
       }
@@ -710,7 +710,7 @@ abstract class UnseededMissingnessObliviousJVMFunction (
       rpt,
       typeParameters,
       methodbuilder.getCodeParam[Int](2),
-      (0 until args.length).map(i => methodbuilder.getSCodeParam(i + 3)): _*))
+      (0 until args.length).map(i => methodbuilder.getSCodeParam(i + 3).get): _*))
     methodbuilder
   }
 }

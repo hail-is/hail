@@ -120,7 +120,7 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String]) ext
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] =
     throw new UnsupportedOperationException
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SValue, deepCopy: Boolean): Unit = {
     throw new UnsupportedOperationException
   }
 

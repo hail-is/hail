@@ -77,8 +77,8 @@ class PCanonicalString(val required: Boolean) extends PString {
     }
   }
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
-    cb += Region.storeAddress(addr, store(cb, region, value.memoize(cb, "storeAtAddress"), deepCopy))
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SValue, deepCopy: Boolean): Unit = {
+    cb += Region.storeAddress(addr, store(cb, region, value, deepCopy))
   }
 
   def loadFromNested(addr: Code[Long]): Code[Long] = binaryRepresentation.loadFromNested(addr)

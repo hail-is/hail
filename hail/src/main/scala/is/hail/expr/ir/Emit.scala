@@ -2724,7 +2724,7 @@ abstract class NDArrayEmitter(val outputShape: IndexedSeq[Value[Long]], val elem
       region)
 
     SNDArray.forEachIndexColMajor(cb, shapeArray, "ndarrayemitter_emitloops") { case (cb, idxVars) =>
-      val element = IEmitCode.present(cb, outputElement(cb, idxVars)).consume(cb, {
+      val element = IEmitCode.present(cb, outputElement(cb, idxVars).memoize(cb, "NDArray_emit")).consume(cb, {
         cb._fatal("NDArray elements cannot be missing")
       }, { elementPc =>
         targetType.elementType.storeAtAddress(cb, firstElementAddress + (idx.toL * targetType.elementType.byteSize), region, elementPc, true)

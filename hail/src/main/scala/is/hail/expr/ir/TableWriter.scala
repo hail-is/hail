@@ -238,7 +238,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
         indexWriter.close(cb)
       cb += ob.flush()
       cb += os.invoke[Unit]("close")
-      filenameType.storeAtAddress(cb, pResultType.fieldOffset(result, "filePath"), region, ctx.get, false)
+      filenameType.storeAtAddress(cb, pResultType.fieldOffset(result, "filePath"), region, ctx, false)
       cb += Region.storeLong(pResultType.fieldOffset(result, "partitionCounts"), n)
       pResultType.loadCheapSCode(cb, result.get)
     }

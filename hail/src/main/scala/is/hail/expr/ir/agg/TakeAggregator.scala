@@ -71,7 +71,7 @@ class TakeRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuilder[_]) ext
       elt.toI(cb)
         .consume(cb,
           builder.setMissing(cb),
-          sc => builder.append(cb, sc.get)))
+          sc => builder.append(cb, sc)))
   }
 
   def combine(cb: EmitCodeBuilder, other: TakeRVAS): Unit = {
@@ -82,7 +82,7 @@ class TakeRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuilder[_]) ext
         other.builder.loadElement(cb, j).toI(cb)
           .consume(cb,
             builder.setMissing(cb),
-            sc => builder.append(cb, sc.get))
+            sc => builder.append(cb, sc))
         cb.assign(j, j + 1)
       })
   }
@@ -128,6 +128,6 @@ class TakeAggregator(typ: VirtualTypeWithReq) extends StagedAggregator {
   protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
     assert(pt == resultType)
     // deepCopy is handled by state.resultArray
-    pt.storeAtAddress(cb, addr, region, state.resultArray(cb, region, resultType).get, deepCopy = false)
+    pt.storeAtAddress(cb, addr, region, state.resultArray(cb, region, resultType), deepCopy = false)
   }
 }

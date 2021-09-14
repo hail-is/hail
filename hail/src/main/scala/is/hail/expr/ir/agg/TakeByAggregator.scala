@@ -7,7 +7,7 @@ import is.hail.expr.ir.{Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, 
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointerValue, SIndexablePointerCode}
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointerValue, SIndexablePointerValue}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.{SCode, SValue}
 import is.hail.types.virtual.{TInt32, Type}
@@ -316,7 +316,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
         },
         { sc =>
           indexedKeyType.setFieldPresent(cb, keyStage, 0)
-          keyType.storeAtAddress(cb, indexedKeyType.fieldOffset(keyStage, 0), region, sc.get, deepCopy = false)
+          keyType.storeAtAddress(cb, indexedKeyType.fieldOffset(keyStage, 0), region, sc, deepCopy = false)
         }
       )
     cb += Region.storeLong(indexedKeyType.fieldOffset(keyStage, 1), maxIndex)
@@ -330,7 +330,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
     indexedKeyType.storeAtAddress(cb,
       eltTuple.fieldOffset(staging, 0),
       region,
-      indexedKeyType.loadCheapSCode(cb, indexedKey).get,
+      indexedKeyType.loadCheapSCode(cb, indexedKey),
       deepCopy = false)
     value.toI(cb)
       .consume(cb,
@@ -339,17 +339,17 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
         },
         { v =>
           eltTuple.setFieldPresent(cb, staging, 1)
-          valueType.storeAtAddress(cb, eltTuple.fieldOffset(staging, 1), region, v.get, deepCopy = false)
+          valueType.storeAtAddress(cb, eltTuple.fieldOffset(staging, 1), region, v, deepCopy = false)
         })
   }
 
   private def swapStaging(cb: EmitCodeBuilder): Unit = {
-    eltTuple.storeAtAddress(cb, ab.elementOffset(0), region, eltTuple.loadCheapSCode(cb, staging).get, true)
+    eltTuple.storeAtAddress(cb, ab.elementOffset(0), region, eltTuple.loadCheapSCode(cb, staging), true)
     rebalanceDown(cb, 0)
   }
 
   private def enqueueStaging(cb: EmitCodeBuilder): Unit = {
-    ab.append(cb, eltTuple.loadCheapSCode(cb, staging).get)
+    ab.append(cb, eltTuple.loadCheapSCode(cb, staging))
     rebalanceUp(cb, ab.size - 1)
   }
 
@@ -428,7 +428,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
     cb.invokeVoid(mb)
   }
 
-  def result(cb: EmitCodeBuilder, _r: Code[Region], resultType: PCanonicalArray): SIndexablePointerCode = {
+  def result(cb: EmitCodeBuilder, _r: Code[Region], resultType: PCanonicalArray): SIndexablePointerValue = {
     val mb = kb.genEmitMethod("take_by_result", FastIndexedSeq[ParamType](classInfo[Region]), LongInfo)
 
     val quickSort: (Code[Long], Code[Int], Code[Int]) => Code[Unit] = {
@@ -536,7 +536,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
           }
       }.a
     }
-    resultType.loadCheapSCode(cb, cb.invokeCode[Long](mb, _r)).get
+    resultType.loadCheapSCode(cb, cb.invokeCode[Long](mb, _r))
   }
 }
 
