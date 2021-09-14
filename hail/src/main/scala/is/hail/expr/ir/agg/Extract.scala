@@ -47,7 +47,6 @@ object AggStateSig {
       case ImputeType() => ImputeTypeStateSig()
       case NDArraySum() => NDArraySumStateSig(seqVTypes.head.setRequired(false)) // set required to false to handle empty aggs
       case NDArrayMultiplyAdd() => NDArrayMultiplyAddStateSig(seqVTypes.head.setRequired(false))
-      case Fold() => FoldStateSig(seqVTypes.head)
       case _ => throw new UnsupportedExtraction(op.toString)
     }
   }
@@ -99,7 +98,7 @@ case class NDArrayMultiplyAddStateSig(nda: VirtualTypeWithReq) extends AggStateS
 }
 
 // TODO: What is t? I am giving an empty array, is that right? wrong?
-case class FoldStateSig(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[IR], resultPType: PType, accumName: String, otherAccumName: String, r: RequirednessAnalysis) extends AggStateSig(Array[VirtualTypeWithReq](), None)
+case class FoldStateSig(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[IR], resultPType: PType, accumName: String, otherAccumName: String, combOpIR: IR, r: RequirednessAnalysis) extends AggStateSig(Array[VirtualTypeWithReq](), None)
 
 object PhysicalAggSig {
   def apply(op: AggOp, state: AggStateSig): PhysicalAggSig = BasicPhysicalAggSig(op, state)
@@ -350,8 +349,8 @@ object Extract {
       new NDArraySumAggregator(nda)
     case PhysicalAggSig(NDArrayMultiplyAdd(), NDArrayMultiplyAddStateSig(nda)) =>
       new NDArrayMultiplyAddAggregator(nda)
-    case PhysicalAggSig(Fold(), FoldStateSig(init, seq, res, accumName, otherAccumName, r)) =>
-      new FoldAggregator(init, seq, res, accumName, otherAccumName, r)
+    case PhysicalAggSig(Fold(), FoldStateSig(init, seq, res, accumName, otherAccumName, combOpIR, r)) =>
+      new FoldAggregator(init.map(_.typ), seq.map(_.typ), res, accumName, otherAccumName, combOpIR)
   }
 
   def apply(ir: IR, resultName: String, r: RequirednessAnalysis, isScan: Boolean = false): Aggs = {
@@ -404,7 +403,7 @@ object Extract {
           val seqOpArgs = IndexedSeq(seqOp)
           val op = Fold()
           val resultPType = PType.canonical(zero.typ)
-          val foldStateSig = FoldStateSig(initOpArgs, seqOpArgs, resultPType, accumName, otherAccumName, r)
+          val foldStateSig = FoldStateSig(initOpArgs, seqOpArgs, resultPType, accumName, otherAccumName, combOp, r)
           val signature = PhysicalAggSig(op, foldStateSig)
           ab += InitOp(i, initOpArgs, signature) -> signature
           // So seqOp has to be able to reference accumName.

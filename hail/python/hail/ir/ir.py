@@ -1901,6 +1901,9 @@ class AggFold(IR):
     def copy(self, zero, seq_op, comb_op):
         return AggFold(zero, seq_op, comb_op, self.accum_name, self.other_accum_name)
 
+    def head_str(self):
+        return f"{self.accum_name} {self.other_accum_name}"
+
     def _compute_type(self, env, agg_env):
         self.zero._compute_type(env, agg_env)
         self.seq_op._compute_type(_env_bind(env, self.bindings(1)), agg_env)
@@ -1917,13 +1920,13 @@ class AggFold(IR):
             if default_value is None:
                 dict_so_far[self.accum_name] = self.zero.typ
             else:
-                raise ValueError("TODO: Not sure")
+                dict_so_far[self.accum_name] = default_value
 
         if i == 2:
             if default_value is None:
                 dict_so_far[self.other_accum_name] = self.zero.typ
             else:
-                raise ValueError("TODO: Still note sure.")
+                dict_so_far[self.other_accum_name] = default_value
 
         return dict_so_far
 
