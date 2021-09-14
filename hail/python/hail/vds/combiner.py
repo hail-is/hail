@@ -114,6 +114,7 @@ def make_reference_matrix_table(mt: MatrixTable, entry_to_keep) -> MatrixTable:
                   .when(e.GT.is_hom_ref(), hl.struct(END=row.info.END, **reference_fields))
                   .or_error('found END with non reference-genotype at' + hl.str(row.locus)))
 
+    mt = localize(mt)
     if mt.row.dtype not in _transform_reference_fuction_map:
         f = hl.experimental.define_function(
             lambda row: hl.struct(
@@ -125,7 +126,6 @@ def make_reference_matrix_table(mt: MatrixTable, entry_to_keep) -> MatrixTable:
         _transform_reference_fuction_map[mt.row.dtype] = f
 
     transform_row = _transform_reference_fuction_map[mt.row.dtype]
-    mt = localize(mt)
     return unlocalize(Table(TableMapRows(mt._tir, Apply(transform_row._name, transform_row._ret_type, TopLevelReference('row')))))
 
 
