@@ -8,7 +8,6 @@ import threading
 import asyncio
 import logging
 
-import aiohttp.client_exceptions
 import botocore.exceptions
 import boto3
 from hailtop.utils import blocking_to_async
@@ -279,10 +278,8 @@ class S3AsyncFS(AsyncFS):
                                            Bucket=bucket,
                                            Key=name)
             return blocking_readable_stream_to_async(self._thread_pool, cast(BinaryIO, resp['Body']))
-        except aiohttp.client_exceptions.ClientResponseError as e:
-            if e.status == 404:
-                raise FileNotFoundError from e
-            raise
+        except self._s3.exceptions.NoSuchKey as e:
+            raise FileNotFoundError(url) from e
 
     async def open_from(self, url: str, start: int) -> ReadableStream:
         bucket, name = self._get_bucket_name(url)
@@ -292,10 +289,8 @@ class S3AsyncFS(AsyncFS):
                                            Key=name,
                                            Range=f'bytes={start}-')
             return blocking_readable_stream_to_async(self._thread_pool, cast(BinaryIO, resp['Body']))
-        except aiohttp.client_exceptions.ClientResponseError as e:
-            if e.status == 404:
-                raise FileNotFoundError from e
-            raise
+        except self._s3.exceptions.NoSuchKey as e:
+            raise FileNotFoundError(url) from e
 
     async def create(self, url: str, *, retry_writes: bool = True) -> S3CreateManager:  # pylint: disable=unused-argument
         # It may be possible to write a more efficient version of this
