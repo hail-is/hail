@@ -210,7 +210,7 @@ object UtilFunctions extends RegistryFunctions {
             val sv = cb.newLocal[String]("s", sc.loadString())
             IEmitCode(cb,
               !Code.invokeScalaObject1[String, Boolean](thisClass, s"isValid$name", sv),
-              primitive(rt.virtualType, Code.invokeScalaObject1(thisClass, s"parse$name", sv)(ctString, ct)))
+              primitive(rt.virtualType, cb.memoizeAny(Code.invokeScalaObject1(thisClass, s"parse$name", sv)(ctString, ct), typeInfoFromClassTag(ct))))
           }
       }
     }
@@ -257,19 +257,19 @@ object UtilFunctions extends RegistryFunctions {
             {
               v2Value.toI(cb).consume(cb,
                 cb.goto(Lmissing),
-                sc2 => cb.assignAny(value, sc2.asPrimitive.primitiveCode[T])
+                sc2 => cb.assignAny(value, sc2.asPrimitive.primitiveValue[T])
               )
             },
             { sc1 =>
-              cb.assign(value, sc1.asPrimitive.primitiveCode[T])
+              cb.assign(value, sc1.asPrimitive.primitiveValue[T])
               v2Value.toI(cb).consume(cb,
                 {},
-                sc2 => cb.assignAny(value, f(value, sc2.asPrimitive.primitiveCode[T]))
+                sc2 => cb.assignAny(value, f(value, sc2.asPrimitive.primitiveValue[T]))
               )
             })
         cb.goto(Ldefined)
 
-        IEmitCode(Lmissing, Ldefined, primitive(rt.virtualType, value.load()), v1.required || v2.required)
+        IEmitCode(Lmissing, Ldefined, primitive(rt.virtualType, value), v1.required || v2.required)
       }
 
       registerIEmitCode2(ignoreMissingName, TInt32, TInt32, TInt32, (_: Type, t1: EmitType, t2: EmitType) => EmitType(SInt32, t1.required || t2.required)) {
@@ -332,7 +332,7 @@ object UtilFunctions extends RegistryFunctions {
         val Lpresent = CodeLabel()
         val Lmissing = CodeLabel()
         cb.ifx(((M >> w) & 1).cne(0), cb.goto(Lmissing), cb.goto(Lpresent))
-        IEmitCode(Lmissing, Lpresent, primitive(w.ceq(10)), l.required && r.required)
+        IEmitCode(Lmissing, Lpresent, primitive(cb.memoize(w.ceq(10))), l.required && r.required)
     }
 
     registerIEmitCode2("lor", TBoolean, TBoolean, TBoolean, (_: Type, tl: EmitType, tr: EmitType) => EmitType(SBoolean, tl.required && tr.required)) {
@@ -362,7 +362,7 @@ object UtilFunctions extends RegistryFunctions {
         val Lpresent = CodeLabel()
         val Lmissing = CodeLabel()
         cb.ifx(((M >> w) & 1).cne(0), cb.goto(Lmissing), cb.goto(Lpresent))
-        IEmitCode(Lmissing, Lpresent, primitive(w.cne(0)), l.required && r.required)
+        IEmitCode(Lmissing, Lpresent, primitive(cb.memoize(w.cne(0))), l.required && r.required)
     }
   }
 }

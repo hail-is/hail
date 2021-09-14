@@ -64,6 +64,8 @@ class SInt64Value(x: Value[Long]) extends SPrimitiveValue {
 
   override def st: SInt64.type = SInt64
 
+  override def _primitiveValue: Value[_] = x
+
   override def get: SCode = new SInt64Code(x)
 
   def longCode(cb: EmitCodeBuilder): Value[Long] = x

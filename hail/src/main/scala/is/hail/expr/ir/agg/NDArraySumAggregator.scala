@@ -50,9 +50,8 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
             state.storeNonmissing(cb, fullyCopiedNDArray.get)
             cb += tempRegionForCreation.clearRegion()
           },
-          { currentNDPCode =>
-            val currentNDPValue = currentNDPCode.asNDArray.memoize(cb, "ndarray_sum_seqop_current")
-            NDArraySumAggregator.addValues(cb, state.region, currentNDPValue, nextNDPV)
+          { currentND =>
+            NDArraySumAggregator.addValues(cb, state.region, currentND.asNDArray, nextNDPV)
           }
         )
       })
@@ -66,15 +65,13 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
     combOpMethod.voidWithBuilder { cb =>
       val rightPV = other.storageType.loadCheapSCode(cb, other.off).asBaseStruct
       rightPV.loadField(cb, ndarrayFieldNumber).consume(cb, {},
-        { rightNDPC =>
-          val rightNdValue = rightNDPC.asNDArray.memoize(cb, "right_ndarray_sum_agg")
+        { case rightNdValue: SNDArrayValue =>
           val leftPV = state.storageType.loadCheapSCode(cb, state.off).asBaseStruct
           leftPV.loadField(cb, ndarrayFieldNumber).consume(cb,
             {
               state.storeNonmissing(cb, rightNdValue.get)
             },
-            { leftNDPC =>
-              val leftNdValue = leftNDPC.asNDArray.memoize(cb, "left_ndarray_sum_agg")
+            { case leftNdValue: SNDArrayValue =>
               NDArraySumAggregator.addValues(cb, state.region, leftNdValue, rightNdValue)
             })
         }
@@ -86,9 +83,8 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
   protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
     state.get(cb).consume(cb,
       ifMissing(cb),
-      { sc =>
-        val lastNDInAggState = sc.asNDArray.memoize(cb, "ndarray_sum_agg_last_state")
-        pt.storeAtAddress(cb, addr, region, lastNDInAggState.get, deepCopy = true)
+      { lastNDInAggState =>
+        pt.storeAtAddress(cb, addr, region, lastNDInAggState.asNDArray.get, deepCopy = true)
       })
   }
 }

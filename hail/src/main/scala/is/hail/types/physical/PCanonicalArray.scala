@@ -395,7 +395,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
             .consume(
               cb,
               { setElementMissing(cb, addr, idx) },
-              { pc => elementType.storeAtAddress(cb, elementOffset(addr, length, idx), region, pc, deepCopy) }
+              { pc => elementType.storeAtAddress(cb, elementOffset(addr, length, idx), region, pc.get, deepCopy) }
             )
           cb.assign(idx, idx + 1)
         })
@@ -442,7 +442,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       f(cb, i).consume(cb,
         setElementMissing(cb, addr, i),
         { sc =>
-          elementType.storeAtAddress(cb, elementOffsetFromFirst(firstElementAddr, i), region, sc, deepCopy = deepCopy)
+          elementType.storeAtAddress(cb, elementOffsetFromFirst(firstElementAddr, i), region, sc.get, deepCopy = deepCopy)
         })
 
       cb.assign(i, i + 1)
@@ -465,7 +465,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       iec.consume(cb,
         setElementMissing(cb, addr, currentElementIndex),
         { sc =>
-          elementType.storeAtAddress(cb, currentElementAddress, region, sc, deepCopy = deepCopy)
+          elementType.storeAtAddress(cb, currentElementAddress, region, sc.get, deepCopy = deepCopy)
         })
         cb.assign(currentElementIndex, currentElementIndex + 1)
         cb.assign(currentElementAddress, currentElementAddress + elementByteSize)

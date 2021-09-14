@@ -7,7 +7,7 @@ import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.fs.{FS, FileStatus}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.physical.stypes.concrete.{SJavaString, SStackStruct}
-import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStreamCode}
+import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStreamValue}
 import is.hail.types.physical.{PCanonicalString, PCanonicalStruct, PField, PStruct}
 import is.hail.types.virtual.{TArray, TString, TStruct, Type}
 import is.hail.types.{BaseTypeWithRequiredness, RStruct, TableType, TypeWithRequiredness}
@@ -61,7 +61,7 @@ case class StringTablePartitionReader(lines: GenericLines) extends PartitionRead
        val fileName = cb.emb.genFieldThisRef[String]("fileName")
        val line = cb.emb.genFieldThisRef[String]("line")
 
-       SStreamCode(new StreamProducer {
+       SStreamValue(new StreamProducer {
          override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
          override def initialize(cb: EmitCodeBuilder): Unit = {

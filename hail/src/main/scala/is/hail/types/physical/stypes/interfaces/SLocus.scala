@@ -14,14 +14,16 @@ trait SLocus extends SType {
 }
 
 trait SLocusValue extends SValue {
-  def contig(cb: EmitCodeBuilder): SStringCode
+  override def st: SLocus
+
+  def contig(cb: EmitCodeBuilder): SStringValue
 
   def contigLong(cb: EmitCodeBuilder): Value[Long]
 
   def position(cb: EmitCodeBuilder): Value[Int]
 
   def getLocusObj(cb: EmitCodeBuilder): Code[Locus] = Code.invokeStatic2[Locus, String, Int, Locus]("apply",
-    contig(cb).loadString(), position(cb))
+    contig(cb).loadString(cb), position(cb))
 
   def structRepr(cb: EmitCodeBuilder): SBaseStructValue
 

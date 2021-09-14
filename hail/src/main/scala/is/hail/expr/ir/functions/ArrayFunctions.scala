@@ -302,10 +302,10 @@ object ArrayFunctions extends RegistryFunctions {
                 })
               })
             })
-            val res = (n.toD * xySum - xSum * ySum) / Code.invokeScalaObject1[Double, Double](
+            val res = cb.memoize((n.toD * xySum - xSum * ySum) / Code.invokeScalaObject1[Double, Double](
               MathFunctions.mathPackageClass,
               "sqrt",
-              (n.toD * xSqSum - xSum * xSum) * (n.toD * ySqSum - ySum * ySum))
+              (n.toD * xSqSum - xSum * xSum) * (n.toD * ySqSum - ySum * ySum)))
             primitive(res)
           })
         }

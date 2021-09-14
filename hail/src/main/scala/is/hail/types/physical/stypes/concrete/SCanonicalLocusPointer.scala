@@ -65,8 +65,8 @@ class SCanonicalLocusPointerValue(
 
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a, _contig, _position)
 
-  override def contig(cb: EmitCodeBuilder): SStringCode = {
-    pt.contigType.loadCheapSCode(cb, _contig).asString.get
+  override def contig(cb: EmitCodeBuilder): SStringValue = {
+    pt.contigType.loadCheapSCode(cb, _contig).asString
   }
 
   override def contigLong(cb: EmitCodeBuilder): Value[Long] = _contig
@@ -115,7 +115,7 @@ class SCanonicalLocusPointerCode(val st: SCanonicalLocusPointer, val a: Code[Lon
 
   def getLocusObj(cb: EmitCodeBuilder): Code[Locus] = {
     val loc = memoize(cb, "get_locus_code_memo")
-    Code.newInstance[Locus, String, Int](loc.contig(cb).asString.loadString(), loc.position(cb))
+    Code.newInstance[Locus, String, Int](loc.contig(cb).asString.loadString(cb), loc.position(cb))
   }
 
   def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SCanonicalLocusPointerSettable = {

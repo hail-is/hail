@@ -66,6 +66,8 @@ class SFloat32Value(x: Value[Float]) extends SPrimitiveValue {
 
   override def st: SFloat32.type = SFloat32
 
+  override def _primitiveValue: Value[_] = x
+
   override def get: SCode = new SFloat32Code(x)
 
   def floatCode(cb: EmitCodeBuilder): Value[Float] = x

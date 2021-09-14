@@ -101,9 +101,8 @@ class DensifyState(val arrayVType: VirtualTypeWithReq, val kb: EmitClassBuilder[
         {
           /* do nothing if missing */
         },
-        { sc =>
-          val arr = sc.memoize(cb, "densify_seq_arr")
-          arr.asInstanceOf[SIndexableValue].forEachDefined(cb) { case (cb, idx, element) =>
+        { arr =>
+          arr.asIndexable.forEachDefined(cb) { case (cb, idx, element) =>
             arrayStorageType.setElementPresent(cb, arrayAddr, idx)
             eltType.storeAtAddress(cb, arrayStorageType.elementOffset(arrayAddr, length, idx), region, element, deepCopy = true)
           }

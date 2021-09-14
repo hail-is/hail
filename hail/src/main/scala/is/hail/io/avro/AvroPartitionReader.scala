@@ -7,13 +7,13 @@ import is.hail.asm4s.{Code, CodeLabel, Settable, Value}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, ExecuteContext, IEmitCode, PartitionReader}
 import is.hail.types.physical.stypes.concrete._
-import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SStreamCode, primitive}
+import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SBaseStructValue, SStreamValue, primitive}
 import is.hail.types.virtual._
 import is.hail.types.{RField, RStruct, TypeWithRequiredness}
 import org.apache.avro.Schema
-import org.apache.avro.io.DatumReader
 import org.apache.avro.file.DataFileStream
 import org.apache.avro.generic.{GenericData, GenericDatumReader, GenericRecord}
+import org.apache.avro.io.DatumReader
 import org.json4s.{Extraction, JValue}
 
 import scala.collection.JavaConverters._
@@ -47,7 +47,7 @@ case class AvroPartitionReader(schema: Schema) extends PartitionReader {
           val mb = cb.emb
           val codeSchema = cb.newLocal("schema", mb.getObject(schema))
           cb.assign(record, Code.newInstance[GenericData.Record, Schema](codeSchema))
-          val is = mb.open(path.asString.loadString(), false)
+          val is = mb.open(path.asString.loadString(cb), false)
           val datumReader = Code.newInstance[GenericDatumReader[GenericRecord], Schema](codeSchema)
           val dataFileStream = Code.newInstance[DataFileStream[GenericRecord], InputStream, DatumReader[GenericRecord]](is, datumReader)
 
@@ -69,7 +69,7 @@ case class AvroPartitionReader(schema: Schema) extends PartitionReader {
         def close(cb: EmitCodeBuilder): Unit = cb += it.invoke[Unit]("close")
       }
 
-      SStreamCode(producer)
+      SStreamValue(producer)
     }
   }
 
@@ -110,32 +110,32 @@ object AvroReader {
     case _ => throw new UnsupportedOperationException(s"hail conversion from avro $schema is unsupported")
   }
 
-  private[avro] def recordToHail(cb: EmitCodeBuilder, region: Value[Region], record: Value[GenericRecord], requestedType: TBaseStruct): SBaseStructCode = {
+  private[avro] def recordToHail(cb: EmitCodeBuilder, region: Value[Region], record: Value[GenericRecord], requestedType: TBaseStruct): SBaseStructValue = {
     val codes = requestedType.fields.map { case Field(name, typ, _) =>
       val v = cb.newLocal[AnyRef]("avro_value")
       cb.assign(v, record.invoke[String, AnyRef]("get", name))
       typ match {
         case TBoolean =>
-          EmitCode.fromI(cb.emb)(IEmitCode(_, v.isNull, primitive(Code.booleanValue(Code.checkcast[java.lang.Boolean](v)))))
+          EmitCode.fromI(cb.emb)(IEmitCode(_, v.isNull, primitive(cb.memoize(Code.booleanValue(Code.checkcast[java.lang.Boolean](v))))))
         case TInt32 =>
-          EmitCode.fromI(cb.emb)(IEmitCode(_, v.isNull, primitive(Code.intValue(Code.checkcast[java.lang.Number](v)))))
+          EmitCode.fromI(cb.emb)(IEmitCode(_, v.isNull, primitive(cb.memoize(Code.intValue(Code.checkcast[java.lang.Number](v))))))
         case TInt64 =>
-          EmitCode.fromI(cb.emb)(IEmitCode(_, v.isNull, primitive(Code.longValue(Code.checkcast[java.lang.Number](v)))))
+          EmitCode.fromI(cb.emb)(IEmitCode(_, v.isNull, primitive(cb.memoize(Code.longValue(Code.checkcast[java.lang.Number](v))))))
         case TFloat32 =>
-          EmitCode.fromI(cb.emb)(IEmitCode(_, v.isNull, primitive(Code.floatValue(Code.checkcast[java.lang.Number](v)))))
+          EmitCode.fromI(cb.emb)(IEmitCode(_, v.isNull, primitive(cb.memoize(Code.floatValue(Code.checkcast[java.lang.Number](v))))))
         case TFloat64 =>
-          EmitCode.fromI(cb.emb)(IEmitCode(_, v.isNull, primitive(Code.doubleValue(Code.checkcast[java.lang.Number](v)))))
+          EmitCode.fromI(cb.emb)(IEmitCode(_, v.isNull, primitive(cb.memoize(Code.doubleValue(Code.checkcast[java.lang.Number](v))))))
         case TString =>
-          EmitCode.fromI(cb.emb)(IEmitCode(_, v.isNull, new SJavaStringCode(Code.checkcast[org.apache.avro.util.Utf8](v).invoke[String]("toString"))))
+          EmitCode.fromI(cb.emb)(IEmitCode(_, v.isNull, new SJavaStringValue(cb.memoize(Code.checkcast[org.apache.avro.util.Utf8](v).invoke[String]("toString")))))
         case TBinary =>
-          EmitCode.fromI(cb.emb)(IEmitCode(_, v.isNull, new SJavaBytesCode(Code.checkcast[Array[Byte]](v))))
+          EmitCode.fromI(cb.emb)(IEmitCode(_, v.isNull, new SJavaBytesValue(cb.memoize(Code.checkcast[Array[Byte]](v)))))
         case typ: TBaseStruct =>
           val record = cb.newLocal[GenericRecord]("avro_subrecord", Code.checkcast[GenericRecord](v))
           EmitCode.fromI(cb.emb)(cb => IEmitCode(cb, v.isNull, recordToHail(cb, region, record, typ)))
       }
     }
 
-    SStackStruct.constructFromArgs(cb, region, requestedType, codes: _*).get
+    SStackStruct.constructFromArgs(cb, region, requestedType, codes: _*)
   }
 
   private[avro] def setRequiredness(schema: Schema, typ: TypeWithRequiredness): Unit = {

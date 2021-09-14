@@ -39,7 +39,7 @@ trait SIndexableValue extends SValue {
       loadElement(cb, idx).consume(cb,
         {}, /*do nothing if missing*/
         { eltCode =>
-          f(cb, idx, eltCode)
+          f(cb, idx, eltCode.get)
         })
       cb.assign(idx, idx + 1)
     })
@@ -55,7 +55,7 @@ trait SIndexableValue extends SValue {
           missingF(cb, idx)
         },
         { eltCode =>
-          presentF(cb, idx, eltCode)
+          presentF(cb, idx, eltCode.get)
         })
       cb.assign(idx, idx + 1)
     })

@@ -3,14 +3,14 @@ package is.hail.io
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.lowering.TableStage
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, GenericLine, GenericLines, GenericTableValue, IEmitCode, IRParser, IntArrayBuilder, LowerMatrixIR, MatrixHybridReader, TableRead, TableValue, TextReaderOptions}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitFunctionBuilder, ExecuteContext, GenericLine, GenericLines, GenericTableValue, IEmitCode, IRParser, IntArrayBuilder, LowerMatrixIR, MatrixHybridReader, TableRead, TableValue, TextReaderOptions}
 import is.hail.io.fs.FS
 import is.hail.rvd.RVDPartitioner
 import is.hail.types._
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.{SIndexablePointerCode, SIndexablePointerValue, SStackStruct, SStringPointer}
+import is.hail.types.physical.stypes.concrete.{SIndexablePointerValue, SStackStruct, SStringPointer}
 import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.physical.stypes.{SCode, SValue}
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.rdd.RDD
@@ -446,7 +446,7 @@ class CompiledLineParser(
 
   @transient private[this] def parseEntriesOpt(cb: EmitCodeBuilder): Option[EmitCode] = entriesType.map { entriesType =>
     val sc = parseEntries(cb, entriesType)
-    EmitCode.present(cb.emb, sc.get)
+    EmitCode.present(cb.emb, sc)
   }
 
   mb.emitWithBuilder[Long] { cb =>
@@ -483,7 +483,7 @@ class CompiledLineParser(
 
   private[this] def parseOptionalValue(
     cb: EmitCodeBuilder,
-    parse: EmitCodeBuilder => SCode
+    parse: EmitCodeBuilder => SValue
   ): IEmitCode = {
     assert(missingValue.size > 0)
     val end = cb.newLocal[Int]("parse_optional_value_end", pos + missingValue.size)
@@ -574,18 +574,18 @@ class CompiledLineParser(
   }
 
   private[this] def parseValueOfType(cb: EmitCodeBuilder, t: PType): IEmitCode = {
-    def parseDefinedValue(cb: EmitCodeBuilder): SCode = t match {
+    def parseDefinedValue(cb: EmitCodeBuilder): SValue = t match {
       case t: PInt32 =>
-        primitive(cb.invokeCode[Int](parseIntMb, region))
+        primitive(cb.memoize(cb.invokeCode[Int](parseIntMb, region)))
       case t: PInt64 =>
-        primitive(cb.invokeCode[Long](parseLongMb, region))
+        primitive(cb.memoize(cb.invokeCode[Long](parseLongMb, region)))
       case t: PFloat32 =>
-        primitive(Code.invokeStatic1[java.lang.Float, String, Float]("parseFloat", cb.invokeCode(parseStringMb, region)))
+        primitive(cb.memoize(Code.invokeStatic1[java.lang.Float, String, Float]("parseFloat", cb.invokeCode(parseStringMb, region))))
       case t: PFloat64 =>
-        primitive(Code.invokeStatic1[java.lang.Double, String, Double]("parseDouble", cb.invokeCode(parseStringMb, region)))
+        primitive(cb.memoize(Code.invokeStatic1[java.lang.Double, String, Double]("parseDouble", cb.invokeCode(parseStringMb, region))))
       case t: PString =>
         val st = SStringPointer(t)
-        st.constructFromString(cb, region, cb.invokeCode[String](parseStringMb, region)).get
+        st.constructFromString(cb, region, cb.invokeCode[String](parseStringMb, region))
     }
     if (t.required)
       IEmitCode.present(cb, parseDefinedValue(cb))
@@ -648,7 +648,7 @@ class CompiledLineParser(
       cb.ifx(pos >= line.length, parseError(cb, const("unexpected end of line while reading entry ").concat(i.toS)))
 
       val ec = EmitCode.fromI(cb.emb)(cb => parseValueOfType(cb, entryType.fields(0).typ))
-      push(cb, IEmitCode.present(cb, SStackStruct.constructFromArgs(cb, region, entryType.virtualType, ec).get))
+      push(cb, IEmitCode.present(cb, SStackStruct.constructFromArgs(cb, region, entryType.virtualType, ec)))
       cb.assign(pos, pos + 1)
       cb.assign(i, i + 1)
     })

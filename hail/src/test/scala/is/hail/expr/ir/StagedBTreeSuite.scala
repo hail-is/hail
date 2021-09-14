@@ -42,7 +42,7 @@ class TestBTreeKey(mb: EmitMethodBuilder[_]) extends BTreeKey {
   def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = comp(cb, k1, k2)
 
   def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitCode =
-    EmitCode(Code._empty, storageType.isFieldMissing(off, 0), primitive(Region.loadLong(storageType.fieldOffset(off, 0))))
+    EmitCode(Code._empty, storageType.isFieldMissing(off, 0), primitive(cb.memoize(Region.loadLong(storageType.fieldOffset(off, 0)))))
 }
 
 object BTreeBackedSet {

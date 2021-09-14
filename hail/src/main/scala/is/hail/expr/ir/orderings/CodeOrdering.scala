@@ -183,7 +183,7 @@ abstract class CodeOrdering {
     val cmp = cb.newLocal[Int]("cmp")
     cb.ifx(xm,
       cb.ifx(ym, cb.assign(cmp, if (missingEqual) 0 else -1), cb.assign(cmp, 1)),
-      cb.ifx(ym, cb.assign(cmp, -1), cb.assign(cmp, compareNonnull(cb, x.pv, y.pv))))
+      cb.ifx(ym, cb.assign(cmp, -1), cb.assign(cmp, compareNonnull(cb, x.pv.get, y.pv.get))))
     cmp
   }
 
@@ -194,13 +194,13 @@ abstract class CodeOrdering {
         cb.assign(ret, false),
         cb.ifx(y.m,
           cb.assign(ret, true),
-          cb.assign(ret, ltNonnull(cb, x.pv, y.pv))))
+          cb.assign(ret, ltNonnull(cb, x.pv.get, y.pv.get))))
     } else {
       cb.ifx(y.m,
         cb.assign(ret, true),
         cb.ifx(x.m,
           cb.assign(ret, false),
-          cb.assign(ret, ltNonnull(cb, x.pv, y.pv))))
+          cb.assign(ret, ltNonnull(cb, x.pv.get, y.pv.get))))
     }
     ret
   }
@@ -211,7 +211,7 @@ abstract class CodeOrdering {
       cb.assign(ret, true),
       cb.ifx(x.m,
         cb.assign(ret, false),
-        cb.assign(ret, lteqNonnull(cb, x.pv, y.pv))))
+        cb.assign(ret, lteqNonnull(cb, x.pv.get, y.pv.get))))
     ret
   }
 
@@ -221,7 +221,7 @@ abstract class CodeOrdering {
       cb.assign(ret, false),
       cb.ifx(x.m,
         cb.assign(ret, true),
-        cb.assign(ret, gtNonnull(cb, x.pv, y.pv))))
+        cb.assign(ret, gtNonnull(cb, x.pv.get, y.pv.get))))
     ret
   }
 
@@ -232,13 +232,13 @@ abstract class CodeOrdering {
         cb.assign(ret, true),
         cb.ifx(y.m,
           cb.assign(ret, false),
-          cb.assign(ret, gteqNonnull(cb, x.pv, y.pv))))
+          cb.assign(ret, gteqNonnull(cb, x.pv.get, y.pv.get))))
     } else {
       cb.ifx(y.m,
         cb.assign(ret, false),
         cb.ifx(x.m,
           cb.assign(ret, true),
-          cb.assign(ret, gteqNonnull(cb, x.pv, y.pv))))
+          cb.assign(ret, gteqNonnull(cb, x.pv.get, y.pv.get))))
     }
     ret
   }
@@ -251,10 +251,10 @@ abstract class CodeOrdering {
       cb.ifx(xm && ym,
         cb.assign(ret, true),
         cb.ifx(!xm && !ym,
-          cb.assign(ret, equivNonnull(cb, x.pv, y.pv)),
+          cb.assign(ret, equivNonnull(cb, x.pv.get, y.pv.get)),
           cb.assign(ret, false)))
     } else {
-      cb.ifx(!x.m && !y.m, cb.assign(ret, equivNonnull(cb, x.pv, y.pv)), cb.assign(ret, false))
+      cb.ifx(!x.m && !y.m, cb.assign(ret, equivNonnull(cb, x.pv.get, y.pv.get)), cb.assign(ret, false))
     }
     ret
   }

@@ -78,7 +78,7 @@ object Emit {
             Code.newInstance[RuntimeException, String]("cannot return empty"))
         })
 
-        val scp = SingleCodeSCode.fromSCode(cb, sc.get, region)
+        val scp = SingleCodeSCode.fromSCode(cb, sc, region)
         assert(scp.typ.ti == rti, s"type info mismatch: expect $rti, got ${ scp.typ.ti }")
         sct = scp.typ
         scp.code
@@ -1326,7 +1326,7 @@ class Emit[C](
                   val stridesSettables = (0 until nDims).map(i => cb.newLocal[Long](s"make_ndarray_stride_$i"))
 
                   val shapeValues = (0 until nDims).map { i =>
-                    val shape = SingleCodeSCode.fromSCode(cb, shapeTupleValue.loadField(cb, i).get(cb).get, region)
+                    val shape = SingleCodeSCode.fromSCode(cb, shapeTupleValue.loadField(cb, i).get(cb), region)
                     cb.newLocalAny[Long](s"make_ndarray_shape_${ i }", shape.code)
                   }
 

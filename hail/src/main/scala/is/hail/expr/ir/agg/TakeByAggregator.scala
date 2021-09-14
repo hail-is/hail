@@ -7,9 +7,9 @@ import is.hail.expr.ir.{Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, 
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointerCode, SIndexablePointerCode}
 import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.physical.stypes.{SCode, SValue}
 import is.hail.types.virtual.{TInt32, Type}
 import is.hail.utils._
 
@@ -199,7 +199,8 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
 
   private def keyIsMissing(offset: Code[Long]): Code[Boolean] = indexedKeyType.isFieldMissing(offset, 0)
 
-  private def loadKeyValue(cb: EmitCodeBuilder, offset: Code[Long]): SCode = keyType.loadCheapSCode(cb, indexedKeyType.loadField(offset, 0)).get
+  private def loadKeyValue(cb: EmitCodeBuilder, offset: Code[Long]): SValue =
+    keyType.loadCheapSCode(cb, indexedKeyType.loadField(offset, 0))
 
   private def loadKey(cb: EmitCodeBuilder, offset: Value[Long]): EmitCode =
     EmitCode(Code._empty, keyIsMissing(offset), loadKeyValue(cb, offset))
@@ -315,7 +316,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
         },
         { sc =>
           indexedKeyType.setFieldPresent(cb, keyStage, 0)
-          keyType.storeAtAddress(cb, indexedKeyType.fieldOffset(keyStage, 0), region, sc, deepCopy = false)
+          keyType.storeAtAddress(cb, indexedKeyType.fieldOffset(keyStage, 0), region, sc.get, deepCopy = false)
         }
       )
     cb += Region.storeLong(indexedKeyType.fieldOffset(keyStage, 1), maxIndex)
@@ -338,7 +339,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
         },
         { v =>
           eltTuple.setFieldPresent(cb, staging, 1)
-          valueType.storeAtAddress(cb, eltTuple.fieldOffset(staging, 1), region, v, deepCopy = false)
+          valueType.storeAtAddress(cb, eltTuple.fieldOffset(staging, 1), region, v.get, deepCopy = false)
         })
   }
 
@@ -382,9 +383,9 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
   }
 
   // for tests
-  def seqOp(cb: EmitCodeBuilder, vm: Code[Boolean], v: Code[_], km: Code[Boolean], k: Code[_]): Unit = {
-    val vec = EmitCode(Code._empty, vm, if (valueType.isPrimitive) primitive(valueType.virtualType, v) else valueType.loadCheapSCode(cb, coerce[Long](v)).get)
-    val kec = EmitCode(Code._empty, km, if (keyType.isPrimitive) primitive(keyType.virtualType, k) else keyType.loadCheapSCode(cb, coerce[Long](k)).get)
+  def seqOp(cb: EmitCodeBuilder, vm: Code[Boolean], v: Value[_], km: Code[Boolean], k: Value[_]): Unit = {
+    val vec = EmitCode(Code._empty, vm, if (valueType.isPrimitive) primitive(valueType.virtualType, v) else valueType.loadCheapSCode(cb, coerce[Long](v)))
+    val kec = EmitCode(Code._empty, km, if (keyType.isPrimitive) primitive(keyType.virtualType, k) else keyType.loadCheapSCode(cb, coerce[Long](k)))
     seqOp(cb, vec, kec)
   }
 

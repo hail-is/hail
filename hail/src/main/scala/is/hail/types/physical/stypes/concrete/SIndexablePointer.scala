@@ -98,7 +98,7 @@ class SIndexablePointerValue(
     val iv = cb.newLocal("pcindval_i", i)
     IEmitCode(cb,
       isElementMissing(iv),
-      pt.elementType.loadCheapSCode(cb, pt.loadElement(a, length, iv)).get) // FIXME loadElement should take elementsAddress
+      pt.elementType.loadCheapSCode(cb, pt.loadElement(a, length, iv))) // FIXME loadElement should take elementsAddress
   }
 
   override def isElementMissing(i: Code[Int]): Code[Boolean] = pt.isElementMissing(a, i)

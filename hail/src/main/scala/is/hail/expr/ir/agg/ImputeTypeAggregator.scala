@@ -75,7 +75,7 @@ class ImputeTypeState(kb: EmitClassBuilder[_]) extends PrimitiveRVAState(Array(V
     supportsI64: Code[Boolean],
     supportsF64: Code[Boolean]
   ): Unit = {
-    val value = (anyNonMissing.toI
+    val value = cb.memoize(anyNonMissing.toI
       | (allDefined.toI << 1)
       | (supportsBool.toI << 2)
       | (supportsI32.toI << 3)
@@ -91,7 +91,7 @@ class ImputeTypeState(kb: EmitClassBuilder[_]) extends PrimitiveRVAState(Array(V
   def seqOp(cb: EmitCodeBuilder, ec: EmitCode): Unit = {
     ec.toI(cb)
       .consume(cb,
-        cb.assign(_repr, EmitCode.present(cb.emb, primitive(repr & (~(1 << 1))))),
+        cb.assign(_repr, EmitCode.present(cb.emb, primitive(cb.memoize(repr & (~(1 << 1)))))),
         { case (pc: SStringCode) =>
           val s = cb.newLocal[String]("impute_type_agg_seq_str")
           cb.assign(s, pc.loadString())

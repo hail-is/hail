@@ -48,6 +48,10 @@ final case class SStreamCode(st: SStream, producer: StreamProducer) extends SCod
   override def memoize(cb: EmitCodeBuilder, name: String): SValue = SStreamValue(st, producer)
 }
 
+object SStreamValue{
+  def apply(producer: StreamProducer): SStreamValue = SStreamValue(SStream(producer.element.emitType), producer)
+}
+
 final case class SStreamValue(st: SStream, producer: StreamProducer) extends SUnrealizableValue {
   def valueTuple: IndexedSeq[Value[_]] = throw new NotImplementedError()
 

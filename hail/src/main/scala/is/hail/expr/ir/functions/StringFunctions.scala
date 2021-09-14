@@ -152,11 +152,11 @@ object StringFunctions extends RegistryFunctions {
       val jObj = cb.newLocal("showstr_java_obj")(boxedTypeInfo(a.st.virtualType))
       a.toI(cb).consume(cb,
         cb.assignAny(jObj, Code._null(boxedTypeInfo(a.st.virtualType))),
-        sc => cb.assignAny(jObj, scodeToJavaValue(cb, r, sc)))
+        sc => cb.assignAny(jObj, scodeToJavaValue(cb, r, sc.get)))
 
       val str = cb.emb.getType(a.st.virtualType).invoke[Any, String]("showStr", jObj)
 
-      IEmitCode.present(cb, st.construct(cb, str).get)
+      IEmitCode.present(cb, st.construct(cb, str))
     }
 
     registerIEmitCode2("showStr", tv("T"), TInt32, TString, {
@@ -167,10 +167,10 @@ object StringFunctions extends RegistryFunctions {
 
         a.toI(cb).consume(cb,
           cb.assignAny(jObj, Code._null(boxedTypeInfo(a.st.virtualType))),
-          sc => cb.assignAny(jObj, scodeToJavaValue(cb, r, sc)))
+          sc => cb.assignAny(jObj, scodeToJavaValue(cb, r, sc.get)))
 
         val str = cb.emb.getType(a.st.virtualType).invoke[Any, Int, String]("showStr", jObj, trunc.asInt.intCode(cb))
-        st.construct(cb, str).get
+        st.construct(cb, str)
       }
     }
 
@@ -181,12 +181,12 @@ object StringFunctions extends RegistryFunctions {
         a.toI(cb).consume(cb,
           cb.assignAny(inputJavaValue, Code._null(ti)),
           { sc =>
-            val jv = scodeToJavaValue(cb, r, sc)
+            val jv = scodeToJavaValue(cb, r, sc.get)
             cb.assignAny(inputJavaValue, jv)
           })
         val json = cb.emb.getType(a.st.virtualType).invoke[Any, JValue]("toJSON", inputJavaValue)
         val str = Code.invokeScalaObject1[JValue, String](JsonMethods.getClass, "compact", json)
-        IEmitCode.present(cb, st.construct(cb, str).get)
+        IEmitCode.present(cb, st.construct(cb, str))
     }
 
     registerWrappedScalaFunction1("reverse", TString, TString, (_: Type, _: SType) => SJavaString)(thisClass, "reverse")
@@ -243,7 +243,7 @@ object StringFunctions extends RegistryFunctions {
           val out = cb.newLocal[Array[String]]("out",
             Code.invokeScalaObject2[String, String, Array[String]](
               thisClass, "firstMatchIn", sc.loadString(), rc.loadString()))
-          IEmitCode(cb, out.isNull, st.construct(cb, out).get)
+          IEmitCode(cb, out.isNull, st.construct(cb, out))
         }
       }
     }
