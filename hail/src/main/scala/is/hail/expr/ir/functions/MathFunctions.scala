@@ -209,7 +209,7 @@ object MathFunctions extends RegistryFunctions {
         IEmitCode.present(cb, SFloat64Code(res(1))).memoize(cb, "fisher_exact_test_res1"),
         IEmitCode.present(cb, SFloat64Code(res(2))).memoize(cb, "fisher_exact_test_res2"),
         IEmitCode.present(cb, SFloat64Code(res(3))).memoize(cb, "fisher_exact_test_res3")
-      ), deepCopy = false)
+      ), deepCopy = false).get
     }
 
     registerSCode4("chi_squared_test", TInt32, TInt32, TInt32, TInt32, chisqStruct.virtualType,
@@ -225,7 +225,7 @@ object MathFunctions extends RegistryFunctions {
       chisqStruct.constructFromFields(cb, r.region, FastIndexedSeq(
         IEmitCode.present(cb, SFloat64Code(res(0))).memoize(cb, "chi_squared_test_res0"),
         IEmitCode.present(cb, SFloat64Code(res(1))).memoize(cb, "chi_squared_test_res1")
-      ), deepCopy = false)
+      ), deepCopy = false).get
     }
 
     registerSCode5("contingency_table_test", TInt32, TInt32, TInt32, TInt32, TInt32, chisqStruct.virtualType,
@@ -242,7 +242,7 @@ object MathFunctions extends RegistryFunctions {
       chisqStruct.constructFromFields(cb, r.region, FastIndexedSeq(
         IEmitCode.present(cb, SFloat64Code(res(0))).memoize(cb, "contingency_table_test_res0"),
         IEmitCode.present(cb, SFloat64Code(res(1))).memoize(cb, "contingency_table_test_res1")
-      ), deepCopy = false)
+      ), deepCopy = false).get
     }
 
     registerSCode3("hardy_weinberg_test", TInt32, TInt32, TInt32, hweStruct.virtualType,
@@ -257,7 +257,7 @@ object MathFunctions extends RegistryFunctions {
       hweStruct.constructFromFields(cb, r.region, FastIndexedSeq(
         IEmitCode.present(cb, SFloat64Code(res(0))).memoize(cb, "hardy_weinberg_test_res0"),
         IEmitCode.present(cb, SFloat64Code(res(1))).memoize(cb, "hardy_weinberg_test_res1")
-      ), deepCopy = false)
+      ), deepCopy = false).get
     }
   }
 }

@@ -29,8 +29,9 @@ object IntervalFunctions extends RegistryFunctions {
             pt.constructFromCodes(cb, r,
               start,
               end,
-              EmitCode.present(cb.emb, includesStart),
-              EmitCode.present(cb.emb, includesEnd))
+              cb.memoize(includesStart.asBoolean.boolCode(cb)),
+              cb.memoize(includesEnd.asBoolean.boolCode(cb))
+            ).get
           }
         }
     }

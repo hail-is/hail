@@ -42,13 +42,14 @@ case object SCanonicalCall extends SCall {
 
   def containsPointers: Boolean = false
 
-  def constructFromIntRepr(c: Code[Int]): SCanonicalCallCode = new SCanonicalCallCode(c)
+  def constructFromIntRepr(cb: EmitCodeBuilder, c: Code[Int]): SCanonicalCallValue =
+    new SCanonicalCallValue(cb.memoize(c))
 }
 
 class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
   val pt: PCall = PCanonicalCall(false)
 
-  override def canonicalCall(cb: EmitCodeBuilder): Code[Int] = call
+  override def canonicalCall(cb: EmitCodeBuilder): Value[Int] = call
 
   override val st: SCanonicalCall.type = SCanonicalCall
 

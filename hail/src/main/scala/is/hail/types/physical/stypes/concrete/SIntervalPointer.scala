@@ -59,7 +59,7 @@ class SIntervalPointerValue(
   val includesStart: Value[Boolean],
   val includesEnd: Value[Boolean]
 ) extends SIntervalValue {
-  override def get: SIntervalCode = new SIntervalPointerCode(st, a)
+  override def get: SIntervalPointerCode = new SIntervalPointerCode(st, a)
 
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a, includesStart, includesEnd)
 

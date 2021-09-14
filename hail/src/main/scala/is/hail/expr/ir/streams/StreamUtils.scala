@@ -3,9 +3,9 @@ package is.hail.expr.ir.streams
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode, IR, NDArrayMap, NDArrayMap2, Ref, RunAggScan, StagedArrayBuilder, StreamFilter, StreamFlatMap, StreamFold, StreamFold2, StreamFor, StreamJoinRightDistinct, StreamMap, StreamScan, StreamZip, StreamZipJoin}
-import is.hail.types.physical.stypes.interfaces.SIndexableCode
+import is.hail.types.physical.stypes.interfaces.{SIndexableCode, SIndexableValue}
 import is.hail.types.physical.stypes.SingleCodeType
-import is.hail.types.physical.{PCanonicalArray}
+import is.hail.types.physical.PCanonicalArray
 import is.hail.utils.HailException
 
 trait StreamArgType {
@@ -61,12 +61,12 @@ object StreamUtils {
 
         aTyp.constructFromElements(cb, destRegion, xLen, deepCopy = false) { (cb, i) =>
           vab.loadFromIndex(cb, destRegion, i)
-        }
+        }.get
 
       case Some(computeLen) =>
 
         var pushElem: (EmitCodeBuilder, IEmitCode) => Unit = null
-        var finish: (EmitCodeBuilder) => SIndexableCode = null
+        var finish: (EmitCodeBuilder) => SIndexableValue = null
 
         stream.memoryManagedConsume(destRegion, cb, setup = { cb =>
           cb.assign(xLen, computeLen(cb))
@@ -77,7 +77,7 @@ object StreamUtils {
           pushElem(cb, stream.element.toI(cb))
         }
 
-        finish(cb)
+        finish(cb).get
     }
   }
 

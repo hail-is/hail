@@ -95,12 +95,12 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
     cb += Region.storeBytes(bytesAddress(addr), bytes)
   }
 
-  def constructFromByteArray(cb: EmitCodeBuilder, region: Value[Region], bytes: Code[Array[Byte]]): SBinaryPointerCode = {
+  def constructFromByteArray(cb: EmitCodeBuilder, region: Value[Region], bytes: Code[Array[Byte]]): SBinaryPointerValue = {
     val ba = cb.newLocal[Array[Byte]]("pcbin_ba", bytes)
     val len = cb.newLocal[Int]("pcbin_len", ba.length())
     val addr = cb.newLocal[Long]("pcbin_addr", allocate(region, len))
     store(cb, addr, ba)
-    loadCheapSCode(cb, addr).get
+    loadCheapSCode(cb, addr)
   }
 
   def constructAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Unit = {

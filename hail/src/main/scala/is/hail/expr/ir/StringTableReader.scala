@@ -97,11 +97,11 @@ case class StringTablePartitionReader(lines: GenericLines) extends PartitionRead
          override val element: EmitCode = EmitCode.fromI(cb.emb) { cb =>
            val reqType: TStruct = requestedType.asInstanceOf[TStruct]
            val requestedFields = IndexedSeq[Option[EmitCode]](
-             reqType.selfField("file").map(x => EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, SJavaString.construct(fileName)))),
-             reqType.selfField("text").map(x => EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, SJavaString.construct(line))))
+             reqType.selfField("file").map(x => EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, SJavaString.construct(cb, fileName).get))),
+             reqType.selfField("text").map(x => EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, SJavaString.construct(cb, line).get)))
            ).flatten.toIndexedSeq
            IEmitCode.present(cb, SStackStruct.constructFromArgs(cb, elementRegion, reqType,
-             requestedFields: _*))
+             requestedFields: _*).get)
          }
 
          override def close(cb: EmitCodeBuilder): Unit = {

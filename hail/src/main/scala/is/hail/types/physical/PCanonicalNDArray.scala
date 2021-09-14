@@ -139,9 +139,9 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     address
   }
 
-  def loadElement(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndAddress: Value[Long]): SCode = {
+  def loadElement(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndAddress: Value[Long]): SValue = {
     val off = getElementAddress(cb, indices, ndAddress)
-    elementType.loadCheapSCode(cb, elementType.loadFromNested(off)).get
+    elementType.loadCheapSCode(cb, elementType.loadFromNested(off))
   }
 
   def loadElementFromDataAndStrides(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndDataAddress: Value[Long], strides: IndexedSeq[Value[Long]]): Code[Long] = {
@@ -248,11 +248,11 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     cb.assign(ndAddr, this.representation.allocate(region))
     shapeType.storeAtAddress(cb, cb.newLocal[Long]("construct_shape", this.representation.fieldOffset(ndAddr, "shape")),
       region,
-      SStackStruct.constructFromArgs(cb, region, shapeType.virtualType, shape.map(s => EmitCode.present(cb.emb, primitive(s))): _*),
+      SStackStruct.constructFromArgs(cb, region, shapeType.virtualType, shape.map(s => EmitCode.present(cb.emb, primitive(s))): _*).get,
       false)
     strideType.storeAtAddress(cb, cb.newLocal[Long]("construct_strides", this.representation.fieldOffset(ndAddr, "strides")),
       region,
-      SStackStruct.constructFromArgs(cb, region, strideType.virtualType, strides.map(s => EmitCode.present(cb.emb, primitive(s))): _*),
+      SStackStruct.constructFromArgs(cb, region, strideType.virtualType, strides.map(s => EmitCode.present(cb.emb, primitive(s))): _*).get,
       false)
     val newDataPointer = cb.newLocal("ndarray_construct_new_data_pointer", dataPtr)
     cb += Region.storeAddress(this.representation.fieldOffset(ndAddr, 2), newDataPointer)
@@ -362,11 +362,11 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     val dataAddr = inputSNDValue.firstDataAddress
     shapeType.storeAtAddress(cb, cb.newLocal[Long]("construct_shape", this.representation.fieldOffset(targetAddr, "shape")),
       region,
-      SStackStruct.constructFromArgs(cb, region, shapeType.virtualType, shape.map(s => EmitCode.present(cb.emb, primitive(s))): _*),
+      SStackStruct.constructFromArgs(cb, region, shapeType.virtualType, shape.map(s => EmitCode.present(cb.emb, primitive(s))): _*).get,
       false)
     strideType.storeAtAddress(cb, cb.newLocal[Long]("construct_strides", this.representation.fieldOffset(targetAddr, "strides")),
       region,
-      SStackStruct.constructFromArgs(cb, region, strideType.virtualType, strides.map(s => EmitCode.present(cb.emb, primitive(s))): _*),
+      SStackStruct.constructFromArgs(cb, region, strideType.virtualType, strides.map(s => EmitCode.present(cb.emb, primitive(s))): _*).get,
       false)
 
     value.st match {

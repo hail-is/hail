@@ -109,7 +109,7 @@ object StringFunctions extends RegistryFunctions {
     }) {
       case (r: EmitRegion, cb, st: SJavaString.type, s, start, end, _) =>
         val str = s.asString.loadString().invoke[Int, Int, String]("substring", start.asInt.intCode(cb), end.asInt.intCode(cb))
-        st.construct(str)
+        st.construct(cb, str).get
     }
 
     registerIR3("slice", TString, TInt32, TInt32, TString) { (_, str, start, end, _) =>
@@ -143,7 +143,7 @@ object StringFunctions extends RegistryFunctions {
     registerSCode1("str", tv("T"), TString, (_: Type, _: SType) => SJavaString) { case (r, cb, st: SJavaString.type, a, _) =>
       val annotation = scodeToJavaValue(cb, r.region, a)
       val str = cb.emb.getType(a.st.virtualType).invoke[Any, String]("str", annotation)
-      st.construct(str)
+      st.construct(cb, str).get
     }
 
     registerIEmitCode1("showStr", tv("T"), TString, {
@@ -156,7 +156,7 @@ object StringFunctions extends RegistryFunctions {
 
       val str = cb.emb.getType(a.st.virtualType).invoke[Any, String]("showStr", jObj)
 
-      IEmitCode.present(cb, st.construct(str))
+      IEmitCode.present(cb, st.construct(cb, str).get)
     }
 
     registerIEmitCode2("showStr", tv("T"), TInt32, TString, {
@@ -170,7 +170,7 @@ object StringFunctions extends RegistryFunctions {
           sc => cb.assignAny(jObj, scodeToJavaValue(cb, r, sc)))
 
         val str = cb.emb.getType(a.st.virtualType).invoke[Any, Int, String]("showStr", jObj, trunc.asInt.intCode(cb))
-        st.construct(str)
+        st.construct(cb, str).get
       }
     }
 
@@ -186,7 +186,7 @@ object StringFunctions extends RegistryFunctions {
           })
         val json = cb.emb.getType(a.st.virtualType).invoke[Any, JValue]("toJSON", inputJavaValue)
         val str = Code.invokeScalaObject1[JValue, String](JsonMethods.getClass, "compact", json)
-        IEmitCode.present(cb, st.construct(str))
+        IEmitCode.present(cb, st.construct(cb, str).get)
     }
 
     registerWrappedScalaFunction1("reverse", TString, TString, (_: Type, _: SType) => SJavaString)(thisClass, "reverse")
@@ -243,7 +243,7 @@ object StringFunctions extends RegistryFunctions {
           val out = cb.newLocal[Array[String]]("out",
             Code.invokeScalaObject2[String, String, Array[String]](
               thisClass, "firstMatchIn", sc.loadString(), rc.loadString()))
-          IEmitCode(cb, out.isNull, st.construct(out))
+          IEmitCode(cb, out.isNull, st.construct(cb, out).get)
         }
       }
     }

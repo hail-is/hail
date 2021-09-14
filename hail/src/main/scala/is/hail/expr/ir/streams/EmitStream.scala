@@ -2281,7 +2281,7 @@ object EmitStream {
               cb.assign(xKey, EmitCode.present(cb.emb, curKey.get))
               cb.assign(xElts, EmitCode.present(cb.emb, curValsType.constructFromElements(cb, elementRegion, k, false) { (cb, i) =>
                 IEmitCode(cb, result(i).ceq(0L), eltType.loadCheapSCode(cb, result(i)).get)
-              }))
+              }.get))
               cb.goto(LproduceElementDone)
 
               cb.define(LstartNewKey)

@@ -8,7 +8,7 @@ import is.hail.types.physical.stypes.{SCode, SType, SValue}
 import is.hail.types.{RPrimitive, TypeWithRequiredness}
 
 trait SString extends SType {
-  def constructFromString(cb: EmitCodeBuilder, r: Value[Region], s: Code[String]): SStringCode
+  def constructFromString(cb: EmitCodeBuilder, r: Value[Region], s: Code[String]): SStringValue
   override def _typeWithRequiredness: TypeWithRequiredness = RPrimitive()
 }
 

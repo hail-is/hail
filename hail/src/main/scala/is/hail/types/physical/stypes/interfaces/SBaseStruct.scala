@@ -92,6 +92,6 @@ trait SBaseStructCode extends SCode {
       (f, newFieldMap.getOrElse(f, EmitCode.fromI(cb.emb)(cb => oldPV.loadField(cb, f)))) }
 
     val pcs = PCanonicalStruct(false, allFields.map { case (f, ec) => (f, ec.emitType.storageType) }: _*)
-    pcs.constructFromFields(cb, region, allFields.map(_._2), false)
+    pcs.constructFromFields(cb, region, allFields.map(_._2), false).get
   }
 }

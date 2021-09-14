@@ -20,11 +20,11 @@ final case class SBinaryPointer(pType: PBinary) extends SBinary {
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
+  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Value[Long]): SValue = {
     if (pt == this.pType)
-      new SBinaryPointerCode(this, addr)
+      new SBinaryPointerValue(this, addr)
     else
-      coerceOrCopy(cb, region, pt.loadCheapSCode(cb, addr), deepCopy = false).get
+      coerceOrCopy(cb, region, pt.loadCheapSCode(cb, addr), deepCopy = false)
   }
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SBinaryPointerSettable = {

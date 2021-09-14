@@ -221,12 +221,12 @@ case class SplitPartitionNativeWriter(
             IEmitCode.present(cb, keyType.asInstanceOf[PCanonicalBaseStruct]
               .constructFromFields(cb, stream.elementRegion,
                 keyType.fields.map(f => EmitCode.fromI(cb.emb)(cb => row.loadField(cb, f.name))),
-                deepCopy = false))
+                deepCopy = false).get)
           }, ob1.invoke[Long]("indexOffset"), {
             IEmitCode.present(cb,
               iAnnotationType.constructFromFields(cb, stream.elementRegion,
                 FastIndexedSeq(EmitCode.present(cb.emb, primitive(ob2.invoke[Long]("indexOffset")))),
-                deepCopy = false))
+                deepCopy = false).get)
           })
         }
         cb += ob1.writeByte(1.asInstanceOf[Byte])

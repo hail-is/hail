@@ -131,7 +131,7 @@ object  NDArrayFunctions extends RegistryFunctions {
             val outputNDArrayPType = outputStructType.fieldType("solution")
             val (resNDPCode, info) = linear_solve(apc.asNDArray, bpc.asNDArray, outputNDArrayPType, cb, region, errorID)
             val ndEmitCode = EmitCode(Code._empty, info cne 0, resNDPCode.get)
-            outputStructType.constructFromFields(cb, region, IndexedSeq[EmitCode](ndEmitCode, EmitCode(Code._empty, false, primitive(info cne 0))), false)
+            outputStructType.constructFromFields(cb, region, IndexedSeq[EmitCode](ndEmitCode, EmitCode(Code._empty, false, primitive(info cne 0))), false).get
           }
         }
     }
