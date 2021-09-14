@@ -22,8 +22,9 @@ trait SLocusValue extends SValue {
 
   def position(cb: EmitCodeBuilder): Value[Int]
 
-  def getLocusObj(cb: EmitCodeBuilder): Code[Locus] = Code.invokeStatic2[Locus, String, Int, Locus]("apply",
-    contig(cb).loadString(cb), position(cb))
+  def getLocusObj(cb: EmitCodeBuilder): Value[Locus] =
+    cb.memoize(Code.invokeStatic2[Locus, String, Int, Locus]("apply",
+      contig(cb).loadString(cb), position(cb)))
 
   def structRepr(cb: EmitCodeBuilder): SBaseStructValue
 

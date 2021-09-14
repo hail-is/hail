@@ -869,7 +869,7 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
         Code.invokeScalaObject1[AnyRef, Interval](
           PartitionBoundOrdering.getClass,
           "partitionBoundToInterval",
-          StringFunctions.scodeToJavaValue(cb, region, ctxMemo.loadField(cb, "interval").get(cb).get))
+          StringFunctions.scodeToJavaValue(cb, region, ctxMemo.loadField(cb, "interval").get(cb)))
       }
 
       val indexReader = cb.emb.genFieldThisRef[IndexReader]("idx_reader")

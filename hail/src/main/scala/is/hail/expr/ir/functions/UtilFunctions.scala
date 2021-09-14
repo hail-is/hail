@@ -178,18 +178,22 @@ object UtilFunctions extends RegistryFunctions {
         assert(l.st.virtualType == r.st.virtualType, s"\n  lt=${ l.st.virtualType }\n  rt=${ r.st.virtualType }")
         val lb = scodeToJavaValue(cb, er.region, l)
         val rb = scodeToJavaValue(cb, er.region, r)
-        primitive(er.mb.getType(l.st.virtualType).invoke[Any, Any, Double, Boolean, Boolean]("valuesSimilar", lb, rb, tol.asDouble.doubleCode(cb), abs.asBoolean.boolCode(cb)))
+        primitive(cb.memoize(er.mb.getType(l.st.virtualType).invoke[Any, Any, Double, Boolean, Boolean]("valuesSimilar", lb, rb, tol.asDouble.doubleCode(cb), abs.asBoolean.boolCode(cb))))
     }
 
     registerCode1("triangle", TInt32, TInt32, (_: Type, _: SType) => SInt32) { case (cb, _, rt, nn) =>
-      val n = cb.newLocal[Int]("triangle_n", nn.asInt.intCode(cb))
-      (n * (n + 1)) / 2
+      val n = nn.asInt.intCode(cb)
+      cb.memoize((n * (n + 1)) / 2)
     }
 
-    registerSCode1("toInt32", TBoolean, TInt32, (_: Type, _: SType) => SInt32) { case (_, cb, _, x, _) => primitive(x.asBoolean.boolCode(cb).toI) }
-    registerSCode1("toInt64", TBoolean, TInt64, (_: Type, _: SType) => SInt64) { case (_, cb, _, x, _) => primitive(x.asBoolean.boolCode(cb).toI.toL) }
-    registerSCode1("toFloat32", TBoolean, TFloat32, (_: Type, _: SType) => SFloat32) { case (_, cb, _, x, _) => primitive(x.asBoolean.boolCode(cb).toI.toF) }
-    registerSCode1("toFloat64", TBoolean, TFloat64, (_: Type, _: SType) => SFloat64) { case (_, cb, _, x, _) => primitive(x.asBoolean.boolCode(cb).toI.toD) }
+    registerSCode1("toInt32", TBoolean, TInt32, (_: Type, _: SType) => SInt32) { case (_, cb, _, x, _) =>
+      primitive(cb.memoize(x.asBoolean.boolCode(cb).toI)) }
+    registerSCode1("toInt64", TBoolean, TInt64, (_: Type, _: SType) => SInt64) { case (_, cb, _, x, _) =>
+      primitive(cb.memoize(x.asBoolean.boolCode(cb).toI.toL)) }
+    registerSCode1("toFloat32", TBoolean, TFloat32, (_: Type, _: SType) => SFloat32) { case (_, cb, _, x, _) =>
+      primitive(cb.memoize(x.asBoolean.boolCode(cb).toI.toF)) }
+    registerSCode1("toFloat64", TBoolean, TFloat64, (_: Type, _: SType) => SFloat64) { case (_, cb, _, x, _) =>
+      primitive(cb.memoize(x.asBoolean.boolCode(cb).toI.toD)) }
 
     for ((name, t, rpt, ct) <- Seq[(String, Type, SType, ClassTag[_])](
       ("Boolean", TBoolean, SBoolean, implicitly[ClassTag[Boolean]]),
@@ -200,9 +204,9 @@ object UtilFunctions extends RegistryFunctions {
     )) {
       val ctString: ClassTag[String] = implicitly[ClassTag[String]]
       registerSCode1(s"to$name", TString, t, (_: Type, _: SType) => rpt) {
-        case (r, cb, rt, x: SStringCode, _) =>
-          val s = x.loadString()
-          primitive(rt.virtualType, Code.invokeScalaObject1(thisClass, s"parse$name", s)(ctString, ct))
+        case (r, cb, rt, x: SStringValue, _) =>
+          val s = x.loadString(cb)
+          primitive(rt.virtualType, cb.memoizeAny(Code.invokeScalaObject1(thisClass, s"parse$name", s)(ctString, ct), typeInfoFromClassTag(ct)))
       }
       registerIEmitCode1(s"to${name}OrMissing", TString, t, (_: Type, _: EmitType) => EmitType(rpt, false)) {
         case (cb, r, rt, _, x) =>
@@ -223,12 +227,12 @@ object UtilFunctions extends RegistryFunctions {
     Array("min", "max").foreach { name =>
       registerCode2(name, TFloat32, TFloat32, TFloat32, (_: Type, _: SType, _: SType) => SFloat32) {
         case (cb, r, rt, v1, v2) =>
-          Code.invokeStatic2[Math, Float, Float, Float](name, v1.asFloat.floatCode(cb), v2.asFloat.floatCode(cb))
+          cb.memoize(Code.invokeStatic2[Math, Float, Float, Float](name, v1.asFloat.floatCode(cb), v2.asFloat.floatCode(cb)))
       }
 
       registerCode2(name, TFloat64, TFloat64, TFloat64, (_: Type, _: SType, _: SType) => SFloat64) {
         case (cb, r, rt, v1, v2) =>
-          Code.invokeStatic2[Math, Double, Double, Double](name, v1.asDouble.doubleCode(cb), v2.asDouble.doubleCode(cb))
+          cb.memoize(Code.invokeStatic2[Math, Double, Double, Double](name, v1.asDouble.doubleCode(cb), v2.asDouble.doubleCode(cb)))
       }
 
       val ignoreMissingName = name + "_ignore_missing"
@@ -237,12 +241,12 @@ object UtilFunctions extends RegistryFunctions {
 
       registerCode2(ignoreNanName, TFloat32, TFloat32, TFloat32, (_: Type, _: SType, _: SType) => SFloat32) {
         case (cb, r, rt, v1, v2) =>
-          Code.invokeScalaObject2[Float, Float, Float](thisClass, ignoreNanName, v1.asFloat.floatCode(cb), v2.asFloat.floatCode(cb))
+          cb.memoize(Code.invokeScalaObject2[Float, Float, Float](thisClass, ignoreNanName, v1.asFloat.floatCode(cb), v2.asFloat.floatCode(cb)))
       }
 
       registerCode2(ignoreNanName, TFloat64, TFloat64, TFloat64, (_: Type, _: SType, _: SType) => SFloat64) {
         case (cb, r, rt, v1, v2) =>
-          Code.invokeScalaObject2[Double, Double, Double](thisClass, ignoreNanName, v1.asDouble.doubleCode(cb), v2.asDouble.doubleCode(cb))
+          cb.memoize(Code.invokeScalaObject2[Double, Double, Double](thisClass, ignoreNanName, v1.asDouble.doubleCode(cb), v2.asDouble.doubleCode(cb)))
       }
 
       def ignoreMissingTriplet[T](cb: EmitCodeBuilder, rt: SType, v1: EmitCode, v2: EmitCode, name: String, f: (Code[T], Code[T]) => Code[T])(implicit ct: ClassTag[T], ti: TypeInfo[T]): IEmitCode = {
@@ -300,8 +304,8 @@ object UtilFunctions extends RegistryFunctions {
     registerSCode2("format", TString, tv("T", "tuple"), TString, (_: Type, _: SType, _: SType) => SJavaString) {
       case (r, cb, st: SJavaString.type, format, args, _) =>
         val javaObjArgs = Code.checkcast[Row](scodeToJavaValue(cb, r.region, args))
-        val formatted = Code.invokeScalaObject2[String, Row, String](thisClass, "format", format.asString.loadString(), javaObjArgs)
-        st.construct(cb, formatted).get
+        val formatted = Code.invokeScalaObject2[String, Row, String](thisClass, "format", format.asString.loadString(cb), javaObjArgs)
+        st.construct(cb, formatted)
     }
 
     registerIEmitCode2("land", TBoolean, TBoolean, TBoolean, (_: Type, tl: EmitType, tr: EmitType) => EmitType(SBoolean, tl.required && tr.required)) {

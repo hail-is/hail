@@ -67,7 +67,7 @@ class SBooleanValue(x: Value[Boolean]) extends SPrimitiveValue {
 
   override def _primitiveValue: Value[_] = x
 
-  override def get: SCode = new SBooleanCode(x)
+  override def get: SBooleanCode = new SBooleanCode(x)
 
   def boolCode(cb: EmitCodeBuilder): Value[Boolean] = x
 

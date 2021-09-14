@@ -248,7 +248,7 @@ class SUnreachableCallValue extends SUnreachableValue with SCallValue {
 
   override def get: SUnreachableCallCode = st.sc
 
-  override def lgtToGT(cb: EmitCodeBuilder, localAlleles: SIndexableValue, errorID: Value[Int]): SCallCode = st.sc
+  override def lgtToGT(cb: EmitCodeBuilder, localAlleles: SIndexableValue, errorID: Value[Int]): SCallValue = st.sv
 }
 
 
@@ -285,7 +285,7 @@ class SUnreachableIntervalValue(override val st: SUnreachableInterval) extends S
 
   override def endDefined(cb: EmitCodeBuilder): Code[Boolean] = const(false)
 
-  override def isEmpty(cb: EmitCodeBuilder): Code[Boolean] = const(false)
+  override def isEmpty(cb: EmitCodeBuilder): Value[Boolean] = const(false)
 
   override def get: SUnreachableIntervalCode = st.sc
 }
