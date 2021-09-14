@@ -206,8 +206,8 @@ object UtilFunctions extends RegistryFunctions {
       }
       registerIEmitCode1(s"to${name}OrMissing", TString, t, (_: Type, _: EmitType) => EmitType(rpt, false)) {
         case (cb, r, rt, _, x) =>
-          x.toI(cb).flatMap(cb) { case (sc: SStringCode) =>
-            val sv = cb.newLocal[String]("s", sc.loadString())
+          x.toI(cb).flatMap(cb) { case sc: SStringValue =>
+            val sv = cb.newLocal[String]("s", sc.loadString(cb))
             IEmitCode(cb,
               !Code.invokeScalaObject1[String, Boolean](thisClass, s"isValid$name", sv),
               primitive(rt.virtualType, cb.memoizeAny(Code.invokeScalaObject1(thisClass, s"parse$name", sv)(ctString, ct), typeInfoFromClassTag(ct))))
@@ -307,7 +307,14 @@ object UtilFunctions extends RegistryFunctions {
     registerIEmitCode2("land", TBoolean, TBoolean, TBoolean, (_: Type, tl: EmitType, tr: EmitType) => EmitType(SBoolean, tl.required && tr.required)) {
       case (cb, _, rt,_ , l, r) =>
         if (l.required && r.required) {
-          IEmitCode.present(cb, primitive(cb.memoize(l.toI(cb).get(cb).asBoolean.boolCode(cb) && r.toI(cb).get(cb).asBoolean.boolCode(cb))))
+          val result = cb.newLocal[Boolean]("land_result")
+          cb.ifx(l.toI(cb).get(cb).asBoolean.boolCode(cb), {
+            cb.assign(result, r.toI(cb).get(cb).asBoolean.boolCode(cb))
+          }, {
+            cb.assign(result, const(false))
+          })
+
+          IEmitCode.present(cb, primitive(result))
         } else {
           // 00 ... 00 rv rm lv lm
           val w = cb.newLocal[Int]("land_w")
@@ -338,7 +345,14 @@ object UtilFunctions extends RegistryFunctions {
     registerIEmitCode2("lor", TBoolean, TBoolean, TBoolean, (_: Type, tl: EmitType, tr: EmitType) => EmitType(SBoolean, tl.required && tr.required)) {
       case (cb, _, rt,_, l, r) =>
         if (l.required && r.required) {
-          IEmitCode.present(cb, primitive(cb.memoize(l.toI(cb).get(cb).asBoolean.boolCode(cb) || r.toI(cb).get(cb).asBoolean.boolCode(cb))))
+          val result = cb.newLocal[Boolean]("land_result")
+          cb.ifx(l.toI(cb).get(cb).asBoolean.boolCode(cb), {
+            cb.assign(result, const(true))
+          }, {
+            cb.assign(result, r.toI(cb).get(cb).asBoolean.boolCode(cb))
+          })
+
+          IEmitCode.present(cb, primitive(result))
         } else {
           // 00 ... 00 rv rm lv lm
           val w = cb.newLocal[Int]("lor_w")

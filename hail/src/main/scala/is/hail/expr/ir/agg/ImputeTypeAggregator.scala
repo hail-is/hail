@@ -92,9 +92,9 @@ class ImputeTypeState(kb: EmitClassBuilder[_]) extends PrimitiveRVAState(Array(V
     ec.toI(cb)
       .consume(cb,
         cb.assign(_repr, EmitCode.present(cb.emb, primitive(cb.memoize(repr & (~(1 << 1)))))),
-        { case (pc: SStringCode) =>
+        { case (pc: SStringValue) =>
           val s = cb.newLocal[String]("impute_type_agg_seq_str")
-          cb.assign(s, pc.loadString())
+          cb.assign(s, pc.loadString(cb))
 
           setRepr(cb,
             true,

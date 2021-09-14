@@ -13,9 +13,8 @@ object GenotypeFunctions extends RegistryFunctions {
 
   def registerAll() {
     registerSCode1("gqFromPL", TArray(tv("N", "int32")), TInt32, (_: Type, _: SType) => SInt32)
-    { case (r, cb, rt, _pl: SIndexableCode, errorID) =>
+    { case (r, cb, rt, pl: SIndexableValue, errorID) =>
       val code = EmitCodeBuilder.scopedCode(r.mb) { cb =>
-        val pl = _pl.memoize(cb, "plv")
         val m = cb.newLocal[Int]("m", 99)
         val m2 = cb.newLocal[Int]("m2", 99)
         val i = cb.newLocal[Int]("i", 0)
@@ -40,9 +39,7 @@ object GenotypeFunctions extends RegistryFunctions {
     registerIEmitCode1("dosage", TArray(tv("N", "float64")), TFloat64,
       (_: Type, arrayType: EmitType) => EmitType(SFloat64, arrayType.required && arrayType.st.asInstanceOf[SContainer].elementEmitType.required)
     ) { case (cb, r, rt,  errorID, gp) =>
-      gp.toI(cb).flatMap(cb) { case (gpc: SIndexableCode) =>
-        val gpv = gpc.memoize(cb, "dosage_gp")
-
+      gp.toI(cb).flatMap(cb) { case gpv: SIndexableValue =>
         cb.ifx(gpv.loadLength().cne(3),
           cb._fatalWithError(errorID, const("length of gp array must be 3, got ").concat(gpv.loadLength().toS)))
 

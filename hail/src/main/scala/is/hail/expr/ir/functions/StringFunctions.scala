@@ -238,11 +238,11 @@ object StringFunctions extends RegistryFunctions {
       case (_: Type, _: EmitType, _: EmitType) => EmitType(SJavaArrayString(true), false)
     }) { case (cb: EmitCodeBuilder, region: Value[Region], st: SJavaArrayString, _,
     s: EmitCode, r: EmitCode) =>
-      s.toI(cb).flatMap(cb) { case sc: SStringCode =>
-        r.toI(cb).flatMap(cb) { case rc: SStringCode =>
+      s.toI(cb).flatMap(cb) { case sc: SStringValue =>
+        r.toI(cb).flatMap(cb) { case rc: SStringValue =>
           val out = cb.newLocal[Array[String]]("out",
             Code.invokeScalaObject2[String, String, Array[String]](
-              thisClass, "firstMatchIn", sc.loadString(), rc.loadString()))
+              thisClass, "firstMatchIn", sc.loadString(cb), rc.loadString(cb)))
           IEmitCode(cb, out.isNull, st.construct(cb, out))
         }
       }
@@ -252,13 +252,13 @@ object StringFunctions extends RegistryFunctions {
       case (_: Type, _: EmitType, _: EmitType) => EmitType(SInt32, false)
     }) { case (r: EmitRegion, rt, _, e1: EmitCode, e2: EmitCode) =>
       EmitCode.fromI(r.mb) { cb =>
-        e1.toI(cb).flatMap(cb) { case (sc1: SStringCode) =>
-          e2.toI(cb).flatMap(cb) { case (sc2: SStringCode) =>
+        e1.toI(cb).flatMap(cb) { case sc1: SStringValue =>
+          e2.toI(cb).flatMap(cb) { case sc2: SStringValue =>
             val n = cb.newLocal("hamming_n", 0)
             val i = cb.newLocal("hamming_i", 0)
 
-            val v1 = cb.newLocal[String]("hamming_str_1", sc1.loadString())
-            val v2 = cb.newLocal[String]("hamming_str_2", sc2.loadString())
+            val v1 = cb.newLocal[String]("hamming_str_1", sc1.loadString(cb))
+            val v2 = cb.newLocal[String]("hamming_str_2", sc2.loadString(cb))
 
             val l1 = cb.newLocal[Int]("hamming_len_1", v1.invoke[Int]("length"))
             val l2 = cb.newLocal[Int]("hamming_len_2", v2.invoke[Int]("length"))

@@ -972,7 +972,7 @@ class Emit[C](
           outputPType.loadCheapSCode(cb, arrayAddress)
         }
 
-      case x@ArrayRef(a, i, errorID) =>
+      case ArrayRef(a, i, errorID) =>
         def boundsCheck(cb: EmitCodeBuilder, index: Value[Int], len: Value[Int]): Unit = {
             val bcMb = mb.getOrGenEmitMethod("arrayref_bounds_check", "arrayref_bounds_check",
               IndexedSeq[ParamType](IntInfo, IntInfo, IntInfo), UnitInfo)({ mb =>
@@ -994,7 +994,7 @@ class Emit[C](
 
         emitI(a).flatMap(cb) { case av: SIndexableValue =>
           emitI(i).flatMap(cb) { case ic: SInt32Value =>
-            val iv = cb.newLocal("i", ic.intCode(cb))
+            val iv = ic.intCode(cb)
             boundsCheck(cb, iv, av.loadLength())
             av.loadElement(cb, iv)
           }

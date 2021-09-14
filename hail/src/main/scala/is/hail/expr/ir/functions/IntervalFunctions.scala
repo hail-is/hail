@@ -39,8 +39,7 @@ object IntervalFunctions extends RegistryFunctions {
     registerIEmitCode1("start", TInterval(tv("T")), tv("T"),
       (_: Type, x: EmitType) => EmitType(x.st.asInstanceOf[SInterval].pointType, x.required && x.st.asInstanceOf[SInterval].pointEmitType.required)) {
       case (cb, r, rt, _, interval) =>
-        interval.toI(cb).flatMap(cb) { case pi: SIntervalCode =>
-          val pv = pi.memoize(cb, "interval")
+        interval.toI(cb).flatMap(cb) { case pv: SIntervalValue =>
           pv.loadStart(cb)
         }
     }
@@ -48,8 +47,7 @@ object IntervalFunctions extends RegistryFunctions {
     registerIEmitCode1("end", TInterval(tv("T")), tv("T"),
       (_: Type, x: EmitType) => EmitType(x.st.asInstanceOf[SInterval].pointType, x.required && x.st.asInstanceOf[SInterval].pointEmitType.required)) {
       case (cb, r, rt, _, interval) =>
-        interval.toI(cb).flatMap(cb) { case pi: SIntervalCode =>
-          val pv = pi.memoize(cb, "interval")
+        interval.toI(cb).flatMap(cb) { case pv: SIntervalValue =>
           pv.loadEnd(cb)
         }
     }
@@ -70,8 +68,7 @@ object IntervalFunctions extends RegistryFunctions {
       case(_: Type, intervalT: EmitType, _: EmitType) => EmitType(SBoolean, intervalT.required)
     }) {
       case (cb, r, rt, _, int, point) =>
-        int.toI(cb).map(cb) { case (intc: SIntervalCode) =>
-          val interval: SIntervalValue = intc.memoize(cb, "interval")
+        int.toI(cb).map(cb) { case interval: SIntervalValue =>
           val pointv = cb.memoize(point.toI(cb), "point")
           val compare = cb.emb.ecb.getOrderingFunction(pointv.st, interval.st.pointType, CodeOrdering.Compare())
 

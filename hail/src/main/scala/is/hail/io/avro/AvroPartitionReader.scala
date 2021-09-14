@@ -116,19 +116,19 @@ object AvroReader {
       cb.assign(v, record.invoke[String, AnyRef]("get", name))
       typ match {
         case TBoolean =>
-          EmitCode.fromI(cb.emb)(IEmitCode(_, v.isNull, primitive(cb.memoize(Code.booleanValue(Code.checkcast[java.lang.Boolean](v))))))
+          EmitCode.fromI(cb.emb)(cb => IEmitCode(cb, v.isNull, primitive(cb.memoize(Code.booleanValue(Code.checkcast[java.lang.Boolean](v))))))
         case TInt32 =>
-          EmitCode.fromI(cb.emb)(IEmitCode(_, v.isNull, primitive(cb.memoize(Code.intValue(Code.checkcast[java.lang.Number](v))))))
+          EmitCode.fromI(cb.emb)(cb => IEmitCode(cb, v.isNull, primitive(cb.memoize(Code.intValue(Code.checkcast[java.lang.Number](v))))))
         case TInt64 =>
-          EmitCode.fromI(cb.emb)(IEmitCode(_, v.isNull, primitive(cb.memoize(Code.longValue(Code.checkcast[java.lang.Number](v))))))
+          EmitCode.fromI(cb.emb)(cb => IEmitCode(cb, v.isNull, primitive(cb.memoize(Code.longValue(Code.checkcast[java.lang.Number](v))))))
         case TFloat32 =>
-          EmitCode.fromI(cb.emb)(IEmitCode(_, v.isNull, primitive(cb.memoize(Code.floatValue(Code.checkcast[java.lang.Number](v))))))
+          EmitCode.fromI(cb.emb)(cb => IEmitCode(cb, v.isNull, primitive(cb.memoize(Code.floatValue(Code.checkcast[java.lang.Number](v))))))
         case TFloat64 =>
-          EmitCode.fromI(cb.emb)(IEmitCode(_, v.isNull, primitive(cb.memoize(Code.doubleValue(Code.checkcast[java.lang.Number](v))))))
+          EmitCode.fromI(cb.emb)(cb => IEmitCode(cb, v.isNull, primitive(cb.memoize(Code.doubleValue(Code.checkcast[java.lang.Number](v))))))
         case TString =>
-          EmitCode.fromI(cb.emb)(IEmitCode(_, v.isNull, new SJavaStringValue(cb.memoize(Code.checkcast[org.apache.avro.util.Utf8](v).invoke[String]("toString")))))
+          EmitCode.fromI(cb.emb)(cb => IEmitCode(cb, v.isNull, new SJavaStringValue(cb.memoize(Code.checkcast[org.apache.avro.util.Utf8](v).invoke[String]("toString")))))
         case TBinary =>
-          EmitCode.fromI(cb.emb)(IEmitCode(_, v.isNull, new SJavaBytesValue(cb.memoize(Code.checkcast[Array[Byte]](v)))))
+          EmitCode.fromI(cb.emb)(cb => IEmitCode(cb, v.isNull, new SJavaBytesValue(cb.memoize(Code.checkcast[Array[Byte]](v)))))
         case typ: TBaseStruct =>
           val record = cb.newLocal[GenericRecord]("avro_subrecord", Code.checkcast[GenericRecord](v))
           EmitCode.fromI(cb.emb)(cb => IEmitCode(cb, v.isNull, recordToHail(cb, region, record, typ)))
