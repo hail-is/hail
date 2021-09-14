@@ -77,7 +77,7 @@ def test_sampleqc_old_new_equivalence():
 
 @fails_local_backend
 @fails_service_backend
-def test_combiner_works(self):
+def test_combiner_works():
     from hail.vds.combiner import combine_varant_datasets, transform_gvcf
     _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
     paths = [resource(p) for p in _paths]
