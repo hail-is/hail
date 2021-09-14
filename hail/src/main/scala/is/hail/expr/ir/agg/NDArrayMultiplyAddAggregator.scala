@@ -37,11 +37,9 @@ class NDArrayMultiplyAddAggregator(nDVTyp: VirtualTypeWithReq) extends StagedAgg
       FastIndexedSeq(nextNDArrayACode.emitParamType, nextNDArrayBCode.emitParamType), CodeParamType(UnitInfo))
     seqOpMethod.voidWithBuilder { cb =>
       val ndArrayAEmitCode = seqOpMethod.getEmitParam(cb, 1, null)
-      ndArrayAEmitCode.toI(cb).consume(cb, {}, { case nextNDArrayAPCode: SNDArrayCode =>
+      ndArrayAEmitCode.toI(cb).consume(cb, {}, { case checkA: SNDArrayValue =>
         val ndArrayBEmitCode = seqOpMethod.getEmitParam(cb, 2, null)
-        ndArrayBEmitCode.toI(cb).consume(cb, {}, { case nextNDArrayBPCode: SNDArrayCode =>
-          val checkA = nextNDArrayAPCode.memoize(cb, "ndarray_add_mutiply_seqop_A")
-          val checkB = nextNDArrayBPCode.memoize(cb, "ndarray_add_mutiply_seqop_B")
+        ndArrayBEmitCode.toI(cb).consume(cb, {}, { case checkB: SNDArrayValue =>
           val tempRegionForCreation = cb.newLocal[Region]("ndarray_add_multily_agg_temp_region", Region.stagedCreate(Region.REGULAR, cb.emb.ecb.pool()))
           val NDArrayA = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(checkA, cb, tempRegionForCreation)
           val NDArrayB = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(checkB, cb, tempRegionForCreation)

@@ -13,8 +13,9 @@ object GenotypeFunctions extends RegistryFunctions {
 
   def registerAll() {
     registerSCode1("gqFromPL", TArray(tv("N", "int32")), TInt32, (_: Type, _: SType) => SInt32)
-    { case (r, cb, rt, pl: SIndexableValue, errorID) =>
+    { case (r, cb, rt, _pl: SIndexableCode, errorID) =>
       val code = EmitCodeBuilder.scopedCode(r.mb) { cb =>
+        val pl = _pl.memoize(cb, "plv")
         val m = cb.newLocal[Int]("m", 99)
         val m2 = cb.newLocal[Int]("m2", 99)
         val i = cb.newLocal[Int]("i", 0)
