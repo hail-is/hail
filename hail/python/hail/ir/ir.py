@@ -1930,6 +1930,9 @@ class AggFold(IR):
 
         return dict_so_far
 
+    def renderable_new_block(self, i: int) -> bool:
+        return i > 0
+
 
 class Begin(IR):
     @typecheck_method(xs=sequenceof(IR))

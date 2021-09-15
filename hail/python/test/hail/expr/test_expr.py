@@ -486,6 +486,13 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(100, 5)
         self.assertEqual(ht.aggregate(hl.agg.fold(0, lambda x: x + ht.idx, lambda a, b: a + b)), 4950)
 
+        ht = ht.annotate(s=hl.struct(x=ht.idx, y=ht.idx*ht.idx))
+        print(ht.aggregate(
+            hl.agg.fold(
+                hl.struct(x=0, y=1),
+                lambda accum: hl.struct(x=accum.x + ht.s.x, y=accum.y * ht.s.y),
+                lambda a, b: hl.struct(x=a.x + b.x, y=a.y * b.y))))
+
     def test_agg_filter(self):
         t = hl.utils.range_table(10)
         tests = [(hl.agg.filter(t.idx > 7,
