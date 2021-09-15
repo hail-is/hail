@@ -1779,7 +1779,7 @@ class ImportMatrixTableTests(unittest.TestCase):
 
     @skip_unless_spark_backend()
     def test_import_matrix_table_no_cols(self):
-        fields = {'Chromosome':hl.tstr, 'Position': hl.tint32, 'Ref': hl.tstr, 'Alt': hl.tstr, 'Rand1': hl.tfloat64, 'Rand2': hl.tfloat64}
+        fields = {'Chromosome': hl.tstr, 'Position': hl.tint32, 'Ref': hl.tstr, 'Alt': hl.tstr, 'Rand1': hl.tfloat64, 'Rand2': hl.tfloat64}
         file = resource('sample2_va_nomulti.tsv')
         mt = hl.import_matrix_table(file, row_fields=fields, row_key=['Chromosome', 'Position'])
         t = hl.import_table(file, types=fields, key=['Chromosome', 'Position'])
@@ -1805,26 +1805,32 @@ class ImportMatrixTableTests(unittest.TestCase):
     @fails_service_backend()
     @fails_local_backend()
     def test_headers_not_identical(self):
-        self.assertRaisesRegex(
-            hl.utils.FatalError,
-            "invalid header",
-            hl.import_matrix_table,
-            resource("sampleheader*.txt"),
-            row_fields={'f0': hl.tstr},
-            row_key=['f0'])
+        with pytest.raises(ValueError, match='xpected header in every file but found empty file'):
+            hl.import_matrix_table(resource("sampleheader*.txt"), row_fields={'f0': hl.tstr}, row_key=['f0'])
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_too_few_entries(self):
         def boom():
             hl.import_matrix_table(resource("samplesmissing.txt"),
                                    row_fields={'f0': hl.tstr},
                                    row_key=['f0']
             )._force_count_rows()
-        self.assertRaisesRegex(
-            hl.utils.FatalError,
-            "unexpected end of line while reading entry 3",
-            boom)
+        with pytest.raises(HailUserError, match='unexpected end of line while reading entries'):
+            boom()
+
+    @staticmethod
+    def test_wrong_row_field_type(self):
+        with pytest.raises(HailUserError, match="error parsing value into int32 at row field 'f0'"):
+            hl.import_matrix_table(resource("sampleheader1.txt"),
+                                   row_fields={'f0': hl.tint32},
+                                   row_key=['f0'])
+
+    def test_wrong_entry_type(self):
+        with pytest.raises(HailUserError, match="error parsing value into int32 at row field 'f0'"):
+            hl.import_matrix_table(resource("samplenonintentries.txt"),
+                                   row_fields={'f0': hl.tstr},
+                                   row_key=['f0'])
+
 
     @fails_service_backend()
     @fails_local_backend()

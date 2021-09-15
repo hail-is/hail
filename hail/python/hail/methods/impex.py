@@ -1403,310 +1403,11 @@ def import_table(paths,
                  find_replace=None,
                  force=False,
                  source_file_field=None) -> Table:
-    """Import delimited text file (text table) as :class:`.Table`.
-
-    The resulting :class:`.Table` will have no key fields. Use
-    :meth:`.Table.key_by` to specify keys. See also:
-    :func:`.import_matrix_table`.
-
-    Examples
-    --------
-
-    Consider this file:
-
-    .. code-block:: text
-
-        $ cat data/samples1.tsv
-        Sample     Height  Status  Age
-        PT-1234    154.1   ADHD    24
-        PT-1236    160.9   Control 19
-        PT-1238    NA      ADHD    89
-        PT-1239    170.3   Control 55
-
-    The field ``Height`` contains floating-point numbers and the field ``Age``
-    contains integers.
-
-    To import this table using field types:
-
-    >>> table = hl.import_table('data/samples1.tsv',
-    ...                              types={'Height': hl.tfloat64, 'Age': hl.tint32})
-
-    Note ``Sample`` and ``Status`` need no type, because :py:data:`.tstr` is
-    the default type.
-
-    To import a table using type imputation (which causes the file to be parsed
-    twice):
-
-    >>> table = hl.import_table('data/samples1.tsv', impute=True)
-
-    **Detailed examples**
-
-    Let's import fields from a CSV file with missing data and special characters:
-
-    .. code-block:: text
-
-        $ cat data/samples2.tsv
-        Batch,PT-ID
-        1kg,PT-0001
-        1kg,PT-0002
-        study1,PT-0003
-        study3,PT-0003
-        .,PT-0004
-        1kg,PT-0005
-        .,PT-0006
-        1kg,PT-0007
-
-    In this case, we should:
-
-    - Pass the non-default delimiter ``,``
-
-    - Pass the non-default missing value ``.``
-
-    >>> table = hl.import_table('data/samples2.tsv', delimiter=',', missing='.')
-
-    Let's import a table from a file with no header and sample IDs that need to
-    be transformed.  Suppose the sample IDs are of the form ``NA#####``. This
-    file has no header line, and the sample ID is hidden in a field with other
-    information.
-
-    .. code-block: text
-
-        $ cat data/samples3.tsv
-        1kg_NA12345   female
-        1kg_NA12346   male
-        1kg_NA12348   female
-        pgc_NA23415   male
-        pgc_NA23418   male
-
-    To import:
-
-    >>> t = hl.import_table('data/samples3.tsv', no_header=True)
-    >>> t = t.annotate(sample = t.f0.split("_")[1]).key_by('sample')
-
-    Let's import a table from a file where one of the fields is a JSON object.
-
-    .. code-block: text
-
-        $cat data/table_with_json.tsv
-        id	json_field
-        1	{"foo": "bar", "x": 7}
-        4	{"foo": "baz", "x": 100}
-
-    To import, we need to specify the types argument.
-
-    >>> my_types = {"id": hl.tint32, "json_field":hl.tstruct(foo=hl.tstr, x=hl.tint32)}
-    >>> ht_with_json = hl.import_table('data/table_with_json.tsv', types=my_types)
-
-    Notes
-    -----
-
-    The `impute` parameter tells Hail to scan the file an extra time to gather
-    information about possible field types. While this is a bit slower for large
-    files because the file is parsed twice, the convenience is often worth this
-    cost.
-
-    The `delimiter` parameter is either a delimiter character (if a single
-    character) or a field separator regex (2 or more characters). This regex
-    follows the `Java regex standard
-    <http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html>`_.
-
-    .. note::
-
-        Use ``delimiter='\\s+'`` to specify whitespace delimited files.
-
-    If set, the `comment` parameter causes Hail to skip any line that starts
-    with the given string(s). For example, passing ``comment='#'`` will skip any
-    line beginning in a pound sign. If the string given is a single character,
-    Hail will skip any line beginning with the character. Otherwise if the
-    length of the string is greater than 1, Hail will interpret the string as a
-    regex and will filter out lines matching the regex. For example, passing
-    ``comment=['#', '^track.*']`` will filter out lines beginning in a pound sign
-    and any lines that match the regex ``'^track.*'``.
-
-    The `missing` parameter defines the representation of missing data in the table.
-
-    .. note::
-
-        The `missing` parameter is **NOT** a regex. The `comment` parameter is
-        treated as a regex **ONLY** if the length of the string is greater than
-        1 (not a single character).
-
-    The `no_header` parameter indicates that the file has no header line. If
-    this option is passed, then the field names will be `f0`, `f1`,
-    ... `fN` (0-indexed).
-
-    The `types` parameter allows the user to pass the types of fields in the
-    table. It is an :obj:`dict` keyed by :class:`str`, with :class:`.HailType` values.
-    See the examples above for a standard usage. Additionally, this option can
-    be used to override type imputation. For example, if the field
-    ``Chromosome`` only contains the values ``1`` through ``22``, it will be
-    imputed to have type :py:data:`.tint32`, whereas most Hail methods expect
-    that a chromosome field will be of type :py:data:`.tstr`. Setting
-    ``impute=True`` and ``types={'Chromosome': hl.tstr}`` solves this problem.
-
-    Parameters
-    ----------
-
-    paths : :class:`str` or :obj:`list` of :obj:`str`
-        Files to import.
-    key : :class:`str` or :obj:`list` of :obj:`str`
-        Key fields(s).
-    min_partitions : :obj:`int` or :obj:`None`
-        Minimum number of partitions.
-    no_header : :obj:`bool`
-        If ``True```, assume the file has no header and name the N fields `f0`,
-        `f1`, ... `fN` (0-indexed).
-    impute : :obj:`bool`
-        If ``True``, Impute field types from the file.
-    comment : :class:`str` or :obj:`list` of :obj:`str`
-        Skip lines beginning with the given string if the string is a single
-        character. Otherwise, skip lines that match the regex specified. Multiple
-        comment characters or patterns should be passed as a list.
-    delimiter : :class:`str`
-        Field delimiter regex.
-    missing : :class:`str` or :obj:`list` [:obj:`str`]
-        Identifier(s) to be treated as missing.
-    types : :obj:`dict` mapping :class:`str` to :class:`.HailType`
-        Dictionary defining field types.
-    quote : :class:`str` or :obj:`None`
-        Quote character.
-    skip_blank_lines : :obj:`bool`
-        If ``True``, ignore empty lines. Otherwise, throw an error if an empty
-        line is found.
-    force_bgz : :obj:`bool`
-        If ``True``, load files as blocked gzip files, assuming
-        that they were actually compressed using the BGZ codec. This option is
-        useful when the file extension is not ``'.bgz'``, but the file is
-        blocked gzip, so that the file can be read in parallel and not on a
-        single node.
-    filter : :class:`str`, optional
-        Line filter regex. A partial match results in the line being removed
-        from the file. Applies before `find_replace`, if both are defined.
-    find_replace : (:class:`str`, :obj:`str`)
-        Line substitution regex. Functions like ``re.sub``, but obeys the exact
-        semantics of Java's
-        `String.replaceAll <https://docs.oracle.com/javase/8/docs/api/java/lang/String.html#replaceAll-java.lang.String-java.lang.String->`__.
-    force : :obj:`bool`
-        If ``True``, load gzipped files serially on one core. This should
-        be used only when absolutely necessary, as processing time will be
-        increased due to lack of parallelism.
-    source_file_field : :class:`str`, optional
-        If defined, the source file name for each line will be a field of the table
-        with this name. Can be useful when importing multiple tables using glob patterns.
-    Returns
-    -------
-    :class:`.Table`
-    """
-    paths = wrap_to_list(paths)
-    comment = wrap_to_list(comment)
-    missing = wrap_to_list(missing)
-
-    tr = ir.TextTableReader(paths, min_partitions, types, comment,
-                            delimiter, missing, no_header, quote,
-                            skip_blank_lines, force_bgz, filter, find_replace,
-                            force, source_file_field)
-    ht = Table(ir.TableRead(tr))
-
-    strs = []
-
-    if impute:
-        fields_to_guess = [f for f in ht.row if f not in types]
-
-        hl.utils.info('Reading table to impute column types')
-        guessed = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg._impute_type(x), [ht[f] for f in fields_to_guess]))
-
-        reasons = {f: 'user-supplied type' for f in types}
-
-        imputed_types = dict()
-        for field, s in zip(fields_to_guess, guessed):
-            if not s['anyNonMissing']:
-                imputed_types[field] = hl.tstr
-                reasons[field] = 'no non-missing observations'
-            else:
-                if s['supportsBool']:
-                    imputed_types[field] = hl.tbool
-                elif s['supportsInt32']:
-                    imputed_types[field] = hl.tint32
-                elif s['supportsInt64']:
-                    imputed_types[field] = hl.tint64
-                elif s['supportsFloat64']:
-                    imputed_types[field] = hl.tfloat64
-                else:
-                    imputed_types[field] = hl.tstr
-                reasons[field] = 'imputed'
-
-        strs.append('Finished type imputation')
-
-        all_types = dict(**types, **imputed_types)
-        for field in ht.row:
-            strs.append(f'  Loading field {field!r} as type {all_types[field]} ({reasons[field]})')
-
-        tr = ir.TextTableReader(paths, min_partitions, all_types, comment,
-                                delimiter, missing, no_header, quote,
-                                skip_blank_lines, force_bgz, filter, find_replace,
-                                force, source_file_field)
-        ht = Table(ir.TableRead(tr))
-
-    else:
-        strs.append('Reading table without type imputation')
-        for field in ht.row:
-            reason = 'user-supplied' if field in types else 'not specified'
-            t = types.get(field, hl.tstr)
-            strs.append(f'  Loading field {field!r} as type {t} ({reason})')
-
-    if len(ht.row) < 30:
-        hl.utils.info('\n'.join(strs))
-    else:
-        from collections import Counter
-        strs2 = [f'Loading {len(ht.row)} fields. Counts by type:']
-        for name, count in Counter(ht[f].dtype for f in ht.row).most_common():
-            strs2.append(f'  {name}: {count}')
-        hl.utils.info('\n'.join(strs2))
-
-    if key:
-        key = wrap_to_list(key)
-        ht = ht.key_by(*key)
-    return ht
-
-@typecheck(paths=oneof(str, sequenceof(str)),
-           key=table_key_type,
-           min_partitions=nullable(int),
-           impute=bool,
-           no_header=bool,
-           comment=oneof(str, sequenceof(str)),
-           delimiter=str,
-           missing=oneof(str, sequenceof(str)),
-           types=dictof(str, hail_type),
-           quote=nullable(char),
-           skip_blank_lines=bool,
-           force_bgz=bool,
-           filter=nullable(str),
-           find_replace=nullable(sized_tupleof(str, str)),
-           force=bool,
-           source_file_field=nullable(str))
-def import_table(paths,
-                 key=None,
-                 min_partitions=None,
-                 impute=False,
-                 no_header=False,
-                 comment=(),
-                 delimiter="\t",
-                 missing="NA",
-                 types={},
-                 quote=None,
-                 skip_blank_lines=False,
-                 force_bgz=False,
-                 filter=None,
-                 find_replace=None,
-                 force=False,
-                 source_file_field=None) -> Table:
-
     if len(delimiter) < 1:
         raise ValueError('import_table: empty delimiter is not supported')
 
     def split_lines(hl_str):
         return hl_str._split_line(delimiter, missing=missing, quote=quote, regex=len(delimiter) > 1)
-
 
     def should_filter_line(hl_str):
         to_filter = hl_str.matches(filter) if filter is not None else hl.bool(False)
@@ -2157,7 +1858,13 @@ def import_matrix_table(paths,
     comment = wrap_to_list(comment)
     paths = wrap_to_list(paths)
     missing_list = wrap_to_list(missing)
-    hl_paths = hl.array(paths)
+
+    def comment_filter(table):
+        return hl.rbind(hl.array(comment),
+                        lambda hl_comment: hl_comment.any(lambda com: hl.if_else(hl.len(com) == 1,
+                                                                                 table.text.startswith(com),
+                                                                                 table.text.matches(com, False)))) \
+            if len(comment) > 0 else False
 
     def truncate(string_array, delim=", ", hl_value=False):
         if not hl_value:
@@ -2173,8 +1880,11 @@ def import_matrix_table(paths,
             if path.endswith(file_name) or file_name.endswith(path):
                 return idx
 
-    def format_file(file_name):
-        return file_name.split('/')[-1]
+    def format_file(file_name, hl_value=False):
+        if hl_value:
+            return hl.str("/").join(file_name.split('/')[-3:])
+        else:
+            return "/" + "/".join(file_name.split('/')[-3:])
 
     def validate_row_fields():
         unique_fields = {}
@@ -2196,33 +1906,33 @@ def import_matrix_table(paths,
                 unique_fields[header_rowf] = True
             header_idx += 1
         if len(duplicates) > 0:
-            raise FatalError(f"Found following duplicate row fields in header:\n" + '\n'.join(dups))
+            raise FatalError(f"Found following duplicate row fields in header:\n" + '\n'.join(duplicates))
 
-    def parse_entries(row, column_ids):
-        num_columns = hl.len(column_ids)
-        entry_array = row.split_array[num_of_row_fields: num_columns + num_of_row_fields]
-        return hl.range(0, num_columns).map(lambda entry_idx: parse_type_or_error(entry_array[entry_idx], entry_type,
-                                                                                  row, column_ids[entry_idx], False))
+    def parse_entries(row):
+        return hl.range(num_of_row_fields, len(header_dict['column_ids']) + num_of_row_fields).map(
+            lambda entry_idx: parse_type_or_error(entry_type, row, entry_idx))
 
     def parse_rows(row):
-        row_array = row.split_array[:num_of_row_fields]
         rows_list = list(row_fields.items())
         return {rows_list[idx][0]:
-                    parse_type_or_error(row_array[idx], rows_list[idx][1], row,
-                                        rows_list[idx][0]) for idx in range(num_of_row_fields)}
+                parse_type_or_error(rows_list[idx][1], row, idx) for idx in range(num_of_row_fields)}
 
     def get_file_start(row):
         first_lines = first_lines_table.collect()
-        file_start_array = hl.array(list(map(lambda line: (line.file, line.idx), first_lines)))
-        match_file_idx = file_start_array.index(lambda line_tuple: line_tuple[0] == row.file)
-        return file_start_array[match_file_idx][1]
+        if first_lines:
+            file_start_array = hl.array(list(map(lambda line: (line.file, line.idx), first_lines)))
+            match_file_idx = file_start_array.index(lambda line_tuple: line_tuple[0] == row.file)
+            return file_start_array[match_file_idx][1]
+        else:
+            return 0
 
-    def error_msg(row, value, msg):
-        return hl.str("in file ") + hl.str(format_file(row.file)) + \
-               hl.str(" on line ") + hl.str(row.row_idx - get_file_start(row)) \
-               + hl.str(" at value ") + hl.str(value) + hl.str(": ") + hl.str(msg)
+    def error_msg(row, idx, msg):
+        return hl.str("in file ") + hl.str(format_file(row.file, True)) + \
+               hl.str(" on line ") + hl.str(row.row_id - get_file_start(row) + 1) + \
+               hl.str(" at value '") + hl.str(row.split_array[idx]) + hl.str("':\n") + hl.str(msg)
 
-    def parse_type_or_error(value, hail_type, row, identifier, row_field=True):
+    def parse_type_or_error(hail_type, row, idx, not_entries=True):
+        value = row.split_array[idx]
         if hail_type == hl.tint32:
             parsed_type = hl.parse_int32(value)
         elif hail_type == hl.tint64:
@@ -2234,15 +1944,19 @@ def import_matrix_table(paths,
         else:
             parsed_type = value
 
-        error_clarify_msg = f" at row field '{identifier}'" if row_field else \
-            f" at column id '{identifier}' for entry field 'x'"
+        if not_entries:
+            error_clarify_msg = hl.str(f" at row field '") + \
+                                       hl.str(hl_row_fields[idx]) + hl.str("'")
+        else:
+            error_clarify_msg = hl.str(f" at column id '") + hl.str(hl_columns[idx - num_of_row_fields]) + \
+                                       hl.str("' for entry field 'x' ")
 
         return hl.if_else(hl.is_missing(value), hl.missing(hail_type),
                           hl.case().when(~hl.is_missing(parsed_type), parsed_type)
-                          .or_error(error_msg(row, value,
-                                              f"error parsing value into {str(hail_type)}" + error_clarify_msg)))
+                          .or_error(error_msg(row, idx, f"error parsing value into {str(hail_type)}" + error_clarify_msg)))
 
     num_of_row_fields = len(row_fields.keys())
+    print(num_of_row_fields)
     add_row_id = False
     if len(row_key) == 0:
         add_row_id = True
@@ -2280,8 +1994,10 @@ def import_matrix_table(paths,
     if missing in delimiter:
         raise FatalError(f"Missing value {missing} contains delimiter {delimiter}")
 
-    ht = import_lines(paths, min_partitions, force_bgz=force_bgz).add_index(name='row_idx')
+    ht = import_lines(paths, min_partitions, force_bgz=force_bgz).add_index(name='row_id')
     file_per_partition = import_lines(paths, force_bgz=force_bgz, file_per_partition=True)
+    file_per_partition = file_per_partition.filter(hl.bool(hl.len(file_per_partition.text) == 0) |
+                                                   comment_filter(file_per_partition), False)
     first_lines_table = file_per_partition._map_partitions(lambda rows: rows[:1])
     first_lines_table = first_lines_table.annotate(split_array=first_lines_table.text.split(delimiter)).add_index()
 
@@ -2289,31 +2005,32 @@ def import_matrix_table(paths,
         def validate_header_get_info_dict():
             two_first_lines = file_per_partition.head(2)
             two_first_lines = two_first_lines.annotate(split_array=two_first_lines.text.split(delimiter)).collect()
-            header_line = two_first_lines[0]
-            first_data_line = two_first_lines[1]
-            num_of_data_line_values = len(first_data_line.split_array)
+            header_line = two_first_lines[0] if len(two_first_lines) > 0 else None
+            first_data_line = two_first_lines[1] if len(two_first_lines) > 1 else None
+            num_of_data_line_values = len(first_data_line.split_array) if len(two_first_lines) > 1 else 0
             num_of_header_values = len(header_line.split_array)
             if header_line is None or match_file_name_to_index(header_line.file) != 0:
                 raise ValueError(f"Expected header in every file but found empty file: {format_file(paths[0])}")
-            elif first_data_line is None or first_data_line.file != header_line.file:
+            elif not first_data_line or first_data_line.file != header_line.file:
                 hl.utils.warning(f"File {format_file(header_line.file)} contains a header, but no lines of data")
                 if num_of_header_values < num_of_data_line_values:
                     raise ValueError(f"File {format_file(header_line.file)} contains one line assumed to be the header."
                                      f"The header had a length of {num_of_header_values} while the number"
                                      f"of row fields is {num_of_row_fields}")
-                user_row_fields = header_line.split_array[num_of_row_fields:]
+                user_row_fields = header_line.split_array[:num_of_row_fields]
                 column_ids = header_line.split_array[num_of_row_fields:]
             elif num_of_data_line_values != num_of_header_values:
                 if num_of_data_line_values == num_of_header_values + num_of_row_fields:
                     user_row_fields = ["f" + str(f_idx) for f_idx in list(range(0, num_of_row_fields))]
                     column_ids = header_line.split_array
                 else:
-                    raise ValueError(f"In file {format_file(header_line)}, expected the header line to match either:\n"
-                                     f"rowField0 rowField1 ... rowField${num_of_row_fields} colId0 colId1 ...\nor\n"
-                                     f" colId0 colId1 ...\nInstead the first two lines were:\nInstead the first two lin"
-                                     f"es were:\n{header_line.text}\n{first_data_line.text}\nThe first line contained"
-                                     f" {num_of_header_values} separated values and the second line"
-                                     f" contained {num_of_data_line_values}")
+                    raise ValueError(
+                        f"In file {format_file(header_line.file)}, expected the header line to match either:\n"
+                        f"rowField0 rowField1 ... rowField${num_of_row_fields} colId0 colId1 ...\nor\n"
+                        f" colId0 colId1 ...\nInstead the first two lines were:\nInstead the first two lin"
+                        f"es were:\n{header_line.text}\n{first_data_line.text}\nThe first line contained"
+                        f" {num_of_header_values} separated values and the second line"
+                        f" contained {num_of_data_line_values}")
             else:
                 user_row_fields = header_line.split_array[:num_of_row_fields]
                 column_ids = header_line.split_array[num_of_row_fields:]
@@ -2349,7 +2066,7 @@ def import_matrix_table(paths,
             non_match_idx = zipped_headers.index(lambda header_tuple: header_tuple[0] != header_tuple[1])
             return (hl.str("Invalid header: expected elements to be identical for all input paths. Found different"
                            " elements at position ") + hl.str(non_match_idx) +
-                    hl.str(f"\n in file {format_file(error_header_path)} with value ") +
+                    hl.str(f"\n in file {format_file(error_header_path, True)} with value ") +
                     hl.str(zipped_headers[non_match_idx][1]) + hl.str("when expecting value") +
                     hl.str((zipped_headers[non_match_idx][0])))
 
@@ -2363,7 +2080,7 @@ def import_matrix_table(paths,
                                header_same_len_dif_elem_error(split_header, all_headers.file))
                          .default(hl.str(f"invalid header: lengths of headers differ." +
                                          f"\n{len(header_dict['header_values'])} elements in "
-                                         f"{format_file(header_dict['path'])}\n" +
+                                         f"{format_file(header_dict['path'], True)}\n" +
                                          f"{truncate(header_dict['header_values'])}")
                                   + hl.str(hl.len(split_header)) + hl.str("elements in")
                                   + all_headers.file + hl.str("\n") +
@@ -2376,16 +2093,16 @@ def import_matrix_table(paths,
         validate_all_headers()
 
     else:
-        first_line = ht.head(1)
-        first_line = first_line.annotate(split_array=first_line.text.split(delimiter)).collect()[0]
-        if first_line is None or match_file_name_to_index(first_line.file) != 0:
+        first_line = first_lines_table.head(1).collect()
+        if not first_line or match_file_name_to_index(first_line[0].file) != 0:
             hl.utils.warning(
-                f"File {format_file(first_line.file)} is empty and has no header, so we assume no columns")
+                f"File {format_file(paths[0])} is empty and has no header, so we assume no columns")
             header_dict = {'header_values': [],
                            'row_fields': ["f" + str(f_idx) for f_idx in list(range(0, num_of_row_fields))],
                            'column_ids': []
                            }
         else:
+            first_line = first_line[0]
             header_dict = {'header_values': [],
                            'row_fields': ["f" + str(f_idx) for f_idx in list(range(0, num_of_row_fields))],
                            'column_ids':
@@ -2393,33 +2110,35 @@ def import_matrix_table(paths,
                            }
 
     validate_row_fields()
-    comment_filter = hl.rbind(hl.array(comment), lambda hl_comment:
-                              hl_comment.any(lambda com: hl.if_else(hl.len(com) == 1, ht.text.startswith(com),
-                                                                    ht.text.matches(com, False))))\
-        if len(comment) > 0 else False
     header_filter = ht.text == header_dict['text'] if not no_header else False
 
-    ht = ht.filter(hl.bool(hl.len(ht.text) == 0) | comment_filter | header_filter, False)
+    ht = ht.filter(hl.bool(hl.len(ht.text) == 0) | comment_filter(ht) | header_filter, False)
 
     hl_columns = hl.array(header_dict['column_ids']) if len(header_dict['column_ids']) > 0 else hl.empty_array(hl.tstr)
-    ht = ht.annotate(split_array=ht.text._split_line(delimiter, missing_list, quote=None, regex=False)).add_index('row_id')
-    ht = ht.annotate(text=hl.rbind(
-        hl.if_else(hl.len(ht.split_array) < num_of_row_fields,
-                   error_msg(ht, hl.len(ht.split_array), " unexpected end of line while reading row field"),
-                   hl.if_else(
-                       len(header_dict['column_ids']) >
-                       hl.len(ht.split_array[num_of_row_fields: num_of_row_fields + len(header_dict['column_ids'])]),
-                       error_msg(ht, hl.len(ht.split_array), " unexpected end of line while reading entries"),
-                       ht.text)), lambda text_or_error: hl.case().when(text_or_error == ht.text, ht.text)
-            .or_error(text_or_error)), **parse_rows(ht),
-        entries=parse_entries(ht, hl_columns).map(lambda entry: hl.struct(x=entry))) \
+    hl_row_fields = hl.array(header_dict['row_fields']) if len(header_dict['row_fields']) > 0\
+        else hl.empty_array(hl.tstr)
+    ht = ht.annotate(split_array=ht.text._split_line(delimiter, missing_list, quote=None, regex=False)).add_index(
+        'row_id')
+
+    ht = ht.annotate(split_array=hl.case().when(hl.len(ht.split_array) >= num_of_row_fields, ht.split_array)
+                     .or_error(error_msg(ht, hl.len(ht.split_array) - 1,
+                                         " unexpected end of line while reading row field")))
+    ht = ht.annotate(split_array=hl.case().when(len(header_dict['column_ids']) <=
+                                                hl.len(ht.split_array[num_of_row_fields: num_of_row_fields +
+                                                                      len(header_dict['column_ids'])]), ht.split_array)
+                     .or_error(error_msg(ht, hl.len(ht.split_array) - 1, " unexpected end of line while reading entries")))
+
+    ht = ht.annotate(**parse_rows(ht), entries=parse_entries(ht).map(lambda entry: hl.struct(x=entry))) \
         .drop('text', 'split_array', 'file')
 
     ht = ht.annotate_globals(cols=hl.range(0, len(header_dict['column_ids']))
                              .map(lambda col_idx: hl.struct(col_id=hl_columns[col_idx])))
+    a = ht.collect()
+    c = list(map(lambda x: x.entries, a))
+    print(c)
 
     if not add_row_id:
-        ht = ht.drop('row_idx')
+        ht = ht.drop('row_id')
 
     mt = ht._unlocalize_entries('entries', 'cols', ['col_id'])
     mt = mt.key_rows_by(*row_key)
