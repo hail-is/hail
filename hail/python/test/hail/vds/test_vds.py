@@ -99,6 +99,6 @@ def test_combiner_works():
             for mt in hl.import_gvcfs(paths, parts, reference_genome='GRCh38',
                                       array_elements_required=False)]
     comb = combine_varant_datasets(vcfs)
-    self.assertEqual(len(parts), comb.variant_data.n_partitions())
+    assert len(parts) == comb.variant_data.n_partitions()
     vds_path = new_temp_file()
     comb.write(vds_path)
