@@ -143,18 +143,18 @@ def pc_relate_bm(call_expr: CallExpression,
     allele frequency filter of 0.01 and 10 principal components to control
     for population structure.
 
-    >>> rel = hl.pc_relate_bm(dataset.GT, 0.01, k=10)
+    >>> rel = hl.pc_relate_bm(dataset.GT, 0.01, k=10) # doctest: +SKIP
 
     Only compute the kinship statistic. This is more efficient than
     computing all statistics.
 
-    >>> rel = hl.pc_relate_bm(dataset.GT, 0.01, k=10, statistics='kin')
+    >>> rel = hl.pc_relate_bm(dataset.GT, 0.01, k=10, statistics='kin') # doctest: +SKIP
 
     Compute all statistics, excluding sample-pairs with kinship less
     than 0.1. This is more efficient than producing the full table and
     then filtering using :meth:`.Table.filter`.
 
-    >>> rel = hl.pc_relate_bm(dataset.GT, 0.01, k=10, min_kinship=0.1)
+    >>> rel = hl.pc_relate_bm(dataset.GT, 0.01, k=10, min_kinship=0.1) # doctest: +SKIP
 
     One can also pass in pre-computed principal component scores.
     To produce the same results as in the previous example:
@@ -165,7 +165,7 @@ def pc_relate_bm(call_expr: CallExpression,
     >>> rel = hl.pc_relate_bm(dataset.GT,
     ...                       0.01,
     ...                       scores_expr=scores_table[dataset.col_key].scores,
-    ...                       min_kinship=0.1)
+    ...                       min_kinship=0.1) # doctest: +SKIP
 
     Notes
     -----
