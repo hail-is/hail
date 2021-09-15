@@ -1,7 +1,6 @@
 import os
-from typing import Tuple, Any, Set, Optional, MutableMapping, Dict, AsyncIterator, cast, Type, Iterator, List
+from typing import Tuple, Any, Set, Optional, MutableMapping, Dict, AsyncIterator, cast, Type, List
 from types import TracebackType
-import collections
 from multidict import CIMultiDictProxy  # pylint: disable=unused-import
 import sys
 import logging
@@ -13,7 +12,7 @@ from hailtop.utils import (
     TransientError, retry_transient_errors)
 from hailtop.aiotools import (
     FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS,
-    FeedableAsyncIterable, FileAndDirectoryError, MultiPartCreate, UnexpectedEOFError)
+    FeedableAsyncIterable, FileAndDirectoryError, MultiPartCreate, UnexpectedEOFError, WriteBuffer)
 
 from hailtop.aiogoogle.auth import BaseSession
 from .base_client import BaseClient
@@ -70,73 +69,6 @@ class InsertObjectStream(WritableStream):
             self._value = await resp.json()
 
 
-class _WriteBuffer:
-    def __init__(self):
-        """Long writes that might fail need to be broken into smaller chunks
-        that can be retried.  _WriteBuffer stores data at the end of
-        the write stream that has not been committed and may be needed
-        to retry the failed write of a chunk."""
-        self._buffers = collections.deque()
-        self._offset = 0
-        self._size = 0
-        self._iterating = False
-
-    def append(self, b: bytes):
-        """`b` can be any length"""
-        self._buffers.append(b)
-        self._size += len(b)
-
-    def size(self) -> int:
-        """Return the total number of bytes stored in the write buffer.  This
-        is the sum of the length of the bytes in `_buffers`."""
-        return self._size
-
-    def offset(self) -> int:
-        """Return the offset in the write stream of the first byte in the
-        write buffer."""
-        return self._offset
-
-    def advance_offset(self, new_offset: int):
-        """Inform the write buffer that bytes before `new_offset` have been
-        committed and can be discarded.  After calling advance_offset,
-        `self.offset() == new_offset`."""
-        assert not self._iterating
-        assert new_offset <= self._offset + self._size
-        while self._buffers and new_offset >= self._offset + len(self._buffers[0]):
-            b = self._buffers.popleft()
-            n = len(b)
-            self._offset += n
-            self._size -= n
-        if new_offset > self._offset:
-            n = new_offset - self._offset
-            b = self._buffers[0]
-            assert n < len(b)
-            b = b[n:]
-            self._buffers[0] = b
-            self._offset += n
-            self._size -= n
-        assert self._offset == new_offset
-
-    def chunks(self, chunk_size: int) -> Iterator[bytes]:
-        """Return an iterator that yields bytes whose total size is
-        `chunk_size` from the beginning of the write buffer."""
-        assert not self._iterating
-        self._iterating = True
-        remaining = chunk_size
-        i = 0
-        while remaining > 0:
-            b = self._buffers[i]
-            n = len(b)
-            if n <= remaining:
-                yield b
-                remaining -= n
-                i += 1
-            else:
-                yield b[:remaining]
-                break
-        self._iterating = False
-
-
 class _TaskManager:
     def __init__(self, coro):
         self._coro = coro
@@ -168,7 +100,7 @@ class ResumableInsertObjectStream(WritableStream):
         super().__init__()
         self._session = session
         self._session_url = session_url
-        self._write_buffer = _WriteBuffer()
+        self._write_buffer = WriteBuffer()
         self._broken = False
         self._done = False
         self._chunk_size = chunk_size
@@ -606,31 +538,7 @@ class GoogleStorageAsyncFS(AsyncFS):
         return GoogleStorageMultiPartCreate(sema, self, url, num_parts)
 
     async def staturl(self, url: str) -> str:
-        assert not url.endswith('/')
-
-        async def with_exception(f, *args, **kwargs):
-            try:
-                return (await f(*args, **kwargs)), None
-            except Exception as e:
-                return None, e
-
-        [(is_file, isfile_exc), (is_dir, isdir_exc)] = await asyncio.gather(
-            with_exception(self.isfile, url), with_exception(self.isdir, url + '/'))
-        # raise exception deterministically
-        if isfile_exc:
-            raise isfile_exc
-        if isdir_exc:
-            raise isdir_exc
-
-        if is_file:
-            if is_dir:
-                raise FileAndDirectoryError(url)
-            return AsyncFS.FILE
-
-        if is_dir:
-            return AsyncFS.DIR
-
-        raise FileNotFoundError(url)
+        return await self._staturl_parallel_isfile_isdir(url)
 
     async def mkdir(self, url: str) -> None:
         pass
