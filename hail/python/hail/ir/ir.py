@@ -1906,8 +1906,8 @@ class AggFold(IR):
 
     def _compute_type(self, env, agg_env):
         self.zero._compute_type(env, agg_env)
-        self.seq_op._compute_type(_env_bind(env, self.bindings(1)), agg_env)
-        self.comb_op._compute_type(_env_bind(env, self.bindings(2)), agg_env)
+        self.seq_op._compute_type(_env_bind(agg_env, self.bindings(1)), None)
+        self.comb_op._compute_type(_env_bind(agg_env, self.bindings(2)), None)
 
         assert self.zero._type == self.seq_op._type
         assert self.zero._type == self.comb_op._type

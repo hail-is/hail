@@ -25,11 +25,13 @@ class FoldAggregator(val initOpTypes: Seq[Type], val seqOpTypes: Seq[Type], val 
 
     val stateEV = state.get(cb).memoize(cb, "fold_agg_comb_op_state")
     val otherEV = other.get(cb).memoize(cb, "fold_agg_comb_op_other")
+    val env = EmitEnv(Env.apply((accumName, stateEV), (otherAccumName, otherEV)), IndexedSeq())
+    val pEnv = Env.apply((accumName, stateEV.st.storageType()), (otherAccumName, otherEV.st.storageType()))
+
 
     // What if stuff is let bound in there from outside of the combop? Invalid, figure out where to catch that (TypeCheck probably).
-    val emitCtx = EmitContext.analyze(ctx, combOpIR)
+    val emitCtx = EmitContext.analyze(ctx, combOpIR, true, pEnv)
     val emit = new Emit[Any](emitCtx, cb.emb.ecb.asInstanceOf[EmitClassBuilder[Any]])
-    val env = EmitEnv(Env.apply((accumName, stateEV), ("otherAccumName", otherEV)), IndexedSeq())
     val ec = emit.emit(combOpIR, cb.emb.asInstanceOf[EmitMethodBuilder[Any]], env, None)
     ec.toI(cb).consume(cb, cb._fatal("Haven't thought through yet"), sc => state.storeNonmissing(cb, sc))
   }

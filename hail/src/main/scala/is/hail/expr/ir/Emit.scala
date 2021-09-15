@@ -26,10 +26,13 @@ import scala.language.{existentials, postfixOps}
 
 // class for holding all information computed ahead-of-time that we need in the emitter
 object EmitContext {
-  def analyze(ctx: ExecuteContext, ir: IR): EmitContext = {
+  def analyze(ctx: ExecuteContext, ir: IR, shouldPrint: Boolean=false, pTypeEnv: Env[PType] = Env.empty): EmitContext = {
+    val printSpecial = { (x: String) => if (shouldPrint) println(x) }
     ctx.timer.time("EmitContext.analyze") {
+      printSpecial(s"Analyzing IR: \n ${Pretty(ir)}")
       val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
-      val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
+      printSpecial(s"Uses and defs were: ${usesAndDefs}")
+      val requiredness = Requiredness.apply(ir, usesAndDefs, null, pTypeEnv) // Value IR inference doesn't need context
       val inLoopCriticalPath = ControlFlowPreventsSplit(ir, ParentPointers(ir), usesAndDefs)
       val methodSplits = ComputeMethodSplits(ir,inLoopCriticalPath)
       new EmitContext(ctx, requiredness, usesAndDefs, methodSplits, inLoopCriticalPath, Memo.empty[Unit])

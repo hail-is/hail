@@ -12,6 +12,7 @@ import is.hail.utils.{FastIndexedSeq, FastSeq}
 import is.hail.variant.Call2
 import is.hail.utils._
 import is.hail.expr.ir.IRBuilder._
+import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
 import org.apache.spark.sql.Row
 
 class AggregatorsSuite extends HailSuite {
@@ -811,5 +812,13 @@ class AggregatorsSuite extends HailSuite {
       AggFold(I32(0), Ref("bar", TInt32) + GetField(Ref("foo", TStruct("idx" -> TInt32)), "idx"), barRef + bazRef, "bar", "baz")
     )
     assertEvalsTo(myIR, 4950)
+
+    val myTableIR = TableAggregate(TableRange(100, 5),
+      AggFold(I32(0), Ref("bar", TInt32) + GetField(Ref("row", TStruct("idx" -> TInt32)), "idx"), barRef + bazRef, "bar", "baz")
+    )
+
+    val reqAnalysis = Requiredness.apply(myTableIR, ctx)
+    val myLoweredTableIR = LowerTableIR(myTableIR, DArrayLowering.All, ctx, reqAnalysis, Map())
+    assertEvalsTo(myLoweredTableIR, 4950)
   }
 }
