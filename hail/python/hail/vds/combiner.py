@@ -194,7 +194,8 @@ def combine_r(ts):
                     hl.if_else(hl.is_missing(row.data[i]),
                                hl.range(0, hl.len(gbl.g[i].__cols))
                                .map(lambda _: hl.missing(row.data[i].__entries.dtype.element_type)),
-                               row.data[i].__entries))))
+                               row.data[i].__entries))),
+            ts.row.dtype, ts.globals.dtype)
         _merge_function_map[(ts.row.dtype, ts.globals.dtype)] = f
     merge_function = _merge_function_map[(ts.row.dtype, ts.globals.dtype)]
     ts = Table(TableMapRows(ts._tir, Apply(merge_function._name,
