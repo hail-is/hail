@@ -839,18 +839,14 @@ class Container:
         if self.container_is_running():
             try:
                 log.info(f'{self} container is still running, killing crun process')
-
                 try:
                     await check_exec_output('crun', 'state', self.container_name)
+                    await check_exec_output('crun', 'kill', '--all', self.container_name, 'SIGKILL')
                 except CalledProcessError:
-                    log.info(f'container {self} cannot be killed because it does not exist', exc_info=True)
-                else:
-                    try:
-                        await check_exec_output('crun', 'kill', '--all', self.container_name, 'SIGKILL')
-                    except CalledProcessError:
-                        log.info(f'while trying to kill {self}', exc_info=True)
-                        self.process.terminate()
+                    log.info(f'could not delete container {self} because it does not exist', exc_info=True)
                 finally:
+                    self.process.kill()
+                    await asyncio.wait_for(self.process.wait(), timeout=0)
                     self.process = None
             except asyncio.CancelledError:
                 raise
