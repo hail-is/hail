@@ -78,7 +78,7 @@ def test_sampleqc_old_new_equivalence():
 @fails_local_backend
 @fails_service_backend
 def test_combiner_works():
-    from hail.vds.combiner import combine_varant_datasets, transform_gvcf
+    from hail.vds.combiner import combine_variant_datasets, transform_gvcf
     _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
     paths = [resource(p) for p in _paths]
     parts = [
@@ -98,7 +98,7 @@ def test_combiner_works():
         QUALapprox=hl.missing(hl.tint32))))
             for mt in hl.import_gvcfs(paths, parts, reference_genome='GRCh38',
                                       array_elements_required=False)]
-    comb = combine_varant_datasets(vcfs)
+    comb = combine_variant_datasets(vcfs)
     assert len(parts) == comb.variant_data.n_partitions()
     vds_path = new_temp_file()
     comb.write(vds_path)

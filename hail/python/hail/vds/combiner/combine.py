@@ -4,8 +4,8 @@ import hail as hl
 from hail import MatrixTable, Table
 from hail.ir import Apply, TableMapRows, TopLevelReference
 from hail.typecheck import nullable, sequenceof, typecheck
-from .variant_dataset import VariantDataset
 from hail.experimental.vcf_combiner.vcf_combiner import combine_gvcfs, localize, parse_as_fields, unlocalize
+from ..variant_dataset import VariantDataset
 
 _transform_variant_function_map = {}
 _transform_reference_fuction_map = {}
@@ -211,7 +211,7 @@ def combine_references(mts: List[MatrixTable]) -> MatrixTable:
     return unlocalize(combined)
 
 
-def combine_varant_datasets(vdss: List[VariantDataset]) -> VariantDataset:
+def combine_variant_datasets(vdss: List[VariantDataset]) -> VariantDataset:
     reference = combine_references([vds.reference_data for vds in vdss])
     variants = combine_gvcfs([vds.variant_data for vds in vdss])
     return VariantDataset(reference, variants)
