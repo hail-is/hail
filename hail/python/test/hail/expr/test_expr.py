@@ -482,6 +482,9 @@ class Tests(unittest.TestCase):
         expected = {'rabbit': 0.0, 'cat': 2.0, 'dog': 3.0, None: 3.0}
         assert actual == expected
 
+    def test_agg_fold(self):
+        ht = hl.utils.range_table(100, 5)
+        self.assertEqual(ht.aggregate(hl.agg.fold(0, lambda x: x + ht.idx, lambda a, b: a + b)), 4950)
 
     def test_agg_filter(self):
         t = hl.utils.range_table(10)
