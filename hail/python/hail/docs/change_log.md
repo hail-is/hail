@@ -24,6 +24,17 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.76
+
+Released 2021-09-15
+
+### Bug fixes
+
+- (hail#10872) Fix long compile times or method size errors when writing tables with many partitions
+- (hail#10878) Fix crash importing or sorting tables with empty data partitions
+
+---
+
 ## Version 0.2.75
 
 Released 2021-09-10
