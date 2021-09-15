@@ -805,10 +805,11 @@ class AggregatorsSuite extends HailSuite {
   }
 
   @Test def testFold(): Unit = {
+    val barRef = Ref("bar", TInt32)
+    val bazRef = Ref("baz", TInt32)
     val myIR = StreamAgg(mapIR(rangeIR(100)){ idx => makestruct(("idx", idx))}, "foo",
-      AggFold(I32(0), Ref("bar", TInt32) + GetField(Ref("foo", TStruct("idx" -> TInt32)), "idx"), "bar")
+      AggFold(I32(0), Ref("bar", TInt32) + GetField(Ref("foo", TStruct("idx" -> TInt32)), "idx"), barRef + bazRef, "bar", "baz")
     )
-    TypeCheck(myIR)
-    assertEvalsTo(myIR, null)
+    assertEvalsTo(myIR, 4950)
   }
 }

@@ -72,6 +72,10 @@ object AggStateSig {
     case NDArraySumStateSig(nda) => new TypedRegionBackedAggState(nda, cb)
     case NDArrayMultiplyAddStateSig(nda) =>
       new TypedRegionBackedAggState(nda, cb)
+    case FoldStateSig(initOpArgs, seqOpArgs, resultPType, accumName, otherAccumName, combOpIR, r) => {
+      val vWithReq = VirtualTypeWithReq(resultPType)
+      new TypedRegionBackedAggState(vWithReq, cb)
+    }
     case LinearRegressionStateSig() => new LinearRegressionAggregatorState(cb)
   }
 }
@@ -407,7 +411,7 @@ object Extract {
           val signature = PhysicalAggSig(op, foldStateSig)
           ab += InitOp(i, initOpArgs, signature) -> signature
           // So seqOp has to be able to reference accumName.
-          val seqWithLet = Let(accumName, ResultOp(i, IndexedSeq(signature)), SeqOp(i, seqOpArgs, signature))
+          val seqWithLet = Let(accumName, GetTupleElement(ResultOp(i, IndexedSeq(signature)), 0), SeqOp(i, seqOpArgs, signature))
           seqBuilder += seqWithLet
           i
         })

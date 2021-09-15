@@ -87,7 +87,11 @@ object TypeCheck {
         assert(x.typ == body.typ)
       case x@Ref(name, _) =>
         val expected = env.eval.lookup(name)
-        assert(x.typ == expected, s"type mismatch:\n  name: $name\n  actual: ${ x.typ.parsableString() }\n  expect: ${ expected.parsableString() }")
+        if (x.typ != expected) {
+          println("Oops")
+        }
+        assert(x.typ == expected,
+          s"type mismatch:\n  name: $name\n  actual: ${ x.typ.parsableString() }\n  expect: ${ expected.parsableString() }")
       case RelationalRef(name, t) =>
         env.relational.lookupOption(name) match {
           case Some(t2) =>

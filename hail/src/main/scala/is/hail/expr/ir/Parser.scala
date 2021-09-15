@@ -1196,14 +1196,13 @@ object IRParser {
           aggSig = AggSignature(aggOp, initOpArgs.map(arg => arg.typ), seqOpArgs.map(arg => arg.typ))
         } yield ApplyScanOp(initOpArgs, seqOpArgs, aggSig)
       case "AggFold" =>
-        val aggOp = Fold()
         val accumName = identifier(it)
         val otherAccumName = identifier(it)
         for {
-          initOp <- ir_value_expr(env)(it)
-          seqOp <- ir_value_expr(env)(it)
-          combOp <- ir_value_expr(env)(it)
-        } yield AggFold(initOp, seqOp, combOp, accumName, otherAccumName)
+          zero <- ir_value_expr(env)(it)
+          seqOp <- ir_value_expr(env + (accumName -> zero.typ))(it)
+          combOp <- ir_value_expr(env + (accumName -> zero.typ) + (otherAccumName -> zero.typ))(it)
+        } yield AggFold(zero, seqOp, combOp, accumName, otherAccumName)
       case "InitOp" =>
         val i = int32_literal(it)
         val aggSig = p_agg_sig(env.typEnv)(it)
