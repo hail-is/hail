@@ -20,17 +20,17 @@ trait BTreeKey {
 
   def deepCopy(cb: EmitCodeBuilder, er: EmitRegion, src: Code[Long], dest: Code[Long]): Unit
 
-  def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int]
+  def compKeys(cb: EmitCodeBuilder, k1: EmitValue, k2: EmitValue): Value[Int]
 
-  def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitCode
+  def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitValue
 
-  def compSame(cb: EmitCodeBuilder, offc: Code[Long], otherc: Code[Long]): Code[Int] = {
+  def compSame(cb: EmitCodeBuilder, offc: Code[Long], otherc: Code[Long]): Value[Int] = {
     val off = cb.newLocal[Long]("btk_comp_same_off", offc)
     val other = cb.newLocal[Long]("btk_comp_same_other", otherc)
     compKeys(cb, loadCompKey(cb, off), loadCompKey(cb, other))
   }
 
-  def compWithKey(cb: EmitCodeBuilder, offc: Code[Long], k: EmitCode): Code[Int] = {
+  def compWithKey(cb: EmitCodeBuilder, offc: Code[Long], k: EmitValue): Value[Int] = {
     val off = cb.newLocal[Long]("btk_comp_with_key_off", offc)
     compKeys(cb, loadCompKey(cb, off), k)
   }

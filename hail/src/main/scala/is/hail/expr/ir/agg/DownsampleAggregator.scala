@@ -3,7 +3,7 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitRegion, IEmitCode, ParamType}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitRegion, EmitValue, IEmitCode, ParamType}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.encoded.EType
@@ -16,31 +16,32 @@ import is.hail.utils._
 
 
 class DownsampleBTreeKey(binType: PBaseStruct, pointType: PBaseStruct, kb: EmitClassBuilder[_], region: Code[Region]) extends BTreeKey {
-  val storageType: PCanonicalStruct = PCanonicalStruct(required = true,
+  override val storageType: PCanonicalStruct = PCanonicalStruct(required = true,
     "bin" -> binType,
     "point" -> pointType,
     "empty" -> PBooleanRequired)
 
-  val compType: PType = binType
+  override val compType: PType = binType
   private val kcomp = kb.getOrderingFunction(binType.sType, CodeOrdering.Compare())
 
-  def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Code[Boolean] = PBooleanRequired.loadCheapSCode(cb, storageType.loadField(off, "empty")).boolCode(cb)
+  override def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Code[Boolean] = PBooleanRequired.loadCheapSCode(cb, storageType.loadField(off, "empty")).boolCode(cb)
 
-  def initializeEmpty(cb: EmitCodeBuilder, off: Code[Long]): Unit = cb += Region.storeBoolean(storageType.fieldOffset(off, "empty"), true)
+  override def initializeEmpty(cb: EmitCodeBuilder, off: Code[Long]): Unit = cb += Region.storeBoolean(storageType.fieldOffset(off, "empty"), true)
 
-  def copy(cb: EmitCodeBuilder, src: Code[Long], dest: Code[Long]): Unit = cb += Region.copyFrom(src, dest, storageType.byteSize)
+  override def copy(cb: EmitCodeBuilder, src: Code[Long], dest: Code[Long]): Unit = cb += Region.copyFrom(src, dest, storageType.byteSize)
 
-  def deepCopy(cb: EmitCodeBuilder, er: EmitRegion, srcc: Code[Long], dest: Code[Long]): Unit = {
+  override def deepCopy(cb: EmitCodeBuilder, er: EmitRegion, srcc: Code[Long], dest: Code[Long]): Unit = {
     val src = cb.newLocal[Long]("dsa_deep_copy_src", srcc)
     cb.ifx(Region.loadBoolean(storageType.loadField(src, "empty")),
       cb += Code._fatal[Unit]("key empty!"))
     storageType.storeAtAddress(cb, dest, er.region, storageType.loadCheapSCode(cb, src), deepCopy = true)
   }
 
-  def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = kcomp(cb, k1, k2)
+  override def compKeys(cb: EmitCodeBuilder, k1: EmitValue, k2: EmitValue): Value[Int] =
+    kcomp(cb, k1, k2)
 
-  def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitCode =
-    EmitCode.present(cb.emb, binType.loadCheapSCode(cb, storageType.loadField(off, "bin")))
+  override def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitValue =
+    EmitValue.present(binType.loadCheapSCode(cb, storageType.loadField(off, "bin")))
 }
 
 

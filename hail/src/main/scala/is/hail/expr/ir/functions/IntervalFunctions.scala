@@ -69,14 +69,14 @@ object IntervalFunctions extends RegistryFunctions {
     }) {
       case (cb, r, rt, _, int, point) =>
         int.toI(cb).map(cb) { case interval: SIntervalValue =>
-          val pointv = cb.memoize(point.toI(cb), "point")
+          val pointv = cb.memoize(point, "point")
           val compare = cb.emb.ecb.getOrderingFunction(pointv.st, interval.st.pointType, CodeOrdering.Compare())
 
-          val start = EmitCode.fromI(cb.emb)(cb => interval.loadStart(cb))
+          val start = cb.memoize(interval.loadStart(cb))
           val cmp = cb.newLocal("cmp", compare(cb, pointv, start))
           val contains = cb.newLocal[Boolean]("contains", false)
           cb.ifx(cmp > 0 || (cmp.ceq(0) && interval.includesStart()), {
-            val end = EmitCode.fromI(cb.emb)(cb => interval.loadEnd(cb))
+            val end = cb.memoize(interval.loadEnd(cb))
             cb.assign(cmp, compare(cb, pointv, end))
             cb.assign(contains, cmp < 0 || (cmp.ceq(0) && interval.includesEnd()))
           })
@@ -95,15 +95,15 @@ object IntervalFunctions extends RegistryFunctions {
         val compare = cb.emb.ecb.getOrderingFunction(interval1.st.pointType, interval2.st.pointType, CodeOrdering.Compare())
 
         def isAboveOnNonempty(cb: EmitCodeBuilder, lhs: SIntervalValue, rhs: SIntervalValue): Code[Boolean] = {
-          val start = EmitCode.fromI(cb.emb)(cb => lhs.loadStart(cb))
-          val end = EmitCode.fromI(cb.emb)(cb => rhs.loadEnd(cb))
+          val start = cb.memoize(lhs.loadStart(cb))
+          val end = cb.memoize(rhs.loadEnd(cb))
           val cmp = cb.newLocal("cmp", compare(cb, start, end))
           cmp > 0 || (cmp.ceq(0) && (!lhs.includesStart() || !rhs.includesEnd()))
         }
 
         def isBelowOnNonempty(cb: EmitCodeBuilder, lhs: SIntervalValue, rhs: SIntervalValue): Code[Boolean] = {
-          val end = EmitCode.fromI(cb.emb)(cb => lhs.loadEnd(cb))
-          val start = EmitCode.fromI(cb.emb)(cb => rhs.loadStart(cb))
+          val end = cb.memoize(lhs.loadEnd(cb))
+          val start = cb.memoize(rhs.loadStart(cb))
           val cmp = cb.newLocal("cmp", compare(cb, end, start))
           cmp < 0 || (cmp.ceq(0) && (!lhs.includesEnd() || !rhs.includesStart()))
         }
@@ -135,8 +135,8 @@ object IntervalFunctions extends RegistryFunctions {
         val c = cb.newLocal[Int]("partitionInterval_c", 0)
         (0 until left.st.size).foreach { idx =>
           cb.ifx(c.ceq(0) && const(idx) < leftLen, {
-            val leftField = EmitCode.fromI(cb.emb)(cb => left.loadField(cb, idx))
-            val pointField = EmitCode.fromI(cb.emb)(cb => point.loadField(cb, idx))
+            val leftField = cb.memoize(left.loadField(cb, idx))
+            val pointField = cb.memoize(point.loadField(cb, idx))
             cb.assign(c, cb.emb.ecb.getOrderingFunction(leftField.st, pointField.st, CodeOrdering.Compare())
               .apply(cb, leftField, pointField))
           })
@@ -158,8 +158,8 @@ object IntervalFunctions extends RegistryFunctions {
         val c = cb.newLocal[Int]("partitionInterval_c", 0)
         (0 until right.st.size).foreach { idx =>
           cb.ifx(c.ceq(0) && const(idx) < rightLen, {
-            val rightField = EmitCode.fromI(cb.emb)(cb => right.loadField(cb, idx))
-            val pointField = EmitCode.fromI(cb.emb)(cb => point.loadField(cb, idx))
+            val rightField = cb.memoize(right.loadField(cb, idx))
+            val pointField = cb.memoize(point.loadField(cb, idx))
             cb.assign(c, cb.emb.ecb.getOrderingFunction(rightField.st, pointField.st, CodeOrdering.Compare())
               .apply(cb, rightField, pointField))
           })
@@ -187,8 +187,8 @@ object IntervalFunctions extends RegistryFunctions {
 
         (0 until left.st.size).foreach { idx =>
           cb.ifx(c.ceq(0) && const(idx) < leftLen, {
-            val leftField = EmitCode.fromI(cb.emb)(cb => left.loadField(cb, idx))
-            val pointField = EmitCode.fromI(cb.emb)(cb => point.loadField(cb, idx))
+            val leftField = cb.memoize(left.loadField(cb, idx))
+            val pointField = cb.memoize(point.loadField(cb, idx))
             cb.assign(c, cb.emb.ecb.getOrderingFunction(leftField.st, pointField.st, CodeOrdering.Compare())
               .apply(cb, leftField, pointField))
           })
@@ -209,8 +209,8 @@ object IntervalFunctions extends RegistryFunctions {
           cb.assign(c, 0)
           (0 until right.st.size).foreach { idx =>
             cb.ifx(c.ceq(0) && const(idx) < rightLen, {
-              val rightField = EmitCode.fromI(cb.emb)(cb => right.loadField(cb, idx))
-              val pointField = EmitCode.fromI(cb.emb)(cb => point.loadField(cb, idx))
+              val rightField = cb.memoize(right.loadField(cb, idx))
+              val pointField = cb.memoize(point.loadField(cb, idx))
               cb.assign(c, cb.emb.ecb.getOrderingFunction(rightField.st, pointField.st, CodeOrdering.Compare())
                 .apply(cb, rightField, pointField))
             })

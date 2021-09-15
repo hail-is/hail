@@ -1,9 +1,9 @@
 package is.hail.expr.ir.orderings
 
-import is.hail.asm4s.Code
+import is.hail.asm4s.{Code, Value}
 import is.hail.expr.ir.{EmitClassBuilder, EmitCodeBuilder}
-import is.hail.types.physical.stypes.{SCode, SType}
 import is.hail.types.physical.stypes.interfaces.SCall
+import is.hail.types.physical.stypes.{SType, SValue}
 
 object CallOrdering {
   def make(t1: SCall, t2: SCall, ecb: EmitClassBuilder[_]): CodeOrdering = {
@@ -14,9 +14,9 @@ object CallOrdering {
       override val type1: SType = t1
       override val type2: SType = t2
 
-      override def _compareNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Int] = {
-        Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare",
-          x.asCall.loadCanonicalRepresentation(cb), y.asCall.loadCanonicalRepresentation(cb))
+      override def _compareNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Int] = {
+        cb.memoize(Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare",
+          x.asCall.canonicalCall(cb), y.asCall.canonicalCall(cb)))
       }
     }
   }

@@ -42,7 +42,7 @@ class OrderingSuite extends HailSuite {
       val cv1 = t.loadCheapSCode(cb, fb.getCodeParam[Long](2))
       val cv2 = t.loadCheapSCode(cb, fb.getCodeParam[Long](3))
       fb.ecb.getOrderingFunction(cv1.st, cv2.st, op)
-          .apply(cb, EmitCode.present(cb.emb, cv1), EmitCode.present(cb.emb, cv2))
+          .apply(cb, EmitValue.present(cv1), EmitValue.present(cv2))
     }
     fb.resultWithIndex()(ctx.fs, 0, r)
   }
@@ -61,8 +61,8 @@ class OrderingSuite extends HailSuite {
         val cv1 = t.loadCheapSCode(cb, fb.getCodeParam[Long](3))
         val m2 = fb.getCodeParam[Boolean](4)
         val cv2 = t.loadCheapSCode(cb, fb.getCodeParam[Long](5))
-        val ev1 = EmitCode(Code._empty, m1, cv1)
-        val ev2 = EmitCode(Code._empty, m2, cv2)
+        val ev1 = EmitValue(Some(m1), cv1)
+        val ev2 = EmitValue(Some(m2), cv2)
         fb.ecb.getOrderingFunction(ev1.st, ev2.st, op)
           .apply(cb, ev1, ev2)
       }

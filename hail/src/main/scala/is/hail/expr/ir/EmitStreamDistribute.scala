@@ -25,8 +25,8 @@ object EmitStreamDistribute {
     val keyFieldNames = keyType.virtualType.fields.map(_.name)
 
     def compare(cb: EmitCodeBuilder, lelt: EmitValue, relt: EmitValue): Code[Int] = {
-      val lhs = EmitCode.fromI(mb)(cb => lelt.toI(cb).map(cb)(_.asBaseStruct.subset(keyFieldNames: _*)))
-      val rhs = EmitCode.fromI(mb)(cb => relt.toI(cb).map(cb)(_.asBaseStruct.subset(keyFieldNames: _*)))
+      val lhs = lelt.map(cb)(_.asBaseStruct.subset(keyFieldNames: _*))
+      val rhs = relt.map(cb)(_.asBaseStruct.subset(keyFieldNames: _*))
       StructOrdering.make(lhs.st.asInstanceOf[SBaseStruct], rhs.st.asInstanceOf[SBaseStruct],
         cb.emb.ecb, missingFieldsEqual = true)
         .compare(cb, lhs, rhs, missingEqual = true)
