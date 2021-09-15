@@ -254,7 +254,9 @@ object LoweredTableReader {
           ("maxkey", ArrayRef(GetField(row, "maxkey"), I32(0)))))
       }
     }) { (l, r) =>
-      ApplyComparisonOp(LT(keyType), GetField(l, "minkey"), GetField(r, "minkey"))
+      ApplyComparisonOp(LT(TStruct("minkey" -> keyType, "maxkey" -> keyType)),
+        SelectFields(l, FastSeq("minkey", "maxkey")),
+        SelectFields(r, FastSeq("minkey", "maxkey")))
     }
     val partDataElt = coerce[TArray](sortedPartDataIR.typ).elementType
 
