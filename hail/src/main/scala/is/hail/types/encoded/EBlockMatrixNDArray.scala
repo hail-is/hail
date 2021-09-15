@@ -23,7 +23,7 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
 
   override def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = {
     val ndarray = v.asInstanceOf[SNDArrayValue]
-    val shapes = ndarray.shapes(cb)
+    val shapes = ndarray.shapes
     val r = cb.newLocal[Long]("r", shapes(0))
     val c = cb.newLocal[Long]("c", shapes(1))
     val i = cb.newLocal[Long]("i")
@@ -71,16 +71,16 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
       cb.assign(currElementAddress, currElementAddress + pt.elementType.byteSize)
     })
 
-    tFinisher(cb)
+    tFinisher(cb).get
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
-    val skip = elementType.buildSkip(cb.emb)
+    val skip = elementType.buildSkip(cb.emb.ecb)
 
     val len = cb.newLocal[Int]("len", in.readInt() * in.readInt())
     val i = cb.newLocal[Int]("i")
     cb += in.skipBoolean()
-    cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1), cb += skip(r, in))
+    cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1), skip(cb, r, in))
   }
 
   def _asIdent = s"ndarray_of_${ elementType.asIdent }"

@@ -17,11 +17,11 @@ object IntervalFunctions extends RegistryFunctions {
     registerIEmitCode4("Interval", tv("T"), tv("T"), TBoolean, TBoolean, TInterval(tv("T")),
       { case (_: Type, startpt, endpt, includesStartET, includesEndET) =>
         EmitType(PCanonicalInterval(
-          InferPType.getCompatiblePType(Seq(startpt.canonicalPType, endpt.canonicalPType)),
+          InferPType.getCompatiblePType(Seq(startpt.typeWithRequiredness.canonicalPType, endpt.typeWithRequiredness.canonicalPType)),
           required = includesStartET.required && includesEndET.required
         ).sType, includesStartET.required && includesEndET.required)
       }) {
-      case (cb, r, SIntervalPointer(pt: PCanonicalInterval), start, end, includesStart, includesEnd) =>
+      case (cb, r, SIntervalPointer(pt: PCanonicalInterval), _, start, end, includesStart, includesEnd) =>
 
         includesStart.toI(cb).flatMap(cb) { includesStart =>
           includesEnd.toI(cb).map(cb) { includesEnd =>
@@ -29,15 +29,16 @@ object IntervalFunctions extends RegistryFunctions {
             pt.constructFromCodes(cb, r,
               start,
               end,
-              EmitCode.present(cb.emb, includesStart),
-              EmitCode.present(cb.emb, includesEnd))
+              cb.memoize(includesStart.asBoolean.boolCode(cb)),
+              cb.memoize(includesEnd.asBoolean.boolCode(cb))
+            ).get
           }
         }
     }
 
     registerIEmitCode1("start", TInterval(tv("T")), tv("T"),
       (_: Type, x: EmitType) => EmitType(x.st.asInstanceOf[SInterval].pointType, x.required && x.st.asInstanceOf[SInterval].pointEmitType.required)) {
-      case (cb, r, rt, interval) =>
+      case (cb, r, rt, _, interval) =>
         interval.toI(cb).flatMap(cb) { case pi: SIntervalCode =>
           val pv = pi.memoize(cb, "interval")
           pv.loadStart(cb)
@@ -46,7 +47,7 @@ object IntervalFunctions extends RegistryFunctions {
 
     registerIEmitCode1("end", TInterval(tv("T")), tv("T"),
       (_: Type, x: EmitType) => EmitType(x.st.asInstanceOf[SInterval].pointType, x.required && x.st.asInstanceOf[SInterval].pointEmitType.required)) {
-      case (cb, r, rt, interval) =>
+      case (cb, r, rt, _, interval) =>
         interval.toI(cb).flatMap(cb) { case pi: SIntervalCode =>
           val pv = pi.memoize(cb, "interval")
           pv.loadEnd(cb)
@@ -56,19 +57,19 @@ object IntervalFunctions extends RegistryFunctions {
     registerSCode1("includesStart", TInterval(tv("T")), TBoolean, (_: Type, x: SType) =>
       SBoolean
     ) {
-      case (r, cb, rt, interval: SIntervalCode) => primitive(interval.includesStart())
+      case (r, cb, rt, interval: SIntervalCode, _) => primitive(interval.codeIncludesStart())
     }
 
     registerSCode1("includesEnd", TInterval(tv("T")), TBoolean, (_: Type, x: SType) =>
       SBoolean
     ) {
-      case (r, cb, rt, interval: SIntervalCode) => primitive(interval.includesEnd())
+      case (r, cb, rt, interval: SIntervalCode, _) => primitive(interval.codeIncludesEnd())
     }
 
     registerIEmitCode2("contains", TInterval(tv("T")), tv("T"), TBoolean, {
       case(_: Type, intervalT: EmitType, _: EmitType) => EmitType(SBoolean, intervalT.required)
     }) {
-      case (cb, r, rt, int, point) =>
+      case (cb, r, rt, _, int, point) =>
         int.toI(cb).map(cb) { case (intc: SIntervalCode) =>
           val interval: SIntervalValue = intc.memoize(cb, "interval")
           val pointv = cb.memoize(point.toI(cb), "point")
@@ -88,7 +89,7 @@ object IntervalFunctions extends RegistryFunctions {
     }
 
     registerSCode1("isEmpty", TInterval(tv("T")), TBoolean, (_: Type, pt: SType) => SBoolean) {
-      case (r, cb, rt, interval: SIntervalCode) =>
+      case (r, cb, rt, interval: SIntervalCode, _) =>
         val empty = EmitCodeBuilder.scopedCode(r.mb) { cb =>
           val intv = interval.memoize(cb, "interval")
           intv.isEmpty(cb)
@@ -97,7 +98,7 @@ object IntervalFunctions extends RegistryFunctions {
     }
 
     registerSCode2("overlaps", TInterval(tv("T")), TInterval(tv("T")), TBoolean, (_: Type, i1t: SType, i2t: SType) => SBoolean) {
-      case (r, cb, rt, int1: SIntervalCode, int2: SIntervalCode) =>
+      case (r, cb, rt, int1: SIntervalCode, int2: SIntervalCode, _) =>
         val overlap = EmitCodeBuilder.scopedCode(r.mb) { cb =>
           val interval1 = int1.memoize(cb, "interval1")
           val interval2 = int2.memoize(cb, "interval2")
@@ -125,53 +126,126 @@ object IntervalFunctions extends RegistryFunctions {
     }
 
     registerIR2("sortedNonOverlappingIntervalsContain",
-      TArray(TInterval(tv("T"))), tv("T"), TBoolean) { case (_, intervals, value) =>
+      TArray(TInterval(tv("T"))), tv("T"), TBoolean) { case (_, intervals, value, errorID) =>
       val uid = genUID()
       val uid2 = genUID()
       Let(uid, LowerBoundOnOrderedCollection(intervals, value, onKey = true),
         (Let(uid2, Ref(uid, TInt32) - I32(1), (Ref(uid2, TInt32) >= 0)
-          && invoke("contains", TBoolean, ArrayRef(intervals, Ref(uid2, TInt32)), value)))
+          && invoke("contains", TBoolean, ArrayRef(intervals, Ref(uid2, TInt32), errorID), value)))
           || ((Ref(uid, TInt32) < ArrayLen(intervals))
-          && invoke("contains", TBoolean, ArrayRef(intervals, Ref(uid, TInt32)), value)))
+          && invoke("contains", TBoolean, ArrayRef(intervals, Ref(uid, TInt32), errorID), value)))
     }
 
 
     val endpointT = TTuple(tv("T"), TInt32)
-    registerIR2("partitionIntervalContains",
+    registerSCode3("partitionIntervalEndpointGreaterThan", endpointT, tv("T"), TBoolean, TBoolean, (_, _, _, _) => SBoolean) {
+      case (_, cb, _, _leftEndpoint, _point, _containsStart, _) =>
+
+        val leftPartitionEndpoint = _leftEndpoint.asBaseStruct.memoize(cb, "partitionEndpoint")
+        val point = _point.asBaseStruct.memoize(cb, "point")
+
+        val left = leftPartitionEndpoint.loadField(cb, 0).get(cb).asBaseStruct.memoize(cb, "partitionInterval_left")
+        val leftLen = cb.newLocal[Int]("partitionInterval_leftlen", leftPartitionEndpoint.loadField(cb, 1).get(cb).asInt.intCode(cb))
+
+        val c = cb.newLocal[Int]("partitionInterval_c", 0)
+        (0 until left.st.size).foreach { idx =>
+          cb.ifx(c.ceq(0) && const(idx) < leftLen, {
+            val leftField = EmitCode.fromI(cb.emb)(cb => left.loadField(cb, idx))
+            val pointField = EmitCode.fromI(cb.emb)(cb => point.loadField(cb, idx))
+            cb.assign(c, cb.emb.ecb.getOrderingFunction(leftField.st, pointField.st, CodeOrdering.Compare())
+              .apply(cb, leftField, pointField))
+          })
+        }
+
+        val isContained = cb.newLocal[Boolean]("partitionInterval_b")
+        cb.ifx(c.ceq(0),
+          cb.assign(isContained, _containsStart.asBoolean.boolCode(cb)),
+          cb.assign(isContained, c < 0))
+
+        primitive(isContained)
+    }
+
+    registerSCode3("partitionIntervalEndpointLessThan", endpointT, tv("T"), TBoolean, TBoolean, (_, _, _, _) => SBoolean) {
+      case (_, cb, _, _rightEndpoint, _point, _containsEnd, _) =>
+
+        val rightPartitionEndpoint = _rightEndpoint.asBaseStruct.memoize(cb, "partitionEndpoint")
+        val point = _point.asBaseStruct.memoize(cb, "point")
+
+        val right = rightPartitionEndpoint.loadField(cb, 0).get(cb).asBaseStruct.memoize(cb, "partitionInterval_right")
+        val rightLen = cb.newLocal[Int]("partitionInterval_rightlen", rightPartitionEndpoint.loadField(cb, 1).get(cb).asInt.intCode(cb))
+
+        val c = cb.newLocal[Int]("partitionInterval_c", 0)
+        (0 until right.st.size).foreach { idx =>
+          cb.ifx(c.ceq(0) && const(idx) < rightLen, {
+            val rightField = EmitCode.fromI(cb.emb)(cb => right.loadField(cb, idx))
+            val pointField = EmitCode.fromI(cb.emb)(cb => point.loadField(cb, idx))
+            cb.assign(c, cb.emb.ecb.getOrderingFunction(rightField.st, pointField.st, CodeOrdering.Compare())
+              .apply(cb, rightField, pointField))
+          })
+        }
+
+        val isContained = cb.newLocal[Boolean]("partitionInterval_b")
+        cb.ifx(c.ceq(0),
+          cb.assign(isContained, _containsEnd.asBoolean.boolCode(cb)),
+          cb.assign(isContained, c > 0))
+
+        primitive(isContained)
+    }
+
+
+    registerSCode2("partitionIntervalContains",
       TStruct("left" -> endpointT, "right" -> endpointT, "includesLeft" -> TBoolean, "includesRight" -> TBoolean),
-      tv("T"), TBoolean) {
-      case (_, interval, point) =>
+      tv("T"), TBoolean, (_, _, _) => SBoolean) {
+      case (er, cb, _, _interval, _point, _) =>
+        val interval = _interval.asBaseStruct.memoize(cb, "partitionInterval_interval")
+        val point = _point.asBaseStruct.memoize(cb, "partitionInterval_point")
 
-        def compareStructs(left: IR, right: IR): IR = {
-          bindIRs(left, right) { case Seq(lTuple, r) =>
-            bindIRs(GetTupleElement(lTuple, 0), GetTupleElement(lTuple, 1)) {
-              case Seq(lValue, lLen) =>
-                val ts = lValue.typ.asInstanceOf[TStruct]
-                assert(r.typ == ts)
-                ts.fields.foldRight[IR](I32(0)) { case (f, acc) =>
-                  If(
-                    lLen ceq f.index,
-                    0,
-                    bindIR(ApplyComparisonOp(Compare(f.typ), GetField(lValue, f.name), GetField(r, f.name))) { c =>
-                      If(c.cne(0), c, acc)
-                    })
-                }
-            }
-          }
+        val c = cb.newLocal[Int]("partitionInterval_c", 0)
+
+        val leftTuple = interval.loadField(cb, "left").get(cb).asBaseStruct
+          .memoize(cb, "partitionInterval_lt")
+
+        val left = leftTuple.loadField(cb, 0).get(cb).asBaseStruct.memoize(cb, "partitionInterval_left")
+        val leftLen = cb.newLocal[Int]("partitionInterval_leftlen", leftTuple.loadField(cb, 1).get(cb).asInt.intCode(cb))
+
+        (0 until left.st.size).foreach { idx =>
+          cb.ifx(c.ceq(0) && const(idx) < leftLen, {
+            val leftField = EmitCode.fromI(cb.emb)(cb => left.loadField(cb, idx))
+            val pointField = EmitCode.fromI(cb.emb)(cb => point.loadField(cb, idx))
+            cb.assign(c, cb.emb.ecb.getOrderingFunction(leftField.st, pointField.st, CodeOrdering.Compare())
+              .apply(cb, leftField, pointField))
+          })
         }
 
-        bindIRs(point, GetField(interval, "left"), GetField(interval, "right")) { case Seq(point, l, r) =>
+        val isContained = cb.newLocal[Boolean]("partitionInterval_b")
+        cb.ifx(c.ceq(0),
+          cb.assign(isContained, interval.loadField(cb, "includesLeft").get(cb).asBoolean.boolCode(cb)),
+          cb.assign(isContained, c < 0))
 
+        cb.ifx(isContained, {
+          // check right endpoint
+          val rightTuple = interval.loadField(cb, "right").get(cb).asBaseStruct
+            .memoize(cb, "partitionInterval_rt")
 
-          val gtEqLeft = bindIR(compareStructs(l, point)) { lc =>
-            (lc <= 0) && ((lc < 0) || GetField(interval, "includesLeft"))
+          val right = rightTuple.loadField(cb, 0).get(cb).asBaseStruct.memoize(cb, "partitionInterval_right")
+          val rightLen = cb.newLocal[Int]("partitionInterval_leftlen", rightTuple.loadField(cb, 1).get(cb).asInt.intCode(cb))
+
+          cb.assign(c, 0)
+          (0 until right.st.size).foreach { idx =>
+            cb.ifx(c.ceq(0) && const(idx) < rightLen, {
+              val rightField = EmitCode.fromI(cb.emb)(cb => right.loadField(cb, idx))
+              val pointField = EmitCode.fromI(cb.emb)(cb => point.loadField(cb, idx))
+              cb.assign(c, cb.emb.ecb.getOrderingFunction(rightField.st, pointField.st, CodeOrdering.Compare())
+                .apply(cb, rightField, pointField))
+            })
           }
 
-          val ltEqRight = bindIR(compareStructs(r, point)) { rc =>
-            (rc >= 0) && ((rc > 0) || GetField(interval, "includesRight"))
-          }
-          gtEqLeft && ltEqRight
-        }
+          cb.ifx(c.ceq(0),
+            cb.assign(isContained, interval.loadField(cb, "includesRight").get(cb).asBoolean.boolCode(cb)),
+            cb.assign(isContained, c > 0))
+        })
+
+        primitive(isContained)
     }
   }
 }

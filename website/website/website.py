@@ -9,7 +9,7 @@ from prometheus_async.aio.web import server_stats  # type: ignore
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
-from gear import setup_aiohttp_session, web_maybe_authenticated_user, monitor_endpoint
+from gear import setup_aiohttp_session, web_maybe_authenticated_user, monitor_endpoints_middleware
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, sass_compile
 
 
@@ -42,10 +42,14 @@ redirect('/docs/batch', 'batch/index.html')
 redirect('/docs/batch/', 'index.html')
 redirect('/docs/0.2', '0.2/index.html')
 redirect('/docs/0.2/', 'index.html')
+redirect('/docs/0.1', '0.1/index.html')
+redirect('/docs/0.1/', 'index.html')
 
 
 DOCS_PATH = f'{MODULE_PATH}/docs/'
-STATIC_DOCS_PATHS = ['0.2/_static', '0.2/_sources', 'batch']
+STATIC_DOCS_PATHS = ['0.2/_static', '0.2/_sources',
+                     'batch',
+                     '0.1']
 FQ_STATIC_DOCS_PATHS: Set[str] = set()
 
 
@@ -63,7 +67,6 @@ docs_pages = set(
 
 
 @routes.get('/docs/{tail:.*}')
-@monitor_endpoint
 @web_maybe_authenticated_user
 async def serve_docs(request, userdata):
     tail = request.match_info['tail']
@@ -91,7 +94,7 @@ for fname in os.listdir(f'{MODULE_PATH}/pages'):
 
 
 def run(local_mode):
-    app = web.Application()
+    app = web.Application(middlewares=[monitor_endpoints_middleware])
 
     if local_mode:
         log.error('running in local mode with bogus cookie storage key')

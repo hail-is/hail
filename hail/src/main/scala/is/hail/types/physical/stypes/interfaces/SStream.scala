@@ -4,31 +4,38 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{Code, Settable, TypeInfo, Value}
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.expr.ir.streams.StreamProducer
+import is.hail.types.{RIterable, TypeWithRequiredness}
 import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType, SUnrealizableCode, SValue}
-import is.hail.types.physical.{PCanonicalStream, PStream, PType}
+import is.hail.types.physical.PType
 import is.hail.types.virtual.{TStream, Type}
 
-case class SStream(elementEmitType: EmitType) extends SType {
+final case class SStream(elementEmitType: EmitType) extends SType {
   def elementType: SType = elementEmitType.st
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
-    if (deepCopy) throw new UnsupportedOperationException
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = {
+    if (deepCopy) throw new NotImplementedError()
 
     assert(value.st == this)
     value
   }
 
-  def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = throw new UnsupportedOperationException
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = throw new NotImplementedError()
 
-  def fromCodes(codes: IndexedSeq[Code[_]]): SCode = throw new UnsupportedOperationException
+  override def fromSettables(settables: IndexedSeq[Settable[_]]): SSettable = throw new NotImplementedError()
 
-  def fromSettables(settables: IndexedSeq[Settable[_]]): SSettable = throw new UnsupportedOperationException
+  override def fromValues(values: IndexedSeq[Value[_]]): SValue = throw new NotImplementedError()
 
-  def canonicalPType(): PType = PCanonicalStream(elementEmitType.canonicalPType)
+  override def storageType(): PType = throw new NotImplementedError()
+
+  override def copiedType: SType = throw new NotImplementedError()
+
+  override def containsPointers: Boolean = throw new NotImplementedError()
 
   override def virtualType: Type = TStream(elementType.virtualType)
 
-  override def castRename(t: Type): SType = ???
+  override def castRename(t: Type): SType = throw new UnsupportedOperationException("rename on stream")
+
+  override def _typeWithRequiredness: TypeWithRequiredness = RIterable(elementEmitType.typeWithRequiredness.r)
 }
 
 object SStreamCode{
@@ -36,17 +43,13 @@ object SStreamCode{
 }
 
 final case class SStreamCode(st: SStream, producer: StreamProducer) extends SCode with SUnrealizableCode {
-  self =>
-  def memoize(cb: EmitCodeBuilder, name: String): SValue = new SValue {
+  override def memoizeField(cb: EmitCodeBuilder, name: String): SValue = SStreamValue(st, producer)
 
-    override def st: SType = self.st
+  override def memoize(cb: EmitCodeBuilder, name: String): SValue = SStreamValue(st, producer)
+}
 
-    var used: Boolean = false
+final case class SStreamValue(st: SStream, producer: StreamProducer) extends SValue {
+  def valueTuple: IndexedSeq[Value[_]] = throw new NotImplementedError()
 
-    def get: SCode = {
-      assert(!used)
-      used = true
-      self
-    }
-  }
+  def get: SStreamCode = SStreamCode(st, producer)
 }

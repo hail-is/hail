@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.HailSuite
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeNDArray, SafeRow}
+import is.hail.asm4s.Code
 import is.hail.types.encoded._
 import is.hail.types.physical.{PCanonicalArray, PCanonicalNDArray, PCanonicalStringOptional, PCanonicalStringRequired, PCanonicalStruct, PFloat32Required, PFloat64Required, PInt32Optional, PInt32Required, PInt64Optional, PInt64Required, PType}
 import is.hail.io.{InputBuffer, MemoryBuffer, MemoryInputBuffer, MemoryOutputBuffer, OutputBuffer}
@@ -48,10 +49,13 @@ class ETypeSuite extends HailSuite {
 
   def encodeDecode(inPType: PType, eType: EType, outPType: PType, data: Annotation): Annotation = {
     val fb = EmitFunctionBuilder[Long, OutputBuffer, Unit](ctx, "fb")
-    val arg1 = fb.apply_method.getCodeParam[Long](1)
-    val arg2 = fb.apply_method.getCodeParam[OutputBuffer](2)
     val enc = eType.buildEncoderMethod(inPType.sType, fb.apply_method.ecb)
-    fb.emit(enc.invokeCode(arg1, arg2))
+    fb.emitWithBuilder { cb =>
+      val arg1 = inPType.loadCheapSCode(cb, fb.apply_method.getCodeParam[Long](1))
+      val arg2 = fb.apply_method.getCodeParam[OutputBuffer](2)
+      cb.invokeVoid(enc, arg1, arg2)
+      Code._empty
+    }
 
     val x = inPType.unstagedStoreJavaObject(data, ctx.r)
 
@@ -67,7 +71,7 @@ class ETypeSuite extends HailSuite {
     val ibArg = fb2.apply_method.getCodeParam[InputBuffer](2)
     val dec = eType.buildDecoderMethod(outPType.virtualType, fb2.apply_method.ecb)
     fb2.emitWithBuilder[Long] { cb =>
-      val decoded = cb.invokeSCode(dec, regArg, ibArg)
+      val decoded = cb.invokeSCode(dec, regArg, ibArg).memoize(cb, "test")
       outPType.store(cb, regArg, decoded, deepCopy = false)
     }
 
@@ -155,5 +159,15 @@ class ETypeSuite extends HailSuite {
 
     assert(encodeDecode(pStructContainingNDArray, eStructContainingNDArray, pOnlyReadB, dataStruct) ==
       Row(3))
+  }
+
+  @Test def testArrayOfString(): Unit = {
+    val etype = EArray(EBinary(false), false)
+    val toEncode = PCanonicalArray(PCanonicalStringRequired, false)
+    val toDecode = PCanonicalArray(PCanonicalStringOptional, false)
+    val longListOfStrings = (0 until 36).map(idx => s"foo_name_sample_${idx}")
+    val data = longListOfStrings
+
+    assert(encodeDecode(toEncode, etype, toDecode, data) == data)
   }
 }

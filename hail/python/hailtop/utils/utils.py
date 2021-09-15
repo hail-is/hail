@@ -23,8 +23,6 @@ import weakref
 from requests.adapters import HTTPAdapter
 from urllib3.poolmanager import PoolManager
 
-import hailtop
-
 from .time import time_msecs
 
 
@@ -552,14 +550,21 @@ def is_transient_error(e):
     #
     # OSError: [Errno 51] Connect call failed ('35.188.91.25', 443)
     # https://hail.zulipchat.com/#narrow/stream/223457-Batch-support/topic/ssl.20error
+    import hailtop.aiogoogle.client.compute_client  # pylint: disable=import-outside-toplevel,cyclic-import
+    import hailtop.httpx  # pylint: disable=import-outside-toplevel,cyclic-import
+
     if isinstance(e, aiohttp.ClientResponseError) and (
             e.status in RETRYABLE_HTTP_STATUS_CODES):
         # nginx returns 502 if it cannot connect to the upstream server
         # 408 request timeout, 500 internal server error, 502 bad gateway
         # 503 service unavailable, 504 gateway timeout
         return True
+    if (isinstance(e, hailtop.aiogoogle.client.compute_client.GCPOperationError)
+            and 'QUOTA_EXCEEDED' in e.error_codes):
+        return True
     if isinstance(e, hailtop.httpx.ClientResponseError) and (
-            e.status == 403 and 'rateLimitExceeded' in e.body):
+            (e.status in RETRYABLE_HTTP_STATUS_CODES) or (
+                e.status == 403 and 'rateLimitExceeded' in e.body)):
         return True
     if isinstance(e, aiohttp.ServerTimeoutError):
         return True
@@ -611,11 +616,11 @@ def is_transient_error(e):
     return False
 
 
-async def sleep_and_backoff(delay):
-    # exponentially back off, up to (expected) max of 30s
+async def sleep_and_backoff(delay, max_delay=30.0):
+    # exponentially back off, up to (expected) max_delay
     t = delay * random.uniform(0.9, 1.1)
     await asyncio.sleep(t)
-    return min(delay * 2, 30.0)
+    return min(delay * 2, max_delay)
 
 
 def sync_sleep_and_backoff(delay):
@@ -769,6 +774,8 @@ async def retry_long_running(name, f, *args, **kwargs):
         try:
             start_time = time_msecs()
             return await f(*args, **kwargs)
+        except asyncio.CancelledError:
+            raise
         except Exception:
             end_time = time_msecs()
 

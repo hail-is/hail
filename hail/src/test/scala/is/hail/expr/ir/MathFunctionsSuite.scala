@@ -16,6 +16,22 @@ class MathFunctionsSuite extends HailSuite {
 
   val tfloat = TFloat64
 
+  @Test def log2(): Unit = {
+    assertEvalsTo(invoke("log2", TInt32, I32(2)), 1)
+    assertEvalsTo(invoke("log2", TInt32, I32(32)), 5)
+    assertEvalsTo(invoke("log2", TInt32, I32(33)), 5)
+    assertEvalsTo(invoke("log2", TInt32, I32(63)), 5)
+    assertEvalsTo(invoke("log2", TInt32, I32(64)), 6)
+  }
+
+  @Test def roundToNextPowerOf2(): Unit = {
+    assertEvalsTo(invoke("roundToNextPowerOf2", TInt32, I32(2)), 2)
+    assertEvalsTo(invoke("roundToNextPowerOf2", TInt32, I32(32)), 32)
+    assertEvalsTo(invoke("roundToNextPowerOf2", TInt32, I32(33)), 64)
+    assertEvalsTo(invoke("roundToNextPowerOf2", TInt32, I32(63)), 64)
+    assertEvalsTo(invoke("roundToNextPowerOf2", TInt32, I32(64)), 64)
+  }
+
   @Test def isnan() {
     implicit val execStrats = ExecStrategy.javaOnly
 
@@ -119,7 +135,7 @@ class MathFunctionsSuite extends HailSuite {
 
   @Test(dataProvider = "chi_squared_test")
   def chiSquaredTest(a: Int, b: Int, c: Int, d: Int, pValue: Double, oddsRatio: Double) {
-      val r = eval(invoke("chi_squared_test", stats.chisqStruct.virtualType, a, b, c, d)).asInstanceOf[Row]
+      val r = eval(invoke("chi_squared_test", stats.chisqStruct.virtualType, ErrorIDs.NO_ERROR, a, b, c, d)).asInstanceOf[Row]
       assert(D0_==(pValue, r.getDouble(0)))
       assert(D0_==(oddsRatio, r.getDouble(1)))
   }
@@ -133,7 +149,7 @@ class MathFunctionsSuite extends HailSuite {
 
   @Test(dataProvider = "fisher_exact_test")
   def fisherExactTest(a: Int, b: Int, c: Int, d: Int, pValue: Double, oddsRatio: Double, confLower: Double, confUpper: Double) {
-    val r = eval(invoke("fisher_exact_test", stats.fetStruct.virtualType, a, b, c, d)).asInstanceOf[Row]
+    val r = eval(invoke("fisher_exact_test", stats.fetStruct.virtualType, ErrorIDs.NO_ERROR, a, b, c, d)).asInstanceOf[Row]
     assert(D0_==(pValue, r.getDouble(0)))
     assert(D0_==(oddsRatio, r.getDouble(1)))
     assert(D0_==(confLower, r.getDouble(2)))
@@ -148,7 +164,7 @@ class MathFunctionsSuite extends HailSuite {
 
   @Test(dataProvider = "contingency_table_test")
   def contingencyTableTest(a: Int, b: Int, c: Int, d: Int, minCellCount: Int, pValue: Double, oddsRatio: Double) {
-    val r = eval(invoke("contingency_table_test", stats.chisqStruct.virtualType, a, b, c, d, minCellCount)).asInstanceOf[Row]
+    val r = eval(invoke("contingency_table_test", stats.chisqStruct.virtualType, ErrorIDs.NO_ERROR, a, b, c, d, minCellCount)).asInstanceOf[Row]
     assert(D0_==(pValue, r.getDouble(0)))
     assert(D0_==(oddsRatio, r.getDouble(1)))
   }
@@ -163,7 +179,7 @@ class MathFunctionsSuite extends HailSuite {
 
   @Test(dataProvider = "hardy_weinberg_test")
   def hardyWeinbergTest(nHomRef: Int, nHet: Int, nHomVar: Int, pValue: Double, hetFreq: Double) {
-    val r = eval(invoke("hardy_weinberg_test", stats.hweStruct.virtualType, nHomRef, nHet, nHomVar)).asInstanceOf[Row]
+    val r = eval(invoke("hardy_weinberg_test", stats.hweStruct.virtualType, ErrorIDs.NO_ERROR, nHomRef, nHet, nHomVar)).asInstanceOf[Row]
     assert(D0_==(pValue, r.getDouble(0)))
     assert(D0_==(hetFreq, r.getDouble(1)))
   }

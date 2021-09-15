@@ -3,6 +3,10 @@ package is.hail.annotations
 import is.hail.expr.ir.LongArrayBuilder
 import is.hail.utils._
 
+import java.util.TreeMap
+import java.util.function.BiConsumer
+import scala.collection.mutable
+
 object RegionPool {
 
   def apply(strictMemoryCheck: Boolean = false): RegionPool = {
@@ -23,6 +27,7 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
   private[this] var allocationEchoThreshold: Long = 256 * 1024
   private[this] var numJavaObjects: Long = 0L
   private[this] var highestTotalUsage = 0L
+  private[this] val chunkCache = new ChunkCache(Memory.malloc, Memory.free)
 
   def addJavaObject(): Unit = {
     numJavaObjects += 1
@@ -35,7 +40,7 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
   def getTotalAllocatedBytes: Long = totalAllocatedBytes
 
   def getHighestTotalUsage: Long = highestTotalUsage
-
+  def getUsage: (Int, Int) = chunkCache.getUsage()
   private[annotations] def incrementAllocatedBytes(toAdd: Long): Unit = {
     totalAllocatedBytes += toAdd
     if (totalAllocatedBytes >= allocationEchoThreshold) {
@@ -56,6 +61,7 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
     if (pool.size > 0) {
       pool.pop()
     } else {
+      chunkCache.freeChunksFromCacheToFit(this, size.toLong)
       blocks(size) += 1
       val blockByteSize = Region.SIZES(size)
       incrementAllocatedBytes(blockByteSize)
@@ -63,17 +69,15 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
     }
   }
 
-  protected[annotations] def getChunk(size: Long): Long = {
-    incrementAllocatedBytes(size)
-    Memory.malloc(size)
+  protected[annotations] def getChunk(size: Long): (Long, Long) = {
+    chunkCache.getChunk(this, size)
   }
 
   protected[annotations] def freeChunks(ab: LongArrayBuilder, totalSize: Long): Unit = {
-    while (ab.size > 0) {
-      val addr = ab.pop()
-      Memory.free(addr)
-    }
-    totalAllocatedBytes -= totalSize
+    chunkCache.freeChunksToCache(ab)
+  }
+  protected[annotations] def freeChunk(chunkPointer: Long): Unit = {
+    chunkCache.freeChunkToCache(chunkPointer)
   }
 
   protected[annotations] def getMemory(size: Int): RegionMemory = {
@@ -163,12 +167,13 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
       val blockSize = Region.SIZES(i)
       val blocks = freeBlocks(i)
       while (blocks.size > 0) {
-        Memory.free(blocks.pop())
+        val popped = blocks.pop()
+        Memory.free(popped)
         totalAllocatedBytes -= blockSize
       }
       i += 1
     }
-
+    chunkCache.freeAll(pool = this)
     if (totalAllocatedBytes != 0) {
       val msg = s"RegionPool: total allocated bytes not 0 after closing! total allocated: " +
         s"$totalAllocatedBytes (${ readableBytes(totalAllocatedBytes) })"

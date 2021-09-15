@@ -93,8 +93,8 @@ object HailContext {
         if (major.toInt < 8)
           fatal(s"Hail requires Java 1.8, found $versionString")
       case javaVersion(major, minor, security) =>
-        if (major.toInt > 8)
-          fatal(s"Hail requires Java 8, found $versionString")
+        if (major.toInt != 11)
+          fatal(s"Hail requires Java 8 or 11, found $versionString")
       case _ =>
         fatal(s"Unknown JVM version string: $versionString")
     }
@@ -466,6 +466,8 @@ class HailContext private(
 
 object HailFeatureFlags {
   val defaults: Map[String, (String, String)] = Map[String, (String, String)](
+    ("no_whole_stage_codegen", ("HAIL_DEV_NO_WHOLE_STAGE_CODEGEN" -> null)),
+    ("no_ir_logging", ("HAIL_DEV_NO_IR_LOG" -> null)),
     ("lower", ("HAIL_DEV_LOWER" -> null)),
     ("lower_only", ("HAIL_DEV_LOWER_ONLY" -> null)),
     ("lower_bm", ("HAIL_DEV_LOWER_BM" -> null)),

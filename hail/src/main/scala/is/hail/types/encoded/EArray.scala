@@ -61,7 +61,7 @@ final case class EArray(val elementType: EType, override val required: Boolean =
           cb.ifx(value.isElementMissing(i), cb.assign(b, b | (const(1) << shift)))
           cb.assign(shift, shift + 1)
           cb.assign(i, i + 1)
-          cb.ifx(shift.ceq(7), {
+          cb.ifx(shift.ceq(8), {
             cb.assign(shift, 0)
             cb += out.writeByte(b.toB)
             cb.assign(b, 0)
@@ -97,7 +97,7 @@ final case class EArray(val elementType: EType, override val required: Boolean =
 
     val len = cb.newLocal[Int]("len", in.readInt())
     val array = cb.newLocal[Long]("array", arrayType.allocate(region, len))
-    cb += arrayType.storeLength(array, len)
+    arrayType.storeLength(cb, array, len)
 
     val i = cb.newLocal[Int]("i")
     val readElemF = elementType.buildInplaceDecoder(arrayType.elementType, cb.emb.ecb)
@@ -118,17 +118,17 @@ final case class EArray(val elementType: EType, override val required: Boolean =
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
-    val skip = elementType.buildSkip(cb.emb)
+    val skip = elementType.buildSkip(cb.emb.ecb)
     val len = cb.newLocal[Int]("len", in.readInt())
     val i = cb.newLocal[Int]("i")
     if (elementType.required) {
-      cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1), cb += skip(r, in))
+      cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1), skip(cb, r, in))
     } else {
       val nMissing = cb.newLocal[Int]("nMissing", UnsafeUtils.packBitsToBytes(len))
       val mbytes = cb.newLocal[Long]("mbytes", r.allocate(const(1L), nMissing.toL))
       cb += in.readBytes(r, mbytes, nMissing)
       cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1),
-        cb.ifx(!Region.loadBit(mbytes, i.toL), cb += skip(r, in)))
+        cb.ifx(!Region.loadBit(mbytes, i.toL), skip(cb, r, in)))
     }
   }
 

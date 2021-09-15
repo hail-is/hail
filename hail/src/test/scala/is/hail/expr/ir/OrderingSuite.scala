@@ -42,7 +42,7 @@ class OrderingSuite extends HailSuite {
       val cv1 = t.loadCheapSCode(cb, fb.getCodeParam[Long](2))
       val cv2 = t.loadCheapSCode(cb, fb.getCodeParam[Long](3))
       fb.ecb.getOrderingFunction(cv1.st, cv2.st, op)
-          .apply(cb, EmitCode.present(cb.emb, cv1), EmitCode.present(cb.emb, cv2))
+          .apply(cb, EmitCode.present(cb.emb, cv1.get), EmitCode.present(cb.emb, cv2.get))
     }
     fb.resultWithIndex()(ctx.fs, 0, r)
   }
@@ -61,8 +61,8 @@ class OrderingSuite extends HailSuite {
         val cv1 = t.loadCheapSCode(cb, fb.getCodeParam[Long](3))
         val m2 = fb.getCodeParam[Boolean](4)
         val cv2 = t.loadCheapSCode(cb, fb.getCodeParam[Long](5))
-        val ev1 = EmitCode(Code._empty, m1, cv1)
-        val ev2 = EmitCode(Code._empty, m2, cv2)
+        val ev1 = EmitCode(Code._empty, m1, cv1.get)
+        val ev2 = EmitCode(Code._empty, m2, cv2.get)
         fb.ecb.getOrderingFunction(ev1.st, ev2.st, op)
           .apply(cb, ev1, ev2)
       }
@@ -460,8 +460,8 @@ class OrderingSuite extends HailSuite {
 
         val bs = new BinarySearch(fb.apply_method, pset.sType, EmitType(pset.elementType.sType, true), keyOnly = false)
         fb.emitWithBuilder(cb =>
-          bs.getClosestIndex(cb, pset.loadCheapSCode(cb, cset),
-            EmitCode.fromI(fb.apply_method)(cb => IEmitCode.present(cb, pt.loadCheapSCode(cb, pTuple.loadField(cetuple, 0))))))
+          bs.getClosestIndex(cb, pset.loadCheapSCode(cb, cset).get,
+            EmitCode.fromI(fb.apply_method)(cb => IEmitCode.present(cb, pt.loadCheapSCode(cb, pTuple.loadField(cetuple, 0)).get))))
 
         val asArray = SafeIndexedSeq(pArray, soff)
 
@@ -500,8 +500,8 @@ class OrderingSuite extends HailSuite {
 
         val m = ptuple.isFieldMissing(cktuple, 0)
         fb.emitWithBuilder(cb =>
-          bs.getClosestIndex(cb, pDict.loadCheapSCode(cb, cdict),
-            EmitCode.fromI(fb.apply_method)(cb => IEmitCode.present(cb, pDict.keyType.loadCheapSCode(cb, ptuple.loadField(cktuple, 0))))))
+          bs.getClosestIndex(cb, pDict.loadCheapSCode(cb, cdict).get,
+            EmitCode.fromI(fb.apply_method)(cb => IEmitCode.present(cb, pDict.keyType.loadCheapSCode(cb, ptuple.loadField(cktuple, 0)).get))))
 
         val asArray = SafeIndexedSeq(PCanonicalArray(pDict.elementType), soff)
 
@@ -538,7 +538,7 @@ class OrderingSuite extends HailSuite {
           FastSeq(),
           FastSeq(
             Ref("accumulator", TBoolean),
-            invoke("contains", TBoolean, set2, Ref("setelt", TInt32))), TBoolean)), true)
+            invoke("contains", TBoolean, set2, Ref("setelt", TInt32))), TBoolean, ErrorIDs.NO_ERROR)), true)
   }
 
   @DataProvider(name = "arrayDoubleOrderingData")

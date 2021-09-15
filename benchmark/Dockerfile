@@ -24,8 +24,9 @@ RUN apt-get update && \
 
 COPY requirements.txt .
 RUN python3 -m pip install --upgrade --no-cache-dir --upgrade pip && \
-  python3 -m pip install --use-feature=2020-resolver --upgrade --no-cache-dir -r requirements.txt && \
-  python3 -m pip install --use-feature=2020-resolver --upgrade --no-cache-dir aiomysql && \
+  python3 -m pip install --upgrade --no-cache-dir setuptools && \
+  python3 -m pip install --upgrade --no-cache-dir -r requirements.txt && \
+  python3 -m pip install --upgrade --no-cache-dir aiomysql && \
   python3 -m pip check
 
 ARG HAIL_WHEEL

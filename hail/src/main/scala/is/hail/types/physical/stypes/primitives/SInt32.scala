@@ -10,45 +10,39 @@ import is.hail.types.virtual.{TInt32, Type}
 import is.hail.utils.FastIndexedSeq
 
 case object SInt32 extends SPrimitive {
-  def ti: TypeInfo[_] = IntInfo
+  override def ti: TypeInfo[_] = IntInfo
 
-  lazy val virtualType: Type = TInt32
+  override lazy val virtualType: Type = TInt32
 
   override def castRename(t: Type): SType = this
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = {
     value.st match {
       case SInt32 => value
     }
   }
 
-  def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(IntInfo)
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(IntInfo)
 
-  def fromSettables(settables: IndexedSeq[Settable[_]]): SInt32Settable = {
+  override def fromSettables(settables: IndexedSeq[Settable[_]]): SInt32Settable = {
     val IndexedSeq(x: Settable[Int@unchecked]) = settables
     assert(x.ti == IntInfo)
     new SInt32Settable(x)
   }
 
-  def fromCodes(codes: IndexedSeq[Code[_]]): SInt32Code = {
-    val IndexedSeq(x: Code[Int@unchecked]) = codes
+  override def fromValues(settables: IndexedSeq[Value[_]]): SInt32Value = {
+    val IndexedSeq(x: Value[Int@unchecked]) = settables
     assert(x.ti == IntInfo)
-    new SInt32Code(x)
+    new SInt32Value(x)
   }
 
-  def canonicalPType(): PType = PInt32()
+  override def storageType(): PType = PInt32()
 }
 
-trait SInt32Value extends SValue {
-  def intCode(cb: EmitCodeBuilder): Code[Int]
-}
-
-class SInt32Code(val code: Code[Int]) extends SCode with SPrimitiveCode {
+class SInt32Code(val code: Code[Int]) extends SPrimitiveCode {
   override def _primitiveCode: Code[_] = code
 
   def st: SInt32.type = SInt32
-
-  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(code)
 
   private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SInt32Value = {
     val s = new SInt32Settable(sb.newSettable[Int]("sInt32_memoize"))
@@ -63,22 +57,28 @@ class SInt32Code(val code: Code[Int]) extends SCode with SPrimitiveCode {
   def intCode(cb: EmitCodeBuilder): Code[Int] = code
 }
 
+class SInt32Value(x: Value[Int]) extends SPrimitiveValue {
+  val pt: PInt32 = PInt32(false)
+
+  override def valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(x)
+
+  override def st: SInt32.type = SInt32
+
+  override def get: SCode = new SInt32Code(x)
+
+  def intCode(cb: EmitCodeBuilder): Value[Int] = x
+
+  override def hash(cb: EmitCodeBuilder): SInt32Code = new SInt32Code(intCode(cb))
+}
+
 object SInt32Settable {
   def apply(sb: SettableBuilder, name: String): SInt32Settable = {
     new SInt32Settable(sb.newSettable[Int](name))
   }
 }
 
-class SInt32Settable(x: Settable[Int]) extends SInt32Value with SSettable {
-  val pt: PInt32 = PInt32(false)
+final class SInt32Settable(x: Settable[Int]) extends SInt32Value(x) with SSettable {
+  override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
 
-  def st: SInt32.type = SInt32
-
-  def store(cb: EmitCodeBuilder, v: SCode): Unit = cb.assign(x, v.asInt.intCode(cb))
-
-  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
-
-  def get: SCode = new SInt32Code(x)
-
-  def intCode(cb: EmitCodeBuilder): Code[Int] = x
+  override def store(cb: EmitCodeBuilder, v: SCode): Unit = cb.assign(x, v.asInt.intCode(cb))
 }

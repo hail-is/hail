@@ -2377,11 +2377,13 @@ class Table(ExprContainer):
 
     @typecheck_method(right=table_type,
                       how=enumeration('inner', 'outer', 'left', 'right'),
-                      _mangle=anyfunc)
+                      _mangle=anyfunc,
+                      _join_key=nullable(int))
     def join(self,
              right: 'Table',
              how='inner',
-             _mangle: Callable[[str, int], str] = lambda s, i: f'{s}_{i}') -> 'Table':
+             _mangle: Callable[[str, int], str] = lambda s, i: f'{s}_{i}',
+             _join_key: int = None) -> 'Table':
         """Join two tables together.
 
         Examples
@@ -2442,8 +2444,11 @@ class Table(ExprContainer):
             Joined table.
 
         """
-        left_key_types = list(self.key.dtype.values())
-        right_key_types = list(right.key.dtype.values())
+        if _join_key is None:
+            _join_key = max(len(self.key), len(right.key))
+
+        left_key_types = list(self.key.dtype.values())[:_join_key]
+        right_key_types = list(right.key.dtype.values())[:_join_key]
         if not left_key_types == right_key_types:
             raise ValueError(f"'join': key mismatch:\n  "
                              f"  left:  [{', '.join(str(t) for t in left_key_types)}]\n  "
@@ -2460,7 +2465,7 @@ class Table(ExprContainer):
             info('Table.join: renamed the following fields on the right to avoid name conflicts:'
                  + ''.join(f'\n    {repr(k)} -> {repr(v)}' for k, v in renames.items()))
 
-        return Table(ir.TableJoin(self._tir, right._tir, how, len(self.key)))
+        return Table(ir.TableJoin(self._tir, right._tir, how, _join_key))
 
     @typecheck_method(expr=BooleanExpression)
     def all(self, expr):
@@ -3096,7 +3101,7 @@ class Table(ExprContainer):
             entries = hl.array([hl.struct(**{entry_field_name: field}) for field in fields])
 
         t = self.transmute(entries=entries)
-        t = t.annotate_globals(cols=hl.array([hl.struct(**{col_field_name: col}) for col in columns]))
+        t = t.annotate_globals(cols=hl.array(columns).map(lambda col: hl.struct(**{col_field_name: col})))
         return t._unlocalize_entries('entries', 'cols', [col_field_name])
 
     @property

@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.types.virtual.TVoid
 import is.hail.utils.BoxedArrayBuilder
 
 object LiftRelationalValues {
@@ -17,13 +18,13 @@ object LiftRelationalValues {
         val newChild = rewrite(child, ab).asInstanceOf[IR]
         ab += ((ref.name, newChild))
         ref
-      case _: TableAggregate
+      case (_: TableAggregate
            | _: TableCount
            | _: TableToValueApply
            | _: BlockMatrixToValueApply
            | _: TableCollect
            | _: BlockMatrixCollect
-           | _: TableGetGlobals =>
+           | _: TableGetGlobals) if ir.typ != TVoid =>
         val ref = RelationalRef(genUID(), ir.asInstanceOf[IR].typ)
         val rwChildren = ir.children.map(rewrite(_, ab))
         val newChild = if ((rwChildren, ir.children).zipped.forall(_ eq _))

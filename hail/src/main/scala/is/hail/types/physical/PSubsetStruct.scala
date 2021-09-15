@@ -4,8 +4,8 @@ import is.hail.annotations.{Annotation, Region, UnsafeUtils}
 import is.hail.asm4s.{Code, Settable, SettableBuilder, Value, coerce, const}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
 import is.hail.types.BaseStruct
-import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode}
-import is.hail.types.physical.stypes.{SCode, SType}
+import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode, SBaseStructValue}
+import is.hail.types.physical.stypes.{SCode, SType, SValue}
 import is.hail.types.physical.stypes.concrete.SSubsetStruct
 import is.hail.types.virtual.TStruct
 import is.hail.utils._
@@ -80,25 +80,25 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String]) ext
   override def loadField(structAddress: Code[Long], fieldIdx: Int): Code[Long] =
     ps.loadField(structAddress, idxMap(fieldIdx))
 
-  override def setFieldPresent(structAddress: Code[Long], fieldName: String): Code[Unit] = ???
+  override def setFieldPresent(cb: EmitCodeBuilder, structAddress: Code[Long], fieldName: String): Unit = ???
 
-  override def setFieldMissing(structAddress: Code[Long], fieldName: String): Code[Unit] = ???
+  override def setFieldMissing(cb: EmitCodeBuilder, structAddress: Code[Long], fieldName: String): Unit = ???
 
   override def setFieldMissing(structAddress: Long, fieldIdx: Int): Unit = ???
 
-  override def setFieldMissing(structAddress: Code[Long], fieldIdx: Int): Code[Unit] = ???
+  override def setFieldMissing(cb: EmitCodeBuilder, structAddress: Code[Long], fieldIdx: Int): Unit = ???
 
   override def setFieldPresent(structAddress: Long, fieldIdx: Int): Unit = ???
 
-  override def setFieldPresent(structAddress: Code[Long], fieldIdx: Int): Code[Unit] = ???
+  override def setFieldPresent(cb: EmitCodeBuilder, structAddress: Code[Long], fieldIdx: Int): Unit = ???
 
   def insertFields(fieldsToInsert: TraversableOnce[(String, PType)]): PSubsetStruct = ???
 
   override def initialize(structAddress: Long, setMissing: Boolean): Unit =
     ps.initialize(structAddress, setMissing)
 
-  override def stagedInitialize(structAddress: Code[Long], setMissing: Boolean): Code[Unit] =
-    ps.stagedInitialize(structAddress, setMissing)
+  override def stagedInitialize(cb: EmitCodeBuilder, structAddress: Code[Long], setMissing: Boolean): Unit =
+    ps.stagedInitialize(cb, structAddress, setMissing)
 
   def allocate(region: Region): Long =
     ps.allocate(region)
@@ -117,13 +117,18 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String]) ext
 
   def sType: SSubsetStruct = SSubsetStruct(ps.sType.asInstanceOf[SBaseStruct], _fieldNames)
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = throw new UnsupportedOperationException
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] =
+    throw new UnsupportedOperationException
 
   def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
     throw new UnsupportedOperationException
   }
 
-  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructCode = throw new UnsupportedOperationException
+  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructValue =
+    throw new UnsupportedOperationException
+
+  def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructValue =
+    throw new UnsupportedOperationException
 
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
     throw new UnsupportedOperationException
@@ -138,4 +143,6 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String]) ext
 
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit =
     throw new UnsupportedOperationException
+
+  override def copiedType: PType = ??? // PSubsetStruct on its way out
 }

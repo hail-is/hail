@@ -53,13 +53,18 @@ package object ir {
 
   private[ir] def coerce[T <: BaseTypeWithRequiredness](x: BaseTypeWithRequiredness): T = tycoerce[T](x)
 
-  def invoke(name: String, rt: Type, typeArgs: Array[Type], args: IR*): IR = IRFunctionRegistry.lookupUnseeded(name, rt, typeArgs, args.map(_.typ)) match {
-    case Some(f) => f(typeArgs, args)
+  def invoke(name: String, rt: Type, typeArgs: Array[Type], errorID: Int, args: IR*): IR = IRFunctionRegistry.lookupUnseeded(name, rt, typeArgs, args.map(_.typ)) match {
+    case Some(f) => f(typeArgs, args, errorID)
     case None => fatal(s"no conversion found for $name(${typeArgs.mkString(", ")}, ${args.map(_.typ).mkString(", ")}) => $rt")
   }
+  def invoke(name: String, rt: Type, typeArgs: Array[Type], args: IR*): IR =
+    invoke(name, rt, typeArgs, ErrorIDs.NO_ERROR, args:_*)
 
   def invoke(name: String, rt: Type, args: IR*): IR =
-    invoke(name, rt, Array.empty[Type], args:_*)
+    invoke(name, rt, Array.empty[Type], ErrorIDs.NO_ERROR, args:_*)
+
+  def invoke(name: String, rt: Type, errorID: Int, args: IR*): IR =
+    invoke(name, rt, Array.empty[Type], errorID, args:_*)
 
   def invokeSeeded(name: String, seed: Long, rt: Type, args: IR*): IR = IRFunctionRegistry.lookupSeeded(name, seed, rt, args.map(_.typ)) match {
     case Some(f) => f(args)
@@ -94,6 +99,18 @@ package object ir {
   def bindIR(v: IR)(body: Ref => IR): IR = {
     val ref = Ref(genUID(), v.typ)
     Let(ref.name, v, body(ref))
+  }
+
+  def iota(start: IR, step: IR): IR = StreamIota(start, step)
+
+  def dropWhile(v: IR)(f: Ref => IR): IR = {
+    val ref = Ref(genUID(), coerce[TStream](v.typ).elementType)
+    StreamDropWhile(v, ref.name, f(ref))
+  }
+
+  def takeWhile(v: IR)(f: Ref => IR): IR = {
+    val ref = Ref(genUID(), coerce[TStream](v.typ).elementType)
+    StreamTakeWhile(v, ref.name, f(ref))
   }
 
   def maxIR(a: IR, b: IR): IR = {
@@ -142,7 +159,7 @@ package object ir {
   }
 
   def sliceArrayIR(arrayIR: IR, startIR: IR, stopIR: IR): IR = {
-    invoke("slice", arrayIR.typ, arrayIR, startIR, stopIR)
+    ArraySlice(arrayIR, startIR, Some(stopIR))
   }
 
   def joinIR(left: IR, right: IR, lkey: IndexedSeq[String], rkey: IndexedSeq[String], joinType: String)(f: (Ref, Ref) => IR): IR = {
@@ -171,13 +188,34 @@ package object ir {
     StreamZip(FastSeq(s1, s2), FastSeq(r1.name, r2.name), f(r1, r2), behavior)
   }
 
+  def zipWithIndex(s: IR): IR = {
+    val r1 = Ref(genUID(), coerce[TStream](s.typ).elementType)
+    val r2 = Ref(genUID(), TInt32)
+    StreamZip(
+      FastIndexedSeq(s, StreamIota(I32(0), I32(1))),
+      FastIndexedSeq(r1.name, r2.name),
+      MakeStruct(FastSeq(("elt", r1), ("idx", r2))),
+      ArrayZipBehavior.TakeMinLength
+    )
+  }
+
   def zipIR(ss: IndexedSeq[IR], behavior: ArrayZipBehavior.ArrayZipBehavior)(f: IndexedSeq[Ref] => IR): IR = {
     val refs = ss.map(s => Ref(genUID(), coerce[TStream](s.typ).elementType))
-    StreamZip(ss, refs.map(_.name), f(refs), behavior)
+    StreamZip(ss, refs.map(_.name), f(refs), behavior, ErrorIDs.NO_ERROR)
   }
 
   def makestruct(fields: (String, IR)*): MakeStruct = MakeStruct(fields)
   def maketuple(fields: IR*): MakeTuple = MakeTuple(fields.zipWithIndex.map{ case (field, idx) => (idx, field)})
+
+  def aggBindIR(v: IR, isScan: Boolean = false)(body: Ref => IR): IR = {
+    val ref = Ref(genUID(), v.typ)
+    AggLet(ref.name, v, body(ref), isScan = isScan)
+  }
+
+  def aggExplodeIR(v: IR, isScan: Boolean = false)(body: Ref => IR): AggExplode = {
+    val r = Ref(genUID(), v.typ.asInstanceOf[TIterable].elementType)
+    AggExplode(v, r.name, body(r), isScan)
+  }
 
   implicit def toRichIndexedSeqEmitSettable(s: IndexedSeq[EmitSettable]): RichIndexedSeqEmitSettable = new RichIndexedSeqEmitSettable(s)
 
@@ -191,7 +229,7 @@ package object ir {
 
   implicit def sCodeToSCodeParam(sc: SCode): SCodeParam = SCodeParam(sc)
 
-  implicit def sValueToSCodeParam(sv: SValue): SCodeParam = SCodeParam(sv)
+  implicit def sValueToSCodeParam(sv: SValue): SCodeParam = SCodeParam(sv.get)
 
   implicit def toEmitParam(ec: EmitCode): EmitParam = EmitParam(ec)
 

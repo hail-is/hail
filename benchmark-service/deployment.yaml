@@ -50,7 +50,7 @@ spec:
             value: "WetqnMQMoqq2"
 {% else %}
           - name: HAIL_BENCHMARK_BUCKET_NAME
-            value: cpg-hail-test
+            value: "{{ global.hail_test_gcs_bucket }}"
 {% endif %}
 {% if scope == "dev" %}
           - name: INSTANCE_ID

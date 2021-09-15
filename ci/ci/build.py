@@ -13,6 +13,8 @@ from .environment import (
     GCP_ZONE,
     DOCKER_PREFIX,
     DOCKER_ROOT_IMAGE,
+    HAIL_TEST_GCS_BUCKET,
+    HAIL_TEST_REQUESTER_PAYS_GCS_BUCKET,
     DOMAIN,
     IP,
     CI_UTILS_IMAGE,
@@ -175,6 +177,8 @@ class Step(abc.ABC):
             'zone': GCP_ZONE,
             'docker_prefix': DOCKER_PREFIX,
             'docker_root_image': DOCKER_ROOT_IMAGE,
+            'hail_test_gcs_bucket': HAIL_TEST_GCS_BUCKET,
+            'hail_test_requester_pays_gcs_bucket': HAIL_TEST_REQUESTER_PAYS_GCS_BUCKET,
             'domain': DOMAIN,
             'ip': IP,
             'k8s_server_url': KUBERNETES_SERVER_URL,
@@ -319,7 +323,7 @@ set +x
 /bin/sh /home/user/convert-google-application-credentials-to-docker-auth-config
 set -x
 
-export BUILDKITD_FLAGS=--oci-worker-no-process-sandbox
+export BUILDKITD_FLAGS='--oci-worker-no-process-sandbox --oci-worker-snapshotter=overlayfs'
 export BUILDCTL_CONNECT_RETRIES_MAX=100 # https://github.com/moby/buildkit/issues/1423
 buildctl-daemonless.sh \
      build \
@@ -354,6 +358,7 @@ cat /home/user/trace
             resources=self.resources,
             input_files=input_files,
             parents=self.deps_parents(),
+            network='private',
             unconfined=True,
         )
 

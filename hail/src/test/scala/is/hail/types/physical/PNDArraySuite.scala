@@ -1,9 +1,9 @@
 package is.hail.types.physical
 
-import is.hail.annotations.{Annotation, Region, SafeNDArray, ScalaToRegionValue, UnsafeRow}
+import is.hail.annotations.{Region, SafeNDArray, UnsafeRow}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCodeBuilder, EmitFunctionBuilder}
-import is.hail.utils._
+import is.hail.expr.ir.EmitFunctionBuilder
+import is.hail.types.physical.stypes.concrete.SNDArrayPointerValue
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -41,17 +41,15 @@ class PNDArraySuite extends PhysicalTestUtils {
         // Region 1 just gets 1 ndarray.
         val (_, snd1Finisher) = nd.constructDataFunction(shapeSeq, shapeSeq, cb, codeRegion1)
 
-        val snd1 = snd1Finisher(cb).memoize(cb, "snd1")
+        val snd1 = snd1Finisher(cb)
 
         // Region 2 gets an ndarray at ndaddress2, plus a reference to the one at ndarray 1.
         val (_, snd2Finisher) = nd.constructDataFunction(shapeSeq, shapeSeq, cb, codeRegion2)
-        val snd2 = snd2Finisher(cb).memoize(cb, "snd2")
-        cb.assign(r2PointerToNDAddress1, codeRegion2.allocate(8L, 8L))
+        val snd2 = snd2Finisher(cb)
+        cb.assign(r2PointerToNDAddress1, nd.store(cb, codeRegion2, snd1, true))
 
-        nd.storeAtAddress(cb, r2PointerToNDAddress1, codeRegion2, snd1, true)
-
-        // Return the address of the 1st one
-        Region.loadAddress(r2PointerToNDAddress1)
+        // Return the 1st ndarray
+        snd1.a
       }
     } catch {
       case e: AssertionError =>
@@ -63,23 +61,24 @@ class PNDArraySuite extends PhysicalTestUtils {
 
     val f = fb.result()()
     val result1 = f(region1, region2, region3)
+    val result1Data = nd.unstagedDataFirstElementPointer(result1)
 
     // Check number of ndarrays in each region:
     assert(region1.memory.listNDArrayRefs().size == 1)
-    assert(region1.memory.listNDArrayRefs()(0) == result1)
+    assert(region1.memory.listNDArrayRefs()(0) == result1Data)
 
     assert(region2.memory.listNDArrayRefs().size == 2)
-    assert(region2.memory.listNDArrayRefs()(1) == result1)
+    assert(region2.memory.listNDArrayRefs()(1) == result1Data)
 
     // Check that the reference count of ndarray1 is 2:
-    val rc1A = Region.loadLong(result1-16L)
+    val rc1A = Region.loadLong(result1Data - Region.sharedChunkHeaderBytes)
     assert(rc1A == 2)
 
     region1.clear()
     assert(region1.memory.listNDArrayRefs().size == 0)
 
     // Check that ndarray 1 wasn't actually cleared, ref count should just be 1 now:
-    val rc1B = Region.loadLong(result1-16L)
+    val rc1B = Region.loadLong(result1Data - Region.sharedChunkHeaderBytes)
     assert(rc1B == 1)
 
 
@@ -96,18 +95,20 @@ class PNDArraySuite extends PhysicalTestUtils {
   @Test def testUnstagedCopy(): Unit = {
     val region1 = Region(pool=this.pool)
     val region2 = Region(pool=this.pool)
-    val x = new SafeNDArray(IndexedSeq(3L, 2L), (0 until 6).map(_.toDouble))
+    val x = SafeNDArray(IndexedSeq(3L, 2L), (0 until 6).map(_.toDouble))
     val pNd = PCanonicalNDArray(PFloat64Required, 2, true)
-    val addr1 = pNd.unstagedStoreJavaObject(x, region=region1)
-    val addr2 = pNd.copyFromAddress(region2, pNd, addr1, true)
-    val unsafe1 = UnsafeRow.read(pNd, region1, addr1)
-    val unsafe2 = UnsafeRow.read(pNd, region2, addr2)
+    val ndAddr1 = pNd.unstagedStoreJavaObject(x, region=region1)
+    val ndAddr2 = pNd.copyFromAddress(region2, pNd, ndAddr1, true)
+    val unsafe1 = UnsafeRow.read(pNd, region1, ndAddr1)
+    val unsafe2 = UnsafeRow.read(pNd, region2, ndAddr2)
     // Deep copy same ptype just increments reference count, doesn't change the address.
-    assert(addr1 == addr2)
-    assert(PNDArray.getReferenceCount(addr1) == 2)
+    val dataAddr1 = Region.loadAddress(pNd.representation.loadField(ndAddr1, 2))
+    val dataAddr2 = Region.loadAddress(pNd.representation.loadField(ndAddr2, 2))
+    assert(dataAddr1 == dataAddr2)
+    assert(Region.getSharedChunkRefCount(dataAddr1) == 2)
     assert(unsafe1 == unsafe2)
     region1.clear()
-    assert(PNDArray.getReferenceCount(addr1) == 1)
+    assert(Region.getSharedChunkRefCount(dataAddr1) == 1)
 
     // Deep copy with elements that contain pointers, so have to actually do a full copy
     // FIXME: Currently ndarrays do not support this, reference counting needs to account for this.

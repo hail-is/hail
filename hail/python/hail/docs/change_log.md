@@ -24,6 +24,90 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.75
+
+Released 2021-09-10
+
+### Bug fixes
+
+- (hail#10733) Fix a bug in tabix parsing when the size of the list of all sequences is large.
+- (hail#10765) Fix rare bug where valid pipelines would fail to compile if intervals were created conditionally.
+- (hail#10746) Various compiler improvements, decrease likelihood of `ClassTooLarge` errors.
+- (hail#10829) Fix a bug where `hl.missing` and `CaseBuilder.or_error` failed if their type was a struct containing a field starting with a number. 
+
+### New features
+
+- (hail#10768) Support multiplying `StringExpression`s to repeat them, as with normal python strings.
+
+### Performance improvements
+
+- (hail#10625) Reduced need to copy strings around, pipelines with many string operations should get faster. 
+- (hail#10775) Improved performance of `to_matrix_table_row_major` on both `BlockMatrix` and `Table`. 
+
+---
+
+## Version 0.2.74
+
+Released 2021-07-26
+
+### Bug fixes
+
+- (hail#10697) Fixed bug in `read_table` when the table has missing keys and `_n_partitions` is specified.
+- (hail#10695) Fixed bug in hl.experimental.loop causing incorrect results when loop state contained pointers.
+
+---
+
+
+## Version 0.2.73
+
+Released 2021-07-22
+
+### Bug fixes
+
+- (hail#10684) Fixed a rare bug reading arrays from disk where short arrays would have their first elements corrupted and long arrays would cause segfaults.
+- (hail#10523) Fixed bug where liftover would fail with "Could not initialize class" errors.
+
+---
+
+## Version 0.2.72
+
+Released 2021-07-19
+
+### New Features
+
+- (hail#10655) Revamped many hail error messages to give useful python stack traces.
+- (hail#10663) Added `DictExpression.items()` to mirror python's `dict.items()`.
+- (hail#10657) `hl.map` now supports mapping over multiple lists like Python's built-in `map`.
+
+### Bug fixes
+
+- (hail#10662) Fixed partitioning logic in `hl.import_plink`.
+- (hail#10669) `NDArrayNumericExpression.sum()` now works correctly on ndarrays of booleans.
+
+---
+
+## Version 0.2.71
+
+Released 2021-07-08
+
+### New Features
+
+- (hail#10632) Added support for weighted linear regression to `hl.linear_regression_rows`.
+- (hail#10635) Added `hl.nd.maximum` and `hl.nd.minimum`.
+- (hail#10602) Added `hl.starmap`.
+
+### Bug fixes
+
+- (hail#10038) Fixed crashes when writing/reading matrix tables with 0 partitions.
+- (hail#10624) Fixed out of bounds bug with `_quantile_from_cdf`.
+
+
+### hailctl dataproc
+
+- (hail#10633) Added `--scopes` parameter to `hailctl dataproc start`.
+
+---
+
 ## Version 0.2.70
 
 Released 2021-06-21
@@ -47,7 +131,7 @@ Released 2021-06-14
 
 ### hailctl dataproc
 
-- (hail#10574) Hail logs will now be stored in `/home/hail` by default. 
+- (hail#10574) Hail logs will now be stored in `/home/hail` by default.
 
 ---
 

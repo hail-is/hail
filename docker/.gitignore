@@ -1,1 +1,4 @@
 /Dockerfile.service-base.out
+base-image-ref
+hail-ubuntu-image-ref
+service-base-image-ref

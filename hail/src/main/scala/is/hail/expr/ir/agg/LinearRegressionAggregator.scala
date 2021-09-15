@@ -107,8 +107,8 @@ class LinearRegressionAggregator() extends StagedAggregator {
         .concat(") of covariates, inclusive"))
     )
     cb.assign(state.off, stateType.allocate(state.region))
-    cb += Region.storeAddress(stateType.fieldOffset(state.off, 0), vector.zeroes(cb.emb, state.region, k))
-    cb += Region.storeAddress(stateType.fieldOffset(state.off, 1), vector.zeroes(cb.emb, state.region, k * k))
+    cb += Region.storeAddress(stateType.fieldOffset(state.off, 0), vector.zeroes(cb, state.region, k))
+    cb += Region.storeAddress(stateType.fieldOffset(state.off, 1), vector.zeroes(cb, state.region, k * k))
     cb += Region.storeInt(stateType.loadField(state.off, 2), k0)
   }
 
@@ -273,6 +273,6 @@ class LinearRegressionAggregator() extends StagedAggregator {
       stateType.loadField(state.off, 0),
       stateType.loadField(state.off, 1),
       Region.loadInt(stateType.loadField(state.off, 2))))
-    pt.storeAtAddress(cb, addr, region, LinearRegressionAggregator.resultType.loadCheapSCode(cb, resAddr), deepCopy = false)
+    pt.storeAtAddress(cb, addr, region, LinearRegressionAggregator.resultType.loadCheapSCode(cb, resAddr).get, deepCopy = false)
   }
 }

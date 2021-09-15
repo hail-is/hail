@@ -22,8 +22,8 @@ build-batch:
 	../docker-build.sh . Dockerfile.out $(BATCH_IMAGE)
 
 .PHONY: build-worker
-build-worker: src/main/java/is/hail/JVMEntryway.class jars/junixsocket-selftest-2.3.3-jar-with-dependencies.jar
-	python3 ../ci/jinja2_render.py '{"global":{"docker_prefix":"$(DOCKER_PREFIX)"}}' Dockerfile.worker Dockerfile.worker.out
+build-worker:
+	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat ../docker/hail-ubuntu-image-ref)'"}}' Dockerfile.worker Dockerfile.worker.out
 	../docker-build.sh .. batch/Dockerfile.worker.out $(BATCH_WORKER_IMAGE)
 
 .PHONY: build

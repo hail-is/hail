@@ -59,7 +59,7 @@ class DensifyState(val arrayVType: VirtualTypeWithReq, val kb: EmitClassBuilder[
 
       val arrayCode = arrayStorageType.loadCheapSCode(cb, arrayAddr)
       codecSpec.encodedType.buildEncoder(arrayCode.st, kb)
-        .apply(cb, arrayCode, ob)
+        .apply(cb, arrayCode.get, ob)
       cb += ob.writeInt(const(DensifyAggregator.END_SERIALIZATION))
     }
   }
@@ -70,7 +70,7 @@ class DensifyState(val arrayVType: VirtualTypeWithReq, val kb: EmitClassBuilder[
     (cb: EmitCodeBuilder, ib: Value[InputBuffer]) => {
 
       val decValue = codecSpec.encodedType.buildDecoder(arrayStorageType.virtualType, kb)
-        .apply(cb, region, ib)
+        .apply(cb, region, ib).memoize(cb, "Densify_deserialize")
 
       cb.assign(arrayAddr, arrayStorageType.store(cb, region, decValue, deepCopy = false))
       cb.assign(length, arrayStorageType.loadLength(arrayAddr))
@@ -82,7 +82,7 @@ class DensifyState(val arrayVType: VirtualTypeWithReq, val kb: EmitClassBuilder[
   def init(cb: EmitCodeBuilder, _maxSize: Code[Int]): Unit = {
     cb.assign(length, _maxSize)
     cb.assign(arrayAddr, arrayStorageType.allocate(region, length))
-    cb += arrayStorageType.stagedInitialize(arrayAddr, length, setMissing = true)
+    arrayStorageType.stagedInitialize(cb, arrayAddr, length, setMissing = true)
   }
 
   private def gc(cb: EmitCodeBuilder): Unit = {
@@ -104,7 +104,7 @@ class DensifyState(val arrayVType: VirtualTypeWithReq, val kb: EmitClassBuilder[
         { sc =>
           val arr = sc.memoize(cb, "densify_seq_arr")
           arr.asInstanceOf[SIndexableValue].forEachDefined(cb) { case (cb, idx, element) =>
-            cb += arrayStorageType.setElementPresent(arrayAddr, idx)
+            arrayStorageType.setElementPresent(cb, arrayAddr, idx)
             eltType.storeAtAddress(cb, arrayStorageType.elementOffset(arrayAddr, length, idx), region, element, deepCopy = true)
           }
         })
@@ -113,16 +113,16 @@ class DensifyState(val arrayVType: VirtualTypeWithReq, val kb: EmitClassBuilder[
 
   def combine(cb: EmitCodeBuilder, other: DensifyState): Unit = {
     assert(other.arrayStorageType == this.arrayStorageType)
-    val arr = arrayStorageType.loadCheapSCode(cb, other.arrayAddr).memoize(cb, "densify_comb_other")
+    val arr = arrayStorageType.loadCheapSCode(cb, other.arrayAddr)
     arr.asInstanceOf[SIndexableValue].forEachDefined(cb) { case (cb, idx, element) =>
-      cb += arrayStorageType.setElementPresent(arrayAddr, idx)
+      arrayStorageType.setElementPresent(cb, arrayAddr, idx)
       eltType.storeAtAddress(cb, arrayStorageType.elementOffset(arrayAddr, length, idx), region, element, deepCopy = true)
     }
     gc(cb)
   }
 
   def result(cb: EmitCodeBuilder, region: Value[Region]): SIndexablePointerCode = {
-    arrayStorageType.loadCheapSCode(cb, arrayAddr)
+    arrayStorageType.loadCheapSCode(cb, arrayAddr).get
   }
 
   def copyFrom(cb: EmitCodeBuilder, srcCode: Code[Long]): Unit = {

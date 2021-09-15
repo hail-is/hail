@@ -271,7 +271,7 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDen
 
     val functionArgs = f match {
       case ApplyUnaryPrimOp(_, arg1) => IndexedSeq(arg1)
-      case Apply(_, _, args, _) => args
+      case Apply(_, _, args, _, _) => args
       case ApplyBinaryPrimOp(_, l, r) => IndexedSeq(l, r)
     }
 
@@ -282,13 +282,13 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDen
 
     val (name, breezeF): (String, DenseMatrix[Double] => DenseMatrix[Double]) = f match {
       case ApplyUnaryPrimOp(Negate(), _) => ("negate", BlockMatrix.negationOp)
-      case Apply("abs", _, _, _) => ("abs", numerics.abs(_))
-      case Apply("log", _, _, _) => ("log", numerics.log(_))
-      case Apply("sqrt", _, _, _) => ("sqrt", numerics.sqrt(_))
-      case Apply("ceil", _, _, _) => ("ceil", numerics.ceil(_))
-      case Apply("floor", _, _, _) => ("floor", numerics.floor(_))
+      case Apply("abs", _, _, _, _) => ("abs", numerics.abs(_))
+      case Apply("log", _, _, _, _) => ("log", numerics.log(_))
+      case Apply("sqrt", _, _, _,_) => ("sqrt", numerics.sqrt(_))
+      case Apply("ceil", _, _, _,_) => ("ceil", numerics.ceil(_))
+      case Apply("floor", _, _, _,_) => ("floor", numerics.floor(_))
 
-      case Apply("pow", _, Seq(Ref(`eltName`, _), r), _) if !Mentions(r, eltName) =>
+      case Apply("pow", _, Seq(Ref(`eltName`, _), r), _, _) if !Mentions(r, eltName) =>
         ("**", binaryOp(evalIR(ctx, r), numerics.pow(_, _)))
       case ApplyBinaryPrimOp(Add(), Ref(`eltName`, _), r) if !Mentions(r, eltName) =>
         ("+", binaryOp(evalIR(ctx, r), _ + _))
@@ -613,26 +613,26 @@ case class BlockMatrixBroadcast(
 
 case class BlockMatrixAgg(
   child: BlockMatrixIR,
-  outIndexExpr: IndexedSeq[Int]) extends BlockMatrixIR {
+  axesToSumOut: IndexedSeq[Int]) extends BlockMatrixIR {
 
   val blockCostIsLinear: Boolean = child.blockCostIsLinear
 
-  assert(outIndexExpr.length < 2)
+  assert(axesToSumOut.length > 0)
 
   override lazy val typ: BlockMatrixType = {
     val matrixShape = BlockMatrixIR.tensorShapeToMatrixShape(child)
     val matrixShapeArr = Array[Long](matrixShape._1, matrixShape._2)
-    val shape = outIndexExpr.map({ i: Int => matrixShapeArr(i) }).toFastIndexedSeq
-    val isRowVector = outIndexExpr == FastIndexedSeq(1)
+    val shape = IndexedSeq(0, 1).filter(i => !axesToSumOut.contains(i)).map({ i: Int => matrixShapeArr(i) }).toFastIndexedSeq
+    val isRowVector = axesToSumOut == FastIndexedSeq(0)
 
     val sparsity = if (child.typ.isSparse) {
-      outIndexExpr match {
-        case IndexedSeq() => BlockMatrixSparsity.dense
-        case IndexedSeq(1) => // col vector result; agg over row
+      axesToSumOut match {
+        case IndexedSeq(0, 1) => BlockMatrixSparsity.dense
+        case IndexedSeq(0) => // col vector result; agg over row
           BlockMatrixSparsity.constructFromShapeAndFunction(child.typ.nRowBlocks, 1) { (i, _) =>
             (0 until child.typ.nColBlocks).exists(j => child.typ.hasBlock(i -> j))
           }
-        case IndexedSeq(0) => // row vector result; agg over col
+        case IndexedSeq(1) => // row vector result; agg over col
           BlockMatrixSparsity.constructFromShapeAndFunction(1, child.typ.nColBlocks) { (_, j) =>
             (0 until child.typ.nRowBlocks).exists(i => child.typ.hasBlock(i -> j))
           }
@@ -646,16 +646,16 @@ case class BlockMatrixAgg(
 
   def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixAgg = {
     assert(newChildren.length == 1)
-    BlockMatrixAgg(newChildren(0).asInstanceOf[BlockMatrixIR], outIndexExpr)
+    BlockMatrixAgg(newChildren(0).asInstanceOf[BlockMatrixIR], axesToSumOut)
   }
 
   override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
     val childBm = child.execute(ctx)
 
-    outIndexExpr match {
-      case IndexedSeq() => BlockMatrixIR.toBlockMatrix(nRows = 1, nCols = 1, Array(childBm.sum()), typ.blockSize)
-      case IndexedSeq(1) => childBm.rowSum()
-      case IndexedSeq(0) => childBm.colSum()
+    axesToSumOut match {
+      case IndexedSeq(0, 1) => BlockMatrixIR.toBlockMatrix(nRows = 1, nCols = 1, Array(childBm.sum()), typ.blockSize)
+      case IndexedSeq(0) => childBm.rowSum()
+      case IndexedSeq(1) => childBm.colSum()
     }
   }
 }

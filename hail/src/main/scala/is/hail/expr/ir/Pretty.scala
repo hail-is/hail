@@ -156,10 +156,11 @@ object Pretty {
     case MakeArray(_, typ) => single(typ.parsableString())
     case MakeStream(_, typ, requiresMemoryManagementPerElement) =>
       FastSeq(typ.parsableString(), prettyBooleanLiteral(requiresMemoryManagementPerElement))
-    case StreamRange(_, _, _, requiresMemoryManagementPerElement) => single(prettyBooleanLiteral(requiresMemoryManagementPerElement))
+    case StreamIota(_, _, requiresMemoryManagementPerElement) => FastSeq(prettyBooleanLiteral(requiresMemoryManagementPerElement))
+    case StreamRange(_, _, _, requiresMemoryManagementPerElement, errorID) => FastSeq(errorID.toString, prettyBooleanLiteral(requiresMemoryManagementPerElement))
     case ToStream(_, requiresMemoryManagementPerElement) => single(prettyBooleanLiteral(requiresMemoryManagementPerElement))
     case StreamMap(_, name, _) => single(prettyIdentifier(name))
-    case StreamZip(_, names, _, behavior) => FastSeq(behavior match {
+    case StreamZip(_, names, _, behavior, errorID) => FastSeq(errorID.toString, behavior match {
       case ArrayZipBehavior.AssertSameLength => "AssertSameLength"
       case ArrayZipBehavior.TakeMinLength => "TakeMinLength"
       case ArrayZipBehavior.ExtendNA => "ExtendNA"
@@ -169,6 +170,8 @@ object Pretty {
       FastSeq(prettyIdentifiers(key), prettyIdentifier(curKey), prettyIdentifier(curVals))
     case StreamMultiMerge(_, key) => single(prettyIdentifiers(key))
     case StreamFilter(_, name, _) => single(prettyIdentifier(name))
+    case StreamTakeWhile(_, name, _) => single(prettyIdentifier(name))
+    case StreamDropWhile(_, name, _) => single(prettyIdentifier(name))
     case StreamFlatMap(_, name, _) => single(prettyIdentifier(name))
     case StreamFold(_, _, accumName, valueName, _) => FastSeq(prettyIdentifier(accumName), prettyIdentifier(valueName))
     case StreamFold2(_, acc, valueName, _, _) => FastSeq(prettyIdentifiers(acc.map(_._1)), prettyIdentifier(valueName))
@@ -185,20 +188,26 @@ object Pretty {
     case AggArrayPerElement(_, elementName, indexName, _, knownLength, isScan) =>
       FastSeq(prettyIdentifier(elementName), prettyIdentifier(indexName), prettyBooleanLiteral(isScan), prettyBooleanLiteral(knownLength.isDefined))
     case NDArrayMap(_, name, _) => single(prettyIdentifier(name))
-    case NDArrayMap2(_, _, lName, rName, _) => FastSeq(prettyIdentifier(lName), prettyIdentifier(rName))
+    case NDArrayMap2(_, _, lName, rName, _, errorID) => FastSeq(s"$errorID", prettyIdentifier(lName), prettyIdentifier(rName))
     case NDArrayReindex(_, indexExpr) => single(prettyInts(indexExpr, elideLiterals))
     case NDArrayConcat(_, axis) => single(axis.toString)
     case NDArrayAgg(_, axes) => single(prettyInts(axes, elideLiterals))
-    case NDArrayRef(_, _, errorId) => single(s"$errorId")
+    case NDArrayRef(_, _, errorID) => single(s"$errorID")
+    case NDArrayReshape(_, _, errorID) => single(s"$errorID")
+    case NDArrayMatMul(_, _, errorID) => single(s"$errorID")
+    case NDArrayQR(_, mode, errorID) => FastSeq(errorID.toString, mode)
+    case NDArraySVD(_, fullMatrices, computeUV, errorID) => FastSeq(errorID.toString, fullMatrices.toString, computeUV.toString)
+    case NDArrayInv(_, errorID) => single(s"$errorID")
     case ArraySort(_, l, r, _) => FastSeq(prettyIdentifier(l), prettyIdentifier(r))
-    case ApplyIR(function, typeArgs, _) => FastSeq(prettyIdentifier(function), prettyTypes(typeArgs), ir.typ.parsableString())
-    case Apply(function, typeArgs, _, t) => FastSeq(prettyIdentifier(function), prettyTypes(typeArgs), t.parsableString())
+    case ArrayRef(_,_, errorID) => single(s"$errorID")
+    case ApplyIR(function, typeArgs, _, errorID) => FastSeq(s"$errorID", prettyIdentifier(function), prettyTypes(typeArgs), ir.typ.parsableString())
+    case Apply(function, typeArgs, _, t, errorID) => FastSeq(s"$errorID", prettyIdentifier(function), prettyTypes(typeArgs), t.parsableString())
     case ApplySeeded(function, _, seed, t) => FastSeq(prettyIdentifier(function), seed.toString, t.parsableString())
-    case ApplySpecial(function, typeArgs, _, t) => FastSeq(prettyIdentifier(function), prettyTypes(typeArgs), t.parsableString())
+    case ApplySpecial(function, typeArgs, _, t, errorID) => FastSeq(s"$errorID", prettyIdentifier(function), prettyTypes(typeArgs), t.parsableString())
     case SelectFields(_, fields) => single(fillList(fields.view.map(f => text(prettyIdentifier(f)))))
     case LowerBoundOnOrderedCollection(_, _, onKey) => single(prettyBooleanLiteral(onKey))
     case In(i, typ) => FastSeq(typ.toString, i.toString)
-    case Die(message, typ, errorId) => FastSeq(typ.parsableString(), errorId.toString)
+    case Die(message, typ, errorID) => FastSeq(typ.parsableString(), errorID.toString)
     case CollectDistributedArray(_, _, cname, gname, _, _) =>
       FastSeq(prettyIdentifier(cname), prettyIdentifier(gname))
     case MatrixRead(typ, dropCols, dropRows, reader) =>
@@ -336,8 +345,6 @@ object Pretty {
     case ReadValue(_, spec, reqType) =>
       FastSeq(prettyStringLiteral(spec.toString), reqType.parsableString())
     case WriteValue(_, _, spec) => single(prettyStringLiteral(spec.toString))
-    case x@ShuffleWith(_, _, _, _, name, _, _) =>
-      FastSeq(x.shuffleType.parsableString(), prettyIdentifier(name))
     case MakeNDArray(_, _, _, errorId) => FastSeq(errorId.toString)
 
     case _ => Iterable.empty

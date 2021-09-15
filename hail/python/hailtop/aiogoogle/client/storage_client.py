@@ -13,7 +13,7 @@ from hailtop.utils import (
     TransientError, retry_transient_errors)
 from hailtop.aiotools import (
     FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS,
-    FeedableAsyncIterable, FileAndDirectoryError, MultiPartCreate)
+    FeedableAsyncIterable, FileAndDirectoryError, MultiPartCreate, UnexpectedEOFError)
 
 from hailtop.aiogoogle.auth import BaseSession
 from .base_client import BaseClient
@@ -308,9 +308,19 @@ class GetObjectStream(ReadableStream):
         self._resp = resp
         self._content = resp.content
 
+    # https://docs.aiohttp.org/en/stable/streams.html#aiohttp.StreamReader.read
+    # Read up to n bytes. If n is not provided, or set to -1, read until EOF
+    # and return all read bytes.
     async def read(self, n: int = -1) -> bytes:
         assert not self._closed
         return await self._content.read(n)
+
+    async def readexactly(self, n: int) -> bytes:
+        assert not self._closed and n >= 0
+        try:
+            return await self._content.readexactly(n)
+        except asyncio.streams.IncompleteReadError as e:
+            raise UnexpectedEOFError() from e
 
     def headers(self) -> 'CIMultiDictProxy[str]':
         return self._resp.headers
@@ -478,7 +488,7 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
     def _part_name(self, number: int) -> str:
         return self._tmp_name(f'part-{number}')
 
-    async def create_part(self, number: int, start: int) -> WritableStream:
+    async def create_part(self, number: int, start: int, size_hint: Optional[int] = None) -> WritableStream:  # pylint: disable=unused-argument
         part_name = self._part_name(number)
         params = {
             'uploadType': 'media'

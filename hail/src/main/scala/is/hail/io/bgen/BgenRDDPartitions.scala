@@ -281,10 +281,10 @@ object CompileDecoder {
             val strT = t.field("contig").typ.asInstanceOf[PCanonicalString]
             val contigPC = strT.sType.constructFromString(cb, region, contigRecoded)
             t.constructFromFields(cb, region,
-              FastIndexedSeq(EmitCode.present(cb.emb, contigPC), EmitCode.present(cb.emb, primitive(position))),
+              FastIndexedSeq(EmitCode.present(cb.emb, contigPC.get), EmitCode.present(cb.emb, primitive(position))),
               deepCopy = false)
         }
-        structFieldCodes += EmitCode.present(cb.emb, pc)
+        structFieldCodes += EmitCode.present(cb.emb, pc.get)
       }
 
       cb.assign(nAlleles, cbfis.invoke[Int]("readShort"))
@@ -301,18 +301,18 @@ object CompileDecoder {
         cb.whileLoop(i < nAlleles, {
           val st = SStringPointer(alleleStringType)
           val strCode = st.constructFromString(cb, region, cbfis.invoke[Int, String]("readLengthAndString", 4))
-          pushElement(cb, IEmitCode.present(cb, strCode))
+          pushElement(cb, IEmitCode.present(cb, strCode.get))
           cb.assign(i, i + 1)
         })
 
         val allelesArr = finish(cb)
-        structFieldCodes += EmitCode.present(cb.emb, allelesArr)
+        structFieldCodes += EmitCode.present(cb.emb, allelesArr.get)
       }
 
       if (settings.hasField("rsid"))
-        structFieldCodes += EmitCode.present(cb.emb, SStringPointer(PCanonicalString(false)).constructFromString(cb, region, rsid))
+        structFieldCodes += EmitCode.present(cb.emb, SStringPointer(PCanonicalString(false)).constructFromString(cb, region, rsid).get)
       if (settings.hasField("varid"))
-        structFieldCodes += EmitCode.present(cb.emb, SStringPointer(PCanonicalString(false)).constructFromString(cb, region, varid))
+        structFieldCodes += EmitCode.present(cb.emb, SStringPointer(PCanonicalString(false)).constructFromString(cb, region, varid).get)
       if (settings.hasField("offset"))
         structFieldCodes += EmitCode.present(cb.emb, primitive(offset))
       if (settings.hasField("file_idx"))
@@ -401,7 +401,7 @@ object CompileDecoder {
                     pushElement(cb, IEmitCode.present(cb, primitive(d1.toD / divisor)))
                     pushElement(cb, IEmitCode.present(cb, primitive(d2.toD / divisor)))
 
-                    IEmitCode.present(cb, finish(cb))
+                    IEmitCode.present(cb, finish(cb).get)
                   }
 
 
@@ -411,7 +411,7 @@ object CompileDecoder {
                   }
 
                 push(cb, IEmitCode.present(cb,
-                  SStackStruct.constructFromArgs(cb, partRegion, entryType.virtualType, entryFieldCodes.result(): _*)))
+                  SStackStruct.constructFromArgs(cb, partRegion, entryType.virtualType, entryFieldCodes.result(): _*).get))
 
                 cb.assign(d1, d1 + 1)
               })
@@ -517,7 +517,7 @@ object CompileDecoder {
             val dataOffset = cb.newLocal[Int]("bgen_add_entries_offset", const(settings.nSamples + 10) + i * 2)
             val d0 = data(dataOffset) & 0xff
             val d1 = data(dataOffset + 1) & 0xff
-            val pc = entryType.loadCheapSCode(cb, memoTyp.loadElement(memoizedEntryData, settings.nSamples, (d0 << 8) | d1))
+            val pc = entryType.loadCheapSCode(cb, memoTyp.loadElement(memoizedEntryData, settings.nSamples, (d0 << 8) | d1)).get
             cb.goto(Lpresent)
             val iec = IEmitCode(Lmissing, Lpresent, pc, false)
             pushElement(cb, iec)
@@ -527,7 +527,7 @@ object CompileDecoder {
 
           val pc = finish(cb)
 
-          structFieldCodes += EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, pc))
+          structFieldCodes += EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, pc.get))
       }
 
       rowType.constructFromFields(cb, region, structFieldCodes.result(), deepCopy = false).a

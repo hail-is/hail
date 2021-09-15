@@ -19,25 +19,25 @@ class TypedKey(typ: PType, kb: EmitClassBuilder[_], region: Value[Region]) exten
   def isKeyMissing(src: Code[Long]): Code[Boolean] = storageType.isFieldMissing(src, 0)
 
   def loadKey(cb: EmitCodeBuilder, src: Code[Long]): SCode = {
-    typ.loadCheapSCode(cb, storageType.loadField(src, 0))
+    typ.loadCheapSCode(cb, storageType.loadField(src, 0)).get
   }
 
   def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Code[Boolean] = storageType.isFieldMissing(off, 1)
 
   def initializeEmpty(cb: EmitCodeBuilder, off: Code[Long]): Unit =
-    cb += storageType.setFieldMissing(off, 1)
+    storageType.setFieldMissing(cb, off, 1)
 
   def store(cb: EmitCodeBuilder, destc: Code[Long], k: EmitCode): Unit = {
     val dest = cb.newLocal("casa_store_dest", destc)
 
-    cb += storageType.setFieldPresent(dest, 1)
+    storageType.setFieldPresent(cb, dest, 1)
     k.toI(cb)
       .consume(cb,
         {
-          cb += storageType.setFieldMissing(dest, 0)
+          storageType.setFieldMissing(cb, dest, 0)
         },
         { sc =>
-          cb += storageType.setFieldPresent(dest, 0)
+          storageType.setFieldPresent(cb, dest, 0)
           typ.storeAtAddress(cb, storageType.fieldOffset(dest, 0), region, sc, deepCopy = true)
         })
   }
@@ -46,7 +46,7 @@ class TypedKey(typ: PType, kb: EmitClassBuilder[_], region: Value[Region]) exten
     cb += Region.copyFrom(src, dest, storageType.byteSize)
 
   def deepCopy(cb: EmitCodeBuilder, er: EmitRegion, dest: Code[Long], src: Code[Long]): Unit = {
-    storageType.storeAtAddress(cb, dest, region, storageType.loadCheapSCode(cb, src), deepCopy = true)
+    storageType.storeAtAddress(cb, dest, region, storageType.loadCheapSCode(cb, src).get, deepCopy = true)
   }
 
   def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = {
@@ -177,6 +177,6 @@ class CollectAsSetAggregator(elem: VirtualTypeWithReq) extends StagedAggregator 
       pushElement(cb, elt.toI(cb))
     }
     // deepCopy is handled by `storeElement` above
-    resultType.storeAtAddress(cb, addr, region, finish(cb), deepCopy = false)
+    resultType.storeAtAddress(cb, addr, region, finish(cb).get, deepCopy = false)
   }
 }

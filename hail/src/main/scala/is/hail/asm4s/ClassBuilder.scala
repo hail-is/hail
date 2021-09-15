@@ -22,6 +22,10 @@ class Field[T: TypeInfo](classBuilder: ClassBuilder[_], val name: String) {
 
   def get(obj: Code[_]): Code[T] = Code(obj, lir.getField(lf))
 
+  def get(obj: Value[_]): Value[T] = new Value[T] {
+    override def get: Code[T] = Code(obj, lir.getField(lf))
+  }
+
   def putAny(obj: Code[_], v: Code[_]): Code[Unit] = put(obj, coerce[T](v))
 
   def put(obj: Code[_], v: Code[T]): Code[Unit] = {
@@ -80,9 +84,9 @@ class AsmTuple[C](val cb: ClassBuilder[C], val fields: IndexedSeq[Field[_]], val
 
   def newTuple(elems: IndexedSeq[Code[_]]): Code[C] = Code.newInstance(cb, ctor, elems)
 
-  def loadElementsAny(t: Value[_]): IndexedSeq[Code[_]] = fields.map(_.get(coerce[C](t) ))
+  def loadElementsAny(t: Value[_]): IndexedSeq[Value[_]] = fields.map(_.get(coerce[C](t) ))
 
-  def loadElements(t: Value[C]): IndexedSeq[Code[_]] = fields.map(_.get(t))
+  def loadElements(t: Value[C]): IndexedSeq[Value[_]] = fields.map(_.get(t))
 }
 
 trait WrappedModuleBuilder {

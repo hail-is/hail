@@ -98,7 +98,7 @@ class PruneSuite extends HailSuite {
         Row(FastIndexedSeq(Row("hi", FastIndexedSeq(Row(1)), "bye", Row(2, FastIndexedSeq(Row("bar"))), "foo")), Row(5, 10))),
       None),
     FastIndexedSeq("3"),
-    false).execute(ctx))
+    false).analyzeAndExecute(ctx).asTableValue(ctx))
 
   lazy val tr = TableRead(tab.typ, false, new TableReader {
     override def renderShort(): String = ???
@@ -721,12 +721,12 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testNDArrayMap2Memo(): Unit = {
-    checkMemo(NDArrayMap2(ndArr, ndArr, "left", "right", Ref("left", ref.typ)),
+    checkMemo(NDArrayMap2(ndArr, ndArr, "left", "right", Ref("left", ref.typ), ErrorIDs.NO_ERROR),
       TNDArray(justBRequired, Nat(1)),  Array(TNDArray(justBRequired, Nat(1)), TNDArray(TStruct.empty, Nat(1)), null))
-    checkMemo(NDArrayMap2(ndArr, ndArr, "left", "right", Ref("right", ref.typ)),
+    checkMemo(NDArrayMap2(ndArr, ndArr, "left", "right", Ref("right", ref.typ), ErrorIDs.NO_ERROR),
       TNDArray(justBRequired, Nat(1)),  Array(TNDArray(TStruct.empty, Nat(1)), TNDArray(justBRequired, Nat(1)), null))
     val addFieldsIR = ApplyBinaryPrimOp(Add(), GetField(Ref("left", ref.typ), "a"), GetField(Ref("right", ref.typ), "b"))
-    checkMemo(NDArrayMap2(ndArr, ndArr, "left", "right", addFieldsIR),
+    checkMemo(NDArrayMap2(ndArr, ndArr, "left", "right", addFieldsIR, ErrorIDs.NO_ERROR),
       TNDArray(TInt32, Nat(1)), Array(TNDArray(justARequired, Nat(1)), TNDArray(justBRequired, Nat(1)), null))
   }
 
@@ -1324,13 +1324,13 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testNDArrayMap2Rebuild(): Unit = {
-    checkRebuild(NDArrayMap2(ndArrayTS, ndArrayTS, "left", "right", Ref("left", ts)), TNDArray(subsetTS("b"), Nat(1)),
+    checkRebuild(NDArrayMap2(ndArrayTS, ndArrayTS, "left", "right", Ref("left", ts), ErrorIDs.NO_ERROR), TNDArray(subsetTS("b"), Nat(1)),
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[NDArrayMap2]
         ir.l.typ == TNDArray(TStruct(("b", TInt64)), Nat(1))
         ir.r.typ == TNDArray(TStruct.empty, Nat(1))
       })
-    checkRebuild(NDArrayMap2(ndArrayTS, ndArrayTS, "left", "right", Ref("right", ts)), TNDArray(subsetTS("b"), Nat(1)),
+    checkRebuild(NDArrayMap2(ndArrayTS, ndArrayTS, "left", "right", Ref("right", ts), ErrorIDs.NO_ERROR), TNDArray(subsetTS("b"), Nat(1)),
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[NDArrayMap2]
         ir.l.typ == TNDArray(TStruct.empty, Nat(1))

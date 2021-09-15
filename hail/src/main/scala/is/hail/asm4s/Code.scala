@@ -277,6 +277,28 @@ object Code {
       cls, method, Array[Class[_]](
         a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass, a6ct.runtimeClass, a7ct.runtimeClass, a8ct.runtimeClass), Array(a1, a2, a3, a4, a5, a6, a7, a8))
 
+  def invokeScalaObject9[A1, A2, A3, A4, A5, A6, A7, A8, A9, S](
+     cls: Class[_], method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5], a6: Code[A6], a7: Code[A7], a8: Code[A8], a9: Code[A9])(
+     implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5], a6ct: ClassTag[A6], a7ct: ClassTag[A7], a8ct: ClassTag[A8], a9ct: ClassTag[A9], sct: ClassTag[S]
+   ): Code[S] =
+    invokeScalaObject[S](
+      cls, method, Array[Class[_]](
+        a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass, a6ct.runtimeClass, a7ct.runtimeClass, a8ct.runtimeClass, a9ct.runtimeClass), Array(a1, a2, a3, a4, a5, a6, a7, a8, a9))
+
+  def invokeScalaObject11[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, S](
+    cls: Class[_], method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5], a6: Code[A6], a7: Code[A7], a8: Code[A8],
+    a9: Code[A9], a10: Code[A10], a11: Code[A11])(
+    implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5], a6ct: ClassTag[A6], a7ct: ClassTag[A7],
+    a8ct: ClassTag[A8], a9ct: ClassTag[A9], a10ct: ClassTag[A10], a11ct: ClassTag[A11], sct: ClassTag[S]
+  ): Code[S] =
+    invokeScalaObject[S](
+      cls, method,
+      Array[Class[_]](
+        a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass, a6ct.runtimeClass, a7ct.runtimeClass, a8ct.runtimeClass,
+        a9ct.runtimeClass, a10ct.runtimeClass, a11ct.runtimeClass),
+      Array(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11)
+    )
+
   def invokeScalaObject13[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, S](
     cls: Class[_], method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5], a6: Code[A6], a7: Code[A7], a8: Code[A8],
     a9: Code[A9], a10: Code[A10], a11: Code[A11], a12: Code[A12], a13: Code[A13])(
@@ -289,6 +311,19 @@ object Code {
         a9ct.runtimeClass, a10ct.runtimeClass, a11ct.runtimeClass, a12ct.runtimeClass, a13ct.runtimeClass),
       Array(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13)
     )
+
+  def invokeScalaObject16[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, S](
+    cls: Class[_], method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5], a6: Code[A6], a7: Code[A7], a8: Code[A8],
+    a9: Code[A9], a10: Code[A10], a11: Code[A11], a12: Code[A12], a13: Code[A13], a14: Code[A14], a15: Code[A15], a16: Code[A16])(
+    implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5], a6ct: ClassTag[A6], a7ct: ClassTag[A7],
+    a8ct: ClassTag[A8], a9ct: ClassTag[A9], a10ct: ClassTag[A10], a11ct: ClassTag[A11], a12ct: ClassTag[A12], a13ct: ClassTag[A13], a14ct: ClassTag[A14],
+    a15ct: ClassTag[A15], a16ct: ClassTag[A16], sct: ClassTag[S]): Code[S] =
+    invokeScalaObject[S](
+      cls, method,
+      Array[Class[_]](
+        a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass, a6ct.runtimeClass, a7ct.runtimeClass, a8ct.runtimeClass,
+        a9ct.runtimeClass, a10ct.runtimeClass, a11ct.runtimeClass, a12ct.runtimeClass, a13ct.runtimeClass, a14ct.runtimeClass, a15ct.runtimeClass, a16ct.runtimeClass),
+      Array(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16))
 
   def invokeStatic[S](cls: Class[_], method: String, parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit sct: ClassTag[S]): Code[S] = {
     val m = Invokeable.lookupMethod(cls, method, parameterTypes)(sct)
@@ -314,10 +349,10 @@ object Code {
   def invokeStatic5[T, A1, A2, A3, A4, A5, S](method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5])(implicit tct: ClassTag[T], sct: ClassTag[S], a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5]): Code[S] =
     invokeStatic[S](tct.runtimeClass, method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass), Array[Code[_]](a1, a2, a3, a4, a5))(sct)
 
-  def _null[T >: Null](implicit tti: TypeInfo[T]): Code[T] = Code(lir.insn0(ACONST_NULL, tti))
-  def _uncheckednull(tti: TypeInfo[_]): Code[_] = Code(lir.insn0(ACONST_NULL, tti))
+  def _null[T >: Null](implicit tti: TypeInfo[T]): Value[T] = Value.fromLIR[T](lir.insn0(ACONST_NULL, tti))
+  def _uncheckednull[T](tti: TypeInfo[T]): Value[T] = Value.fromLIR[T](lir.insn0(ACONST_NULL, tti))
 
-  def _empty: Code[Unit] = Code[Unit](null: lir.ValueX)
+  def _empty: Value[Unit] = Value.fromLIR[Unit](null: lir.ValueX)
 
   def _throwAny[T <: java.lang.Throwable]: Thrower[T] = new Thrower[T] {
     def apply[U](cerr: Code[T])(implicit uti: TypeInfo[U]): Code[U] = {
@@ -332,9 +367,10 @@ object Code {
   }
 
   private def getEmitLineNum: Int = {
-    val st = Thread.currentThread().getStackTrace
-    val i = st.indexWhere(ste => ste.getFileName == "Emit.scala")
-    if (i == -1) 0 else st(i).getLineNumber
+//    val st = Thread.currentThread().getStackTrace
+//    val i = st.indexWhere(ste => ste.getFileName == "Emit.scala")
+//    if (i == -1) 0 else st(i).getLineNumber
+    0
   }
 
   def _throw[T <: java.lang.Throwable, U](cerr: Code[T])(implicit uti: TypeInfo[U]): Code[U] =
@@ -362,7 +398,7 @@ object Code {
     Code._throw[is.hail.utils.HailException, U](cerr, lineNumber)
   }
 
-  def _fatalWithID[U](msg: Code[String], errorId: Int)(implicit uti: TypeInfo[U]): Code[U] =
+  def _fatalWithID[U](msg: Code[String], errorId: Code[Int])(implicit uti: TypeInfo[U]): Code[U] =
     Code._throw[is.hail.utils.HailException, U](Code.newInstance[is.hail.utils.HailException, String, Int](
       msg,
       errorId))
@@ -491,7 +527,7 @@ object Code {
     t.newTuple(elems)
   }
 
-  def loadTuple(modb: ModuleBuilder, elemTypes: IndexedSeq[TypeInfo[_]], v: Value[_]): IndexedSeq[Code[_]] = {
+  def loadTuple(modb: ModuleBuilder, elemTypes: IndexedSeq[TypeInfo[_]], v: Value[_]): IndexedSeq[Value[_]] = {
     val t = modb.tupleClass(elemTypes)
     t.loadElementsAny(v)
   }
@@ -902,6 +938,12 @@ class CodeLong(val lhs: Code[Long]) extends AnyVal {
 
   def >=(rhs: Code[Long]): Code[Boolean] = compare(rhs) >= 0
 
+  def max(rhs: Code[Long]): Code[Long] =
+    Code.invokeStatic2[Math, Long, Long, Long]("max", lhs, rhs)
+
+  def min(rhs: Code[Long]): Code[Long] =
+    Code.invokeStatic2[Math, Long, Long, Long]("min", lhs, rhs)
+
   def ceq(rhs: Code[Long]): Code[Boolean] = compare(rhs) ceq 0
 
   def cne(rhs: Code[Long]): Code[Boolean] = compare(rhs) cne 0
@@ -1194,6 +1236,12 @@ object FieldRef {
       s"when getting field ${ tct.runtimeClass.getName }.$field: ${ f.getType.getName }: wrong type ${ sct.runtimeClass.getName } ")
 
     new FieldRef(f)
+  }
+}
+
+object Value {
+  def fromLIR[T](v: => lir.ValueX): Value[T] = new Value[T] {
+    def get: Code[T] = Code(v)
   }
 }
 

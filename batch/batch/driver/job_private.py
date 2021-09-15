@@ -19,7 +19,7 @@ from hailtop.utils import (
 from ..batch_format_version import BatchFormatVersion
 from ..batch_configuration import WORKER_MAX_IDLE_TIME_MSECS
 from ..inst_coll_config import machine_type_to_dict, JobPrivateInstanceManagerConfig
-from .create_instance import create_instance
+from .create_instance import create_instance, create_instance_config
 from .instance_collection import InstanceCollection
 from .instance import Instance
 from .job import mark_job_creating, schedule_job
@@ -97,6 +97,10 @@ WHERE name = %s;
         self.scheduler_state_changed.set()
 
     async def schedule_jobs_loop_body(self):
+        if self.app['frozen']:
+            log.info(f'not scheduling any jobs for {self}; batch is frozen')
+            return True
+
         log.info(f'starting scheduling jobs for {self}')
         waitable_pool = WaitableSharedPool(self.async_worker_pool)
 
@@ -249,13 +253,8 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
             return
 
         activation_token = secrets.token_urlsafe(32)
-        instance = await Instance.create(
-            self.app, self, machine_name, activation_token, cores_mcpu, zone, machine_type, preemptible
-        )
-        self.add_instance(instance)
-        log.info(f'created {instance} for {(batch_id, job_id)}')
 
-        worker_config = await create_instance(
+        config, worker_config = create_instance_config(
             app=self.app,
             zone=zone,
             machine_name=machine_name,
@@ -269,6 +268,19 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
             job_private=True,
         )
 
+        instance = await Instance.create(
+            self.app, self, machine_name, activation_token, cores_mcpu, zone, machine_type, preemptible, worker_config
+        )
+        self.add_instance(instance)
+        log.info(f'created {instance} for {(batch_id, job_id)}')
+
+        await create_instance(
+            app=self.app,
+            machine_name=machine_name,
+            zone=zone,
+            config=config,
+        )
+
         memory_in_bytes = worker_memory_per_core_bytes(worker_type)
         resources = worker_config.resources(
             cpu_in_mcpu=cores_mcpu, memory_in_bytes=memory_in_bytes, storage_in_gib=0
@@ -277,6 +289,10 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
         return (instance, resources)
 
     async def create_instances_loop_body(self):
+        if self.app['frozen']:
+            log.info(f'not creating instances for {self}; batch is frozen')
+            return True
+
         log.info(f'create_instances for {self}: starting')
         start = time_msecs()
         n_instances_created = 0

@@ -1,11 +1,12 @@
+from .exceptions import FileAndDirectoryError, UnexpectedEOFError
 from .stream import (
     ReadableStream, WritableStream, blocking_readable_stream_to_async,
     blocking_writable_stream_to_async)
 from .fs import (
-    FileStatus, FileListEntry, AsyncFS, LocalAsyncFS, RouterAsyncFS, Transfer,
-    FileAndDirectoryError, MultiPartCreate)
+    FileStatus, FileListEntry, AsyncFS, LocalAsyncFS, RouterAsyncFS, Transfer, MultiPartCreate)
 from .utils import FeedableAsyncIterable
 from .tasks import BackgroundTaskManager
+from .weighted_semaphore import WeightedSemaphore
 
 __all__ = [
     'ReadableStream',
@@ -21,5 +22,7 @@ __all__ = [
     'BackgroundTaskManager',
     'Transfer',
     'FileAndDirectoryError',
-    'MultiPartCreate'
+    'MultiPartCreate',
+    'UnexpectedEOFError',
+    'WeightedSemaphore'
 ]

@@ -12,12 +12,6 @@ final case class TStream(elementType: Type) extends TIterable {
     elementType.pyString(sb)
     sb.append('>')
   }
-  override val fundamentalType: TStream = {
-    if (elementType == elementType.fundamentalType)
-      this
-    else
-      this.copy(elementType = elementType.fundamentalType)
-  }
 
   def _toPretty = s"Stream[$elementType]"
 

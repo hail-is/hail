@@ -63,7 +63,7 @@ class StagedConstructorSuite extends HailSuite {
     val fb = EmitFunctionBuilder[Region, Int, Long](ctx, "fb")
 
     fb.emitWithBuilder { cb =>
-      rt.store(cb, fb.emb.getCodeParam[Region](1), primitive(fb.getCodeParam[Int](2)), deepCopy = false)
+      rt.store(cb, fb.emb.getCodeParam[Region](1), primitive(fb.getCodeParam[Int](2)).memoize(cb, "test"), deepCopy = false)
     }
 
     val region = Region(pool=pool)
@@ -139,7 +139,7 @@ class StagedConstructorSuite extends HailSuite {
       rt.constructFromFields(cb, region, FastIndexedSeq(
         EmitCode.fromI(cb.emb) { cb =>
           val st = SStringPointer(pstring)
-          IEmitCode.present(cb, st.constructFromString(cb, region, const("hello")))
+          IEmitCode.present(cb, st.constructFromString(cb, region, const("hello")).get)
         },
         EmitCode.fromI(cb.emb) { cb =>
           IEmitCode.present(cb, primitive(fb.getCodeParam[Int](2)))
@@ -186,8 +186,8 @@ class StagedConstructorSuite extends HailSuite {
         val st = SStringPointer(PCanonicalString())
         IEmitCode.present(cb, structType.constructFromFields(cb, region, FastIndexedSeq(
           EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, primitive(idx + 1))),
-          EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, st.constructFromString(cb, region, fb.getCodeParam[String](2))))
-        ), deepCopy = false))
+          EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, st.constructFromString(cb, region, fb.getCodeParam[String](2)).get))
+        ), deepCopy = false).get)
       }.a
     }
 
@@ -313,8 +313,14 @@ class StagedConstructorSuite extends HailSuite {
     fb.emitWithBuilder { cb =>
       val region = fb.emb.getCodeParam[Region](1)
       rt.constructFromFields(cb, region, FastIndexedSeq(
-        EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, SStringPointer(PCanonicalString()).constructFromString(cb, region, fb.getCodeParam[String](2)))),
-        EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, tArray.constructFromElements(cb, region, const(2), deepCopy = false) {(cb, idx) => IEmitCode.present(cb, primitive(idx + 1))}))
+        EmitCode.fromI(cb.emb)(cb =>
+          IEmitCode.present(cb,
+            SStringPointer(PCanonicalString()).constructFromString(cb, region, fb.getCodeParam[String](2)).get)),
+        EmitCode.fromI(cb.emb)(cb =>
+          IEmitCode.present(cb,
+            tArray.constructFromElements(cb, region, const(2), deepCopy = false) { (cb, idx) =>
+              IEmitCode.present(cb, primitive(idx + 1))
+            }.get))
       ), deepCopy = false).a
     }
 
@@ -505,7 +511,7 @@ class StagedConstructorSuite extends HailSuite {
       val f1 = EmitFunctionBuilder[Long](ctx, "stagedCopy1")
       f1.emitWithBuilder { cb =>
         val region = f1.partitionRegion
-        t2.constructFromFields(cb, region, FastIndexedSeq(EmitCode.present(cb.emb, t2.types(0).loadCheapSCode(cb, v1))), deepCopy = false).a
+        t2.constructFromFields(cb, region, FastIndexedSeq(EmitCode.present(cb.emb, t2.types(0).loadCheapSCode(cb, v1).get)), deepCopy = false).a
       }
       val cp1 = f1.resultWithIndex()(ctx.fs, 0, r)()
       assert(SafeRow.read(t2, cp1) == Row(value))
@@ -513,7 +519,7 @@ class StagedConstructorSuite extends HailSuite {
       val f2 = EmitFunctionBuilder[Long](ctx, "stagedCopy2")
       f2.emitWithBuilder { cb =>
         val region = f2.partitionRegion
-        t1.constructFromFields(cb, region, FastIndexedSeq(EmitCode.present(cb.emb, t2.types(0).loadCheapSCode(cb, v1))), deepCopy = false).a
+        t1.constructFromFields(cb, region, FastIndexedSeq(EmitCode.present(cb.emb, t2.types(0).loadCheapSCode(cb, v1).get)), deepCopy = false).a
       }
       val cp2 = f2.resultWithIndex()(ctx.fs, 0, r)()
       assert(SafeRow.read(t1, cp2) == Row(value))

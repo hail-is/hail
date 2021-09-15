@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
 import is.hail.expr.ir.streams.StreamUtils
-import is.hail.types.physical.PStream
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -137,25 +136,40 @@ object TypeCheck {
         args.map(_.typ).zipWithIndex.foreach { case (x, i) => assert(x == typ.elementType,
           s"at position $i type mismatch: ${ typ.elementType.parsableString() } ${ x.parsableString() }")
         }
-      case x@ArrayRef(a, i, s) =>
+      case x@ArrayRef(a, i, _) =>
         assert(i.typ == TInt32)
-        assert(s.typ == TString)
         assert(x.typ == coerce[TArray](a.typ).elementType)
+      case x@ArraySlice(a, start, stop, step, _) =>
+        assert(start.typ == TInt32)
+        stop.foreach(ir => assert(ir.typ == TInt32))
+        assert(step.typ == TInt32)
+        assert(x.typ == coerce[TArray](a.typ))
       case ArrayLen(a) =>
         assert(a.typ.isInstanceOf[TArray])
-      case x@StreamRange(a, b, c, _) =>
+      case StreamIota(start, step, _) =>
+        assert(start.typ == TInt32)
+        assert(step.typ == TInt32)
+      case x@StreamRange(a, b, c, _, _) =>
         assert(a.typ == TInt32)
         assert(b.typ == TInt32)
         assert(c.typ == TInt32)
+      case SeqSample(totalRange, numToSample, _) =>
+        assert(totalRange.typ == TInt32)
+        assert(numToSample.typ == TInt32)
+      case StreamDistribute(child, pivots, path, _) =>
+        assert(path.typ == TString)
+        assert(child.typ.isInstanceOf[TStream])
+        assert(pivots.typ.isInstanceOf[TArray])
+        assert(pivots.typ.asInstanceOf[TArray].elementType.isInstanceOf[TStruct])
       case x@ArrayZeros(length) =>
         assert(length.typ == TInt32)
       case x@MakeNDArray(data, shape, rowMajor, _) =>
-        assert(data.typ.isInstanceOf[TArray])
+        assert(data.typ.isInstanceOf[TArray] || data.typ.isInstanceOf[TStream])
         assert(shape.typ.asInstanceOf[TTuple].types.forall(t => t == TInt64))
         assert(rowMajor.typ == TBoolean)
       case x@NDArrayShape(nd) =>
         assert(nd.typ.isInstanceOf[TNDArray])
-      case x@NDArrayReshape(nd, shape) =>
+      case x@NDArrayReshape(nd, shape, _) =>
         assert(nd.typ.isInstanceOf[TNDArray])
         assert(shape.typ.asInstanceOf[TTuple].types.forall(t => t == TInt64))
       case x@NDArrayConcat(nds, axis) =>
@@ -179,7 +193,7 @@ object TypeCheck {
         assert(filters.forall(f => coerce[TArray](f.typ).elementType == TInt64))
       case x@NDArrayMap(_, _, body) =>
         assert(x.elementTyp == body.typ)
-      case x@NDArrayMap2(l, r, _, _, body) =>
+      case x@NDArrayMap2(l, r, _, _, body, _) =>
         val lTyp = coerce[TNDArray](l.typ)
         val rTyp = coerce[TNDArray](r.typ)
         assert(lTyp.nDims == rTyp.nDims)
@@ -200,7 +214,7 @@ object TypeCheck {
       case x@NDArrayWrite(nd, path) =>
         assert(nd.typ.isInstanceOf[TNDArray])
         assert(path.typ == TString)
-      case x@NDArrayMatMul(l, r) =>
+      case x@NDArrayMatMul(l, r, _) =>
         assert(l.typ.isInstanceOf[TNDArray])
         assert(r.typ.isInstanceOf[TNDArray])
         val lType = l.typ.asInstanceOf[TNDArray]
@@ -209,15 +223,15 @@ object TypeCheck {
         assert(lType.nDims > 0)
         assert(rType.nDims > 0)
         assert(lType.nDims == 1 || rType.nDims == 1 || lType.nDims == rType.nDims)
-      case x@NDArrayQR(nd, mode) =>
+      case x@NDArrayQR(nd, mode, _) =>
         val ndType = nd.typ.asInstanceOf[TNDArray]
         assert(ndType.elementType == TFloat64)
         assert(ndType.nDims == 2)
-      case x@NDArraySVD(nd, _, _) =>
+      case x@NDArraySVD(nd, _, _, _) =>
         val ndType = nd.typ.asInstanceOf[TNDArray]
         assert(ndType.elementType == TFloat64)
         assert(ndType.nDims == 2)
-      case x@NDArrayInv(nd) =>
+      case x@NDArrayInv(nd, _) =>
         val ndType = nd.typ.asInstanceOf[TNDArray]
         assert(ndType.elementType == TFloat64)
         assert(ndType.nDims == 2)
@@ -269,7 +283,7 @@ object TypeCheck {
       case x@StreamMap(a, name, body) =>
         assert(a.typ.isInstanceOf[TStream])
         assert(x.elementTyp == body.typ)
-      case x@StreamZip(as, names, body, _) =>
+      case x@StreamZip(as, names, body, _, _) =>
         assert(as.length == names.length)
         assert(x.typ.elementType == body.typ)
         assert(as.forall(_.typ.isInstanceOf[TStream]))
@@ -286,6 +300,14 @@ object TypeCheck {
         assert(x.typ.elementType == eltType)
         assert(key.forall(eltType.hasField))
       case x@StreamFilter(a, name, cond) =>
+        assert(a.typ.asInstanceOf[TStream].elementType.isRealizable)
+        assert(cond.typ == TBoolean)
+        assert(x.typ == a.typ)
+      case x@StreamTakeWhile(a, name, cond) =>
+        assert(a.typ.asInstanceOf[TStream].elementType.isRealizable)
+        assert(cond.typ == TBoolean)
+        assert(x.typ == a.typ)
+      case x@StreamDropWhile(a, name, cond) =>
         assert(a.typ.asInstanceOf[TStream].elementType.isRealizable)
         assert(cond.typ == TBoolean)
         assert(x.typ == a.typ)
@@ -398,14 +420,15 @@ object TypeCheck {
         assert(x.typ == fd.typ)
       case In(i, typ) =>
         assert(typ != null)
-        typ match {
-          case pstream: PStream => assert(pstream.elementType.isRealizable)
+        typ.virtualType match {
+          case stream: TStream => assert(stream.elementType.isRealizable)
           case _ =>
         }
       case Die(msg, typ, _) =>
         assert(msg.typ == TString)
       case Trap(child) =>
-      case x@ApplyIR(fn, typeArgs, args) =>
+      case ConsoleLog(msg, _) => assert(msg.typ == TString)
+      case x@ApplyIR(fn, typeArgs, args, _) =>
       case x: AbstractApplyNode[_] =>
         assert(x.implementation.unify(x.typeArgs, x.args.map(_.typ), x.returnType))
       case MatrixWrite(_, _) =>
@@ -450,22 +473,6 @@ object TypeCheck {
         assert(path.typ == TString)
       case LiftMeOut(_) =>
       case Consume(_) =>
-      case x@ShuffleWith(_, _, _, _, _, writer, readers) =>
-        assert(writer.typ == TArray(TBinary))
-        assert(readers.typ.isRealizable)
-        assert(x.typ == readers.typ)
-      case ShuffleWrite(id, rows) =>
-        val shuffleType = coerce[TShuffle](id.typ)
-        val rowsType = coerce[TStream](rows.typ)
-        assert(rowsType.elementType == shuffleType.rowType)
-      case ShufflePartitionBounds(id, nPartitions) =>
-        assert(id.typ.isInstanceOf[TShuffle])
-        assert(nPartitions.typ == TInt32)
-      case ShuffleRead(id, keyRange) =>
-        val shuffleType = coerce[TShuffle](id.typ)
-        val keyRangeType = coerce[TInterval](keyRange.typ)
-        assert(shuffleType.keyType == keyRangeType.pointType)
-
       case TableMapRows(child, newRow) =>
         val newFieldSet = newRow.typ.asInstanceOf[TStruct].fieldNames.toSet
         assert(child.typ.key.forall(newFieldSet.contains))

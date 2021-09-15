@@ -1,7 +1,8 @@
 CREATE TABLE IF NOT EXISTS `globals` (
   `instance_id` VARCHAR(100) NOT NULL,
   `internal_token` VARCHAR(100) NOT NULL,
-  `n_tokens` INT NOT NULL
+  `n_tokens` INT NOT NULL,
+  `frozen` BOOLEAN NOT NULL DEFAULT FALSE
 ) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `resources` (
@@ -98,6 +99,7 @@ CREATE TABLE IF NOT EXISTS `instances` (
   `inst_coll` VARCHAR(255) NOT NULL,
   `machine_type` VARCHAR(255) NOT NULL,
   `preemptible` BOOLEAN NOT NULL,
+  `worker_config` MEDIUMTEXT,
   PRIMARY KEY (`name`),
   FOREIGN KEY (`inst_coll`) REFERENCES inst_colls(`name`)
 ) ENGINE = InnoDB;

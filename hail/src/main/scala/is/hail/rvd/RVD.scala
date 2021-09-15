@@ -114,49 +114,16 @@ class RVD(
   ): RVD = {
     require(newKey.forall(rowType.hasField))
     val sharedPrefixLength = typ.key.zip(newKey).takeWhile { case (l, r) => l == r }.length
-    val maybeKeys = if (newKey.toSet.subsetOf(typ.key.toSet)) {
-      partitioner.keysIfOneToOne()
-    } else None
-    if (isSorted && sharedPrefixLength == 0 && !newKey.isEmpty && maybeKeys.isEmpty) {
-      throw new IllegalArgumentException(s"$isSorted, $sharedPrefixLength, $newKey, ${maybeKeys.isDefined}, ${typ}, ${partitioner}")
+    if (isSorted && sharedPrefixLength == 0 && newKey.nonEmpty) {
+      throw new IllegalArgumentException(s"$isSorted, $sharedPrefixLength, $newKey, ${ typ }, ${ partitioner }")
     }
 
     if (sharedPrefixLength == newKey.length)
       this
     else if (isSorted)
-      maybeKeys match {
-        case None =>
-          truncateKey(newKey.take(sharedPrefixLength))
-            .extendKeyPreservesPartitioning(execCtx, newKey)
-            .checkKeyOrdering()
-        case Some(keys) =>
-          val oldRVDType = typ
-          val oldKeyPType = oldRVDType.kType
-          val oldKeyVType = oldKeyPType.virtualType
-          val newRVDType = oldRVDType.copy(key = newKey)
-          val newKeyPType = newRVDType.kType
-          val newKeyVType = newKeyPType.virtualType
-          var keyInfo = keys.zipWithIndex.map { case (oldKey, partitionIndex) =>
-            val newKey = new SelectFieldsRow(oldKey, oldKeyPType, newKeyPType)
-            RVDPartitionInfo(
-              partitionIndex,
-              1,
-              newKey,
-              newKey,
-              Array[Any](newKey),
-              RVDPartitionInfo.KSORTED,
-              s"out-of-order partitions $newKey")
-          }
-          val kOrd = PartitionBoundOrdering(newKeyVType).toOrdering
-          keyInfo = keyInfo.sortBy(_.min)(kOrd)
-          val bounds = keyInfo.map(_.interval).toFastIndexedSeq
-          val pids = keyInfo.map(_.partitionIndex).toArray
-          val unfixedPartitioner = new RVDPartitioner(newKeyVType, bounds)
-          val newPartitioner = RVDPartitioner.generate(
-            newRVDType.key, newKeyVType, bounds)
-          RVD(newRVDType, unfixedPartitioner, crdd.reorderPartitions(pids))
-            .repartition(execCtx, newPartitioner, shuffle = false)
-      }
+      truncateKey(newKey.take(sharedPrefixLength))
+        .extendKeyPreservesPartitioning(execCtx, newKey)
+        .checkKeyOrdering()
     else
       changeKey(execCtx, newKey)
   }
@@ -1585,6 +1552,7 @@ object RVD {
 
 class BroadcastRVD(backend: SparkBackend, rvd: RVD) extends Serializable {
   private[this] val crdd = rvd.crdd
+
   private[this] val bcPartitions = backend.broadcast(rvd.crdd.partitions)
 
   def computePartition(idx: Int, region: Region, partitionRegion: Region): Iterator[Long] = {

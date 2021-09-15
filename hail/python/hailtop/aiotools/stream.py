@@ -1,4 +1,4 @@
-from typing import BinaryIO, Optional, Tuple, Type
+from typing import BinaryIO, List, Optional, Tuple, Type
 from types import TracebackType
 import abc
 import io
@@ -7,13 +7,22 @@ from concurrent.futures import ThreadPoolExecutor
 import janus
 from hailtop.utils import blocking_to_async
 
+from .exceptions import UnexpectedEOFError
+
 
 class ReadableStream(abc.ABC):
     def __init__(self):
         self._closed = False
         self._waited_closed = False
 
+    # Read at most up to n bytes. If n == -1, then
+    # return all bytes up to the end of the file
     async def read(self, n: int = -1) -> bytes:
+        raise NotImplementedError
+
+    # Read exactly n bytes. If there is an EOF before
+    # n bytes have been read, raise an UnexpectedEOFError.
+    async def readexactly(self, n: int) -> bytes:
         raise NotImplementedError
 
     def close(self) -> None:
@@ -94,10 +103,27 @@ class _ReadableStreamFromBlocking(ReadableStream):
         self._thread_pool = thread_pool
         self._f = f
 
+    # https://docs.python.org/3/library/io.html#io.RawIOBase.read
+    # Read up to size bytes from the object and return them. As a
+    # convenience, if size is unspecified or -1, all bytes until EOF are returned.
     async def read(self, n: int = -1) -> bytes:
         if n == -1:
             return await blocking_to_async(self._thread_pool, self._f.read)
         return await blocking_to_async(self._thread_pool, self._f.read, n)
+
+    def _readexactly(self, n: int) -> bytes:
+        assert n >= 0
+        data: List[bytes] = []
+        while n > 0:
+            block = self._f.read(n)
+            if len(block) == 0:
+                raise UnexpectedEOFError()
+            data.append(block)
+            n -= len(block)
+        return b''.join(data)
+
+    async def readexactly(self, n: int) -> bytes:
+        return await blocking_to_async(self._thread_pool, self._readexactly, n)
 
     async def _wait_closed(self) -> None:
         await blocking_to_async(self._thread_pool, self._f.close)
@@ -134,7 +160,13 @@ def blocking_writable_stream_to_async(thread_pool: ThreadPoolExecutor, f: Binary
     return _WritableStreamFromBlocking(thread_pool, f)
 
 
-class BlockingQueueReadableStream(io.RawIOBase):
+class _Closable:
+    def __init__(self):
+        super().__init__()
+        self._closed = False
+
+
+class BlockingQueueReadableStream(io.RawIOBase, _Closable):
     # self.closed and self.close() must be multithread safe, because
     # they can be accessed by both the stream reader and writer which
     # are in different threads.
@@ -143,7 +175,8 @@ class BlockingQueueReadableStream(io.RawIOBase):
         self._q = q
         self._saw_eos = False
         self._closed = False
-        self._unread = b''
+        self._unread = memoryview(b'')
+        self._off = 0
 
     def readable(self) -> bool:
         return True
@@ -154,17 +187,26 @@ class BlockingQueueReadableStream(io.RawIOBase):
         if self._saw_eos:
             return 0
 
-        if not self._unread:
-            self._unread = self._q.sync_q.get()
-            if self._unread is None:
-                self._saw_eos = True
-                return 0
-        assert self._unread
+        # If readinto only partially fills b without hitting the end
+        # of stream, then the upload_obj returns an EntityTooSmall
+        # error in some cases.
+        total = 0
+        while total < len(b):
+            if self._off == len(self._unread):
+                self._unread = self._q.sync_q.get()
+                if self._unread is None:
+                    self._saw_eos = True
+                    return total
+                self._off = 0
+                self._unread = memoryview(self._unread)
 
-        n = min(len(self._unread), len(b))
-        b[:n] = self._unread[:n]
-        self._unread = self._unread[n:]
-        return n
+            n = min(len(self._unread) - self._off, len(b) - total)
+            b[total:total + n] = self._unread[self._off:self._off + n]
+            self._off += n
+            total += n
+            assert total == len(b) or self._off == len(self._unread)
+
+        return total
 
     def close(self):
         self._closed = True
@@ -176,14 +218,14 @@ class BlockingQueueReadableStream(io.RawIOBase):
 
 
 class AsyncQueueWritableStream(WritableStream):
-    def __init__(self, q: janus.Queue, blocking_readable: BlockingQueueReadableStream):
+    def __init__(self, q: janus.Queue, reader: _Closable):
         super().__init__()
         self._sent_eos = False
         self._q = q
-        self._blocking_readable = blocking_readable
+        self._reader = reader
 
     async def write(self, b: bytes) -> int:
-        if self._blocking_readable._closed:
+        if self._reader._closed:
             if not self._sent_eos:
                 await self._q.async_q.put(None)
                 self._sent_eos = True
@@ -203,3 +245,50 @@ def async_writable_blocking_readable_stream_pair() -> Tuple[AsyncQueueWritableSt
     blocking_readable = BlockingQueueReadableStream(q)
     async_writable = AsyncQueueWritableStream(q, blocking_readable)
     return async_writable, blocking_readable
+
+
+class BlockingCollect(_Closable):
+    def __init__(self, q: janus.Queue, size_hint: int):
+        super().__init__()
+        self._q = q
+        self._closed = False
+        self._size_hint = size_hint
+
+    def get(self) -> bytes:
+        n = self._size_hint
+        buf = bytearray(n)
+        off = 0
+        while True:
+            b = self._q.sync_q.get()
+            if b is None:
+                self._closed = True
+
+                # Unfortunately, we can't use a memory view here, we
+                # need to slice/copy buf, since the S3 upload_part API
+                # call requires byte or bytearray:
+                # Invalid type for parameter Body, value: <memory at 0x7f512801b6d0>, type: <class 'memoryview'>, valid types: <class 'bytes'>, <class 'bytearray'>, file-like object
+                if off == len(buf):
+                    return buf
+                return buf[:off]
+
+            k = len(b)
+            if k > n - off:
+                new_n = n * 2
+                while k > new_n - off:
+                    new_n *= 2
+                new_buf = bytearray(new_n)
+                view = memoryview(buf)
+                new_buf[:off] = view[:off]
+                buf = new_buf
+                n = new_n
+            assert k <= n - off
+
+            buf[off:off + k] = b
+            off += k
+
+
+def async_writable_blocking_collect_pair(size_hint: int) -> Tuple[AsyncQueueWritableStream, BlockingCollect]:
+    q: janus.Queue = janus.Queue(maxsize=1)
+    blocking_collect = BlockingCollect(q, size_hint)
+    async_writable = AsyncQueueWritableStream(q, blocking_collect)
+    return async_writable, blocking_collect

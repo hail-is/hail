@@ -3,15 +3,46 @@ package is.hail.expr.ir.streams
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode, IR, NDArrayMap, NDArrayMap2, Ref, RunAggScan, StagedArrayBuilder, StreamFilter, StreamFlatMap, StreamFold, StreamFold2, StreamFor, StreamJoinRightDistinct, StreamMap, StreamScan, StreamZip, StreamZipJoin}
-import is.hail.types.physical.stypes.interfaces.SIndexableCode
-import is.hail.types.physical.PCanonicalArray
+import is.hail.types.physical.stypes.interfaces.{SIndexableCode, SIndexableValue}
 import is.hail.types.physical.stypes.SingleCodeType
+import is.hail.types.physical.PCanonicalArray
+import is.hail.utils.HailException
 
 trait StreamArgType {
   def apply(outerRegion: Region, eltRegion: Region): Iterator[java.lang.Long]
 }
 
 object StreamUtils {
+
+  def storeNDArrayElementsAtAddress(
+    cb: EmitCodeBuilder,
+    stream: StreamProducer,
+    destRegion: Value[Region],
+    addr: Value[Long],
+    errorId: Int
+  ): Unit = {
+    val currentElementIndex = cb.newLocal[Long]("store_ndarray_elements_stream_current_index", 0)
+    val currentElementAddress = cb.newLocal[Long]("store_ndarray_elements_stream_current_addr", addr)
+    val elementType = stream.element.emitType.storageType
+    val elementByteSize = elementType.byteSize
+
+    var push: (EmitCodeBuilder, IEmitCode) => Unit = null
+    stream.memoryManagedConsume(destRegion, cb, setup = { cb =>
+      push = { case (cb, iec) =>
+        iec.consume(cb,
+          cb._throw(Code.newInstance[HailException, String, Int](
+            "Cannot construct an ndarray with missing values.", errorId
+          )),
+          { sc =>
+            elementType.storeAtAddress(cb, currentElementAddress, destRegion, sc, deepCopy = true)
+          })
+        cb.assign(currentElementIndex, currentElementIndex + 1)
+        cb.assign(currentElementAddress, currentElementAddress + elementByteSize)
+      }
+    }) { cb =>
+      push(cb, stream.element.toI(cb))
+    }
+  }
 
   def toArray(
     cb: EmitCodeBuilder,
@@ -21,7 +52,7 @@ object StreamUtils {
     val mb = cb.emb
 
     val xLen = mb.newLocal[Int]("sta_len")
-    val aTyp = PCanonicalArray(stream.element.emitType.canonicalPType, true)
+    val aTyp = PCanonicalArray(stream.element.emitType.storageType, true)
     stream.length match {
       case None =>
         val vab = new StagedArrayBuilder(SingleCodeType.fromSType(stream.element.st), stream.element.required, mb, 0)
@@ -30,12 +61,12 @@ object StreamUtils {
 
         aTyp.constructFromElements(cb, destRegion, xLen, deepCopy = false) { (cb, i) =>
           vab.loadFromIndex(cb, destRegion, i)
-        }
+        }.get
 
       case Some(computeLen) =>
 
         var pushElem: (EmitCodeBuilder, IEmitCode) => Unit = null
-        var finish: (EmitCodeBuilder) => SIndexableCode = null
+        var finish: (EmitCodeBuilder) => SIndexableValue = null
 
         stream.memoryManagedConsume(destRegion, cb, setup = { cb =>
           cb.assign(xLen, computeLen(cb))
@@ -46,7 +77,7 @@ object StreamUtils {
           pushElem(cb, stream.element.toI(cb))
         }
 
-        finish(cb)
+        finish(cb).get
     }
   }
 
@@ -89,7 +120,7 @@ object StreamUtils {
         traverse(a, mult); traverse(i, 2); traverse(s, 2); traverse(r, 2)
       case StreamZipJoin(as, _, _, _, f) =>
         as.foreach(traverse(_, mult)); traverse(f, 2)
-      case StreamZip(as, _, body, _) =>
+      case StreamZip(as, _, body, _, _) =>
         as.foreach(traverse(_, mult)); traverse(body, 2)
       case StreamFold(a, zero, _, _, body) =>
         traverse(a, mult); traverse(zero, mult); traverse(body, 2)
@@ -102,7 +133,7 @@ object StreamUtils {
         traverse(a, mult); traverse(body, 2)
       case NDArrayMap(a, _, body) =>
         traverse(a, mult); traverse(body, 2)
-      case NDArrayMap2(l, r, _, _, body) =>
+      case NDArrayMap2(l, r, _, _, body, _) =>
         traverse(l, mult); traverse(r, mult); traverse(body, 2)
 
       case _ => ir.children.foreach {

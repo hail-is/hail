@@ -37,7 +37,7 @@ spec:
          image: "{{ internal_gateway_image.image }}"
          resources:
            requests:
-             cpu: "100m"
+             cpu: "20m"
              memory: "200M"
            limits:
              cpu: "1"

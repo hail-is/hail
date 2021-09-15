@@ -80,10 +80,6 @@ principals:
   domains:
     - query-tests
   kind: json
-- name: shuffler
-  domains:
-    - shuffler
-  kind: json
 - name: benchmark
   domains:
     - benchmark
@@ -91,14 +87,6 @@ principals:
 - name: benchmark-tests
   domains:
     - benchmark-tests
-  kind: json
-- name: address
-  domains:
-    - address
-  kind: json
-- name: address-tests
-  domains:
-    - address-tests
   kind: json
 - name: monitoring
   domains:

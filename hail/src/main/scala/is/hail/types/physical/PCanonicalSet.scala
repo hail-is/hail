@@ -1,13 +1,13 @@
 package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, Region}
-import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerCode}
-import is.hail.types.physical.stypes.interfaces.SIndexableCode
+import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerCode, SIndexablePointerValue}
+import is.hail.types.physical.stypes.interfaces.{SIndexableCode, SIndexableValue}
 import is.hail.types.virtual.{TSet, Type}
 import is.hail.utils._
 
 object PCanonicalSet {
-  def coerceArrayCode(contents: SIndexableCode): SIndexableCode = {
+  def coerceArrayCode(contents: SIndexableValue): SIndexableValue = {
     contents.st match {
       case SIndexablePointer(PCanonicalArray(elt, r)) =>
         PCanonicalSet(elt, r).construct(contents)
@@ -40,9 +40,18 @@ final case class PCanonicalSet(elementType: PType,  required: Boolean = false) e
     arrayRep.unstagedStoreJavaObject(s, region)
   }
 
-  def construct(_contents: SIndexableCode): SIndexableCode = {
-    val contents = _contents.asInstanceOf[SIndexablePointerCode]
+  def construct(_contents: SIndexableValue): SIndexableValue = {
+    val contents = _contents.asInstanceOf[SIndexablePointerValue]
     assert(contents.pt.equalModuloRequired(arrayRep), s"\n  contents:  ${ contents.pt }\n  arrayrep: ${ arrayRep }")
-    new SIndexablePointerCode(SIndexablePointer(this), contents.asInstanceOf[SIndexablePointerCode].a)
+    val cont = contents.asInstanceOf[SIndexablePointerValue]
+    new SIndexablePointerValue(SIndexablePointer(this), cont.a, cont.length, cont.elementsAddress)
+  }
+
+  override def copiedType: PType = {
+    val copiedElement = elementType.copiedType
+    if (copiedElement.eq(elementType))
+      this
+    else
+      PCanonicalSet(copiedElement, required)
   }
 }

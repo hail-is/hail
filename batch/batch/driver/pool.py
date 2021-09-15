@@ -27,7 +27,7 @@ from ..utils import (
     adjust_cores_for_packability,
     adjust_cores_for_storage_request,
 )
-from .create_instance import create_instance
+from .create_instance import create_instance, create_instance_config
 from .instance import Instance
 from .instance_collection import InstanceCollection
 from .job import schedule_job
@@ -183,20 +183,7 @@ WHERE name = %s;
 
         activation_token = secrets.token_urlsafe(32)
 
-        instance = await Instance.create(
-            app=self.app,
-            inst_coll=self,
-            name=machine_name,
-            activation_token=activation_token,
-            worker_cores_mcpu=cores * 1000,
-            zone=zone,
-            machine_type=machine_type,
-            preemptible=True,
-        )
-        self.add_instance(instance)
-        log.info(f'created {instance}')
-
-        await create_instance(
+        config, worker_config = create_instance_config(
             app=self.app,
             zone=zone,
             machine_name=machine_name,
@@ -210,10 +197,37 @@ WHERE name = %s;
             job_private=False,
         )
 
+        instance = await Instance.create(
+            app=self.app,
+            inst_coll=self,
+            name=machine_name,
+            activation_token=activation_token,
+            worker_cores_mcpu=cores * 1000,
+            zone=zone,
+            machine_type=machine_type,
+            preemptible=True,
+            worker_config=worker_config
+        )
+
+        self.add_instance(instance)
+        log.info(f'created {instance}')
+
+        await create_instance(
+            app=self.app,
+            machine_name=machine_name,
+            zone=zone,
+            config=config,
+        )
+
     async def create_instances_from_ready_cores(self, ready_cores_mcpu, zone=None):
         n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
 
-        instances_needed = (ready_cores_mcpu - self.live_free_cores_mcpu + (self.worker_cores * 1000) - 1) // (
+        if zone is None:
+            live_free_cores_mcpu = self.live_free_cores_mcpu
+        else:
+            live_free_cores_mcpu = self.live_free_cores_mcpu_by_zone[zone]
+
+        instances_needed = (ready_cores_mcpu - live_free_cores_mcpu + (self.worker_cores * 1000) - 1) // (
             self.worker_cores * 1000
         )
         instances_needed = min(
@@ -232,6 +246,10 @@ WHERE name = %s;
             await asyncio.gather(*[self.create_instance(zone=zone) for _ in range(instances_needed)])
 
     async def create_instances(self):
+        if self.app['frozen']:
+            log.info(f'not creating instances for {self}; batch is frozen')
+            return
+
         ready_cores_mcpu_per_user = self.db.select_and_fetchall(
             '''
 SELECT user,
@@ -378,6 +396,10 @@ HAVING n_ready_jobs + n_running_jobs > 0;
         return result
 
     async def schedule_loop_body(self):
+        if self.app['frozen']:
+            log.info(f'not scheduling any jobs for {self.pool}; batch is frozen')
+            return True
+
         log.info(f'schedule {self.pool}: starting')
         start = time_msecs()
         n_scheduled = 0
@@ -443,7 +465,8 @@ LIMIT %s;
             while i < len(self.pool.healthy_instances_by_free_cores):
                 instance = self.pool.healthy_instances_by_free_cores[i]
                 assert cores_mcpu <= instance.free_cores_mcpu
-                return instance
+                if user != 'ci' or (user == 'ci' and instance.zone == GCP_ZONE):
+                    return instance
                 i += 1
             histogram = collections.defaultdict(int)
             for instance in self.pool.healthy_instances_by_free_cores:

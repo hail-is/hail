@@ -42,7 +42,7 @@ abstract class NDArrayProducer {
     }
   }
 
-  def toSCode(cb: EmitCodeBuilder, targetType: PCanonicalNDArray, region: Value[Region], rowMajor: Boolean = false): SNDArrayCode =  {
+  def toSCode(cb: EmitCodeBuilder, targetType: PCanonicalNDArray, region: Value[Region], rowMajor: Boolean = false): SNDArrayValue =  {
     val (firstElementAddress, finish) = targetType.constructDataFunction(
       shape,
       targetType.makeColumnMajorStrides(shape, region, cb),
@@ -84,7 +84,7 @@ object EmitNDArray {
       var ev: EmitSettable = null
       mb.voidWithBuilder { cb =>
         emitter.ctx.tryingToSplit.update(ir, ())
-        val result: IEmitCode = deforest(ir, cb, r, env, container, loopEnv).map(cb)(ndap => ndap.toSCode(cb, PCanonicalNDArray(ndap.elementType.setRequired(true), ndap.nDims), r))
+        val result: IEmitCode = deforest(ir, cb, r, env, container, loopEnv).map(cb)(ndap => ndap.toSCode(cb, PCanonicalNDArray(ndap.elementType.setRequired(true), ndap.nDims), r).get)
 
         ev = cb.emb.ecb.newEmitField(s"${context}_result", result.emitType)
         cb.assign(ev, result)
@@ -108,7 +108,7 @@ object EmitNDArray {
               val bodyEC = EmitCode.fromI(cb.emb)(cb => emitI(body, cb, env = bodyEnv))
 
               new NDArrayProducer {
-                override def elementType: PType = bodyEC.st.canonicalPType()
+                override def elementType: PType = bodyEC.st.storageType()
 
                 override val shape: IndexedSeq[Value[Long]] = childProducer.shape
                 override val initAll: EmitCodeBuilder => Unit = childProducer.initAll
@@ -122,13 +122,13 @@ object EmitNDArray {
               }
             }
           }
-          case NDArrayMap2(lChild, rChild, lName, rName, body) => {
+          case NDArrayMap2(lChild, rChild, lName, rName, body, errorID) => {
             deforestRecur(lChild, cb).flatMap(cb) { leftProducer =>
               deforestRecur(rChild, cb).map(cb) { rightProducer =>
                 val leftShapeValues = leftProducer.shape
                 val rightShapeValues = rightProducer.shape
 
-                val shapeArray = NDArrayEmitter.unifyShapes2(cb, leftShapeValues, rightShapeValues)
+                val shapeArray = NDArrayEmitter.unifyShapes2(cb, leftShapeValues, rightShapeValues, errorID)
 
                 val lElemRef = cb.emb.newEmitField(lName, leftProducer.elementType.sType, required = true)
                 val rElemRef = cb.emb.newEmitField(rName, rightProducer.elementType.sType, required = true)
@@ -140,7 +140,7 @@ object EmitNDArray {
                 val rightBroadcasted = broadcast(cb, rightProducer, "right")
 
                 new NDArrayProducer {
-                  override def elementType: PType = bodyEC.st.canonicalPType()
+                  override def elementType: PType = bodyEC.st.storageType()
 
                   override val shape: IndexedSeq[Value[Long]] = shapeArray
                   override val initAll: EmitCodeBuilder => Unit = {
@@ -164,7 +164,7 @@ object EmitNDArray {
                     cb.assign(lElemRef, EmitCode.present(cb.emb, leftBroadcasted.loadElementAtCurrentAddr(cb)))
                     cb.assign(rElemRef, EmitCode.present(cb.emb, rightBroadcasted.loadElementAtCurrentAddr(cb)))
 
-                    bodyEC.toI(cb).get(cb, "NDArrayMap2 body cannot be missing")
+                    bodyEC.toI(cb).get(cb, "NDArrayMap2 body cannot be missing", errorID)
                   }
                 }
               }
@@ -203,12 +203,12 @@ object EmitNDArray {
                 override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = childProducer.loadElementAtCurrentAddr(cb)
               }
             }
-          case x@NDArrayReshape(childND, shape) =>
+          case x@NDArrayReshape(childND, shape, errorID) =>
             emitI(childND, cb).flatMap(cb) { case childND: SNDArrayCode =>
               // Plan: Run through the child row major, make an array. Then jump around it as needed.
               val childMemo = childND.memoize(cb, "ndarray_reshape_child")
 
-              val childShapeValues = childMemo.shapes(cb)
+              val childShapeValues = childMemo.shapes
               val outputNDims = x.typ.nDims
 
               val requestedShapeValues = Array.tabulate(outputNDims)(i => cb.newLocal[Long](s"ndarray_reindex_request_shape_$i")).toIndexedSeq
@@ -226,19 +226,19 @@ object EmitNDArray {
                 cb.assign(runningProduct, 1L)
 
                 (0 until outputNDims).foreach { i =>
-                  cb.assign(tempShapeElement, tupleValue.loadField(cb, i).get(cb, "Can't reshape if elements of reshape tuple are missing.").asLong.longCode(cb))
+                  cb.assign(tempShapeElement, tupleValue.loadField(cb, i).get(cb, "Can't reshape if elements of reshape tuple are missing.", errorID).asLong.longCode(cb))
                   cb.ifx(tempShapeElement < 0L,
                     {
                       cb.ifx(tempShapeElement ceq -1L,
                         {
                           cb.ifx(hasNegativeOne, {
-                            cb._fatal("Can't infer shape, more than one -1")
+                            cb._fatalWithError(errorID, "Can't infer shape, more than one -1")
                           }, {
                             cb.assign(hasNegativeOne, true)
                           })
                         },
                         {
-                          cb._fatal("Can't reshape, new shape must contain only nonnegative numbers or -1")
+                          cb._fatalWithError(errorID,"Can't reshape, new shape must contain only nonnegative numbers or -1")
                         }
                       )
                     },
@@ -255,22 +255,22 @@ object EmitNDArray {
                   (runningProduct ceq 0L) || (numElements % runningProduct) > 0L,
                   numElements cne runningProduct
                 ), {
-                  cb._fatal("Can't reshape since requested shape is incompatible with number of elements")
+                  cb._fatalWithError(errorID,"Can't reshape since requested shape is incompatible with number of elements")
                 })
                 cb.assign(replacesNegativeOne, (runningProduct ceq 0L).mux(0L, numElements / runningProduct))
 
                 (0 until outputNDims).foreach { i =>
-                  cb.assign(tempShapeElement, tupleValue.loadField(cb, i).get(cb, "Can't reshape if elements of reshape tuple are missing.").asLong.longCode(cb))
+                  cb.assign(tempShapeElement, tupleValue.loadField(cb, i).get(cb, "Can't reshape if elements of reshape tuple are missing.", errorID).asLong.longCode(cb))
                   cb.assign(requestedShapeValues(i), (tempShapeElement ceq -1L).mux(replacesNegativeOne, tempShapeElement))
                 }
 
-                val childPType = childND.st.canonicalPType().asInstanceOf[PCanonicalNDArray]
-                val rowMajor = fromSValue(childMemo, cb).toSCode(cb, childPType, region, true).memoize(cb, "ndarray_reshape_row_major_layout")
+                val childPType = childND.st.storageType().asInstanceOf[PCanonicalNDArray]
+                val rowMajor = fromSValue(childMemo, cb).toSCode(cb, childPType, region, true)
                 // The canonical row major thing is now in the order we want. We just need to read this with the row major striding that
                 // would be generated for something of the new shape.
                 val outputPType = PCanonicalNDArray(rowMajor.st.elementPType.setRequired(true), x.typ.nDims, true) // TODO Should it be required?
                 val rowMajorStriding = outputPType.makeRowMajorStrides(requestedShapeValues, region, cb)
-                fromShapeStridesFirstAddress(rowMajor.st.elementPType, requestedShapeValues, rowMajorStriding, rowMajor.firstDataAddress(cb), cb)
+                fromShapeStridesFirstAddress(rowMajor.st.elementPType, requestedShapeValues, rowMajorStriding, rowMajor.firstDataAddress, cb)
               }
             }
 
@@ -306,7 +306,7 @@ object EmitNDArray {
 
                 val newShape = (0 until x.typ.nDims).map { dimIdx =>
                   val localDim = cb.newLocal[Long](s"ndarray_concat_output_shape_element_${dimIdx}")
-                  val ndShape = firstND.shapes(cb)
+                  val ndShape = firstND.shapes
                   cb.assign(localDim, ndShape(dimIdx))
                   if (dimIdx == axis) {
                     pushElement(cb, EmitCode(Code._empty, false, primitive(localDim)).toI(cb))
@@ -331,7 +331,7 @@ object EmitNDArray {
                   localDim
                 }
 
-                val stagedArrayOfSizes = finish(cb).memoize(cb, "ndarray_concat_staged_array_of_sizes")
+                val stagedArrayOfSizes = finish(cb)
 
                 new NDArrayProducer {
                   override def elementType: PType = firstND.st.elementPType
@@ -601,10 +601,10 @@ object EmitNDArray {
   }
 
   def fromSValue(ndSv: SNDArrayValue, cb: EmitCodeBuilder): NDArrayProducer = {
-    val ndSvShape = ndSv.shapes(cb)
-    val strides = ndSv.strides(cb)
+    val ndSvShape = ndSv.shapes
+    val strides = ndSv.strides
 
-    fromShapeStridesFirstAddress(ndSv.st.elementPType, ndSvShape, strides, ndSv.firstDataAddress(cb), cb)
+    fromShapeStridesFirstAddress(ndSv.st.elementPType, ndSvShape, strides, ndSv.firstDataAddress, cb)
   }
 
   def fromShapeStridesFirstAddress(newElementType: PType, ndSvShape: IndexedSeq[Value[Long]], strides: IndexedSeq[Value[Long]], firstDataAddress: Value[Long], cb: EmitCodeBuilder): NDArrayProducer = {
@@ -635,8 +635,7 @@ object EmitNDArray {
       override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = {
         val offset = counters.foldLeft[Code[Long]](const(0L)){ (a, b) => a + b}
         val loaded = elementType.loadCheapSCode(cb, firstDataAddress + offset)
-        val memoLoaded = loaded.memoize(cb, "temp_memo")
-        memoLoaded.get
+        loaded.get
       }
     }
   }

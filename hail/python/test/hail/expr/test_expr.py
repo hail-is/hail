@@ -55,7 +55,7 @@ class Tests(unittest.TestCase):
         same_as_python(10, -5, -1)
         same_as_python(10, -5, -4)
 
-        with self.assertRaisesRegex(hl.utils.FatalError, 'Array range cannot have step size 0'):
+        with self.assertRaisesRegex(hl.utils.HailUserError, 'Array range cannot have step size 0'):
             hl.eval(hl.range(0, 1, 0))
 
     def test_zeros(self):
@@ -147,6 +147,7 @@ class Tests(unittest.TestCase):
             x51=[1.0, 2.0, 3.0] <= kt.f,
             x52=[1.0, 2.0, 3.0] >= kt.f,
             x53=hl.tuple([True, 1.0]) < (1.0, 0.0),
+            x54=kt.e * kt.a,
         ).take(1)[0])
 
         expected = {'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3],
@@ -166,7 +167,8 @@ class Tests(unittest.TestCase):
                     'x42': False, 'x43': True, 'x44': True,
                     'x45': True, 'x46': True, 'x47': True,
                     'x48': True, 'x49': False, 'x50': False,
-                    'x51': True, 'x52': True, 'x53': False}
+                    'x51': True, 'x52': True, 'x53': False,
+                    'x54': "hellohellohellohello"}
 
         for k, v in expected.items():
             if isinstance(v, float):
@@ -176,22 +178,43 @@ class Tests(unittest.TestCase):
 
     def test_array_slicing(self):
         schema = hl.tstruct(a=hl.tarray(hl.tint32))
-        rows = [{'a': [1, 2, 3]}]
+        rows = [{'a': [1, 2, 3, 4, 5]}]
         kt = hl.Table.parallelize(rows, schema)
+        ha = hl.array(hl.range(100))
+        pa = list(range(100))
 
         result = convert_struct_to_dict(kt.annotate(
             x1=kt.a[0],
             x2=kt.a[2],
             x3=kt.a[:],
             x4=kt.a[1:2],
-            x5=kt.a[-1:2],
-            x6=kt.a[:2]
+            x5=kt.a[-1:4],
+            x6=kt.a[:2],
+            x7=kt.a[-20:20:-2],
+            x8=kt.a[20:-20:2],
+            x9=kt.a[-20:20:2],
+            x10=kt.a[20:-20:-2]
         ).take(1)[0])
 
-        expected = {'a': [1, 2, 3], 'x1': 1, 'x2': 3, 'x3': [1, 2, 3],
-                    'x4': [2], 'x5': [], 'x6': [1, 2]}
+        expected = {'a': [1, 2, 3, 4, 5], 'x1': 1, 'x2': 3, 'x3': [1, 2, 3, 4, 5],
+                    'x4': [2], 'x5': [], 'x6': [1, 2], 'x7': [], 'x8': [], 'x9': [1, 3, 5],
+                    'x10': [5, 3, 1]}
 
         self.assertDictEqual(result, expected)
+        self.assertEqual(pa[60:1:-3], hl.eval(ha[hl.int32(60):hl.int32(1):hl.int32(-3)]))
+        self.assertEqual(pa[::5], hl.eval(ha[::hl.int32(5)]))
+        self.assertEqual(pa[::-3], hl.eval(ha[::-3]))
+        self.assertEqual(pa[:-77:-3], hl.eval(ha[:hl.int32(-77):-3]))
+        self.assertEqual(pa[44::-7], hl.eval(ha[44::-7]))
+        self.assertEqual(pa[2:59:7], hl.eval(ha[2:59:7]))
+        self.assertEqual(pa[4:40:2], hl.eval(ha[4:40:2]))
+        self.assertEqual(pa[-400:-300:2], hl.eval(ha[hl.int32(-400):-300:2]))
+        self.assertEqual(pa[-300:-400:-2], hl.eval(ha[-300:-400:-2]))
+        self.assertEqual(pa[300:400:2], hl.eval(ha[300:400:2]))
+        self.assertEqual(pa[400:300:-2], hl.eval(ha[400:300:-2]))
+
+        with pytest.raises(hl.utils.HailUserError, match='step cannot be 0 for array slice'):
+            hl.eval(ha[::0])
 
     def test_dict_methods(self):
         schema = hl.tstruct(x=hl.tfloat64)
@@ -209,14 +232,21 @@ class Tests(unittest.TestCase):
             x6=kt.a.keys(),
             x7=kt.a.values(),
             x8=kt.a.size(),
-            x9=kt.a.map_values(lambda v: v * 2.0)
+            x9=kt.a.map_values(lambda v: v * 2.0),
+            x10=kt.a.items(),
         ).take(1)[0])
 
         expected = {'a': {'cat': 3, 'dog': 7}, 'x': 2.0, 'x1': 3, 'x2': 7, 'x3': False,
                     'x4': False, 'x5': {'cat', 'dog'}, 'x6': ['cat', 'dog'],
-                    'x7': [3, 7], 'x8': 2, 'x9': {'cat': 6.0, 'dog': 14.0}}
+                    'x7': [3, 7], 'x8': 2, 'x9': {'cat': 6.0, 'dog': 14.0},
+                    'x10': [('cat', 3), ('dog', 7)]}
 
         self.assertDictEqual(result, expected)
+
+    def test_dict_missing_error(self):
+        d = hl.dict({'a': 2, 'b': 3})
+        with pytest.raises(hl.utils.HailUserError, match='Key NA not found in dictionary'):
+            hl.eval(d[hl.missing(hl.tstr)])
 
     def test_numeric_conversion(self):
         schema = hl.tstruct(a=hl.tfloat64, b=hl.tfloat64, c=hl.tint32, d=hl.tint32)
@@ -319,6 +349,14 @@ class Tests(unittest.TestCase):
 
         with pytest.raises(TypeError, match="Expected str collection, int32 found"):
             hl.eval(hl.str(",").join([1, 2, 3]))
+
+    def test_string_multiply(self):
+        # Want to make sure all implict conversions work.
+        ps = "cat"
+        pn = 3
+        s = hl.str(ps)
+        n = hl.int32(pn)
+        assert all([x == "catcatcat" for x in hl.eval(hl.array([ps * n, n * ps, s * pn, pn * s]))])
 
     def test_cond(self):
         self.assertEqual(hl.eval('A' + hl.if_else(True, 'A', 'B')), 'AA')
@@ -502,6 +540,13 @@ class Tests(unittest.TestCase):
                                               hl.utils.Struct(x=(3, 3), y='3,3'),
                                               None]),
         ]
+
+    @with_flags('distributed_scan_comb_op')
+    def test_densify_table(self):
+        ht = hl.utils.range_table(100, n_partitions=33)
+        ht = ht.annotate(arr = hl.range(100).map(lambda idx: hl.or_missing(idx == ht.idx, idx)))
+        ht = ht.annotate(dense = hl.scan._densify(100, ht.arr))
+        assert ht.all(ht.dense == hl.range(100).map(lambda idx: hl.or_missing(idx < ht.idx, idx)))
 
     def test_agg_array_inside_annotate_rows(self):
         n_rows = 10
@@ -1119,8 +1164,6 @@ class Tests(unittest.TestCase):
         )
         mt.cols()._force_count()
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_aggregator_info_score(self):
         gen_file = resource('infoScoreTest.gen')
         sample_file = resource('infoScoreTest.sample')
@@ -1500,6 +1543,8 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.str(1)), '1')
         self.assertEqual(hl.eval(hl.str(hl.missing('int32'))), None)
 
+    def test_missing_with_field_starting_with_number(self):
+        assert hl.eval(hl.missing(hl.tstruct(**{"1kg": hl.tint32}))) is None
 
     def check_expr(self, expr, expected, expected_type):
         self.assertEqual(expected_type, expr.dtype)
@@ -3086,6 +3131,39 @@ class Tests(unittest.TestCase):
         self.assert_evals_to(hl.mean(s), 3)
         self.assert_evals_to(hl.median(s), 3)
 
+    def test_set_operators(self):
+        self.assert_evals_to(hl.set([1, 2, 3]) <= hl.set([1, 2]), False)
+        self.assert_evals_to(hl.set([1, 2, 3]) <= hl.set([1, 2, 3]), True)
+        self.assert_evals_to(hl.set([1, 2, 3]) <= hl.set([1, 2, 3, 4]), True)
+
+        self.assert_evals_to(hl.set([1, 2, 3]) < hl.set([1, 2]), False)
+        self.assert_evals_to(hl.set([1, 2, 3]) < hl.set([1, 2, 3]), False)
+        self.assert_evals_to(hl.set([1, 2, 3]) < hl.set([1, 2, 3, 4]), True)
+
+        self.assert_evals_to(hl.set([1, 2]) >= hl.set([1, 2, 3]), False)
+        self.assert_evals_to(hl.set([1, 2, 3]) >= hl.set([1, 2, 3]), True)
+        self.assert_evals_to(hl.set([1, 2, 3, 4]) >= hl.set([1, 2, 3]), True)
+
+        self.assert_evals_to(hl.set([1, 2]) > hl.set([1, 2, 3]), False)
+        self.assert_evals_to(hl.set([1, 2, 3]) > hl.set([1, 2, 3]), False)
+        self.assert_evals_to(hl.set([1, 2, 3, 4]) > hl.set([1, 2, 3]), True)
+
+        self.assert_evals_to(hl.set([1, 2, 3]) - hl.set([1, 3]), set([2]))
+        self.assert_evals_to(hl.set([1, 2, 3]) - set([1, 3]), set([2]))
+        self.assert_evals_to(set([1, 2, 3]) - hl.set([1, 3]), set([2]))
+
+        self.assert_evals_to(hl.set([1, 2, 3]) | hl.set([3, 4, 5]), set([1, 2, 3, 4, 5]))
+        self.assert_evals_to(hl.set([1, 2, 3]) | set([3, 4, 5]), set([1, 2, 3, 4, 5]))
+        self.assert_evals_to(set([1, 2, 3]) | hl.set([3, 4, 5]), set([1, 2, 3, 4, 5]))
+
+        self.assert_evals_to(hl.set([1, 2, 3]) & hl.set([3, 4, 5]), set([3]))
+        self.assert_evals_to(hl.set([1, 2, 3]) & set([3, 4, 5]), set([3]))
+        self.assert_evals_to(set([1, 2, 3]) & hl.set([3, 4, 5]), set([3]))
+
+        self.assert_evals_to(hl.set([1, 2, 3]) ^ hl.set([3, 4, 5]), set([1, 2, 4, 5]))
+        self.assert_evals_to(hl.set([1, 2, 3]) ^ set([3, 4, 5]), set([1, 2, 4, 5]))
+        self.assert_evals_to(set([1, 2, 3]) ^ hl.set([3, 4, 5]), set([1, 2, 4, 5]))
+
     @fails_service_backend()
     def test_uniroot(self):
         tol = 1.220703e-4
@@ -3608,3 +3686,20 @@ class Tests(unittest.TestCase):
             assert 'f5 is the new name of both' in err.args[0]
         else:
             assert False
+
+    def test_enumerate(self):
+        a1 = hl.literal(['foo', 'bar', 'baz'], 'array<str>')
+        a_empty = hl.literal([], 'array<str>')
+
+        exprs = (
+            hl.enumerate(a1),
+            hl.enumerate(a1, start=-1000),
+            hl.enumerate(a1, start=10, index_first=False),
+            hl.enumerate(a_empty, start=5)
+        )
+        assert hl.eval(exprs) == (
+            [(0, 'foo'), (1, 'bar'), (2, 'baz')],
+            [(-1000, 'foo'), (-999, 'bar'), (-998, 'baz')],
+            [('foo', 10), ('bar', 11), ('baz', 12)],
+            []
+        )

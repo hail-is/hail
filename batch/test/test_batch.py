@@ -20,6 +20,7 @@ deploy_config = get_deploy_config()
 
 DOCKER_PREFIX = os.environ.get('DOCKER_PREFIX')
 DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'gcr.io/hail-vdc/ubuntu:18.04')
+NAMESPACE = os.environ.get('HAIL_DEFAULT_NAMESPACE')
 SCOPE = os.environ.get('HAIL_SCOPE', 'test')
 
 
@@ -75,9 +76,7 @@ def test_bad_command(client):
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['sleep 5'])
     builder.submit()
     status = j.wait()
-    assert j._get_exit_codes(status) == {'main': None}, status
-    assert j._get_error(status, 'main') is not None
-    assert status['state'] == 'Error', str(status)
+    assert status['state'] == 'Failed', str(status)
 
 
 def test_invalid_resource_requests(client):
@@ -106,12 +105,24 @@ def test_invalid_resource_requests(client):
         builder.submit()
 
     builder = client.create_batch()
-    resources = {'cpu': '0.1', 'memory': 'foo', 'storage': '1Gi'}
+    resources = {'cpu': '0.25', 'memory': 'foo', 'storage': '1Gi'}
     builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     with pytest.raises(
         aiohttp.client.ClientResponseError,
         match=".*.resources.memory must match regex:.*.resources.memory must be one of:.*",
     ):
+        builder.submit()
+
+    builder = client.create_batch()
+    resources = {'cpu': '0.25', 'memory': '500Mi', 'storage': '10000000Gi'}
+    builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    with pytest.raises(aiohttp.client.ClientResponseError, match='resource requests.*unsatisfiable'):
+        builder.submit()
+
+    builder = client.create_batch()
+    resources = {'storage': '10000000Gi', 'machine_type': 'n1-standard-1'}
+    builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    with pytest.raises(aiohttp.client.ClientResponseError, match='resource requests.*unsatisfiable'):
         builder.submit()
 
 
@@ -134,6 +145,46 @@ def test_out_of_storage(client):
     assert "fallocate failed: No space left on device" in j.log()['main']
 
 
+def test_quota_applies_to_volume(client):
+    builder = client.create_batch()
+    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '5Gi'}
+    j = builder.create_job(
+        os.environ['HAIL_VOLUME_IMAGE'], ['/bin/sh', '-c', 'fallocate -l 100GiB /data/foo'], resources=resources
+    )
+    builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Failed', str(status)
+    assert "fallocate failed: No space left on device" in j.log()['main']
+
+
+def test_quota_shared_by_io_and_rootfs(client):
+    builder = client.create_batch()
+    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '10Gi'}
+    j = builder.create_job(DOCKER_ROOT_IMAGE, ['/bin/sh', '-c', 'fallocate -l 7GiB /foo'], resources=resources)
+    builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str(status)
+
+    builder = client.create_batch()
+    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '10Gi'}
+    j = builder.create_job(DOCKER_ROOT_IMAGE, ['/bin/sh', '-c', 'fallocate -l 7GiB /io/foo'], resources=resources)
+    builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str(status)
+
+    builder = client.create_batch()
+    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '10Gi'}
+    j = builder.create_job(
+        DOCKER_ROOT_IMAGE,
+        ['/bin/sh', '-c', 'fallocate -l 7GiB /foo; fallocate -l 7GiB /io/foo'],
+        resources=resources,
+    )
+    builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Failed', str(status)
+    assert "fallocate failed: No space left on device" in j.log()['main']
+
+
 def test_nonzero_storage(client):
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '20Gi'}
@@ -150,6 +201,15 @@ def test_attached_disk(client):
     builder.submit()
     status = j.wait()
     assert status['state'] == 'Success', str((status, j.log()))
+
+
+def test_cwd_from_image_workdir(client):
+    builder = client.create_batch()
+    j = builder.create_job(os.environ['HAIL_WORKDIR_IMAGE'], ['/bin/sh', '-c', 'pwd'])
+    builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str(status)
+    assert "/work" in j.log()['main']
 
 
 def test_unsubmitted_state(client):
@@ -227,8 +287,9 @@ def test_list_jobs(client):
     j_error.wait()
 
     def assert_job_ids(expected, q=None):
-        actual = set([j['job_id'] for j in b.jobs(q=q)])
-        assert actual == expected
+        jobs = b.jobs(q=q)
+        actual = set([j['job_id'] for j in jobs])
+        assert actual == expected, f'Expected {expected} job IDs, but got jobs: {jobs}'
 
     assert_job_ids({j_success.job_id}, 'success')
     assert_job_ids({j_success.job_id, j_failure.job_id, j_error.job_id}, 'done')
@@ -426,6 +487,14 @@ def test_log_after_failing_job(client):
     assert j.is_complete()
 
 
+def test_long_log_line(client):
+    b = client.create_batch()
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['/bin/sh', '-c', 'for _ in {0..70000}; do echo -n a; done'])
+    b.submit()
+    status = j.wait()
+    assert status['state'] == 'Success'
+
+
 def test_authorized_users_only():
     session = external_requests_client_session()
     endpoints = [
@@ -471,7 +540,7 @@ def test_service_account(client):
     j = b.create_job(
         os.environ['CI_UTILS_IMAGE'],
         ['/bin/sh', '-c', 'kubectl version'],
-        service_account={'namespace': os.environ['HAIL_DEFAULT_NAMESPACE'], 'name': 'test-batch-sa'},
+        service_account={'namespace': NAMESPACE, 'name': 'test-batch-sa'},
     )
     b.submit()
     status = j.wait()
@@ -608,7 +677,109 @@ def test_verify_no_access_to_metadata_server(client):
     builder.submit()
     status = j.wait()
     assert status['state'] == 'Failed', str(status)
-    assert "Connection timed out" in j.log()['main'], str(j.log()['main'], status)
+    assert "Could not resolve host" in j.log()['main'], (str(j.log()['main']), status)
+
+    builder = client.create_batch()
+    j = builder.create_job(os.environ['HAIL_CURL_IMAGE'], ['curl', '-fsSL', '169.254.169.254', '--max-time', '10'])
+    builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Failed', str(status)
+    assert "Connection timed out" in j.log()['main'], (str(j.log()['main']), status)
+
+
+def test_submit_batch_in_job(client):
+    builder = client.create_batch()
+    bucket_name = get_user_config().get('batch', 'bucket')
+    script = f'''import hailtop.batch as hb
+backend = hb.ServiceBackend("test", "{bucket_name}")
+b = hb.Batch(backend=backend)
+j = b.new_bash_job()
+j.command("echo hi")
+b.run()
+backend.close()
+'''
+    j = builder.create_job(
+        os.environ['HAIL_HAIL_BASE_IMAGE'],
+        ['/bin/bash', '-c', f'''python3 -c \'{script}\''''],
+        mount_tokens=True,
+    )
+    builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str(status)
+
+
+def test_cant_submit_to_default_with_other_ns_creds(client):
+    bucket_name = get_user_config().get('batch', 'bucket')
+    script = f'''import hailtop.batch as hb
+backend = hb.ServiceBackend("test", "{bucket_name}")
+b = hb.Batch(backend=backend)
+j = b.new_bash_job()
+j.command("echo hi")
+b.run()
+backend.close()
+'''
+
+    builder = client.create_batch()
+    j = builder.create_job(
+        os.environ['HAIL_HAIL_BASE_IMAGE'],
+        [
+            '/bin/bash',
+            '-c',
+            f'''
+rm /deploy-config/deploy-config.json
+python3 -c \'{script}\'''',
+        ],
+        mount_tokens=True,
+    )
+    builder.submit()
+    status = j.wait()
+    if NAMESPACE == 'default':
+        assert status['state'] == 'Success', str(status)
+    else:
+        assert status['state'] == 'Failed', str(status)
+        assert "Please log in" in j.log()['main'], (str(j.log()['main']), status)
+
+    builder = client.create_batch()
+    j = builder.create_job(
+        os.environ['HAIL_HAIL_BASE_IMAGE'],
+        [
+            '/bin/bash',
+            '-c',
+            f'''
+jq '.default_namespace = "default"' /deploy-config/deploy-config.json > tmp.json
+mv tmp.json /deploy-config/deploy-config.json
+python3 -c \'{script}\'''',
+        ],
+        mount_tokens=True,
+    )
+    builder.submit()
+    status = j.wait()
+    if NAMESPACE == 'default':
+        assert status['state'] == 'Success', str(status)
+    else:
+        assert status['state'] == 'Failed', str(status)
+        assert "Please log in" in j.log()['main'], (str(j.log()['main']), status)
+
+
+def test_cannot_contact_other_internal_ips(client):
+    internal_ips = [f'10.128.0.{i}' for i in (10, 11, 12)]
+    builder = client.create_batch()
+    script = f'''
+if [ "$HAIL_BATCH_WORKER_IP" != "{internal_ips[0]}" ] && ! grep -Fq {internal_ips[0]} /etc/hosts; then
+    OTHER_IP={internal_ips[0]}
+elif [ "$HAIL_BATCH_WORKER_IP" != "{internal_ips[1]}" ] && ! grep -Fq {internal_ips[1]} /etc/hosts; then
+    OTHER_IP={internal_ips[1]}
+else
+    OTHER_IP={internal_ips[2]}
+fi
+
+curl -fsSL -m 5 $OTHER_IP
+'''
+    j = builder.create_job(os.environ['HAIL_CURL_IMAGE'], ['/bin/bash', '-c', script], port=5000)
+    builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Failed', status
+    assert "Connection timed out" in j.log()['main'], (str(j.log()['main']), status)
 
 
 def test_can_use_google_credentials(client):

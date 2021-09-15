@@ -59,10 +59,7 @@ def _quantile_from_cdf(cdf, q):
     def compute(cdf):
         n = cdf.ranks[cdf.ranks.length() - 1]
         pos = hl.int64(q * n) + 1
-        idx = (hl.switch(q)
-                 .when(0.0, 0)
-                 .when(1.0, cdf.values.length() - 1)
-                 .default(_lower_bound(cdf.ranks, pos) - 1))
+        idx = hl.max(0, hl.min(cdf.values.length() - 1, _lower_bound(cdf.ranks, pos) - 1))
         res = hl.if_else(n == 0,
                          hl.missing(cdf.values.dtype.element_type),
                          cdf.values[idx])
@@ -869,9 +866,12 @@ def hardy_weinberg_test(n_hom_ref, n_het, n_hom_var) -> StructExpression:
     `Levene-Haldane distribution <../_static/LeveneHaldane.pdf>`__,
     which models the number of heterozygous individuals under equilibrium.
 
-    The mean of this distribution is ``(n_hom_ref * n_hom_var) / (2n - 1)`` where
-    ``n = n_hom_ref + n_het + n_hom_var``. So the expected frequency of heterozygotes
-    under equilibrium, `het_freq_hwe`, is this mean divided by ``n``.
+    The mean of this distribution is ``(n_ref * n_var) / (2n - 1)``, where
+    ``n_ref = 2*n_hom_ref + n_het`` is the number of reference alleles,
+    ``n_var = 2*n_hom_var + n_het`` is the number of variant alleles,
+    and ``n = n_hom_ref + n_het + n_hom_var`` is the number of individuals.
+    So the expected frequency of heterozygotes under equilibrium,
+    `het_freq_hwe`, is this mean divided by ``n``.
 
     Parameters
     ----------
@@ -1696,6 +1696,51 @@ def log10(x) -> Float64Expression:
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
     return _func("log10", tfloat64, x)
+
+
+@typecheck(x=expr_float64)
+def logit(x) -> Float64Expression:
+    """The logistic function.
+
+    Examples
+    --------
+    >>> hl.eval(hl.logit(.01))
+    -4.59511985013459
+    >>> hl.eval(hl.logit(.5))
+    0.0
+
+    Parameters
+    ----------
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+
+    Returns
+    -------
+    :class:`.Expression` of type :py:data:`.tfloat64`
+    """
+    return hl.log(x / (1 - x))
+
+
+@typecheck(x=expr_float64)
+def expit(x) -> Float64Expression:
+    """The logistic sigmoid function.
+
+    Examples
+    --------
+    >>> hl.eval(hl.expit(.01))
+    0.5024999791668749
+    >>> hl.eval(hl.expit(0.0))
+    0.5
+
+
+    Parameters
+    ----------
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+
+    Returns
+    -------
+    :class:`.Expression` of type :py:data:`.tfloat64`
+    """
+    return hl.if_else(x >= 0, 1 / (1 + hl.exp(-x)), hl.rbind(hl.exp(x), lambda exped: exped / (exped + 1)))
 
 
 @typecheck(args=expr_any)
@@ -3551,7 +3596,27 @@ def enumerate(a, start=0, *, index_first=True):
     :class:`.ArrayExpression`
         Array of (index, element) or (element, index) tuples.
     """
-    return range(0, len(a)).map(lambda i: (i + start, a[i]) if index_first else (a[i], i + start))
+    a_ir = a._ir
+    elt = Env.get_uid()
+    idx = Env.get_uid()
+    if index_first:
+        tuple = ir.MakeTuple([ir.Ref(idx), ir.Ref(elt)])
+    else:
+        tuple = ir.MakeTuple([ir.Ref(elt), ir.Ref(idx)])
+    indices, aggs = unify_all(a, start)
+    return construct_expr(
+        ir.ToArray(
+            ir.StreamZip(
+                [ir.ToStream(a_ir), ir.StreamIota(start._ir, ir.I32(1))],
+                [elt, idx],
+                tuple,
+                'TakeMinLength'
+            )
+        ),
+        hl.tarray(hl.ttuple(hl.tint32, a.dtype.element_type) if index_first else hl.ttuple(a.dtype.element_type, hl.tint32)),
+        indices,
+        aggs
+    )
 
 
 @deprecated(version='0.2.56', reason="Replaced by hl.enumerate")
@@ -3586,32 +3651,40 @@ def zip_with_index(a, index_first=True):
     return enumerate(a, index_first=index_first)
 
 
-@typecheck(f=func_spec(1, expr_any),
-           collection=expr_oneof(expr_set(), expr_array(), expr_ndarray()))
-def map(f: Callable, collection):
-    """Transform each element of a collection.
+@typecheck(f=anyfunc,
+           collections=expr_oneof(expr_set(), expr_array(), expr_ndarray()))
+def map(f: Callable, *collections):
+    r"""Transform each element of a collection.
 
     Examples
     --------
 
     >>> a = ['The', 'quick', 'brown', 'fox']
+    >>> b = [2, 4, 6, 8]
 
     >>> hl.eval(hl.map(lambda x: hl.len(x), a))
     [3, 5, 5, 3]
 
+    >>> hl.eval(hl.map(lambda s, n: hl.len(s) + n, a, b))
+    [5, 9, 11, 11]
+
     Parameters
     ----------
-    f : function ( (arg) -> :class:`.Expression`)
+    f : function ( (\*arg) -> :class:`.Expression`)
         Function to transform each element of the collection.
-    collection : :class:`.ArrayExpression` or :class:`.SetExpression`
-        Collection expression.
+    \*collections : :class:`.ArrayExpression` or :class:`.SetExpression`
+        A single collection expression or multiple array expressions.
 
     Returns
     -------
     :class:`.ArrayExpression` or :class:`.SetExpression`.
         Collection where each element has been transformed by `f`.
     """
-    return collection.map(f)
+
+    if builtins.len(collections) == 1:
+        return collections[0].map(f)
+    else:
+        return hl.zip(*collections).starmap(f)
 
 
 @typecheck(f=anyfunc,
@@ -5515,35 +5588,35 @@ def uniroot(f: Callable, min, max, *, max_iter=1000, epsilon=2.2204460492503131e
         t1 = fb / fc
         t2 = fb / fa
         q1 = fa / fc  # = t1 / t2
-        pq = cond(
+        pq = if_else(
             a == c,
             (cb * t1) / (t1 - 1.0),  # linear
             -t2 * (cb * q1 * (q1 - t1) - (b - a) * (t1 - 1.0))
             / ((q1 - 1.0) * (t1 - 1.0) * (t2 - 1.0)))  # quadratic
 
-        interpolated = cond((sign(pq) == sign(cb))
-                            & (.75 * abs(cb) > abs(pq) + tol / 2)  # b + pq within [b, c]
-                            & (abs(pq) < abs(prev / 2)),  # pq not too large
-                            pq, cb / 2)
+        interpolated = if_else((sign(pq) == sign(cb))
+                               & (.75 * abs(cb) > abs(pq) + tol / 2)  # b + pq within [b, c]
+                               & (abs(pq) < abs(prev / 2)),  # pq not too large
+                               pq, cb / 2)
 
-        new_step = cond(
+        new_step = if_else(
             (abs(prev) >= tol) & (abs(fa) > abs(fb)),  # try interpolation
             interpolated, cb / 2)
 
-        new_b = b + cond(new_step < 0, hl.min(new_step, -tol), hl.max(new_step, tol))
+        new_b = b + if_else(new_step < 0, hl.min(new_step, -tol), hl.max(new_step, tol))
         new_fb = wrapped_f(new_b)
 
-        return cond(
+        return if_else(
             iterations_remaining == 0,
-            null('float'),
-            cond(abs(fc) < abs(fb),
-                 recur(b, c, b, fb, fc, fb, prev, iterations_remaining),
-                 cond((abs(cb / 2) <= tol) | (fb == 0),
-                      b,  # acceptable approximation found
-                      cond(sign(new_fb) == sign(fc),  # use c = b for next iteration if signs match
-                           recur(b, new_b, b, fb, new_fb, fb, new_step, iterations_remaining - 1),
-                           recur(b, new_b, c, fb, new_fb, fc, new_step, iterations_remaining - 1)
-                           ))))
+            missing('float'),
+            if_else(abs(fc) < abs(fb),
+                    recur(b, c, b, fb, fc, fb, prev, iterations_remaining),
+                    if_else((abs(cb / 2) <= tol) | (fb == 0),
+                            b,  # acceptable approximation found
+                            if_else(sign(new_fb) == sign(fc),  # use c = b for next iteration if signs match
+                                    recur(b, new_b, b, fb, new_fb, fb, new_step, iterations_remaining - 1),
+                                    recur(b, new_b, c, fb, new_fb, fc, new_step, iterations_remaining - 1)
+                                    ))))
 
     fmin = wrapped_f(min)
     fmax = wrapped_f(max)
@@ -5947,3 +6020,9 @@ def shuffle(a, seed: builtins.int = None) -> ArrayExpression:
     :class:`.ArrayExpression`
     """
     return sorted(a, key=lambda _: hl.rand_unif(0.0, 1.0, seed=seed))
+
+
+@typecheck(msg=expr_str, result=expr_any)
+def _console_log(msg, result):
+    indices, aggregations = unify_all(msg, result)
+    return construct_expr(ir.ConsoleLog(msg._ir, result._ir), result.dtype, indices, aggregations)

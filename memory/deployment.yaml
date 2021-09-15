@@ -16,6 +16,8 @@ spec:
         app: memory
         hail.is/sha: "{{ code.sha }}"
         grafanak8sapp: "true"
+      annotations:
+        "cluster-autoscaler.kubernetes.io/safe-to-evict": "true"
     spec:
       serviceAccountName: memory
 {% if deploy %}
@@ -41,7 +43,7 @@ spec:
              mountPath: /redis
           resources:
             requests:
-              cpu: "600m"
+              cpu: "50m"
               memory: "2G"
             limits:
               cpu: "1"
@@ -90,7 +92,7 @@ spec:
           resources:
             requests:
               memory: "1.25G"
-              cpu: "400m"
+              cpu: "100m"
             limits:
               memory: "3.75G"
               cpu: "1"

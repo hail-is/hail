@@ -9,7 +9,7 @@ import is.hail.rvd.RVDPartitioner
 import is.hail.types._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.{SIndexablePointerCode, SStackStruct, SStringPointer}
+import is.hail.types.physical.stypes.concrete.{SIndexablePointerCode, SIndexablePointerValue, SStackStruct, SStringPointer}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -432,9 +432,9 @@ class CompiledLineParser(
 
   fb.cb.emitInit(Code(
     pos := 0,
-    filename := Code._null,
+    filename := Code._null[String],
     lineNumber := 0L,
-    line := Code._null))
+    line := Code._null[String]))
 
 
   @transient private[this] val parseStringMb = fb.genEmitMethod[Region, String]("parseString")
@@ -446,7 +446,7 @@ class CompiledLineParser(
 
   @transient private[this] def parseEntriesOpt(cb: EmitCodeBuilder): Option[EmitCode] = entriesType.map { entriesType =>
     val sc = parseEntries(cb, entriesType)
-    EmitCode.present(cb.emb, sc)
+    EmitCode.present(cb.emb, sc.get)
   }
 
   mb.emitWithBuilder[Long] { cb =>
@@ -585,7 +585,7 @@ class CompiledLineParser(
         primitive(Code.invokeStatic1[java.lang.Double, String, Double]("parseDouble", cb.invokeCode(parseStringMb, region)))
       case t: PString =>
         val st = SStringPointer(t)
-        st.constructFromString(cb, region, cb.invokeCode[String](parseStringMb, region))
+        st.constructFromString(cb, region, cb.invokeCode[String](parseStringMb, region)).get
     }
     if (t.required)
       IEmitCode.present(cb, parseDefinedValue(cb))
@@ -638,7 +638,7 @@ class CompiledLineParser(
     fieldEmitCodes
   }
 
-  private[this] def parseEntries(cb: EmitCodeBuilder, entriesType: PCanonicalArray): SIndexablePointerCode = {
+  private[this] def parseEntries(cb: EmitCodeBuilder, entriesType: PCanonicalArray): SIndexablePointerValue = {
     val entryType = entriesType.elementType.asInstanceOf[PCanonicalStruct]
     assert(entryType.fields.size == 1)
     val (push, finish) = entriesType.constructFromFunctions(cb, region, nCols, false)
@@ -648,7 +648,7 @@ class CompiledLineParser(
       cb.ifx(pos >= line.length, parseError(cb, const("unexpected end of line while reading entry ").concat(i.toS)))
 
       val ec = EmitCode.fromI(cb.emb)(cb => parseValueOfType(cb, entryType.fields(0).typ))
-      push(cb, IEmitCode.present(cb, SStackStruct.constructFromArgs(cb, region, entryType.virtualType, ec)))
+      push(cb, IEmitCode.present(cb, SStackStruct.constructFromArgs(cb, region, entryType.virtualType, ec).get))
       cb.assign(pos, pos + 1)
       cb.assign(i, i + 1)
     })

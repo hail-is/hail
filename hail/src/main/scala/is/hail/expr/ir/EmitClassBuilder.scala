@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.{Region, RegionPool, RegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.backend.BackendUtils
+import is.hail.backend.{BackendUtils, BroadcastValue}
 import is.hail.expr.ir.functions.IRRandomness
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.io.fs.FS
@@ -14,9 +14,9 @@ import is.hail.types.virtual.Type
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.TaskContext
-
 import java.io._
 import java.lang.reflect.InvocationTargetException
+
 import scala.collection.mutable
 import scala.language.existentials
 
@@ -27,7 +27,7 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
   def genEmitClass[C](baseName: String, sourceFile: Option[String] = None)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] =
     newEmitClass[C](genName("C", baseName), sourceFile)
 
-  private[this] var _staticFS: StaticField[FS] = {
+  private[this] val _staticFS: StaticField[FS] = {
     val cls = genEmitClass[Unit]("FSContainer")
     cls.newStaticField[FS]("filesystem", Code._null[FS])
   }
@@ -36,14 +36,20 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
 
   def getFS: Value[FS] = new StaticFieldRef(_staticFS)
 
-  private[this] val rgMap: mutable.Map[ReferenceGenome, Value[ReferenceGenome]] =
-    mutable.Map[ReferenceGenome, Value[ReferenceGenome]]()
+  private val rgContainers: mutable.Map[ReferenceGenome, StaticField[ReferenceGenome]] = mutable.Map.empty
 
-  def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] = rgMap.getOrElseUpdate(rg, {
-    val cls = genEmitClass[Unit](s"RGContainer_${rg.name}")
-    val fld = cls.newStaticField("reference_genome", rg.codeSetup(ctx.localTmpdir, cls))
-    new StaticFieldRef(fld)
-  })
+  def hasReferences: Boolean = rgContainers.nonEmpty
+
+  def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] = {
+    val rgField = rgContainers.getOrElseUpdate(rg, {
+      val cls = genEmitClass[Unit](s"RGContainer_${rg.name}")
+      cls.newStaticField("reference_genome", Code._null[ReferenceGenome])
+    })
+    new StaticFieldRef(rgField)
+  }
+
+  def referenceGenomes(): IndexedSeq[ReferenceGenome] = rgContainers.keys.toFastIndexedSeq.sortBy(_.name)
+  def referenceGenomeFields(): IndexedSeq[StaticField[ReferenceGenome]] = rgContainers.toFastIndexedSeq.sortBy(_._1.name).map(_._2)
 }
 
 trait WrappedEmitModuleBuilder {
@@ -395,7 +401,7 @@ class EmitClassBuilder[C](
 
   def freeSerializedAgg(i: Int): Code[Unit] = {
     assert(i < _nSerialized)
-    _aggSerialized.load().update(i, Code._null)
+    _aggSerialized.load().update(i, Code._null[Array[Byte]])
   }
 
   def runMethodWithHailExceptionHandler(mname: String): Code[(String, java.lang.Integer)] = {
@@ -512,17 +518,17 @@ class EmitClassBuilder[C](
   private def getCodeArgsInfo(argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): (IndexedSeq[TypeInfo[_]], TypeInfo[_], AsmTuple[_]) = {
     val codeArgsInfo = argsInfo.flatMap {
       case CodeParamType(ti) => FastIndexedSeq(ti)
-      case t: EmitParamType => t.codeTupleTypes
-      case SCodeParamType(pt) => pt.codeTupleTypes()
+      case t: EmitParamType => t.valueTupleTypes
+      case SCodeParamType(pt) => pt.settableTupleTypes()
     }
     val (codeReturnInfo, asmTuple) = returnInfo match {
       case CodeParamType(ti) => ti -> null
-      case SCodeParamType(pt) if pt.nCodes == 1 => pt.codeTupleTypes().head -> null
+      case SCodeParamType(pt) if pt.nSettables == 1 => pt.settableTupleTypes().head -> null
       case SCodeParamType(pt) =>
-        val asmTuple = modb.tupleClass(pt.codeTupleTypes())
+        val asmTuple = modb.tupleClass(pt.settableTupleTypes())
         asmTuple.ti -> asmTuple
       case t: EmitParamType =>
-        val ts = t.codeTupleTypes
+        val ts = t.valueTupleTypes
         if (ts.length == 1)
           ts.head -> null
         else {
@@ -572,6 +578,20 @@ class EmitClassBuilder[C](
     }
   }
 
+  def makeAddReferenceGenomes(): Unit = {
+    cb.addInterface(typeInfo[FunctionWithReferences].iname)
+    val mb = newEmitMethod("addReferenceGenomes", FastIndexedSeq[ParamType](typeInfo[Array[ReferenceGenome]]), typeInfo[Unit])
+    mb.voidWithBuilder { cb =>
+      val rgFields = emodb.referenceGenomeFields()
+      val rgs = mb.getCodeParam[Array[ReferenceGenome]](1)
+      cb.ifx(rgs.length().cne(const(rgFields.length)), cb._fatal("Invalid number of references, expected ", rgFields.length.toString, " got ", rgs.length().toS))
+      for ((fld, i) <- rgFields.zipWithIndex) {
+        cb += fld.put(rgs(i))
+        cb += fld.get().invoke[String, FS, Unit]("heal", ctx.localTmpdir, getFS)
+      }
+    }
+  }
+
   def makeRNGs() {
     cb.addInterface(typeInfo[FunctionWithSeededRandomness].iname)
 
@@ -606,12 +626,21 @@ class EmitClassBuilder[C](
     makeAddFS()
 
     val hasLiterals: Boolean = literalsMap.nonEmpty || encodedLiteralsMap.nonEmpty
+    val hasReferences: Boolean = emodb.hasReferences
+    if (hasReferences)
+      makeAddReferenceGenomes()
 
     val literalsBc = if (hasLiterals)
       ctx.backend.broadcast(encodeLiterals())
     else
       // if there are no literals, there might not be a HailContext
       null
+
+    val references: Array[ReferenceGenome] = if (hasReferences)
+      emodb.referenceGenomes().toArray
+    else
+      null
+
 
     val nSerializedAggs = _nSerialized
 
@@ -652,6 +681,8 @@ class EmitClassBuilder[C](
           f.asInstanceOf[FunctionWithObjects].setObjects(objects)
         if (hasLiterals)
           f.asInstanceOf[FunctionWithLiterals].addLiterals(literalsBc.value)
+        if (hasReferences)
+          f.asInstanceOf[FunctionWithReferences].addReferenceGenomes(references)
         if (nSerializedAggs != 0)
           f.asInstanceOf[FunctionWithAggRegion].setNumSerialized(nSerializedAggs)
         f.asInstanceOf[FunctionWithSeededRandomness].setPartitionIndex(idx)
@@ -774,6 +805,10 @@ trait FunctionWithFS {
   def addFS(fs: FS): Unit
 }
 
+trait FunctionWithReferences {
+  def addReferenceGenomes(rgs: Array[ReferenceGenome]): Unit
+}
+
 trait FunctionWithPartitionRegion {
   def addPartitionRegion(r: Region): Unit
   def setPool(pool: RegionPool): Unit
@@ -794,7 +829,7 @@ trait FunctionWithBackend {
 object CodeExceptionHandler {
   /**
     * This method assumes that the method referred to by `methodName`
-    * is a 0-argument class method (only takes the class itself as an arg)
+    * is a -argument class method (only takes the class itself as an arg)
     * which returns void.
     */
   def handleUserException(obj: AnyRef, methodName: String): (String, java.lang.Integer) = {
@@ -850,12 +885,12 @@ class EmitMethodBuilder[C](
     val _st = emitParamTypes(emitIndex - static).asInstanceOf[SCodeParamType].st
     assert(_st.isRealizable)
 
-    val ts = _st.codeTupleTypes()
+    val ts = _st.settableTupleTypes()
     val codeIndex = emitParamCodeIndex(emitIndex - static)
 
-    _st.fromCodes(ts.zipWithIndex.map { case (t, i) =>
-      mb.getArg(codeIndex + i)(t).load()
-    })
+    _st.fromValues(ts.zipWithIndex.map { case (t, i) =>
+      mb.getArg(codeIndex + i)(t)
+    }).get
   }
 
   def storeEmitParam(emitIndex: Int, cb: EmitCodeBuilder): Value[Region] => EmitValue = {
@@ -868,37 +903,32 @@ class EmitMethodBuilder[C](
     val codeIndex = emitParamCodeIndex(emitIndex - static)
 
     et match {
-      case SingleCodeEmitParamType(required, sct) =>
+      case SingleCodeEmitParamType(required, sct: StreamSingleCodeType) =>
         val field = cb.newFieldAny(s"storeEmitParam_sct_$emitIndex", mb.getArg(codeIndex)(sct.ti).get)(sct.ti);
         { region: Value[Region] =>
-          val emitCode = EmitCode.fromI(this) { cb =>
-            if (required) {
-              IEmitCode.present(cb, sct.loadToSCode(cb, region, field.load()))
-            } else {
-              IEmitCode(cb, mb.getArg[Boolean](codeIndex + 1).get, sct.loadToSCode(cb, null, field.load()))
-            }
-          }
+          val m = if (required) None else Some(mb.getArg[Boolean](codeIndex + 1))
+          val v = sct.loadToSValue(cb, region, field)
 
-          new EmitValue {
-            evSelf =>
+          EmitValue(m, v)
+        }
 
-            override def emitType: EmitType = emitCode.emitType
+      case SingleCodeEmitParamType(required, sct) =>
+        val v = sct.loadToSValue(cb, null, mb.getArg(codeIndex)(sct.ti));
+        { region: Value[Region] =>
+          val m = if (required) None else Some(mb.getArg[Boolean](codeIndex + 1))
 
-            override def load: EmitCode = emitCode
-
-            override def get(cb: EmitCodeBuilder): SCode = emitCode.toI(cb).get(cb)
-          }
+          EmitValue(m, v)
         }
 
       case SCodeEmitParamType(et) =>
-        val fd = cb.memoizeField(getEmitParam(emitIndex, null), s"storeEmitParam_$emitIndex")
+        val fd = cb.memoizeField(getEmitParam(cb, emitIndex, null), s"storeEmitParam_$emitIndex")
         _ => fd
     }
 
   }
 
   // needs region to support stream arguments
-  def getEmitParam(emitIndex: Int, r: Value[Region]): EmitValue = {
+  def getEmitParam(cb: EmitCodeBuilder, emitIndex: Int, r: Value[Region]): EmitValue = {
     assert(mb.isStatic || emitIndex != 0)
     val static = (!mb.isStatic).toInt
     val et = emitParamTypes(emitIndex - static) match {
@@ -909,53 +939,19 @@ class EmitMethodBuilder[C](
 
     et match {
       case SingleCodeEmitParamType(required, sct) =>
+        val m = if (required) None else Some(mb.getArg[Boolean](codeIndex + 1))
+        val v = sct.loadToSValue(cb, r, mb.getArg(codeIndex)(sct.ti))
 
-        val emitCode = EmitCode.fromI(this) { cb =>
-          if (required) {
-            IEmitCode.present(cb, sct.loadToSCode(cb, r, mb.getArg(codeIndex)(sct.ti).get))
-          } else {
-            IEmitCode(cb, mb.getArg[Boolean](codeIndex + 1).get, sct.loadToSCode(cb, null, mb.getArg(codeIndex)(sct.ti).get))
-          }
-        }
-
-        new EmitValue {
-          evSelf =>
-
-          override def emitType: EmitType = emitCode.emitType
-
-          override def load: EmitCode = emitCode
-
-          override def get(cb: EmitCodeBuilder): SCode = emitCode.toI(cb).get(cb)
-        }
+        EmitValue(m, v)
 
       case SCodeEmitParamType(et) =>
-        val ts = et.st.codeTupleTypes()
+        val ts = et.st.settableTupleTypes()
 
-        new EmitValue {
-          evSelf =>
-          val emitType: EmitType = et
-
-          def load: EmitCode = {
-            EmitCode(Code._empty,
-              if (et.required)
-                const(false)
-              else
-                mb.getArg[Boolean](codeIndex + ts.length),
-              st.fromCodes(ts.zipWithIndex.map { case (t, i) =>
-                mb.getArg(codeIndex + i)(t).get
-              }))
-          }
-
-          override def get(cb: EmitCodeBuilder): SCode = {
-            new SValue {
-              override def get: SCode = st.fromCodes(ts.zipWithIndex.map { case (t, i) =>
-                mb.getArg(codeIndex + i)(t).get
-              })
-
-              override def st: SType = evSelf.st
-            }
-          }
-        }
+        val m = if (et.required) None else Some(mb.getArg[Boolean](codeIndex + ts.length))
+        val v = et.st.fromValues(ts.zipWithIndex.map { case (t, i) =>
+          mb.getArg(codeIndex + i)(t)
+        })
+        EmitValue(m, v)
     }
   }
 
@@ -990,11 +986,11 @@ class EmitMethodBuilder[C](
 
   def emitSCode(f: (EmitCodeBuilder) => SCode): Unit = {
     emit(EmitCodeBuilder.scopedCode(this) { cb =>
-      val res = f(cb)
-      if (res.st.nCodes == 1)
-        res.makeCodeTuple(cb).head
+      val res = f(cb).memoize(cb, "emitSCode")
+      if (res.st.nSettables == 1)
+        res.valueTuple.head
       else
-        asmTuple.newTuple(res.makeCodeTuple(cb))
+        asmTuple.newTuple(res.valueTuple.map(_.get))
     })
   }
 
@@ -1042,7 +1038,7 @@ trait WrappedEmitMethodBuilder[C] extends WrappedEmitClassBuilder[C] {
   // EmitMethodBuilder methods
   def getCodeParam[T: TypeInfo](emitIndex: Int): Settable[T] = emb.getCodeParam[T](emitIndex)
 
-  def getEmitParam(emitIndex: Int, r: Value[Region]): EmitValue = emb.getEmitParam(emitIndex, r)
+  def getEmitParam(cb: EmitCodeBuilder, emitIndex: Int, r: Value[Region]): EmitValue = emb.getEmitParam(cb, emitIndex, r)
 
   def newPLocal(st: SType): SSettable = emb.newPLocal(st)
 

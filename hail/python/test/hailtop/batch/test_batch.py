@@ -1,3 +1,4 @@
+import secrets
 import unittest
 import os
 import subprocess as sp
@@ -18,6 +19,7 @@ from .utils import debug_info
 
 
 DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'gcr.io/hail-vdc/ubuntu:18.04')
+HAIL_TEST_GCS_BUCKET = os.environ['HAIL_TEST_GCS_BUCKET']
 
 
 class LocalTests(unittest.TestCase):
@@ -792,6 +794,17 @@ class ServiceTests(unittest.TestCase):
         assert res.status()['state'] == 'success', debug_info(res)
         assert res.get_job_log(3)['main'] == "15\n", debug_info(res)
 
+    def test_python_job_w_non_zero_ec(self):
+        b = self.batch(default_python_image='gcr.io/hail-vdc/python-dill:3.7-slim')
+        j = b.new_python_job()
+
+        def error():
+            raise Exception("this should fail")
+
+        j.call(error)
+        res = b.run()
+        assert res.status()['state'] == 'failure', debug_info(res)
+
     def test_fail_fast(self):
         b = self.batch(cancel_after_n_failures=1)
 
@@ -806,7 +819,7 @@ class ServiceTests(unittest.TestCase):
         assert job_status['state'] == 'Cancelled', str(job_status)
 
     def test_service_backend_bucket_parameter(self):
-        backend = ServiceBackend(bucket='hail-test-dmk9z')
+        backend = ServiceBackend(bucket=HAIL_TEST_GCS_BUCKET)
         b = Batch(backend=backend)
         j1 = b.new_job()
         j1.command(f'echo hello > {j1.ofile}')
@@ -815,7 +828,7 @@ class ServiceTests(unittest.TestCase):
         b.run()
 
     def test_service_backend_remote_tempdir_with_trailing_slash(self):
-        backend = ServiceBackend(remote_tmpdir='gs://hail-test-dmk9z/temporary-files/')
+        backend = ServiceBackend(remote_tmpdir=f'gs://{HAIL_TEST_GCS_BUCKET}/temporary-files/')
         b = Batch(backend=backend)
         j1 = b.new_job()
         j1.command(f'echo hello > {j1.ofile}')
@@ -824,10 +837,18 @@ class ServiceTests(unittest.TestCase):
         b.run()
 
     def test_service_backend_remote_tempdir_with_no_trailing_slash(self):
-        backend = ServiceBackend(remote_tmpdir='gs://hail-test-dmk9z/temporary-files')
+        backend = ServiceBackend(remote_tmpdir=f'gs://{HAIL_TEST_GCS_BUCKET}/temporary-files/')
         b = Batch(backend=backend)
         j1 = b.new_job()
         j1.command(f'echo hello > {j1.ofile}')
         j2 = b.new_job()
         j2.command(f'cat {j1.ofile}')
+        b.run()
+
+    def test_large_command(self):
+        backend = ServiceBackend(remote_tmpdir=f'gs://{HAIL_TEST_GCS_BUCKET}/temporary-files')
+        b = Batch(backend=backend)
+        j1 = b.new_job()
+        long_str = secrets.token_urlsafe(15 * 1024)
+        j1.command(f'echo "{long_str}"')
         b.run()

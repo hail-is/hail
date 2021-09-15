@@ -218,6 +218,13 @@ object Region {
     false
   }
 
+  val sharedChunkHeaderBytes = 16L
+  def getSharedChunkRefCount(ndAddr: Long): Long = Region.loadLong(ndAddr - sharedChunkHeaderBytes)
+  def storeSharedChunkRefCount(ndAddr: Long, newCount: Long): Unit = Region.storeLong(ndAddr - sharedChunkHeaderBytes, newCount)
+  def getSharedChunkByteSize(ndAddr: Long): Long = Region.loadLong(ndAddr - 8L)
+  def getSharedChunkByteSize(ndAddr: Code[Long]): Code[Long] = Region.loadLong(ndAddr - 8L)
+  def storeSharedChunkByteSize(ndAddr: Long, byteSize: Long): Unit = Region.storeLong(ndAddr - 8L, byteSize)
+
   def stagedCreate(blockSize: Size, pool: Code[RegionPool]): Code[Region] =
     Code.invokeScalaObject2[Int, RegionPool, Region](Region.getClass, "apply", asm4s.const(blockSize), pool)
 
@@ -341,13 +348,13 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
     }
   }
 
-  def allocateNDArray(nBytes: Long): Long = {
+  def allocateSharedChunk(nBytes: Long): Long = {
     assert(nBytes >= 0L)
-    memory.allocateNDArray(nBytes)
+    memory.allocateSharedChunk(nBytes)
   }
 
-  def trackNDArray(addr: Long): Unit = {
-    memory.trackNDArray(addr)
+  def trackSharedChunk(addr: Long): Unit = {
+    memory.trackSharedChunk(addr)
   }
 
   def close(): Unit = {

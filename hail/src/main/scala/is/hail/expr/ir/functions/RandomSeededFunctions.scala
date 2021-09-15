@@ -86,7 +86,7 @@ object RandomSeededFunctions extends RegistryFunctions {
 
       rt.constructFromElements(cb, r, len, deepCopy = false) { case (cb, _) =>
         IEmitCode.present(cb, primitive(cb.emb.newRNG(seed).invoke[Double, Double]("rpois", lambda)))
-      }
+      }.get
     }
 
     registerSeeded2("rand_beta", TFloat64, TFloat64, TFloat64, {

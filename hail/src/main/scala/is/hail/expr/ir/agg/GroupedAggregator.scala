@@ -28,7 +28,7 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
       val comp = kb.getOrderingFunction(compType.sType, k.st, CodeOrdering.Compare())
       val off = mb.getCodeParam[Long](1)
       val ev1 = loadCompKey(cb, off)
-      val ev2 = mb.getEmitParam(2, null) // don't need region
+      val ev2 = mb.getEmitParam(cb, 2, null) // don't need region
       mb.emitWithBuilder(comp(_, ev1, ev2))
     }
     cb.invokeCode(mb, off, k)
@@ -43,7 +43,7 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
     storageType.isFieldMissing(off, 0)
 
   def loadKey(cb: EmitCodeBuilder, off: Code[Long]): SCode = {
-    kt.loadCheapSCode(cb, storageType.loadField(off, 0))
+    kt.loadCheapSCodeField(cb, storageType.loadField(off, 0)).get
   }
 
   def initValue(cb: EmitCodeBuilder, destc: Code[Long], k: EmitCode, rIdx: Code[Int]): Unit = {
@@ -51,10 +51,10 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
     k.toI(cb)
       .consume(cb,
         {
-          cb += storageType.setFieldMissing(dest, 0)
+          storageType.setFieldMissing(cb, dest, 0)
         },
         { sc =>
-          cb += storageType.setFieldPresent(dest, 0)
+          storageType.setFieldPresent(cb, dest, 0)
           storageType.fieldType("kt")
             .storeAtAddress(cb, storageType.fieldOffset(dest, 0), region, sc, deepCopy = true)
         })
@@ -82,11 +82,11 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
     cb += Region.storeInt(storageType.fieldOffset(off, 1), -1)
 
   def copy(cb: EmitCodeBuilder, src: Code[Long], dest: Code[Long]): Unit =
-    storageType.storeAtAddress(cb, dest, region, storageType.loadCheapSCode(cb, src), deepCopy = false)
+    storageType.storeAtAddress(cb, dest, region, storageType.loadCheapSCode(cb, src).get, deepCopy = false)
 
   def deepCopy(cb: EmitCodeBuilder, er: EmitRegion, dest: Code[Long], srcCode: Code[Long]): Unit = {
     val src = cb.newLocal("ga_deep_copy_src", srcCode)
-    storageType.storeAtAddress(cb, dest, region, storageType.loadCheapSCode(cb, src), deepCopy = true)
+    storageType.storeAtAddress(cb, dest, region, storageType.loadCheapSCode(cb, src).get, deepCopy = true)
     container.copyFrom(cb, containerOffset(src))
     container.store(cb)
   }
@@ -288,24 +288,24 @@ class GroupedAggregator(ktV: VirtualTypeWithReq, nestedAggs: Array[StagedAggrega
 
     val len = state.size
     val resultAddr = cb.newLocal[Long]("groupedagg_result_addr", resultType.allocate(region, len))
-    cb += arrayRep.stagedInitialize(resultAddr, len, setMissing = false)
+    arrayRep.stagedInitialize(cb, resultAddr, len, setMissing = false)
     val i = cb.newLocal[Int]("groupedagg_result_i", 0)
 
     state.foreach(cb) { (cb, k) =>
       val addrAtI = cb.newLocal[Long]("groupedagg_result_addr_at_i", arrayRep.elementOffset(resultAddr, len, i))
-      cb += dictElt.stagedInitialize(addrAtI, setMissing = false)
+      dictElt.stagedInitialize(cb, addrAtI, setMissing = false)
       k.toI(cb).consume(cb,
-        cb += dictElt.setFieldMissing(addrAtI, "key"),
+        dictElt.setFieldMissing(cb, addrAtI, "key"),
         { sc =>
           dictElt.fieldType("key").storeAtAddress(cb, dictElt.fieldOffset(addrAtI, "key"), region, sc, deepCopy = true)
         })
 
       val valueAddr = cb.newLocal[Long]("groupedagg_value_addr", dictElt.fieldOffset(addrAtI, "value"))
-      cb += resultEltType.stagedInitialize(valueAddr, setMissing = false)
+      resultEltType.stagedInitialize(cb, valueAddr, setMissing = false)
       state.nested.toCode { case (nestedIdx, nestedState) =>
         val nestedAddr = cb.newLocal[Long](s"groupedagg_result_nested_addr_$nestedIdx", resultEltType.fieldOffset(valueAddr, nestedIdx))
         nestedAggs(nestedIdx).storeResult(cb, nestedState, resultEltType.types(nestedIdx), nestedAddr, region,
-          (cb: EmitCodeBuilder) => cb += resultEltType.setFieldMissing(valueAddr, nestedIdx))
+          (cb: EmitCodeBuilder) => resultEltType.setFieldMissing(cb, valueAddr, nestedIdx))
 
       }
 
@@ -313,6 +313,6 @@ class GroupedAggregator(ktV: VirtualTypeWithReq, nestedAggs: Array[StagedAggrega
     }
 
     // don't need to deep copy because that's done in nested aggregators
-    pt.storeAtAddress(cb, addr, region, resultType.loadCheapSCode(cb, resultAddr), deepCopy = false)
+    pt.storeAtAddress(cb, addr, region, resultType.loadCheapSCode(cb, resultAddr).get, deepCopy = false)
   }
 }

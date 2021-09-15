@@ -17,7 +17,7 @@ import is.hail.rvd.{IndexSpec, RVDPartitioner, RVDSpecMaker}
 import is.hail.types.encoded.{EBaseStruct, EBlockMatrixNDArray, EType}
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.{PCanonicalBaseStruct, PCanonicalString, PCanonicalStruct, PInt64, PStream, PStruct, PType}
+import is.hail.types.physical.{PCanonicalBaseStruct, PCanonicalString, PCanonicalStruct, PInt64, PStruct, PType}
 import is.hail.types.virtual._
 import is.hail.types._
 import is.hail.utils._
@@ -45,6 +45,8 @@ case class WrappedMatrixWriter(writer: MatrixWriter,
   def apply(ctx: ExecuteContext, tv: TableValue): Unit = writer(ctx, tv.toMatrixValue(colKey, colsFieldName, entriesFieldName))
   override def lower(ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR =
     writer.lower(colsFieldName, entriesFieldName, colKey, ctx, ts, t, r, relationalLetsAbove)
+
+  override def canLowerEfficiently: Boolean = writer.canLowerEfficiently
 }
 
 abstract class MatrixWriter {
@@ -53,6 +55,8 @@ abstract class MatrixWriter {
   def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
     ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR =
     throw new LowererUnsupportedOperation(s"${ this.getClass } does not have defined lowering!")
+
+  def canLowerEfficiently: Boolean = false
 }
 
 case class MatrixNativeWriter(
@@ -65,6 +69,9 @@ case class MatrixNativeWriter(
   checkpointFile: String = null
 ) extends MatrixWriter {
   def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = mv.write(ctx, path, overwrite, stageLocally, codecSpecJSONStr, partitions, partitionsTypeStr, checkpointFile)
+
+  override def canLowerEfficiently: Boolean = !stageLocally && checkpointFile == null
+
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
     ctx: ExecuteContext, tablestage: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
     val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
@@ -173,7 +180,10 @@ case class SplitPartitionNativeWriter(
 
   def ctxType: Type = TString
   def returnType: Type = pResultType.virtualType
-  def returnPType(ctxType: PType, streamType: PStream): PType = pResultType
+  def unionTypeRequiredness(r: TypeWithRequiredness, ctxType: TypeWithRequiredness, streamType: RIterable): Unit = {
+    r.union(ctxType.required)
+    r.union(streamType.required)
+  }
 
   if (stageLocally)
     throw new LowererUnsupportedOperation("stageLocally option not yet implemented")
@@ -211,28 +221,28 @@ case class SplitPartitionNativeWriter(
             IEmitCode.present(cb, keyType.asInstanceOf[PCanonicalBaseStruct]
               .constructFromFields(cb, stream.elementRegion,
                 keyType.fields.map(f => EmitCode.fromI(cb.emb)(cb => row.loadField(cb, f.name))),
-                deepCopy = false))
+                deepCopy = false).get)
           }, ob1.invoke[Long]("indexOffset"), {
             IEmitCode.present(cb,
               iAnnotationType.constructFromFields(cb, stream.elementRegion,
                 FastIndexedSeq(EmitCode.present(cb.emb, primitive(ob2.invoke[Long]("indexOffset")))),
-                deepCopy = false))
+                deepCopy = false).get)
           })
         }
         cb += ob1.writeByte(1.asInstanceOf[Byte])
 
         spec1.encodedType.buildEncoder(row.st, cb.emb.ecb)
-          .apply(cb, row, ob1)
+          .apply(cb, row.get, ob1)
 
         cb += ob2.writeByte(1.asInstanceOf[Byte])
 
         spec2.encodedType.buildEncoder(row.st, cb.emb.ecb)
-          .apply(cb, row, ob2)
+          .apply(cb, row.get, ob2)
         cb.assign(n, n + 1L)
       }
 
       val pctx = ctxCode.memoize(cb, "context")
-      cb.assign(filename1, pctx.asString.loadString())
+      cb.assign(filename1, pctx.get.asString.loadString())
       if (hasIndex) {
         val indexFile = cb.newLocal[String]("indexFile")
         cb.assign(indexFile, const(index.get._1).concat(filename1).concat(".idx"))
@@ -259,9 +269,9 @@ case class SplitPartitionNativeWriter(
       cb += ob2.flush()
       cb += os1.invoke[Unit]("close")
       cb += os2.invoke[Unit]("close")
-      filenameType.storeAtAddress(cb, pResultType.fieldOffset(result, "filePath"), region, pctx, false)
+      filenameType.storeAtAddress(cb, pResultType.fieldOffset(result, "filePath"), region, pctx.get, false)
       cb += Region.storeLong(pResultType.fieldOffset(result, "partitionCounts"), n)
-      pResultType.loadCheapSCode(cb, result.get)
+      pResultType.loadCheapSCode(cb, result.get).get
     }
   }
 }

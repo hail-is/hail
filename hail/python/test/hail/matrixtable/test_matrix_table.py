@@ -505,7 +505,6 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         mt._force_count_rows()
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_globals_lowering(self):
         mt = hl.utils.range_matrix_table(1, 1).annotate_globals(x=1)
         lit = hl.literal(hl.utils.Struct(x = 0))
@@ -1229,6 +1228,13 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         self.assertTrue(mt._same(mt2))
 
     @fails_service_backend()
+    def test_write_no_parts(self):
+        mt = hl.utils.range_matrix_table(10, 10, 2).filter_rows(False)
+        path = new_temp_file(extension='mt')
+        path2 = new_temp_file(extension='mt')
+        assert mt.checkpoint(path)._same(mt)
+        hl.read_matrix_table(path, _drop_rows=True).write(path2)
+
     def test_nulls_in_distinct_joins(self):
 
         # MatrixAnnotateRowsTable uses left distinct join

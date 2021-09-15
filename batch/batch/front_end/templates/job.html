@@ -62,6 +62,16 @@
 {% endif %}
 
 <h2>Step Status</h2>
+
+{% if plot_json is not none %}
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<div id="plotly-timeseries"></div>
+<script>
+var graph = {{ plot_json | safe }};
+Plotly.plot('plotly-timeseries', graph, {});
+</script>
+{% endif %}
+
 <table class="data-table">
   <thead>
     <tr>
@@ -161,6 +171,12 @@
       <td>image</td>
       <td>{{ job_specification['image'] }}</td>
     </tr>
+    {% if 'user_code' in job_specification %}
+    <tr>
+      <td>user code</td>
+      <td><pre style="max-height: 10em; max-width: 80em;">{{ job_specification['user_code'] }}</pre></td>
+    </tr>
+    {% endif %}
     <tr>
       <td>command</td>
       <td><pre style="max-height: 10em; max-width: 80em;">{{ "'" + (job_specification['command'] | join("' '")) + "'" }}</pre></td>

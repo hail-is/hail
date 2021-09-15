@@ -121,15 +121,6 @@ final case class TUnion(cases: IndexedSeq[Case]) extends Type {
     }
   }
 
-  override lazy val fundamentalType: TUnion = {
-    val fundamentalCaseTypes = cases.map(f => f.typ.fundamentalType)
-    if ((cases, fundamentalCaseTypes).zipped
-      .forall { case (f, ft) => f.typ == ft })
-      this
-    else
-      TUnion((cases, fundamentalCaseTypes).zipped.map { case (f, ft) => (f.name, ft) }: _*)
-  }
-
   override def scalaClassTag: ClassTag[AnyRef] = ???
 
   def mkOrdering(missingEqual: Boolean): ExtendedOrdering = ???

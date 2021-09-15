@@ -7,8 +7,6 @@ import is.hail.types.physical.stypes.{SCode, SValue}
 import scala.language.implicitConversions
 
 package object physical {
-  implicit def sValueToSCode(sv: SValue): SCode = sv.get
-
   def typeToTypeInfo(t: PType): TypeInfo[_] = t match {
     case _: PInt32 => typeInfo[Int]
     case _: PInt64 => typeInfo[Long]
@@ -17,8 +15,6 @@ package object physical {
     case _: PBoolean => typeInfo[Boolean]
     case PVoid => typeInfo[Unit]
     case _: PBinary => typeInfo[Long]
-    case _: PShuffle => typeInfo[Long]
-    case _: PStream => classInfo[StreamArgType]
     case _: PBaseStruct => typeInfo[Long]
     case _: PNDArray => typeInfo[Long]
     case _: PContainer => typeInfo[Long]
@@ -38,7 +34,7 @@ package object physical {
     case LongInfo => 0L
     case FloatInfo => 0.0f
     case DoubleInfo => 0.0
-    case _: ClassInfo[_] => Code._null
+    case _: ClassInfo[_] => Code._null[String]
     case ti => throw new RuntimeException(s"unsupported type found: $ti")
   }
 }

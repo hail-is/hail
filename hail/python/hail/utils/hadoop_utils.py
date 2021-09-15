@@ -1,6 +1,7 @@
+from typing import Dict, List
+from hail.fs.hadoop_fs import HadoopFS
 from hail.utils.java import Env
 from hail.typecheck import typecheck, enumeration
-from typing import Dict, List
 
 
 @typecheck(path=str,
@@ -76,7 +77,11 @@ def hadoop_open(path: str, mode: str = 'r', buffer_size: int = 8192):
     -------
         Readable or writable file handle.
     """
-    return Env.fs().open(path, mode, buffer_size)
+    # legacy hack
+    fs = Env.fs()
+    if isinstance(fs, HadoopFS):
+        return fs.legacy_open(path, mode, buffer_size)
+    return fs.open(path, mode, buffer_size)
 
 
 @typecheck(src=str,

@@ -405,11 +405,6 @@ object IRParser {
         punctuation(it, ")")
         PCanonicalLocus(env.getReferenceGenome(rg), req)
       case "PCCall" => PCanonicalCall(req)
-      case "PCStream" =>
-        punctuation(it, "[")
-        val elementType = ptype_expr(env)(it)
-        punctuation(it, "]")
-        PCanonicalStream(elementType, req)
       case "PCArray" =>
         punctuation(it, "[")
         val elementType = ptype_expr(env)(it)
@@ -542,17 +537,6 @@ object IRParser {
         val cases = args.zipWithIndex.map { case ((id, t), i) => Case(id, t, i) }
         TUnion(cases)
       case "Void" => TVoid
-      case "Shuffle" =>
-        punctuation(it, "{")
-        val keyFields = sort_fields(it)
-        punctuation(it, ",")
-        val rowType = type_expr(env)(it).asInstanceOf[TStruct]
-        punctuation(it, ",")
-        val rowEType = EType.eTypeParser(it).asInstanceOf[EBaseStruct]
-        punctuation(it, ",")
-        val keyEType = EType.eTypeParser(it).asInstanceOf[EBaseStruct]
-        punctuation(it, "}")
-        TShuffle(keyFields, rowType, rowEType, keyEType)
     }
     typ
   }
@@ -887,20 +871,35 @@ object IRParser {
           MakeStream(args, typ, requiresMemoryManagementPerElement)
         }
       case "ArrayRef" =>
+        val errorID = int32_literal(it)
         for {
           a <- ir_value_expr(env)(it)
           i <- ir_value_expr(env)(it)
-          s <- ir_value_expr(env)(it)
-        } yield ArrayRef(a, i, s)
+        } yield ArrayRef(a, i, errorID)
+      case "ArraySlice" =>
+        val errorID = int32_literal(it)
+        ir_value_children(env)(it).map { args =>
+          args match {
+            case Array(a, start, step) => ArraySlice(a, start, None, step, errorID)
+            case Array(a, start, stop, step) => ArraySlice(a, start, Some(stop), step, errorID)
+          }
+        }
       case "ArrayLen" => ir_value_expr(env)(it).map(ArrayLen)
       case "StreamLen" => ir_value_expr(env)(it).map(StreamLen)
+      case "StreamIota" =>
+        val requiresMemoryManagementPerElement = boolean_literal(it)
+        for {
+          start <- ir_value_expr(env)(it)
+            step <- ir_value_expr(env)(it)
+        } yield StreamIota(start, step, requiresMemoryManagementPerElement)
       case "StreamRange" =>
+        val errorID = int32_literal(it)
         val requiresMemoryManagementPerElement = boolean_literal(it)
         for {
           start <- ir_value_expr(env)(it)
           stop <- ir_value_expr(env)(it)
           step <- ir_value_expr(env)(it)
-        } yield StreamRange(start, stop, step, requiresMemoryManagementPerElement)
+        } yield StreamRange(start, stop, step, requiresMemoryManagementPerElement, errorID)
       case "StreamGrouped" =>
         for {
           s <- ir_value_expr(env)(it)
@@ -916,18 +915,19 @@ object IRParser {
           lessThan <- ir_value_expr(env + (l -> elt) + (r -> elt))(it)
         } yield ArraySort(a, l, r, lessThan)
       case "MakeNDArray" =>
-        val errorId = int32_literal(it)
+        val errorID = int32_literal(it)
         for {
           data <- ir_value_expr(env)(it)
           shape <- ir_value_expr(env)(it)
           rowMajor <- ir_value_expr(env)(it)
-        } yield MakeNDArray(data, shape, rowMajor, errorId)
+        } yield MakeNDArray(data, shape, rowMajor, errorID)
       case "NDArrayShape" => ir_value_expr(env)(it).map(NDArrayShape)
       case "NDArrayReshape" =>
+        val errorID = int32_literal(it)
         for {
           nd <- ir_value_expr(env)(it)
           shape <- ir_value_expr(env)(it)
-        } yield NDArrayReshape(nd, shape)
+        } yield NDArrayReshape(nd, shape, errorID)
       case "NDArrayConcat" =>
         val axis = int32_literal(it)
         ir_value_expr(env)(it).map { nds =>
@@ -940,6 +940,7 @@ object IRParser {
           body <- ir_value_expr(env + (name -> coerce[TNDArray](nd.typ).elementType))(it)
         } yield NDArrayMap(nd, name, body)
       case "NDArrayMap2" =>
+        val errorID = int32_literal(it)
         val lName = identifier(it)
         val rName = identifier(it)
         for {
@@ -948,7 +949,7 @@ object IRParser {
           body_env = (env + (lName -> coerce[TNDArray](l.typ).elementType)
             + (rName -> coerce[TNDArray](r.typ).elementType))
           body <- ir_value_expr(body_env)(it)
-        } yield NDArrayMap2(l, r, lName, rName, body)
+        } yield NDArrayMap2(l, r, lName, rName, body, errorID)
       case "NDArrayReindex" =>
         val indexExpr = int32_literals(it)
         ir_value_expr(env)(it).map { nd =>
@@ -960,11 +961,11 @@ object IRParser {
           NDArrayAgg(nd, axes)
         }
       case "NDArrayRef" =>
-        val errorId = int32_literal(it)
+        val errorID = int32_literal(it)
         for {
           nd <- ir_value_expr(env)(it)
           idxs <- ir_value_children(env)(it)
-        } yield NDArrayRef(nd, idxs, errorId)
+        } yield NDArrayRef(nd, idxs, errorID)
       case "NDArraySlice" =>
         for {
           nd <- ir_value_expr(env)(it)
@@ -976,27 +977,32 @@ object IRParser {
           filters <- fillArray(coerce[TNDArray](nd.typ).nDims)(ir_value_expr(env)(it))
         } yield NDArrayFilter(nd, filters.toFastIndexedSeq)
       case "NDArrayMatMul" =>
+        val errorID = int32_literal(it)
         for {
           l <- ir_value_expr(env)(it)
           r <- ir_value_expr(env)(it)
-        } yield NDArrayMatMul(l, r)
+        } yield NDArrayMatMul(l, r, errorID)
       case "NDArrayWrite" =>
         for {
           nd <- ir_value_expr(env)(it)
           path <- ir_value_expr(env)(it)
         } yield NDArrayWrite(nd, path)
       case "NDArrayQR" =>
+        val errorID = int32_literal(it)
         val mode = string_literal(it)
         ir_value_expr(env)(it).map { nd =>
-          NDArrayQR(nd, mode)
+          NDArrayQR(nd, mode, errorID)
         }
       case "NDArraySVD" =>
+        val errorID = int32_literal(it)
         val fullMatrices = boolean_literal(it)
         val computeUV = boolean_literal(it)
         ir_value_expr(env)(it).map { nd =>
-          NDArraySVD(nd, fullMatrices, computeUV)
+          NDArraySVD(nd, fullMatrices, computeUV, errorID)
         }
-      case "NDArrayInv" => ir_value_expr(env)(it).map(NDArrayInv(_))
+      case "NDArrayInv" =>
+        val errorID = int32_literal(it)
+        ir_value_expr(env)(it).map{ nd => NDArrayInv(nd, errorID) }
       case "ToSet" => ir_value_expr(env)(it).map(ToSet)
       case "ToDict" => ir_value_expr(env)(it).map(ToDict)
       case "ToArray" => ir_value_expr(env)(it).map(ToArray)
@@ -1030,6 +1036,7 @@ object IRParser {
           num <- ir_value_expr(env)(it)
         } yield StreamDrop(a, num)
       case "StreamZip" =>
+        val errorID = int32_literal(it)
         val behavior = identifier(it) match {
           case "AssertSameLength" => ArrayZipBehavior.AssertSameLength
           case "TakeMinLength" => ArrayZipBehavior.TakeMinLength
@@ -1040,13 +1047,25 @@ object IRParser {
         for {
           as <- names.mapRecur(_ => ir_value_expr(env)(it))
           body <- ir_value_expr(env ++ names.zip(as.map(a => coerce[TStream](a.typ).elementType)))(it)
-        } yield StreamZip(as, names, body, behavior)
+        } yield StreamZip(as, names, body, behavior, errorID)
       case "StreamFilter" =>
         val name = identifier(it)
         for {
           a <- ir_value_expr(env)(it)
           body <- ir_value_expr(env + (name -> coerce[TStream](a.typ).elementType))(it)
         } yield StreamFilter(a, name, body)
+      case "StreamTakeWhile" =>
+        val name = identifier(it)
+        for {
+          a <- ir_value_expr(env)(it)
+            body <- ir_value_expr(env + (name -> coerce[TStream](a.typ).elementType))(it)
+        } yield StreamTakeWhile(a, name, body)
+      case "StreamDropWhile" =>
+        val name = identifier(it)
+        for {
+          a <- ir_value_expr(env)(it)
+            body <- ir_value_expr(env + (name -> coerce[TStream](a.typ).elementType))(it)
+        } yield StreamDropWhile(a, name, body)
       case "StreamFlatMap" =>
         val name = identifier(it)
         for {
@@ -1255,15 +1274,19 @@ object IRParser {
         }
       case "Die" =>
         val typ = type_expr(env.typEnv)(it)
-        val errorId = int32_literal(it)
+        val errorID = int32_literal(it)
         ir_value_expr(env)(it).map { msg =>
-          Die(msg, typ, errorId)
+          Die(msg, typ, errorID)
         }
       case "Trap" =>
         ir_value_expr(env)(it).map { child =>
           Trap(child)
         }
-
+      case "ConsoleLog" =>
+        for {
+          msg <- ir_value_expr(env)(it)
+          result <- ir_value_expr(env)(it)
+        } yield ConsoleLog(msg, result)
       case "ApplySeeded" =>
         val function = identifier(it)
         val seed = int64_literal(it)
@@ -1272,11 +1295,12 @@ object IRParser {
           ApplySeeded(function, args, seed, rt)
         }
       case "ApplyIR" | "ApplySpecial" | "Apply" =>
+        val errorID = int32_literal(it)
         val function = identifier(it)
         val typeArgs = type_exprs(env.typEnv)(it)
         val rt = type_expr(env.typEnv)(it)
         ir_value_children(env)(it).map { args =>
-          invoke(function, rt, typeArgs, args: _*)
+          invoke(function, rt, typeArgs, errorID, args: _*)
         }
       case "MatrixCount" =>
         matrix_ir(env.withRefMap(Map.empty))(it).map(MatrixCount)
@@ -1406,30 +1430,6 @@ object IRParser {
         ir_value_expr(env)(it).map { context =>
           ReadPartition(context, rowType, reader)
         }
-      case "ShuffleWith" =>
-        val shuffleType = coerce[TShuffle](type_expr(env.typEnv)(it))
-        val name = identifier(it)
-        for {
-          writer <- ir_value_expr(env + (name -> shuffleType))(it)
-          readers <- ir_value_expr(env + (name -> shuffleType))(it)
-        } yield ShuffleWith(
-          shuffleType.keyFields, shuffleType.rowType, shuffleType.rowEType, shuffleType.keyEType,
-          name, writer, readers)
-      case "ShuffleWrite" =>
-        for {
-          id <- ir_value_expr(env)(it)
-          rows <- ir_value_expr(env)(it)
-        } yield ShuffleWrite(id, rows)
-      case "ShufflePartitionBounds" =>
-        for {
-          id <- ir_value_expr(env)(it)
-          nPartitions <- ir_value_expr(env)(it)
-        } yield ShufflePartitionBounds(id, nPartitions)
-      case "ShuffleRead" =>
-        for {
-          id <- ir_value_expr(env)(it)
-          keyRange <- ir_value_expr(env)(it)
-        } yield ShuffleRead(id, keyRange)
     }
   }
 

@@ -158,7 +158,7 @@ We almost exclusively write services in Python 3.7. We use a number of Python pa
 - [`asyncio`](https://docs.python.org/3.7/library/asyncio.html) for concurrency which is built on
   [coroutines](https://en.wikipedia.org/wiki/Coroutine) not threads
 - [`aiohttp`](https://docs.aiohttp.org/en/stable/) for serving HTTPS requests (most services speak
-  HTTPS, shuffler speaks a custom TCP-based protocol)
+  HTTPS)
 - [`jinja2`](https://jinja.palletsprojects.com/en/2.11.x/) for "templating" which simply means
   programmatically generating text files
 

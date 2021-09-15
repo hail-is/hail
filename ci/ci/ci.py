@@ -15,7 +15,9 @@ from gear import (
     rest_authenticated_developers_only,
     rest_authenticated_users_only,
     web_authenticated_developers_only,
-    monitor_endpoint,
+    check_csrf_token,
+    create_database_pool,
+    monitor_endpoints_middleware,
 )
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 
@@ -32,7 +34,6 @@ routes = web.RouteTableDef()
 
 @routes.get('')
 @routes.get('/')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def index(request, userdata):  # pylint: disable=unused-argument
     # Redirect to /batches.
@@ -40,7 +41,6 @@ async def index(request, userdata):  # pylint: disable=unused-argument
 
 
 @routes.get('/batches')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_batches(request, userdata):
     batch_client = request.app['batch_client']
@@ -51,7 +51,6 @@ async def get_batches(request, userdata):
 
 
 @routes.get('/batches/{batch_id}')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
@@ -66,7 +65,6 @@ async def get_batch(request, userdata):
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_job(request, userdata):
     batch_id = int(request.match_info['batch_id'])
@@ -84,7 +82,6 @@ async def get_job(request, userdata):
 
 
 @routes.post('/api/v1alpha/dev_deploy_branch')
-@monitor_endpoint
 @rest_authenticated_developers_only
 async def dev_deploy_branch(request, userdata):
     app = request.app
@@ -181,15 +178,19 @@ async def on_startup(app):
     app['gh_client_session'] = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5))
     app['github_client'] = gh_aiohttp.GitHubAPI(app['gh_client_session'], 'ci')
     app['batch_client'] = BatchClient('ci')
+    app['dbpool'] = await create_database_pool()
 
 
 async def on_cleanup(app):
+    dbpool = app['dbpool']
+    dbpool.close()
+    await dbpool.wait_closed()
     await app['gh_client_session'].close()
     await app['batch_client'].close()
 
 
 def run():
-    app = web.Application()
+    app = web.Application(middlewares=[monitor_endpoints_middleware])
     setup_aiohttp_jinja2(app, 'ci')
     setup_aiohttp_session(app)
 

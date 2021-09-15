@@ -109,8 +109,8 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     })
   }
 
-  final def buildSkip(mb: EmitMethodBuilder[_]): (Code[Region], Code[InputBuffer]) => Code[Unit] = {
-    mb.getOrGenEmitMethod(s"SKIP_${ asIdent }",
+  final def buildSkip(kb: EmitClassBuilder[_]): (EmitCodeBuilder, Code[Region], Code[InputBuffer]) => Unit = {
+    val mb = kb.getOrGenEmitMethod(s"SKIP_${ asIdent }",
       (this, "SKIP"),
       FastIndexedSeq[ParamType](classInfo[Region], classInfo[InputBuffer]),
       UnitInfo)({ mb =>
@@ -119,7 +119,9 @@ abstract class EType extends BaseType with Serializable with Requiredness {
         val in: Value[InputBuffer] = mb.getCodeParam[InputBuffer](2)
         _buildSkip(cb, r, in)
       }
-    }).invokeCode(_, _)
+    })
+
+    { (cb, r, in) => cb.invokeVoid(mb, r, in) }
   }
 
   def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit
@@ -135,7 +137,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   ): Unit = {
     assert(!pt.isInstanceOf[PBaseStruct]) // should be overridden for structs
     val decoded = _buildDecoder(cb, pt.virtualType, region, in).memoize(cb, "Asd")
-    pt.storeAtAddress(cb, addr, region, decoded, false)
+    pt.storeAtAddress(cb, addr, region, decoded.get, false)
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit
@@ -161,7 +163,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   }
 
   final def decodedPType(requestedType: Type): PType = {
-    decodedSType(requestedType).canonicalPType().setRequired(required)
+    decodedSType(requestedType).storageType().setRequired(required)
   }
 
   def _decodedSType(requestedType: Type): SType
@@ -206,7 +208,7 @@ object EType {
         val out: Code[OutputBuffer] = mb.getCodeParam[OutputBuffer](2)
         val pc = pt.loadCheapSCode(cb, addr)
         val f = et.buildEncoder(pc.st, mb.ecb)
-        f(cb, pc, out)
+        f(cb, pc.get, out)
       }
       val func = fb.result()
       encoderCache.put(k, func)
@@ -241,7 +243,7 @@ object EType {
       val in: Code[InputBuffer] = mb.getCodeParam[InputBuffer](2)
 
       mb.emitWithBuilder[Long] { cb =>
-        val pc = f(cb, region, in)
+        val pc = f(cb, region, in).memoize(cb, "buildDecoderToRegionValue")
         pt.store(cb, region, pc, false)
       }
 
@@ -263,7 +265,6 @@ object EType {
     case TFloat64 => EFloat64(r.required)
     case TBoolean => EBoolean(r.required)
     case TBinary => EBinary(r.required)
-    case _: TShuffle => EShuffle(r.required)
     case TString => EBinary(r.required)
     case TLocus(_) =>
       EBaseStruct(Array(

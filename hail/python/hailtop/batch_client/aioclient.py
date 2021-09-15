@@ -35,15 +35,7 @@ class Job:
         if not container_status:
             return None
 
-        error = container_status.get('error')
-        if error:
-            return error
-
-        docker_container_status = container_status.get('container_status')
-        if not docker_container_status:
-            return None
-
-        return docker_container_status.get('error')
+        return container_status.get('error')
 
     @staticmethod
     def _get_out_of_memory(job_status, task):
@@ -55,15 +47,15 @@ class Job:
         if not container_statuses:
             return None
 
-        container_status = container_statuses.get(task)
+        task_status = container_statuses.get(task)
+        if not task_status:
+            return None
+
+        container_status = task_status.get('container_status')
         if not container_status:
             return None
 
-        docker_container_status = container_status.get('container_status')
-        if not docker_container_status:
-            return None
-
-        return docker_container_status['out_of_memory']
+        return container_status['out_of_memory']
 
     @staticmethod
     def _get_container_status_exit_code(container_status):
@@ -426,7 +418,7 @@ class BatchBuilder:
                    input_files=None, output_files=None, always_run=False,
                    timeout=None, gcsfuse=None, requester_pays_project=None,
                    mount_tokens=False, network: Optional[str] = None,
-                   unconfined: bool = False):
+                   unconfined: bool = False, user_code: Optional[str] = None):
         if self._submitted:
             raise ValueError("cannot create a job in an already submitted batch")
 
@@ -502,6 +494,8 @@ class BatchBuilder:
             job_spec['network'] = network
         if unconfined:
             job_spec['unconfined'] = unconfined
+        if user_code:
+            job_spec['user_code'] = user_code
 
         self._job_specs.append(job_spec)
 

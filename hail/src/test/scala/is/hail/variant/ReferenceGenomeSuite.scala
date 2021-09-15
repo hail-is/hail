@@ -105,8 +105,8 @@ class ReferenceGenomeSuite extends HailSuite {
     val rg = ReferenceGenome("test", Array("a", "b", "c"), Map("a" -> 25, "b" -> 15, "c" -> 10))
     ReferenceGenome.addReference(rg)
 
-    val fr = FASTAReaderConfig(ctx.localTmpdir, ctx.fs.broadcast, rg, fastaFile, indexFile, 3, 5).reader
-    val frGzip = FASTAReaderConfig(ctx.localTmpdir, ctx.fs.broadcast, rg, fastaFileGzip, indexFile, 3, 5).reader
+    val fr = FASTAReaderConfig(ctx.localTmpdir, ctx.fs, rg, fastaFile, indexFile, 3, 5).reader
+    val frGzip = FASTAReaderConfig(ctx.localTmpdir, ctx.fs, rg, fastaFileGzip, indexFile, 3, 5).reader
     val refReaderPath = FASTAReader.getLocalFastaFile(ctx.localTmpdir, ctx.fs, fastaFile, indexFile)
     val refReaderPathGz = FASTAReader.getLocalFastaFile(ctx.localTmpdir, ctx.fs, fastaFileGzip, indexFile)
     val refReader = ReferenceSequenceFileFactory.getReferenceSequenceFile(new java.io.File(uriPath(refReaderPath)))
@@ -161,7 +161,7 @@ class ReferenceGenomeSuite extends HailSuite {
       val grch38 = ReferenceGenome.GRCh38
       val fb = EmitFunctionBuilder[String, Boolean](ctx, "serialize_rg")
       val cb = fb.ecb
-      val rgfield = fb.genLazyFieldThisRef(grch38.codeSetup(ctx.localTmpdir, cb))
+      val rgfield = fb.getReferenceGenome(grch38)
       fb.emit(rgfield.invoke[String, Boolean]("isValidContig", fb.getCodeParam[String](1)))
 
       val f = fb.resultWithIndex()(ctx.fs, 0, ctx.r)
@@ -180,7 +180,7 @@ class ReferenceGenomeSuite extends HailSuite {
 
       val fb = EmitFunctionBuilder[String, Int, Int, Int, String](ctx, "serialize_rg")
       val cb = fb.ecb
-      val rgfield = fb.genLazyFieldThisRef(rg.codeSetup(ctx.localTmpdir, cb))
+      val rgfield = fb.getReferenceGenome(rg)
       fb.emit(rgfield.invoke[String, Int, Int, Int, String]("getSequence", fb.getCodeParam[String](1), fb.getCodeParam[Int](2), fb.getCodeParam[Int](3), fb.getCodeParam[Int](4)))
 
       val f = fb.resultWithIndex()(ctx.fs, 0, ctx.r)
@@ -197,7 +197,7 @@ class ReferenceGenomeSuite extends HailSuite {
 
       val fb = EmitFunctionBuilder[String, Locus, Double, (Locus, Boolean)](ctx, "serialize_with_liftover")
       val cb = fb.ecb
-      val rgfield = fb.genLazyFieldThisRef(grch37.codeSetup(ctx.localTmpdir, cb))
+      val rgfield = fb.getReferenceGenome(grch37)
       fb.emit(rgfield.invoke[String, Locus, Double, (Locus, Boolean)]("liftoverLocus", fb.getCodeParam[String](1), fb.getCodeParam[Locus](2), fb.getCodeParam[Double](3)))
 
       val f = fb.resultWithIndex()(ctx.fs, 0, ctx.r)

@@ -5,18 +5,10 @@ import is.hail.asm4s.{Code, _}
 import is.hail.expr.Nat
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.SNDArrayPointerCode
-import is.hail.types.physical.stypes.interfaces.{SIndexableCode, SNDArrayCode, SNDArrayValue}
+import is.hail.types.physical.stypes.{SCode, SValue}
+import is.hail.types.physical.stypes.concrete.{SNDArrayPointerCode, SNDArrayPointerValue}
+import is.hail.types.physical.stypes.interfaces.{SIndexableCode, SNDArrayCode, SNDArrayValue, SizeValue, SizeValueDyn}
 import is.hail.types.virtual.TNDArray
-
-object PNDArray {
-  val headerBytes = 16L
-  def getReferenceCount(ndAddr: Long): Long = Region.loadLong(ndAddr - 16L)
-  def storeReferenceCount(ndAddr: Long, newCount: Long): Unit = Region.storeLong(ndAddr - 16L, newCount)
-  def getByteSize(ndAddr: Long): Long = Region.loadLong(ndAddr - 8L)
-  def storeByteSize(ndAddr: Long, byteSize: Long): Unit = Region.storeLong(ndAddr - 8L, byteSize)
-}
 
 abstract class PNDArray extends PType {
   val elementType: PType
@@ -28,7 +20,6 @@ abstract class PNDArray extends PType {
   assert(elementType.required, "elementType must be required")
 
   def dataFirstElementPointer(ndAddr: Code[Long]): Code[Long]
-  def dataPArrayPointer(ndAddr: Code[Long]): Code[Long]
 
   def loadShape(off: Long, idx: Int): Long
   def unstagedLoadShapes(addr: Long): IndexedSeq[Long] = {
@@ -49,7 +40,7 @@ abstract class PNDArray extends PType {
 
   def getElementAddress(indices: IndexedSeq[Long], nd: Long): Long
 
-  def loadElement(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndAddress: Value[Long]): SCode
+  def loadElement(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndAddress: Value[Long]): SValue
 
   def constructByCopyingArray(
     shape: IndexedSeq[Value[Long]],
@@ -57,12 +48,12 @@ abstract class PNDArray extends PType {
     data: SIndexableCode,
     cb: EmitCodeBuilder,
     region: Value[Region]
-  ): SNDArrayCode
+  ): SNDArrayValue
 
   def constructDataFunction(
     shape: IndexedSeq[Value[Long]],
     strides: IndexedSeq[Value[Long]],
     cb: EmitCodeBuilder,
     region: Value[Region]
-  ): (Value[Long], EmitCodeBuilder =>  SNDArrayPointerCode)
+  ): (Value[Long], EmitCodeBuilder => SNDArrayPointerValue)
 }

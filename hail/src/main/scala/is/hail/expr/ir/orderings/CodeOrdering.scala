@@ -60,7 +60,6 @@ object CodeOrdering {
       case TString => StringOrdering.make(t1.asInstanceOf[SString], t2.asInstanceOf[SString], ecb)
       case TBinary => BinaryOrdering.make(t1.asInstanceOf[SBinary], t2.asInstanceOf[SBinary], ecb)
       case _: TBaseStruct => StructOrdering.make(t1.asInstanceOf[SBaseStruct], t2.asInstanceOf[SBaseStruct], ecb)
-      case _: TShuffle => ShuffleOrdering.make(t1.asInstanceOf[SShuffle], t2.asInstanceOf[SShuffle], ecb)
       case _: TLocus => LocusOrdering.make(t1.asInstanceOf[SLocus], t2.asInstanceOf[SLocus], ecb)
       case _: TInterval => IntervalOrdering.make(t1.asInstanceOf[SInterval], t2.asInstanceOf[SInterval], ecb)
       case _: TSet | _: TArray | _: TDict =>
@@ -109,8 +108,8 @@ abstract class CodeOrdering {
       FastIndexedSeq(arg1.emitParamType, arg2.emitParamType), ti) { mb =>
 
       mb.emitWithBuilder[T] { cb =>
-        val arg1 = mb.getEmitParam(1, null) // can't contain streams
-        val arg2 = mb.getEmitParam(2, null) // can't contain streams
+        val arg1 = mb.getEmitParam(cb, 1, null) // can't contain streams
+        val arg2 = mb.getEmitParam(cb, 2, null) // can't contain streams
         f(cb, arg1, arg2, missingEqual)
       }
     }

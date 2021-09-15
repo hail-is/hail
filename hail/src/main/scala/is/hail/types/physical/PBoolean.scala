@@ -5,7 +5,7 @@ import is.hail.asm4s.Code
 import is.hail.expr.ir.orderings.{CodeOrdering, CodeOrderingCompareConsistentWithOthers}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.primitives.{SBoolean, SBooleanCode}
+import is.hail.types.physical.stypes.primitives.{SBoolean, SBooleanCode, SBooleanValue}
 import is.hail.types.virtual.TBoolean
 import is.hail.utils.toRichBoolean
 
@@ -33,7 +33,11 @@ class PBoolean(override val required: Boolean) extends PType with PPrimitive {
     cb += Region.storeBoolean(addr, value.asBoolean.boolCode(cb))
   }
 
-  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBooleanCode = new SBooleanCode(Region.loadBoolean(addr))
+  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBooleanValue =
+  new SBooleanCode(Region.loadBoolean(addr)).memoize(cb, "loadCheapSCodeField")
+
+  override def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SBooleanValue =
+    new SBooleanCode(Region.loadBoolean(addr)).memoizeField(cb, "loadCheapSCodeField")
 
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
     Region.storeByte(addr, annotation.asInstanceOf[Boolean].toByte)

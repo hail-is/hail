@@ -50,10 +50,6 @@ abstract class SCode {
 
   def st: SType
 
-  // requires a code builder because forming a code tuple may require appending
-  // straight-line code, e.g. if a SCode contains nested EmitCodes
-  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]]
-
   def asBoolean: SBooleanCode = asInstanceOf[SBooleanCode]
 
   def asInt: SInt32Code = asInstanceOf[SInt32Code]
@@ -92,16 +88,15 @@ abstract class SCode {
 
   def asStream: SStreamCode = asInstanceOf[SStreamCode]
 
-  def asShuffle: SShuffleCode = asInstanceOf[SShuffleCode]
-
   def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SCode =
     castTo(cb, region, destType, false)
 
   def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType, deepCopy: Boolean): SCode = {
-    destType.coerceOrCopy(cb, region, this, deepCopy)
+    destType.coerceOrCopy(cb, region, this.memoize(cb, "castTo"), deepCopy).get
   }
+
   def copyToRegion(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SCode =
-    destType.coerceOrCopy(cb, region, this, deepCopy = true)
+    destType.coerceOrCopy(cb, region, this.memoize(cb, "copyToRegion"), deepCopy = true).get
 
   def memoize(cb: EmitCodeBuilder, name: String): SValue
 
@@ -111,7 +106,59 @@ abstract class SCode {
 trait SValue {
   def st: SType
 
+  def valueTuple: IndexedSeq[Value[_]]
+
   def get: SCode
+
+  def asBoolean: SBooleanValue = asInstanceOf[SBooleanValue]
+
+  def asInt: SInt32Value = asInstanceOf[SInt32Value]
+
+  def asInt32: SInt32Value = asInstanceOf[SInt32Value]
+
+  def asLong: SInt64Value = asInstanceOf[SInt64Value]
+
+  def asInt64: SInt64Value = asInstanceOf[SInt64Value]
+
+  def asFloat: SFloat32Value = asInstanceOf[SFloat32Value]
+
+  def asFloat32: SFloat32Value = asInstanceOf[SFloat32Value]
+
+  def asFloat64: SFloat64Value = asInstanceOf[SFloat64Value]
+
+  def asDouble: SFloat64Value = asInstanceOf[SFloat64Value]
+
+  def asPrimitive: SPrimitiveValue = asInstanceOf[SPrimitiveValue]
+
+  def asBinary: SBinaryValue = asInstanceOf[SBinaryValue]
+
+  def asIndexable: SIndexableValue = asInstanceOf[SIndexableValue]
+
+  def asBaseStruct: SBaseStructValue = asInstanceOf[SBaseStructValue]
+
+  def asString: SStringValue = asInstanceOf[SStringValue]
+
+  def asInterval: SIntervalValue = asInstanceOf[SIntervalValue]
+
+  def asNDArray: SNDArrayValue = asInstanceOf[SNDArrayValue]
+
+  def asLocus: SLocusValue = asInstanceOf[SLocusValue]
+
+  def asCall: SCallValue = asInstanceOf[SCallValue]
+
+  def asStream: SStreamValue = asInstanceOf[SStreamValue]
+
+  def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SCode =
+    castTo(cb, region, destType, false)
+
+  def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType, deepCopy: Boolean): SCode = {
+    destType.coerceOrCopy(cb, region, this, deepCopy).get
+  }
+
+  def copyToRegion(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SCode =
+    destType.coerceOrCopy(cb, region, this, deepCopy = true).get
+
+  def hash(cb: EmitCodeBuilder): SInt32Code = throw new UnsupportedOperationException(s"Stype ${st} has no hashcode")
 }
 
 
@@ -136,8 +183,6 @@ trait SUnrealizableCode extends SCode {
     throw new UnsupportedOperationException(s"$this is not realizable")
 
   def code: Code[_] = unsupported
-
-  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = unsupported
 
   def memoizeField(cb: EmitCodeBuilder, name: String): SValue = unsupported
 }

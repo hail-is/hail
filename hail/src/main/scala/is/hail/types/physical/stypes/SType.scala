@@ -2,9 +2,10 @@ package is.hail.types.physical.stypes
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitSettable, SCodeEmitParamType, SCodeParamType}
-import is.hail.types.VirtualTypeWithReq
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitSettable, EmitValue, SCodeEmitParamType, SCodeParamType}
+import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.types.physical.PType
+import is.hail.types.physical.stypes.concrete.SUnreachable
 import is.hail.types.physical.stypes.interfaces.SStream
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
@@ -12,10 +13,15 @@ import is.hail.types.virtual._
 
 object SType {
   def chooseCompatibleType(req: VirtualTypeWithReq, stypes: SType*): SType = {
-    if (stypes.toSet.size == 1)
-      stypes.head
+    val reachable = stypes.filter(t => !t.isInstanceOf[SUnreachable]).toSet
+
+    // all unreachable
+    if (reachable.isEmpty)
+      SUnreachable.fromVirtualType(req.t)
+    else if (reachable.size == 1) // only one reachable stype
+      reachable.head
     else
-      req.canonicalEmitType.st
+      req.canonicalEmitType.st // fall back to canonical emit type from requiredness
   }
 
   def canonical(virt: Type): SType = {
@@ -29,36 +35,38 @@ object SType {
       case TFloat64 => x.asDouble.doubleCode(cb)
       case TBoolean => x.asBoolean.boolCode(cb)
     }
-
-  def canonical(st: SType): SType = st.canonicalPType().sType
 }
 
 trait SType {
   def virtualType: Type
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode
+  final def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = {
+    value.st match {
+      case _: SUnreachable => this.defaultValue
+      case _ => _coerceOrCopy(cb, region, value, deepCopy)
+    }
+  }
 
-  def codeTupleTypes(): IndexedSeq[TypeInfo[_]]
+  protected[stypes] def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue
 
-  def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = codeTupleTypes()
-
-  lazy val nCodes: Int = codeTupleTypes().length
+  def settableTupleTypes(): IndexedSeq[TypeInfo[_]]
 
   lazy val nSettables: Int = settableTupleTypes().length
 
   def fromSettables(settables: IndexedSeq[Settable[_]]): SSettable
 
-  def fromCodes(codes: IndexedSeq[Code[_]]): SCode
+  def fromValues(values: IndexedSeq[Value[_]]): SValue
 
-  def canonicalPType(): PType
+  def storageType(): PType
+
+  def copiedType: SType
 
   def paramType: SCodeParamType = SCodeParamType(this)
 
-  def asIdent: String = canonicalPType().asIdent
+  def asIdent: String = getClass.getSimpleName
 
-  def defaultValue: SCode = {
-    fromCodes(codeTupleTypes().map(ti => ti.uninitializedValue))
-  }
+  def defaultValue: SValue =
+    fromValues(settableTupleTypes().map(ti => ti.uninitializedValue))
 
   def isPrimitive: Boolean = this match {
     case SInt32 | SInt64 | SFloat32 | SFloat64 | SBoolean => true
@@ -68,6 +76,12 @@ trait SType {
   def isRealizable: Boolean = !this.isInstanceOf[SStream]
 
   def castRename(t: Type): SType
+
+  protected[stypes] def _typeWithRequiredness: TypeWithRequiredness
+
+  final def typeWithRequiredness: VirtualTypeWithReq = VirtualTypeWithReq(virtualType, _typeWithRequiredness)
+
+  def containsPointers: Boolean
 }
 
 case class EmitType(st: SType, required: Boolean) {
@@ -75,17 +89,13 @@ case class EmitType(st: SType, required: Boolean) {
 
   def paramType: SCodeEmitParamType = SCodeEmitParamType(this)
 
-  def canonicalPType: PType = st.canonicalPType().setRequired(required)
+  def storageType: PType = st.storageType().setRequired(required)
+
+  def copiedType: EmitType = copy(st = st.copiedType)
+
+  def typeWithRequiredness: VirtualTypeWithReq = st.typeWithRequiredness.setRequired(required)
 
   def equalModuloRequired(that: EmitType): Boolean = st == that.st
-
-  lazy val codeTupleTypes: IndexedSeq[TypeInfo[_]] = {
-    val tc = st.codeTupleTypes()
-    if (required)
-      tc
-    else
-      tc :+ BooleanInfo
-  }
 
   lazy val settableTupleTypes: IndexedSeq[TypeInfo[_]] = {
     val tc = st.settableTupleTypes()
@@ -95,22 +105,15 @@ case class EmitType(st: SType, required: Boolean) {
       tc :+ BooleanInfo
   }
 
-  def fromCodes(codes: IndexedSeq[Code[_]]): EmitCode = {
-    val scode = st.fromCodes(codes.take(st.nCodes))
-    val m: Code[Boolean] = if (required) const(false) else coerce[Boolean](codes.last)
-    val ec = EmitCode(Code._empty, m, scode)
-    if (ec.required && !this.required)
-      ec.setOptional
-    else
-      ec
-  }
-
   def fromSettables(settables: IndexedSeq[Settable[_]]): EmitSettable = new EmitSettable(
     if (required) None else Some(coerce[Boolean](settables.last)),
     st.fromSettables(settables.take(st.nSettables))
   )
 
-  def nCodes: Int = codeTupleTypes.length
+  def fromValues(values: IndexedSeq[Value[_]]): EmitValue = EmitValue(
+    if (required) None else Some(coerce[Boolean](values.last)),
+    st.fromValues(values.take(st.nSettables))
+  )
 
   def nSettables: Int = settableTupleTypes.length
 }

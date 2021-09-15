@@ -8,7 +8,7 @@ import is.hail.types.BaseStruct
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{SCode, SType, SValue}
 import is.hail.types.physical.stypes.concrete._
-import is.hail.types.physical.stypes.interfaces.SBaseStructValue
+import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SLocus, SLocusValue}
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -75,10 +75,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       case SIntervalPointer(t: PCanonicalInterval) => new SBaseStructPointerSettable(
         SBaseStructPointer(t.representation),
         v.asInstanceOf[SIntervalPointerSettable].a)
-      case SCanonicalLocusPointer(t) =>
-        new SBaseStructPointerSettable(
-          SBaseStructPointer(t.representation),
-          v.asInstanceOf[SCanonicalLocusPointerSettable].a)
+      case _: SLocus => v.asInstanceOf[SLocusValue].structRepr(cb)
       case _ => v.asInstanceOf[SBaseStructValue]
     }
     // write missing bytes
@@ -132,7 +129,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     val pt = decodedPType(t)
     val addr = cb.newLocal[Long]("base_struct_dec_addr", region.allocate(pt.alignment, pt.byteSize))
     _buildInplaceDecoder(cb, pt, region, addr, in)
-    pt.loadCheapSCode(cb, addr)
+    pt.loadCheapSCode(cb, addr).get
   }
 
   override def _buildInplaceDecoder(cb: EmitCodeBuilder, pt: PType, region: Value[Region], addr: Value[Long], in: Value[InputBuffer]): Unit = {
@@ -152,21 +149,21 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
         if (f.typ.required) {
           readElemF(cb, region, rFieldAddr, in)
           if (!rf.typ.required)
-            cb += structType.setFieldPresent(addr, rf.index)
+            structType.setFieldPresent(cb, addr, rf.index)
         } else {
           cb.ifx(Region.loadBit(mbytes, const(missingIdx(f.index).toLong)), {
-            cb += structType.setFieldMissing(addr, rf.index)
+            structType.setFieldMissing(cb, addr, rf.index)
           }, {
-            cb += structType.setFieldPresent(addr, rf.index)
+            structType.setFieldPresent(cb, addr, rf.index)
             readElemF(cb, region, rFieldAddr, in)
           })
         }
       } else {
-        val skip = f.typ.buildSkip(cb.emb)
+        val skip = f.typ.buildSkip(cb.emb.ecb)
         if (f.typ.required)
-          cb += skip(region, in)
+          skip(cb, region, in)
         else
-          cb.ifx(!Region.loadBit(mbytes, const(missingIdx(f.index).toLong)), cb += skip(region, in))
+          cb.ifx(!Region.loadBit(mbytes, const(missingIdx(f.index).toLong)), skip(cb, region, in))
       }
     }
   }
@@ -175,11 +172,11 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     val mbytes = cb.newLocal[Long]("mbytes", r.allocate(const(1), const(nMissingBytes)))
     cb += in.readBytes(r, mbytes, nMissingBytes)
     fields.foreach { f =>
-      val skip = f.typ.buildSkip(cb.emb)
+      val skip = f.typ.buildSkip(cb.emb.ecb)
       if (f.typ.required)
-        cb += skip(r, in)
+        skip(cb, r, in)
       else
-        cb.ifx(!Region.loadBit(mbytes, missingIdx(f.index).toLong), cb += skip(r, in))
+        cb.ifx(!Region.loadBit(mbytes, missingIdx(f.index).toLong), skip(cb, r, in))
     }
   }
 

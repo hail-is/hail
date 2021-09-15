@@ -63,6 +63,11 @@ spec:
            value: "{{ global.docker_root_image }}"
          - name: HAIL_DOCKER_PREFIX
            value: "{{ global.docker_prefix }}"
+         - name: HAIL_INTERNAL_IP
+           valueFrom:
+             secretKeyRef:
+               name: global-config
+               key: internal_ip
          - name: HAIL_GCP_REGION
            valueFrom:
              secretKeyRef:
@@ -100,7 +105,7 @@ spec:
          - name: HAIL_SHOULD_CHECK_INVARIANTS
            value: "1"
          - name: HAIL_BATCH_BUCKET_NAME
-           value: cpg-hail-test
+           value: "{{ global.hail_test_gcs_bucket }}"
          - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
            value: "300"
 {% endif %}
@@ -236,7 +241,7 @@ spec:
            value: "7200" # 2 hours
 {% else %}
          - name: HAIL_BATCH_BUCKET_NAME
-           value: cpg-hail-test
+           value: "{{ global.hail_test_gcs_bucket }}"
          - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
            value: "300"
 {% endif %}

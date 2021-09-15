@@ -63,7 +63,7 @@ spec:
 {% if deploy %}
            value: hail-atgu-data
 {% else %}
-           value: cpg-hail-test
+           value: "{{ global.hail_test_gcs_bucket }}"
 {% endif %}
         volumeMounts:
          - name: deploy-config

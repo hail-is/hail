@@ -94,6 +94,10 @@ steps:
     dockerFile: /io/repo/docker/Dockerfile.service-base
     contextPath: /io/repo/
     publishAs: service-base
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     dependsOn:
       - base_image
       - merge_code
@@ -152,6 +156,10 @@ steps:
     dockerFile: /io/repo/ci/test/resources/Dockerfile
     contextPath: /io/repo
     publishAs: ci-hello
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo
         to: /io/repo

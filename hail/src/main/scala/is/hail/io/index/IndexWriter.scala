@@ -115,28 +115,28 @@ class IndexWriterArrayBuilder(name: String, maxSize: Int, sb: SettableBuilder, r
 
   def create(cb: EmitCodeBuilder, dest: Code[Long]): Unit = {
     cb.assign(aoff, arrayType.allocate(region, maxSize))
-    cb += arrayType.stagedInitialize(aoff, maxSize)
-    arrayType.storeAtAddress(cb, dest, region, arrayType.loadCheapSCode(cb, aoff), deepCopy = false)
+    arrayType.stagedInitialize(cb, aoff, maxSize)
+    arrayType.storeAtAddress(cb, dest, region, arrayType.loadCheapSCode(cb, aoff).get, deepCopy = false)
     cb.assign(len, 0)
   }
 
-  def storeLength(cb: EmitCodeBuilder): Unit = cb += arrayType.storeLength(aoff, length)
+  def storeLength(cb: EmitCodeBuilder): Unit = arrayType.storeLength(cb, aoff, length)
 
   def setFieldValue(cb: EmitCodeBuilder, name: String, field: SCode): Unit = {
-    cb += eltType.setFieldPresent(elt.a, name)
+    eltType.setFieldPresent(cb, elt.a, name)
     eltType.fieldType(name).storeAtAddress(cb, eltType.fieldOffset(elt.a, name), region, field, deepCopy = true)
   }
 
   def setField(cb: EmitCodeBuilder, name: String, v: => IEmitCode): Unit =
     v.consume(cb,
-      cb += eltType.setFieldMissing(elt.a, name),
+      eltType.setFieldMissing(cb, elt.a, name),
       setFieldValue(cb, name, _))
 
   def addChild(cb: EmitCodeBuilder): Unit = {
     loadChild(cb, len)
     cb.assign(len, len + 1)
   }
-  def loadChild(cb: EmitCodeBuilder, idx: Code[Int]): Unit = elt.store(cb, eltType.loadCheapSCode(cb, arrayType.loadElement(aoff, idx)))
+  def loadChild(cb: EmitCodeBuilder, idx: Code[Int]): Unit = elt.store(cb, eltType.loadCheapSCode(cb, arrayType.loadElement(aoff, idx)).get)
   def getLoadedChild: SBaseStructValue = elt
 }
 
@@ -244,9 +244,9 @@ object StagedIndexWriter {
       .voidWithBuilder(cb => siw.init(cb, cb.emb.getCodeParam[String](1)))
     fb.emb.voidWithBuilder { cb =>
       siw.add(cb,
-        IEmitCode(cb, false, keyType.loadCheapSCode(cb, fb.getCodeParam[Long](1))),
+        IEmitCode(cb, false, keyType.loadCheapSCode(cb, fb.getCodeParam[Long](1)).get),
         fb.getCodeParam[Long](2),
-        IEmitCode(cb, false, annotationType.loadCheapSCode(cb, fb.getCodeParam[Long](3))))
+        IEmitCode(cb, false, annotationType.loadCheapSCode(cb, fb.getCodeParam[Long](3)).get))
     }
     cb.newEmitMethod("close", FastIndexedSeq[ParamType](), typeInfo[Unit])
       .voidWithBuilder(siw.close)
