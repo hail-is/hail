@@ -103,15 +103,22 @@ def make_reference_matrix_table(mt: MatrixTable, entry_to_keep) -> MatrixTable:
     mt = mt.filter_rows(hl.is_defined(mt.info.END))
 
     if not entry_to_keep:
-        # set difference here, since all GTs are 0/0 and for a homref call,
-        # LAD and LPL are uninteresting and trivially recreatable assuming
-        # DP is defined (which it should be!).
-        entry_to_keep = defined_entry_fields(mt, sample=10_000) - {'AD', 'GT', 'PL'}
+        entry_to_keep = defined_entry_fields(mt, sample=10_000) - {'GT', 'PGT'}
 
     def make_entry_struct(e, row):
-        reference_fields = {k: v for k, v in e.items() if k in entry_to_keep}
+        handled_fields = dict()
+        handled_names = {'AD', 'PL'}
+
+        if 'AD' in entry_to_keep:
+            handled_fields['LAD'] = e['AD'][:1]
+        if 'PL' in entry_to_keep:
+            handled_fields['LPL'] = e['PL'][:1]
+
+        reference_fields = {k: v for k, v in e.items()
+                            if k in entry_to_keep and k not in handled_names}
         return (hl.case()
-                  .when(e.GT.is_hom_ref(), hl.struct(END=row.info.END, **reference_fields))
+                  .when(e.GT.is_hom_ref(),
+                        hl.struct(END=row.info.END, **reference_fields, **handled_fields))
                   .or_error('found END with non reference-genotype at' + hl.str(row.locus)))
 
     mt = localize(mt)
