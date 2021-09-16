@@ -103,10 +103,12 @@ def make_reference_matrix_table(mt: MatrixTable, entry_to_keep) -> MatrixTable:
     mt = mt.filter_rows(hl.is_defined(mt.info.END))
 
     if not entry_to_keep:
-        entry_to_keep = defined_entry_fields(mt, sample=10_000) - {'GT', 'PGT'}
+        entry_to_keep = defined_entry_fields(mt, sample=10_000) - {'GT', 'PGT', 'PL'}
 
     def make_entry_struct(e, row):
         handled_fields = dict()
+        # we drop PL by default, but if `entry_to_keep` has it then PL needs to be
+        # turned into LPL
         handled_names = {'AD', 'PL'}
 
         if 'AD' in entry_to_keep:

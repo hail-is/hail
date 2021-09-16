@@ -130,5 +130,7 @@ def test_vcf_vds_combiner_equivalence():
                                       array_elements_required=False)]
     vds = vds.combine_variant_datasets([vds.transform_gvcf(mt) for mt in vcfs])
     smt = vcf.combine_gvcfs([vcf.transform_gvcf(mt) for mt in vcfs])
-    smt_from_vds = hl.vds.to_merged_sparse_mt(vds)
+    smt_from_vds = hl.vds.to_merged_sparse_mt(vds).drop('RGQ')
+    smt = smt.select_entries(*smt_from_vds.entry)  # harmonize fields and order
+    smt = smt.key_rows_by('locus', 'alleles')
     assert smt._same(smt_from_vds)
