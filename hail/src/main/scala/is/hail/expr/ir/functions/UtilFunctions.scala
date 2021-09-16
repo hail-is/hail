@@ -376,8 +376,6 @@ object UtilFunctions extends RegistryFunctions {
               )
             })
 
-          val Lpresent = CodeLabel()
-          val Lmissing = CodeLabel()
           IEmitCode(cb, ((M >> w) & 1).cne(0), primitive(cb.memoize(w.cne(0))))
         }
     }
