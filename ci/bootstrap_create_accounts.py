@@ -2,7 +2,7 @@ import os
 import base64
 import json
 import kubernetes_asyncio as kube
-from hailtop import aiogoogle
+from hailtop.aiocloud import gcp as aiogoogle
 from hailtop.utils import async_to_blocking
 from gear import Database, transaction
 

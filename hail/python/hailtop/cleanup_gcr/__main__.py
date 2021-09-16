@@ -3,7 +3,8 @@ import time
 import logging
 import asyncio
 import aiohttp
-from hailtop import aiotools, aiogoogle
+from hailtop import aiotools
+from hailtop.aiocloud import gcp as aiogoogle
 
 log = logging.getLogger(__name__)
 

@@ -19,7 +19,7 @@ from hailtop.batch_client.parse import parse_cpu_in_mcpu
 import hailtop.batch_client.client as bc
 from hailtop.batch_client.client import BatchClient
 from hailtop.aiotools import RouterAsyncFS, LocalAsyncFS, AsyncFS
-from hailtop.aiogoogle import GoogleStorageAsyncFS
+from hailtop.aiocloud.gcp import GoogleStorageAsyncFS
 
 from . import resource, batch, job as _job  # pylint: disable=unused-import
 from .exceptions import BatchException

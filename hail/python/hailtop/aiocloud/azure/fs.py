@@ -6,20 +6,21 @@ import re
 import asyncio
 import urllib
 import secrets
-import json
 import logging
 
-from azure.identity.aio import DefaultAzureCredential, ClientSecretCredential
 from azure.storage.blob import BlobProperties
 from azure.storage.blob.aio import BlobClient, ContainerClient, BlobServiceClient, StorageStreamDownloader
 from azure.storage.blob.aio._list_blobs_helper import BlobPrefix
 import azure.core.exceptions
-from hailtop.utils import retry_transient_errors, flatten, OnlineBoundedGather2, first_extant_file
+from hailtop.utils import retry_transient_errors, flatten, OnlineBoundedGather2
 from hailtop.aiotools import UnexpectedEOFError
 
-from .fs import (AsyncFS, ReadableStream, WritableStream, MultiPartCreate, FileListEntry, FileStatus,
-                 FileAndDirectoryError)
-from .utils import WriteBuffer
+from hailtop.aiotools.fs import (AsyncFS, ReadableStream, WritableStream, MultiPartCreate, FileListEntry, FileStatus,
+                                 FileAndDirectoryError)
+from hailtop.aiotools.utils import WriteBuffer
+
+from .auth import Credentials
+
 
 logger = logging.getLogger("azure.core.pipeline.policies.http_logging_policy")
 logger.setLevel(logging.WARNING)
@@ -248,26 +249,17 @@ class AzureFileStatus(FileStatus):
 class AzureAsyncFS(AsyncFS):
     PATH_REGEX = re.compile('/(?P<container>[^/]+)(?P<name>.*)')
 
-    def __init__(self, *, credential_file: Optional[str] = None, credential: Optional[Any] = None):
-        if credential is None:
-            credential_file = first_extant_file(
-                credential_file,
-                os.environ.get('AZURE_APPLICATION_CREDENTIALS'),
-                '/azure-key/credentials.json'
-            )
-            if credential_file:
-                with open(credential_file, 'r') as f:
-                    data = json.loads(f.read())
-                    credential = ClientSecretCredential(tenant_id=data['tenant'],
-                                                        client_id=data['appId'],
-                                                        client_secret=data['password'])
+    def __init__(self, *, credential_file: Optional[str] = None, credentials: Optional[Credentials] = None):
+        if credentials is None:
+            if credential_file is not None:
+                credentials = Credentials.from_file(credential_file)
             else:
-                credential = DefaultAzureCredential()
+                credentials = Credentials.default_credentials()
         else:
             if credential_file is not None:
                 raise ValueError('credential and credential_file cannot both be defined')
 
-        self._credential = credential
+        self._credential = credentials.credential
         self._blob_service_clients: Dict[str, BlobServiceClient] = {}
 
     def schemes(self) -> Set[str]:

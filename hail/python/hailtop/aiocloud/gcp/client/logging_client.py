@@ -1,5 +1,5 @@
 from typing import Mapping, Any
-from .base_client import BaseClient
+from .base_client import GCPBaseClient
 
 
 class PagedEntryIterator:
@@ -38,7 +38,7 @@ class PagedEntryIterator:
                 raise StopAsyncIteration
 
 
-class LoggingClient(BaseClient):
+class LoggingClient(GCPBaseClient):
     def __init__(self, **kwargs):
         super().__init__('https://logging.googleapis.com/v2', **kwargs)
 

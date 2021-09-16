@@ -12,7 +12,7 @@ from hailtop.utils import time_msecs, secret_alnum_string
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
 from hailtop.config import get_deploy_config
-from hailtop import aiogoogle
+from hailtop.aiocloud import gcp as aiogoogle
 from gear import (
     Database,
     setup_aiohttp_session,

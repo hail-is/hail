@@ -3,8 +3,9 @@ from typing import Mapping, Any, Optional, MutableMapping, List, Dict
 import logging
 import aiohttp
 
-from .base_client import BaseClient
 from hailtop.utils import retry_transient_errors, sleep_and_backoff
+
+from .base_client import GCPBaseClient
 
 log = logging.getLogger('compute_client')
 
@@ -58,7 +59,7 @@ class PagedIterator:
                 raise StopAsyncIteration
 
 
-class ComputeClient(BaseClient):
+class ComputeClient(GCPBaseClient):
     def __init__(self, project, **kwargs):
         super().__init__(f'https://compute.googleapis.com/compute/v1/projects/{project}', **kwargs)
 

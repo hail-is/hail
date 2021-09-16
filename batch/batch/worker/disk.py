@@ -1,7 +1,7 @@
 import logging
 
 from hailtop.utils import check_shell_output, LoggingTimer, retry_all_errors_n_times
-from hailtop import aiogoogle
+from hailtop.aiocloud import gcp as aiogoogle
 
 log = logging.getLogger('disk')
 

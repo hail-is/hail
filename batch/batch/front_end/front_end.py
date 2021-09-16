@@ -33,7 +33,7 @@ from hailtop.utils import (
     periodically_call,
 )
 from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
-import hailtop.aiogoogle as aiogoogle
+from hailtop.aiocloud import gcp as aiogoogle
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.httpx import client_session
@@ -2146,7 +2146,7 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
 
     app['frozen'] = row['frozen']
 
-    credentials = aiogoogle.auth.credentials.Credentials.from_file('/gsa-key/key.json')
+    credentials = aiogoogle.Credentials.from_file('/gsa-key/key.json')
     fs = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
     app['file_store'] = FileStore(fs, BATCH_BUCKET_NAME, instance_id)
 

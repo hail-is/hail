@@ -4,8 +4,7 @@ import abc
 import aiohttp
 import hailtop.httpx
 from hailtop.utils import request_retry_transient_errors, RateLimit, RateLimiter
-from .credentials import Credentials
-from .access_token import AccessToken
+from .auth import AccessToken
 
 SessionType = TypeVar('SessionType', bound='BaseSession')
 
@@ -64,14 +63,12 @@ class Session(BaseSession):
     _session: aiohttp.ClientSession
     _access_token: AccessToken
 
-    def __init__(self, *, credentials: Credentials = None, params: Optional[Mapping[str, str]] = None, **kwargs):
-        if credentials is None:
-            credentials = Credentials.default_credentials()
+    def __init__(self, *, access_token: AccessToken, params: Optional[Mapping[str, str]] = None, **kwargs):
         if 'raise_for_status' not in kwargs:
             kwargs['raise_for_status'] = True
         self._params = params
         self._session = hailtop.httpx.ClientSession(**kwargs)
-        self._access_token = AccessToken(credentials)
+        self._access_token = access_token
 
     async def request(self, method: str, url: str, **kwargs):
         auth_headers = await self._access_token.auth_headers(self._session)

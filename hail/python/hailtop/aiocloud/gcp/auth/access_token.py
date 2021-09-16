@@ -1,12 +1,9 @@
 import time
 
+from ...common.auth import AccessToken as BaseAccessToken
 
-class AccessToken:
-    def __init__(self, credentials):
-        self.credentials = credentials
-        self._access_token = None
-        self._expires_at = None
 
+class AccessToken(BaseAccessToken):
     async def auth_headers(self, session):
         now = time.time()
         if self._access_token is None or now > self._expires_at:

@@ -14,7 +14,7 @@ from hailtop.utils import blocking_to_async
 from hailtop.aiotools import (
     FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS,
     MultiPartCreate)
-from .stream import (
+from hailtop.aiotools.stream import (
     AsyncQueueWritableStream,
     async_writable_blocking_readable_stream_pair,
     async_writable_blocking_collect_pair,

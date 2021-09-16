@@ -1,17 +1,13 @@
-from typing import Optional
 import os
 import secrets
-import shutil
-from itertools import accumulate
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import pytest
 import concurrent
-import urllib.parse
 import functools
 from hailtop.utils import secret_alnum_string, bounded_gather2
 from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS
-from hailtop.aiogoogle import StorageClient, GoogleStorageAsyncFS
+from hailtop.aiocloud.gcp import StorageClient, GoogleStorageAsyncFS
 
 
 @pytest.fixture(params=['gs', 'router/gs'])

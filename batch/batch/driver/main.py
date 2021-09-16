@@ -33,7 +33,8 @@ from hailtop.utils import (
     dump_all_stacktraces,
 )
 from hailtop.tls import internal_server_ssl_context
-from hailtop import aiogoogle, aiotools
+from hailtop import aiotools
+from hailtop.aiocloud import gcp as aiogoogle
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 import googlecloudprofiler
 import uvloop
@@ -1101,7 +1102,7 @@ SELECT instance_id, internal_token, frozen FROM globals;
     async_worker_pool = AsyncWorkerPool(100, queue_size=100)
     app['async_worker_pool'] = async_worker_pool
 
-    credentials = aiogoogle.auth.credentials.Credentials.from_file('/gsa-key/key.json')
+    credentials = aiogoogle.Credentials.from_file('/gsa-key/key.json')
     fs = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
     app['file_store'] = FileStore(fs, BATCH_BUCKET_NAME, instance_id)
 

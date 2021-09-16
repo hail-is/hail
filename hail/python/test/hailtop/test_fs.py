@@ -6,9 +6,9 @@ import asyncio
 import pytest
 from hailtop.utils import secret_alnum_string
 from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS, UnexpectedEOFError
-from hailtop.aiotools.s3asyncfs import S3AsyncFS
-from hailtop.aiotools.azurefs import AzureAsyncFS
-from hailtop.aiogoogle import GoogleStorageAsyncFS
+from hailtop.aiocloud.aws import S3AsyncFS
+from hailtop.aiocloud.azure import AzureAsyncFS
+from hailtop.aiocloud.gcp import GoogleStorageAsyncFS
 
 
 @pytest.fixture(params=['file', 'gs', 's3', 'hail-az', 'router/file', 'router/gs', 'router/s3', 'router/hail-az'])

@@ -1,4 +1,3 @@
-import abc
 import os
 import json
 import time
@@ -6,11 +5,12 @@ import logging
 from urllib.parse import urlencode
 import jwt
 from hailtop.utils import request_retry_transient_errors
+from ...common.auth import Credentials as BaseCredentials
 
 log = logging.getLogger(__name__)
 
 
-class Credentials(abc.ABC):
+class Credentials(BaseCredentials):
     @staticmethod
     def from_file(credentials_file):
         with open(credentials_file) as f:
@@ -47,6 +47,9 @@ class Credentials(abc.ABC):
         return InstanceMetadataCredentials()
 
     async def get_access_token(self, session):
+        raise NotImplementedError
+
+    async def close(self):
         pass
 
 
@@ -105,7 +108,7 @@ class ServiceAccountCredentials(Credentials):
 
 
 # https://cloud.google.com/compute/docs/access/create-enable-service-accounts-for-instances#applications
-class InstanceMetadataCredentials():
+class InstanceMetadataCredentials(Credentials):
     async def get_access_token(self, session):
         async with await request_retry_transient_errors(
                 session, 'GET',

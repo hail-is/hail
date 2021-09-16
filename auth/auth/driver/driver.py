@@ -9,7 +9,8 @@ import aiohttp
 import kubernetes_asyncio as kube
 from hailtop.utils import time_msecs, secret_alnum_string
 from hailtop.auth.sql_config import create_secret_data_from_config, SQLConfig
-from hailtop import aiogoogle, aiotools
+from hailtop import aiotools
+from hailtop.aiocloud import gcp as aiogoogle
 from hailtop import batch_client as bc
 from gear import create_session, Database
 
