@@ -100,5 +100,5 @@ def test_combiner_works():
                                       array_elements_required=False)]
     comb = combine_variant_datasets(vcfs)
     assert len(parts) == comb.variant_data.n_partitions()
-    vds_path = new_temp_file()
-    comb.write(vds_path)
+    comb.variant_data._force_count_rows()
+    comb.reference_data._force_count_rows()
