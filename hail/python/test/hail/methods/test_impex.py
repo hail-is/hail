@@ -2113,7 +2113,7 @@ class ImportTableTests(unittest.TestCase):
             ht = hl.import_table(resource('tsv_errors.tsv'), types={'col1': 'int32'})
             ht._force_count()
 
-        with pytest.raises(HailUserError, match='Expected 2 fields, found 1 field'):
+        with pytest.raises(HailUserError, match='expected 2 fields, found 1 field'):
             ht = hl.import_table(resource('tsv_errors.tsv'), impute=True)
 
 

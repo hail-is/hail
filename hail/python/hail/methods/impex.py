@@ -1381,7 +1381,7 @@ def import_gen(path,
            find_replace=nullable(sized_tupleof(str, str)),
            force=bool,
            source_file_field=nullable(str))
-def import_table2(paths,
+def import_table(paths,
                  key=None,
                  min_partitions=None,
                  impute=False,
@@ -1591,116 +1591,16 @@ def import_table2(paths,
     -------
     :class:`.Table`
     """
-    paths = wrap_to_list(paths)
-    comment = wrap_to_list(comment)
-    missing = wrap_to_list(missing)
-
-    tr = ir.TextTableReader(paths, min_partitions, types, comment,
-                            delimiter, missing, no_header, quote,
-                            skip_blank_lines, force_bgz, filter, find_replace,
-                            force, source_file_field)
-    ht = Table(ir.TableRead(tr))
-
-    strs = []
-
-    if impute:
-        fields_to_guess = [f for f in ht.row if f not in types]
-
-        hl.utils.info('Reading table to impute column types')
-        guessed = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg._impute_type(x), [ht[f] for f in fields_to_guess]))
-
-        reasons = {f: 'user-supplied type' for f in types}
-
-        imputed_types = dict()
-        for field, s in zip(fields_to_guess, guessed):
-            if not s['anyNonMissing']:
-                imputed_types[field] = hl.tstr
-                reasons[field] = 'no non-missing observations'
-            else:
-                if s['supportsBool']:
-                    imputed_types[field] = hl.tbool
-                elif s['supportsInt32']:
-                    imputed_types[field] = hl.tint32
-                elif s['supportsInt64']:
-                    imputed_types[field] = hl.tint64
-                elif s['supportsFloat64']:
-                    imputed_types[field] = hl.tfloat64
-                else:
-                    imputed_types[field] = hl.tstr
-                reasons[field] = 'imputed'
-
-        strs.append('Finished type imputation')
-
-        all_types = dict(**types, **imputed_types)
-        for field in ht.row:
-            strs.append(f'  Loading field {field!r} as type {all_types[field]} ({reasons[field]})')
-
-        tr = ir.TextTableReader(paths, min_partitions, all_types, comment,
-                                delimiter, missing, no_header, quote,
-                                skip_blank_lines, force_bgz, filter, find_replace,
-                                force, source_file_field)
-        ht = Table(ir.TableRead(tr))
-
-    else:
-        strs.append('Reading table without type imputation')
-        for field in ht.row:
-            reason = 'user-supplied' if field in types else 'not specified'
-            t = types.get(field, hl.tstr)
-            strs.append(f'  Loading field {field!r} as type {t} ({reason})')
-
-    if len(ht.row) < 30:
-        hl.utils.info('\n'.join(strs))
-    else:
-        from collections import Counter
-        strs2 = [f'Loading {len(ht.row)} fields. Counts by type:']
-        for name, count in Counter(ht[f].dtype for f in ht.row).most_common():
-            strs2.append(f'  {name}: {count}')
-        hl.utils.info('\n'.join(strs2))
-
-    if key:
-        key = wrap_to_list(key)
-        ht = ht.key_by(*key)
-    return ht
-
-@typecheck(paths=oneof(str, sequenceof(str)),
-           key=table_key_type,
-           min_partitions=nullable(int),
-           impute=bool,
-           no_header=bool,
-           comment=oneof(str, sequenceof(str)),
-           delimiter=str,
-           missing=oneof(str, sequenceof(str)),
-           types=dictof(str, hail_type),
-           quote=nullable(char),
-           skip_blank_lines=bool,
-           force_bgz=bool,
-           filter=nullable(str),
-           find_replace=nullable(sized_tupleof(str, str)),
-           force=bool,
-           source_file_field=nullable(str))
-def import_table(paths,
-                 key=None,
-                 min_partitions=None,
-                 impute=False,
-                 no_header=False,
-                 comment=(),
-                 delimiter="\t",
-                 missing="NA",
-                 types={},
-                 quote=None,
-                 skip_blank_lines=False,
-                 force_bgz=False,
-                 filter=None,
-                 find_replace=None,
-                 force=False,
-                 source_file_field=None) -> Table:
-
     if len(delimiter) < 1:
         raise ValueError('import_table: empty delimiter is not supported')
 
-    def split_lines(hl_str):
-        return hl_str._split_line(delimiter, missing=missing, quote=quote, regex=len(delimiter) > 1)
-
+    def split_lines(row, fields):
+        split_array = row.text._split_line(delimiter, missing=missing, quote=quote, regex=len(delimiter) > 1)
+        return hl.case().when(hl.len(split_array) == len(fields), split_array)\
+            .or_error(hl.str("error in number of fields found: in file ") + hl.str(row.file) +
+                      hl.str(f"\nexpected {len(fields)} {'fields' if len(fields) > 1 else 'field' }, found ") +
+                      hl.str(hl.len(split_array)) + hl.if_else(hl.len(split_array) > 1, hl.str(" fields"),
+                      hl.str(" field")) + hl.str("\nfor line consisting of '") + hl.str(row.text) + "'")
 
     def should_filter_line(hl_str):
         to_filter = hl_str.matches(filter) if filter is not None else hl.bool(False)
@@ -1751,7 +1651,7 @@ def import_table(paths,
         ht = ht.annotate(text=ht['text'].replace(*find_replace))
 
     first_row = ht.head(1)
-    first_row_value = first_row.annotate(header=split_lines(first_row.text)).collect()[0]
+    first_row_value = first_row.annotate(header=first_row.text.split(delimiter)).collect()[0]
 
     if first_row_value is None:
         raise ValueError(f"Invalid file: no lines remaining after filters\n Offending file: {first_row.file}")
@@ -1764,7 +1664,7 @@ def import_table(paths,
         num_of_fields = list(range(0, len(first_row_value.header)))
         fields = list(map(lambda f_num: "f" + str(f_num), num_of_fields))
 
-    ht = ht.annotate(split_text=hl.case().when(hl.len(ht.text) > 0, split_lines(ht.text))
+    ht = ht.annotate(split_text=hl.case().when(hl.len(ht.text) > 0, split_lines(ht, fields))
                      .or_error(hl.str("Blank line found in file ") + ht.file)).drop('text')
 
     fields_to_value = {}
