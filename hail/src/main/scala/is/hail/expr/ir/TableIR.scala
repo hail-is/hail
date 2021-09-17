@@ -191,19 +191,15 @@ object LoweredTableReader {
           MakeStruct(FastIndexedSeq(
             "n" -> Ref("n", TInt64),
             "minkey" ->
-              ArrayRef(
-                ApplyAggOp(
-                  FastIndexedSeq(I32(1)),
-                  FastIndexedSeq(Ref("key", keyType), Ref("key", keyType)),
-                  minkey),
-                I32(0)),
+              ApplyAggOp(
+                FastIndexedSeq(I32(1)),
+                FastIndexedSeq(Ref("key", keyType), Ref("key", keyType)),
+                minkey),
             "maxkey" ->
-              ArrayRef(
-                ApplyAggOp(
-                  FastIndexedSeq(I32(1)),
-                  FastIndexedSeq(Ref("key", keyType), Ref("key", keyType)),
-                  maxkey),
-                I32(0)),
+              ApplyAggOp(
+                FastIndexedSeq(I32(1)),
+                FastIndexedSeq(Ref("key", keyType), Ref("key", keyType)),
+                maxkey),
             "ksorted" ->
               ApplyComparisonOp(EQ(TInt64),
                 ApplyAggOp(
@@ -243,20 +239,26 @@ object LoweredTableReader {
       "globals",
       scanBody(Ref("context", contextType)))
 
-    val partDataWithIndex = InsertFields(
-      ArrayRef(Ref("scanResult", scanResult.typ), Ref("i", TInt32)),
-      FastIndexedSeq(
-        "i" -> Ref("i", TInt32)))
-    val sortedPartDataIR = ArraySort(
-      Let("scanResult", scanResult,
-        StreamMap(
-          StreamRange(I32(0), ArrayLen(Ref("scanResult", scanResult.typ)), I32(1)),
-          "i",
-          partDataWithIndex)),
-      "l", "r",
-      ApplyComparisonOp(LT(keyType),
-        GetField(Ref("l", partDataWithIndex.typ), "minkey"),
-        GetField(Ref("r", partDataWithIndex.typ), "minkey")))
+    val sortedPartDataIR = sortIR(bindIR(scanResult) { scanResult =>
+      mapIR(
+        filterIR(
+          mapIR(
+            rangeIR(I32(0), ArrayLen(scanResult))) { i =>
+            InsertFields(
+              ArrayRef(scanResult, i),
+              FastIndexedSeq("i" -> i))
+          }) { row => ArrayLen(GetField(row, "minkey")) > 0 }
+      ) { row =>
+        InsertFields(row, FastSeq(
+          ("minkey", ArrayRef(GetField(row, "minkey"), I32(0))),
+          ("maxkey", ArrayRef(GetField(row, "maxkey"), I32(0)))))
+      }
+    }) { (l, r) =>
+      ApplyComparisonOp(LT(TStruct("minkey" -> keyType, "maxkey" -> keyType)),
+        SelectFields(l, FastSeq("minkey", "maxkey")),
+        SelectFields(r, FastSeq("minkey", "maxkey")))
+    }
+    val partDataElt = coerce[TArray](sortedPartDataIR.typ).elementType
 
     val summary =
       Let("sortedPartData", sortedPartDataIR,
@@ -269,7 +271,7 @@ object LoweredTableReader {
                 "partDataWithIndex",
                 invoke("land", TBoolean,
                   Ref("acc", TBoolean),
-                  GetField(Ref("partDataWithIndex", partDataWithIndex.typ), "ksorted"))),
+                  GetField(Ref("partDataWithIndex", partDataElt), "ksorted"))),
               StreamFold(
                 StreamRange(
                   I32(0),
@@ -294,7 +296,7 @@ object LoweredTableReader {
                 "partDataWithIndex",
                 invoke("land", TBoolean,
                   Ref("acc", TBoolean),
-                  GetField(Ref("partDataWithIndex", partDataWithIndex.typ), "pksorted"))),
+                  GetField(Ref("partDataWithIndex", partDataElt), "pksorted"))),
               StreamFold(
                 StreamRange(
                   I32(0),
