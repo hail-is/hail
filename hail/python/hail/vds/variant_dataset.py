@@ -97,7 +97,7 @@ class VariantDataset:
 
         # drop other alleles
         rmt = rmt.key_rows_by(rmt.locus)
-        rmt = rmt.select_rows(ref_allele=rmt.alleles[0])
+        rmt = rmt.select_rows(ref_allele=rmt.alleles[0][0])
 
         vmt = mt.filter_entries(hl.is_missing(mt.END))
         vmt = vmt.filter_rows(hl.agg.count() > 0)
