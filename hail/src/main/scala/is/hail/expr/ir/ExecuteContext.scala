@@ -82,6 +82,8 @@ class ExecuteContext(
 ) extends Closeable {
   var backendContext: BackendContext = _
 
+  val printIRs: Boolean = HailContext.getFlag("no_ir_logging") == null
+
   private val tempFileManager: TempFileManager = if (_tempFileManager != null)
     _tempFileManager
   else

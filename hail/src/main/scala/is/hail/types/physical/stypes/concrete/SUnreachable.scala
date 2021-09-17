@@ -2,7 +2,7 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, IEmitCode}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitValue, IEmitCode}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.{PCanonicalNDArray, PNDArray, PType}
@@ -81,7 +81,7 @@ class SUnreachableStructCode(override val st: SUnreachableStruct) extends SUnrea
   override def memoize(cb: EmitCodeBuilder, name: String): SBaseStructValue = st.sv
 
   override def loadSingleField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode =
-    IEmitCode.present(cb, SUnreachable.fromVirtualType(st.virtualType.types(fieldIdx)).defaultValue.get)
+    IEmitCode.present(cb, SUnreachable.fromVirtualType(st.virtualType.types(fieldIdx)).defaultValue)
 
   override def insert(cb: EmitCodeBuilder, region: Value[Region], newType: TStruct, fields: (String, EmitCode)*): SBaseStructCode =
     new SUnreachableStructCode(SUnreachableStruct(newType))
@@ -92,7 +92,7 @@ class SUnreachableStructCode(override val st: SUnreachableStruct) extends SUnrea
 
 class SUnreachableStructValue(override val st: SUnreachableStruct) extends SUnreachableValue with SBaseStructValue {
   override def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode =
-    IEmitCode.present(cb, SUnreachable.fromVirtualType(st.virtualType.types(fieldIdx)).defaultValue.get)
+    IEmitCode.present(cb, SUnreachable.fromVirtualType(st.virtualType.types(fieldIdx)).defaultValue)
 
   override def isFieldMissing(fieldIdx: Int): Code[Boolean] = false
 
@@ -101,6 +101,12 @@ class SUnreachableStructValue(override val st: SUnreachableStruct) extends SUnre
     val newType = TStruct(fieldNames.map(f => (f, oldType.fieldType(f))): _*)
     new SUnreachableStructValue(SUnreachableStruct(newType))
   }
+
+  override def insert(cb: EmitCodeBuilder, region: Value[Region], newType: TStruct, fields: (String, EmitValue)*): SBaseStructValue =
+    new SUnreachableStructValue(SUnreachableStruct(newType))
+
+  override def _insert(newType: TStruct, fields: (String, EmitValue)*): SBaseStructValue =
+    new SUnreachableStructValue(SUnreachableStruct(newType))
 
   override def get: SBaseStructCode = st.sc
 }
@@ -144,7 +150,7 @@ case object SUnreachableString extends SUnreachable with SString {
 
   override val sc = new SUnreachableStringCode
 
-  override def constructFromString(cb: EmitCodeBuilder, r: Value[Region], s: Code[String]): SStringCode = sc
+  override def constructFromString(cb: EmitCodeBuilder, r: Value[Region], s: Code[String]): SStringValue = sv
 }
 
 class SUnreachableStringCode extends SUnreachableCode with SStringCode {
@@ -186,7 +192,7 @@ case class SUnreachableLocus(virtualType: TLocus) extends SUnreachable with SLoc
 class SUnreachableLocusValue(override val st: SUnreachableLocus) extends SUnreachableValue with SLocusValue {
   override def position(cb: EmitCodeBuilder): Value[Int] = const(0)
 
-  override def contig(cb: EmitCodeBuilder): SStringCode = SUnreachableString.sc
+  override def contig(cb: EmitCodeBuilder): SStringValue = SUnreachableString.sv
 
   override def contigLong(cb: EmitCodeBuilder): Value[Long] = const(0)
 
@@ -236,7 +242,7 @@ class SUnreachableCallValue extends SUnreachableValue with SCallValue {
 
   override def ploidy(): Code[Int] = const(0)
 
-  override def canonicalCall(cb: EmitCodeBuilder): Code[Int] = const(0)
+  override def canonicalCall(cb: EmitCodeBuilder): Value[Int] = const(0)
 
   override def st: SUnreachableCall.type = SUnreachableCall
 
@@ -271,11 +277,11 @@ class SUnreachableIntervalValue(override val st: SUnreachableInterval) extends S
 
   override def includesEnd(): Value[Boolean] = const(false)
 
-  override def loadStart(cb: EmitCodeBuilder): IEmitCode = IEmitCode.present(cb, SUnreachable.fromVirtualType(st.virtualType.pointType).defaultValue.get)
+  override def loadStart(cb: EmitCodeBuilder): IEmitCode = IEmitCode.present(cb, SUnreachable.fromVirtualType(st.virtualType.pointType).defaultValue)
 
   override def startDefined(cb: EmitCodeBuilder): Code[Boolean] = const(false)
 
-  override def loadEnd(cb: EmitCodeBuilder): IEmitCode = IEmitCode.present(cb, SUnreachable.fromVirtualType(st.virtualType.pointType).defaultValue.get)
+  override def loadEnd(cb: EmitCodeBuilder): IEmitCode = IEmitCode.present(cb, SUnreachable.fromVirtualType(st.virtualType.pointType).defaultValue)
 
   override def endDefined(cb: EmitCodeBuilder): Code[Boolean] = const(false)
 
@@ -306,15 +312,17 @@ class SUnreachableNDArrayCode(override val st: SUnreachableNDArray) extends SUnr
 
   override def memoize(cb: EmitCodeBuilder, name: String): SUnreachableNDArrayValue = st.sv
 
-  override def shape(cb: EmitCodeBuilder): SBaseStructCode = SUnreachableStruct(TTuple((0 until st.nDims).map(_ => TInt64): _*)).defaultValue.get.asBaseStruct
+  override def shape(cb: EmitCodeBuilder): SBaseStructCode = SUnreachableStruct(TTuple((0 until st.nDims).map(_ => TInt64): _*)).sc
 }
 
 class SUnreachableNDArrayValue(override val st: SUnreachableNDArray) extends SUnreachableValue with SNDArraySettable {
-  override def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SCode = SUnreachable.fromVirtualType(st.virtualType.elementType).defaultValue.get
+  override def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SValue = SUnreachable.fromVirtualType(st.virtualType.elementType).defaultValue
 
   override def loadElementAddress(indices: IndexedSeq[is.hail.asm4s.Value[Long]],cb: is.hail.expr.ir.EmitCodeBuilder): is.hail.asm4s.Code[Long] = const(0L)
 
   override def shapes: IndexedSeq[SizeValue] = (0 until st.nDims).map(_ => SizeValueStatic(0L))
+
+  override def shapeStruct(cb: EmitCodeBuilder): SBaseStructValue = SUnreachableStruct(TTuple((0 until st.nDims).map(_ => TInt64): _*)).sv
 
   override def strides: IndexedSeq[Value[Long]] = (0 until st.nDims).map(_ => const(0L))
 
@@ -349,14 +357,14 @@ class SUnreachableContainerValue(override val st: SUnreachableContainer) extends
 
   override def isElementMissing(i: Code[Int]): Code[Boolean] = const(false)
 
-  override def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode = IEmitCode.present(cb, SUnreachable.fromVirtualType(st.virtualType.elementType).defaultValue.get)
+  override def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode = IEmitCode.present(cb, SUnreachable.fromVirtualType(st.virtualType.elementType).defaultValue)
 
   override def hasMissingValues(cb: EmitCodeBuilder): Code[Boolean] = const(false)
 
   override def castToArray(cb: EmitCodeBuilder): SIndexableValue =
     SUnreachable.fromVirtualType(st.virtualType.arrayElementsRepr).defaultValue.asIndexable
 
-  override def get: SUnreachableCode = st.sc
+  override def get: SUnreachableContainerCode = st.sc
 }
 
 class SUnreachableContainerCode(override val st: SUnreachableContainer) extends SUnreachableCode with SIndexableCode {

@@ -27,8 +27,13 @@ object RelationalSpec {
     new MatrixTypeSerializer
 
   def readMetadata(fs: FS, path: String): JValue = {
-    if (!fs.isDir(path))
-      fatal(s"MatrixTable and Table files are directories; path '$path' is not a directory")
+    if (!fs.isDir(path)) {
+      if (!fs.exists(path)) {
+        fatal(s"No file or directory found at ${path}")
+      } else {
+        fatal(s"MatrixTable and Table files are directories; path '$path' is not a directory")
+      }
+    }
     val metadataFile = path + "/metadata.json.gz"
     val jv = using(fs.open(metadataFile)) { in => parse(in) }
 

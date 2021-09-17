@@ -8,10 +8,10 @@ import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
-import is.hail.types.{TableType, TypeWithRequiredness}
-import is.hail.types.physical.stypes.interfaces.{SStream, SStreamCode}
+import is.hail.types.physical.stypes.interfaces.{SStream, SStreamValue}
 import is.hail.types.physical.{PStruct, PType}
 import is.hail.types.virtual.{TArray, TStruct, Type}
+import is.hail.types.{TableType, TypeWithRequiredness}
 import is.hail.utils._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -42,7 +42,7 @@ class PartitionIteratorLongReader(
     val mb = cb.emb
 
     context.toI(cb).map(cb) { contextPC =>
-      val ctxJavaValue = UtilFunctions.scodeToJavaValue(cb, partitionRegion, contextPC)
+      val ctxJavaValue = UtilFunctions.scodeToJavaValue(cb, partitionRegion, contextPC.get)
       val region = mb.genFieldThisRef[Region]("pilr_region")
       val it = mb.genFieldThisRef[Iterator[java.lang.Long]]("pilr_it")
       val rv = mb.genFieldThisRef[Long]("pilr_rv")
@@ -64,12 +64,12 @@ class PartitionIteratorLongReader(
 
           cb.goto(LproduceElementDone)
         }
-        override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, eltPType.loadCheapSCode(cb, rv).get))
+        override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, eltPType.loadCheapSCode(cb, rv)))
 
         override def close(cb: EmitCodeBuilder): Unit = {}
       }
 
-      SStreamCode(SStream(producer.element.emitType), producer)
+      SStreamValue(SStream(producer.element.emitType), producer)
     }
   }
 

@@ -2,7 +2,7 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitValue}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.SInt64
 import is.hail.types.physical.stypes._
@@ -64,13 +64,18 @@ class SNDArraySliceValue(
 
   override lazy val valueTuple: IndexedSeq[Value[_]] = shapes ++ strides :+ firstDataAddress
 
+  override def shapeStruct(cb: EmitCodeBuilder): SStackStructValue = {
+    val shapeType = SStackStruct(st.virtualType.shapeType, Array.fill(st.nDims)(EmitType(SInt64, true)))
+    new SStackStructValue(shapeType, shapes.map(x => EmitValue.present(primitive(x))))
+  }
+
   override def loadElementAddress(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Long] = {
     assert(indices.size == pt.nDims)
     pt.loadElementFromDataAndStrides(cb, indices, firstDataAddress, strides)
   }
 
-  override def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SCode =
-    pt.elementType.loadCheapSCode(cb, loadElementAddress(indices, cb)).get
+  override def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SValue =
+    pt.elementType.loadCheapSCode(cb, loadElementAddress(indices, cb))
 
   override def get: SNDArraySliceCode = new SNDArraySliceCode(st, shapes, strides, firstDataAddress)
 
@@ -139,6 +144,6 @@ class SNDArraySliceCode(val st: SNDArraySlice, val shape: IndexedSeq[Code[Long]]
 
   override def shape(cb: EmitCodeBuilder): SStackStructCode = {
     val shapeType = SStackStruct(st.virtualType.shapeType, Array.fill(st.nDims)(EmitType(SInt64, true)))
-    new SStackStructCode(shapeType, shape.map(x => EmitCode.present(cb.emb, primitive(x))))
+    new SStackStructCode(shapeType, shape.map(x => EmitCode.present(cb.emb, primitive(cb.memoize(x)))))
   }
 }

@@ -43,12 +43,12 @@ steps:
     namespaceName: default
     public: true
     secrets:
-      - hail-vdc-sa-key
       - gcr-pull-key
       - gcr-push-service-account-key
       - hail-ci-0-1-github-oauth-token
       - test-gsa-key
       - test-aws-key
+      - test-azure-key
       - auth-oauth2-client-secret
       - zulip-config
       - benchmark-gsa-key
@@ -1252,6 +1252,9 @@ steps:
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export HAIL_TEST_S3_BUCKET=hail-test-dy5rg
       export AWS_SHARED_CREDENTIALS_FILE=/test-aws-key/credentials
+      export HAIL_TEST_AZURE_ACCOUNT=hailtest
+      export HAIL_TEST_AZURE_CONTAINER=hail-test-4nxei
+      export AZURE_APPLICATION_CREDENTIALS=/test-azure-key/credentials.json
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=0
@@ -1274,6 +1277,10 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-aws-key
+      - name: test-azure-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-azure-key
     dependsOn:
       - default_ns
       - hail_run_tests_image
@@ -1299,6 +1306,9 @@ steps:
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export HAIL_TEST_S3_BUCKET=hail-test-dy5rg
       export AWS_SHARED_CREDENTIALS_FILE=/test-aws-key/credentials
+      export HAIL_TEST_AZURE_ACCOUNT=hailtest
+      export HAIL_TEST_AZURE_CONTAINER=hail-test-4nxei
+      export AZURE_APPLICATION_CREDENTIALS=/test-azure-key/credentials.json
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=1
@@ -1321,6 +1331,10 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-aws-key
+      - name: test-azure-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-azure-key
     dependsOn:
       - default_ns
       - hail_run_tests_image
@@ -1346,6 +1360,9 @@ steps:
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export HAIL_TEST_S3_BUCKET=hail-test-dy5rg
       export AWS_SHARED_CREDENTIALS_FILE=/test-aws-key/credentials
+      export HAIL_TEST_AZURE_ACCOUNT=hailtest
+      export HAIL_TEST_AZURE_CONTAINER=hail-test-4nxei
+      export AZURE_APPLICATION_CREDENTIALS=/test-azure-key/credentials.json
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=2
@@ -1368,6 +1385,10 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-aws-key
+      - name: test-azure-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-azure-key
     dependsOn:
       - default_ns
       - hail_run_tests_image
@@ -1393,6 +1414,9 @@ steps:
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export HAIL_TEST_S3_BUCKET=hail-test-dy5rg
       export AWS_SHARED_CREDENTIALS_FILE=/test-aws-key/credentials
+      export HAIL_TEST_AZURE_ACCOUNT=hailtest
+      export HAIL_TEST_AZURE_CONTAINER=hail-test-4nxei
+      export AZURE_APPLICATION_CREDENTIALS=/test-azure-key/credentials.json
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=3
@@ -1415,6 +1439,10 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-aws-key
+      - name: test-azure-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-azure-key
     dependsOn:
       - default_ns
       - hail_run_tests_image
@@ -1440,6 +1468,9 @@ steps:
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export HAIL_TEST_S3_BUCKET=hail-test-dy5rg
       export AWS_SHARED_CREDENTIALS_FILE=/test-aws-key/credentials
+      export HAIL_TEST_AZURE_ACCOUNT=hailtest
+      export HAIL_TEST_AZURE_CONTAINER=hail-test-4nxei
+      export AZURE_APPLICATION_CREDENTIALS=/test-azure-key/credentials.json
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=4
@@ -1462,6 +1493,10 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-aws-key
+      - name: test-azure-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-azure-key
     dependsOn:
       - default_ns
       - hail_run_tests_image
@@ -1483,6 +1518,9 @@ steps:
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export HAIL_TEST_S3_BUCKET=hail-test-dy5rg
       export AWS_SHARED_CREDENTIALS_FILE=/test-aws-key/credentials
+      export HAIL_TEST_AZURE_ACCOUNT=hailtest
+      export HAIL_TEST_AZURE_CONTAINER=hail-test-4nxei
+      export AZURE_APPLICATION_CREDENTIALS=/test-azure-key/credentials.json
       python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 -n 10 test/hailtop/aiotools/test_copy.py
     inputs:
       - from: /debug-wheel-container.tar
@@ -1498,6 +1536,10 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-aws-key
+      - name: test-azure-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-azure-key
     dependsOn:
       - default_ns
       - hail_run_image

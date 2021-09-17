@@ -291,7 +291,7 @@ abstract class RegistryFunctions {
     case TFloat64 => primitive(coerce[Double](value))
     case TString =>
       val sst = st.asInstanceOf[SJavaString.type]
-      sst.constructFromString(cb, r, coerce[String](value))
+      sst.constructFromString(cb, r, coerce[String](value)).get
     case TCall =>
       assert(st == SCanonicalCall)
       new SCanonicalCallCode(coerce[Int](value))
@@ -303,8 +303,8 @@ abstract class RegistryFunctions {
       pca.constructFromElements(cb, r, len, deepCopy = false) { (cb, idx) =>
         val elt = cb.newLocal[java.lang.Integer]("unwrap_return_array_int32_elt",
           Code.checkcast[java.lang.Integer](arr.invoke[Int, java.lang.Object]("apply", idx)))
-        IEmitCode(cb, elt.isNull, primitive(elt.invoke[Int]("intValue")))
-      }
+        IEmitCode(cb, elt.isNull, primitive(cb.memoize(elt.invoke[Int]("intValue"))))
+      }.get
     case TArray(TFloat64) =>
       val ast = st.asInstanceOf[SIndexablePointer]
       val pca = ast.pType.asInstanceOf[PCanonicalArray]
@@ -313,11 +313,11 @@ abstract class RegistryFunctions {
       pca.constructFromElements(cb, r, len, deepCopy = false) { (cb, idx) =>
         val elt = cb.newLocal[java.lang.Double]("unwrap_return_array_float64_elt",
           Code.checkcast[java.lang.Double](arr.invoke[Int, java.lang.Object]("apply", idx)))
-        IEmitCode(cb, elt.isNull, primitive(elt.invoke[Double]("doubleValue")))
-      }
+        IEmitCode(cb, elt.isNull, primitive(cb.memoize(elt.invoke[Double]("doubleValue"))))
+      }.get
     case TArray(TString) =>
       val ast = st.asInstanceOf[SJavaArrayString]
-      ast.construct(coerce[Array[String]](value))
+      ast.construct(cb, coerce[Array[String]](value)).get
     case t: TBaseStruct =>
       val sst = st.asInstanceOf[SBaseStructPointer]
       val pt = sst.pType.asInstanceOf[PCanonicalBaseStruct]
@@ -616,7 +616,7 @@ abstract class RegistryFunctions {
 
         def applySeededI(seed: Long, cb: EmitCodeBuilder, r: Value[Region], rpt: SType, args: EmitCode*): IEmitCode = {
           IEmitCode.multiMapEmitCodes(cb, args.toFastIndexedSeq) {
-            argPCs => applySeeded(cb, seed, r, rpt, argPCs: _*)
+            argPCs => applySeeded(cb, seed, r, rpt, argPCs.map(_.get): _*).memoize(cb, "applySeededI")
           }
         }
 
@@ -697,7 +697,7 @@ abstract class UnseededMissingnessObliviousJVMFunction (
 
   def apply(r: EmitRegion, returnType: SType, typeParameters: Seq[Type], errorID: Value[Int], args: EmitCode*): EmitCode = {
     EmitCode.fromI(r.mb)(cb => IEmitCode.multiMapEmitCodes(cb, args.toFastIndexedSeq) { args =>
-      apply(r, cb, returnType, typeParameters, errorID, args: _*)
+      apply(r, cb, returnType, typeParameters, errorID, args.map(_.get): _*).memoize(cb, "umojvmf")
     })
   }
 

@@ -455,7 +455,7 @@ object LowerTableIR {
 
           val ranges = Array.tabulate(nPartitionsAdj) { i =>
             partStarts(i) -> partStarts(i + 1)
-          }
+          }.toFastIndexedSeq
 
           TableStage(
             MakeStruct(FastSeq()),
@@ -464,11 +464,8 @@ object LowerTableIR {
                 Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
               }),
             TableStageDependency.none,
-            MakeStream(
-              ranges.map { case (start, end) =>
-                MakeStruct(FastIndexedSeq("start" -> start, "end" -> end))
-              },
-              TStream(contextType)),
+            ToStream(Literal(TArray(contextType),
+              ranges.map { case (start, end) => Row(start, end) })),
             (ctxRef: Ref) => mapIR(StreamRange(GetField(ctxRef, "start"), GetField(ctxRef, "end"), I32(1), true)) { i =>
               MakeStruct(FastSeq("idx" -> i))
             })

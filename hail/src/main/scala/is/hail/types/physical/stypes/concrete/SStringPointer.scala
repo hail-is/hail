@@ -35,8 +35,8 @@ final case class SStringPointer(pType: PString) extends SString {
     new SStringPointerValue(this, a)
   }
 
-  override def constructFromString(cb: EmitCodeBuilder, r: Value[Region], s: Code[String]): SStringPointerCode = {
-    new SStringPointerCode(this, pType.allocateAndStoreString(cb, r, s))
+  override def constructFromString(cb: EmitCodeBuilder, r: Value[Region], s: Code[String]): SStringPointerValue = {
+    new SStringPointerValue(this, pType.allocateAndStoreString(cb, r, s))
   }
 
   override def storageType(): PType = pType

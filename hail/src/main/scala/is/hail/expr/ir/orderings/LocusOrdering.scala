@@ -21,8 +21,8 @@ object LocusOrdering {
             val codeRG = cb.emb.getReferenceGenome(t1.rg)
             val lhs: SLocusValue = lhsc.asLocus.memoize(cb, "locus_cmp_lhs")
             val rhs: SLocusValue = rhsc.asLocus.memoize(cb, "locus_cmp_rhs")
-            val lhsContig = lhs.contig(cb).memoize(cb, "locus_cmp_lcontig").asInstanceOf[SStringValue]
-            val rhsContig = rhs.contig(cb).memoize(cb, "locus_cmp_rcontig").asInstanceOf[SStringValue]
+            val lhsContig = lhs.contig(cb)
+            val rhsContig = rhs.contig(cb)
 
             // ugh
             val lhsContigType = lhsContig.get.st

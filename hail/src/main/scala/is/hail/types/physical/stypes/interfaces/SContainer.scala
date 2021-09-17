@@ -17,6 +17,8 @@ trait SContainer extends SType {
 trait SIndexableValue extends SValue {
   def st: SContainer
 
+  override def get: SIndexableCode
+
   def loadLength(): Value[Int]
 
   def isElementMissing(i: Code[Int]): Code[Boolean]
@@ -37,7 +39,7 @@ trait SIndexableValue extends SValue {
       loadElement(cb, idx).consume(cb,
         {}, /*do nothing if missing*/
         { eltCode =>
-          f(cb, idx, eltCode)
+          f(cb, idx, eltCode.get)
         })
       cb.assign(idx, idx + 1)
     })
@@ -53,7 +55,7 @@ trait SIndexableValue extends SValue {
           missingF(cb, idx)
         },
         { eltCode =>
-          presentF(cb, idx, eltCode)
+          presentF(cb, idx, eltCode.get)
         })
       cb.assign(idx, idx + 1)
     })
@@ -71,7 +73,7 @@ trait SIndexableValue extends SValue {
     val startMemo = cb.newLocal[Int]("sindexable_slice_array_start_memo", start)
     pt.constructFromElements(cb, region, cb.newLocal[Int]("slice_length", end - startMemo), deepCopy){ (cb, idx) =>
       this.loadElement(cb, idx + startMemo)
-    }
+    }.get
   }
 }
 trait SIndexableCode extends SCode {

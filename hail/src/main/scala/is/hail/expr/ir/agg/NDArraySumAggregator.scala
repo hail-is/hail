@@ -38,8 +38,7 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
 
     seqOpMethod.voidWithBuilder { cb =>
       val nextNDInput = seqOpMethod.getEmitParam(cb, 1, null) // no streams here
-      nextNDInput.toI(cb).consume(cb, {}, { case nextNDArrayPCode: SNDArrayCode =>
-        val nextNDPV = nextNDArrayPCode.memoize(cb, "ndarray_sum_seqop_next")
+      nextNDInput.toI(cb).consume(cb, {}, { case nextNDPV: SNDArrayValue =>
         val statePV = state.storageType.loadCheapSCode(cb, state.off).asBaseStruct
         statePV.loadField(cb, ndarrayFieldNumber).consume(cb,
           {
@@ -50,9 +49,8 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
             state.storeNonmissing(cb, fullyCopiedNDArray.get)
             cb += tempRegionForCreation.clearRegion()
           },
-          { currentNDPCode =>
-            val currentNDPValue = currentNDPCode.asNDArray.memoize(cb, "ndarray_sum_seqop_current")
-            addValues(cb, state.region, currentNDPValue, nextNDPV)
+          { currentND =>
+            NDArraySumAggregator.addValues(cb, state.region, currentND.asNDArray, nextNDPV)
           }
         )
       })
@@ -66,16 +64,14 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
     combOpMethod.voidWithBuilder { cb =>
       val rightPV = other.storageType.loadCheapSCode(cb, other.off).asBaseStruct
       rightPV.loadField(cb, ndarrayFieldNumber).consume(cb, {},
-        { rightNDPC =>
-          val rightNdValue = rightNDPC.asNDArray.memoize(cb, "right_ndarray_sum_agg")
+        { case rightNdValue: SNDArrayValue =>
           val leftPV = state.storageType.loadCheapSCode(cb, state.off).asBaseStruct
           leftPV.loadField(cb, ndarrayFieldNumber).consume(cb,
             {
               state.storeNonmissing(cb, rightNdValue.get)
             },
-            { leftNDPC =>
-              val leftNdValue = leftNDPC.asNDArray.memoize(cb, "left_ndarray_sum_agg")
-              addValues(cb, state.region, leftNdValue, rightNdValue)
+            { case leftNdValue: SNDArrayValue =>
+              NDArraySumAggregator.addValues(cb, state.region, leftNdValue, rightNdValue)
             })
         }
       )
@@ -83,7 +79,18 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
     cb.invokeVoid(combOpMethod)
   }
 
-  private def addValues(cb: EmitCodeBuilder, region: Value[Region], leftNdValue: SNDArrayValue, rightNdValue: SNDArrayValue): Unit = {
+  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
+    state.get(cb).consume(cb,
+      ifMissing(cb),
+      { lastNDInAggState =>
+        pt.storeAtAddress(cb, addr, region, lastNDInAggState.asNDArray.get, deepCopy = true)
+      })
+  }
+}
+
+object NDArraySumAggregator {
+
+  def addValues(cb: EmitCodeBuilder, region: Value[Region], leftNdValue: SNDArrayValue, rightNdValue: SNDArrayValue): Unit = {
     cb.ifx(!leftNdValue.sameShape(cb, rightNdValue),
       cb += Code._fatal[Unit]("Can't sum ndarrays of different shapes."))
 
@@ -92,14 +99,5 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
         val newElement = SCode.add(cb, l, r, true)
         newElement.copyToRegion(cb, region, leftNdValue.st.elementType)
     }
-  }
-
-  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
-    state.get(cb).consume(cb,
-      ifMissing(cb),
-      { sc =>
-        val lastNDInAggState = sc.asNDArray.memoize(cb, "ndarray_sum_agg_last_state")
-        pt.storeAtAddress(cb, addr, region, lastNDInAggState.get, deepCopy = true)
-      })
   }
 }

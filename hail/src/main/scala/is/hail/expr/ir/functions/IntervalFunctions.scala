@@ -29,8 +29,9 @@ object IntervalFunctions extends RegistryFunctions {
             pt.constructFromCodes(cb, r,
               start,
               end,
-              EmitCode.present(cb.emb, includesStart),
-              EmitCode.present(cb.emb, includesEnd))
+              cb.memoize(includesStart.asBoolean.boolCode(cb)),
+              cb.memoize(includesEnd.asBoolean.boolCode(cb))
+            )
           }
         }
     }
@@ -38,8 +39,7 @@ object IntervalFunctions extends RegistryFunctions {
     registerIEmitCode1("start", TInterval(tv("T")), tv("T"),
       (_: Type, x: EmitType) => EmitType(x.st.asInstanceOf[SInterval].pointType, x.required && x.st.asInstanceOf[SInterval].pointEmitType.required)) {
       case (cb, r, rt, _, interval) =>
-        interval.toI(cb).flatMap(cb) { case pi: SIntervalCode =>
-          val pv = pi.memoize(cb, "interval")
+        interval.toI(cb).flatMap(cb) { case pv: SIntervalValue =>
           pv.loadStart(cb)
         }
     }
@@ -47,8 +47,7 @@ object IntervalFunctions extends RegistryFunctions {
     registerIEmitCode1("end", TInterval(tv("T")), tv("T"),
       (_: Type, x: EmitType) => EmitType(x.st.asInstanceOf[SInterval].pointType, x.required && x.st.asInstanceOf[SInterval].pointEmitType.required)) {
       case (cb, r, rt, _, interval) =>
-        interval.toI(cb).flatMap(cb) { case pi: SIntervalCode =>
-          val pv = pi.memoize(cb, "interval")
+        interval.toI(cb).flatMap(cb) { case pv: SIntervalValue =>
           pv.loadEnd(cb)
         }
     }
@@ -69,8 +68,7 @@ object IntervalFunctions extends RegistryFunctions {
       case(_: Type, intervalT: EmitType, _: EmitType) => EmitType(SBoolean, intervalT.required)
     }) {
       case (cb, r, rt, _, int, point) =>
-        int.toI(cb).map(cb) { case (intc: SIntervalCode) =>
-          val interval: SIntervalValue = intc.memoize(cb, "interval")
+        int.toI(cb).map(cb) { case interval: SIntervalValue =>
           val pointv = cb.memoize(point.toI(cb), "point")
           val compare = cb.emb.ecb.getOrderingFunction(pointv.st, interval.st.pointType, CodeOrdering.Compare())
 
@@ -143,7 +141,7 @@ object IntervalFunctions extends RegistryFunctions {
         val leftPartitionEndpoint = _leftEndpoint.asBaseStruct.memoize(cb, "partitionEndpoint")
         val point = _point.asBaseStruct.memoize(cb, "point")
 
-        val left = leftPartitionEndpoint.loadField(cb, 0).get(cb).asBaseStruct.memoize(cb, "partitionInterval_left")
+        val left = leftPartitionEndpoint.loadField(cb, 0).get(cb).asBaseStruct
         val leftLen = cb.newLocal[Int]("partitionInterval_leftlen", leftPartitionEndpoint.loadField(cb, 1).get(cb).asInt.intCode(cb))
 
         val c = cb.newLocal[Int]("partitionInterval_c", 0)
@@ -170,7 +168,7 @@ object IntervalFunctions extends RegistryFunctions {
         val rightPartitionEndpoint = _rightEndpoint.asBaseStruct.memoize(cb, "partitionEndpoint")
         val point = _point.asBaseStruct.memoize(cb, "point")
 
-        val right = rightPartitionEndpoint.loadField(cb, 0).get(cb).asBaseStruct.memoize(cb, "partitionInterval_right")
+        val right = rightPartitionEndpoint.loadField(cb, 0).get(cb).asBaseStruct
         val rightLen = cb.newLocal[Int]("partitionInterval_rightlen", rightPartitionEndpoint.loadField(cb, 1).get(cb).asInt.intCode(cb))
 
         val c = cb.newLocal[Int]("partitionInterval_c", 0)
@@ -202,9 +200,8 @@ object IntervalFunctions extends RegistryFunctions {
         val c = cb.newLocal[Int]("partitionInterval_c", 0)
 
         val leftTuple = interval.loadField(cb, "left").get(cb).asBaseStruct
-          .memoize(cb, "partitionInterval_lt")
 
-        val left = leftTuple.loadField(cb, 0).get(cb).asBaseStruct.memoize(cb, "partitionInterval_left")
+        val left = leftTuple.loadField(cb, 0).get(cb).asBaseStruct
         val leftLen = cb.newLocal[Int]("partitionInterval_leftlen", leftTuple.loadField(cb, 1).get(cb).asInt.intCode(cb))
 
         (0 until left.st.size).foreach { idx =>
@@ -224,9 +221,8 @@ object IntervalFunctions extends RegistryFunctions {
         cb.ifx(isContained, {
           // check right endpoint
           val rightTuple = interval.loadField(cb, "right").get(cb).asBaseStruct
-            .memoize(cb, "partitionInterval_rt")
 
-          val right = rightTuple.loadField(cb, 0).get(cb).asBaseStruct.memoize(cb, "partitionInterval_right")
+          val right = rightTuple.loadField(cb, 0).get(cb).asBaseStruct
           val rightLen = cb.newLocal[Int]("partitionInterval_leftlen", rightTuple.loadField(cb, 1).get(cb).asInt.intCode(cb))
 
           cb.assign(c, 0)

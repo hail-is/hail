@@ -6,7 +6,7 @@ import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
 import is.hail.types.physical.stypes.{SCode, SValue}
 import is.hail.types.physical.stypes.concrete.{SIntervalPointer, SIntervalPointerCode, SIntervalPointerValue, SStackStruct, SUnreachableInterval}
 import is.hail.types.physical.stypes.interfaces.{SIntervalValue, primitive}
-import is.hail.types.physical.stypes.primitives.SBooleanCode
+import is.hail.types.physical.stypes.primitives.{SBooleanCode, SBooleanValue}
 import is.hail.types.virtual.{TInterval, Type}
 import is.hail.utils.{FastIndexedSeq, Interval}
 import org.apache.spark.sql.Row
@@ -87,11 +87,11 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
         val interval = value.asInterval
         val start = EmitCode.fromI(cb.emb)(cb => interval.loadStart(cb))
         val stop = EmitCode.fromI(cb.emb)(cb => interval.loadEnd(cb))
-        val includesStart = EmitCode.present(cb.emb, new SBooleanCode(interval.includesStart()))
-        val includesStop = EmitCode.present(cb.emb, new SBooleanCode(interval.includesEnd()))
+        val includesStart = EmitCode.present(cb.emb, new SBooleanValue(interval.includesStart()))
+        val includesStop = EmitCode.present(cb.emb, new SBooleanValue(interval.includesEnd()))
         representation.store(cb, region,
           SStackStruct.constructFromArgs(cb, region, representation.virtualType,
-            start, stop, includesStart, includesStop).memoize(cb, "store"), deepCopy)
+            start, stop, includesStart, includesStop), deepCopy)
     }
   }
 
@@ -103,11 +103,11 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
         val interval = value.asInterval.memoize(cb, "pcinterval_store_at_addr")
         val start = EmitCode.fromI(cb.emb)(cb => interval.loadStart(cb))
         val stop = EmitCode.fromI(cb.emb)(cb => interval.loadEnd(cb))
-        val includesStart = EmitCode.present(cb.emb, new SBooleanCode(interval.includesStart()))
-        val includesStop = EmitCode.present(cb.emb, new SBooleanCode(interval.includesEnd()))
+        val includesStart = EmitCode.present(cb.emb, new SBooleanValue(interval.includesStart()))
+        val includesStop = EmitCode.present(cb.emb, new SBooleanValue(interval.includesEnd()))
         representation.storeAtAddress(cb, addr, region,
           SStackStruct.constructFromArgs(cb, region, representation.virtualType,
-            start, stop, includesStart, includesStop),
+            start, stop, includesStart, includesStop).get,
           deepCopy)
     }
   }
@@ -145,9 +145,12 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
   }
 
   def constructFromCodes(cb: EmitCodeBuilder, region: Value[Region],
-    start: EmitCode, end: EmitCode, includesStart: EmitCode, includesEnd: EmitCode): SIntervalPointerCode = {
-    val sc = representation.constructFromFields(cb, region, FastIndexedSeq(start, end, includesStart, includesEnd), deepCopy = false)
-    new SIntervalPointerCode(sType, sc.a)
+    start: EmitCode, end: EmitCode, includesStart: Value[Boolean], includesEnd: Value[Boolean]
+  ): SIntervalPointerValue = {
+    val startEC = EmitCode.present(cb.emb, primitive(includesStart))
+    val endEC = EmitCode.present(cb.emb, primitive(includesEnd))
+    val sc = representation.constructFromFields(cb, region, FastIndexedSeq(start, end, startEC, endEC), deepCopy = false)
+    new SIntervalPointerValue(sType, sc.a, includesStart, includesEnd)
   }
 
   override def copiedType: PType = {

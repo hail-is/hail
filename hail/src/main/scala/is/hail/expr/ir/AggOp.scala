@@ -52,6 +52,7 @@ final case class AggElementsLengthCheck() extends AggOp
 final case class PrevNonnull() extends AggOp
 final case class ImputeType() extends AggOp
 final case class NDArraySum() extends AggOp
+final case class NDArrayMultiplyAdd() extends AggOp
 
 // exists === map(p).sum, needs short-circuiting aggs
 // forall === map(p).product, needs short-circuiting aggs
@@ -78,5 +79,6 @@ object AggOp {
     case "AggElementsLengthCheck" => AggElementsLengthCheck()
     case "ImputeType" => ImputeType()
     case "NDArraySum" => NDArraySum()
+    case "NDArrayMutiplyAdd" => NDArrayMultiplyAdd()
   }
 }

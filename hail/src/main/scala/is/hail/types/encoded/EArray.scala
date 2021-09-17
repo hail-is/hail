@@ -76,7 +76,7 @@ final case class EArray(val elementType: EType, override val required: Boolean =
           cb._fatal(s"required array element saw missing value at index ", i.toS, " in encode")
       }, { pc =>
         elementType.buildEncoder(pc.st, cb.emb.ecb)
-          .apply(cb, pc, out)
+          .apply(cb, pc.get, out)
       })
     })
   }

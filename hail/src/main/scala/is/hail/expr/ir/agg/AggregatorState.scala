@@ -142,7 +142,7 @@ abstract class AbstractTypedRegionBackedAggState(val ptype: PType) extends Regio
   }
 
   def get(cb: EmitCodeBuilder): IEmitCode = {
-    IEmitCode(cb, storageType.isFieldMissing(off, 0), ptype.loadCheapSCode(cb, storageType.loadField(off, 0)).get)
+    IEmitCode(cb, storageType.isFieldMissing(off, 0), ptype.loadCheapSCode(cb, storageType.loadField(off, 0)))
   }
 
   def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
@@ -200,7 +200,7 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
     storageType.storeAtAddress(cb,
       dest,
       null,
-      SStackStruct.constructFromArgs(cb, null, storageType.virtualType, fields.map(_.load): _*),
+      SStackStruct.constructFromArgs(cb, null, storageType.virtualType, fields.map(_.load): _*).get,
       false)
   }
 
@@ -216,7 +216,7 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
             cb += ob.writeBoolean(true),
             { sc =>
               cb += ob.writeBoolean(false)
-              ob.writePrimitive(cb, sc)
+              ob.writePrimitive(cb, sc.get)
             })
         }
       }
@@ -226,11 +226,11 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
     (cb, ib: Value[InputBuffer]) =>
       foreachField { case (_, es) =>
         if (es.emitType.required) {
-          cb.assign(es, EmitCode.present(cb.emb, ib.readPrimitive(es.st.virtualType)))
+          cb.assign(es, EmitCode.present(cb.emb, ib.readPrimitive(es.st.virtualType).memoize(cb, "deserialize")))
         } else {
           cb.ifx(ib.readBoolean(),
             cb.assign(es, EmitCode.missing(cb.emb, es.st)),
-            cb.assign(es, EmitCode.present(cb.emb, ib.readPrimitive(es.st.virtualType))))
+            cb.assign(es, EmitCode.present(cb.emb, ib.readPrimitive(es.st.virtualType).memoize(cb, "deserialize"))))
         }
       }
   }

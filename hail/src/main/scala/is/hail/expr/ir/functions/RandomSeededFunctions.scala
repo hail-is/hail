@@ -85,8 +85,8 @@ object RandomSeededFunctions extends RegistryFunctions {
       val lambda = cb.newLocal[Double]("rand_pois_lambda", lambdaCode.asDouble.doubleCode(cb))
 
       rt.constructFromElements(cb, r, len, deepCopy = false) { case (cb, _) =>
-        IEmitCode.present(cb, primitive(cb.emb.newRNG(seed).invoke[Double, Double]("rpois", lambda)))
-      }
+        IEmitCode.present(cb, primitive(cb.memoize(cb.emb.newRNG(seed).invoke[Double, Double]("rpois", lambda))))
+      }.get
     }
 
     registerSeeded2("rand_beta", TFloat64, TFloat64, TFloat64, {

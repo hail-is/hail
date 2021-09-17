@@ -7,7 +7,7 @@ import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.encoded._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.{SIndexablePointerCode, SIndexablePointerSettable}
+import is.hail.types.physical.stypes.concrete.{SIndexablePointerCode, SIndexablePointerSettable, SIndexablePointerValue}
 import is.hail.utils._
 
 object StagedBlockLinkedList {
@@ -139,7 +139,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
           val elt = EmitCode.fromI(cb.emb) { cb =>
             IEmitCode(cb,
               bufferType.isElementMissing(buffer(n), i),
-              elemType.loadCheapSCode(cb, bufferType.loadElement(buffer(n), capacity(n), i)).get)
+              elemType.loadCheapSCode(cb, bufferType.loadElement(buffer(n), capacity(n), i)))
           }
           f(cb, elt)
           cb.assign(i, i + 1)
@@ -155,7 +155,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
         pushMissing(cb, lastNode),
         { sc =>
           pushPresent(cb, lastNode) { (cb, addr) =>
-            elemType.storeAtAddress(cb, addr, r, sc, deepCopy = true)
+            elemType.storeAtAddress(cb, addr, r, sc.get, deepCopy = true)
           }
         })
 
@@ -188,7 +188,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
     cb.invokeVoid(appF, region)
   }
 
-  def resultArray(cb: EmitCodeBuilder, region: Value[Region], resType: PCanonicalArray): SIndexablePointerCode = {
+  def resultArray(cb: EmitCodeBuilder, region: Value[Region], resType: PCanonicalArray): SIndexablePointerValue = {
     val (pushElement, finish) = resType.constructFromFunctions(cb, region, totalCount, deepCopy = true)
     foreach(cb) { (cb, elt) =>
       pushElement(cb, elt.toI(cb))
@@ -257,7 +257,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
             bufferType.setElementMissing(cb, buf, i),
             { sc =>
               bufferType.setElementPresent(cb, buf, i)
-              elemType.storeAtAddress(cb, bufferType.elementOffset(buf, i), r, sc, deepCopy = true)
+              elemType.storeAtAddress(cb, bufferType.elementOffset(buf, i), r, sc.get, deepCopy = true)
             })
         incrCount(cb, firstNode)
         cb.assign(i, i + 1)

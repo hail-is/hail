@@ -24,7 +24,7 @@ class PrevNonNullAggregator(typ: VirtualTypeWithReq) extends StagedAggregator {
     elt.toI(cb)
       .consume(cb,
         { /* do nothing if missing */ },
-        sc => state.storeNonmissing(cb, sc)
+        sc => state.storeNonmissing(cb, sc.get)
       )
   }
 
@@ -32,13 +32,13 @@ class PrevNonNullAggregator(typ: VirtualTypeWithReq) extends StagedAggregator {
     other.get(cb)
       .consume(cb,
         { /* do nothing if missing */ },
-        sc => state.storeNonmissing(cb, sc)
+        sc => state.storeNonmissing(cb, sc.get)
       )
   }
 
   protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
     state.get(cb).consume(cb,
       ifMissing(cb),
-      { sc => pt.storeAtAddress(cb, addr, region, sc, deepCopy = true) })
+      { sc => pt.storeAtAddress(cb, addr, region, sc.get, deepCopy = true) })
   }
 }

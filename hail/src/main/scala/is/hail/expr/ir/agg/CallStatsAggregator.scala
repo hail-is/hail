@@ -140,8 +140,7 @@ class CallStatsAggregator extends StagedAggregator {
 
     call.toI(cb).consume(cb, {
       /* do nothing if missing */
-    }, { case callc: SCallCode =>
-      val call = callc.memoize(cb, "callstats_seqop_callv")
+    }, { case call: SCallValue =>
       val hom = cb.newLocal[Boolean]("hom", true)
       val lastAllele = cb.newLocal[Int]("lastAllele", -1)
       val i = cb.newLocal[Int]("i", 0)
@@ -192,7 +191,7 @@ class CallStatsAggregator extends StagedAggregator {
       IEmitCode.present(cb, primitive(acAtIndex))
     }
 
-    acType.storeAtAddress(cb, rt.fieldOffset(addr, "AC"), region, ac, deepCopy = false)
+    acType.storeAtAddress(cb, rt.fieldOffset(addr, "AC"), region, ac.get, deepCopy = false)
 
     cb.ifx(alleleNumber.ceq(0),
       rt.setFieldMissing(cb, addr, "AF"),
@@ -200,14 +199,14 @@ class CallStatsAggregator extends StagedAggregator {
         val afType = resultType.fieldType("AF").asInstanceOf[PCanonicalArray]
         val af = afType.constructFromElements(cb, region, state.nAlleles, deepCopy = true) { (cb, i) =>
           val acAtIndex = cb.newLocal[Int]("callstats_result_acAtIndex", state.alleleCountAtIndex(i, state.nAlleles))
-          IEmitCode.present(cb, primitive(acAtIndex.toD / alleleNumber.toD))
+          IEmitCode.present(cb, primitive(cb.memoize(acAtIndex.toD / alleleNumber.toD)))
         }
-        afType.storeAtAddress(cb, rt.fieldOffset(addr, "AF"), region, af, deepCopy = false)
+        afType.storeAtAddress(cb, rt.fieldOffset(addr, "AF"), region, af.get, deepCopy = false)
       })
 
     val anType = resultType.fieldType("AN")
     val an = primitive(alleleNumber)
-    anType.storeAtAddress(cb, rt.fieldOffset(addr, "AN"), region, an, deepCopy = false)
+    anType.storeAtAddress(cb, rt.fieldOffset(addr, "AN"), region, an.get, deepCopy = false)
 
 
     val homCountType = resultType.fieldType("homozygote_count").asInstanceOf[PCanonicalArray]
@@ -216,6 +215,6 @@ class CallStatsAggregator extends StagedAggregator {
       IEmitCode.present(cb, primitive(homCountAtIndex))
     }
 
-    homCountType.storeAtAddress(cb, rt.fieldOffset(addr, "homozygote_count"), region, homCount, deepCopy = false)
+    homCountType.storeAtAddress(cb, rt.fieldOffset(addr, "homozygote_count"), region, homCount.get, deepCopy = false)
   }
 }

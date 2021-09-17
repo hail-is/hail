@@ -202,7 +202,7 @@ case class SplitPartitionNativeWriter(
     val indexWriter = ifIndexed { StagedIndexWriter.withDefaults(keyType, mb.ecb, annotationType = iAnnotationType) }
 
 
-    context.toI(cb).map(cb) { ctxCode: SCode =>
+    context.toI(cb).map(cb) { pctx =>
       val result = mb.newLocal[Long]("write_result")
       val filename1 = mb.newLocal[String]("filename1")
       val os1 = mb.newLocal[ByteTrackingOutputStream]("write_os1")
@@ -214,8 +214,7 @@ case class SplitPartitionNativeWriter(
 
 
       def writeFile(cb: EmitCodeBuilder, codeRow: EmitCode): Unit = {
-        val pc = codeRow.toI(cb).get(cb, "row can't be missing").asBaseStruct
-        val row = pc.memoize(cb, "row")
+        val row = codeRow.toI(cb).get(cb, "row can't be missing").asBaseStruct
         if (hasIndex) {
           indexWriter.add(cb, {
             IEmitCode.present(cb, keyType.asInstanceOf[PCanonicalBaseStruct]
@@ -225,7 +224,7 @@ case class SplitPartitionNativeWriter(
           }, ob1.invoke[Long]("indexOffset"), {
             IEmitCode.present(cb,
               iAnnotationType.constructFromFields(cb, stream.elementRegion,
-                FastIndexedSeq(EmitCode.present(cb.emb, primitive(ob2.invoke[Long]("indexOffset")))),
+                FastIndexedSeq(EmitCode.present(cb.emb, primitive(cb.memoize(ob2.invoke[Long]("indexOffset"))))),
                 deepCopy = false))
           })
         }
@@ -241,8 +240,7 @@ case class SplitPartitionNativeWriter(
         cb.assign(n, n + 1L)
       }
 
-      val pctx = ctxCode.memoize(cb, "context")
-      cb.assign(filename1, pctx.get.asString.loadString())
+      cb.assign(filename1, pctx.asString.loadString(cb))
       if (hasIndex) {
         val indexFile = cb.newLocal[String]("indexFile")
         cb.assign(indexFile, const(index.get._1).concat(filename1).concat(".idx"))
@@ -271,7 +269,7 @@ case class SplitPartitionNativeWriter(
       cb += os2.invoke[Unit]("close")
       filenameType.storeAtAddress(cb, pResultType.fieldOffset(result, "filePath"), region, pctx.get, false)
       cb += Region.storeLong(pResultType.fieldOffset(result, "partitionCounts"), n)
-      pResultType.loadCheapSCode(cb, result.get).get
+      pResultType.loadCheapSCode(cb, result.get)
     }
   }
 }
@@ -307,10 +305,9 @@ case class MatrixSpecWriter(path: String, typ: MatrixType, rowRelPath: String, g
     cb: EmitCodeBuilder,
     region: Value[Region]): Unit = {
     cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
-    val pc = writeAnnotations.get(cb, "write annotations can't be missing!").asBaseStruct
+    val c = writeAnnotations.get(cb, "write annotations can't be missing!").asBaseStruct
     val partCounts = cb.newLocal[Array[Long]]("partCounts")
-    val c = pc.memoize(cb, "matrixPartCounts")
-    val a = c.loadField(cb, "rows").get(cb).asIndexable.memoize(cb, "rowCounts")
+    val a = c.loadField(cb, "rows").get(cb).asIndexable
 
     val n = cb.newLocal[Int]("n", a.loadLength())
     val i = cb.newLocal[Int]("i", 0)

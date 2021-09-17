@@ -2,6 +2,8 @@ package is.hail.expr.ir
 
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
+import is.hail.annotations.SafeNDArray
+import is.hail.expr.Nat
 import is.hail.expr.ir.TestUtils._
 import is.hail.methods.ForceCountTable
 import is.hail.types._
@@ -960,6 +962,18 @@ class TableIRSuite extends HailSuite {
     assertEvalsTo(x, Row(
       (0 until 10).map(i => Row(i, "foo")),
       0 until 5))
+  }
+
+  @Test def testNDArrayMultiplyAddAggregator(): Unit = {
+    implicit val execStrats = ExecStrategy.allRelational
+    var tir: TableIR = TableRange(6, 3)
+    val nDArray1 = Literal(TNDArray(TFloat64, Nat(2)), SafeNDArray(IndexedSeq(2L,2L), IndexedSeq(1.0,1.0,1.0,1.0)))
+    val nDArray2 = Literal(TNDArray(TFloat64, Nat(2)), SafeNDArray(IndexedSeq(2L,2L), IndexedSeq(2.0,2.0,2.0,2.0)))
+    tir = TableMapRows(tir, InsertFields(Ref("row", tir.typ.rowType),
+      FastSeq("nDArrayA" -> nDArray1, "nDArrayB" -> nDArray2)))
+    val x = TableAggregate(tir, ApplyAggOp(NDArrayMultiplyAdd())(GetField(Ref("row", tir.typ.rowType), "nDArrayA"),
+      GetField(Ref("row", tir.typ.rowType), "nDArrayB")))
+    assertEvalsTo(x, SafeNDArray(Vector(2, 2), IndexedSeq(24.0, 24.0, 24.0, 24.0)))
   }
 
   @Test def testTableScanCollect(): Unit = {

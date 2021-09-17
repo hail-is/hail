@@ -40,15 +40,13 @@ object GenotypeFunctions extends RegistryFunctions {
     registerIEmitCode1("dosage", TArray(tv("N", "float64")), TFloat64,
       (_: Type, arrayType: EmitType) => EmitType(SFloat64, arrayType.required && arrayType.st.asInstanceOf[SContainer].elementEmitType.required)
     ) { case (cb, r, rt,  errorID, gp) =>
-      gp.toI(cb).flatMap(cb) { case (gpc: SIndexableCode) =>
-        val gpv = gpc.memoize(cb, "dosage_gp")
-
+      gp.toI(cb).flatMap(cb) { case gpv: SIndexableValue =>
         cb.ifx(gpv.loadLength().cne(3),
           cb._fatalWithError(errorID, const("length of gp array must be 3, got ").concat(gpv.loadLength().toS)))
 
-        gpv.loadElement(cb, 1).flatMap(cb) { (_1: SCode) =>
-          gpv.loadElement(cb, 2).map(cb) { (_2: SCode) =>
-            primitive(_1.asDouble.doubleCode(cb) + _2.asDouble.doubleCode(cb) * 2.0)
+        gpv.loadElement(cb, 1).flatMap(cb) { _1 =>
+          gpv.loadElement(cb, 2).map(cb) { _2 =>
+            primitive(cb.memoize(_1.asDouble.doubleCode(cb) + _2.asDouble.doubleCode(cb) * 2.0))
           }
         }
       }

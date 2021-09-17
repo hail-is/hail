@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from hailtop.aiotools.fs import RouterAsyncFS, LocalAsyncFS, Transfer
 from hailtop.aiogoogle import GoogleStorageAsyncFS
 from hailtop.aiotools.s3asyncfs import S3AsyncFS
+from hailtop.aiotools.azurefs import AzureAsyncFS
 
 
 def referenced_schemes(transfers: List[Transfer]):
@@ -15,7 +16,7 @@ def referenced_schemes(transfers: List[Transfer]):
         scheme = parsed.scheme
         if scheme == '':
             scheme = 'file'
-        if scheme not in {'file', 'gs', 's3'}:
+        if scheme not in {'file', 'gs', 's3', 'hail-az'}:
             raise ValueError(f'Unsupported scheme: {scheme}')
         return scheme
     return {
@@ -33,6 +34,8 @@ def filesystem_from_scheme(scheme, thread_pool=None, gcs_params=None):
     if scheme == 's3':
         assert thread_pool is not None
         return S3AsyncFS(thread_pool)
+    if scheme == 'hail-az':
+        return AzureAsyncFS()
     raise ValueError(f'Unsupported scheme: {scheme}')
 
 

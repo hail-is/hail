@@ -54,7 +54,8 @@ final case class SJavaArrayString(elementRequired: Boolean) extends SContainer {
     new SJavaArrayStringValue(this, a)
   }
 
-  def construct(arr: Code[Array[String]]): SJavaArrayStringCode = new SJavaArrayStringCode(this, arr)
+  def construct(cb: EmitCodeBuilder, arr: Code[Array[String]]): SJavaArrayStringValue =
+    new SJavaArrayStringValue(this, cb.memoize(arr))
 }
 
 class SJavaArrayStringCode(val st: SJavaArrayString, val array: Code[Array[String]]) extends SIndexableCode {
@@ -87,12 +88,12 @@ class SJavaArrayStringValue(
 
   override def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode = {
     if (st.elementRequired)
-      IEmitCode.present(cb, new SJavaStringCode(array(i)))
+      IEmitCode.present(cb, new SJavaStringValue(cb.memoize(array(i))))
     else {
       val iv = cb.newLocal("pcindval_i", i)
       IEmitCode(cb,
         isElementMissing(iv),
-        new SJavaStringCode(array(i)))
+        new SJavaStringValue(cb.memoize(array(i))))
     }
   }
 

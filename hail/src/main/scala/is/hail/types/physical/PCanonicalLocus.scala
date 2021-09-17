@@ -2,11 +2,10 @@ package is.hail.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.{SCode, SValue}
-import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SCanonicalLocusPointerCode, SCanonicalLocusPointerValue, SStackStruct, SStringPointer}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
+import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SCanonicalLocusPointerCode, SCanonicalLocusPointerValue, SStackStruct}
 import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.physical.stypes.{SCode, SValue}
 import is.hail.utils.FastIndexedSeq
 import is.hail.variant._
 
@@ -121,7 +120,7 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
         val loc = value.asLocus.memoize(cb, "pclocus_store")
         representation.storeAtAddress(cb, addr, region,
           SStackStruct.constructFromArgs(cb, region, representation.virtualType,
-            EmitCode.present(cb.emb, loc.contig(cb)), EmitCode.present(cb.emb, primitive(loc.position(cb)))),
+            EmitCode.present(cb.emb, loc.contig(cb)), EmitCode.present(cb.emb, primitive(loc.position(cb)))).get,
           deepCopy)
     }
   }
@@ -146,10 +145,11 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
     addr
   }
 
-  def constructFromPositionAndString(cb: EmitCodeBuilder, r: Value[Region], contig: Code[String], pos: Code[Int]): SCanonicalLocusPointerCode = {
+  def constructFromPositionAndString(cb: EmitCodeBuilder, r: Value[Region], contig: Code[String], pos: Code[Int]): SCanonicalLocusPointerValue = {
+    val position = cb.memoize(pos)
     val contigType = representation.fieldType("contig").asInstanceOf[PCanonicalString]
     val contigCode = contigType.sType.constructFromString(cb, r, contig)
-    val repr = representation.constructFromFields(cb, r, FastIndexedSeq(EmitCode.present(cb.emb, contigCode), EmitCode.present(cb.emb, primitive(pos))), deepCopy = false)
-    new SCanonicalLocusPointerCode(SCanonicalLocusPointer(setRequired(false).asInstanceOf[PCanonicalLocus]), repr.a)
+    val repr = representation.constructFromFields(cb, r, FastIndexedSeq(EmitCode.present(cb.emb, contigCode), EmitCode.present(cb.emb, primitive(position))), deepCopy = false)
+    new SCanonicalLocusPointerValue(SCanonicalLocusPointer(setRequired(false)), repr.a, contigCode.a, position)
   }
 }

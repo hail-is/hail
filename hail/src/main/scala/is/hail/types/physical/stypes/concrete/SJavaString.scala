@@ -39,11 +39,12 @@ case object SJavaString extends SString {
     new SJavaStringValue(s)
   }
 
-  override def constructFromString(cb: EmitCodeBuilder, r: Value[Region], s: Code[String]): SJavaStringCode = {
-    new SJavaStringCode(s)
+  override def constructFromString(cb: EmitCodeBuilder, r: Value[Region], s: Code[String]): SJavaStringValue = {
+    new SJavaStringValue(cb.memoize(s))
   }
 
-  def construct(s: Code[String]): SJavaStringCode = new SJavaStringCode(s)
+  def construct(cb: EmitCodeBuilder, s: Code[String]): SJavaStringValue =
+    new SJavaStringValue(cb.memoize(s))
 }
 
 class SJavaStringCode(val s: Code[String]) extends SStringCode {

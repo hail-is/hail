@@ -69,14 +69,17 @@ class SNDArrayPointerValue(
 
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a) ++ shapes ++ strides ++ FastIndexedSeq(firstDataAddress)
 
+  override def shapeStruct(cb: EmitCodeBuilder): SBaseStructValue =
+    pt.shapeType.loadCheapSCode(cb, pt.representation.loadField(a, "shape"))
+
   override def loadElementAddress(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Long] = {
     assert(indices.size == pt.nDims)
     pt.loadElementFromDataAndStrides(cb, indices, firstDataAddress, strides)
   }
 
-  override def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SCode = {
+  override def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SValue = {
     assert(indices.size == pt.nDims)
-    pt.elementType.loadCheapSCode(cb, loadElementAddress(indices, cb)).get
+    pt.elementType.loadCheapSCode(cb, loadElementAddress(indices, cb))
   }
 
   override def get: SNDArrayPointerCode = new SNDArrayPointerCode(st, a)

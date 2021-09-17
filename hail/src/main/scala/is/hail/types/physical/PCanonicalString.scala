@@ -45,7 +45,7 @@ class PCanonicalString(val required: Boolean) extends PString {
     dstAddrss
   }
 
-  def allocateAndStoreString(cb: EmitCodeBuilder, region: Value[Region], str: Code[String]): Code[Long] = {
+  def allocateAndStoreString(cb: EmitCodeBuilder, region: Value[Region], str: Code[String]): Value[Long] = {
     val dstAddress = cb.newField[Long]("pcanonical_string_alloc_dst_address")
     val byteRep = cb.newField[Array[Byte]]("pcanonical_string_alloc_byte_rep")
     cb.assign(byteRep, str.invoke[Array[Byte]]("getBytes"))
