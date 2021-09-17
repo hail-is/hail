@@ -1854,6 +1854,7 @@ def import_matrix_table(paths,
                         sep=None,
                         delimiter=None,
                         comment=()) -> MatrixTable:
+
     row_key = wrap_to_list(row_key)
     comment = wrap_to_list(comment)
     paths = wrap_to_list(paths)
@@ -1866,14 +1867,11 @@ def import_matrix_table(paths,
                                                                                  table.text.matches(com, False)))) \
             if len(comment) > 0 else False
 
-    def truncate(string_array, delim=", ", hl_value=False):
-        if not hl_value:
-            if len(string_array) > 10:
-                string_array = string_array[:10]
-                string_array.append("...")
-            return delim.join(string_array)
-        return hl.if_else(hl.len(string_array) > 10, hl.str(delim).join(string_array[:10].append("...")),
-                          hl.str(delim).join(string_array))
+    def truncate(string_array, delim=", "):
+        if len(string_array) > 10:
+            string_array = string_array[:10]
+            string_array.append("...")
+        return delim.join(string_array)
 
     def match_file_name_to_index(file_name):
         for idx, path in enumerate(paths):
@@ -1882,9 +1880,21 @@ def import_matrix_table(paths,
 
     def format_file(file_name, hl_value=False):
         if hl_value:
-            return hl.str("/").join(file_name.split('/')[-3:])
+            return hl.rbind(file_name.split('/'), lambda split_file:
+                            hl.if_else(hl.len(split_file) <= 4, hl.str("/").join(file_name.split('/')[-4:]),
+                                       hl.str("/") + hl.str("/").join(file_name.split('/')[-4:])))
         else:
-            return "/" + "/".join(file_name.split('/')[-3:])
+            return "/".join(file_name.split('/')[-3:]) if len(file_name) <= 4 else \
+                "/" + "/".join(file_name.split('/')[-3:])
+
+    def get_file_start(row):
+        first_lines = first_lines_table.collect()
+        if first_lines:
+            file_start_array = hl.array(list(map(lambda line: (line.file, line.idx), first_lines)))
+            match_file_idx = file_start_array.index(lambda line_tuple: line_tuple[0] == row.file)
+            return file_start_array[match_file_idx][1]
+        else:
+            return 0
 
     def validate_row_fields():
         unique_fields = {}
@@ -1910,21 +1920,12 @@ def import_matrix_table(paths,
 
     def parse_entries(row):
         return hl.range(num_of_row_fields, len(header_dict['column_ids']) + num_of_row_fields).map(
-            lambda entry_idx: parse_type_or_error(entry_type, row, entry_idx))
+            lambda entry_idx: parse_type_or_error(entry_type, row, entry_idx, not_entries=False))
 
     def parse_rows(row):
         rows_list = list(row_fields.items())
         return {rows_list[idx][0]:
                 parse_type_or_error(rows_list[idx][1], row, idx) for idx in range(num_of_row_fields)}
-
-    def get_file_start(row):
-        first_lines = first_lines_table.collect()
-        if first_lines:
-            file_start_array = hl.array(list(map(lambda line: (line.file, line.idx), first_lines)))
-            match_file_idx = file_start_array.index(lambda line_tuple: line_tuple[0] == row.file)
-            return file_start_array[match_file_idx][1]
-        else:
-            return 0
 
     def error_msg(row, idx, msg):
         return hl.str("in file ") + hl.str(format_file(row.file, True)) + \
@@ -1946,17 +1947,17 @@ def import_matrix_table(paths,
 
         if not_entries:
             error_clarify_msg = hl.str(f" at row field '") + \
-                                       hl.str(hl_row_fields[idx]) + hl.str("'")
+                                hl.str(hl_row_fields[idx]) + hl.str("'")
         else:
             error_clarify_msg = hl.str(f" at column id '") + hl.str(hl_columns[idx - num_of_row_fields]) + \
-                                       hl.str("' for entry field 'x' ")
+                                hl.str("' for entry field 'x' ")
 
         return hl.if_else(hl.is_missing(value), hl.missing(hail_type),
                           hl.case().when(~hl.is_missing(parsed_type), parsed_type)
-                          .or_error(error_msg(row, idx, f"error parsing value into {str(hail_type)}" + error_clarify_msg)))
+                          .or_error(
+                              error_msg(row, idx, f"error parsing value into {str(hail_type)}" + error_clarify_msg)))
 
     num_of_row_fields = len(row_fields.keys())
-    print(num_of_row_fields)
     add_row_id = False
     if len(row_key) == 0:
         add_row_id = True
@@ -1995,6 +1996,7 @@ def import_matrix_table(paths,
         raise FatalError(f"Missing value {missing} contains delimiter {delimiter}")
 
     ht = import_lines(paths, min_partitions, force_bgz=force_bgz).add_index(name='row_id')
+    # for checking every header matches
     file_per_partition = import_lines(paths, force_bgz=force_bgz, file_per_partition=True)
     file_per_partition = file_per_partition.filter(hl.bool(hl.len(file_per_partition.text) == 0) |
                                                    comment_filter(file_per_partition), False)
@@ -2005,10 +2007,10 @@ def import_matrix_table(paths,
         def validate_header_get_info_dict():
             two_first_lines = file_per_partition.head(2)
             two_first_lines = two_first_lines.annotate(split_array=two_first_lines.text.split(delimiter)).collect()
-            header_line = two_first_lines[0] if len(two_first_lines) > 0 else None
+            header_line = two_first_lines[0] if two_first_lines else None
             first_data_line = two_first_lines[1] if len(two_first_lines) > 1 else None
             num_of_data_line_values = len(first_data_line.split_array) if len(two_first_lines) > 1 else 0
-            num_of_header_values = len(header_line.split_array)
+            num_of_header_values = len(header_line.split_array) if two_first_lines else 0
             if header_line is None or match_file_name_to_index(header_line.file) != 0:
                 raise ValueError(f"Expected header in every file but found empty file: {format_file(paths[0])}")
             elif not first_data_line or first_data_line.file != header_line.file:
@@ -2053,40 +2055,34 @@ def import_matrix_table(paths,
                 [('"' + dup_field + '"', '(' + str(time_col_id_encountered_dict[dup_field]) + ')')
                  for dup_field in duplicate_cols], key=lambda dup_values: dup_values[1])
 
-            if len(duplicates_to_print) > 10:
-                duplicates_to_print = duplicates_to_print[:10]
-                duplicates_to_print.append(("...", ""))
+            duplicates_to_print = truncate(duplicates_to_print)
             duplicates_to_print_formatted = it.starmap(lambda dup, time_found: time_found +
                                                                                " " + dup, duplicates_to_print)
             ht.utils.warning(f"Found {len(duplicate_cols)} duplicate column id" +
                              f"{'s' if len(duplicate_cols) > 1 else ''}\n" + '\n'.join(duplicates_to_print_formatted))
 
-        def header_same_len_dif_elem_error(error_header, error_header_path):
-            zipped_headers = hl.zip(header_dict['header_values'], error_header)
-            non_match_idx = zipped_headers.index(lambda header_tuple: header_tuple[0] != header_tuple[1])
-            return (hl.str("Invalid header: expected elements to be identical for all input paths. Found different"
-                           " elements at position ") + hl.str(non_match_idx) +
-                    hl.str(f"\n in file {format_file(error_header_path, True)} with value ") +
-                    hl.str(zipped_headers[non_match_idx][1]) + hl.str("when expecting value") +
-                    hl.str((zipped_headers[non_match_idx][0])))
-
         def validate_all_headers():
-            all_headers = first_lines_table
-            all_headers.annotate(text=hl.rbind(
-                all_headers.text.split(delimiter),
-                lambda split_header:
-                hl.rbind(hl.case().when(all_headers.text == header_dict['text'], all_headers.text)
-                         .when(len(header_dict['header_values']) == hl.len(split_header),
-                               header_same_len_dif_elem_error(split_header, all_headers.file))
-                         .default(hl.str(f"invalid header: lengths of headers differ." +
-                                         f"\n{len(header_dict['header_values'])} elements in "
-                                         f"{format_file(header_dict['path'], True)}\n" +
-                                         f"{truncate(header_dict['header_values'])}")
-                                  + hl.str(hl.len(split_header)) + hl.str("elements in")
-                                  + all_headers.file + hl.str("\n") +
-                                  truncate(split_header, hl_value=True)),
-                         lambda text_or_error: hl.case().when(text_or_error == all_headers.text, text_or_error)
-                         .or_error(text_or_error))))
+            all_headers = first_lines_table.collect()
+            for header in all_headers:
+                if header_dict['text'] != header.text:
+                    if len(header_dict['header_values']) == len(header.split_array):
+                        zipped_headers = list(zip(header_dict['header_values'], header.split_array))
+                        for header_idx, header_values in enumerate(zipped_headers):
+                            main_header_value = header_values[0]
+                            error_header_value = header_values[1]
+                            if main_header_value != error_header_value:
+                                raise ValueError("invalid header: expected elements to be identical for all input paths"
+                                                 f". Found different elements at position {header_idx + 1}"
+                                                 f"\n in file {format_file(header.file)} with value "
+                                                 f"'{error_header_value}' when expecting value '{main_header_value}'")
+                    else:
+                        raise ValueError(f"invalid header: lengths of headers differ. \n"
+                                         f"{len(header_dict['header_values'])} elements in "
+                                         f"{format_file(header_dict['path'])}:\n" +
+                                         truncate(["'{}'".format(value) for value in header_dict['header_values']]) +
+                                         f" {len(header.split_array)} elements "
+                                         f"in {format_file(header.file)}:\n" +
+                                         truncate(["'{}'".format(value) for value in header.split_array]))
 
         header_dict = validate_header_get_info_dict()
         warn_if_duplicate_col_ids()
@@ -2115,7 +2111,7 @@ def import_matrix_table(paths,
     ht = ht.filter(hl.bool(hl.len(ht.text) == 0) | comment_filter(ht) | header_filter, False)
 
     hl_columns = hl.array(header_dict['column_ids']) if len(header_dict['column_ids']) > 0 else hl.empty_array(hl.tstr)
-    hl_row_fields = hl.array(header_dict['row_fields']) if len(header_dict['row_fields']) > 0\
+    hl_row_fields = hl.array(header_dict['row_fields']) if len(header_dict['row_fields']) > 0 \
         else hl.empty_array(hl.tstr)
     ht = ht.annotate(split_array=ht.text._split_line(delimiter, missing_list, quote=None, regex=False)).add_index(
         'row_id')
@@ -2126,16 +2122,14 @@ def import_matrix_table(paths,
     ht = ht.annotate(split_array=hl.case().when(len(header_dict['column_ids']) <=
                                                 hl.len(ht.split_array[num_of_row_fields: num_of_row_fields +
                                                                       len(header_dict['column_ids'])]), ht.split_array)
-                     .or_error(error_msg(ht, hl.len(ht.split_array) - 1, " unexpected end of line while reading entries")))
+                     .or_error(error_msg(ht, hl.len(ht.split_array) - 1,
+                                         " unexpected end of line while reading entries")))
 
-    ht = ht.annotate(**parse_rows(ht), entries=parse_entries(ht).map(lambda entry: hl.struct(x=entry))) \
+    ht = ht.annotate(**parse_rows(ht), entries=parse_entries(ht).map(lambda entry: hl.struct(x=entry)))\
         .drop('text', 'split_array', 'file')
 
     ht = ht.annotate_globals(cols=hl.range(0, len(header_dict['column_ids']))
                              .map(lambda col_idx: hl.struct(col_id=hl_columns[col_idx])))
-    a = ht.collect()
-    c = list(map(lambda x: x.entries, a))
-    print(c)
 
     if not add_row_id:
         ht = ht.drop('row_id')

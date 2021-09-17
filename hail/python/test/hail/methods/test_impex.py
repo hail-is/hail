@@ -1754,7 +1754,6 @@ class LocusIntervalTests(unittest.TestCase):
 
 
 class ImportMatrixTableTests(unittest.TestCase):
-    @skip_unless_spark_backend()
     def test_import_matrix_table(self):
         mt = hl.import_matrix_table(doctest_resource('matrix1.tsv'),
                                     row_fields={'Barcode': hl.tstr, 'Tissue': hl.tstr, 'Days': hl.tfloat32})
@@ -1777,7 +1776,6 @@ class ImportMatrixTableTests(unittest.TestCase):
                                no_header=True,
                                row_key=[])._force_count_rows()
 
-    @skip_unless_spark_backend()
     def test_import_matrix_table_no_cols(self):
         fields = {'Chromosome': hl.tstr, 'Position': hl.tint32, 'Ref': hl.tstr, 'Alt': hl.tstr, 'Rand1': hl.tfloat64, 'Rand2': hl.tfloat64}
         file = resource('sample2_va_nomulti.tsv')
@@ -1788,7 +1786,6 @@ class ImportMatrixTableTests(unittest.TestCase):
         self.assertEqual(mt.count_rows(), 231)
         self.assertTrue(t._same(mt.rows()))
 
-    @skip_unless_spark_backend()
     def test_import_matrix_comment(self):
         no_comment = doctest_resource('matrix1.tsv')
         comment = doctest_resource('matrix1_comment.tsv')
@@ -1802,38 +1799,37 @@ class ImportMatrixTableTests(unittest.TestCase):
                                      comment=['#', '%'])
         assert mt1._same(mt2)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_headers_not_identical(self):
-        with pytest.raises(ValueError, match='xpected header in every file but found empty file'):
-            hl.import_matrix_table(resource("sampleheader*.txt"), row_fields={'f0': hl.tstr}, row_key=['f0'])
+        with pytest.raises(ValueError, match='invalid header: lengths of headers differ'):
+            hl.import_matrix_table([resource("sampleheader1.txt"), resource("sampleheader2.txt")],
+                                   row_fields={'f0': hl.tstr}, row_key=['f0'])
 
-    @fails_service_backend()
+    def test_headers_same_len_diff_elem(self):
+        with pytest.raises(ValueError, match='invalid header: expected elements to be identical for all input paths'):
+            hl.import_matrix_table([resource("sampleheader2.txt"),
+                                   resource("sampleheaderdiffelem.txt")], row_fields={'f0': hl.tstr}, row_key=['f0'])
+
     def test_too_few_entries(self):
         def boom():
             hl.import_matrix_table(resource("samplesmissing.txt"),
                                    row_fields={'f0': hl.tstr},
                                    row_key=['f0']
-            )._force_count_rows()
+                                   )._force_count_rows()
         with pytest.raises(HailUserError, match='unexpected end of line while reading entries'):
             boom()
 
-    @staticmethod
     def test_wrong_row_field_type(self):
         with pytest.raises(HailUserError, match="error parsing value into int32 at row field 'f0'"):
             hl.import_matrix_table(resource("sampleheader1.txt"),
                                    row_fields={'f0': hl.tint32},
-                                   row_key=['f0'])
+                                   row_key=['f0'])._force_count_rows()
 
     def test_wrong_entry_type(self):
-        with pytest.raises(HailUserError, match="error parsing value into int32 at row field 'f0'"):
+        with pytest.raises(HailUserError, match="error parsing value into int32 at column id 'col000003'"):
             hl.import_matrix_table(resource("samplenonintentries.txt"),
                                    row_fields={'f0': hl.tstr},
-                                   row_key=['f0'])
+                                   row_key=['f0'])._force_count_rows()
 
-
-    @fails_service_backend()
-    @fails_local_backend()
     def test_round_trip(self):
         for missing in ['.', '9']:
             for delimiter in [',', ' ']:
@@ -1899,8 +1895,6 @@ class ImportMatrixTableTests(unittest.TestCase):
         mt = mt.key_rows_by(*row_key)
         assert mt._same(actual)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_key_by_after_empty_key_import(self):
         fields = {'Chromosome':hl.tstr,
                   'Position': hl.tint32,
@@ -1913,8 +1907,6 @@ class ImportMatrixTableTests(unittest.TestCase):
         mt = mt.key_rows_by('Chromosome', 'Position')
         assert 0.001 < abs(0.50965 - mt.aggregate_entries(hl.agg.mean(mt.x)))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_key_by_after_empty_key_import(self):
         fields = {'Chromosome':hl.tstr,
                   'Position': hl.tint32,
@@ -1927,8 +1919,6 @@ class ImportMatrixTableTests(unittest.TestCase):
         mt = mt.key_rows_by('Chromosome', 'Position')
         mt._force_count_rows()
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_devilish_nine_separated_eight_missing_file(self):
         fields = {'chr': hl.tstr,
                   '': hl.tint32,
@@ -1958,8 +1948,6 @@ class ImportMatrixTableTests(unittest.TestCase):
         actual = mt.alt.collect()
         assert actual == ['T', 'TGG', 'A', None]
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_empty_import_matrix_table(self):
         path = new_temp_file(extension='tsv.bgz')
         mt = hl.utils.range_matrix_table(0, 0)
@@ -1970,8 +1958,6 @@ class ImportMatrixTableTests(unittest.TestCase):
         mt.x.export(path, header=False)
         assert hl.import_matrix_table(path, no_header=True)._force_count_rows() == 0
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_row_id_multiple_partitions(self):
         path = new_temp_file(extension='txt')
         (hl.utils.range_matrix_table(50, 50)
@@ -1988,8 +1974,6 @@ class ImportMatrixTableTests(unittest.TestCase):
                                     min_partitions=10)
         assert mt.row_id.collect() == list(range(50))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_long_parsing(self):
         path = resource('text_matrix_longs.tsv')
         mt = hl.import_matrix_table(path, row_fields={'foo': hl.tint64})
