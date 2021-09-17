@@ -94,13 +94,6 @@ class StringFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("hamming", TInt32, Str("foo"), Str("fol")), 1)
   }
 
-  @Test def testStringQuoted() {
-    assertEvalsTo(invoke("splitQuoted", TArray(TString), Str("1234 NA 12878 1234"), Str(" "),
-      IRStringArray("NA"), Str("\"")), FastIndexedSeq("1234", null, "12878", "1234"))
-    assertEvalsTo(invoke("splitQuoted", TArray(TString), Str("1234 NA \"128 78\" \"1234\""), Str(" "),
-      IRStringArray("NA"), Str("\"")), FastIndexedSeq("1234", null, "128 78", "1234"))
-  }
-
   @DataProvider(name = "str")
   def strData(): Array[Array[Any]] = Array(
     Array(NA(TString), TString),
