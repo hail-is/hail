@@ -220,7 +220,7 @@ class LinearRegressionAggregator() extends StagedAggregator {
           x.toI(cb)
             .consume(cb,
               {},
-              xCode => seqOpF(state)(cb, yCode.asDouble.doubleCode(cb), xCode)
+              xCode => seqOpF(state)(cb, yCode.asDouble.doubleCode(cb), xCode.get)
             )
         })
   }

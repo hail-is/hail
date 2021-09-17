@@ -71,7 +71,7 @@ class TakeRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuilder[_]) ext
       elt.toI(cb)
         .consume(cb,
           builder.setMissing(cb),
-          sc => builder.append(cb, sc)))
+          sc => builder.append(cb, sc.get)))
   }
 
   def combine(cb: EmitCodeBuilder, other: TakeRVAS): Unit = {
@@ -82,7 +82,7 @@ class TakeRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuilder[_]) ext
         other.builder.loadElement(cb, j).toI(cb)
           .consume(cb,
             builder.setMissing(cb),
-            sc => builder.append(cb, sc))
+            sc => builder.append(cb, sc.get))
         cb.assign(j, j + 1)
       })
   }

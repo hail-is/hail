@@ -1,15 +1,14 @@
 package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{UnitInfo, Value}
+import is.hail.asm4s.{UnitInfo, Value, _}
 import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder}
+import is.hail.linalg.LinalgCodeUtils
 import is.hail.types.VirtualTypeWithReq
-import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SNDArray, SNDArrayCode}
-import is.hail.types.physical.{PCanonicalBaseStruct, PCanonicalNDArray, PCanonicalTuple, PType}
+import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayCode, SNDArrayValue}
+import is.hail.types.physical.{PCanonicalNDArray, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils.{FastIndexedSeq, valueToRichCodeRegion}
-import is.hail.asm4s.{Code, _}
-import is.hail.linalg.LinalgCodeUtils
 
 class NDArrayMultiplyAddAggregator(nDVTyp: VirtualTypeWithReq) extends StagedAggregator {
   private val ndTyp = nDVTyp.canonicalPType.setRequired(false).asInstanceOf[PCanonicalNDArray]
@@ -38,11 +37,9 @@ class NDArrayMultiplyAddAggregator(nDVTyp: VirtualTypeWithReq) extends StagedAgg
       FastIndexedSeq(nextNDArrayACode.emitParamType, nextNDArrayBCode.emitParamType), CodeParamType(UnitInfo))
     seqOpMethod.voidWithBuilder { cb =>
       val ndArrayAEmitCode = seqOpMethod.getEmitParam(cb, 1, null)
-      ndArrayAEmitCode.toI(cb).consume(cb, {}, { case nextNDArrayAPCode: SNDArrayCode =>
+      ndArrayAEmitCode.toI(cb).consume(cb, {}, { case checkA: SNDArrayValue =>
         val ndArrayBEmitCode = seqOpMethod.getEmitParam(cb, 2, null)
-        ndArrayBEmitCode.toI(cb).consume(cb, {}, { case nextNDArrayBPCode: SNDArrayCode =>
-          val checkA = nextNDArrayAPCode.memoize(cb, "ndarray_add_mutiply_seqop_A")
-          val checkB = nextNDArrayBPCode.memoize(cb, "ndarray_add_mutiply_seqop_B")
+        ndArrayBEmitCode.toI(cb).consume(cb, {}, { case checkB: SNDArrayValue =>
           val tempRegionForCreation = cb.newLocal[Region]("ndarray_add_multily_agg_temp_region", Region.stagedCreate(Region.REGULAR, cb.emb.ecb.pool()))
           val NDArrayA = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(checkA, cb, tempRegionForCreation)
           val NDArrayB = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(checkB, cb, tempRegionForCreation)
@@ -56,9 +53,8 @@ class NDArrayMultiplyAddAggregator(nDVTyp: VirtualTypeWithReq) extends StagedAgg
               state.storeNonmissing(cb, uninitializedNDArray.get)
               SNDArray.gemm(cb, "N", "N", const(1.0), NDArrayA.get, NDArrayB.get, const(0.0), uninitializedNDArray.get)
             },
-            { currentNDPCode =>
-              val currentNDPValue = currentNDPCode.asNDArray.memoize(cb, "ndarray_add_multiply_current")
-              SNDArray.gemm(cb, "N", "N", NDArrayA.get, NDArrayB.get, currentNDPValue.get)
+            { currentNDPValue =>
+              SNDArray.gemm(cb, "N", "N", NDArrayA.get, NDArrayB.get, currentNDPValue.asNDArray.get)
             }
           )
           cb += tempRegionForCreation.clearRegion()
@@ -74,15 +70,13 @@ class NDArrayMultiplyAddAggregator(nDVTyp: VirtualTypeWithReq) extends StagedAgg
     combOpMethod.voidWithBuilder { cb =>
       val rightPV = other.storageType.loadCheapSCode(cb, other.off).asBaseStruct
       rightPV.loadField(cb, ndarrayFieldNumber).consume(cb, {},
-        { rightNDPC =>
-          val rightNdValue = rightNDPC.asNDArray.memoize(cb, "right_ndarray_mutiply_add_agg")
+        { case rightNdValue: SNDArrayValue =>
           val leftPV = state.storageType.loadCheapSCode(cb, state.off).asBaseStruct
           leftPV.loadField(cb, ndarrayFieldNumber).consume(cb,
             {
               state.storeNonmissing(cb, rightNdValue.get)
             },
-            { leftNDPC =>
-              val leftNdValue = leftNDPC.asNDArray.memoize(cb, "left_ndarray_mutiply_add_agg")
+            { case leftNdValue: SNDArrayValue =>
               NDArraySumAggregator.addValues(cb, state.region, leftNdValue, rightNdValue)
             })
         }
@@ -94,6 +88,6 @@ class NDArrayMultiplyAddAggregator(nDVTyp: VirtualTypeWithReq) extends StagedAgg
   override protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
     state.get(cb).consume(cb,
       ifMissing(cb),
-      { sc => pt.storeAtAddress(cb, addr, region, sc.asNDArray, deepCopy = true) })
+      { sc => pt.storeAtAddress(cb, addr, region, sc.asNDArray.get, deepCopy = true) })
   }
 }

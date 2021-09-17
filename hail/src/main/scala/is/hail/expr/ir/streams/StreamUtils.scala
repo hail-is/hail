@@ -34,7 +34,7 @@ object StreamUtils {
             "Cannot construct an ndarray with missing values.", errorId
           )),
           { sc =>
-            elementType.storeAtAddress(cb, currentElementAddress, destRegion, sc, deepCopy = true)
+            elementType.storeAtAddress(cb, currentElementAddress, destRegion, sc.get, deepCopy = true)
           })
         cb.assign(currentElementIndex, currentElementIndex + 1)
         cb.assign(currentElementAddress, currentElementAddress + elementByteSize)
@@ -48,7 +48,7 @@ object StreamUtils {
     cb: EmitCodeBuilder,
     stream: StreamProducer,
     destRegion: Value[Region]
-  ): SIndexableCode = {
+  ): SIndexableValue = {
     val mb = cb.emb
 
     val xLen = mb.newLocal[Int]("sta_len")
@@ -61,7 +61,7 @@ object StreamUtils {
 
         aTyp.constructFromElements(cb, destRegion, xLen, deepCopy = false) { (cb, i) =>
           vab.loadFromIndex(cb, destRegion, i)
-        }.get
+        }
 
       case Some(computeLen) =>
 
@@ -77,7 +77,7 @@ object StreamUtils {
           pushElem(cb, stream.element.toI(cb))
         }
 
-        finish(cb).get
+        finish(cb)
     }
   }
 

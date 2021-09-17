@@ -93,14 +93,13 @@ case class BlockMatrixNativeMetadataWriter(path: String, stageLocally: Boolean, 
     val metaHelper = BMMetadataHelper(path, typ.blockSize, typ.nRows, typ.nCols, typ.linearizedDefinedBlocks)
 
     val pc = writeAnnotations.get(cb, "write annotations can't be missing!").asIndexable
-    val a = pc.memoize(cb, "filePaths")
     val partFiles = cb.newLocal[Array[String]]("partFiles")
-    val n = cb.newLocal[Int]("n", a.loadLength())
+    val n = cb.newLocal[Int]("n", pc.loadLength())
     val i = cb.newLocal[Int]("i", 0)
     cb.assign(partFiles, Code.newArray[String](n))
     cb.whileLoop(i < n, {
-      val s = a.loadElement(cb, i).get(cb, "file name can't be missing!").asString
-      cb += partFiles.update(i, s.loadString())
+      val s = pc.loadElement(cb, i).get(cb, "file name can't be missing!").asString
+      cb += partFiles.update(i, s.loadString(cb))
       cb.assign(i, i + 1)
     })
     cb += cb.emb.getObject(metaHelper).invoke[FS, Array[String], Unit]("write", cb.emb.getFS, partFiles)

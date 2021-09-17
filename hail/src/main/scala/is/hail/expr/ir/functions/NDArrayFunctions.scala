@@ -129,9 +129,9 @@ object  NDArrayFunctions extends RegistryFunctions {
         aec.toI(cb).flatMap(cb) { apc =>
           bec.toI(cb).map(cb) { bpc =>
             val outputNDArrayPType = outputStructType.fieldType("solution")
-            val (resNDPCode, info) = linear_solve(apc.asNDArray, bpc.asNDArray, outputNDArrayPType, cb, region, errorID)
-            val ndEmitCode = EmitCode(Code._empty, info cne 0, resNDPCode.get)
-            outputStructType.constructFromFields(cb, region, IndexedSeq[EmitCode](ndEmitCode, EmitCode(Code._empty, false, primitive(info cne 0))), false).get
+            val (resNDPCode, info) = linear_solve(apc.asNDArray.get, bpc.asNDArray.get, outputNDArrayPType, cb, region, errorID)
+            val ndEmitCode = EmitCode(Code._empty, info cne 0, resNDPCode)
+            outputStructType.constructFromFields(cb, region, IndexedSeq[EmitCode](ndEmitCode, EmitCode(Code._empty, false, primitive(cb.memoize(info cne 0)))), false)
           }
         }
     }

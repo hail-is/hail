@@ -187,8 +187,8 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
               {
                 setFieldMissing(cb, addrVar, f.index)
               },
-              {
-                f.typ.storeAtAddress(cb, fieldOffset(addrVar, f.index), region, _, deepCopy)
+              { sv =>
+                f.typ.storeAtAddress(cb, fieldOffset(addrVar, f.index), region, sv.get, deepCopy)
               })
         }
     }
@@ -203,7 +203,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
         .consume(cb,
           setFieldMissing(cb, addr, i),
           { sc =>
-            types(i).storeAtAddress(cb, fieldOffset(addr, i), region, sc, deepCopy = deepCopy)
+            types(i).storeAtAddress(cb, fieldOffset(addr, i), region, sc.get, deepCopy = deepCopy)
           }
         )
     }

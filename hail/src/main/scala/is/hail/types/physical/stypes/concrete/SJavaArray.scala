@@ -88,12 +88,12 @@ class SJavaArrayStringValue(
 
   override def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode = {
     if (st.elementRequired)
-      IEmitCode.present(cb, new SJavaStringCode(array(i)))
+      IEmitCode.present(cb, new SJavaStringValue(cb.memoize(array(i))))
     else {
       val iv = cb.newLocal("pcindval_i", i)
       IEmitCode(cb,
         isElementMissing(iv),
-        new SJavaStringCode(array(i)))
+        new SJavaStringValue(cb.memoize(array(i))))
     }
   }
 

@@ -64,6 +64,8 @@ class SInt32Value(x: Value[Int]) extends SPrimitiveValue {
 
   override def st: SInt32.type = SInt32
 
+  override def _primitiveValue: Value[_] = x
+
   override def get: SCode = new SInt32Code(x)
 
   def intCode(cb: EmitCodeBuilder): Value[Int] = x

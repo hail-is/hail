@@ -14,7 +14,7 @@ import scala.language.implicitConversions
 
 package object ir {
   type TokenIterator = BufferedIterator[Token]
-  type IEmitCode = IEmitCodeGen[SCode]
+  type IEmitCode = IEmitCodeGen[SValue]
 
   var uidCounter: Long = 0
 

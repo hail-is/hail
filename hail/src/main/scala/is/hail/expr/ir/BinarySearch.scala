@@ -4,7 +4,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.types.physical._
 import is.hail.types.physical.stypes._
-import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode, SContainer, SInterval, SIntervalCode}
+import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode, SBaseStructValue, SContainer, SInterval, SIntervalCode, SIntervalValue}
 import is.hail.utils.FastIndexedSeq
 
 import scala.language.existentials
@@ -28,10 +28,10 @@ class BinarySearch[C](mb: EmitMethodBuilder[C], containerType: SContainer, eltTy
         val ec2 = EmitCode.fromI(cb.emb) { cb =>
           val iec = _ec2.toI(cb)
           iec.flatMap(cb) {
-            case v2: SBaseStructCode =>
-              v2.memoize(cb, "bs_comp_v2").loadField(cb, 0)
-            case v2: SIntervalCode =>
-              v2.memoize(cb, "bs_comp_v2").loadStart(cb)
+            case v2: SBaseStructValue =>
+              v2.loadField(cb, 0)
+            case v2: SIntervalValue =>
+              v2.loadStart(cb)
           }
         }
         findMB.ecb.getOrderingFunction(eltType.st, kt.st, CodeOrdering.Compare())(cb, ec1, ec2)
@@ -41,10 +41,10 @@ class BinarySearch[C](mb: EmitMethodBuilder[C], containerType: SContainer, eltTy
         val ec2 = EmitCode.fromI(cb.emb) { cb =>
           val iec = _ec2.toI(cb)
           iec.flatMap(cb) {
-            case v2: SBaseStructCode =>
-              v2.memoize(cb, "bs_eq_v2").loadField(cb, 0)
-            case v2: SIntervalCode =>
-              v2.memoize(cb, "bs_comp_v2").loadStart(cb)
+            case v2: SBaseStructValue =>
+              v2.loadField(cb, 0)
+            case v2: SIntervalValue =>
+              v2.loadStart(cb)
           }
         }
       findMB.ecb.getOrderingFunction(eltType.st, kt.st, CodeOrdering.Equiv())(cb, ec1, ec2)

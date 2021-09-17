@@ -14,9 +14,9 @@ import scala.reflect.ClassTag
 trait StagedMonoidSpec {
   val typ: Type
 
-  def neutral: Option[Code[_]]
+  def neutral: Option[Value[_]]
 
-  def apply(v1: Code[_], v2: Code[_]): Code[_]
+  def apply(cb: EmitCodeBuilder, v1: Value[_], v2: Value[_]): Value[_]
 }
 
 class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
@@ -57,7 +57,7 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
   protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
     state.fields(0).toI(cb).consume(cb,
       ifMissing(cb),
-      sc => pt.storeAtAddress(cb, addr, region, sc, deepCopy = true))
+      sc => pt.storeAtAddress(cb, addr, region, sc.get, deepCopy = true))
   }
 
   private def combine(
@@ -65,7 +65,7 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
     ev1: EmitSettable,
     ev2: EmitValue
   ): Unit = {
-    val combined = primitive(monoid.typ, monoid(ev1.pv.asPrimitive.primitiveCode, ev2.pv.asPrimitive.primitiveCode))
+    val combined = primitive(monoid.typ, monoid(cb, ev1.pv.asPrimitive.primitiveValue, ev2.pv.asPrimitive.primitiveValue))
     cb.ifx(ev1.m,
       cb.ifx(!ev2.m, cb.assign(ev1, ev2)),
       cb.ifx(!ev2.m,
@@ -75,7 +75,7 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
 
 class ComparisonMonoid(val typ: Type, val functionName: String) extends StagedMonoidSpec {
 
-  def neutral: Option[Code[_]] = None
+  def neutral: Option[Value[_]] = None
 
   private def cmp[T](v1: Code[T], v2: Code[T])(implicit tct: ClassTag[T]): Code[T] =
     Code.invokeStatic2[Math, T, T, T](functionName, v1, v2)
@@ -83,41 +83,41 @@ class ComparisonMonoid(val typ: Type, val functionName: String) extends StagedMo
   private def nancmp[T](v1: Code[T], v2: Code[T])(implicit tct: ClassTag[T]): Code[T] =
     Code.invokeScalaObject2[T, T, T](UtilFunctions.getClass, "nan" + functionName, v1, v2)
 
-  def apply(v1: Code[_], v2: Code[_]): Code[_] = typ match {
-    case TInt32 => cmp[Int](coerce(v1), coerce(v2))
-    case TInt64 => cmp[Long](coerce(v1), coerce(v2))
-    case TFloat32 => nancmp[Float](coerce(v1), coerce(v2))
-    case TFloat64 => nancmp[Double](coerce(v1), coerce(v2))
+  def apply(cb: EmitCodeBuilder, v1: Value[_], v2: Value[_]): Value[_] = typ match {
+    case TInt32 => cb.memoize(cmp[Int](coerce(v1), coerce(v2)))
+    case TInt64 => cb.memoize(cmp[Long](coerce(v1), coerce(v2)))
+    case TFloat32 => cb.memoize(nancmp[Float](coerce(v1), coerce(v2)))
+    case TFloat64 => cb.memoize(nancmp[Double](coerce(v1), coerce(v2)))
     case _ => throw new UnsupportedOperationException(s"can't $functionName over type $typ")
   }
 }
 
 class SumMonoid(val typ: Type) extends StagedMonoidSpec {
 
-  def neutral: Option[Code[_]] = Some(typ match {
+  def neutral: Option[Value[_]] = Some(typ match {
     case TInt64 => const(0L)
     case TFloat64 => const(0.0d)
     case _ => throw new UnsupportedOperationException(s"can't sum over type $typ")
   })
 
-  def apply(v1: Code[_], v2: Code[_]): Code[_] = typ match {
-    case TInt64 => coerce[Long](v1) + coerce[Long](v2)
-    case TFloat64 => coerce[Double](v1) + coerce[Double](v2)
+  def apply(cb: EmitCodeBuilder, v1: Value[_], v2: Value[_]): Value[_] = typ match {
+    case TInt64 => cb.memoize(coerce[Long](v1) + coerce[Long](v2))
+    case TFloat64 => cb.memoize(coerce[Double](v1) + coerce[Double](v2))
     case _ => throw new UnsupportedOperationException(s"can't sum over type $typ")
   }
 }
 
 class ProductMonoid(val typ: Type) extends StagedMonoidSpec {
 
-  def neutral: Option[Code[_]] = Some(typ match {
+  def neutral: Option[Value[_]] = Some(typ match {
     case TInt64 => const(1L)
     case TFloat64 => const(1.0d)
     case _ => throw new UnsupportedOperationException(s"can't product over type $typ")
   })
 
-  def apply(v1: Code[_], v2: Code[_]): Code[_] = typ match {
-    case TInt64 => coerce[Long](v1) * coerce[Long](v2)
-    case TFloat64 => coerce[Double](v1) * coerce[Double](v2)
+  def apply(cb: EmitCodeBuilder, v1: Value[_], v2: Value[_]): Value[_] = typ match {
+    case TInt64 => cb.memoize(coerce[Long](v1) * coerce[Long](v2))
+    case TFloat64 => cb.memoize(coerce[Double](v1) * coerce[Double](v2))
     case _ => throw new UnsupportedOperationException(s"can't product over type $typ")
   }
 }

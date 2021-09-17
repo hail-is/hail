@@ -206,11 +206,11 @@ object UtilFunctions extends RegistryFunctions {
       }
       registerIEmitCode1(s"to${name}OrMissing", TString, t, (_: Type, _: EmitType) => EmitType(rpt, false)) {
         case (cb, r, rt, _, x) =>
-          x.toI(cb).flatMap(cb) { case (sc: SStringCode) =>
-            val sv = cb.newLocal[String]("s", sc.loadString())
+          x.toI(cb).flatMap(cb) { case sc: SStringValue =>
+            val sv = cb.newLocal[String]("s", sc.loadString(cb))
             IEmitCode(cb,
               !Code.invokeScalaObject1[String, Boolean](thisClass, s"isValid$name", sv),
-              primitive(rt.virtualType, Code.invokeScalaObject1(thisClass, s"parse$name", sv)(ctString, ct)))
+              primitive(rt.virtualType, cb.memoizeAny(Code.invokeScalaObject1(thisClass, s"parse$name", sv)(ctString, ct), typeInfoFromClassTag(ct))))
           }
       }
     }
@@ -257,19 +257,19 @@ object UtilFunctions extends RegistryFunctions {
             {
               v2Value.toI(cb).consume(cb,
                 cb.goto(Lmissing),
-                sc2 => cb.assignAny(value, sc2.asPrimitive.primitiveCode[T])
+                sc2 => cb.assignAny(value, sc2.asPrimitive.primitiveValue[T])
               )
             },
             { sc1 =>
-              cb.assign(value, sc1.asPrimitive.primitiveCode[T])
+              cb.assign(value, sc1.asPrimitive.primitiveValue[T])
               v2Value.toI(cb).consume(cb,
                 {},
-                sc2 => cb.assignAny(value, f(value, sc2.asPrimitive.primitiveCode[T]))
+                sc2 => cb.assignAny(value, f(value, sc2.asPrimitive.primitiveValue[T]))
               )
             })
         cb.goto(Ldefined)
 
-        IEmitCode(Lmissing, Ldefined, primitive(rt.virtualType, value.load()), v1.required || v2.required)
+        IEmitCode(Lmissing, Ldefined, primitive(rt.virtualType, value), v1.required || v2.required)
       }
 
       registerIEmitCode2(ignoreMissingName, TInt32, TInt32, TInt32, (_: Type, t1: EmitType, t2: EmitType) => EmitType(SInt32, t1.required || t2.required)) {
@@ -306,63 +306,78 @@ object UtilFunctions extends RegistryFunctions {
 
     registerIEmitCode2("land", TBoolean, TBoolean, TBoolean, (_: Type, tl: EmitType, tr: EmitType) => EmitType(SBoolean, tl.required && tr.required)) {
       case (cb, _, rt,_ , l, r) =>
-
-        // 00 ... 00 rv rm lv lm
-        val w = cb.newLocal[Int]("land_w")
-
-        // m/m, t/m, m/t
-        val M = const((1 << 5) | (1 << 6) | (1 << 9))
-
-        l.toI(cb)
-          .consume(cb,
-            cb.assign(w, 1),
-            b1 => cb.assign(w, b1.asBoolean.boolCode(cb).mux(const(2), const(0)))
-          )
-
-        cb.ifx(w.cne(0),
-          {
-            r.toI(cb).consume(cb,
-              cb.assign(w, w | const(4)),
-              { b2 =>
-                cb.assign(w, w | b2.asBoolean.boolCode(cb).mux(const(8), const(0)))
-              }
-            )
+        if (l.required && r.required) {
+          val result = cb.newLocal[Boolean]("land_result")
+          cb.ifx(l.toI(cb).get(cb).asBoolean.boolCode(cb), {
+            cb.assign(result, r.toI(cb).get(cb).asBoolean.boolCode(cb))
+          }, {
+            cb.assign(result, const(false))
           })
 
-        val Lpresent = CodeLabel()
-        val Lmissing = CodeLabel()
-        cb.ifx(((M >> w) & 1).cne(0), cb.goto(Lmissing), cb.goto(Lpresent))
-        IEmitCode(Lmissing, Lpresent, primitive(w.ceq(10)), l.required && r.required)
+          IEmitCode.present(cb, primitive(result))
+        } else {
+          // 00 ... 00 rv rm lv lm
+          val w = cb.newLocal[Int]("land_w")
+
+          // m/m, t/m, m/t
+          val M = const((1 << 5) | (1 << 6) | (1 << 9))
+
+          l.toI(cb)
+            .consume(cb,
+              cb.assign(w, 1),
+              b1 => cb.assign(w, b1.asBoolean.boolCode(cb).mux(const(2), const(0)))
+            )
+
+          cb.ifx(w.cne(0),
+            {
+              r.toI(cb).consume(cb,
+                cb.assign(w, w | const(4)),
+                { b2 =>
+                  cb.assign(w, w | b2.asBoolean.boolCode(cb).mux(const(8), const(0)))
+                }
+              )
+            })
+
+          IEmitCode(cb, ((M >> w) & 1).cne(0), primitive(cb.memoize(w.ceq(10))))
+        }
     }
 
     registerIEmitCode2("lor", TBoolean, TBoolean, TBoolean, (_: Type, tl: EmitType, tr: EmitType) => EmitType(SBoolean, tl.required && tr.required)) {
       case (cb, _, rt,_, l, r) =>
-        // 00 ... 00 rv rm lv lm
-        val w = cb.newLocal[Int]("lor_w")
-
-        // m/m, f/m, m/f
-        val M = const((1 << 5) | (1 << 1) | (1 << 4))
-
-        l.toI(cb)
-          .consume(cb,
-            cb.assign(w, 1),
-            b1 => cb.assign(w, b1.asBoolean.boolCode(cb).mux(const(2), const(0)))
-          )
-
-        cb.ifx(w.cne(2),
-          {
-            r.toI(cb).consume(cb,
-              cb.assign(w, w | const(4)),
-              { b2 =>
-                cb.assign(w, w | b2.asBoolean.boolCode(cb).mux(const(8), const(0)))
-              }
-            )
+        if (l.required && r.required) {
+          val result = cb.newLocal[Boolean]("land_result")
+          cb.ifx(l.toI(cb).get(cb).asBoolean.boolCode(cb), {
+            cb.assign(result, const(true))
+          }, {
+            cb.assign(result, r.toI(cb).get(cb).asBoolean.boolCode(cb))
           })
 
-        val Lpresent = CodeLabel()
-        val Lmissing = CodeLabel()
-        cb.ifx(((M >> w) & 1).cne(0), cb.goto(Lmissing), cb.goto(Lpresent))
-        IEmitCode(Lmissing, Lpresent, primitive(w.cne(0)), l.required && r.required)
+          IEmitCode.present(cb, primitive(result))
+        } else {
+          // 00 ... 00 rv rm lv lm
+          val w = cb.newLocal[Int]("lor_w")
+
+          // m/m, f/m, m/f
+          val M = const((1 << 5) | (1 << 1) | (1 << 4))
+
+          l.toI(cb)
+            .consume(cb,
+              cb.assign(w, 1),
+              b1 => cb.assign(w, b1.asBoolean.boolCode(cb).mux(const(2), const(0)))
+            )
+
+          cb.ifx(w.cne(2),
+            {
+              r.toI(cb).consume(cb,
+                cb.assign(w, w | const(4)),
+                { b2 =>
+                  cb.assign(w, w | b2.asBoolean.boolCode(cb).mux(const(8), const(0)))
+                }
+              )
+            })
+
+          IEmitCode(cb, ((M >> w) & 1).cne(0), primitive(cb.memoize(w.cne(0))))
+        }
     }
   }
 }

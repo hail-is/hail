@@ -246,7 +246,7 @@ object CompileIterator {
       }
 
       stepF.implementLabel(producer.LproduceElementDone) { cb =>
-        val pc = producer.element.toI(cb).get(cb).memoize(cb, "compileStepper")
+        val pc = producer.element.toI(cb).get(cb)
         cb.assign(elementAddress, returnType.store(cb, producer.elementRegion, pc, false))
         cb.assign(ret, true)
         cb.goto(Lreturn)

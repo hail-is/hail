@@ -9,7 +9,7 @@ import is.hail.io.fs.FS
 import is.hail.io.{BufferSpec, InputBuffer, TypedCodecSpec}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.stypes._
-import is.hail.types.physical.{PCanonicalTuple, PType}
+import is.hail.types.physical.{PCanonicalTuple, PType, typeToTypeInfo}
 import is.hail.types.virtual.Type
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
@@ -284,7 +284,7 @@ class EmitClassBuilder[C](
         lits.loadField(cb, i)
           .consume(cb,
             cb._fatal("expect non-missing literals!"),
-            { pc => f.store(cb, pc) })
+            { pc => f.store(cb, pc.get) })
       }
       // Handle the pre-encoded literals, which only need to be decoded.
       preEncodedLiterals.zipWithIndex.foreach { case ((encLit, f), index) =>
@@ -497,7 +497,7 @@ class EmitClassBuilder[C](
         case CodeOrdering.Gteq(missingEqual) => ord.gteq(cb, v1, v2, missingEqual)
         case CodeOrdering.Neq(missingEqual) => !ord.equiv(cb, v1, v2, missingEqual)
       }
-      coerce[op.ReturnType](r)
+      cb.memoize[op.ReturnType](coerce[op.ReturnType](r))(op.rtti)
     }
   }
 

@@ -68,14 +68,14 @@ class SIntervalPointerValue(
   override def loadStart(cb: EmitCodeBuilder): IEmitCode =
     IEmitCode(cb,
       !(pt.startDefined(a)),
-      pt.pointType.loadCheapSCode(cb, pt.loadStart(a)).get)
+      pt.pointType.loadCheapSCode(cb, pt.loadStart(a)))
 
   override def startDefined(cb: EmitCodeBuilder): Code[Boolean] = pt.startDefined(a)
 
   override def loadEnd(cb: EmitCodeBuilder): IEmitCode =
     IEmitCode(cb,
       !(pt.endDefined(a)),
-      pt.pointType.loadCheapSCode(cb, pt.loadEnd(a)).get)
+      pt.pointType.loadCheapSCode(cb, pt.loadEnd(a)))
 
   override def endDefined(cb: EmitCodeBuilder): Code[Boolean] = pt.endDefined(a)
 

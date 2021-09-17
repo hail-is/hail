@@ -8,7 +8,7 @@ import is.hail.io._
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.encoded.EType
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.SValue
 import is.hail.types.virtual.{TVoid, Type}
 import is.hail.utils._
 
@@ -42,8 +42,8 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
   def isKeyMissing(off: Code[Long]): Code[Boolean] =
     storageType.isFieldMissing(off, 0)
 
-  def loadKey(cb: EmitCodeBuilder, off: Code[Long]): SCode = {
-    kt.loadCheapSCodeField(cb, storageType.loadField(off, 0)).get
+  def loadKey(cb: EmitCodeBuilder, off: Code[Long]): SValue = {
+    kt.loadCheapSCodeField(cb, storageType.loadField(off, 0))
   }
 
   def initValue(cb: EmitCodeBuilder, destc: Code[Long], k: EmitCode, rIdx: Code[Int]): Unit = {
@@ -56,7 +56,7 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
         { sc =>
           storageType.setFieldPresent(cb, dest, 0)
           storageType.fieldType("kt")
-            .storeAtAddress(cb, storageType.fieldOffset(dest, 0), region, sc, deepCopy = true)
+            .storeAtAddress(cb, storageType.fieldOffset(dest, 0), region, sc.get, deepCopy = true)
         })
     storeRegionIdx(cb, dest, rIdx)
     container.newState(cb)
@@ -212,7 +212,7 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
         cb.ifx(!km, {
           val k = keyed.loadKey(cb, _elt)
           keyEType.buildEncoder(k.st, kb)
-            .apply(cb, k, ob)
+            .apply(cb, k.get, ob)
         })
         keyed.loadStates(cb)
         nested.toCodeWithArgs(cb,
@@ -241,7 +241,7 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
         cb.assign(_elt, koff)
 
         val kc = EmitCode.fromI(cb.emb)(cb =>
-          IEmitCode(cb, ib.readBoolean(), keyEType.buildDecoder(keyType.virtualType, kb).apply(cb, region, ib)))
+          IEmitCode(cb, ib.readBoolean(), keyEType.buildDecoder(keyType.virtualType, kb).apply(cb, region, ib).memoize(cb, "deserialize")))
         initElement(cb, _elt, kc)
         nested.toCodeWithArgs(cb,
           FastIndexedSeq(ib),
@@ -297,7 +297,7 @@ class GroupedAggregator(ktV: VirtualTypeWithReq, nestedAggs: Array[StagedAggrega
       k.toI(cb).consume(cb,
         dictElt.setFieldMissing(cb, addrAtI, "key"),
         { sc =>
-          dictElt.fieldType("key").storeAtAddress(cb, dictElt.fieldOffset(addrAtI, "key"), region, sc, deepCopy = true)
+          dictElt.fieldType("key").storeAtAddress(cb, dictElt.fieldOffset(addrAtI, "key"), region, sc.get, deepCopy = true)
         })
 
       val valueAddr = cb.newLocal[Long]("groupedagg_value_addr", dictElt.fieldOffset(addrAtI, "value"))

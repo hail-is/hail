@@ -130,7 +130,7 @@ class IndexWriterArrayBuilder(name: String, maxSize: Int, sb: SettableBuilder, r
   def setField(cb: EmitCodeBuilder, name: String, v: => IEmitCode): Unit =
     v.consume(cb,
       eltType.setFieldMissing(cb, elt.a, name),
-      setFieldValue(cb, name, _))
+      sv => setFieldValue(cb, name, sv.get))
 
   def addChild(cb: EmitCodeBuilder): Unit = {
     loadChild(cb, len)
@@ -244,9 +244,9 @@ object StagedIndexWriter {
       .voidWithBuilder(cb => siw.init(cb, cb.emb.getCodeParam[String](1)))
     fb.emb.voidWithBuilder { cb =>
       siw.add(cb,
-        IEmitCode(cb, false, keyType.loadCheapSCode(cb, fb.getCodeParam[Long](1)).get),
+        IEmitCode(cb, false, keyType.loadCheapSCode(cb, fb.getCodeParam[Long](1))),
         fb.getCodeParam[Long](2),
-        IEmitCode(cb, false, annotationType.loadCheapSCode(cb, fb.getCodeParam[Long](3)).get))
+        IEmitCode(cb, false, annotationType.loadCheapSCode(cb, fb.getCodeParam[Long](3))))
     }
     cb.newEmitMethod("close", FastIndexedSeq[ParamType](), typeInfo[Unit])
       .voidWithBuilder(siw.close)

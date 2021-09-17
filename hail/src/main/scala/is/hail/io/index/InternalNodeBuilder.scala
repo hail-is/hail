@@ -4,10 +4,10 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{Code, SettableBuilder, Value}
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.OutputBuffer
-import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.encoded.EType
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerSettable, SIndexablePointerCode}
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerSettable, SIndexablePointerValue}
+import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.{TStruct, Type}
 
 object InternalNodeBuilder {
@@ -49,7 +49,7 @@ class StagedInternalNodeBuilder(maxSize: Int, keyType: PType, annotationType: PT
   def loadFrom(cb: EmitCodeBuilder, ib: StagedIndexWriterUtils, idx: Value[Int]): Unit = {
     cb.assign(region, ib.getRegion(idx))
     cb.assign(node.a, ib.getArrayOffset(idx))
-    val aoff = node.loadField(cb, 0).get(cb).asInstanceOf[SIndexablePointerCode].a
+    val aoff = node.loadField(cb, 0).get(cb).asInstanceOf[SIndexablePointerValue].a
     ab.loadFrom(cb, aoff, ib.getLength(idx))
   }
 

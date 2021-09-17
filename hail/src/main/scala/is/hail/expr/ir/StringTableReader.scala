@@ -1,20 +1,17 @@
 package is.hail.expr.ir
-import is.hail.annotations.{BroadcastRow, Region, RegionValue, RegionValueBuilder}
+import is.hail.annotations.Region
 import is.hail.asm4s.{Code, CodeLabel, Settable, Value}
-import is.hail.expr.TableAnnotationImpex
-import is.hail.expr.ir.StringTableReader.getFileStatuses
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency, TableStageToRVD}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.fs.{FS, FileStatus}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.physical.stypes.concrete.{SJavaString, SStackStruct}
-import is.hail.types.physical.stypes.interfaces.SStreamCode
+import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStreamValue}
+import is.hail.types.physical.{PCanonicalString, PCanonicalStruct, PField, PStruct}
+import is.hail.types.virtual.{TArray, TString, TStruct, Type}
 import is.hail.types.{BaseTypeWithRequiredness, RStruct, TableType, TypeWithRequiredness}
-import is.hail.types.physical.{PCanonicalString, PCanonicalStruct, PField, PStruct, PType}
-import is.hail.types.virtual.{Field, TArray, TStream, TString, TStruct, Type}
 import is.hail.utils.{FastIndexedSeq, FastSeq, fatal}
-import org.apache.spark.sql.Row
 import org.json4s.{Extraction, Formats, JValue}
 
 case class StringTableReaderParameters(
@@ -58,20 +55,19 @@ case class StringTablePartitionReader(lines: GenericLines) extends PartitionRead
      partitionRegion: Value[Region],
      requestedType: Type): IEmitCode = {
 
-     context.toI(cb).map(cb) { partitionContext =>
+     context.toI(cb).map(cb) { case partitionContext: SBaseStructValue =>
        val iter = cb.emb.genFieldThisRef[CloseableIterator[GenericLine]]("string_table_reader_iter")
 
-       val ctxMemo = partitionContext.asBaseStruct.memoize(cb, "string_table_reader_ctx")
        val fileName = cb.emb.genFieldThisRef[String]("fileName")
        val line = cb.emb.genFieldThisRef[String]("line")
 
-       SStreamCode(new StreamProducer {
+       SStreamValue(new StreamProducer {
          override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
          override def initialize(cb: EmitCodeBuilder): Unit = {
-           val contextAsJavaValue = coerce[Any](StringFunctions.scodeToJavaValue(cb, partitionRegion, ctxMemo.get))
+           val contextAsJavaValue = coerce[Any](StringFunctions.scodeToJavaValue(cb, partitionRegion, partitionContext.get))
 
-           cb.assign(fileName, ctxMemo.loadField(cb, "file").get(cb).asString.loadString())
+           cb.assign(fileName, partitionContext.loadField(cb, "file").get(cb).asString.loadString(cb))
 
            cb.assign(iter,
              cb.emb.getObject[(Any) => CloseableIterator[GenericLine]](lines.body)
@@ -97,11 +93,11 @@ case class StringTablePartitionReader(lines: GenericLines) extends PartitionRead
          override val element: EmitCode = EmitCode.fromI(cb.emb) { cb =>
            val reqType: TStruct = requestedType.asInstanceOf[TStruct]
            val requestedFields = IndexedSeq[Option[EmitCode]](
-             reqType.selfField("file").map(x => EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, SJavaString.construct(cb, fileName).get))),
-             reqType.selfField("text").map(x => EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, SJavaString.construct(cb, line).get)))
+             reqType.selfField("file").map(x => EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, SJavaString.construct(cb, fileName)))),
+             reqType.selfField("text").map(x => EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, SJavaString.construct(cb, line))))
            ).flatten.toIndexedSeq
            IEmitCode.present(cb, SStackStruct.constructFromArgs(cb, elementRegion, reqType,
-             requestedFields: _*).get)
+             requestedFields: _*))
          }
 
          override def close(cb: EmitCodeBuilder): Unit = {

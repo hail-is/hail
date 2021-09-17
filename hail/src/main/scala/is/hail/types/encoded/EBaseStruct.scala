@@ -120,7 +120,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
         },
         { pc =>
           ef.typ.buildEncoder(pc.st, cb.emb.ecb)
-            .apply(cb, pc, out)
+            .apply(cb, pc.get, out)
         })
     }
   }
