@@ -1406,8 +1406,13 @@ def import_table(paths,
     if len(delimiter) < 1:
         raise ValueError('import_table: empty delimiter is not supported')
 
-    def split_lines(hl_str):
-        return hl_str._split_line(delimiter, missing=missing, quote=quote, regex=len(delimiter) > 1)
+    def split_lines(row):
+        split_array = row.text._split_line(delimiter, missing=missing, quote=quote, regex=len(delimiter) > 1)
+        return hl.case().when(hl.len(split_array) == len(fields), split_array)\
+            .or_error(hl.str("error in number of fields found: in file ") + hl.str(row.file) +
+                      hl.str(f"\nexpected {len(fields)} {'fields' if len(fields) > 1 else 'field' }, found ") +
+                      hl.str(hl.len(split_array)) + hl.if_else(hl.len(split_array) > 1, hl.str(" fields"),
+                      hl.str(" field")) + hl.str("\nfor line consisting of '") + hl.str(row.text) + "'")
 
     def should_filter_line(hl_str):
         to_filter = hl_str.matches(filter) if filter is not None else hl.bool(False)
@@ -1458,7 +1463,7 @@ def import_table(paths,
         ht = ht.annotate(text=ht['text'].replace(*find_replace))
 
     first_row = ht.head(1)
-    first_row_value = first_row.annotate(header=split_lines(first_row.text)).collect()[0]
+    first_row_value = first_row.annotate(header=first_row.text.split(delimiter)).collect()[0]
 
     if first_row_value is None:
         raise ValueError(f"Invalid file: no lines remaining after filters\n Offending file: {first_row.file}")
@@ -1471,7 +1476,7 @@ def import_table(paths,
         num_of_fields = list(range(0, len(first_row_value.header)))
         fields = list(map(lambda f_num: "f" + str(f_num), num_of_fields))
 
-    ht = ht.annotate(split_text=hl.case().when(hl.len(ht.text) > 0, split_lines(ht.text))
+    ht = ht.annotate(split_text=hl.case().when(hl.len(ht.text) > 0, split_lines(ht))
                      .or_error(hl.str("Blank line found in file ") + ht.file)).drop('text')
 
     fields_to_value = {}
@@ -1619,17 +1624,17 @@ def import_lines(paths, min_partitions=None, force_bgz=False, force=False, file_
            delimiter=nullable(str),
            comment=oneof(str, sequenceof(str)),
            )
-def import_matrix_table2(paths,
-                         row_fields={},
-                         row_key=[],
-                         entry_type=tint32,
-                         missing="NA",
-                         min_partitions=None,
-                         no_header=False,
-                         force_bgz=False,
-                         sep=None,
-                         delimiter=None,
-                         comment=()) -> MatrixTable:
+def import_matrix_table(paths,
+                        row_fields={},
+                        row_key=[],
+                        entry_type=tint32,
+                        missing="NA",
+                        min_partitions=None,
+                        no_header=False,
+                        force_bgz=False,
+                        sep=None,
+                        delimiter=None,
+                        comment=()) -> MatrixTable:
     """Import tab-delimited file(s) as a :class:`.MatrixTable`.
 
     Examples
@@ -1784,77 +1789,6 @@ def import_matrix_table2(paths,
     :class:`.MatrixTable`
         MatrixTable constructed from imported data.
     """
-    if sep is not None:
-        if delimiter is not None:
-            raise ValueError(
-                f'expecting either sep or delimiter but received both: '
-                f'{sep}, {delimiter}')
-        delimiter = sep
-    del sep
-
-    if delimiter is None:
-        delimiter = '\t'
-    if len(delimiter) != 1:
-        raise FatalError('delimiter or sep must be a single character')
-
-    add_row_id = False
-    if isinstance(row_key, list) and len(row_key) == 0:
-        add_row_id = True
-        row_key = ['row_id']
-
-    if 'row_id' in row_fields and add_row_id:
-        raise FatalError(
-            "import_matrix_table reserves the field name 'row_id' for"
-            'its own use, please use a different name')
-
-    for k, v in row_fields.items():
-        if v not in {tint32, tint64, tfloat32, tfloat64, tstr}:
-            raise FatalError(
-                f'import_matrix_table expects field types to be one of:'
-                f"'int32', 'int64', 'float32', 'float64', 'str': field {repr(k)} had type '{v}'")
-    if entry_type not in {tint32, tint64, tfloat32, tfloat64, tstr}:
-        raise FatalError("""import_matrix_table expects entry types to be one of:
-        'int32', 'int64', 'float32', 'float64', 'str': found '{}'""".format(entry_type))
-
-    reader = ir.TextMatrixReader(paths,
-                                 min_partitions,
-                                 row_fields,
-                                 entry_type,
-                                 missing,
-                                 not no_header,
-                                 delimiter,
-                                 force_bgz,
-                                 add_row_id,
-                                 wrap_to_list(comment))
-
-    mt = MatrixTable(ir.MatrixRead(reader)).key_rows_by(*wrap_to_list(row_key))
-    return mt
-
-
-@typecheck(paths=oneof(str, sequenceof(str)),
-           row_fields=dictof(str, hail_type),
-           row_key=oneof(str, sequenceof(str)),
-           entry_type=enumeration(tint32, tint64, tfloat32, tfloat64, tstr),
-           missing=str,
-           min_partitions=nullable(int),
-           no_header=bool,
-           force_bgz=bool,
-           sep=nullable(str),
-           delimiter=nullable(str),
-           comment=oneof(str, sequenceof(str)),
-           )
-def import_matrix_table(paths,
-                        row_fields={},
-                        row_key=[],
-                        entry_type=tint32,
-                        missing="NA",
-                        min_partitions=None,
-                        no_header=False,
-                        force_bgz=False,
-                        sep=None,
-                        delimiter=None,
-                        comment=()) -> MatrixTable:
-
     row_key = wrap_to_list(row_key)
     comment = wrap_to_list(comment)
     paths = wrap_to_list(paths)
