@@ -111,9 +111,9 @@ case class MatrixNativeWriter(
 
     lowered.mapContexts { oldCtx =>
       val d = digitsNeeded(lowered.numPartitions)
-      val partFiles = Array.tabulate(lowered.numPartitions)(i => Str(s"${ partFile(d, i) }-"))
+      val partFiles = Array.tabulate(lowered.numPartitions)(i => s"${ partFile(d, i) }-")
 
-      zip2(oldCtx, MakeStream(partFiles, TStream(TString)), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
+      zip2(oldCtx, ToStream(Literal(TArray(TString), partFiles.toFastIndexedSeq)), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
         MakeStruct(FastSeq("oldCtx" -> ctxElt, "writeCtx" -> pf))
       }
     }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals(relationalLetsAbove) { (rows, ctx) =>
