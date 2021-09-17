@@ -6,4 +6,4 @@ ht = hl.utils.range_table(1_000_000, n_partitions=10_000)
 ht.write('/tmp/many_partitions.ht')
 
 mt = hl.utils.range_matrix_table(1_000_000, 2, n_partitions=10_000)
-ht.write('/tmp/many_partitions.mt')
+mt.write('/tmp/many_partitions.mt')
