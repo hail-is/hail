@@ -3,6 +3,7 @@ import aiohttp
 import os
 import pytest
 import secrets
+import traceback
 from hailtop.auth import session_id_encode_to_str
 from hailtop.batch_client.aioclient import BatchClient, Batch
 from hailtop.utils import secret_alnum_string
@@ -29,7 +30,8 @@ async def make_client() -> AsyncGenerator[Callable[[str], Awaitable[BatchClient]
 @pytest.fixture
 async def dev_client() -> AsyncGenerator[BatchClient, Any]:
     bc = BatchClient(
-        'billing-project-not-needed-but-required-by-BatchClient', token_file=os.environ['HAIL_TEST_DEV_TOKEN_FILE']
+        'billing-project-not-needed-but-required-by-BatchClient',
+        token_file=os.environ['HAIL_TEST_DEV_TOKEN_FILE']
     )
     yield bc
     await bc.close()
@@ -42,46 +44,46 @@ def get_billing_project_prefix():
 async def delete_all_test_billing_projects():
     billing_project_prefix = get_billing_project_prefix()
     bc = BatchClient(None, token_file=os.environ['HAIL_TEST_DEV_TOKEN_FILE'])
+    suppressed_exceptions = []
     try:
         for project in await bc.list_billing_projects():
             if project['billing_project'].startswith(billing_project_prefix):
                 try:
-                    await bc.close_billing_project(project['billing_project'])
-                finally:
+                    print(f'deleting {project}')
                     await bc.delete_billing_project(project['billing_project'])
+                except Exception as exc:
+                    print(f'exception deleting {project}; will continue')
+                    traceback.print_exc()
     finally:
         await bc.close()
 
 
-@pytest.fixture(scope='module')
-def get_billing_project_name() -> Callable[[], str]:
+@pytest.fixture
+async def random_billing_project_name(dev_client) -> AsyncGenerator[str, Any]:
     billing_project_prefix = get_billing_project_prefix()
-    attempt_prefix = f'{billing_project_prefix}_{secret_alnum_string(5)}'
-    projects: List[str] = []
 
-    def get_name():
-        name = f'{attempt_prefix}_{len(projects)}'
-        projects.append(name)
-        return name
+    name = f'{billing_project_prefix}_{secret_alnum_string(5)}'
+    try:
+        yield name
+    finally:
+        try:
+            r = await dev_client.get_billing_project(name)
+        except aiohttp.ClientResponseError as e:
+            assert e.status == 403, e
+        else:
+            assert r['status'] != 'deleted', r
+            try:
+                if r['status'] == 'open':
+                    await dev_client.close_billing_project(name)
+            finally:
+                if r['status'] != 'deleted':
+                    await dev_client.delete_billing_project(name)
 
-    return get_name
 
 
 @pytest.fixture
-async def new_billing_project(dev_client, get_billing_project_name):
-    project = get_billing_project_name()
-    yield await dev_client.create_billing_project(project)
-
-    try:
-        r = await dev_client.get_billing_project(project)
-    except aiohttp.ClientResponseError as e:
-        assert e.status == 403, e
-    else:
-        assert r['status'] != 'deleted', r
-        if r['status'] == 'open':
-            await dev_client.close_billing_project(project)
-        if r['status'] != 'deleted':
-            await dev_client.delete_billing_project(project)
+async def new_billing_project(dev_client, random_billing_project_name):
+    yield await dev_client.create_billing_project(random_billing_project_name)
 
 
 async def test_bad_token():
@@ -601,10 +603,10 @@ async def test_batch_cannot_be_accessed_by_users_outside_the_billing_project(
 async def test_deleted_open_batches_do_not_prevent_billing_project_closure(
     dev_client: BatchClient,
     make_client: Callable[[str], Awaitable[BatchClient]],
-    get_billing_project_name: Callable[[], str],
+    random_billing_project_name: str
 ):
     try:
-        project = await dev_client.create_billing_project(get_billing_project_name())
+        project = await dev_client.create_billing_project(random_billing_project_name)
         await dev_client.add_user('test', project)
         client = await make_client(project)
         open_batch = await client.create_batch()._create()
