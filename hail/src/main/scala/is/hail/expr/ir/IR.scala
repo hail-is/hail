@@ -484,7 +484,7 @@ final case class ApplyAggOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[IR
   def op: AggOp = aggSig.op
 }
 
-final case class AggFold(zero: IR, seqOp: IR, combOp: IR, accumName: String, otherAccumName: String) extends IR
+final case class AggFold(zero: IR, seqOp: IR, combOp: IR, accumName: String, otherAccumName: String, isScan: Boolean) extends IR
 
 object ApplyScanOp {
   def apply(op: AggOp, initOpArgs: IR*)(seqOpArgs: IR*): ApplyScanOp =

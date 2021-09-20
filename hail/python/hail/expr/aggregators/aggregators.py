@@ -1875,7 +1875,7 @@ def fold(initial_value, seq_op, comb_op):
                                   f"   comb_op.dtype: {comb_op_expr.dtype}")
 
 
-    return construct_expr(ir.AggFold(initial_value._ir, seq_op_expr._ir, comb_op_expr._ir, accum_name, other_accum_name),
+    return construct_expr(ir.AggFold(initial_value._ir, seq_op_expr._ir, comb_op_expr._ir, accum_name, other_accum_name, False),
                           initial_value.dtype,
                           indices,
                           aggregations)

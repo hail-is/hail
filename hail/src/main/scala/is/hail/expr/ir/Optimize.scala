@@ -24,7 +24,6 @@ object Optimize {
         TypeCheck(ir)
         runOpt(ExtractIntervalFilters(_), iter, "ExtractIntervalFilters")
         TypeCheck(ir)
-        var beforeSimplify = ir
         runOpt(Simplify(_), iter, "Simplify")
         TypeCheck(ir)
         runOpt(ForwardLets(_), iter, "ForwardLets")

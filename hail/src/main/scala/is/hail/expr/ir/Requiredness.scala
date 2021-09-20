@@ -244,7 +244,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         addElementBinding(name, a)
       case RunAggScan(a, name, init, seqs, result, signature) =>
         addElementBinding(name, a)
-      case AggFold(zero, seqOp, combOp, accumName, otherAccumName) =>
+      case AggFold(zero, seqOp, combOp, accumName, otherAccumName, _) =>
         addBinding(accumName, zero)
         addBinding(otherAccumName, zero)
         // TODO: Needs more I think, and might be wrong.
@@ -618,7 +618,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           initOpArgs.map(i => i -> lookup(i)),
           seqOpArgs.map(s => s -> lookup(s)))).emitResultType
         requiredness.fromEmitType(emitResult)
-      case AggFold(zero, seqOp, combOp, elementName, accumName) =>
+      case AggFold(zero, seqOp, combOp, elementName, accumName, _) =>
         // TODO: Probably not enough
         requiredness.unionFrom(lookup(zero))
         requiredness.unionFrom(lookup(seqOp))

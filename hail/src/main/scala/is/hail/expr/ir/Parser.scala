@@ -1198,11 +1198,12 @@ object IRParser {
       case "AggFold" =>
         val accumName = identifier(it)
         val otherAccumName = identifier(it)
+        val isScan = boolean_literal(it)
         for {
           zero <- ir_value_expr(env)(it)
           seqOp <- ir_value_expr(env + (accumName -> zero.typ))(it)
           combOp <- ir_value_expr(env + (accumName -> zero.typ) + (otherAccumName -> zero.typ))(it)
-        } yield AggFold(zero, seqOp, combOp, accumName, otherAccumName)
+        } yield AggFold(zero, seqOp, combOp, accumName, otherAccumName, isScan)
       case "InitOp" =>
         val i = int32_literal(it)
         val aggSig = p_agg_sig(env.typEnv)(it)

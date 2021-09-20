@@ -400,7 +400,7 @@ object Extract {
           i
         })
         GetTupleElement(result, idx)
-      case x@AggFold(zero, seqOp, combOp, accumName, otherAccumName) =>
+      case x@AggFold(zero, seqOp, combOp, accumName, otherAccumName, isScan) =>
         val idx = memo.getOrElseUpdate(x, {
           val i = ab.length
           val initOpArgs = IndexedSeq(zero)

@@ -1888,8 +1888,8 @@ class ApplyScanOp(BaseApplyAggOp):
 
 
 class AggFold(IR):
-    @typecheck_method(zero=IR, seq_op=IR, comb_op=IR, accum_name=str, other_accum_name=str)
-    def __init__(self, zero, seq_op, comb_op, accum_name, other_accum_name):
+    @typecheck_method(zero=IR, seq_op=IR, comb_op=IR, accum_name=str, other_accum_name=str, is_scan=bool)
+    def __init__(self, zero, seq_op, comb_op, accum_name, other_accum_name, is_scan):
         super().__init__(zero, seq_op, comb_op)
         # TODO: Fill in
         self.zero = zero
@@ -1897,12 +1897,13 @@ class AggFold(IR):
         self.comb_op = comb_op
         self.accum_name = accum_name
         self.other_accum_name = other_accum_name
+        self.is_scan = is_scan
 
     def copy(self, zero, seq_op, comb_op):
-        return AggFold(zero, seq_op, comb_op, self.accum_name, self.other_accum_name)
+        return AggFold(zero, seq_op, comb_op, self.accum_name, self.other_accum_name, self.is_scan)
 
     def head_str(self):
-        return f"{self.accum_name} {self.other_accum_name}"
+        return f"{self.accum_name} {self.other_accum_name} {self.is_scan}"
 
     def _compute_type(self, env, agg_env):
         self.zero._compute_type(env, agg_env)
