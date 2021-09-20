@@ -43,11 +43,11 @@ deploy: build
 .PHONY: create-build-worker-image-instance
 create-build-worker-image-instance:
 	-gcloud -q compute --project $(PROJECT) instances delete --zone=$(ZONE) build-batch-worker-image
-	python3 ../ci/jinja2_render.py '{"global":{"docker_root_image":"$(DOCKER_ROOT_IMAGE)", "docker_prefix": "$(DOCKER_PREFIX)"}}' build-batch-worker-image-startup.sh build-batch-worker-image-startup.sh.out
+	python3 ../ci/jinja2_render.py '{"global":{"docker_root_image":"$(DOCKER_ROOT_IMAGE)"}}' build-batch-worker-image-startup.sh build-batch-worker-image-startup.sh.out
 	gcloud -q compute --project $(PROJECT) instances create --zone=$(ZONE) build-batch-worker-image --machine-type=n1-standard-1 --network=default --network-tier=PREMIUM --metadata-from-file startup-script=build-batch-worker-image-startup.sh.out --no-restart-on-failure --maintenance-policy=MIGRATE --scopes=https://www.googleapis.com/auth/cloud-platform --image=$$(gcloud compute images list --standard-images --filter 'family="ubuntu-minimal-2004-lts"' --format='value(name)') --image-project=ubuntu-os-cloud --boot-disk-size=10GB --boot-disk-type=pd-ssd
 
 .PHONY: create-worker-image
 create-worker-image:
-	-gcloud -q compute --project $(PROJECT) images delete batch-worker-13
-	gcloud -q compute --project $(PROJECT) images create batch-worker-13 --source-disk=build-batch-worker-image --source-disk-zone=$(ZONE)
+	-gcloud -q compute --project $(PROJECT) images delete batch-worker-12
+	gcloud -q compute --project $(PROJECT) images create batch-worker-12 --source-disk=build-batch-worker-image --source-disk-zone=$(ZONE)
 	gcloud -q compute --project $(PROJECT) instances delete --zone=$(ZONE) build-batch-worker-image
