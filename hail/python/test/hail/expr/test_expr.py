@@ -486,12 +486,13 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(100, 5)
         self.assertEqual(ht.aggregate(hl.agg.fold(0, lambda x: x + ht.idx, lambda a, b: a + b)), 4950)
 
-        ht = ht.annotate(s=hl.struct(x=ht.idx, y=ht.idx*ht.idx))
-        print(ht.aggregate(
+        ht = ht.annotate(s=hl.struct(x=ht.idx, y=ht.idx + 1.0))
+        sum_and_product = (ht.aggregate(
             hl.agg.fold(
-                hl.struct(x=0, y=1),
+                hl.struct(x=0, y=1.0),
                 lambda accum: hl.struct(x=accum.x + ht.s.x, y=accum.y * ht.s.y),
                 lambda a, b: hl.struct(x=a.x + b.x, y=a.y * b.y))))
+        self.assertEqual(sum_and_product, hl.Struct(x=4950, y=9.332621544394414e+157))
 
     def test_agg_filter(self):
         t = hl.utils.range_table(10)
