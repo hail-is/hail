@@ -72,7 +72,7 @@ def create_instance_config(
                 'boot': True,
                 'autoDelete': True,
                 'initializeParams': {
-                    'sourceImage': f'projects/{PROJECT}/global/images/batch-worker-12',
+                    'sourceImage': f'projects/{PROJECT}/global/images/batch-worker-13',
                     'diskType': f'projects/{PROJECT}/zones/{zone}/diskTypes/pd-ssd',
                     'diskSizeGb': str(boot_disk_size_gb),
                 },
@@ -136,11 +136,9 @@ sudo mount -o prjquota /dev/$WORKER_DATA_DISK_NAME /mnt/disks/$WORKER_DATA_DISK_
 sudo chmod a+w /mnt/disks/$WORKER_DATA_DISK_NAME
 XFS_DEVICE=$(xfs_info /mnt/disks/$WORKER_DATA_DISK_NAME | head -n 1 | awk '{{ print $1 }}' | awk  'BEGIN {{ FS = "=" }}; {{ print $2 }}')
 
-# reconfigure docker to use local SSD
-sudo service docker stop
-sudo mv /var/lib/docker /mnt/disks/$WORKER_DATA_DISK_NAME/docker
-sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/docker /var/lib/docker
-sudo service docker start
+# reconfigure podman to use local SSD
+sudo mv /var/lib/containers /mnt/disks/$WORKER_DATA_DISK_NAME/containers
+sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/containers /var/lib/containers
 
 # reconfigure /batch and /logs and /gcsfuse to use local SSD
 sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/batch/
@@ -153,6 +151,13 @@ sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/gcsfuse/
 sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/gcsfuse /gcsfuse
 
 sudo mkdir -p /etc/netns
+sudo mkdir -p /var/run/netns
+sudo mkdir -p /run/crun
+
+sysctl net.ipv4.ip_forward=1
+
+# By default drop traffic
+iptables --policy FORWARD DROP
 
 CORES=$(nproc)
 NAMESPACE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/namespace")
@@ -251,14 +256,11 @@ rm /etc/google-fluentd/google-fluentd.conf.bak
 
 sudo service google-fluentd restart
 
-# retry once
-docker pull $BATCH_WORKER_IMAGE || \
-(echo 'pull failed, retrying' && sleep 15 && docker pull $BATCH_WORKER_IMAGE)
-
-BATCH_WORKER_IMAGE_ID=$(docker inspect $BATCH_WORKER_IMAGE --format='{{{{.Id}}}}' | cut -d':' -f2)
+gcloud auth print-access-token | podman login -u oauth2accesstoken --password-stdin $DOCKER_PREFIX
+BATCH_WORKER_IMAGE_ID=$(podman pull $BATCH_WORKER_IMAGE)
 
 # So here I go it's my shot.
-docker run \
+podman run \
 -e CORES=$CORES \
 -e NAME=$NAME \
 -e NAMESPACE=$NAMESPACE \
@@ -277,15 +279,14 @@ docker run \
 -e BATCH_WORKER_IMAGE_ID=$BATCH_WORKER_IMAGE_ID \
 -e UNRESERVED_WORKER_DATA_DISK_SIZE_GB=$UNRESERVED_WORKER_DATA_DISK_SIZE_GB \
 -e INTERNAL_GATEWAY_IP=$INTERNAL_GATEWAY_IP \
--v /var/run/docker.sock:/var/run/docker.sock \
 -v /var/run/netns:/var/run/netns:shared \
--v /usr/bin/docker:/usr/bin/docker \
+-v /var/lib/containers:/var/lib/containers \
+-v /run/crun:/run/crun \
 -v /usr/sbin/xfs_quota:/usr/sbin/xfs_quota \
 -v /batch:/batch:shared \
 -v /logs:/logs \
 -v /gcsfuse:/gcsfuse:shared \
 -v /etc/netns:/etc/netns \
--v /sys/fs/cgroup:/sys/fs/cgroup \
 --mount type=bind,source=/mnt/disks/$WORKER_DATA_DISK_NAME,target=/host \
 --mount type=bind,source=/dev,target=/dev,bind-propagation=rshared \
 -p 5000:5000 \
@@ -293,9 +294,11 @@ docker run \
 --device $XFS_DEVICE \
 --device /dev \
 --privileged \
---cap-add SYS_ADMIN \
---security-opt apparmor:unconfined \
+--security-opt apparmor=unconfined \
 --network host \
+--pid host \
+--cgroupns host \
+--name worker \
 $BATCH_WORKER_IMAGE \
 python3 -u -m batch.worker.worker >worker.log 2>&1
 
@@ -314,8 +317,6 @@ set -x
 
 INSTANCE_ID=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_id")
 NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
-
-journalctl -u docker.service > dockerd.log
 ''',
                 },
                 {'key': 'activation_token', 'value': activation_token},

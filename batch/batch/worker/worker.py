@@ -1,8 +1,8 @@
 from typing import Optional, Dict, Callable, Tuple, Awaitable, Any
+from shlex import quote as shq
 import os
 import json
 import sys
-import re
 import logging
 import asyncio
 import random
@@ -16,11 +16,9 @@ import aiohttp.client_exceptions
 from aiohttp import web
 import async_timeout
 import concurrent
-import aiodocker  # type: ignore
 import aiorwlock
 from collections import defaultdict
 import psutil
-from aiodocker.exceptions import DockerError  # type: ignore
 import google.oauth2.service_account  # type: ignore
 from hailtop.utils import (
     time_msecs,
@@ -45,8 +43,6 @@ from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
 from hailtop import aiotools
 from hailtop.aiotools.fs import RouterAsyncFS, LocalAsyncFS
 import hailtop.aiogoogle as aiogoogle
-
-# import uvloop
 
 from hailtop.config import DeployConfig
 from hailtop.hail_logging import configure_logging
@@ -73,8 +69,6 @@ from ..publicly_available_images import publicly_available_images
 from ..utils import storage_gib_to_bytes, Box
 
 from .disk import Disk
-
-# uvloop.install()
 
 configure_logging()
 log = logging.getLogger('batch-worker')
@@ -125,8 +119,6 @@ worker_config = WorkerConfig(WORKER_CONFIG)
 assert worker_config.cores == CORES
 
 deploy_config = DeployConfig('gce', NAMESPACE, {})
-
-docker: Optional[aiodocker.Docker] = None
 
 port_allocator: Optional['PortAllocator'] = None
 network_allocator: Optional['NetworkAllocator'] = None
@@ -284,34 +276,6 @@ class NetworkAllocator:
             self.public_networks.put_nowait(netns)
 
 
-def docker_call_retry(timeout, name):
-    async def wrapper(f, *args, **kwargs):
-        delay = 0.1
-        while True:
-            try:
-                return await asyncio.wait_for(f(*args, **kwargs), timeout)
-            except DockerError as e:
-                # 408 request timeout, 503 service unavailable
-                if e.status == 408 or e.status == 503:
-                    log.warning(f'in docker call to {f.__name__} for {name}, retrying', stack_info=True, exc_info=True)
-                # DockerError(500, 'Get https://registry-1.docker.io/v2/: net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)
-                # DockerError(500, 'error creating overlay mount to /var/lib/docker/overlay2/545a1337742e0292d9ed197b06fe900146c85ab06e468843cd0461c3f34df50d/merged: device or resource busy'
-                # DockerError(500, 'Get https://gcr.io/v2/: dial tcp: lookup gcr.io: Temporary failure in name resolution')
-                elif e.status == 500 and (
-                    "request canceled while waiting for connection" in e.message
-                    or re.match("error creating overlay mount.*device or resource busy", e.message)
-                    or "Temporary failure in name resolution" in e.message
-                ):
-                    log.warning(f'in docker call to {f.__name__} for {name}, retrying', stack_info=True, exc_info=True)
-                else:
-                    raise
-            except (aiohttp.client_exceptions.ServerDisconnectedError, asyncio.TimeoutError):
-                log.warning(f'in docker call to {f.__name__} for {name}, retrying', stack_info=True, exc_info=True)
-                delay = await sleep_and_backoff(delay)
-
-    return wrapper
-
-
 class JobDeletedError(Exception):
     pass
 
@@ -357,20 +321,16 @@ def worker_fraction_in_1024ths(cpu_in_mcpu):
 
 
 def user_error(e):
-    if isinstance(e, DockerError):
-        if e.status == 404 and 'pull access denied' in e.message:
-            return True
-        if e.status == 404 and ('not found: manifest unknown' in e.message or 'no such image' in e.message):
-            return True
-        if e.status == 400 and 'executable file not found' in e.message:
-            return True
-    if isinstance(e, CalledProcessError):
+    user_error_messages = [
         # Opening GCS connection...\n', b'daemonize.Run: readFromProcess: sub-process: mountWithArgs: mountWithConn:
         # fs.NewServer: create file system: SetUpBucket: OpenBucket: Bad credentials for bucket "BUCKET". Check the
         # bucket name and your credentials.\n')
-        if 'Bad credentials for bucket' in e.outerr:
-            return True
-    return False
+        'Bad credentials for bucket',
+        'Error reading manifest',
+        'manifest unknown',
+        'executable file not found',
+    ]
+    return isinstance(e, CalledProcessError) and any(msg in e.outerr[1].decode() for msg in user_error_messages)
 
 
 class Container:
@@ -418,6 +378,7 @@ class Container:
         self.rootfs_path = None
         scratch = self.spec['scratch']
         self.container_scratch = f'{scratch}/{self.name}'
+        os.makedirs(self.container_scratch)
         self.container_overlay_path = f'{self.container_scratch}/rootfs_overlay'
         self.config_path = f'{self.container_scratch}/config'
         self.log_path = f'{self.container_scratch}/container.log'
@@ -440,7 +401,7 @@ class Container:
                     # that a user has access to a cached image without pulling.
                     await self.pull_image()
                     self.image_config = image_configs[self.image_ref_str]
-                    self.image_id = self.image_config['Id'].split(":")[1]
+                    self.image_id = self.image_config['Id']
                     worker.image_data[self.image_id] += 1
 
                     self.rootfs_path = f'/host/rootfs/{self.image_id}'
@@ -521,37 +482,36 @@ class Container:
 
         try:
             if not is_google_image:
-                await self.ensure_image_is_pulled()
-            elif is_public_image:
-                auth = await self.batch_worker_access_token()
-                await self.ensure_image_is_pulled(auth=auth)
+                # Explicitly default to dockerhub
+                if self.image_ref.domain is None:
+                    self.image_ref.domain = 'docker.io'
+                    self.image_ref_str = str(self.image_ref)
+                await check_exec_output('podman', 'pull', self.image_ref_str)
             else:
-                # Pull to verify this user has access to this
-                # image.
-                # FIXME improve the performance of this with a
-                # per-user image cache.
-                auth = self.current_user_access_token()
-                await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                    docker.images.pull, self.image_ref_str, auth=auth
-                )
-        except DockerError as e:
-            if e.status == 404 and 'pull access denied' in e.message:
+                if is_public_image:
+                    auth = await self.batch_worker_access_token()
+                else:
+                    # Pull to verify this user has access to this
+                    # image.
+                    # FIXME improve the performance of this with a
+                    # per-user image cache.
+                    auth = self.current_user_access_token()
+                authfile_name = f'{self.container_scratch}/podman_auth.json'
+                with open(authfile_name, 'w') as authfile:
+                    creds = base64.b64encode(f'{auth["username"]}:{auth["password"]}'.encode())
+                    auth_json = {'auths': {'gcr.io': {'auth': creds.decode()}}}
+                    authfile.write(json.dumps(auth_json))
+                await check_exec_output('podman', 'pull', f'--authfile={authfile_name}', self.image_ref_str)
+        except CalledProcessError as e:
+            error = e.outerr[1].decode()
+            if 'unauthorized' in error:
                 self.short_error = 'image cannot be pulled'
-            elif 'not found: manifest unknown' in e.message:
+            elif 'manifest unknown' in error:
                 self.short_error = 'image not found'
             raise
 
-        image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
+        image_config, _ = await check_exec_output('podman', 'inspect', self.image_ref_str)
         image_configs[self.image_ref_str] = json.loads(image_config)[0]
-
-    async def ensure_image_is_pulled(self, auth=None):
-        try:
-            await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(docker.images.get, self.image_ref_str)
-        except DockerError as e:
-            if e.status == 404:
-                await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                    docker.images.pull, self.image_ref_str, auth=auth
-                )
 
     async def batch_worker_access_token(self):
         async with aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
@@ -570,9 +530,10 @@ class Container:
 
     async def extract_rootfs(self):
         assert self.rootfs_path
+        assert self.image_id
         os.makedirs(self.rootfs_path)
         await check_shell(
-            f'id=$(docker create {self.image_id}) && docker export $id | tar -C {self.rootfs_path} -xf - && docker rm $id'
+            f'id=$(podman create {shq(self.image_id)}) && podman export $id | tar -C {self.rootfs_path} -xf - && podman rm $id'
         )
         log.info(f'Extracted rootfs for image {self.image_ref_str}')
 
@@ -635,8 +596,10 @@ class Container:
     async def container_config(self):
         uid, gid = await self._get_in_container_user()
         weight = worker_fraction_in_1024ths(self.spec['cpu'])
-        workdir = self.image_config['Config']['WorkingDir']
-        default_docker_capabilities = [
+        workdir = self.image_config['Config'].get('WorkingDir')
+        if not workdir:
+            workdir = '/'
+        default_capabilities = [
             'CAP_CHOWN',
             'CAP_DAC_OVERRIDE',
             'CAP_FSETID',
@@ -669,11 +632,12 @@ class Container:
                 'env': self._env(),
                 'cwd': workdir if workdir != "" else "/",
                 'capabilities': {
-                    'bounding': default_docker_capabilities,
-                    'effective': default_docker_capabilities,
-                    'inheritable': default_docker_capabilities,
-                    'permitted': default_docker_capabilities,
+                    'bounding': default_capabilities,
+                    'effective': default_capabilities,
+                    'inheritable': default_capabilities,
+                    'permitted': default_capabilities,
                 },
+                'oomScoreAdj': 1,
             },
             'linux': {
                 'namespaces': [
@@ -728,7 +692,7 @@ class Container:
         return config
 
     async def _get_in_container_user(self):
-        user = self.image_config['Config']['User']
+        user = self.image_config['User']
         if not user:
             uid, gid = 0, 0
         elif ":" in user:
@@ -748,7 +712,7 @@ class Container:
     def _mounts(self, uid, gid):
         # Only supports empty volumes
         external_volumes = []
-        volumes = self.image_config['Config']['Volumes']
+        volumes = self.image_config['Config'].get('Volumes')
         if volumes:
             for v_container_path in volumes:
                 if not v_container_path.startswith('/'):
@@ -1052,6 +1016,7 @@ class Job:
 
         self.token = uuid.uuid4().hex
         self.scratch = f'/batch/{self.token}'
+        os.makedirs(self.scratch)
 
         self.disk = None
         self.state = 'pending'
@@ -1338,8 +1303,6 @@ class DockerJob(Job):
                 log.info(f'{self}: initializing')
                 self.state = 'initializing'
 
-                os.makedirs(f'{self.scratch}/')
-
                 with self.step('setup_io'):
                     await self.setup_io()
 
@@ -1562,8 +1525,6 @@ class JVMJob(Job):
 
                 log.info(f'{self}: initializing')
                 self.state = 'initializing'
-
-                os.makedirs(f'{self.scratch}/')
 
                 await check_shell_output(f'xfs_quota -x -c "project -s -p {self.scratch} {self.project_id}" /host/')
                 await check_shell_output(
@@ -2056,7 +2017,7 @@ class Worker:
                     if image_data.ref_count == 0 and (now - image_data.last_accessed) > 10 * 60 * 1000:
                         assert image_id != BATCH_WORKER_IMAGE_ID
                         log.info(f'Found an unused image with ID {image_id}')
-                        await check_shell(f'docker rmi -f {image_id}')
+                        await check_exec_output('podman', 'rmi', '-f', image_id)
                         image_path = f'/host/rootfs/{image_id}'
                         await blocking_to_async(self.pool, shutil.rmtree, image_path)
                         del self.image_data[image_id]
@@ -2068,9 +2029,7 @@ class Worker:
 
 
 async def async_main():
-    global port_allocator, network_allocator, worker, docker
-
-    docker = aiodocker.Docker()
+    global port_allocator, network_allocator, worker
 
     port_allocator = PortAllocator()
     network_allocator = NetworkAllocator()
@@ -2084,10 +2043,7 @@ async def async_main():
             await worker.shutdown()
             log.info('worker shutdown')
         finally:
-            await docker.close()
-            log.info('docker closed')
             asyncio.get_event_loop().set_debug(True)
-            log.debug('Tasks immediately after docker close')
             dump_all_stacktraces()
             other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
             if other_tasks:
