@@ -13,12 +13,12 @@ class FoldAggregator(val initOpTypes: Seq[Type], val seqOpTypes: Seq[Type], val 
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     val Array(initEC) = init
-    initEC.toI(cb).consume(cb, state.storeMissing(cb), sc => state.storeNonmissing(cb, sc))
+    initEC.toI(cb).consume(cb, state.storeMissing(cb), sv => state.storeNonmissing(cb, sv.get))
   }
 
   override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     val Array(elt: EmitCode) = seq
-    elt.toI(cb).consume(cb, state.storeMissing(cb), sc => state.storeNonmissing(cb, sc))
+    elt.toI(cb).consume(cb, state.storeMissing(cb), sv => state.storeNonmissing(cb, sv.get))
   }
 
   override protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: TypedRegionBackedAggState, other: TypedRegionBackedAggState): Unit = {
@@ -33,12 +33,12 @@ class FoldAggregator(val initOpTypes: Seq[Type], val seqOpTypes: Seq[Type], val 
     val emitCtx = EmitContext.analyze(ctx, combOpIR, pEnv)
     val emit = new Emit[Any](emitCtx, cb.emb.ecb.asInstanceOf[EmitClassBuilder[Any]])
     val ec = emit.emit(combOpIR, cb.emb.asInstanceOf[EmitMethodBuilder[Any]], env, None)
-    ec.toI(cb).consume(cb, cb._fatal("Haven't thought through yet"), sc => state.storeNonmissing(cb, sc))
+    ec.toI(cb).consume(cb, cb._fatal("Haven't thought through yet"), sv => state.storeNonmissing(cb, sv.get))
   }
 
   override protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
     state.get(cb).consume(cb,
       ifMissing(cb),
-      { sc => pt.storeAtAddress(cb, addr, region, sc, deepCopy = true) })
+      { sv => pt.storeAtAddress(cb, addr, region, sv.get, deepCopy = true) })
   }
 }
