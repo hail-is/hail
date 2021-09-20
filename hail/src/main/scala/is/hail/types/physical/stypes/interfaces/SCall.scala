@@ -19,7 +19,7 @@ trait SCallValue extends SValue {
 
   def canonicalCall(cb: EmitCodeBuilder): Value[Int]
 
-  def lgtToGT(cb: EmitCodeBuilder, localAlleles: SIndexableValue, errorID: Value[Int]): SCallCode
+  def lgtToGT(cb: EmitCodeBuilder, localAlleles: SIndexableValue, errorID: Value[Int]): SCallValue
 
   override def hash(cb: EmitCodeBuilder): SInt32Code = {
     new SInt32Code(canonicalCall(cb))

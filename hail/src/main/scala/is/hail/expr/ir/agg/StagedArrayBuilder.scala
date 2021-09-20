@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.SValue
 import is.hail.utils._
 
 object StagedArrayBuilder {
@@ -88,7 +88,7 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
   def setMissing(cb: EmitCodeBuilder): Unit = incrementSize(cb) // all elements set to missing on initialization
 
 
-  def append(cb: EmitCodeBuilder, elt: SCode, deepCopy: Boolean = true): Unit = {
+  def append(cb: EmitCodeBuilder, elt: SValue, deepCopy: Boolean = true): Unit = {
     eltArray.setElementPresent(cb, data, size)
     eltType.storeAtAddress(cb, eltArray.elementOffset(data, capacity, size), region, elt, deepCopy)
     incrementSize(cb)

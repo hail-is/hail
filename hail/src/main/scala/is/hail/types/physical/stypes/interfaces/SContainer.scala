@@ -31,7 +31,7 @@ trait SIndexableValue extends SValue {
 
   def castToArray(cb: EmitCodeBuilder): SIndexableValue
 
-  def forEachDefined(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, Value[Int], SCode) => Unit): Unit = {
+  def forEachDefined(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, Value[Int], SValue) => Unit): Unit = {
     val length = loadLength()
     val idx = cb.newLocal[Int]("foreach_idx", 0)
     cb.whileLoop(idx < length, {
@@ -39,13 +39,13 @@ trait SIndexableValue extends SValue {
       loadElement(cb, idx).consume(cb,
         {}, /*do nothing if missing*/
         { eltCode =>
-          f(cb, idx, eltCode.get)
+          f(cb, idx, eltCode)
         })
       cb.assign(idx, idx + 1)
     })
   }
 
-  def forEachDefinedOrMissing(cb: EmitCodeBuilder)(missingF: (EmitCodeBuilder, Value[Int]) => Unit, presentF: (EmitCodeBuilder, Value[Int], SCode) => Unit): Unit = {
+  def forEachDefinedOrMissing(cb: EmitCodeBuilder)(missingF: (EmitCodeBuilder, Value[Int]) => Unit, presentF: (EmitCodeBuilder, Value[Int], SValue) => Unit): Unit = {
     val length = loadLength()
     val idx = cb.newLocal[Int]("foreach_idx", 0)
     cb.whileLoop(idx < length, {
@@ -55,7 +55,7 @@ trait SIndexableValue extends SValue {
           missingF(cb, idx)
         },
         { eltCode =>
-          presentF(cb, idx, eltCode.get)
+          presentF(cb, idx, eltCode)
         })
       cb.assign(idx, idx + 1)
     })
@@ -64,7 +64,7 @@ trait SIndexableValue extends SValue {
   override def hash(cb: EmitCodeBuilder): SInt32Code = {
     val hash_result = cb.newLocal[Int]("array_hash", 1)
     forEachDefinedOrMissing(cb)({ case (cb, idx) => cb.assign(hash_result, hash_result * 31) },
-      { case (cb, idx, element) => cb.assign(hash_result, hash_result * 31 + element.memoize(cb, "array_hash_element").hash(cb).intCode(cb))
+      { case (cb, idx, element) => cb.assign(hash_result, hash_result * 31 + element.hash(cb).intCode(cb))
       })
     new SInt32Code(hash_result)
   }

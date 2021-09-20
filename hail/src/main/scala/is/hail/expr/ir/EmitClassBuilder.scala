@@ -879,7 +879,7 @@ class EmitMethodBuilder[C](
     }
   }
 
-  def getSCodeParam(emitIndex: Int): SCode = {
+  def getSCodeParam(emitIndex: Int): SValue = {
     assert(mb.isStatic || emitIndex != 0)
     val static = (!mb.isStatic).toInt
     val _st = emitParamTypes(emitIndex - static).asInstanceOf[SCodeParamType].st
@@ -890,7 +890,7 @@ class EmitMethodBuilder[C](
 
     _st.fromValues(ts.zipWithIndex.map { case (t, i) =>
       mb.getArg(codeIndex + i)(t)
-    }).get
+    })
   }
 
   def storeEmitParam(emitIndex: Int, cb: EmitCodeBuilder): Value[Region] => EmitValue = {

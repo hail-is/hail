@@ -37,15 +37,15 @@ object TestRandomFunctions extends RegistryFunctions {
 
   def registerAll() {
     registerSeeded0("counter_seeded", TInt32, SInt32) { case (cb, r, rt, seed) =>
-      primitive(getTestRNG(cb.emb, seed).invoke[Int]("counter"))
+      primitive(cb.memoize(getTestRNG(cb.emb, seed).invoke[Int]("counter")))
     }
 
     registerSeeded0("seed_seeded", TInt64, SInt64) { case (cb, r, rt, seed) =>
-      primitive(getTestRNG(cb.emb, seed).invoke[Long]("seed"))
+      primitive(cb.memoize(getTestRNG(cb.emb, seed).invoke[Long]("seed")))
     }
 
     registerSeeded0("pi_seeded", TInt32, SInt32) { case (cb, r, rt, seed) =>
-      primitive(getTestRNG(cb.emb, seed).invoke[Int]("partitionIndex"))
+      primitive(cb.memoize(getTestRNG(cb.emb, seed).invoke[Int]("partitionIndex")))
     }
   }
 }

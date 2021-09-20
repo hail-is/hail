@@ -38,6 +38,6 @@ object CountAggregator extends StagedAggregator {
   protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
     assert(state.vtypes.head.r.required)
     val ev = state.fields(0)
-    pt.storeAtAddress(cb, addr, region, ev.pv.get, deepCopy = true)
+    pt.storeAtAddress(cb, addr, region, ev.pv, deepCopy = true)
   }
 }

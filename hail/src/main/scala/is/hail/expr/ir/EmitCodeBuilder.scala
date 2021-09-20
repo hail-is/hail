@@ -219,7 +219,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
 
   // for debugging
   def strValue(sc: SValue): Code[String] = {
-    StringFunctions.scodeToJavaValue(this, emb.partitionRegion, sc.get).invoke[String]("toString")
+    StringFunctions.scodeToJavaValue(this, emb.partitionRegion, sc).invoke[String]("toString")
   }
 
   def strValue(ec: EmitCode): Code[String] = {

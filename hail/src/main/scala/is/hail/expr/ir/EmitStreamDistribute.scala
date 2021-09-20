@@ -5,11 +5,11 @@ import is.hail.asm4s.{Code, Value, const, _}
 import is.hail.expr.ir.functions.MathFunctions
 import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.io.{AbstractTypedCodecSpec, OutputBuffer}
+import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SIndexableValue, SStreamValue, primitive}
-import is.hail.types.physical.stypes.primitives.{SBooleanCode, SInt32, SInt32Code}
+import is.hail.types.physical.stypes.primitives.{SBooleanValue, SInt32, SInt32Value}
 import is.hail.types.physical.stypes.{EmitType, SValue}
-import is.hail.types.physical._
 import is.hail.types.virtual.TBaseStruct
 import is.hail.utils._
 
@@ -63,17 +63,17 @@ object EmitStreamDistribute {
       cb.forLoop(cb.assign(requestedSplittersIdx, 0), requestedSplittersIdx < requestedSplittersVal.loadLength(), cb.assign(requestedSplittersIdx, requestedSplittersIdx + 1), {
         val currentSplitter = requestedSplittersVal.loadElement(cb, requestedSplittersIdx).memoize(cb, "stream_distribute_current_splitter")
         cb.ifx(requestedSplittersIdx ceq 0, {
-          paddedSplittersPType.elementType.storeAtAddress(cb, paddedSplittersPType.loadElement(paddedSplittersAddr, paddedSplittersSize, 0), region, currentSplitter.get(cb).get, false)
-          splittersWasDuplicatedPType.elementType.storeAtAddress(cb, splittersWasDuplicatedPType.loadElement(splittersWasDuplicatedAddr, splittersWasDuplicatedLength, uniqueSplittersIdx), region, new SBooleanCode(false), false)
+          paddedSplittersPType.elementType.storeAtAddress(cb, paddedSplittersPType.loadElement(paddedSplittersAddr, paddedSplittersSize, 0), region, currentSplitter.get(cb), false)
+          splittersWasDuplicatedPType.elementType.storeAtAddress(cb, splittersWasDuplicatedPType.loadElement(splittersWasDuplicatedAddr, splittersWasDuplicatedLength, uniqueSplittersIdx), region, new SBooleanValue(false), false)
           cb.assign(uniqueSplittersIdx, uniqueSplittersIdx + 1)
         }, {
           cb.ifx(!equal(cb, lastKeySeen, currentSplitter), {
             // write to pos in splitters
-            paddedSplittersPType.elementType.storeAtAddress(cb, paddedSplittersPType.loadElement(paddedSplittersAddr, paddedSplittersSize, uniqueSplittersIdx), region, currentSplitter.get(cb).get, false)
-            splittersWasDuplicatedPType.elementType.storeAtAddress(cb, splittersWasDuplicatedPType.loadElement(splittersWasDuplicatedAddr, splittersWasDuplicatedLength, uniqueSplittersIdx), region, new SBooleanCode(false), false)
+            paddedSplittersPType.elementType.storeAtAddress(cb, paddedSplittersPType.loadElement(paddedSplittersAddr, paddedSplittersSize, uniqueSplittersIdx), region, currentSplitter.get(cb), false)
+            splittersWasDuplicatedPType.elementType.storeAtAddress(cb, splittersWasDuplicatedPType.loadElement(splittersWasDuplicatedAddr, splittersWasDuplicatedLength, uniqueSplittersIdx), region, new SBooleanValue(false), false)
             cb.assign(uniqueSplittersIdx, uniqueSplittersIdx + 1)
           }, {
-            splittersWasDuplicatedPType.elementType.storeAtAddress(cb, splittersWasDuplicatedPType.loadElement(splittersWasDuplicatedAddr, splittersWasDuplicatedLength, uniqueSplittersIdx - 1), region, new SBooleanCode(true), false)
+            splittersWasDuplicatedPType.elementType.storeAtAddress(cb, splittersWasDuplicatedPType.loadElement(splittersWasDuplicatedAddr, splittersWasDuplicatedLength, uniqueSplittersIdx - 1), region, new SBooleanValue(true), false)
           })
         })
         cb.assign(lastKeySeen, currentSplitter)
@@ -83,7 +83,7 @@ object EmitStreamDistribute {
 
       // Pad out the rest of the splitters array so tree later is balanced.
       cb.forLoop({}, uniqueSplittersIdx < paddedSplittersSize, cb.assign(uniqueSplittersIdx, uniqueSplittersIdx + 1), {
-        paddedSplittersPType.elementType.storeAtAddress(cb, paddedSplittersPType.loadElement(paddedSplittersAddr, paddedSplittersSize, uniqueSplittersIdx), region, lastKeySeen.get(cb).get, false)
+        paddedSplittersPType.elementType.storeAtAddress(cb, paddedSplittersPType.loadElement(paddedSplittersAddr, paddedSplittersSize, uniqueSplittersIdx), region, lastKeySeen.get(cb), false)
       })
 
       val splitterWasDuplicated = new SIndexablePointerCode(SIndexablePointer(splittersWasDuplicatedPType), splittersWasDuplicatedAddr).memoize(cb, "stream_distrib_was_duplicated") // Same length as splitters, but full of booleans of whether it was initially duplicated.
@@ -106,7 +106,7 @@ object EmitStreamDistribute {
         cb.forLoop(cb.assign(inner, 0), inner < (const(1) << (treeHeight - 1 - currentHeight)), cb.assign(inner, inner + 1), {
           val elementLoaded = paddedSplitters.loadElement(cb, startingPoint + inner * (const(1) << (currentHeight + 1))).get(cb)
           keyPType.storeAtAddress(cb, treePType.loadElement(treeAddr, treeFillingIndex), region,
-            elementLoaded.get, false)
+            elementLoaded, false)
           cb.assign(treeFillingIndex, treeFillingIndex + 1)
         })
       })
@@ -123,16 +123,16 @@ object EmitStreamDistribute {
 
       val bucketIdx = cb.newLocal[Int]("stream_dist_bucket_idx")
       val currentFileToMapTo = cb.newLocal[Int]("stream_dist_mapping_cur_storage", 0)
-      def destFileSCode() = new SInt32Code((currentFileToMapTo >= numFilesToWrite).mux(numFilesToWrite - 1, currentFileToMapTo))
+      def destFileSCode(cb: EmitCodeBuilder) = new SInt32Value(cb.memoize((currentFileToMapTo >= numFilesToWrite).mux(numFilesToWrite - 1, currentFileToMapTo)))
 
       val indexIncrement = cb.newLocal[Int]("stream_dist_create_file_mapping_increment")
       cb.ifx(shouldUseIdentityBuckets, cb.assign(indexIncrement, 2), cb.assign(indexIncrement, 1))
 
       cb.forLoop(cb.assign(bucketIdx, 0), bucketIdx < numberOfBuckets, cb.assign(bucketIdx, bucketIdx + indexIncrement), {
-        fileMappingType.elementType.storeAtAddress(cb, fileMappingType.loadElement(fileMappingAddr, numberOfBuckets, bucketIdx), region, destFileSCode(), false)
+        fileMappingType.elementType.storeAtAddress(cb, fileMappingType.loadElement(fileMappingAddr, numberOfBuckets, bucketIdx), region, destFileSCode(cb), false)
         cb.ifx(shouldUseIdentityBuckets, {
           cb.assign(currentFileToMapTo, currentFileToMapTo + splitterWasDuplicated.loadElement(cb, bucketIdx / 2).get(cb).asBoolean.boolCode(cb).toI)
-          fileMappingType.elementType.storeAtAddress(cb, fileMappingType.loadElement(fileMappingAddr, numberOfBuckets, bucketIdx + 1), region, destFileSCode(), false)
+          fileMappingType.elementType.storeAtAddress(cb, fileMappingType.loadElement(fileMappingAddr, numberOfBuckets, bucketIdx + 1), region, destFileSCode(cb), false)
         })
         cb.assign(currentFileToMapTo, currentFileToMapTo + 1)
       })

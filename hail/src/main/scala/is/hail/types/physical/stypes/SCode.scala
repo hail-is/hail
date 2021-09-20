@@ -7,39 +7,39 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 
 object SCode {
-  def add(cb: EmitCodeBuilder, left: SCode, right: SCode, required: Boolean): SCode = {
+  def add(cb: EmitCodeBuilder, left: SValue, right: SValue, required: Boolean): SValue = {
     (left.st, right.st) match {
-      case (SInt32, SInt32) => new SInt32Code(left.asInt.intCode(cb) + right.asInt.intCode(cb))
-      case (SFloat32, SFloat32) => new SFloat32Code(left.asFloat.floatCode(cb) + right.asFloat.floatCode(cb))
-      case (SInt64, SInt64) => new SInt64Code(left.asLong.longCode(cb) + right.asLong.longCode(cb))
-      case (SFloat64, SFloat64) => new SFloat64Code(left.asDouble.doubleCode(cb) + right.asDouble.doubleCode(cb))
+      case (SInt32, SInt32) => new SInt32Value(cb.memoize(left.asInt.intCode(cb) + right.asInt.intCode(cb)))
+      case (SFloat32, SFloat32) => new SFloat32Value(cb.memoize(left.asFloat.floatCode(cb) + right.asFloat.floatCode(cb)))
+      case (SInt64, SInt64) => new SInt64Value(cb.memoize(left.asLong.longCode(cb) + right.asLong.longCode(cb)))
+      case (SFloat64, SFloat64) => new SFloat64Value(cb.memoize(left.asDouble.doubleCode(cb) + right.asDouble.doubleCode(cb)))
     }
   }
 
-  def multiply(cb: EmitCodeBuilder, left: SCode, right: SCode, required: Boolean): SCode = {
+  def multiply(cb: EmitCodeBuilder, left: SValue, right: SValue, required: Boolean): SValue = {
     (left.st, right.st) match {
-      case (SInt32, SInt32) => new SInt32Code(left.asInt.intCode(cb) * right.asInt.intCode(cb))
-      case (SFloat32, SFloat32) => new SFloat32Code(left.asFloat.floatCode(cb) * right.asFloat.floatCode(cb))
-      case (SInt64, SInt64) => new SInt64Code(left.asLong.longCode(cb) * right.asLong.longCode(cb))
-      case (SFloat64, SFloat64) => new SFloat64Code(left.asDouble.doubleCode(cb) * right.asDouble.doubleCode(cb))
+      case (SInt32, SInt32) => new SInt32Value(cb.memoize(left.asInt.intCode(cb) * right.asInt.intCode(cb)))
+      case (SFloat32, SFloat32) => new SFloat32Value(cb.memoize(left.asFloat.floatCode(cb) * right.asFloat.floatCode(cb)))
+      case (SInt64, SInt64) => new SInt64Value(cb.memoize(left.asLong.longCode(cb) * right.asLong.longCode(cb)))
+      case (SFloat64, SFloat64) => new SFloat64Value(cb.memoize(left.asDouble.doubleCode(cb) * right.asDouble.doubleCode(cb)))
     }
   }
 
-  def subtract(cb: EmitCodeBuilder, left: SCode, right: SCode, required: Boolean): SCode = {
+  def subtract(cb: EmitCodeBuilder, left: SValue, right: SValue, required: Boolean): SValue = {
     (left.st, right.st) match {
-      case (SInt32, SInt32) => new SInt32Code(left.asInt.intCode(cb) - right.asInt.intCode(cb))
-      case (SFloat32, SFloat32) => new SFloat32Code(left.asFloat.floatCode(cb) - right.asFloat.floatCode(cb))
-      case (SInt64, SInt64) => new SInt64Code(left.asLong.longCode(cb) - right.asLong.longCode(cb))
-      case (SFloat64, SFloat64) => new SFloat64Code(left.asDouble.doubleCode(cb) - right.asDouble.doubleCode(cb))
+      case (SInt32, SInt32) => new SInt32Value(cb.memoize(left.asInt.intCode(cb) - right.asInt.intCode(cb)))
+      case (SFloat32, SFloat32) => new SFloat32Value(cb.memoize(left.asFloat.floatCode(cb) - right.asFloat.floatCode(cb)))
+      case (SInt64, SInt64) => new SInt64Value(cb.memoize(left.asLong.longCode(cb) - right.asLong.longCode(cb)))
+      case (SFloat64, SFloat64) => new SFloat64Value(cb.memoize(left.asDouble.doubleCode(cb) - right.asDouble.doubleCode(cb)))
     }
   }
 
-  def divide(cb: EmitCodeBuilder, left: SCode, right: SCode, required: Boolean): SCode = {
+  def divide(cb: EmitCodeBuilder, left: SValue, right: SValue, required: Boolean): SValue = {
     (left.st, right.st) match {
-      case (SInt32, SInt32) => new SInt32Code(left.asInt.intCode(cb) / right.asInt.intCode(cb))
-      case (SFloat32, SFloat32) => new SFloat32Code(left.asFloat.floatCode(cb) / right.asFloat.floatCode(cb))
-      case (SInt64, SInt64) => new SInt64Code(left.asLong.longCode(cb) / right.asLong.longCode(cb))
-      case (SFloat64, SFloat64) => new SFloat64Code(left.asDouble.doubleCode(cb) / right.asDouble.doubleCode(cb))
+      case (SInt32, SInt32) => new SInt32Value(cb.memoize(left.asInt.intCode(cb) / right.asInt.intCode(cb)))
+      case (SFloat32, SFloat32) => new SFloat32Value(cb.memoize(left.asFloat.floatCode(cb) / right.asFloat.floatCode(cb)))
+      case (SInt64, SInt64) => new SInt64Value(cb.memoize(left.asLong.longCode(cb) / right.asLong.longCode(cb)))
+      case (SFloat64, SFloat64) => new SFloat64Value(cb.memoize(left.asDouble.doubleCode(cb) / right.asDouble.doubleCode(cb)))
     }
   }
 

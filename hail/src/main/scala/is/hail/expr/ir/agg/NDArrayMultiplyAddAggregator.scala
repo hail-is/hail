@@ -50,7 +50,7 @@ class NDArrayMultiplyAddAggregator(nDVTyp: VirtualTypeWithReq) extends StagedAgg
               state.storageType.setFieldPresent(cb, state.off.get, ndarrayFieldNumber)
               val shape = IndexedSeq(NDArrayA.shapes(0), NDArrayB.shapes(1))
               val uninitializedNDArray = ndTyp.constructUnintialized(shape, ndTyp.makeColumnMajorStrides(shape, tempRegionForCreation, cb), cb, tempRegionForCreation)
-              state.storeNonmissing(cb, uninitializedNDArray.get)
+              state.storeNonmissing(cb, uninitializedNDArray)
               SNDArray.gemm(cb, "N", "N", const(1.0), NDArrayA.get, NDArrayB.get, const(0.0), uninitializedNDArray.get)
             },
             { currentNDPValue =>
@@ -74,7 +74,7 @@ class NDArrayMultiplyAddAggregator(nDVTyp: VirtualTypeWithReq) extends StagedAgg
           val leftPV = state.storageType.loadCheapSCode(cb, state.off).asBaseStruct
           leftPV.loadField(cb, ndarrayFieldNumber).consume(cb,
             {
-              state.storeNonmissing(cb, rightNdValue.get)
+              state.storeNonmissing(cb, rightNdValue)
             },
             { case leftNdValue: SNDArrayValue =>
               NDArraySumAggregator.addValues(cb, state.region, leftNdValue, rightNdValue)
@@ -88,6 +88,6 @@ class NDArrayMultiplyAddAggregator(nDVTyp: VirtualTypeWithReq) extends StagedAgg
   override protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
     state.get(cb).consume(cb,
       ifMissing(cb),
-      { sc => pt.storeAtAddress(cb, addr, region, sc.asNDArray.get, deepCopy = true) })
+      { sc => pt.storeAtAddress(cb, addr, region, sc.asNDArray, deepCopy = true) })
   }
 }

@@ -86,7 +86,7 @@ class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
     })
   }
 
-  override def lgtToGT(cb: EmitCodeBuilder, localAlleles: SIndexableValue, errorID: Value[Int]): SCallCode = {
+  override def lgtToGT(cb: EmitCodeBuilder, localAlleles: SIndexableValue, errorID: Value[Int]): SCallValue = {
 
     def checkAndTranslate(cb: EmitCodeBuilder, allele: Code[Int]): Code[Int] = {
       val av = cb.newLocal[Int](s"allele", allele)
@@ -122,7 +122,7 @@ class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
         } // ploidy 2
       )
     )
-    new SCanonicalCallCode(repr)
+    new SCanonicalCallValue(repr)
   }
 }
 

@@ -306,7 +306,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       cb.ifx(isElementDefined(dstAddress, currentIdx),
         {
           cb.assign(currentElementAddress, elementOffset(dstAddress, len, currentIdx))
-          this.elementType.storeAtAddress(cb, currentElementAddress, region, this.elementType.loadCheapSCode(cb, this.elementType.loadFromNested(currentElementAddress)).get, true)
+          this.elementType.storeAtAddress(cb, currentElementAddress, region, this.elementType.loadCheapSCode(cb, this.elementType.loadFromNested(currentElementAddress)), true)
         }))
   }
 
@@ -395,7 +395,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
             .consume(
               cb,
               { setElementMissing(cb, addr, idx) },
-              { pc => elementType.storeAtAddress(cb, elementOffset(addr, length, idx), region, pc.get, deepCopy) }
+              { pc => elementType.storeAtAddress(cb, elementOffset(addr, length, idx), region, pc, deepCopy) }
             )
           cb.assign(idx, idx + 1)
         })
@@ -415,8 +415,8 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
-    cb += Region.storeAddress(addr, store(cb, region, value.memoize(cb, "storeAtAddress"), deepCopy))
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SValue, deepCopy: Boolean): Unit = {
+    cb += Region.storeAddress(addr, store(cb, region, value, deepCopy))
   }
 
 
@@ -442,7 +442,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       f(cb, i).consume(cb,
         setElementMissing(cb, addr, i),
         { sc =>
-          elementType.storeAtAddress(cb, elementOffsetFromFirst(firstElementAddr, i), region, sc.get, deepCopy = deepCopy)
+          elementType.storeAtAddress(cb, elementOffsetFromFirst(firstElementAddr, i), region, sc, deepCopy = deepCopy)
         })
 
       cb.assign(i, i + 1)
@@ -465,7 +465,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       iec.consume(cb,
         setElementMissing(cb, addr, currentElementIndex),
         { sc =>
-          elementType.storeAtAddress(cb, currentElementAddress, region, sc.get, deepCopy = deepCopy)
+          elementType.storeAtAddress(cb, currentElementAddress, region, sc, deepCopy = deepCopy)
         })
         cb.assign(currentElementIndex, currentElementIndex + 1)
         cb.assign(currentElementAddress, currentElementAddress + elementByteSize)

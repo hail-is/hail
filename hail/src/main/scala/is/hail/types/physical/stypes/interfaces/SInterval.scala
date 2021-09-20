@@ -30,7 +30,7 @@ trait SIntervalValue extends SValue {
 
   def endDefined(cb: EmitCodeBuilder): Code[Boolean]
 
-  def isEmpty(cb: EmitCodeBuilder): Code[Boolean]
+  def isEmpty(cb: EmitCodeBuilder): Value[Boolean]
 }
 
 trait SIntervalCode extends SCode {

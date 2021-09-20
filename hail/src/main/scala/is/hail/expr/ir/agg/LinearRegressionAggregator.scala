@@ -273,6 +273,6 @@ class LinearRegressionAggregator() extends StagedAggregator {
       stateType.loadField(state.off, 0),
       stateType.loadField(state.off, 1),
       Region.loadInt(stateType.loadField(state.off, 2))))
-    pt.storeAtAddress(cb, addr, region, LinearRegressionAggregator.resultType.loadCheapSCode(cb, resAddr).get, deepCopy = false)
+    pt.storeAtAddress(cb, addr, region, LinearRegressionAggregator.resultType.loadCheapSCode(cb, resAddr), deepCopy = false)
   }
 }

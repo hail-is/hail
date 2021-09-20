@@ -100,7 +100,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
         cb.ifx(isFieldDefined(dstAddr, f.index),
           {
             val fieldAddr = cb.newLocal[Long]("pcbs_dpcopy_field", fieldOffset(dstAddr, f.index))
-            dstFieldType.storeAtAddress(cb, fieldAddr, region, dstFieldType.loadCheapSCode(cb, dstFieldType.loadFromNested(fieldAddr)).get, deepCopy = true)
+            dstFieldType.storeAtAddress(cb, fieldAddr, region, dstFieldType.loadCheapSCode(cb, dstFieldType.loadFromNested(fieldAddr)), deepCopy = true)
           })
       }
     }
@@ -163,22 +163,22 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
         value.asInstanceOf[SBaseStructPointerValue].a
       case _ =>
         val newAddr = cb.memoize(allocate(region))
-        storeAtAddress(cb, newAddr, region, value.get, deepCopy)
+        storeAtAddress(cb, newAddr, region, value, deepCopy)
         newAddr
     }
   }
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SValue, deepCopy: Boolean): Unit = {
     value.st match {
       case SBaseStructPointer(t) if t.equalModuloRequired(this) =>
-        val pcs = value.asBaseStruct.memoize(cb, "pcbasestruct_store_src").asInstanceOf[SBaseStructPointerSettable]
+        val pcs = value.asInstanceOf[SBaseStructPointerValue]
         val addrVar = cb.newLocal[Long]("pcbasestruct_store_dest_addr1", addr)
         cb += Region.copyFrom(pcs.a, addrVar, byteSize)
         if (deepCopy)
           deepPointerCopy(cb, region, addrVar)
       case _ =>
         val addrVar = cb.newLocal[Long]("pcbasestruct_store_dest_addr2", addr)
-        val pcs = value.asBaseStruct.memoize(cb, "pcbasestruct_store_src")
+        val pcs = value.asBaseStruct
         stagedInitialize(cb, addrVar, setMissing = false)
 
         fields.foreach { f =>
@@ -188,7 +188,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
                 setFieldMissing(cb, addrVar, f.index)
               },
               { sv =>
-                f.typ.storeAtAddress(cb, fieldOffset(addrVar, f.index), region, sv.get, deepCopy)
+                f.typ.storeAtAddress(cb, fieldOffset(addrVar, f.index), region, sv, deepCopy)
               })
         }
     }
@@ -203,7 +203,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
         .consume(cb,
           setFieldMissing(cb, addr, i),
           { sc =>
-            types(i).storeAtAddress(cb, fieldOffset(addr, i), region, sc.get, deepCopy = deepCopy)
+            types(i).storeAtAddress(cb, fieldOffset(addr, i), region, sc, deepCopy = deepCopy)
           }
         )
     }
