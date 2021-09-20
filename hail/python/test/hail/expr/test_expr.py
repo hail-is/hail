@@ -486,7 +486,7 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(100, 5)
         self.assertEqual(ht.aggregate(hl.agg.fold(0, lambda x: x + ht.idx, lambda a, b: a + b)), 4950)
 
-        ht = ht.annotate(s=hl.struct(x=ht.idx, y=ht.idx + 1.0))
+        ht = ht.annotate(s=hl.struct(x=ht.idx, y=ht.idx + 1))
         sum_and_product = (ht.aggregate(
             hl.agg.fold(
                 hl.struct(x=0, y=1.0),
