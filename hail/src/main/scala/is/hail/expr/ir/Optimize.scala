@@ -30,8 +30,8 @@ object Optimize {
         TypeCheck(ir)
         runOpt(ForwardRelationalLets(_), iter, "ForwardRelationalLets")
         TypeCheck(ir)
-//        runOpt(PruneDeadFields(_), iter, "PruneDeadFields")
-//        TypeCheck(ir)
+        runOpt(PruneDeadFields(_), iter, "PruneDeadFields")
+        TypeCheck(ir)
 
         iter += 1
       }

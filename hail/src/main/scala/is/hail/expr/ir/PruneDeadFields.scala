@@ -1328,10 +1328,7 @@ object PruneDeadFields {
         val initEnv = memoizeValueIR(zero, requestedType, memo)
         val seqEnv = memoizeValueIR(seqOp, requestedType, memo)
         val combEnv = memoizeValueIR(combOp, requestedType, memo)
-        println(s"initEnv = ${initEnv} seqEnv = ${seqEnv}, combEnv = ${combEnv}")
-//        val eval = concatEnvs(Seq(initEnv.eval, seqEnv.eval, combEnv.eval))
-//        BindingEnv(eval = eval, agg = Some(seqEnv.eval))
-        ???
+        BindingEnv(eval = initEnv.eval, agg = Some(seqEnv.eval.delete(accumName).delete(otherAccumName)))
       case StreamAgg(a, name, query) =>
         val aType = a.typ.asInstanceOf[TStream]
         val queryEnv = memoizeValueIR(query, requestedType, memo)
