@@ -97,12 +97,18 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     l
   }
 
+  def memoize(v: EmitCode): EmitValue =
+    memoize(v, "memoize")
+
   def memoize(v: EmitCode, name: String): EmitValue = {
     require(v.st.isRealizable)
     val l = emb.newEmitLocal(name, v.emitType)
     assign(l, v)
     l
   }
+
+  def memoize(v: IEmitCode): EmitValue =
+    memoize(v, "memoize")
 
   def memoize(v: IEmitCode, name: String): EmitValue = {
     require(v.st.isRealizable)

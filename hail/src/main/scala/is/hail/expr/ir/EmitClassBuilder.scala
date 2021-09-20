@@ -484,11 +484,11 @@ class EmitClassBuilder[C](
     sortOrder: SortOrder,
     op: CodeOrdering.Op
   ): CodeOrdering.F[op.ReturnType] = {
-    val ord = getOrdering(t1, t2, sortOrder);
+    val ord = getOrdering(t1, t2, sortOrder)
 
-    { (cb: EmitCodeBuilder, v1: EmitCode, v2: EmitCode) =>
+    { (cb: EmitCodeBuilder, v1: EmitValue, v2: EmitValue) =>
 
-      val r = op match {
+      val r: Code[_] = op match {
         case CodeOrdering.Compare(missingEqual) => ord.compare(cb, v1, v2, missingEqual)
         case CodeOrdering.Equiv(missingEqual) => ord.equiv(cb, v1, v2, missingEqual)
         case CodeOrdering.Lt(missingEqual) => ord.lt(cb, v1, v2, missingEqual)

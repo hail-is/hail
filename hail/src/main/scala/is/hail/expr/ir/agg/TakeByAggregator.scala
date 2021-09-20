@@ -3,7 +3,7 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.orderings.StructOrdering
-import is.hail.expr.ir.{Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, ParamType, SortOrder}
+import is.hail.expr.ir.{Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitValue, IEmitCode, ParamType, SortOrder}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
@@ -52,12 +52,12 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
         ("max_size", PInt32Required)) ++ garbageFields: _*
     )
 
-  def compareKey(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = {
+  def compareKey(cb: EmitCodeBuilder, k1: EmitValue, k2: EmitValue): Code[Int] = {
     val ord = cb.emb.ecb.getOrdering(k1.st, k2.st, so)
     ord.compare(cb, k1, k2, true)
   }
 
-  private def compareIndexedKey(cb: EmitCodeBuilder, k1: SCode, k2: SCode): Code[Int] = {
+  private def compareIndexedKey(cb: EmitCodeBuilder, k1: SValue, k2: SValue): Value[Int] = {
     val ord = StructOrdering.make(k1.st.asInstanceOf[SBaseStruct], k2.st.asInstanceOf[SBaseStruct], cb.emb.ecb, Array(so, Ascending), true)
     ord.compareNonnull(cb, k1, k2)
   }
@@ -202,8 +202,8 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
   private def loadKeyValue(cb: EmitCodeBuilder, offset: Code[Long]): SValue =
     keyType.loadCheapSCode(cb, indexedKeyType.loadField(offset, 0))
 
-  private def loadKey(cb: EmitCodeBuilder, offset: Value[Long]): EmitCode =
-    EmitCode(Code._empty, keyIsMissing(offset), loadKeyValue(cb, offset))
+  private def loadKey(cb: EmitCodeBuilder, offset: Value[Long]): EmitValue =
+    cb.memoize(IEmitCode(cb, keyIsMissing(offset), loadKeyValue(cb, offset)))
 
   private val compareElt: (Code[Long], Code[Long]) => Code[Int] = {
     val mb = kb.genEmitMethod("i_gt_j", FastIndexedSeq[ParamType](LongInfo, LongInfo), IntInfo)
@@ -211,8 +211,8 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
     val j = mb.getCodeParam[Long](2)
 
     mb.emitWithBuilder(cb => compareIndexedKey(cb,
-      indexedKeyType.loadCheapSCode(cb, eltTuple.fieldOffset(i, 0)).get,
-      indexedKeyType.loadCheapSCode(cb, eltTuple.fieldOffset(j, 0)).get))
+      indexedKeyType.loadCheapSCode(cb, eltTuple.fieldOffset(i, 0)),
+      indexedKeyType.loadCheapSCode(cb, eltTuple.fieldOffset(j, 0))))
 
     mb.invokeCode(_, _)
   }
