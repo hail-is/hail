@@ -808,13 +808,14 @@ class AggregatorsSuite extends HailSuite {
   @Test def testFold(): Unit = {
     val barRef = Ref("bar", TInt32)
     val bazRef = Ref("baz", TInt32)
-    val myIR = StreamAgg(mapIR(rangeIR(100)){ idx => makestruct(("idx", idx))}, "foo",
-      AggFold(I32(0), Ref("bar", TInt32) + GetField(Ref("foo", TStruct("idx" -> TInt32)), "idx"), barRef + bazRef, "bar", "baz")
+
+    val myIR = StreamAgg(mapIR(rangeIR(100)){ idx => makestruct(("idx", idx), ("unused", idx + idx))}, "foo",
+      AggFold(I32(0), Ref("bar", TInt32) + GetField(Ref("foo", TStruct("idx" -> TInt32, "unused" -> TInt32)), "idx"), barRef + bazRef, "bar", "baz", false)
     )
     assertEvalsTo(myIR, 4950)
 
     val myTableIR = TableAggregate(TableRange(100, 5),
-      AggFold(I32(0), Ref("bar", TInt32) + GetField(Ref("row", TStruct("idx" -> TInt32)), "idx"), barRef + bazRef, "bar", "baz")
+      AggFold(I32(0), Ref("bar", TInt32) + GetField(Ref("row", TStruct("idx" -> TInt32)), "idx"), barRef + bazRef, "bar", "baz", false)
     )
 
     val reqAnalysis = Requiredness.apply(myTableIR, ctx)

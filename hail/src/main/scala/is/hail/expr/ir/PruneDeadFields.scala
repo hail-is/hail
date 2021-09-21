@@ -2044,7 +2044,8 @@ object PruneDeadFields {
         AggArrayPerElement(a2, elementName, indexName, aggBody2, knownLength.map(rebuildIR(_, aEnv, memo)), isScan)
       case StreamAgg(a, name, query) =>
         val a2 = rebuildIR(a, env, memo)
-        val query2 = rebuildIR(query, env.copy(agg = Some(env.eval.bind(name -> a2.typ.asInstanceOf[TStream].elementType))), memo)
+        val newEnv = env.copy(agg = Some(env.eval.bind(name -> a2.typ.asInstanceOf[TStream].elementType)))
+        val query2 = rebuildIR(query, newEnv, memo)
         StreamAgg(a2, name, query2)
       case StreamAggScan(a, name, query) =>
         val a2 = rebuildIR(a, env, memo)
@@ -2077,7 +2078,7 @@ object PruneDeadFields {
             seqOpArgs = seqOpArgs2.map(_.typ)))
       case AggFold(zero, seqOp, combOp, accumName, otherAccumName, isScan) =>
         val zero2 = rebuildIR(zero, env, memo)
-        val seqOp2 = rebuildIR(seqOp, env, memo)
+        val seqOp2 = rebuildIR(seqOp, env.promoteAgg, memo)
         val combOp2 = rebuildIR(combOp, env, memo)
         AggFold(zero2, seqOp2, combOp2, accumName, otherAccumName, isScan)
       case CollectDistributedArray(contexts, globals, cname, gname, body, tsd) =>
