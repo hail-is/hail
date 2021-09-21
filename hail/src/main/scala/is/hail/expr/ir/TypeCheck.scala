@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import com.nimbusds.jose.KeyException
 import is.hail.expr.ir.streams.StreamUtils
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -86,9 +87,14 @@ object TypeCheck {
       case x@AggLet(_, _, body, _) =>
         assert(x.typ == body.typ)
       case x@Ref(name, _) =>
-        val expected = env.eval.lookup(name)
-        assert(x.typ == expected,
-          s"type mismatch:\n  name: $name\n  actual: ${ x.typ.parsableString() }\n  expect: ${ expected.parsableString() }")
+        env.eval.lookupOption(name) match {
+          case Some(expected) =>
+            assert(x.typ == expected,
+              s"type mismatch:\n  name: $name\n  actual: ${x.typ.parsableString()}\n  expect: ${expected.parsableString()}")
+          case None =>
+            throw new KeyException(s"Ref with name ${name} could not be resolved in env ${env}")
+        }
+
       case RelationalRef(name, t) =>
         env.relational.lookupOption(name) match {
           case Some(t2) =>

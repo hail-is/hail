@@ -2078,7 +2078,7 @@ object PruneDeadFields {
             seqOpArgs = seqOpArgs2.map(_.typ)))
       case AggFold(zero, seqOp, combOp, accumName, otherAccumName, isScan) =>
         val zero2 = rebuildIR(zero, env, memo)
-        val seqOp2 = rebuildIR(seqOp, env.promoteAgg, memo)
+        val seqOp2 = rebuildIR(seqOp, if (isScan) env.promoteScan else env.promoteAgg, memo)
         val combOp2 = rebuildIR(combOp, env, memo)
         AggFold(zero2, seqOp2, combOp2, accumName, otherAccumName, isScan)
       case CollectDistributedArray(contexts, globals, cname, gname, body, tsd) =>
