@@ -21,17 +21,11 @@ object Optimize {
       while (iter < maxIter && ir != last) {
         last = ir
         runOpt(FoldConstants(ctx, _), iter, "FoldConstants")
-        TypeCheck(ir)
         runOpt(ExtractIntervalFilters(_), iter, "ExtractIntervalFilters")
-        TypeCheck(ir)
         runOpt(Simplify(_), iter, "Simplify")
-        TypeCheck(ir)
         runOpt(ForwardLets(_), iter, "ForwardLets")
-        TypeCheck(ir)
         runOpt(ForwardRelationalLets(_), iter, "ForwardRelationalLets")
-        TypeCheck(ir)
         runOpt(PruneDeadFields(_), iter, "PruneDeadFields")
-        TypeCheck(ir)
 
         iter += 1
       }

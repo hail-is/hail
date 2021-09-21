@@ -245,8 +245,8 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case RunAggScan(a, name, init, seqs, result, signature) =>
         addElementBinding(name, a)
       case AggFold(zero, seqOp, combOp, accumName, otherAccumName, _) =>
-        addBinding(accumName, zero)
-        addBinding(otherAccumName, zero)
+        addBindings(accumName, Array(zero, seqOp, combOp))
+        addBindings(otherAccumName, Array(zero, seqOp, combOp))
         // TODO: Needs more I think, and might be wrong.
       case AggExplode(a, name, aggBody, isScan) =>
         addElementBinding(name, a)
@@ -619,7 +619,6 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           seqOpArgs.map(s => s -> lookup(s)))).emitResultType
         requiredness.fromEmitType(emitResult)
       case AggFold(zero, seqOp, combOp, elementName, accumName, _) =>
-        // TODO: Probably not enough
         requiredness.unionFrom(lookup(zero))
         requiredness.unionFrom(lookup(seqOp))
         requiredness.unionFrom(lookup(combOp))

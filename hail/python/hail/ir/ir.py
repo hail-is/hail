@@ -1891,7 +1891,6 @@ class AggFold(IR):
     @typecheck_method(zero=IR, seq_op=IR, comb_op=IR, accum_name=str, other_accum_name=str, is_scan=bool)
     def __init__(self, zero, seq_op, comb_op, accum_name, other_accum_name, is_scan):
         super().__init__(zero, seq_op, comb_op)
-        # TODO: Fill in
         self.zero = zero
         self.seq_op = seq_op
         self.comb_op = comb_op

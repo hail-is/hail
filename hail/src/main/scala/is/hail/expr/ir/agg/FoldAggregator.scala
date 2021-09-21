@@ -33,7 +33,7 @@ class FoldAggregator(val initOpTypes: Seq[Type], val seqOpTypes: Seq[Type], val 
     val emitCtx = EmitContext.analyze(ctx, combOpIR, pEnv)
     val emit = new Emit[Any](emitCtx, cb.emb.ecb.asInstanceOf[EmitClassBuilder[Any]])
     val ec = emit.emit(combOpIR, cb.emb.asInstanceOf[EmitMethodBuilder[Any]], env, None)
-    ec.toI(cb).consume(cb, cb._fatal("Haven't thought through yet"), sv => state.storeNonmissing(cb, sv.get))
+    ec.toI(cb).consume(cb, state.storeMissing(cb), sv => state.storeNonmissing(cb, sv.get))
   }
 
   override protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {

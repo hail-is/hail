@@ -494,6 +494,12 @@ class Tests(unittest.TestCase):
                 lambda a, b: hl.struct(x=a.x + b.x, y=a.y * b.y))))
         self.assertEqual(sum_and_product, hl.Struct(x=4950, y=9.332621544394414e+157))
 
+        ht = ht.annotate(maybe=hl.if_else(ht.idx % 2 == 0, ht.idx, hl.missing(hl.tint32)))
+        sum_evens_missing = ht.aggregate(hl.agg.fold(0, lambda x: x + ht.maybe, lambda a, b: a + b))
+        assert sum_evens_missing is None
+        sum_evens_only = ht.aggregate(hl.agg.fold(0, lambda x: x + hl.coalesce(ht.maybe, 0), lambda a, b: hl.coalesce(a + b, a, b)))
+        self.assertEqual(sum_evens_only, 2450)
+
     def test_agg_filter(self):
         t = hl.utils.range_table(10)
         tests = [(hl.agg.filter(t.idx > 7,
