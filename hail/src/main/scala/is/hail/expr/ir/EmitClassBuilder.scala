@@ -586,8 +586,8 @@ class EmitClassBuilder[C](
       val rgs = mb.getCodeParam[Array[ReferenceGenome]](1)
       cb.ifx(rgs.length().cne(const(rgFields.length)), cb._fatal("Invalid number of references, expected ", rgFields.length.toString, " got ", rgs.length().toS))
       for ((fld, i) <- rgFields.zipWithIndex) {
+        cb += rgs(i).invoke[String, FS, Unit]("heal", ctx.localTmpdir, getFS)
         cb += fld.put(rgs(i))
-        cb += fld.get().invoke[String, FS, Unit]("heal", ctx.localTmpdir, getFS)
       }
     }
   }
