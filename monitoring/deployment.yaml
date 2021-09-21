@@ -33,14 +33,20 @@ spec:
            - -m
            - monitoring
           env:
-          - name: HAIL_DOMAIN
-            value: "{{ global.domain }}"
-          - name: PROJECT
-            value: "{{ global.project }}"
           - name: HAIL_DEPLOY_CONFIG_FILE
             value: /deploy-config/deploy-config.json
           - name: HAIL_SHA
             value: "{{ code.sha }}"
+          - name: HAIL_DOMAIN
+            valueFrom:
+              secretKeyRef:
+                name: global-config
+                key: domain
+          - name: PROJECT
+            valueFrom:
+              secretKeyRef:
+                name: global-config
+                key: gcp_project
           - name: HAIL_GCP_REGION
             valueFrom:
               secretKeyRef:
