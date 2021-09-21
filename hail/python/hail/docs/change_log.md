@@ -24,6 +24,16 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.77
+
+Release 2021-09-21
+
+### Bug fixes
+
+- (hail#10888) Fix crash when calling `hl.liftover`.
+- (hail#10883) Fix crash / long compilation times writing matrix tables with many partitions.
+
+---
 ## Version 0.2.76
 
 Released 2021-09-15
