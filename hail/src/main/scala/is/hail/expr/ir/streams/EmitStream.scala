@@ -3,6 +3,7 @@ package is.hail.expr.ir.streams
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir._
+import is.hail.expr.ir.agg.{AggStateSig, AppendOnlyBTree, GroupedBTreeKey, PhysicalAggSig, StateTuple, TupleAggregatorState}
 import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.types.physical.stypes.concrete.SUnreachable
 import is.hail.types.physical.stypes.interfaces._
@@ -257,6 +258,84 @@ object EmitStream {
             })
 
         }
+      case StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, name,
+        aggSignatures: IndexedSeq[PhysicalAggSig]) =>
+        val region = mb.genFieldThisRef[Region]("stream_buff_agg_region")
+        produce(streamChild, cb)
+          .map(cb) { case childStream: SStreamCode =>
+            val childProducer = childStream.producer
+            val eltField = mb.newEmitField("stream_buff_agg_elt", childProducer.element.emitType)
+            val newKeyResult = EmitCode.fromI(mb) { cb =>
+                  emit(newKey,
+                    cb = cb,
+                    env = env.bind(name, eltField),
+                    region = childProducer.elementRegion)
+
+              }
+            val kb = mb.ecb
+            val nestedStates = aggSignatures.toArray.map(sig => AggStateSig.getState(sig.state, kb))
+            val nested = StateTuple(nestedStates)
+            val initStateAddress = mb.genFieldThisRef[Long]("stream_buff_agg_init_add")
+            val nodeAddress = mb.genFieldThisRef[Long]("stream_buff_agg_node_add")
+            val root: Settable[Long] = kb.genFieldThisRef[Long]("stream_buff_agg_root")
+            val size: Settable[Int] = kb.genFieldThisRef[Int]("stream_buff_agg_size")
+            val initContainer = new TupleAggregatorState(kb, nested, region, initStateAddress)
+            val keyed = new GroupedBTreeKey(newKeyResult.emitType.copiedType.storageType, kb, region, nodeAddress, nested)
+            val tree = new AppendOnlyBTree(kb, keyed, region, root, maxElements = 6)
+            val producer: StreamProducer = new StreamProducer {
+              override val length: Option[EmitCodeBuilder => Code[Int]] = childProducer.length
+
+              /**
+                * Stream producer setup method. If `initialize` is called, then the `close` method
+                * must be called as well to properly handle owned resources like files.
+                *
+                * The stream's element region must be assigned by a consumer before initialize
+                * is called.
+                *
+                * This block cannot jump away, e.g. to `LendOfStream`.
+                *
+                */
+              override def initialize(cb: EmitCodeBuilder): Unit =
+                childProducer.initialize(cb)
+
+              /**
+                * Stream element region, into which the `element` is emitted. The assignment, clearing,
+                * and freeing of the element region is the responsibility of the stream consumer.
+                */
+              override val elementRegion: Settable[Region] = _
+              /**
+                * This boolean parameter indicates whether the producer's elements should be allocated in
+                * separate regions (by clearing when elements leave a consumer's scope). This parameter
+                * propagates bottom-up from producers like [[ReadPartition]] and [[StreamRange]], but
+                * it is the responsibility of consumers to implement the right memory management semantics
+                * based on this flag.
+                */
+              override val requiresMemoryManagementPerElement: Boolean = _
+              /**
+                * The `LproduceElement` label is the mechanism by which consumers drive iteration. A consumer
+                * jumps to `LproduceElement` when it is ready for an element. The code block at this label,
+                * defined by the producer, jumps to either `LproduceElementDone` or `LendOfStream`, both of
+                * which the consumer must define.
+                */
+              override val LproduceElement: CodeLabel = _
+              /**
+                * Stream element. This value is valid after the producer jumps to `LproduceElementDone`,
+                * until a consumer jumps to `LproduceElement` again, or calls `close()`.
+                */
+              override val element: EmitCode = _
+
+              /**
+                * Stream producer cleanup method. If `initialize` is called, then the `close` method
+                * must be called as well to properly handle owned resources like files.
+                */
+              override def close(cb: EmitCodeBuilder): Unit = ???
+            }
+
+          }
+
+
+
+
 
       case x@MakeStream(args, _, _requiresMemoryManagementPerElement) =>
         val region = mb.genFieldThisRef[Region]("makestream_region")
