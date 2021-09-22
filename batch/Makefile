@@ -88,7 +88,7 @@ az-create-worker-image:
 
 .PHONY: az-test-vm-disk-image
 az-test-vm-disk-image: export BATCH_WORKER_IDENTITY := $(shell az identity show --resource-group $(RESOURCE_GROUP) --name batch-worker --query id --output tsv)
-az-test-vm-disk-image: export BATCH_WORKER_IMAGE := $(shell az sig image-version show --resource-group $(RESOURCE_GROUP) --gallery-name $(SHARED_GALLERY_NAME) --gallery-image-definition batch_worker --gallery-image-version 0.0.12 --query id -o tsv)
+az-test-vm-disk-image: export BATCH_WORKER_IMAGE := $(shell az sig image-version show --resource-group $(RESOURCE_GROUP) --gallery-name $(SHARED_GALLERY_NAME) --gallery-image-definition batch-worker --gallery-image-version 0.0.12 --query id -o tsv)
 az-test-vm-disk-image:
 	  az vm create --resource-group build-batch-worker-image \
             --name build-batch-worker-image-test \
