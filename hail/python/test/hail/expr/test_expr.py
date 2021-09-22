@@ -501,8 +501,8 @@ class Tests(unittest.TestCase):
         self.assertEqual(sum_evens_only, 2450)
 
         mt = hl.utils.range_matrix_table(100, 10)
-        self.assertEquals(mt.aggregate_rows(hl.agg.fold(0, lambda a: a + mt.row_idx, lambda a, b: a + b)), 4950)
-        self.assertEquals(mt.aggregate_cols(hl.agg.fold(0, lambda a: a + mt.col_idx, lambda a, b: a + b)), 45)
+        self.assertEqual(mt.aggregate_rows(hl.agg.fold(0, lambda a: a + mt.row_idx, lambda a, b: a + b)), 4950)
+        self.assertEqual(mt.aggregate_cols(hl.agg.fold(0, lambda a: a + mt.col_idx, lambda a, b: a + b)), 45)
 
     def test_scan_fold(self):
         ht = hl.utils.range_table(15, 5)

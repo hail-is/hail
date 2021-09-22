@@ -8,7 +8,7 @@ from hail.expr import (ExpressionException, Expression, ArrayExpression,
                        NDArrayNumericExpression, expr_any, expr_oneof, expr_array, expr_set,
                        expr_bool, expr_numeric, expr_int32, expr_int64, expr_float64, expr_call,
                        expr_str, expr_ndarray, unify_all, construct_expr, Indices, Aggregation,
-                       to_expr, unify_types, unify_exprs)
+                       to_expr, unify_types)
 from hail.expr.types import (hail_type, tint32, tint64, tfloat32, tfloat64,
                              tbool, tcall, tset, tarray, tstruct, tdict, ttuple, tstr)
 from hail.expr.expressions.typed_expressions import construct_variable
