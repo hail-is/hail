@@ -805,7 +805,7 @@ class AggregatorsSuite extends HailSuite {
     runAggregator(ImputeType(), TString, FastIndexedSeq("true", "false"), Row(true, true, true, false, false, false))
   }
 
-  @Test def testFold(): Unit = {
+  @Test def testFoldAgg(): Unit = {
     val barRef = Ref("bar", TInt32)
     val bazRef = Ref("baz", TInt32)
 
@@ -821,5 +821,15 @@ class AggregatorsSuite extends HailSuite {
     val reqAnalysis = Requiredness.apply(myTableIR, ctx)
     val myLoweredTableIR = LowerTableIR(myTableIR, DArrayLowering.All, ctx, reqAnalysis, Map())
     assertEvalsTo(myLoweredTableIR, 4950)
+  }
+
+  @Test def testFoldScan(): Unit = {
+    val barRef = Ref("bar", TInt32)
+    val bazRef = Ref("baz", TInt32)
+
+    val myIR = ToArray(StreamAggScan(mapIR(rangeIR(10)){ idx => makestruct(("idx", idx), ("unused", idx + idx))}, "foo",
+      AggFold(I32(0), Ref("bar", TInt32) + GetField(Ref("foo", TStruct("idx" -> TInt32, "unused" -> TInt32)), "idx"), barRef + bazRef, "bar", "baz", true)
+    ))
+    assertEvalsTo(myIR, IndexedSeq(0, 0, 1, 3, 6, 10, 15, 21, 28, 36))
   }
 }

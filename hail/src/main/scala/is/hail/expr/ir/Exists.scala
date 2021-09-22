@@ -38,6 +38,7 @@ object Forall {
 object IsScanResult {
   def apply(root: IR): Boolean = root match {
     case _: ApplyScanOp => true
+    case AggFold(_, _, _, _, _, isScan) => isScan
     case AggFilter(_, _, isScan) => isScan
     case AggExplode(_, _, _, isScan) => isScan
     case AggGroupBy(_, _, isScan) => isScan
@@ -50,6 +51,7 @@ object IsAggResult {
   def apply(root: IR): Boolean = root match {
     case _: ApplyAggOp => true
     case _: AggFold => true
+    case AggFold(_, _, _, _, _, isScan) => !isScan
     case AggFilter(_, _, isScan) => !isScan
     case AggExplode(_, _, _, isScan) => !isScan
     case AggGroupBy(_, _, isScan) => !isScan
