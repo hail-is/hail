@@ -2823,6 +2823,9 @@ def subst(ir, env, agg_env):
         return ApplyAggOp(ir.agg_op,
                           subst_init_op_args,
                           subst_seq_op_args)
+    elif isinstance(ir, AggFold):
+        subst_seq_op = subst(ir.seq_op, agg_env, {})
+        return AggFold(ir.zero, subst_seq_op, ir.comb_op, ir.accum_name, ir.other_accum_name, ir.is_scan)
     elif isinstance(ir, AggArrayPerElement):
         return AggArrayPerElement(_subst(ir.array, agg_env),
                                   ir.element_name,
