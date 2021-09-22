@@ -99,7 +99,7 @@ object AggBindings {
       case RelationalLet(_, _, _) => None
       case CollectDistributedArray(_, _, _, _, _, _) if (i == 2) => None
       case _: ApplyAggOp => None
-      case _: AggFold => None
+      case AggFold(_, _, _, _, _, false) => None
       case _: IR => base
 
       case TableAggregateByKey(child, _) => if (i == 1) Some(child.typ.rowEnv.m) else None
@@ -134,6 +134,7 @@ object ScanBindings {
       case AggGroupBy(_, _, true) => if (i == 0) None else base
       case AggExplode(a, name, _, true) => if (i == 1) wrapped(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else None
       case AggArrayPerElement(a, elementName, _, _, _, true) => if (i == 1) wrapped(FastIndexedSeq(elementName -> a.typ.asInstanceOf[TIterable].elementType)) else if (i == 2) base else None
+      case AggFold(_, _, _, _, _, true) =>  None
       case StreamAggScan(a, name, _) => if (i == 1) Some(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else base
       case TableAggregate(_, _) => None
       case MatrixAggregate(_, _) => None
@@ -184,7 +185,12 @@ object ChildEnvWithoutBindings {
       case StreamAggScan(_, _, _) => if (i == 1) BindingEnv(eval = env.eval, agg = env.agg.map(_ => Env.empty), scan = Some(env.eval), relational = env.relational) else env
       case ApplyAggOp(init, _, _) => if (i < init.length) env.copy(agg = None) else env.promoteAgg
       case ApplyScanOp(init, _, _) => if (i < init.length) env.copy(scan = None) else env.promoteScan
-      case AggFold(zero, seqOp, combOp, elementName, accumName, _) => if (i == 0) env.copy(agg = None) else env.promoteAgg //TODO Idk what I'm doing here.
+      case AggFold(zero, seqOp, combOp, elementName, accumName, isScan) => (isScan, i) match {
+        case (true, 0) => env.copy(scan = None)
+        case (false, 0) => env.copy(agg = None)
+        case (true, _) => env.promoteScan
+        case (false, _) => env.promoteAgg
+      }
       case CollectDistributedArray(_, _, _, _, _, _) => if (i == 2) BindingEnv(relational = env.relational) else env
       case MatrixAggregate(_, _) => if (i == 0) BindingEnv(relational = env.relational) else BindingEnv(Env.empty, agg = Some(Env.empty), relational = env.relational)
       case TableAggregate(_, _) => if (i == 0) BindingEnv(relational = env.relational) else BindingEnv(Env.empty, agg = Some(Env.empty), relational = env.relational)

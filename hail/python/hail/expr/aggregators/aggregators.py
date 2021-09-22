@@ -90,6 +90,46 @@ class AggFunc(object):
             aggs = aggregations.push(Aggregation(*seq_op_args, *init_op_args))
         return construct_expr(x, ret_type, Indices(indices.source, set()), aggs)
 
+    def _fold(self, initial_value, seq_op, comb_op):
+        indices, aggregations = unify_all(initial_value)
+        accum_name = Env.get_uid()
+        other_accum_name = Env.get_uid()
+
+        accum_ref = construct_variable(accum_name, initial_value.dtype, indices, aggregations)
+        other_accum_ref = construct_variable(other_accum_name, initial_value.dtype, indices, aggregations)
+        seq_op_expr = to_expr(seq_op(accum_ref))
+        comb_op_expr = to_expr(comb_op(accum_ref, other_accum_ref))
+
+        # Tricky, all of initial_value, seq_op, comb_op need to be same type. Need to see if any change the others.
+        unified_type = unify_types(initial_value.dtype, seq_op_expr.dtype)
+        if unified_type is None:
+            raise ExpressionException("'hl.agg.fold' initial value and seq_op could not be resolved to same expression type."
+                                      f"   initial_value.dtype: {initial_value.dtype}\n"
+                                      f"   seq_op.dtype: {seq_op_expr.dtype}\n")
+
+        accum_ref = construct_variable(accum_name, unified_type, indices, aggregations)
+        other_accum_ref = construct_variable(other_accum_name, unified_type, indices, aggregations)
+        seq_op_expr = to_expr(seq_op(accum_ref))
+        comb_op_expr = to_expr(comb_op(accum_ref, other_accum_ref))
+
+        # Now, that might have changed comb_op type? Could be more general than other 2.
+        unified_type = unify_types(unified_type, seq_op_expr.dtype, comb_op_expr.dtype)
+        if unified_type is None:
+            raise ExpressionException("'hl.agg.fold' initial value, seq_op, and comb_op could not be resolved to same expression type."
+                                      f"   initial_value.dtype: {initial_value.dtype}\n"
+                                      f"   seq_op.dtype: {seq_op_expr.dtype}\n"
+                                      f"   comb_op.dtype: {comb_op_expr.dtype}")
+
+        accum_ref = construct_variable(accum_name, unified_type, indices, aggregations)
+        other_accum_ref = construct_variable(other_accum_name, unified_type, indices, aggregations)
+        seq_op_expr = to_expr(seq_op(accum_ref))
+        comb_op_expr = to_expr(comb_op(accum_ref, other_accum_ref))
+
+        return construct_expr(ir.AggFold(initial_value._ir, seq_op_expr._ir, comb_op_expr._ir, accum_name, other_accum_name, self._as_scan),
+                              initial_value.dtype,
+                              indices,
+                              aggregations)
+
     @typecheck_method(f=func_spec(1, expr_any),
                       array_agg_expr=expr_oneof(expr_array(), expr_set()))
     def explode(self, f, array_agg_expr):
@@ -1857,42 +1897,4 @@ def fold(initial_value, seq_op, comb_op):
     # Roughly, what do I need to do?
     # - Check that all the types work out:
 
-    indices, aggregations = unify_all(initial_value)
-    accum_name = Env.get_uid()
-    other_accum_name = Env.get_uid()
-
-    accum_ref = construct_variable(accum_name, initial_value.dtype, indices, aggregations)
-    other_accum_ref = construct_variable(other_accum_name, initial_value.dtype, indices, aggregations)
-    seq_op_expr = to_expr(seq_op(accum_ref))
-    comb_op_expr = to_expr(comb_op(accum_ref, other_accum_ref))
-
-    # Tricky, all of initial_value, seq_op, comb_op need to be same type. Need to see if any change the others.
-    unified_type = unify_types(initial_value.dtype, seq_op_expr.dtype)
-    if unified_type is None:
-        raise ExpressionException("'hl.agg.fold' initial value and seq_op could not be resolved to same expression type."
-                                  f"   initial_value.dtype: {initial_value.dtype}\n"
-                                  f"   seq_op.dtype: {seq_op_expr.dtype}\n")
-
-    accum_ref = construct_variable(accum_name, unified_type, indices, aggregations)
-    other_accum_ref = construct_variable(other_accum_name, unified_type, indices, aggregations)
-    seq_op_expr = to_expr(seq_op(accum_ref))
-    comb_op_expr = to_expr(comb_op(accum_ref, other_accum_ref))
-
-    # Now, that might have changed comb_op type? Could be more general than other 2.
-    unified_type = unify_types(unified_type, seq_op_expr.dtype, comb_op_expr.dtype)
-    if unified_type is None:
-        raise ExpressionException("'hl.agg.fold' initial value, seq_op, and comb_op could not be resolved to same expression type."
-                                  f"   initial_value.dtype: {initial_value.dtype}\n"
-                                  f"   seq_op.dtype: {seq_op_expr.dtype}\n"
-                                  f"   comb_op.dtype: {comb_op_expr.dtype}")
-
-    accum_ref = construct_variable(accum_name, unified_type, indices, aggregations)
-    other_accum_ref = construct_variable(other_accum_name, unified_type, indices, aggregations)
-    seq_op_expr = to_expr(seq_op(accum_ref))
-    comb_op_expr = to_expr(comb_op(accum_ref, other_accum_ref))
-
-
-    return construct_expr(ir.AggFold(initial_value._ir, seq_op_expr._ir, comb_op_expr._ir, accum_name, other_accum_name, False),
-                          initial_value.dtype,
-                          indices,
-                          aggregations)
+    return _agg_func._fold(initial_value, seq_op, comb_op)

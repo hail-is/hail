@@ -71,7 +71,8 @@ case class BindingEnv[V](
     if (agg.isDefined != newBindings.agg.isDefined || scan.isDefined != newBindings.scan.isDefined)
       throw new RuntimeException(s"found inconsistent agg or scan environments:" +
         s"\n  left: ${ agg.isDefined }, ${ scan.isDefined }" +
-        s"\n  right: ${ newBindings.agg.isDefined }, ${ newBindings.scan.isDefined }")
+        s"\n  right: ${ newBindings.agg.isDefined }, ${ newBindings.scan.isDefined }"
+      )
     if (allEmpty)
       newBindings
     else if (newBindings.allEmpty)

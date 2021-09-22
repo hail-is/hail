@@ -500,6 +500,11 @@ class Tests(unittest.TestCase):
         sum_evens_only = ht.aggregate(hl.agg.fold(0, lambda x: x + hl.coalesce(ht.maybe, 0), lambda a, b: hl.coalesce(a + b, a, b)))
         self.assertEqual(sum_evens_only, 2450)
 
+    def test_scan_fold(self):
+        ht = hl.utils.range_table(15, 5)
+        ht = ht.annotate(s=hl.scan.fold(0, lambda a: a + ht.idx, lambda a, b: a + b), )
+        self.assertEqual(ht.s.collect(), [0, 0, 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78, 91])
+
     def test_agg_filter(self):
         t = hl.utils.range_table(10)
         tests = [(hl.agg.filter(t.idx > 7,
