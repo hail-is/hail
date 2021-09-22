@@ -7,11 +7,8 @@ from concurrent.futures import ThreadPoolExecutor
 from hailtop.aiotools.fs import RouterAsyncFS, LocalAsyncFS, Transfer
 from hailtop.aiogoogle import GoogleStorageAsyncFS
 from hailtop.aiotools.s3asyncfs import S3AsyncFS
-<<<<<<< HEAD
-from hailtop.utils import tqdm
-=======
 from hailtop.aiotools.azurefs import AzureAsyncFS
->>>>>>> hi/main
+from hailtop.utils import tqdm
 
 
 def referenced_schemes(transfers: List[Transfer]):
