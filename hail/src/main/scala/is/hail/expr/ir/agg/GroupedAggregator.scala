@@ -3,35 +3,37 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitRegion, IEmitCode, ParamType}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitRegion, EmitValue, IEmitCode, ParamType}
 import is.hail.io._
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.encoded.EType
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.SValue
 import is.hail.types.virtual.{TVoid, Type}
 import is.hail.utils._
 
 class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region], val offset: Value[Long], states: StateTuple) extends BTreeKey {
-  val storageType: PStruct = PCanonicalStruct(required = true,
+  override val storageType: PStruct = PCanonicalStruct(required = true,
     "kt" -> kt,
     "regionIdx" -> PInt32(true),
     "container" -> states.storageType)
-  val compType: PType = kt
+  override val compType: PType = kt
 
-  override def compWithKey(cb: EmitCodeBuilder, off: Code[Long], k: EmitCode): Code[Int] = {
+  override def compWithKey(cb: EmitCodeBuilder, off: Code[Long], k: EmitValue): Value[Int] = {
     val mb = kb.getOrGenEmitMethod("compWithKey",
       ("compWithKey_grouped_btree", kt, k.emitType),
       FastIndexedSeq[ParamType](typeInfo[Long], k.emitParamType),
       typeInfo[Int]
     ) { mb =>
       val comp = kb.getOrderingFunction(compType.sType, k.st, CodeOrdering.Compare())
-      val off = mb.getCodeParam[Long](1)
-      val ev1 = loadCompKey(cb, off)
-      val ev2 = mb.getEmitParam(cb, 2, null) // don't need region
-      mb.emitWithBuilder(comp(_, ev1, ev2))
+      mb.emitWithBuilder { cb =>
+        val off = mb.getCodeParam[Long](1)
+        val ev1 = cb.memoize(loadCompKey(cb, off))
+        val ev2 = mb.getEmitParam(cb, 2, null) // don't need region
+        comp(cb, ev1, ev2)
+      }
     }
-    cb.invokeCode(mb, off, k)
+    cb.memoize[Int](cb.invokeCode(mb, off, k))
   }
 
   val regionIdx: Value[Int] = new Value[Int] {
@@ -42,7 +44,7 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
   def isKeyMissing(off: Code[Long]): Code[Boolean] =
     storageType.isFieldMissing(off, 0)
 
-  def loadKey(cb: EmitCodeBuilder, off: Code[Long]): SCode = {
+  def loadKey(cb: EmitCodeBuilder, off: Code[Long]): SValue = {
     kt.loadCheapSCodeField(cb, storageType.loadField(off, 0))
   }
 
@@ -51,10 +53,10 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
     k.toI(cb)
       .consume(cb,
         {
-          cb += storageType.setFieldMissing(dest, 0)
+          storageType.setFieldMissing(cb, dest, 0)
         },
         { sc =>
-          cb += storageType.setFieldPresent(dest, 0)
+          storageType.setFieldPresent(cb, dest, 0)
           storageType.fieldType("kt")
             .storeAtAddress(cb, storageType.fieldOffset(dest, 0), region, sc, deepCopy = true)
         })
@@ -75,28 +77,28 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
     def get: Code[Long] = storageType.fieldOffset(off, 2)
   }
 
-  def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Code[Boolean] =
+  override def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Code[Boolean] =
     Region.loadInt(storageType.fieldOffset(off, 1)) < 0
 
-  def initializeEmpty(cb: EmitCodeBuilder, off: Code[Long]): Unit =
+  override def initializeEmpty(cb: EmitCodeBuilder, off: Code[Long]): Unit =
     cb += Region.storeInt(storageType.fieldOffset(off, 1), -1)
 
-  def copy(cb: EmitCodeBuilder, src: Code[Long], dest: Code[Long]): Unit =
+  override def copy(cb: EmitCodeBuilder, src: Code[Long], dest: Code[Long]): Unit =
     storageType.storeAtAddress(cb, dest, region, storageType.loadCheapSCode(cb, src), deepCopy = false)
 
-  def deepCopy(cb: EmitCodeBuilder, er: EmitRegion, dest: Code[Long], srcCode: Code[Long]): Unit = {
+  override def deepCopy(cb: EmitCodeBuilder, er: EmitRegion, dest: Code[Long], srcCode: Code[Long]): Unit = {
     val src = cb.newLocal("ga_deep_copy_src", srcCode)
     storageType.storeAtAddress(cb, dest, region, storageType.loadCheapSCode(cb, src), deepCopy = true)
     container.copyFrom(cb, containerOffset(src))
     container.store(cb)
   }
 
-  def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = {
+  override def compKeys(cb: EmitCodeBuilder, k1: EmitValue, k2: EmitValue): Value[Int] = {
     kb.getOrderingFunction(k1.st, k2.st, CodeOrdering.Compare())(cb, k1, k2)
   }
 
-  def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitCode =
-    EmitCode.fromI(cb.emb)(cb => IEmitCode(cb, isKeyMissing(off), loadKey(cb, off)))
+  override def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitValue =
+    EmitValue(Some(cb.memoize(isKeyMissing(off))), loadKey(cb, off))
 }
 
 class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, val nested: StateTuple) extends PointerBasedRVAState {
@@ -212,7 +214,7 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
         cb.ifx(!km, {
           val k = keyed.loadKey(cb, _elt)
           keyEType.buildEncoder(k.st, kb)
-            .apply(cb, k, ob)
+            .apply(cb, k.get, ob)
         })
         keyed.loadStates(cb)
         nested.toCodeWithArgs(cb,
@@ -241,7 +243,7 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
         cb.assign(_elt, koff)
 
         val kc = EmitCode.fromI(cb.emb)(cb =>
-          IEmitCode(cb, ib.readBoolean(), keyEType.buildDecoder(keyType.virtualType, kb).apply(cb, region, ib)))
+          IEmitCode(cb, ib.readBoolean(), keyEType.buildDecoder(keyType.virtualType, kb).apply(cb, region, ib).memoize(cb, "deserialize")))
         initElement(cb, _elt, kc)
         nested.toCodeWithArgs(cb,
           FastIndexedSeq(ib),
@@ -288,24 +290,24 @@ class GroupedAggregator(ktV: VirtualTypeWithReq, nestedAggs: Array[StagedAggrega
 
     val len = state.size
     val resultAddr = cb.newLocal[Long]("groupedagg_result_addr", resultType.allocate(region, len))
-    cb += arrayRep.stagedInitialize(resultAddr, len, setMissing = false)
+    arrayRep.stagedInitialize(cb, resultAddr, len, setMissing = false)
     val i = cb.newLocal[Int]("groupedagg_result_i", 0)
 
     state.foreach(cb) { (cb, k) =>
       val addrAtI = cb.newLocal[Long]("groupedagg_result_addr_at_i", arrayRep.elementOffset(resultAddr, len, i))
-      cb += dictElt.stagedInitialize(addrAtI, setMissing = false)
+      dictElt.stagedInitialize(cb, addrAtI, setMissing = false)
       k.toI(cb).consume(cb,
-        cb += dictElt.setFieldMissing(addrAtI, "key"),
+        dictElt.setFieldMissing(cb, addrAtI, "key"),
         { sc =>
           dictElt.fieldType("key").storeAtAddress(cb, dictElt.fieldOffset(addrAtI, "key"), region, sc, deepCopy = true)
         })
 
       val valueAddr = cb.newLocal[Long]("groupedagg_value_addr", dictElt.fieldOffset(addrAtI, "value"))
-      cb += resultEltType.stagedInitialize(valueAddr, setMissing = false)
+      resultEltType.stagedInitialize(cb, valueAddr, setMissing = false)
       state.nested.toCode { case (nestedIdx, nestedState) =>
         val nestedAddr = cb.newLocal[Long](s"groupedagg_result_nested_addr_$nestedIdx", resultEltType.fieldOffset(valueAddr, nestedIdx))
         nestedAggs(nestedIdx).storeResult(cb, nestedState, resultEltType.types(nestedIdx), nestedAddr, region,
-          (cb: EmitCodeBuilder) => cb += resultEltType.setFieldMissing(valueAddr, nestedIdx))
+          (cb: EmitCodeBuilder) => resultEltType.setFieldMissing(cb, valueAddr, nestedIdx))
 
       }
 

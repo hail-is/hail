@@ -6,7 +6,7 @@ import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.concrete.SIndexablePointerCode
+import is.hail.types.physical.stypes.concrete.{SIndexablePointerCode, SIndexablePointerValue}
 import is.hail.types.virtual.{TInt32, Type}
 import is.hail.utils._
 
@@ -87,7 +87,7 @@ class TakeRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuilder[_]) ext
       })
   }
 
-  def resultArray(cb: EmitCodeBuilder, region: Value[Region], resType: PCanonicalArray): SIndexablePointerCode = {
+  def resultArray(cb: EmitCodeBuilder, region: Value[Region], resType: PCanonicalArray): SIndexablePointerValue = {
     resType.constructFromElements(cb, region, builder.size, deepCopy = true) { (cb, idx) =>
       builder.loadElement(cb, idx).toI(cb)
     }

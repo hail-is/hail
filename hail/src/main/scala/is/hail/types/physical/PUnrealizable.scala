@@ -20,9 +20,6 @@ trait PUnrealizable extends PType {
   override def copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
     unsupported
 
-  def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] =
-    unsupported
-
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
     unsupported
 
@@ -36,9 +33,9 @@ trait PUnrealizable extends PType {
 
   override def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SValue = unsupported
 
-  override def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = unsupported
+  override def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = unsupported
 
-  override def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = unsupported
+  override def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SValue, deepCopy: Boolean): Unit = unsupported
 
   override def containsPointers: Boolean = {
     throw new UnsupportedOperationException("containsPointers not supported on PUnrealizable")

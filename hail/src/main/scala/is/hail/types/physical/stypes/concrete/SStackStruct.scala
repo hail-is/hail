@@ -4,14 +4,14 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{Code, Settable, TypeInfo, Value}
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitSettable, EmitValue, IEmitCode}
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode, SBaseStructSettable, SBaseStructValue}
-import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType}
+import is.hail.types.physical.stypes.{EmitType, SCode, SType, SValue}
 import is.hail.types.physical.{PCanonicalBaseStruct, PCanonicalStruct, PCanonicalTuple, PTupleField, PType}
 import is.hail.types.virtual.{TBaseStruct, TStruct, TTuple, Type}
 
 object SStackStruct {
   val MAX_FIELDS_FOR_CONSTRUCT: Int = 64
 
-  def constructFromArgs(cb: EmitCodeBuilder, region: Value[Region], t: TBaseStruct, args: EmitCode*): SBaseStructCode = {
+  def constructFromArgs(cb: EmitCodeBuilder, region: Value[Region], t: TBaseStruct, args: EmitCode*): SBaseStructValue = {
     val as = args.toArray
     assert(t.size == args.size)
     if (as.length > MAX_FIELDS_FOR_CONSTRUCT) {
@@ -24,7 +24,7 @@ object SStackStruct {
       structType.constructFromFields(cb, region, as, false)
     } else {
       val st = SStackStruct(t, as.map(_.emitType))
-      new SStackStructCode(st, as)
+      new SStackStructCode(st, as).memoize(cb, "SStackStruct_constructFromArgs")
     }
   }
 }
@@ -69,33 +69,32 @@ final case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedS
     })
   }
 
-  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = {
     value match {
-      case ss: SStackStructCode =>
+      case ss: SStackStructValue =>
         if (ss.st == this && !deepCopy)
           ss
         else
-          new SStackStructCode(this, fieldEmitTypes.zip(ss.codes).map { case (newType, ec) =>
-            EmitCode.fromI(cb.emb) { cb =>
-              val iec = ec.toI(cb).map(cb) { field => newType.st.coerceOrCopy(cb, region, field, deepCopy) }
-              (newType.required, iec.required) match {
-                case (true, false) => IEmitCode.present(cb, iec.get(cb))
-                case (false, true) => iec.setOptional
-                case _ => iec
-              }
-            }
-          })
-      case _ =>
-        val sv = value.asBaseStruct.memoize(cb, "stackstruct_coerce_value")
-        new SStackStructCode(this, Array.tabulate[EmitCode](size) { i =>
-          EmitCode.fromI(cb.emb) { cb =>
-            val newType = fieldEmitTypes(i)
-            val iec = sv.loadField(cb, i).map(cb) { field => newType.st.coerceOrCopy(cb, region, field, deepCopy) }
+          new SStackStructValue(this, fieldEmitTypes.zip(ss.values).map { case (newType, ev) =>
+            val iec = ev.map(cb) { field => newType.st.coerceOrCopy(cb, region, field, deepCopy) }
             (newType.required, iec.required) match {
-              case (true, false) => IEmitCode.present(cb, iec.get(cb))
+              case (true, false) => EmitValue.present(iec.get(cb))
               case (false, true) => iec.setOptional
               case _ => iec
             }
+          })
+      case _ =>
+        val sv = value.asBaseStruct
+        new SStackStructValue(this, Array.tabulate[EmitValue](size) { i =>
+          val newType = fieldEmitTypes(i)
+          val ec = EmitCode.fromI(cb.emb) { cb =>
+            sv.loadField(cb, i).map(cb) { field => newType.st.coerceOrCopy(cb, region, field, deepCopy) }
+          }
+          val ev = ec.memoize(cb, "_coerceOrCopy")
+          (newType.required, ev.required) match {
+            case (true, false) => EmitValue.present(ev.get(cb))
+            case (false, true) => ev.setOptional
+            case _ => ev
           }
         })
     }
@@ -110,7 +109,7 @@ final case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedS
   }
 }
 
-class SStackStructValue(val st: SStackStruct, values: IndexedSeq[EmitValue]) extends SBaseStructValue {
+class SStackStructValue(val st: SStackStruct, val values: IndexedSeq[EmitValue]) extends SBaseStructValue {
   override lazy val valueTuple: IndexedSeq[Value[_]] = values.flatMap(_.valueTuple)
 
   override def get: SStackStructCode = new SStackStructCode(st, values.map(_.load))

@@ -12,6 +12,8 @@ trait SBinary extends SType {
 }
 
 trait SBinaryValue extends SValue {
+  override def get: SBinaryCode
+
   def loadLength(): Code[Int]
 
   def loadBytes(): Code[Array[Byte]]

@@ -3,13 +3,13 @@ package is.hail.types.physical
 import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.{SCode, SValue}
 import is.hail.utils._
 
 trait PPrimitive extends PType {
   def byteSize: Long
 
-  def _construct(mb: EmitMethodBuilder[_], region: Value[Region], pc: SCode): SCode = pc
+  def _construct(mb: EmitMethodBuilder[_], region: Value[Region], pc: SValue): SValue = pc
 
   override def containsPointers: Boolean = false
 
@@ -29,18 +29,18 @@ trait PPrimitive extends PType {
     Region.copyFrom(srcAddress, addr, byteSize)
   }
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
-    val newAddr = cb.newLocal[Long]("pprimitive_store_addr", region.allocate(alignment, byteSize))
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
+    val newAddr = cb.memoize(region.allocate(alignment, byteSize))
     storeAtAddress(cb, newAddr, region, value, deepCopy)
     newAddr
   }
 
 
-  override def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
+  override def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SValue, deepCopy: Boolean): Unit = {
     storePrimitiveAtAddress(cb, addr, value)
   }
 
-  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SCode): Unit
+  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SValue): Unit
 
   def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
     val addr = region.allocate(this.byteSize)

@@ -91,8 +91,10 @@ IPTABLES_WAIT_TIMEOUT_SECS = 60
 CORES = int(os.environ['CORES'])
 NAME = os.environ['NAME']
 NAMESPACE = os.environ['NAMESPACE']
+INTERNAL_BATCH_DOMAIN = 'batch.hail' if NAMESPACE == 'default' else 'internal.hail'
 # ACTIVATION_TOKEN
 IP_ADDRESS = os.environ['IP_ADDRESS']
+INTERNAL_GATEWAY_IP = os.environ['INTERNAL_GATEWAY_IP']
 BATCH_LOGS_BUCKET_NAME = os.environ['BATCH_LOGS_BUCKET_NAME']
 INSTANCE_ID = os.environ['INSTANCE_ID']
 PROJECT = os.environ['PROJECT']
@@ -182,6 +184,7 @@ class NetworkNamespace:
         with open(f'/etc/netns/{self.network_ns_name}/hosts', 'w') as hosts:
             hosts.write('127.0.0.1 localhost\n')
             hosts.write(f'{self.job_ip} {self.hostname}\n')
+            hosts.write(f'{INTERNAL_GATEWAY_IP} {INTERNAL_BATCH_DOMAIN}\n')
 
         # Jobs on the private network should have access to the metadata server
         # and our vdc. The public network should not so we use google's public
@@ -210,7 +213,6 @@ ip -n {self.network_ns_name} route add default via {self.host_ip}'''
     async def enable_iptables_forwarding(self):
         await check_shell(
             f'''
-iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --in-interface {self.veth_host} --out-interface {self.internet_interface} --jump ACCEPT && \
 iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --out-interface {self.veth_host} --in-interface {self.internet_interface} --jump ACCEPT && \
 iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --out-interface {self.veth_host} --in-interface {self.veth_host} --jump ACCEPT'''
         )

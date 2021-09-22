@@ -4,7 +4,7 @@ import is.hail.annotations.{Annotation, Region, UnsafeRow, UnsafeUtils}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
 import is.hail.types.BaseStruct
-import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.{SCode, SValue}
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerCode, SBaseStructPointerSettable, SBaseStructPointerValue}
 import is.hail.types.physical.stypes.interfaces.SBaseStruct
 import is.hail.utils._
@@ -38,12 +38,10 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     Region.setMemory(structAddress, nMissingBytes.toLong, if (setMissing) 0xFF.toByte else 0.toByte)
   }
 
-  def stagedInitialize(structAddress: Code[Long], setMissing: Boolean = false): Code[Unit] = {
-    if (allFieldsRequired) {
-      return Code._empty
+  override def stagedInitialize(cb: EmitCodeBuilder, structAddress: Code[Long], setMissing: Boolean = false): Unit = {
+    if (!allFieldsRequired) {
+      cb += Region.setMemory(structAddress, const(nMissingBytes.toLong), const(if (setMissing) 0xFF.toByte else 0.toByte))
     }
-
-    Region.setMemory(structAddress, const(nMissingBytes.toLong), const(if (setMissing) 0xFF.toByte else 0.toByte))
   }
 
   def isFieldDefined(offset: Long, fieldIdx: Int): Boolean =
@@ -60,11 +58,11 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     Region.setBit(offset, missingIdx(fieldIdx))
   }
 
-  def setFieldMissing(offset: Code[Long], fieldIdx: Int): Code[Unit] = {
+  def setFieldMissing(cb: EmitCodeBuilder, offset: Code[Long], fieldIdx: Int): Unit = {
     if (!fieldRequired(fieldIdx))
-      Region.setBit(offset, missingIdx(fieldIdx).toLong)
+      cb += Region.setBit(offset, missingIdx(fieldIdx).toLong)
     else
-      Code._fatal[Unit](s"Required field cannot be missing")
+      cb._fatal(s"Required field cannot be missing")
   }
 
   def setFieldPresent(offset: Long, fieldIdx: Int) {
@@ -72,11 +70,9 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
       Region.clearBit(offset, missingIdx(fieldIdx))
   }
 
-  def setFieldPresent(offset: Code[Long], fieldIdx: Int): Code[Unit] = {
+  def setFieldPresent(cb: EmitCodeBuilder, offset: Code[Long], fieldIdx: Int): Unit = {
     if (!fieldRequired(fieldIdx))
-      Region.clearBit(offset, missingIdx(fieldIdx).toLong)
-    else
-      Code._empty
+      cb += Region.clearBit(offset, missingIdx(fieldIdx).toLong)
   }
 
   def fieldOffset(structAddress: Long, fieldIdx: Int): Long =
@@ -161,59 +157,58 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
   def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructPointerValue =
     new SBaseStructPointerCode(sType, addr).memoizeField(cb, "loadCheapSCodeField")
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
     value.st match {
       case SBaseStructPointer(t) if t.equalModuloRequired(this) && !deepCopy =>
-        value.asInstanceOf[SBaseStructPointerCode].a
+        value.asInstanceOf[SBaseStructPointerValue].a
       case _ =>
-        val newAddr = cb.newLocal[Long]("pcbasestruct_store_newaddr")
-        cb.assign(newAddr, allocate(region))
+        val newAddr = cb.memoize(allocate(region))
         storeAtAddress(cb, newAddr, region, value, deepCopy)
         newAddr
     }
   }
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SValue, deepCopy: Boolean): Unit = {
     value.st match {
       case SBaseStructPointer(t) if t.equalModuloRequired(this) =>
-        val pcs = value.asBaseStruct.memoize(cb, "pcbasestruct_store_src").asInstanceOf[SBaseStructPointerSettable]
+        val pcs = value.asInstanceOf[SBaseStructPointerValue]
         val addrVar = cb.newLocal[Long]("pcbasestruct_store_dest_addr1", addr)
         cb += Region.copyFrom(pcs.a, addrVar, byteSize)
         if (deepCopy)
           deepPointerCopy(cb, region, addrVar)
       case _ =>
         val addrVar = cb.newLocal[Long]("pcbasestruct_store_dest_addr2", addr)
-        val pcs = value.asBaseStruct.memoize(cb, "pcbasestruct_store_src")
-        cb += stagedInitialize(addrVar, setMissing = false)
+        val pcs = value.asBaseStruct
+        stagedInitialize(cb, addrVar, setMissing = false)
 
         fields.foreach { f =>
           pcs.loadField(cb, f.index)
             .consume(cb,
               {
-                cb += setFieldMissing(addrVar, f.index)
+                setFieldMissing(cb, addrVar, f.index)
               },
-              {
-                f.typ.storeAtAddress(cb, fieldOffset(addrVar, f.index), region, _, deepCopy)
+              { sv =>
+                f.typ.storeAtAddress(cb, fieldOffset(addrVar, f.index), region, sv, deepCopy)
               })
         }
     }
   }
 
-  def constructFromFields(cb: EmitCodeBuilder, region: Value[Region], emitFields: IndexedSeq[EmitCode], deepCopy: Boolean): SBaseStructPointerCode = {
+  def constructFromFields(cb: EmitCodeBuilder, region: Value[Region], emitFields: IndexedSeq[EmitCode], deepCopy: Boolean): SBaseStructPointerValue = {
     require(emitFields.length == size)
     val addr = cb.newLocal[Long]("pcbs_construct_fields", allocate(region))
-    cb += stagedInitialize(addr, setMissing = false)
+    stagedInitialize(cb, addr, setMissing = false)
     emitFields.zipWithIndex.foreach { case (ev, i) =>
       ev.toI(cb)
         .consume(cb,
-          cb += setFieldMissing(addr, i),
+          setFieldMissing(cb, addr, i),
           { sc =>
             types(i).storeAtAddress(cb, fieldOffset(addr, i), region, sc, deepCopy = deepCopy)
           }
         )
     }
 
-    new SBaseStructPointerCode(sType, addr)
+    new SBaseStructPointerValue(sType, addr)
   }
 
   override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {

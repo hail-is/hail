@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.SValue
 import is.hail.utils._
 
 object StagedArrayBuilder {
@@ -58,7 +58,7 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
       cb += ob.writeInt(size)
       cb += ob.writeInt(capacity)
       codecSpec.encodedType.buildEncoder(eltArray.sType, kb)
-        .apply(cb, eltArray.loadCheapSCode(cb, data), ob)
+        .apply(cb, eltArray.loadCheapSCode(cb, data).get, ob)
       cb += ob.writeInt(const(StagedArrayBuilder.END_SERIALIZATION))
     }
   }
@@ -71,7 +71,7 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
       cb.assign(capacity, ib.readInt())
 
       val decValue = codecSpec.encodedType.buildDecoder(eltArray.virtualType, kb)
-        .apply(cb, region, ib)
+        .apply(cb, region, ib).memoize(cb, "StagedArrayBuilder_deserialize")
       cb.assign(data, eltArray.store(cb, region, decValue, deepCopy = false))
 
       cb += ib.readInt()
@@ -88,8 +88,8 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
   def setMissing(cb: EmitCodeBuilder): Unit = incrementSize(cb) // all elements set to missing on initialization
 
 
-  def append(cb: EmitCodeBuilder, elt: SCode, deepCopy: Boolean = true): Unit = {
-    cb += eltArray.setElementPresent(data, size)
+  def append(cb: EmitCodeBuilder, elt: SValue, deepCopy: Boolean = true): Unit = {
+    eltArray.setElementPresent(cb, data, size)
     eltType.storeAtAddress(cb, eltArray.elementOffset(data, capacity, size), region, elt, deepCopy)
     incrementSize(cb)
   }
@@ -99,12 +99,10 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
   def initialize(cb: EmitCodeBuilder): Unit = initialize(cb, const(0), const(initialCapacity))
 
   private def initialize(cb: EmitCodeBuilder, _size: Code[Int], _capacity: Code[Int]): Unit = {
-    cb += Code(
-      size := _size,
-      capacity := _capacity,
-      data := eltArray.allocate(region, capacity),
-      eltArray.stagedInitialize(data, capacity, setMissing = true)
-    )
+    cb.assign(size, _size)
+    cb.assign(capacity, _capacity)
+    cb.assign(data, eltArray.allocate(region, capacity))
+    eltArray.stagedInitialize(cb, data, capacity, setMissing = true)
   }
 
   def elementOffset(idx: Value[Int]): Code[Long] = eltArray.elementOffset(data, capacity, idx)
@@ -121,7 +119,7 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
       {
         cb.assign(capacity, capacity * 2)
         cb.assign(newDataOffset, eltArray.allocate(region, capacity))
-        cb += eltArray.stagedInitialize(newDataOffset, capacity, setMissing = true)
+        eltArray.stagedInitialize(cb, newDataOffset, capacity, setMissing = true)
         cb += Region.copyFrom(data + eltArray.lengthHeaderBytes, newDataOffset + eltArray.lengthHeaderBytes, eltArray.nMissingBytes(size).toL)
         cb += Region.copyFrom(data + eltArray.elementsOffset(size),
           newDataOffset + eltArray.elementsOffset(capacity.load()),

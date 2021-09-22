@@ -4,8 +4,8 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
-import is.hail.types.physical.stypes.concrete.SBaseStructPointerCode
-import is.hail.types.physical.{PBooleanRequired, PCanonicalStruct, PInt32Required, PStruct, PType}
+import is.hail.types.physical.stypes.concrete.SBaseStructPointerValue
+import is.hail.types.physical._
 import is.hail.types.virtual.{TFloat64, TInt32, Type}
 import is.hail.utils._
 
@@ -42,8 +42,8 @@ class ApproxCDFState(val kb: EmitClassBuilder[_]) extends AggregatorState {
     cb += aggr.invoke[ApproxCDFStateManager, Unit]("combOp", other.aggr)
   }
 
-  def result(cb: EmitCodeBuilder, region: Value[Region]): SBaseStructPointerCode = {
-    QuantilesAggregator.resultType.loadCheapSCode(cb, aggr.invoke[Region, Long]("rvResult", region)).get
+  def result(cb: EmitCodeBuilder, region: Value[Region]): SBaseStructPointerValue = {
+    QuantilesAggregator.resultType.loadCheapSCode(cb, aggr.invoke[Region, Long]("rvResult", region))
   }
 
   def newState(cb: EmitCodeBuilder, off: Code[Long]): Unit = cb += region.getNewRegion(regionSize)

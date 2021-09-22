@@ -1,12 +1,12 @@
 package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{BooleanInfo, Code, IntInfo, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
+import is.hail.asm4s.{BooleanInfo, Code, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
 import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, SortOrder}
+import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.stypes.interfaces.{SInterval, SIntervalCode, SIntervalValue}
-import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType}
-import is.hail.types.physical.{PCanonicalInterval, PInterval, PType}
+import is.hail.types.physical.stypes._
+import is.hail.types.physical.{PInterval, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils.FastIndexedSeq
 
@@ -14,9 +14,12 @@ import is.hail.utils.FastIndexedSeq
 final case class SIntervalPointer(pType: PInterval) extends SInterval {
   require(!pType.required)
 
-  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
-    new SIntervalPointerCode(this, pType.store(cb, region, value, deepCopy))
-  }
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue =
+    value match {
+      case value: SIntervalValue =>
+        new SIntervalPointerValue(this, pType.store(cb, region, value, deepCopy), value.includesStart(), value.includesEnd())
+    }
+
 
   override def castRename(t: Type): SType = SIntervalPointer(pType.deepRename(t).asInstanceOf[PInterval])
 
@@ -56,7 +59,7 @@ class SIntervalPointerValue(
   val includesStart: Value[Boolean],
   val includesEnd: Value[Boolean]
 ) extends SIntervalValue {
-  override def get: SIntervalCode = new SIntervalPointerCode(st, a)
+  override def get: SIntervalPointerCode = new SIntervalPointerCode(st, a)
 
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a, includesStart, includesEnd)
 
@@ -76,7 +79,7 @@ class SIntervalPointerValue(
 
   override def endDefined(cb: EmitCodeBuilder): Code[Boolean] = pt.endDefined(a)
 
-  override def isEmpty(cb: EmitCodeBuilder): Code[Boolean] = {
+  override def isEmpty(cb: EmitCodeBuilder): Value[Boolean] = {
     val gt = cb.emb.ecb.getOrderingFunction(st.pointType, CodeOrdering.Gt())
     val gteq = cb.emb.ecb.getOrderingFunction(st.pointType, CodeOrdering.Gteq())
 

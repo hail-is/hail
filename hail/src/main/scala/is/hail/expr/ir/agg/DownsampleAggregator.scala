@@ -3,42 +3,45 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitParamType, EmitRegion, IEmitCode, SCodeEmitParamType, ParamType}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitRegion, EmitValue, IEmitCode, ParamType}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.encoded.EType
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.SingleCodeSCode
-import is.hail.types.physical.stypes.concrete.SIndexablePointerCode
+import is.hail.types.physical.stypes.concrete.SIndexablePointerValue
+import is.hail.types.physical.stypes.interfaces.SBaseStructValue
 import is.hail.types.virtual._
 import is.hail.utils._
 
 
 class DownsampleBTreeKey(binType: PBaseStruct, pointType: PBaseStruct, kb: EmitClassBuilder[_], region: Code[Region]) extends BTreeKey {
-  val storageType: PCanonicalStruct = PCanonicalStruct(required = true,
+  override val storageType: PCanonicalStruct = PCanonicalStruct(required = true,
     "bin" -> binType,
     "point" -> pointType,
     "empty" -> PBooleanRequired)
 
-  val compType: PType = binType
+  override val compType: PType = binType
   private val kcomp = kb.getOrderingFunction(binType.sType, CodeOrdering.Compare())
 
-  def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Code[Boolean] = PBooleanRequired.loadCheapSCode(cb, storageType.loadField(off, "empty")).boolCode(cb)
+  override def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Code[Boolean] = PBooleanRequired.loadCheapSCode(cb, storageType.loadField(off, "empty")).boolCode(cb)
 
-  def initializeEmpty(cb: EmitCodeBuilder, off: Code[Long]): Unit = cb += Region.storeBoolean(storageType.fieldOffset(off, "empty"), true)
+  override def initializeEmpty(cb: EmitCodeBuilder, off: Code[Long]): Unit = cb += Region.storeBoolean(storageType.fieldOffset(off, "empty"), true)
 
-  def copy(cb: EmitCodeBuilder, src: Code[Long], dest: Code[Long]): Unit = cb += Region.copyFrom(src, dest, storageType.byteSize)
+  override def copy(cb: EmitCodeBuilder, src: Code[Long], dest: Code[Long]): Unit = cb += Region.copyFrom(src, dest, storageType.byteSize)
 
-  def deepCopy(cb: EmitCodeBuilder, er: EmitRegion, srcc: Code[Long], dest: Code[Long]): Unit = {
+  override def deepCopy(cb: EmitCodeBuilder, er: EmitRegion, srcc: Code[Long], dest: Code[Long]): Unit = {
     val src = cb.newLocal[Long]("dsa_deep_copy_src", srcc)
     cb.ifx(Region.loadBoolean(storageType.loadField(src, "empty")),
       cb += Code._fatal[Unit]("key empty!"))
     storageType.storeAtAddress(cb, dest, er.region, storageType.loadCheapSCode(cb, src), deepCopy = true)
   }
 
-  def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = kcomp(cb, k1, k2)
+  override def compKeys(cb: EmitCodeBuilder, k1: EmitValue, k2: EmitValue): Value[Int] =
+    kcomp(cb, k1, k2)
 
-  def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitCode = EmitCode.present(cb.emb, binType.loadCheapSCode(cb, storageType.loadField(off, "bin")))
+  override def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitValue =
+    EmitValue.present(binType.loadCheapSCode(cb, storageType.loadField(off, "bin")))
 }
 
 
@@ -209,10 +212,10 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
           val src = cb.newLocal("downsample_state_ser_src", srcCode)
           cb += Region.loadBoolean(key.storageType.loadField(src, "empty")).orEmpty(Code._fatal[Unit]("bad"))
           val binCode = binType.loadCheapSCode(cb, key.storageType.loadField(src, "bin"))
-          binET.buildEncoder(binCode.st, kb).apply(cb, binCode, ob)
+          binET.buildEncoder(binCode.st, kb).apply(cb, binCode.get, ob)
 
           val pointCode = pointType.loadCheapSCode(cb, key.storageType.loadField(src, "point"))
-          pointET.buildEncoder(pointCode.st, kb).apply(cb, pointCode, ob)
+          pointET.buildEncoder(pointCode.st, kb).apply(cb, pointCode.get, ob)
         }
         cb += ob.writeInt(DownsampleState.serializationEndMarker)
         Code._empty
@@ -362,13 +365,10 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
         cb.assign(i, 0)
         cb.whileLoop(i < buffer.size,
           {
-            buffer.loadElement(cb, i).toI(cb).consume(cb, {}, { elt =>
-              val point = elt.asBaseStruct.memoize(cb , "elt")
-              val xc = point.loadField(cb, "x").get(cb).asFloat64.doubleCode(cb)
-              val yc = point.loadField(cb, "y").get(cb).asFloat64.doubleCode(cb)
-              val x = cb.newLocal[Double]("x", xc)
-              val y = cb.newLocal[Double]("y", yc)
-              val pointc = SingleCodeSCode.fromSCode(cb, point, region).code.asInstanceOf[Code[Long]]
+            buffer.loadElement(cb, i).toI(cb).consume(cb, {}, { case point: SBaseStructValue =>
+              val x = point.loadField(cb, "x").get(cb).asFloat64.doubleCode(cb)
+              val y = point.loadField(cb, "y").get(cb).asFloat64.doubleCode(cb)
+              val pointc = coerce[Long](SingleCodeSCode.fromSCode(cb, point, region).code)
               insertIntoTree(cb, xBinCoordinate(x), yBinCoordinate(y), pointc, deepCopy = true)
             })
             cb.assign(i, i + 1)
@@ -449,9 +449,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
       val pointStaging = mb.newLocal[Long]("pointStaging")
       mb.voidWithBuilder { cb =>
         val x = mb.getSCodeParam(1)
-          .memoize(cb, "downsample_insert_x")
         val y = mb.getSCodeParam(2)
-          .memoize(cb, "downsample_insert_y")
         val l = mb.getEmitParam(cb, 3, region)
 
         def xx = x.asDouble.doubleCode(cb)
@@ -464,9 +462,9 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
         pointType.fieldType("y").storeAtAddress(cb, pointType.fieldOffset(pointStaging, "y"), region, y, deepCopy = true)
         l.toI(cb)
           .consume(cb,
-            cb += pointType.setFieldMissing(pointStaging, "label"),
+            pointType.setFieldMissing(cb, pointStaging, "label"),
             { sc =>
-              cb += pointType.setFieldPresent(pointStaging, "label")
+              pointType.setFieldPresent(cb, pointStaging, "label")
               pointType.fieldType("label").storeAtAddress(cb, pointType.fieldOffset(pointStaging, "label"), region, sc, deepCopy = true)
             }
           )
@@ -516,7 +514,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
       cb.assign(i, 0)
       cb.whileLoop(i < other.buffer.size, {
         val point = SingleCodeSCode.fromSCode(cb, other.buffer.loadElement(cb, i).pv, region)
-        deepCopyAndInsertPoint(cb, point.code.asInstanceOf[Code[Long]])
+        deepCopyAndInsertPoint(cb, coerce[Long](point.code))
         cb.assign(i, i + 1)
       })
       other.tree.foreach(cb) { (cb, value) =>
@@ -527,11 +525,9 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
     cb.invokeVoid(mb)
   }
 
-  def resultArray(cb: EmitCodeBuilder, region: Value[Region], resType: PCanonicalArray): SIndexablePointerCode = {
+  def resultArray(cb: EmitCodeBuilder, region: Value[Region], resType: PCanonicalArray): SIndexablePointerValue = {
     // dump all elements into tree for simplicity
     dumpBuffer(cb)
-
-    val eltType = resType.elementType.asInstanceOf[PCanonicalBaseStruct]
 
     val (pushElement, finish) = resType.constructFromFunctions(cb, region, treeSize, deepCopy = true)
     cb.ifx(treeSize > 0, {

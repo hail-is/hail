@@ -1,6 +1,7 @@
 package is.hail.io.index
 
 import java.io.OutputStream
+
 import is.hail.annotations.{Annotation, Region, RegionPool, RegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir.{CodeParam, EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, IEmitCode, IntArrayBuilder, LongArrayBuilder, ParamType}
@@ -8,7 +9,7 @@ import is.hail.io._
 import is.hail.io.fs.FS
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.types
-import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.{SCode, SValue}
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerSettable}
 import is.hail.types.physical.stypes.interfaces.SBaseStructValue
 import is.hail.types.physical.{PCanonicalArray, PCanonicalStruct, PType}
@@ -115,28 +116,28 @@ class IndexWriterArrayBuilder(name: String, maxSize: Int, sb: SettableBuilder, r
 
   def create(cb: EmitCodeBuilder, dest: Code[Long]): Unit = {
     cb.assign(aoff, arrayType.allocate(region, maxSize))
-    cb += arrayType.stagedInitialize(aoff, maxSize)
+    arrayType.stagedInitialize(cb, aoff, maxSize)
     arrayType.storeAtAddress(cb, dest, region, arrayType.loadCheapSCode(cb, aoff), deepCopy = false)
     cb.assign(len, 0)
   }
 
-  def storeLength(cb: EmitCodeBuilder): Unit = cb += arrayType.storeLength(aoff, length)
+  def storeLength(cb: EmitCodeBuilder): Unit = arrayType.storeLength(cb, aoff, length)
 
-  def setFieldValue(cb: EmitCodeBuilder, name: String, field: SCode): Unit = {
-    cb += eltType.setFieldPresent(elt.a, name)
+  def setFieldValue(cb: EmitCodeBuilder, name: String, field: SValue): Unit = {
+    eltType.setFieldPresent(cb, elt.a, name)
     eltType.fieldType(name).storeAtAddress(cb, eltType.fieldOffset(elt.a, name), region, field, deepCopy = true)
   }
 
   def setField(cb: EmitCodeBuilder, name: String, v: => IEmitCode): Unit =
     v.consume(cb,
-      cb += eltType.setFieldMissing(elt.a, name),
-      setFieldValue(cb, name, _))
+      eltType.setFieldMissing(cb, elt.a, name),
+      sv => setFieldValue(cb, name, sv))
 
   def addChild(cb: EmitCodeBuilder): Unit = {
     loadChild(cb, len)
     cb.assign(len, len + 1)
   }
-  def loadChild(cb: EmitCodeBuilder, idx: Code[Int]): Unit = elt.store(cb, eltType.loadCheapSCode(cb, arrayType.loadElement(aoff, idx)))
+  def loadChild(cb: EmitCodeBuilder, idx: Code[Int]): Unit = elt.store(cb, eltType.loadCheapSCode(cb, arrayType.loadElement(aoff, idx)).get)
   def getLoadedChild: SBaseStructValue = elt
 }
 

@@ -4,7 +4,7 @@ import is.hail.annotations.{Annotation, Region, UnsafeOrdering}
 import is.hail.asm4s._
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.{SCode, SValue}
 import is.hail.types.physical.stypes.concrete.{SCanonicalCall, SCanonicalCallCode, SCanonicalCallValue}
 import is.hail.types.physical.stypes.interfaces.SCall
 import is.hail.utils._
@@ -48,17 +48,17 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
   def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SCanonicalCallValue =
     new SCanonicalCallCode(Region.loadInt(addr)).memoizeField(cb, "loadCheapSCodeField")
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
     value.st match {
       case SCanonicalCall =>
-        val newAddr = cb.newLocal[Long]("pcanonicalcall_store_addr", region.allocate(representation.alignment, representation.byteSize))
+        val newAddr = cb.memoize(region.allocate(representation.alignment, representation.byteSize))
         storeAtAddress(cb, newAddr, region, value, deepCopy)
         newAddr
     }
   }
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
-    cb += Region.storeInt(addr, value.asCall.loadCanonicalRepresentation(cb))
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SValue, deepCopy: Boolean): Unit = {
+    cb += Region.storeInt(addr, value.asCall.canonicalCall(cb))
   }
 
   def loadFromNested(addr: Code[Long]): Code[Long] = representation.loadFromNested(addr)

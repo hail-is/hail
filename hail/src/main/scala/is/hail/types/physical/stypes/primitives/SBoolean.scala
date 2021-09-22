@@ -16,7 +16,7 @@ case object SBoolean extends SPrimitive {
 
   override def castRename(t: Type): SType = this
 
-  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = {
     value.st match {
       case SBoolean =>
         value
@@ -65,9 +65,11 @@ class SBooleanValue(x: Value[Boolean]) extends SPrimitiveValue {
 
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(x)
 
-  override def get: SCode = new SBooleanCode(x)
+  override def _primitiveValue: Value[_] = x
 
-  def boolCode(cb: EmitCodeBuilder): Code[Boolean] = x
+  override def get: SBooleanCode = new SBooleanCode(x)
+
+  def boolCode(cb: EmitCodeBuilder): Value[Boolean] = x
 
   override def hash(cb: EmitCodeBuilder): SInt32Code = new SInt32Code(boolCode(cb).toI)
 }

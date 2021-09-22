@@ -495,17 +495,19 @@ object LowerBlockMatrixIR {
           }
 
           def blockBody(ctxRef: Ref): IR = {
-            def blockMultiply(elt: Ref) =
-              bindIR(GetTupleElement(elt, 0)) { leftElt =>
-                bindIR(GetTupleElement(elt, 1)) { rightElt =>
-                  NDArrayMatMul(left.blockBody(leftElt), right.blockBody(rightElt), ErrorIDs.NO_ERROR)
-                }
-              }
-            foldIR(ToStream(ArraySlice(ctxRef, I32(1), None)),
-              bindIR(ArrayRef(ctxRef, 0))(blockMultiply)) { (sum, elt) =>
-              NDArrayMap2(sum, blockMultiply(elt), "l", "r",
-                Ref("l", x.typ.elementType) + Ref("r", x.typ.elementType), ErrorIDs.NO_ERROR)
-            }
+            val tupleNDArrayStream = ToStream(ctxRef)
+            val streamElementName = genUID()
+            val streamElementRef = Ref(streamElementName, tupleNDArrayStream.typ.asInstanceOf[TStream].elementType)
+            val leftName = genUID()
+            val rightName = genUID()
+            val leftRef = Ref(leftName, tupleNDArrayStream.typ.asInstanceOf[TStream].elementType.asInstanceOf[TTuple].types(0))
+            val rightRef = Ref(rightName, tupleNDArrayStream.typ.asInstanceOf[TStream].elementType.asInstanceOf[TTuple].types(1))
+            StreamAgg(tupleNDArrayStream, streamElementName, {
+              AggLet(leftName, GetTupleElement(streamElementRef, 0),
+                AggLet(rightName, GetTupleElement(streamElementRef, 1),
+              ApplyAggOp(NDArrayMultiplyAdd())(left.blockBody(leftRef),
+                right.blockBody(rightRef)), isScan=false), isScan=false)
+            })
           }
         }
     }

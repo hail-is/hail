@@ -4,6 +4,7 @@ metadata:
   name: letsencrypt
   labels:
     app: letsencrypt
+    hail.is/sha: "{{ code.sha }}"
 spec:
   ports:
   - name: http

@@ -7,7 +7,7 @@ import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder, IEmitCode, RequirednessSu
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete.SStringPointer
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.primitives.SInt32Code
+import is.hail.types.physical.stypes.primitives.{SInt32Code, SInt32Value}
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -185,7 +185,7 @@ class StagedConstructorSuite extends HailSuite {
       arrayType.constructFromElements(cb, region, const(2), false) { (cb, idx) =>
         val st = SStringPointer(PCanonicalString())
         IEmitCode.present(cb, structType.constructFromFields(cb, region, FastIndexedSeq(
-          EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, primitive(idx + 1))),
+          EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, primitive(cb.memoize(idx + 1)))),
           EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, st.constructFromString(cb, region, fb.getCodeParam[String](2))))
         ), deepCopy = false))
       }.a
@@ -313,8 +313,14 @@ class StagedConstructorSuite extends HailSuite {
     fb.emitWithBuilder { cb =>
       val region = fb.emb.getCodeParam[Region](1)
       rt.constructFromFields(cb, region, FastIndexedSeq(
-        EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, SStringPointer(PCanonicalString()).constructFromString(cb, region, fb.getCodeParam[String](2)))),
-        EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, tArray.constructFromElements(cb, region, const(2), deepCopy = false) {(cb, idx) => IEmitCode.present(cb, primitive(idx + 1))}))
+        EmitCode.fromI(cb.emb)(cb =>
+          IEmitCode.present(cb,
+            SStringPointer(PCanonicalString()).constructFromString(cb, region, fb.getCodeParam[String](2)))),
+        EmitCode.fromI(cb.emb)(cb =>
+          IEmitCode.present(cb,
+            tArray.constructFromElements(cb, region, const(2), deepCopy = false) { (cb, idx) =>
+              IEmitCode.present(cb, primitive(cb.memoize(idx + 1)))
+            }))
       ), deepCopy = false).a
     }
 
@@ -362,7 +368,7 @@ class StagedConstructorSuite extends HailSuite {
     fb.emitWithBuilder { cb =>
       val region = fb.emb.getCodeParam[Region](1)
       rt.constructFromElements(cb, region, const(2), deepCopy = false) { (cb, idx) =>
-        IEmitCode(cb, idx > 0, new SInt32Code(fb.getCodeParam[Int](2)))
+        IEmitCode(cb, idx > 0, new SInt32Value(fb.getCodeParam[Int](2)))
       }.a
     }
 

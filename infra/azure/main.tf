@@ -2,7 +2,7 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "=2.70.0"
+      version = "=2.74.0"
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"
@@ -16,15 +16,19 @@ provider "azurerm" {
   features {}
 }
 
+locals {
+  acr_name = var.acr_name == "" ? var.az_resource_group_name : var.acr_name
+}
+
 data "azurerm_resource_group" "rg" {
   name = var.az_resource_group_name
 }
 
 resource "azurerm_virtual_network" "default" {
-  name = "default"
+  name                = "default"
   resource_group_name = data.azurerm_resource_group.rg.name
-  address_space = ["10.0.0.0/8"]
-  location = data.azurerm_resource_group.rg.location
+  address_space       = ["10.0.0.0/8"]
+  location            = data.azurerm_resource_group.rg.location
 }
 
 resource "azurerm_subnet" "k8s_subnet" {
@@ -32,6 +36,8 @@ resource "azurerm_subnet" "k8s_subnet" {
   address_prefixes     = ["10.240.0.0/16"]
   resource_group_name  = data.azurerm_resource_group.rg.name
   virtual_network_name = azurerm_virtual_network.default.name
+
+  enforce_private_link_endpoint_network_policies = true
 }
 
 resource "azurerm_subnet" "batch_worker_subnet" {
@@ -48,9 +54,9 @@ resource "azurerm_kubernetes_cluster" "vdc" {
   dns_prefix          = "example"
 
   default_node_pool {
-    name       = "default"
-    node_count = 1
-    vm_size    = "Standard_D2_v2"
+    name           = "default"
+    node_count     = 1
+    vm_size        = "Standard_D2_v2"
     vnet_subnet_id = azurerm_subnet.k8s_subnet.id
   }
 
@@ -60,16 +66,48 @@ resource "azurerm_kubernetes_cluster" "vdc" {
 }
 
 resource "azurerm_kubernetes_cluster_node_pool" "vdc_pool" {
-  name = "pool"
+  name                  = "pool"
   kubernetes_cluster_id = azurerm_kubernetes_cluster.vdc.id
-  vm_size = "Standard_D2_v2"
-  vnet_subnet_id = azurerm_subnet.k8s_subnet.id
+  vm_size               = "Standard_D2_v2"
+  vnet_subnet_id        = azurerm_subnet.k8s_subnet.id
 
   enable_auto_scaling = true
 
-  node_count = 1
   min_count = 0
   max_count = 200
+}
+
+resource "azurerm_public_ip" "gateway_ip" {
+  name                = "gateway-ip"
+  resource_group_name = azurerm_kubernetes_cluster.vdc.node_resource_group
+  location            = data.azurerm_resource_group.rg.location
+  sku                 = "Standard"
+  allocation_method   = "Static"
+}
+
+resource "azurerm_container_registry" "acr" {
+  name                = local.acr_name
+  resource_group_name = data.azurerm_resource_group.rg.name
+  location            = data.azurerm_resource_group.rg.location
+  sku                 = var.acr_sku
+}
+
+resource "azurerm_role_assignment" "vdc_to_acr" {
+  scope                = azurerm_container_registry.acr.id
+  role_definition_name = "AcrPull"
+  principal_id         = azurerm_kubernetes_cluster.vdc.kubelet_identity[0].object_id
+}
+
+resource "azurerm_role_assignment" "vdc_batch_worker_subnet" {
+  scope                = azurerm_subnet.batch_worker_subnet.id
+  role_definition_name = "Network Contributor"
+  principal_id         = azurerm_kubernetes_cluster.vdc.identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "vdc_k8s_subnet" {
+  scope                = azurerm_subnet.k8s_subnet.id
+  role_definition_name = "Network Contributor"
+  principal_id         = azurerm_kubernetes_cluster.vdc.identity[0].principal_id
 }
 
 resource "random_id" "db_name_suffix" {
@@ -94,4 +132,18 @@ resource "azurerm_mysql_server" "db" {
 
   ssl_enforcement_enabled       = true
   public_network_access_enabled = false
+}
+
+resource "azurerm_private_endpoint" "db_endpoint" {
+  name                = "${azurerm_mysql_server.db.name}-endpoint"
+  resource_group_name = data.azurerm_resource_group.rg.name
+  location            = data.azurerm_resource_group.rg.location
+  subnet_id           = azurerm_subnet.k8s_subnet.id
+
+  private_service_connection {
+    name                           = "${azurerm_mysql_server.db.name}-endpoint"
+    private_connection_resource_id = azurerm_mysql_server.db.id
+    subresource_names              = [ "mysqlServer" ]
+    is_manual_connection           = false
+  }
 }

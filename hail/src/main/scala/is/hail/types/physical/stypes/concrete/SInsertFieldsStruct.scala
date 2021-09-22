@@ -4,13 +4,13 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{Code, Settable, TypeInfo, Value}
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitSettable, EmitValue, IEmitCode}
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode, SBaseStructSettable, SBaseStructValue}
-import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType}
-import is.hail.types.physical.{PCanonicalStruct, PType, StoredSTypePType}
+import is.hail.types.physical.stypes.{EmitType, SCode, SType, SValue}
+import is.hail.types.physical.{PCanonicalStruct, PType}
 import is.hail.types.virtual.{TStruct, Type}
 import is.hail.utils._
 
 object SInsertFieldsStruct {
-  def merge(cb: EmitCodeBuilder, s1: SBaseStructCode, s2: SBaseStructCode): SInsertFieldsStructCode = {
+  def merge(cb: EmitCodeBuilder, s1: SBaseStructValue, s2: SBaseStructValue): SInsertFieldsStructValue = {
     val lt = s1.st.virtualType.asInstanceOf[TStruct]
     val rt = s2.st.virtualType.asInstanceOf[TStruct]
     val resultVType = TStruct.concat(lt, rt)
@@ -20,10 +20,9 @@ object SInsertFieldsStruct {
     val st = SInsertFieldsStruct(resultVType, st1, rt.fieldNames.zip(st2.fieldEmitTypes))
 
     if (st2.size == 1) {
-      new SInsertFieldsStructCode(st, s1, FastIndexedSeq(EmitCode.fromI(cb.emb)(cb => s2.loadSingleField(cb, 0))))
+      new SInsertFieldsStructValue(st, s1, FastIndexedSeq(cb.memoize(s2.loadField(cb, 0), "InsertFieldsStruct_merge")))
     } else {
-      val s2m = s2.memoize(cb, "insert_fields_merge")
-      new SInsertFieldsStructCode(st, s1, (0 until st2.size).map(i => EmitCode.fromI(cb.emb)(cb => s2m.loadField(cb, i))))
+      new SInsertFieldsStructValue(st, s1, (0 until st2.size).map(i => cb.memoize(s2.loadField(cb, i), "InsertFieldsStruct_merge")))
     }
   }
 }
@@ -97,9 +96,9 @@ final case class SInsertFieldsStruct(virtualType: TStruct, parent: SBaseStruct, 
     })
   }
 
-  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = {
     value match {
-      case ss: SInsertFieldsStructCode if ss.st == this => value
+      case ss: SInsertFieldsStructValue if ss.st == this => value
       case _ => throw new RuntimeException(s"copy insertfields struct")
     }
   }
@@ -155,6 +154,15 @@ class SInsertFieldsStructValue(
       case Left(parentIdx) => parent.isFieldMissing(parentIdx)
       case Right(newFieldsIdx) => newFields(newFieldsIdx).m
     }
+
+  override def _insert(newType: TStruct, fields: (String, EmitValue)*): SBaseStructValue = {
+    val newFieldSet = fields.map(_._1).toSet
+    val filteredNewFields = st.insertedFields.map(_._1)
+      .zipWithIndex
+      .filter { case (name, idx) => !newFieldSet.contains(name) }
+      .map { case (name, idx) => (name, newFields(idx)) }
+    parent._insert(newType, filteredNewFields ++ fields: _*)
+  }
 }
 
 final class SInsertFieldsStructSettable(

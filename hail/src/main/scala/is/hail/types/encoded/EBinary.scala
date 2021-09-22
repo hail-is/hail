@@ -3,13 +3,12 @@ package is.hail.types.encoded
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
-import is.hail.types.BaseType
-import is.hail.types.physical._
-import is.hail.types.virtual._
 import is.hail.io.{InputBuffer, OutputBuffer}
+import is.hail.types.physical._
+import is.hail.types.physical.stypes.concrete._
+import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryValue, SString}
 import is.hail.types.physical.stypes.{SCode, SType, SValue}
-import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SBinaryPointerCode, SBinaryPointerSettable, SStringPointer, SStringPointerCode, SStringPointerSettable}
-import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryValue, SString, SStringValue}
+import is.hail.types.virtual._
 import is.hail.utils._
 
 case object EBinaryOptional extends EBinary(false)
@@ -19,7 +18,7 @@ class EBinary(override val required: Boolean) extends EType {
 
   override def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = {
 
-    def writeCanonicalBinary(bin: SBinaryPointerSettable): Unit = {
+    def writeCanonicalBinary(bin: SBinaryPointerValue): Unit = {
       val len = cb.newLocal[Int]("len", bin.loadLength())
       cb += out.writeInt(len)
       cb += out.writeBytes(bin.bytesAddress(), len)
@@ -33,8 +32,8 @@ class EBinary(override val required: Boolean) extends EType {
     }
 
     v.st match {
-      case SBinaryPointer(_) => writeCanonicalBinary(v.asInstanceOf[SBinaryPointerSettable])
-      case SStringPointer(_) => writeCanonicalBinary(v.asInstanceOf[SStringPointerSettable].binaryRepr())
+      case SBinaryPointer(_) => writeCanonicalBinary(v.asInstanceOf[SBinaryPointerValue])
+      case SStringPointer(_) => writeCanonicalBinary(v.asInstanceOf[SStringPointerValue].binaryRepr())
       case _: SBinary => writeBytes(v.asInstanceOf[SBinaryValue].loadBytes())
       case _: SString => writeBytes(v.get.asString.toBytes().loadBytes())
     }
@@ -47,10 +46,10 @@ class EBinary(override val required: Boolean) extends EType {
       case SBinaryPointer(t) => t
     }
 
-    val bT = pt.asInstanceOf[PBinary]
+    val bT = pt
     val len = cb.newLocal[Int]("len", in.readInt())
     val barray = cb.newLocal[Long]("barray", bT.allocate(region, len))
-    cb += bT.storeLength(barray, len)
+    bT.storeLength(cb, barray, len)
     cb += in.readBytes(region, bT.bytesAddress(barray), len)
     t1 match {
       case t: SStringPointer => new SStringPointerCode(t, barray)

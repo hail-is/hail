@@ -1,6 +1,6 @@
 package is.hail.types.physical.stypes.interfaces
 
-import is.hail.asm4s.Code
+import is.hail.asm4s.{Code, Value}
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.primitives.SInt32Code
 import is.hail.types.physical.stypes.{SCode, SType, SValue}
@@ -14,12 +14,17 @@ trait SLocus extends SType {
 }
 
 trait SLocusValue extends SValue {
-  def contig(cb: EmitCodeBuilder): SStringCode
+  override def st: SLocus
 
-  def position(cb: EmitCodeBuilder): Code[Int]
+  def contig(cb: EmitCodeBuilder): SStringValue
 
-  def getLocusObj(cb: EmitCodeBuilder): Code[Locus] = Code.invokeStatic2[Locus, String, Int, Locus]("apply",
-    contig(cb).loadString(), position(cb))
+  def contigLong(cb: EmitCodeBuilder): Value[Long]
+
+  def position(cb: EmitCodeBuilder): Value[Int]
+
+  def getLocusObj(cb: EmitCodeBuilder): Value[Locus] =
+    cb.memoize(Code.invokeStatic2[Locus, String, Int, Locus]("apply",
+      contig(cb).loadString(cb), position(cb)))
 
   def structRepr(cb: EmitCodeBuilder): SBaseStructValue
 

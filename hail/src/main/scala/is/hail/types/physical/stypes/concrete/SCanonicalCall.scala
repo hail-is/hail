@@ -2,20 +2,17 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.interfaces.{SCall, SCallCode, SCallValue, SIndexableValue}
-import is.hail.types.physical.stypes.{SCode, SSettable, SType}
+import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
 import is.hail.types.physical.{PCall, PCanonicalCall, PType}
 import is.hail.types.virtual.{TCall, Type}
 import is.hail.utils._
-import is.hail.variant.{AllelePair, Call, Call1, Call2, Genotype}
-
-import scala.reflect.classTag
+import is.hail.variant._
 
 
 case object SCanonicalCall extends SCall {
-  def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = {
     value.st match {
       case SCanonicalCall => value
     }
@@ -45,13 +42,14 @@ case object SCanonicalCall extends SCall {
 
   def containsPointers: Boolean = false
 
-  def constructFromIntRepr(c: Code[Int]): SCanonicalCallCode = new SCanonicalCallCode(c)
+  def constructFromIntRepr(cb: EmitCodeBuilder, c: Code[Int]): SCanonicalCallValue =
+    new SCanonicalCallValue(cb.memoize(c))
 }
 
 class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
   val pt: PCall = PCanonicalCall(false)
 
-  override def canonicalCall(cb: EmitCodeBuilder): Code[Int] = call
+  override def canonicalCall(cb: EmitCodeBuilder): Value[Int] = call
 
   override val st: SCanonicalCall.type = SCanonicalCall
 
@@ -88,7 +86,7 @@ class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
     })
   }
 
-  override def lgtToGT(cb: EmitCodeBuilder, localAlleles: SIndexableValue, errorID: Value[Int]): SCallCode = {
+  override def lgtToGT(cb: EmitCodeBuilder, localAlleles: SIndexableValue, errorID: Value[Int]): SCallValue = {
 
     def checkAndTranslate(cb: EmitCodeBuilder, allele: Code[Int]): Code[Int] = {
       val av = cb.newLocal[Int](s"allele", allele)
@@ -124,7 +122,7 @@ class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
         } // ploidy 2
       )
     )
-    new SCanonicalCallCode(repr)
+    new SCanonicalCallValue(repr)
   }
 }
 
@@ -161,8 +159,6 @@ class SCanonicalCallCode(val call: Code[Int]) extends SCallCode {
   def memoize(cb: EmitCodeBuilder, name: String): SCanonicalCallValue = memoize(cb, name, cb.localBuilder)
 
   def memoizeField(cb: EmitCodeBuilder, name: String): SCanonicalCallValue = memoize(cb, name, cb.fieldBuilder)
-
-  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = Region.storeInt(dst, call)
 
   def loadCanonicalRepresentation(cb: EmitCodeBuilder): Code[Int] = call
 }

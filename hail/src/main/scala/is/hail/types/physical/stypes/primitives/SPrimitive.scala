@@ -18,9 +18,12 @@ abstract class SPrimitiveCode extends SCode {
   override def st: SPrimitive
 
   protected[primitives] def _primitiveCode: Code[_]
-  def primitiveCode[T]: Code[T] = coerce[T](_primitiveCode)
+  final def primitiveCode[T]: Code[T] = coerce[T](_primitiveCode)
 }
 
 abstract class SPrimitiveValue extends SValue {
   override def st: SPrimitive
+
+  protected[primitives] def _primitiveValue: Value[_]
+  final def primitiveValue[T]: Value[T] = coerce[T](_primitiveValue)
 }

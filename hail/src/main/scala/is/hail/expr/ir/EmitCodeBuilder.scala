@@ -1,12 +1,11 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.Region
 import is.hail.asm4s.{coerce => _, _}
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.lir
+import is.hail.types.physical.stypes.interfaces.{SStream, SStreamValue}
 import is.hail.types.physical.stypes.{SCode, SSettable, SValue}
-import is.hail.types.physical.stypes.interfaces.{SStream, SStreamCode}
 import is.hail.utils._
 
 object EmitCodeBuilder {
@@ -59,6 +58,11 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     s.store(this, v)
   }
 
+  def assign(s: SSettable, v: SValue): Unit = {
+    assert(s.st == v.st, s"type mismatch!\n  settable=${s.st}\n     passed=${v.st}")
+    s.store(this, v.get)
+  }
+
   def assign(s: EmitSettable, v: EmitCode): Unit = {
     s.store(this, v)
   }
@@ -79,8 +83,8 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     f
   }
 
-  def memoize[T: TypeInfo](v: Code[T]): Value[T] = {
-    newLocal[T]("memoize", v)
+  def memoize[T: TypeInfo](v: Code[T], optionalName: String = ""): Value[T] = {
+    newLocal[T]("memoize" + optionalName, v)
   }
 
   def memoizeField[T: TypeInfo](v: Code[T]): Value[T] = {
@@ -93,12 +97,18 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     l
   }
 
+  def memoize(v: EmitCode): EmitValue =
+    memoize(v, "memoize")
+
   def memoize(v: EmitCode, name: String): EmitValue = {
     require(v.st.isRealizable)
     val l = emb.newEmitLocal(name, v.emitType)
     assign(l, v)
     l
   }
+
+  def memoize(v: IEmitCode): EmitValue =
+    memoize(v, "memoize")
 
   def memoize(v: IEmitCode, name: String): EmitValue = {
     require(v.st.isRealizable)
@@ -120,15 +130,15 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     } else {
       assert(ec.st.isInstanceOf[SStream])
       val ev = if (ec.required)
-        EmitValue(None, ec.toI(this).get(this, "").memoize(this, "wsmsv"))
+        EmitValue(None, ec.toI(this).get(this, ""))
       else {
         val m = emb.genFieldThisRef[Boolean](name + "_missing")
         ec.toI(this).consume(this, assign(m, true), _ => assign(m, false))
-        EmitValue(Some(m), ec.pv.memoize(this, "wsmsv"))
+        EmitValue(Some(m), ec.pv)
       }
       val res = f(ev)
       ec.pv match {
-        case SStreamCode(_, producer) => StreamProducer.defineUnusedLabels(producer, emb)
+        case SStreamValue(_, producer) => StreamProducer.defineUnusedLabels(producer, emb)
       }
       res
     }
@@ -206,15 +216,15 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   def invokeSCode(callee: EmitMethodBuilder[_], args: Param*): SCode = {
     val st = callee.emitReturnType.asInstanceOf[SCodeParamType].st
     if (st.nSettables == 1)
-      st.fromValues(FastIndexedSeq(memoize(_invoke(callee, args: _*))(st.settableTupleTypes()(0))))
+      st.fromValues(FastIndexedSeq(memoize(_invoke(callee, args: _*))(st.settableTupleTypes()(0)))).get
     else {
       val tup = newLocal("invokepcode_tuple", _invoke(callee, args: _*))(callee.asmTuple.ti)
-      st.fromValues(callee.asmTuple.loadElementsAny(tup))
+      st.fromValues(callee.asmTuple.loadElementsAny(tup)).get
     }
   }
 
   // for debugging
-  def strValue(sc: SCode): Code[String] = {
+  def strValue(sc: SValue): Code[String] = {
     StringFunctions.scodeToJavaValue(this, emb.partitionRegion, sc).invoke[String]("toString")
   }
 

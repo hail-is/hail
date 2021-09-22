@@ -16,7 +16,7 @@ case object SInt32 extends SPrimitive {
 
   override def castRename(t: Type): SType = this
 
-  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = {
     value.st match {
       case SInt32 => value
     }
@@ -64,9 +64,11 @@ class SInt32Value(x: Value[Int]) extends SPrimitiveValue {
 
   override def st: SInt32.type = SInt32
 
+  override def _primitiveValue: Value[_] = x
+
   override def get: SCode = new SInt32Code(x)
 
-  def intCode(cb: EmitCodeBuilder): Code[Int] = x
+  def intCode(cb: EmitCodeBuilder): Value[Int] = x
 
   override def hash(cb: EmitCodeBuilder): SInt32Code = new SInt32Code(intCode(cb))
 }

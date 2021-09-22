@@ -951,7 +951,6 @@ class RouterAsyncFS(AsyncFS):
         if not parsed.scheme:
             if self._default_scheme:
                 parsed = parsed._replace(scheme=self._default_scheme)
-                url = urllib.parse.urlunparse(parsed)
             else:
                 raise ValueError(f"no default scheme and URL has no scheme: {url}")
 

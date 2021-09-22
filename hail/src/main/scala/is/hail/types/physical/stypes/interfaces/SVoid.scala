@@ -5,7 +5,7 @@ import is.hail.asm4s.{Code, Settable, TypeInfo, UnitInfo, Value}
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
 import is.hail.types.{RPrimitive, TypeWithRequiredness}
-import is.hail.types.physical.stypes.{SCode, SSettable, SType, SUnrealizableCode, SValue}
+import is.hail.types.physical.stypes.{SCode, SSettable, SType, SUnrealizableCode, SUnrealizableValue, SValue}
 import is.hail.types.physical.{PType, PVoid}
 import is.hail.types.virtual.{TVoid, Type}
 import is.hail.utils.FastIndexedSeq
@@ -16,7 +16,7 @@ case object SVoid extends SType {
 
   override def castRename(t: Type): SType = this
 
-  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = value
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = value
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = IndexedSeq()
 
@@ -38,13 +38,15 @@ case object SVoidCode extends SCode with SUnrealizableCode {
 
   override def st: SType = SVoid
 
-  override def code: Code[_] = Code._empty
+  def memoize(cb: EmitCodeBuilder, name: String): SValue = SVoidValue
+}
 
-  def memoize(cb: EmitCodeBuilder, name: String): SValue = new SValue {
-    override val st: SType = SVoid
+case object SVoidValue extends SValue with SUnrealizableValue {
+  self =>
 
-    override def valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq()
+  override def st: SType = SVoid
 
-    override def get: SCode = self
-  }
+  override def valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq()
+
+  override def get: SCode = SVoidCode
 }

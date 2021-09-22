@@ -35,19 +35,27 @@ object SType {
       case TFloat64 => x.asDouble.doubleCode(cb)
       case TBoolean => x.asBoolean.boolCode(cb)
     }
+
+  def extractPrimValue(cb: EmitCodeBuilder, x: SValue): Value[_] = x.st.virtualType match {
+    case TInt32 => x.asInt.intCode(cb)
+    case TInt64 => x.asLong.longCode(cb)
+    case TFloat32 => x.asFloat.floatCode(cb)
+    case TFloat64 => x.asDouble.doubleCode(cb)
+    case TBoolean => x.asBoolean.boolCode(cb)
+  }
 }
 
 trait SType {
   def virtualType: Type
 
-  final def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  final def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = {
     value.st match {
       case _: SUnreachable => this.defaultValue
       case _ => _coerceOrCopy(cb, region, value, deepCopy)
     }
   }
 
-  protected[stypes] def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode
+  protected[stypes] def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue
 
   def settableTupleTypes(): IndexedSeq[TypeInfo[_]]
 

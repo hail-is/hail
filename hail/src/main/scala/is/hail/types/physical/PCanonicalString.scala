@@ -3,7 +3,7 @@ package is.hail.types.physical
 import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s.{Code, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.{SCode, SValue}
 import is.hail.types.physical.stypes.concrete.{SStringPointer, SStringPointerCode, SStringPointerValue}
 
 case object PCanonicalStringOptional extends PCanonicalString(false)
@@ -45,14 +45,13 @@ class PCanonicalString(val required: Boolean) extends PString {
     dstAddrss
   }
 
-  def allocateAndStoreString(mb: EmitMethodBuilder[_], region: Value[Region], str: Code[String]): Code[Long] = {
-    val dstAddress = mb.genFieldThisRef[Long]()
-    val byteRep = mb.genFieldThisRef[Array[Byte]]()
-    Code(
-      byteRep := str.invoke[Array[Byte]]("getBytes"),
-      dstAddress := binaryRepresentation.allocate(region, byteRep.length),
-      binaryRepresentation.store(dstAddress, byteRep),
-      dstAddress)
+  def allocateAndStoreString(cb: EmitCodeBuilder, region: Value[Region], str: Code[String]): Value[Long] = {
+    val dstAddress = cb.newField[Long]("pcanonical_string_alloc_dst_address")
+    val byteRep = cb.newField[Array[Byte]]("pcanonical_string_alloc_byte_rep")
+    cb.assign(byteRep, str.invoke[Array[Byte]]("getBytes"))
+    cb.assign(dstAddress, binaryRepresentation.allocate(region, byteRep.length))
+    binaryRepresentation.store(cb, dstAddress, byteRep)
+    dstAddress
   }
 
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
@@ -69,16 +68,16 @@ class PCanonicalString(val required: Boolean) extends PString {
   def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SStringPointerValue =
     new SStringPointerCode(sType, addr).memoizeField(cb, "loadCheapSCodeField")
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
     value.st match {
       case SStringPointer(t) if t.equalModuloRequired(this) && !deepCopy =>
-        value.asInstanceOf[SStringPointerCode].a
+        value.asInstanceOf[SStringPointerValue].a
       case _ =>
-        binaryRepresentation.store(cb, region, value.asString.toBytes(), deepCopy)
+        binaryRepresentation.store(cb, region, value.asString.toBytes(cb), deepCopy)
     }
   }
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SValue, deepCopy: Boolean): Unit = {
     cb += Region.storeAddress(addr, store(cb, region, value, deepCopy))
   }
 

@@ -9,10 +9,10 @@ import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.fs.FS
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
-import is.hail.types.{TableType, TypeWithRequiredness}
-import is.hail.types.physical.stypes.interfaces.{SStream, SStreamCode}
+import is.hail.types.physical.stypes.interfaces.{SStream, SStreamValue}
 import is.hail.types.physical.{PStruct, PType}
 import is.hail.types.virtual.{TArray, TStruct, Type}
+import is.hail.types.{TableType, TypeWithRequiredness}
 import is.hail.utils._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -71,7 +71,7 @@ class PartitionIteratorLongReader(
         override def close(cb: EmitCodeBuilder): Unit = {}
       }
 
-      SStreamCode(SStream(producer.element.emitType), producer)
+      SStreamValue(SStream(producer.element.emitType), producer)
     }
   }
 

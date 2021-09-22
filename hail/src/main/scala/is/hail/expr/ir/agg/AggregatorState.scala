@@ -6,9 +6,9 @@ import is.hail.expr.ir._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerCode, SStackStruct}
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointerCode, SStackStruct}
 import is.hail.types.physical.stypes.interfaces.SBinaryCode
+import is.hail.types.physical.stypes.{SCode, SValue}
 import is.hail.utils._
 
 trait AggregatorState {
@@ -49,10 +49,10 @@ trait AggregatorState {
     val ob = cb.newLocal("aggstate_ser_to_region_ob", lazyBuffer.invoke[OutputBuffer]("buffer"))
     serialize(BufferSpec.defaultUncompressed)(cb, ob)
     cb.assign(addr, t.allocate(r, lazyBuffer.invoke[Int]("length")))
-    cb += t.storeLength(addr, lazyBuffer.invoke[Int]("length"))
+    t.storeLength(cb, addr, lazyBuffer.invoke[Int]("length"))
     cb += lazyBuffer.invoke[Long, Unit]("copyToAddress", t.bytesAddress(addr))
 
-    t.loadCheapSCode(cb, addr)
+    t.loadCheapSCode(cb, addr).get
   }
 }
 
@@ -132,12 +132,12 @@ abstract class AbstractTypedRegionBackedAggState(val ptype: PType) extends Regio
   }
 
   def storeMissing(cb: EmitCodeBuilder): Unit = {
-    cb += storageType.setFieldMissing(off, 0)
+    storageType.setFieldMissing(cb, off, 0)
   }
 
-  def storeNonmissing(cb: EmitCodeBuilder, sc: SCode): Unit = {
+  def storeNonmissing(cb: EmitCodeBuilder, sc: SValue): Unit = {
     cb += region.getNewRegion(const(regionSize))
-    cb += storageType.setFieldPresent(off, 0)
+    storageType.setFieldPresent(cb, off, 0)
     ptype.storeAtAddress(cb, storageType.fieldOffset(off, 0), region, sc, deepCopy = true)
   }
 
@@ -153,7 +153,7 @@ abstract class AbstractTypedRegionBackedAggState(val ptype: PType) extends Regio
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
     val codecSpec = TypedCodecSpec(storageType, codec)
     val enc = codecSpec.encodedType.buildEncoder(storageType.sType, kb)
-    (cb, ob: Value[OutputBuffer]) => enc(cb, storageType.loadCheapSCode(cb, off), ob)
+    (cb, ob: Value[OutputBuffer]) => enc(cb, storageType.loadCheapSCode(cb, off).get, ob)
   }
 
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
@@ -161,7 +161,7 @@ abstract class AbstractTypedRegionBackedAggState(val ptype: PType) extends Regio
 
     val dec = codecSpec.encodedType.buildDecoder(storageType.virtualType, kb)
     ((cb: EmitCodeBuilder, ib: Value[InputBuffer]) =>
-      storageType.storeAtAddress(cb, off, region, dec(cb, region, ib), deepCopy = false))
+      storageType.storeAtAddress(cb, off, region, dec(cb, region, ib).memoize(cb, "deserialize"), deepCopy = false))
   }
 }
 
@@ -210,13 +210,13 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
     (cb, ob: Value[OutputBuffer]) =>
       foreachField { case (_, es) =>
         if (es.emitType.required) {
-          ob.writePrimitive(cb, es.get(cb))
+          ob.writePrimitive(cb, es.get(cb).get)
         } else {
           es.toI(cb).consume(cb,
             cb += ob.writeBoolean(true),
             { sc =>
               cb += ob.writeBoolean(false)
-              ob.writePrimitive(cb, sc)
+              ob.writePrimitive(cb, sc.get)
             })
         }
       }
@@ -226,11 +226,11 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
     (cb, ib: Value[InputBuffer]) =>
       foreachField { case (_, es) =>
         if (es.emitType.required) {
-          cb.assign(es, EmitCode.present(cb.emb, ib.readPrimitive(es.st.virtualType)))
+          cb.assign(es, EmitCode.present(cb.emb, ib.readPrimitive(es.st.virtualType).memoize(cb, "deserialize")))
         } else {
           cb.ifx(ib.readBoolean(),
             cb.assign(es, EmitCode.missing(cb.emb, es.st)),
-            cb.assign(es, EmitCode.present(cb.emb, ib.readPrimitive(es.st.virtualType))))
+            cb.assign(es, EmitCode.present(cb.emb, ib.readPrimitive(es.st.virtualType).memoize(cb, "deserialize"))))
         }
       }
   }

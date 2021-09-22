@@ -467,6 +467,7 @@ class HailContext private(
 object HailFeatureFlags {
   val defaults: Map[String, (String, String)] = Map[String, (String, String)](
     ("no_whole_stage_codegen", ("HAIL_DEV_NO_WHOLE_STAGE_CODEGEN" -> null)),
+    ("no_ir_logging", ("HAIL_DEV_NO_IR_LOG" -> null)),
     ("lower", ("HAIL_DEV_LOWER" -> null)),
     ("lower_only", ("HAIL_DEV_LOWER_ONLY" -> null)),
     ("lower_bm", ("HAIL_DEV_LOWER_BM" -> null)),

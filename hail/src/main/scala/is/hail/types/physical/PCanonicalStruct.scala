@@ -1,6 +1,7 @@
 package is.hail.types.physical
 
 import is.hail.asm4s.Code
+import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.virtual.{TStruct, Type}
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -85,11 +86,11 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
   def fieldOffset(offset: Code[Long], fieldName: String): Code[Long] =
     fieldOffset(offset, fieldIdx(fieldName))
 
-  def setFieldPresent(offset: Code[Long], field: String): Code[Unit] =
-    setFieldPresent(offset, fieldIdx(field))
+  def setFieldPresent(cb: EmitCodeBuilder, offset: Code[Long], field: String): Unit =
+    setFieldPresent(cb, offset, fieldIdx(field))
 
-  def setFieldMissing(offset: Code[Long], field: String): Code[Unit] =
-    setFieldMissing(offset, fieldIdx(field))
+  def setFieldMissing(cb: EmitCodeBuilder, offset: Code[Long], field: String): Unit =
+    setFieldMissing(cb, offset, fieldIdx(field))
 
   def insertFields(fieldsToInsert: TraversableOnce[(String, PType)]): PStruct = {
     val ab = new BoxedArrayBuilder[PField](fields.length)

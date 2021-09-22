@@ -3,12 +3,12 @@ package is.hail.types.physical
 import is.hail.annotations.{Annotation, NDArray, Region, UnsafeOrdering}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{CodeParam, CodeParamType, EmitCode, EmitCodeBuilder, Param, ParamType, SCodeParam}
-import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.SValue
+import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.{TNDArray, Type}
-import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerSettable, SNDArrayPointer, SNDArrayPointerCode, SNDArrayPointerSettable, SNDArrayPointerValue, SStackStruct}
-import org.apache.spark.sql.Row
 import is.hail.utils._
+import org.apache.spark.sql.Row
 
 final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boolean = false) extends PNDArray  {
   assert(elementType.required, "elementType must be required")
@@ -116,7 +116,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   }
 
   private def getElementAddress(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], nd: Value[Long]): Value[Long] = {
-    val ndarrayValue = loadCheapSCode(cb, nd).asNDArray.memoize(cb, "getElementAddressNDValue")
+    val ndarrayValue = loadCheapSCode(cb, nd).asNDArray
     val stridesTuple = ndarrayValue.strides
 
     cb.newLocal[Long]("pcndarray_get_element_addr", indices.zipWithIndex.map { case (requestedElementIndex, strideIndex) =>
@@ -125,7 +125,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   }
 
   def setElement(cb: EmitCodeBuilder, region: Value[Region],
-    indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], newElement: SCode, deepCopy: Boolean): Unit = {
+    indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], newElement: SValue, deepCopy: Boolean): Unit = {
     elementType.storeAtAddress(cb, getElementAddress(cb, indices, ndAddress), region, newElement, deepCopy)
   }
 
@@ -139,7 +139,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     address
   }
 
-  def loadElement(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndAddress: Value[Long]): SCode = {
+  def loadElement(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndAddress: Value[Long]): SValue = {
     val off = getElementAddress(cb, indices, ndAddress)
     elementType.loadCheapSCode(cb, elementType.loadFromNested(off))
   }
@@ -191,7 +191,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       mb.emitSCode { cb =>
 
         val region = mb.getCodeParam[Region](1)
-        val dataValue = mb.getSCodeParam(2).asIndexable.memoize(cb, "pcndarray_construct_by_copying_array_datavalue")
+        val dataValue = mb.getSCodeParam(2).asIndexable
         val shape = (0 until nDims).map(i => SizeValueDyn(mb.getCodeParam[Long](3 + i)))
         val strides = (0 until nDims).map(i => mb.getCodeParam[Long](3 + nDims + i))
 
@@ -199,7 +199,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
         dataValue.st match {
           case SIndexablePointer(PCanonicalArray(otherElementType, _)) if otherElementType == elementType =>
-            cb += Region.copyFrom(dataValue.asInstanceOf[SIndexablePointerSettable].elementsAddress, result.firstDataAddress, dataValue.loadLength().toL * elementType.byteSize)
+            cb += Region.copyFrom(dataValue.asInstanceOf[SIndexablePointerValue].elementsAddress, result.firstDataAddress, dataValue.loadLength().toL * elementType.byteSize)
           case _ =>
             val loopCtr = cb.newLocal[Long]("pcanonical_ndarray_construct_by_copying_loop_idx")
             cb.forLoop(cb.assign(loopCtr, 0L), loopCtr < dataValue.loadLength().toL, cb.assign(loopCtr, loopCtr + 1L), {
@@ -207,7 +207,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
             })
         }
 
-        result
+        result.get
       }
     }
 
@@ -348,15 +348,15 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SNDArrayPointerValue =
     new SNDArrayPointerCode(sType, addr).memoizeField(cb, "loadCheapSCodeField")
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
-    val addr = cb.newField[Long]("pcanonical_ndarray_store", this.representation.allocate(region))
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
+    val addr = cb.memoize(this.representation.allocate(region))
     storeAtAddress(cb, addr, region, value, deepCopy)
     addr
   }
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SValue, deepCopy: Boolean): Unit = {
     val targetAddr = cb.newLocal[Long]("pcanonical_ndarray_store_at_addr_target", addr)
-    val inputSNDValue = value.asNDArray.memoize(cb, "pcanonical_ndarray_store_at_addr_input")
+    val inputSNDValue = value.asNDArray
     val shape = inputSNDValue.shapes
     val strides = inputSNDValue.strides
     val dataAddr = inputSNDValue.firstDataAddress
@@ -379,7 +379,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
         val newDataAddr = this.allocateData(shape, region)
         cb += Region.storeAddress(this.representation.fieldOffset(targetAddr, "data"), newDataAddr)
         val outputSNDValue = new SNDArrayPointerCode(sType, targetAddr).memoize(cb, "pcanonical_ndarray_store_at_addr_output")
-        outputSNDValue.coiterateMutate(cb, region, true, (inputSNDValue.get, "input")){
+        outputSNDValue.coiterateMutate(cb, region, true, (inputSNDValue, "input")){
           case Seq(dest, elt) =>
             elt
         }

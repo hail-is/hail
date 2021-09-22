@@ -75,7 +75,7 @@ class ImputeTypeState(kb: EmitClassBuilder[_]) extends PrimitiveRVAState(Array(V
     supportsI64: Code[Boolean],
     supportsF64: Code[Boolean]
   ): Unit = {
-    val value = (anyNonMissing.toI
+    val value = cb.memoize(anyNonMissing.toI
       | (allDefined.toI << 1)
       | (supportsBool.toI << 2)
       | (supportsI32.toI << 3)
@@ -91,10 +91,10 @@ class ImputeTypeState(kb: EmitClassBuilder[_]) extends PrimitiveRVAState(Array(V
   def seqOp(cb: EmitCodeBuilder, ec: EmitCode): Unit = {
     ec.toI(cb)
       .consume(cb,
-        cb.assign(_repr, EmitCode.present(cb.emb, primitive(repr & (~(1 << 1))))),
-        { case (pc: SStringCode) =>
+        cb.assign(_repr, EmitCode.present(cb.emb, primitive(cb.memoize(repr & (~(1 << 1)))))),
+        { case (pc: SStringValue) =>
           val s = cb.newLocal[String]("impute_type_agg_seq_str")
-          cb.assign(s, pc.loadString())
+          cb.assign(s, pc.loadString(cb))
 
           setRepr(cb,
             true,
@@ -147,11 +147,11 @@ class ImputeTypeAggregator() extends StagedAggregator {
   protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
     val rt = ImputeTypeState.resultType
     assert(pt == rt)
-    cb += rt.stagedInitialize(addr, setMissing = false)
+    rt.stagedInitialize(cb, addr, setMissing = false)
     Array(state.getAnyNonMissing, state.getAllDefined, state.getSupportsBool,
       state.getSupportsI32, state.getSupportsI64, state.getSupportsF64)
       .zipWithIndex.foreach { case (b, idx) =>
-      rt.types(idx).storeAtAddress(cb, rt.fieldOffset(addr, idx), region, primitive(b), deepCopy = true)
+      rt.types(idx).storeAtAddress(cb, rt.fieldOffset(addr, idx), region, primitive(cb.memoize(b)), deepCopy = true)
     }
   }
 }

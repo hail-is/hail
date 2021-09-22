@@ -17,7 +17,7 @@ case object SFloat64 extends SPrimitive {
 
   override def castRename(t: Type): SType = this
 
-  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = {
     value.st match {
       case SFloat64 => value
     }
@@ -69,6 +69,10 @@ class SFloat64Code(val code: Code[Double]) extends SPrimitiveCode {
   def doubleCode(cb: EmitCodeBuilder): Code[Double] = code
 }
 
+object SFloat64Value {
+  def apply(code: Value[Double]): SFloat64Value = new SFloat64Value(code)
+}
+
 class SFloat64Value(x: Value[Double]) extends SPrimitiveValue {
   val pt: PFloat64 = PFloat64(false)
 
@@ -76,9 +80,11 @@ class SFloat64Value(x: Value[Double]) extends SPrimitiveValue {
 
   override def st: SFloat64.type = SFloat64
 
+  override def _primitiveValue: Value[_] = x
+
   override def get: SCode = new SFloat64Code(x)
 
-  def doubleCode(cb: EmitCodeBuilder): Code[Double] = x
+  def doubleCode(cb: EmitCodeBuilder): Value[Double] = x
 
   override def hash(cb: EmitCodeBuilder): SInt32Code = {
     new SInt32Code(invokeStatic1[java.lang.Double, Double, Int]("hashCode", doubleCode(cb)))

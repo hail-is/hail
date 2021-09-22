@@ -55,7 +55,6 @@ abstract class EType extends BaseType with Serializable with Requiredness {
 
       mb.voidWithBuilder { cb =>
         val arg = mb.getSCodeParam(1)
-          .memoize(cb, "encoder_method_arg")
         val out = mb.getCodeParam[OutputBuffer](2)
         _buildEncoder(cb, arg, out)
       }
@@ -208,7 +207,7 @@ object EType {
         val out: Code[OutputBuffer] = mb.getCodeParam[OutputBuffer](2)
         val pc = pt.loadCheapSCode(cb, addr)
         val f = et.buildEncoder(pc.st, mb.ecb)
-        f(cb, pc, out)
+        f(cb, pc.get, out)
       }
       val func = fb.result()
       encoderCache.put(k, func)
@@ -243,7 +242,7 @@ object EType {
       val in: Code[InputBuffer] = mb.getCodeParam[InputBuffer](2)
 
       mb.emitWithBuilder[Long] { cb =>
-        val pc = f(cb, region, in)
+        val pc = f(cb, region, in).memoize(cb, "buildDecoderToRegionValue")
         pt.store(cb, region, pc, false)
       }
 

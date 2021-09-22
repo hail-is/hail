@@ -17,6 +17,8 @@ trait SContainer extends SType {
 trait SIndexableValue extends SValue {
   def st: SContainer
 
+  override def get: SIndexableCode
+
   def loadLength(): Value[Int]
 
   def isElementMissing(i: Code[Int]): Code[Boolean]
@@ -27,7 +29,9 @@ trait SIndexableValue extends SValue {
 
   def hasMissingValues(cb: EmitCodeBuilder): Code[Boolean]
 
-  def forEachDefined(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, Value[Int], SCode) => Unit): Unit = {
+  def castToArray(cb: EmitCodeBuilder): SIndexableValue
+
+  def forEachDefined(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, Value[Int], SValue) => Unit): Unit = {
     val length = loadLength()
     val idx = cb.newLocal[Int]("foreach_idx", 0)
     cb.whileLoop(idx < length, {
@@ -41,7 +45,7 @@ trait SIndexableValue extends SValue {
     })
   }
 
-  def forEachDefinedOrMissing(cb: EmitCodeBuilder)(missingF: (EmitCodeBuilder, Value[Int]) => Unit, presentF: (EmitCodeBuilder, Value[Int], SCode) => Unit): Unit = {
+  def forEachDefinedOrMissing(cb: EmitCodeBuilder)(missingF: (EmitCodeBuilder, Value[Int]) => Unit, presentF: (EmitCodeBuilder, Value[Int], SValue) => Unit): Unit = {
     val length = loadLength()
     val idx = cb.newLocal[Int]("foreach_idx", 0)
     cb.whileLoop(idx < length, {
@@ -60,7 +64,7 @@ trait SIndexableValue extends SValue {
   override def hash(cb: EmitCodeBuilder): SInt32Code = {
     val hash_result = cb.newLocal[Int]("array_hash", 1)
     forEachDefinedOrMissing(cb)({ case (cb, idx) => cb.assign(hash_result, hash_result * 31) },
-      { case (cb, idx, element) => cb.assign(hash_result, hash_result * 31 + element.memoize(cb, "array_hash_element").hash(cb).intCode(cb))
+      { case (cb, idx, element) => cb.assign(hash_result, hash_result * 31 + element.hash(cb).intCode(cb))
       })
     new SInt32Code(hash_result)
   }
@@ -69,7 +73,7 @@ trait SIndexableValue extends SValue {
     val startMemo = cb.newLocal[Int]("sindexable_slice_array_start_memo", start)
     pt.constructFromElements(cb, region, cb.newLocal[Int]("slice_length", end - startMemo), deepCopy){ (cb, idx) =>
       this.loadElement(cb, idx + startMemo)
-    }
+    }.get
   }
 }
 trait SIndexableCode extends SCode {

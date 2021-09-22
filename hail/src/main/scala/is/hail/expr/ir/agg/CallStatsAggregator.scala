@@ -77,14 +77,14 @@ class CallStatsState(val kb: EmitClassBuilder[_]) extends PointerBasedRVAState {
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = { (cb, ob) =>
     val codecSpec = TypedCodecSpec(CallStatsState.stateType, codec)
     codecSpec.encodedType.buildEncoder(CallStatsState.stateType.sType, kb)
-      .apply(cb, CallStatsState.stateType.loadCheapSCode(cb, off), ob)
+      .apply(cb, CallStatsState.stateType.loadCheapSCode(cb, off).get, ob)
   }
 
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
     { (cb: EmitCodeBuilder, ib: Value[InputBuffer]) =>
       val codecSpec = TypedCodecSpec(CallStatsState.stateType, codec)
       val decValue = codecSpec.encodedType.buildDecoder(CallStatsState.stateType.virtualType, kb)
-        .apply(cb, region, ib)
+        .apply(cb, region, ib).memoize(cb, "CallStats_deserialize")
 
       cb.assign(off, CallStatsState.stateType.store(cb, region, decValue, deepCopy = false))
       loadNAlleles(cb)
@@ -120,10 +120,10 @@ class CallStatsAggregator extends StagedAggregator {
           cb.assign(state.nAlleles, n)
           cb.assign(state.off, state.region.allocate(CallStatsState.stateType.alignment, CallStatsState.stateType.byteSize))
           cb.assign(addr, CallStatsState.callStatsInternalArrayType.allocate(state.region, n))
-          cb += CallStatsState.callStatsInternalArrayType.stagedInitialize(addr, n)
+          CallStatsState.callStatsInternalArrayType.stagedInitialize(cb, addr, n)
           cb += Region.storeAddress(state.alleleCountsOffset, addr)
           cb.assign(addr, CallStatsState.callStatsInternalArrayType.allocate(state.region, n))
-          cb += CallStatsState.callStatsInternalArrayType.stagedInitialize(addr, n)
+          CallStatsState.callStatsInternalArrayType.stagedInitialize(cb, addr, n)
           cb += Region.storeAddress(state.homCountsOffset, addr)
           cb.assign(i, 0)
           cb.whileLoop(i < n,
@@ -140,8 +140,7 @@ class CallStatsAggregator extends StagedAggregator {
 
     call.toI(cb).consume(cb, {
       /* do nothing if missing */
-    }, { case callc: SCallCode =>
-      val call = callc.memoize(cb, "callstats_seqop_callv")
+    }, { case call: SCallValue =>
       val hom = cb.newLocal[Boolean]("hom", true)
       val lastAllele = cb.newLocal[Int]("lastAllele", -1)
       val i = cb.newLocal[Int]("i", 0)
@@ -180,7 +179,7 @@ class CallStatsAggregator extends StagedAggregator {
   protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
     val rt = CallStatsState.resultType
     assert(pt == rt)
-    cb += rt.stagedInitialize(addr, setMissing = false)
+    rt.stagedInitialize(cb, addr, setMissing = false)
     val alleleNumber = cb.newLocal[Int]("callstats_result_alleleNumber", 0)
 
     val acType = resultType.fieldType("AC").asInstanceOf[PCanonicalArray]
@@ -195,12 +194,12 @@ class CallStatsAggregator extends StagedAggregator {
     acType.storeAtAddress(cb, rt.fieldOffset(addr, "AC"), region, ac, deepCopy = false)
 
     cb.ifx(alleleNumber.ceq(0),
-      cb += rt.setFieldMissing(addr, "AF"),
+      rt.setFieldMissing(cb, addr, "AF"),
       {
         val afType = resultType.fieldType("AF").asInstanceOf[PCanonicalArray]
         val af = afType.constructFromElements(cb, region, state.nAlleles, deepCopy = true) { (cb, i) =>
           val acAtIndex = cb.newLocal[Int]("callstats_result_acAtIndex", state.alleleCountAtIndex(i, state.nAlleles))
-          IEmitCode.present(cb, primitive(acAtIndex.toD / alleleNumber.toD))
+          IEmitCode.present(cb, primitive(cb.memoize(acAtIndex.toD / alleleNumber.toD)))
         }
         afType.storeAtAddress(cb, rt.fieldOffset(addr, "AF"), region, af, deepCopy = false)
       })
