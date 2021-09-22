@@ -1031,6 +1031,7 @@ Caused by: java.lang.NullPointerException
         t = t.join(t, how='outer')
         self.assertTrue(t._same(ref_tab))
 
+    @skip_when_service_backend('OOMs or crash')
     def test_union(self):
         t1 = hl.utils.range_table(5)
 
