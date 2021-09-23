@@ -2,13 +2,12 @@ import collections
 import hashlib
 import json
 import os
-import uuid
 
 from typing import Dict, List, Optional, Union
 
 import hail as hl
 
-from hail.utils.java import info, warning
+from hail.utils.java import warning
 from hail.experimental.vcf_combiner.vcf_combiner import calculate_even_genome_partitioning
 from .. import VariantDataset
 
