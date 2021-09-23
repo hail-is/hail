@@ -5,7 +5,7 @@ from hail.matrixtable import MatrixTable
 from hail.utils.java import info
 
 
-def read_vds(path) -> 'VariantDataset':
+def read_vds(path, *, intervals=None) -> 'VariantDataset':
     """Read in a :class:`.VariantDataset` written with :meth:`.VariantDataset.write`.
 
     Parameters
@@ -16,8 +16,8 @@ def read_vds(path) -> 'VariantDataset':
     -------
     :class:`.VariantDataset`
     """
-    reference_data = hl.read_matrix_table(VariantDataset._reference_path(path))
-    variant_data = hl.read_matrix_table(VariantDataset._variants_path(path))
+    reference_data = hl.read_matrix_table(VariantDataset._reference_path(path), _intervals=intervals)
+    variant_data = hl.read_matrix_table(VariantDataset._variants_path(path), _intervals=intervals)
 
     return VariantDataset(reference_data, variant_data)
 
