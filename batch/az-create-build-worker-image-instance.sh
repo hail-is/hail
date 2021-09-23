@@ -2,6 +2,10 @@
 
 set -ex
 
+REGION="eastus"
+RESOURCE_GROUP="hail-dev"
+CONTAINER_REGISTRY_NAME=${RESOURCE_GROUP}
+DOCKER_ROOT_IMAGE="${CONTAINER_REGISTRY_NAME}.azurecr.io/ubuntu:18.04"
 BATCH_WORKER_PRINCIPAL_ID=`az identity show --resource-group ${RESOURCE_GROUP} --name batch-worker --query principalId --output tsv`
 BATCH_WORKER_IDENTITY=`az identity show --resource-group ${RESOURCE_GROUP} --name batch-worker --query id --output tsv`
 SSH_PUBLIC_KEY=${SSH_PUBLIC_KEY:="~/.ssh/id_rsa.pub"}

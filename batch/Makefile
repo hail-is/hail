@@ -54,17 +54,9 @@ gcp-create-worker-image:
 
 .PHONY: az-create-build-worker-image-instance
 az-create-build-worker-image-instance:
-	REGION=$(REGION) \
-	  RESOURCE_GROUP=$(RESOURCE_GROUP) \
-	  CONTAINER_REGISTRY_NAME=$(CONTAINER_REGISTRY_NAME) \
-	  DOCKER_ROOT_IMAGE=$(DOCKER_ROOT_IMAGE) \
-	  sh az-create-build-worker-image-instance.sh
+	sh az-create-build-worker-image-instance.sh
 	# Need to SSH into the VM and run "sudo waagent -deprovision+user -force"
 
 .PHONY: az-create-worker-image
 az-create-worker-image:
-	REGION=$(REGION) \
-	  RESOURCE_GROUP=$(RESOURCE_GROUP) \
-          SHARED_GALLERY_NAME=$(SHARED_GALLERY_NAME) \
-          SUBSCRIPTION_ID=$(SUBSCRIPTION_ID) \
-          sh az-create-worker-image.sh
+	sh az-create-worker-image.sh
