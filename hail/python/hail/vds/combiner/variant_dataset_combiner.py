@@ -2,6 +2,7 @@ import collections
 import hashlib
 import json
 import os
+import sys
 
 from typing import Dict, List, Optional, Union
 
@@ -27,11 +28,10 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
     default_genome_interval_size = 1_200_000
     default_exome_interval_size = 60_000_000
 
-    # TODO: need something for external header and sample names
     __serialized_slots__ = [
         'save_path',
         'output_path',
-        'scratch_path',
+        'temp_path',
         'reference_genome',
         'branch_factor',
         'target_records',
@@ -50,7 +50,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                  *,
                  save_path: str,
                  output_path: str,
-                 scratch_path: str,
+                 temp_path: str,
                  reference_genome: hl.ReferenceGenome,
                  branch_factor: int = default_branch_factor,
                  target_records: int = default_target_records,
@@ -63,6 +63,8 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                  gvcf_import_intervals: List[hl.utils.Interval],
                  vds_cache: Optional[Dict[str, VariantDataset]] = None,
                  ):
+        if not (vdses or gvcfs):
+            raise ValueError("one of 'vdses' or 'gvcfs' must be nonempty")
         if not gvcf_import_intervals:
             raise ValueError('gvcf import intervals must be nonempty')
         interval = gvcf_import_intervals[0]
@@ -78,7 +80,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                              f'{len(gvcf_sample_names)} != {len(gvcfs)}')
         self.save_path = save_path
         self.output_path = output_path
-        self.scratch_path = scratch_path
+        self.temp_path = temp_path
         self.reference_genome = reference_genome
         self.branch_factor = branch_factor
         self.target_records = target_records
@@ -101,8 +103,24 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
 
     def save(self):
         fs = hl.current_backend().fs
-        with fs.open(self.save_path, 'w') as out:
-            json.dump(self, out, indent=2, cls=Encoder)
+        try:
+            backup_path = self.save_path + '.bak'
+            if fs.exists(self.save_path):
+                fs.copy(self.save_path, backup_path)
+            with fs.open(self.save_path, 'w') as out:
+                json.dump(self, out, indent=2, cls=Encoder)
+            fs.remove(backup_path)
+        except OSError as e:
+            # these messages get printed, because there is absolutely no guarentee
+            # that the hail context is in a sane state if any of the above operations
+            # fail
+            print(f'Failed saving {self.__class__.__name__} state at {self.save_path}')
+            print(f'An attempt was made to copy {self.save_path} to {backup_path}')
+            print('An old version of this state may be there.')
+            print('Dumping current state as json to standard output, you may wish '
+                  'to save this output in order to resume the combiner.')
+            json.dump(self, sys.stdout, indent=2, cls=Encoder)
+            raise e
 
     @staticmethod
     def load(path) -> 'VariantDatasetCombiner':
@@ -124,7 +142,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         return {'name': self.__class__.__name__,
                 'save_path': self.save_path,
                 'output_path': self.output_path,
-                'scratch_path': self.scratch_path,
+                'temp_path': self.temp_path,
                 'reference_genome': str(self.reference_genome),
                 'branch_factor': self.branch_factor,
                 'target_records': self.target_records,
@@ -140,7 +158,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
 
 def new_combiner(*,
                  output_path: str,
-                 scratch_path: str,
+                 temp_path: str,
                  save_path: Optional[str] = None,
                  gvcf_paths: Optional[List[str]] = None,
                  vds_paths: Optional[List[str]] = None,
@@ -149,8 +167,8 @@ def new_combiner(*,
                  import_interval_size: Optional[int] = None,
                  use_genome_default_intervals: bool = False,
                  use_exome_default_intervals: bool = False,
-                 header: Optional[str] = None,
-                 sample_names: Optional[List[str]] = None,
+                 gvcf_external_header: Optional[str] = None,
+                 gvcf_sample_names: Optional[List[str]] = None,
                  branch_factor: int = VariantDatasetCombiner.default_branch_factor,
                  target_records: int = VariantDatasetCombiner.default_target_records,
                  batch_size: int = VariantDatasetCombiner.default_gvcf_batch_size,
@@ -159,13 +177,19 @@ def new_combiner(*,
                  force: bool = False,
                  ) -> VariantDatasetCombiner:
     if not (gvcf_paths or vds_paths):
-        raise ValueError("at least one  of 'gvcf_paths' or 'vds_paths' must be not empty")
+        raise ValueError("at least one  of 'gvcf_paths' or 'vds_paths' must be nonempty")
     if gvcf_paths is None:
         gvcf_paths = []
     if vds_paths is None:
         vds_paths = []
-    if vds_sample_counts is not None:
-        assert len(vds_paths) == len(vds_sample_counts)
+    if vds_sample_counts is not None and len(vds_paths) != len(vds_sample_counts):
+        raise ValueError("'vds_paths' and 'vds_sample_counts' (if present) must have the same length "
+                         f'{len(vds_paths)} != {len(vds_sample_counts)}')
+    if (gvcf_sample_names is None) != (gvcf_external_header is None):
+        raise ValueError("both 'gvcf_sample_names' and 'gvcf_external_header' must be set or unset")
+    if gvcf_sample_names is not None and len(gvcf_sample_names) != len(gvcf_paths):
+        raise ValueError("'gvcf_sample_names' and 'gvcf_paths' must have the same length "
+                         f'{len(gvcf_sample_names)} != {len(gvcf_paths)}')
 
     n_partition_args = (int(intervals is not None)
                         + int(import_interval_size is not None)
@@ -192,7 +216,7 @@ def new_combiner(*,
                 combiner.target_records = target_records
                 combiner.gvcf_batch_size = batch_size
                 return combiner
-            except (ValueError, TypeError):
+            except (ValueError, TypeError, OSError, KeyError):
                 warning(f'file exists at {save_path}, but it is not a valid combiner plan, overwriting')
         return None
 
@@ -225,16 +249,16 @@ def new_combiner(*,
     if save_path is None:
         sha = hashlib.sha256()
         sha.update(output_path.encode())
-        sha.update(scratch_path.encode())
+        sha.update(temp_path.encode())
         sha.update(str(reference_genome).encode())
         for path in vds_paths:
             sha.update(path.encode())
         for path in gvcf_paths:
             sha.update(path.encode())
-        if header is not None:
-            sha.update(header.encode())
-        if sample_names is not None:
-            for name in sample_names:
+        if gvcf_external_header is not None:
+            sha.update(gvcf_external_header.encode())
+        if gvcf_sample_names is not None:
+            for name in gvcf_sample_names:
                 sha.update(name.encode())
         if contig_recoding is not None:
             for key, value in sorted(contig_recoding.items()):
@@ -244,7 +268,7 @@ def new_combiner(*,
             sha.update(str(interval).encode())
         digest = sha.hexdigest()
         name = f'vds-combiner-plan_{digest}_{hl.__pip_version__}.json'
-        save_path = os.path.join(scratch_path, 'combiner-plans', name)
+        save_path = os.path.join(temp_path, 'combiner-plans', name)
         saved_combiner = maybe_load_from_saved_path(save_path)
         if saved_combiner is not None:
             return saved_combiner
@@ -263,7 +287,7 @@ def new_combiner(*,
 
     return VariantDatasetCombiner(save_path=save_path,
                                   output_path=output_path,
-                                  scratch_path=scratch_path,
+                                  temp_path=temp_path,
                                   reference_genome=reference_genome,
                                   branch_factor=branch_factor,
                                   target_records=target_records,
@@ -272,8 +296,8 @@ def new_combiner(*,
                                   vdses=vdses,
                                   gvcfs=gvcf_paths,
                                   gvcf_import_intervals=intervals,
-                                  gvcf_external_header=header,
-                                  gvcf_sample_names=sample_names,
+                                  gvcf_external_header=gvcf_external_header,
+                                  gvcf_sample_names=gvcf_sample_names,
                                   vds_cache=cache)
 
 
