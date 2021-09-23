@@ -6,6 +6,7 @@ import json
 import logging
 import contextlib
 import re
+import yaml
 from pathlib import Path
 
 from hail.context import TemporaryDirectory, tmp_dir
@@ -252,7 +253,11 @@ class ServiceBackend(Backend):
 
             status = await b.wait(disable_progress_bar=self.disable_progress_bar)
             if status['n_succeeded'] != 1:
-                raise ValueError(f'batch failed {status} {await j.log()} {await j.status()}')
+                message = {'batch_status': status,
+                           'job_status': await j.status(),
+                           'log': await j.log()}
+                yaml.dump(message, default_style='|')
+                raise ValueError(message)
 
             with self.fs.open(dir + '/out', 'rb') as outfile:
                 success = read_bool(outfile)
@@ -273,11 +278,12 @@ class ServiceBackend(Backend):
                         failed_jobs = []
                         async for j in b2.jobs():
                             if j['state'] != 'Success':
-                                failed_jobs += {
+                                failed_jobs.append({
                                     'status': j,
-                                    'log': await self.async_bc.get_job_log(j['batch_id'], j['job_id'])}
-                        raise FatalError(json.dumps(
-                            {'id': batch_id, 'batch_status': b2_status, 'failed_jobs': failed_jobs}))
+                                    'log': (await self.async_bc.get_job_log(j['batch_id'], j['job_id'])).strip()})
+                        message = {'id': batch_id, 'batch_status': b2_status, 'failed_jobs': failed_jobs}
+                        yaml.dump(message, default_style='|')
+                        raise ValueError(json.dumps(message))
                     raise FatalError(f'batch id was {b.id}\n' + jstacktrace)
 
         typ = dtype(resp['type'])

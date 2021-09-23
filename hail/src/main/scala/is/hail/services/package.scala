@@ -55,7 +55,7 @@ package object services {
       case e: EOFException =>
         e.getMessage != null && (
           e.getMessage.contains("SSL peer shut down incorrectly"))
-      case e @ (_: SSLException | _: StorageException) =>
+      case e @ (_: SSLException | _: StorageException | _: IOException) =>
         val cause = e.getCause
         cause != null && recur(cause)
       case e: UnknownHostException =>
