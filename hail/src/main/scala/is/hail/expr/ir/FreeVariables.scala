@@ -46,7 +46,7 @@ object FreeVariables {
           } else {
             seqOpFreeVarsCompute.copy(eval = Env.empty[Unit], agg = Some(seqOpFreeVarsCompute.eval))
           }
-          val combOpFreeVars = compute(combOp, BindingEnv(Env.fromSeq()))
+          //val combOpFreeVars = compute(combOp, BindingEnv(Env.fromSeq()))
           ???
         case _ =>
           ir1.children
