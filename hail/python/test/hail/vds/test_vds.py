@@ -170,3 +170,27 @@ def test_vcf_vds_combiner_equivalence():
     smt = smt.select_entries(*smt_from_vds.entry)  # harmonize fields and order
     smt = smt.key_rows_by('locus', 'alleles')
     assert smt._same(smt_from_vds)
+
+def test_filter_samples_and_merge():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+
+    samples = vds.variant_data.cols()
+    samples = samples.add_index()
+
+    samples1 = samples.filter(samples.idx < 2)
+    samples2 = samples.filter(samples.idx >= 2)
+
+    split1 = hl.vds.filter_samples(vds, samples1, remove_dead_alleles=True)
+
+    assert split1.variant_data.count_cols() == 2
+    assert split1.reference_data.count_cols() == 2
+
+    split2 = hl.vds.filter_samples(vds, samples2, remove_dead_alleles=True)
+
+    assert split2.variant_data.count_cols() == 3
+    assert split2.reference_data.count_cols() == 3
+
+    merged = hl.vds.combiner.combine_variant_datasets([split1, split2])
+
+    assert merged.reference_data._same(vds.reference_data)
+    assert merged.variant_data._same(vds.variant_data)

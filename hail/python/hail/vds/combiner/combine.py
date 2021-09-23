@@ -222,5 +222,7 @@ def combine_references(mts: List[MatrixTable]) -> MatrixTable:
 
 def combine_variant_datasets(vdss: List[VariantDataset]) -> VariantDataset:
     reference = combine_references([vds.reference_data for vds in vdss])
-    variants = combine_gvcfs([vds.variant_data for vds in vdss])
-    return VariantDataset(reference, variants)
+    no_variant_key = [vds.variant_data.key_rows_by('locus') for vds in vdss]
+
+    variants = combine_gvcfs(no_variant_key)
+    return VariantDataset(reference, variants._key_rows_by_assert_sorted('locus', 'alleles'))
