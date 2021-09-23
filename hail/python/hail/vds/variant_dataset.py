@@ -104,9 +104,9 @@ class VariantDataset:
 
         return VariantDataset(rmt, vmt)
 
-    def __init__(self, reference_data: 'MatrixTable', variant_data: 'MatrixTable'):
-        self.reference_data: 'MatrixTable' = reference_data
-        self.variant_data: 'MatrixTable' = variant_data
+    def __init__(self, reference_data: MatrixTable, variant_data: MatrixTable):
+        self.reference_data: MatrixTable = reference_data
+        self.variant_data: MatrixTable = variant_data
 
     def write(self, path, **kwargs):
         self.reference_data.write(VariantDataset._reference_path(path), **kwargs)
