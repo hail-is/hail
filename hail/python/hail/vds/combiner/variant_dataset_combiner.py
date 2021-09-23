@@ -37,8 +37,10 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         'target_records',
         'gvcf_batch_size',
         'contig_recoding',
-        'gvcfs',
         'vdses',
+        'gvcfs',
+        'gvcf_external_header',
+        'gvcf_sample_names',
         'gvcf_import_intervals',
     ]
 
@@ -54,8 +56,10 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                  target_records: int = default_target_records,
                  gvcf_batch_size: int = default_gvcf_batch_size,
                  contig_recoding: Optional[Dict[str, str]] = None,
-                 gvcfs: List[str],
                  vdses: List[VDSMetadata],
+                 gvcfs: List[str],
+                 gvcf_sample_names: Optional[List[str]] = None,
+                 gvcf_external_header: Optional[str] = None,
                  gvcf_import_intervals: List[hl.utils.Interval],
                  vds_cache: Optional[Dict[str, VariantDataset]] = None,
                  ):
@@ -67,6 +71,11 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         if interval.point_type.reference_genome != reference_genome:
             raise ValueError(f'mismatch in intervals ({interval.point_type.reference_genome}) '
                              f'and reference genome ({reference_genome}) types')
+        if (gvcf_sample_names is None) != (gvcf_external_header is None):
+            raise ValueError("both 'gvcf_sample_names' and 'gvcf_external_header' must be set or unset")
+        if gvcf_sample_names is not None and len(gvcf_sample_names) != len(gvcfs):
+            raise ValueError("'gvcf_sample_names' and 'gvcfs' must have the same length "
+                             f'{len(gvcf_sample_names)} != {len(gvcfs)}')
         self.save_path = save_path
         self.output_path = output_path
         self.scratch_path = scratch_path
@@ -75,8 +84,10 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         self.target_records = target_records
         self.gvcf_batch_size = gvcf_batch_size
         self.contig_recoding = contig_recoding
-        self.gvcfs = gvcfs
         self.vdses = vdses
+        self.gvcfs = gvcfs
+        self.gvcf_sample_names = gvcf_sample_names
+        self.gvcf_external_header = gvcf_external_header
         self.gvcf_import_intervals = gvcf_import_intervals
         self.__vds_cache = vds_cache
 
@@ -118,9 +129,11 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                 'branch_factor': self.branch_factor,
                 'target_records': self.target_records,
                 'gvcf_batch_size': self.gvcf_batch_size,
+                'gvcf_external_header': self.gvcf_external_header,  # put this here for humans
                 'contig_recoding': self.contig_recoding,
-                'gvcfs': self.gvcfs,
                 'vdses': self.vdses,
+                'gvcfs': self.gvcfs,
+                'gvcf_sample_names': self.gvcf_sample_names,
                 'gvcf_import_intervals': intervals_typ._convert_to_json(self.gvcf_import_intervals),
                 }
 
@@ -214,9 +227,9 @@ def new_combiner(*,
         sha.update(output_path.encode())
         sha.update(scratch_path.encode())
         sha.update(str(reference_genome).encode())
-        for path in gvcf_paths:
-            sha.update(path.encode())
         for path in vds_paths:
+            sha.update(path.encode())
+        for path in gvcf_paths:
             sha.update(path.encode())
         if header is not None:
             sha.update(header.encode())
@@ -256,9 +269,11 @@ def new_combiner(*,
                                   target_records=target_records,
                                   gvcf_batch_size=batch_size,
                                   contig_recoding=contig_recoding,
-                                  gvcfs=gvcf_paths,
                                   vdses=vdses,
+                                  gvcfs=gvcf_paths,
                                   gvcf_import_intervals=intervals,
+                                  gvcf_external_header=header,
+                                  gvcf_sample_names=sample_names,
                                   vds_cache=cache)
 
 
