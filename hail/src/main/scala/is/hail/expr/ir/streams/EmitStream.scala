@@ -9,7 +9,7 @@ import is.hail.types.physical.stypes.concrete.SUnreachable
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Code}
 import is.hail.types.physical.stypes.{EmitType, SCode, SType}
-import is.hail.types.physical.{PCanonicalArray, PCanonicalStruct}
+import is.hail.types.physical.{PCanonicalArray, PCanonicalStruct, PInt32, PInt64}
 import is.hail.types.virtual.{TInterval, TStream}
 import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.utils._
@@ -275,13 +275,17 @@ object EmitStream {
             val kb = mb.ecb
             val nestedStates = aggSignatures.toArray.map(sig => AggStateSig.getState(sig.state, kb))
             val nested = StateTuple(nestedStates)
-            val initStateAddress = mb.genFieldThisRef[Long]("stream_buff_agg_init_add")
+            val typ = PCanonicalStruct(required = true, "inits" -> nested.storageType,
+              "size" -> PInt32(true), "tree" -> PInt64(true))
+            val initStateAddress: Settable[Long] = mb.genFieldThisRef[Long]("stream_buff_agg_init_add")
             val nodeAddress = mb.genFieldThisRef[Long]("stream_buff_agg_node_add")
             val root: Settable[Long] = kb.genFieldThisRef[Long]("stream_buff_agg_root")
             val size: Settable[Int] = kb.genFieldThisRef[Int]("stream_buff_agg_size")
             val initContainer = new TupleAggregatorState(kb, nested, region, initStateAddress)
             val keyed = new GroupedBTreeKey(newKeyResult.emitType.copiedType.storageType, kb, region, nodeAddress, nested)
             val tree = new AppendOnlyBTree(kb, keyed, region, root, maxElements = 6)
+            val idx = mb.genFieldThisRef[Int]("stream_buff_agg_idx")
+
             val producer: StreamProducer = new StreamProducer {
               override val length: Option[EmitCodeBuilder => Code[Int]] = childProducer.length
 
@@ -295,14 +299,26 @@ object EmitStream {
                 * This block cannot jump away, e.g. to `LendOfStream`.
                 *
                 */
-              override def initialize(cb: EmitCodeBuilder): Unit =
+              override def initialize(cb: EmitCodeBuilder): Unit = {
                 childProducer.initialize(cb)
+                cb += region.setNumParents(nested.nStates)
+                cb.assign(initStateAddress, region.allocate(typ.alignment, typ.byteSize))
+                initContainer.newState(cb)
+                emitVoid(initAggs, cb)
+                cb.assign(size, 0)
+                tree.init(cb)
+                cb.assign(idx, 0)
+
+
+
+              }
+
 
               /**
                 * Stream element region, into which the `element` is emitted. The assignment, clearing,
                 * and freeing of the element region is the responsibility of the stream consumer.
                 */
-              override val elementRegion: Settable[Region] = _
+              override val elementRegion: Settable[Region] = region
               /**
                 * This boolean parameter indicates whether the producer's elements should be allocated in
                 * separate regions (by clearing when elements leave a consumer's scope). This parameter
@@ -317,7 +333,10 @@ object EmitStream {
                 * defined by the producer, jumps to either `LproduceElementDone` or `LendOfStream`, both of
                 * which the consumer must define.
                 */
-              override val LproduceElement: CodeLabel = _
+              override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
+               // cb.whileLoop(size < 8) picked random value, not sure how to also end it if the stream has no more
+                //elements
+              }
               /**
                 * Stream element. This value is valid after the producer jumps to `LproduceElementDone`,
                 * until a consumer jumps to `LproduceElement` again, or calls `close()`.
