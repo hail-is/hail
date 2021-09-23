@@ -53,47 +53,18 @@ gcp-create-worker-image:
 	gcloud -q compute --project $(PROJECT) instances delete --zone=$(ZONE) build-batch-worker-image
 
 .PHONY: az-create-build-worker-image-instance
-az-create-build-worker-image-instance: export BATCH_WORKER_PRINCIPAL_ID := $(shell az identity show --resource-group $(RESOURCE_GROUP) --name batch-worker --query principalId --output tsv)
-az-create-build-worker-image-instance: export BATCH_WORKER_IDENTITY := $(shell az identity show --resource-group $(RESOURCE_GROUP) --name batch-worker --query id --output tsv)
 az-create-build-worker-image-instance:
-	-az group delete --name build-batch-worker-image
-	az group create --name build-batch-worker-image --location $(REGION)
-	az role assignment create --assignee $(BATCH_WORKER_PRINCIPAL_ID) --role contributor -g build-batch-worker-image
-	az vm create --resource-group build-batch-worker-image \
-            --name build-batch-worker-image \
-            --image UbuntuLTS \
-            --generate-ssh-keys \
-            --public-ip-sku Standard \
-            --assign-identity $(BATCH_WORKER_IDENTITY)
-	python3 ../ci/jinja2_render.py '{"global":{"container_registry_name":"$(CONTAINER_REGISTRY_NAME)","docker_root_image":"$(DOCKER_ROOT_IMAGE)"}}' build-batch-worker-image-startup-azure.sh build-batch-worker-image-startup-azure.sh.out
-	az vm run-command invoke --command-id RunShellScript --name build-batch-worker-image --resource-group build-batch-worker-image --scripts "@build-batch-worker-image-startup-azure.sh.out"
-	az vm stop --resource-group build-batch-worker-image --name build-batch-worker-image
+	REGION=$(REGION) \
+	  RESOURCE_GROUP=$(RESOURCE_GROUP) \
+	  CONTAINER_REGISTRY_NAME=$(CONTAINER_REGISTRY_NAME) \
+	  DOCKER_ROOT_IMAGE=$(DOCKER_ROOT_IMAGE) \
+	  sh az-create-build-worker-image-instance.sh
+	# Need to SSH into the VM and run "sudo waagent -deprovision+user -force"
 
 .PHONY: az-create-worker-image
 az-create-worker-image:
-	-az sig image-version delete \
-	    --gallery-image-definition batch-worker \
-            --gallery-name $(SHARED_GALLERY_NAME) \
-            --resource-group $(RESOURCE_GROUP) \
-	    --gallery-image-version 0.0.12
-	az sig image-version create \
-	   --resource-group $(RESOURCE_GROUP) \
-	   --gallery-name $(SHARED_GALLERY_NAME) \
-	   --gallery-image-definition batch-worker \
-	   --gallery-image-version 0.0.12 \
-	   --target-regions "eastus" \
-	   --replica-count 1 \
-	   --managed-image "/subscriptions/$(SUBSCRIPTION_ID)/resourceGroups/build-batch-worker-image/providers/Microsoft.Compute/virtualMachines/build-batch-worker-image"
-	az group delete --name build-batch-worker-image
-
-.PHONY: az-test-vm-disk-image
-az-test-vm-disk-image: export BATCH_WORKER_IDENTITY := $(shell az identity show --resource-group $(RESOURCE_GROUP) --name batch-worker --query id --output tsv)
-az-test-vm-disk-image: export BATCH_WORKER_IMAGE := $(shell az sig image-version show --resource-group $(RESOURCE_GROUP) --gallery-name $(SHARED_GALLERY_NAME) --gallery-image-definition batch-worker --gallery-image-version 0.0.12 --query id -o tsv)
-az-test-vm-disk-image:
-	  az vm create --resource-group build-batch-worker-image \
-            --name build-batch-worker-image-test \
-            --image $(BATCH_WORKER_IMAGE) \
-            --generate-ssh-keys \
-            --public-ip-sku Standard \
-            --specialized \
-            --assign-identity $(BATCH_WORKER_IDENTITY)
+	REGION=$(REGION) \
+	  RESOURCE_GROUP=$(RESOURCE_GROUP) \
+          SHARED_GALLERY_NAME=$(SHARED_GALLERY_NAME) \
+          SUBSCRIPTION_ID=$(SUBSCRIPTION_ID) \
+          sh az-create-worker-image.sh

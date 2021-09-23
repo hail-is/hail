@@ -171,7 +171,7 @@ resource "azurerm_shared_image" "batch_worker" {
   resource_group_name = data.azurerm_resource_group.rg.name
   location            = data.azurerm_resource_group.rg.location
   os_type             = "Linux"
-  specialized	      = true
+  specialized	      = false
 
   identifier {
     publisher = "Canonical"
