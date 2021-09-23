@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.expr.ir.Bindings.empty
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -209,10 +208,6 @@ object ChildBindings {
   def apply(ir: BaseIR, i: Int, baseEnv: BindingEnv[Type]): BindingEnv[Type] = {
     val env = ChildEnvWithoutBindings(ir, i, baseEnv)
     val newBindings = NewBindings(ir, i, env)
-    if (ir.isInstanceOf[AggFold]) {
-      println(s"baseEnv is ${baseEnv.pretty()}")
-      println(s"Made at ${baseEnv.st}")
-    }
     env.merge(newBindings)
   }
 

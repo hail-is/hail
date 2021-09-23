@@ -482,7 +482,7 @@ class Tests(unittest.TestCase):
         expected = {'rabbit': 0.0, 'cat': 2.0, 'dog': 3.0, None: 3.0}
         assert actual == expected
 
-    def test_agg_fold(self):
+    def test_aggfold_agg(self):
         ht = hl.utils.range_table(100, 5)
         self.assertEqual(ht.aggregate(hl.agg.fold(0, lambda x: x + ht.idx, lambda a, b: a + b)), 4950)
 
@@ -504,10 +504,14 @@ class Tests(unittest.TestCase):
         self.assertEqual(mt.aggregate_rows(hl.agg.fold(0, lambda a: a + mt.row_idx, lambda a, b: a + b)), 4950)
         self.assertEqual(mt.aggregate_cols(hl.agg.fold(0, lambda a: a + mt.col_idx, lambda a, b: a + b)), 45)
 
-    def test_scan_fold(self):
+    def test_aggfold_scan(self):
         ht = hl.utils.range_table(15, 5)
         ht = ht.annotate(s=hl.scan.fold(0, lambda a: a + ht.idx, lambda a, b: a + b), )
         self.assertEqual(ht.s.collect(), [0, 0, 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78, 91])
+
+        mt = hl.utils.range_matrix_table(15, 10, 5)
+        mt = mt.annotate_rows(s=hl.scan.fold(0, lambda a: a + mt.row_idx, lambda a, b: a + b))
+        self.assertEqual(mt.s.collect(), [0, 0, 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78, 91])
 
     def test_agg_filter(self):
         t = hl.utils.range_table(10)
