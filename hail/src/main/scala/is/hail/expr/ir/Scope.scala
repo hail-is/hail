@@ -8,6 +8,7 @@ object UsesAggEnv {
     case AggExplode(_, _, _, false) => i == 0
     case AggArrayPerElement(_, _, _, _, _, false) => i == 0
     case ApplyAggOp(initOp, _, _) => i >= initOp.length
+    case AggFold(_, _, _, _, _, false) => i > 0
     case _ => false
   }
 }
@@ -20,6 +21,7 @@ object UsesScanEnv {
     case AggExplode(_, _, _, true) => i == 0
     case AggArrayPerElement(_, _, _, _, _, true) => i == 0
     case ApplyScanOp(initOp, _, _) => i >= initOp.length
+    case AggFold(_, _, _, _, _, true) => i > 0
     case _ => false
   }
 }

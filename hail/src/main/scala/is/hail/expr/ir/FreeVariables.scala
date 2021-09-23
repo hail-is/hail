@@ -35,6 +35,19 @@ object FreeVariables {
             val e = compute(x, seqEnv)
             e.copy(eval = Env.empty[Unit], scan = Some(e.eval))
           }.fold(initFreeVars)(_.merge(_))
+        case AggFold(zero, seqOp, combOp, accumName, otherAccumName, isScan) =>
+          val zeroEnv = if (isScan) baseEnv.copy(scan = None) else baseEnv.copy(agg = None)
+          val zeroFreeVarsCompute = compute(zero, zeroEnv)
+          val zeroFreeVars = if (isScan) baseEnv.copy(scan = Some(Env.empty[Unit])) else baseEnv.copy(agg = Some(Env.empty[Unit]))
+          val seqOpEnv = if (isScan) baseEnv.promoteScan else baseEnv.promoteAgg
+          val seqOpFreeVarsCompute = compute(seqOp, seqOpEnv)
+          val seqOpFreeVars = if (isScan) {
+            seqOpFreeVarsCompute.copy(eval = Env.empty[Unit], scan = Some(seqOpFreeVarsCompute.eval))
+          } else {
+            seqOpFreeVarsCompute.copy(eval = Env.empty[Unit], agg = Some(seqOpFreeVarsCompute.eval))
+          }
+          val combOpFreeVars = compute(combOp, BindingEnv(Env.fromSeq()))
+          ???
         case _ =>
           ir1.children
             .iterator

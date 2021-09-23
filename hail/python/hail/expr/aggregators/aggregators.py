@@ -1887,14 +1887,28 @@ class ScanFunctions(object):
 @typecheck(initial_value=expr_any, seq_op=func_spec(1, expr_any), comb_op=func_spec(2, expr_any))
 def fold(initial_value, seq_op, comb_op):
     """
+    Perform an arbitrary aggregation in terms of python functions.
 
-    :param initialValue: B
-    :param seqOp: (B, A) => B
-    :param combOp: (B, B) => B
-    :return:
+    Examples
+    --------
+
+    Start with a range table with its default `idx` field:
+
+    >>> ht = hl.utils.range_table(100)
+
+    Now, using fold, can reimplement `hl.agg.sum` (for non-missing values) as:
+
+    >>> ht.aggregate(hl.agg.fold(0, lambda accum: accum + ht.idx, lambda comb_left, comb_right: comb_left + comb_right))
+    4950
+
+    Parameters
+    ----------
+    initial_value : :class:`.Expression`
+        The initial value to start the aggregator with.
+    seq_op : function A => A
+        The function used to combine the current aggregator state with the next element you're aggregating over.
+    comb_op : function A, A => A
+        The function used to combine two aggregator states together and produce final result.
     """
-
-    # Roughly, what do I need to do?
-    # - Check that all the types work out:
 
     return _agg_func._fold(initial_value, seq_op, comb_op)

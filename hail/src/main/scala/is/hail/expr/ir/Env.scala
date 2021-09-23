@@ -22,6 +22,7 @@ case class BindingEnv[V](
   scan: Option[Env[V]] = None,
   relational: Env[V] = Env.empty[V]
 ) {
+  val st = Thread.currentThread().getStackTrace.mkString("\n")
   def allEmpty: Boolean = eval.isEmpty && agg.forall(_.isEmpty) && scan.forall(_.isEmpty) && relational.isEmpty
 
   def promoteAgg: BindingEnv[V] = {

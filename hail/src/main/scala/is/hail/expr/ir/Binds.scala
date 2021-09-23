@@ -209,6 +209,10 @@ object ChildBindings {
   def apply(ir: BaseIR, i: Int, baseEnv: BindingEnv[Type]): BindingEnv[Type] = {
     val env = ChildEnvWithoutBindings(ir, i, baseEnv)
     val newBindings = NewBindings(ir, i, env)
+    if (ir.isInstanceOf[AggFold]) {
+      println(s"baseEnv is ${baseEnv.pretty()}")
+      println(s"Made at ${baseEnv.st}")
+    }
     env.merge(newBindings)
   }
 
