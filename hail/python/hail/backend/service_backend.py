@@ -272,9 +272,10 @@ class ServiceBackend(Backend):
                         assert b2_status['state'] != 'success'
                         failed_jobs = []
                         async for j in b2.jobs():
-                            j_status = await j.status()
-                            if j_status['state'] != 'Success':
-                                failed_jobs += {'status': j_status, 'log': await j.log()}
+                            if j['state'] != 'Success':
+                                failed_jobs += {
+                                    'status': j,
+                                    'log': await self.async_bc.get_job_log(j['batch_id'], j['job_id'])}
                         raise FatalError(json.dumps(
                             {'id': batch_id, 'batch_status': b2_status, 'failed_jobs': failed_jobs}))
                     raise FatalError(f'batch id was {b.id}\n' + jstacktrace)
