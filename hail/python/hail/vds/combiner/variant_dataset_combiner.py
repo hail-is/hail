@@ -192,7 +192,7 @@ def new_combiner(*,
                 combiner.target_records = target_records
                 combiner.gvcf_batch_size = batch_size
                 return combiner
-            except:
+            except (ValueError, TypeError):
                 warning(f'file exists at {save_path}, but it is not a valid combiner plan, overwriting')
         return None
 
