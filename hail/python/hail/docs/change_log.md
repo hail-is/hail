@@ -34,6 +34,7 @@ Release 2021-09-21
 - (hail#10883) Fix crash / long compilation times writing matrix tables with many partitions.
 
 ---
+
 ## Version 0.2.76
 
 Released 2021-09-15
