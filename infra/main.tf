@@ -17,7 +17,6 @@ terraform {
 variable "gsuite_organization" {}
 variable "batch_gcp_regions" {}
 variable "gcp_project" {}
-variable "gcp_location" {}
 variable "batch_logs_bucket_location" {}
 variable "batch_logs_bucket_storage_class" {}
 variable "hail_query_bucket_location" {}
@@ -428,6 +427,11 @@ module "batch_gsa_secret" {
     "logging.viewer",
     "storage.admin",
   ]
+}
+
+module "grafana_gsa_secret" {
+  source = "./gsa_k8s_secret"
+  name = "grafana"
 }
 
 module "query_gsa_secret" {

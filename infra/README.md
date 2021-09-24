@@ -54,7 +54,7 @@ Instructions:
 
    gcp_project = "<gcp-project-id>"
 
-   # This is the bucket location that spans the regions you're going to
+   # This are the bucket locations that spans the regions you're going to
    # schedule across in Batch.  If you are running on one region, it can
    # just be that region. E.g. "US"
    batch_logs_bucket_location = "<bucket-location>"
@@ -62,7 +62,11 @@ Instructions:
    # The storage class for the batch logs bucket.  It should span the
    # batch regions and be compatible with the bucket location.
    batch_logs_bucket_storage_class = "MULTI_REGIONAL"
-
+   
+   # Similarly, bucket locations and storage classess are specified 
+   # for other services:
+   hail_query_bucket_location = "<bucket-location>"
+   hail_query_bucket_storage_class = "MULTI_REGIONAL"
    hail_test_gcs_bucket_location = "<bucket-location>"
    hail_test_gcs_bucket_storage_class = "MULTI_REGIONAL"
 
