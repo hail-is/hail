@@ -1994,14 +1994,8 @@ class Emit[C](
 
         val pt = sig.pResultType
 
-        val addr = cb.newLocal("resultop_value_addr", region.allocate(pt.alignment, pt.byteSize))
-        val missing = cb.newLocal[Boolean]("result_op_was_missing", false)
-
         val rvAgg = agg.Extract.getAgg(sig)
-        rvAgg.storeResult(cb, sc.states(idx), pt, addr, region,
-          (cb: EmitCodeBuilder) => { cb.assign(missing, true) })
-
-        IEmitCode(cb, missing, pt.loadCheapSCode(cb, addr))
+        rvAgg.result(cb, sc.states(idx), region)
 
       case x@ApplySeeded(fn, args, seed, rt) =>
         val codeArgs = args.map(a => EmitCode.fromI(cb.emb)(emitInNewBuilder(_, a)))

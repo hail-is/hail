@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
 import is.hail.types.virtual.Type
@@ -36,9 +36,7 @@ class PrevNonNullAggregator(typ: VirtualTypeWithReq) extends StagedAggregator {
       )
   }
 
-  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
-    state.get(cb).consume(cb,
-      ifMissing(cb),
-      { sc => pt.storeAtAddress(cb, addr, region, sc, deepCopy = true) })
+  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
+    state.get(cb).map(cb)(sv => sv.copyToRegion(cb, region, sv.st))
   }
 }

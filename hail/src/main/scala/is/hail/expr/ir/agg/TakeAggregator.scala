@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
@@ -125,9 +125,8 @@ class TakeAggregator(typ: VirtualTypeWithReq) extends StagedAggregator {
 
   protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = state.combine(cb, other)
 
-  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
-    assert(pt == resultType)
+  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
     // deepCopy is handled by state.resultArray
-    pt.storeAtAddress(cb, addr, region, state.resultArray(cb, region, resultType), deepCopy = false)
+    IEmitCode.present(state.resultArray(cb, region, resultType))
   }
 }

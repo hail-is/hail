@@ -285,9 +285,7 @@ class GroupedAggregator(ktV: VirtualTypeWithReq, nestedAggs: Array[StagedAggrega
 
   }
 
-  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
-    assert(pt == resultType)
-
+  protected override def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
     val len = state.size
     val resultAddr = cb.newLocal[Long]("groupedagg_result_addr", resultType.allocate(region, len))
     arrayRep.stagedInitialize(cb, resultAddr, len, setMissing = false)
@@ -306,15 +304,18 @@ class GroupedAggregator(ktV: VirtualTypeWithReq, nestedAggs: Array[StagedAggrega
       resultEltType.stagedInitialize(cb, valueAddr, setMissing = false)
       state.nested.toCode { case (nestedIdx, nestedState) =>
         val nestedAddr = cb.newLocal[Long](s"groupedagg_result_nested_addr_$nestedIdx", resultEltType.fieldOffset(valueAddr, nestedIdx))
-        nestedAggs(nestedIdx).storeResult(cb, nestedState, resultEltType.types(nestedIdx), nestedAddr, region,
-          (cb: EmitCodeBuilder) => resultEltType.setFieldMissing(cb, valueAddr, nestedIdx))
-
+        val nestedRes = nestedAggs(nestedIdx).result(cb, nestedState, region)
+        nestedRes.consume(cb,
+          { resultEltType.setFieldMissing(cb, valueAddr, nestedIdx)},
+          { sv => resultEltType.types(nestedIdx).storeAtAddress(cb, nestedAddr, region, sv, true)}) // TODO: Should this be deep copied?
+//        nestedAggs(nestedIdx).result(cb, nestedState, resultEltType.types(nestedIdx), nestedAddr, region,
+//          (cb: EmitCodeBuilder) => resultEltType.setFieldMissing(cb, valueAddr, nestedIdx))
       }
 
       cb.assign(i, i + 1)
     }
 
     // don't need to deep copy because that's done in nested aggregators
-    pt.storeAtAddress(cb, addr, region, resultType.loadCheapSCode(cb, resultAddr), deepCopy = false)
+    IEmitCode.present(cb, resultType.loadCheapSCode(cb, resultAddr))
   }
 }

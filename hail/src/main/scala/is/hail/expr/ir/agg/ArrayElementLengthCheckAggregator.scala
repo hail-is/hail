@@ -232,12 +232,9 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
     })
   }
 
-  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
-    assert(pt == resultType)
-
+  protected override def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
     val len = state.lenRef
-    cb.ifx(len < 0,
-      ifMissing(cb),
+    IEmitCode(cb, len < 0,
       {
         val resultAddr = cb.newLocal[Long]("arrayagg_result_addr", resultType.allocate(region, len))
         resultType.stagedInitialize(cb, resultAddr, len, setMissing = false)
@@ -250,15 +247,18 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
           state.load(cb)
           state.nested.toCode { case (nestedIdx, nestedState) =>
             val nestedAddr = cb.newLocal[Long](s"arrayagg_result_nested_addr_$nestedIdx", resultEltType.fieldOffset(addrAtI, nestedIdx))
-            nestedAggs(nestedIdx).storeResult(cb, nestedState, resultEltType.types(nestedIdx), nestedAddr, region,
-              (cb: EmitCodeBuilder) => resultEltType.setFieldMissing(cb, addrAtI, nestedIdx))
+            val nestedRes = nestedAggs(nestedIdx).result(cb, nestedState, region)
+            nestedRes.consume(cb,
+              { resultEltType.setFieldMissing(cb, addrAtI, nestedIdx)},
+              { sv => resultEltType.types(nestedIdx).storeAtAddress(cb, nestedAddr, region, sv, true)})
+//            nestedAggs(nestedIdx).result(cb, nestedState, resultEltType.types(nestedIdx), nestedAddr, region,
+//              (cb: EmitCodeBuilder) => resultEltType.setFieldMissing(cb, addrAtI, nestedIdx))
           }
           state.store(cb)
           cb.assign(i, i + 1)
         })
         // don't need to deep copy because that's done in nested aggregators
-        pt.storeAtAddress(cb, addr, region, resultType.loadCheapSCode(cb, resultAddr), deepCopy = false)
-
+        resultType.loadCheapSCode(cb, resultAddr)
       }
     )
   }
@@ -292,6 +292,6 @@ class ArrayElementwiseOpAggregator(nestedAggs: Array[StagedAggregator]) extends 
   protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit =
     throw new UnsupportedOperationException("State must be combined by ArrayElementLengthCheckAggregator.")
 
-  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit =
+  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode =
     throw new UnsupportedOperationException("Result must be defined by ArrayElementLengthCheckAggregator.")
 }

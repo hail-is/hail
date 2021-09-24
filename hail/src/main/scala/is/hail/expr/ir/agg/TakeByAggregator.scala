@@ -566,8 +566,8 @@ class TakeByAggregator(valueType: VirtualTypeWithReq, keyType: VirtualTypeWithRe
   protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = state.combine(cb, other)
 
 
-  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
-    // deepCopy is false because state.result does a deep copy
-    pt.storeAtAddress(cb, addr, region, state.result(cb, region, resultType), deepCopy = false)
+  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
+    // state.result does a deep copy
+    IEmitCode.present(cb, state.result(cb, region, resultType))
   }
 }

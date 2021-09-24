@@ -54,10 +54,8 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
     combine(cb, ev1, ev2)
   }
 
-  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
-    state.fields(0).toI(cb).consume(cb,
-      ifMissing(cb),
-      sc => pt.storeAtAddress(cb, addr, region, sc, deepCopy = true))
+  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
+    state.fields(0).toI(cb)
   }
 
   private def combine(

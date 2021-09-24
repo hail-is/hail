@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{UnitInfo, Value, _}
-import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder}
+import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.linalg.LinalgCodeUtils
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayCode, SNDArrayValue}
@@ -85,9 +85,7 @@ class NDArrayMultiplyAddAggregator(nDVTyp: VirtualTypeWithReq) extends StagedAgg
     cb.invokeVoid(combOpMethod)
   }
 
-  override protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
-    state.get(cb).consume(cb,
-      ifMissing(cb),
-      { sc => pt.storeAtAddress(cb, addr, region, sc.asNDArray, deepCopy = true) })
+  override protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
+    state.get(cb).map(cb)(sv => sv.copyToRegion(cb, region, sv.st))
   }
 }

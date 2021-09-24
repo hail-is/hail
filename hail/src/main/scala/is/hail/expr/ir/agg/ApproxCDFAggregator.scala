@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.physical.stypes.concrete.SBaseStructPointerValue
 import is.hail.types.physical._
@@ -137,8 +137,7 @@ class ApproxCDFAggregator extends StagedAggregator {
     state.comb(cb, other)
   }
 
-  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
-    assert(pt == resultType)
-    pt.storeAtAddress(cb, addr, region, state.result(cb, region), deepCopy = true)
+  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
+    IEmitCode.present(cb, state.result(cb, region))
   }
 }
