@@ -36,9 +36,10 @@ trait SBaseStructValue extends SValue {
 
   override def get: SBaseStructCode
 
-  def isFieldMissing(fieldIdx: Int): Code[Boolean]
+  def isFieldMissing(cb: EmitCodeBuilder, fieldIdx: Int): Value[Boolean]
 
-  def isFieldMissing(fieldName: String): Code[Boolean] = isFieldMissing(st.fieldIdx(fieldName))
+  def isFieldMissing(cb: EmitCodeBuilder, fieldName: String): Value[Boolean] =
+    isFieldMissing(cb, st.fieldIdx(fieldName))
 
   def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode
 

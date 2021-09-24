@@ -41,8 +41,8 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
   }
   val container = new TupleAggregatorState(kb, states, region, containerOffset(offset), regionIdx)
 
-  def isKeyMissing(off: Code[Long]): Code[Boolean] =
-    storageType.isFieldMissing(off, 0)
+  def isKeyMissing(cb: EmitCodeBuilder, off: Code[Long]): Value[Boolean] =
+    storageType.isFieldMissing(cb, off, 0)
 
   def loadKey(cb: EmitCodeBuilder, off: Code[Long]): SValue = {
     kt.loadCheapSCodeField(cb, storageType.loadField(off, 0))
@@ -77,8 +77,8 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
     def get: Code[Long] = storageType.fieldOffset(off, 2)
   }
 
-  override def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Code[Boolean] =
-    Region.loadInt(storageType.fieldOffset(off, 1)) < 0
+  override def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Value[Boolean] =
+    cb.memoize(Region.loadInt(storageType.fieldOffset(off, 1)) < 0)
 
   override def initializeEmpty(cb: EmitCodeBuilder, off: Code[Long]): Unit =
     cb += Region.storeInt(storageType.fieldOffset(off, 1), -1)
@@ -98,7 +98,7 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
   }
 
   override def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitValue =
-    EmitValue(Some(cb.memoize(isKeyMissing(off))), loadKey(cb, off))
+    cb.memoize(IEmitCode(cb, isKeyMissing(cb, off), loadKey(cb, off)))
 }
 
 class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, val nested: StateTuple) extends PointerBasedRVAState {
@@ -186,7 +186,7 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
     tree.foreach(cb) { (cb, kvOff) =>
       cb.assign(_elt, kvOff)
       keyed.loadStates(cb)
-      f(cb, EmitCode.fromI(cb.emb)(cb => IEmitCode(cb, keyed.isKeyMissing(_elt), keyed.loadKey(cb, _elt))))
+      f(cb, EmitCode.fromI(cb.emb)(cb => IEmitCode(cb, keyed.isKeyMissing(cb, _elt), keyed.loadKey(cb, _elt))))
     }
 
   def copyFromAddress(cb: EmitCodeBuilder, srcCode: Code[Long]): Unit = {
@@ -209,7 +209,7 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
         })
       tree.bulkStore(cb, ob) { (cb: EmitCodeBuilder, ob: Value[OutputBuffer], kvOff: Code[Long]) =>
         cb.assign(_elt, kvOff)
-        val km = cb.newLocal[Boolean]("grouped_ser_m", keyed.isKeyMissing(_elt))
+        val km = keyed.isKeyMissing(cb, _elt)
         cb += (ob.writeBoolean(km))
         cb.ifx(!km, {
           val k = keyed.loadKey(cb, _elt)

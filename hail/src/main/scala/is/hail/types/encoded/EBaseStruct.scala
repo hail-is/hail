@@ -98,7 +98,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
           while (k < 8 && j < size) {
             val f = fields(j)
             if (!f.typ.required) {
-              b = b | (structValue.isFieldMissing(f.name).toI << k)
+              b = b | (structValue.isFieldMissing(cb, f.name).toI << k)
               k += 1
             }
             j += 1

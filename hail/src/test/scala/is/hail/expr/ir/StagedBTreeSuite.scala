@@ -20,8 +20,8 @@ class TestBTreeKey(mb: EmitMethodBuilder[_]) extends BTreeKey {
   private val comp = mb.ecb.getOrderingFunction(SInt64, SInt64, CodeOrdering.Compare())
   override def storageType: PTuple = PCanonicalTuple(required = true, PInt64(), PCanonicalTuple(false))
   override def compType: PType = PInt64()
-  override def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Code[Boolean] =
-    storageType.isFieldMissing(off, 1)
+  override def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Value[Boolean] =
+    storageType.isFieldMissing(cb, off, 1)
   override def initializeEmpty(cb: EmitCodeBuilder, off: Code[Long]): Unit =
     storageType.setFieldMissing(cb, off, 1)
 
@@ -44,7 +44,7 @@ class TestBTreeKey(mb: EmitMethodBuilder[_]) extends BTreeKey {
 
   override def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitValue =
     EmitValue(
-      Some(cb.memoize(storageType.isFieldMissing(off, 0))),
+      Some(storageType.isFieldMissing(cb, off, 0)),
       primitive(cb.memoize(Region.loadLong(storageType.fieldOffset(off, 0)))))
 }
 

@@ -94,7 +94,7 @@ class SUnreachableStructValue(override val st: SUnreachableStruct) extends SUnre
   override def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode =
     IEmitCode.present(cb, SUnreachable.fromVirtualType(st.virtualType.types(fieldIdx)).defaultValue)
 
-  override def isFieldMissing(fieldIdx: Int): Code[Boolean] = false
+  override def isFieldMissing(cb: EmitCodeBuilder, fieldIdx: Int): Value[Boolean] = false
 
   override def subset(fieldNames: String*): SBaseStructValue = {
     val oldType = st.virtualType.asInstanceOf[TStruct]
@@ -279,11 +279,11 @@ class SUnreachableIntervalValue(override val st: SUnreachableInterval) extends S
 
   override def loadStart(cb: EmitCodeBuilder): IEmitCode = IEmitCode.present(cb, SUnreachable.fromVirtualType(st.virtualType.pointType).defaultValue)
 
-  override def startDefined(cb: EmitCodeBuilder): Code[Boolean] = const(false)
+  override def startDefined(cb: EmitCodeBuilder): Value[Boolean] = const(false)
 
   override def loadEnd(cb: EmitCodeBuilder): IEmitCode = IEmitCode.present(cb, SUnreachable.fromVirtualType(st.virtualType.pointType).defaultValue)
 
-  override def endDefined(cb: EmitCodeBuilder): Code[Boolean] = const(false)
+  override def endDefined(cb: EmitCodeBuilder): Value[Boolean] = const(false)
 
   override def isEmpty(cb: EmitCodeBuilder): Value[Boolean] = const(false)
 
