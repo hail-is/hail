@@ -90,9 +90,9 @@ abstract class PInterval extends PType {
 
   def includesEnd(off: Long): Boolean
 
-  def startDefined(off: Code[Long]): Code[Boolean]
+  def startDefined(cb: EmitCodeBuilder, off: Code[Long]): Value[Boolean]
 
-  def endDefined(off: Code[Long]): Code[Boolean]
+  def endDefined(cb: EmitCodeBuilder, off: Code[Long]): Value[Boolean]
 
   def includesStart(off: Code[Long]): Code[Boolean]
 

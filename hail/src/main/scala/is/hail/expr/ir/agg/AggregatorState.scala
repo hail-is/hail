@@ -142,7 +142,7 @@ abstract class AbstractTypedRegionBackedAggState(val ptype: PType) extends Regio
   }
 
   def get(cb: EmitCodeBuilder): IEmitCode = {
-    IEmitCode(cb, storageType.isFieldMissing(off, 0), ptype.loadCheapSCode(cb, storageType.loadField(off, 0)))
+    IEmitCode(cb, storageType.isFieldMissing(cb, off, 0), ptype.loadCheapSCode(cb, storageType.loadField(off, 0)))
   }
 
   def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = {

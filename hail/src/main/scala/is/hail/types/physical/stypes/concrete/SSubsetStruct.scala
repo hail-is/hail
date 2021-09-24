@@ -92,8 +92,8 @@ class SSubsetStructValue(val st: SSubsetStruct, prev: SBaseStructValue) extends 
     prev.loadField(cb, st.newToOldFieldMapping(fieldIdx))
   }
 
-  override def isFieldMissing(fieldIdx: Int): Code[Boolean] =
-    prev.isFieldMissing(st.newToOldFieldMapping(fieldIdx))
+  override def isFieldMissing(cb: EmitCodeBuilder, fieldIdx: Int): Value[Boolean] =
+    prev.isFieldMissing(cb, st.newToOldFieldMapping(fieldIdx))
 }
 
 final class SSubsetStructSettable(st: SSubsetStruct, prev: SBaseStructSettable) extends SSubsetStructValue(st, prev) with SBaseStructSettable {
