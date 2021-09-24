@@ -111,7 +111,7 @@ object Pretty {
     case InitOp(i, args, aggSig) => FastSeq(i.toString, prettyPhysicalAggSig(aggSig))
     case SeqOp(i, args, aggSig) => FastSeq(i.toString, prettyPhysicalAggSig(aggSig))
     case CombOp(i1, i2, aggSig) => FastSeq(i1.toString, i2.toString, prettyPhysicalAggSig(aggSig))
-    case ResultOp(i, aggSigs) => FastSeq(i.toString, prettyPhysicalAggSigs(aggSigs))
+    case ResultOp(i, aggSig) => FastSeq(i.toString, prettyPhysicalAggSig(aggSig))
     case AggStateValue(i, sig) => FastSeq(i.toString, prettyAggStateSignature(sig))
     case InitFromSerializedValue(i, value, aggSig) =>
       FastSeq(i.toString, prettyAggStateSignature(aggSig))

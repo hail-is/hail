@@ -719,9 +719,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           requiredness.union(required)
       }
       case LiftMeOut(f) => requiredness.unionFrom(lookup(f))
-      case ResultOp(_, sigs) =>
-        val r = coerce[RBaseStruct](requiredness)
-        r.fields.foreach { f => f.typ.fromPType(sigs(f.index).pResultType) }
+      case ResultOp(_, sig) =>
+        val r = requiredness
+        r.fromPType(sig.pResultType)
       case RunAgg(_, result, _) =>
         requiredness.unionFrom(lookup(result))
       case RunAggScan(array, name, init, seqs, result, signature) =>

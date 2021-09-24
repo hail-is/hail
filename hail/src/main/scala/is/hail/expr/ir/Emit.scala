@@ -1989,23 +1989,19 @@ class Emit[C](
           res
         }
 
-      case ResultOp(start, sig) =>
+      case ResultOp(idx, sig) =>
         val AggContainer(aggs, sc, _) = container.get
 
-        val pt = PCanonicalTuple(false, sig.map(_.pResultType): _*)
+        val pt = sig.pResultType
 
-        val addr = cb.newLocal("resultop_tuple_addr", pt.allocate(region))
-        pt.stagedInitialize(cb, addr, setMissing = false)
+        val addr = cb.newLocal("resultop_value_addr", region.allocate(pt.alignment, pt.byteSize))
+        val missing = cb.newLocal[Boolean]("result_op_was_missing", false)
 
-        (0 until aggs.length).foreach { j =>
-          val idx = start + j
-          val rvAgg = agg.Extract.getAgg(sig(j))
-          val fieldAddr = cb.newLocal(s"resultop_field_addr_$j", pt.fieldOffset(addr, j))
-          rvAgg.storeResult(cb, sc.states(idx), pt.types(j), fieldAddr, region,
-            (cb: EmitCodeBuilder) => pt.setFieldMissing(cb, addr, j))
-        }
+        val rvAgg = agg.Extract.getAgg(sig)
+        rvAgg.storeResult(cb, sc.states(idx), pt, addr, region,
+          (cb: EmitCodeBuilder) => { cb.assign(missing, true) })
 
-        presentPC(pt.loadCheapSCode(cb, addr))
+        IEmitCode(cb, missing, pt.loadCheapSCode(cb, addr)).copy(required = pt.required)
 
       case x@ApplySeeded(fn, args, seed, rt) =>
         val codeArgs = args.map(a => EmitCode.fromI(cb.emb)(emitInNewBuilder(_, a)))

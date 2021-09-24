@@ -265,7 +265,11 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
     }
   }
 
-  def results: IR = ResultOp(0, aggs)
+  def results: IR = {
+    MakeTuple.ordered(aggs.zipWithIndex.map { case (aggSig, index) =>
+      ResultOp(index, aggSig)
+    })
+  }
 }
 
 object Extract {
