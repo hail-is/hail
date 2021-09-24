@@ -2001,7 +2001,7 @@ class Emit[C](
         rvAgg.storeResult(cb, sc.states(idx), pt, addr, region,
           (cb: EmitCodeBuilder) => { cb.assign(missing, true) })
 
-        IEmitCode(cb, missing, pt.loadCheapSCode(cb, addr)).copy(required = pt.required)
+        IEmitCode(cb, missing, pt.loadCheapSCode(cb, addr))
 
       case x@ApplySeeded(fn, args, seed, rt) =>
         val codeArgs = args.map(a => EmitCode.fromI(cb.emb)(emitInNewBuilder(_, a)))

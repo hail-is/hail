@@ -720,8 +720,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       }
       case LiftMeOut(f) => requiredness.unionFrom(lookup(f))
       case ResultOp(_, sig) =>
-        val r = requiredness
-        r.fromPType(sig.pResultType)
+        requiredness.union(false)
+//        val r = requiredness
+//        r.fromPType(sig.pResultType)
       case RunAgg(_, result, _) =>
         requiredness.unionFrom(lookup(result))
       case RunAggScan(array, name, init, seqs, result, signature) =>
