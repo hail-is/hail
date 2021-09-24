@@ -511,7 +511,9 @@ class Tests(unittest.TestCase):
 
         mt = hl.utils.range_matrix_table(15, 10, 5)
         mt = mt.annotate_rows(s=hl.scan.fold(0, lambda a: a + mt.row_idx, lambda a, b: a + b))
+        mt = mt.annotate_rows(x=hl.scan.fold(0, lambda s: s + 1, lambda a, b: a + b))
         self.assertEqual(mt.s.collect(), [0, 0, 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78, 91])
+        mt.rows().collect()
 
     def test_agg_filter(self):
         t = hl.utils.range_table(10)

@@ -38,7 +38,7 @@ object FreeVariables {
         case AggFold(zero, seqOp, combOp, accumName, otherAccumName, isScan) =>
           val zeroEnv = if (isScan) baseEnv.copy(scan = None) else baseEnv.copy(agg = None)
           val zeroFreeVarsCompute = compute(zero, zeroEnv)
-          val zeroFreeVars = if (isScan) baseEnv.copy(scan = Some(Env.empty[Unit])) else baseEnv.copy(agg = Some(Env.empty[Unit]))
+          val zeroFreeVars = if (isScan) zeroFreeVarsCompute.copy(scan = Some(Env.empty[Unit])) else zeroFreeVarsCompute.copy(agg = Some(Env.empty[Unit]))
           val seqOpEnv = if (isScan) baseEnv.promoteScan else baseEnv.promoteAgg
           val seqOpFreeVarsCompute = compute(seqOp, seqOpEnv)
           val seqOpFreeVars = if (isScan) {
@@ -46,8 +46,10 @@ object FreeVariables {
           } else {
             seqOpFreeVarsCompute.copy(eval = Env.empty[Unit], agg = Some(seqOpFreeVarsCompute.eval))
           }
-          //val combOpFreeVars = compute(combOp, BindingEnv(Env.fromSeq()))
-          ???
+          val combEval = Env.fromSeq(IndexedSeq((accumName, {}), (otherAccumName, {})))
+          val combOpFreeVarsCompute = compute(combOp, baseEnv.copy(eval=combEval))
+          val combOpFreeVars = combOpFreeVarsCompute.copy(eval = Env.empty[Unit], scan = Some(combOpFreeVarsCompute.eval))
+          zeroFreeVars.merge(seqOpFreeVars).merge(combOpFreeVars)
         case _ =>
           ir1.children
             .iterator
