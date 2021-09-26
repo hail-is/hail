@@ -1,6 +1,6 @@
 from hailtop.batch_client.aioclient import Job
 
-from .utils import cost_from_msec_mcpu
+from .resource_utils import cost_from_msec_mcpu
 
 
 class BatchFormatVersion:

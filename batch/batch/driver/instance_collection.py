@@ -1,5 +1,4 @@
 import asyncio
-import aiohttp
 import sortedcontainers
 import logging
 import dateutil.parser
@@ -8,28 +7,27 @@ from typing import Dict
 
 from hailtop.utils import time_msecs, secret_alnum_string, periodically_call, time_msecs_str
 from hailtop import aiotools
-from hailtop.aiocloud import aiogoogle
 from gear import Database
 
 from .instance import Instance
-from .zone_monitor import ZoneMonitor
+from .resource_manager import CloudResourceManager, VMState, VMDoesNotExist
 
 log = logging.getLogger('inst_collection')
 
 
 class InstanceCollection:
-    def __init__(self, app, name, machine_name_prefix, is_pool):
+    def __init__(self, app, cloud, name, machine_name_prefix, is_pool):
         self.app = app
         self.db: Database = app['db']
-        self.compute_client: aiogoogle.GoogleComputeClient = self.app['compute_client']
-        self.zone_monitor: ZoneMonitor = self.app['zone_monitor']
+        self.resource_manager: CloudResourceManager = app['resource_manager']
 
+        self.cloud = cloud
         self.name = name
         self.machine_name_prefix = f'{machine_name_prefix}{self.name}-'
         self.is_pool = is_pool
 
         self.name_instance: Dict[str, Instance] = {}
-        self.live_free_cores_mcpu_by_zone: Dict[str, int] = collections.defaultdict(int)
+        self.live_free_cores_mcpu_by_location: Dict[str, int] = collections.defaultdict(int)
 
         self.instances_by_last_updated = sortedcontainers.SortedSet(key=lambda instance: instance.last_updated)
 
@@ -74,7 +72,7 @@ class InstanceCollection:
         if instance.state in ('pending', 'active'):
             self.live_free_cores_mcpu -= max(0, instance.free_cores_mcpu)
             self.live_total_cores_mcpu -= instance.cores_mcpu
-            self.live_free_cores_mcpu_by_zone[instance.zone] -= max(0, instance.free_cores_mcpu)
+            self.live_free_cores_mcpu_by_location[instance.location] -= max(0, instance.free_cores_mcpu)
 
     async def remove_instance(self, instance, reason, timestamp=None):
         await instance.deactivate(reason, timestamp)
@@ -93,7 +91,7 @@ class InstanceCollection:
         if instance.state in ('pending', 'active'):
             self.live_free_cores_mcpu += max(0, instance.free_cores_mcpu)
             self.live_total_cores_mcpu += instance.cores_mcpu
-            self.live_free_cores_mcpu_by_zone[instance.zone] += max(0, instance.free_cores_mcpu)
+            self.live_free_cores_mcpu_by_location[instance.location] += max(0, instance.free_cores_mcpu)
 
     def add_instance(self, instance):
         assert instance.name not in self.name_instance
@@ -108,26 +106,15 @@ class InstanceCollection:
             await instance.deactivate(reason, timestamp)
 
         try:
-            await self.compute_client.delete(f'/zones/{instance.zone}/instances/{instance.name}')
-        except aiohttp.ClientResponseError as e:
-            if e.status == 404:
-                log.info(f'{instance} already delete done')
-                await self.remove_instance(instance, reason, timestamp)
-                return
-            raise
+            await self.resource_manager.delete_vm(instance)
+        except VMDoesNotExist:
+            log.info(f'{instance} delete already done')
+            await self.remove_instance(instance, reason, timestamp)
 
     async def check_on_instance(self, instance):
         active_and_healthy = await instance.check_is_active_and_healthy()
         if active_and_healthy:
             return
-
-        try:
-            spec = await self.compute_client.get(f'/zones/{instance.zone}/instances/{instance.name}')
-        except aiohttp.ClientResponseError as e:
-            if e.status == 404:
-                await self.remove_instance(instance, 'does_not_exist')
-                return
-            raise
 
         if (instance.state == 'active'
                 and instance.failed_request_count > 5
@@ -136,25 +123,28 @@ class InstanceCollection:
             await self.call_delete_instance(instance, 'not_responding')
             return
 
-        # PROVISIONING, STAGING, RUNNING, STOPPING, TERMINATED
-        gce_state = spec['status']
+        try:
+            vm_state = await self.resource_manager.get_vm_state(instance)
+        except VMDoesNotExist:
+            await self.remove_instance(instance, 'does_not_exist')
+            return
 
-        log.info(f'{instance} gce_state {gce_state}')
+        log.info(f'{instance} vm_state {vm_state}')
 
         if (
-            gce_state == 'PROVISIONING'
+            vm_state.state == VMState.CREATING
             and instance.state == 'pending'
             and time_msecs() - instance.time_created > 5 * 60 * 1000
         ):
             log.exception(f'{instance} did not provision within 5m after creation, deleting')
             await self.call_delete_instance(instance, 'activation_timeout')
 
-        if gce_state in ('STOPPING', 'TERMINATED'):
+        if vm_state.state == VMState.TERMINATED:
             log.info(f'{instance} live but stopping or terminated, deactivating')
             await instance.deactivate('terminated')
 
-        if gce_state in ('STAGING', 'RUNNING'):
-            last_start_timestamp = spec.get('lastStartTimestamp')
+        if vm_state.state == VMState.RUNNING:
+            last_start_timestamp = vm_state.last_start_timestamp
             if last_start_timestamp is not None:
                 last_start_time_msecs = dateutil.parser.isoparse(last_start_timestamp).timestamp() * 1000
                 elapsed_time = time_msecs() - last_start_time_msecs
@@ -164,7 +154,7 @@ class InstanceCollection:
             else:
                 elapsed_time = time_msecs() - instance.time_created
                 if instance.state == 'pending' and elapsed_time > 5 * 60 * 1000:
-                    log.warning(f'{instance} did not activate within {time_msecs_str(elapsed_time)}, ignoring {spec}')
+                    log.warning(f'{instance} did not activate within {time_msecs_str(elapsed_time)}, ignoring {vm_state.full_spec}')
 
         if instance.state == 'inactive':
             log.info(f'{instance} is inactive, deleting')

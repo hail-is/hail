@@ -1,13 +1,14 @@
 import re
 from collections import defaultdict
 
-from .globals import WORKER_CONFIG_VERSION
-from .utils import cores_mcpu_to_memory_bytes
+from ..instance_config import InstanceConfig, is_power_two
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict, Any
 
 if TYPE_CHECKING:
-    from .inst_coll_config import PoolConfig  # pylint: disable=cyclic-import
+    from ..inst_coll_config import PoolConfig  # pylint: disable=cyclic-import
+
+GCP_INSTANCE_CONFIG_VERSION = 4
 
 MACHINE_TYPE_REGEX = re.compile(
     'projects/(?P<project>[^/]+)/zones/(?P<zone>[^/]+)/machineTypes/(?P<machine_family>[^-]+)-(?P<machine_type>[^-]+)-(?P<cores>\\d+)'
@@ -25,13 +26,11 @@ def parse_disk_type(name):
     return match.groupdict()
 
 
-def is_power_two(n):
-    return (n & (n - 1) == 0) and n != 0
-
-
-# worker_config spec
+# instance_config spec
 #
+# cloud: str
 # version: int
+# name: str
 # instance: dict
 #   project: str
 #   zone: str
@@ -45,17 +44,19 @@ def is_power_two(n):
 #   zone: str
 #   type_: str (pd-ssd, pd-standard, local-ssd)
 #   size: int (in GB)
+# job-private: bool
+# vm_config: Dict[str, Any]
 
 
-class WorkerConfig:
+class GCPInstanceConfig(InstanceConfig):
     @staticmethod
-    def from_instance_config(instance_config, job_private=False):
-        instance_info = parse_machine_type_str(instance_config['machineType'])
+    def from_vm_config(vm_config: Dict[str, Any], job_private: bool = False):
+        instance_info = parse_machine_type_str(vm_config['machineType'])
 
-        preemptible = instance_config['scheduling']['preemptible']
+        preemptible = vm_config['scheduling']['preemptible']
 
         disks = []
-        for disk_config in instance_config['disks']:
+        for disk_config in vm_config['disks']:
             params = disk_config['initializeParams']
             disk_info = parse_disk_type(params['diskType'])
             disk_type = disk_info['disk_type']
@@ -77,7 +78,9 @@ class WorkerConfig:
             )
 
         config = {
-            'version': WORKER_CONFIG_VERSION,
+            'cloud': 'gcp',
+            'version': GCP_INSTANCE_CONFIG_VERSION,
+            'name': vm_config['name'],
             'instance': {
                 'project': instance_info['project'],
                 'zone': instance_info['zone'],
@@ -88,9 +91,10 @@ class WorkerConfig:
             },
             'disks': disks,
             'job-private': job_private,
+            'vm_config': vm_config
         }
 
-        return WorkerConfig(config)
+        return GCPInstanceConfig(config)
 
     @staticmethod
     def from_pool_config(pool_config: 'PoolConfig'):
@@ -115,7 +119,8 @@ class WorkerConfig:
         disks.append({'boot': False, 'project': None, 'zone': None, 'type': typ, 'size': size, 'image': None})
 
         config = {
-            'version': WORKER_CONFIG_VERSION,
+            'version': GCP_INSTANCE_CONFIG_VERSION,
+            'name': None,
             'instance': {
                 'project': None,
                 'zone': None,
@@ -126,26 +131,30 @@ class WorkerConfig:
             },
             'disks': disks,
             'job-private': False,
+            'cloud': 'gcp',
+            'vm_config': None
         }
 
-        return WorkerConfig(config)
+        return GCPInstanceConfig(config)
 
-    def __init__(self, config):
+    def __init__(self, config: Dict[str, Any]):
         self.config = config
 
         self.version = self.config['version']
-        assert self.version == 3
+        assert self.version >= 3
+
+        self.cloud = self.config.get('cloud', 'gcp')
+        self.name = self.config.get('name')
+        self.vm_config = self.config.get('vm_config')
 
         instance = self.config['instance']
         self.disks = self.config['disks']
 
-        self.instance_project = instance['project']
-        self.instance_zone = instance['zone']
+        self.project = instance['project']
+        self.zone = instance['zone']
         self.instance_family = instance['family']
         self.instance_type = instance['type']
-
         self.cores = instance['cores']
-        self.preemptible = instance['preemptible']
 
         assert len(self.disks) == 2
         boot_disk = self.disks[0]
@@ -157,15 +166,18 @@ class WorkerConfig:
         self.data_disk_size_gb = data_disk['size']
 
         self.job_private = self.config['job-private']
+        self.preemptible = instance['preemptible']
+        self.worker_type = instance['type']
 
-    def is_valid_configuration(self, valid_resources):
-        is_valid = True
-        dummy_resources = self.resources(0, 0, 0)
-        for resource in dummy_resources:
-            is_valid &= resource['name'] in valid_resources
-        return is_valid
+    @property
+    def location(self):
+        return self.zone
 
-    def resources(self, cpu_in_mcpu, memory_in_bytes, storage_in_gib):
+    @property
+    def machine_type(self):
+        return f'{self.instance_family}-{self.instance_type}-{self.cores}'
+
+    def resources(self, cpu_in_mcpu: int, memory_in_bytes: int, storage_in_gib: int):
         assert memory_in_bytes % (1024 * 1024) == 0, memory_in_bytes
         assert isinstance(storage_in_gib, int), storage_in_gib
 
@@ -201,30 +213,3 @@ class WorkerConfig:
             raise NotImplementedError(self.cores)
 
         return resources
-
-    def _cost_per_hour_from_resources(self, resource_rates, resources):  # pylint: disable=no-self-use
-        cost_per_msec = 0
-        for r in resources:
-            name = r['name']
-            quantity = r['quantity']
-            rate_unit_msec = resource_rates[name]
-            cost_per_msec += quantity * rate_unit_msec
-        return cost_per_msec * 1000 * 60 * 60
-
-    def cost_per_hour(self, resource_rates, cpu_in_mcpu, memory_in_bytes, storage_in_gb):
-        resources = self.resources(cpu_in_mcpu, memory_in_bytes, storage_in_gb)
-        return self._cost_per_hour_from_resources(resource_rates, resources)
-
-    def cost_per_hour_from_cores(self, resource_rates, utilized_cores_mcpu):
-        assert 0 <= utilized_cores_mcpu <= self.cores * 1000
-        memory_in_bytes = cores_mcpu_to_memory_bytes(utilized_cores_mcpu, self.instance_type)
-        storage_in_gb = 0   # we don't need to account for external storage
-        return self.cost_per_hour(resource_rates, utilized_cores_mcpu, memory_in_bytes, storage_in_gb)
-
-    def actual_cost_per_hour(self, resource_rates):
-        cpu_in_mcpu = self.cores * 1000
-        memory_in_bytes = cores_mcpu_to_memory_bytes(cpu_in_mcpu, self.instance_type)
-        storage_in_gb = 0   # we don't need to account for external storage
-        resources = self.resources(cpu_in_mcpu, memory_in_bytes, storage_in_gb)
-        resources = [r for r in resources if 'service-fee' not in r['name']]
-        return self._cost_per_hour_from_resources(resource_rates, resources)

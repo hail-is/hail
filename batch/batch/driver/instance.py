@@ -13,7 +13,8 @@ from gear import Database
 
 from ..database import check_call_procedure
 from ..globals import INSTANCE_VERSION
-from ..worker_config import WorkerConfig
+from ..instance_config import InstanceConfig
+from ..utils import instance_config_from_config_dict
 
 log = logging.getLogger('instance')
 
@@ -21,11 +22,11 @@ log = logging.getLogger('instance')
 class Instance:
     @staticmethod
     def from_record(app, inst_coll, record):
-        config = record.get('worker_config')
+        config = record.get('instance_config')
         if config:
-            worker_config = WorkerConfig(json.loads(base64.b64decode(config).decode()))
+            instance_config = instance_config_from_config_dict(json.loads(base64.b64decode(config).decode()))
         else:
-            worker_config = None
+            instance_config = None
 
         return Instance(
             app,
@@ -39,23 +40,23 @@ class Instance:
             record['last_updated'],
             record['ip_address'],
             record['version'],
-            record['zone'],
-            record['machine_type'],
-            bool(record['preemptible']),
-            worker_config,
+            instance_config,
         )
 
     @staticmethod
-    async def create(app, inst_coll, name, activation_token, worker_cores_mcpu, zone, machine_type, preemptible, worker_config: WorkerConfig):
+    async def create(app, inst_coll, name, activation_token, instance_config: InstanceConfig):
         db: Database = app['db']
 
         state = 'pending'
         now = time_msecs()
         token = secrets.token_urlsafe(32)
+
+        cores_mcpu = instance_config.cores * 1000
+
         await db.just_execute(
             '''
 INSERT INTO instances (name, state, activation_token, token, cores_mcpu, free_cores_mcpu,
-  time_created, last_updated, version, zone, inst_coll, machine_type, preemptible, worker_config)
+  time_created, last_updated, version, location, inst_coll, machine_type, preemptible, instance_config)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
             (
@@ -63,16 +64,16 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 state,
                 activation_token,
                 token,
-                worker_cores_mcpu,
-                worker_cores_mcpu,
+                cores_mcpu,
+                cores_mcpu,
                 now,
                 now,
                 INSTANCE_VERSION,
-                zone,
+                instance_config.location,
                 inst_coll.name,
-                machine_type,
-                preemptible,
-                base64.b64encode(json.dumps(worker_config.config).encode()).decode()
+                instance_config.machine_type,
+                instance_config.preemptible,
+                base64.b64encode(json.dumps(instance_config.config).encode()).decode()
             ),
         )
         return Instance(
@@ -80,17 +81,14 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
             inst_coll,
             name,
             state,
-            worker_cores_mcpu,
-            worker_cores_mcpu,
+            cores_mcpu,
+            cores_mcpu,
             now,
             0,
             now,
             None,
             INSTANCE_VERSION,
-            zone,
-            machine_type,
-            preemptible,
-            worker_config
+            instance_config
         )
 
     def __init__(
@@ -106,10 +104,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         last_updated,
         ip_address,
         version,
-        zone,
-        machine_type,
-        preemptible,
-        worker_config: Optional[WorkerConfig],
+        instance_config: Optional[InstanceConfig],
     ):
         self.db: Database = app['db']
         self.client_session: httpx.ClientSession = app['client_session']
@@ -124,10 +119,10 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         self._last_updated = last_updated
         self.ip_address = ip_address
         self.version = version
-        self.zone = zone
-        self.machine_type = machine_type
-        self.preemptible = preemptible
-        self.worker_config = worker_config
+        self.location = instance_config.location
+        self.machine_type = instance_config.machine_type
+        self.preemptible = instance_config.preemptible
+        self.instance_config = instance_config
 
     @property
     def state(self):

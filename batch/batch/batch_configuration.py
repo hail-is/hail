@@ -4,6 +4,7 @@ import json
 KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
 REFRESH_INTERVAL_IN_SECONDS = int(os.environ.get('REFRESH_INTERVAL_IN_SECONDS', 5 * 60))
 DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
+CLOUD = os.environ.get('CLOUD', 'gcp')  # FIXME: get CLOUD from global config
 PROJECT = os.environ['PROJECT']
 SCOPE = os.environ['HAIL_SCOPE']
 

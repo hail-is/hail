@@ -1,5 +1,4 @@
 import logging
-import math
 import json
 import secrets
 from aiohttp import web
@@ -9,7 +8,8 @@ from collections import deque
 from gear import maybe_parse_bearer_header
 from hailtop.utils import secret_alnum_string
 
-from .globals import RESERVED_STORAGE_GB_PER_CORE
+from .resource_utils import cost_from_msec_mcpu
+from .gcp.instance_config import GCPInstanceConfig
 
 log = logging.getLogger('utils')
 
@@ -39,160 +39,10 @@ def batch_only(fun):
     return wrapped
 
 
-def round_up_division(numerator, denominator):
-    return (numerator + denominator - 1) // denominator
-
-
 def coalesce(x, default):
     if x is not None:
         return x
     return default
-
-
-def cost_from_msec_mcpu(msec_mcpu):
-    if msec_mcpu is None:
-        return None
-
-    worker_type = 'standard'
-    worker_cores = 16
-    worker_disk_size_gb = 100
-
-    # https://cloud.google.com/compute/all-pricing
-
-    # per instance costs
-    # persistent SSD: $0.17 GB/month
-    # average number of days per month = 365.25 / 12 = 30.4375
-    avg_n_days_per_month = 30.4375
-
-    disk_cost_per_instance_hour = 0.17 * worker_disk_size_gb / avg_n_days_per_month / 24
-
-    ip_cost_per_instance_hour = 0.004
-
-    instance_cost_per_instance_hour = disk_cost_per_instance_hour + ip_cost_per_instance_hour
-
-    # per core costs
-    if worker_type == 'standard':
-        cpu_cost_per_core_hour = 0.01
-    elif worker_type == 'highcpu':
-        cpu_cost_per_core_hour = 0.0075
-    else:
-        assert worker_type == 'highmem'
-        cpu_cost_per_core_hour = 0.0125
-
-    service_cost_per_core_hour = 0.01
-
-    total_cost_per_core_hour = (
-        cpu_cost_per_core_hour + instance_cost_per_instance_hour / worker_cores + service_cost_per_core_hour
-    )
-
-    return (msec_mcpu * 0.001 * 0.001) * (total_cost_per_core_hour / 3600)
-
-
-def worker_memory_per_core_mib(worker_type):
-    if worker_type == 'standard':
-        m = 3840
-    elif worker_type == 'highmem':
-        m = 6656
-    else:
-        assert worker_type == 'highcpu', worker_type
-        m = 924  # this number must be divisible by 4. I rounded up to the nearest MiB
-    return m
-
-
-def worker_memory_per_core_bytes(worker_type):
-    m = worker_memory_per_core_mib(worker_type)
-    return int(m * 1024 ** 2)
-
-
-def memory_bytes_to_cores_mcpu(memory_in_bytes, worker_type):
-    return math.ceil((memory_in_bytes / worker_memory_per_core_bytes(worker_type)) * 1000)
-
-
-def cores_mcpu_to_memory_bytes(cores_in_mcpu, worker_type):
-    return int((cores_in_mcpu / 1000) * worker_memory_per_core_bytes(worker_type))
-
-
-def adjust_cores_for_memory_request(cores_in_mcpu, memory_in_bytes, worker_type):
-    min_cores_mcpu = memory_bytes_to_cores_mcpu(memory_in_bytes, worker_type)
-    return max(cores_in_mcpu, min_cores_mcpu)
-
-
-def total_worker_storage_gib(worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib):
-    reserved_image_size = 25
-    if worker_local_ssd_data_disk:
-        # local ssd is 375Gi
-        # reserve 25Gi for images
-        return 375 - reserved_image_size
-    return worker_pd_ssd_data_disk_size_gib - reserved_image_size
-
-
-def worker_storage_per_core_bytes(worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib):
-    return (
-        total_worker_storage_gib(worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib) * 1024 ** 3
-    ) // worker_cores
-
-
-def storage_bytes_to_cores_mcpu(
-    storage_in_bytes, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib
-):
-    return round_up_division(
-        storage_in_bytes * 1000,
-        worker_storage_per_core_bytes(worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib),
-    )
-
-
-def cores_mcpu_to_storage_bytes(
-    cores_in_mcpu, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib
-):
-    return (
-        cores_in_mcpu
-        * worker_storage_per_core_bytes(worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib)
-    ) // 1000
-
-
-def adjust_cores_for_storage_request(
-    cores_in_mcpu, storage_in_bytes, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib
-):
-    min_cores_mcpu = storage_bytes_to_cores_mcpu(
-        storage_in_bytes, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib
-    )
-    return max(cores_in_mcpu, min_cores_mcpu)
-
-
-def unreserved_worker_data_disk_size_gib(worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib, worker_cores):
-    reserved_image_size = 30
-    reserved_container_size = RESERVED_STORAGE_GB_PER_CORE * worker_cores
-    if worker_local_ssd_data_disk:
-        # local ssd is 375Gi
-        # reserve 20Gi for images
-        return 375 - reserved_image_size - reserved_container_size
-    return worker_pd_ssd_data_disk_size_gib - reserved_image_size - reserved_container_size
-
-
-def adjust_cores_for_packability(cores_in_mcpu):
-    cores_in_mcpu = max(1, cores_in_mcpu)
-    power = max(-2, math.ceil(math.log2(cores_in_mcpu / 1000)))
-    return int(2 ** power * 1000)
-
-
-def round_storage_bytes_to_gib(storage_bytes):
-    gib = storage_bytes / 1024 / 1024 / 1024
-    gib = math.ceil(gib)
-    return gib
-
-
-def storage_gib_to_bytes(storage_gib):
-    return math.ceil(storage_gib * 1024 ** 3)
-
-
-def is_valid_cores_mcpu(cores_mcpu: int):
-    if cores_mcpu <= 0:
-        return False
-    quarter_core_mcpu = cores_mcpu * 4
-    if quarter_core_mcpu % 1000 != 0:
-        return False
-    quarter_cores = quarter_core_mcpu // 1000
-    return quarter_cores & (quarter_cores - 1) == 0
 
 
 class Box:
@@ -257,6 +107,18 @@ class ExceededSharesCounter:
 
     def __repr__(self):
         return f'global {self._global_counter}'
+
+
+def instance_config_from_config_dict(config):
+    cloud = config.get('cloud', 'gcp')
+    assert cloud == 'gcp'
+    return GCPInstanceConfig(config)
+
+
+def instance_config_from_pool_config(pool_config):
+    cloud = pool_config.cloud
+    assert cloud == 'gcp'
+    return GCPInstanceConfig.from_pool_config(pool_config)
 
 
 async def query_billing_projects(db, user=None, billing_project=None):
