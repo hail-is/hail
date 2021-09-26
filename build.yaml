@@ -2363,6 +2363,8 @@ steps:
         script: /io/sql/add-frozen-mode.sql
       - name: add-instance-config
         script: /io/sql/add-instance-config.sql
+      - name: cloud-agnostic
+        script: /io/sql/cloud-agnostic.sql
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

@@ -18,16 +18,14 @@ from hailtop.utils import (
     periodically_call,
 )
 
-from ..batch_configuration import STANDING_WORKER_MAX_IDLE_TIME_MSECS, WORKER_MAX_IDLE_TIME_MSECS, GCP_ZONE
+from ..batch_configuration import STANDING_WORKER_MAX_IDLE_TIME_MSECS, WORKER_MAX_IDLE_TIME_MSECS
 from ..inst_coll_config import PoolConfig
-from ..utils import (
-    Box,
-    ExceededSharesCounter,
+from ..utils import Box, ExceededSharesCounter
+from ..resource_utils import (
     adjust_cores_for_memory_request,
     adjust_cores_for_packability,
     adjust_cores_for_storage_request,
 )
-from .create_instance import create_instance, create_instance_config
 from .instance import Instance
 from .instance_collection import InstanceCollection
 from .job import schedule_job
@@ -37,7 +35,7 @@ log = logging.getLogger('pool')
 
 class Pool(InstanceCollection):
     def __init__(self, app, machine_name_prefix: str, config: PoolConfig):
-        super().__init__(app, config.name, machine_name_prefix, is_pool=True)
+        super().__init__(app, config.cloud, config.name, machine_name_prefix, is_pool=True)
 
         global_scheduler_state_changed: Notice = app['scheduler_state_changed']
         self.scheduler_state_changed = global_scheduler_state_changed.subscribe()
@@ -141,8 +139,9 @@ WHERE name = %s;
         self.max_live_instances = max_live_instances
 
     def resources_to_cores_mcpu(self, cores_mcpu, memory_bytes, storage_bytes):
-        cores_mcpu = adjust_cores_for_memory_request(cores_mcpu, memory_bytes, self.worker_type)
+        cores_mcpu = adjust_cores_for_memory_request(self.resource_manager.cloud, cores_mcpu, memory_bytes, self.worker_type)
         cores_mcpu = adjust_cores_for_storage_request(
+            self.resource_manager.cloud,
             cores_mcpu,
             storage_bytes,
             self.worker_cores,
@@ -165,7 +164,22 @@ WHERE name = %s;
         if instance.state == 'active' and instance.failed_request_count <= 1:
             self.healthy_instances_by_free_cores.add(instance)
 
-    async def create_instance(self, cores=None, max_idle_time_msecs=None, zone=None):
+    def get_instance(self, user, cores_mcpu):
+        i = self.healthy_instances_by_free_cores.bisect_key_left(cores_mcpu)
+        while i < len(self.healthy_instances_by_free_cores):
+            instance = self.healthy_instances_by_free_cores[i]
+            assert cores_mcpu <= instance.free_cores_mcpu
+            if user != 'ci' or (user == 'ci' and instance.location == self.resource_manager.default_location):
+                return instance
+            i += 1
+        histogram = collections.defaultdict(int)
+        for instance in self.healthy_instances_by_free_cores:
+            histogram[instance.free_cores_mcpu] += 1
+        log.info(f'schedule {self}: no viable instances for {cores_mcpu}: {histogram}')
+
+        return None
+
+    async def create_instance(self, cores=None, max_idle_time_msecs=None, location=None):
         if cores is None:
             cores = self.worker_cores
 
@@ -174,20 +188,11 @@ WHERE name = %s;
 
         machine_name = self.generate_machine_name()
 
-        if zone is None:
-            zone = self.zone_monitor.get_zone(cores, self.worker_local_ssd_data_disk, self.worker_pd_ssd_data_disk_size_gb)
-            if zone is None:
-                return
-
-        machine_type = f'n1-{self.worker_type}-{cores}'
-
         activation_token = secrets.token_urlsafe(32)
 
-        config, worker_config = create_instance_config(
+        instance_config = self.resource_manager.prepare_vm(
             app=self.app,
-            zone=zone,
             machine_name=machine_name,
-            machine_type=machine_type,
             activation_token=activation_token,
             max_idle_time_msecs=max_idle_time_msecs,
             worker_local_ssd_data_disk=self.worker_local_ssd_data_disk,
@@ -195,37 +200,34 @@ WHERE name = %s;
             boot_disk_size_gb=self.boot_disk_size_gb,
             preemptible=True,
             job_private=False,
+            worker_type=self.worker_type,
+            cores=cores,
+            location=location,
         )
+
+        if instance_config is None:
+            return
 
         instance = await Instance.create(
             app=self.app,
             inst_coll=self,
             name=machine_name,
             activation_token=activation_token,
-            worker_cores_mcpu=cores * 1000,
-            zone=zone,
-            machine_type=machine_type,
-            preemptible=True,
-            worker_config=worker_config
+            instance_config=instance_config
         )
 
         self.add_instance(instance)
         log.info(f'created {instance}')
 
-        await create_instance(
-            app=self.app,
-            machine_name=machine_name,
-            zone=zone,
-            config=config,
-        )
+        await self.resource_manager.create_vm(instance_config)
 
-    async def create_instances_from_ready_cores(self, ready_cores_mcpu, zone=None):
+    async def create_instances_from_ready_cores(self, ready_cores_mcpu, location=None):
         n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
 
-        if zone is None:
+        if location is None:
             live_free_cores_mcpu = self.live_free_cores_mcpu
         else:
-            live_free_cores_mcpu = self.live_free_cores_mcpu_by_zone[zone]
+            live_free_cores_mcpu = self.live_free_cores_mcpu_by_location[location]
 
         instances_needed = (ready_cores_mcpu - live_free_cores_mcpu + (self.worker_cores * 1000) - 1) // (
             self.worker_cores * 1000
@@ -243,7 +245,7 @@ WHERE name = %s;
         if instances_needed > 0:
             log.info(f'creating {instances_needed} new instances')
             # parallelism will be bounded by thread pool
-            await asyncio.gather(*[self.create_instance(zone=zone) for _ in range(instances_needed)])
+            await asyncio.gather(*[self.create_instance(location=location) for _ in range(instances_needed)])
 
     async def create_instances(self):
         if self.app['frozen']:
@@ -280,9 +282,10 @@ GROUP BY user;
         if ready_cores_mcpu > 0 and free_cores < 500:
             await self.create_instances_from_ready_cores(ready_cores_mcpu)
 
+        default_location = self.resource_manager.default_location
         ci_ready_cores_mcpu = ready_cores_mcpu_per_user.get('ci', 0)
-        if ci_ready_cores_mcpu > 0 and self.live_free_cores_mcpu_by_zone[GCP_ZONE] == 0:
-            await self.create_instances_from_ready_cores(ci_ready_cores_mcpu, zone=GCP_ZONE)
+        if ci_ready_cores_mcpu > 0 and self.live_free_cores_mcpu_by_location[default_location] == 0:
+            await self.create_instances_from_ready_cores(ci_ready_cores_mcpu, location=default_location)
 
         n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
         if self.enable_standing_worker and n_live_instances == 0 and self.max_instances > 0:
@@ -460,21 +463,6 @@ LIMIT %s;
 
         waitable_pool = WaitableSharedPool(self.async_worker_pool)
 
-        def get_instance(user, cores_mcpu):
-            i = self.pool.healthy_instances_by_free_cores.bisect_key_left(cores_mcpu)
-            while i < len(self.pool.healthy_instances_by_free_cores):
-                instance = self.pool.healthy_instances_by_free_cores[i]
-                assert cores_mcpu <= instance.free_cores_mcpu
-                if user != 'ci' or (user == 'ci' and instance.zone == GCP_ZONE):
-                    return instance
-                i += 1
-            histogram = collections.defaultdict(int)
-            for instance in self.pool.healthy_instances_by_free_cores:
-                histogram[instance.free_cores_mcpu] += 1
-            log.info(f'schedule {self.pool}: no viable instances for {cores_mcpu}: {histogram}')
-
-            return None
-
         should_wait = True
         for user, resources in user_resources.items():
             allocated_cores_mcpu = resources['allocated_cores_mcpu']
@@ -501,7 +489,7 @@ LIMIT %s;
                         break
                     self.exceeded_shares_counter.push(False)
 
-                instance = get_instance(user, record['cores_mcpu'])
+                instance = self.pool.get_instance(user, record['cores_mcpu'])
                 if instance:
                     instance.adjust_free_cores_in_memory(-record['cores_mcpu'])
                     scheduled_cores_mcpu += record['cores_mcpu']

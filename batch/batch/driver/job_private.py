@@ -18,19 +18,19 @@ from hailtop.utils import (
 
 from ..batch_format_version import BatchFormatVersion
 from ..batch_configuration import WORKER_MAX_IDLE_TIME_MSECS
-from ..inst_coll_config import machine_type_to_dict, JobPrivateInstanceManagerConfig
-from .create_instance import create_instance, create_instance_config
+from ..inst_coll_config import JobPrivateInstanceManagerConfig
 from .instance_collection import InstanceCollection
 from .instance import Instance
 from .job import mark_job_creating, schedule_job
-from ..utils import worker_memory_per_core_bytes, Box, ExceededSharesCounter
+from ..resource_utils import worker_memory_per_core_bytes
+from ..utils import Box, ExceededSharesCounter
 
 log = logging.getLogger('job_private_inst_coll')
 
 
 class JobPrivateInstanceManager(InstanceCollection):
     def __init__(self, app, machine_name_prefix: str, config: JobPrivateInstanceManagerConfig):
-        super().__init__(app, config.name, machine_name_prefix, is_pool=False)
+        super().__init__(app, config.cloud, config.name, machine_name_prefix, is_pool=False)
 
         global_scheduler_state_changed: Notice = app['scheduler_state_changed']
         self.create_instances_state_changed = global_scheduler_state_changed.subscribe()
@@ -243,20 +243,10 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
         preemptible = machine_spec['preemptible']
         storage_gb = machine_spec['storage_gib']
 
-        machine_type_dict = machine_type_to_dict(machine_type)
-        cores = int(machine_type_dict['cores'])
-        cores_mcpu = cores * 1000
-        worker_type = machine_type_dict['machine_type']
-
-        zone = self.zone_monitor.get_zone(cores, False, storage_gb)
-        if zone is None:
-            return
-
         activation_token = secrets.token_urlsafe(32)
 
-        config, worker_config = create_instance_config(
+        instance_config = self.resource_manager.prepare_vm(
             app=self.app,
-            zone=zone,
             machine_name=machine_name,
             machine_type=machine_type,
             activation_token=activation_token,
@@ -268,21 +258,25 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
             job_private=True,
         )
 
+        if instance_config is None:
+            return
+
         instance = await Instance.create(
-            self.app, self, machine_name, activation_token, cores_mcpu, zone, machine_type, preemptible, worker_config
+            app=self.app,
+            inst_coll=self,
+            name=machine_name,
+            activation_token=activation_token,
+            instance_config=instance_config
         )
+
         self.add_instance(instance)
         log.info(f'created {instance} for {(batch_id, job_id)}')
 
-        await create_instance(
-            app=self.app,
-            machine_name=machine_name,
-            zone=zone,
-            config=config,
-        )
+        await self.resource_manager.create_vm(instance_config)
 
-        memory_in_bytes = worker_memory_per_core_bytes(worker_type)
-        resources = worker_config.resources(
+        memory_in_bytes = worker_memory_per_core_bytes(self.cloud, instance_config.worker_type)
+        cores_mcpu = instance_config.cores * 1000
+        resources = instance_config.resources(
             cpu_in_mcpu=cores_mcpu, memory_in_bytes=memory_in_bytes, storage_in_gib=0
         )  # this is 0 because there's no addtl disk beyond data disk
 

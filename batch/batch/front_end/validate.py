@@ -25,7 +25,7 @@ from hailtop.utils.validate import (
     ValidationError,
 )
 
-from ..globals import valid_machine_types, memory_to_worker_type
+from ..globals import memory_types
 
 k8s_str = regex(r'[a-z0-9](?:[-a-z0-9]*[a-z0-9])?(?:\.[a-z0-9](?:[-a-z0-9]*[a-z0-9])?)*', maxlen=253)
 
@@ -77,10 +77,10 @@ job_validator = keyed(
         'requester_pays_project': str_type,
         'resources': keyed(
             {
-                'memory': anyof(regex(MEMORY_REGEXPAT, MEMORY_REGEX), oneof(*memory_to_worker_type.keys())),
+                'memory': anyof(regex(MEMORY_REGEXPAT, MEMORY_REGEX), oneof(*memory_types)),
                 'cpu': regex(CPU_REGEXPAT, CPU_REGEX),
                 'storage': regex(STORAGE_REGEXPAT, STORAGE_REGEX),
-                'machine_type': oneof(*valid_machine_types),
+                'machine_type': str_type,
                 'preemptible': bool_type,
             }
         ),
