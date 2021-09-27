@@ -3,7 +3,7 @@ package is.hail.types
 import is.hail.annotations.{Annotation, NDArray}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete.SIndexablePointer
-import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SInterval, SStream}
+import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SInterval, SNDArray, SStream}
 import is.hail.types.physical.stypes.{EmitType, SType}
 import is.hail.types.virtual._
 import is.hail.utils.{FastSeq, Interval, rowIterator, toMapFast}
@@ -333,6 +333,7 @@ case class RNDArray(override val elementType: TypeWithRequiredness) extends RIte
   }
   override def _matchesPType(pt: PType): Boolean = elementType.matchesPType(coerce[PNDArray](pt).elementType)
   override def _unionPType(pType: PType): Unit = elementType.fromPType(pType.asInstanceOf[PNDArray].elementType)
+  override def _unionEmitType(emitType: EmitType): Unit = elementType.fromEmitType(emitType.st.asInstanceOf[SNDArray].elementEmitType)
   override def copy(newChildren: Seq[BaseTypeWithRequiredness]): RNDArray = {
     val Seq(newElt: TypeWithRequiredness) = newChildren
     RNDArray(newElt)
