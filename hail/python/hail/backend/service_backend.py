@@ -189,7 +189,7 @@ class ServiceBackend(Backend):
                  user_local_reference_cache_dir: Path):
         self.billing_project = billing_project
         self.bucket = bucket
-        self._fs = GoogleCloudStorageFS()
+        self._fs = fs
         self.bc = bc
         self.async_bc = self.bc._async_client
         self.disable_progress_bar = disable_progress_bar
@@ -308,7 +308,7 @@ class ServiceBackend(Backend):
         return async_to_blocking(self._async_value_type(ir))
 
     async def _async_value_type(self, ir):
-        async def inputs(infile, token):
+        async def inputs(infile, _):
             write_int(infile, ServiceBackend.VALUE_TYPE)
             write_str(infile, tmp_dir())
             write_str(infile, self.billing_project)
@@ -321,40 +321,40 @@ class ServiceBackend(Backend):
         return async_to_blocking(self._async_table_type(tir))
 
     async def _async_table_type(self, tir):
-        async def inputs(infile, token):
+        async def inputs(infile, _):
             write_int(infile, ServiceBackend.TABLE_TYPE)
             write_str(infile, tmp_dir())
             write_str(infile, self.billing_project)
             write_str(infile, self.bucket)
             write_str(infile, self.render(tir))
         _, resp = await self._rpc('value_type(...)', inputs)
-        return ttable._from_json(json.loads(s))
+        return ttable._from_json(resp)
 
     def matrix_type(self, mir):
         return async_to_blocking(self._async_matrix_type(mir))
 
     async def _async_matrix_type(self, mir):
-        async def inputs(infile, token):
+        async def inputs(infile, _):
             write_int(infile, ServiceBackend.MATRIX_TABLE_TYPE)
             write_str(infile, tmp_dir())
             write_str(infile, self.billing_project)
             write_str(infile, self.bucket)
             write_str(infile, self.render(mir))
         _, resp = await self._rpc('matrix_type(...)', inputs)
-        return tmatrix._from_json(json.loads(s))
+        return tmatrix._from_json(resp)
 
     def blockmatrix_type(self, bmir):
         return async_to_blocking(self._async_blockmatrix_type(bmir))
 
     async def _async_blockmatrix_type(self, bmir):
-        async def inputs(infile, token):
+        async def inputs(infile, _):
             write_int(infile, ServiceBackend.BLOCK_MATRIX_TYPE)
             write_str(infile, tmp_dir())
             write_str(infile, self.billing_project)
             write_str(infile, self.bucket)
             write_str(infile, self.render(bmir))
         _, resp = await self._rpc('blockmatrix_type(...)', inputs)
-        return tblockmatrix._from_json(json.loads(s))
+        return tblockmatrix._from_json(resp)
 
     def add_reference(self, config):
         raise NotImplementedError("ServiceBackend does not support 'add_reference'")
@@ -376,7 +376,7 @@ class ServiceBackend(Backend):
             except FileNotFoundError:
                 pass
 
-        async def inputs(infile, token):
+        async def inputs(infile, _):
             write_int(infile, ServiceBackend.REFERENCE_GENOME)
             write_str(infile, tmp_dir())
             write_str(infile, self.billing_project)
@@ -398,7 +398,7 @@ class ServiceBackend(Backend):
         return async_to_blocking(self._async_load_references_from_dataset(path))
 
     async def _async_load_references_from_dataset(self, path):
-        async def inputs(infile, token):
+        async def inputs(infile, _):
             write_int(infile, ServiceBackend.LOAD_REFERENCES_FROM_DATASET)
             write_str(infile, tmp_dir())
             write_str(infile, self.billing_project)
