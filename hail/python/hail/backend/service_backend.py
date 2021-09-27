@@ -1,4 +1,4 @@
-from typing import BinaryIO, Dict, Optional, Callable, Awaitable, Tuple
+from typing import Dict, Optional, Callable, Awaitable, Tuple
 import asyncio
 import struct
 import os
@@ -7,7 +7,6 @@ import logging
 import contextlib
 import re
 import yaml
-import io
 from pathlib import Path
 
 from hail.context import TemporaryDirectory, tmp_dir
@@ -29,7 +28,6 @@ import hailtop.aiotools.fs as afs
 from .backend import Backend
 from ..builtin_references import BUILTIN_REFERENCES
 from ..fs.google_fs import GoogleCloudStorageFS
-from ..fs.fs import FS
 from ..context import version
 
 
