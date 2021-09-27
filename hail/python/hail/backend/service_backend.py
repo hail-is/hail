@@ -259,7 +259,7 @@ class ServiceBackend(Backend):
                 message = {'batch_status': status,
                            'job_status': await j.status(),
                            'log': await j.log()}
-                yaml.dump(message, default_style='|')
+                log.error(yaml.dump(message, default_style='|'))
                 raise ValueError(message)
 
             with self.fs.open(iodir + '/out', 'rb') as outfile:
@@ -281,11 +281,12 @@ class ServiceBackend(Backend):
                         failed_jobs = []
                         async for j in b2.jobs():
                             if j['state'] != 'Success':
+                                main_log = await self.async_bc.get_job_log(j['batch_id'], j['job_id']).get('main', '')
                                 failed_jobs.append({
                                     'status': j,
-                                    'log': (await self.async_bc.get_job_log(j['batch_id'], j['job_id'])).strip()})
+                                    'log': main_log.strip()})
                         message = {'id': batch_id, 'batch_status': b2_status, 'failed_jobs': failed_jobs}
-                        yaml.dump(message, default_style='|')
+                        log.error(yaml.dump(message, default_style='|'))
                         raise ValueError(json.dumps(message))
                     raise FatalError(f'batch id was {b.id}\n' + jstacktrace)
 
