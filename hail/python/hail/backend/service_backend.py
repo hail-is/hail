@@ -1,4 +1,4 @@
-from typing import BinaryIO, Dict, Optional
+from typing import BinaryIO, Dict, Optional, Callable, Awaitable, Tuple
 import asyncio
 import struct
 import os
@@ -7,6 +7,7 @@ import logging
 import contextlib
 import re
 import yaml
+import io
 from pathlib import Path
 
 from hail.context import TemporaryDirectory, tmp_dir
@@ -31,33 +32,33 @@ from ..context import version
 log = logging.getLogger('backend.service_backend')
 
 
-def write_int(io: BinaryIO, v: int):
-    io.write(struct.pack('<i', v))
+def write_int(bio: BinaryIO, v: int):
+    bio.write(struct.pack('<i', v))
 
 
-def write_long(io: BinaryIO, v: int):
-    io.write(struct.pack('<q', v))
+def write_long(bio: BinaryIO, v: int):
+    bio.write(struct.pack('<q', v))
 
 
-def write_bytes(io: BinaryIO, b: bytes):
+def write_bytes(bio: BinaryIO, b: bytes):
     n = len(b)
-    write_int(io, n)
-    io.write(b)
+    write_int(bio, n)
+    bio.write(b)
 
 
-def write_str(io: BinaryIO, s: str):
-    write_bytes(io, s.encode('utf-8'))
+def write_str(bio: BinaryIO, s: str):
+    write_bytes(bio, s.encode('utf-8'))
 
 
 class EndOfStream(TransientError):
     pass
 
 
-def read(io: BinaryIO, n: int) -> bytes:
+def read(bio: BinaryIO, n: int) -> bytes:
     b = bytearray()
     left = n
     while left > 0:
-        t = io.read(left)
+        t = bio.read(left)
         if not t:
             log.warning(f'unexpected EOS, Java violated protocol ({b})')
             raise EndOfStream()
@@ -66,32 +67,32 @@ def read(io: BinaryIO, n: int) -> bytes:
     return b
 
 
-def read_byte(io: BinaryIO) -> int:
-    b = read(io, 1)
+def read_byte(bio: BinaryIO) -> int:
+    b = read(bio, 1)
     return b[0]
 
 
-def read_bool(io: BinaryIO) -> bool:
-    return read_byte(io) != 0
+def read_bool(bio: BinaryIO) -> bool:
+    return read_byte(bio) != 0
 
 
-def read_int(io: BinaryIO) -> int:
-    b = read(io, 4)
+def read_int(bio: BinaryIO) -> int:
+    b = read(bio, 4)
     return struct.unpack('<i', b)[0]
 
 
-def read_long(io: BinaryIO) -> int:
-    b = read(io, 8)
+def read_long(bio: BinaryIO) -> int:
+    b = read(bio, 8)
     return struct.unpack('<q', b)[0]
 
 
-def read_bytes(io: BinaryIO) -> bytes:
-    n = read_int(io)
-    return read(io, n)
+def read_bytes(bio: BinaryIO) -> bytes:
+    n = read_int(bio)
+    return read(bio, n)
 
 
-def read_str(io: BinaryIO) -> str:
-    b = read_bytes(io)
+def read_str(bio: BinaryIO) -> str:
+    b = read_bytes(bio)
     return b.decode('utf-8')
 
 
@@ -221,22 +222,19 @@ class ServiceBackend(Backend):
             return result, dict()
         return result
 
-    async def _async_execute_untimed(self, ir):
+    async def _rpc(self,
+                   name: str,
+                   inputs: Callable[[io.IOBase, str], Awaitable[Tuple[str, dict]]]):
         token = secret_alnum_string()
-        with TemporaryDirectory(ensure_exists=False) as dir:
+        with TemporaryDirectory(ensure_exists=False) as iodir:
             async def create_inputs():
-                with self.fs.open(dir + '/in', 'wb') as infile:
-                    write_int(infile, ServiceBackend.EXECUTE)
-                    write_str(infile, tmp_dir())
-                    write_str(infile, self.billing_project)
-                    write_str(infile, self.bucket)
-                    write_str(infile, self.render(ir))
-                    write_str(infile, token)
+                with self.fs.open(iodir + '/in', 'wb') as infile:
+                    await inputs(infile, token)
 
             async def create_batch():
                 batch_attributes = self.batch_attributes
                 if 'name' not in batch_attributes:
-                    batch_attributes = {**batch_attributes, 'name': 'execute(...)'}
+                    batch_attributes = {**batch_attributes, 'name': name}
                 bb = self.async_bc.create_batch(token=token, attributes=batch_attributes)
 
                 j = bb.create_jvm_job([
@@ -244,8 +242,8 @@ class ServiceBackend(Backend):
                     os.environ['HAIL_SHA'],
                     os.environ['HAIL_JAR_URL'],
                     batch_attributes['name'],
-                    dir + '/in',
-                    dir + '/out',
+                    iodir + '/in',
+                    iodir + '/out',
                 ], mount_tokens=True)
                 return (j, await bb.submit(disable_progress_bar=self.disable_progress_bar))
 
@@ -259,12 +257,12 @@ class ServiceBackend(Backend):
                 yaml.dump(message, default_style='|')
                 raise ValueError(message)
 
-            with self.fs.open(dir + '/out', 'rb') as outfile:
+            with self.fs.open(iodir + '/out', 'rb') as outfile:
                 success = read_bool(outfile)
                 if success:
                     s = read_str(outfile)
                     try:
-                        resp = json.loads(s)
+                        return (token, json.loads(s))
                     except json.decoder.JSONDecodeError as err:
                         raise ValueError(f'batch id was {b.id}\ncould not decode {s}') from err
                 else:
@@ -286,13 +284,19 @@ class ServiceBackend(Backend):
                         raise ValueError(json.dumps(message))
                     raise FatalError(f'batch id was {b.id}\n' + jstacktrace)
 
+    async def _async_execute_untimed(self, ir):
+        async def inputs(infile, token):
+            write_int(infile, ServiceBackend.EXECUTE)
+            write_str(infile, tmp_dir())
+            write_str(infile, self.billing_project)
+            write_str(infile, self.bucket)
+            write_str(infile, self.render(ir))
+            write_str(infile, token)
+        _, resp = await self._rpc('execute(...)', inputs)
         typ = dtype(resp['type'])
         if typ == tvoid:
-            x = None
-        else:
-            x = typ._convert_from_json_na(resp['value'])
-
-        return x
+            return None
+        return typ._convert_from_json_na(resp['value'])
 
     def execute_many(self, *irs, timed=False):
         return async_to_blocking(self._async_execute_many(*irs, timed=timed))
@@ -301,164 +305,44 @@ class ServiceBackend(Backend):
         return await asyncio.gather(*[self._async_execute(ir, timed=timed) for ir in irs])
 
     def value_type(self, ir):
-        token = secret_alnum_string()
-        with TemporaryDirectory(ensure_exists=False) as dir:
-            with self.fs.open(dir + '/in', 'wb') as infile:
-                write_int(infile, ServiceBackend.VALUE_TYPE)
-                write_str(infile, tmp_dir())
-                write_str(infile, self.billing_project)
-                write_str(infile, self.bucket)
-                write_str(infile, self.render(ir))
-
-            batch_attributes = self.batch_attributes
-            if 'name' not in batch_attributes:
-                batch_attributes = {**batch_attributes, 'name': 'value_type(...)'}
-            bb = self.bc.create_batch(token=token, attributes=batch_attributes)
-
-            j = bb.create_jvm_job([
-                'is.hail.backend.service.ServiceBackendSocketAPI2',
-                os.environ['HAIL_SHA'],
-                os.environ['HAIL_JAR_URL'],
-                batch_attributes['name'],
-                dir + '/in',
-                dir + '/out',
-            ], mount_tokens=True)
-            b = bb.submit(disable_progress_bar=self.disable_progress_bar)
-            status = b.wait(disable_progress_bar=self.disable_progress_bar)
-            if status['n_succeeded'] != 1:
-                raise ValueError(f'batch failed {status} {j.log()}')
-
-            with self.fs.open(dir + '/out', 'rb') as outfile:
-                success = read_bool(outfile)
-                if success:
-                    s = read_str(outfile)
-                    try:
-                        return dtype(json.loads(s))
-                    except json.decoder.JSONDecodeError as err:
-                        raise ValueError(f'could not decode {s}') from err
-                else:
-                    jstacktrace = read_str(outfile)
-                    raise FatalError(jstacktrace)
+        async def inputs(infile, token):
+            write_int(infile, ServiceBackend.VALUE_TYPE)
+            write_str(infile, tmp_dir())
+            write_str(infile, self.billing_project)
+            write_str(infile, self.bucket)
+            write_str(infile, self.render(ir))
+        _, resp = await self._rpc('value_type(...)', inputs)
+        return dtype(resp)
 
     def table_type(self, tir):
-        token = secret_alnum_string()
-        with TemporaryDirectory(ensure_exists=False) as dir:
-            with self.fs.open(dir + '/in', 'wb') as infile:
-                write_int(infile, ServiceBackend.TABLE_TYPE)
-                write_str(infile, tmp_dir())
-                write_str(infile, self.billing_project)
-                write_str(infile, self.bucket)
-                write_str(infile, self.render(tir))
-
-            batch_attributes = self.batch_attributes
-            if 'name' not in batch_attributes:
-                batch_attributes = {**batch_attributes, 'name': 'table_type(...)'}
-            bb = self.bc.create_batch(token=token, attributes=batch_attributes)
-
-            j = bb.create_jvm_job([
-                'is.hail.backend.service.ServiceBackendSocketAPI2',
-                os.environ['HAIL_SHA'],
-                os.environ['HAIL_JAR_URL'],
-                batch_attributes['name'],
-                dir + '/in',
-                dir + '/out',
-            ], mount_tokens=True)
-            b = bb.submit(disable_progress_bar=self.disable_progress_bar)
-            status = b.wait(disable_progress_bar=self.disable_progress_bar)
-            if status['n_succeeded'] != 1:
-                raise ValueError(f'batch failed {status} {j.log()}')
-
-            with self.fs.open(dir + '/out', 'rb') as outfile:
-                success = read_bool(outfile)
-                if success:
-                    s = read_str(outfile)
-                    try:
-                        return ttable._from_json(json.loads(s))
-                    except json.decoder.JSONDecodeError as err:
-                        raise ValueError(f'could not decode {s}') from err
-                else:
-                    jstacktrace = read_str(outfile)
-                    raise FatalError(jstacktrace)
+        async def inputs(infile, token):
+            write_int(infile, ServiceBackend.TABLE_TYPE)
+            write_str(infile, tmp_dir())
+            write_str(infile, self.billing_project)
+            write_str(infile, self.bucket)
+            write_str(infile, self.render(tir))
+        _, resp = await self._rpc('value_type(...)', inputs)
+        return ttable._from_json(json.loads(s))
 
     def matrix_type(self, mir):
-        token = secret_alnum_string()
-        with TemporaryDirectory(ensure_exists=False) as dir:
-            with self.fs.open(dir + '/in', 'wb') as infile:
-                write_int(infile, ServiceBackend.MATRIX_TABLE_TYPE)
-                write_str(infile, tmp_dir())
-                write_str(infile, self.billing_project)
-                write_str(infile, self.bucket)
-                write_str(infile, self.render(mir))
-
-            batch_attributes = self.batch_attributes
-            if 'name' not in batch_attributes:
-                batch_attributes = {**batch_attributes, 'name': 'matrix_type(...)'}
-            bb = self.bc.create_batch(token=token, attributes=batch_attributes)
-
-            j = bb.create_jvm_job([
-                'is.hail.backend.service.ServiceBackendSocketAPI2',
-                os.environ['HAIL_SHA'],
-                os.environ['HAIL_JAR_URL'],
-                batch_attributes['name'],
-                dir + '/in',
-                dir + '/out',
-            ], mount_tokens=True)
-            b = bb.submit(disable_progress_bar=self.disable_progress_bar)
-            status = b.wait(disable_progress_bar=self.disable_progress_bar)
-            if status['n_succeeded'] != 1:
-                raise ValueError(f'batch failed {status} {j.log()}')
-
-            with self.fs.open(dir + '/out', 'rb') as outfile:
-                success = read_bool(outfile)
-                if success:
-                    s = read_str(outfile)
-                    try:
-                        return tmatrix._from_json(json.loads(s))
-                    except json.decoder.JSONDecodeError as err:
-                        raise ValueError(f'could not decode {s}') from err
-                else:
-                    jstacktrace = read_str(outfile)
-                    raise FatalError(jstacktrace)
+        async def inputs(infile, token):
+            write_int(infile, ServiceBackend.MATRIX_TABLE_TYPE)
+            write_str(infile, tmp_dir())
+            write_str(infile, self.billing_project)
+            write_str(infile, self.bucket)
+            write_str(infile, self.render(mir))
+        _, resp = await self._rpc('matrix_type(...)', inputs)
+        return tmatrix._from_json(json.loads(s))
 
     def blockmatrix_type(self, bmir):
-        token = secret_alnum_string()
-        with TemporaryDirectory(ensure_exists=False) as dir:
-            with self.fs.open(dir + '/in', 'wb') as infile:
-                write_int(infile, ServiceBackend.BLOCK_MATRIX_TYPE)
-                write_str(infile, tmp_dir())
-                write_str(infile, self.billing_project)
-                write_str(infile, self.bucket)
-                write_str(infile, self.render(bmir))
-
-            batch_attributes = self.batch_attributes
-            if 'name' not in batch_attributes:
-                batch_attributes = {**batch_attributes, 'name': 'blockmatrix_type(...)'}
-            bb = self.bc.create_batch(token=token, attributes=batch_attributes)
-
-            j = bb.create_jvm_job([
-                'is.hail.backend.service.ServiceBackendSocketAPI2',
-                os.environ['HAIL_SHA'],
-                os.environ['HAIL_JAR_URL'],
-                batch_attributes['name'],
-                dir + '/in',
-                dir + '/out',
-            ], mount_tokens=True)
-            b = bb.submit(disable_progress_bar=self.disable_progress_bar)
-            status = b.wait(disable_progress_bar=self.disable_progress_bar)
-            if status['n_succeeded'] != 1:
-                raise ValueError(f'batch failed {status} {j.log()}')
-
-            with self.fs.open(dir + '/out', 'rb') as outfile:
-                success = read_bool(outfile)
-                if success:
-                    s = read_str(outfile)
-                    try:
-                        return tblockmatrix._from_json(json.loads(s))
-                    except json.decoder.JSONDecodeError as err:
-                        raise ValueError(f'could not decode {s}') from err
-                else:
-                    jstacktrace = read_str(outfile)
-                    raise FatalError(jstacktrace)
+        async def inputs(infile, token):
+            write_int(infile, ServiceBackend.BLOCK_MATRIX_TYPE)
+            write_str(infile, tmp_dir())
+            write_str(infile, self.billing_project)
+            write_str(infile, self.bucket)
+            write_str(infile, self.render(bmir))
+        _, resp = await self._rpc('blockmatrix_type(...)', inputs)
+        return tblockmatrix._from_json(json.loads(s))
 
     def add_reference(self, config):
         raise NotImplementedError("ServiceBackend does not support 'add_reference'")
@@ -480,49 +364,17 @@ class ServiceBackend(Backend):
             except FileNotFoundError:
                 pass
 
-        token = secret_alnum_string()
-        with TemporaryDirectory(ensure_exists=False) as dir:
-            with self.fs.open(dir + '/in', 'wb') as infile:
-                write_int(infile, ServiceBackend.REFERENCE_GENOME)
-                write_str(infile, tmp_dir())
-                write_str(infile, self.billing_project)
-                write_str(infile, self.bucket)
-                write_str(infile, name)
-
-            batch_attributes = self.batch_attributes
-            if 'name' not in batch_attributes:
-                batch_attributes = {**batch_attributes, 'name': f'get_reference({name})'}
-            bb = self.async_bc.create_batch(token=token, attributes=batch_attributes)
-
-            j = bb.create_jvm_job([
-                'is.hail.backend.service.ServiceBackendSocketAPI2',
-                os.environ['HAIL_SHA'],
-                os.environ['HAIL_JAR_URL'],
-                batch_attributes['name'],
-                dir + '/in',
-                dir + '/out',
-            ], mount_tokens=True)
-            b = await bb.submit(disable_progress_bar=self.disable_progress_bar)
-            status = await b.wait(disable_progress_bar=self.disable_progress_bar)
-            if status['n_succeeded'] != 1:
-                raise ValueError(f'batch failed {status} {await j.log()} {await j.status()}')
-
-            with self.fs.open(dir + '/out', 'rb') as outfile:
-                success = read_bool(outfile)
-                if success:
-                    s = read_str(outfile)
-                    try:
-                        # FIXME: do we not have to parse the result?
-                        parsed_reference = json.loads(s)
-                        if name in BUILTIN_REFERENCES:
-                            with open(Path(self.user_local_reference_cache_dir, name), 'w') as f:
-                                json.dump(parsed_reference, f)
-                        return parsed_reference
-                    except json.decoder.JSONDecodeError as err:
-                        raise ValueError(f'could not decode {s}') from err
-                else:
-                    jstacktrace = read_str(outfile)
-                    raise FatalError(jstacktrace)
+        async def inputs(infile, token):
+            write_int(infile, ServiceBackend.REFERENCE_GENOME)
+            write_str(infile, tmp_dir())
+            write_str(infile, self.billing_project)
+            write_str(infile, self.bucket)
+            write_str(infile, name)
+        _, resp = await self._rpc('get_reference(...)', inputs)
+        if name in BUILTIN_REFERENCES:
+            with open(Path(self.user_local_reference_cache_dir, name), 'w') as f:
+                json.dump(resp, f)
+        return resp
 
     def get_references(self, names):
         return async_to_blocking(self._async_get_references(names))
@@ -531,45 +383,14 @@ class ServiceBackend(Backend):
         return await asyncio.gather(*[self._async_get_reference(name) for name in names])
 
     def load_references_from_dataset(self, path):
-        token = secret_alnum_string()
-        with TemporaryDirectory(ensure_exists=False) as dir:
-            with self.fs.open(dir + '/in', 'wb') as infile:
-                write_int(infile, ServiceBackend.LOAD_REFERENCES_FROM_DATASET)
-                write_str(infile, tmp_dir())
-                write_str(infile, self.billing_project)
-                write_str(infile, self.bucket)
-                write_str(infile, path)
-
-            batch_attributes = self.batch_attributes
-            if 'name' not in batch_attributes:
-                batch_attributes = {**batch_attributes, 'name': 'load_references_from_dataset(...)'}
-            bb = self.bc.create_batch(token=token, attributes=batch_attributes)
-
-            j = bb.create_jvm_job([
-                'is.hail.backend.service.ServiceBackendSocketAPI2',
-                os.environ['HAIL_SHA'],
-                os.environ['HAIL_JAR_URL'],
-                batch_attributes['name'],
-                dir + '/in',
-                dir + '/out',
-            ], mount_tokens=True)
-            b = bb.submit(disable_progress_bar=self.disable_progress_bar)
-            status = b.wait(disable_progress_bar=self.disable_progress_bar)
-            if status['n_succeeded'] != 1:
-                raise ValueError(f'batch failed {status} {j.log()}')
-
-            with self.fs.open(dir + '/out', 'rb') as outfile:
-                success = read_bool(outfile)
-                if success:
-                    s = read_str(outfile)
-                    try:
-                        # FIXME: do we not have to parse the result?
-                        return json.loads(s)
-                    except json.decoder.JSONDecodeError as err:
-                        raise ValueError(f'could not decode {s}') from err
-                else:
-                    jstacktrace = read_str(outfile)
-                    raise FatalError(jstacktrace)
+        async def inputs(infile, token):
+            write_int(infile, ServiceBackend.LOAD_REFERENCES_FROM_DATASET)
+            write_str(infile, tmp_dir())
+            write_str(infile, self.billing_project)
+            write_str(infile, self.bucket)
+            write_str(infile, path)
+        _, resp = await self._rpc('get_reference(...)', inputs)
+        return resp
 
     def add_sequence(self, name, fasta_file, index_file):
         raise NotImplementedError("ServiceBackend does not support 'add_sequence'")
