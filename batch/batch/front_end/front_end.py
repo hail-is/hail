@@ -630,7 +630,6 @@ async def create_jobs(request: aiohttp.web.Request, userdata):
 async def _create_jobs(userdata: dict, job_specs: dict, batch_id: int, app: aiohttp.web.Application):
     db: Database = app['db']
     file_store: FileStore = app['file_store']
-    log_store: LogStore = app['log_store']
     user = userdata['username']
 
     # restrict to what's necessary; in particular, drop the session
