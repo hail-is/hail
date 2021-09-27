@@ -142,7 +142,7 @@ class DensifyAggregator(val arrayVType: VirtualTypeWithReq) extends StagedAggreg
   private val pt = {
     // FIXME: VirtualTypeWithReq needs better ergonomics
     val eltType = arrayVType.canonicalPType.asInstanceOf[PCanonicalArray].elementType.setRequired(false)
-    PCanonicalArray(eltType, required = true)
+    PCanonicalArray(eltType)
   }
   val resultEmitType: EmitType = EmitType(SIndexablePointer(pt), true)
   val initOpTypes: Seq[Type] = Array(TInt32)
