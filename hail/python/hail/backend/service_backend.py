@@ -22,77 +22,67 @@ from hailtop.config import get_user_config, get_user_local_cache_dir
 from hailtop.utils import async_to_blocking, secret_alnum_string, TransientError, time_msecs
 from hailtop.batch_client import client as hb
 from hailtop.batch_client import aioclient as aiohb
+from hailtop.aiogoogle.client.storage_client import GoogleStorageAsyncFS
+from hailtop.aiotools.fs import AsyncFS
+import hailtop.aiotools.fs as afs
 
 from .backend import Backend
-from ..fs.google_fs import GoogleCloudStorageFS
 from ..builtin_references import BUILTIN_REFERENCES
+from ..fs.google_fs import GoogleCloudStorageFS
+from ..fs.fs import FS
 from ..context import version
 
 
 log = logging.getLogger('backend.service_backend')
 
 
-def write_int(bio: BinaryIO, v: int):
-    bio.write(struct.pack('<i', v))
+async def write_int(strm: afs.WritableStream, v: int):
+    await strm.write(struct.pack('<i', v))
 
 
-def write_long(bio: BinaryIO, v: int):
-    bio.write(struct.pack('<q', v))
+async def write_long(strm: afs.WritableStream, v: int):
+    await strm.write(struct.pack('<q', v))
 
 
-def write_bytes(bio: BinaryIO, b: bytes):
+async def write_bytes(strm: afs.WritableStream, b: bytes):
     n = len(b)
-    write_int(bio, n)
-    bio.write(b)
+    await write_int(strm, n)
+    await strm.write(b)
 
 
-def write_str(bio: BinaryIO, s: str):
-    write_bytes(bio, s.encode('utf-8'))
+async def write_str(strm: afs.WritableStream, s: str):
+    await write_bytes(strm, s.encode('utf-8'))
 
 
 class EndOfStream(TransientError):
     pass
 
 
-def read(bio: BinaryIO, n: int) -> bytes:
-    b = bytearray()
-    left = n
-    while left > 0:
-        t = bio.read(left)
-        if not t:
-            log.warning(f'unexpected EOS, Java violated protocol ({b})')
-            raise EndOfStream()
-        left -= len(t)
-        b.extend(t)
-    return b
+async def read_byte(strm: afs.ReadableStream) -> int:
+    return (await strm.readexactly(1))[0]
 
 
-def read_byte(bio: BinaryIO) -> int:
-    b = read(bio, 1)
-    return b[0]
+async def read_bool(strm: afs.ReadableStream) -> bool:
+    return (await read_byte(strm)) != 0
 
 
-def read_bool(bio: BinaryIO) -> bool:
-    return read_byte(bio) != 0
-
-
-def read_int(bio: BinaryIO) -> int:
-    b = read(bio, 4)
+async def read_int(strm: afs.ReadableStream) -> int:
+    b = await strm.readexactly(4)
     return struct.unpack('<i', b)[0]
 
 
-def read_long(bio: BinaryIO) -> int:
-    b = read(bio, 8)
+async def read_long(strm: afs.ReadableStream) -> int:
+    b = await strm.readexactly(8)
     return struct.unpack('<q', b)[0]
 
 
-def read_bytes(bio: BinaryIO) -> bytes:
-    n = read_int(bio)
-    return read(bio, n)
+async def read_bytes(strm: afs.ReadableStream) -> bytes:
+    n = await read_int(strm)
+    return await strm.readexactly(n)
 
 
-def read_str(bio: BinaryIO) -> str:
-    b = read_bytes(bio)
+async def read_str(strm: afs.ReadableStream) -> str:
+    b = await read_bytes(strm)
     return b.decode('utf-8')
 
 
@@ -162,7 +152,8 @@ class ServiceBackend(Backend):
                 'MY_BUCKET`'
             )
 
-        fs = GoogleCloudStorageFS()
+        sync_fs = GoogleCloudStorageFS()
+        async_fs = GoogleStorageAsyncFS()
         async_client = await aiohb.BatchClient.create(billing_project)
         bc = hb.BatchClient.from_async(async_client)
         batch_attributes: Dict[str, str] = dict()
@@ -172,7 +163,8 @@ class ServiceBackend(Backend):
         return ServiceBackend(
             billing_project=billing_project,
             bucket=bucket,
-            fs=fs,
+            sync_fs=sync_fs,
+            async_fs=async_fs,
             bc=bc,
             disable_progress_bar=disable_progress_bar,
             batch_attributes=batch_attributes,
@@ -182,14 +174,16 @@ class ServiceBackend(Backend):
     def __init__(self,
                  billing_project: str,
                  bucket: str,
-                 fs: GoogleCloudStorageFS,
+                 sync_fs: GoogleCloudStorageFS,
+                 async_fs: AsyncFS,
                  bc: hb.BatchClient,
                  disable_progress_bar: bool,
                  batch_attributes: Dict[str, str],
                  user_local_reference_cache_dir: Path):
         self.billing_project = billing_project
         self.bucket = bucket
-        self._fs = fs
+        self._sync_fs = sync_fs
+        self._async_fs = async_fs
         self.bc = bc
         self.async_bc = self.bc._async_client
         self.disable_progress_bar = disable_progress_bar
@@ -198,7 +192,7 @@ class ServiceBackend(Backend):
 
     @property
     def fs(self) -> GoogleCloudStorageFS:
-        return self._fs
+        return self._sync_fs
 
     @property
     def logger(self):
@@ -224,11 +218,11 @@ class ServiceBackend(Backend):
 
     async def _rpc(self,
                    name: str,
-                   inputs: Callable[[io.IOBase, str], Awaitable[Tuple[str, dict]]]):
+                   inputs: Callable[[afs.ReadableStream, str], Awaitable[Tuple[str, dict]]]):
         token = secret_alnum_string()
         with TemporaryDirectory(ensure_exists=False) as iodir:
             async def create_inputs():
-                with self.fs.open(iodir + '/in', 'wb') as infile:
+                with self._async_fs.open(iodir + '/in', 'wb') as infile:
                     await inputs(infile, token)
 
             async def create_batch():
@@ -263,15 +257,15 @@ class ServiceBackend(Backend):
                 raise ValueError(message)
 
             with self.fs.open(iodir + '/out', 'rb') as outfile:
-                success = read_bool(outfile)
+                success = await read_bool(outfile)
                 if success:
-                    s = read_str(outfile)
+                    s = await read_str(outfile)
                     try:
                         return (token, json.loads(s))
                     except json.decoder.JSONDecodeError as err:
                         raise ValueError(f'batch id was {b.id}\ncould not decode {s}') from err
                 else:
-                    jstacktrace = read_str(outfile)
+                    jstacktrace = await read_str(outfile)
                     maybe_id = ServiceBackend.HAIL_BATCH_FAILURE_EXCEPTION_MESSAGE_RE.match(jstacktrace)
                     if maybe_id:
                         batch_id = maybe_id.groups()[0]
@@ -292,12 +286,12 @@ class ServiceBackend(Backend):
 
     async def _async_execute_untimed(self, ir):
         async def inputs(infile, token):
-            write_int(infile, ServiceBackend.EXECUTE)
-            write_str(infile, tmp_dir())
-            write_str(infile, self.billing_project)
-            write_str(infile, self.bucket)
-            write_str(infile, self.render(ir))
-            write_str(infile, token)
+            await write_int(infile, ServiceBackend.EXECUTE)
+            await write_str(infile, tmp_dir())
+            await write_str(infile, self.billing_project)
+            await write_str(infile, self.bucket)
+            await write_str(infile, self.render(ir))
+            await write_str(infile, token)
         _, resp = await self._rpc('execute(...)', inputs)
         typ = dtype(resp['type'])
         if typ == tvoid:
@@ -315,11 +309,11 @@ class ServiceBackend(Backend):
 
     async def _async_value_type(self, ir):
         async def inputs(infile, _):
-            write_int(infile, ServiceBackend.VALUE_TYPE)
-            write_str(infile, tmp_dir())
-            write_str(infile, self.billing_project)
-            write_str(infile, self.bucket)
-            write_str(infile, self.render(ir))
+            await write_int(infile, ServiceBackend.VALUE_TYPE)
+            await write_str(infile, tmp_dir())
+            await write_str(infile, self.billing_project)
+            await write_str(infile, self.bucket)
+            await write_str(infile, self.render(ir))
         _, resp = await self._rpc('value_type(...)', inputs)
         return dtype(resp)
 
@@ -328,11 +322,11 @@ class ServiceBackend(Backend):
 
     async def _async_table_type(self, tir):
         async def inputs(infile, _):
-            write_int(infile, ServiceBackend.TABLE_TYPE)
-            write_str(infile, tmp_dir())
-            write_str(infile, self.billing_project)
-            write_str(infile, self.bucket)
-            write_str(infile, self.render(tir))
+            await write_int(infile, ServiceBackend.TABLE_TYPE)
+            await write_str(infile, tmp_dir())
+            await write_str(infile, self.billing_project)
+            await write_str(infile, self.bucket)
+            await write_str(infile, self.render(tir))
         _, resp = await self._rpc('value_type(...)', inputs)
         return ttable._from_json(resp)
 
@@ -341,11 +335,11 @@ class ServiceBackend(Backend):
 
     async def _async_matrix_type(self, mir):
         async def inputs(infile, _):
-            write_int(infile, ServiceBackend.MATRIX_TABLE_TYPE)
-            write_str(infile, tmp_dir())
-            write_str(infile, self.billing_project)
-            write_str(infile, self.bucket)
-            write_str(infile, self.render(mir))
+            await write_int(infile, ServiceBackend.MATRIX_TABLE_TYPE)
+            await write_str(infile, tmp_dir())
+            await write_str(infile, self.billing_project)
+            await write_str(infile, self.bucket)
+            await write_str(infile, self.render(mir))
         _, resp = await self._rpc('matrix_type(...)', inputs)
         return tmatrix._from_json(resp)
 
@@ -354,11 +348,11 @@ class ServiceBackend(Backend):
 
     async def _async_blockmatrix_type(self, bmir):
         async def inputs(infile, _):
-            write_int(infile, ServiceBackend.BLOCK_MATRIX_TYPE)
-            write_str(infile, tmp_dir())
-            write_str(infile, self.billing_project)
-            write_str(infile, self.bucket)
-            write_str(infile, self.render(bmir))
+            await write_int(infile, ServiceBackend.BLOCK_MATRIX_TYPE)
+            await write_str(infile, tmp_dir())
+            await write_str(infile, self.billing_project)
+            await write_str(infile, self.bucket)
+            await write_str(infile, self.render(bmir))
         _, resp = await self._rpc('blockmatrix_type(...)', inputs)
         return tblockmatrix._from_json(resp)
 
@@ -383,11 +377,11 @@ class ServiceBackend(Backend):
                 pass
 
         async def inputs(infile, _):
-            write_int(infile, ServiceBackend.REFERENCE_GENOME)
-            write_str(infile, tmp_dir())
-            write_str(infile, self.billing_project)
-            write_str(infile, self.bucket)
-            write_str(infile, name)
+            await write_int(infile, ServiceBackend.REFERENCE_GENOME)
+            await write_str(infile, tmp_dir())
+            await write_str(infile, self.billing_project)
+            await write_str(infile, self.bucket)
+            await write_str(infile, name)
         _, resp = await self._rpc('get_reference(...)', inputs)
         if name in BUILTIN_REFERENCES:
             with open(Path(self.user_local_reference_cache_dir, name), 'w') as f:
@@ -405,11 +399,11 @@ class ServiceBackend(Backend):
 
     async def _async_load_references_from_dataset(self, path):
         async def inputs(infile, _):
-            write_int(infile, ServiceBackend.LOAD_REFERENCES_FROM_DATASET)
-            write_str(infile, tmp_dir())
-            write_str(infile, self.billing_project)
-            write_str(infile, self.bucket)
-            write_str(infile, path)
+            await write_int(infile, ServiceBackend.LOAD_REFERENCES_FROM_DATASET)
+            await write_str(infile, tmp_dir())
+            await write_str(infile, self.billing_project)
+            await write_str(infile, self.bucket)
+            await write_str(infile, path)
         _, resp = await self._rpc('get_reference(...)', inputs)
         return resp
 
