@@ -80,6 +80,7 @@ class CollectAggregator(val elemType: VirtualTypeWithReq) extends StagedAggregat
     state.bll.append(cb, state.region, other.bll)
 
   protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
+    assert(resultType.required)
     // deepCopy is handled by the blocked linked list
     IEmitCode.present(cb, state.bll.resultArray(cb, region, resultType))
   }

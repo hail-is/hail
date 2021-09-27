@@ -176,9 +176,9 @@ class CallStatsAggregator extends StagedAggregator {
   }
 
 
-  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
+  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
     val rt = CallStatsState.resultType
-    assert(pt == rt)
+    val addr = cb.memoize(rt.allocate(region), "call_stats_aggregator_result_addr")
     rt.stagedInitialize(cb, addr, setMissing = false)
     val alleleNumber = cb.newLocal[Int]("callstats_result_alleleNumber", 0)
 
@@ -216,5 +216,6 @@ class CallStatsAggregator extends StagedAggregator {
     }
 
     homCountType.storeAtAddress(cb, rt.fieldOffset(addr, "homozygote_count"), region, homCount, deepCopy = false)
+    IEmitCode.present(cb, rt.loadCheapSCode(cb, addr))
   }
 }

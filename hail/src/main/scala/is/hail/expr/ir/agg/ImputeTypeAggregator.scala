@@ -2,8 +2,9 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerValue}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.{TInt32, TString, Type}
 import is.hail.types.{RPrimitive, VirtualTypeWithReq}
@@ -144,14 +145,16 @@ class ImputeTypeAggregator() extends StagedAggregator {
     state.combOp(cb, other)
   }
 
-  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
+  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
     val rt = ImputeTypeState.resultType
-    assert(pt == rt)
+    val addr = cb.memoize(rt.allocate(region), "impute_type_aggregator_result_ptr")
     rt.stagedInitialize(cb, addr, setMissing = false)
     Array(state.getAnyNonMissing, state.getAllDefined, state.getSupportsBool,
       state.getSupportsI32, state.getSupportsI64, state.getSupportsF64)
       .zipWithIndex.foreach { case (b, idx) =>
       rt.types(idx).storeAtAddress(cb, rt.fieldOffset(addr, idx), region, primitive(cb.memoize(b)), deepCopy = true)
     }
+    val sv = rt.loadCheapSCode(cb, addr)
+    IEmitCode.present(cb, sv)
   }
 }

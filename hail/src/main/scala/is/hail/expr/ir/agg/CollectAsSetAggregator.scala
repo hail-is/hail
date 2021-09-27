@@ -153,7 +153,7 @@ class CollectAsSetAggregator(elem: VirtualTypeWithReq) extends StagedAggregator 
   type State = AppendOnlySetState
 
   private val elemPType = elem.canonicalPType
-  val resultType: PCanonicalSet = PCanonicalSet(elemPType)
+  val resultType: PCanonicalSet = PCanonicalSet(elemPType, true)
   private[this] val arrayRep = resultType.arrayRep
   val initOpTypes: Seq[Type] = Array[Type]()
   val seqOpTypes: Seq[Type] = Array[Type](elem.t)
@@ -177,7 +177,8 @@ class CollectAsSetAggregator(elem: VirtualTypeWithReq) extends StagedAggregator 
     state.foreach(cb) { (cb, elt) =>
       pushElement(cb, elt.toI(cb))
     }
+    assert(arrayRep.required)
     // deepCopy is handled by `storeElement` above
-    IEmitCode.present(cb, finish(cb))
+    IEmitCode.present(cb, resultType.construct(finish(cb)))
   }
 }

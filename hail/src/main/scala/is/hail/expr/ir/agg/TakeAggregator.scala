@@ -127,6 +127,6 @@ class TakeAggregator(typ: VirtualTypeWithReq) extends StagedAggregator {
 
   protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
     // deepCopy is handled by state.resultArray
-    IEmitCode.present(state.resultArray(cb, region, resultType))
+    IEmitCode.present(cb, state.resultArray(cb, region, resultType))
   }
 }

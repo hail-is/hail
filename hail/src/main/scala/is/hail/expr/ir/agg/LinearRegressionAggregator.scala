@@ -3,7 +3,7 @@ package is.hail.expr.ir.agg
 import breeze.linalg.{DenseMatrix, DenseVector, diag, inv}
 import is.hail.annotations.{Region, RegionValueBuilder, UnsafeRow}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerSettable}
@@ -265,14 +265,13 @@ class LinearRegressionAggregator() extends StagedAggregator {
     combOpF(state, other)(cb)
   }
 
-  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
-    assert(pt == LinearRegressionAggregator.resultType)
+  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
     val resAddr = cb.newLocal[Long]("linear_regression_agg_res", Code.invokeScalaObject4[Region, Long, Long, Int, Long](
       LinearRegressionAggregator.getClass, "computeResult",
       region,
       stateType.loadField(state.off, 0),
       stateType.loadField(state.off, 1),
       Region.loadInt(stateType.loadField(state.off, 2))))
-    pt.storeAtAddress(cb, addr, region, LinearRegressionAggregator.resultType.loadCheapSCode(cb, resAddr), deepCopy = false)
+    IEmitCode.present(cb, LinearRegressionAggregator.resultType.loadCheapSCode(cb, resAddr))
   }
 }
