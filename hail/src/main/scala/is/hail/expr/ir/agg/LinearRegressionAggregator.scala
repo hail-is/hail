@@ -21,7 +21,7 @@ object LinearRegressionAggregator {
 
   private val optVector = vector.setRequired(false)
 
-  val resultPType: PCanonicalStruct = PCanonicalStruct(required = true, "xty" -> optVector, "beta" -> optVector, "diag_inv" -> optVector, "beta0" -> optVector)
+  val resultPType: PCanonicalStruct = PCanonicalStruct(required = false, "xty" -> optVector, "beta" -> optVector, "diag_inv" -> optVector, "beta0" -> optVector)
 
   def computeResult(region: Region, xtyPtr: Long, xtxPtr: Long, k0: Int): Long = {
     val xty = DenseVector(UnsafeRow.readArray(vector, null, xtyPtr)
