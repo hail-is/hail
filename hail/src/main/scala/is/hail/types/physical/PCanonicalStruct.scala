@@ -38,7 +38,6 @@ object PCanonicalStruct {
 }
 
 final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean = false) extends PCanonicalBaseStruct(fields.map(_.typ).toArray) with PStruct {
-  val stack = Thread.currentThread().getStackTrace.mkString("\n")
   assert(fields.zipWithIndex.forall  { case (f, i) => f.index == i })
 
   if (!fieldNames.areDistinct()) {

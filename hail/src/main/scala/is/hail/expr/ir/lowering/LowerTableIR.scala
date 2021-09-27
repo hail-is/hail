@@ -863,9 +863,7 @@ object LowerTableIR {
               val resultUID = genUID()
               val aggs = agg.Extract(newRow, resultUID, r, isScan = true)
 
-              val results: IR = MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (aggSig, index) =>
-                ResultOp(index, aggSig)
-              })
+              val results: IR = ResultOp.makeTuple(aggs.aggs)
               val initState = RunAgg(
                 aggs.init,
                 MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }),
@@ -1202,9 +1200,7 @@ object LowerTableIR {
         val resultUID = genUID()
         val aggs = agg.Extract(query, resultUID, r, false)
 
-        def results: IR = MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (aggSig, index) =>
-          ResultOp(index, aggSig)
-        })
+        def results: IR = ResultOp.makeTuple(aggs.aggs)
 
         val lc = lower(child)
 

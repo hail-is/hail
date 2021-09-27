@@ -304,7 +304,6 @@ object IEmitCodeGen {
 }
 
 case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A, required: Boolean) {
-  val stack = Thread.currentThread().getStackTrace.mkString("\n")
   lazy val emitType: EmitType = {
     value match {
       case pc: SValue => EmitType(pc.st, required)
@@ -1058,8 +1057,7 @@ class Emit[C](
         }
 
       case GetField(o, name) =>
-        val emitStruct = emitI(o)
-        emitStruct.flatMap(cb) { oc =>
+        emitI(o).flatMap(cb) { oc =>
           oc.asBaseStruct.loadField(cb, name)
         }
 
