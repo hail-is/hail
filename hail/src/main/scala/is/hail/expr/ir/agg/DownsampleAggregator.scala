@@ -24,7 +24,8 @@ class DownsampleBTreeKey(binType: PBaseStruct, pointType: PBaseStruct, kb: EmitC
   override val compType: PType = binType
   private val kcomp = kb.getOrderingFunction(binType.sType, CodeOrdering.Compare())
 
-  override def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Code[Boolean] = PBooleanRequired.loadCheapSCode(cb, storageType.loadField(off, "empty")).boolCode(cb)
+  override def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Value[Boolean] =
+    PBooleanRequired.loadCheapSCode(cb, storageType.loadField(off, "empty")).boolCode(cb)
 
   override def initializeEmpty(cb: EmitCodeBuilder, off: Code[Long]): Unit = cb += Region.storeBoolean(storageType.fieldOffset(off, "empty"), true)
 
@@ -317,15 +318,10 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
       other.foreach(cb) { (cb, v) =>
         val mb = kb.genEmitMethod("downsample_copy_from_tree_foreach", FastIndexedSeq[ParamType](LongInfo), UnitInfo)
         val value = mb.getCodeParam[Long](1)
-        val point = mb.newLocal[Long]("point_offset")
-        val pointX = mb.newLocal[Double]("point_x")
-        val pointY = mb.newLocal[Double]("point_y")
-        val lm = mb.newLocal[Boolean]("lm")
         mb.voidWithBuilder { cb =>
-          cb.assign(point, key.storageType.loadField(value, "point"))
-          cb.assign(pointX, Region.loadDouble(pointType.loadField(point, "x")))
-          cb.assign(pointY, Region.loadDouble(pointType.loadField(point, "y")))
-          cb.assign(lm, pointType.isFieldMissing(point, "label"))
+          val point = cb.memoize(key.storageType.loadField(value, "point"))
+          val pointX = cb.memoize(Region.loadDouble(pointType.loadField(point, "x")))
+          val pointY = cb.memoize(Region.loadDouble(pointType.loadField(point, "y")))
           insertIntoTree(cb, xBinCoordinate(pointX), yBinCoordinate(pointY), point, deepCopy = true)
         }
         cb.invokeVoid(mb, v)

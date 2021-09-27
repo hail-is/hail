@@ -145,5 +145,37 @@ resource "azurerm_private_endpoint" "db_endpoint" {
     private_connection_resource_id = azurerm_mysql_server.db.id
     subresource_names              = [ "mysqlServer" ]
     is_manual_connection           = false
+
+resource "azurerm_user_assigned_identity" "batch_worker" {
+  resource_group_name = data.azurerm_resource_group.rg.name
+  location            = data.azurerm_resource_group.rg.location
+
+  name = "batch-worker"
+}
+
+resource "azurerm_role_assignment" "batch_worker" {
+  scope                = data.azurerm_resource_group.rg.id
+  role_definition_name = "acrpull"
+  principal_id         = azurerm_user_assigned_identity.batch_worker.principal_id
+}
+
+resource "azurerm_shared_image_gallery" "batch" {
+  name                = "batch"
+  resource_group_name = data.azurerm_resource_group.rg.name
+  location            = data.azurerm_resource_group.rg.location
+}
+
+resource "azurerm_shared_image" "batch_worker" {
+  name                = "batch-worker"
+  gallery_name        = azurerm_shared_image_gallery.batch.name
+  resource_group_name = data.azurerm_resource_group.rg.name
+  location            = data.azurerm_resource_group.rg.location
+  os_type             = "Linux"
+  specialized	      = false
+
+  identifier {
+    publisher = "Canonical"
+    offer     = "UbuntuServer"
+    sku       = "20.04-LTS"
   }
 }

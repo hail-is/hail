@@ -704,23 +704,26 @@ class ServiceBackend(Backend[bc.Batch]):
 
         submit_batch_start = time.time()
         bc_batch = bc_batch.submit(disable_progress_bar=disable_progress_bar)
+        try:
+            jobs_to_command = {j.id: cmd for j, cmd in jobs_to_command.items()}
 
-        jobs_to_command = {j.id: cmd for j, cmd in jobs_to_command.items()}
+            if verbose:
+                print(f'Submitted batch {bc_batch.id} with {n_jobs_submitted} jobs in {round(time.time() - submit_batch_start, 3)} seconds:')
+                for jid, cmd in jobs_to_command.items():
+                    print(f'{jid}: {cmd}')
+                print('')
 
-        if verbose:
-            print(f'Submitted batch {bc_batch.id} with {n_jobs_submitted} jobs in {round(time.time() - submit_batch_start, 3)} seconds:')
-            for jid, cmd in jobs_to_command.items():
-                print(f'{jid}: {cmd}')
-            print('')
+            deploy_config = get_deploy_config()
+            url = deploy_config.url('batch', f'/batches/{bc_batch.id}')
+            print(f'Submitted batch {bc_batch.id}, see {url}')
 
-        deploy_config = get_deploy_config()
-        url = deploy_config.url('batch', f'/batches/{bc_batch.id}')
-        print(f'Submitted batch {bc_batch.id}, see {url}')
-
-        if open:
-            webbrowser.open(url)
-        if wait:
-            print(f'Waiting for batch {bc_batch.id}...')
-            status = bc_batch.wait()
-            print(f'batch {bc_batch.id} complete: {status["state"]}')
-        return bc_batch
+            if open:
+                webbrowser.open(url)
+            if wait:
+                print(f'Waiting for batch {bc_batch.id}...')
+                status = bc_batch.wait()
+                print(f'batch {bc_batch.id} complete: {status["state"]}')
+            return bc_batch
+        except:
+            bc_batch.cancel()
+            raise

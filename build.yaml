@@ -2925,7 +2925,7 @@ steps:
       memory: 3.75Gi
       cpu: '1'
     script: |
-      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PROJECT={{ global.project }}
       hailctl config set batch/bucket {{ global.hail_test_gcs_bucket }}
       python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /io/test/
@@ -3492,7 +3492,6 @@ steps:
     script: |
       cd /io/hailtop
       set -ex
-      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=0
@@ -3546,7 +3545,6 @@ steps:
     script: |
       cd /io/hailtop
       set -ex
-      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=1
@@ -3600,7 +3598,6 @@ steps:
     script: |
       cd /io/hailtop
       set -ex
-      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=2
@@ -3654,7 +3651,6 @@ steps:
     script: |
       cd /io/hailtop
       set -ex
-      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=3
@@ -3708,7 +3704,6 @@ steps:
     script: |
       cd /io/hailtop
       set -ex
-      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=4
@@ -3761,7 +3756,6 @@ steps:
       valueFrom: service_base_image.image
     script: |
       set -ex
-      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       cd /io/hailtop/batch
       hailctl config set batch/billing_project test

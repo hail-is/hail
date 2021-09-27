@@ -24,11 +24,11 @@ trait SIntervalValue extends SValue {
 
   def loadStart(cb: EmitCodeBuilder): IEmitCode
 
-  def startDefined(cb: EmitCodeBuilder): Code[Boolean]
+  def startDefined(cb: EmitCodeBuilder): Value[Boolean]
 
   def loadEnd(cb: EmitCodeBuilder): IEmitCode
 
-  def endDefined(cb: EmitCodeBuilder): Code[Boolean]
+  def endDefined(cb: EmitCodeBuilder): Value[Boolean]
 
   def isEmpty(cb: EmitCodeBuilder): Value[Boolean]
 }

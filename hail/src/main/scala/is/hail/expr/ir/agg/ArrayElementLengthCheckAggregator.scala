@@ -44,7 +44,7 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
     super.load(cb, regionLoader, srcc)
     cb.ifx(off.cne(0L),
       {
-        cb.assign(lenRef, typ.isFieldMissing(off, 1).mux(-1,
+        cb.assign(lenRef, typ.isFieldMissing(cb, off, 1).mux(-1,
           arrayType.loadLength(typ.loadField(off, 1))))
       })
   }
@@ -157,7 +157,7 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
     val eltOffset = arrayType.loadElement(typ.loadField(srcOff, 1), idx)
 
     init(cb, cb => initContainer.copyFrom(cb, initOffset), initLen = false)
-    cb.ifx(typ.isFieldMissing(srcOff, 1), {
+    cb.ifx(typ.isFieldMissing(cb, srcOff, 1), {
       typ.setFieldMissing(cb, off, 1)
       cb.assign(lenRef, -1)
     }, {

@@ -3,8 +3,7 @@ package is.hail.types.physical.stypes.primitives
 import is.hail.annotations.Region
 import is.hail.asm4s.Code.invokeStatic1
 import is.hail.asm4s.{Code, DoubleInfo, Settable, SettableBuilder, TypeInfo, Value}
-import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
+import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
 import is.hail.types.physical.{PFloat64, PType}
 import is.hail.types.virtual.{TFloat64, Type}
@@ -86,9 +85,8 @@ class SFloat64Value(x: Value[Double]) extends SPrimitiveValue {
 
   def doubleCode(cb: EmitCodeBuilder): Value[Double] = x
 
-  override def hash(cb: EmitCodeBuilder): SInt32Code = {
-    new SInt32Code(invokeStatic1[java.lang.Double, Double, Int]("hashCode", doubleCode(cb)))
-  }
+  override def hash(cb: EmitCodeBuilder): SInt32Value =
+    new SInt32Value(cb.memoize(invokeStatic1[java.lang.Double, Double, Int]("hashCode", doubleCode(cb))))
 }
 
 object SFloat64Settable {

@@ -149,9 +149,9 @@ class SInsertFieldsStructValue(
     }
   }
 
-  override def isFieldMissing(fieldIdx: Int): Code[Boolean] =
+  override def isFieldMissing(cb: EmitCodeBuilder, fieldIdx: Int): Value[Boolean] =
     st.getFieldIndexInNewOrParent(fieldIdx) match {
-      case Left(parentIdx) => parent.isFieldMissing(parentIdx)
+      case Left(parentIdx) => parent.isFieldMissing(cb, parentIdx)
       case Right(newFieldsIdx) => newFields(newFieldsIdx).m
     }
 

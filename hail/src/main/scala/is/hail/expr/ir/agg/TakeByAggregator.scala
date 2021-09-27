@@ -197,13 +197,14 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
 
   private def elementOffset(i: Value[Int]): Code[Long] = ab.elementOffset(i)
 
-  private def keyIsMissing(offset: Code[Long]): Code[Boolean] = indexedKeyType.isFieldMissing(offset, 0)
+  private def keyIsMissing(cb: EmitCodeBuilder, offset: Code[Long]): Value[Boolean] =
+    indexedKeyType.isFieldMissing(cb, offset, 0)
 
   private def loadKeyValue(cb: EmitCodeBuilder, offset: Code[Long]): SValue =
     keyType.loadCheapSCode(cb, indexedKeyType.loadField(offset, 0))
 
   private def loadKey(cb: EmitCodeBuilder, offset: Value[Long]): EmitValue =
-    cb.memoize(IEmitCode(cb, keyIsMissing(offset), loadKeyValue(cb, offset)))
+    cb.memoize(IEmitCode(cb, keyIsMissing(cb, offset), loadKeyValue(cb, offset)))
 
   private val compareElt: (Code[Long], Code[Long]) => Code[Int] = {
     val mb = kb.genEmitMethod("i_gt_j", FastIndexedSeq[ParamType](LongInfo, LongInfo), IntInfo)

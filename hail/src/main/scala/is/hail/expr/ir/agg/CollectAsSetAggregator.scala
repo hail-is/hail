@@ -16,13 +16,15 @@ class TypedKey(typ: PType, kb: EmitClassBuilder[_], region: Value[Region]) exten
   override val storageType: PTuple = PCanonicalTuple(false, typ, PCanonicalTuple(false))
   override val compType: PType = typ
 
-  def isKeyMissing(src: Code[Long]): Code[Boolean] = storageType.isFieldMissing(src, 0)
+  def isKeyMissing(cb: EmitCodeBuilder, src: Code[Long]): Value[Boolean] =
+    storageType.isFieldMissing(cb, src, 0)
 
   def loadKey(cb: EmitCodeBuilder, src: Code[Long]): SValue = {
     typ.loadCheapSCode(cb, storageType.loadField(src, 0))
   }
 
-  override def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Code[Boolean] = storageType.isFieldMissing(off, 1)
+  override def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Value[Boolean] =
+    storageType.isFieldMissing(cb, off, 1)
 
   override def initializeEmpty(cb: EmitCodeBuilder, off: Code[Long]): Unit =
     storageType.setFieldMissing(cb, off, 1)
@@ -54,7 +56,7 @@ class TypedKey(typ: PType, kb: EmitClassBuilder[_], region: Value[Region]) exten
   }
 
   override def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitValue =
-    EmitValue(Some(cb.memoize(isKeyMissing(off))), loadKey(cb, off))
+    EmitValue(Some(isKeyMissing(cb, off)), loadKey(cb, off))
 }
 
 class AppendOnlySetState(val kb: EmitClassBuilder[_], vt: VirtualTypeWithReq) extends PointerBasedRVAState {
@@ -106,7 +108,7 @@ class AppendOnlySetState(val kb: EmitClassBuilder[_], vt: VirtualTypeWithReq) ex
   def foreach(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, EmitCode) => Unit): Unit =
     tree.foreach(cb) { (cb, eoffCode) =>
       val eoff = cb.newLocal("casa_foreach_eoff", eoffCode)
-      f(cb, EmitCode.fromI(cb.emb)(cb => IEmitCode(cb, key.isKeyMissing(eoff), key.loadKey(cb, eoff))))
+      f(cb, EmitCode.fromI(cb.emb)(cb => IEmitCode(cb, key.isKeyMissing(cb, eoff), key.loadKey(cb, eoff))))
     }
 
   def copyFromAddress(cb: EmitCodeBuilder, srcc: Code[Long]): Unit = {
@@ -121,8 +123,8 @@ class AppendOnlySetState(val kb: EmitClassBuilder[_], vt: VirtualTypeWithReq) ex
     { (cb: EmitCodeBuilder, ob: Value[OutputBuffer]) =>
       tree.bulkStore(cb, ob) { (cb, ob, srcCode) =>
         val src = cb.newLocal("aoss_ser_src", srcCode)
-        cb += ob.writeBoolean(key.isKeyMissing(src))
-        cb.ifx(!key.isKeyMissing(src), {
+        cb += ob.writeBoolean(key.isKeyMissing(cb, src))
+        cb.ifx(!key.isKeyMissing(cb, src), {
           val k = key.loadKey(cb, src)
           et.buildEncoder(k.st, kb)
               .apply(cb, k.get, ob)

@@ -1309,7 +1309,7 @@ class Emit[C](
                   })
 
                   (0 until nDims).foreach { index =>
-                    cb.ifx(shapeTupleValue.isFieldMissing(index),
+                    cb.ifx(shapeTupleValue.isFieldMissing(cb, index),
                       cb._fatalWithError(errorId, s"shape missing at index $index"))
                   }
 
@@ -1341,7 +1341,7 @@ class Emit[C](
                     case stream: SStreamValue =>
                       val xP = PCanonicalNDArray(PType.canonical(stream.st.elementType.storageType().setRequired(true)), nDims)
                       (0 until nDims).foreach { index =>
-                        cb.ifx(shapeTupleValue.isFieldMissing(index),
+                        cb.ifx(shapeTupleValue.isFieldMissing(cb, index),
                           cb.append(Code._fatal[Unit](s"shape missing at index $index")))
                       }
 

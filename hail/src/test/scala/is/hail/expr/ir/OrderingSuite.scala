@@ -484,21 +484,17 @@ class OrderingSuite extends HailSuite {
       val pDict = PType.canonical(tDict).asInstanceOf[PDict]
 
       pool.scopedRegion { region =>
-        val rvb = new RegionValueBuilder(region)
-
         val soff = pDict.unstagedStoreJavaObject(dict, region)
 
         val ptuple = PCanonicalTuple(false, FastIndexedSeq(pDict.keyType): _*)
         val eoff = ptuple.unstagedStoreJavaObject(Row(key), region)
 
         val fb = EmitFunctionBuilder[Region, Long, Long, Int](ctx, "binary_search_dict")
-        val cregion = fb.getCodeParam[Region](1)
         val cdict = fb.getCodeParam[Long](2)
         val cktuple = fb.getCodeParam[Long](3)
 
         val bs = new BinarySearch(fb.apply_method, pDict.sType, EmitType(pDict.keyType.sType, false), keyOnly = true)
 
-        val m = ptuple.isFieldMissing(cktuple, 0)
         fb.emitWithBuilder(cb =>
           bs.getClosestIndex(cb, pDict.loadCheapSCode(cb, cdict).get,
             EmitCode.fromI(fb.apply_method)(cb => IEmitCode.present(cb, pDict.keyType.loadCheapSCode(cb, ptuple.loadField(cktuple, 0))))))

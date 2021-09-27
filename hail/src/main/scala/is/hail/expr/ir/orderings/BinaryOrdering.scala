@@ -16,8 +16,8 @@ object BinaryOrdering {
       def _compareNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Int] = {
         val xv: SBinaryValue = x.asBinary
         val yv: SBinaryValue = y.asBinary
-        val xlen = cb.memoize(xv.loadLength())
-        val ylen = cb.memoize(yv.loadLength())
+        val xlen = xv.loadLength(cb)
+        val ylen = yv.loadLength(cb)
         val lim = cb.memoize[Int]((xlen < ylen).mux(xlen, ylen))
         val i = cb.newLocal[Int]("i", 0)
         val cmp = cb.newLocal[Int]("cmp", 0)
@@ -25,8 +25,8 @@ object BinaryOrdering {
 
         cb.forLoop({}, i < lim, cb.assign(i, i + 1), {
           val compval = Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare",
-            Code.invokeStatic1[java.lang.Byte, Byte, Int]("toUnsignedInt", xv.loadByte(i)),
-            Code.invokeStatic1[java.lang.Byte, Byte, Int]("toUnsignedInt", yv.loadByte(i)))
+            Code.invokeStatic1[java.lang.Byte, Byte, Int]("toUnsignedInt", xv.loadByte(cb, i)),
+            Code.invokeStatic1[java.lang.Byte, Byte, Int]("toUnsignedInt", yv.loadByte(cb, i)))
           cb.assign(cmp, compval)
           cb.ifx(cmp.cne(0), cb.goto(Lbreak))
         })

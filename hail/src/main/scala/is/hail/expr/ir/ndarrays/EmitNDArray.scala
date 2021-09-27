@@ -286,7 +286,7 @@ object EmitNDArray {
                   // Need to check if the any of the ndarrays are missing.
                   val missingCheckLoopIdx = cb.newLocal[Int]("ndarray_concat_missing_check_idx")
                   cb.forLoop(cb.assign(missingCheckLoopIdx, 0), missingCheckLoopIdx < arrLength, cb.assign(missingCheckLoopIdx, missingCheckLoopIdx + 1),
-                    cb.assign(missing, missing | ndsArraySValue.isElementMissing(missingCheckLoopIdx))
+                    cb.assign(missing, missing | ndsArraySValue.isElementMissing(cb, missingCheckLoopIdx))
                   )
                   missing
                 }

@@ -50,6 +50,12 @@ def test_simple_map(backend):
     assert [0, 3, 6, 9] == actual
 
 
+def test_empty_map(backend):
+    with BatchPoolExecutor(backend=backend, project='hail-vdc', image=PYTHON_DILL_IMAGE) as bpe:
+        actual = list(bpe.map(lambda x: x * 3, []))
+    assert [] == actual
+
+
 def test_simple_submit_result(backend):
     with BatchPoolExecutor(backend=backend, project='hail-vdc', image=PYTHON_DILL_IMAGE) as bpe:
         future_twenty_one = bpe.submit(lambda: 7 * 3)

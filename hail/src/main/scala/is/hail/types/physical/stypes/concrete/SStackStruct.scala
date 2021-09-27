@@ -118,7 +118,7 @@ class SStackStructValue(val st: SStackStruct, val values: IndexedSeq[EmitValue])
     values(fieldIdx).toI(cb)
   }
 
-  override def isFieldMissing(fieldIdx: Int): Code[Boolean] =
+  override def isFieldMissing(cb: EmitCodeBuilder, fieldIdx: Int): Value[Boolean] =
     values(fieldIdx).m
 
   override def subset(fieldNames: String*): SStackStructValue = {
