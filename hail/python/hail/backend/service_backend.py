@@ -305,6 +305,9 @@ class ServiceBackend(Backend):
         return await asyncio.gather(*[self._async_execute(ir, timed=timed) for ir in irs])
 
     def value_type(self, ir):
+        return async_to_blocking(self._async_value_type(ir))
+
+    async def _async_value_type(self, ir):
         async def inputs(infile, token):
             write_int(infile, ServiceBackend.VALUE_TYPE)
             write_str(infile, tmp_dir())
@@ -315,6 +318,9 @@ class ServiceBackend(Backend):
         return dtype(resp)
 
     def table_type(self, tir):
+        return async_to_blocking(self._async_table_type(tir))
+
+    async def _async_table_type(self, tir):
         async def inputs(infile, token):
             write_int(infile, ServiceBackend.TABLE_TYPE)
             write_str(infile, tmp_dir())
@@ -325,6 +331,9 @@ class ServiceBackend(Backend):
         return ttable._from_json(json.loads(s))
 
     def matrix_type(self, mir):
+        return async_to_blocking(self._async_matrix_type(mir))
+
+    async def _async_matrix_type(self, mir):
         async def inputs(infile, token):
             write_int(infile, ServiceBackend.MATRIX_TABLE_TYPE)
             write_str(infile, tmp_dir())
@@ -335,6 +344,9 @@ class ServiceBackend(Backend):
         return tmatrix._from_json(json.loads(s))
 
     def blockmatrix_type(self, bmir):
+        return async_to_blocking(self._async_blockmatrix_type(bmir))
+
+    async def _async_blockmatrix_type(self, bmir):
         async def inputs(infile, token):
             write_int(infile, ServiceBackend.BLOCK_MATRIX_TYPE)
             write_str(infile, tmp_dir())
@@ -383,6 +395,9 @@ class ServiceBackend(Backend):
         return await asyncio.gather(*[self._async_get_reference(name) for name in names])
 
     def load_references_from_dataset(self, path):
+        return async_to_blocking(self._async_load_references_from_dataset(path))
+
+    async def _async_load_references_from_dataset(self, path):
         async def inputs(infile, token):
             write_int(infile, ServiceBackend.LOAD_REFERENCES_FROM_DATASET)
             write_str(infile, tmp_dir())
