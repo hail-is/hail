@@ -26,23 +26,23 @@ class CollectAggState(val elemVType: VirtualTypeWithReq, val kb: EmitClassBuilde
       cb += region.invalidate()
     })
 
-  def newState(cb: EmitCodeBuilder, off: Code[Long]): Unit = cb += region.getNewRegion(regionSize)
+  def newState(cb: EmitCodeBuilder, off: Value[Long]): Unit = cb += region.getNewRegion(regionSize)
 
-  override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, srcc: Code[Long]): Unit = {
+  override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Value[Long]): Unit = {
     regionLoader(cb, region)
-    bll.load(cb, srcc)
+    bll.load(cb, src)
   }
 
-  override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, destc: Code[Long]): Unit = {
+  override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, dest: Value[Long]): Unit = {
     cb.ifx(region.isValid,
       {
         regionStorer(cb, region)
-        bll.store(cb, destc)
+        bll.store(cb, dest)
         cb += region.invalidate()
       })
   }
 
-  def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
+  def copyFrom(cb: EmitCodeBuilder, src: Value[Long]): Unit = {
     val copyBll = new StagedBlockLinkedList(elemType, kb)
     copyBll.load(cb, src)
     bll.initWithDeepCopy(cb, region, copyBll)

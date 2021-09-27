@@ -40,8 +40,8 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
     nested.createStates(cb)
   }
 
-  override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, srcc: Code[Long]): Unit = {
-    super.load(cb, regionLoader, srcc)
+  override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Value[Long]): Unit = {
+    super.load(cb, regionLoader, src)
     cb.ifx(off.cne(0L),
       {
         cb.assign(lenRef, typ.isFieldMissing(cb, off, 1).mux(-1,
@@ -105,9 +105,7 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
     { (cb: EmitCodeBuilder, ob: Value[OutputBuffer]) =>
       loadInit(cb)
       nested.toCodeWithArgs(cb,
-        FastIndexedSeq(ob),
-        { (cb, i, _, args) =>
-          val ob = cb.newLocal("aelca_ser_init_ob", coerce[OutputBuffer](args.head))
+        { (cb, i, _) =>
           serializers(i)(cb, ob)
         })
       cb += ob.writeInt(lenRef)
@@ -115,9 +113,7 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
       cb.whileLoop(idx < lenRef, {
         load(cb)
         nested.toCodeWithArgs(cb,
-          FastIndexedSeq(ob),
-          { case (cb, i, _, args) =>
-            val ob = cb.newLocal("aelca_ser_ob", coerce[OutputBuffer](args.head))
+          { case (cb, i, _) =>
             serializers(i)(cb, ob)
           })
         cb.assign(idx, idx + 1)
@@ -129,9 +125,7 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
     val deserializers = nested.states.map(_.deserialize(codec));
     { (cb: EmitCodeBuilder, ib: Value[InputBuffer]) =>
       init(cb, cb => nested.toCodeWithArgs(cb,
-        FastIndexedSeq(ib),
-        { (cb, i, _, args) =>
-          val ib = cb.newLocal("aelca_deser_init_ib", coerce[InputBuffer](args.head))
+        { (cb, i, _) =>
           deserializers(i)(cb, ib)
         }),
         initLen = false)
@@ -141,9 +135,7 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
       }, {
         seq(cb, {
           nested.toCodeWithArgs(cb,
-            FastIndexedSeq(ib),
-            { (cb, i, _, args) =>
-              val ib = cb.newLocal("aelca_deser_ib", coerce[InputBuffer](args.head))
+            { (cb, i, _) =>
               deserializers(i)(cb, ib)
             })
         })
@@ -153,8 +145,8 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
 
   def copyFromAddress(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
     val srcOff = cb.newField("aelca_copyfromaddr_srcoff", src)
-    val initOffset = typ.loadField(srcOff, 0)
-    val eltOffset = arrayType.loadElement(typ.loadField(srcOff, 1), idx)
+    val initOffset = cb.memoize(typ.loadField(srcOff, 0))
+    val eltOffset = cb.memoize(arrayType.loadElement(typ.loadField(srcOff, 1), idx))
 
     init(cb, cb => initContainer.copyFrom(cb, initOffset), initLen = false)
     cb.ifx(typ.isFieldMissing(cb, srcOff, 1), {

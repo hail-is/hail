@@ -727,7 +727,7 @@ class Emit[C](
             cb.assign(aggStateOffset, region.allocate(tempState.storageType.alignment, tempState.storageType.byteSize))
             tempState.createState(cb)
             tempState.newState(cb)
-            tempState.deserializeFromBytes(cb, serializedValue.get)
+            tempState.deserializeFromBytes(cb, serializedValue)
             rvAgg.combOp(cb, sc.states(i), tempState)
           }
         )
@@ -742,7 +742,7 @@ class Emit[C](
           { case serializedValue: SBinaryValue =>
             sc.states(i).createState(cb)
             sc.newState(cb, i)
-            sc.states(i).deserializeFromBytes(cb, serializedValue.get)
+            sc.states(i).deserializeFromBytes(cb, serializedValue)
           }
         )
     }
@@ -2016,7 +2016,7 @@ class Emit[C](
 
       case AggStateValue(i, _) =>
         val AggContainer(_, sc, _) = container.get
-        presentPC(sc.states(i).serializeToRegion(cb, PCanonicalBinary(), region).memoize(cb, "AggStateValue"))
+        presentPC(sc.states(i).serializeToRegion(cb, PCanonicalBinary(), region))
 
       case ToArray(a) =>
         EmitStream.produce(this, a, cb, region, env, container)
