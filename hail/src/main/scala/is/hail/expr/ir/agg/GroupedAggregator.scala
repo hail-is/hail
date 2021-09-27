@@ -264,7 +264,7 @@ class GroupedAggregator(ktV: VirtualTypeWithReq, nestedAggs: Array[StagedAggrega
   private val kt = ktV.canonicalPType
   val resultEltType: PTuple = PCanonicalTuple(true, nestedAggs.map(_.resultEmitType.storageType): _*)
   val resultPType: PCanonicalDict = PCanonicalDict(kt, resultEltType)
-  override val resultEmitType = EmitType(SIndexablePointer(resultPType), ktV.r.required)
+  override val resultEmitType = EmitType(SIndexablePointer(resultPType), true)
   private[this] val arrayRep = resultPType.arrayRep
   private[this] val dictElt = arrayRep.elementType.asInstanceOf[PCanonicalStruct]
   val initOpTypes: Seq[Type] = Array(TVoid)

@@ -390,7 +390,7 @@ sealed abstract class RBaseStruct extends TypeWithRequiredness {
     pType.asInstanceOf[PBaseStruct].fields.foreach(f => children(f.index).fromPType(f.typ))
   }
   def _unionEmitType(emitType: EmitType): Unit = {
-    emitType.st.asInstanceOf[SBaseStruct].fieldEmitTypes.zipWithIndex.foreach{ case(et, idx) => children(idx)._unionEmitType(et) }
+    emitType.st.asInstanceOf[SBaseStruct].fieldEmitTypes.zipWithIndex.foreach{ case(et, idx) => children(idx).fromEmitType(et) }
   }
 
   def unionFields(other: RStruct): Unit = {
