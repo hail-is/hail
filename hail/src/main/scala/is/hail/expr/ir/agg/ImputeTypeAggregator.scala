@@ -5,22 +5,34 @@ import is.hail.asm4s._
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.EmitType
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerValue}
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerValue, SStackStruct}
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.virtual.{TInt32, TString, Type}
+import is.hail.types.physical.stypes.primitives.{SBoolean, SBooleanCode}
+import is.hail.types.virtual.{TBaseStruct, TBoolean, TInt32, TString, TStruct, Type}
 import is.hail.types.{RPrimitive, VirtualTypeWithReq}
 import is.hail.utils._
 
 import scala.language.existentials
 
 object ImputeTypeState {
-  val resultPType = PCanonicalStruct(required = false,
-    "anyNonMissing" -> PBooleanRequired,
-    "allDefined" -> PBooleanRequired,
-    "supportsBool" -> PBooleanRequired,
-    "supportsInt32" -> PBooleanRequired,
-    "supportsInt64" -> PBooleanRequired,
-    "supportsFloat64" -> PBooleanRequired)
+  val resultVirtualType = TStruct(
+    "anyNonMissing" -> TBoolean,
+    "allDefined" -> TBoolean,
+    "supportsBool" -> TBoolean,
+    "supportsInt32" -> TBoolean,
+    "supportsInt64" -> TBoolean,
+    "supportsFloat64" -> TBoolean
+  )
+  val resultSType = SStackStruct(resultVirtualType, IndexedSeq(
+    EmitType(SBoolean, true),
+    EmitType(SBoolean, true),
+    EmitType(SBoolean, true),
+    EmitType(SBoolean, true),
+    EmitType(SBoolean, true),
+    EmitType(SBoolean, true)
+  ))
+
+  val resultEmitType = EmitType(resultSType, true)
 
   def matchBoolean(x: String): Boolean = try {
     x.toBoolean
@@ -129,7 +141,7 @@ class ImputeTypeAggregator() extends StagedAggregator {
 
   type State = ImputeTypeState
 
-  def resultEmitType = EmitType(SBaseStructPointer(ImputeTypeState.resultPType), true)
+  def resultEmitType = ImputeTypeState.resultEmitType
 
   protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     assert(init.length == 0)
@@ -147,15 +159,9 @@ class ImputeTypeAggregator() extends StagedAggregator {
   }
 
   protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
-    val rt = ImputeTypeState.resultPType
-    val addr = cb.memoize(rt.allocate(region), "impute_type_aggregator_result_ptr")
-    rt.stagedInitialize(cb, addr, setMissing = false)
-    Array(state.getAnyNonMissing, state.getAllDefined, state.getSupportsBool,
-      state.getSupportsI32, state.getSupportsI64, state.getSupportsF64)
-      .zipWithIndex.foreach { case (b, idx) =>
-      rt.types(idx).storeAtAddress(cb, rt.fieldOffset(addr, idx), region, primitive(cb.memoize(b)), deepCopy = true)
-    }
-    val sv = rt.loadCheapSCode(cb, addr)
+    val emitCodes = Array(state.getAnyNonMissing, state.getAllDefined, state.getSupportsBool, state.getSupportsI32, state.getSupportsI64, state.getSupportsF64).
+      map(bool => new SBooleanCode(bool).memoize(cb, "impute_type_bools")).map(sbv => EmitCode.present(cb.emb, sbv))
+    val sv = SStackStruct.constructFromArgs(cb, region, resultEmitType.virtualType.asInstanceOf[TBaseStruct], emitCodes:_*)
     IEmitCode.present(cb, sv)
   }
 }

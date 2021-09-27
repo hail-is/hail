@@ -403,8 +403,8 @@ object EmitCode {
     new EmitCode(Lstart, ec.iec)
   }
 
-  def present(mb: EmitMethodBuilder[_], pc: SValue): EmitCode =
-    EmitCode.fromI(mb)(cb => IEmitCode.present(cb, pc))
+  def present(mb: EmitMethodBuilder[_], sv: SValue): EmitCode =
+    EmitCode.fromI(mb)(cb => IEmitCode.present(cb, sv))
 
   def missing(mb: EmitMethodBuilder[_], pt: SType): EmitCode =
     EmitCode.fromI(mb)(cb => IEmitCode.missing(cb, pt.defaultValue))

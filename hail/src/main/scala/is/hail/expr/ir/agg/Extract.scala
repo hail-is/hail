@@ -309,7 +309,7 @@ object Extract {
     case AggSignature(CollectAsSet(), _, Seq(t)) => TSet(t)
     case AggSignature(Collect(), _, Seq(t)) => TArray(t)
     case AggSignature(Densify(), _, Seq(t)) => t
-    case AggSignature(ImputeType(), _, _) => ImputeTypeState.resultPType.virtualType
+    case AggSignature(ImputeType(), _, _) => ImputeTypeState.resultEmitType.virtualType
     case AggSignature(LinearRegression(), _, _) =>
       LinearRegressionAggregator.resultPType.virtualType
     case AggSignature(ApproxCDF(), _, _) => QuantilesAggregator.resultPType.virtualType
