@@ -4,13 +4,15 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.interfaces.primitive
+import is.hail.types.physical.stypes.primitives.SInt64
 import is.hail.types.virtual.Type
 
 object CountAggregator extends StagedAggregator {
   type State = PrimitiveRVAState
 
-  val resultType: PType = PInt64(true)
+  val resultEmitType: EmitType = EmitType(SInt64, true)
   val initOpTypes: Seq[Type] = Array[Type]()
   val seqOpTypes: Seq[Type] = Array[Type]()
 

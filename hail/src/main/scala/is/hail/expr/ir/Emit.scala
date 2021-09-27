@@ -304,7 +304,7 @@ object IEmitCodeGen {
 }
 
 case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A, required: Boolean) {
-
+  val stack = Thread.currentThread().getStackTrace.mkString("\n")
   lazy val emitType: EmitType = {
     value match {
       case pc: SValue => EmitType(pc.st, required)
@@ -1058,7 +1058,8 @@ class Emit[C](
         }
 
       case GetField(o, name) =>
-        emitI(o).flatMap(cb) { oc =>
+        val emitStruct = emitI(o)
+        emitStruct.flatMap(cb) { oc =>
           oc.asBaseStruct.loadField(cb, name)
         }
 
@@ -1991,8 +1992,6 @@ class Emit[C](
 
       case ResultOp(idx, sig) =>
         val AggContainer(aggs, sc, _) = container.get
-
-        val pt = sig.pResultType
 
         val rvAgg = agg.Extract.getAgg(sig)
         rvAgg.result(cb, sc.states(idx), region)

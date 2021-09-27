@@ -4,6 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.functions.UtilFunctions
 import is.hail.expr.ir.{coerce => _, _}
+import is.hail.types.physical.stypes.{EmitType, SType}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.{PType, typeToTypeInfo}
 import is.hail.types.virtual._
@@ -21,9 +22,8 @@ trait StagedMonoidSpec {
 
 class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
   type State = PrimitiveRVAState
-  val typ: PType = PType.canonical(monoid.typ, required = monoid.neutral.isDefined)
-
-  def resultType: PType = typ
+  val sType = SType.canonical(monoid.typ)
+  def resultEmitType = EmitType(sType, monoid.neutral.isDefined)
 
   val initOpTypes: Seq[Type] = Array[Type]()
   val seqOpTypes: Seq[Type] = Array[Type](monoid.typ)

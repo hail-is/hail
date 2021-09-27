@@ -4,8 +4,9 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
-import is.hail.types.physical.stypes.concrete.SBaseStructPointerValue
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerValue}
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.EmitType
 import is.hail.types.virtual.{TFloat64, TInt32, Type}
 import is.hail.utils._
 
@@ -43,7 +44,7 @@ class ApproxCDFState(val kb: EmitClassBuilder[_]) extends AggregatorState {
   }
 
   def result(cb: EmitCodeBuilder, region: Value[Region]): SBaseStructPointerValue = {
-    QuantilesAggregator.resultType.loadCheapSCode(cb, aggr.invoke[Region, Long]("rvResult", region))
+    QuantilesAggregator.resultPType.loadCheapSCode(cb, aggr.invoke[Region, Long]("rvResult", region))
   }
 
   def newState(cb: EmitCodeBuilder, off: Code[Long]): Unit = cb += region.getNewRegion(regionSize)
@@ -112,7 +113,7 @@ class ApproxCDFState(val kb: EmitClassBuilder[_]) extends AggregatorState {
 class ApproxCDFAggregator extends StagedAggregator {
   type State = ApproxCDFState
 
-  def resultType: PStruct = QuantilesAggregator.resultType
+  def resultEmitType: EmitType = EmitType(SBaseStructPointer(QuantilesAggregator.resultPType), true)
   val initOpTypes: Seq[Type] = FastSeq(TInt32)
   val seqOpTypes: Seq[Type] = FastSeq(TFloat64)
 

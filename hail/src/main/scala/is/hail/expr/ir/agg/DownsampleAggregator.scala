@@ -8,8 +8,8 @@ import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.encoded.EType
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.SingleCodeSCode
-import is.hail.types.physical.stypes.concrete.SIndexablePointerValue
+import is.hail.types.physical.stypes.{EmitType, SingleCodeSCode}
+import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerValue}
 import is.hail.types.physical.stypes.interfaces.SBaseStructValue
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -543,7 +543,8 @@ object DownsampleAggregator {
 class DownsampleAggregator(arrayType: VirtualTypeWithReq) extends StagedAggregator {
   type State = DownsampleState
 
-  val resultType: PCanonicalArray = PCanonicalArray(PCanonicalTuple(required = true, PFloat64(true), PFloat64(true), arrayType.canonicalPType))
+  val resultPType: PCanonicalArray = PCanonicalArray(PCanonicalTuple(required = true, PFloat64(true), PFloat64(true), arrayType.canonicalPType))
+  val resultEmitType = EmitType(SIndexablePointer(resultPType), true)
 
   val initOpTypes: Seq[Type] = Array(TInt32)
   val seqOpTypes: Seq[Type] = Array(TFloat64, TFloat64, arrayType.t)
@@ -567,6 +568,6 @@ class DownsampleAggregator(arrayType: VirtualTypeWithReq) extends StagedAggregat
 
   protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
     // deepCopy is handled by state.resultArray
-    IEmitCode.present(cb, state.resultArray(cb, region, resultType))
+    IEmitCode.present(cb, state.resultArray(cb, region, resultPType))
   }
 }

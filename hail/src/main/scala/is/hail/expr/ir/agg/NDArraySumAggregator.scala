@@ -4,7 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder, EmitParamType, IEmitCode, SCodeEmitParamType, uuid4}
 import is.hail.types.VirtualTypeWithReq
-import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.{EmitType, SCode}
 import is.hail.types.physical.stypes.concrete.SNDArrayPointerSettable
 import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayCode, SNDArrayValue}
 import is.hail.types.physical.{PCanonicalNDArray, PType}
@@ -12,11 +12,10 @@ import is.hail.types.virtual.Type
 import is.hail.utils._
 
 class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator {
-  private val ndTyp = ndVTyp.canonicalPType.setRequired(false).asInstanceOf[PCanonicalNDArray]
-
   override type State = TypedRegionBackedAggState
 
-  override def resultType: PType = ndTyp
+  override def resultEmitType: EmitType = ndVTyp.canonicalEmitType
+  private val ndTyp = resultEmitType.storageType.asInstanceOf[PCanonicalNDArray] // TODO: Set required false?
 
   override def initOpTypes: Seq[Type] = Array[Type]()
 

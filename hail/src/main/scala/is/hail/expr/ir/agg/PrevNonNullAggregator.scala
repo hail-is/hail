@@ -5,12 +5,12 @@ import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.EmitType
 import is.hail.types.virtual.Type
 
 class PrevNonNullAggregator(typ: VirtualTypeWithReq) extends StagedAggregator {
   type State = TypedRegionBackedAggState
-  private val pt = typ.canonicalPType.setRequired(false)
-  val resultType: PType = pt
+  val resultEmitType = EmitType(typ.canonicalEmitType.st, false)
   val initOpTypes: Seq[Type] = Array[Type]()
   val seqOpTypes: Seq[Type] = Array[Type](typ.t)
 

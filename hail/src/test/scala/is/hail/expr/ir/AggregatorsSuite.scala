@@ -534,13 +534,14 @@ class AggregatorsSuite extends HailSuite {
     expected: Any,
     initOpArgs: IndexedSeq[IR],
     seqOpArgs: IndexedSeq[IR]) {
-    assertEvalsTo(
-      AggGroupBy(key,
-        ApplyAggOp(
-          initOpArgs,
-          seqOpArgs,
-          AggSignature(op, initOpArgs.map(_.typ), seqOpArgs.map(_.typ))),
-        false),
+    val irToEval = AggGroupBy(key,
+      ApplyAggOp(
+        initOpArgs,
+        seqOpArgs,
+        AggSignature(op, initOpArgs.map(_.typ), seqOpArgs.map(_.typ))),
+      false)
+    println(Pretty(irToEval))
+    assertEvalsTo(irToEval,
       (agg, aggType),
       expected)
   }

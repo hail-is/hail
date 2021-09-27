@@ -5,17 +5,17 @@ import is.hail.asm4s.{UnitInfo, Value, _}
 import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.linalg.LinalgCodeUtils
 import is.hail.types.VirtualTypeWithReq
+import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayCode, SNDArrayValue}
 import is.hail.types.physical.{PCanonicalNDArray, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils.{FastIndexedSeq, valueToRichCodeRegion}
 
-class NDArrayMultiplyAddAggregator(nDVTyp: VirtualTypeWithReq) extends StagedAggregator {
-  private val ndTyp = nDVTyp.canonicalPType.setRequired(false).asInstanceOf[PCanonicalNDArray]
-
+class NDArrayMultiplyAddAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator {
   override type State = TypedRegionBackedAggState
 
-  override def resultType: PType = ndTyp
+  override def resultEmitType: EmitType = ndVTyp.canonicalEmitType
+  private val ndTyp = resultEmitType.storageType.asInstanceOf[PCanonicalNDArray] // TODO: Set required false?
 
   override def initOpTypes: Seq[Type] = Array[Type]()
 

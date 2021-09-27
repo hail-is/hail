@@ -8,7 +8,8 @@ import is.hail.io._
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.encoded.EType
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.SValue
+import is.hail.types.physical.stypes.concrete.SIndexablePointer
+import is.hail.types.physical.stypes.{EmitType, SValue}
 import is.hail.types.virtual.Type
 import is.hail.utils._
 
@@ -153,8 +154,10 @@ class CollectAsSetAggregator(elem: VirtualTypeWithReq) extends StagedAggregator 
   type State = AppendOnlySetState
 
   private val elemPType = elem.canonicalPType
-  val resultType: PCanonicalSet = PCanonicalSet(elemPType, true)
-  private[this] val arrayRep = resultType.arrayRep
+  val setPType = PCanonicalSet(elemPType)
+  val setSType = SIndexablePointer(setPType)
+  val resultEmitType: EmitType = EmitType(setSType, true)
+  private[this] val arrayRep = resultEmitType.storageType.asInstanceOf[PCanonicalSet].arrayRep
   val initOpTypes: Seq[Type] = Array[Type]()
   val seqOpTypes: Seq[Type] = Array[Type](elem.t)
 
@@ -179,6 +182,6 @@ class CollectAsSetAggregator(elem: VirtualTypeWithReq) extends StagedAggregator 
     }
     assert(arrayRep.required)
     // deepCopy is handled by `storeElement` above
-    IEmitCode.present(cb, resultType.construct(finish(cb)))
+    IEmitCode.present(cb, setPType.construct(finish(cb)))
   }
 }

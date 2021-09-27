@@ -330,7 +330,7 @@ class RequirednessSuite extends HailSuite {
       PCanonicalStruct(required,
         "a" -> rowType.fieldType("a"),
         "collect" -> PCanonicalArray(rowType.fieldType("b"), required),
-        "callstats" -> CallStatsState.resultType),
+        "callstats" -> CallStatsState.resultPType),
       globalType)
 
     nodes += Array(
@@ -338,7 +338,7 @@ class RequirednessSuite extends HailSuite {
       PCanonicalStruct(required,
         "a" -> rowType.fieldType("a"),
         "collect" -> PCanonicalArray(rowType.fieldType("b"), required),
-        "callstats" -> CallStatsState.resultType),
+        "callstats" -> CallStatsState.resultPType),
       globalType)
 
     val left = TableMapGlobals(

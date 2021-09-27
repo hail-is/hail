@@ -6,7 +6,8 @@ import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.concrete.SIndexablePointerValue
+import is.hail.types.physical.stypes.EmitType
+import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerValue}
 import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.virtual.{TInt32, Type}
 import is.hail.utils._
@@ -143,9 +144,9 @@ class DensifyAggregator(val arrayVType: VirtualTypeWithReq) extends StagedAggreg
     val eltType = arrayVType.canonicalPType.asInstanceOf[PCanonicalArray].elementType.setRequired(false)
     PCanonicalArray(eltType, required = true)
   }
-  val resultType: PCanonicalArray = pt
+  val resultEmitType: EmitType = EmitType(SIndexablePointer(pt), true)
   val initOpTypes: Seq[Type] = Array(TInt32)
-  val seqOpTypes: Seq[Type] = Array(pt.virtualType)
+  val seqOpTypes: Seq[Type] = Array(resultEmitType.virtualType)
 
   protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     assert(init.length == 1)

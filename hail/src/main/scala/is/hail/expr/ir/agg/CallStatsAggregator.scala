@@ -5,6 +5,8 @@ import is.hail.asm4s._
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.EmitType
+import is.hail.types.physical.stypes.concrete.SBaseStructPointer
 import is.hail.types.virtual.{TCall, TInt32, Type}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.utils._
@@ -16,7 +18,7 @@ object CallStatsState {
   val callStatsInternalArrayType = PCanonicalArray(PInt32Required, required = true)
   val stateType: PCanonicalTuple = PCanonicalTuple(true, callStatsInternalArrayType, callStatsInternalArrayType)
 
-  val resultType = PCanonicalStruct(required = true,
+  val resultPType = PCanonicalStruct(required = false,
     "AC" -> PCanonicalArray(PInt32(true), required = true),
     "AF" -> PCanonicalArray(PFloat64(true), required = false),
     "AN" -> PInt32(true),
@@ -101,7 +103,8 @@ class CallStatsAggregator extends StagedAggregator {
 
   type State = CallStatsState
 
-  def resultType: PStruct = CallStatsState.resultType
+  val resultEmitType: EmitType = EmitType(SBaseStructPointer(CallStatsState.resultPType), true)
+  val resultStorageType = resultEmitType.storageType.asInstanceOf[PBaseStruct]
 
   val initOpTypes: Seq[Type] = FastSeq(TInt32)
   val seqOpTypes: Seq[Type] = FastSeq(TCall)
@@ -177,12 +180,12 @@ class CallStatsAggregator extends StagedAggregator {
 
 
   protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
-    val rt = CallStatsState.resultType
+    val rt = CallStatsState.resultPType
     val addr = cb.memoize(rt.allocate(region), "call_stats_aggregator_result_addr")
     rt.stagedInitialize(cb, addr, setMissing = false)
     val alleleNumber = cb.newLocal[Int]("callstats_result_alleleNumber", 0)
 
-    val acType = resultType.fieldType("AC").asInstanceOf[PCanonicalArray]
+    val acType = resultStorageType.fieldType("AC").asInstanceOf[PCanonicalArray]
 
     // this is a little weird - computing AC has the side effect of updating AN
     val ac = acType.constructFromElements(cb, region, state.nAlleles, deepCopy = true) { (cb, i) =>
@@ -196,7 +199,7 @@ class CallStatsAggregator extends StagedAggregator {
     cb.ifx(alleleNumber.ceq(0),
       rt.setFieldMissing(cb, addr, "AF"),
       {
-        val afType = resultType.fieldType("AF").asInstanceOf[PCanonicalArray]
+        val afType = resultStorageType.fieldType("AF").asInstanceOf[PCanonicalArray]
         val af = afType.constructFromElements(cb, region, state.nAlleles, deepCopy = true) { (cb, i) =>
           val acAtIndex = cb.newLocal[Int]("callstats_result_acAtIndex", state.alleleCountAtIndex(i, state.nAlleles))
           IEmitCode.present(cb, primitive(cb.memoize(acAtIndex.toD / alleleNumber.toD)))
@@ -204,12 +207,12 @@ class CallStatsAggregator extends StagedAggregator {
         afType.storeAtAddress(cb, rt.fieldOffset(addr, "AF"), region, af, deepCopy = false)
       })
 
-    val anType = resultType.fieldType("AN")
+    val anType = resultStorageType.fieldType("AN")
     val an = primitive(alleleNumber)
     anType.storeAtAddress(cb, rt.fieldOffset(addr, "AN"), region, an, deepCopy = false)
 
 
-    val homCountType = resultType.fieldType("homozygote_count").asInstanceOf[PCanonicalArray]
+    val homCountType = resultStorageType.fieldType("homozygote_count").asInstanceOf[PCanonicalArray]
     val homCount = homCountType.constructFromElements(cb, region, state.nAlleles, deepCopy = true) { (cb, i) =>
       val homCountAtIndex = cb.newLocal[Int]("callstats_result_homCountAtIndex", state.homCountAtIndex(i, state.nAlleles))
       IEmitCode.present(cb, primitive(homCountAtIndex))

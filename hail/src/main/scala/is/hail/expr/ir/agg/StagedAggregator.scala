@@ -4,12 +4,13 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.PType
+import is.hail.types.physical.stypes.EmitType
 import is.hail.types.virtual.Type
 
 abstract class StagedAggregator {
   type State <: AggregatorState
 
-  def resultType: PType
+  def resultEmitType: EmitType
   def initOpTypes: Seq[Type]
   def seqOpTypes: Seq[Type]
 

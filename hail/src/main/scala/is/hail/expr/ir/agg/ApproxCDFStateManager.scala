@@ -646,7 +646,7 @@ class ApproxCDFStateManager(val k: Int) {
 
   def rvResult(r: Region): Long = {
     val rvb = new RegionValueBuilder(r)
-    rvb.start(QuantilesAggregator.resultType)
+    rvb.start(QuantilesAggregator.resultPType)
     result(rvb)
     rvb.end()
   }
@@ -736,7 +736,7 @@ class ApproxCDFStateManager(val k: Int) {
 }
 
 object QuantilesAggregator {
-  val resultType: PCanonicalStruct =
+  val resultPType: PCanonicalStruct =
     PCanonicalStruct(required = true,
       "values" -> PCanonicalArray(PFloat64(true), required = true),
       "ranks" -> PCanonicalArray(PInt64(true), required = true),

@@ -4,6 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerValue}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.{TInt32, TString, Type}
@@ -13,7 +14,7 @@ import is.hail.utils._
 import scala.language.existentials
 
 object ImputeTypeState {
-  val resultType = PCanonicalStruct(required = true,
+  val resultPType = PCanonicalStruct(required = false,
     "anyNonMissing" -> PBooleanRequired,
     "allDefined" -> PBooleanRequired,
     "supportsBool" -> PBooleanRequired,
@@ -128,7 +129,7 @@ class ImputeTypeAggregator() extends StagedAggregator {
 
   type State = ImputeTypeState
 
-  def resultType: PStruct = ImputeTypeState.resultType
+  def resultEmitType = EmitType(SBaseStructPointer(ImputeTypeState.resultPType), true)
 
   protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     assert(init.length == 0)
@@ -146,7 +147,7 @@ class ImputeTypeAggregator() extends StagedAggregator {
   }
 
   protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
-    val rt = ImputeTypeState.resultType
+    val rt = ImputeTypeState.resultPType
     val addr = cb.memoize(rt.allocate(region), "impute_type_aggregator_result_ptr")
     rt.stagedInitialize(cb, addr, setMissing = false)
     Array(state.getAnyNonMissing, state.getAllDefined, state.getSupportsBool,
