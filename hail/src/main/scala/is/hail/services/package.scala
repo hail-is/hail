@@ -47,6 +47,8 @@ package object services {
         true
       case e: SocketTimeoutException =>
         true
+      case e: UnknownHostException =>
+        true
       case e: SocketException =>
         e.getMessage != null && (
           e.getMessage.contains("Connection reset") ||
@@ -58,8 +60,6 @@ package object services {
       case e @ (_: SSLException | _: StorageException | _: IOException) =>
         val cause = e.getCause
         cause != null && recur(cause)
-      case e: UnknownHostException =>
-        true
       case _ =>
         false
     }

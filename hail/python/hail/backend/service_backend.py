@@ -245,11 +245,16 @@ class ServiceBackend(Backend):
                     iodir + '/in',
                     iodir + '/out',
                 ], mount_tokens=True)
-                return (j, await bb.submit(disable_progress_bar=self.disable_progress_bar))
+                b = await bb.submit(disable_progress_bar=self.disable_progress_bar)
+                try:
+                    status = await b.wait(disable_progress_bar=self.disable_progress_bar)
+                    return (j, b, status)
+                except Exception:
+                    await b.cancel()
+                    raise
 
-            _, (j, b) = await asyncio.gather(create_inputs(), create_batch())
+            _, (j, b, status) = await asyncio.gather(create_inputs(), create_batch())
 
-            status = await b.wait(disable_progress_bar=self.disable_progress_bar)
             if status['n_succeeded'] != 1:
                 message = {'batch_status': status,
                            'job_status': await j.status(),
