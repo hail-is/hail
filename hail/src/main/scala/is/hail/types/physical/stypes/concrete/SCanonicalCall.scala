@@ -57,13 +57,15 @@ class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
 
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(call)
 
-  override def ploidy(): Code[Int] = get.ploidy()
+  override def ploidy(cb: EmitCodeBuilder): Value[Int] =
+    cb.memoize((call >>> 1) & 0x3)
 
-  override def isPhased(): Code[Boolean] = get.isPhased()
+  override def isPhased(cb: EmitCodeBuilder): Value[Boolean] =
+    cb.memoize((call & 0x1).ceq(1))
 
   override def forEachAllele(cb: EmitCodeBuilder)(alleleCode: Value[Int] => Unit): Unit = {
-    val call2 = cb.newLocal[Int]("fea_call2", call >>> 3)
-    val p = cb.newLocal[Int]("fea_ploidy", ploidy())
+    val call2 = cb.memoize(call >>> 3)
+    val p = ploidy(cb)
     val j = cb.newLocal[Int]("fea_j")
     val k = cb.newLocal[Int]("fea_k")
 
@@ -76,7 +78,7 @@ class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
         cb.assign(j, call2 - (k * (k + 1) / 2))
       })
       alleleCode(j)
-      cb.ifx(isPhased(), cb.assign(k, k - j))
+      cb.ifx(isPhased(cb), cb.assign(k, k - j))
       alleleCode(k)
     }, {
       cb.ifx(p.ceq(1),
@@ -98,14 +100,14 @@ class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
     }
 
     val repr = cb.newLocal[Int]("lgt_to_gt_repr")
-    cb += Code.switch(ploidy(),
+    cb += Code.switch(ploidy(cb),
       EmitCodeBuilder.scopedVoid(cb.emb)(cb => cb._fatalWithError(errorID, s"ploidy above 2 is not currently supported")),
       FastIndexedSeq(
         EmitCodeBuilder.scopedVoid(cb.emb)(cb => cb.assign(repr, call)), // ploidy 0
         EmitCodeBuilder.scopedVoid(cb.emb) { cb =>
           val allele = Code.invokeScalaObject1[Int, Int](Call.getClass, "alleleRepr", call)
           val newCall = Code.invokeScalaObject2[Int, Boolean, Int](Call1.getClass, "apply",
-            checkAndTranslate(cb, allele), isPhased())
+            checkAndTranslate(cb, allele), isPhased(cb))
           cb.assign(repr, newCall)
         }, // ploidy 1
         EmitCodeBuilder.scopedVoid(cb.emb) { cb =>
@@ -118,7 +120,7 @@ class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
           cb.assign(repr, Code.invokeScalaObject3[Int, Int, Boolean, Int](Call2.getClass, "apply",
             checkAndTranslate(cb, j),
             checkAndTranslate(cb, k),
-            isPhased()))
+            isPhased(cb)))
         } // ploidy 2
       )
     )
@@ -145,10 +147,6 @@ class SCanonicalCallCode(val call: Code[Int]) extends SCallCode {
   val st: SCanonicalCall.type = SCanonicalCall
 
   def code: Code[_] = call
-
-  def ploidy(): Code[Int] = (call >>> 1) & 0x3
-
-  def isPhased(): Code[Boolean] = (call & 0x1).ceq(1)
 
   def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SCanonicalCallValue = {
     val s = SCanonicalCallSettable(sb, name)

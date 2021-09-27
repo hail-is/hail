@@ -95,15 +95,17 @@ class SIndexablePointerValue(
   override def loadLength(): Value[Int] = length
 
   override def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode = {
-    val iv = cb.newLocal("pcindval_i", i)
+    val iv = cb.memoize(i)
     IEmitCode(cb,
-      isElementMissing(iv),
+      isElementMissing(cb, iv),
       pt.elementType.loadCheapSCode(cb, pt.loadElement(a, length, iv))) // FIXME loadElement should take elementsAddress
   }
 
-  override def isElementMissing(i: Code[Int]): Code[Boolean] = pt.isElementMissing(a, i)
+  override def isElementMissing(cb: EmitCodeBuilder, i: Code[Int]): Value[Boolean] =
+    cb.memoize(pt.isElementMissing(a, i))
 
-  override def hasMissingValues(cb: EmitCodeBuilder): Code[Boolean] = pt.hasMissingValues(a)
+  override def hasMissingValues(cb: EmitCodeBuilder): Value[Boolean] =
+    cb.memoize(pt.hasMissingValues(a))
 
   override def castToArray(cb: EmitCodeBuilder): SIndexableValue = {
     pt match {
@@ -120,7 +122,7 @@ class SIndexablePointerValue(
         val elementPtr = cb.newLocal[Long]("foreach_pca_elt_ptr", elementsAddress)
         val et = pca.elementType
         cb.whileLoop(idx < length, {
-          cb.ifx(isElementMissing(idx),
+          cb.ifx(isElementMissing(cb, idx),
             {}, // do nothing,
             {
               val elt = et.loadCheapSCode(cb, et.loadFromNested(elementPtr))
