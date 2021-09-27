@@ -18,7 +18,7 @@ object EmitStreamDistribute {
   def emit(cb: EmitCodeBuilder, region: Value[Region], requestedSplittersAndEndsVal: SIndexableValue, childStream: SStreamValue, pathVal: SValue, spec: AbstractTypedCodecSpec): SIndexableValue = {
     val mb = cb.emb
     val pivotsPType = requestedSplittersAndEndsVal.st.storageType().asInstanceOf[PCanonicalArray]
-    val requestedSplittersVal = requestedSplittersAndEndsVal.sliceArray(cb, region, pivotsPType, 1, requestedSplittersAndEndsVal.loadLength() - 1).memoize(cb, "foo")
+    val requestedSplittersVal = requestedSplittersAndEndsVal.sliceArray(cb, region, pivotsPType, 1, requestedSplittersAndEndsVal.loadLength() - 1)
 
     val keyType = requestedSplittersVal.st.elementType.asInstanceOf[SBaseStruct]
     val keyPType = pivotsPType.elementType

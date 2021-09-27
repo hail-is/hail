@@ -19,14 +19,12 @@ class EBinary(override val required: Boolean) extends EType {
   override def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = {
 
     def writeCanonicalBinary(bin: SBinaryPointerValue): Unit = {
-      val len = cb.newLocal[Int]("len", bin.loadLength())
+      val len = bin.loadLength(cb)
       cb += out.writeInt(len)
       cb += out.writeBytes(bin.bytesAddress(), len)
     }
 
-    def writeBytes(_bytes: Code[Array[Byte]]): Unit = {
-      val bytes = cb.newLocal[Array[Byte]]("bytes", _bytes)
-      val len = cb.newLocal[Int]("len", bytes.length())
+    def writeBytes(bytes: Value[Array[Byte]]): Unit = {
       cb += out.writeInt(bytes.length())
       cb += out.write(bytes)
     }
@@ -34,8 +32,8 @@ class EBinary(override val required: Boolean) extends EType {
     v.st match {
       case SBinaryPointer(_) => writeCanonicalBinary(v.asInstanceOf[SBinaryPointerValue])
       case SStringPointer(_) => writeCanonicalBinary(v.asInstanceOf[SStringPointerValue].binaryRepr())
-      case _: SBinary => writeBytes(v.asInstanceOf[SBinaryValue].loadBytes())
-      case _: SString => writeBytes(v.get.asString.toBytes().loadBytes())
+      case _: SBinary => writeBytes(v.asInstanceOf[SBinaryValue].loadBytes(cb))
+      case _: SString => writeBytes(v.asString.toBytes(cb).loadBytes(cb))
     }
   }
 

@@ -71,7 +71,8 @@ class SBooleanValue(x: Value[Boolean]) extends SPrimitiveValue {
 
   def boolCode(cb: EmitCodeBuilder): Value[Boolean] = x
 
-  override def hash(cb: EmitCodeBuilder): SInt32Code = new SInt32Code(boolCode(cb).toI)
+  override def hash(cb: EmitCodeBuilder): SInt32Value =
+    new SInt32Value(cb.memoize(boolCode(cb).toI))
 }
 
 object SBooleanSettable {

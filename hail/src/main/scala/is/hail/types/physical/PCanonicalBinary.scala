@@ -147,7 +147,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
       case SBinaryPointer(PCanonicalBinary(_)) =>
         if (deepCopy) {
           val bv = value.asInstanceOf[SBinaryPointerValue]
-          val len = cb.newLocal[Int]("pcbinary_store_len", bv.loadLength())
+          val len = bv.loadLength(cb)
           val newAddr = cb.memoize(allocate(region, len))
           storeLength(cb, newAddr, len)
           cb += Region.copyFrom(bytesAddress(bv.a), bytesAddress(newAddr), len.toL)
@@ -156,10 +156,10 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
           value.asInstanceOf[SBinaryPointerValue].a
       case _ =>
         val bv = value.asBinary
-        val len = cb.newLocal[Int]("pcbinary_store_len", bv.loadLength())
+        val len = bv.loadLength(cb)
         val newAddr = cb.memoize(allocate(region, len))
         storeLength(cb, newAddr, len)
-        cb += Region.storeBytes(bytesAddress(newAddr), bv.loadBytes())
+        cb += Region.storeBytes(bytesAddress(newAddr), bv.loadBytes(cb))
         newAddr
     }
   }

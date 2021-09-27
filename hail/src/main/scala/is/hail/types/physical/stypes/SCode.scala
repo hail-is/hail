@@ -158,7 +158,7 @@ trait SValue {
   def copyToRegion(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SValue =
     destType.coerceOrCopy(cb, region, this, deepCopy = true)
 
-  def hash(cb: EmitCodeBuilder): SInt32Code = throw new UnsupportedOperationException(s"Stype ${st} has no hashcode")
+  def hash(cb: EmitCodeBuilder): SInt32Value = throw new UnsupportedOperationException(s"Stype ${st} has no hashcode")
 }
 
 

@@ -5,8 +5,8 @@ import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitValue, IEmitCode}
 import is.hail.types.physical.PCanonicalStruct
 import is.hail.types.physical.stypes._
-import is.hail.types.physical.stypes.concrete.{SInsertFieldsStruct, SInsertFieldsStructCode, SInsertFieldsStructValue, SSubsetStruct, SSubsetStructCode, SSubsetStructValue}
-import is.hail.types.physical.stypes.primitives.SInt32Code
+import is.hail.types.physical.stypes.concrete._
+import is.hail.types.physical.stypes.primitives.SInt32Value
 import is.hail.types.virtual.{TBaseStruct, TStruct, TTuple}
 import is.hail.types.{RField, RStruct, RTuple, TypeWithRequiredness}
 import is.hail.utils._
@@ -50,13 +50,13 @@ trait SBaseStructValue extends SValue {
     new SSubsetStructValue(st, this)
   }
 
-  override def hash(cb: EmitCodeBuilder): SInt32Code = {
+  override def hash(cb: EmitCodeBuilder): SInt32Value = {
     val hash_result = cb.newLocal[Int]("hash_result_struct", 1)
     (0 until st.size).foreach(i => {
       loadField(cb, i).consume(cb, { cb.assign(hash_result, hash_result * 31) },
         {field => cb.assign(hash_result, (hash_result * 31) + field.hash(cb).intCode(cb))})
     })
-    new SInt32Code(hash_result)
+    new SInt32Value(hash_result)
   }
 
   protected[stypes] def _insert(newType: TStruct, fields: (String, EmitValue)*): SBaseStructValue = {
