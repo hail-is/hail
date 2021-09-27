@@ -10,10 +10,11 @@ import sys
 from hailtop.utils import secret_alnum_string, partition
 import hailtop.batch_client.aioclient as low_level_batch_client
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
+import hailtop.aiogoogle as aiogoogle
 
 from .batch import Batch
 from .backend import ServiceBackend
-from ..google_storage import GCS
+
 
 if sys.version_info < (3, 7):
     def create_task(coro, *, name=None):  # pylint: disable=unused-argument
@@ -131,8 +132,7 @@ class BatchPoolExecutor:
         self.directory = self.backend.remote_tmpdir + f'batch-pool-executor/{self.name}/'
         self.inputs = self.directory + 'inputs/'
         self.outputs = self.directory + 'outputs/'
-        self.gcs = GCS(blocking_pool=concurrent.futures.ThreadPoolExecutor(),
-                       project=project)
+        self.fs = aiogoogle.GoogleStorageAsyncFS(project=project)
         self.futures: List[BatchPoolFuture] = []
         self.finished_future_count = 0
         self._shutdown = False
@@ -354,9 +354,9 @@ class BatchPoolExecutor:
         pipe = BytesIO()
         dill.dump(functools.partial(unapplied, *args, **kwargs), pipe, recurse=True)
         pipe.seek(0)
-        pickledfun_gcs = self.inputs + f'{name}/pickledfun'
-        await self.gcs.write_gs_file_from_file_like_object(pickledfun_gcs, pipe)
-        pickledfun_local = batch.read_input(pickledfun_gcs)
+        pickledfun_remote = self.inputs + f'{name}/pickledfun'
+        await self.fs.write(pickledfun_remote, pipe.getvalue())
+        pickledfun_local = batch.read_input(pickledfun_remote)
 
         thread_limit = "1"
         if self.cpus_per_job:
@@ -408,7 +408,7 @@ with open(\\"{j.ofile}\\", \\"wb\\") as out:
     def _finish_future(self):
         self.finished_future_count += 1
         if self._shutdown and self.finished_future_count == len(self.futures):
-            self._cleanup(False)
+            self._cleanup()
 
     def shutdown(self, wait: bool = True):
         """Allow temporary resources to be cleaned up.
@@ -432,14 +432,13 @@ with open(\\"{j.ofile}\\", \\"wb\\") as out:
             async_to_blocking(
                 asyncio.gather(*[ignore_exceptions(f) for f in self.futures]))
         if self.finished_future_count == len(self.futures):
-            self._cleanup(False)
+            self._cleanup()
         self._shutdown = True
 
-    def _cleanup(self, wait):
+    def _cleanup(self):
         if self.cleanup_bucket:
-            async_to_blocking(
-                self.gcs.delete_gs_files(self.directory))
-        self.gcs.shutdown(wait)
+            async_to_blocking(self.fs.rmtree(None, self.directory))
+        async_to_blocking(self.fs.close())
         self.backend.close()
 
 
@@ -448,11 +447,11 @@ class BatchPoolFuture:
                  executor: BatchPoolExecutor,
                  batch: low_level_batch_client.Batch,
                  job: low_level_batch_client.Job,
-                 output_gcs: str):
+                 output_file: str):
         self.executor = executor
         self.batch = batch
         self.job = job
-        self.output_gcs = output_gcs
+        self.output_file = output_file
         self.fetch_coro = asyncio.ensure_future(self._async_fetch_result())
         executor._add_future(self)
 
@@ -548,7 +547,7 @@ class BatchPoolFuture:
                 raise ValueError(
                     f"submitted job failed:\n{main_container_status['error']}")
             value, traceback = dill.loads(
-                await self.executor.gcs.read_binary_gs_file(self.output_gcs))
+                await self.executor.fs.read(self.output_file))
             if traceback is None:
                 return value
             assert isinstance(value, BaseException)

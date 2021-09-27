@@ -153,13 +153,19 @@ class AzureReadableStream(ReadableStream):
             return b''
 
         if n == -1:
-            downloader = await self._client.download_blob(offset=self._offset)
+            try:
+                downloader = await self._client.download_blob(offset=self._offset)
+            except azure.core.exceptions.ResourceNotFoundError as e:
+                raise FileNotFoundError from e
             data = await downloader.readall()
             self._eof = True
             return data
 
         if self._downloader is None:
-            self._downloader = await self._client.download_blob(offset=self._offset)
+            try:
+                self._downloader = await self._client.download_blob(offset=self._offset)
+            except azure.core.exceptions.ResourceNotFoundError as e:
+                raise FileNotFoundError from e
 
         if self._chunk_it is None:
             self._chunk_it = self._downloader.chunks()
