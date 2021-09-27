@@ -512,7 +512,10 @@ class _TemporaryDirectoryManager:
         return self.name
 
     def __exit__(self, type, value, traceback):
-        return self.fs.rmtree(self.name)
+        try:
+            return self.fs.rmtree(self.name)
+        except FileNotFoundError:
+            pass
 
 
 def TemporaryDirectory(*,

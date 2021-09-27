@@ -222,7 +222,7 @@ class ServiceBackend(Backend):
         token = secret_alnum_string()
         with TemporaryDirectory(ensure_exists=False) as iodir:
             async def create_inputs():
-                with self._async_fs.open(iodir + '/in', 'wb') as infile:
+                async with await self._async_fs.create(iodir + '/in') as infile:
                     await inputs(infile, token)
 
             async def create_batch():
@@ -256,7 +256,7 @@ class ServiceBackend(Backend):
                 log.error(yaml.dump(message, default_style='|'))
                 raise ValueError(message)
 
-            with self.fs.open(iodir + '/out', 'rb') as outfile:
+            async with await self._async_fs.open(iodir + '/out') as outfile:
                 success = await read_bool(outfile)
                 if success:
                     s = await read_str(outfile)
