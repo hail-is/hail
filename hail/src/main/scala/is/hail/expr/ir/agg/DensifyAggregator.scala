@@ -167,9 +167,8 @@ class DensifyAggregator(val arrayVType: VirtualTypeWithReq) extends StagedAggreg
 
   protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
     val resultInWrongRegion = state.result(cb, region)
-    val ptrInRightRegion = region.allocate(pt.alignment, resultInWrongRegion.length.get.toL)
     // deepCopy needs to be done here
-    pt.storeAtAddress(cb, ptrInRightRegion, region, resultInWrongRegion, deepCopy = true)
+    val ptrInRightRegion = pt.store(cb, region, resultInWrongRegion, true)
     IEmitCode.present(cb, pt.loadCheapSCode(cb, ptrInRightRegion))
   }
 }
