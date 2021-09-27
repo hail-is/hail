@@ -138,7 +138,8 @@ class VariantDataset:
                 or not vd_row_key.fields == ('locus', 'alleles')
                 or not isinstance(vd_row_key.types[0], hl.tlocus)
                 or vd_row_key.types[1] != hl.tarray(hl.tstr)):
-            error(f"expect variant data to have a row key {{'locus': locus<rg>, alleles: array<str>}}, found {vd_row_key}")
+            error(
+                f"expect variant data to have a row key {{'locus': locus<rg>, alleles: array<str>}}, found {vd_row_key}")
 
         rd_col_key = rd.col_key.dtype
         if (not isinstance(rd_col_key, hl.tstruct)
@@ -153,20 +154,22 @@ class VariantDataset:
             error(f"expect variant data to have a single col key of type string, found {vd_col_key}")
 
         # check ref_allele field:
-        if not 'ref_allele' in rd.row or rd.ref_allele.dtype != hl.tstr:
-            error(f"expect reference data to have field 'ref_allele' of type string")
+        if 'ref_allele' not in rd.row or rd.ref_allele.dtype != hl.tstr:
+            error("expect reference data to have field 'ref_allele' of type string")
 
         # check cols
         ref_cols = rd.col_key.collect()
         var_cols = vd.col_key.collect()
         if len(ref_cols) != len(var_cols):
-            error(f"mismatch in number of columns: reference data has {ref_cols} columns, variant data has {var_cols} columns")
+            error(
+                f"mismatch in number of columns: reference data has {ref_cols} columns, variant data has {var_cols} columns")
 
         if ref_cols != var_cols:
             first_mismatch = 0
             while (ref_cols[first_mismatch] == var_cols[first_mismatch]):
                 first_mismatch += 1
-            error(f"mismatch in columns keys: ref={ref_cols[first_mismatch]}, var={var_cols[first_mismatch]} at position {first_mismatch}")
+            error(
+                f"mismatch in columns keys: ref={ref_cols[first_mismatch]}, var={var_cols[first_mismatch]} at position {first_mismatch}")
 
         # check locus distinctness
 
@@ -176,7 +179,8 @@ class VariantDataset:
         (n_distinct, bad_ref_alleles) = n_rd_distinct_rows.aggregate_rows(
             (
                 hl.agg.count(),
-                hl.agg.filter(n_rd_distinct_rows.ref_allele.length() != 1, hl.agg.take((n_rd_distinct_rows.locus, n_rd_distinct_rows.ref_allele), 5))
+                hl.agg.filter(n_rd_distinct_rows.ref_allele.length() != 1,
+                              hl.agg.take((n_rd_distinct_rows.locus, n_rd_distinct_rows.ref_allele), 5))
             )
         )
 
@@ -185,14 +189,13 @@ class VariantDataset:
 
         # check bad ref_allele field lengths
         if bad_ref_alleles:
-            error(f"found invalid values for 'ref_allele' field in reference_data: "
-                  f"expect single base strings:\n  " + '\n  '.join(str(x) for x in bad_ref_alleles))
-
+            error("found invalid values for 'ref_allele' field in reference_data: "
+                  "expect single base strings:\n  " + '\n  '.join(str(x) for x in bad_ref_alleles))
 
         # check END field
 
         if 'END' not in rd.entry or rd.END.dtype != hl.tint32:
-            error(f"expect field 'END' in entry of reference data with type int32")
+            error("expect field 'END' in entry of reference data with type int32")
 
         (missing_end, end_before_position) = rd.aggregate_entries((
             hl.agg.filter(hl.is_missing(rd.END), hl.agg.take((rd.row_key, rd.col_key), 5)),
@@ -200,7 +203,8 @@ class VariantDataset:
         ))
 
         if missing_end:
-            error(f'found records in reference data with missing END field\n  ' + '\n  '.join(str(x) for x in missing_end))
+            error(
+                'found records in reference data with missing END field\n  ' + '\n  '.join(str(x) for x in missing_end))
         if end_before_position:
-            error(f'found records in reference data with END before locus position\n  ' + '\n  '.join(str(x) for x in end_before_position))
-
+            error('found records in reference data with END before locus position\n  ' + '\n  '.join(
+                str(x) for x in end_before_position))
