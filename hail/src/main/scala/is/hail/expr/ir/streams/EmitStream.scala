@@ -3,14 +3,14 @@ package is.hail.expr.ir.streams
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir._
-import is.hail.expr.ir.agg.{AggStateSig, AppendOnlyBTree, GroupedBTreeKey, PhysicalAggSig, StateTuple, TupleAggregatorState}
+import is.hail.expr.ir.agg.{AggStateSig, AppendOnlyBTree, DictState, GroupedBTreeKey, PhysicalAggSig, StateTuple, TupleAggregatorState}
 import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.types.physical.stypes.concrete.SUnreachable
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Code}
-import is.hail.types.physical.stypes.{EmitType, SCode, SType}
-import is.hail.types.physical.{PCanonicalArray, PCanonicalStruct, PInt32, PInt64}
-import is.hail.types.virtual.{TInterval, TStream}
+import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Code, SInt64Code}
+import is.hail.types.physical.stypes.{EmitType, Int64SingleCodeType, SCode, SType}
+import is.hail.types.physical.{PCanonicalArray, PCanonicalStruct, PInt32, PInt64, PInt64Required}
+import is.hail.types.virtual.{TInt64, TInterval, TStream}
 import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.utils._
 
@@ -265,26 +265,34 @@ object EmitStream {
           .map(cb) { case childStream: SStreamCode =>
             val childProducer = childStream.producer
             val eltField = mb.newEmitField("stream_buff_agg_elt", childProducer.element.emitType)
-            val newKeyResult = EmitCode.fromI(mb) { cb =>
-                  emit(newKey,
-                    cb = cb,
-                    env = env.bind(name, eltField),
-                    region = childProducer.elementRegion)
+            val newKeyResultCode = EmitCode.fromI(mb) { cb =>
+              emit(newKey,
+                cb = cb,
+                env = env.bind(name, eltField),
+                region = childProducer.elementRegion)
+            }
+            val newKeyVal = newKeyResultCode.memoize(cb, "stream_buff_agg_new_key").get(cb).asInstanceOf[SBaseStructValue]
 
-              }
+            val newKeyType = newKeyVal.st._typeWithRequiredness
+            val newKeyVType = new VirtualTypeWithReq(newKeyVal.st.virtualType, newKeyType)
             val kb = mb.ecb
             val nestedStates = aggSignatures.toArray.map(sig => AggStateSig.getState(sig.state, kb))
             val nested = StateTuple(nestedStates)
-            val typ = PCanonicalStruct(required = true, "inits" -> nested.storageType,
-              "size" -> PInt32(true), "tree" -> PInt64(true))
-            val initStateAddress: Settable[Long] = mb.genFieldThisRef[Long]("stream_buff_agg_init_add")
-            val nodeAddress = mb.genFieldThisRef[Long]("stream_buff_agg_node_add")
-            val root: Settable[Long] = kb.genFieldThisRef[Long]("stream_buff_agg_root")
-            val size: Settable[Int] = kb.genFieldThisRef[Int]("stream_buff_agg_size")
-            val initContainer = new TupleAggregatorState(kb, nested, region, initStateAddress)
-            val keyed = new GroupedBTreeKey(newKeyResult.emitType.copiedType.storageType, kb, region, nodeAddress, nested)
-            val tree = new AppendOnlyBTree(kb, keyed, region, root, maxElements = 6)
+            val dictState = new DictState(kb, newKeyVType, nested)
+            val maxSize = mb.genFieldThisRef[Int]("stream_buff_agg_max_size")
+            val elementArray = mb.genFieldThisRef[Array[Long]]("stream_buff_agg_element_array")
             val idx = mb.genFieldThisRef[Int]("stream_buff_agg_idx")
+//            val initStateAddress: Settable[Long] = mb.genFieldThisRef[Long]("stream_buff_agg_init_add")
+//            val nodeAddress = mb.genFieldThisRef[Long]("stream_buff_agg_node_add")
+//            val root: Settable[Long] = kb.genFieldThisRef[Long]("stream_buff_agg_root")
+            val size: Settable[Int] = mb.genFieldThisRef[Int]("stream_buff_agg_size")
+            val numElemInArray = mb.genFieldThisRef[Int]("stream_buff_agg_num_elem_in_size")
+//            val initContainer = new TupleAggregatorState(kb, nested, region, initStateAddress)
+//            val keyed = new GroupedBTreeKey(newKeyResultCode.emitType.copiedType.storageType, kb, region, nodeAddress, nested)
+//            val tree = new AppendOnlyBTree(kb, keyed, region, root, maxElements = 6)
+            val childStreamEnded = mb.genFieldThisRef[Boolean]("stream_buff_agg_child_stream_ended")
+            val produceElementMode = mb.genFieldThisRef[Boolean]("stream_buff_agg_child_produce_elt_mode")
+            val childEltField = mb.newEmitField("stream_buff_agg_child_child_elt", childProducer.element.emitType)
 
             val producer: StreamProducer = new StreamProducer {
               override val length: Option[EmitCodeBuilder => Code[Int]] = childProducer.length
@@ -301,14 +309,13 @@ object EmitStream {
                 */
               override def initialize(cb: EmitCodeBuilder): Unit = {
                 childProducer.initialize(cb)
-                cb += region.setNumParents(nested.nStates)
-                cb.assign(initStateAddress, region.allocate(typ.alignment, typ.byteSize))
-                initContainer.newState(cb)
-                emitVoid(initAggs, cb)
-                cb.assign(size, 0)
-                tree.init(cb)
-                cb.assign(idx, 0)
-
+                dictState.init(cb, { cb => emitVoid(initAggs, cb) })
+                cb.assign(childStreamEnded, false)
+                cb.assign(produceElementMode, false)
+                cb.assign(idx, -1)
+                cb.assign(maxSize, 8)
+                cb.assign(elementArray, Code.newArray[Long](maxSize))
+                cb.assign(numElemInArray, 0)
 
 
               }
@@ -334,7 +341,39 @@ object EmitStream {
                 * which the consumer must define.
                 */
               override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
-               // cb.whileLoop(size < 8) picked random value, not sure how to also end it if the stream has no more
+                val elementProduceLabel = CodeLabel()
+                cb.ifx(produceElementMode, cb.goto(elementProduceLabel))
+                cb.goto(childProducer.LproduceElement)
+                cb.define(childProducer.LproduceElementDone)
+                cb.assign(childEltField, childProducer.element)
+                dictState.withContainer(cb, childEltField.load, { cb => emitVoid(seqOps, cb) })
+                cb.ifx(dictState.size >= maxSize,{
+                  cb.assign(produceElementMode, true)
+                })
+                cb.ifx(produceElementMode, cb.goto(elementProduceLabel), cb.goto(LproduceElement))
+                cb.define(childProducer.LendOfStream)
+                cb.assign(childStreamEnded, false)
+
+                cb.define(elementProduceLabel)
+                cb.ifx(numElemInArray == 0, {
+                  dictState.tree.foreach(cb) { (cb, elementOff) =>
+                    cb += elementArray.update(numElemInArray, elementOff)
+                    cb.assign(numElemInArray, numElemInArray + 1)
+                  }
+                })
+
+                cb.assign(idx, idx + 1)
+                cb.ifx(numElemInArray >= idx, {
+                  cb.assign(idx, 0)
+                  cb.assign(numElemInArray, 0)
+                  cb.assign(produceElementMode, false)
+                  cb.ifx(childStreamEnded, cb.goto(LendOfStream), cb.goto(LproduceElement))
+                })
+                val elementAddress = elementArray. loadFromIndex(cb, region, idx).memoize(cb, "stream_buff_agg_elem_add")
+                cb.goto(LproduceElementDone)
+
+
+                // cb.whileLoop(size < 8) picked random value, not sure how to also end it if the stream has no more
                 //elements
               }
               /**
@@ -348,8 +387,7 @@ object EmitStream {
                 * must be called as well to properly handle owned resources like files.
                 */
               override def close(cb: EmitCodeBuilder): Unit = ???
-            }
-
+              }
           }
 
 
