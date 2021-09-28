@@ -3,7 +3,7 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitRegion, IEmitCode}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitRegion, EmitValue, IEmitCode}
 import is.hail.io._
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.encoded.EType
@@ -13,18 +13,20 @@ import is.hail.types.virtual.Type
 import is.hail.utils._
 
 class TypedKey(typ: PType, kb: EmitClassBuilder[_], region: Value[Region]) extends BTreeKey {
-  val storageType: PTuple = PCanonicalTuple(false, typ, PCanonicalTuple(false))
-  val compType: PType = typ
+  override val storageType: PTuple = PCanonicalTuple(false, typ, PCanonicalTuple(false))
+  override val compType: PType = typ
 
-  def isKeyMissing(src: Code[Long]): Code[Boolean] = storageType.isFieldMissing(src, 0)
+  def isKeyMissing(cb: EmitCodeBuilder, src: Code[Long]): Value[Boolean] =
+    storageType.isFieldMissing(cb, src, 0)
 
   def loadKey(cb: EmitCodeBuilder, src: Code[Long]): SValue = {
     typ.loadCheapSCode(cb, storageType.loadField(src, 0))
   }
 
-  def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Code[Boolean] = storageType.isFieldMissing(off, 1)
+  override def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Value[Boolean] =
+    storageType.isFieldMissing(cb, off, 1)
 
-  def initializeEmpty(cb: EmitCodeBuilder, off: Code[Long]): Unit =
+  override def initializeEmpty(cb: EmitCodeBuilder, off: Code[Long]): Unit =
     storageType.setFieldMissing(cb, off, 1)
 
   def store(cb: EmitCodeBuilder, destc: Code[Long], k: EmitCode): Unit = {
@@ -38,23 +40,23 @@ class TypedKey(typ: PType, kb: EmitClassBuilder[_], region: Value[Region]) exten
         },
         { sc =>
           storageType.setFieldPresent(cb, dest, 0)
-          typ.storeAtAddress(cb, storageType.fieldOffset(dest, 0), region, sc.get, deepCopy = true)
+          typ.storeAtAddress(cb, storageType.fieldOffset(dest, 0), region, sc, deepCopy = true)
         })
   }
 
-  def copy(cb: EmitCodeBuilder, src: Code[Long], dest: Code[Long]): Unit =
+  override def copy(cb: EmitCodeBuilder, src: Code[Long], dest: Code[Long]): Unit =
     cb += Region.copyFrom(src, dest, storageType.byteSize)
 
-  def deepCopy(cb: EmitCodeBuilder, er: EmitRegion, dest: Code[Long], src: Code[Long]): Unit = {
-    storageType.storeAtAddress(cb, dest, region, storageType.loadCheapSCode(cb, src).get, deepCopy = true)
+  override def deepCopy(cb: EmitCodeBuilder, er: EmitRegion, dest: Code[Long], src: Code[Long]): Unit = {
+    storageType.storeAtAddress(cb, dest, region, storageType.loadCheapSCode(cb, src), deepCopy = true)
   }
 
-  def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = {
+  override def compKeys(cb: EmitCodeBuilder, k1: EmitValue, k2: EmitValue): Value[Int] = {
     kb.getOrderingFunction(k1.st, k2.st, CodeOrdering.Compare())(cb, k1, k2)
   }
 
-  def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitCode =
-    EmitCode.fromI(cb.emb)(cb => IEmitCode(cb, isKeyMissing(off), loadKey(cb, off)))
+  override def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitValue =
+    EmitValue(Some(isKeyMissing(cb, off)), loadKey(cb, off))
 }
 
 class AppendOnlySetState(val kb: EmitClassBuilder[_], vt: VirtualTypeWithReq) extends PointerBasedRVAState {
@@ -106,7 +108,7 @@ class AppendOnlySetState(val kb: EmitClassBuilder[_], vt: VirtualTypeWithReq) ex
   def foreach(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, EmitCode) => Unit): Unit =
     tree.foreach(cb) { (cb, eoffCode) =>
       val eoff = cb.newLocal("casa_foreach_eoff", eoffCode)
-      f(cb, EmitCode.fromI(cb.emb)(cb => IEmitCode(cb, key.isKeyMissing(eoff), key.loadKey(cb, eoff))))
+      f(cb, EmitCode.fromI(cb.emb)(cb => IEmitCode(cb, key.isKeyMissing(cb, eoff), key.loadKey(cb, eoff))))
     }
 
   def copyFromAddress(cb: EmitCodeBuilder, srcc: Code[Long]): Unit = {
@@ -121,8 +123,8 @@ class AppendOnlySetState(val kb: EmitClassBuilder[_], vt: VirtualTypeWithReq) ex
     { (cb: EmitCodeBuilder, ob: Value[OutputBuffer]) =>
       tree.bulkStore(cb, ob) { (cb, ob, srcCode) =>
         val src = cb.newLocal("aoss_ser_src", srcCode)
-        cb += ob.writeBoolean(key.isKeyMissing(src))
-        cb.ifx(!key.isKeyMissing(src), {
+        cb += ob.writeBoolean(key.isKeyMissing(cb, src))
+        cb.ifx(!key.isKeyMissing(cb, src), {
           val k = key.loadKey(cb, src)
           et.buildEncoder(k.st, kb)
               .apply(cb, k.get, ob)
@@ -177,6 +179,6 @@ class CollectAsSetAggregator(elem: VirtualTypeWithReq) extends StagedAggregator 
       pushElement(cb, elt.toI(cb))
     }
     // deepCopy is handled by `storeElement` above
-    resultType.storeAtAddress(cb, addr, region, finish(cb).get, deepCopy = false)
+    resultType.storeAtAddress(cb, addr, region, finish(cb), deepCopy = false)
   }
 }

@@ -3,8 +3,8 @@ package is.hail.types.physical.stypes.concrete
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitValue, IEmitCode}
-import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes._
+import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.{PCanonicalNDArray, PNDArray, PType}
 import is.hail.types.virtual._
 import is.hail.utils.FastIndexedSeq
@@ -94,7 +94,7 @@ class SUnreachableStructValue(override val st: SUnreachableStruct) extends SUnre
   override def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode =
     IEmitCode.present(cb, SUnreachable.fromVirtualType(st.virtualType.types(fieldIdx)).defaultValue)
 
-  override def isFieldMissing(fieldIdx: Int): Code[Boolean] = false
+  override def isFieldMissing(cb: EmitCodeBuilder, fieldIdx: Int): Value[Boolean] = false
 
   override def subset(fieldNames: String*): SBaseStructValue = {
     val oldType = st.virtualType.asInstanceOf[TStruct]
@@ -132,11 +132,11 @@ class SUnreachableBinaryCode extends SUnreachableCode with SBinaryCode {
 }
 
 class SUnreachableBinaryValue extends SUnreachableValue with SBinaryValue {
-  override def loadByte(i: Code[Int]): Code[Byte] = const(0.toByte)
+  override def loadByte(cb: EmitCodeBuilder, i: Code[Int]): Value[Byte] = const(0.toByte)
 
-  override def loadBytes(): Code[Array[Byte]] = Code._null[Array[Byte]]
+  override def loadBytes(cb: EmitCodeBuilder): Value[Array[Byte]] = Code._null[Array[Byte]]
 
-  override def loadLength(): Code[Int] = const(0)
+  override def loadLength(cb: EmitCodeBuilder): Value[Int] = const(0)
 
   override def st: SUnreachableBinary.type = SUnreachableBinary
 
@@ -229,18 +229,14 @@ class SUnreachableCallCode extends SUnreachableCode with SCallCode {
   override def memoize(cb: EmitCodeBuilder, name: String): SUnreachableCallValue = st.sv
 
   override def loadCanonicalRepresentation(cb: EmitCodeBuilder): Code[Int] = const(0)
-
-  override def isPhased(): Code[Boolean] = const(false)
-
-  override def ploidy(): Code[Int] = const(0)
 }
 
 class SUnreachableCallValue extends SUnreachableValue with SCallValue {
   override def forEachAllele(cb: EmitCodeBuilder)(alleleCode: Value[Int] => Unit): Unit = {}
 
-  override def isPhased(): Code[Boolean] = const(false)
+  override def isPhased(cb: EmitCodeBuilder): Value[Boolean] = const(false)
 
-  override def ploidy(): Code[Int] = const(0)
+  override def ploidy(cb: EmitCodeBuilder): Value[Int] = const(0)
 
   override def canonicalCall(cb: EmitCodeBuilder): Value[Int] = const(0)
 
@@ -248,7 +244,7 @@ class SUnreachableCallValue extends SUnreachableValue with SCallValue {
 
   override def get: SUnreachableCallCode = st.sc
 
-  override def lgtToGT(cb: EmitCodeBuilder, localAlleles: SIndexableValue, errorID: Value[Int]): SCallCode = st.sc
+  override def lgtToGT(cb: EmitCodeBuilder, localAlleles: SIndexableValue, errorID: Value[Int]): SCallValue = st.sv
 }
 
 
@@ -279,13 +275,13 @@ class SUnreachableIntervalValue(override val st: SUnreachableInterval) extends S
 
   override def loadStart(cb: EmitCodeBuilder): IEmitCode = IEmitCode.present(cb, SUnreachable.fromVirtualType(st.virtualType.pointType).defaultValue)
 
-  override def startDefined(cb: EmitCodeBuilder): Code[Boolean] = const(false)
+  override def startDefined(cb: EmitCodeBuilder): Value[Boolean] = const(false)
 
   override def loadEnd(cb: EmitCodeBuilder): IEmitCode = IEmitCode.present(cb, SUnreachable.fromVirtualType(st.virtualType.pointType).defaultValue)
 
-  override def endDefined(cb: EmitCodeBuilder): Code[Boolean] = const(false)
+  override def endDefined(cb: EmitCodeBuilder): Value[Boolean] = const(false)
 
-  override def isEmpty(cb: EmitCodeBuilder): Code[Boolean] = const(false)
+  override def isEmpty(cb: EmitCodeBuilder): Value[Boolean] = const(false)
 
   override def get: SUnreachableIntervalCode = st.sc
 }
@@ -339,7 +335,7 @@ class SUnreachableNDArrayValue(override val st: SUnreachableNDArray) extends SUn
   override def get: SUnreachableNDArrayCode = st.sc
 
   override def coiterateMutate(cb: EmitCodeBuilder, region: Value[Region], deepCopy: Boolean, indexVars: IndexedSeq[String],
-    destIndices: IndexedSeq[Int], arrays: (SNDArrayCode, IndexedSeq[Int], String)*)(body: IndexedSeq[SCode] => SCode): Unit = ()
+    destIndices: IndexedSeq[Int], arrays: (SNDArrayValue, IndexedSeq[Int], String)*)(body: IndexedSeq[SValue] => SValue): Unit = ()
 }
 
 case class SUnreachableContainer(virtualType: TContainer) extends SUnreachable with SContainer {
@@ -355,11 +351,11 @@ case class SUnreachableContainer(virtualType: TContainer) extends SUnreachable w
 class SUnreachableContainerValue(override val st: SUnreachableContainer) extends SUnreachableValue with SIndexableValue {
   override def loadLength(): Value[Int] = const(0)
 
-  override def isElementMissing(i: Code[Int]): Code[Boolean] = const(false)
+  override def isElementMissing(cb: EmitCodeBuilder, i: Code[Int]): Value[Boolean] = const(false)
 
   override def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode = IEmitCode.present(cb, SUnreachable.fromVirtualType(st.virtualType.elementType).defaultValue)
 
-  override def hasMissingValues(cb: EmitCodeBuilder): Code[Boolean] = const(false)
+  override def hasMissingValues(cb: EmitCodeBuilder): Value[Boolean] = const(false)
 
   override def castToArray(cb: EmitCodeBuilder): SIndexableValue =
     SUnreachable.fromVirtualType(st.virtualType.arrayElementsRepr).defaultValue.asIndexable

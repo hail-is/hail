@@ -90,20 +90,21 @@ class SJavaArrayStringValue(
     if (st.elementRequired)
       IEmitCode.present(cb, new SJavaStringValue(cb.memoize(array(i))))
     else {
-      val iv = cb.newLocal("pcindval_i", i)
+      val iv = cb.memoize(i)
       IEmitCode(cb,
-        isElementMissing(iv),
+        isElementMissing(cb, iv),
         new SJavaStringValue(cb.memoize(array(i))))
     }
   }
 
-  override def isElementMissing(i: Code[Int]): Code[Boolean] = array(i).isNull
+  override def isElementMissing(cb: EmitCodeBuilder, i: Code[Int]): Value[Boolean] =
+    cb.memoize(array(i).isNull)
 
-  override def hasMissingValues(cb: EmitCodeBuilder): Code[Boolean] = {
+  override def hasMissingValues(cb: EmitCodeBuilder): Value[Boolean] = {
     if (st.elementRequired)
       const(false)
     else
-      Code.invokeScalaObject1[Array[String], Boolean](SJavaArrayHelpers.getClass, "hasNulls", array)
+      cb.memoize(Code.invokeScalaObject1[Array[String], Boolean](SJavaArrayHelpers.getClass, "hasNulls", array))
   }
 
   override def castToArray(cb: EmitCodeBuilder): SIndexableValue = this

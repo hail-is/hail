@@ -37,7 +37,7 @@ object  NDArrayFunctions extends RegistryFunctions {
       }
     }
 
-    def linear_triangular_solve(ndCoef: SNDArrayCode, ndDep: SNDArrayCode, lower: SBooleanCode, outputPt: PType, cb: EmitCodeBuilder, region: Value[Region], errorID: Value[Int]): (SNDArrayCode, Value[Int]) = {
+    def linear_triangular_solve(ndCoef: SNDArrayCode, ndDep: SNDArrayCode, lower: SBooleanCode, outputPt: PType, cb: EmitCodeBuilder, region: Value[Region], errorID: Value[Int]): (SNDArrayValue, Value[Int]) = {
       val ndCoefInput = ndCoef.asNDArray.memoize(cb, "ndCoef")
       val ndDepInput = ndDep.asNDArray.memoize(cb, "ndDep")
 
@@ -70,7 +70,7 @@ object  NDArrayFunctions extends RegistryFunctions {
         ndDepRow.toI
       ))
 
-      (output.get, infoDTRTRSResult)
+      (output, infoDTRTRSResult)
     }
 
     def linear_solve(a: SNDArrayCode, b: SNDArrayCode, outputPt: PType, cb: EmitCodeBuilder, region: Value[Region], errorID: Value[Int]): (SNDArrayValue, Value[Int]) = {
@@ -139,14 +139,15 @@ object  NDArrayFunctions extends RegistryFunctions {
     registerSCode2("linear_solve", TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)),
       { (t, p1, p2) => PCanonicalNDArray(PFloat64Required, 2, true).sType }) {
       case (er, cb, SNDArrayPointer(pt), apc, bpc, errorID) =>
-        val (resPCode, info) = linear_solve(apc.asNDArray, bpc.asNDArray, pt, cb, er.region, errorID)
+        val (resPCode, info) = linear_solve(apc.asNDArray.get, bpc.asNDArray.get, pt, cb, er.region, errorID)
         cb.ifx(info cne 0, cb._fatalWithError(errorID,s"hl.nd.solve: Could not solve, matrix was singular. dgesv error code ", info.toS))
-        resPCode.get
+        resPCode
     }
+
     registerSCode3("linear_triangular_solve", TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)), TBoolean, TNDArray(TFloat64, Nat(2)),
       { (t, p1, p2, p3) => PCanonicalNDArray(PFloat64Required, 2, true).sType }) {
       case (er, cb, SNDArrayPointer(pt), apc, bpc, lower, errorID) =>
-        val (resPCode, info) = linear_triangular_solve(apc.asNDArray, bpc.asNDArray,lower.asBoolean, pt, cb, er.region, errorID)
+        val (resPCode, info) = linear_triangular_solve(apc.asNDArray.get, bpc.asNDArray.get, lower.asBoolean.get, pt, cb, er.region, errorID)
         cb.ifx(info cne 0, cb._fatalWithError(errorID,s"hl.nd.solve: Could not solve, matrix was singular. dtrtrs error code ", info.toS))
         resPCode
     }

@@ -3,11 +3,11 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.orderings.StructOrdering
-import is.hail.expr.ir.{Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, ParamType, SortOrder}
+import is.hail.expr.ir.{Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitValue, IEmitCode, ParamType, SortOrder}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointerValue, SIndexablePointerCode}
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointerValue, SIndexablePointerValue}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.{SCode, SValue}
 import is.hail.types.virtual.{TInt32, Type}
@@ -52,12 +52,12 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
         ("max_size", PInt32Required)) ++ garbageFields: _*
     )
 
-  def compareKey(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = {
+  def compareKey(cb: EmitCodeBuilder, k1: EmitValue, k2: EmitValue): Code[Int] = {
     val ord = cb.emb.ecb.getOrdering(k1.st, k2.st, so)
     ord.compare(cb, k1, k2, true)
   }
 
-  private def compareIndexedKey(cb: EmitCodeBuilder, k1: SCode, k2: SCode): Code[Int] = {
+  private def compareIndexedKey(cb: EmitCodeBuilder, k1: SValue, k2: SValue): Value[Int] = {
     val ord = StructOrdering.make(k1.st.asInstanceOf[SBaseStruct], k2.st.asInstanceOf[SBaseStruct], cb.emb.ecb, Array(so, Ascending), true)
     ord.compareNonnull(cb, k1, k2)
   }
@@ -197,13 +197,14 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
 
   private def elementOffset(i: Value[Int]): Code[Long] = ab.elementOffset(i)
 
-  private def keyIsMissing(offset: Code[Long]): Code[Boolean] = indexedKeyType.isFieldMissing(offset, 0)
+  private def keyIsMissing(cb: EmitCodeBuilder, offset: Code[Long]): Value[Boolean] =
+    indexedKeyType.isFieldMissing(cb, offset, 0)
 
   private def loadKeyValue(cb: EmitCodeBuilder, offset: Code[Long]): SValue =
     keyType.loadCheapSCode(cb, indexedKeyType.loadField(offset, 0))
 
-  private def loadKey(cb: EmitCodeBuilder, offset: Value[Long]): EmitCode =
-    EmitCode(Code._empty, keyIsMissing(offset), loadKeyValue(cb, offset))
+  private def loadKey(cb: EmitCodeBuilder, offset: Value[Long]): EmitValue =
+    cb.memoize(IEmitCode(cb, keyIsMissing(cb, offset), loadKeyValue(cb, offset)))
 
   private val compareElt: (Code[Long], Code[Long]) => Code[Int] = {
     val mb = kb.genEmitMethod("i_gt_j", FastIndexedSeq[ParamType](LongInfo, LongInfo), IntInfo)
@@ -211,8 +212,8 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
     val j = mb.getCodeParam[Long](2)
 
     mb.emitWithBuilder(cb => compareIndexedKey(cb,
-      indexedKeyType.loadCheapSCode(cb, eltTuple.fieldOffset(i, 0)).get,
-      indexedKeyType.loadCheapSCode(cb, eltTuple.fieldOffset(j, 0)).get))
+      indexedKeyType.loadCheapSCode(cb, eltTuple.fieldOffset(i, 0)),
+      indexedKeyType.loadCheapSCode(cb, eltTuple.fieldOffset(j, 0))))
 
     mb.invokeCode(_, _)
   }
@@ -316,7 +317,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
         },
         { sc =>
           indexedKeyType.setFieldPresent(cb, keyStage, 0)
-          keyType.storeAtAddress(cb, indexedKeyType.fieldOffset(keyStage, 0), region, sc.get, deepCopy = false)
+          keyType.storeAtAddress(cb, indexedKeyType.fieldOffset(keyStage, 0), region, sc, deepCopy = false)
         }
       )
     cb += Region.storeLong(indexedKeyType.fieldOffset(keyStage, 1), maxIndex)
@@ -330,7 +331,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
     indexedKeyType.storeAtAddress(cb,
       eltTuple.fieldOffset(staging, 0),
       region,
-      indexedKeyType.loadCheapSCode(cb, indexedKey).get,
+      indexedKeyType.loadCheapSCode(cb, indexedKey),
       deepCopy = false)
     value.toI(cb)
       .consume(cb,
@@ -339,17 +340,17 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
         },
         { v =>
           eltTuple.setFieldPresent(cb, staging, 1)
-          valueType.storeAtAddress(cb, eltTuple.fieldOffset(staging, 1), region, v.get, deepCopy = false)
+          valueType.storeAtAddress(cb, eltTuple.fieldOffset(staging, 1), region, v, deepCopy = false)
         })
   }
 
   private def swapStaging(cb: EmitCodeBuilder): Unit = {
-    eltTuple.storeAtAddress(cb, ab.elementOffset(0), region, eltTuple.loadCheapSCode(cb, staging).get, true)
+    eltTuple.storeAtAddress(cb, ab.elementOffset(0), region, eltTuple.loadCheapSCode(cb, staging), true)
     rebalanceDown(cb, 0)
   }
 
   private def enqueueStaging(cb: EmitCodeBuilder): Unit = {
-    ab.append(cb, eltTuple.loadCheapSCode(cb, staging).get)
+    ab.append(cb, eltTuple.loadCheapSCode(cb, staging))
     rebalanceUp(cb, ab.size - 1)
   }
 
@@ -428,7 +429,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
     cb.invokeVoid(mb)
   }
 
-  def result(cb: EmitCodeBuilder, _r: Code[Region], resultType: PCanonicalArray): SIndexablePointerCode = {
+  def result(cb: EmitCodeBuilder, _r: Code[Region], resultType: PCanonicalArray): SIndexablePointerValue = {
     val mb = kb.genEmitMethod("take_by_result", FastIndexedSeq[ParamType](classInfo[Region]), LongInfo)
 
     val quickSort: (Code[Long], Code[Int], Code[Int]) => Code[Unit] = {
@@ -536,7 +537,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
           }
       }.a
     }
-    resultType.loadCheapSCode(cb, cb.invokeCode[Long](mb, _r)).get
+    resultType.loadCheapSCode(cb, cb.invokeCode[Long](mb, _r))
   }
 }
 

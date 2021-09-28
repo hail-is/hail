@@ -155,7 +155,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
         pushMissing(cb, lastNode),
         { sc =>
           pushPresent(cb, lastNode) { (cb, addr) =>
-            elemType.storeAtAddress(cb, addr, r, sc.get, deepCopy = true)
+            elemType.storeAtAddress(cb, addr, r, sc, deepCopy = true)
           }
         })
 
@@ -257,7 +257,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
             bufferType.setElementMissing(cb, buf, i),
             { sc =>
               bufferType.setElementPresent(cb, buf, i)
-              elemType.storeAtAddress(cb, bufferType.elementOffset(buf, i), r, sc.get, deepCopy = true)
+              elemType.storeAtAddress(cb, bufferType.elementOffset(buf, i), r, sc, deepCopy = true)
             })
         incrCount(cb, firstNode)
         cb.assign(i, i + 1)

@@ -115,3 +115,96 @@ class VariantDataset:
     def checkpoint(self, path, **kwargs) -> 'VariantDataset':
         self.write(path, **kwargs)
         return read_vds(path)
+
+    def validate(self):
+        """Eagerly checks necessary representational properties of the VDS."""
+
+        rd = self.reference_data
+        vd = self.variant_data
+
+        def error(msg):
+            raise ValueError(f'VDS.validate: {msg}')
+
+        rd_row_key = rd.row_key.dtype
+        if (not isinstance(rd_row_key, hl.tstruct)
+                or len(rd_row_key) != 1
+                or not rd_row_key.fields[0] == 'locus'
+                or not isinstance(rd_row_key.types[0], hl.tlocus)):
+            error(f"expect reference data to have a single row key 'locus' of type locus, found {rd_row_key}")
+
+        vd_row_key = vd.row_key.dtype
+        if (not isinstance(vd_row_key, hl.tstruct)
+                or len(vd_row_key) != 2
+                or not vd_row_key.fields == ('locus', 'alleles')
+                or not isinstance(vd_row_key.types[0], hl.tlocus)
+                or vd_row_key.types[1] != hl.tarray(hl.tstr)):
+            error(
+                f"expect variant data to have a row key {{'locus': locus<rg>, alleles: array<str>}}, found {vd_row_key}")
+
+        rd_col_key = rd.col_key.dtype
+        if (not isinstance(rd_col_key, hl.tstruct)
+                or len(rd_row_key) != 1
+                or rd_col_key.types[0] != hl.tstr):
+            error(f"expect reference data to have a single col key of type string, found {rd_col_key}")
+
+        vd_col_key = vd.col_key.dtype
+        if (not isinstance(vd_col_key, hl.tstruct)
+                or len(vd_col_key) != 1
+                or vd_col_key.types[0] != hl.tstr):
+            error(f"expect variant data to have a single col key of type string, found {vd_col_key}")
+
+        # check ref_allele field:
+        if 'ref_allele' not in rd.row or rd.ref_allele.dtype != hl.tstr:
+            error("expect reference data to have field 'ref_allele' of type string")
+
+        # check cols
+        ref_cols = rd.col_key.collect()
+        var_cols = vd.col_key.collect()
+        if len(ref_cols) != len(var_cols):
+            error(
+                f"mismatch in number of columns: reference data has {ref_cols} columns, variant data has {var_cols} columns")
+
+        if ref_cols != var_cols:
+            first_mismatch = 0
+            while (ref_cols[first_mismatch] == var_cols[first_mismatch]):
+                first_mismatch += 1
+            error(
+                f"mismatch in columns keys: ref={ref_cols[first_mismatch]}, var={var_cols[first_mismatch]} at position {first_mismatch}")
+
+        # check locus distinctness
+
+        n_rd_rows = rd.count_rows()
+        n_rd_distinct_rows = rd.distinct_by_row()
+
+        (n_distinct, bad_ref_alleles) = n_rd_distinct_rows.aggregate_rows(
+            (
+                hl.agg.count(),
+                hl.agg.filter(n_rd_distinct_rows.ref_allele.length() != 1,
+                              hl.agg.take((n_rd_distinct_rows.locus, n_rd_distinct_rows.ref_allele), 5))
+            )
+        )
+
+        if n_distinct != n_rd_rows:
+            error(f'reference data loci are not distinct: found {n_rd_rows} rows, but {n_distinct} distinct loci')
+
+        # check bad ref_allele field lengths
+        if bad_ref_alleles:
+            error("found invalid values for 'ref_allele' field in reference_data: "
+                  "expect single base strings:\n  " + '\n  '.join(str(x) for x in bad_ref_alleles))
+
+        # check END field
+
+        if 'END' not in rd.entry or rd.END.dtype != hl.tint32:
+            error("expect field 'END' in entry of reference data with type int32")
+
+        (missing_end, end_before_position) = rd.aggregate_entries((
+            hl.agg.filter(hl.is_missing(rd.END), hl.agg.take((rd.row_key, rd.col_key), 5)),
+            hl.agg.filter(rd.END < rd.locus.position, hl.agg.take((rd.row_key, rd.col_key), 5)),
+        ))
+
+        if missing_end:
+            error(
+                'found records in reference data with missing END field\n  ' + '\n  '.join(str(x) for x in missing_end))
+        if end_before_position:
+            error('found records in reference data with END before locus position\n  ' + '\n  '.join(
+                str(x) for x in end_before_position))

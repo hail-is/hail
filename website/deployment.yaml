@@ -49,7 +49,10 @@ spec:
           - containerPort: 5000
          env:
           - name: HAIL_DOMAIN
-            value: {{ global.domain }}
+            valueFrom:
+              secretKeyRef:
+                name: global-config
+                key: domain
           - name: HAIL_DEFAULT_NAMESPACE
             value: {{ default_ns.name }}
          volumeMounts:

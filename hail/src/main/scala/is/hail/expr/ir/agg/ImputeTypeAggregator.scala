@@ -151,7 +151,7 @@ class ImputeTypeAggregator() extends StagedAggregator {
     Array(state.getAnyNonMissing, state.getAllDefined, state.getSupportsBool,
       state.getSupportsI32, state.getSupportsI64, state.getSupportsF64)
       .zipWithIndex.foreach { case (b, idx) =>
-      rt.types(idx).storeAtAddress(cb, rt.fieldOffset(addr, idx), region, primitive(b), deepCopy = true)
+      rt.types(idx).storeAtAddress(cb, rt.fieldOffset(addr, idx), region, primitive(cb.memoize(b)), deepCopy = true)
     }
   }
 }

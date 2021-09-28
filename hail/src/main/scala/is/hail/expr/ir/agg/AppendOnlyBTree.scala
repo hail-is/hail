@@ -12,7 +12,7 @@ trait BTreeKey {
 
   def compType: PType
 
-  def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Code[Boolean]
+  def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Value[Boolean]
 
   def initializeEmpty(cb: EmitCodeBuilder, off: Code[Long]): Unit
 
@@ -20,17 +20,17 @@ trait BTreeKey {
 
   def deepCopy(cb: EmitCodeBuilder, er: EmitRegion, src: Code[Long], dest: Code[Long]): Unit
 
-  def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int]
+  def compKeys(cb: EmitCodeBuilder, k1: EmitValue, k2: EmitValue): Value[Int]
 
-  def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitCode
+  def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitValue
 
-  def compSame(cb: EmitCodeBuilder, offc: Code[Long], otherc: Code[Long]): Code[Int] = {
+  def compSame(cb: EmitCodeBuilder, offc: Code[Long], otherc: Code[Long]): Value[Int] = {
     val off = cb.newLocal[Long]("btk_comp_same_off", offc)
     val other = cb.newLocal[Long]("btk_comp_same_other", otherc)
     compKeys(cb, loadCompKey(cb, off), loadCompKey(cb, other))
   }
 
-  def compWithKey(cb: EmitCodeBuilder, offc: Code[Long], k: EmitCode): Code[Int] = {
+  def compWithKey(cb: EmitCodeBuilder, offc: Code[Long], k: EmitValue): Value[Int] = {
     val off = cb.newLocal[Long]("btk_comp_with_key_off", offc)
     compKeys(cb, loadCompKey(cb, off), k)
   }
@@ -51,15 +51,18 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
     elementsType.stagedInitialize(cb, elements(nodeBucket), true)
   }
 
-  private def isRoot(node: Code[Long]): Code[Boolean] = storageType.isFieldMissing(node, 0)
+  private def isRoot(cb: EmitCodeBuilder, node: Code[Long]): Value[Boolean] =
+    storageType.isFieldMissing(cb, node, 0)
 
-  private def isLeaf(node: Code[Long]): Code[Boolean] = storageType.isFieldMissing(node, 1)
+  private def isLeaf(cb: EmitCodeBuilder, node: Code[Long]): Value[Boolean] =
+    storageType.isFieldMissing(cb, node, 1)
 
   private def getParent(node: Code[Long]): Code[Long] = Region.loadAddress(storageType.loadField(node, 0))
 
   private def elements(node: Code[Long]): Code[Long] = storageType.loadField(node, 2)
 
-  private def hasKey(node: Code[Long], i: Int): Code[Boolean] = elementsType.isFieldDefined(elements(node), i)
+  private def hasKey(cb: EmitCodeBuilder, node: Code[Long], i: Int): Value[Boolean] =
+    elementsType.isFieldDefined(cb, elements(node), i)
 
   private def setKeyPresent(cb: EmitCodeBuilder, node: Code[Long], i: Int): Unit = {
     elementsType.setFieldPresent(cb, elements(node), i)
@@ -69,7 +72,8 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
     elementsType.setFieldMissing(cb, elements(node), i)
   }
 
-  private def isFull(node: Code[Long]): Code[Boolean] = hasKey(node, maxElements - 1)
+  private def isFull(cb: EmitCodeBuilder, node: Code[Long]): Value[Boolean] =
+    hasKey(cb, node, maxElements - 1)
 
   private def keyOffset(node: Code[Long], i: Int): Code[Long] = eltType.fieldOffset(elementsType.loadField(elements(node), i), 0)
 
@@ -112,7 +116,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
       def makeUninitialized(cb: EmitCodeBuilder, idx: Int): Code[Long] = {
         setKeyPresent(cb, node, idx)
         key.initializeEmpty(cb, keyOffset(node, idx))
-        cb.ifx(!isLeaf(node), {
+        cb.ifx(!isLeaf(cb, node), {
           setChild(cb, node, idx, child, "makeUninitialized setChild")
         })
         loadKey(node, idx)
@@ -123,7 +127,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
         val srcNode = cb.newLocal("aobt_copy_from_srcnode", srcNodeC)
         setKeyPresent(cb, destNode, destIdx)
         key.copy(cb, keyOffset(srcNode, srcIdx), keyOffset(destNode, destIdx))
-        cb.ifx(!isLeaf(srcNode),
+        cb.ifx(!isLeaf(cb, srcNode),
           {
             setChild(cb, destNode, destIdx, loadChild(srcNode, srcIdx), "insert copyFrom")
           })
@@ -140,7 +144,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
         val Lfound = CodeLabel()
 
         (0 until maxElements).foreach { i =>
-          val b = cb.newLocal[Boolean]("btree_insertkey_b", !hasKey(parent, i))
+          val b = cb.newLocal[Boolean]("btree_insertkey_b", !hasKey(cb, parent, i))
           cb.ifx(!b, cb.assign(b, key.compWithKey(cb, loadKey(parent, i), ev) >= 0))
           cb.ifx(b, {
             cb.assign(upperBound, i)
@@ -149,7 +153,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
         }
 
         cb.define(Lfound)
-        cb.ifx(!isLeaf(node), {
+        cb.ifx(!isLeaf(cb, node), {
           setChild(cb, newNode, -1, c, "insertKey !isLeaf")
         })
         cb.invokeCode(insertAt, parent, upperBound, ev, newNode)
@@ -159,7 +163,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
       def promote(cb: EmitCodeBuilder, idx: Int): Unit = {
         val nikey = cb.newLocal("aobt_insert_nikey", loadKey(node, idx))
 
-        cb.ifx(!isLeaf(node), {
+        cb.ifx(!isLeaf(cb, node), {
           setChild(cb, newNode, -1, loadChild(node, idx), "promote")
         })
 
@@ -167,7 +171,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
         val Lfound = CodeLabel()
 
         (0 until maxElements).foreach { i =>
-          val b = cb.newLocal[Boolean]("btree_insert_promote_b", !hasKey(parent, i))
+          val b = cb.newLocal[Boolean]("btree_insert_promote_b", !hasKey(cb, parent, i))
           cb.ifx(!b, cb.assign(b, key.compSame(cb, loadKey(parent, i), nikey) >= 0))
           cb.ifx(b, {
             cb.assign(upperBound, i)
@@ -181,7 +185,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
       }
 
       def splitAndInsert(cb: EmitCodeBuilder): Code[Long] = {
-        cb.ifx(isRoot(node), {
+        cb.ifx(isRoot(cb, node), {
           createNode(cb, root)
           setChild(cb, root, -1, node, "splitAndInsert")
         })
@@ -207,7 +211,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
         val ret = cb.newLocal[Long]("shift_and_insert")
         val Lout = CodeLabel()
         (1 until maxElements).reverse.foreach { destIdx =>
-          cb.ifx(hasKey(node, destIdx - 1), {
+          cb.ifx(hasKey(cb, node, destIdx - 1), {
             copyFrom(cb, node, destIdx, node, destIdx - 1)
           })
           cb.ifx(insertIdx.ceq(destIdx), {
@@ -222,7 +226,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
 
       insertAt.emitWithBuilder { cb =>
         val ret = cb.newLocal[Long]("btree_insert_result")
-        cb.ifx(isFull(node),
+        cb.ifx(isFull(cb, node),
           cb.assign(ret, splitAndInsert(cb)),
           cb.assign(ret, shiftAndInsert(cb)))
         ret
@@ -242,7 +246,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
       val keyV = cb.newLocal("btree_get_keyV", 0L)
 
       def insertOrGetAt(i: Int) = {
-        cb.ifx(isLeaf(node), {
+        cb.ifx(isLeaf(cb, node), {
           cb.assign(keyV, insert(cb, node, const(i), k, const(0L)))
           cb.assign(cmp, 0)
         }, {
@@ -252,7 +256,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
 
       cb.whileLoop(cmp.cne(0), { Lcont =>
         (0 until maxElements).foreach { i =>
-          cb.ifx(hasKey(node, i), {
+          cb.ifx(hasKey(cb, node, i), {
             cb.assign(keyV, loadKey(node, i))
             cb.assign(cmp, key.compWithKey(cb, keyV, k))
             cb.ifx(cmp.ceq(0), cb.goto(Lcont))
@@ -312,16 +316,16 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
       cb.goto(Lend)
 
       cb.define(Lminus1)
-      cb.ifx(!isLeaf(node), {
+      cb.ifx(!isLeaf(cb, node), {
         stackUpdateIdx(0)
         stackPush(loadChild(node, -1))
         cb.goto(Lstart)
       })
       (0 until maxElements).foreach { i =>
         cb.define(labels(i))
-        cb.ifx(hasKey(node, i), {
+        cb.ifx(hasKey(cb, node, i), {
           visitor(cb, loadKey(node, i))
-          cb.ifx(!isLeaf(node), {
+          cb.ifx(!isLeaf(cb, node), {
             stackUpdateIdx(i + 1)
             stackPush(loadChild(node, i))
             cb.goto(Lstart)
@@ -350,15 +354,15 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
         cb.invokeVoid(cb.emb, newNode, loadChild(srcNode, i))
       }
 
-      cb.ifx(!isLeaf(srcNode), {
+      cb.ifx(!isLeaf(cb, srcNode), {
         copyChild(-1)
         setChild(cb, destNode, -1, newNode, "deepcopy1")
       })
 
       (0 until maxElements).foreach { i =>
-        cb.ifx(hasKey(srcNode, i), {
+        cb.ifx(hasKey(cb, srcNode, i), {
           key.deepCopy(cb, er, destNode, srcNode)
-          cb.ifx(!isLeaf(srcNode), {
+          cb.ifx(!isLeaf(cb, srcNode), {
             copyChild(i)
             setChild(cb, destNode, i, newNode, "deepcopy2")
           })
@@ -377,16 +381,16 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
     val ob = f.getCodeParam[OutputBuffer](2)
 
     f.voidWithBuilder { cb =>
-      cb += ob.writeBoolean(!isLeaf(node))
-      cb.ifx(!isLeaf(node), {
+      cb += ob.writeBoolean(!isLeaf(cb, node))
+      cb.ifx(!isLeaf(cb, node), {
         cb.invokeVoid(f, loadChild(node, -1), ob)
       })
       val Lexit = CodeLabel()
       (0 until maxElements).foreach { i =>
-        cb.ifx(hasKey(node, i), {
+        cb.ifx(hasKey(cb, node, i), {
           cb += ob.writeBoolean(true)
           keyStore(cb, ob, loadKey(node, i))
-          cb.ifx(!isLeaf(node), {
+          cb.ifx(!isLeaf(cb, node), {
             cb.invokeVoid(f, loadChild(node, i), ob)
           })
         }, {

@@ -72,9 +72,9 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
 
   override def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = {
     val structValue = v.st match {
-      case SIntervalPointer(t: PCanonicalInterval) => new SBaseStructPointerSettable(
+      case SIntervalPointer(t: PCanonicalInterval) => new SBaseStructPointerValue(
         SBaseStructPointer(t.representation),
-        v.asInstanceOf[SIntervalPointerSettable].a)
+        v.asInstanceOf[SIntervalPointerValue].a)
       case _: SLocus => v.asInstanceOf[SLocusValue].structRepr(cb)
       case _ => v.asInstanceOf[SBaseStructValue]
     }
@@ -83,7 +83,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       case SBaseStructPointer(st) if st.size == size && st.fieldRequired.sameElements(fields.map(_.typ.required)) =>
         val missingBytes = UnsafeUtils.packBitsToBytes(st.nMissing)
 
-        val addr = structValue.asInstanceOf[SBaseStructPointerSettable].a
+        val addr = structValue.asInstanceOf[SBaseStructPointerValue].a
         if (nMissingBytes > 1)
           cb += out.writeBytes(addr, missingBytes - 1)
         if (nMissingBytes > 0)
@@ -98,7 +98,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
           while (k < 8 && j < size) {
             val f = fields(j)
             if (!f.typ.required) {
-              b = b | (structValue.isFieldMissing(f.name).toI << k)
+              b = b | (structValue.isFieldMissing(cb, f.name).toI << k)
               k += 1
             }
             j += 1

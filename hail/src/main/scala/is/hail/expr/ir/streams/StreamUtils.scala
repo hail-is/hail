@@ -34,7 +34,7 @@ object StreamUtils {
             "Cannot construct an ndarray with missing values.", errorId
           )),
           { sc =>
-            elementType.storeAtAddress(cb, currentElementAddress, destRegion, sc.get, deepCopy = true)
+            elementType.storeAtAddress(cb, currentElementAddress, destRegion, sc, deepCopy = true)
           })
         cb.assign(currentElementIndex, currentElementIndex + 1)
         cb.assign(currentElementAddress, currentElementAddress + elementByteSize)

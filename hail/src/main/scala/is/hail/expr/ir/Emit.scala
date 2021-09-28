@@ -167,7 +167,7 @@ object EmitValue {
   def present(v: SValue): EmitValue = EmitValue(None, v)
 }
 
-class EmitValue protected(missing: Option[Value[Boolean]], v: SValue) {
+class EmitValue protected(missing: Option[Value[Boolean]], val v: SValue) {
   def m: Value[Boolean] = missing.getOrElse(const(false))
 
   def required: Boolean = missing.isEmpty
@@ -187,6 +187,8 @@ class EmitValue protected(missing: Option[Value[Boolean]], v: SValue) {
     ec
   }
 
+  def loadI(cb: EmitCodeBuilder): IEmitCode = load.toI(cb)
+
   def get(cb: EmitCodeBuilder): SValue = {
     missing.foreach { m =>
       cb.ifx(m, cb._fatal(s"Can't convert missing ${ v.st } to PValue"))
@@ -200,7 +202,6 @@ class EmitValue protected(missing: Option[Value[Boolean]], v: SValue) {
       var newV: SValue = null
       cb.ifx(!m, { newV = f(v) })
       new EmitValue(missing, newV)
-
   }
 }
 
@@ -942,7 +943,7 @@ class Emit[C](
           emitI(l).flatMap(cb) { l =>
             emitI(r).map(cb) { r =>
               val f = op.codeOrdering(cb.emb.ecb, l.st, r.st)
-              primitive(ir.typ, f(cb, EmitCode.present(cb.emb, l), EmitCode.present(cb.emb, r)))
+              primitive(ir.typ, f(cb, EmitValue.present(l), EmitValue.present(r)))
             }
           }
         } else {
@@ -1096,16 +1097,16 @@ class Emit[C](
           StreamUtils.writeToArrayBuilder(cb, stream.producer, vab, region)
           val sorter = new ArraySorter(EmitRegion(mb, region), vab)
 
-          def lessThan(cb: EmitCodeBuilder, region: Value[Region], l: Code[_], r: Code[_]): Code[Boolean] = {
+          def lessThan(cb: EmitCodeBuilder, region: Value[Region], l: Value[_], r: Value[_]): Value[Boolean] = {
             cb.emb.ecb.getOrdering(sct.loadedSType, sct.loadedSType)
-              .ltNonnull(cb, sct.loadToSCode(cb, region, l), sct.loadToSCode(cb, region, r))
+              .ltNonnull(cb, sct.loadToSValue(cb, region, l), sct.loadToSValue(cb, region, r))
           }
 
           sorter.sort(cb, region, lessThan)
 
-          def skipNext(cb: EmitCodeBuilder, region: Value[Region], l: EmitCode, r: EmitCode): Code[Boolean] = {
-            cb.newLocal[Boolean]("asdb", cb.emb.ecb.getOrdering(l.st, r.st)
-              .equiv(cb, l, r, missingEqual = true))
+          def skipNext(cb: EmitCodeBuilder, region: Value[Region], l: EmitCode, r: EmitCode): Value[Boolean] = {
+            cb.emb.ecb.getOrdering(l.st, r.st)
+              .equiv(cb, cb.memoize(l), cb.memoize(r), missingEqual = true)
           }
 
           sorter.distinctFromSorted(cb, region, skipNext)
@@ -1122,14 +1123,10 @@ class Emit[C](
           StreamUtils.writeToArrayBuilder(cb, stream.producer, vab, region)
           val sorter = new ArraySorter(EmitRegion(mb, region), vab)
 
-          def lessThan(cb: EmitCodeBuilder, region: Value[Region], l: Code[_], r: Code[_]): Code[Boolean] = {
-            val lk = EmitCode.fromI(cb.emb)(cb => sct.loadToSCode(cb, region, l)
-              .asBaseStruct.memoize(cb, "lt_l")
-              .loadField(cb, 0))
+          def lessThan(cb: EmitCodeBuilder, region: Value[Region], l: Value[_], r: Value[_]): Value[Boolean] = {
+            val lk = cb.memoize(sct.loadToSValue(cb, region, l).asBaseStruct.loadField(cb, 0))
 
-            val rk = EmitCode.fromI(cb.emb)(cb => sct.loadToSCode(cb, region, r)
-              .asBaseStruct.memoize(cb, "lt_r")
-              .loadField(cb, 0))
+            val rk = cb.memoize(sct.loadToSValue(cb, region, r).asBaseStruct.loadField(cb, 0))
 
             cb.emb.ecb.getOrdering(lk.st, rk.st)
               .lt(cb, lk, rk, missingEqual = true)
@@ -1140,17 +1137,15 @@ class Emit[C](
 
           def skipNext(cb: EmitCodeBuilder, region: Value[Region], l: EmitCode, r: EmitCode): Code[Boolean] = {
 
-            val lk = EmitCode.fromI(cb.emb) { cb =>
+            val lk = cb.memoize(
               l.toI(cb).flatMap(cb) { x =>
                 x.asBaseStruct.loadField(cb, 0)
-              }
-            }
+              })
 
-            val rk = EmitCode.fromI(cb.emb) { cb =>
+            val rk = cb.memoize(
               r.toI(cb).flatMap(cb) { x =>
                 x.asBaseStruct.loadField(cb, 0)
-              }
-            }
+              })
 
             cb.emb.ecb.getOrdering(lk.st, rk.st)
               .equiv(cb, lk, rk, missingEqual = true)
@@ -1168,13 +1163,10 @@ class Emit[C](
           StreamUtils.writeToArrayBuilder(cb, stream.producer, sortedElts, region)
           val sorter = new ArraySorter(EmitRegion(mb, region), sortedElts)
 
-          def lt(cb: EmitCodeBuilder, region: Value[Region], l: Code[_], r: Code[_]): Code[Boolean] = {
-            val lk = EmitCode.fromI(cb.emb)(cb => sct.loadToSCode(cb, region, l)
-              .asBaseStruct.memoize(cb, "lt_l")
-              .loadField(cb, 0))
-            val rk = EmitCode.fromI(cb.emb)(cb => sct.loadToSCode(cb, region, r)
-              .asBaseStruct.memoize(cb, "lt_r")
-              .loadField(cb, 0))
+          def lt(cb: EmitCodeBuilder, region: Value[Region], l: Value[_], r: Value[_]): Value[Boolean] = {
+            val lk = cb.memoize(sct.loadToSValue(cb, region, l).asBaseStruct.loadField(cb, 0))
+            val rk = cb.memoize(sct.loadToSValue(cb, region, r).asBaseStruct.loadField(cb, 0))
+
             cb.emb.ecb.getOrdering(lk.st, rk.st)
               .lt(cb, lk, rk, missingEqual = true)
           }
@@ -1196,17 +1188,15 @@ class Emit[C](
           cb.assign(groupSize, 0)
 
           def sameKeyAtIndices(cb: EmitCodeBuilder, region: Value[Region], idx1: Code[Int], idx2: Code[Int]): Code[Boolean] = {
-            val lk = EmitCode.fromI(cb.emb) { cb =>
+            val lk = cb.memoize(
               sortedElts.loadFromIndex(cb, region, idx1).flatMap(cb) { x =>
                 x.asBaseStruct.loadField(cb, 0)
-              }
-            }
+              })
 
-            val rk = EmitCode.fromI(cb.emb) { cb =>
+            val rk = cb.memoize(
               sortedElts.loadFromIndex(cb, region, idx2).flatMap(cb) { x =>
                 x.asBaseStruct.loadField(cb, 0)
-              }
-            }
+              })
 
             cb.emb.ecb.getOrdering(lk.st, rk.st)
               .equiv(cb, lk, rk, missingEqual = true)
@@ -1318,7 +1308,7 @@ class Emit[C](
                   })
 
                   (0 until nDims).foreach { index =>
-                    cb.ifx(shapeTupleValue.isFieldMissing(index),
+                    cb.ifx(shapeTupleValue.isFieldMissing(cb, index),
                       cb._fatalWithError(errorId, s"shape missing at index $index"))
                   }
 
@@ -1350,7 +1340,7 @@ class Emit[C](
                     case stream: SStreamValue =>
                       val xP = PCanonicalNDArray(PType.canonical(stream.st.elementType.storageType().setRequired(true)), nDims)
                       (0 until nDims).foreach { index =>
-                        cb.ifx(shapeTupleValue.isFieldMissing(index),
+                        cb.ifx(shapeTupleValue.isFieldMissing(cb, index),
                           cb.append(Code._fatal[Unit](s"shape missing at index $index")))
                       }
 
@@ -2590,7 +2580,8 @@ class Emit[C](
 
   private def makeDependentSortingFunction(
     cb: EmitCodeBuilder,
-    elemSCT: SingleCodeType, ir: IR, env: EmitEnv, emitter: Emit[_], leftRightComparatorNames: Array[String]): (EmitCodeBuilder, Value[Region], Code[_], Code[_]) => Code[Boolean] = {
+    elemSCT: SingleCodeType, ir: IR, env: EmitEnv, emitter: Emit[_], leftRightComparatorNames: Array[String]
+  ): (EmitCodeBuilder, Value[Region], Value[_], Value[_]) => Value[Boolean] = {
     val fb = cb.emb.ecb
 
     var newEnv = env
@@ -2613,7 +2604,7 @@ class Emit[C](
       val iec = emitter.emitI(ir, cb, newEnv, None)
       iec.get(cb, "Result of sorting function cannot be missing").asBoolean.boolCode(cb)
     }
-    (cb: EmitCodeBuilder, region: Value[Region], l: Code[_], r: Code[_]) => cb.invokeCode[Boolean](sort, region, l, r)
+    (cb: EmitCodeBuilder, region: Value[Region], l: Value[_], r: Value[_]) => cb.memoize(cb.invokeCode[Boolean](sort, region, l, r))
   }
 }
 
@@ -2724,7 +2715,7 @@ abstract class NDArrayEmitter(val outputShape: IndexedSeq[Value[Long]], val elem
       region)
 
     SNDArray.forEachIndexColMajor(cb, shapeArray, "ndarrayemitter_emitloops") { case (cb, idxVars) =>
-      val element = IEmitCode.present(cb, outputElement(cb, idxVars)).consume(cb, {
+      val element = IEmitCode.present(cb, outputElement(cb, idxVars).memoize(cb, "NDArray_emit")).consume(cb, {
         cb._fatal("NDArray elements cannot be missing")
       }, { elementPc =>
         targetType.elementType.storeAtAddress(cb, firstElementAddress + (idx.toL * targetType.elementType.byteSize), region, elementPc, true)

@@ -6,9 +6,9 @@ import is.hail.expr.ir._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerCode, SStackStruct}
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointerCode, SStackStruct}
 import is.hail.types.physical.stypes.interfaces.SBinaryCode
+import is.hail.types.physical.stypes.{SCode, SValue}
 import is.hail.utils._
 
 trait AggregatorState {
@@ -135,19 +135,19 @@ abstract class AbstractTypedRegionBackedAggState(val ptype: PType) extends Regio
     storageType.setFieldMissing(cb, off, 0)
   }
 
-  def storeNonmissing(cb: EmitCodeBuilder, sc: SCode): Unit = {
+  def storeNonmissing(cb: EmitCodeBuilder, sc: SValue): Unit = {
     cb += region.getNewRegion(const(regionSize))
     storageType.setFieldPresent(cb, off, 0)
     ptype.storeAtAddress(cb, storageType.fieldOffset(off, 0), region, sc, deepCopy = true)
   }
 
   def get(cb: EmitCodeBuilder): IEmitCode = {
-    IEmitCode(cb, storageType.isFieldMissing(off, 0), ptype.loadCheapSCode(cb, storageType.loadField(off, 0)))
+    IEmitCode(cb, storageType.isFieldMissing(cb, off, 0), ptype.loadCheapSCode(cb, storageType.loadField(off, 0)))
   }
 
   def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
     newState(cb, off)
-    storageType.storeAtAddress(cb, off, region, storageType.loadCheapSCode(cb, src).get, deepCopy = true)
+    storageType.storeAtAddress(cb, off, region, storageType.loadCheapSCode(cb, src), deepCopy = true)
   }
 
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
@@ -161,7 +161,7 @@ abstract class AbstractTypedRegionBackedAggState(val ptype: PType) extends Regio
 
     val dec = codecSpec.encodedType.buildDecoder(storageType.virtualType, kb)
     ((cb: EmitCodeBuilder, ib: Value[InputBuffer]) =>
-      storageType.storeAtAddress(cb, off, region, dec(cb, region, ib), deepCopy = false))
+      storageType.storeAtAddress(cb, off, region, dec(cb, region, ib).memoize(cb, "deserialize"), deepCopy = false))
   }
 }
 
@@ -200,7 +200,7 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
     storageType.storeAtAddress(cb,
       dest,
       null,
-      SStackStruct.constructFromArgs(cb, null, storageType.virtualType, fields.map(_.load): _*).get,
+      SStackStruct.constructFromArgs(cb, null, storageType.virtualType, fields.map(_.load): _*),
       false)
   }
 

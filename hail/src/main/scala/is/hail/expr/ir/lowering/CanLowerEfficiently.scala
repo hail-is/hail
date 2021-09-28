@@ -50,7 +50,6 @@ object CanLowerEfficiently {
         case t: TableTail =>
         case t: TableJoin =>
         case t: TableIntervalJoin => fail(s"TableIntervalJoin has no lowered implementation")
-        case t: TableMultiWayZipJoin =>
         case t: TableLeftJoinRightDistinct =>
         case t: TableMapPartitions =>
         case t: TableMapRows => if (ContainsScan(t.newRow)) fail("TableMapRows does not have a scalable implementation of scans")

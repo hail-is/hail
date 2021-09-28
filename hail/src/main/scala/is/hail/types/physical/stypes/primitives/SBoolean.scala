@@ -67,11 +67,12 @@ class SBooleanValue(x: Value[Boolean]) extends SPrimitiveValue {
 
   override def _primitiveValue: Value[_] = x
 
-  override def get: SCode = new SBooleanCode(x)
+  override def get: SBooleanCode = new SBooleanCode(x)
 
   def boolCode(cb: EmitCodeBuilder): Value[Boolean] = x
 
-  override def hash(cb: EmitCodeBuilder): SInt32Code = new SInt32Code(boolCode(cb).toI)
+  override def hash(cb: EmitCodeBuilder): SInt32Value =
+    new SInt32Value(cb.memoize(boolCode(cb).toI))
 }
 
 object SBooleanSettable {

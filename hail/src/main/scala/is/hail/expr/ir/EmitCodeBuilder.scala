@@ -83,8 +83,9 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     f
   }
 
-  def memoize[T: TypeInfo](v: Code[T], optionalName: String = ""): Value[T] = {
-    newLocal[T]("memoize" + optionalName, v)
+  def memoize[T: TypeInfo](v: Code[T], optionalName: String = ""): Value[T] = v match {
+    case b: ConstCodeBoolean => coerce[T](b.b)
+    case _ => newLocal[T]("memoize" + optionalName, v)
   }
 
   def memoizeField[T: TypeInfo](v: Code[T]): Value[T] = {
@@ -97,12 +98,18 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     l
   }
 
+  def memoize(v: EmitCode): EmitValue =
+    memoize(v, "memoize")
+
   def memoize(v: EmitCode, name: String): EmitValue = {
     require(v.st.isRealizable)
     val l = emb.newEmitLocal(name, v.emitType)
     assign(l, v)
     l
   }
+
+  def memoize(v: IEmitCode): EmitValue =
+    memoize(v, "memoize")
 
   def memoize(v: IEmitCode, name: String): EmitValue = {
     require(v.st.isRealizable)
@@ -219,7 +226,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
 
   // for debugging
   def strValue(sc: SValue): Code[String] = {
-    StringFunctions.scodeToJavaValue(this, emb.partitionRegion, sc.get).invoke[String]("toString")
+    StringFunctions.scodeToJavaValue(this, emb.partitionRegion, sc).invoke[String]("toString")
   }
 
   def strValue(ec: EmitCode): Code[String] = {

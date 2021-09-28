@@ -55,7 +55,6 @@ abstract class EType extends BaseType with Serializable with Requiredness {
 
       mb.voidWithBuilder { cb =>
         val arg = mb.getSCodeParam(1)
-          .memoize(cb, "encoder_method_arg")
         val out = mb.getCodeParam[OutputBuffer](2)
         _buildEncoder(cb, arg, out)
       }
@@ -137,7 +136,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   ): Unit = {
     assert(!pt.isInstanceOf[PBaseStruct]) // should be overridden for structs
     val decoded = _buildDecoder(cb, pt.virtualType, region, in).memoize(cb, "Asd")
-    pt.storeAtAddress(cb, addr, region, decoded.get, false)
+    pt.storeAtAddress(cb, addr, region, decoded, false)
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit

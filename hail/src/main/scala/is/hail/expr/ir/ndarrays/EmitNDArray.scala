@@ -55,7 +55,7 @@ abstract class NDArrayProducer {
     initAll(cb)
     val idxGenerator = if (rowMajor) SNDArray.forEachIndexWithInitAndIncRowMajor _ else SNDArray.forEachIndexWithInitAndIncColMajor _
     idxGenerator(cb, shape, initAxis, stepAxis.map(stepper => (cb: EmitCodeBuilder) => stepper(cb, 1L)), "ndarray_producer_toSCode"){ (cb, indices) =>
-      targetType.elementType.storeAtAddress(cb, currentWriteAddr, region, loadElementAtCurrentAddr(cb).get, true)
+      targetType.elementType.storeAtAddress(cb, currentWriteAddr, region, loadElementAtCurrentAddr(cb), true)
       cb.assign(currentWriteAddr, currentWriteAddr + targetType.elementType.byteSize)
     }
 
@@ -286,7 +286,7 @@ object EmitNDArray {
                   // Need to check if the any of the ndarrays are missing.
                   val missingCheckLoopIdx = cb.newLocal[Int]("ndarray_concat_missing_check_idx")
                   cb.forLoop(cb.assign(missingCheckLoopIdx, 0), missingCheckLoopIdx < arrLength, cb.assign(missingCheckLoopIdx, missingCheckLoopIdx + 1),
-                    cb.assign(missing, missing | ndsArraySValue.isElementMissing(missingCheckLoopIdx))
+                    cb.assign(missing, missing | ndsArraySValue.isElementMissing(cb, missingCheckLoopIdx))
                   )
                   missing
                 }

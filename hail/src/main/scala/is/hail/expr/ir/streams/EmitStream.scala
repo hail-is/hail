@@ -1153,8 +1153,8 @@ object EmitStream {
               assert(lelt.emitType == lEltType)
               assert(relt.emitType == rEltType)
 
-              val lhs = EmitCode.fromI(mb)(cb => lelt.toI(cb).map(cb)(_.asBaseStruct.subset(lKey: _*)))
-              val rhs = EmitCode.fromI(mb)(cb => relt.toI(cb).map(cb)(_.asBaseStruct.subset(rKey: _*)))
+              val lhs = lelt.map(cb)(_.asBaseStruct.subset(lKey: _*))
+              val rhs = relt.map(cb)(_.asBaseStruct.subset(rKey: _*))
               StructOrdering.make(lhs.st.asInstanceOf[SBaseStruct], rhs.st.asInstanceOf[SBaseStruct],
                 cb.emb.ecb, missingFieldsEqual = false)
                 .compare(cb, lhs, rhs, missingEqual = false)
@@ -1662,7 +1662,7 @@ object EmitStream {
 
           val outerElementRegion = mb.genFieldThisRef[Region]("streamgroupbykey_outer_elt_region")
 
-          def equiv(cb: EmitCodeBuilder, l: SBaseStructCode, r: SBaseStructCode): Code[Boolean] =
+          def equiv(cb: EmitCodeBuilder, l: SBaseStructValue, r: SBaseStructValue): Value[Boolean] =
             StructOrdering.make(l.st, r.st, cb.emb.ecb, missingFieldsEqual = false).equivNonnull(cb, l, r)
 
           val LchildProduceDoneInner = CodeLabel()
@@ -1690,7 +1690,7 @@ object EmitStream {
               cb.define(LchildProduceDoneInner)
 
               // if not equivalent, end inner stream and prepare for next outer iteration
-              cb.ifx(!equiv(cb, curKey.get.asBaseStruct, lastKey.get.asBaseStruct), {
+              cb.ifx(!equiv(cb, curKey.asBaseStruct, lastKey.asBaseStruct), {
                 if (requiresMemoryManagementPerElement)
                   cb += keyRegion.clearRegion()
 
@@ -1760,7 +1760,7 @@ object EmitStream {
               })
 
               // if equiv, go to next element. Otherwise, fall through to next group
-              cb.ifx(equiv(cb, curKey.get.asBaseStruct, lastKey.get.asBaseStruct), {
+              cb.ifx(equiv(cb, curKey.asBaseStruct, lastKey.asBaseStruct), {
                 if (childProducer.requiresMemoryManagementPerElement)
                   cb += childProducer.elementRegion.clearRegion()
                 cb.goto(childProducer.LproduceElement)
@@ -2319,7 +2319,7 @@ object EmitStream {
                 val left = eltType.loadCheapSCode(cb, heads(challenger)).subset(key: _*)
                 val right = eltType.loadCheapSCode(cb, heads(winner)).subset(key: _*)
                 val ord = StructOrdering.make(left.st, right.st, cb.emb.ecb, missingFieldsEqual = false)
-                cb.ifx(ord.lteqNonnull(cb, left.get, right.get),
+                cb.ifx(ord.lteqNonnull(cb, left, right),
                   cb.goto(LchallengerWins),
                   cb.goto(LafterChallenge))
 
@@ -2349,7 +2349,7 @@ object EmitStream {
                   val right = curKey
                   val ord = StructOrdering.make(left.st, right.st.asInstanceOf[SBaseStruct],
                     cb.emb.ecb, missingFieldsEqual = false)
-                  cb.ifx(ord.equivNonnull(cb, left.get, right.get), cb.goto(LaddToResult), cb.goto(Lpush))
+                  cb.ifx(ord.equivNonnull(cb, left, right), cb.goto(LaddToResult), cb.goto(Lpush))
                 })
               }, {
                 // We're still in the setup phase
@@ -2471,8 +2471,8 @@ object EmitStream {
             val ord2 = StructOrdering.make(r.asBaseStruct.st, l.asBaseStruct.st, cb.emb.ecb, missingFieldsEqual = false)
             val b = cb.newLocal[Boolean]("stream_merge_comp_result")
             cb.ifx(li < ri,
-              cb.assign(b, ord1.compareNonnull(cb, l.get, r.get) <= 0),
-              cb.assign(b, ord2.compareNonnull(cb, r.get, l.get) > 0))
+              cb.assign(b, ord1.compareNonnull(cb, l, r) <= 0),
+              cb.assign(b, ord2.compareNonnull(cb, r, l) > 0))
             b
           }
 

@@ -484,11 +484,11 @@ class EmitClassBuilder[C](
     sortOrder: SortOrder,
     op: CodeOrdering.Op
   ): CodeOrdering.F[op.ReturnType] = {
-    val ord = getOrdering(t1, t2, sortOrder);
+    val ord = getOrdering(t1, t2, sortOrder)
 
-    { (cb: EmitCodeBuilder, v1: EmitCode, v2: EmitCode) =>
+    { (cb: EmitCodeBuilder, v1: EmitValue, v2: EmitValue) =>
 
-      val r = op match {
+      val r: Code[_] = op match {
         case CodeOrdering.Compare(missingEqual) => ord.compare(cb, v1, v2, missingEqual)
         case CodeOrdering.Equiv(missingEqual) => ord.equiv(cb, v1, v2, missingEqual)
         case CodeOrdering.Lt(missingEqual) => ord.lt(cb, v1, v2, missingEqual)
@@ -586,8 +586,8 @@ class EmitClassBuilder[C](
       val rgs = mb.getCodeParam[Array[ReferenceGenome]](1)
       cb.ifx(rgs.length().cne(const(rgFields.length)), cb._fatal("Invalid number of references, expected ", rgFields.length.toString, " got ", rgs.length().toS))
       for ((fld, i) <- rgFields.zipWithIndex) {
+        cb += rgs(i).invoke[String, FS, Unit]("heal", ctx.localTmpdir, getFS)
         cb += fld.put(rgs(i))
-        cb += fld.get().invoke[String, FS, Unit]("heal", ctx.localTmpdir, getFS)
       }
     }
   }
@@ -879,7 +879,7 @@ class EmitMethodBuilder[C](
     }
   }
 
-  def getSCodeParam(emitIndex: Int): SCode = {
+  def getSCodeParam(emitIndex: Int): SValue = {
     assert(mb.isStatic || emitIndex != 0)
     val static = (!mb.isStatic).toInt
     val _st = emitParamTypes(emitIndex - static).asInstanceOf[SCodeParamType].st
@@ -890,7 +890,7 @@ class EmitMethodBuilder[C](
 
     _st.fromValues(ts.zipWithIndex.map { case (t, i) =>
       mb.getArg(codeIndex + i)(t)
-    }).get
+    })
   }
 
   def storeEmitParam(emitIndex: Int, cb: EmitCodeBuilder): Value[Region] => EmitValue = {

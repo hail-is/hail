@@ -90,13 +90,13 @@ class SNDArraySliceValue(
     deepCopy: Boolean,
     indexVars: IndexedSeq[String],
     destIndices: IndexedSeq[Int],
-    arrays: (SNDArrayCode, IndexedSeq[Int], String)*
-  )(body: IndexedSeq[SCode] => SCode
+    arrays: (SNDArrayValue, IndexedSeq[Int], String)*
+  )(body: IndexedSeq[SValue] => SValue
   ): Unit = {
-    SNDArray._coiterate(cb, indexVars, (this.get, destIndices, "dest") +: arrays: _*) { ptrs =>
-      val codes = (this.get +: arrays.map(_._1)).zip(ptrs).toFastIndexedSeq.map { case (array, ptr) =>
+    SNDArray._coiterate(cb, indexVars, (this, destIndices, "dest") +: arrays: _*) { ptrs =>
+      val codes = (this +: arrays.map(_._1)).zip(ptrs).toFastIndexedSeq.map { case (array, ptr) =>
         val pt: PType = array.st.pType.elementType
-        pt.loadCheapSCode(cb, pt.loadFromNested(ptr)).get
+        pt.loadCheapSCode(cb, pt.loadFromNested(ptr))
       }
       pt.elementType.storeAtAddress(cb, ptrs.head, region, body(codes), deepCopy)
     }

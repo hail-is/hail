@@ -7,6 +7,7 @@ import urllib
 import threading
 import asyncio
 import logging
+
 import botocore.exceptions
 import boto3
 from hailtop.utils import blocking_to_async
@@ -272,18 +273,24 @@ class S3AsyncFS(AsyncFS):
 
     async def open(self, url: str) -> ReadableStream:
         bucket, name = self._get_bucket_name(url)
-        resp = await blocking_to_async(self._thread_pool, self._s3.get_object,
-                                       Bucket=bucket,
-                                       Key=name)
-        return blocking_readable_stream_to_async(self._thread_pool, cast(BinaryIO, resp['Body']))
+        try:
+            resp = await blocking_to_async(self._thread_pool, self._s3.get_object,
+                                           Bucket=bucket,
+                                           Key=name)
+            return blocking_readable_stream_to_async(self._thread_pool, cast(BinaryIO, resp['Body']))
+        except self._s3.exceptions.NoSuchKey as e:
+            raise FileNotFoundError(url) from e
 
     async def open_from(self, url: str, start: int) -> ReadableStream:
         bucket, name = self._get_bucket_name(url)
-        resp = await blocking_to_async(self._thread_pool, self._s3.get_object,
-                                       Bucket=bucket,
-                                       Key=name,
-                                       Range=f'bytes={start}-')
-        return blocking_readable_stream_to_async(self._thread_pool, cast(BinaryIO, resp['Body']))
+        try:
+            resp = await blocking_to_async(self._thread_pool, self._s3.get_object,
+                                           Bucket=bucket,
+                                           Key=name,
+                                           Range=f'bytes={start}-')
+            return blocking_readable_stream_to_async(self._thread_pool, cast(BinaryIO, resp['Body']))
+        except self._s3.exceptions.NoSuchKey as e:
+            raise FileNotFoundError(url) from e
 
     async def create(self, url: str, *, retry_writes: bool = True) -> S3CreateManager:  # pylint: disable=unused-argument
         # It may be possible to write a more efficient version of this

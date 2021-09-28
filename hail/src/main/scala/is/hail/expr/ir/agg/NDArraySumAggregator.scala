@@ -46,7 +46,7 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
             state.storageType.setFieldPresent(cb, state.off, ndarrayFieldNumber)
             val tempRegionForCreation = cb.newLocal[Region]("ndarray_sum_agg_temp_region", Region.stagedCreate(Region.REGULAR, cb.emb.ecb.pool()))
             val fullyCopiedNDArray = ndTyp.constructByActuallyCopyingData(nextNDPV, cb, tempRegionForCreation)
-            state.storeNonmissing(cb, fullyCopiedNDArray.get)
+            state.storeNonmissing(cb, fullyCopiedNDArray)
             cb += tempRegionForCreation.clearRegion()
           },
           { currentND =>
@@ -68,7 +68,7 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
           val leftPV = state.storageType.loadCheapSCode(cb, state.off).asBaseStruct
           leftPV.loadField(cb, ndarrayFieldNumber).consume(cb,
             {
-              state.storeNonmissing(cb, rightNdValue.get)
+              state.storeNonmissing(cb, rightNdValue)
             },
             { case leftNdValue: SNDArrayValue =>
               NDArraySumAggregator.addValues(cb, state.region, leftNdValue, rightNdValue)
@@ -83,7 +83,7 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
     state.get(cb).consume(cb,
       ifMissing(cb),
       { lastNDInAggState =>
-        pt.storeAtAddress(cb, addr, region, lastNDInAggState.asNDArray.get, deepCopy = true)
+        pt.storeAtAddress(cb, addr, region, lastNDInAggState.asNDArray, deepCopy = true)
       })
   }
 }
@@ -94,7 +94,7 @@ object NDArraySumAggregator {
     cb.ifx(!leftNdValue.sameShape(cb, rightNdValue),
       cb += Code._fatal[Unit]("Can't sum ndarrays of different shapes."))
 
-    leftNdValue.coiterateMutate(cb, region, (rightNdValue.get, "right")) {
+    leftNdValue.coiterateMutate(cb, region, (rightNdValue, "right")) {
       case Seq(l, r) =>
         val newElement = SCode.add(cb, l, r, true)
         newElement.copyToRegion(cb, region, leftNdValue.st.elementType)
