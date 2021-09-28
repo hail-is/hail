@@ -64,9 +64,14 @@ class InsertObjectStream(WritableStream):
         return len(b)
 
     async def _wait_closed(self):
-        await self._it.stop()
-        async with await self._request_task as resp:
-            self._value = await resp.json()
+        try:
+            await self._it.stop()
+        except:
+            await self._request_task  # retrieve exceptions
+            raise
+        else:
+            async with await self._request_task as resp:
+                self._value = await resp.json()
 
 
 class _TaskManager:
