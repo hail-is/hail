@@ -151,13 +151,15 @@ def test_filter_samples_and_merge():
     assert merged.reference_data._same(vds.reference_data)
     assert merged.variant_data._same(vds.variant_data)
 
+
 def test_segment_intervals():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
 
     contig_len = vds.reference_data.locus.dtype.reference_genome.lengths['chr22']
     breakpoints = hl.literal([*range(1, contig_len, 5_000_000), contig_len])
-    intervals = hl.range(hl.len(breakpoints) - 1)\
-        .map(lambda i: hl.struct(interval=hl.locus_interval('chr22', breakpoints[i], breakpoints[i + 1], reference_genome='GRCh38')))
+    intervals = hl.range(hl.len(breakpoints) - 1) \
+        .map(lambda i: hl.struct(
+        interval=hl.locus_interval('chr22', breakpoints[i], breakpoints[i + 1], reference_genome='GRCh38')))
     intervals_ht = hl.Table.parallelize(intervals, key='interval')
 
     path = new_temp_file()
@@ -167,29 +169,16 @@ def test_segment_intervals():
 
     es = after.entries()
     es = es.filter((es.END < es.locus.position) | (es.END >= es.interval.end.position))
-    if (es.count() > 0):
+    if es.count() > 0:
         es.show(width=1000)
         assert False, "found entries with END < position or END >= interval end"
 
     before = vds.reference_data
 
-    # before.filter_cols(before.s == 'HG00313').drop('alleles').entries().show(500, width=2000)
-    # after.filter_cols(after.s == 'HG00313').drop('interval', 'alleles').entries().show(500, width=2000)
-
-    j2 = before.rows().join(after.rows(), 'outer')
-    j = before.entries().join(after.entries(), 'outer')
-    j.filter((j.s == 'HG00187') & (hl.coalesce(j.END, -1) != hl.coalesce(j.END_1, -1))).show(100, width=1000)
-    #
-    #
-    # after.filter_cols(after.s == 'HG00187').entries().show(1000, width=10000)
-    sum_per_sample_before = before.select_cols(ref_block_bases = hl.agg.sum(before.END + 1 - before.locus.position)).cols()
-    sum_per_sample_after = after.select_cols(ref_block_bases = hl.agg.sum(after.END + 1 - after.locus.position)).cols()
+    sum_per_sample_before = before.select_cols(
+        ref_block_bases=hl.agg.sum(before.END + 1 - before.locus.position)).cols()
+    sum_per_sample_after = after.select_cols(ref_block_bases=hl.agg.sum(after.END + 1 - after.locus.position)).cols()
 
     before_coverage = sum_per_sample_before.collect()
     after_coverage = sum_per_sample_after.collect()
-    for x in before_coverage:
-        print(x)
-    print('---')
-    for x in after_coverage:
-        print(x)
-    assert  before_coverage == after_coverage
+    assert before_coverage == after_coverage
