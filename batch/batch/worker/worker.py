@@ -1585,6 +1585,7 @@ class JVMJob(Job):
         if self.jvm is not None:
             # I really want this to be a timed step but I can't skip this ITS CLEAN UP
             # with self.step('retrieve_output'):
+            log.info(f'{self}: retrieving log')
             self.log = self.jvm.retrieve_and_clear_output()
             worker.return_jvm(self.jvm)
             self.jvm = None
@@ -1592,6 +1593,7 @@ class JVMJob(Job):
         if self.log is not None:
             # I really want this to be a timed step but I CANT RAISE EXCEPTIONS IN CLEANUP!!
             # with self.step('uploading_log'):
+            log.info(f'{self}: uploading log')
             await worker.file_store.write_log_file(
                 self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', self.log
             )
@@ -2024,10 +2026,12 @@ class Worker:
         try:
             await job.run(self)
         except asyncio.CancelledError:
+            log.exception(f'cancelled error running {job}')
             raise
         except Exception as e:
             if not user_error(e):
                 log.exception(f'while running {job}, ignoring')
+            log.exception(f'user error while running {job}, ignoring')
 
     async def create_job_1(self, request):
         body = await request.json()
