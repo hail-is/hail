@@ -13,7 +13,7 @@ class ArrayOfByteArrayOutputStream(initialBufferCapacity: Int) extends OutputStr
   buf += new ByteArrayOutputStream(initialBufferCapacity)
 
   protected var bytesInCurrentArray = 0
-  protected var currentArray = 0
+  protected var currentArray = buf(0)
 
   /**
     * Creates a new byte array output stream. The buffer capacity is
@@ -27,7 +27,7 @@ class ArrayOfByteArrayOutputStream(initialBufferCapacity: Int) extends OutputStr
     if (bytesInCurrentArray == MAX_ARRAY_SIZE) {
       buf.ensureCapacity(buf.length + 1)
       buf += new ByteArrayOutputStream(initialBufferCapacity)
-      currentArray += 1
+      currentArray = buf.last
       bytesInCurrentArray = 0
     }
   }
@@ -35,7 +35,7 @@ class ArrayOfByteArrayOutputStream(initialBufferCapacity: Int) extends OutputStr
   override def write(b: Int): Unit = {
     ensureNextByte()
 
-    buf(buf.length - 1).write(b)
+    currentArray.write(b)
     bytesInCurrentArray += 1
   }
 
@@ -46,7 +46,7 @@ class ArrayOfByteArrayOutputStream(initialBufferCapacity: Int) extends OutputStr
       ensureNextByte()
       val remainingBytesAllowed = MAX_ARRAY_SIZE - bytesInCurrentArray
       val bytesToWrite = math.min(remainingBytesAllowed, len - bytesWritten)
-      buf(buf.length - 1).write(b, off + bytesWritten, bytesToWrite)
+      currentArray.write(b, off + bytesWritten, bytesToWrite)
       bytesWritten += bytesToWrite
     }
   }
