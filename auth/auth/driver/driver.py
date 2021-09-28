@@ -16,7 +16,6 @@ from gear import create_session, Database
 log = logging.getLogger('auth.driver')
 
 PROJECT = os.environ['PROJECT']
-ZONE = os.environ['ZONE']
 DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
 
 is_test_deployment = DEFAULT_NAMESPACE != 'default'
