@@ -304,7 +304,6 @@ object IEmitCodeGen {
 }
 
 case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A, required: Boolean) {
-
   lazy val emitType: EmitType = {
     value match {
       case pc: SValue => EmitType(pc.st, required)
@@ -404,8 +403,8 @@ object EmitCode {
     new EmitCode(Lstart, ec.iec)
   }
 
-  def present(mb: EmitMethodBuilder[_], pc: SValue): EmitCode =
-    EmitCode.fromI(mb)(cb => IEmitCode.present(cb, pc))
+  def present(mb: EmitMethodBuilder[_], sv: SValue): EmitCode =
+    EmitCode.fromI(mb)(cb => IEmitCode.present(cb, sv))
 
   def missing(mb: EmitMethodBuilder[_], pt: SType): EmitCode =
     EmitCode.fromI(mb)(cb => IEmitCode.missing(cb, pt.defaultValue))
@@ -1989,23 +1988,11 @@ class Emit[C](
           res
         }
 
-      case ResultOp(start, sig) =>
+      case ResultOp(idx, sig) =>
         val AggContainer(aggs, sc, _) = container.get
 
-        val pt = PCanonicalTuple(false, sig.map(_.pResultType): _*)
-
-        val addr = cb.newLocal("resultop_tuple_addr", pt.allocate(region))
-        pt.stagedInitialize(cb, addr, setMissing = false)
-
-        (0 until aggs.length).foreach { j =>
-          val idx = start + j
-          val rvAgg = agg.Extract.getAgg(sig(j))
-          val fieldAddr = cb.newLocal(s"resultop_field_addr_$j", pt.fieldOffset(addr, j))
-          rvAgg.storeResult(cb, sc.states(idx), pt.types(j), fieldAddr, region,
-            (cb: EmitCodeBuilder) => pt.setFieldMissing(cb, addr, j))
-        }
-
-        presentPC(pt.loadCheapSCode(cb, addr))
+        val rvAgg = agg.Extract.getAgg(sig)
+        rvAgg.result(cb, sc.states(idx), region)
 
       case x@ApplySeeded(fn, args, seed, rt) =>
         val codeArgs = args.map(a => EmitCode.fromI(cb.emb)(emitInNewBuilder(_, a)))

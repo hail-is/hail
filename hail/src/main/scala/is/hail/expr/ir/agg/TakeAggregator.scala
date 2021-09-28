@@ -2,11 +2,12 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.concrete.{SIndexablePointerCode, SIndexablePointerValue}
+import is.hail.types.physical.stypes.EmitType
+import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerCode, SIndexablePointerValue}
 import is.hail.types.virtual.{TInt32, Type}
 import is.hail.utils._
 
@@ -104,7 +105,8 @@ class TakeAggregator(typ: VirtualTypeWithReq) extends StagedAggregator {
   type State = TakeRVAS
 
   private val pt = typ.canonicalPType
-  val resultType: PCanonicalArray = PCanonicalArray(pt, required = true)
+  val resultPType: PCanonicalArray = PCanonicalArray(pt)
+  val resultEmitType: EmitType = EmitType(SIndexablePointer(resultPType), true)
   val initOpTypes: Seq[Type] = Array(TInt32)
   val seqOpTypes: Seq[Type] = Array(typ.t)
 
@@ -125,9 +127,8 @@ class TakeAggregator(typ: VirtualTypeWithReq) extends StagedAggregator {
 
   protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = state.combine(cb, other)
 
-  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
-    assert(pt == resultType)
+  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
     // deepCopy is handled by state.resultArray
-    pt.storeAtAddress(cb, addr, region, state.resultArray(cb, region, resultType), deepCopy = false)
+    IEmitCode.present(cb, state.resultArray(cb, region, resultPType))
   }
 }

@@ -501,7 +501,14 @@ final case class ApplyScanOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[I
 final case class InitOp(i: Int, args: IndexedSeq[IR], aggSig: PhysicalAggSig) extends IR
 final case class SeqOp(i: Int, args: IndexedSeq[IR], aggSig: PhysicalAggSig) extends IR
 final case class CombOp(i1: Int, i2: Int, aggSig: PhysicalAggSig) extends IR
-final case class ResultOp(startIdx: Int, aggSigs: IndexedSeq[PhysicalAggSig]) extends IR
+object ResultOp {
+  def makeTuple(aggs: IndexedSeq[PhysicalAggSig]) = {
+    MakeTuple.ordered(aggs.zipWithIndex.map { case (aggSig, index) =>
+      ResultOp(index, aggSig)
+    })
+  }
+}
+final case class ResultOp(idx: Int, aggSig: PhysicalAggSig) extends IR
 
 private final case class CombOpValue(i: Int, value: IR, aggSig: PhysicalAggSig) extends IR
 final case class AggStateValue(i: Int, aggSig: AggStateSig) extends IR

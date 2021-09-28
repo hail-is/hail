@@ -7,6 +7,7 @@ import is.hail.expr.ir
 import is.hail.expr.ir._
 import is.hail.io.BufferSpec
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.EmitType
 import is.hail.types.virtual._
 import is.hail.types.{BaseTypeWithRequiredness, TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.utils._
@@ -105,8 +106,8 @@ class PhysicalAggSig(val op: AggOp, val state: AggStateSig, val nestedOps: Array
   val allOps: Array[AggOp] = nestedOps :+ op
   def initOpTypes: IndexedSeq[Type] = Extract.getAgg(this).initOpTypes.toFastIndexedSeq
   def seqOpTypes: IndexedSeq[Type] = Extract.getAgg(this).seqOpTypes.toFastIndexedSeq
-  def pResultType: PType = Extract.getAgg(this).resultType
-  def resultType: Type = pResultType.virtualType
+  def emitResultType: EmitType = Extract.getAgg(this).resultEmitType
+  def resultType: Type = emitResultType.virtualType
 }
 
 case class BasicPhysicalAggSig(override val op: AggOp, override val state: AggStateSig) extends PhysicalAggSig(op, state, Array())
@@ -265,7 +266,9 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
     }
   }
 
-  def results: IR = ResultOp(0, aggs)
+  def results: IR = {
+    ResultOp.makeTuple(aggs)
+  }
 }
 
 object Extract {
@@ -300,16 +303,16 @@ object Extract {
     case AggSignature(Max(), _, Seq(t)) => t
     case AggSignature(Count(), _, _) => TInt64
     case AggSignature(Take(), _, Seq(t)) => TArray(t)
-    case AggSignature(CallStats(), _, _) => CallStatsState.resultType.virtualType
+    case AggSignature(CallStats(), _, _) => CallStatsState.resultPType.virtualType
     case AggSignature(TakeBy(_), _, Seq(value, key)) => TArray(value)
     case AggSignature(PrevNonnull(), _, Seq(t)) => t
     case AggSignature(CollectAsSet(), _, Seq(t)) => TSet(t)
     case AggSignature(Collect(), _, Seq(t)) => TArray(t)
     case AggSignature(Densify(), _, Seq(t)) => t
-    case AggSignature(ImputeType(), _, _) => ImputeTypeState.resultType.virtualType
+    case AggSignature(ImputeType(), _, _) => ImputeTypeState.resultEmitType.virtualType
     case AggSignature(LinearRegression(), _, _) =>
-      LinearRegressionAggregator.resultType.virtualType
-    case AggSignature(ApproxCDF(), _, _) => QuantilesAggregator.resultType.virtualType
+      LinearRegressionAggregator.resultPType.virtualType
+    case AggSignature(ApproxCDF(), _, _) => QuantilesAggregator.resultPType.virtualType
     case AggSignature(Downsample(), _, Seq(_, _, label)) => DownsampleAggregator.resultType
     case AggSignature(NDArraySum(), _, Seq(t)) => t
     case AggSignature(NDArrayMultiplyAdd(), _, Seq(a : TNDArray, _)) => a
