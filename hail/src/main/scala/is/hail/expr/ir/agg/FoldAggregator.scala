@@ -1,14 +1,14 @@
 package is.hail.expr.ir.agg
 import is.hail.annotations.Region
 import is.hail.asm4s.{AsmFunction1RegionLong, AsmFunction2, LongInfo, Value}
-import is.hail.expr.ir.{Compile, Emit, EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitContext, EmitEnv, EmitMethodBuilder, Env, ExecuteContext, IR, SCodeEmitParamType}
+import is.hail.expr.ir.{Compile, Emit, EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitContext, EmitEnv, EmitMethodBuilder, Env, ExecuteContext, IEmitCode, IR, SCodeEmitParamType}
 import is.hail.types.physical.PType
 import is.hail.types.physical.stypes.{EmitType, SType}
 import is.hail.types.virtual.Type
 
 // (IR => T), seq op (IR T => T), and comb op (IR (T,T) => T)
 
-class FoldAggregator(val initOpTypes: Seq[Type], val seqOpTypes: Seq[Type], val resultType: PType, accumName: String, otherAccumName: String, combOpIR: IR) extends StagedAggregator {
+class FoldAggregator(val initOpTypes: Seq[Type], val seqOpTypes: Seq[Type], val resultEmitType: EmitType, accumName: String, otherAccumName: String, combOpIR: IR) extends StagedAggregator {
   override type State = TypedRegionBackedAggState
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
@@ -36,9 +36,7 @@ class FoldAggregator(val initOpTypes: Seq[Type], val seqOpTypes: Seq[Type], val 
     ec.toI(cb).consume(cb, state.storeMissing(cb), sv => state.storeNonmissing(cb, sv))
   }
 
-  override protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
-    state.get(cb).consume(cb,
-      ifMissing(cb),
-      { sv => pt.storeAtAddress(cb, addr, region, sv, deepCopy = true) })
+  override protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
+    state.get(cb).map(cb){ sv => sv.copyToRegion(cb, region, sv.st)}  // TODO: Confirm this is necessary
   }
 }

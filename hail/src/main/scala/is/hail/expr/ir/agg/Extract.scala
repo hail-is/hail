@@ -7,7 +7,7 @@ import is.hail.expr.ir
 import is.hail.expr.ir._
 import is.hail.io.BufferSpec
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.EmitType
+import is.hail.types.physical.stypes.{EmitType, SType}
 import is.hail.types.virtual._
 import is.hail.types.{BaseTypeWithRequiredness, TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.utils._
@@ -72,8 +72,8 @@ object AggStateSig {
     case NDArraySumStateSig(nda) => new TypedRegionBackedAggState(nda, cb)
     case NDArrayMultiplyAddStateSig(nda) =>
       new TypedRegionBackedAggState(nda, cb)
-    case FoldStateSig(initOpArgs, seqOpArgs, resultPType, accumName, otherAccumName, combOpIR, r) => {
-      val vWithReq = VirtualTypeWithReq(resultPType)
+    case FoldStateSig(initOpArgs, seqOpArgs, resultEmitType, accumName, otherAccumName, combOpIR, r) => {
+      val vWithReq = resultEmitType.typeWithRequiredness
       new TypedRegionBackedAggState(vWithReq, cb)
     }
     case LinearRegressionStateSig() => new LinearRegressionAggregatorState(cb)
@@ -102,7 +102,7 @@ case class NDArrayMultiplyAddStateSig(nda: VirtualTypeWithReq) extends AggStateS
 }
 
 // TODO: What is t? I am giving an empty array, is that right? wrong?
-case class FoldStateSig(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[IR], resultPType: PType, accumName: String, otherAccumName: String, combOpIR: IR, r: RequirednessAnalysis) extends AggStateSig(Array[VirtualTypeWithReq](), None)
+case class FoldStateSig(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[IR], resultEmitType: EmitType, accumName: String, otherAccumName: String, combOpIR: IR, r: RequirednessAnalysis) extends AggStateSig(Array[VirtualTypeWithReq](), None)
 
 object PhysicalAggSig {
   def apply(op: AggOp, state: AggStateSig): PhysicalAggSig = BasicPhysicalAggSig(op, state)
@@ -406,12 +406,12 @@ object Extract {
           val initOpArgs = IndexedSeq(zero)
           val seqOpArgs = IndexedSeq(seqOp)
           val op = Fold()
-          val resultPType = PType.canonical(zero.typ)
-          val foldStateSig = FoldStateSig(initOpArgs, seqOpArgs, resultPType, accumName, otherAccumName, combOp, r)
+          val resultEmitType = EmitType(SType.canonical(zero.typ), false) // TODO: Can we ever decide this is required?
+          val foldStateSig = FoldStateSig(initOpArgs, seqOpArgs, resultEmitType, accumName, otherAccumName, combOp, r)
           val signature = PhysicalAggSig(op, foldStateSig)
           ab += InitOp(i, initOpArgs, signature) -> signature
           // So seqOp has to be able to reference accumName.
-          val seqWithLet = Let(accumName, GetTupleElement(ResultOp(i, IndexedSeq(signature)), 0), SeqOp(i, seqOpArgs, signature))
+          val seqWithLet = Let(accumName, ResultOp(i, signature), SeqOp(i, seqOpArgs, signature))
           seqBuilder += seqWithLet
           i
         })
