@@ -513,7 +513,12 @@ class Tests(unittest.TestCase):
         mt = mt.annotate_rows(s=hl.scan.fold(0, lambda a: a + mt.row_idx, lambda a, b: a + b))
         mt = mt.annotate_rows(x=hl.scan.fold(0, lambda s: s + 1, lambda a, b: a + b))
         self.assertEqual(mt.s.collect(), [0, 0, 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78, 91])
-        mt.rows().collect()
+        self.assertEqual(mt.rows().collect(),
+                         [hl.Struct(row_idx=0, s=0, x=0), hl.Struct(row_idx=1, s=0, x=1), hl.Struct(row_idx=2, s=1, x=2),
+                          hl.Struct(row_idx=3, s=3, x=3), hl.Struct(row_idx=4, s=6, x=4), hl.Struct(row_idx=5, s=10, x=5),
+                          hl.Struct(row_idx=6, s=15, x=6), hl.Struct(row_idx=7, s=21, x=7), hl.Struct(row_idx=8, s=28, x=8),
+                          hl.Struct(row_idx=9, s=36, x=9), hl.Struct(row_idx=10, s=45, x=10), hl.Struct(row_idx=11, s=55, x=11),
+                          hl.Struct(row_idx=12, s=66, x=12), hl.Struct(row_idx=13, s=78, x=13), hl.Struct(row_idx=14, s=91, x=14)])
 
     def test_agg_filter(self):
         t = hl.utils.range_table(10)
