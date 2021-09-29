@@ -182,7 +182,7 @@ object Pretty {
     case StreamAgg(a, name, query) => single(prettyIdentifier(name))
     case StreamAggScan(a, name, query) => single(prettyIdentifier(name))
     case StreamGroupByKey(a, key) => single(prettyIdentifiers(key))
-    case AggFold(_, _, _, accumName, otherAccumName, isScan) => FastSeq(prettyIdentifier(accumName), prettyIdentifier(otherAccumName), isScan.toString)
+    case AggFold(_, _, _, accumName, otherAccumName, isScan) => FastSeq(prettyIdentifier(accumName), prettyIdentifier(otherAccumName), prettyBooleanLiteral(isScan))
     case AggExplode(_, name, _, isScan) => FastSeq(prettyIdentifier(name), prettyBooleanLiteral(isScan))
     case AggFilter(_, _, isScan) => single(prettyBooleanLiteral(isScan))
     case AggGroupBy(_, _, isScan) => single(prettyBooleanLiteral(isScan))
