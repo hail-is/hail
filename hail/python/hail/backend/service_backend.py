@@ -218,7 +218,8 @@ class ServiceBackend(Backend):
                    name: str,
                    inputs: Callable[[afs.ReadableStream, str], Awaitable[Tuple[str, dict]]]):
         token = secret_alnum_string()
-        with TemporaryDirectory(ensure_exists=False) as iodir:
+        iodir = TemporaryDirectory(ensure_exists=False).name  # FIXME: actually cleanup
+        with TemporaryDirectory(ensure_exists=False) as _:
             async def create_inputs():
                 async with await self._async_fs.create(iodir + '/in') as infile:
                     await inputs(infile, token)
@@ -248,10 +249,17 @@ class ServiceBackend(Backend):
             _, (j, b, status) = await asyncio.gather(create_inputs(), create_batch())
 
             if status['n_succeeded'] != 1:
+                job_status = await j.status()
+                if 'status' in job_status:
+                    if 'error' in job_status['status']:
+                        job_status['status']['error'] = job_status['status']['error'].strip()
+                logs = await j.log()
+                for k in logs:
+                    logs[k] = logs[k].strip()
                 message = {'batch_status': status,
-                           'job_status': await j.status(),
-                           'log': await j.log()}
-                log.error(yaml.dump(message, default_style='|'))
+                           'job_status': job_status,
+                           'log': logs}
+                log.error(yaml.dump(message))
                 raise ValueError(message)
 
             async with await self._async_fs.open(iodir + '/out') as outfile:
@@ -278,7 +286,7 @@ class ServiceBackend(Backend):
                                     'status': j,
                                     'log': main_log.strip()})
                         message = {'id': batch_id, 'batch_status': b2_status, 'failed_jobs': failed_jobs}
-                        log.error(yaml.dump(message, default_style='|'))
+                        log.error(yaml.dump(message))
                         raise ValueError(json.dumps(message))
                     raise FatalError(f'batch id was {b.id}\n' + jstacktrace)
 
