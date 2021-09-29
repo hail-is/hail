@@ -10,7 +10,7 @@ from hail.expr.types import dtype, HailType, hail_type, tint32, tint64, \
 from hail.ir.blockmatrix_writer import BlockMatrixWriter, BlockMatrixMultiWriter
 from hail.typecheck import typecheck, typecheck_method, sequenceof, numeric, \
     sized_tupleof, nullable, tupleof, anytype, func_spec
-from hail.utils.java import Env
+from hail.utils.java import Env, HailUserError
 from hail.utils.misc import escape_str, dump_json, parsable_strings, escape_id
 from .base_ir import BaseIR, IR, TableIR, MatrixIR, BlockMatrixIR, _env_bind
 from .matrix_writer import MatrixWriter, MatrixNativeMultiWriter
@@ -1898,6 +1898,9 @@ class AggFold(IR):
         self.other_accum_name = other_accum_name
         self.is_scan = is_scan
 
+        if self.comb_op.free_vars != set([accum_name, other_accum_name]):
+            raise HailUserError("The comb_op function of fold cannot reference any fields on the Table or MatrixTable")
+
     def copy(self, zero, seq_op, comb_op):
         return AggFold(zero, seq_op, comb_op, self.accum_name, self.other_accum_name, self.is_scan)
 
@@ -1907,7 +1910,7 @@ class AggFold(IR):
     def _compute_type(self, env, agg_env):
         self.zero._compute_type(env, agg_env)
         self.seq_op._compute_type(_env_bind(agg_env, self.bindings(1)), None)
-        self.comb_op._compute_type(_env_bind(agg_env, self.bindings(2)), None)
+        self.comb_op._compute_type(self.bindings(2), None)
 
         assert self.zero._type == self.seq_op._type
         assert self.zero._type == self.comb_op._type

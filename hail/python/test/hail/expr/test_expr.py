@@ -500,6 +500,12 @@ class Tests(unittest.TestCase):
         sum_evens_only = ht.aggregate(hl.agg.fold(0, lambda x: x + hl.coalesce(ht.maybe, 0), lambda a, b: hl.coalesce(a + b, a, b)))
         self.assertEqual(sum_evens_only, 2450)
 
+        ht = ht.annotate_globals(foo=7)
+        with pytest.raises(hl.utils.java.HailUserError) as exc:
+            ht.aggregate(hl.agg.fold(0, lambda x: x + ht.idx, lambda a, b: a + b + ht.foo))
+        assert "comb_op function of fold cannot reference any fields" in str(exc.value)
+
+
         mt = hl.utils.range_matrix_table(100, 10)
         self.assertEqual(mt.aggregate_rows(hl.agg.fold(0, lambda a: a + mt.row_idx, lambda a, b: a + b)), 4950)
         self.assertEqual(mt.aggregate_cols(hl.agg.fold(0, lambda a: a + mt.col_idx, lambda a, b: a + b)), 45)
