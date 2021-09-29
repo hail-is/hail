@@ -1904,11 +1904,12 @@ def fold(initial_value, seq_op, comb_op):
     Parameters
     ----------
     initial_value : :class:`.Expression`
-        The initial value to start the aggregator with.
-    seq_op : function A => A
-        The function used to combine the current aggregator state with the next element you're aggregating over.
-    comb_op : function A, A => A
-        The function used to combine two aggregator states together and produce final result.
+        The initial value to start the aggregator with. This is a value of type `A`.
+    seq_op : function ( (:class:`.Expression`) -> :class:`.Expression`)
+        The function used to combine the current aggregator state with the next element you're aggregating over. Type is
+        `A => A`
+    comb_op : function ( (:class:`.Expression`, :class:`.Expression`) -> :class:`.Expression`)
+        The function used to combine two aggregator states together and produce final result. Type is `(A, A) => A`.
     """
 
     return _agg_func._fold(initial_value, seq_op, comb_op)
