@@ -28,8 +28,6 @@ class FoldAggregator(val initOpTypes: Seq[Type], val seqOpTypes: Seq[Type], val 
     val env = EmitEnv(Env.apply((accumName, stateEV), (otherAccumName, otherEV)), IndexedSeq())
     val pEnv = Env.apply((accumName, stateEV.st.storageType()), (otherAccumName, otherEV.st.storageType()))
 
-
-    // What if stuff is let bound in there from outside of the combop? Invalid, figure out where to catch that (TypeCheck probably).
     val emitCtx = EmitContext.analyze(ctx, combOpIR, pEnv)
     val emit = new Emit[Any](emitCtx, cb.emb.ecb.asInstanceOf[EmitClassBuilder[Any]])
     val ec = emit.emit(combOpIR, cb.emb.asInstanceOf[EmitMethodBuilder[Any]], env, None)

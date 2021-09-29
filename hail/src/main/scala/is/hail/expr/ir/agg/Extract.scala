@@ -102,7 +102,7 @@ case class NDArrayMultiplyAddStateSig(nda: VirtualTypeWithReq) extends AggStateS
 }
 
 // TODO: What is t? I am giving an empty array, is that right? wrong?
-case class FoldStateSig(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[IR], resultEmitType: EmitType, accumName: String, otherAccumName: String, combOpIR: IR, r: RequirednessAnalysis) extends AggStateSig(Array[VirtualTypeWithReq](), None)
+case class FoldStateSig(initOpTypes: IndexedSeq[Type], seqOpTypes: IndexedSeq[Type], resultEmitType: EmitType, accumName: String, otherAccumName: String, combOpIR: IR, r: RequirednessAnalysis) extends AggStateSig(Array[VirtualTypeWithReq](), None)
 
 object PhysicalAggSig {
   def apply(op: AggOp, state: AggStateSig): PhysicalAggSig = BasicPhysicalAggSig(op, state)
@@ -354,7 +354,7 @@ object Extract {
     case PhysicalAggSig(NDArrayMultiplyAdd(), NDArrayMultiplyAddStateSig(nda)) =>
       new NDArrayMultiplyAddAggregator(nda)
     case PhysicalAggSig(Fold(), FoldStateSig(init, seq, res, accumName, otherAccumName, combOpIR, r)) =>
-      new FoldAggregator(init.map(_.typ), seq.map(_.typ), res, accumName, otherAccumName, combOpIR)
+      new FoldAggregator(init, seq, res, accumName, otherAccumName, combOpIR)
   }
 
   def apply(ir: IR, resultName: String, r: RequirednessAnalysis, isScan: Boolean = false): Aggs = {
@@ -407,7 +407,7 @@ object Extract {
           val seqOpArgs = IndexedSeq(seqOp)
           val op = Fold()
           val resultEmitType = EmitType(SType.canonical(zero.typ), false) // TODO: Can we ever decide this is required?
-          val foldStateSig = FoldStateSig(initOpArgs, seqOpArgs, resultEmitType, accumName, otherAccumName, combOp, r)
+          val foldStateSig = FoldStateSig(initOpArgs.map(_.typ), seqOpArgs.map(_.typ), resultEmitType, accumName, otherAccumName, combOp, r)
           val signature = PhysicalAggSig(op, foldStateSig)
           ab += InitOp(i, initOpArgs, signature) -> signature
           // So seqOp has to be able to reference accumName.
