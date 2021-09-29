@@ -22,10 +22,9 @@ WHERE `name` = 'standard';
     await db.execute_update(
         '''
 UPDATE pools
-SET worker_cores = 8
+SET worker_cores = 16, standing_worker_cores = 16
 WHERE `name` = 'standard' AND `worker_type` = 'standard';
 ''')
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(main())
-
