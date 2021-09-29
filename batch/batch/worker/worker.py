@@ -1591,12 +1591,15 @@ class JVMJob(Job):
             self.jvm = None
 
         if self.log is not None:
-            # I really want this to be a timed step but I CANT RAISE EXCEPTIONS IN CLEANUP!!
-            # with self.step('uploading_log'):
-            log.info(f'{self}: uploading log')
-            await worker.file_store.write_log_file(
-                self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', self.log
-            )
+            log = self.log
+        else:
+            log = ''
+        # I really want this to be a timed step but I CANT RAISE EXCEPTIONS IN CLEANUP!!
+        # with self.step('uploading_log'):
+        log.info(f'{self}: uploading log')
+        await worker.file_store.write_log_file(
+            self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', log
+        )
 
         self.end_time = time_msecs()
 
@@ -1846,9 +1849,8 @@ class JVM:
                     finally:
                         writer.close()
                 except ConnectionRefusedError as err:
-                    process.close()
                     output = process.retrieve_and_clear_output()
-                    raise ValueError(f'JVM-{index}: connection refused. {output}') from err
+                    log.warning(f'JVM-{index}: connection refused. {output}')
                 except FileNotFoundError as err:
                     attempts += 1
                     if attempts == 240:
@@ -1864,15 +1866,34 @@ class JVM:
     async def create(cls, index: int):
         assert worker is not None
 
-        token = uuid.uuid4().hex
-        socket_file = '/socket-' + token
-        root_dir = '/root-' + token
-        output_file = root_dir + '/output'
-        should_interrupt = asyncio.Event()
-        await blocking_to_async(worker.pool, os.mkdir, root_dir)
-        process, startup_output = await cls.create_process_and_connect(index, socket_file)
-        log.info(f'JVM-{index}: startup output: {startup_output}')
-        return cls(index, socket_file, root_dir, output_file, should_interrupt, process)
+        while True:
+            try:
+                token = uuid.uuid4().hex
+                socket_file = '/socket-' + token
+                root_dir = '/root-' + token
+                output_file = root_dir + '/output'
+                should_interrupt = asyncio.Event()
+                await blocking_to_async(worker.pool, os.mkdir, root_dir)
+                process, startup_output = await cls.create_process_and_connect(index, socket_file)
+                log.info(f'JVM-{index}: startup output: {startup_output}')
+                return cls(index, socket_file, root_dir, output_file, should_interrupt, process)
+            except ConnectionRefusedError:
+                pass
+
+    async def new_connection(self):
+        while True:
+            try:
+                interim_output = self.process.retrieve_and_clear_output()
+                if len(interim_output) > 0:
+                    log.warning(f'{self}: unexpected output between jobs: {interim_output}')
+
+                return await asyncio.open_unix_connection(self.socket_file)
+            except ConnectionRefusedError:
+                log.warning(f'{self}: unexpected exit between jobs', extra=dict(output=self.process.output()))
+                os.remove(self.socket_file)
+                process, startup_output = await self.create_process_and_connect(self.index, self.socket_file)
+                self.process = process
+                log.info(f'JVM-{self.index}: startup output: {startup_output}')
 
     def __init__(self,
                  index: int,
@@ -1915,21 +1936,10 @@ class JVM:
 
         log.info(f'{self}: execute')
 
-        interim_output = self.process.retrieve_and_clear_output()
-        if len(interim_output) > 0:
-            log.warning(f'{self}: unexpected output between jobs: {interim_output}')
-
-        if self.process.returncode is not None:
-            log.warning(f'{self}: unexpected exit between jobs', extra=dict(output=self.process.output()))
-            os.remove(self.socket_file)
-            process, startup_output = await self.create_process_and_connect(self.index, self.socket_file)
-            self.process = process
-            log.info(f'JVM-{self.index}: startup output: {startup_output}')
-
         with ExitStack() as stack:
             reader: asyncio.StreamReader
             writer: asyncio.StreamWriter
-            reader, writer = await asyncio.open_unix_connection(self.socket_file)
+            reader, writer = await self.new_connection()
             stack.callback(writer.close)
             log.info(f'{self}: connection acquired')
 

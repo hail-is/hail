@@ -1,3 +1,4 @@
+from typing import List
 import aioredis
 import asyncio
 import base64
@@ -60,11 +61,16 @@ async def write_object(request, userdata):
     log.info(f'memory: post for object {filepath} from user {username}')
 
     file_key = make_redis_key(username, filepath)
-    files = request.app['files_in_progress']
-    files.add(file_key)
-
-    await persist(userinfo['fs'], files, file_key, filepath, data)
-    await cache_file(request.app['redis_pool'], files, file_key, filepath, data)
+    fut = asyncio.Future()
+    try:
+        request.app['files_in_progress'][file_key] = fut
+        await persist(userinfo['fs'], file_key, filepath, data)
+        await cache_file(request.app['redis_pool'], file_key, filepath, data)
+        del request.app['files_in_progress'][file_key]
+        fut.set_result(data)
+    except Exception as exc:
+        fut.set_exception(exc)
+        raise exc
     return web.Response(status=200)
 
 
@@ -100,49 +106,45 @@ async def get_file_or_none(app, username, fs: AsyncFS, filepath):
         return body
 
     log.info(f"memory: Couldn't retrieve file {filepath} for user {username}: current version not in cache")
-    if file_key not in app['files_in_progress']:
+    if file_key in app['files_in_progress']:
+        return await app['files_in_progress'][file_key]
+
+    fut: asyncio.Future = asyncio.Future()
+    try:
+        app['files_in_progress'][file_key] = fut
+        log.info(f"memory: Loading {filepath} to cache for user {username}")
         try:
-            log.info(f"memory: Loading {filepath} to cache for user {username}")
-            app['files_in_progress'].add(file_key)
-            app['worker_pool'].call_nowait(load_file, redis_pool, app['files_in_progress'], file_key, fs, filepath)
-        except asyncio.QueueFull:
-            pass
-    return None
+            data = await load_file(redis_pool, file_key, fs, filepath)
+            await cache_file(redis_pool, file_key, filepath, data)
+        except FileNotFoundError:
+            data = None
+        del app['files_in_progress'][file_key]
+        fut.set_result(data)
+    except Exception as exc:
+        fut.set_exception(exc)
+        raise exc
 
 
-async def load_file(redis, files, file_key, fs: AsyncFS, filepath):
-    try:
-        log.info(f"memory: {file_key}: reading.")
-        data = await fs.read(filepath)
-        log.info(f"memory: {file_key}: read {filepath}")
-    except Exception as e:
-        files.remove(file_key)
-        raise e
-
-    await cache_file(redis, files, file_key, filepath, data)
+async def load_file(redis, file_key, fs: AsyncFS, filepath):
+    log.info(f"memory: {file_key}: reading.")
+    return await fs.read(filepath)
+    log.info(f"memory: {file_key}: read {filepath}")
 
 
-async def persist(fs: AsyncFS, files: Set[str], file_key: str, filepath: str, data: bytes):
-    try:
-        log.info(f"memory: {file_key}: persisting.")
-        await fs.write(filepath, data)
-        log.info(f"memory: {file_key}: persisted {filepath}")
-    except Exception as e:
-        files.remove(file_key)
-        raise e
+async def persist(fs: AsyncFS, file_key: str, filepath: str, data: bytes):
+    log.info(f"memory: {file_key}: persisting.")
+    await fs.write(filepath, data)
+    log.info(f"memory: {file_key}: persisted {filepath}")
 
 
-async def cache_file(redis: aioredis.ConnectionsPool, files: Set[str], file_key: str, filepath: str, data: bytes):
-    try:
-        await redis.execute('HMSET', file_key, 'body', data)
-        log.info(f"memory: {file_key}: stored {filepath}")
-    finally:
-        files.remove(file_key)
+async def cache_file(redis: aioredis.ConnectionsPool, file_key: str, filepath: str, data: bytes):
+    await redis.execute('HMSET', file_key, 'body', data)
+    log.info(f"memory: {file_key}: stored {filepath}")
 
 
 async def on_startup(app):
     app['worker_pool'] = AsyncWorkerPool(parallelism=100, queue_size=10)
-    app['files_in_progress'] = set()
+    app['files_in_progress'] = dict()
     app['users'] = {}
     app['userlocks'] = defaultdict(asyncio.Lock)
     kube.config.load_incluster_config()
