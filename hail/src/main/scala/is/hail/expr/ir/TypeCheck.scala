@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-import com.nimbusds.jose.KeyException
 import is.hail.expr.ir.streams.StreamUtils
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -92,7 +91,7 @@ object TypeCheck {
             assert(x.typ == expected,
               s"type mismatch:\n  name: $name\n  actual: ${x.typ.parsableString()}\n  expect: ${expected.parsableString()}")
           case None =>
-            throw new KeyException(s"Ref with name ${name} could not be resolved in env ${env}")
+            throw new NoSuchElementException(s"Ref with name ${name} could not be resolved in env ${env}")
         }
 
       case RelationalRef(name, t) =>
