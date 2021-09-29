@@ -112,7 +112,7 @@ async def get_file_or_none(app, username, fs: AsyncFS, filepath):
         app['files_in_progress'][file_key] = fut
         log.info(f"memory: Loading {filepath} to cache for user {username}")
         try:
-            data = await load_file(redis_pool, file_key, fs, filepath)
+            data = await load_file(file_key, fs, filepath)
             await cache_file(redis_pool, file_key, filepath, data)
         except FileNotFoundError:
             data = None
@@ -123,10 +123,11 @@ async def get_file_or_none(app, username, fs: AsyncFS, filepath):
         raise exc
 
 
-async def load_file(redis, file_key, fs: AsyncFS, filepath):
+async def load_file(file_key, fs: AsyncFS, filepath):
     log.info(f"memory: {file_key}: reading.")
-    return await fs.read(filepath)
+    data = await fs.read(filepath)
     log.info(f"memory: {file_key}: read {filepath}")
+    return data
 
 
 async def persist(fs: AsyncFS, file_key: str, filepath: str, data: bytes):
