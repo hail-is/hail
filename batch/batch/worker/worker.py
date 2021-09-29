@@ -1815,6 +1815,7 @@ class JVM:
     FINISH_ENTRYWAY_EXCEPTION = 1
     FINISH_NORMAL = 2
     FINISH_CANCELLED = 3
+    FINISH_JVM_EOS = 4
 
     @classmethod
     async def create_process(cls, socket_file: str) -> BufferedOutputProcess:
@@ -1961,7 +1962,13 @@ class JVM:
                     write_int(writer, 0)  # tell process to cancel
                     await writer.drain()
 
-            message = await wait_for_message_from_process
+            eos_exception = None
+            try:
+                message = await wait_for_message_from_process
+            except EndOfStream as exc:
+                self.kill()
+                message = JVM.FINISH_JVM_EOS
+                eos_exception = exc
 
             if message == JVM.FINISH_NORMAL:
                 log.info(f'{self}: finished normally (interrupted: {wait_for_interrupt.done()})')
@@ -1976,6 +1983,10 @@ class JVM:
                 log.info(f'{self}: entryway exception encountered (interrupted: {wait_for_interrupt.done()})')
                 exception = await read_str(reader)
                 raise ValueError(exception)
+            elif message == JVM.FINISH_JVM_EOS:
+                assert eos_exception is not None
+                log.info(f'{self}: unexpected end of stream in jvm (interrupted: {wait_for_interrupt.done()})')
+                raise ValueError('unexpected end of stream in jvm') from eos_exception
 
 
 class Worker:
