@@ -8,7 +8,7 @@ from hail.expr import (ExpressionException, Expression, ArrayExpression,
                        NDArrayNumericExpression, expr_any, expr_oneof, expr_array, expr_set,
                        expr_bool, expr_numeric, expr_int32, expr_int64, expr_float64, expr_call,
                        expr_str, expr_ndarray, unify_all, construct_expr, Indices, Aggregation,
-                       to_expr, unify_types)
+                       to_expr, unify_types, cast_expr)
 from hail.expr.types import (hail_type, tint32, tint64, tfloat32, tfloat64,
                              tbool, tcall, tset, tarray, tstruct, tdict, ttuple, tstr)
 from hail.expr.expressions.typed_expressions import construct_variable
@@ -122,10 +122,11 @@ class AggFunc(object):
 
         accum_ref = construct_variable(accum_name, unified_type, indices, aggregations)
         other_accum_ref = construct_variable(other_accum_name, unified_type, indices, aggregations)
+        initial_value_casted = cast_expr(initial_value, unified_type)
         seq_op_expr = to_expr(seq_op(accum_ref))
         comb_op_expr = to_expr(comb_op(accum_ref, other_accum_ref))
 
-        return construct_expr(ir.AggFold(initial_value._ir, seq_op_expr._ir, comb_op_expr._ir, accum_name, other_accum_name, self._as_scan),
+        return construct_expr(ir.AggFold(initial_value_casted._ir, seq_op_expr._ir, comb_op_expr._ir, accum_name, other_accum_name, self._as_scan),
                               initial_value.dtype,
                               indices,
                               aggregations)
