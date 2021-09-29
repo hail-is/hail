@@ -713,7 +713,7 @@ abstract class UnseededMissingnessObliviousJVMFunction (
       rpt,
       typeParameters,
       methodbuilder.getCodeParam[Int](2),
-      (0 until args.length).map(i => methodbuilder.getSCodeParam(i + 3)): _*).get)
+      (0 until args.length).map(i => methodbuilder.getSCodeParam(i + 3)): _*))
     methodbuilder
   }
 }

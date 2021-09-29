@@ -129,7 +129,7 @@ class AppendOnlySetState(val kb: EmitClassBuilder[_], vt: VirtualTypeWithReq) ex
         cb.ifx(!key.isKeyMissing(cb, src), {
           val k = key.loadKey(cb, src)
           et.buildEncoder(k.st, kb)
-              .apply(cb, k.get, ob)
+              .apply(cb, k, ob)
         })
       }
     }
@@ -144,7 +144,7 @@ class AppendOnlySetState(val kb: EmitClassBuilder[_], vt: VirtualTypeWithReq) ex
       init(cb)
       tree.bulkLoad(cb, ib) { (cb, ib, dest) =>
         val km = cb.newLocal[Boolean]("collect_as_set_deser_km", ib.readBoolean())
-        key.store(cb, dest, EmitCode.fromI(cb.emb)(cb => IEmitCode(cb, km, kDec(cb, region, ib).memoize(cb, "deserialize"))))
+        key.store(cb, dest, EmitCode.fromI(cb.emb)(cb => IEmitCode(cb, km, kDec(cb, region, ib))))
         cb.assign(size, size + 1)
       }
     }

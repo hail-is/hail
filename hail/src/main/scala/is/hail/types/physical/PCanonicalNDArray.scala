@@ -207,7 +207,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
             })
         }
 
-        result.get
+        result
       }
     }
 

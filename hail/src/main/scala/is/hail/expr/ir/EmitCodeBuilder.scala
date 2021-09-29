@@ -75,8 +75,6 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     (is, ix).zipped.foreach { (s, c) => s.store(this, c) }
   }
 
-  def memoize(pc: SCode, name: String): SValue = pc.memoize(this, name)
-
   def memoizeField(pc: SCode, name: String): SValue = {
     val f = emb.newPField(name, pc.st)
     assign(f, pc)
@@ -174,7 +172,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
             throw new RuntimeException(s"invoke ${ callee.mb.methodName }: arg $i: type mismatch:" +
               s"\n  got ${ pc.st }" +
               s"\n  expected ${ pcpt.st }")
-          memoize(pc, "_invoke").valueTuple.map(_.get)
+          pc.memoize(this, "_invoke").valueTuple.map(_.get)
         case (EmitParam(ec), SCodeEmitParamType(et)) =>
           if (!ec.emitType.equalModuloRequired(et)) {
             throw new RuntimeException(s"invoke ${callee.mb.methodName}: arg $i: type mismatch:" +

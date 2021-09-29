@@ -61,7 +61,7 @@ class DensifyState(val arrayVType: VirtualTypeWithReq, val kb: EmitClassBuilder[
 
       val arrayCode = arrayStorageType.loadCheapSCode(cb, arrayAddr)
       codecSpec.encodedType.buildEncoder(arrayCode.st, kb)
-        .apply(cb, arrayCode.get, ob)
+        .apply(cb, arrayCode, ob)
       cb += ob.writeInt(const(DensifyAggregator.END_SERIALIZATION))
     }
   }
@@ -72,7 +72,7 @@ class DensifyState(val arrayVType: VirtualTypeWithReq, val kb: EmitClassBuilder[
     (cb: EmitCodeBuilder, ib: Value[InputBuffer]) => {
 
       val decValue = codecSpec.encodedType.buildDecoder(arrayStorageType.virtualType, kb)
-        .apply(cb, region, ib).memoize(cb, "Densify_deserialize")
+        .apply(cb, region, ib)
 
       cb.assign(arrayAddr, arrayStorageType.store(cb, region, decValue, deepCopy = false))
       cb.assign(length, arrayStorageType.loadLength(arrayAddr))

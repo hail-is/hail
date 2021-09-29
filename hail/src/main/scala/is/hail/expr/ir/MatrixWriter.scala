@@ -232,12 +232,12 @@ case class SplitPartitionNativeWriter(
         cb += ob1.writeByte(1.asInstanceOf[Byte])
 
         spec1.encodedType.buildEncoder(row.st, cb.emb.ecb)
-          .apply(cb, row.get, ob1)
+          .apply(cb, row, ob1)
 
         cb += ob2.writeByte(1.asInstanceOf[Byte])
 
         spec2.encodedType.buildEncoder(row.st, cb.emb.ecb)
-          .apply(cb, row.get, ob2)
+          .apply(cb, row, ob2)
         cb.assign(n, n + 1L)
       }
 

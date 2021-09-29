@@ -214,7 +214,7 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
         cb.ifx(!km, {
           val k = keyed.loadKey(cb, _elt)
           keyEType.buildEncoder(k.st, kb)
-            .apply(cb, k.get, ob)
+            .apply(cb, k, ob)
         })
         keyed.loadStates(cb)
         nested.toCodeWithArgs(cb,
@@ -239,7 +239,7 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
         cb.assign(_elt, koff)
 
         val kc = EmitCode.fromI(cb.emb)(cb =>
-          IEmitCode(cb, ib.readBoolean(), keyEType.buildDecoder(keyType.virtualType, kb).apply(cb, region, ib).memoize(cb, "deserialize")))
+          IEmitCode(cb, ib.readBoolean(), keyEType.buildDecoder(keyType.virtualType, kb).apply(cb, region, ib)))
         initElement(cb, _elt, kc)
         nested.toCodeWithArgs(cb,
           { (cb, i, _) =>
