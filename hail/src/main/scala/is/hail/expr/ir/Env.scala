@@ -22,11 +22,10 @@ case class BindingEnv[V](
   scan: Option[Env[V]] = None,
   relational: Env[V] = Env.empty[V]
 ) {
-  val st = Thread.currentThread().getStackTrace.mkString("\n")
   def allEmpty: Boolean = eval.isEmpty && agg.forall(_.isEmpty) && scan.forall(_.isEmpty) && relational.isEmpty
 
   def promoteAgg: BindingEnv[V] = {
-    BindingEnv(agg.getOrElse(Env.empty[V]), scan = scan, relational = relational)
+    BindingEnv(agg.get, scan = scan, relational = relational)
   }
 
   def promoteScan: BindingEnv[V] = {
@@ -72,8 +71,7 @@ case class BindingEnv[V](
     if (agg.isDefined != newBindings.agg.isDefined || scan.isDefined != newBindings.scan.isDefined)
       throw new RuntimeException(s"found inconsistent agg or scan environments:" +
         s"\n  left: ${ agg.isDefined }, ${ scan.isDefined }" +
-        s"\n  right: ${ newBindings.agg.isDefined }, ${ newBindings.scan.isDefined }"
-      )
+        s"\n  right: ${ newBindings.agg.isDefined }, ${ newBindings.scan.isDefined }")
     if (allEmpty)
       newBindings
     else if (newBindings.allEmpty)

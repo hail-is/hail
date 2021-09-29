@@ -247,7 +247,6 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case AggFold(zero, seqOp, combOp, accumName, otherAccumName, _) =>
         addBindings(accumName, Array(zero, seqOp, combOp))
         addBindings(otherAccumName, Array(zero, seqOp, combOp))
-        // TODO: Needs more I think, and might be wrong.
       case AggExplode(a, name, aggBody, isScan) =>
         addElementBinding(name, a)
       case AggArrayPerElement(a, elt, idx, body, knownLength, isScan) =>

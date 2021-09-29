@@ -26,6 +26,7 @@ object Optimize {
         runOpt(ForwardLets(_), iter, "ForwardLets")
         runOpt(ForwardRelationalLets(_), iter, "ForwardRelationalLets")
         runOpt(PruneDeadFields(_), iter, "PruneDeadFields")
+
         iter += 1
       }
     }
