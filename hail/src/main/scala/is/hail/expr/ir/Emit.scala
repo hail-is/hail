@@ -1071,7 +1071,7 @@ class Emit[C](
         emitI(orderedCollection).map(cb) { a =>
           val e = EmitCode.fromI(cb.emb)(cb => this.emitI(elem, cb, region, env, container, loopEnv))
           val bs = new BinarySearch[C](mb, a.st.asInstanceOf[SContainer], e.emitType, keyOnly = onKey)
-          primitive(cb.memoize(bs.getClosestIndex(cb, a.get, e)))
+          primitive(bs.getClosestIndex(cb, a, e))
         }
 
       case x@ArraySort(a, left, right, lessThan) =>
@@ -1332,7 +1332,7 @@ class Emit[C](
                     }
                   })
 
-                  xP.constructByCopyingArray(shapeValues, stridesSettables, dataValue.get.asIndexable, cb, region)
+                  xP.constructByCopyingArray(shapeValues, stridesSettables, dataValue.asIndexable, cb, region)
                 }
               case _: TStream =>
                 EmitStream.produce(this, dataIR, cb, region, env, container)
@@ -1984,7 +1984,7 @@ class Emit[C](
         val codeRes = emitI(result, container = Some(newContainer))
 
         codeRes.map(cb) { pc =>
-          val res = cb.memoizeField(pc.get, "agg_res")
+          val res = cb.memoizeField(pc, "agg_res")
           newContainer.cleanup()
           res
         }
@@ -2518,7 +2518,6 @@ class Emit[C](
           val emitArgs = args.map(a => EmitCode.fromI(cb.emb)(emitI(a, _))).toFastIndexedSeq
           IEmitCode.multiMapEmitCodes(cb, emitArgs) { codeArgs =>
             cb.invokeSCode(meth, FastIndexedSeq[Param](CodeParam(region), CodeParam(errorID)) ++ codeArgs.map(pc => pc: Param): _*)
-              .memoize(cb, "Apply")
           }
         }
 

@@ -94,7 +94,7 @@ class SBaseStructPointerCode(val st: SBaseStructPointer, val a: Code[Long]) exte
 
   def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SBaseStructPointerValue = {
     val s = SBaseStructPointerSettable(sb, st, name)
-    cb.assign(s, this)
+    s.store(cb, this)
     s
   }
 

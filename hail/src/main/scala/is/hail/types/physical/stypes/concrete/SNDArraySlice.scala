@@ -132,7 +132,7 @@ final class SNDArraySliceSettable(
 class SNDArraySliceCode(val st: SNDArraySlice, val shape: IndexedSeq[Code[Long]], val strides: IndexedSeq[Code[Long]], val dataFirstElement: Code[Long]) extends SNDArrayCode {
   def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SNDArrayValue = {
     val s = SNDArraySliceSettable(sb, st, name)
-    cb.assign(s, this)
+    s.store(cb, this)
     s
   }
 

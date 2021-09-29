@@ -95,7 +95,7 @@ class SBinaryPointerCode(val st: SBinaryPointer, val a: Code[Long]) extends SBin
 
   def memoize(cb: EmitCodeBuilder, sb: SettableBuilder, name: String): SBinaryPointerValue = {
     val s = SBinaryPointerSettable(sb, st, name)
-    cb.assign(s, this)
+    s.store(cb, this)
     s
   }
 

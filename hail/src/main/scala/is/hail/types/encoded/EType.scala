@@ -65,7 +65,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   final def buildDecoder(t: Type, kb: EmitClassBuilder[_]): StagedDecoder = {
     val mb = buildDecoderMethod(t: Type, kb);
     { (cb: EmitCodeBuilder, r: Value[Region], ib: Value[InputBuffer]) =>
-      cb.invokeSCode(mb, r, ib).memoize(cb, "buildDecoder")
+      cb.invokeSCode(mb, r, ib)
     }
   }
 

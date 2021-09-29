@@ -53,14 +53,9 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     tmp
   }
 
-  def assign(s: SSettable, v: SCode): Unit = {
-    assert(s.st == v.st, s"type mismatch!\n  settable=${s.st}\n     passed=${v.st}")
-    s.store(this, v)
-  }
-
   def assign(s: SSettable, v: SValue): Unit = {
     assert(s.st == v.st, s"type mismatch!\n  settable=${s.st}\n     passed=${v.st}")
-    s.store(this, v.get)
+    s.store(this, v)
   }
 
   def assign(s: EmitSettable, v: EmitCode): Unit = {
@@ -75,7 +70,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     (is, ix).zipped.foreach { (s, c) => s.store(this, c) }
   }
 
-  def memoizeField(pc: SCode, name: String): SValue = {
+  def memoizeField(pc: SValue, name: String): SValue = {
     val f = emb.newPField(name, pc.st)
     assign(f, pc)
     f
@@ -212,13 +207,13 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     _invoke[T](callee, args: _*)
   }
 
-  def invokeSCode(callee: EmitMethodBuilder[_], args: Param*): SCode = {
+  def invokeSCode(callee: EmitMethodBuilder[_], args: Param*): SValue = {
     val st = callee.emitReturnType.asInstanceOf[SCodeParamType].st
     if (st.nSettables == 1)
-      st.fromValues(FastIndexedSeq(memoize(_invoke(callee, args: _*))(st.settableTupleTypes()(0)))).get
+      st.fromValues(FastIndexedSeq(memoize(_invoke(callee, args: _*))(st.settableTupleTypes()(0))))
     else {
       val tup = newLocal("invokepcode_tuple", _invoke(callee, args: _*))(callee.asmTuple.ti)
-      st.fromValues(callee.asmTuple.loadElementsAny(tup)).get
+      st.fromValues(callee.asmTuple.loadElementsAny(tup))
     }
   }
 

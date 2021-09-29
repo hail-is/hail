@@ -131,7 +131,7 @@ class SIntervalPointerCode(val st: SIntervalPointer, val a: Code[Long]) extends 
 
   def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SIntervalPointerValue = {
     val s = SIntervalPointerSettable(sb, st, name)
-    cb.assign(s, this)
+    s.store(cb, this)
     s
   }
 

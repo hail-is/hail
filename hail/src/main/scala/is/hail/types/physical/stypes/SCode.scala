@@ -165,6 +165,9 @@ trait SValue {
 trait SSettable extends SValue {
   def store(cb: EmitCodeBuilder, v: SCode): Unit
 
+  def store(cb: EmitCodeBuilder, v: SValue): Unit =
+    store(cb, v.get)
+
   def settableTuple(): IndexedSeq[Settable[_]]
 
   def load(): SCode = get

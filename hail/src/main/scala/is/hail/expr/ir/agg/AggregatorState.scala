@@ -208,13 +208,13 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
     (cb, ob: Value[OutputBuffer]) =>
       foreachField { case (_, es) =>
         if (es.emitType.required) {
-          ob.writePrimitive(cb, es.get(cb).get)
+          ob.writePrimitive(cb, es.get(cb))
         } else {
           es.toI(cb).consume(cb,
             cb += ob.writeBoolean(true),
             { sc =>
               cb += ob.writeBoolean(false)
-              ob.writePrimitive(cb, sc.get)
+              ob.writePrimitive(cb, sc)
             })
         }
       }
