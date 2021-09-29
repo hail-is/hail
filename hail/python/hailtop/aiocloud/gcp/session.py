@@ -10,4 +10,4 @@ class GCPSession(BaseSession):
         if credentials is None:
             credentials = Credentials.default_credentials()
         access_token = AccessToken(credentials)
-        super().__init__(access_token=access_token, parmas=params, **kwargs)
+        super().__init__(access_token=access_token, params=params, **kwargs)
