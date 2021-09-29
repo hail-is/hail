@@ -805,6 +805,21 @@ class MatrixTable(ExprContainer):
                     key_fields
                 )))
 
+    @typecheck_method(new_key=str)
+    def _key_rows_by_assert_sorted(self, *new_key):
+        rk_names = list(self.row_key)
+        i = 0
+        while (i < min(len(new_key), len(rk_names))):
+            if new_key[i] != rk_names[i]:
+                break
+            i += 1
+
+        if i < 1:
+            raise ValueError(
+                f'cannot implement an unsafe sort with no shared key:\n  new key: {new_key}\n  old key: {rk_names}')
+
+        return MatrixTable(ir.MatrixKeyRowsBy(self._mir, list(new_key), is_sorted=True))
+
     @typecheck_method(keys=oneof(str, Expression),
                       named_keys=expr_any)
     def key_rows_by(self, *keys, **named_keys) -> 'MatrixTable':

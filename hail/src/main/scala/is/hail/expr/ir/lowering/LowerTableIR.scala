@@ -862,6 +862,8 @@ object LowerTableIR {
           } else{
               val resultUID = genUID()
               val aggs = agg.Extract(newRow, resultUID, r, isScan = true)
+
+              val results: IR = ResultOp.makeTuple(aggs.aggs)
               val initState = RunAgg(
                 aggs.init,
                 MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }),
@@ -940,7 +942,7 @@ object LowerTableIR {
                         aggs.seqPerElt,
                         Let(
                           resultUID,
-                          ResultOp(0, aggs.aggs),
+                          results,
                           aggs.postAggIR),
                         aggs.states
                       )
@@ -1197,6 +1199,9 @@ object LowerTableIR {
       case TableAggregate(child, query) =>
         val resultUID = genUID()
         val aggs = agg.Extract(query, resultUID, r, false)
+
+        def results: IR = ResultOp.makeTuple(aggs.aggs)
+
         val lc = lower(child)
 
         val initState = Let("global", lc.globals,
@@ -1280,7 +1285,7 @@ object LowerTableIR {
                 Let("global", globals,
                   Let(
                     resultUID,
-                    ResultOp(0, aggs.aggs),
+                    results,
                     aggs.postAggIR)),
                 aggs.states
               )
@@ -1313,7 +1318,7 @@ object LowerTableIR {
                 )),
                 Let(
                   resultUID,
-                  ResultOp(0, aggs.aggs),
+                  results,
                   aggs.postAggIR),
                 aggs.states
               ))

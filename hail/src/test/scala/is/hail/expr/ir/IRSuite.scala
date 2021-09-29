@@ -2791,7 +2791,7 @@ class IRSuite extends HailSuite {
       InitOp(0, FastIndexedSeq(I32(2)), pCallStatsSig),
       SeqOp(0, FastIndexedSeq(i), pCollectSig),
       CombOp(0, 1, pCollectSig),
-      ResultOp(0, FastIndexedSeq(pCollectSig)),
+      ResultOp(0, pCollectSig),
       SerializeAggs(0, 0, BufferSpec.default, FastSeq(pCollectSig.state)),
       DeserializeAggs(0, 0, BufferSpec.default, FastSeq(pCollectSig.state)),
       CombOpValue(0, bin, pCollectSig),

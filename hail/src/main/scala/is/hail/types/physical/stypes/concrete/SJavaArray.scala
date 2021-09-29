@@ -93,7 +93,7 @@ class SJavaArrayStringValue(
       val iv = cb.memoize(i)
       IEmitCode(cb,
         isElementMissing(cb, iv),
-        new SJavaStringValue(cb.memoize(array(i))))
+        new SJavaStringValue(cb.memoize(array(iv))))
     }
   }
 

@@ -9,7 +9,7 @@ import is.hail.types.physical.stypes.concrete.{SNDArraySlice, SNDArraySliceCode,
 import is.hail.linalg.{BLAS, LAPACK}
 import is.hail.types.physical.stypes.primitives.SFloat64Code
 import is.hail.types.physical.{PCanonicalNDArray, PNDArray, PType}
-import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
+import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType, SValue}
 import is.hail.utils.{FastIndexedSeq, toRichIterable, valueToRichCodeRegion}
 
 import scala.collection.mutable
@@ -563,6 +563,7 @@ trait SNDArray extends SType {
 
   def elementType: SType
   def elementPType: PType
+  def elementEmitType: EmitType = EmitType(elementType, pType.elementType.required)
 
   def elementByteSize: Long
 

@@ -53,16 +53,6 @@ spec:
               secretKeyRef:
                 name: global-config
                 key: gcp_project
-          - name: ZONE
-            valueFrom:
-              secretKeyRef:
-                name: global-config
-                key: gcp_zone
-          - name: HAIL_GSUITE_ORGANIZATION
-            valueFrom:
-              secretKeyRef:
-                name: global-config
-                key: gsuite_organization
          resources:
            requests:
              cpu: "20m"
@@ -167,16 +157,6 @@ spec:
               secretKeyRef:
                 name: global-config
                 key: domain
-          - name: PROJECT
-            valueFrom:
-              secretKeyRef:
-                name: global-config
-                key: gcp_project
-          - name: ZONE
-            valueFrom:
-              secretKeyRef:
-                name: global-config
-                key: gcp_zone
           - name: HAIL_GSUITE_ORGANIZATION
             valueFrom:
               secretKeyRef:

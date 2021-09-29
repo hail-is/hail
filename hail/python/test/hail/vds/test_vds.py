@@ -1,4 +1,5 @@
 import os
+import pytest
 
 import hail as hl
 from hail.utils import new_temp_file
@@ -6,6 +7,41 @@ from ..helpers import startTestHailContext, stopTestHailContext, resource, fails
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
+
+
+# run this method to regenerate the combined VDS from 5 samples
+def generate_5_sample_vds():
+    paths = [os.path.join(resource('gvcfs'), '1kg_chr22', path) for path in ['HG00187.hg38.g.vcf.gz',
+                                                                             'HG00190.hg38.g.vcf.gz',
+                                                                             'HG00308.hg38.g.vcf.gz',
+                                                                             'HG00313.hg38.g.vcf.gz',
+                                                                             'HG00320.hg38.g.vcf.gz']]
+    parts = [
+        hl.Interval(start=hl.Struct(locus=hl.Locus('chr22', 1, reference_genome='GRCh38')),
+                    end=hl.Struct(locus=hl.Locus('chr22', hl.get_reference('GRCh38').contig_length('chr22') - 1,
+                                                 reference_genome='GRCh38')),
+                    includes_end=True)
+    ]
+    vcfs = hl.import_gvcfs(paths, parts, reference_genome='GRCh38', array_elements_required=False)
+    vds = hl.vds.combiner.combine_variant_datasets([hl.vds.combiner.transform_gvcf(mt) for mt in vcfs])
+    vds.variant_data = vds.variant_data._key_rows_by_assert_sorted('locus', 'alleles')
+    vds.write(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'), overwrite=True)
+
+
+def test_validate():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+    vds.validate()
+
+    with pytest.raises(ValueError):
+        hl.vds.VariantDataset(
+            vds.reference_data.annotate_rows(arr=[0, 1]).explode_rows('arr'),
+            vds.variant_data).validate()
+
+    with pytest.raises(ValueError):
+        hl.vds.VariantDataset(
+            vds.reference_data.annotate_entries(
+                END=hl.or_missing(vds.reference_data.locus.position % 2 == 0, vds.reference_data.END)),
+            vds.variant_data).validate()
 
 
 @fails_local_backend

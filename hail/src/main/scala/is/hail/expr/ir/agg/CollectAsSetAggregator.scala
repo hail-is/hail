@@ -8,7 +8,8 @@ import is.hail.io._
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.encoded.EType
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.SValue
+import is.hail.types.physical.stypes.concrete.SIndexablePointer
+import is.hail.types.physical.stypes.{EmitType, SValue}
 import is.hail.types.virtual.Type
 import is.hail.utils._
 
@@ -153,8 +154,10 @@ class CollectAsSetAggregator(elem: VirtualTypeWithReq) extends StagedAggregator 
   type State = AppendOnlySetState
 
   private val elemPType = elem.canonicalPType
-  val resultType: PCanonicalSet = PCanonicalSet(elemPType)
-  private[this] val arrayRep = resultType.arrayRep
+  val setPType = PCanonicalSet(elemPType)
+  val setSType = SIndexablePointer(setPType)
+  val resultEmitType: EmitType = EmitType(setSType, true)
+  private[this] val arrayRep = resultEmitType.storageType.asInstanceOf[PCanonicalSet].arrayRep
   val initOpTypes: Seq[Type] = Array[Type]()
   val seqOpTypes: Seq[Type] = Array[Type](elem.t)
 
@@ -172,13 +175,13 @@ class CollectAsSetAggregator(elem: VirtualTypeWithReq) extends StagedAggregator 
     other.foreach(cb) { (cb, k) => state.insert(cb, k) }
   }
 
-  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
-    assert(pt == resultType)
+  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
     val (pushElement, finish) = arrayRep.constructFromFunctions(cb, region, state.size, deepCopy = true)
     state.foreach(cb) { (cb, elt) =>
       pushElement(cb, elt.toI(cb))
     }
+    assert(arrayRep.required)
     // deepCopy is handled by `storeElement` above
-    resultType.storeAtAddress(cb, addr, region, finish(cb), deepCopy = false)
+    IEmitCode.present(cb, setPType.construct(finish(cb)))
   }
 }

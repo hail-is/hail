@@ -2,20 +2,20 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{UnitInfo, Value, _}
-import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder}
+import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.linalg.LinalgCodeUtils
 import is.hail.types.VirtualTypeWithReq
+import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayCode, SNDArrayValue}
 import is.hail.types.physical.{PCanonicalNDArray, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils.{FastIndexedSeq, valueToRichCodeRegion}
 
-class NDArrayMultiplyAddAggregator(nDVTyp: VirtualTypeWithReq) extends StagedAggregator {
-  private val ndTyp = nDVTyp.canonicalPType.setRequired(false).asInstanceOf[PCanonicalNDArray]
-
+class NDArrayMultiplyAddAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator {
   override type State = TypedRegionBackedAggState
 
-  override def resultType: PType = ndTyp
+  override def resultEmitType: EmitType = ndVTyp.canonicalEmitType
+  private val ndTyp = resultEmitType.storageType.asInstanceOf[PCanonicalNDArray] // TODO: Set required false?
 
   override def initOpTypes: Seq[Type] = Array[Type]()
 
@@ -85,9 +85,7 @@ class NDArrayMultiplyAddAggregator(nDVTyp: VirtualTypeWithReq) extends StagedAgg
     cb.invokeVoid(combOpMethod)
   }
 
-  override protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
-    state.get(cb).consume(cb,
-      ifMissing(cb),
-      { sc => pt.storeAtAddress(cb, addr, region, sc.asNDArray, deepCopy = true) })
+  override protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
+    state.get(cb).map(cb)(sv => sv.copyToRegion(cb, region, sv.st))
   }
 }

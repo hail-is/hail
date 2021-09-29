@@ -1214,8 +1214,8 @@ object IRParser {
         done(CombOp(i1, i2, aggSig))
       case "ResultOp" =>
         val i = int32_literal(it)
-        val aggSigs = p_agg_sigs(env.typEnv)(it)
-        done(ResultOp(i, aggSigs))
+        val aggSig = p_agg_sig(env.typEnv)(it)
+        done(ResultOp(i, aggSig))
       case "AggStateValue" =>
         val i = int32_literal(it)
         val sig = agg_state_signature(env.typEnv)(it)

@@ -7,9 +7,9 @@ import is.hail.expr.ir.{Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, 
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointerValue, SIndexablePointerValue}
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointerValue, SIndexablePointer, SIndexablePointerValue}
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.{SCode, SValue}
+import is.hail.types.physical.stypes.{EmitType, SCode, SValue}
 import is.hail.types.virtual.{TInt32, Type}
 import is.hail.utils._
 
@@ -545,7 +545,7 @@ class TakeByAggregator(valueType: VirtualTypeWithReq, keyType: VirtualTypeWithRe
 
   type State = TakeByRVAS
 
-  val resultType: PCanonicalArray = PCanonicalArray(valueType.canonicalPType, true)
+  val resultEmitType: EmitType = EmitType(SIndexablePointer(PCanonicalArray(valueType.canonicalPType)), true)
   val initOpTypes: Seq[Type] = Array(TInt32)
   val seqOpTypes: Seq[Type] = Array(valueType.t, keyType.t)
 
@@ -566,8 +566,8 @@ class TakeByAggregator(valueType: VirtualTypeWithReq, keyType: VirtualTypeWithRe
   protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = state.combine(cb, other)
 
 
-  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
-    // deepCopy is false because state.result does a deep copy
-    pt.storeAtAddress(cb, addr, region, state.result(cb, region, resultType), deepCopy = false)
+  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
+    // state.result does a deep copy
+    IEmitCode.present(cb, state.result(cb, region, resultEmitType.storageType.asInstanceOf[PCanonicalArray]))
   }
 }
