@@ -185,10 +185,12 @@ object ChildEnvWithoutBindings {
       case ApplyAggOp(init, _, _) => if (i < init.length) env.copy(agg = None) else env.promoteAgg
       case ApplyScanOp(init, _, _) => if (i < init.length) env.copy(scan = None) else env.promoteScan
       case AggFold(zero, seqOp, combOp, elementName, accumName, isScan) => (isScan, i) match {
+        case (true, 0) => env.copy(scan = None)
+        case (false, 0) => env.copy(agg = None)
         case (true, 1) => env.promoteScan
         case (false, 1) => env.promoteAgg
-        case (true, _) => env.copy(scan = None)
-        case (false, _) => env.copy(agg = None)
+        case (true, 2) => env.copy(eval = Env.empty, scan = None)
+        case (false, 2) => env.copy(eval = Env.empty, agg = None)
       }
       case CollectDistributedArray(_, _, _, _, _, _) => if (i == 2) BindingEnv(relational = env.relational) else env
       case MatrixAggregate(_, _) => if (i == 0) BindingEnv(relational = env.relational) else BindingEnv(Env.empty, agg = Some(Env.empty), relational = env.relational)

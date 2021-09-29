@@ -35,6 +35,6 @@ class FoldAggregator(val initOpTypes: Seq[Type], val seqOpTypes: Seq[Type], val 
   }
 
   override protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
-    state.get(cb).map(cb){ sv => sv.copyToRegion(cb, region, sv.st)}  // TODO: Confirm this is necessary
+    state.get(cb).map(cb){ sv => sv.copyToRegion(cb, region, sv.st)}
   }
 }

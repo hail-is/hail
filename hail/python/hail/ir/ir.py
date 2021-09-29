@@ -1898,7 +1898,7 @@ class AggFold(IR):
         self.other_accum_name = other_accum_name
         self.is_scan = is_scan
 
-        if self.comb_op.free_vars != set([accum_name, other_accum_name]):
+        if self.comb_op.free_vars - {accum_name, other_accum_name} != set([]):
             raise HailUserError("The comb_op function of fold cannot reference any fields on the Table or MatrixTable")
 
     def copy(self, zero, seq_op, comb_op):
