@@ -1,4 +1,3 @@
-from typing import List
 import aioredis
 import asyncio
 import base64
@@ -10,7 +9,6 @@ import signal
 from aiohttp import web
 import kubernetes_asyncio as kube
 from prometheus_async.aio.web import server_stats  # type: ignore
-from typing import Set
 from collections import defaultdict
 
 from hailtop.aiotools import AsyncFS

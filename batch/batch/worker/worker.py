@@ -1590,15 +1590,14 @@ class JVMJob(Job):
             worker.return_jvm(self.jvm)
             self.jvm = None
 
-        if self.log is not None:
-            log = self.log
-        else:
-            log = ''
+        job_log = self.log
+        if job_log is None:
+            job_log = ''
         # I really want this to be a timed step but I CANT RAISE EXCEPTIONS IN CLEANUP!!
         # with self.step('uploading_log'):
         log.info(f'{self}: uploading log')
         await worker.file_store.write_log_file(
-            self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', log
+            self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', job_log
         )
 
         self.end_time = time_msecs()
@@ -1848,9 +1847,10 @@ class JVM:
                         break
                     finally:
                         writer.close()
-                except ConnectionRefusedError as err:
+                except ConnectionRefusedError:
                     output = process.retrieve_and_clear_output()
                     log.warning(f'JVM-{index}: connection refused. {output}')
+                    raise
                 except FileNotFoundError as err:
                     attempts += 1
                     if attempts == 240:
