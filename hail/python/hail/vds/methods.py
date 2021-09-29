@@ -447,15 +447,17 @@ def segment_reference_blocks(ref: 'MatrixTable', intervals: 'Table') -> 'MatrixT
     refl_filtered = refl_filtered.union(dense.transmute(_ref_entries=dense.dense_ref))
 
     # rewrite reference blocks to end at the first of (interval end, reference block end)
-    refl_filtered = refl_filtered.annotate(interval_end=refl_filtered[interval_field].end.position - ~refl_filtered[interval_field].includes_end)
+    refl_filtered = refl_filtered.annotate(
+        interval_end=refl_filtered[interval_field].end.position - ~refl_filtered[interval_field].includes_end)
     refl_filtered = refl_filtered.annotate(
         _ref_entries=refl_filtered._ref_entries.map(
             lambda entry: entry.annotate(END=hl.min(entry.END, refl_filtered.interval_end))))
 
     return refl_filtered._unlocalize_entries('_ref_entries', '_ref_cols', list(ref.col_key))
 
+
 @typecheck(ref=MatrixTable, intervals=Table, min_gq=int)
-def interval_coverage(ref: 'MatrixTable', intervals: 'Table', min_gq = 0) -> 'MatrixTable':
+def interval_coverage(ref: 'MatrixTable', intervals: 'Table', min_gq=0) -> 'MatrixTable':
     split = segment_reference_blocks(ref, intervals)
     per_interval = split.group_rows_by(interval=intervals.key[0]) \
         .aggregate(gq_over_0=hl.agg.filter(split.GQ > min_gq, hl.agg.sum(split.END - split.locus.position)))
