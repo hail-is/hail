@@ -7,7 +7,7 @@ import traceback
 
 from hailtop.aiotools import BackgroundTaskManager
 from hailtop.utils import time_msecs, Notice, retry_transient_errors
-from hailtop.httpx import client_session
+from hailtop.httpx import client_session, ClientSession
 from gear import Database
 
 from ..batch import batch_record_to_dict
@@ -383,6 +383,7 @@ async def schedule_job(app, record, instance):
 
     file_store: FileStore = app['file_store']
     db: Database = app['db']
+    client_session: ClientSession = app['client_session']
 
     batch_id = record['batch_id']
     job_id = record['job_id']
@@ -422,10 +423,10 @@ async def schedule_job(app, record, instance):
         log.info(f'schedule job {id} on {instance}: made job config')
 
         try:
-            async with aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=2)) as session:
-                url = f'http://{instance.ip_address}:5000' f'/api/v1alpha/batches/jobs/create'
-                await session.post(url, json=body)
-                await instance.mark_healthy()
+            await client_session.post(f'http://{instance.ip_address}:5000/api/v1alpha/batches/jobs/create',
+                                      json=body,
+                                      timeout=aiohttp.ClientTimeout(total=2))
+            await instance.mark_healthy()
         except aiohttp.ClientResponseError as e:
             await instance.mark_healthy()
             if e.status == 403:
