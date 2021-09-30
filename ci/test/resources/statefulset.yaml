@@ -53,10 +53,6 @@ spec:
              mountPath: /ssl-config
              readOnly: true
           env:
-           - name: HAIL_IP
-             value: "{{ global.ip }}"
-           - name: HAIL_DOMAIN
-             value: "{{ global.domain }}"
            - name: HAIL_DEPLOY_CONFIG_FILE
              value: /deploy-config/deploy-config.json
            - name: HAIL_SHA

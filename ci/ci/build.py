@@ -1,6 +1,7 @@
 import abc
 import json
 import logging
+import os
 from collections import defaultdict, Counter
 from shlex import quote as shq
 import yaml
@@ -9,24 +10,21 @@ from typing import Dict, List, Optional
 from hailtop.utils import flatten
 from .utils import generate_token
 from .environment import (
-    GCP_PROJECT,
-    GCP_ZONE,
     DOCKER_PREFIX,
-    DOCKER_ROOT_IMAGE,
-    HAIL_TEST_GCS_BUCKET,
-    HAIL_TEST_REQUESTER_PAYS_GCS_BUCKET,
     DOMAIN,
-    IP,
     CI_UTILS_IMAGE,
     BUILDKIT_IMAGE,
     DEFAULT_NAMESPACE,
-    KUBERNETES_SERVER_URL,
     BUCKET,
 )
 from .globals import is_test_deployment
 
 log = logging.getLogger('ci')
 
+global_config = {}
+for field in os.listdir('/global-config/'):
+    with open(f'/global-config/{field}') as value:
+        global_config[field] = value.read()
 
 pretty_print_log = "jq -Rr '. as $raw | try \
 (fromjson | if .hail_log == 1 then \
@@ -172,17 +170,7 @@ class Step(abc.ABC):
 
     def input_config(self, code, scope):
         config = {}
-        config['global'] = {
-            'project': GCP_PROJECT,
-            'zone': GCP_ZONE,
-            'docker_prefix': DOCKER_PREFIX,
-            'docker_root_image': DOCKER_ROOT_IMAGE,
-            'hail_test_gcs_bucket': HAIL_TEST_GCS_BUCKET,
-            'hail_test_requester_pays_gcs_bucket': HAIL_TEST_REQUESTER_PAYS_GCS_BUCKET,
-            'domain': DOMAIN,
-            'ip': IP,
-            'k8s_server_url': KUBERNETES_SERVER_URL,
-        }
+        config['global'] = global_config
         config['token'] = self.token
         config['deploy'] = scope == 'deploy'
         config['scope'] = scope
