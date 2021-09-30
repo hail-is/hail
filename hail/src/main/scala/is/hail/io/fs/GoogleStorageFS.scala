@@ -258,13 +258,16 @@ class GoogleStorageFS(val serviceAccountKey: String) extends FS {
   def delete(filename: String, recursive: Boolean): Unit = {
     val (bucket, path) = getBucketPath(filename)
     if (recursive) {
-      val it = storage.list(bucket, BlobListOption.prefix(path))
-        .getValues.iterator.asScala
+      val it = retryTransientErrors {
+        storage.list(bucket, BlobListOption.prefix(path))
+          .getValues.iterator.asScala
+      }
       while (it.hasNext) {
         storage.delete(it.next().getBlobId)
       }
-    } else
+    } else {
       storage.delete(bucket, path)
+    }
   }
 
   def glob(filename: String): Array[FileStatus] = {
@@ -326,7 +329,9 @@ class GoogleStorageFS(val serviceAccountKey: String) extends FS {
     if (!path.endsWith("/"))
       path = path + "/"
 
-    val blobs = storage.list(bucket, BlobListOption.prefix(path), BlobListOption.currentDirectory())
+    val blobs = retryTransientErrors {
+      storage.list(bucket, BlobListOption.prefix(path), BlobListOption.currentDirectory())
+    }
 
     blobs.getValues.iterator.asScala
       .filter(b => b.getName != path) // elide directory markers created by Hadoop
@@ -341,7 +346,9 @@ class GoogleStorageFS(val serviceAccountKey: String) extends FS {
     if (path == "")
       return new GoogleStorageFileStatus(s"gs://$bucket", null, 0, true)
 
-    val blobs = storage.list(bucket, BlobListOption.prefix(path), BlobListOption.currentDirectory())
+    val blobs = retryTransientErrors {
+      storage.list(bucket, BlobListOption.prefix(path), BlobListOption.currentDirectory())
+    }
 
     val it = blobs.getValues.iterator.asScala
     while (it.hasNext) {
