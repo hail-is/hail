@@ -174,8 +174,6 @@ dependencies {
         transitive = false
     }
 
-    bundled group: 'org.slf4j', name: 'slf4j-api', version: '1.7.25'
-
     def elasticMajorVersion = System.getProperty("elasticsearch.major-version", "7")
     if (elasticMajorVersion != "7") {
         throw new UnsupportedOperationException("elasticsearch.major-version must be 7")
