@@ -129,7 +129,7 @@ class ModuleBuilder() {
             "()V",
             false,
             UnitInfo,
-            FastIndexedSeq(lir.load(ctor._this.asInstanceOf[LocalRef[_]].l))))
+            FastIndexedSeq(lir.load(ctor._this.asInstanceOf[AbstractLocalRef[_]].l))))
         cb += new VCode(L, L, null)
         fields.zipWithIndex.foreach { case (f, i) =>
             cb += f.putAny(ctor._this, ctor.getArg(i + 1)(f.ti).get)
@@ -376,7 +376,7 @@ class ClassBuilder[C](
     }
   }
 
-  def _this: Value[C] = new LocalRef[C](new lir.Parameter(null, 0, ti))
+  def _this: Value[C] = new ConstLocalRef[C](new lir.Parameter(null, 0, ti))
 
   val fieldBuilder: SettableBuilder = new SettableBuilder {
     def newSettable[T](name: String)(implicit tti: TypeInfo[T]): Settable[T] = genFieldThisRef[T](name)

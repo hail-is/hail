@@ -1256,6 +1256,7 @@ object Value {
 
 trait Value[+T] { self =>
   def get: Code[T]
+  def isConst: Boolean = false
 }
 
 trait Settable[T] extends Value[T] {
@@ -1295,9 +1296,15 @@ class StaticFieldRef[T: TypeInfo](f: StaticField[T]) extends Settable[T] {
   def store(rhs: Code[T]): Code[Unit] = f.put(rhs)
 }
 
-class LocalRef[T](val l: lir.Local) extends Settable[T] {
-  def get: Code[T] = Code(lir.load(l))
+abstract class AbstractLocalRef[T](val l: lir.Local) extends Value[T] {
+  override def get: Code[T] = Code(lir.load(l))
+}
 
+class ConstLocalRef[T](l: lir.Local) extends AbstractLocalRef[T](l) {
+  override def isConst: Boolean = true
+}
+
+class LocalRef[T](l: lir.Local) extends AbstractLocalRef[T](l) with Settable[T] {
   def store(rhs: Code[T]): Code[Unit] = {
     assert(rhs.v != null)
     rhs.end.append(lir.store(l, rhs.v))

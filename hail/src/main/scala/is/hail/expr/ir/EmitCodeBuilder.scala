@@ -76,20 +76,64 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     f
   }
 
-  def memoize[T: TypeInfo](v: Code[T], optionalName: String = ""): Value[T] = v match {
+  def memoize[T: TypeInfo](v: Code[T]): Value[T] = memoize(v, "")
+
+  def memoize[T: TypeInfo](v: Code[T], optionalName: String): Value[T] = v match {
     case b: ConstCodeBoolean => coerce[T](b.b)
-    case _ => newLocal[T]("memoize" + optionalName, v)
+    case _ =>
+      val l = new ConstLocalRef[T](mb.lmethod.newLocal("memoize" + optionalName, typeInfo[T]))
+      assert(v.v != null)
+      v.end.append(lir.store(l.l, v.v))
+      val newC = new VCode(v.start, v.end, null)
+      v.clear()
+      append(newC)
+      l
+  }
+
+  def memoize[T: TypeInfo](v: Value[T]): Value[T] = memoize(v, "")
+
+  def memoize[T: TypeInfo](v: Value[T], optionalName: String): Value[T] = {
+    if (v.isConst) {
+      v
+    } else {
+      val l = new ConstLocalRef[T](mb.lmethod.newLocal("memoize" + optionalName, typeInfo[T]))
+      assert(v.v != null)
+      v.end.append(lir.store(l.l, v.v))
+      val newC = new VCode(v.start, v.end, null)
+      v.clear()
+      append(newC)
+      l
+    }
   }
 
   def memoizeField[T: TypeInfo](v: Code[T]): Value[T] = {
     newField[T]("memoize", v)
   }
 
-  def memoizeAny(v: Code[_], ti: TypeInfo[_]): Value[_] = {
-    val l = newLocal("memoize")(ti)
-    append(l.storeAny(v))
-    l
+  def memoizeAny(v: Code[_], ti: TypeInfo[_]): Value[_] = v match {
+    case b: ConstCodeBoolean => b.b
+    case _ =>
+      val l = new ConstLocalRef(mb.lmethod.newLocal("memoize", ti))
+      assert(v.v != null)
+      v.end.append(lir.store(l.l, v.v))
+      val newC = new VCode(v.start, v.end, null)
+      v.clear()
+      append(newC)
+      l
   }
+
+  def memoizeAny(v: Value[_], ti: TypeInfo[_]): Value[_] =
+    if (v.isConst) {
+      v
+    } else {
+      val l = new ConstLocalRef(mb.lmethod.newLocal("memoize", ti))
+      assert(v.v != null)
+      v.end.append(lir.store(l.l, v.v))
+      val newC = new VCode(v.start, v.end, null)
+      v.clear()
+      append(newC)
+      l
+    }
 
   def memoize(v: EmitCode): EmitValue =
     memoize(v, "memoize")
