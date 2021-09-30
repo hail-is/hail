@@ -481,9 +481,9 @@ object MatrixNativeMultiWriter {
 }
 
 case class MatrixNativeMultiWriter(
-  prefix: String,
+  paths: IndexedSeq[String],
   overwrite: Boolean = false,
   stageLocally: Boolean = false
 ) {
-  def apply(ctx: ExecuteContext, mvs: IndexedSeq[MatrixValue]): Unit = MatrixValue.writeMultiple(ctx, mvs, prefix, overwrite, stageLocally)
+  def apply(ctx: ExecuteContext, mvs: IndexedSeq[MatrixValue]): Unit = MatrixValue.writeMultiple(ctx, mvs, paths, overwrite, stageLocally)
 }

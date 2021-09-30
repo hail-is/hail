@@ -13,7 +13,9 @@ from hail.utils.java import Env
            stage_locally=bool)
 def write_matrix_tables(mts: List[MatrixTable], prefix: str, overwrite: bool = False,
                         stage_locally: bool = False):
-    writer = MatrixNativeMultiWriter(prefix, overwrite, stage_locally)
+    length = len(str(len(mts) - 1))
+    paths = [f"{prefix}{str(i).rjust(length, '0')}.mt" for i in range(len(mts))]
+    writer = MatrixNativeMultiWriter(paths, overwrite, stage_locally)
     Env.backend().execute(MatrixMultiWrite([mt._mir for mt in mts], writer))
 
 
