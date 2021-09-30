@@ -1884,5 +1884,6 @@ head_tail_test_data = [
 
 
 @pytest.mark.parametrize("test", head_tail_test_data)
+@skip_when_service_backend('flaky OOMs')
 def test_table_head_and_tail(test):
     test()
