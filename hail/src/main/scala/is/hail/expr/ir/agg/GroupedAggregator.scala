@@ -37,7 +37,8 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
   val regionIdx: Value[Int] = new Value[Int] {
     def get: Code[Int] = Region.loadInt(storageType.fieldOffset(offset, 1))
   }
-  val container = new TupleAggregatorState(kb, states, region, containerOffset(offset), regionIdx)
+  val
+  container = new TupleAggregatorState(kb, states, region, containerOffset(offset), regionIdx)
 
   def isKeyMissing(off: Code[Long]): Code[Boolean] =
     storageType.isFieldMissing(off, 0)

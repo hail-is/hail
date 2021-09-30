@@ -5,12 +5,12 @@ import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.ir.agg.{AggStateSig, AppendOnlyBTree, DictState, GroupedBTreeKey, PhysicalAggSig, StateTuple, TupleAggregatorState}
 import is.hail.expr.ir.orderings.StructOrdering
-import is.hail.types.physical.stypes.concrete.SUnreachable
+import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SStackStruct, SUnreachable}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Code, SInt64Code}
 import is.hail.types.physical.stypes.{EmitType, Int64SingleCodeType, SCode, SType}
-import is.hail.types.physical.{PCanonicalArray, PCanonicalStruct, PInt32, PInt64, PInt64Required}
-import is.hail.types.virtual.{TInt64, TInterval, TStream}
+import is.hail.types.physical.{PCanonicalArray, PCanonicalBinary, PCanonicalBinaryRequired, PCanonicalStruct, PInt32, PInt64, PInt64Required}
+import is.hail.types.virtual.{TBaseStruct, TBinary, TInt64, TInterval, TStream, TStruct, TTuple, TupleField}
 import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.utils._
 
@@ -258,7 +258,7 @@ object EmitStream {
             })
 
         }
-      case StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, name,
+      case x@StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, name,
         aggSignatures: IndexedSeq[PhysicalAggSig]) =>
         val region = mb.genFieldThisRef[Region]("stream_buff_agg_region")
         produce(streamChild, cb)
@@ -272,7 +272,6 @@ object EmitStream {
                 region = childProducer.elementRegion)
             }
             val newKeyVal = newKeyResultCode.memoize(cb, "stream_buff_agg_new_key").get(cb).asInstanceOf[SBaseStructValue]
-
             val newKeyType = newKeyVal.st._typeWithRequiredness
             val newKeyVType = new VirtualTypeWithReq(newKeyVal.st.virtualType, newKeyType)
             val kb = mb.ecb
@@ -282,10 +281,16 @@ object EmitStream {
             val maxSize = mb.genFieldThisRef[Int]("stream_buff_agg_max_size")
             val elementArray = mb.genFieldThisRef[Array[Long]]("stream_buff_agg_element_array")
             val idx = mb.genFieldThisRef[Int]("stream_buff_agg_idx")
+            val returnType= x.typ.asInstanceOf[TBaseStruct]
+            val tupleFieldTypes = aggSignatures.map(_ => TBinary)
+            val tupleFields = (0 to tupleFieldTypes.length).zip(tupleFieldTypes).map { case (fieldIdx, fieldType) => TupleField(fieldIdx, fieldType) }.toIndexedSeq
+            val serializedAggSType = SStackStruct(TTuple(tupleFields), tupleFieldTypes.map(_ => EmitType(SBinaryPointer(PCanonicalBinaryRequired), true)).toIndexedSeq)
+            val keyAndAggFields = newKeyVal.st.fieldEmitTypes ++ serializedAggSType.fieldEmitTypes
+            val returnSType = SStackStruct(returnType, keyAndAggFields)
+            val newStreamElem = mb.newEmitField("stream_buff_agg_new_stream_elem", EmitType(returnSType, true))
 //            val initStateAddress: Settable[Long] = mb.genFieldThisRef[Long]("stream_buff_agg_init_add")
 //            val nodeAddress = mb.genFieldThisRef[Long]("stream_buff_agg_node_add")
 //            val root: Settable[Long] = kb.genFieldThisRef[Long]("stream_buff_agg_root")
-            val size: Settable[Int] = mb.genFieldThisRef[Int]("stream_buff_agg_size")
             val numElemInArray = mb.genFieldThisRef[Int]("stream_buff_agg_num_elem_in_size")
 //            val initContainer = new TupleAggregatorState(kb, nested, region, initStateAddress)
 //            val keyed = new GroupedBTreeKey(newKeyResultCode.emitType.copiedType.storageType, kb, region, nodeAddress, nested)
@@ -369,8 +374,19 @@ object EmitStream {
                   cb.assign(produceElementMode, false)
                   cb.ifx(childStreamEnded, cb.goto(LendOfStream), cb.goto(LproduceElement))
                 })
-                val elementAddress = elementArray. loadFromIndex(cb, region, idx).memoize(cb, "stream_buff_agg_elem_add")
+                val elementAddress = cb.memoize(elementArray(idx))
+                val key = dictState.keyed.storageType.loadCheapSCode(cb, elementAddress).loadField(cb, "kt").memoize(cb, "steam_buff_agg_key")
+                dictState.loadContainer(cb, key.load)
+                val AggContainer(_, tupleAggState, _) = container.get
+                val serializedAggValue = tupleAggState.states.states.map(state => state.serializeToRegion(cb, PCanonicalBinary(), region).memoize(cb, "stream_buff_agg_value"))
+                val serializedAggEmitCodes = serializedAggValue.map(aggValue => EmitCode.present(mb, aggValue.get))
+                val serializedAggTupleSValue = SStackStruct.constructFromArgs(cb, region, serializedAggSType.virtualType, serializedAggEmitCodes: _*).memoize(cb, "stream_buff_agg_agg_tuple_SValue")
+                val keyValue = key.get(cb).asInstanceOf[SBaseStructValue]
+                val sStructToReturn = keyValue.get.insert(cb, region, returnType.asInstanceOf[TStruct], ("agg", EmitCode.present(mb, serializedAggTupleSValue.get)))
+                cb.assign(newStreamElem, EmitCode.present(mb, sStructToReturn))
+
                 cb.goto(LproduceElementDone)
+                //
 
 
                 // cb.whileLoop(size < 8) picked random value, not sure how to also end it if the stream has no more

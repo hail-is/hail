@@ -133,7 +133,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
         (0 until maxElements - startIdx).foreach { newIdx =>
           copyFrom(cb, newNode, newIdx, node, newIdx + startIdx)
           setKeyMissing(cb, node, newIdx + startIdx)
-        }f
+        }
 
       def insertKey(cb: EmitCodeBuilder, ev: EmitValue, c: Code[Long]): Code[Long] = {
         val upperBound = cb.newLocal("insertKey_upper_bound", maxElements)
