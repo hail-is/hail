@@ -4,7 +4,7 @@ import is.hail.annotations.{Annotation, ExtendedOrdering, Region, SafeRow, Unsaf
 import is.hail.asm4s._
 import is.hail.expr.ir.IRParser
 import is.hail.types.encoded.EType
-import is.hail.io.{BufferSpec, TypedCodecSpec}
+import is.hail.io.{BufferSpec, StreamBufferSpec, TypedCodecSpec}
 import is.hail.HailContext
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex, Validate}
 import is.hail.expr.ir.lowering._
@@ -422,7 +422,7 @@ class SparkBackend(
             val codec = TypedCodecSpec(
               EType.defaultFromPType(elementType), elementType.virtualType, bs)
             assert(t.isFieldDefined(off, 0))
-            (elementType.toString, codec.encode(ctx, elementType, t.loadField(off, 0)))
+            (codec.encodedType.toString, codec.encode(ctx, elementType, t.loadField(off, 0)))
         }
       }
     }

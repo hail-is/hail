@@ -6,6 +6,40 @@ def encode(expression, codec='{"name":"BlockingBufferSpec","blockSize":65536,"ch
     return (v._1(), v._2())
 
 
-def decode(typ, ptype_string, bytes, codec='{"name":"BlockingBufferSpec","blockSize":65536,"child":{"name":"StreamBlockBufferSpec"}}'):
+def decode_through_JSON(typ, ptype_string, bytes, codec='{"name":"BlockingBufferSpec","blockSize":65536,"child":{"name":"StreamBlockBufferSpec"}}'):
     return typ._from_json(
         Env.spark_backend('decode')._jbackend.decodeToJSON(ptype_string, bytes, codec))
+
+
+def read_int(byte_array, offset):
+    return int.from_bytes(byte_array[offset:offset+4], byteorder="little")
+
+class EType:
+    def __init__(self, required):
+        self.required = required
+
+    def decode(self, byte_array, offset):
+        pass
+
+class EInt32(EType):
+    def __init__(self, required=False):
+        super().__init__(required)
+
+    def decode(self, byte_array, offset):
+        return read_int(byte_array, offset)
+
+
+
+
+class EArray(EType):
+    def __init__(self, element_type, required=False):
+        super().__init__(required)
+        self.element_type = element_type
+
+    def decode(self, byte_array, offset):
+        len = read_int(byte_array, offset)
+        data_start = offset + 4 if self.element_type.required else None
+        return [self.element_type.decode(byte_array, data_start + i * 4) for i in range(len)]
+
+def decode(e_type, bytes):
+    return e_type.decode(bytes, 4)
