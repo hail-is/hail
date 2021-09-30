@@ -1377,9 +1377,19 @@ async def get_job(request, userdata, batch_id):  # pylint: disable=unused-argume
 async def ui_get_job(request, userdata, batch_id):
     app = request.app
     job_id = int(request.match_info['job_id'])
+    session = await aiohttp_session.get_session(request)
+
+    async def job_log_if_exists():
+        try:
+            return _get_job_log(app, batch_id, job_id)
+        except FileNotFoundError:
+            set_message(session, f'Logs for this job are missing.', 'error')
+            return ''
 
     job, attempts, job_log = await asyncio.gather(
-        _get_job(app, batch_id, job_id), _get_attempts(app, batch_id, job_id), _get_job_log(app, batch_id, job_id)
+        _get_job(app, batch_id, job_id),
+        _get_attempts(app, batch_id, job_id),
+        job_log_if_exists()
     )
 
     job['duration'] = humanize_timedelta_msecs(job['duration'])
