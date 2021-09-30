@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 import sys
+import uuid
 
 from typing import Dict, List, Optional, Union
 
@@ -11,6 +12,7 @@ import hail as hl
 from hail.utils.java import warning
 from hail.experimental.vcf_combiner.vcf_combiner import calculate_even_genome_partitioning
 from .. import VariantDataset
+from .combine import combine_variant_datasets, transform_gvcf
 
 
 VDSMetadata = collections.namedtuple('VDSMetadata', ['path', 'n_samples'])
@@ -44,7 +46,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         'gvcf_import_intervals',
     ]
 
-    __slots__ = tuple(__serialized_slots__ + ['__vds_cache'])
+    __slots__ = tuple(__serialized_slots__ + ['uuid', 'job_id', '__vds_cache'])
 
     def __init__(self,
                  *,
@@ -91,6 +93,8 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         self.gvcf_sample_names = gvcf_sample_names
         self.gvcf_external_header = gvcf_external_header
         self.gvcf_import_intervals = gvcf_import_intervals
+        self.uuid = uuid.uuid4()
+        self.job_id = 0
         self.__vds_cache = vds_cache
 
     def __eq__(self, other):
@@ -100,6 +104,10 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
             if getattr(self, slot) != getattr(other, slot):
                 return False
         return True
+
+    @property
+    def finished(self) -> bool:
+        return not self.gvcfs and not self.vdses
 
     def save(self):
         fs = hl.current_backend().fs
@@ -133,10 +141,6 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                 combiner.save_path = path
             return combiner
 
-    @property
-    def finished(self) -> bool:
-        return not self.gvcfs and not self.vdses
-
     def to_dict(self) -> dict:
         intervals_typ = hl.tarray(hl.tinterval(hl.tlocus(self.reference_genome)))
         return {'name': self.__class__.__name__,
@@ -154,6 +158,60 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                 'gvcf_sample_names': self.gvcf_sample_names,
                 'gvcf_import_intervals': intervals_typ._convert_to_json(self.gvcf_import_intervals),
                 }
+
+    def step(self):
+        if self.gvcfs:
+            self._step_gvcfs()
+        else:
+            self._step_vdses()
+        if not self.finished:
+            self.job_id += 1
+
+    def _step_vdses(self):
+        pass
+
+    def _step_gvcfs(self):
+        temp_path = self._temp_out_path(f'gvcf-combine_job{self.job_id}/dataset_')
+        step = self.branch_factor
+        files_to_merge = self.gvcfs[:self.gvcf_batch_size * step]
+        self.gvcfs = self.gvcfs[self.gvcf_batch_size * step:]
+        if self.gvcf_external_header is not None:
+            sample_names = self.gvcf_sample_names[:self.gvcf_batch_size * step]
+            self.gvcf_sample_names = self.gvcf_sample_names[self.gvcf_batch_size * step:]
+        else:
+            sample_names = None
+        merge_vds = []
+        while files_to_merge:
+            inputs, files_to_merge = files_to_merge[:step], files_to_merge[step:]
+            if sample_names is not None:
+                names, sample_names = sample_names[:step], sample_names[step:]
+            vdses = [transform_gvcf(vcf)
+                     for vcf in hl.import_gvcfs(inputs,
+                                                self.gvcf_import_intervals,
+                                                array_elements_required=False,
+                                                _external_header=self.gvcf_external_header,
+                                                _external_sample_ids=[[name] for name in names] if sample_names is not None else None,
+                                                reference_genome=self.reference_genome,
+                                                contig_recoding=self.contig_recoding)]
+            merge_vds.append(combine_variant_datasets(vdses))
+        if self.finished and len(merge_vds) == 1:
+            merge_vds[0].write(self.output_path)
+            return
+
+        merge_metadata = []
+        count = 0
+        pad = len(str(len(merge_vds) - 1))
+        for _ in merge_vds:
+            merge_metadata.append(VDSMetadata(path=temp_path + str(count).rjust(pad, '0') + '.vds',
+                                  n_samples=len(vdses)))
+            count += 1
+        paths = [md.path for md in merge_metadata]
+        hl.vds.write_variant_datasets(merge_vds, paths, overwrite=True)
+        self.vdses.extend(merge_metadata)
+        self.vdses.sort(key=lambda x: x.n_samples, reverse=True)
+
+    def _temp_out_path(self, extra):
+        return os.path.join(self.temp_path, 'combiner-intermidiates', f'{self.uuid}_{extra}')
 
 
 def new_combiner(*,
@@ -284,6 +342,8 @@ def new_combiner(*,
             n_samples = vds.n_samples()
             cache[path] = vds
             vdses.append(VDSMetadata(path, n_samples))
+
+    vdses.sort(key=lambda x: x.n_samples, reverse=True)
 
     return VariantDatasetCombiner(save_path=save_path,
                                   output_path=output_path,
