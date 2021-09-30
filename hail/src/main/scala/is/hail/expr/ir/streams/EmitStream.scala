@@ -314,7 +314,6 @@ object EmitStream {
                 */
               override def initialize(cb: EmitCodeBuilder): Unit = {
                 childProducer.initialize(cb)
-                dictState.init(cb, { cb => emitVoid(initAggs, cb) })
                 cb.assign(childStreamEnded, false)
                 cb.assign(produceElementMode, false)
                 cb.assign(idx, -1)
@@ -338,7 +337,7 @@ object EmitStream {
                 * it is the responsibility of consumers to implement the right memory management semantics
                 * based on this flag.
                 */
-              override val requiresMemoryManagementPerElement: Boolean = _
+              override val requiresMemoryManagementPerElement: Boolean = false
               /**
                 * The `LproduceElement` label is the mechanism by which consumers drive iteration. A consumer
                 * jumps to `LproduceElement` when it is ready for an element. The code block at this label,
@@ -348,6 +347,8 @@ object EmitStream {
               override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
                 val elementProduceLabel = CodeLabel()
                 cb.ifx(produceElementMode, cb.goto(elementProduceLabel))
+                dictState.clearTree(cb)
+                dictState.init(cb, { cb => emitVoid(initAggs, cb) })
                 cb.goto(childProducer.LproduceElement)
                 cb.define(childProducer.LproduceElementDone)
                 cb.assign(childEltField, childProducer.element)
@@ -383,7 +384,7 @@ object EmitStream {
                 val serializedAggTupleSValue = SStackStruct.constructFromArgs(cb, region, serializedAggSType.virtualType, serializedAggEmitCodes: _*).memoize(cb, "stream_buff_agg_agg_tuple_SValue")
                 val keyValue = key.get(cb).asInstanceOf[SBaseStructValue]
                 val sStructToReturn = keyValue.get.insert(cb, region, returnType.asInstanceOf[TStruct], ("agg", EmitCode.present(mb, serializedAggTupleSValue.get)))
-                cb.assign(newStreamElem, EmitCode.present(mb, sStructToReturn))
+                cb.assign(newStreamElem, EmitCode.present(mb, sStructToReturn).toI(cb))
 
                 cb.goto(LproduceElementDone)
                 //
@@ -396,14 +397,16 @@ object EmitStream {
                 * Stream element. This value is valid after the producer jumps to `LproduceElementDone`,
                 * until a consumer jumps to `LproduceElement` again, or calls `close()`.
                 */
-              override val element: EmitCode = _
+              override val element: EmitCode = newStreamElem.load
 
               /**
                 * Stream producer cleanup method. If `initialize` is called, then the `close` method
                 * must be called as well to properly handle owned resources like files.
                 */
-              override def close(cb: EmitCodeBuilder): Unit = ???
+              override def close(cb: EmitCodeBuilder): Unit =
+                childProducer.close(cb)
               }
+            SStreamCode(producer)
           }
 
 

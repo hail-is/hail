@@ -195,6 +195,11 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
     tree.deepCopy(cb, Region.loadAddress(typ.loadField(src, 2)))
   }
 
+  def clearTree(cb: EmitCodeBuilder): Unit = {
+    newState(cb, initStatesOffset.get)
+    region.clear()
+  }
+
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
     val serializers = nested.states.map(_.serialize(codec))
 
