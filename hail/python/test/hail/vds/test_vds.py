@@ -171,6 +171,7 @@ def test_vcf_vds_combiner_equivalence():
     smt = smt.key_rows_by('locus', 'alleles')
     assert smt._same(smt_from_vds)
 
+@fails_service_backend(reason='persist')
 def test_filter_samples_and_merge():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
 
