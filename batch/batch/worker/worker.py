@@ -1976,7 +1976,10 @@ class JVM:
             try:
                 message = await wait_for_message_from_process
             except EndOfStream as exc:
-                self.kill()
+                try:
+                    self.kill()
+                except ProcessLookupError:
+                    log.warning(f'{self}: JVM died after we received EOS')
                 message = JVM.FINISH_JVM_EOS
                 eos_exception = exc
 
@@ -1995,7 +1998,7 @@ class JVM:
                 raise ValueError(exception)
             elif message == JVM.FINISH_JVM_EOS:
                 assert eos_exception is not None
-                log.info(f'{self}: unexpected end of stream in jvm (interrupted: {wait_for_interrupt.done()})')
+                log.warning(f'{self}: unexpected end of stream in jvm (interrupted: {wait_for_interrupt.done()})')
                 raise ValueError('unexpected end of stream in jvm') from eos_exception
 
 
