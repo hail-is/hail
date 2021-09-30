@@ -301,9 +301,10 @@ class MatrixIRSuite extends HailSuite {
   @Test def testMatrixMultiWriteDifferentTypesRaisesError() {
     val vcf = is.hail.TestUtils.importVCF(ctx, "src/test/resources/sample.vcf")
     val range = rangeMatrix(10, 2, None)
-    val path = ctx.createTmpPath("test")
+    val path1 = ctx.createTmpPath("test1")
+    val path2 = ctx.createTmpPath("test2")
     intercept[java.lang.IllegalArgumentException] {
-      val ir = MatrixMultiWrite(FastIndexedSeq(vcf, range), MatrixNativeMultiWriter(path))
+      val ir = MatrixMultiWrite(FastIndexedSeq(vcf, range), MatrixNativeMultiWriter(IndexedSeq(path1, path2)))
     }
   }
 }
