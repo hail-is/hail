@@ -24,6 +24,8 @@ def maybe_parse_bearer_header(value: str) -> Optional[str]:
 async def _userdata_from_session_id(session_id):
     try:
         return await async_get_userinfo(deploy_config=deploy_config, session_id=session_id)
+    except CancelledError:
+        raise
     except aiohttp.ClientResponseError as e:
         log.exception('unknown exception getting userinfo')
         raise web.HTTPInternalServerError() from e
