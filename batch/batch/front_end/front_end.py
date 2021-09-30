@@ -16,7 +16,6 @@ import pymysql
 import plotly.express as px
 import plotly
 import google.oauth2.service_account
-import google.api_core.exceptions
 import humanize
 import traceback
 from prometheus_async.aio.web import server_stats  # type: ignore
@@ -341,7 +340,7 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
         async def _read_log_from_gcs(task):
             try:
                 data = await file_store.read_log_file(batch_format_version, batch_id, job_id, record['attempt_id'], task)
-            except google.api_core.exceptions.NotFound:
+            except FileNotFoundError
                 id = (batch_id, job_id)
                 log.exception(f'missing log file for {id} and task {task}')
                 data = 'ERROR: could not find log file'
@@ -425,7 +424,7 @@ async def _get_full_job_spec(app, record):
     try:
         spec = await file_store.read_spec_file(batch_id, token, start_job_id, job_id)
         return json.loads(spec)
-    except google.api_core.exceptions.NotFound:
+    except FileNotFoundError
         id = (batch_id, job_id)
         log.exception(f'missing spec file for {id}')
         return None
@@ -450,7 +449,7 @@ async def _get_full_job_status(app, record):
         try:
             status = await file_store.read_status_file(batch_id, job_id, attempt_id)
             return json.loads(status)
-        except google.api_core.exceptions.NotFound:
+        except FileNotFoundError
             id = (batch_id, job_id)
             log.exception(f'missing status file for {id}')
             return None
