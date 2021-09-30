@@ -208,3 +208,6 @@ class VariantDataset:
         if end_before_position:
             error('found records in reference data with END before locus position\n  ' + '\n  '.join(
                 str(x) for x in end_before_position))
+
+    def _same(self, other: 'VariantDataset'):
+        return self.reference_data._same(other.reference_data) and self.variant_data._same(other.variant_data)

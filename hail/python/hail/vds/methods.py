@@ -9,6 +9,14 @@ from hail.typecheck import sequenceof, typecheck
 from hail.utils.java import Env
 from hail.utils.misc import divide_null
 from hail.vds.variant_dataset import VariantDataset
+from hail import ir
+
+
+def write_variant_datasets(vdss, paths, overwrite=False, stage_locally=False):
+    ref_writer = ir.MatrixNativeMultiWriter([f"{p}/reference_data" for p in paths], overwrite, stage_locally)
+    var_writer = ir.MatrixNativeMultiWriter([f"{p}/variant_data" for p in paths], overwrite, stage_locally)
+    Env.backend().execute(ir.MatrixMultiWrite([vds.reference_data._mir for vds in vdss], ref_writer))
+    Env.backend().execute(ir.MatrixMultiWrite([vds.variant_data._mir for vds in vdss], var_writer))
 
 
 @typecheck(vds=VariantDataset)
