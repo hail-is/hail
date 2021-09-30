@@ -1,5 +1,6 @@
 from typing import Set, Dict
 from hail.typecheck import typecheck, setof
+import hail as hl
 
 from .indices import Indices, Aggregation
 from ..expressions import Expression, ExpressionException, expr_any
@@ -188,6 +189,32 @@ def eval(expression):
     Any
     """
     return eval_timed(expression)[0]
+
+def eval2(expression, e_type):
+    """Evaluate a Hail expression, returning the result and the times taken for
+    each stage in the evaluation process.
+
+    Parameters
+    ----------
+    expression : :class:`.Expression`
+        Any expression, or a Python value that can be implicitly interpreted as an expression.
+
+    Returns
+    -------
+    (Any, dict)
+        Result of evaluating `expression` and a dictionary of the timings
+    """
+    from hail.utils.java import Env
+
+    analyze('eval2', expression, Indices(expression._indices.source))
+
+    if expression._indices.source is None:
+        ir_type = expression._ir.typ
+        expression_type = expression.dtype
+        if ir_type != expression.dtype:
+            raise ExpressionException(f'Expression type and IR type differed: \n{ir_type}\n vs \n{expression_type}')
+        (e_type_string, encoded_bytes) = hl.experimental.encode(expression)
+        return hl.experimental.codec.decode(e_type, encoded_bytes)
 
 
 @typecheck(expression=expr_any)

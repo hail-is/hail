@@ -12,7 +12,12 @@ def decode_through_JSON(typ, ptype_string, bytes, codec='{"name":"BlockingBuffer
 
 
 def read_int(byte_array, offset):
-    return int.from_bytes(byte_array[offset:offset+4], byteorder="little")
+    ans = (byte_array[offset] +
+           (byte_array[offset + 1] << 8) +
+           (byte_array[offset + 2] << 16) +
+           (byte_array[offset + 3] << 24))
+
+    return ans
 
 class EType:
     def __init__(self, required):
@@ -27,8 +32,6 @@ class EInt32(EType):
 
     def decode(self, byte_array, offset):
         return read_int(byte_array, offset)
-
-
 
 
 class EArray(EType):
