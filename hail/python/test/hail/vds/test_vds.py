@@ -44,6 +44,20 @@ def test_validate():
             vds.variant_data).validate()
 
 
+@fails_local_backend()
+@fails_service_backend()
+def test_multi_write():
+    vds1 = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+    to_keep = vds1.variant_data.filter_cols(vds1.variant_data.s == 'HG00187').cols()
+    vds2 = hl.vds.filter_samples(vds1, to_keep)
+
+    path1 = new_temp_file()
+    path2 = new_temp_file()
+    hl.vds.write_variant_datasets([vds1, vds2], [path1, path2])
+
+    assert hl.vds.read_vds(path1)._same(vds1)
+    assert hl.vds.read_vds(path2)._same(vds2)
+
 @fails_local_backend
 @fails_service_backend
 def test_conversion_equivalence():
