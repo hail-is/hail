@@ -254,6 +254,14 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         return os.path.join(self.temp_path, 'combiner-intermidiates', f'{self.uuid}_{extra}')
 
 
+def run_combiner(**kwargs):
+    combiner = new_combiner(**kwargs)
+    while not combiner.finished:
+        combiner.save()
+        combiner.step()
+    combiner.save()
+
+
 def new_combiner(*,
                  output_path: str,
                  temp_path: str,
