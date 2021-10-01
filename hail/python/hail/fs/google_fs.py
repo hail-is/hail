@@ -139,6 +139,7 @@ class GoogleCloudStorageFS(FS):
     def rmtree(self, path: str):
         if self._is_local(path):
             rmtree(path)
+
         def rm_not_exist_ok():
             try:
                 self.client.rm(path, recursive=True)
