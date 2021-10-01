@@ -15,7 +15,6 @@ import pandas as pd
 import pymysql
 import plotly.express as px
 import plotly
-import google.oauth2.service_account
 import humanize
 import traceback
 from prometheus_async.aio.web import server_stats  # type: ignore
@@ -339,8 +338,10 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
 
         async def _read_log_from_gcs(task):
             try:
-                data = await file_store.read_log_file(batch_format_version, batch_id, job_id, record['attempt_id'], task)
-            except FileNotFoundError
+                data = await file_store.read_log_file(
+                    batch_format_version, batch_id, job_id, record['attempt_id'], task
+                )
+            except FileNotFoundError:
                 id = (batch_id, job_id)
                 log.exception(f'missing log file for {id} and task {task}')
                 data = 'ERROR: could not find log file'
@@ -424,7 +425,7 @@ async def _get_full_job_spec(app, record):
     try:
         spec = await file_store.read_spec_file(batch_id, token, start_job_id, job_id)
         return json.loads(spec)
-    except FileNotFoundError
+    except FileNotFoundError:
         id = (batch_id, job_id)
         log.exception(f'missing spec file for {id}')
         return None
@@ -449,7 +450,7 @@ async def _get_full_job_status(app, record):
         try:
             status = await file_store.read_status_file(batch_id, job_id, attempt_id)
             return json.loads(status)
-        except FileNotFoundError
+        except FileNotFoundError:
             id = (batch_id, job_id)
             log.exception(f'missing status file for {id}')
             return None
@@ -1472,8 +1473,9 @@ async def ui_get_job(request, userdata, batch_id):
             color_discrete_sequence=px.colors.sequential.dense,
             category_orders={
                 'Step': ['input', 'main', 'output'],
-                'Task': ['pulling', 'setting up overlay', 'setting up network', 'running', 'uploading_log']
-            })
+                'Task': ['pulling', 'setting up overlay', 'setting up network', 'running', 'uploading_log'],
+            },
+        )
 
         plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
     else:
@@ -1629,8 +1631,10 @@ async def _query_billing(request, user=None):
         where_conditions.append("`time_completed` <= %s")
         where_args.append(end)
     else:
-        where_conditions.append("((`time_completed` IS NOT NULL AND `time_completed` >= %s) OR "
-                                "(`time_closed` IS NOT NULL AND `time_completed` IS NULL))")
+        where_conditions.append(
+            "((`time_completed` IS NOT NULL AND `time_completed` >= %s) OR "
+            "(`time_closed` IS NOT NULL AND `time_completed` IS NULL))"
+        )
         where_args.append(start)
 
     if user is not None:
@@ -2167,9 +2171,7 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
         retry_long_running('delete_batch_loop', run_if_changed, delete_batch_state_changed, delete_batch_loop_body, app)
     )
 
-    app['task_manager'].ensure_future(
-        periodically_call(5, _refresh, app)
-    )
+    app['task_manager'].ensure_future(periodically_call(5, _refresh, app))
 
 
 async def on_cleanup(app):
