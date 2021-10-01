@@ -328,17 +328,16 @@ object MatrixValue {
   def writeMultiple(
     ctx: ExecuteContext,
     mvs: IndexedSeq[MatrixValue],
-    prefix: String,
+    paths: IndexedSeq[String],
     overwrite: Boolean,
     stageLocally: Boolean
   ): Unit = {
     val first = mvs.head
     require(mvs.forall(_.typ == first.typ))
+    require(mvs.length == paths.length, s"found ${ mvs.length } matrix tables but ${ paths.length } paths")
     val fs = ctx.fs
     val bufferSpec = BufferSpec.default
 
-    val d = digitsNeeded(mvs.length)
-    val paths = (0 until mvs.length).map { i => prefix + StringUtils.leftPad(i.toString, d, '0') + ".mt" }
     paths.foreach { path =>
       if (overwrite)
         fs.delete(path, recursive = true)
@@ -347,7 +346,7 @@ object MatrixValue {
       fs.mkDir(path)
     }
 
-    val fileData = RVD.writeRowsSplitFiles(ctx, mvs.map(_.rvd), prefix, bufferSpec, stageLocally)
+    val fileData = RVD.writeRowsSplitFiles(ctx, mvs.map(_.rvd), paths, bufferSpec, stageLocally)
     for ((mv, path, fd) <- (mvs, paths, fileData).zipped) {
       mv.finalizeWrite(ctx, path, bufferSpec, fd, consoleInfo = false)
     }
