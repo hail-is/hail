@@ -1,5 +1,6 @@
 import collections
 import hashlib
+import itertools
 import json
 import os
 import sys
@@ -9,8 +10,10 @@ from typing import Dict, List, Optional, Union
 
 import hail as hl
 
-from hail.utils.java import warning
-from hail.experimental.vcf_combiner.vcf_combiner import calculate_even_genome_partitioning
+from hail.utils import Interval
+from hail.utils.java import Env, warning
+from hail.experimental.vcf_combiner.vcf_combiner import calculate_even_genome_partitioning, \
+    calculate_new_intervals
 from .. import VariantDataset
 from .combine import combine_variant_datasets, transform_gvcf
 
@@ -18,10 +21,22 @@ from .combine import combine_variant_datasets, transform_gvcf
 VDSMetadata = collections.namedtuple('VDSMetadata', ['path', 'n_samples'])
 
 
+def read_variant_datasets(inputs: List[str], intervals: List[Interval], intervals_dtype):
+    n_inputs = len(inputs)
+    paths = list(itertools.chain(
+        (VariantDataset._reference_path(path) for path in inputs),
+        (VariantDataset._variants_path(path) for path in inputs)))
+    mts = Env.spark_backend("read_variant_datasets").read_multiple_matrix_tables(
+        paths, intervals, intervals_dtype)
+    vdss = [VariantDataset(reference_data=ref, variant_data=var)
+            for ref, var in zip(mts[:n_inputs], mts[n_inputs:])]
+    return vdss
+
+
 class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
     default_gvcf_batch_size = 100
     default_branch_factor = 100
-    default_target_records = 30_000
+    default_target_records = 24_000
 
     # These are used to calculate intervals for reading GVCFs in the combiner
     # The genome interval size results in 2568 partions for GRCh38. The exome
@@ -46,7 +61,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         'gvcf_import_intervals',
     ]
 
-    __slots__ = tuple(__serialized_slots__ + ['uuid', 'job_id', '__vds_cache'])
+    __slots__ = tuple(__serialized_slots__ + ['uuid', 'job_id'])
 
     def __init__(self,
                  *,
@@ -63,7 +78,6 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                  gvcf_sample_names: Optional[List[str]] = None,
                  gvcf_external_header: Optional[str] = None,
                  gvcf_import_intervals: List[hl.utils.Interval],
-                 vds_cache: Optional[Dict[str, VariantDataset]] = None,
                  ):
         if not (vdses or gvcfs):
             raise ValueError("one of 'vdses' or 'gvcfs' must be nonempty")
@@ -80,6 +94,10 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         if gvcf_sample_names is not None and len(gvcf_sample_names) != len(gvcfs):
             raise ValueError("'gvcf_sample_names' and 'gvcfs' must have the same length "
                              f'{len(gvcf_sample_names)} != {len(gvcfs)}')
+        if branch_factor < 2:
+            raise ValueError(f"'branch_factor' must be at least 2, found {branch_factor}")
+        if gvcf_batch_size < 1:
+            raise ValueError(f"'gvcf_batch_size' must be at least 1, found {gvcf_batch_size}")
         self.save_path = save_path
         self.output_path = output_path
         self.temp_path = temp_path
@@ -95,7 +113,6 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         self.gvcf_import_intervals = gvcf_import_intervals
         self.uuid = uuid.uuid4()
         self.job_id = 0
-        self.__vds_cache = vds_cache
 
     def __eq__(self, other):
         if other.__class__ != VariantDatasetCombiner:
@@ -168,10 +185,32 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
             self.job_id += 1
 
     def _step_vdses(self):
-        pass
+        files_to_merge = self.vdses[-self.branch_factor:]
+        self.vdses = self.vdses[:-self.branch_factor]
+
+        temp_path = self._temp_out_path(f'vds-combine_job{self.job_id}')
+        largest_vds = files_to_merge[0]
+        vds = hl.vds.read_vds(largest_vds.path)
+        # we use the reference data since it generally has more rows than the variant data
+        intervals, intervals_dtype = calculate_new_intervals(vds.reference_data,
+                                                             self.target_records,
+                                                             os.path.join(temp_path, 'interval_checkpoint.ht'))
+
+        paths = [f.path for f in files_to_merge]
+        vdss = read_variant_datasets(paths, intervals, intervals_dtype)
+        combined = combine_variant_datasets(vdss)
+
+        if self.finished:
+            combined.write(self.output_path)
+            return
+
+        new_path = os.path.join(temp_path, 'dataset.vds')
+        combined.write(new_path)
+        new_n_samples = sum(f.n_samples for f in files_to_merge)
+        self.vdses.append(VDSMetadata(path=new_path, n_samples=new_n_samples))
+        self.vdses.sort(key=lambda x: x.n_samples, reverse=True)
 
     def _step_gvcfs(self):
-        temp_path = self._temp_out_path(f'gvcf-combine_job{self.job_id}/dataset_')
         step = self.branch_factor
         files_to_merge = self.gvcfs[:self.gvcf_batch_size * step]
         self.gvcfs = self.gvcfs[self.gvcf_batch_size * step:]
@@ -198,9 +237,10 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
             merge_vds[0].write(self.output_path)
             return
 
+        temp_path = self._temp_out_path(f'gvcf-combine_job{self.job_id}/dataset_')
+        pad = len(str(len(merge_vds) - 1))
         merge_metadata = []
         count = 0
-        pad = len(str(len(merge_vds) - 1))
         for _ in merge_vds:
             merge_metadata.append(VDSMetadata(path=temp_path + str(count).rjust(pad, '0') + '.vds',
                                   n_samples=len(vdses)))
@@ -357,8 +397,7 @@ def new_combiner(*,
                                   gvcfs=gvcf_paths,
                                   gvcf_import_intervals=intervals,
                                   gvcf_external_header=gvcf_external_header,
-                                  gvcf_sample_names=gvcf_sample_names,
-                                  vds_cache=cache)
+                                  gvcf_sample_names=gvcf_sample_names)
 
 
 def load_combiner(path: str) -> VariantDatasetCombiner:
