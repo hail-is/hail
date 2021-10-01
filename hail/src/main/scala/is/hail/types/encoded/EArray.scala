@@ -10,6 +10,8 @@ import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.physical.stypes.{SCode, SType, SValue}
 import is.hail.types.virtual._
 import is.hail.utils._
+import org.json4s.JsonAST.JString
+import org.json4s.{JBool, JObject, JValue}
 
 final case class EArray(val elementType: EType, override val required: Boolean = false) extends EContainer {
   def _decodedSType(requestedType: Type): SType = {
@@ -141,4 +143,6 @@ final case class EArray(val elementType: EType, override val required: Boolean =
   }
 
   def setRequired(newRequired: Boolean): EArray = EArray(elementType, newRequired)
+
+  override def jsonRepresentation: JValue = JObject(("name", JString("EArray")), ("required", JBool(this.required)), ("elementType", this.elementType.jsonRepresentation))
 }

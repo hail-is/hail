@@ -422,7 +422,9 @@ class SparkBackend(
             val codec = TypedCodecSpec(
               EType.defaultFromPType(elementType), elementType.virtualType, bs)
             assert(t.isFieldDefined(off, 0))
-            (codec.encodedType.toString, codec.encode(ctx, elementType, t.loadField(off, 0)))
+            implicit val formats = DefaultFormats
+            val s = org.json4s.jackson.Serialization.write(codec.encodedType.jsonRepresentation)
+            (s, codec.encode(ctx, elementType, t.loadField(off, 0)))
         }
       }
     }

@@ -12,7 +12,7 @@ import is.hail.types.physical._
 import is.hail.types.physical.stypes.{SCode, SType, SValue}
 import is.hail.types.virtual._
 import is.hail.utils._
-import org.json4s.CustomSerializer
+import org.json4s.{CustomSerializer, JValue}
 import org.json4s.JsonAST.JString
 
 
@@ -169,6 +169,8 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   def _decodedSType(requestedType: Type): SType
 
   def setRequired(required: Boolean): EType
+
+  def jsonRepresentation: JValue = ???
 }
 
 trait DecoderAsmFunction { def apply(r: Region, in: InputBuffer): Long }

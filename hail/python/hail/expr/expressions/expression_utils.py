@@ -1,4 +1,5 @@
 from typing import Set, Dict
+import json
 from hail.typecheck import typecheck, setof
 import hail as hl
 
@@ -190,7 +191,7 @@ def eval(expression):
     """
     return eval_timed(expression)[0]
 
-def eval2(expression, e_type):
+def eval2(expression):
     """Evaluate a Hail expression, returning the result and the times taken for
     each stage in the evaluation process.
 
@@ -213,7 +214,9 @@ def eval2(expression, e_type):
         expression_type = expression.dtype
         if ir_type != expression.dtype:
             raise ExpressionException(f'Expression type and IR type differed: \n{ir_type}\n vs \n{expression_type}')
-        (e_type_string, encoded_bytes) = hl.experimental.encode(expression)
+        (e_type_json_string, encoded_bytes) = hl.experimental.encode(expression)
+        e_type_json = json.loads(e_type_json_string)
+        e_type = hl.experimental.codec.etype_from_json(e_type_json)
         return hl.experimental.codec.decode(e_type, encoded_bytes)
 
 

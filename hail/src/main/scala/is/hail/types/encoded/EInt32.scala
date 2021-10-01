@@ -11,6 +11,8 @@ import is.hail.types.physical.stypes.interfaces.{SCall, SCallValue}
 import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Code}
 import is.hail.types.virtual._
 import is.hail.utils._
+import org.json4s.JsonAST.JString
+import org.json4s.{JBool, JObject, JValue}
 
 case object EInt32Optional extends EInt32(false)
 
@@ -53,6 +55,8 @@ class EInt32(override val required: Boolean) extends EType {
   def _toPretty = "EInt32"
 
   def setRequired(newRequired: Boolean): EInt32 = EInt32(newRequired)
+
+  override def jsonRepresentation: JValue = JObject(("name", JString("EInt32")), ("required", JBool(this.required)))
 }
 
 object EInt32 {

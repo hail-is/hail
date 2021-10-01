@@ -19,12 +19,24 @@ def read_int(byte_array, offset):
 
     return ans
 
+
+def etype_from_json(e_json):
+    name = e_json["name"]
+    if name == "EInt32":
+        return EInt32(e_json["required"])
+    elif name == "EArray":
+        return EArray(etype_from_json(e_json["elementType"]), e_json["required"])
+    else:
+        raise ValueError(f"Do not know how to interpret EType {name}")
+
+
 class EType:
     def __init__(self, required):
         self.required = required
 
     def decode(self, byte_array, offset):
         pass
+
 
 class EInt32(EType):
     def __init__(self, required=False):
@@ -43,6 +55,7 @@ class EArray(EType):
         len = read_int(byte_array, offset)
         data_start = offset + 4 if self.element_type.required else None
         return [self.element_type.decode(byte_array, data_start + i * 4) for i in range(len)]
+
 
 def decode(e_type, bytes):
     return e_type.decode(bytes, 4)
