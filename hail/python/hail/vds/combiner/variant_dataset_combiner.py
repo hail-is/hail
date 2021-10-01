@@ -61,7 +61,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         'gvcf_import_intervals',
     ]
 
-    __slots__ = tuple(__serialized_slots__ + ['uuid', 'job_id'])
+    __slots__ = tuple(__serialized_slots__ + ['_uuid', '_job_id'])
 
     def __init__(self,
                  *,
@@ -98,6 +98,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
             raise ValueError(f"'branch_factor' must be at least 2, found {branch_factor}")
         if gvcf_batch_size < 1:
             raise ValueError(f"'gvcf_batch_size' must be at least 1, found {gvcf_batch_size}")
+
         self.save_path = save_path
         self.output_path = output_path
         self.temp_path = temp_path
@@ -111,8 +112,8 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         self.gvcf_sample_names = gvcf_sample_names
         self.gvcf_external_header = gvcf_external_header
         self.gvcf_import_intervals = gvcf_import_intervals
-        self.uuid = uuid.uuid4()
-        self.job_id = 0
+        self._uuid = uuid.uuid4()
+        self._job_id = 0
 
     def __eq__(self, other):
         if other.__class__ != VariantDatasetCombiner:
@@ -182,13 +183,13 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         else:
             self._step_vdses()
         if not self.finished:
-            self.job_id += 1
+            self._job_id += 1
 
     def _step_vdses(self):
         files_to_merge = self.vdses[-self.branch_factor:]
         self.vdses = self.vdses[:-self.branch_factor]
 
-        temp_path = self._temp_out_path(f'vds-combine_job{self.job_id}')
+        temp_path = self._temp_out_path(f'vds-combine_job{self._job_id}')
         largest_vds = files_to_merge[0]
         vds = hl.vds.read_vds(largest_vds.path)
         # we use the reference data since it generally has more rows than the variant data
@@ -205,7 +206,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
             return
 
         new_path = os.path.join(temp_path, 'dataset.vds')
-        combined.write(new_path)
+        combined.write(new_path, overwrite=True)
         new_n_samples = sum(f.n_samples for f in files_to_merge)
         self.vdses.append(VDSMetadata(path=new_path, n_samples=new_n_samples))
         self.vdses.sort(key=lambda x: x.n_samples, reverse=True)
@@ -237,7 +238,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
             merge_vds[0].write(self.output_path)
             return
 
-        temp_path = self._temp_out_path(f'gvcf-combine_job{self.job_id}/dataset_')
+        temp_path = self._temp_out_path(f'gvcf-combine_job{self._job_id}/dataset_')
         pad = len(str(len(merge_vds) - 1))
         merge_metadata = []
         count = 0
@@ -251,7 +252,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         self.vdses.sort(key=lambda x: x.n_samples, reverse=True)
 
     def _temp_out_path(self, extra):
-        return os.path.join(self.temp_path, 'combiner-intermidiates', f'{self.uuid}_{extra}')
+        return os.path.join(self.temp_path, 'combiner-intermidiates', f'{self._uuid}_{extra}')
 
 
 def run_combiner(**kwargs):
