@@ -57,7 +57,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
 
   val oldRegion: Settable[Region] = kb.genFieldThisRef[Region]("old_region")
 
-  def newState(cb: EmitCodeBuilder, off: Code[Long]): Unit = cb += region.getNewRegion(regionSize)
+  def newState(cb: EmitCodeBuilder, off: Value[Long]): Unit = cb += region.getNewRegion(regionSize)
 
   def createState(cb: EmitCodeBuilder): Unit =
     cb.ifx(region.isNull, cb.assign(r, Region.stagedCreate(regionSize, kb.pool())))
@@ -129,7 +129,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
     cb.invokeVoid(mb, nDivisions)
   }
 
-  override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, srcc: Code[Long]): Unit = {
+  override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Value[Long]): Unit = {
     val mb = kb.genEmitMethod("downsample_load", FastIndexedSeq[ParamType](), UnitInfo)
     mb.voidWithBuilder { cb =>
 
@@ -146,12 +146,12 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
       buffer.loadFrom(cb, storageType.fieldOffset(off, "buffer"))
       cb.assign(root, Region.loadAddress(storageType.fieldOffset(off, "tree")))
     }
-    cb.assign(off, srcc)
+    cb.assign(off, src)
     regionLoader(cb, r)
     cb.invokeVoid(mb)
   }
 
-  override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, destc: Code[Long]): Unit = {
+  override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, dest: Value[Long]): Unit = {
     val mb = kb.genEmitMethod("downsample_store", FastIndexedSeq[ParamType](), UnitInfo)
     mb.voidWithBuilder { cb =>
       cb += Region.storeInt(storageType.fieldOffset(off, "nDivisions"), nDivisions)
@@ -168,7 +168,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
       cb += Region.storeAddress(storageType.fieldOffset(off, "tree"), root)
     }
 
-    cb.assign(off, destc)
+    cb.assign(off, dest)
     cb.invokeVoid(mb)
     cb.ifx(region.isValid,
       {
@@ -177,7 +177,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
       })
   }
 
-  def copyFrom(cb: EmitCodeBuilder, _src: Code[Long]): Unit = {
+  def copyFrom(cb: EmitCodeBuilder, _src: Value[Long]): Unit = {
     val mb = kb.genEmitMethod("downsample_copy", FastIndexedSeq[ParamType](LongInfo), UnitInfo)
 
     val src = mb.getCodeParam[Long](1)

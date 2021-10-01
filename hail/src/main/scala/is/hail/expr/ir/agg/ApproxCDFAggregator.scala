@@ -47,13 +47,12 @@ class ApproxCDFState(val kb: EmitClassBuilder[_]) extends AggregatorState {
     QuantilesAggregator.resultPType.loadCheapSCode(cb, aggr.invoke[Region, Long]("rvResult", region))
   }
 
-  def newState(cb: EmitCodeBuilder, off: Code[Long]): Unit = cb += region.getNewRegion(regionSize)
+  def newState(cb: EmitCodeBuilder, off: Value[Long]): Unit = cb += region.getNewRegion(regionSize)
 
   def createState(cb: EmitCodeBuilder): Unit =
     cb.ifx(region.isNull, cb.assign(r, Region.stagedCreate(regionSize, kb.pool())))
 
-  override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, srcc: Code[Long]): Unit = {
-    val src = cb.newLocal("acdfa_load_src", srcc)
+  override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Value[Long]): Unit = {
     regionLoader(cb, r)
     cb.assign(id, Region.loadInt(idOffset(src)))
     cb.assign(initialized, Region.loadBoolean(initializedOffset(src)))
@@ -64,8 +63,7 @@ class ApproxCDFState(val kb: EmitClassBuilder[_]) extends AggregatorState {
       })
   }
 
-  override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, destc: Code[Long]): Unit = {
-    val dest = cb.newLocal("acdfa_store_dest", destc)
+  override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, dest: Value[Long]): Unit = {
     cb.ifx(region.isValid,
       {
         regionStorer(cb, region)
@@ -100,7 +98,7 @@ class ApproxCDFState(val kb: EmitClassBuilder[_]) extends AggregatorState {
         ))
   }
 
-  override def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
+  override def copyFrom(cb: EmitCodeBuilder, src: Value[Long]): Unit = {
     cb += Code(
       k := Region.loadInt(kOffset(src)),
       aggr := Code.newInstance[ApproxCDFStateManager, Int](k),

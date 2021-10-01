@@ -69,7 +69,7 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
 
   def storeStates(cb: EmitCodeBuilder): Unit = container.store(cb)
 
-  def copyStatesFrom(cb: EmitCodeBuilder, srcOff: Code[Long]): Unit = container.copyFrom(cb, srcOff)
+  def copyStatesFrom(cb: EmitCodeBuilder, srcOff: Value[Long]): Unit = container.copyFrom(cb, srcOff)
 
   def storeRegionIdx(cb: EmitCodeBuilder, off: Code[Long], idx: Code[Int]): Unit =
     cb += Region.storeInt(storageType.fieldOffset(off, 1), idx)
@@ -153,8 +153,8 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
     nested.createStates(cb)
   }
 
-  override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, srcc: Code[Long]): Unit = {
-    super.load(cb, regionLoader, srcc)
+  override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Value[Long]): Unit = {
+    super.load(cb, regionLoader, src)
     cb.ifx(off.cne(0L),
       {
         cb.assign(size, Region.loadInt(typ.loadField(off, 1)))
@@ -162,10 +162,10 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
       })
   }
 
-  override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, destc: Code[Long]): Unit = {
+  override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, dest: Value[Long]): Unit = {
     cb += Region.storeInt(typ.fieldOffset(off, 1), size)
     cb += Region.storeAddress(typ.fieldOffset(off, 2), root)
-    super.store(cb, regionStorer, destc)
+    super.store(cb, regionStorer, dest)
   }
 
   def init(cb: EmitCodeBuilder, initOps: EmitCodeBuilder => Unit): Unit = {
@@ -192,7 +192,7 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
 
   def copyFromAddress(cb: EmitCodeBuilder, srcCode: Code[Long]): Unit = {
     val src = cb.newLocal("ga_copy_from_addr_src", srcCode)
-    init(cb, { cb => initContainer.copyFrom(cb, typ.loadField(src, 0)) })
+    init(cb, { cb => initContainer.copyFrom(cb, cb.memoize(typ.loadField(src, 0))) })
     cb.assign(size, Region.loadInt(typ.loadField(src, 1)))
     tree.deepCopy(cb, Region.loadAddress(typ.loadField(src, 2)))
   }
@@ -203,9 +203,7 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
     { (cb: EmitCodeBuilder, ob: Value[OutputBuffer]) =>
       initContainer.load(cb)
       nested.toCodeWithArgs(cb,
-        IndexedSeq(ob),
-        { (cb, i, _, args) =>
-          val ob = cb.newLocal("ga_ser_init_ob", coerce[OutputBuffer](args.head))
+        { (cb, i, _) =>
           serializers(i)(cb, ob)
         })
       tree.bulkStore(cb, ob) { (cb: EmitCodeBuilder, ob: Value[OutputBuffer], kvOff: Code[Long]) =>
@@ -219,9 +217,7 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
         })
         keyed.loadStates(cb)
         nested.toCodeWithArgs(cb,
-          Array(ob.get),
-          { (cb, i, _, args) =>
-            val ob = cb.newLocal("ga_ser_ob", coerce[OutputBuffer](args.head))
+          { (cb, i, _) =>
             serializers(i)(cb, ob)
           })
       }
@@ -234,9 +230,7 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
     { (cb: EmitCodeBuilder, ib: Value[InputBuffer]) =>
       init(cb, { cb =>
         nested.toCodeWithArgs(cb,
-          FastIndexedSeq(ib),
-          { (cb, i, _, args) =>
-            val ib = cb.newLocal("ga_deser_init_ib", coerce[InputBuffer](args.head))
+          { (cb, i, _) =>
             deserializers(i)(cb, ib)
           })
       })
@@ -247,9 +241,7 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
           IEmitCode(cb, ib.readBoolean(), keyEType.buildDecoder(keyType.virtualType, kb).apply(cb, region, ib).memoize(cb, "deserialize")))
         initElement(cb, _elt, kc)
         nested.toCodeWithArgs(cb,
-          FastIndexedSeq(ib),
-          { (cb, i, _, args) =>
-            val ib = cb.newLocal("ga_deser_ib", coerce[InputBuffer](args.head))
+          { (cb, i, _) =>
             deserializers(i)(cb, ib)
           })
         keyed.storeStates(cb)
