@@ -4,6 +4,7 @@ from stat import S_ISREG, S_ISDIR
 import gcsfs
 from hurry.filesize import size
 from shutil import copy2, rmtree
+from hailtop.utils import sync_retry_transient_errors
 
 from .fs import FS
 
@@ -138,7 +139,12 @@ class GoogleCloudStorageFS(FS):
     def rmtree(self, path: str):
         if self._is_local(path):
             rmtree(path)
-        self.client.rm(path, recursive=True)
+        def rm_not_exist_ok():
+            try:
+                self.client.rm(path, recursive=True)
+            except FileNotFoundError:
+                pass
+        sync_retry_transient_errors(rm_not_exist_ok)
 
     def supports_scheme(self, scheme: str) -> bool:
         return scheme in ("gs", "")
