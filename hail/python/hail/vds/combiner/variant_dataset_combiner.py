@@ -14,7 +14,7 @@ from hail.utils import Interval
 from hail.utils.java import Env, warning
 from hail.experimental.vcf_combiner.vcf_combiner import calculate_even_genome_partitioning, \
     calculate_new_intervals
-from .. import VariantDataset
+from hail.vds import VariantDataset
 from .combine import combine_variant_datasets, transform_gvcf
 
 
