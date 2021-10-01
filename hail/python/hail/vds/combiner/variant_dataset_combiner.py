@@ -178,6 +178,8 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                 }
 
     def step(self):
+        if self.finished:
+            return
         if self.gvcfs:
             self._step_gvcfs()
         else:
