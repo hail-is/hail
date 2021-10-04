@@ -550,7 +550,7 @@ def is_transient_error(e):
     #
     # OSError: [Errno 51] Connect call failed ('35.188.91.25', 443)
     # https://hail.zulipchat.com/#narrow/stream/223457-Batch-support/topic/ssl.20error
-    import hailtop.aiocloud.gcp.client.compute_client  # pylint: disable=import-outside-toplevel,cyclic-import
+    import hailtop.aiocloud.aiogoogle.client.compute_client  # pylint: disable=import-outside-toplevel,cyclic-import
     import hailtop.httpx  # pylint: disable=import-outside-toplevel,cyclic-import
     if isinstance(e, aiohttp.ClientResponseError) and (
             e.status in RETRYABLE_HTTP_STATUS_CODES):
@@ -558,7 +558,7 @@ def is_transient_error(e):
         # 408 request timeout, 500 internal server error, 502 bad gateway
         # 503 service unavailable, 504 gateway timeout
         return True
-    if (isinstance(e, hailtop.aiocloud.gcp.client.compute_client.GCPOperationError)
+    if (isinstance(e, hailtop.aiocloud.aiogoogle.client.compute_client.GCPOperationError)
             and 'QUOTA_EXCEEDED' in e.error_codes):
         return True
     if isinstance(e, hailtop.httpx.ClientResponseError) and (

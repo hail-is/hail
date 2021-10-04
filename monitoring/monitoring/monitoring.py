@@ -11,7 +11,7 @@ from prometheus_async.aio.web import server_stats  # type: ignore
 import prometheus_client as pc  # type: ignore
 
 from hailtop import aiotools
-from hailtop.aiocloud import gcp as aiogoogle
+from hailtop.aiocloud import aiogoogle
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
@@ -307,7 +307,7 @@ async def on_startup(app):
     await db.async_init()
     app['db'] = db
 
-    aiogoogle_credentials = aiogoogle.Credentials.from_file('/billing-monitoring-gsa-key/key.json')
+    aiogoogle_credentials = aiogoogle.GCPCredentials.from_file('/billing-monitoring-gsa-key/key.json')
 
     bigquery_client = aiogoogle.BigQueryClient('broad-ctsa', credentials=aiogoogle_credentials)
     app['bigquery_client'] = bigquery_client

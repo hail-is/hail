@@ -1,9 +1,9 @@
-from .base_client import BaseClient
+from .base_client import CloudBaseClient
 from .session import Session, RateLimitedSession
 
 
 __all__ = [
-    'BaseClient',
+    'CloudBaseClient',
     'Session',
     'RateLimitedSession',
 ]

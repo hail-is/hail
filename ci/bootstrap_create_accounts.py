@@ -2,7 +2,7 @@ import os
 import base64
 import json
 import kubernetes_asyncio as kube
-from hailtop.aiocloud import gcp as aiogoogle
+from hailtop.aiocloud import aiogoogle
 from hailtop.utils import async_to_blocking
 from gear import Database, transaction
 
@@ -85,7 +85,7 @@ async def main():
     app['k8s_client'] = k8s_client
 
     app['iam_client'] = aiogoogle.IAmClient(
-        PROJECT, credentials=aiogoogle.Credentials.from_file('/auth-gsa-key/key.json')
+        PROJECT, credentials=aiogoogle.GCPCredentials.from_file('/auth-gsa-key/key.json')
     )
 
     for username, email, is_developer, is_service_account in users:

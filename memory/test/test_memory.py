@@ -3,7 +3,7 @@ import os
 import uuid
 from memory.client import MemoryClient
 
-from hailtop.aiocloud.gcp import GoogleStorageAsyncFS
+from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
 from hailtop.config import get_user_config
 from hailtop.utils import async_to_blocking
 

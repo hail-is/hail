@@ -5,7 +5,7 @@ import json
 import uuid
 from typing import Tuple, Dict, Any
 
-from hailtop.aiocloud import gcp as aiogoogle
+from hailtop.aiocloud import aiogoogle
 
 from ..batch_configuration import PROJECT, DOCKER_ROOT_IMAGE, DOCKER_PREFIX, DEFAULT_NAMESPACE
 from ..inst_coll_config import machine_type_to_dict

@@ -7,7 +7,7 @@ import concurrent
 import functools
 from hailtop.utils import secret_alnum_string, bounded_gather2
 from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS
-from hailtop.aiocloud.gcp import StorageClient, GoogleStorageAsyncFS
+from hailtop.aiocloud.aiogoogle import StorageClient, GoogleStorageAsyncFS
 
 
 @pytest.fixture(params=['gs', 'router/gs'])

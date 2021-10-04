@@ -4,7 +4,7 @@ import logging
 import asyncio
 import aiohttp
 from hailtop import aiotools
-from hailtop.aiocloud import gcp as aiogoogle
+from hailtop.aiocloud import aiogoogle
 
 log = logging.getLogger(__name__)
 

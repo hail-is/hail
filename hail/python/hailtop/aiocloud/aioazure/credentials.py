@@ -1,16 +1,17 @@
 import os
 import json
+import time
 import logging
 from azure.identity.aio import DefaultAzureCredential, ClientSecretCredential
 
 from hailtop.utils import first_extant_file
 
-from ...common.auth import Credentials as BaseCredentials
+from ..common.credentials import CloudCredentials
 
 log = logging.getLogger(__name__)
 
 
-class Credentials(BaseCredentials):
+class AzureCredentials(CloudCredentials):
     scopes = ['https://management.azure.com/']
 
     @staticmethod
@@ -20,7 +21,7 @@ class Credentials(BaseCredentials):
             credential = ClientSecretCredential(tenant_id=data['tenant'],
                                                 client_id=data['appId'],
                                                 client_secret=data['password'])
-            return Credentials(credential)
+            return AzureCredentials(credential)
 
     @staticmethod
     def default_credentials():
@@ -31,15 +32,24 @@ class Credentials(BaseCredentials):
 
         if credentials_file:
             log.info(f'using credentials file {credentials_file}')
-            return Credentials.from_file(credentials_file)
+            return AzureCredentials.from_file(credentials_file)
 
-        return Credentials(DefaultAzureCredential())
+        return AzureCredentials(DefaultAzureCredential())
 
     def __init__(self, credential):
         self.credential = credential
+        self._access_token = None
+        self._expires_at = None
 
-    async def get_access_token(self, session):
-        return await self.credential.get_token(*Credentials.scopes)
+    async def auth_headers(self):
+        now = time.time()
+        if self._access_token is None or now > self._expires_at:
+            self._access_token = await self.get_access_token()
+            self._expires_at = now + (self._access_token.expires_on - now) // 2
+        return {'Authorization': f'Bearer {self._access_token.token}'}
+
+    async def get_access_token(self):
+        return await self.credential.get_token(*AzureCredentials.scopes)
 
     async def close(self):
         await self.credential.close()

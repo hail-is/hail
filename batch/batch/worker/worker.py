@@ -43,7 +43,7 @@ from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes,
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
 from hailtop import aiotools
 from hailtop.aiotools.fs import RouterAsyncFS, LocalAsyncFS
-import hailtop.aiocloud.gcp as aiogoogle
+from hailtop.aiocloud import aiogoogle
 
 # import uvloop
 
@@ -1586,7 +1586,7 @@ class JVMJob(Job):
                                 [
                                     LocalAsyncFS(worker.pool),
                                     aiogoogle.GoogleStorageAsyncFS(
-                                        credentials=aiogoogle.Credentials.from_file('/worker-key.json')
+                                        credentials=aiogoogle.GCPCredentials.from_file('/worker-key.json')
                                     ),
                                 ],
                             )
@@ -2026,11 +2026,11 @@ class Worker:
             with open('/worker-key.json', 'w') as f:
                 f.write(json.dumps(resp_json['key']))
 
-            credentials = aiogoogle.Credentials.from_file('/worker-key.json')
+            credentials = aiogoogle.GCPCredentials.from_file('/worker-key.json')
             fs = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
             self.file_store = FileStore(fs, BATCH_LOGS_BUCKET_NAME, INSTANCE_ID)
 
-            credentials = aiogoogle.Credentials.from_file('/worker-key.json')
+            credentials = aiogoogle.GCPCredentials.from_file('/worker-key.json')
             self.compute_client = aiogoogle.ComputeClient(PROJECT, credentials=credentials)
 
             resp = await request_retry_transient_errors(

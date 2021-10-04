@@ -6,7 +6,7 @@ import aiohttp
 
 from gear import Database
 from hailtop import aiotools
-from hailtop.aiocloud import gcp as aiogoogle
+from hailtop.aiocloud import aiogoogle
 from hailtop.utils import periodically_call, time_msecs, parse_timestamp_msecs
 
 from ..batch_configuration import PROJECT, DEFAULT_NAMESPACE

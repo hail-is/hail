@@ -2,11 +2,11 @@ from typing import Optional
 
 from hailtop.utils import RateLimit
 
-from ...common import BaseClient
+from ...common import CloudBaseClient
 from ..session import AzureSession
 
 
-class AzureBaseClient(BaseClient):
+class AzureBaseClient(CloudBaseClient):
     _session: AzureSession
 
     def __init__(self, base_url: str, *, session: Optional[AzureSession] = None,

@@ -9,7 +9,7 @@ from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger, configure_logging
 from hailtop.utils import retry_long_running, collect_agen, humanize_timedelta_msecs
 from hailtop import aiotools
-from hailtop.aiocloud import gcp as aiogoogle
+from hailtop.aiocloud import aiogoogle
 import hailtop.batch_client.aioclient as bc
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 from benchmark.utils import (
@@ -430,7 +430,7 @@ async def github_polling_loop(app):
 
 
 async def on_startup(app):
-    credentials = aiogoogle.Credentials.from_file('/benchmark-gsa-key/key.json')
+    credentials = aiogoogle.GCPCredentials.from_file('/benchmark-gsa-key/key.json')
     app['fs'] = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
     app['gh_client_session'] = aiohttp.ClientSession()
     app['github_client'] = gidgethub.aiohttp.GitHubAPI(

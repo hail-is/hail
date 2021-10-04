@@ -2,7 +2,7 @@ import logging
 import random
 
 from hailtop import aiotools
-from hailtop.aiocloud import gcp as aiogoogle
+from hailtop.aiocloud import aiogoogle
 from hailtop.utils import periodically_call, url_basename
 
 from ..utils import WindowFractionCounter

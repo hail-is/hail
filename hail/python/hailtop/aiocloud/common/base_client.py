@@ -7,7 +7,7 @@ from .session import BaseSession, RateLimitedSession
 ClientType = TypeVar('ClientType', bound='BaseClient')
 
 
-class BaseClient:
+class CloudBaseClient:
     _session: BaseSession
 
     def __init__(self, base_url: str, session: BaseSession, *, rate_limit: RateLimit = None):

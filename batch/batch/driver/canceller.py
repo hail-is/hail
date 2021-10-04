@@ -10,7 +10,7 @@ from hailtop.utils import (
     periodically_call,
 )
 from hailtop import aiotools
-from hailtop.aiocloud import gcp as aiogoogle
+from hailtop.aiocloud import aiogoogle
 from gear import Database
 
 from .job import unschedule_job, mark_job_complete

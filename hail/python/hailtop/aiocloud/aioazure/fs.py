@@ -19,7 +19,7 @@ from hailtop.aiotools.fs import (AsyncFS, ReadableStream, WritableStream, MultiP
                                  FileAndDirectoryError)
 from hailtop.aiotools.utils import WriteBuffer
 
-from .auth import Credentials
+from .credentials import AzureCredentials
 
 
 logger = logging.getLogger("azure.core.pipeline.policies.http_logging_policy")
@@ -249,12 +249,12 @@ class AzureFileStatus(FileStatus):
 class AzureAsyncFS(AsyncFS):
     PATH_REGEX = re.compile('/(?P<container>[^/]+)(?P<name>.*)')
 
-    def __init__(self, *, credential_file: Optional[str] = None, credentials: Optional[Credentials] = None):
+    def __init__(self, *, credential_file: Optional[str] = None, credentials: Optional[AzureCredentials] = None):
         if credentials is None:
             if credential_file is not None:
-                credentials = Credentials.from_file(credential_file)
+                credentials = AzureCredentials.from_file(credential_file)
             else:
-                credentials = Credentials.default_credentials()
+                credentials = AzureCredentials.default_credentials()
         else:
             if credential_file is not None:
                 raise ValueError('credential and credential_file cannot both be defined')
