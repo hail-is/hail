@@ -5,7 +5,7 @@ from hail.matrixtable import MatrixTable
 from hail.utils.java import info
 
 
-def read_vds(path) -> 'VariantDataset':
+def read_vds(path, *, intervals=None) -> 'VariantDataset':
     """Read in a :class:`.VariantDataset` written with :meth:`.VariantDataset.write`.
 
     Parameters
@@ -16,8 +16,8 @@ def read_vds(path) -> 'VariantDataset':
     -------
     :class:`.VariantDataset`
     """
-    reference_data = hl.read_matrix_table(VariantDataset._reference_path(path))
-    variant_data = hl.read_matrix_table(VariantDataset._variants_path(path))
+    reference_data = hl.read_matrix_table(VariantDataset._reference_path(path), _intervals=intervals)
+    variant_data = hl.read_matrix_table(VariantDataset._variants_path(path), _intervals=intervals)
 
     return VariantDataset(reference_data, variant_data)
 
@@ -104,9 +104,9 @@ class VariantDataset:
 
         return VariantDataset(rmt, vmt)
 
-    def __init__(self, reference_data: 'MatrixTable', variant_data: 'MatrixTable'):
-        self.reference_data: 'MatrixTable' = reference_data
-        self.variant_data: 'MatrixTable' = variant_data
+    def __init__(self, reference_data: MatrixTable, variant_data: MatrixTable):
+        self.reference_data: MatrixTable = reference_data
+        self.variant_data: MatrixTable = variant_data
 
     def write(self, path, **kwargs):
         self.reference_data.write(VariantDataset._reference_path(path), **kwargs)
@@ -115,6 +115,9 @@ class VariantDataset:
     def checkpoint(self, path, **kwargs) -> 'VariantDataset':
         self.write(path, **kwargs)
         return read_vds(path)
+
+    def n_samples(self) -> int:
+        return self.reference_data.count_cols()
 
     def validate(self):
         """Eagerly checks necessary representational properties of the VDS."""
