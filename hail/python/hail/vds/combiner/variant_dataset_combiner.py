@@ -150,6 +150,12 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
             print()
             raise e
 
+    def run(self):
+        while not self.finished:
+            self.save()
+            self.step()
+        self.save()
+
     @staticmethod
     def load(path) -> 'VariantDatasetCombiner':
         fs = hl.current_backend().fs
@@ -257,14 +263,6 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
 
     def _temp_out_path(self, extra):
         return os.path.join(self.temp_path, 'combiner-intermidiates', f'{self._uuid}_{extra}')
-
-
-def run_combiner(**kwargs):
-    combiner = new_combiner(**kwargs)
-    while not combiner.finished:
-        combiner.save()
-        combiner.step()
-    combiner.save()
 
 
 def new_combiner(*,
