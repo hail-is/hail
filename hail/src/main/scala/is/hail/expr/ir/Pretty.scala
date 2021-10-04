@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir.agg.{AggElementsAggSig, AggStateSig, ArrayLenAggSig, GroupedAggSig, PhysicalAggSig}
+import is.hail.expr.ir.agg.{AggElementsAggSig, AggStateSig, ArrayLenAggSig, FoldStateSig, GroupedAggSig, PhysicalAggSig}
 import is.hail.expr.ir.functions.RelationalFunctions
 import is.hail.types.virtual.{TArray, TInterval, Type}
 import is.hail.utils.{space => _, _}

@@ -684,6 +684,9 @@ object IRParser {
         val nested = agg_state_signatures(env)(it)
         GroupedStateSig(kt, nested)
       case "ApproxCDFStateSig" => ApproxCDFStateSig()
+      case "FoldStateSig" =>
+        val vtwr = vtwr_expr(env)(it)
+        FoldStateSig(???, ???, vtwr.canonicalEmitType, ???, ???, ???)
     }
     punctuation(it, ")")
     sig
