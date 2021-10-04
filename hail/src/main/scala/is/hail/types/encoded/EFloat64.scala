@@ -9,6 +9,8 @@ import is.hail.types.physical.stypes.{SCode, SType, SValue}
 import is.hail.types.physical.stypes.primitives.{SFloat64, SFloat64Code}
 import is.hail.types.virtual._
 import is.hail.utils._
+import org.json4s.{JBool, JValue}
+import org.json4s.JsonAST.{JObject, JString}
 
 case object EFloat64Optional extends EFloat64(false)
 
@@ -32,6 +34,10 @@ class EFloat64(override val required: Boolean) extends EType {
   def _toPretty = "EFloat64"
 
   def setRequired(newRequired: Boolean): EFloat64 = EFloat64(newRequired)
+
+  override def jsonRepresentation: JValue = {
+    JObject(("name", JString("EFloat64")), ("required", JBool(this.required)))
+  }
 }
 
 object EFloat64 {

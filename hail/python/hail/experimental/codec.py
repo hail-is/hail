@@ -24,6 +24,8 @@ def etype_from_json(e_json):
     name = e_json["name"]
     if name == "EInt32":
         return EInt32(e_json["required"])
+    if name == "EFloat64":
+        return EFloat64(e_json["required"])
     elif name == "EArray":
         return EArray(etype_from_json(e_json["elementType"]), e_json["required"])
     else:
@@ -44,6 +46,14 @@ class EInt32(EType):
 
     def decode(self, byte_array, offset):
         return read_int(byte_array, offset)
+
+
+class EFloat64(EType):
+    def __init__(self, required=False):
+        super().__init__(required)
+
+    def decode(self, byte_array, offset):
+        pass #return read_double(byte_array, offset)
 
 
 class EArray(EType):
