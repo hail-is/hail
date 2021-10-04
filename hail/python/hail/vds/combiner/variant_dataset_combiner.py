@@ -2,6 +2,7 @@ import collections
 import hashlib
 import itertools
 import json
+import math
 import os
 import sys
 import uuid
@@ -61,7 +62,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         'gvcf_import_intervals',
     ]
 
-    __slots__ = tuple(__serialized_slots__ + ['_uuid', '_job_id'])
+    __slots__ = tuple(__serialized_slots__ + ['_uuid', '_job_id', '__intervals_cache'])
 
     def __init__(self,
                  *,
@@ -114,6 +115,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         self.gvcf_import_intervals = gvcf_import_intervals
         self._uuid = uuid.uuid4()
         self._job_id = 0
+        self.__intervals_cache = {}
 
     def __eq__(self, other):
         if other.__class__ != VariantDatasetCombiner:
@@ -203,9 +205,16 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         largest_vds = files_to_merge[0]
         vds = hl.vds.read_vds(largest_vds.path)
         # we use the reference data since it generally has more rows than the variant data
-        intervals, intervals_dtype = calculate_new_intervals(vds.reference_data,
-                                                             self.target_records,
-                                                             os.path.join(temp_path, 'interval_checkpoint.ht'))
+
+        new_n_samples = sum(f.n_samples for f in files_to_merge)
+        interval_bin = math.ceil(math.log(new_n_samples, self.branch_factor))
+        intervals, intervals_dtype = self.__intervals_cache.get(interval_bin, (None, None))
+
+        if intervals is None:
+            intervals, intervals_dtype = calculate_new_intervals(vds.reference_data,
+                                                                 self.target_records,
+                                                                 os.path.join(temp_path, 'interval_checkpoint.ht'))
+            self.__intervals_cache[interval_bin] = (intervals, intervals_dtype)
 
         paths = [f.path for f in files_to_merge]
         vdss = read_variant_datasets(paths, intervals, intervals_dtype)
@@ -217,7 +226,6 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
 
         new_path = os.path.join(temp_path, 'dataset.vds')
         combined.write(new_path, overwrite=True)
-        new_n_samples = sum(f.n_samples for f in files_to_merge)
         self.vdses.append(VDSMetadata(path=new_path, n_samples=new_n_samples))
         self.vdses.sort(key=lambda x: x.n_samples, reverse=True)
 
