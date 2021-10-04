@@ -55,8 +55,6 @@ class EInt32(override val required: Boolean) extends EType {
   def _toPretty = "EInt32"
 
   def setRequired(newRequired: Boolean): EInt32 = EInt32(newRequired)
-
-  override def jsonRepresentation: JValue = JObject(("name", JString("EInt32")), ("required", JBool(this.required)))
 }
 
 object EInt32 {

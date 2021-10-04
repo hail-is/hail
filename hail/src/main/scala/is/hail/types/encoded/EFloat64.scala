@@ -34,10 +34,6 @@ class EFloat64(override val required: Boolean) extends EType {
   def _toPretty = "EFloat64"
 
   def setRequired(newRequired: Boolean): EFloat64 = EFloat64(newRequired)
-
-  override def jsonRepresentation: JValue = {
-    JObject(("name", JString("EFloat64")), ("required", JBool(this.required)))
-  }
 }
 
 object EFloat64 {

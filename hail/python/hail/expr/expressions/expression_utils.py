@@ -214,10 +214,8 @@ def eval2(expression):
         expression_type = expression.dtype
         if ir_type != expression.dtype:
             raise ExpressionException(f'Expression type and IR type differed: \n{ir_type}\n vs \n{expression_type}')
-        (e_type_json_string, encoded_bytes) = hl.experimental.encode(expression)
-        e_type_json = json.loads(e_type_json_string)
-        e_type = hl.experimental.codec.etype_from_json(e_type_json)
-        return hl.experimental.codec.decode(e_type, encoded_bytes)
+        encoded_bytes = hl.experimental.encode(expression)
+        return hl.experimental.codec.decode(ir_type, encoded_bytes)
 
 
 @typecheck(expression=expr_any)

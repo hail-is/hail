@@ -262,6 +262,12 @@ class HailType(object):
     def _convert_from_json(self, x):
         return x
 
+    def _from_encoding(self, encoding):
+        return self._convert_from_encoding(encoding, 4)
+
+    def _convert_from_encoding(self, encoding, offset):
+        raise ValueError("Not implemented yet")
+
     def _traverse(self, obj, f):
         """Traverse a nested type and object.
 
@@ -369,6 +375,9 @@ class _tint32(HailType):
 
     def to_numpy(self):
         return np.int32
+
+    def _convert_from_encoding(self, encoding, offset):
+        return hl.experimental.codec.read_int(encoding, offset)
 
 
 class _tint64(HailType):
@@ -773,6 +782,12 @@ class tarray(HailType):
 
     def _get_context(self):
         return self.element_type.get_context()
+
+    def _convert_from_encoding(self, encoding, offset):
+        len = hl.experimental.codec.read_int(encoding, offset)
+        num_missing_bytes = math.ceil(len / 8)
+        data_start = offset + 4 + num_missing_bytes
+        return [self.element_type._convert_from_encoding(encoding, data_start + i * 4) for i in range(len)]
 
 
 class tstream(HailType):

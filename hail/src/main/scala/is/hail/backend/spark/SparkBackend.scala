@@ -410,7 +410,7 @@ class SparkBackend(
   }
 
   // Called from python
-  def encodeToBytes(ir: IR, bufferSpecString: String): (String, Array[Byte]) = {
+  def encodeToBytes(ir: IR, bufferSpecString: String): Array[Byte] = {
     ExecutionTimer.logTime("SparkBackend.encodeToBytes") { timer =>
       val bs = BufferSpec.parseOrDefault(bufferSpecString)
       withExecuteContext(timer) { ctx =>
@@ -420,11 +420,9 @@ class SparkBackend(
             assert(t.size == 1)
             val elementType = t.fields(0).typ
             val codec = TypedCodecSpec(
-              EType.defaultFromPType(elementType), elementType.virtualType, bs)
+              EType.fromTypeAllOptional(elementType.virtualType), elementType.virtualType, bs)
             assert(t.isFieldDefined(off, 0))
-            implicit val formats = DefaultFormats
-            val s = org.json4s.jackson.Serialization.write(codec.encodedType.jsonRepresentation)
-            (s, codec.encode(ctx, elementType, t.loadField(off, 0)))
+            codec.encode(ctx, elementType, t.loadField(off, 0))
         }
       }
     }

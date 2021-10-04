@@ -143,6 +143,4 @@ final case class EArray(val elementType: EType, override val required: Boolean =
   }
 
   def setRequired(newRequired: Boolean): EArray = EArray(elementType, newRequired)
-
-  override def jsonRepresentation: JValue = JObject(("name", JString("EArray")), ("required", JBool(this.required)), ("elementType", this.elementType.jsonRepresentation))
 }

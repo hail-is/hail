@@ -169,8 +169,6 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   def _decodedSType(requestedType: Type): SType
 
   def setRequired(required: Boolean): EType
-
-  def jsonRepresentation: JValue = ???
 }
 
 trait DecoderAsmFunction { def apply(r: Region, in: InputBuffer): Long }
@@ -296,6 +294,40 @@ object EType {
     case t: TNDArray =>
       val rndarray = r.asInstanceOf[RNDArray]
       ENDArrayColumnMajor(fromTypeAndAnalysis(t.elementType, rndarray.elementType), t.nDims, rndarray.required)
+  }
+
+  def fromTypeAllOptional(t: Type): EType = t match {
+    case TInt32 => EInt32(false)
+    case TInt64 => EInt64(false)
+    case TFloat32 => EFloat32(false)
+    case TFloat64 => EFloat64(false)
+    case TBoolean => EBoolean(false)
+    case TBinary => EBinary(false)
+    case TString => EBinary(false)
+    case TLocus(_) =>
+      EBaseStruct(Array(
+        EField("contig", EBinary(false), 0),
+        EField("position", EInt32(false), 1)),
+        required = false)
+    case TCall => EInt32(false)
+    case t: TInterval =>
+      EBaseStruct(
+        Array(
+          EField("start", fromTypeAllOptional(t.pointType), 0),
+          EField("end", fromTypeAllOptional(t.pointType), 1),
+          EField("includesStart", EBoolean(false), 2),
+          EField("includesEnd", EBoolean(false), 3)),
+        required = false)
+    case t: TIterable => EArray(fromTypeAllOptional(t.elementType), false)
+    case t: TBaseStruct =>
+      EBaseStruct(Array.tabulate(t.size) { i =>
+        val f = t.fields(i)
+        if (f.index != i)
+          throw new AssertionError(s"${t} [$i]")
+        EField(f.name, fromTypeAllOptional(t.fields(i).typ), f.index)
+      }, required = false)
+    case t: TNDArray =>
+      ENDArrayColumnMajor(fromTypeAllOptional(t.elementType), t.nDims, false)
   }
 
   def eTypeParser(it: TokenIterator): EType = {
