@@ -72,7 +72,7 @@ object AggStateSig {
     case NDArraySumStateSig(nda) => new TypedRegionBackedAggState(nda, cb)
     case NDArrayMultiplyAddStateSig(nda) =>
       new TypedRegionBackedAggState(nda, cb)
-    case FoldStateSig(initOpArgs, seqOpArgs, resultEmitType, accumName, otherAccumName, combOpIR) => {
+    case FoldStateSig(resultEmitType, accumName, otherAccumName, combOpIR) => {
       val vWithReq = resultEmitType.typeWithRequiredness
       new TypedRegionBackedAggState(vWithReq, cb)
     }
@@ -101,7 +101,7 @@ case class NDArrayMultiplyAddStateSig(nda: VirtualTypeWithReq) extends AggStateS
   require(!nda.r.required)
 }
 
-case class FoldStateSig(initOpTypes: IndexedSeq[Type], seqOpTypes: IndexedSeq[Type], resultEmitType: EmitType, accumName: String, otherAccumName: String, combOpIR: IR) extends AggStateSig(Array[VirtualTypeWithReq](resultEmitType.typeWithRequiredness), None)
+case class FoldStateSig(resultEmitType: EmitType, accumName: String, otherAccumName: String, combOpIR: IR) extends AggStateSig(Array[VirtualTypeWithReq](resultEmitType.typeWithRequiredness), None)
 
 object PhysicalAggSig {
   def apply(op: AggOp, state: AggStateSig): PhysicalAggSig = BasicPhysicalAggSig(op, state)
@@ -352,8 +352,8 @@ object Extract {
       new NDArraySumAggregator(nda)
     case PhysicalAggSig(NDArrayMultiplyAdd(), NDArrayMultiplyAddStateSig(nda)) =>
       new NDArrayMultiplyAddAggregator(nda)
-    case PhysicalAggSig(Fold(), FoldStateSig(init, seq, res, accumName, otherAccumName, combOpIR)) =>
-      new FoldAggregator(init, seq, res, accumName, otherAccumName, combOpIR)
+    case PhysicalAggSig(Fold(), FoldStateSig(res, accumName, otherAccumName, combOpIR)) =>
+      new FoldAggregator(res, accumName, otherAccumName, combOpIR)
   }
 
   def apply(ir: IR, resultName: String, r: RequirednessAnalysis, isScan: Boolean = false): Aggs = {
@@ -406,7 +406,7 @@ object Extract {
           val seqOpArgs = IndexedSeq(seqOp)
           val op = Fold()
           val resultEmitType = EmitType(SType.canonical(zero.typ), false) // TODO: Can we ever decide this is required?
-          val foldStateSig = FoldStateSig(initOpArgs.map(_.typ), seqOpArgs.map(_.typ), resultEmitType, accumName, otherAccumName, combOp)
+          val foldStateSig = FoldStateSig(resultEmitType, accumName, otherAccumName, combOp)
           val signature = PhysicalAggSig(op, foldStateSig)
           ab += InitOp(i, initOpArgs, signature) -> signature
           // So seqOp has to be able to reference accumName.

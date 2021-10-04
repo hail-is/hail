@@ -81,5 +81,6 @@ object AggOp {
     case "ImputeType" => ImputeType()
     case "NDArraySum" => NDArraySum()
     case "NDArrayMutiplyAdd" => NDArrayMultiplyAdd()
+    case "Fold" => Fold()
   }
 }

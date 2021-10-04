@@ -8,8 +8,12 @@ import is.hail.types.virtual.Type
 
 // (IR => T), seq op (IR T => T), and comb op (IR (T,T) => T)
 
-class FoldAggregator(val initOpTypes: Seq[Type], val seqOpTypes: Seq[Type], val resultEmitType: EmitType, accumName: String, otherAccumName: String, combOpIR: IR) extends StagedAggregator {
+class FoldAggregator(val resultEmitType: EmitType, accumName: String, otherAccumName: String, combOpIR: IR) extends StagedAggregator {
   override type State = TypedRegionBackedAggState
+
+  override val initOpTypes: Seq[Type] = IndexedSeq(resultEmitType.virtualType)
+
+  override val seqOpTypes: Seq[Type] = IndexedSeq(resultEmitType.virtualType)
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     val Array(initEC) = init

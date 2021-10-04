@@ -81,11 +81,18 @@ object Pretty {
   def prettyAggStateSignatures(states: Seq[AggStateSig]): Doc =
     list(states.view.map(prettyAggStateSignature))
 
-  def prettyAggStateSignature(state: AggStateSig): Doc =
-    fillList(state.n match {
-      case None => text(prettyClass(state)) +: state.t.view.map(typ => text(typ.canonicalPType.toString))
-      case Some(nested) => text(prettyClass(state)) +: state.t.view.map(typ => text(typ.canonicalPType.toString)) :+ prettyAggStateSignatures(nested)
-    })
+  def prettyAggStateSignature(state: AggStateSig): Doc = {
+    state match {
+      case FoldStateSig(resultEmitType, accumName, otherAccumName, combOpIR) =>
+        fillList(IndexedSeq(text(prettyClass(state)), text(resultEmitType.typeWithRequiredness.canonicalPType.toString),
+          text(accumName), text(otherAccumName), text(Pretty(combOpIR))))
+      case _ =>
+        fillList(state.n match {
+          case None => text(prettyClass(state)) +: state.t.view.map(typ => text(typ.canonicalPType.toString))
+          case Some(nested) => text(prettyClass(state)) +: state.t.view.map(typ => text(typ.canonicalPType.toString)) :+ prettyAggStateSignatures(nested)
+        })
+    }
+  }
 
   def prettyPhysicalAggSigs(aggSigs: Seq[PhysicalAggSig]): Doc =
     list(aggSigs.view.map(prettyPhysicalAggSig))

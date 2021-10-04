@@ -2794,7 +2794,7 @@ class IRSuite extends HailSuite {
       SeqOp(0, FastIndexedSeq(i), pCollectSig),
       CombOp(0, 1, pCollectSig),
       ResultOp(0, pCollectSig),
-      ResultOp(0, PhysicalAggSig(Fold(), FoldStateSig(IndexedSeq(TInt32), IndexedSeq(TInt32), EmitType(SInt32, true), "accum", "other", Ref("accum", TInt32)))),
+      ResultOp(0, PhysicalAggSig(Fold(), FoldStateSig(EmitType(SInt32, true), "accum", "other", Ref("accum", TInt32)))),
       SerializeAggs(0, 0, BufferSpec.default, FastSeq(pCollectSig.state)),
       DeserializeAggs(0, 0, BufferSpec.default, FastSeq(pCollectSig.state)),
       CombOpValue(0, bin, pCollectSig),
