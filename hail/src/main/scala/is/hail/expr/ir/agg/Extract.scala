@@ -405,7 +405,7 @@ object Extract {
           val initOpArgs = IndexedSeq(zero)
           val seqOpArgs = IndexedSeq(seqOp)
           val op = Fold()
-          val resultEmitType = EmitType(SType.canonical(zero.typ), false) // TODO: Can we ever decide this is required?
+          val resultEmitType = EmitType(SType.canonical(zero.typ), false) // FIXME: Should be able to be true sometimes.
           val foldStateSig = FoldStateSig(resultEmitType, accumName, otherAccumName, combOp)
           val signature = PhysicalAggSig(op, foldStateSig)
           ab += InitOp(i, initOpArgs, signature) -> signature
