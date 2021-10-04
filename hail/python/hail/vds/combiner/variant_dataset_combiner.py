@@ -135,7 +135,8 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                 fs.copy(self.save_path, backup_path)
             with fs.open(self.save_path, 'w') as out:
                 json.dump(self, out, indent=2, cls=Encoder)
-            fs.remove(backup_path)
+            if fs.exists(backup_path):
+                fs.remove(backup_path)
         except OSError as e:
             # these messages get printed, because there is absolutely no guarentee
             # that the hail context is in a sane state if any of the above operations
@@ -146,6 +147,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
             print('Dumping current state as json to standard output, you may wish '
                   'to save this output in order to resume the combiner.')
             json.dump(self, sys.stdout, indent=2, cls=Encoder)
+            print()
             raise e
 
     @staticmethod
