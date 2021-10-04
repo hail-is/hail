@@ -23,8 +23,10 @@ log = logging.getLogger('ci')
 
 global_config = {}
 for field in os.listdir('/global-config/'):
-    with open(f'/global-config/{field}') as value:
-        global_config[field] = value.read()
+    # Kubernetes inserts some hidden files that we don't care about
+    if not field.startswith('.'):
+        with open(f'/global-config/{field}') as value:
+            global_config[field] = value.read()
 
 pretty_print_log = "jq -Rr '. as $raw | try \
 (fromjson | if .hail_log == 1 then \
