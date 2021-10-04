@@ -90,7 +90,7 @@ def test_combiner_plan_round_trip_serialization():
     out_file = new_temp_file(extension='vds')
     plan = new_combiner(gvcf_paths=paths,
                         output_path=out_file,
-                        scratch_path=Env.hc()._tmpdir,
+                        temp_path=Env.hc()._tmpdir,
                         save_path=plan_path,
                         reference_genome='GRCh38',
                         use_exome_default_intervals=True,
