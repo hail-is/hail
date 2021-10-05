@@ -40,7 +40,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
     default_target_records = 24_000
 
     # These are used to calculate intervals for reading GVCFs in the combiner
-    # The genome interval size results in 2568 partions for GRCh38. The exome
+    # The genome interval size results in 2568 partitions for GRCh38. The exome
     # interval size assumes that they are around 2% the size of a genome and
     # result in 65 partitions for GRCh38.
     default_genome_interval_size = 1_200_000
@@ -78,7 +78,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                  gvcfs: List[str],
                  gvcf_sample_names: Optional[List[str]] = None,
                  gvcf_external_header: Optional[str] = None,
-                 gvcf_import_intervals: List[hl.utils.Interval],
+                 gvcf_import_intervals: List[Interval],
                  ):
         if not (vdses or gvcfs):
             raise ValueError("one of 'vdses' or 'gvcfs' must be nonempty")
@@ -140,7 +140,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
             if fs.exists(backup_path):
                 fs.remove(backup_path)
         except OSError as e:
-            # these messages get printed, because there is absolutely no guarentee
+            # these messages get printed, because there is absolutely no guarantee
             # that the hail context is in a sane state if any of the above operations
             # fail
             print(f'Failed saving {self.__class__.__name__} state at {self.save_path}')
@@ -239,6 +239,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         else:
             sample_names = None
         merge_vds = []
+        merge_n_samples = []
         while files_to_merge:
             inputs, files_to_merge = files_to_merge[:step], files_to_merge[step:]
             if sample_names is not None:
@@ -248,29 +249,27 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                                                 self.gvcf_import_intervals,
                                                 array_elements_required=False,
                                                 _external_header=self.gvcf_external_header,
-                                                _external_sample_ids=[[name] for name in names] if sample_names is not None else None,
+                                                _external_sample_ids=[[name] for name in names] if names is not None else None,
                                                 reference_genome=self.reference_genome,
                                                 contig_recoding=self.contig_recoding)]
             merge_vds.append(combine_variant_datasets(vdses))
+            merge_n_samples.append(len(vdses))
         if self.finished and len(merge_vds) == 1:
             merge_vds[0].write(self.output_path)
             return
 
         temp_path = self._temp_out_path(f'gvcf-combine_job{self._job_id}/dataset_')
         pad = len(str(len(merge_vds) - 1))
-        merge_metadata = []
-        count = 0
-        for _ in merge_vds:
-            merge_metadata.append(VDSMetadata(path=temp_path + str(count).rjust(pad, '0') + '.vds',
-                                  n_samples=len(vdses)))
-            count += 1
+        merge_metadata = [VDSMetadata(path=temp_path + str(count).rjust(pad, '0') + '.vds',
+                                      n_samples=n_samples)
+                          for count, n_samples in enumerate(merge_n_samples)]
         paths = [md.path for md in merge_metadata]
         hl.vds.write_variant_datasets(merge_vds, paths, overwrite=True)
         self.vdses.extend(merge_metadata)
         self.vdses.sort(key=lambda x: x.n_samples, reverse=True)
 
     def _temp_out_path(self, extra):
-        return os.path.join(self.temp_path, 'combiner-intermidiates', f'{self._uuid}_{extra}')
+        return os.path.join(self.temp_path, 'combiner-intermediates', f'{self._uuid}_{extra}')
 
 
 def new_combiner(*,
@@ -280,7 +279,7 @@ def new_combiner(*,
                  gvcf_paths: Optional[List[str]] = None,
                  vds_paths: Optional[List[str]] = None,
                  vds_sample_counts: Optional[List[int]] = None,
-                 intervals: Optional[List[hl.utils.Interval]] = None,
+                 intervals: Optional[List[Interval]] = None,
                  import_interval_size: Optional[int] = None,
                  use_genome_default_intervals: bool = False,
                  use_exome_default_intervals: bool = False,
