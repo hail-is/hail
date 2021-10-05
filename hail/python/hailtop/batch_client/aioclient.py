@@ -604,14 +604,12 @@ class BatchBuilder:
 
 class BatchClient:
     @staticmethod
-    async def create(
-        billing_project: str,
-        deploy_config: Optional[DeployConfig] = None,
-        session: Optional[httpx.ClientSession] = None,
-        headers: Optional[Dict[str, str]] = None,
-        _token: Optional[str] = None,
-        token_file: Optional[str] = None
-    ):
+    async def create(billing_project: str,
+                     deploy_config: Optional[DeployConfig] = None,
+                     session: Optional[httpx.ClientSession] = None,
+                     headers: Optional[Dict[str, str]] = None,
+                     _token: Optional[str] = None,
+                     token_file: Optional[str] = None):
         if not deploy_config:
             deploy_config = get_deploy_config()
             url = deploy_config.base_url('batch')
@@ -631,12 +629,11 @@ class BatchClient:
             headers=headers)
 
     def __init__(self,
-        billing_project: str,
-        url: str,
-        deploy_config: DeployConfig,
-        session: httpx.ClientSession,
-        headers: Dict[str, str]
-    ):
+                 billing_project: str,
+                 url: str,
+                 deploy_config: DeployConfig,
+                 session: httpx.ClientSession,
+                 headers: Dict[str, str]):
         self.billing_project = billing_project
         self.url = url
         self.deploy_config = deploy_config
