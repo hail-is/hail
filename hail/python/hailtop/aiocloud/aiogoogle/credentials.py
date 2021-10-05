@@ -14,8 +14,12 @@ log = logging.getLogger(__name__)
 
 class GCPCredentials(CloudCredentials):
     _session: hailtop.httpx.ClientSession
-    _access_token: Dict[str, Any]
-    _expires_at: int
+    _access_token: Optional[Dict[str, Any]]
+    _expires_at: Optional[int]
+
+    def __init__(self):
+        self._access_token = None
+        self._expires_at = None
 
     @staticmethod
     def from_file(credentials_file):
@@ -71,6 +75,7 @@ class GCPCredentials(CloudCredentials):
 # studying `gcloud --log-http print-access-token` was also useful
 class GCPApplicationDefaultCredentials(GCPCredentials):
     def __init__(self, credentials, **kwargs):
+        super().__init__()
         self.credentials = credentials
         self._session = hailtop.httpx.ClientSession(**kwargs)
 
@@ -95,6 +100,7 @@ class GCPApplicationDefaultCredentials(GCPCredentials):
 # studying `gcloud --log-http print-access-token` was also useful
 class GCPServiceAccountCredentials(GCPCredentials):
     def __init__(self, key, **kwargs):
+        super().__init__()
         self.key = key
         self._session = hailtop.httpx.ClientSession(**kwargs)
 
@@ -125,6 +131,7 @@ class GCPServiceAccountCredentials(GCPCredentials):
 # https://cloud.google.com/compute/docs/access/create-enable-service-accounts-for-instances#applications
 class GCPInstanceMetadataCredentials(GCPCredentials):
     def __init__(self, **kwargs):
+        super().__init__()
         self._session = hailtop.httpx.ClientSession(**kwargs)
 
     async def get_access_token(self):
