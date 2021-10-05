@@ -792,13 +792,13 @@ class tarray(HailType):
             return hl.experimental.codec.lookup_bit(encoding[byte_offset], remaining_bit_offset)
 
         num_missing_bytes = math.ceil(length / 8)
-
+        missing_bytes_start = offset + 4
         num_bytes_read = 4 + num_missing_bytes
 
         decoded = []
         i = 0
         while i < length:
-            if is_missing(encoding, offset * 8 + i):
+            if is_missing(encoding, missing_bytes_start * 8 + i):
                 decoded.append(None)
             else:
                 (element_decoded, element_num_bytes_read) = self.element_type._convert_from_encoding(encoding, offset + num_bytes_read)
@@ -1183,11 +1183,30 @@ class tstruct(HailType, Mapping):
             ','.join('{}:{}'.format(escape_parsable(f), t._parsable_string()) for f, t in self.items()))
 
     def _convert_from_json(self, x):
-        from hail.utils import Struct
-        return Struct(**{f: t._convert_from_json_na(x.get(f)) for f, t in self.items()})
+        return hl.utils.Struct(**{f: t._convert_from_json_na(x.get(f)) for f, t in self.items()})
 
     def _convert_to_json(self, x):
         return {f: t._convert_to_json_na(x[f]) for f, t in self.items()}
+
+    def _convert_from_encoding(self, encoding, offset):
+        def is_missing(encoding, bit_offset):
+            byte_offset = bit_offset // 8
+            remaining_bit_offset = bit_offset % 8
+            return hl.experimental.codec.lookup_bit(encoding[byte_offset], remaining_bit_offset)
+
+        num_missing_bytes = math.ceil(len(self) / 8)
+        num_bytes_read = num_missing_bytes
+
+        kwargs = {}
+        for i, (f, t) in enumerate(self.items()):
+            if is_missing(encoding, offset * 8 + i):
+                kwargs[f] = None
+            else:
+                (field_decoded, field_bytes_read) = t._convert_from_encoding(encoding, offset + num_bytes_read)
+                num_bytes_read += field_bytes_read
+                kwargs[f] = field_decoded
+
+        return hl.utils.Struct(**kwargs), num_bytes_read
 
     def _is_prefix_of(self, other):
         return (isinstance(other, tstruct)

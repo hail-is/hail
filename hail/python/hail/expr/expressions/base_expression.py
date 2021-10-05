@@ -1005,8 +1005,8 @@ class Expression(object):
             return hl.eval(e)
         return e
 
-    @typecheck_method(_localize=bool)
-    def collect(self, _localize=True):
+    @typecheck_method(_localize=bool, etype=bool)
+    def collect(self, _localize=True, etype=False):
         """Collect all records of an expression into a local list.
 
         Examples
@@ -1033,7 +1033,10 @@ class Expression(object):
         name, t = self._to_table(uid)
         e = t.collect(_localize=False).map(lambda r: r[name])
         if _localize:
-            return hl.eval(e)
+            if etype:
+                return hl.expr.expressions.expression_utils.eval2(e)
+            else:
+                return hl.eval(e)
         return e
 
     def _extra_summary_fields(self, agg_result):
