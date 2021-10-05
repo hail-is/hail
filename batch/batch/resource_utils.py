@@ -101,6 +101,8 @@ def unreserved_worker_data_disk_size_gib(cloud, worker_local_ssd_data_disk, work
 def requested_storage_bytes_to_actual_storage_gib(cloud, storage_bytes, allow_zero_storage):
     assert cloud == 'gcp'
     actual_storage_bytes = gcp_requested_to_actual_storage_bytes(storage_bytes, allow_zero_storage)
+    if actual_storage_bytes is None:
+        return None
     return round_storage_bytes_to_gib(actual_storage_bytes)
 
 
