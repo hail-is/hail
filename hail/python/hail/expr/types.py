@@ -784,10 +784,25 @@ class tarray(HailType):
         return self.element_type.get_context()
 
     def _convert_from_encoding(self, encoding, offset):
-        len = hl.experimental.codec.read_int(encoding, offset)
-        num_missing_bytes = math.ceil(len / 8)
+        length = hl.experimental.codec.read_int(encoding, offset)
+
+        def is_missing(encoding, bit_offset):
+            byte_offset = bit_offset // 8
+            remaining_bit_offset = bit_offset % 8
+            return hl.experimental.codec.lookup_bit(encoding[byte_offset], remaining_bit_offset)
+
+        num_missing_bytes = math.ceil(length / 8)
         data_start = offset + 4 + num_missing_bytes
-        return [self.element_type._convert_from_encoding(encoding, data_start + i * 4) for i in range(len)]
+
+        decoded = []
+        for i in range(length):
+            print(f"Element {i} is missing? {is_missing(encoding, offset * 8 + i)}")
+            if is_missing(encoding, offset * 8 + i):
+                decoded.append(None)
+            else:
+                import pdb; pdb.set_trace()
+                decoded.append(self.element_type._convert_from_encoding(encoding, data_start + i * 4))
+        return decoded
 
 
 class tstream(HailType):
