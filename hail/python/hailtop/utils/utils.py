@@ -1,5 +1,6 @@
 from typing import Callable, TypeVar, Awaitable, Optional, Type, List, Dict
 from types import TracebackType
+import concurrent
 import subprocess
 import traceback
 import sys
@@ -34,6 +35,9 @@ RETRY_FUNCTION_SCRIPT = """function retry() {
         (sleep 2 && "$@") ||
         (sleep 5 && "$@");
 }"""
+
+
+T = TypeVar('T')  # pylint: disable=invalid-name
 
 
 def unpack_comma_delimited_inputs(inputs):
@@ -123,11 +127,14 @@ def unzip(lst):
     return a, b
 
 
-def async_to_blocking(coro):
+def async_to_blocking(coro: Awaitable[T]) -> T:
     return asyncio.get_event_loop().run_until_complete(coro)
 
 
-async def blocking_to_async(thread_pool, fun, *args, **kwargs):
+async def blocking_to_async(thread_pool: concurrent.futures.Executor,
+                            fun: Callable[..., T],
+                            *args,
+                            **kwargs) -> T:
     return await asyncio.get_event_loop().run_in_executor(
         thread_pool, lambda: fun(*args, **kwargs))
 
@@ -664,9 +671,6 @@ def retry_all_errors_n_times(max_errors=10, msg=None, error_logging_interval=10)
                     raise
             delay = await sleep_and_backoff(delay)
     return _wrapper
-
-
-T = TypeVar('T')  # pylint: disable=invalid-name
 
 
 async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
