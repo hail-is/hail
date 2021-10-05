@@ -18,6 +18,7 @@ import socket
 import requests
 import google.auth.exceptions
 import google.api_core.exceptions
+import botocore.exceptions
 import time
 import weakref
 from requests.adapters import HTTPAdapter
@@ -586,7 +587,8 @@ def is_transient_error(e):
                             errno.EHOSTUNREACH,
                             errno.ECONNRESET,
                             errno.ENETUNREACH,
-                            errno.EPIPE
+                            errno.EPIPE,
+                            errno.ETIMEDOUT
                             )):
         return True
     if isinstance(e, aiohttp.ClientOSError):
@@ -601,8 +603,8 @@ def is_transient_error(e):
     if isinstance(e, socket.timeout):
         return True
     if isinstance(e, socket.gaierror):
-        # socket.EAI_AGAIN: [Errno -3] Temporary failure in name resolution
-        return e.errno == socket.EAI_AGAIN
+        # socket.EAI_NONAME: [Errno 8] nodename nor servname provided, or not known
+        return e.errno in (socket.EAI_AGAIN, socket.EAI_NONAME)
     if isinstance(e, ConnectionResetError):
         return True
     if isinstance(e, google.auth.exceptions.TransportError):
@@ -610,6 +612,8 @@ def is_transient_error(e):
     if isinstance(e, google.api_core.exceptions.GatewayTimeout):
         return True
     if isinstance(e, google.api_core.exceptions.ServiceUnavailable):
+        return True
+    if isinstance(e, botocore.exceptions.ConnectionClosedError):
         return True
     if isinstance(e, TransientError):
         return True
