@@ -18,7 +18,7 @@ async def make_client() -> AsyncGenerator[Callable[[str], Awaitable[BatchClient]
     _bcs = []
 
     async def factory(project):
-        bc = BatchClient(project, token_file=os.environ['HAIL_TEST_TOKEN_FILE'])
+        bc = await BatchClient.create(project, token_file=os.environ['HAIL_TEST_TOKEN_FILE'])
         _bcs.append(bc)
         return bc
 
@@ -29,7 +29,7 @@ async def make_client() -> AsyncGenerator[Callable[[str], Awaitable[BatchClient]
 
 @pytest.fixture
 async def dev_client() -> AsyncGenerator[BatchClient, Any]:
-    bc = BatchClient(
+    bc = await BatchClient.create(
         'billing-project-not-needed-but-required-by-BatchClient',
         token_file=os.environ['HAIL_TEST_DEV_TOKEN_FILE']
     )
@@ -43,7 +43,7 @@ def get_billing_project_prefix():
 
 async def delete_all_test_billing_projects():
     billing_project_prefix = get_billing_project_prefix()
-    bc = BatchClient(None, token_file=os.environ['HAIL_TEST_DEV_TOKEN_FILE'])
+    bc = await BatchClient.create(None, token_file=os.environ['HAIL_TEST_DEV_TOKEN_FILE'])
     try:
         for project in await bc.list_billing_projects():
             if project['billing_project'].startswith(billing_project_prefix):
@@ -91,7 +91,7 @@ async def new_billing_project(dev_client, random_billing_project_name):
 
 async def test_bad_token():
     token = session_id_encode_to_str(secrets.token_bytes(32))
-    bc = BatchClient('test', _token=token)
+    bc = await BatchClient.create('test', _token=token)
     try:
         b = bc.create_batch()
         j = b.create_job(DOCKER_ROOT_IMAGE, ['false'])
