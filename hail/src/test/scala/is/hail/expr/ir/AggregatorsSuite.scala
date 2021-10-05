@@ -820,6 +820,7 @@ class AggregatorsSuite extends HailSuite {
 
     val reqAnalysis = Requiredness.apply(myTableIR, ctx)
     val myLoweredTableIR = LowerTableIR(myTableIR, DArrayLowering.All, ctx, reqAnalysis, Map())
+
     assertEvalsTo(myLoweredTableIR, 4950)
   }
 

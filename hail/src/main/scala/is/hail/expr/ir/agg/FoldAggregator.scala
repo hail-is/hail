@@ -30,7 +30,7 @@ class FoldAggregator(val resultEmitType: EmitType, accumName: String, otherAccum
     val stateEV = state.get(cb).memoize(cb, "fold_agg_comb_op_state")
     val otherEV = other.get(cb).memoize(cb, "fold_agg_comb_op_other")
     val env = EmitEnv(Env.apply((accumName, stateEV), (otherAccumName, otherEV)), IndexedSeq())
-    val pEnv = Env.apply((accumName, stateEV.st.storageType()), (otherAccumName, otherEV.st.storageType()))
+    val pEnv = Env.apply((accumName, resultEmitType.storageType), (otherAccumName, resultEmitType.storageType))
 
     val emitCtx = EmitContext.analyze(ctx, combOpIR, pEnv)
     val emit = new Emit[Any](emitCtx, cb.emb.ecb.asInstanceOf[EmitClassBuilder[Any]])
