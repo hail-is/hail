@@ -58,6 +58,8 @@ GROUP BY batches.id;
         async with http_client_session as session:
             await session.post(callback, json=batch_record_to_dict(record))
             log.info(f'callback for batch {batch_id} successful')
+    except asyncio.CancelledError:
+        raise
     except Exception:
         log.exception(f'callback for batch {batch_id} failed, will not retry.')
 
