@@ -9,6 +9,7 @@ from hailtop.aiotools.fs import RouterAsyncFS, LocalAsyncFS, Transfer
 from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
 from hailtop.aiocloud.aioaws import S3AsyncFS
 from hailtop.aiocloud.aioazure import AzureAsyncFS
+from hailtop.utils import tqdm
 
 
 def referenced_schemes(transfers: List[Transfer]):
@@ -40,6 +41,17 @@ def filesystem_from_scheme(scheme, thread_pool=None, gcs_params=None):
     raise ValueError(f'Unsupported scheme: {scheme}')
 
 
+def make_tqdm_listener(pbar):
+    def listener(delta):
+        if pbar.total is None:
+            pbar.total = 0
+        if delta > 0:
+            pbar.total += delta
+            pbar.refresh()
+        if delta < 0:
+            pbar.update(-delta)
+    return listener
+
 async def copy(requester_pays_project: Optional[str],
                transfers: List[Transfer]
                ) -> None:
@@ -54,7 +66,14 @@ async def copy(requester_pays_project: Optional[str],
         async with RouterAsyncFS(default_scheme, filesystems) as fs:
             sema = asyncio.Semaphore(50)
             async with sema:
-                copy_report = await fs.copy(sema, transfers)
+                with tqdm(desc='files', leave=False, position=0, unit='file') as file_pbar, \
+                     tqdm(desc='bytes', leave=False, position=1, unit='byte', unit_scale=True, smoothing=0.1) as byte_pbar:
+
+                    copy_report = await fs.copy(
+                        sema,
+                        transfers,
+                        files_listener=make_tqdm_listener(file_pbar),
+                        bytes_listener=make_tqdm_listener(byte_pbar))
                 copy_report.summarize()
 
 
