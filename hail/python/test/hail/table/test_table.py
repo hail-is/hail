@@ -963,46 +963,6 @@ Exception in thread "main" java.lang.RuntimeException: invalid sort order: b
             hl.utils.Struct(idx=11, x=None, y=None, z=None),
         ]
 
-    def test_table_head_returns_right_number(self):
-        rt = hl.utils.range_table(10, 11)
-        par = hl.Table.parallelize([hl.Struct(x=x) for x in range(10)], schema='struct{x: int32}', n_partitions=11)
-        f = new_temp_file(extension='ht')
-        chkpt = rt.checkpoint(f)
-
-        # test TableRange and TableParallelize rewrite rules
-        tables = [rt, par, rt.cache(), chkpt]
-        for table in tables:
-            self.assertEqual(table.head(10).count(), 10)
-            self.assertEqual(table.head(10)._force_count(), 10)
-            self.assertEqual(table.head(9).count(), 9)
-            self.assertEqual(table.head(9)._force_count(), 9)
-            self.assertEqual(table.head(11).count(), 10)
-            self.assertEqual(table.head(11)._force_count(), 10)
-            self.assertEqual(table.head(0).count(), 0)
-            self.assertEqual(table.head(0)._force_count(), 0)
-
-    def test_table_tail_returns_right_number(self):
-        num_parts_list = [3, 11]
-        for num_parts in num_parts_list:
-            rt = hl.utils.range_table(10, num_parts)
-            par = hl.Table.parallelize([hl.Struct(x=x) for x in range(10)], schema='struct{x: int32}', n_partitions=11)
-            f = new_temp_file(extension='ht')
-            chkpt = rt.checkpoint(f)
-
-            # test TableRange and TableParallelize rewrite rules
-            tables = [rt, par, rt.cache(), chkpt]
-            for table in tables:
-                self.assertEqual(table.tail(10).count(), 10)
-                self.assertEqual(table.tail(10)._force_count(), 10)
-                self.assertEqual(table.tail(9).count(), 9)
-                self.assertEqual(table.tail(9)._force_count(), 9)
-                self.assertEqual(table.tail(11).count(), 10)
-                self.assertEqual(table.tail(11)._force_count(), 10)
-                self.assertEqual(table.tail(0).count(), 0)
-                self.assertEqual(table.tail(0)._force_count(), 0)
-                self.assertEqual(table.tail(7).count(), 7)
-                self.assertEqual(table.tail(7)._force_count(), 7)
-
     def test_table_order_by_head_rewrite(self):
         rt = hl.utils.range_table(10, 2)
         rt = rt.annotate(x = 10 - rt.idx)
@@ -1727,3 +1687,36 @@ def test_grouped_flatmap_streams():
         lambda group: hl.range(hl.len(group)).map(lambda i: group[i].annotate(z=group[0])),
         part.grouped(8)))
     ht._force_count()
+
+
+def make_test(table_name: str, num_parts: int, counter: str, truncator, n: int):
+    # NOTE: we cannot use Hail during test parameter initialization
+    def test():
+        if table_name == 'rt':
+            table = hl.utils.range_table(10, n_partitions=num_parts)
+        elif table_name == 'par':
+            table = hl.Table.parallelize([hl.Struct(x=x) for x in range(10)], schema='struct{x: int32}',
+                                         n_partitions=num_parts)
+        elif table_name == 'rtcache':
+            table = hl.utils.range_table(10, n_partitions=num_parts).cache()
+        else:
+            assert table_name == 'chkpt'
+            table = hl.utils.range_table(10, n_partitions=num_parts).checkpoint(new_temp_file(extension='ht'))
+        assert counter(truncator(table, n)) == min(10, n)
+    return test
+
+
+head_tail_test_data = [
+    pytest.param(make_test(table_name, num_parts, counter, truncator, n),
+                 id='__'.join([table_name, str(num_parts), str(n), truncator_name, counter_name]))
+    for table_name in ['rt', 'par', 'rtcache', 'chkpt']
+    for num_parts in [3, 11]
+    for n in (10, 9, 11, 0, 7)
+    for truncator_name, truncator in (('head', hl.Table.head), ('tail', hl.Table.tail))
+    for counter_name, counter in (('count', hl.Table.count), ('_force_count', hl.Table._force_count))]
+
+
+@pytest.mark.parametrize("test", head_tail_test_data)
+@skip_when_service_backend
+def test_table_head_and_tail(test):
+    test()
