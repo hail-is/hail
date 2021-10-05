@@ -7,7 +7,7 @@ import concurrent
 import functools
 from hailtop.utils import secret_alnum_string, bounded_gather2
 from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS
-from hailtop.aiocloud.aiogoogle import StorageClient, GoogleStorageAsyncFS
+from hailtop.aiocloud.aiogoogle import GoogleStorageClient, GoogleStorageAsyncFS
 
 
 @pytest.fixture(params=['gs', 'router/gs'])
@@ -39,7 +39,7 @@ async def test_get_object_metadata():
     bucket = os.environ['HAIL_TEST_GCS_BUCKET']
     file = secrets.token_hex(16)
 
-    async with StorageClient() as client:
+    async with GoogleStorageClient() as client:
         async with await client.insert_object(bucket, file) as f:
             await f.write(b'foo')
         metadata = await client.get_object_metadata(bucket, file)
@@ -54,7 +54,7 @@ async def test_get_object_headers():
     bucket = os.environ['HAIL_TEST_GCS_BUCKET']
     file = secrets.token_hex(16)
 
-    async with StorageClient() as client:
+    async with GoogleStorageClient() as client:
         async with await client.insert_object(bucket, file) as f:
             await f.write(b'foo')
         async with await client.get_object(bucket, file) as f:
@@ -71,7 +71,7 @@ async def test_compose():
 
     part_data = [b'a', b'bb', b'ccc']
 
-    async with StorageClient() as client:
+    async with GoogleStorageClient() as client:
         for i, b in enumerate(part_data):
             async with await client.insert_object(bucket, f'{token}/{i}') as f:
                 await f.write(b)

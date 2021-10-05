@@ -73,7 +73,7 @@ async def get_or_add_user(app, userdata):
             k8s_client.read_namespaced_secret, userdata['gsa_key_secret_name'], DEFAULT_NAMESPACE, _request_timeout=5.0
         )
         gsa_key = json.loads(base64.b64decode(gsa_key_secret.data['key.json']).decode())
-        credentials = Credentials.from_credentials_data(gsa_key)
+        credentials = GCPCredentials.from_credentials_data(gsa_key)
         users[username] = {'fs': GoogleStorageAsyncFS(credentials=credentials)}
     return users[username]
 
