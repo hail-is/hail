@@ -68,7 +68,7 @@ def get_billing_project_name() -> Callable[[], str]:
 
 
 @pytest.fixture
-async def new_billing_project(dev_client, get_billing_project_name):
+async def new_billing_project(dev_client, make_client, get_billing_project_name):
     project = get_billing_project_name()
     yield await dev_client.create_billing_project(project)
 
@@ -78,10 +78,15 @@ async def new_billing_project(dev_client, get_billing_project_name):
         assert e.status == 403, e
     else:
         assert r['status'] != 'deleted', r
-        if r['status'] == 'open':
-            await dev_client.close_billing_project(project)
-        if r['status'] != 'deleted':
-            await dev_client.delete_billing_project(project)
+        try:
+            client = await make_client(project)
+            async for batch in client.list_batches(f'billing_project:{project}'):
+                await batch.delete()
+        finally:
+            if r['status'] == 'open':
+                await dev_client.close_billing_project(project)
+            if r['status'] != 'deleted':
+                await dev_client.delete_billing_project(project)
 
 
 async def test_bad_token():
