@@ -1,8 +1,9 @@
 package is.hail.expr.ir.agg
 
+import freemarker.template.utility.Execute
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, IEmitCode}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitContext, ExecuteContext, IEmitCode}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.interfaces.primitive
@@ -30,7 +31,7 @@ object CountAggregator extends StagedAggregator {
     cb.assign(ev, EmitCode.present(cb.emb, primitive(cb.memoize(ev.pv.asInt64.longCode(cb) + 1L))))
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
+  protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: PrimitiveRVAState, other: PrimitiveRVAState): Unit = {
     assert(state.vtypes.head.r.required)
     val v1 = state.fields(0)
     val v2 = other.fields(0)

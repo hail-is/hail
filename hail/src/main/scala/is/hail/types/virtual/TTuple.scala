@@ -13,6 +13,7 @@ object TTuple {
 case class TupleField(index: Int, typ: Type)
 
 final case class TTuple(_types: IndexedSeq[TupleField]) extends TBaseStruct {
+  val st = Thread.currentThread().getStackTrace
   lazy val types: Array[Type] = _types.map(_.typ).toArray
 
   lazy val fields: IndexedSeq[Field] = _types.zipWithIndex.map { case (tf, i) => Field(s"${ tf.index }", tf.typ, i) }

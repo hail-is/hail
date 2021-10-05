@@ -79,7 +79,7 @@ class CollectAggregator(val elemType: VirtualTypeWithReq) extends StagedAggregat
     state.bll.push(cb, state.region, seq(0))
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit =
+  protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: CollectAggState, other: CollectAggState): Unit =
     state.bll.append(cb, state.region, other.bll)
 
   protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {

@@ -201,7 +201,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
     })
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
+  protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: ArrayElementState, other: ArrayElementState): Unit = {
     state.seq(cb, {
       cb.ifx(other.lenRef < 0, {
         cb.ifx(state.lenRef >= 0, {
@@ -223,7 +223,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
       other.load(cb)
       state.load(cb)
     }, {
-      state.nested.toCode((i, s) => nestedAggs(i).combOp(cb, s, other.nested(i)))
+      state.nested.toCode((i, s) => nestedAggs(i).combOp(ctx, cb, s, other.nested(i)))
     })
   }
 
@@ -289,7 +289,7 @@ class ArrayElementwiseOpAggregator(nestedAggs: Array[StagedAggregator]) extends 
     })
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit =
+  protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: ArrayElementState, other: ArrayElementState): Unit =
     throw new UnsupportedOperationException("State must be combined by ArrayElementLengthCheckAggregator.")
 
   protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode =

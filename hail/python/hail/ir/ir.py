@@ -10,7 +10,7 @@ from hail.expr.types import dtype, HailType, hail_type, tint32, tint64, \
 from hail.ir.blockmatrix_writer import BlockMatrixWriter, BlockMatrixMultiWriter
 from hail.typecheck import typecheck, typecheck_method, sequenceof, numeric, \
     sized_tupleof, nullable, tupleof, anytype, func_spec
-from hail.utils.java import Env
+from hail.utils.java import Env, HailUserError
 from hail.utils.misc import escape_str, dump_json, parsable_strings, escape_id
 from .base_ir import BaseIR, IR, TableIR, MatrixIR, BlockMatrixIR, _env_bind
 from .matrix_writer import MatrixWriter, MatrixNativeMultiWriter
@@ -1887,6 +1887,56 @@ class ApplyScanOp(BaseApplyAggOp):
         return i == 1
 
 
+class AggFold(IR):
+    @typecheck_method(zero=IR, seq_op=IR, comb_op=IR, accum_name=str, other_accum_name=str, is_scan=bool)
+    def __init__(self, zero, seq_op, comb_op, accum_name, other_accum_name, is_scan):
+        super().__init__(zero, seq_op, comb_op)
+        self.zero = zero
+        self.seq_op = seq_op
+        self.comb_op = comb_op
+        self.accum_name = accum_name
+        self.other_accum_name = other_accum_name
+        self.is_scan = is_scan
+
+        if self.comb_op.free_vars - {accum_name, other_accum_name} != set([]):
+            raise HailUserError("The comb_op function of fold cannot reference any fields on the Table or MatrixTable")
+
+    def copy(self, zero, seq_op, comb_op):
+        return AggFold(zero, seq_op, comb_op, self.accum_name, self.other_accum_name, self.is_scan)
+
+    def head_str(self):
+        return f"{self.accum_name} {self.other_accum_name} {self.is_scan}"
+
+    def _compute_type(self, env, agg_env):
+        self.zero._compute_type(env, agg_env)
+        self.seq_op._compute_type(_env_bind(agg_env, self.bindings(1)), None)
+        self.comb_op._compute_type(self.bindings(2), None)
+
+        assert self.zero._type == self.seq_op._type
+        assert self.zero._type == self.comb_op._type
+
+        self._type = self.zero._type
+
+    def renderable_bindings(self, i: int, default_value=None):
+        dict_so_far = {}
+        if i == 1 or i == 2:
+            if default_value is None:
+                dict_so_far[self.accum_name] = self.zero.typ
+            else:
+                dict_so_far[self.accum_name] = default_value
+
+        if i == 2:
+            if default_value is None:
+                dict_so_far[self.other_accum_name] = self.zero.typ
+            else:
+                dict_so_far[self.other_accum_name] = default_value
+
+        return dict_so_far
+
+    def renderable_new_block(self, i: int) -> bool:
+        return i > 0
+
+
 class Begin(IR):
     @typecheck_method(xs=sequenceof(IR))
     def __init__(self, xs):
@@ -2776,6 +2826,9 @@ def subst(ir, env, agg_env):
         return ApplyAggOp(ir.agg_op,
                           subst_init_op_args,
                           subst_seq_op_args)
+    elif isinstance(ir, AggFold):
+        subst_seq_op = subst(ir.seq_op, agg_env, {})
+        return AggFold(ir.zero, subst_seq_op, ir.comb_op, ir.accum_name, ir.other_accum_name, ir.is_scan)
     elif isinstance(ir, AggArrayPerElement):
         return AggArrayPerElement(_subst(ir.array, agg_env),
                                   ir.element_name,

@@ -482,6 +482,52 @@ class Tests(unittest.TestCase):
         expected = {'rabbit': 0.0, 'cat': 2.0, 'dog': 3.0, None: 3.0}
         assert actual == expected
 
+    def test_aggfold_agg(self):
+        ht = hl.utils.range_table(100, 5)
+        self.assertEqual(ht.aggregate(hl.agg.fold(0, lambda x: x + ht.idx, lambda a, b: a + b)), 4950)
+
+        ht = ht.annotate(s=hl.struct(x=ht.idx, y=ht.idx + 1))
+        sum_and_product = (ht.aggregate(
+            hl.agg.fold(
+                hl.struct(x=0, y=1.0),
+                lambda accum: hl.struct(x=accum.x + ht.s.x, y=accum.y * ht.s.y),
+                lambda a, b: hl.struct(x=a.x + b.x, y=a.y * b.y))))
+        self.assertEqual(sum_and_product, hl.Struct(x=4950, y=9.332621544394414e+157))
+
+        ht = ht.annotate(maybe=hl.if_else(ht.idx % 2 == 0, ht.idx, hl.missing(hl.tint32)))
+        sum_evens_missing = ht.aggregate(hl.agg.fold(0, lambda x: x + ht.maybe, lambda a, b: a + b))
+        assert sum_evens_missing is None
+        sum_evens_only = ht.aggregate(hl.agg.fold(0, lambda x: x + hl.coalesce(ht.maybe, 0), lambda a, b: hl.coalesce(a + b, a, b)))
+        self.assertEqual(sum_evens_only, 2450)
+
+        #Testing types work out
+        sum_float64 = ht.aggregate(hl.agg.fold(hl.int32(0), lambda acc: acc + hl.float32(ht.idx), lambda acc1, acc2: hl.float64(acc1) + hl.float64(acc2)))
+        self.assertEqual(sum_float64, 4950.0)
+
+        ht = ht.annotate_globals(foo=7)
+        with pytest.raises(hl.utils.java.HailUserError) as exc:
+            ht.aggregate(hl.agg.fold(0, lambda x: x + ht.idx, lambda a, b: a + b + ht.foo))
+        assert "comb_op function of fold cannot reference any fields" in str(exc.value)
+
+        mt = hl.utils.range_matrix_table(100, 10)
+        self.assertEqual(mt.aggregate_rows(hl.agg.fold(0, lambda a: a + mt.row_idx, lambda a, b: a + b)), 4950)
+        self.assertEqual(mt.aggregate_cols(hl.agg.fold(0, lambda a: a + mt.col_idx, lambda a, b: a + b)), 45)
+
+    def test_aggfold_scan(self):
+        ht = hl.utils.range_table(15, 5)
+        ht = ht.annotate(s=hl.scan.fold(0, lambda a: a + ht.idx, lambda a, b: a + b), )
+        self.assertEqual(ht.s.collect(), [0, 0, 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78, 91])
+
+        mt = hl.utils.range_matrix_table(15, 10, 5)
+        mt = mt.annotate_rows(s=hl.scan.fold(0, lambda a: a + mt.row_idx, lambda a, b: a + b))
+        mt = mt.annotate_rows(x=hl.scan.fold(0, lambda s: s + 1, lambda a, b: a + b))
+        self.assertEqual(mt.s.collect(), [0, 0, 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78, 91])
+        self.assertEqual(mt.rows().collect(),
+                         [hl.Struct(row_idx=0, s=0, x=0), hl.Struct(row_idx=1, s=0, x=1), hl.Struct(row_idx=2, s=1, x=2),
+                          hl.Struct(row_idx=3, s=3, x=3), hl.Struct(row_idx=4, s=6, x=4), hl.Struct(row_idx=5, s=10, x=5),
+                          hl.Struct(row_idx=6, s=15, x=6), hl.Struct(row_idx=7, s=21, x=7), hl.Struct(row_idx=8, s=28, x=8),
+                          hl.Struct(row_idx=9, s=36, x=9), hl.Struct(row_idx=10, s=45, x=10), hl.Struct(row_idx=11, s=55, x=11),
+                          hl.Struct(row_idx=12, s=66, x=12), hl.Struct(row_idx=13, s=78, x=13), hl.Struct(row_idx=14, s=91, x=14)])
 
     def test_agg_filter(self):
         t = hl.utils.range_table(10)

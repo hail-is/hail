@@ -7,7 +7,7 @@ import is.hail.expr.ir
 import is.hail.expr.ir._
 import is.hail.io.BufferSpec
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.EmitType
+import is.hail.types.physical.stypes.{EmitType, SType}
 import is.hail.types.virtual._
 import is.hail.types.{BaseTypeWithRequiredness, TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.utils._
@@ -72,6 +72,10 @@ object AggStateSig {
     case NDArraySumStateSig(nda) => new TypedRegionBackedAggState(nda, cb)
     case NDArrayMultiplyAddStateSig(nda) =>
       new TypedRegionBackedAggState(nda, cb)
+    case FoldStateSig(resultEmitType, accumName, otherAccumName, combOpIR) => {
+      val vWithReq = resultEmitType.typeWithRequiredness
+      new TypedRegionBackedAggState(vWithReq, cb)
+    }
     case LinearRegressionStateSig() => new LinearRegressionAggregatorState(cb)
   }
 }
@@ -96,6 +100,8 @@ case class NDArraySumStateSig(nda: VirtualTypeWithReq) extends AggStateSig(Array
 case class NDArrayMultiplyAddStateSig(nda: VirtualTypeWithReq) extends AggStateSig(Array[VirtualTypeWithReq](nda), None) {
   require(!nda.r.required)
 }
+
+case class FoldStateSig(resultEmitType: EmitType, accumName: String, otherAccumName: String, combOpIR: IR) extends AggStateSig(Array[VirtualTypeWithReq](resultEmitType.typeWithRequiredness), None)
 
 object PhysicalAggSig {
   def apply(op: AggOp, state: AggStateSig): PhysicalAggSig = BasicPhysicalAggSig(op, state)
@@ -247,7 +253,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
 
       for (i <- 0 until nAggs) {
         val rvAgg = agg.Extract.getAgg(aggs(i))
-        rvAgg.combOp(cb, leftAggState.states(i), rightAggState.states(i))
+        rvAgg.combOp(ctx, cb, leftAggState.states(i), rightAggState.states(i))
       }
 
       leftAggState.store(cb)
@@ -346,6 +352,8 @@ object Extract {
       new NDArraySumAggregator(nda)
     case PhysicalAggSig(NDArrayMultiplyAdd(), NDArrayMultiplyAddStateSig(nda)) =>
       new NDArrayMultiplyAddAggregator(nda)
+    case PhysicalAggSig(Fold(), FoldStateSig(res, accumName, otherAccumName, combOpIR)) =>
+      new FoldAggregator(res, accumName, otherAccumName, combOpIR)
   }
 
   def apply(ir: IR, resultName: String, r: RequirednessAnalysis, isScan: Boolean = false): Aggs = {
@@ -388,6 +396,22 @@ object Extract {
           val state = PhysicalAggSig(op, AggStateSig(op, x.initOpArgs, x.seqOpArgs, r))
           ab += InitOp(i, x.initOpArgs, state) -> state
           seqBuilder += SeqOp(i, x.seqOpArgs, state)
+          i
+        })
+        GetTupleElement(result, idx)
+      case x@AggFold(zero, seqOp, combOp, accumName, otherAccumName, isScan) =>
+        val idx = memo.getOrElseUpdate(x, {
+          val i = ab.length
+          val initOpArgs = IndexedSeq(zero)
+          val seqOpArgs = IndexedSeq(seqOp)
+          val op = Fold()
+          val resultEmitType = r(x).canonicalEmitType(x.typ)
+          val foldStateSig = FoldStateSig(resultEmitType, accumName, otherAccumName, combOp)
+          val signature = PhysicalAggSig(op, foldStateSig)
+          ab += InitOp(i, initOpArgs, signature) -> signature
+          // So seqOp has to be able to reference accumName.
+          val seqWithLet = Let(accumName, ResultOp(i, signature), SeqOp(i, seqOpArgs, signature))
+          seqBuilder += seqWithLet
           i
         })
         GetTupleElement(result, idx)

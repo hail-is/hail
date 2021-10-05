@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{UnitInfo, Value, _}
-import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder, IEmitCode}
+import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder, ExecuteContext, IEmitCode}
 import is.hail.linalg.LinalgCodeUtils
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.stypes.EmitType
@@ -64,7 +64,7 @@ class NDArrayMultiplyAddAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAgg
     cb.invokeVoid(seqOpMethod, nextNDArrayACode, nextNDArrayBCode)
   }
 
-  override protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
+  override protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: State, other: State): Unit = {
     val combOpMethod = cb.emb.genEmitMethod[Unit]("ndarraymutiply_add_agg_comb_op")
 
     combOpMethod.voidWithBuilder { cb =>
