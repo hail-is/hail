@@ -100,6 +100,8 @@ def test_combiner_plan_round_trip_serialization():
     plan_loaded = load_combiner(plan_path)
     assert plan == plan_loaded
 
+@fails_local_backend
+@fails_service_backend
 def test_combiner_run():
 
     tmpdir = new_temp_file()
