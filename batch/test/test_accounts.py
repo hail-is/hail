@@ -68,7 +68,7 @@ def get_billing_project_name() -> Callable[[], str]:
 
 
 @pytest.fixture
-async def new_billing_project(dev_client, make_client, get_billing_project_name):
+async def new_billing_project(dev_client, get_billing_project_name):
     project = get_billing_project_name()
     yield await dev_client.create_billing_project(project)
 
@@ -79,8 +79,7 @@ async def new_billing_project(dev_client, make_client, get_billing_project_name)
     else:
         assert r['status'] != 'deleted', r
         try:
-            client = await make_client(project)
-            async for batch in client.list_batches(f'billing_project:{project}'):
+            async for batch in dev_client.list_batches(f'billing_project:{project}'):
                 await batch.delete()
         finally:
             if r['status'] == 'open':
