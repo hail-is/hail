@@ -1,11 +1,14 @@
 from hail.utils.java import Env
 
+block_codec = '{"name":"BlockingBufferSpec","blockSize":65536,"child":{"name":"StreamBlockBufferSpec"}}'
+stream_codec = '{"name":"StreamBufferSpec"}'
 
-def encode(expression, codec='{"name":"BlockingBufferSpec","blockSize":65536,"child":{"name":"StreamBlockBufferSpec"}}'):
+
+def encode(expression, codec=stream_codec):
     return Env.spark_backend('encode')._jbackend.encodeToBytes(Env.backend()._to_java_value_ir(expression._ir), codec)
 
 
-def decode_through_JSON(typ, ptype_string, bytes, codec='{"name":"BlockingBufferSpec","blockSize":65536,"child":{"name":"StreamBlockBufferSpec"}}'):
+def decode_through_JSON(typ, ptype_string, bytes, codec=stream_codec):
     return typ._from_json(
         Env.spark_backend('decode')._jbackend.decodeToJSON(ptype_string, bytes, codec))
 

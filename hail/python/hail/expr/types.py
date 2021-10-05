@@ -263,7 +263,7 @@ class HailType(object):
         return x
 
     def _from_encoding(self, encoding):
-        return self._convert_from_encoding(encoding, 4)
+        return self._convert_from_encoding(encoding, 0)[0]
 
     def _convert_from_encoding(self, encoding, offset):
         raise ValueError("Not implemented yet")
@@ -377,7 +377,7 @@ class _tint32(HailType):
         return np.int32
 
     def _convert_from_encoding(self, encoding, offset):
-        return hl.experimental.codec.read_int(encoding, offset)
+        return (hl.experimental.codec.read_int(encoding, offset), 4)
 
 
 class _tint64(HailType):
@@ -792,17 +792,20 @@ class tarray(HailType):
             return hl.experimental.codec.lookup_bit(encoding[byte_offset], remaining_bit_offset)
 
         num_missing_bytes = math.ceil(length / 8)
-        data_start = offset + 4 + num_missing_bytes
+
+        num_bytes_read = 4 + num_missing_bytes
 
         decoded = []
-        for i in range(length):
-            print(f"Element {i} is missing? {is_missing(encoding, offset * 8 + i)}")
+        i = 0
+        while i < length:
             if is_missing(encoding, offset * 8 + i):
                 decoded.append(None)
             else:
-                import pdb; pdb.set_trace()
-                decoded.append(self.element_type._convert_from_encoding(encoding, data_start + i * 4))
-        return decoded
+                (element_decoded, element_num_bytes_read) = self.element_type._convert_from_encoding(encoding, offset + num_bytes_read)
+                decoded.append(element_decoded)
+                num_bytes_read += element_num_bytes_read
+            i += 1
+        return decoded, num_bytes_read
 
 
 class tstream(HailType):
