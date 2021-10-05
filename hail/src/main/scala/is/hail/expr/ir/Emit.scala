@@ -10,6 +10,7 @@ import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.expr.ir.ndarrays.EmitNDArray
 import is.hail.expr.ir.streams.{EmitStream, StreamProducer, StreamUtils}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
+import is.hail.io.fs.FS
 import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes._
@@ -2367,9 +2368,10 @@ class Emit[C](
           addContexts(cb, ctxStream.producer)
           cb += baos.invoke[Unit]("reset")
           addGlobals(cb)
-          cb.assign(encRes, spark.invoke[BackendContext, String, Array[Array[Byte]], Array[Byte], Option[TableStageDependency], Array[Array[Byte]]](
+          cb.assign(encRes, spark.invoke[BackendContext, FS, String, Array[Array[Byte]], Array[Byte], Option[TableStageDependency], Array[Array[Byte]]](
             "collectDArray",
             mb.getObject(ctx.executeContext.backendContext),
+            mb.getFS,
             functionID,
             ctxab.invoke[Array[Array[Byte]]]("result"),
             baos.invoke[Array[Byte]]("toByteArray"),

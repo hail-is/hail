@@ -74,7 +74,13 @@ class ServiceBackend(
     def value: T = _value
   }
 
-  def parallelizeAndComputeWithIndex(_backendContext: BackendContext, collection: Array[Array[Byte]], dependency: Option[TableStageDependency] = None)(f: (Array[Byte], HailTaskContext, FS) => Array[Byte]): Array[Array[Byte]] = {
+  def parallelizeAndComputeWithIndex(
+    _backendContext: BackendContext,
+    _fs: FS,
+    collection: Array[Array[Byte]],
+    dependency: Option[TableStageDependency] = None
+  )(f: (Array[Byte], HailTaskContext, FS) => Array[Byte]
+  ): Array[Array[Byte]] = {
     val backendContext = _backendContext.asInstanceOf[ServiceBackendContext]
 
     val user = users.get(backendContext.username)
