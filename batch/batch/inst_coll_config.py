@@ -35,8 +35,8 @@ class PoolConfig(InstanceCollectionConfig):
             cloud=cloud,
             worker_type=record['worker_type'],
             worker_cores=record['worker_cores'],
-            worker_local_ssd_data_disk=record['worker_local_ssd_data_disk'],
-            worker_pd_ssd_data_disk_size_gb=record['worker_pd_ssd_data_disk_size_gb'],
+            local_ssd_data_disk=record['local_ssd_data_disk'],
+            external_data_disk_size_gb=record['external_data_disk_size_gb'],
             enable_standing_worker=record['enable_standing_worker'],
             standing_worker_cores=record['standing_worker_cores'],
             boot_disk_size_gb=record['boot_disk_size_gb'],
@@ -50,8 +50,8 @@ class PoolConfig(InstanceCollectionConfig):
         cloud,
         worker_type,
         worker_cores,
-        worker_local_ssd_data_disk,
-        worker_pd_ssd_data_disk_size_gb,
+        local_ssd_data_disk,
+        external_data_disk_size_gb,
         enable_standing_worker,
         standing_worker_cores,
         boot_disk_size_gb,
@@ -62,8 +62,8 @@ class PoolConfig(InstanceCollectionConfig):
         self.cloud = cloud
         self.worker_type = worker_type
         self.worker_cores = worker_cores
-        self.worker_local_ssd_data_disk = worker_local_ssd_data_disk
-        self.worker_pd_ssd_data_disk_size_gb = worker_pd_ssd_data_disk_size_gb
+        self.local_ssd_data_disk = local_ssd_data_disk
+        self.external_data_disk_size_gb = external_data_disk_size_gb
         self.enable_standing_worker = enable_standing_worker
         self.standing_worker_cores = standing_worker_cores
         self.boot_disk_size_gb = boot_disk_size_gb

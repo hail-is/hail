@@ -109,12 +109,12 @@ class GCPInstanceConfig(InstanceConfig):
             }
         ]
 
-        if pool_config.worker_local_ssd_data_disk:
+        if pool_config.local_ssd_data_disk:
             typ = 'local-ssd'
             size = 375
         else:
             typ = 'pd-ssd'
-            size = pool_config.worker_pd_ssd_data_disk_size_gb
+            size = pool_config.external_data_disk_size_gb
 
         disks.append({'boot': False, 'project': None, 'zone': None, 'type': typ, 'size': size, 'image': None})
 

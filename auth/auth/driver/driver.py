@@ -17,6 +17,7 @@ from gear.cloud_config import get_gcp_config
 
 log = logging.getLogger('auth.driver')
 
+CLOUD = os.environ.get('CLOUD', 'gcp')
 PROJECT = get_gcp_config().project
 DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
 
@@ -376,7 +377,7 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
         updates['tokens_secret_name'] = tokens_secret_name
 
     gsa_email = user['gsa_email']
-    if gsa_email is None:
+    if CLOUD == 'gcp' and gsa_email is None:
         gsa = GSAResource(iam_client)
         cleanup.append(gsa.delete)
 

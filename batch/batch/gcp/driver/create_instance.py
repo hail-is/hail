@@ -4,7 +4,7 @@ import base64
 import json
 
 
-from ...batch_configuration import PROJECT, DOCKER_ROOT_IMAGE, DOCKER_PREFIX, DEFAULT_NAMESPACE
+from ...batch_configuration import GCP_PROJECT, DOCKER_ROOT_IMAGE, DOCKER_PREFIX, DEFAULT_NAMESPACE
 from ...file_store import FileStore
 from ...resource_utils import unreserved_worker_data_disk_size_gib
 
@@ -26,16 +26,16 @@ def create_instance_config(
     machine_type,
     activation_token,
     max_idle_time_msecs,
-    worker_local_ssd_data_disk,
-    worker_pd_ssd_data_disk_size_gb,
+    local_ssd_data_disk,
+    external_data_disk_size_gb,
     boot_disk_size_gb,
     preemptible,
     job_private,
 ) -> GCPInstanceConfig:
     file_store: FileStore = app['file_store']
-    _, cores = gcp_machine_type_to_worker_type_cores(machine_type)
+    worker_type, cores = gcp_machine_type_to_worker_type_cores(machine_type)
 
-    if worker_local_ssd_data_disk:
+    if local_ssd_data_disk:
         worker_data_disk = {
             'type': 'SCRATCH',
             'autoDelete': True,
@@ -47,31 +47,31 @@ def create_instance_config(
         worker_data_disk = {
             'autoDelete': True,
             'initializeParams': {
-                'diskType': f'projects/{PROJECT}/zones/{zone}/diskTypes/pd-ssd',
-                'diskSizeGb': str(worker_pd_ssd_data_disk_size_gb),
+                'diskType': f'projects/{GCP_PROJECT}/zones/{zone}/diskTypes/pd-ssd',
+                'diskSizeGb': str(external_data_disk_size_gb),
             },
         }
         worker_data_disk_name = 'sdb'
 
     if job_private:
-        unreserved_disk_storage_gb = worker_pd_ssd_data_disk_size_gb
+        unreserved_disk_storage_gb = external_data_disk_size_gb
     else:
         unreserved_disk_storage_gb = unreserved_worker_data_disk_size_gib(
-            'gcp', worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb, cores
+            'gcp', local_ssd_data_disk, external_data_disk_size_gb, cores, worker_type,
         )
     assert unreserved_disk_storage_gb >= 0
 
     vm_config = {
         'name': machine_name,
-        'machineType': f'projects/{PROJECT}/zones/{zone}/machineTypes/{machine_type}',
+        'machineType': f'projects/{GCP_PROJECT}/zones/{zone}/machineTypes/{machine_type}',
         'labels': {'role': 'batch2-agent', 'namespace': DEFAULT_NAMESPACE},
         'disks': [
             {
                 'boot': True,
                 'autoDelete': True,
                 'initializeParams': {
-                    'sourceImage': f'projects/{PROJECT}/global/images/batch-worker-12',
-                    'diskType': f'projects/{PROJECT}/zones/{zone}/diskTypes/pd-ssd',
+                    'sourceImage': f'projects/{GCP_PROJECT}/global/images/batch-worker-12',
+                    'diskType': f'projects/{GCP_PROJECT}/zones/{zone}/diskTypes/pd-ssd',
                     'diskSizeGb': str(boot_disk_size_gb),
                 },
             },
@@ -87,7 +87,7 @@ def create_instance_config(
         'scheduling': {'automaticRestart': False, 'onHostMaintenance': "TERMINATE", 'preemptible': preemptible},
         'serviceAccounts': [
             {
-                'email': f'batch2-agent@{PROJECT}.iam.gserviceaccount.com',
+                'email': f'batch2-agent@{GCP_PROJECT}.iam.gserviceaccount.com',
                 'scopes': ['https://www.googleapis.com/auth/cloud-platform'],
             }
         ],
@@ -271,7 +271,6 @@ docker run \
 -e DOCKER_ROOT_IMAGE=$DOCKER_ROOT_IMAGE \
 -e INSTANCE_CONFIG=$INSTANCE_CONFIG \
 -e MAX_IDLE_TIME_MSECS=$MAX_IDLE_TIME_MSECS \
--e WORKER_DATA_DISK_MOUNT=/mnt/disks/$WORKER_DATA_DISK_NAME \
 -e BATCH_WORKER_IMAGE=$BATCH_WORKER_IMAGE \
 -e BATCH_WORKER_IMAGE_ID=$BATCH_WORKER_IMAGE_ID \
 -e UNRESERVED_WORKER_DATA_DISK_SIZE_GB=$UNRESERVED_WORKER_DATA_DISK_SIZE_GB \

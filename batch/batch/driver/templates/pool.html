@@ -9,16 +9,18 @@
   <form action="{{ base_path }}/config-update/pool/{{ pool.name }}" method="POST">
     <div>Worker type: {{ pool.worker_type }}</div>
     <div>Worker cores: <input name="worker_cores" value="{{ pool.worker_cores }}" /></div>
+    {% if pool.cloud == "gcp" %}
     <div>Worker boot disk size (in GB): <input name="boot_disk_size_gb" value="{{ pool.boot_disk_size_gb }}" /></div>
+    {% endif %}
     <div>
-      <label for="worker_local_ssd_data_disk">Worker should use a Local SSD: </label>
+      <label for="local_ssd_data_disk">Worker should use a Local SSD: </label>
       <input type="checkbox"
-             id="worker_local_ssd_data_disk"
-             name="worker_local_ssd_data_disk"
-             {% if pool.worker_local_ssd_data_disk %}checked{% endif %}
+             id="local_ssd_data_disk"
+             name="local_ssd_data_disk"
+             {% if pool.local_ssd_data_disk %}checked{% endif %}
       value="true" />
     </div>
-    <div>Worker PD SSD data disk size (in GB): <input name="worker_pd_ssd_data_disk_size_gb" value="{{ pool.worker_pd_ssd_data_disk_size_gb }}" /></div>
+    <div>Worker external data disk size (in GB): <input name="external_data_disk_size_gb" value="{{ pool.external_data_disk_size_gb }}" /></div>
     <div>
       <label for="enable_standing_worker">Enable standing worker: </label>
       <input type="checkbox"

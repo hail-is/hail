@@ -27,7 +27,7 @@ class AzureCredentials(CloudCredentials):
     def default_credentials():
         credentials_file = first_extant_file(
             os.environ.get('AZURE_APPLICATION_CREDENTIALS'),
-            '/azure-key/credentials.json'
+            '/azure-credentials/credentials.json'
         )
 
         if credentials_file:

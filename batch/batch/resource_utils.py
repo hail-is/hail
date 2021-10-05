@@ -2,15 +2,27 @@ import logging
 import math
 from typing import Tuple, Dict, List
 
-from .gcp.resource_utils import (gcp_cost_from_msec_mcpu,
-                                 gcp_worker_memory_per_core_mib,
-                                 gcp_total_worker_storage_gib,
-                                 gcp_unreserved_worker_data_disk_size_gib,
-                                 gcp_requested_to_actual_storage_bytes,
-                                 gcp_machine_type_to_worker_type_cores,
-                                 gcp_valid_machine_types,
-                                 gcp_memory_to_worker_type,
-                                 gcp_is_valid_storage_request)
+from .azure.resource_utils import (
+    azure_worker_memory_per_core_mib,
+    azure_unreserved_worker_data_disk_size_gib,
+    azure_requested_to_actual_storage_bytes,
+    azure_machine_type_to_worker_type_cores_local_ssd,
+    azure_valid_machine_types,
+    azure_memory_to_worker_type,
+    azure_is_valid_storage_request,
+    azure_valid_cores_from_worker_type,
+)
+from .gcp.resource_utils import (
+    gcp_cost_from_msec_mcpu,
+    gcp_worker_memory_per_core_mib,
+    gcp_unreserved_worker_data_disk_size_gib,
+    gcp_requested_to_actual_storage_bytes,
+    gcp_machine_type_to_worker_type_cores,
+    gcp_valid_machine_types,
+    gcp_memory_to_worker_type,
+    gcp_is_valid_storage_request,
+    gcp_valid_cores_from_worker_type,
+)
 
 log = logging.getLogger('resource_utils')
 
@@ -20,16 +32,30 @@ def round_up_division(numerator, denominator):
 
 
 def valid_machine_types(cloud: str) -> List[str]:
+    if cloud == 'azure':
+        return azure_valid_machine_types
     assert cloud == 'gcp'
     return gcp_valid_machine_types
 
 
+def valid_cores_from_worker_type(cloud: str, worker_type: str) -> List[int]:
+    if cloud == 'azure':
+        return azure_valid_cores_from_worker_type(worker_type)
+    assert cloud == 'gcp'
+    return gcp_valid_cores_from_worker_type(worker_type)
+
+
 def memory_to_worker_type(cloud: str) -> Dict[str, str]:
+    if cloud == 'azure':
+        return azure_memory_to_worker_type  # FIXME
     assert cloud == 'gcp'
     return gcp_memory_to_worker_type
 
 
 def machine_type_to_worker_type_cores(cloud: str, machine_type: str) -> Tuple[str, int]:
+    if cloud == 'azure':
+        worker_type, cores, _ = azure_machine_type_to_worker_type_cores_local_ssd(machine_type)
+        return (worker_type, cores)
     assert cloud == 'gcp'
     return gcp_machine_type_to_worker_type_cores(machine_type)
 
@@ -42,6 +68,8 @@ def cost_from_msec_mcpu(msec_mcpu):
 
 
 def worker_memory_per_core_mib(cloud, worker_type):
+    if cloud == 'azure':
+        return azure_worker_memory_per_core_mib(worker_type)
     assert cloud == 'gcp'
     return gcp_worker_memory_per_core_mib(worker_type)
 
@@ -64,45 +92,23 @@ def adjust_cores_for_memory_request(cloud, cores_in_mcpu, memory_in_bytes, worke
     return max(cores_in_mcpu, min_cores_mcpu)
 
 
-def total_worker_storage_gib(cloud, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib):
+def unreserved_worker_data_disk_size_gib(cloud, local_ssd_data_disk, external_data_disk_size_gib, worker_cores, worker_type):
+    if cloud == 'azure':
+        return azure_unreserved_worker_data_disk_size_gib(local_ssd_data_disk, external_data_disk_size_gib, worker_cores, worker_type)
     assert cloud == 'gcp'
-    return gcp_total_worker_storage_gib(worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib)
-
-
-def worker_storage_per_core_bytes(cloud, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib):
-    return (
-        total_worker_storage_gib(cloud, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib) * 1024 ** 3
-    ) // worker_cores
-
-
-def storage_bytes_to_cores_mcpu(
-    cloud, storage_in_bytes, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib
-):
-    return round_up_division(
-        storage_in_bytes * 1000,
-        worker_storage_per_core_bytes(cloud, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib),
-    )
-
-
-def adjust_cores_for_storage_request(
-    cloud, cores_in_mcpu, storage_in_bytes, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib
-):
-    min_cores_mcpu = storage_bytes_to_cores_mcpu(
-        cloud, storage_in_bytes, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib
-    )
-    return max(cores_in_mcpu, min_cores_mcpu)
-
-
-def unreserved_worker_data_disk_size_gib(cloud, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib, worker_cores):
-    assert cloud == 'gcp'
-    return gcp_unreserved_worker_data_disk_size_gib(worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib, worker_cores)
+    return gcp_unreserved_worker_data_disk_size_gib(local_ssd_data_disk, external_data_disk_size_gib, worker_cores)
 
 
 def requested_storage_bytes_to_actual_storage_gib(cloud, storage_bytes, allow_zero_storage):
-    assert cloud == 'gcp'
-    actual_storage_bytes = gcp_requested_to_actual_storage_bytes(storage_bytes, allow_zero_storage)
+    if cloud == 'azure':
+        actual_storage_bytes = azure_requested_to_actual_storage_bytes(storage_bytes, allow_zero_storage)
+    else:
+        assert cloud == 'gcp'
+        actual_storage_bytes = gcp_requested_to_actual_storage_bytes(storage_bytes, allow_zero_storage)
+
     if actual_storage_bytes is None:
         return None
+
     return round_storage_bytes_to_gib(actual_storage_bytes)
 
 
@@ -133,5 +139,7 @@ def is_valid_cores_mcpu(cores_mcpu: int):
 
 
 def is_valid_storage_request(cloud, storage_in_gib: int) -> bool:
+    if cloud == 'azure':
+        return azure_is_valid_storage_request(storage_in_gib)
     assert cloud == 'gcp'
     return gcp_is_valid_storage_request(storage_in_gib)

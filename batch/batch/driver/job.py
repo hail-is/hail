@@ -305,12 +305,15 @@ async def job_config(app, record, attempt_id):
     )
 
     gsa_key = None
+    azure_credentials = None
     for secret, k8s_secret in zip(secrets, k8s_secrets):
         if secret['name'] == userdata['gsa_key_secret_name']:
             gsa_key = k8s_secret.data
+        if secret['name'] == userdata['azure_credentials_secret_name']:
+            azure_credentials = k8s_secret.data
         secret['data'] = k8s_secret.data
 
-    assert gsa_key
+    assert gsa_key or azure_credentials
 
     service_account = job_spec.get('service_account')
     if service_account:
@@ -377,6 +380,7 @@ users:
         'start_job_id': start_job_id,
         'user': record['user'],
         'gsa_key': gsa_key,
+        'azure_credentials': azure_credentials,
         'job_spec': job_spec,
     }
 

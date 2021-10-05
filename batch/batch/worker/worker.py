@@ -40,7 +40,7 @@ from hailtop.utils import (
 )
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
 from hailtop.aiotools.fs import RouterAsyncFS, LocalAsyncFS
-from hailtop.aiocloud import aiogoogle
+from hailtop.aiocloud import aiogoogle, aioazure
 from hailtop import aiotools, httpx
 
 # import uvloop
@@ -62,6 +62,7 @@ from ..resource_utils import storage_gib_to_bytes, is_valid_storage_request
 
 from ..gcp.worker.disk import GCPDisk
 from ..gcp.worker.credentials import GCPUserCredentials
+from ..azure.worker.credentials import AzureUserCredentials
 
 from .credentials import CloudUserCredentials
 
@@ -86,13 +87,24 @@ IP_ADDRESS = os.environ['IP_ADDRESS']
 INTERNAL_GATEWAY_IP = os.environ['INTERNAL_GATEWAY_IP']
 BATCH_LOGS_BUCKET_NAME = os.environ['BATCH_LOGS_BUCKET_NAME']
 INSTANCE_ID = os.environ['INSTANCE_ID']
-PROJECT = os.environ['PROJECT']
-ZONE = os.environ['ZONE'].rsplit('/', 1)[1]
+
+PROJECT = os.environ.get('PROJECT')
+ZONE = os.environ.get('ZONE')
+SUBSCRIPTION_ID = os.environ.get('SUBSCRIPTION_ID')
+RESOURCE_GROUP = os.environ.get('AZURE_RESOURCE_GROUP')
+
+if CLOUD == 'gcp':
+    assert PROJECT and ZONE
+    ZONE = ZONE.rsplit('/', 1)[1]
+else:
+    assert CLOUD == 'azure'
+    assert SUBSCRIPTION_ID and RESOURCE_GROUP
+
+
 DOCKER_PREFIX = os.environ['DOCKER_PREFIX']
 PUBLIC_IMAGES = publicly_available_images(DOCKER_PREFIX)
 INSTANCE_CONFIG = json.loads(base64.b64decode(os.environ['INSTANCE_CONFIG']).decode())
 MAX_IDLE_TIME_MSECS = int(os.environ['MAX_IDLE_TIME_MSECS'])
-WORKER_DATA_DISK_MOUNT = os.environ['WORKER_DATA_DISK_MOUNT']
 BATCH_WORKER_IMAGE = os.environ['BATCH_WORKER_IMAGE']
 BATCH_WORKER_IMAGE_ID = os.environ['BATCH_WORKER_IMAGE_ID']
 UNRESERVED_WORKER_DATA_DISK_SIZE_GB = int(os.environ['UNRESERVED_WORKER_DATA_DISK_SIZE_GB'])
@@ -108,16 +120,23 @@ log.info(f'BATCH_LOGS_BUCKET_NAME {BATCH_LOGS_BUCKET_NAME}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
 log.info(f'PROJECT {PROJECT}')
 log.info(f'ZONE {ZONE}')
+log.info(f'SUBSCRIPTION_ID {SUBSCRIPTION_ID}')
+log.info(f'RESOURCE_GROUP {RESOURCE_GROUP}')
 log.info(f'DOCKER_PREFIX {DOCKER_PREFIX}')
 log.info(f'INSTANCE_CONFIG {INSTANCE_CONFIG}')
 log.info(f'MAX_IDLE_TIME_MSECS {MAX_IDLE_TIME_MSECS}')
-log.info(f'WORKER_DATA_DISK_MOUNT {WORKER_DATA_DISK_MOUNT}')
 log.info(f'UNRESERVED_WORKER_DATA_DISK_SIZE_GB {UNRESERVED_WORKER_DATA_DISK_SIZE_GB}')
 
 instance_config = instance_config_from_config_dict(INSTANCE_CONFIG)
 assert instance_config.cores == CORES
 
-deploy_config = DeployConfig('gce', NAMESPACE, {})
+if CLOUD == 'gcp':
+    deploy_location = 'gce'
+else:
+    assert CLOUD == 'azure'
+    deploy_location = 'azure-vm'
+
+deploy_config = DeployConfig(deploy_location, NAMESPACE, {})
 
 docker: Optional[aiodocker.Docker] = None
 
@@ -291,7 +310,7 @@ def docker_call_retry(timeout, name):
                 # DockerError(500, 'error creating overlay mount to /var/lib/docker/overlay2/545a1337742e0292d9ed197b06fe900146c85ab06e468843cd0461c3f34df50d/merged: device or resource busy'
                 # DockerError(500, 'Get https://gcr.io/v2/: dial tcp: lookup gcr.io: Temporary failure in name resolution')
                 elif e.status == 500 and (
-                    "request canceled while waiting for connection" in e.message
+                    "request cancelled while waiting for connection" in e.message
                     or re.match("error creating overlay mount.*device or resource busy", e.message)
                     or "Temporary failure in name resolution" in e.message
                 ):
@@ -303,6 +322,16 @@ def docker_call_retry(timeout, name):
                 delay = await sleep_and_backoff(delay)
 
     return wrapper
+
+
+def pull_docker_image(image_ref_str, auth):
+    try:
+        await check_shell_output(f'''
+docker login --username {auth["username"]} --password {auth["password"]} && \
+docker pull {image_ref_str}
+''')
+    except CalledProcessError as e:
+        raise DockerError(e.returncode, e.outerr) from e
 
 
 class JobDeletedError(Exception):
@@ -526,7 +555,7 @@ class Container:
                 # per-user image cache.
                 auth = self.current_user_access_token()
                 await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                    docker.images.pull, self.image_ref_str, auth=auth
+                    pull_docker_image, self.image_ref_str, auth=auth
                 )
         except DockerError as e:
             if e.status == 404 and 'pull access denied' in e.message:
@@ -544,20 +573,37 @@ class Container:
         except DockerError as e:
             if e.status == 404:
                 await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                    docker.images.pull, self.image_ref_str, auth=auth
+                    pull_docker_image, self.image_ref_str, auth=auth
                 )
 
     async def batch_worker_access_token(self):
-        assert CLOUD == 'gcp'
-        async with await request_retry_transient_errors(
-            self.client_session,
-            'POST',
-            'http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token',
-            headers={'Metadata-Flavor': 'Google'},
-            timeout=aiohttp.ClientTimeout(total=60)
-        ) as resp:
-            access_token = (await resp.json())['access_token']
-            return {'username': 'oauth2accesstoken', 'password': access_token}
+        if CLOUD == 'gcp':
+            async with await request_retry_transient_errors(
+                self.client_session,
+                'POST',
+                'http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token',
+                headers={'Metadata-Flavor': 'Google'},
+                timeout=aiohttp.ClientTimeout(total=60)
+            ) as resp:
+                access_token = (await resp.json())['access_token']
+                return {'username': 'oauth2accesstoken', 'password': access_token}
+        else:
+            assert CLOUD == 'azure'
+            # https://docs.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/how-to-use-vm-token#get-a-token-using-http
+            params = {
+                'api-version': '2018-02-01',
+                'resource': 'https://management.azure.com/'
+            }
+            async with await request_retry_transient_errors(
+                self.client_session,
+                'POST',
+                'http://169.254.169.254/metadata/identity/oauth2/token',
+                headers={'Metadata': 'true', },
+                params=params,
+                timeout=aiohttp.ClientTimeout(total=60)
+            ) as resp:
+                access_token = (await resp.json())['access_token']
+            return {'username': '00000000-0000-0000-0000-000000000000', 'password': access_token}
 
     def current_user_access_token(self):
         return {'username': self.job.credentials.username, 'password': self.job.credentials.password}
@@ -1569,14 +1615,18 @@ class JVMJob(Job):
                     async with worker.jar_download_locks[self.revision]:
                         local_jar_location = f'/hail-jars/{self.revision}.jar'
                         if not os.path.isfile(local_jar_location):
+                            if CLOUD == 'gcp':
+                                cloud_fs = aiogoogle.GoogleStorageAsyncFS(
+                                    credentials=aiogoogle.GoogleCredentials.from_file('/worker-credentials.json')
+                                )
+                            else:
+                                assert CLOUD == 'azure'
+                                cloud_fs = aioazure.AzureAsyncFS(
+                                    credentials=aioazure.AzureCredentials.from_file('/worker-credentials.json')
+                                )
                             user_fs = RouterAsyncFS(
                                 'file',
-                                [
-                                    LocalAsyncFS(worker.pool),
-                                    aiogoogle.GoogleStorageAsyncFS(
-                                        credentials=aiogoogle.GoogleCredentials.from_file('/worker-key.json')
-                                    ),
-                                ],
+                                [LocalAsyncFS(worker.pool), cloud_fs]
                             )
                             async with await user_fs.open(self.jar_url) as jar_data:
                                 await user_fs.makedirs('/hail-jars/', exist_ok=True)
@@ -1792,8 +1842,13 @@ class Worker:
         if not self.active:
             return web.HTTPServiceUnavailable()
 
-        assert CLOUD == 'gcp'
-        credentials = GCPUserCredentials(body['gsa_key'])
+        if CLOUD == 'gcp':
+            assert body['gsa_key']
+            credentials = GCPUserCredentials(body['gsa_key'])
+        else:
+            assert CLOUD == 'azure'
+            assert body['azure_credentials']
+            credentials = AzureUserCredentials(body['azure_credentials'])
 
         job = Job.create(
             batch_id, body['user'], credentials, job_spec, format_version, self.task_manager, self.pool, self.client_session
@@ -2024,15 +2079,24 @@ class Worker:
         )
         resp_json = await resp.json()
 
-        with open('/worker-key.json', 'w') as f:
+        with open('/worker-credentials.json', 'w') as f:
             f.write(json.dumps(resp_json['key']))
 
-        credentials = aiogoogle.GoogleCredentials.from_file('/worker-key.json')
-        fs = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
-        self.file_store = FileStore(fs, BATCH_LOGS_BUCKET_NAME, INSTANCE_ID)
+        if CLOUD == 'gcp':
+            credentials = aiogoogle.GoogleCredentials.from_file('/worker-credentials.json')
+            self.compute_client = aiogoogle.GoogleComputeClient(PROJECT, credentials=credentials)
 
-        credentials = aiogoogle.GoogleCredentials.from_file('/worker-key.json')
-        self.compute_client = aiogoogle.GoogleComputeClient(PROJECT, credentials=credentials)
+            credentials = aiogoogle.GoogleCredentials.from_file('/worker-credentials.json')
+            fs = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
+        else:
+            assert CLOUD == 'azure'
+            credentials = aioazure.AzureCredentials.from_file('/worker-credentials.json')
+            self.compute_client = aioazure.AzureComputeClient(SUBSCRIPTION_ID, RESOURCE_GROUP, credentials=credentials)
+
+            credentials = aioazure.AzureCredentials.from_file('/worker-credentials.json')
+            fs = aioazure.AzureAsyncFS(credentials=credentials)
+
+        self.file_store = FileStore(fs, BATCH_LOGS_BUCKET_NAME, INSTANCE_ID)
 
         resp = await request_retry_transient_errors(
             self.client_session,

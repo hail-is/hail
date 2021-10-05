@@ -32,7 +32,7 @@ from hailtop.utils import (
     dump_all_stacktraces,
 )
 from hailtop.tls import internal_server_ssl_context
-from hailtop.aiocloud import aiogoogle
+from hailtop.aiocloud import aiogoogle, aioazure
 from hailtop import aiotools, httpx
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 import googlecloudprofiler
@@ -48,6 +48,7 @@ from ..batch_configuration import (
     HAIL_SHOULD_PROFILE,
     HAIL_SHOULD_CHECK_INVARIANTS,
     MACHINE_NAME_PREFIX,
+    CLOUD,
 )
 from ..globals import HTTP_CLIENT_MAX_SIZE
 from ..inst_coll_config import InstanceCollectionConfigs
@@ -58,10 +59,11 @@ from .job import mark_job_complete, mark_job_started
 from .k8s_cache import K8sCache
 from .pool import Pool
 from ..utils import query_billing_projects, batch_only, authorization_token
-from ..resource_utils import unreserved_worker_data_disk_size_gib
+from ..resource_utils import unreserved_worker_data_disk_size_gib, valid_cores_from_worker_type
 from ..exceptions import BatchUserError
 
 from ..gcp.driver import GCPResourceManager
+from ..azure.driver import AzureResourceManager
 
 uvloop.install()
 
@@ -417,10 +419,33 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
 
     worker_type = pool.worker_type
 
-    if worker_type == 'standard':
-        valid_worker_cores = (1, 2, 4, 8, 16, 32, 64, 96)
-    else:
-        valid_worker_cores = (2, 4, 8, 16, 32, 64, 96)
+    local_ssd_data_disk = 'local_ssd_data_disk' in post
+
+    external_data_disk_size_gb = validate_int(
+        session,
+        pool_url_path,
+        'Worker external data disk size (in GB)',
+        post['external_data_disk_size_gb'],
+        lambda v: v >= 0,
+        'a nonnegative integer',
+    )
+
+    if not local_ssd_data_disk and external_data_disk_size_gb == 0:
+        set_message(session, 'Either the worker must use a local SSD or external data disk must be non-zero.', 'error')
+        raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
+
+    if local_ssd_data_disk and external_data_disk_size_gb > 0:
+        set_message(session, 'Worker cannot both use local SSD and have a non-zero external data disk.', 'error')
+        raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
+
+    valid_worker_cores = []
+    for cores in valid_cores_from_worker_type(pool.cloud, worker_type):
+        unreserved_disk_storage_gb = unreserved_worker_data_disk_size_gib(
+            pool.cloud, local_ssd_data_disk, external_data_disk_size_gb, cores, worker_type
+        )
+        if unreserved_disk_storage_gb >= 0:
+            valid_worker_cores.append(cores)
+
     worker_cores = validate_int(
         session,
         pool_url_path,
@@ -439,41 +464,26 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
         f'one of {", ".join(str(v) for v in valid_worker_cores)}',
     )
 
-    boot_disk_size_gb = validate_int(
-        session,
-        pool_url_path,
-        'Worker boot disk size',
-        post['boot_disk_size_gb'],
-        lambda v: v >= 10,
-        'a positive integer greater than or equal to 10',
-    )
+    if pool.cloud == 'gcp':
+        boot_disk_size_gb = validate_int(
+            session,
+            pool_url_path,
+            'Worker boot disk size',
+            post['boot_disk_size_gb'],
+            lambda v: v >= 10,
+            'a positive integer greater than or equal to 10',
+        )
+    else:
+        assert pool.cloud == 'azure'
+        boot_disk_size_gb = None
 
-    worker_local_ssd_data_disk = 'worker_local_ssd_data_disk' in post
-
-    worker_pd_ssd_data_disk_size_gb = validate_int(
-        session,
-        pool_url_path,
-        'Worker PD SSD data disk size (in GB)',
-        post['worker_pd_ssd_data_disk_size_gb'],
-        lambda v: v >= 0,
-        'a nonnegative integer',
-    )
-
-    if not worker_local_ssd_data_disk and worker_pd_ssd_data_disk_size_gb == 0:
-        set_message(session, 'Either the worker must use a local SSD or PD SSD data disk must be non-zero.', 'error')
-        raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
-
-    if worker_local_ssd_data_disk and worker_pd_ssd_data_disk_size_gb > 0:
-        set_message(session, 'Worker cannot both use local SSD and have a non-zero PD SSD data disk.', 'error')
-        raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
-
-    if not worker_local_ssd_data_disk:
+    if not local_ssd_data_disk:
         unreserved_disk_storage_gb = unreserved_worker_data_disk_size_gib(
-            pool.cloud, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb, worker_cores
+            pool.cloud, local_ssd_data_disk, external_data_disk_size_gb, worker_cores, worker_type
         )
         if unreserved_disk_storage_gb < 0:
-            min_disk_storage = worker_pd_ssd_data_disk_size_gb - unreserved_disk_storage_gb
-            set_message(session, f'PD SSD must be at least {min_disk_storage} GB', 'error')
+            min_disk_storage = external_data_disk_size_gb - unreserved_disk_storage_gb
+            set_message(session, f'External data disk must be at least {min_disk_storage} GB', 'error')
             raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
 
     max_instances = validate_int(
@@ -489,8 +499,8 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
     await pool.configure(
         worker_cores,
         boot_disk_size_gb,
-        worker_local_ssd_data_disk,
-        worker_pd_ssd_data_disk_size_gb,
+        local_ssd_data_disk,
+        external_data_disk_size_gb,
         enable_standing_worker,
         standing_worker_cores,
         max_instances,
@@ -516,14 +526,18 @@ async def job_private_config_update(request, userdata):  # pylint: disable=unuse
 
     post = await request.post()
 
-    boot_disk_size_gb = validate_int(
-        session,
-        url_path,
-        'Worker boot disk size',
-        post['boot_disk_size_gb'],
-        lambda v: v >= 10,
-        'a positive integer greater than or equal to 10',
-    )
+    if job_private_inst_manager.cloud == 'gcp':
+        boot_disk_size_gb = validate_int(
+            session,
+            url_path,
+            'Worker boot disk size',
+            post['boot_disk_size_gb'],
+            lambda v: v >= 10,
+            'a positive integer greater than or equal to 10',
+        )
+    else:
+        assert job_private_inst_manager.cloud == 'azure'
+        boot_disk_size_gb = None
 
     max_instances = validate_int(
         session, url_path, 'Max instances', post['max_instances'], lambda v: v > 0, 'a positive integer'
@@ -1101,12 +1115,21 @@ SELECT instance_id, internal_token, frozen FROM globals;
     async_worker_pool = AsyncWorkerPool(100, queue_size=100)
     app['async_worker_pool'] = async_worker_pool
 
-    credentials = aiogoogle.GoogleCredentials.from_file('/gsa-key/key.json')
-    fs = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
-    app['file_store'] = FileStore(fs, BATCH_BUCKET_NAME, instance_id)
+    if CLOUD == 'gcp':
+        credentials = aiogoogle.GoogleCredentials.from_file('/gsa-key/key.json')
+        fs = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
 
-    resource_manager = GCPResourceManager(app, MACHINE_NAME_PREFIX)
-    app['resource_manager'] = resource_manager
+        resource_manager = GCPResourceManager(app, MACHINE_NAME_PREFIX)
+        app['resource_manager'] = resource_manager
+    else:
+        assert CLOUD == 'azure'
+        credentials = aioazure.AzureCredentials.from_file('/azure-credentials/credentials.json')
+        fs = aioazure.AzureAsyncFS(credentials=credentials)
+
+        resource_manager = AzureResourceManager(app, MACHINE_NAME_PREFIX)
+        app['resource_manager'] = resource_manager
+
+    app['file_store'] = FileStore(fs, BATCH_BUCKET_NAME, instance_id)
 
     inst_coll_configs = await InstanceCollectionConfigs.create(app)
 

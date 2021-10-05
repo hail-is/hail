@@ -21,11 +21,6 @@ from hailtop.utils import (
 from ..batch_configuration import STANDING_WORKER_MAX_IDLE_TIME_MSECS, WORKER_MAX_IDLE_TIME_MSECS
 from ..inst_coll_config import PoolConfig
 from ..utils import Box, ExceededSharesCounter
-from ..resource_utils import (
-    adjust_cores_for_memory_request,
-    adjust_cores_for_packability,
-    adjust_cores_for_storage_request,
-)
 from .instance import Instance
 from .instance_collection import InstanceCollection
 from .job import schedule_job
@@ -45,8 +40,8 @@ class Pool(InstanceCollection):
 
         self.worker_type = config.worker_type
         self.worker_cores = config.worker_cores
-        self.worker_local_ssd_data_disk = config.worker_local_ssd_data_disk
-        self.worker_pd_ssd_data_disk_size_gb = config.worker_pd_ssd_data_disk_size_gb
+        self.local_ssd_data_disk = config.local_ssd_data_disk
+        self.external_data_disk_size_gb = config.external_data_disk_size_gb
         self.enable_standing_worker = config.enable_standing_worker
         self.standing_worker_cores = config.standing_worker_cores
         self.boot_disk_size_gb = config.boot_disk_size_gb
@@ -80,8 +75,8 @@ class Pool(InstanceCollection):
             'worker_type': self.worker_type,
             'worker_cores': self.worker_cores,
             'boot_disk_size_gb': self.boot_disk_size_gb,
-            'worker_local_ssd_data_disk': self.worker_local_ssd_data_disk,
-            'worker_pd_ssd_data_disk_size_gb': self.worker_pd_ssd_data_disk_size_gb,
+            'local_ssd_data_disk': self.local_ssd_data_disk,
+            'external_data_disk_size_gb': self.external_data_disk_size_gb,
             'enable_standing_worker': self.enable_standing_worker,
             'standing_worker_cores': self.standing_worker_cores,
             'max_instances': self.max_instances,
@@ -92,8 +87,8 @@ class Pool(InstanceCollection):
         self,
         worker_cores,
         boot_disk_size_gb,
-        worker_local_ssd_data_disk,
-        worker_pd_ssd_data_disk_size_gb,
+        local_ssd_data_disk,
+        external_data_disk_size_gb,
         enable_standing_worker,
         standing_worker_cores,
         max_instances,
@@ -104,14 +99,14 @@ class Pool(InstanceCollection):
             await tx.just_execute(
                 '''
 UPDATE pools
-SET worker_cores = %s, worker_local_ssd_data_disk = %s, worker_pd_ssd_data_disk_size_gb = %s,
+SET worker_cores = %s, local_ssd_data_disk = %s, external_data_disk_size_gb = %s,
   enable_standing_worker = %s, standing_worker_cores = %s
 WHERE name = %s;
 ''',
                 (
                     worker_cores,
-                    worker_local_ssd_data_disk,
-                    worker_pd_ssd_data_disk_size_gb,
+                    local_ssd_data_disk,
+                    external_data_disk_size_gb,
                     enable_standing_worker,
                     standing_worker_cores,
                     self.name,
@@ -131,28 +126,12 @@ WHERE name = %s;
 
         self.worker_cores = worker_cores
         self.boot_disk_size_gb = boot_disk_size_gb
-        self.worker_local_ssd_data_disk = worker_local_ssd_data_disk
-        self.worker_pd_ssd_data_disk_size_gb = worker_pd_ssd_data_disk_size_gb
+        self.local_ssd_data_disk = local_ssd_data_disk
+        self.external_data_disk_size_gb = external_data_disk_size_gb
         self.enable_standing_worker = enable_standing_worker
         self.standing_worker_cores = standing_worker_cores
         self.max_instances = max_instances
         self.max_live_instances = max_live_instances
-
-    def resources_to_cores_mcpu(self, cores_mcpu, memory_bytes, storage_bytes):
-        cores_mcpu = adjust_cores_for_memory_request(self.cloud, cores_mcpu, memory_bytes, self.worker_type)
-        cores_mcpu = adjust_cores_for_storage_request(
-            self.cloud,
-            cores_mcpu,
-            storage_bytes,
-            self.worker_cores,
-            self.worker_local_ssd_data_disk,
-            self.worker_pd_ssd_data_disk_size_gb,
-        )
-        cores_mcpu = adjust_cores_for_packability(cores_mcpu)
-
-        if cores_mcpu < self.worker_cores * 1000:
-            return cores_mcpu
-        return None
 
     def adjust_for_remove_instance(self, instance):
         super().adjust_for_remove_instance(instance)
@@ -195,8 +174,8 @@ WHERE name = %s;
             machine_name=machine_name,
             activation_token=activation_token,
             max_idle_time_msecs=max_idle_time_msecs,
-            worker_local_ssd_data_disk=self.worker_local_ssd_data_disk,
-            worker_pd_ssd_data_disk_size_gb=self.worker_pd_ssd_data_disk_size_gb,
+            local_ssd_data_disk=self.local_ssd_data_disk,
+            external_data_disk_size_gb=self.external_data_disk_size_gb,
             boot_disk_size_gb=self.boot_disk_size_gb,
             preemptible=True,
             job_private=False,

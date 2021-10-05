@@ -10,7 +10,7 @@ from hailtop.aiocloud import aiogoogle
 from hailtop.utils import RateLimit, periodically_call
 from gear import Database
 
-from ...batch_configuration import PROJECT, GCP_ZONE
+from ...batch_configuration import GCP_PROJECT, GCP_ZONE
 from ...driver.resource_manager import CloudResourceManager, VMDoesNotExist, VMState, process_outstanding_events
 
 from ..instance_config import GCPInstanceConfig
@@ -42,7 +42,7 @@ class GCPResourceManager(CloudResourceManager):
                 return aiogoogle.GoogleCredentials.from_file('/gsa-key/key.json')
             make_credentials = _make_credentials
 
-        self.compute_client = aiogoogle.GoogleComputeClient(PROJECT, credentials=make_credentials())
+        self.compute_client = aiogoogle.GoogleComputeClient(GCP_PROJECT, credentials=make_credentials())
 
         self.activity_logs_client = aiogoogle.GoogleLoggingClient(
             credentials=make_credentials(),
@@ -120,8 +120,8 @@ class GCPResourceManager(CloudResourceManager):
                    machine_name,
                    activation_token,
                    max_idle_time_msecs,
-                   worker_local_ssd_data_disk,
-                   worker_pd_ssd_data_disk_size_gb,
+                   local_ssd_data_disk,
+                   external_data_disk_size_gb,
                    boot_disk_size_gb,
                    preemptible,
                    job_private,
@@ -143,12 +143,12 @@ class GCPResourceManager(CloudResourceManager):
             if global_live_total_cores_mcpu // 1000 < 1_000:
                 zone = self.default_location
             else:
-                zone = get_zone(self.region_info, self.zone_success_rate, cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)
+                zone = get_zone(self.region_info, self.zone_success_rate, cores, local_ssd_data_disk, external_data_disk_size_gb)
                 if zone is None:
                     return None
 
         return create_instance_config(app, zone, machine_name, machine_type, activation_token, max_idle_time_msecs,
-                                      worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb, boot_disk_size_gb,
+                                      local_ssd_data_disk, external_data_disk_size_gb, boot_disk_size_gb,
                                       preemptible, job_private)
 
     async def create_vm(self, instance_config: GCPInstanceConfig):

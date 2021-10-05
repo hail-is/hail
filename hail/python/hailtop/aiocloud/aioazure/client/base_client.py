@@ -16,6 +16,11 @@ class AzureBaseClient(CloudBaseClient):
             session = AzureSession(**kwargs)
         super().__init__(base_url, session, rate_limit=rate_limit)
 
+    async def get_next_link(self, url: str, **kwargs) -> aiohttp.ClientResponse:
+        async with await self._session.get(
+                f'{url}', **kwargs) as resp:
+            return resp
+
     async def delete(self, path: str, **kwargs) -> aiohttp.ClientResponse:
         async with await self._session.delete(
                 f'{self._base_url}{path}', **kwargs) as resp:

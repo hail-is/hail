@@ -1,5 +1,6 @@
 import logging
 import aiohttp
+import asyncio
 
 from hailtop.utils import time_msecs, parse_timestamp_msecs
 
@@ -37,6 +38,8 @@ async def delete_orphaned_disks(compute_client, zones, inst_coll_manager):
 
             try:
                 await compute_client.delete_disk(f'/zones/{zone}/disks/{disk_name}')
+            except asyncio.CancelledError:
+                raise
             except aiohttp.ClientResponseError as e:
                 if e.status == 404:
                     continue

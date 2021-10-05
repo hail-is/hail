@@ -9,6 +9,7 @@ def is_power_two(n):
 
 
 class InstanceConfig(abc.ABC):
+    name: str
     cloud: str
     version: int
     cores: int

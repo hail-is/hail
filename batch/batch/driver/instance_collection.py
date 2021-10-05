@@ -153,6 +153,10 @@ class InstanceCollection:
                 if instance.state == 'pending' and elapsed_time > 5 * 60 * 1000:
                     log.warning(f'{instance} did not activate within {time_msecs_str(elapsed_time)}, ignoring {vm_state.full_spec}')
 
+        if vm_state.state == VMState.UNKNOWN:
+            log.exception(f'{instance} has unknown vm state {vm_state}')
+            await self.call_delete_instance(instance, 'unknown_vm_state')
+
         if instance.state == 'inactive':
             log.info(f'{instance} is inactive, deleting')
             await self.call_delete_instance(instance, 'inactive')

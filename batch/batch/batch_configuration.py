@@ -5,18 +5,28 @@ KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECO
 REFRESH_INTERVAL_IN_SECONDS = int(os.environ.get('REFRESH_INTERVAL_IN_SECONDS', 5 * 60))
 DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
 CLOUD = os.environ.get('CLOUD', 'gcp')  # FIXME: get CLOUD from global config
-PROJECT = os.environ['PROJECT']
 SCOPE = os.environ['HAIL_SCOPE']
 
-GCP_REGION = os.environ['HAIL_GCP_REGION']
-GCP_ZONE = os.environ['HAIL_GCP_ZONE']
+GCP_PROJECT = os.environ['PROJECT']
+GCP_REGION = os.environ.get('HAIL_GCP_REGION')
+GCP_ZONE = os.environ.get('HAIL_GCP_ZONE')
+BATCH_GCP_REGIONS = {GCP_REGION}
+
+AZURE_SUBSCRIPTION_ID = os.environ.get('AZURE_SUBSCRIPTION_ID')
+AZURE_RESOURCE_GROUP = os.environ.get('AZURE_RESOURCE_GROUP')
+AZURE_REGION = os.environ.get('AZURE_REGION')
+AZURE_SSH_PUBLIC_KEY = os.environ.get('AZURE_SSH_PUBLIC_KEY')
+
+if CLOUD == 'gcp':
+    assert GCP_REGION and GCP_ZONE and GCP_PROJECT
+    BATCH_GCP_REGIONS.update(set(json.loads(os.environ['HAIL_BATCH_GCP_REGIONS'])))
+else:
+    assert CLOUD == 'azure'
+    assert AZURE_SUBSCRIPTION_ID and AZURE_RESOURCE_GROUP and AZURE_REGION and AZURE_SSH_PUBLIC_KEY
+
 DOCKER_ROOT_IMAGE = os.environ['HAIL_DOCKER_ROOT_IMAGE']
 DOCKER_PREFIX = os.environ['HAIL_DOCKER_PREFIX']
 
-BATCH_GCP_REGIONS = set(json.loads(os.environ['HAIL_BATCH_GCP_REGIONS']))
-BATCH_GCP_REGIONS.add(GCP_REGION)
-
-assert PROJECT != ''
 KUBERNETES_SERVER_URL = os.environ['KUBERNETES_SERVER_URL']
 BATCH_BUCKET_NAME = os.environ['HAIL_BATCH_BUCKET_NAME']
 HAIL_SHA = os.environ['HAIL_SHA']

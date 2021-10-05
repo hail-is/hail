@@ -281,6 +281,8 @@ steps:
         script: /io/sql/add-trial-billing-project.sql
       - name: add-roles
         script: /io/sql/add-roles.sql
+      - name: add-azure
+        script: /io/sql/add-azure.sql
     inputs:
       - from: /repo/auth/sql
         to: /io/sql
@@ -2328,6 +2330,8 @@ steps:
         script: /io/sql/add-instance-config.sql
       - name: cloud-agnostic
         script: /io/sql/cloud-agnostic.sql
+      - name: support-azure
+        script: /io/sql/support-azure.sql
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

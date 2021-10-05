@@ -32,7 +32,7 @@ from hailtop.utils import (
     periodically_call,
 )
 from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
-from hailtop.aiocloud import aiogoogle
+from hailtop.aiocloud import aiogoogle, aioazure
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop import httpx
@@ -635,6 +635,7 @@ async def create_jobs(request, userdata):
     userdata = {
         'username': user,
         'gsa_key_secret_name': userdata['gsa_key_secret_name'],
+        'azure_credentials_secret_name': userdata['azure_credentials_secret_name'],
         'tokens_secret_name': userdata['tokens_secret_name'],
     }
 
@@ -804,14 +805,25 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
                 spec['secrets'] = secrets
 
-                secrets.append(
-                    {
-                        'namespace': DEFAULT_NAMESPACE,
-                        'name': userdata['gsa_key_secret_name'],
-                        'mount_path': '/gsa-key',
-                        'mount_in_copy': True,
-                    }
-                )
+                if cloud == 'gcp':
+                    secrets.append(
+                        {
+                            'namespace': DEFAULT_NAMESPACE,
+                            'name': userdata['gsa_key_secret_name'],
+                            'mount_path': '/gsa-key',
+                            'mount_in_copy': True,
+                        }
+                    )
+                else:
+                    assert cloud == 'azure'
+                    secrets.append(
+                        {
+                            'namespace': DEFAULT_NAMESPACE,
+                            'name': userdata['azure_credentials_secret_name'],
+                            'mount_path': '/azure-credentials',
+                            'mount_in_copy': True,
+                        }
+                    )
 
                 env = spec.get('env')
                 if not env:
@@ -822,8 +834,13 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if spec.get('gcsfuse') and cloud != 'gcp':
                     raise web.HTTPBadRequest(reason=f'gcsfuse is not supported in {cloud}')
 
-                if cloud == 'gcp' and all(envvar['name'] != 'GOOGLE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
-                    spec['env'].append({'name': 'GOOGLE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
+                if cloud == 'gcp':
+                    if all(envvar['name'] != 'GOOGLE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
+                        spec['env'].append({'name': 'GOOGLE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
+                else:
+                    assert cloud == 'azure'
+                    if all(envvar['name'] != 'AZURE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
+                        spec['env'].append({'name': 'AZURE_APPLICATION_CREDENTIALS', 'value': '/azure-credentials/credentials.json'})
 
                 if spec.get('mount_tokens', False):
                     secrets.append(
@@ -1037,6 +1054,7 @@ async def create_batch(request, userdata):
     userdata = {
         'username': user,
         'gsa_key_secret_name': userdata['gsa_key_secret_name'],
+        'azure_credentials_secret_name': userdata['azure_credentials_secret_name'],
         'tokens_secret_name': userdata['tokens_secret_name'],
     }
 
@@ -2168,8 +2186,14 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
 
     app['frozen'] = row['frozen']
 
-    credentials = aiogoogle.GoogleCredentials.from_file('/gsa-key/key.json')
-    fs = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
+    if CLOUD == 'gcp':
+        credentials = aiogoogle.GoogleCredentials.from_file('/gsa-key/key.json')
+        fs = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
+    else:
+        assert CLOUD == 'azure'
+        credentials = aioazure.AzureCredentials.from_file('/azure-credentials/credentials.json')
+        fs = aioazure.AzureAsyncFS(credentials=credentials)
+
     app['file_store'] = FileStore(fs, BATCH_BUCKET_NAME, instance_id)
 
     inst_coll_configs = await InstanceCollectionConfigs.create(app)

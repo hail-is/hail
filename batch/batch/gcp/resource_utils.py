@@ -1,21 +1,25 @@
 import re
 import logging
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, List
 
 from ..globals import RESERVED_STORAGE_GB_PER_CORE
 
-log = logging.getLogger('utils')
+log = logging.getLogger('resource_utils')
 
 GCP_MAX_PERSISTENT_SSD_SIZE_GIB = 64 * 1024
 MACHINE_TYPE_REGEX = re.compile('(?P<machine_family>[^-]+)-(?P<machine_type>[^-]+)-(?P<cores>\\d+)')
 
 
+def gcp_valid_cores_from_worker_type(worker_type: str) -> List[int]:
+    if worker_type == 'standard':
+        return [1, 2, 4, 8, 16, 32, 64, 96]
+    assert worker_type in ('highcpu', 'highmem')
+    return [2, 4, 8, 16, 32, 64, 96]
+
+
 gcp_valid_machine_types = []
 for typ in ('highcpu', 'standard', 'highmem'):
-    if typ == 'standard':
-        possible_cores = [1, 2, 4, 8, 16, 32, 64, 96]
-    else:
-        possible_cores = [2, 4, 8, 16, 32, 64, 96]
+    possible_cores = gcp_valid_cores_from_worker_type(typ)
     for cores in possible_cores:
         gcp_valid_machine_types.append(f'n1-{typ}-{cores}')
 
@@ -88,23 +92,14 @@ def gcp_worker_memory_per_core_mib(worker_type):
     return m
 
 
-def gcp_total_worker_storage_gib(worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib):
-    reserved_image_size = 25
-    if worker_local_ssd_data_disk:
-        # local ssd is 375Gi
-        # reserve 25Gi for images
-        return 375 - reserved_image_size
-    return worker_pd_ssd_data_disk_size_gib - reserved_image_size
-
-
-def gcp_unreserved_worker_data_disk_size_gib(worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib, worker_cores):
+def gcp_unreserved_worker_data_disk_size_gib(local_ssd_data_disk, external_data_disk_size_gib, worker_cores):
     reserved_image_size = 30
     reserved_container_size = RESERVED_STORAGE_GB_PER_CORE * worker_cores
-    if worker_local_ssd_data_disk:
+    if local_ssd_data_disk:
         # local ssd is 375Gi
-        # reserve 20Gi for images
+        # reserve 30Gi for images
         return 375 - reserved_image_size - reserved_container_size
-    return worker_pd_ssd_data_disk_size_gib - reserved_image_size - reserved_container_size
+    return external_data_disk_size_gib - reserved_image_size - reserved_container_size
 
 
 def gcp_requested_to_actual_storage_bytes(storage_bytes, allow_zero_storage):

@@ -53,7 +53,7 @@ async def update_region_quotas(compute_client):
     return region_info, zones
 
 
-def compute_zone_weights(region_info, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb):
+def compute_zone_weights(region_info, worker_cores, local_ssd_data_disk, external_data_disk_size_gb):
     if not region_info:
         return None
 
@@ -62,10 +62,10 @@ def compute_zone_weights(region_info, worker_cores, worker_local_ssd_data_disk, 
         quota_remaining = {q['metric']: q['limit'] - q['usage'] for q in r['quotas']}
 
         remaining = quota_remaining['PREEMPTIBLE_CPUS'] / worker_cores
-        if worker_local_ssd_data_disk:
+        if local_ssd_data_disk:
             remaining = min(remaining, quota_remaining['LOCAL_SSD_TOTAL_GB'] / 375)
         else:
-            remaining = min(remaining, quota_remaining['SSD_TOTAL_GB'] / worker_pd_ssd_data_disk_size_gb)
+            remaining = min(remaining, quota_remaining['SSD_TOTAL_GB'] / external_data_disk_size_gb)
 
         weight = max(remaining / len(r['zones']), 1)
         for z in r['zones']:
@@ -76,8 +76,8 @@ def compute_zone_weights(region_info, worker_cores, worker_local_ssd_data_disk, 
     return weights
 
 
-def get_zone(region_info, zone_success_rate, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb):
-    zone_weights = compute_zone_weights(region_info, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)
+def get_zone(region_info, zone_success_rate, worker_cores, local_ssd_data_disk, external_data_disk_size_gb):
+    zone_weights = compute_zone_weights(region_info, worker_cores, local_ssd_data_disk, external_data_disk_size_gb)
 
     if not zone_weights:
         return None

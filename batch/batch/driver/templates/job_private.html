@@ -7,7 +7,9 @@
 <h2>Configuration</h2>
 <div class="attributes">
   <form action="{{ base_path }}/config-update/jpim" method="POST">
+    {% if jpim.cloud == "gcp" %}
     <div>Boot disk size (in GB): <input name="boot_disk_size_gb" value="{{ jpim.boot_disk_size_gb }}" /></div>
+    {% endif %}
     <div>Max instances: <input name="max_instances" value="{{ jpim.max_instances }}" /></div>
     <div>Max live instances: <input name="max_live_instances" value="{{ jpim.max_live_instances }}" /></div>
     <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
