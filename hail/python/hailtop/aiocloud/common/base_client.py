@@ -16,10 +16,6 @@ class CloudBaseClient:
             session = RateLimitedSession(session=session, rate_limit=rate_limit)
         self._session = session
 
-    async def _get_nextlink(self, path: str, **kwargs) -> Any:
-        async with await self._session.get(path, **kwargs) as resp:
-            return await resp.json()
-
     async def get(self, path: str, **kwargs) -> Any:
         async with await self._session.get(
                 f'{self._base_url}{path}', **kwargs) as resp:
