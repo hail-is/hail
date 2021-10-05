@@ -26,12 +26,12 @@ class CloudBaseClient:
                 f'{self._base_url}{path}', **kwargs) as resp:
             return await resp.json()
 
-    async def delete(self, path: str, **kwargs) -> None:
+    async def delete(self, path: str, **kwargs) -> Any:
         async with await self._session.delete(
                 f'{self._base_url}{path}', **kwargs) as resp:
             return await resp.json()
 
-    async def put(self, path: str, **kwargs) -> None:
+    async def put(self, path: str, **kwargs) -> Any:
         async with await self._session.put(
                 f'{self._base_url}{path}', **kwargs) as resp:
             return await resp.json()
