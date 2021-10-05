@@ -150,6 +150,8 @@ async def _wait_websocket(request, email):
                 if user['state'] != 'creating':
                     log.info(f"user {user['username']} is no longer creating")
                     break
+            except asyncio.CancelledError:
+                raise
             except Exception:  # pylint: disable=broad-except
                 log.exception(f"/creating/wait: error while updating status for user {user['username']}")
             await asyncio.sleep(1)
@@ -223,6 +225,8 @@ async def callback(request):
             flow.credentials.id_token, google.auth.transport.requests.Request()
         )
         email = token['email']
+    except asyncio.CancelledError:
+        raise
     except Exception as e:
         log.exception('oauth2 callback: could not fetch and verify token')
         raise web.HTTPUnauthorized() from e
@@ -456,6 +460,8 @@ async def rest_callback(request):
             flow.credentials.id_token, google.auth.transport.requests.Request()
         )
         email = token['email']
+    except asyncio.CancelledError:
+        raise
     except Exception as e:
         log.exception('fetching and decoding token')
         raise web.HTTPUnauthorized() from e
