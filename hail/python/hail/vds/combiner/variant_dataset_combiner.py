@@ -270,7 +270,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         self.vdses.sort(key=lambda x: x.n_samples, reverse=True)
 
     def _temp_out_path(self, extra):
-        return os.path.join(self.temp_path, 'combiner-intermidiates', f'{self._uuid}_{extra}')
+        return os.path.join(self.temp_path, 'combiner-intermediates', f'{self._uuid}_{extra}')
 
 
 def new_combiner(*,

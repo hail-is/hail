@@ -99,3 +99,37 @@ def test_combiner_plan_round_trip_serialization():
     plan.save()
     plan_loaded = load_combiner(plan_path)
     assert plan == plan_loaded
+
+def test_combiner_run():
+
+    tmpdir = new_temp_file()
+    samples = all_samples[:5]
+
+    input_paths = [resource(os.path.join('gvcfs', '1kg_chr22', f'{s}.hg38.g.vcf.gz')) for s in samples]
+    final_paths_individual = [os.path.join(tmpdir, f'sample_{s}') for s in samples]
+    final_path_1 = os.path.join(tmpdir, 'final1.vds')
+    final_path_2 = os.path.join(tmpdir, 'final2.vds')
+
+    parts = hl.eval([hl.parse_locus_interval('chr22:start-end', reference_genome='GRCh38')])
+
+    for input_gvcf, path, sample in zip(input_paths[:2], final_paths_individual[:2], samples[:2]):
+        combiner = hl.vds.new_combiner(output_path=path, intervals=parts,
+                                       temp_path=tmpdir,
+                                       gvcf_paths=[input_gvcf],
+                                       reference_genome='GRCh38')
+        combiner.run()
+
+    combiner = hl.vds.new_combiner(output_path=final_path_1, intervals=parts, temp_path=tmpdir,
+                                   gvcf_paths=input_paths[2:], vds_paths=final_paths_individual[:2],
+                                   reference_genome='GRCh38',
+                                   branch_factor=2, batch_size=2)
+    combiner.run()
+
+
+    combiner2 = hl.vds.new_combiner(output_path=final_path_2, intervals=parts, temp_path=tmpdir,
+                                    gvcf_paths=input_paths,
+                                    reference_genome='GRCh38',
+                                    branch_factor=2, batch_size=2)
+    combiner2.run()
+
+    assert hl.vds.read_vds(final_path_1)._same(hl.vds.read_vds(final_path_2))
