@@ -513,10 +513,7 @@ class BatchPoolFuture:
         timeout:
             Wait this long before raising a timeout error.
         """
-        try:
-            return async_to_blocking(self.async_result(timeout))
-        except asyncio.TimeoutError as e:
-            raise concurrent.futures.TimeoutError() from e
+        return async_to_blocking(self.async_result(timeout))
 
     async def async_result(self, timeout: Optional[Union[float, int]] = None):
         """Asynchronously wait until the job is complete.
