@@ -44,7 +44,6 @@ def get_billing_project_prefix():
 async def delete_all_test_billing_projects():
     billing_project_prefix = get_billing_project_prefix()
     bc = BatchClient(None, token_file=os.environ['HAIL_TEST_DEV_TOKEN_FILE'])
-    suppressed_exceptions = []
     try:
         for project in await bc.list_billing_projects():
             if project['billing_project'].startswith(billing_project_prefix):
