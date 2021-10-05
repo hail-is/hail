@@ -542,7 +542,7 @@ async def async_main():
             PROJECT, credentials=aiogoogle.GoogleCredentials.from_file('/gsa-key/key.json')
         )
 
-        app['batch_client'] = bc.aioclient.BatchClient(None)
+        app['batch_client'] = await bc.aioclient.BatchClient.create(None)
 
         users_changed_event = asyncio.Event()
         app['users_changed_event'] = users_changed_event
