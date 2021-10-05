@@ -13,6 +13,7 @@ from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
 from hailtop.utils import secret_alnum_string
+from hailtop import httpx
 from gear import (
     setup_aiohttp_session,
     rest_authenticated_users_only,
@@ -595,10 +596,14 @@ async def on_startup(app):
     db = Database()
     await db.async_init(maxsize=50)
     app['db'] = db
+    app['client_session'] = httpx.client_session()
 
 
 async def on_cleanup(app):
-    await app['db'].async_close()
+    try:
+        await app['db'].async_close()
+    finally:
+        await app['client_session'].close()
 
 
 def run():

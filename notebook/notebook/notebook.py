@@ -15,6 +15,7 @@ from prometheus_async.aio.web import server_stats  # type: ignore
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
+from hailtop import httpx
 from gear import (
     setup_aiohttp_session,
     create_database_pool,
@@ -213,7 +214,7 @@ async def k8s_notebook_status_from_notebook(k8s, notebook):
         raise
 
 
-async def notebook_status_from_notebook(k8s, service, headers, cookies, notebook):
+async def notebook_status_from_notebook(client_session: httpx.ClientSession, k8s, service, headers, cookies, notebook):
     status = await k8s_notebook_status_from_notebook(k8s, notebook)
     if not status:
         return None
@@ -229,15 +230,12 @@ async def notebook_status_from_notebook(k8s, service, headers, cookies, notebook
                 service, f'/instance/{notebook["notebook_token"]}/?token={notebook["jupyter_token"]}'
             )
             try:
-                async with aiohttp.ClientSession(
-                    timeout=aiohttp.ClientTimeout(total=1), headers=headers, cookies=cookies
-                ) as session:
-                    async with session.get(ready_url) as resp:
-                        if resp.status >= 200 and resp.status < 300:
-                            log.info(f'GET on jupyter pod {pod_name} succeeded: {resp}')
-                            status['state'] = 'Ready'
-                        else:
-                            log.info(f'GET on jupyter pod {pod_name} failed: {resp}')
+                async with client_session.get(ready_url, headers=headers, cookes=cookies) as resp:
+                    if resp.status >= 200 and resp.status < 300:
+                        log.info(f'GET on jupyter pod {pod_name} succeeded: {resp}')
+                        status['state'] = 'Ready'
+                    else:
+                        log.info(f'GET on jupyter pod {pod_name} failed: {resp}')
             except aiohttp.ServerTimeoutError:
                 log.exception(f'GET on jupyter pod {pod_name} timed out: {resp}')
 
@@ -346,6 +344,7 @@ async def _wait_websocket(service, request, userdata):
     app = request.app
     k8s = app['k8s_client']
     dbpool = app['dbpool']
+    client_session: httpx.ClientSession = app['client_session']
     user_id = str(userdata['id'])
     notebook = await get_user_notebook(dbpool, user_id)
     if not notebook:
@@ -371,7 +370,7 @@ async def _wait_websocket(service, request, userdata):
     count = 0
     while count < 10:
         try:
-            new_status = await notebook_status_from_notebook(k8s, service, headers, cookies, notebook)
+            new_status = await notebook_status_from_notebook(client_sesion, k8s, service, headers, cookies, notebook)
             changed = await update_notebook_return_changed(dbpool, user_id, notebook, new_status)
             if changed:
                 log.info(f"pod {notebook['pod_name']} status changed: {notebook['state']} => {new_status['state']}")
@@ -731,10 +730,17 @@ async def on_startup(app):
 
     app['dbpool'] = await create_database_pool()
 
+    app['client_session'] = httpx.client_session()
+
 
 async def on_cleanup(app):
-    del app['k8s_client']
-    await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
+    try:
+        del app['k8s_client']
+    finally:
+        try:
+            del app['client_session'].close()
+        finally:
+            await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
 
 
 def init_app(routes):

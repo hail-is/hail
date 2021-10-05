@@ -33,8 +33,8 @@ from hailtop.utils import (
     dump_all_stacktraces,
 )
 from hailtop.tls import internal_server_ssl_context
-from hailtop import aiotools
 from hailtop.aiocloud import aiogoogle
+from hailtop import aiotools, httpx
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 import googlecloudprofiler
 import uvloop
@@ -1042,6 +1042,8 @@ async def scheduling_cancelling_bump(app):
 async def on_startup(app):
     app['task_manager'] = aiotools.BackgroundTaskManager()
 
+    app['client_session'] = httpx.client_session()
+
     kube.config.load_incluster_config()
     k8s_client = kube.client.CoreV1Api()
     k8s_cache = K8sCache(k8s_client, refresh_time=5)
@@ -1168,11 +1170,13 @@ async def on_cleanup(app):
                                 finally:
                                     try:
                                         await app['compute_client'].close()
-                                    finally:
-                                        del app['k8s_cache'].client
-                                        await asyncio.gather(
-                                            *(t for t in asyncio.all_tasks() if t is not asyncio.current_task())
-                                        )
+                                        try:
+                                            await ['client_session'].close()
+                                        finally:
+                                            del app['k8s_cache'].client
+                                            await asyncio.gather(
+                                                *(t for t in asyncio.all_tasks() if t is not asyncio.current_task())
+                                            )
 
 
 def run():

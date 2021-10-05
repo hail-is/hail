@@ -8,8 +8,8 @@ from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger, configure_logging
 from hailtop.utils import retry_long_running, collect_agen, humanize_timedelta_msecs
-from hailtop import aiotools
 from hailtop.aiocloud import aiogoogle
+from hailtop import aiotools, httpx
 import hailtop.batch_client.aioclient as bc
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 from benchmark.utils import (
@@ -432,9 +432,9 @@ async def github_polling_loop(app):
 async def on_startup(app):
     credentials = aiogoogle.GoogleCredentials.from_file('/benchmark-gsa-key/key.json')
     app['fs'] = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
-    app['gh_client_session'] = aiohttp.ClientSession()
+    app['client_session'] = httpx.client_session()
     app['github_client'] = gidgethub.aiohttp.GitHubAPI(
-        app['gh_client_session'], 'hail-is/hail', oauth_token=oauth_token
+        app['client_session'], 'hail-is/hail', oauth_token=oauth_token
     )
     app['batch_client'] = bc.BatchClient(billing_project='benchmark')
     app['task_manager'] = aiotools.BackgroundTaskManager()
@@ -443,7 +443,7 @@ async def on_startup(app):
 
 async def on_cleanup(app):
     try:
-        await app['gh_client_session'].close()
+        await app['client_session'].close()
     finally:
         try:
             await app['fs'].close()

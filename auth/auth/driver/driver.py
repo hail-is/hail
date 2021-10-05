@@ -527,6 +527,8 @@ async def async_main():
         await db.async_init(maxsize=50)
         app['db'] = db
 
+        app['client_session'] = httpx.client_session()
+
         db_instance = Database()
         await db_instance.async_init(maxsize=50, config_file='/database-server-config/sql-config.json')
         app['db_instance'] = db_instance
@@ -561,5 +563,8 @@ async def async_main():
                 if 'db_instance_pool' in app:
                     await app['db_instance_pool'].async_close()
             finally:
-                if user_creation_loop is not None:
-                    user_creation_loop.shutdown()
+                try:
+                    await app['client_session'].close()
+                finally:
+                    if user_creation_loop is not None:
+                        user_creation_loop.shutdown()
