@@ -263,7 +263,7 @@ class HailType(object):
         return x
 
     def _from_encoding(self, encoding):
-        return self._convert_from_encoding(encoding, 0)[0]
+        return self._convert_from_encoding(memoryview(encoding), 0)[0]
 
     def _convert_from_encoding(self, encoding, offset):
         raise ValueError("Not implemented yet")
@@ -515,6 +515,10 @@ class _tfloat64(HailType):
 
     def to_numpy(self):
         return np.float64
+
+    def _convert_from_encoding(self, encoding, offset):
+        import struct
+        return (struct.unpack('d', encoding[offset:offset+8])[0], 8)
 
 
 class _tstr(HailType):
