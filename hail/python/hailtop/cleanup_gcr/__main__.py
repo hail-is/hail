@@ -106,7 +106,7 @@ async def main():
         raise ValueError('usage: cleanup_gcr <project>')
     project = sys.argv[1]
 
-    async with aiogoogle.ContainerClient(
+    async with aiogoogle.GoogleContainerClient(
             project=project,
             timeout=aiohttp.ClientTimeout(total=5)) as client:
         cleanup_images = CleanupImages(client)

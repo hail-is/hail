@@ -430,7 +430,7 @@ async def github_polling_loop(app):
 
 
 async def on_startup(app):
-    credentials = aiogoogle.GCPCredentials.from_file('/benchmark-gsa-key/key.json')
+    credentials = aiogoogle.GoogleCredentials.from_file('/benchmark-gsa-key/key.json')
     app['fs'] = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
     app['gh_client_session'] = aiohttp.ClientSession()
     app['github_client'] = gidgethub.aiohttp.GitHubAPI(

@@ -1,20 +1,18 @@
-from .client import BigQueryClient, ContainerClient, ComputeClient, IAmClient, LoggingClient, \
-    InsertObjectStream, GetObjectStream, StorageClient, GoogleStorageAsyncFS
-from .credentials import GCPCredentials, GCPApplicationDefaultCredentials, GCPServiceAccountCredentials
-from .session import GCPSession
+from .client import GoogleBigQueryClient, GoogleContainerClient, GoogleComputeClient, GoogleIAmClient, GoogleLoggingClient, \
+    GoogleStorageClient, GoogleStorageAsyncFS
+from .credentials import GoogleCredentials, GoogleApplicationDefaultCredentials, GoogleServiceAccountCredentials
+from .session import GoogleSession
 
 __all__ = [
-    'GCPCredentials',
-    'GCPApplicationDefaultCredentials',
-    'GCPServiceAccountCredentials',
-    'GCPSession',
-    'BigQueryClient',
-    'ContainerClient',
-    'ComputeClient',
-    'IAmClient',
-    'LoggingClient',
-    'InsertObjectStream',
-    'GetObjectStream',
-    'StorageClient',
+    'GoogleCredentials',
+    'GoogleApplicationDefaultCredentials',
+    'GoogleServiceAccountCredentials',
+    'GoogleSession',
+    'GoogleBigQueryClient',
+    'GoogleContainerClient',
+    'GoogleComputeClient',
+    'GoogleIAmClient',
+    'GoogleLoggingClient',
+    'GoogleStorageClient',
     'GoogleStorageAsyncFS'
 ]

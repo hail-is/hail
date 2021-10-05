@@ -2146,7 +2146,7 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
 
     app['frozen'] = row['frozen']
 
-    credentials = aiogoogle.GCPCredentials.from_file('/gsa-key/key.json')
+    credentials = aiogoogle.GoogleCredentials.from_file('/gsa-key/key.json')
     fs = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
     app['file_store'] = FileStore(fs, BATCH_BUCKET_NAME, instance_id)
 

@@ -536,8 +536,8 @@ async def async_main():
         k8s_client = kube.client.CoreV1Api()
         app['k8s_client'] = k8s_client
 
-        app['iam_client'] = aiogoogle.IAmClient(
-            PROJECT, credentials=aiogoogle.GCPCredentials.from_file('/gsa-key/key.json')
+        app['iam_client'] = aiogoogle.GoogleIAmClient(
+            PROJECT, credentials=aiogoogle.GoogleCredentials.from_file('/gsa-key/key.json')
         )
 
         app['batch_client'] = bc.aioclient.BatchClient(None)

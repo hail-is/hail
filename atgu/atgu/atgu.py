@@ -354,7 +354,7 @@ async def on_startup(app):
     await db.async_init()
     app['db'] = db
 
-    app['storage_client'] = aiogoogle.StorageClient()
+    app['storage_client'] = aiogoogle.GoogleStorageClient()
 
 
 async def on_cleanup(app):

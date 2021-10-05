@@ -24,7 +24,7 @@ class GCPOperationError(Exception):
 
 
 class PagedIterator:
-    def __init__(self, client: 'ComputeClient', path: str, request_params: Optional[Mapping[str, Any]], request_kwargs: Mapping[str, Any]):
+    def __init__(self, client: 'GoogleComputeClient', path: str, request_params: Optional[Mapping[str, Any]], request_kwargs: Mapping[str, Any]):
         assert 'params' not in request_kwargs
         self._client = client
         self._path = path
@@ -59,7 +59,7 @@ class PagedIterator:
                 raise StopAsyncIteration
 
 
-class ComputeClient(GCPBaseClient):
+class GoogleComputeClient(GCPBaseClient):
     def __init__(self, project, **kwargs):
         super().__init__(f'https://compute.googleapis.com/compute/v1/projects/{project}', **kwargs)
 

@@ -21,7 +21,7 @@ class InstanceCollection:
     def __init__(self, app, name, machine_name_prefix, is_pool):
         self.app = app
         self.db: Database = app['db']
-        self.compute_client: aiogoogle.ComputeClient = self.app['compute_client']
+        self.compute_client: aiogoogle.GoogleComputeClient = self.app['compute_client']
         self.zone_monitor: ZoneMonitor = self.app['zone_monitor']
 
         self.name = name

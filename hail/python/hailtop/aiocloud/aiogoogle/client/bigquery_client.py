@@ -52,7 +52,7 @@ class ResultsParser:
 
 
 class PagedQueriesIterator:
-    def __init__(self, client: 'BigQueryClient', query: str, request_kwargs: Mapping[str, Any]):
+    def __init__(self, client: 'GoogleBigQueryClient', query: str, request_kwargs: Mapping[str, Any]):
         self._client = client
         self._query = query
         self._request_kwargs = request_kwargs
@@ -105,7 +105,7 @@ class PagedQueriesIterator:
                 raise StopAsyncIteration
 
 
-class BigQueryClient(GCPBaseClient):
+class GoogleBigQueryClient(GCPBaseClient):
     def __init__(self, project, **kwargs):
         super().__init__(f'https://bigquery.googleapis.com/bigquery/v2/projects/{project}', **kwargs)
 

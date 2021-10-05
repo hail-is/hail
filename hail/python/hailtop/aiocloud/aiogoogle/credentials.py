@@ -12,7 +12,7 @@ from ..common.credentials import CloudCredentials
 log = logging.getLogger(__name__)
 
 
-class GCPCredentials(CloudCredentials):
+class GoogleCredentials(CloudCredentials):
     _session: hailtop.httpx.ClientSession
     _access_token: Optional[Dict[str, Any]]
     _expires_at: Optional[int]
@@ -25,16 +25,16 @@ class GCPCredentials(CloudCredentials):
     def from_file(credentials_file):
         with open(credentials_file) as f:
             credentials = json.load(f)
-        return GCPCredentials.from_credentials_data(credentials)
+        return GoogleCredentials.from_credentials_data(credentials)
 
     @staticmethod
     def from_credentials_data(credentials):
         credentials_type = credentials['type']
         if credentials_type == 'service_account':
-            return GCPServiceAccountCredentials(credentials)
+            return GoogleServiceAccountCredentials(credentials)
 
         if credentials_type == 'authorized_user':
-            return GCPApplicationDefaultCredentials(credentials)
+            return GoogleApplicationDefaultCredentials(credentials)
 
         raise ValueError(f'unknown Google Cloud credentials type {credentials_type}')
 
@@ -49,12 +49,12 @@ class GCPCredentials(CloudCredentials):
 
         if credentials_file:
             log.info(f'using credentials file {credentials_file}')
-            return GCPCredentials.from_file(credentials_file)
+            return GoogleCredentials.from_file(credentials_file)
 
         log.warning('unable to locate Google Cloud credentials file, will attempt to '
                     'use instance metadata server instead')
 
-        return GCPInstanceMetadataCredentials()
+        return GoogleInstanceMetadataCredentials()
 
     async def auth_headers(self):
         now = time.time()
@@ -73,7 +73,7 @@ class GCPCredentials(CloudCredentials):
 # protocol documented here:
 # https://developers.google.com/identity/protocols/oauth2/web-server#offline
 # studying `gcloud --log-http print-access-token` was also useful
-class GCPApplicationDefaultCredentials(GCPCredentials):
+class GoogleApplicationDefaultCredentials(GoogleCredentials):
     def __init__(self, credentials, **kwargs):
         super().__init__()
         self.credentials = credentials
@@ -98,7 +98,7 @@ class GCPApplicationDefaultCredentials(GCPCredentials):
 # protocol documented here:
 # https://developers.google.com/identity/protocols/oauth2/service-account
 # studying `gcloud --log-http print-access-token` was also useful
-class GCPServiceAccountCredentials(GCPCredentials):
+class GoogleServiceAccountCredentials(GoogleCredentials):
     def __init__(self, key, **kwargs):
         super().__init__()
         self.key = key
@@ -129,7 +129,7 @@ class GCPServiceAccountCredentials(GCPCredentials):
 
 
 # https://cloud.google.com/compute/docs/access/create-enable-service-accounts-for-instances#applications
-class GCPInstanceMetadataCredentials(GCPCredentials):
+class GoogleInstanceMetadataCredentials(GoogleCredentials):
     def __init__(self, **kwargs):
         super().__init__()
         self._session = hailtop.httpx.ClientSession(**kwargs)

@@ -15,7 +15,7 @@ from hailtop.aiotools import (
     FeedableAsyncIterable, FileAndDirectoryError, MultiPartCreate, UnexpectedEOFError, WriteBuffer)
 
 from .base_client import GCPBaseClient
-from ..session import GCPSession
+from ..session import GoogleSession
 
 log = logging.getLogger(__name__)
 
@@ -96,7 +96,7 @@ class _TaskManager:
 
 
 class ResumableInsertObjectStream(WritableStream):
-    def __init__(self, session: GCPSession, session_url: str, chunk_size: int):
+    def __init__(self, session: GoogleSession, session_url: str, chunk_size: int):
         super().__init__()
         self._session = session
         self._session_url = session_url
@@ -263,7 +263,7 @@ class GetObjectStream(ReadableStream):
         self._resp = None
 
 
-class StorageClient(GCPBaseClient):
+class GoogleStorageClient(GCPBaseClient):
     def __init__(self, **kwargs):
         super().__init__('https://storage.googleapis.com/storage/v1', **kwargs)
 
@@ -492,7 +492,7 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
 
 class GoogleStorageAsyncFS(AsyncFS):
     def __init__(self, *,
-                 storage_client: Optional[StorageClient] = None,
+                 storage_client: Optional[GoogleStorageClient] = None,
                  project: Optional[str] = None,
                  **kwargs):
         if not storage_client:
@@ -500,7 +500,7 @@ class GoogleStorageAsyncFS(AsyncFS):
                 if 'params' not in kwargs:
                     kwargs['params'] = {}
                 kwargs['params']['userProject'] = project
-            storage_client = StorageClient(**kwargs)
+            storage_client = GoogleStorageClient(**kwargs)
         self._storage_client = storage_client
 
     def schemes(self) -> Set[str]:

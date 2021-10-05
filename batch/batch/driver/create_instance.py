@@ -344,7 +344,7 @@ journalctl -u docker.service > dockerd.log
 
 
 async def create_instance(app, machine_name, zone, config):
-    compute_client: aiogoogle.ComputeClient = app['compute_client']
+    compute_client: aiogoogle.GoogleComputeClient = app['compute_client']
     params = {'requestId': str(uuid.uuid4())}
     await compute_client.post(f'/zones/{zone}/instances', params=params, json=config)
     log.info(f'created machine {machine_name}')

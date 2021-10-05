@@ -1586,7 +1586,7 @@ class JVMJob(Job):
                                 [
                                     LocalAsyncFS(worker.pool),
                                     aiogoogle.GoogleStorageAsyncFS(
-                                        credentials=aiogoogle.GCPCredentials.from_file('/worker-key.json')
+                                        credentials=aiogoogle.GoogleCredentials.from_file('/worker-key.json')
                                     ),
                                 ],
                             )
@@ -2026,12 +2026,12 @@ class Worker:
             with open('/worker-key.json', 'w') as f:
                 f.write(json.dumps(resp_json['key']))
 
-            credentials = aiogoogle.GCPCredentials.from_file('/worker-key.json')
+            credentials = aiogoogle.GoogleCredentials.from_file('/worker-key.json')
             fs = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
             self.file_store = FileStore(fs, BATCH_LOGS_BUCKET_NAME, INSTANCE_ID)
 
-            credentials = aiogoogle.GCPCredentials.from_file('/worker-key.json')
-            self.compute_client = aiogoogle.ComputeClient(PROJECT, credentials=credentials)
+            credentials = aiogoogle.GoogleCredentials.from_file('/worker-key.json')
+            self.compute_client = aiogoogle.GoogleComputeClient(PROJECT, credentials=credentials)
 
             resp = await request_retry_transient_errors(
                 session,

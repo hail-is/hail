@@ -1,5 +1,5 @@
-from .compute_client import ComputeClient
+from .compute_client import AzureComputeClient
 
 __all__ = [
-    'ComputeClient',
+    'AzureComputeClient',
 ]

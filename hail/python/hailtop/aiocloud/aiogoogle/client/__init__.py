@@ -1,18 +1,16 @@
-from .bigquery_client import BigQueryClient
-from .container_client import ContainerClient
-from .compute_client import ComputeClient
-from .iam_client import IAmClient
-from .logging_client import LoggingClient
-from .storage_client import InsertObjectStream, GetObjectStream, StorageClient, GoogleStorageAsyncFS
+from .bigquery_client import GoogleBigQueryClient
+from .container_client import GoogleContainerClient
+from .compute_client import GoogleComputeClient
+from .iam_client import GoogleIAmClient
+from .logging_client import GoogleLoggingClient
+from .storage_client import GoogleStorageClient, GoogleStorageAsyncFS
 
 __all__ = [
-    'BigQueryClient',
-    'ContainerClient',
-    'ComputeClient',
-    'IAmClient',
-    'LoggingClient',
-    'InsertObjectStream',
-    'GetObjectStream',
-    'StorageClient',
+    'GoogleBigQueryClient',
+    'GoogleContainerClient',
+    'GoogleComputeClient',
+    'GoogleIAmClient',
+    'GoogleLoggingClient',
+    'GoogleStorageClient',
     'GoogleStorageAsyncFS'
 ]

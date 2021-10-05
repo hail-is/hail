@@ -51,7 +51,7 @@ class ZoneSuccessRate:
 class ZoneMonitor:
     def __init__(self, app):
         self.app = app
-        self.compute_client: aiogoogle.ComputeClient = app['compute_client']
+        self.compute_client: aiogoogle.GoogleComputeClient = app['compute_client']
 
         self.zone_success_rate = ZoneSuccessRate()
 

@@ -4,7 +4,7 @@ from hailtop.utils import RateLimit
 
 from .session import BaseSession, RateLimitedSession
 
-ClientType = TypeVar('ClientType', bound='BaseClient')
+ClientType = TypeVar('ClientType', bound='CloudBaseClient')
 
 
 class CloudBaseClient:

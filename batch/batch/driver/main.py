@@ -1070,11 +1070,11 @@ SELECT instance_id, internal_token, frozen FROM globals;
     resources = db.select_and_fetchall('SELECT resource, rate FROM resources;')
     app['resource_rates'] = {record['resource']: record['rate'] async for record in resources}
 
-    aiogoogle_credentials = aiogoogle.GCPCredentials.from_file('/gsa-key/key.json')
-    compute_client = aiogoogle.ComputeClient(PROJECT, credentials=aiogoogle_credentials)
+    aiogoogle_credentials = aiogoogle.GoogleCredentials.from_file('/gsa-key/key.json')
+    compute_client = aiogoogle.GoogleComputeClient(PROJECT, credentials=aiogoogle_credentials)
     app['compute_client'] = compute_client
 
-    logging_client = aiogoogle.LoggingClient(
+    logging_client = aiogoogle.GoogleLoggingClient(
         credentials=aiogoogle_credentials,
         # The project-wide logging quota is 60 request/m.  The event
         # loop sleeps 15s per iteration, so the max rate is 4
@@ -1102,7 +1102,7 @@ SELECT instance_id, internal_token, frozen FROM globals;
     async_worker_pool = AsyncWorkerPool(100, queue_size=100)
     app['async_worker_pool'] = async_worker_pool
 
-    credentials = aiogoogle.GCPCredentials.from_file('/gsa-key/key.json')
+    credentials = aiogoogle.GoogleCredentials.from_file('/gsa-key/key.json')
     fs = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
     app['file_store'] = FileStore(fs, BATCH_BUCKET_NAME, instance_id)
 

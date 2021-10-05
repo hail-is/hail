@@ -84,8 +84,8 @@ async def main():
     k8s_client = kube.client.CoreV1Api()
     app['k8s_client'] = k8s_client
 
-    app['iam_client'] = aiogoogle.IAmClient(
-        PROJECT, credentials=aiogoogle.GCPCredentials.from_file('/auth-gsa-key/key.json')
+    app['iam_client'] = aiogoogle.GoogleIAmClient(
+        PROJECT, credentials=aiogoogle.GoogleCredentials.from_file('/auth-gsa-key/key.json')
     )
 
     for username, email, is_developer, is_service_account in users:
