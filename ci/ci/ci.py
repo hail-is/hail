@@ -417,6 +417,8 @@ async def dev_deploy_branch(request, userdata):
     app = request.app
     try:
         params = await request.json()
+    except asyncio.CancelledError:
+        raise
     except Exception as e:
         message = 'could not read body as JSON'
         log.info('dev deploy failed: ' + message, exc_info=True)
@@ -426,6 +428,8 @@ async def dev_deploy_branch(request, userdata):
         branch = FQBranch.from_short_str(params['branch'])
         steps = params['steps']
         excluded_steps = params['excluded_steps']
+    except asyncio.CancelledError:
+        raise
     except Exception as e:
         message = f'parameters are wrong; check the branch and steps syntax.\n\n{params}'
         log.info('dev deploy failed: ' + message, exc_info=True)
@@ -437,6 +441,8 @@ async def dev_deploy_branch(request, userdata):
     try:
         branch_gh_json = await gh.getitem(request_string)
         sha = branch_gh_json['object']['sha']
+    except asyncio.CancelledError:
+        raise
     except Exception as e:
         message = f'error finding {branch} at GitHub'
         log.info('dev deploy failed: ' + message, exc_info=True)
@@ -448,6 +454,8 @@ async def dev_deploy_branch(request, userdata):
 
     try:
         batch_id = await unwatched_branch.deploy(batch_client, steps, excluded_steps=excluded_steps)
+    except asyncio.CancelledError:
+        raise
     except Exception as e:  # pylint: disable=broad-except
         message = traceback.format_exc()
         raise web.HTTPBadRequest(text=f'starting the deploy failed due to\n{message}') from e
