@@ -1,7 +1,7 @@
 import re
 import logging
 
-import hailtop.aiogoogle as aiogoogle
+from hailtop.aiocloud import aiogoogle
 
 from .config import BENCHMARK_RESULTS_PATH
 

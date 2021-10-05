@@ -12,8 +12,7 @@ from prometheus_async.aio.web import server_stats  # type: ignore
 from typing import Set
 
 from hailtop.aiotools import AsyncFS
-from hailtop.aiogoogle.client.storage_client import GoogleStorageAsyncFS
-from hailtop.aiogoogle.auth.credentials import Credentials
+from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS, GoogleCredentials
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
@@ -74,7 +73,7 @@ async def get_or_add_user(app, userdata):
             k8s_client.read_namespaced_secret, userdata['gsa_key_secret_name'], DEFAULT_NAMESPACE, _request_timeout=5.0
         )
         gsa_key = json.loads(base64.b64decode(gsa_key_secret.data['key.json']).decode())
-        credentials = Credentials.from_credentials_data(gsa_key)
+        credentials = GoogleCredentials.from_credentials_data(gsa_key)
         users[username] = {'fs': GoogleStorageAsyncFS(credentials=credentials)}
     return users[username]
 

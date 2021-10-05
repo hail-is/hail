@@ -1,10 +1,9 @@
-import asyncio
 import unittest
 import os
 import uuid
 from memory.client import MemoryClient
 
-from hailtop.aiogoogle.client.storage_client import GoogleStorageAsyncFS
+from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
 from hailtop.config import get_user_config
 from hailtop.utils import async_to_blocking
 

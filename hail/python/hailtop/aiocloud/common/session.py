@@ -4,8 +4,7 @@ import abc
 import aiohttp
 import hailtop.httpx
 from hailtop.utils import request_retry_transient_errors, RateLimit, RateLimiter
-from .credentials import Credentials
-from .access_token import AccessToken
+from .credentials import CloudCredentials
 
 SessionType = TypeVar('SessionType', bound='BaseSession')
 
@@ -62,19 +61,17 @@ class RateLimitedSession(BaseSession):
 
 class Session(BaseSession):
     _session: aiohttp.ClientSession
-    _access_token: AccessToken
+    _credentials: CloudCredentials
 
-    def __init__(self, *, credentials: Credentials = None, params: Optional[Mapping[str, str]] = None, **kwargs):
-        if credentials is None:
-            credentials = Credentials.default_credentials()
+    def __init__(self, *, credentials: CloudCredentials, params: Optional[Mapping[str, str]] = None, **kwargs):
         if 'raise_for_status' not in kwargs:
             kwargs['raise_for_status'] = True
         self._params = params
         self._session = hailtop.httpx.ClientSession(**kwargs)
-        self._access_token = AccessToken(credentials)
+        self._credentials = credentials
 
     async def request(self, method: str, url: str, **kwargs):
-        auth_headers = await self._access_token.auth_headers(self._session)
+        auth_headers = await self._credentials.auth_headers()
         if 'headers' in kwargs:
             kwargs['headers'].update(auth_headers)
         else:
@@ -100,4 +97,7 @@ class Session(BaseSession):
         if hasattr(self, '_session'):
             await self._session.close()
             del self._session
-        del self._access_token
+
+        if hasattr(self, '_credentials'):
+            await self._credentials.close()
+            del self._credentials

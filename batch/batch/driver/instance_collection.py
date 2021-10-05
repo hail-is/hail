@@ -7,7 +7,8 @@ import collections
 from typing import Dict
 
 from hailtop.utils import time_msecs, secret_alnum_string, periodically_call, time_msecs_str
-from hailtop import aiotools, aiogoogle
+from hailtop import aiotools
+from hailtop.aiocloud import aiogoogle
 from gear import Database
 
 from .instance import Instance
@@ -20,7 +21,7 @@ class InstanceCollection:
     def __init__(self, app, name, machine_name_prefix, is_pool):
         self.app = app
         self.db: Database = app['db']
-        self.compute_client: aiogoogle.ComputeClient = self.app['compute_client']
+        self.compute_client: aiogoogle.GoogleComputeClient = self.app['compute_client']
         self.zone_monitor: ZoneMonitor = self.app['zone_monitor']
 
         self.name = name

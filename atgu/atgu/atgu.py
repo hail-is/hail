@@ -12,7 +12,7 @@ from hailtop.utils import time_msecs, secret_alnum_string
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
 from hailtop.config import get_deploy_config
-from hailtop import aiogoogle
+from hailtop.aiocloud import aiogoogle
 from gear import (
     Database,
     setup_aiohttp_session,
@@ -354,7 +354,7 @@ async def on_startup(app):
     await db.async_init()
     app['db'] = db
 
-    app['storage_client'] = aiogoogle.StorageClient()
+    app['storage_client'] = aiogoogle.GoogleStorageClient()
 
 
 async def on_cleanup(app):

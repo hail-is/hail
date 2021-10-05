@@ -10,8 +10,8 @@ from collections import defaultdict, namedtuple
 from prometheus_async.aio.web import server_stats  # type: ignore
 import prometheus_client as pc  # type: ignore
 
-from hailtop import aiogoogle, aiotools
-from hailtop.aiogoogle import BigQueryClient, ComputeClient
+from hailtop import aiotools
+from hailtop.aiocloud import aiogoogle
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
@@ -246,7 +246,7 @@ async def polling_loop(app):
 
 async def monitor_disks(app):
     log.info('monitoring disks')
-    compute_client: ComputeClient = app['compute_client']
+    compute_client: aiogoogle.GoogleComputeClient = app['compute_client']
 
     disk_counts = defaultdict(list)
 
@@ -282,7 +282,7 @@ async def monitor_disks(app):
 
 async def monitor_instances(app):
     log.info('monitoring instances')
-    compute_client: ComputeClient = app['compute_client']
+    compute_client: aiogoogle.GoogleComputeClient = app['compute_client']
 
     instance_counts = defaultdict(int)
 
@@ -307,12 +307,12 @@ async def on_startup(app):
     await db.async_init()
     app['db'] = db
 
-    aiogoogle_credentials = aiogoogle.Credentials.from_file('/billing-monitoring-gsa-key/key.json')
+    aiogoogle_credentials = aiogoogle.GoogleCredentials.from_file('/billing-monitoring-gsa-key/key.json')
 
-    bigquery_client = BigQueryClient('broad-ctsa', credentials=aiogoogle_credentials)
+    bigquery_client = aiogoogle.GoogleBigQueryClient('broad-ctsa', credentials=aiogoogle_credentials)
     app['bigquery_client'] = bigquery_client
 
-    compute_client = ComputeClient(PROJECT, credentials=aiogoogle_credentials)
+    compute_client = aiogoogle.GoogleComputeClient(PROJECT, credentials=aiogoogle_credentials)
     app['compute_client'] = compute_client
 
     query_billing_event = asyncio.Event()

@@ -10,7 +10,7 @@ import sys
 from hailtop.utils import secret_alnum_string, partition
 import hailtop.batch_client.aioclient as low_level_batch_client
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
-import hailtop.aiogoogle as aiogoogle
+from hailtop.aiocloud import aiogoogle
 
 from .batch import Batch
 from .backend import ServiceBackend

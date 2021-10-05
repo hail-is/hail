@@ -5,9 +5,10 @@ import urllib
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from hailtop.aiotools.fs import RouterAsyncFS, LocalAsyncFS, Transfer
-from hailtop.aiogoogle import GoogleStorageAsyncFS
-from hailtop.aiotools.s3asyncfs import S3AsyncFS
-from hailtop.aiotools.azurefs import AzureAsyncFS
+
+from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
+from hailtop.aiocloud.aioaws import S3AsyncFS
+from hailtop.aiocloud.aioazure import AzureAsyncFS
 
 
 def referenced_schemes(transfers: List[Transfer]):

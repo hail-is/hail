@@ -9,7 +9,8 @@ import aiohttp
 import kubernetes_asyncio as kube
 from hailtop.utils import time_msecs, secret_alnum_string
 from hailtop.auth.sql_config import create_secret_data_from_config, SQLConfig
-from hailtop import aiogoogle, aiotools
+from hailtop import aiotools
+from hailtop.aiocloud import aiogoogle
 from hailtop import batch_client as bc
 from gear import create_session, Database
 
@@ -534,8 +535,8 @@ async def async_main():
         k8s_client = kube.client.CoreV1Api()
         app['k8s_client'] = k8s_client
 
-        app['iam_client'] = aiogoogle.IAmClient(
-            PROJECT, credentials=aiogoogle.Credentials.from_file('/gsa-key/key.json')
+        app['iam_client'] = aiogoogle.GoogleIAmClient(
+            PROJECT, credentials=aiogoogle.GoogleCredentials.from_file('/gsa-key/key.json')
         )
 
         app['batch_client'] = bc.aioclient.BatchClient(None)
