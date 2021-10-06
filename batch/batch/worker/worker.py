@@ -1259,6 +1259,7 @@ class DockerJob(Job):
                 self.memory_in_bytes,
                 self.scratch,
                 requester_pays_project,
+                client_session
             )
 
         # main container
