@@ -14,6 +14,7 @@ from hail.genetics.reference_genome import reference_genome_type
 from hail.typecheck import typecheck, typecheck_method, oneof, transformed
 from hail.utils.java import escape_parsable
 from hail.utils import frozendict
+from hail.utils.byte_reader import ByteReader
 
 __all__ = [
     'dtype',
@@ -263,9 +264,9 @@ class HailType(object):
         return x
 
     def _from_encoding(self, encoding):
-        return self._convert_from_encoding(memoryview(encoding), 0)[0]
+        return self._convert_from_encoding(ByteReader(memoryview(encoding)))
 
-    def _convert_from_encoding(self, encoding, offset):
+    def _convert_from_encoding(self, byte_reader, offset):
         raise ValueError("Not implemented yet")
 
     def _traverse(self, obj, f):
@@ -376,8 +377,8 @@ class _tint32(HailType):
     def to_numpy(self):
         return np.int32
 
-    def _convert_from_encoding(self, encoding, offset):
-        return hl.experimental.codec.read_int(encoding, offset), 4
+    def _convert_from_encoding(self, byte_reader):
+        return byte_reader.read_int32()
 
 
 class _tint64(HailType):
@@ -516,9 +517,8 @@ class _tfloat64(HailType):
     def to_numpy(self):
         return np.float64
 
-    def _convert_from_encoding(self, encoding, offset):
-        import struct
-        return struct.unpack('d', encoding[offset:offset+8])[0], 8
+    def _convert_from_encoding(self, byte_reader):
+        return byte_reader.read_float64()
 
 
 class _tstr(HailType):
@@ -552,12 +552,11 @@ class _tstr(HailType):
     def clear(self):
         pass
 
-    def _convert_from_encoding(self, encoding, offset):
-        length = hl.experimental.codec.read_int(encoding, offset)
-        num_bytes_read = 4 + length
-        str_literal = encoding[offset + 4: offset + num_bytes_read].tobytes().decode()
+    def _convert_from_encoding(self, byte_reader):
+        length = byte_reader.read_int32()
+        str_literal = byte_reader.read_bytes(length).decode()
 
-        return str_literal, num_bytes_read
+        return str_literal
 
 
 class _tbool(HailType):
@@ -594,8 +593,8 @@ class _tbool(HailType):
     def to_numpy(self):
         return bool
 
-    def _convert_from_encoding(self, encoding, offset):
-        return encoding[offset] == 1, 1
+    def _convert_from_encoding(self, byte_reader):
+        return byte_reader.read_bool()
 
 
 class tndarray(HailType):
@@ -797,8 +796,8 @@ class tarray(HailType):
     def _get_context(self):
         return self.element_type.get_context()
 
-    def _convert_from_encoding(self, encoding, offset):
-        length = hl.experimental.codec.read_int(encoding, offset)
+    def _convert_from_encoding(self, byte_reader):
+        length = byte_reader.read_int32()
 
         def is_missing(encoding, bit_offset):
             byte_offset = bit_offset // 8
@@ -806,20 +805,18 @@ class tarray(HailType):
             return hl.experimental.codec.lookup_bit(encoding[byte_offset], remaining_bit_offset)
 
         num_missing_bytes = math.ceil(length / 8)
-        missing_bytes_start = offset + 4
-        num_bytes_read = 4 + num_missing_bytes
+        missing_bytes = byte_reader.read_bytes_view(num_missing_bytes)
 
         decoded = []
         i = 0
         while i < length:
-            if is_missing(encoding, missing_bytes_start * 8 + i):
+            if is_missing(missing_bytes, i):
                 decoded.append(None)
             else:
-                (element_decoded, element_num_bytes_read) = self.element_type._convert_from_encoding(encoding, offset + num_bytes_read)
+                element_decoded = self.element_type._convert_from_encoding(byte_reader)
                 decoded.append(element_decoded)
-                num_bytes_read += element_num_bytes_read
             i += 1
-        return decoded, num_bytes_read
+        return decoded
 
 
 class tstream(HailType):
@@ -1205,9 +1202,9 @@ class tstruct(HailType, Mapping):
     def _convert_to_json(self, x):
         return {f: t._convert_to_json_na(x[f]) for f, t in self.items()}
 
-    def _convert_from_encoding(self, encoding, offset):
+    def _convert_from_encoding(self, byte_reader):
         num_missing_bytes = math.ceil(len(self) / 8)
-        num_bytes_read = num_missing_bytes
+        missing_bytes = byte_reader.read_bytes_view(num_missing_bytes)
 
         kwargs = {}
 
@@ -1215,16 +1212,15 @@ class tstruct(HailType, Mapping):
         for i, (f, t) in enumerate(self._field_types.items()):
             which_missing_bit = i % 8
             if which_missing_bit == 0:
-                current_missing_byte = encoding[offset + i // 8]
+                current_missing_byte = missing_bytes[i // 8]
 
             if hl.experimental.codec.lookup_bit(current_missing_byte, which_missing_bit):
                 kwargs[f] = None
             else:
-                (field_decoded, field_bytes_read) = t._convert_from_encoding(encoding, offset + num_bytes_read)
-                num_bytes_read += field_bytes_read
+                field_decoded = t._convert_from_encoding(byte_reader)
                 kwargs[f] = field_decoded
 
-        return hl.utils.Struct(**kwargs), num_bytes_read
+        return hl.utils.Struct(**kwargs)
 
     def _is_prefix_of(self, other):
         return (isinstance(other, tstruct)
@@ -1481,25 +1477,24 @@ class ttuple(HailType, Sequence):
     def _convert_to_json(self, x):
         return [self.types[i]._convert_to_json_na(x[i]) for i in range(len(self.types))]
 
-    def _convert_from_encoding(self, encoding, offset):
-        def is_missing(encoding, bit_offset):
-            byte_offset = bit_offset // 8
-            remaining_bit_offset = bit_offset % 8
-            return hl.experimental.codec.lookup_bit(encoding[byte_offset], remaining_bit_offset)
-
+    def _convert_from_encoding(self, byte_reader):
         num_missing_bytes = math.ceil(len(self) / 8)
-        num_bytes_read = num_missing_bytes
+        missing_bytes = byte_reader.read_bytes_view(num_missing_bytes)
 
-        result = []
+        answer = []
+        current_missing_byte = None
         for i, t in enumerate(self.types):
-            if is_missing(encoding, offset * 8 + i):
-                result.append(None)
-            else:
-                (field_decoded, field_bytes_read) = t._convert_from_encoding(encoding, offset + num_bytes_read)
-                num_bytes_read += field_bytes_read
-                result.append(field_decoded)
+            which_missing_bit = i % 8
+            if which_missing_bit == 0:
+                current_missing_byte = missing_bytes[i // 8]
 
-        return tuple(result), num_bytes_read
+            if hl.experimental.codec.lookup_bit(current_missing_byte, which_missing_bit):
+                answer.append(None)
+            else:
+                field_decoded = t._convert_from_encoding(byte_reader)
+                answer.append(field_decoded)
+
+        return tuple(answer)
 
     def unify(self, t):
         if not (isinstance(t, ttuple) and len(self.types) == len(t.types)):
