@@ -594,6 +594,9 @@ class _tbool(HailType):
     def to_numpy(self):
         return bool
 
+    def _convert_from_encoding(self, encoding, offset):
+        return encoding[offset] == 1, 1
+
 
 class tndarray(HailType):
     """Hail type for n-dimensional arrays.

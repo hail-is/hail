@@ -1,4 +1,5 @@
 from hail.utils.java import Env
+import struct
 
 block_codec = '{"name":"BlockingBufferSpec","blockSize":65536,"child":{"name":"StreamBlockBufferSpec"}}'
 stream_codec = '{"name":"StreamBufferSpec"}'
@@ -14,10 +15,12 @@ def decode_through_JSON(typ, ptype_string, bytes, codec=stream_codec):
 
 
 def read_int(byte_array, offset):
-    ans = (byte_array[offset] +
-           (byte_array[offset + 1] << 8) +
-           (byte_array[offset + 2] << 16) +
-           (byte_array[offset + 3] << 24))
+    # ans = (byte_array[offset] +
+    #        (byte_array[offset + 1] << 8) +
+    #        (byte_array[offset + 2] << 16) +
+    #        (byte_array[offset + 3] << 24))
+
+    ans = struct.unpack('i', byte_array[offset:offset+4])[0]
 
     return ans
 
