@@ -1736,9 +1736,15 @@ class Worker:
         self.compute_client = None
 
     async def shutdown(self):
+        log.info('Worker.shutdown')
         self.task_manager.shutdown()
+        log.info('shutdown task manager')
         if self.compute_client:
             await self.compute_client.close()
+            log.info('closed compute client')
+        if self.file_store:
+            await self.file_store.close()
+            log.info('closed file store')
 
     async def run_job(self, job):
         try:
@@ -1888,7 +1894,6 @@ class Worker:
         finally:
             self.active = False
             log.info('shutting down')
-            await self.file_store.close()
             await site.stop()
             log.info('stopped site')
             await app_runner.cleanup()
