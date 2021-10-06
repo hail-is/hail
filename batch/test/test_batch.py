@@ -37,12 +37,12 @@ def test_job(client):
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
     b = builder.submit()
     status = j.wait()
-    debug_info = {'batch_status': b.status(), 'job_status': status, 'job_log': j.log()}
-    assert 'attributes' not in status, str(debug_info)
-    assert status['state'] == 'Success', str(debug_info)
-    assert status['exit_code'] == 0, str(debug_info)
-    assert j._get_exit_code(status, 'main') == 0, str(debug_info)
-    assert j.log()['main'] == 'test\n', str(debug_info)
+    assert 'attributes' not in status, str((status, b.debug_info()))
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+    assert status['exit_code'] == 0, str((status, b.debug_info()))
+    assert j._get_exit_code(status, 'main') == 0, str((status, b.debug_info()))
+    job_log = j.log()
+    assert job_log['main'] == 'test\n', str((job_log, b.debug_info()))
 
 
 def test_exit_code_duration(client):
@@ -50,36 +50,35 @@ def test_exit_code_duration(client):
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['bash', '-c', 'exit 7'])
     b = builder.submit()
     status = j.wait()
-    debug_info = {'batch_status': b.status(), 'job_status': status, 'job_log': j.log()}
-    assert status['exit_code'] == 7, str(debug_info)
-    assert isinstance(status['duration'], int), str(debug_info)
-    assert j._get_exit_code(status, 'main') == 7, str(debug_info)
+    assert status['exit_code'] == 7, str((status, b.debug_info()))
+    assert isinstance(status['duration'], int), str((status, b.debug_info()))
+    assert j._get_exit_code(status, 'main') == 7, str((status, b.debug_info()))
 
 
 def test_attributes(client):
     a = {'name': 'test_attributes', 'foo': 'bar'}
     builder = client.create_batch()
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], attributes=a)
-    builder.submit()
-    assert j.attributes() == a
+    b =builder.submit()
+    assert j.attributes() == a, str(b.debug_info())
 
 
 def test_garbage_image(client):
     builder = client.create_batch()
     j = builder.create_job('dsafaaadsf', ['echo', 'test'])
-    builder.submit()
+    b = builder.submit()
     status = j.wait()
-    assert j._get_exit_codes(status) == {'main': None}, status
-    assert j._get_error(status, 'main') is not None
-    assert status['state'] == 'Error', str(status)
+    assert j._get_exit_codes(status) == {'main': None}, str((status, b.debug_info()))
+    assert j._get_error(status, 'main') is not None, str((status, b.debug_info()))
+    assert status['state'] == 'Error', str((status, b.debug_info()))
 
 
 def test_bad_command(client):
     builder = client.create_batch()
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['sleep 5'])
-    builder.submit()
+    b = builder.submit()
     status = j.wait()
-    assert status['state'] == 'Failed', str(status)
+    assert status['state'] == 'Failed', str((status, b.debug_info()))
 
 
 def test_invalid_resource_requests(client):
@@ -133,19 +132,20 @@ def test_out_of_memory(client):
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '10Gi'}
     j = builder.create_job('python:3.6-slim-stretch', ['python', '-c', 'x = "a" * 1000**3'], resources=resources)
-    builder.submit()
+    b = builder.submit()
     status = j.wait()
-    assert j._get_out_of_memory(status, 'main'), str(status)
+    assert j._get_out_of_memory(status, 'main'), str((status, b.debug_info()))
 
 
 def test_out_of_storage(client):
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '5Gi'}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['/bin/sh', '-c', 'fallocate -l 100GiB /foo'], resources=resources)
-    builder.submit()
+    b = builder.submit()
     status = j.wait()
-    assert status['state'] == 'Failed', str(status)
-    assert "fallocate failed: No space left on device" in j.log()['main']
+    assert status['state'] == 'Failed', str((status, b.debug_info()))
+    job_log = j.log()
+    assert "fallocate failed: No space left on device" in job_log['main']
 
 
 def test_quota_applies_to_volume(client):
@@ -154,26 +154,27 @@ def test_quota_applies_to_volume(client):
     j = builder.create_job(
         os.environ['HAIL_VOLUME_IMAGE'], ['/bin/sh', '-c', 'fallocate -l 100GiB /data/foo'], resources=resources
     )
-    builder.submit()
+    b = builder.submit()
     status = j.wait()
-    assert status['state'] == 'Failed', str(status)
-    assert "fallocate failed: No space left on device" in j.log()['main']
+    assert status['state'] == 'Failed', str((status, b.debug_info()))
+    job_log = j.log()
+    assert "fallocate failed: No space left on device" in job_log['main']
 
 
 def test_quota_shared_by_io_and_rootfs(client):
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '10Gi'}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['/bin/sh', '-c', 'fallocate -l 7GiB /foo'], resources=resources)
-    builder.submit()
+    b = builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(status)
+    assert status['state'] == 'Success', str((status, b.debug_info()))
 
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '10Gi'}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['/bin/sh', '-c', 'fallocate -l 7GiB /io/foo'], resources=resources)
-    builder.submit()
+    b = builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(status)
+    assert status['state'] == 'Success', str((status, b.debug_info()))
 
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '10Gi'}
@@ -182,37 +183,39 @@ def test_quota_shared_by_io_and_rootfs(client):
         ['/bin/sh', '-c', 'fallocate -l 7GiB /foo; fallocate -l 7GiB /io/foo'],
         resources=resources,
     )
-    builder.submit()
+    b = builder.submit()
     status = j.wait()
-    assert status['state'] == 'Failed', str(status)
-    assert "fallocate failed: No space left on device" in j.log()['main']
+    assert status['state'] == 'Failed', str((status, b.debug_info()))
+    job_log = j.log()
+    assert "fallocate failed: No space left on device" in job_log['main'], str((job_log, b.debug_info()))
 
 
 def test_nonzero_storage(client):
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '20Gi'}
     j = builder.create_job('ubuntu:18.04', ['/bin/sh', '-c', 'true'], resources=resources)
-    builder.submit()
+    b = builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(status)
+    assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
 def test_attached_disk(client):
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '400Gi'}
     j = builder.create_job('ubuntu:18.04', ['/bin/sh', '-c', 'df -h; fallocate -l 390GiB /io/foo'], resources=resources)
-    builder.submit()
+    b = builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str((status, j.log()))
+    assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
 def test_cwd_from_image_workdir(client):
     builder = client.create_batch()
     j = builder.create_job(os.environ['HAIL_WORKDIR_IMAGE'], ['/bin/sh', '-c', 'pwd'])
-    builder.submit()
+    b = builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(status)
-    assert "/work" in j.log()['main']
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+    job_log = j.log()
+    assert "/work" in job_log['main'], str((job_log, b.debug_info()))
 
 
 def test_unsubmitted_state(client):
@@ -258,7 +261,7 @@ def test_list_batches(client):
         batches = client.list_batches(q, last_batch_id=max_id + 1, limit=span)
         full_actual = {b.id for b in batches}
         actual = full_actual.intersection(batch_id_test_universe)
-        assert actual == expected, (full_actual, max_id, span)
+        assert actual == expected, str((full_actual, max_id, span, b1.debug_info(), b2.debug_info()))
 
     assert_batch_ids({b1.id, b2.id})
 
@@ -299,7 +302,7 @@ def test_list_jobs(client):
     def assert_job_ids(expected, q=None):
         jobs = b.jobs(q=q)
         actual = set([j['job_id'] for j in jobs])
-        assert actual == expected, f'Expected {expected} job IDs, but got jobs: {jobs}'
+        assert actual == expected, str((jobs, b.debug_info()))
 
     assert_job_ids({j_success.job_id}, 'success')
     assert_job_ids({j_success.job_id, j_failure.job_id, j_error.job_id}, 'done')
@@ -317,24 +320,24 @@ def test_include_jobs(client):
         b1.create_job(DOCKER_ROOT_IMAGE, ['true'])
     b1 = b1.submit()
     s = b1.status()
-    assert 'jobs' not in s
+    assert 'jobs' not in s, str((s, b1.debug_info()))
 
 
 def test_fail(client):
     b = client.create_batch()
     j = b.create_job(DOCKER_ROOT_IMAGE, ['false'])
-    b.submit()
+    b = b.submit()
     status = j.wait()
-    assert j._get_exit_code(status, 'main') == 1, str(status)
+    assert j._get_exit_code(status, 'main') == 1, str((status, b.debug_info()))
 
 
 def test_unknown_image(client):
     b = client.create_batch()
     j = b.create_job(f'{DOCKER_PREFIX}/does-not-exist', ['echo', 'test'])
-    b.submit()
+    b = b.submit()
     status = j.wait()
     assert j._get_exit_code(status, 'main') is None
-    assert status['status']['container_statuses']['main']['short_error'] == 'image not found'
+    assert status['status']['container_statuses']['main']['short_error'] == 'image not found', str((status, b.debug_info()))
 
 
 def test_running_job_log_and_status(client):
@@ -364,7 +367,7 @@ def test_deleted_job_log(client):
         if e.status == 404:
             pass
         else:
-            assert False, f"batch should have deleted log {e}"
+            assert False, str((e, b.debug_info()))
 
 
 def test_delete_batch(client):
@@ -389,13 +392,13 @@ def test_cancel_batch(client):
     b = b.submit()
 
     status = j.status()
-    assert status['state'] in ('Ready', 'Running'), str(status)
+    assert status['state'] in ('Ready', 'Running'), str((status, b.debug_info()))
 
     b.cancel()
 
     status = j.wait()
-    assert status['state'] == 'Cancelled', str(status)
-    assert 'log' not in status, str(status)
+    assert status['state'] == 'Cancelled', str((status, b.debug_info()))
+    assert 'log' not in status, str((status, b.debug_info()))
 
     # cancelled job has no log
     try:
@@ -420,11 +423,11 @@ def test_get_nonexistent_job(client):
 def test_get_job(client):
     b = client.create_batch()
     j = b.create_job(DOCKER_ROOT_IMAGE, ['true'])
-    b.submit()
+    b = b.submit()
 
     j2 = client.get_job(*j.id)
     status2 = j2.status()
-    assert (status2['batch_id'], status2['job_id']) == j.id, str(status2)
+    assert (status2['batch_id'], status2['job_id']) == j.id, str((status, b.debug_info()))
 
 
 def test_batch(client):
@@ -440,15 +443,15 @@ def test_batch(client):
     b.wait()
     bstatus = legacy_batch_status(b)
 
-    assert len(bstatus['jobs']) == 3, str(bstatus)
+    assert len(bstatus['jobs']) == 3, str((bstatus, b.debug_info()))
     state_count = collections.Counter([j['state'] for j in bstatus['jobs']])
     n_cancelled = state_count['Cancelled']
     n_complete = state_count['Error'] + state_count['Failed'] + state_count['Success']
-    assert n_cancelled <= 1, str(bstatus)
-    assert n_cancelled + n_complete == 3, str(bstatus)
+    assert n_cancelled <= 1, str((bstatus, b.debug_info()))
+    assert n_cancelled + n_complete == 3, str((bstatus, b.debug_info()))
 
     n_failed = sum([j['exit_code'] > 0 for j in bstatus['jobs'] if j['state'] in ('Failed', 'Error')])
-    assert n_failed == 1, str(bstatus)
+    assert n_failed == 1, str((bstatus, b.debug_info()))
 
 
 def test_batch_status(client):
@@ -457,7 +460,7 @@ def test_batch_status(client):
     b1 = b1.submit()
     b1.wait()
     b1s = b1.status()
-    assert b1s['complete'] and b1s['state'] == 'success', str(b1s)
+    assert b1s['complete'] and b1s['state'] == 'success', str((b1s, b1.debug_info()))
 
     b2 = client.create_batch()
     b2.create_job(DOCKER_ROOT_IMAGE, ['false'])
@@ -465,13 +468,13 @@ def test_batch_status(client):
     b2 = b2.submit()
     b2.wait()
     b2s = b2.status()
-    assert b2s['complete'] and b2s['state'] == 'failure', str(b2s)
+    assert b2s['complete'] and b2s['state'] == 'failure', str((b2s, b2.debug_info()))
 
     b3 = client.create_batch()
     b3.create_job(DOCKER_ROOT_IMAGE, ['sleep', '30'])
     b3 = b3.submit()
     b3s = b3.status()
-    assert not b3s['complete'] and b3s['state'] == 'running', str(b3s)
+    assert not b3s['complete'] and b3s['state'] == 'running', str((b3s, b3.debug_info()))
     b3.cancel()
 
     b4 = client.create_batch()
@@ -480,29 +483,30 @@ def test_batch_status(client):
     b4.cancel()
     b4.wait()
     b4s = b4.status()
-    assert b4s['complete'] and b4s['state'] == 'cancelled', str(b4s)
+    assert b4s['complete'] and b4s['state'] == 'cancelled', str((b4s, b4.debug_info()))
 
 
 def test_log_after_failing_job(client):
     b = client.create_batch()
     j = b.create_job(DOCKER_ROOT_IMAGE, ['/bin/sh', '-c', 'echo test; exit 127'])
-    b.submit()
+    b = b.submit()
     status = j.wait()
-    assert 'attributes' not in status
-    assert status['state'] == 'Failed'
-    assert j._get_exit_code(status, 'main') == 127
+    assert 'attributes' not in status, str((status, b.debug_info()))
+    assert status['state'] == 'Failed', str((status, b.debug_info()))
+    assert j._get_exit_code(status, 'main') == 127, str((status, b.debug_info()))
 
-    assert j.log()['main'] == 'test\n'
+    job_log = j.log()
+    assert job_log['main'] == 'test\n', str((job_log, b.debug_info()))
 
-    assert j.is_complete()
+    assert j.is_complete(), str(b.debug_info())
 
 
 def test_long_log_line(client):
     b = client.create_batch()
     j = b.create_job(DOCKER_ROOT_IMAGE, ['/bin/sh', '-c', 'for _ in {0..70000}; do echo -n a; done'])
-    b.submit()
+    b = b.submit()
     status = j.wait()
-    assert status['state'] == 'Success'
+    assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
 def test_authorized_users_only():
@@ -540,9 +544,9 @@ def test_authorized_users_only():
 def test_gcr_image(client):
     builder = client.create_batch()
     j = builder.create_job(os.environ['HAIL_CURL_IMAGE'], ['echo', 'test'])
-    builder.submit()
+    b = builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(status, j.log())
+    assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
 def test_service_account(client):
@@ -552,9 +556,9 @@ def test_service_account(client):
         ['/bin/sh', '-c', 'kubectl version'],
         service_account={'namespace': NAMESPACE, 'name': 'test-batch-sa'},
     )
-    b.submit()
+    b = b.submit()
     status = j.wait()
-    assert j._get_exit_code(status, 'main') == 0, str(status)
+    assert j._get_exit_code(status, 'main') == 0, str((status, b.debug_info()))
 
 
 def test_port(client):
@@ -573,7 +577,7 @@ echo $HAIL_BATCH_WORKER_IP
     )
     b = builder.submit()
     batch = b.wait()
-    assert batch['state'] == 'success', str(batch)
+    assert batch['state'] == 'success', str((batch, b.debug_info()))
 
 
 def test_timeout(client):
@@ -581,10 +585,10 @@ def test_timeout(client):
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['sleep', '30'], timeout=5)
     b = builder.submit()
     status = j.wait()
-    assert status['state'] == 'Error', (status, j.log())
+    assert status['state'] == 'Error', str((status, b.debug_info()))
     error_msg = j._get_error(status, 'main')
-    assert error_msg and 'JobTimeoutError' in error_msg
-    assert j.exit_code(status) is None, str(status)
+    assert error_msg and 'JobTimeoutError' in error_msg, str((error_msg, b.debug_info()))
+    assert j.exit_code(status) is None, str((status, b.debug_info()))
 
 
 def test_client_max_size(client):
@@ -614,8 +618,9 @@ def test_restartable_insert(client):
         b = builder.submit(max_bunch_size=1)
         b = client.get_batch(b.id)  # get a batch untainted by the FailureInjectingClientSession
         batch = b.wait()
-        assert batch['state'] == 'success', str(batch)
-        assert len(list(b.jobs())) == 9
+        assert batch['state'] == 'success', str((status, b.debug_info()))
+        jobs = list(b.jobs())
+        assert len(jobs) == 9, str((jobs, b.debug_info()))
 
 
 def test_create_idempotence(client):
@@ -684,17 +689,19 @@ def test_verify_no_access_to_metadata_server(client):
     j = builder.create_job(
         os.environ['HAIL_CURL_IMAGE'], ['curl', '-fsSL', 'metadata.google.internal', '--max-time', '10']
     )
-    builder.submit()
+    b = builder.submit()
     status = j.wait()
-    assert status['state'] == 'Failed', str(status)
-    assert "Could not resolve host" in j.log()['main'], (str(j.log()['main']), status)
+    assert status['state'] == 'Failed', str((status, b.debug_info()))
+    job_log = j.log()
+    assert "Could not resolve host" in job_log['main'], str((job_log, b.debug_info()))
 
     builder = client.create_batch()
     j = builder.create_job(os.environ['HAIL_CURL_IMAGE'], ['curl', '-fsSL', '169.254.169.254', '--max-time', '10'])
     builder.submit()
     status = j.wait()
-    assert status['state'] == 'Failed', str(status)
-    assert "Connection timed out" in j.log()['main'], (str(j.log()['main']), status)
+    assert status['state'] == 'Failed', str((status, b.debug_info()))
+    job_log = j.log()
+    assert "Connection timed out" in job_log['main'], str((job_log, b.debug_info()))
 
 
 def test_submit_batch_in_job(client):
@@ -713,9 +720,9 @@ backend.close()
         ['/bin/bash', '-c', f'''python3 -c \'{script}\''''],
         mount_tokens=True,
     )
-    builder.submit()
+    b = builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(status)
+    assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
 def test_cant_submit_to_default_with_other_ns_creds(client):
@@ -741,12 +748,12 @@ python3 -c \'{script}\'''',
         ],
         mount_tokens=True,
     )
-    builder.submit()
+    b = builder.submit()
     status = j.wait()
     if NAMESPACE == 'default':
-        assert status['state'] == 'Success', str(status)
+        assert status['state'] == 'Success', str((status, b.debug_info()))
     else:
-        assert status['state'] == 'Failed', str(status)
+        assert status['state'] == 'Failed', str((status, b.debug_info()))
         assert "Please log in" in j.log()['main'], (str(j.log()['main']), status)
 
     builder = client.create_batch()
@@ -762,13 +769,14 @@ python3 -c \'{script}\'''',
         ],
         mount_tokens=True,
     )
-    builder.submit()
+    b = builder.submit()
     status = j.wait()
     if NAMESPACE == 'default':
-        assert status['state'] == 'Success', str(status)
+        assert status['state'] == 'Success', str((status, b.debug_info()))
     else:
-        assert status['state'] == 'Failed', str(status)
-        assert "Please log in" in j.log()['main'], (str(j.log()['main']), status)
+        assert status['state'] == 'Failed', str((status, b.debug_info()))
+        job_log = j.log()
+        assert "Please log in" in job_log['main'], str((job_log, b.debug_info()))
 
 
 def test_cannot_contact_other_internal_ips(client):
@@ -786,10 +794,11 @@ fi
 curl -fsSL -m 5 $OTHER_IP
 '''
     j = builder.create_job(os.environ['HAIL_CURL_IMAGE'], ['/bin/bash', '-c', script], port=5000)
-    builder.submit()
+    b = builder.submit()
     status = j.wait()
-    assert status['state'] == 'Failed', status
-    assert "Connection timed out" in j.log()['main'], (str(j.log()['main']), status)
+    assert status['state'] == 'Failed', str((status, b.debug_info()))
+    job_log = j.log()
+    assert "Connection timed out" in job_log['main'], str((job_log, b.debug_info()))
 
 
 def test_can_use_google_credentials(client):
@@ -806,7 +815,7 @@ hl.read_table(location).show()
     j = builder.create_job(
         os.environ['HAIL_HAIL_BASE_IMAGE'], ['/bin/bash', '-c', f'python3 -c >out 2>err \'{script}\'; cat out err']
     )
-    builder.submit()
+    b = builder.submit()
     status = j.wait()
     assert status['state'] == 'Success', f'{j.log(), status}'
     expected_log = '''+-------+
@@ -827,25 +836,25 @@ hl.read_table(location).show()
 +-------+
 '''
     log = j.log()
-    assert expected_log in log['main'], f'{j.log(), status}'
+    assert expected_log in log['main'], str((log, b.debug_info()))
 
 
 def test_user_authentication_within_job(client):
     batch = client.create_batch()
     cmd = ['bash', '-c', 'hailctl auth user']
     no_token = batch.create_job(os.environ['CI_UTILS_IMAGE'], cmd, mount_tokens=False)
-    batch.submit()
+    b = batch.submit()
 
     no_token_status = no_token.wait()
-    assert no_token_status['state'] == 'Failed', f'{(no_token.log(), no_token_status)}'
+    assert no_token_status['state'] == 'Failed', str((not_token_status, b.debug_info()))
 
 
 def test_verify_access_to_public_internet(client):
     builder = client.create_batch()
     j = builder.create_job(os.environ['HAIL_CURL_IMAGE'], ['curl', '-fsSL', 'example.com'])
-    builder.submit()
+    b = builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', status
+    assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
 def test_verify_can_tcp_to_localhost(client):
@@ -859,10 +868,11 @@ echo "hello" | nc -q 1 localhost 5000
         '\n'
     )
     j = builder.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'], command=['/bin/bash', '-c', script])
-    builder.submit()
+    b = builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
-    assert 'hello\n' == j.log()['main']
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+    job_log = j.log()
+    assert 'hello\n' == job_log['main'], str((job_log, b.debug_info()))
 
 
 def test_verify_can_tcp_to_127_0_0_1(client):
@@ -876,10 +886,11 @@ echo "hello" | nc -q 1 127.0.0.1 5000
         '\n'
     )
     j = builder.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'], command=['/bin/bash', '-c', script])
-    builder.submit()
+    b = builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
-    assert 'hello\n' == j.log()['main']
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+    job_log = j.log()
+    assert 'hello\n' == job_log['main'], str((job_log, b.debug_info()))
 
 
 def test_verify_can_tcp_to_self_ip(client):
@@ -893,10 +904,11 @@ echo "hello" | nc -q 1 $(hostname -i) 5000
         '\n'
     )
     j = builder.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'], command=['/bin/sh', '-c', script])
-    builder.submit()
+    b = builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
-    assert 'hello\n' == j.log()['main'], str(j.log())
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+    job_log = j.log()
+    assert 'hello\n' == job_log['main'], str((job_log, b.debug_info()))
 
 
 def test_verify_private_network_is_restricted(client):
@@ -917,72 +929,72 @@ def test_pool_highmem_instance(client):
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': 'highmem'}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
-    builder.submit()
+    b = builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
-    assert 'highmem' in status['status']['worker'], str(status)
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+    assert 'highmem' in status['status']['worker'], str((status, b.debug_info()))
 
     builder = client.create_batch()
     resources = {'cpu': '1', 'memory': '5Gi'}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
-    builder.submit()
+    b = builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
-    assert 'highmem' in status['status']['worker'], str(status)
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+    assert 'highmem' in status['status']['worker'], str((status, b.debug_info()))
 
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '500Mi'}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
-    builder.submit()
+    b = builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
-    assert 'standard' in status['status']['worker'], str(status)
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+    assert 'standard' in status['status']['worker'], str((status, b.debug_info()))
 
 
 def test_pool_highcpu_instance(client):
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': 'lowmem'}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
-    builder.submit()
+    b = builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
-    assert 'highcpu' in status['status']['worker'], str(status)
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+    assert 'highcpu' in status['status']['worker'], str((status, b.debug_info()))
 
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '50Mi'}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
-    builder.submit()
+    b = builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
-    assert 'highcpu' in status['status']['worker'], str(status)
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+    assert 'highcpu' in status['status']['worker'], str((status, b.debug_info()))
 
     builder = client.create_batch()
     resources = {'cpu': '0.5', 'memory': '1Gi'}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
-    builder.submit()
+    b = builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
-    assert 'standard' in status['status']['worker'], str(status)
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+    assert 'standard' in status['status']['worker'], str((status, b.debug_info()))
 
 
 def test_job_private_instance_preemptible(client):
     builder = client.create_batch()
     resources = {'machine_type': 'n1-standard-1'}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
-    builder.submit()
+    b = builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
-    assert 'job-private' in status['status']['worker'], str(status)
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+    assert 'job-private' in status['status']['worker'], str((status, b.debug_info()))
 
 
 def test_job_private_instance_nonpreemptible(client):
     builder = client.create_batch()
     resources = {'machine_type': 'n1-standard-1', 'preemptible': False}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
-    builder.submit()
+    b = builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
-    assert 'job-private' in status['status']['worker'], str(status)
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+    assert 'job-private' in status['status']['worker'], str((status, b.debug_info()))
 
 
 def test_job_private_instance_cancel(client):
@@ -999,8 +1011,8 @@ def test_job_private_instance_cancel(client):
             break
         now = time.time()
         if now + delay - start > 60:
-            assert False, f'timed out waiting for creating state: {status} {datetime.datetime.fromtimestamp(now)}'
+            assert False, str((status, b.debug_info()))
         delay = sync_sleep_and_backoff(delay)
     b.cancel()
     status = j.wait()
-    assert status['state'] == 'Cancelled', str(status)
+    assert status['state'] == 'Cancelled', str((status, b.debug_info()))
