@@ -1,8 +1,7 @@
 from types import TracebackType
 from typing import Optional, Type, TypeVar, Mapping
 import abc
-import aiohttp
-from  hailtop import httpx
+from hailtop import httpx
 from hailtop.utils import request_retry_transient_errors, RateLimit, RateLimiter
 from .credentials import CloudCredentials
 
