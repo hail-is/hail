@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Union
 from numbers import Number
 import os
 import logging
@@ -1520,8 +1520,8 @@ async def ui_get_billing_limits(request, userdata):
     return await render_template('batch', request, userdata, 'billing_limits.html', page_context)
 
 
-def _parse_billing_limit(limit: Optional[str]) -> Optional[float]:
-    assert isinstance(limit, str) or limit is None
+def _parse_billing_limit(limit: Optional[Union[str, float, int]]) -> Optional[float]:
+    assert isinstance(limit, (str, float, int)) or limit is None, (limit, type(limit))
 
     if limit == 'None' or limit is None:
         return None
