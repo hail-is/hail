@@ -1716,7 +1716,7 @@ head_tail_test_data = [
     for counter_name, counter in (('count', hl.Table.count), ('_force_count', hl.Table._force_count))]
 
 
-@skip_when_service_backend
+@skip_when_service_backend()
 @pytest.mark.parametrize("test", head_tail_test_data)
 def test_table_head_and_tail(test):
     test()
