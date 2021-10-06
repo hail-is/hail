@@ -1,11 +1,14 @@
 variable "global_config" {
   type = object({
-    cloud = string,
-    domain = string,
-    internal_ip = string,
-    ip = string,
-    kubernetes_server = string,
-    docker_prefix = string,
+    global = object({
+      cloud = string,
+      domain = string,
+      internal_ip = string,
+      ip = string,
+      kubernetes_server = string,
+      docker_prefix = string,
+    }),
+    azure = map(any)
   })
 }
 

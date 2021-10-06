@@ -18,6 +18,8 @@ provider "azurerm" {
 
 locals {
   acr_name = var.acr_name == "" ? var.az_resource_group_name : var.acr_name
+  # An IP toward the top of the batch-worker-subnet IP address range
+  # that we will use for the bath-worker side of the internal-gateway
   internal_ip = "10.128.255.254"
 }
 

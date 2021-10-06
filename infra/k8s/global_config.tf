@@ -3,7 +3,7 @@ resource "kubernetes_secret" "global_config" {
     name = "global-config"
   }
 
-  data = {
+  data = merge({
     cloud                 = var.global_config.cloud
     default_namespace     = "default"
     docker_prefix         = var.global_config.docker_prefix
@@ -12,5 +12,5 @@ resource "kubernetes_secret" "global_config" {
     internal_ip           = var.global_config.internal_ip
     ip                    = var.global_config.ip
     kubernetes_server_url = "https://${var.global_config.kubernetes_server}"
-  }
+  }, var.global_config.azure)
 }
