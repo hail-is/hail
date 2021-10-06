@@ -3,6 +3,7 @@ import logging
 from functools import wraps
 import urllib.parse
 import aiohttp
+import asyncio
 from aiohttp import web
 import aiohttp_session
 from hailtop.config import get_deploy_config
@@ -24,6 +25,8 @@ def maybe_parse_bearer_header(value: str) -> Optional[str]:
 async def _userdata_from_session_id(session_id):
     try:
         return await async_get_userinfo(deploy_config=deploy_config, session_id=session_id)
+    except asyncio.CancelledError:
+        raise
     except aiohttp.ClientResponseError as e:
         log.exception('unknown exception getting userinfo')
         raise web.HTTPInternalServerError() from e
