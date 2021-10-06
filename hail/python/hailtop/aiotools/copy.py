@@ -52,6 +52,7 @@ def make_tqdm_listener(pbar):
             pbar.update(-delta)
     return listener
 
+
 async def copy(requester_pays_project: Optional[str],
                transfers: List[Transfer]
                ) -> None:

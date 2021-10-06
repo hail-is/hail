@@ -731,7 +731,6 @@ class SourceCopier:
         finally:
             source_report.finish_files(1, failed=not success)
 
-
     async def _full_dest(self):
         if self.dest_type_task:
             dest_type = await self.dest_type_task
