@@ -51,11 +51,6 @@ spec:
            - name: HAIL_WATCHED_BRANCHES
              value: '[["hail-ci-test/ci-test-{{create_ci_test_repo.token}}:master", true]]'
 {% endif %}
-           - name: HAIL_GCP_PROJECT
-             valueFrom:
-               secretKeyRef:
-                 name: global-config
-                 key: gcp_project
            - name: HAIL_DOCKER_PREFIX
              valueFrom:
                secretKeyRef:
@@ -66,26 +61,6 @@ spec:
                secretKeyRef:
                  name: global-config
                  key: docker_root_image
-           - name: HAIL_TEST_GCS_BUCKET
-             valueFrom:
-               secretKeyRef:
-                 name: global-config
-                 key: hail_test_gcs_bucket
-           - name: HAIL_TEST_REQUESTER_PAYS_GCS_BUCKET
-             valueFrom:
-               secretKeyRef:
-                 name: global-config
-                 key: hail_test_requester_pays_gcs_bucket
-           - name: HAIL_GCP_ZONE
-             valueFrom:
-               secretKeyRef:
-                 name: global-config
-                 key: gcp_zone
-           - name: HAIL_IP
-             valueFrom:
-               secretKeyRef:
-                 name: global-config
-                 key: ip
            - name: HAIL_DOMAIN
              valueFrom:
                secretKeyRef:
@@ -116,6 +91,9 @@ spec:
           volumeMounts:
            - mountPath: /deploy-config
              name: deploy-config
+             readOnly: true
+           - mountPath: /global-config
+             name: global-config
              readOnly: true
            - name: session-secret-key
              mountPath: /session-secret-key
@@ -149,6 +127,9 @@ spec:
        - name: deploy-config
          secret:
            secretName: deploy-config
+       - name: global-config
+         secret:
+           secretName: global-config
        - name: session-secret-key
          secret:
            optional: false
