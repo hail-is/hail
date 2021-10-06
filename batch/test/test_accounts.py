@@ -72,11 +72,15 @@ async def random_billing_project_name(dev_client) -> AsyncGenerator[str, Any]:
         else:
             assert r['status'] != 'deleted', r
             try:
-                if r['status'] == 'open':
-                    await dev_client.close_billing_project(name)
+                async for batch in dev_client.list_batches(f'billing_project:{name}'):
+                    await batch.delete()
             finally:
-                if r['status'] != 'deleted':
-                    await dev_client.delete_billing_project(name)
+                try:
+                    if r['status'] == 'open':
+                        await dev_client.close_billing_project(name)
+                finally:
+                    if r['status'] != 'deleted':
+                        await dev_client.delete_billing_project(name)
 
 
 
