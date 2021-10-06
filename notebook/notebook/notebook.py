@@ -370,7 +370,7 @@ async def _wait_websocket(service, request, userdata):
     count = 0
     while count < 10:
         try:
-            new_status = await notebook_status_from_notebook(client_sesion, k8s, service, headers, cookies, notebook)
+            new_status = await notebook_status_from_notebook(client_session, k8s, service, headers, cookies, notebook)
             changed = await update_notebook_return_changed(dbpool, user_id, notebook, new_status)
             if changed:
                 log.info(f"pod {notebook['pod_name']} status changed: {notebook['state']} => {new_status['state']}")

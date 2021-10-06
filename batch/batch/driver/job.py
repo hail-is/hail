@@ -209,7 +209,7 @@ async def unschedule_job(app, record):
     cancel_ready_state_changed: asyncio.Event = app['cancel_ready_state_changed']
     scheduler_state_changed: Notice = app['scheduler_state_changed']
     db: Database = app['db']
-    client_session: httpx.Clientsession = app['client_session']
+    client_session: httpx.ClientSession = app['client_session']
     inst_coll_manager = app['inst_coll_manager']
 
     batch_id = record['batch_id']
