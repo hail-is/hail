@@ -39,6 +39,17 @@ def handle_java_exception(f):
 
 
 class Py4JBackend(Backend):
+
+    @abc.abstractmethod
+    def __init__(self):
+        import base64
+        def decode_bytearray(encoded):
+            return base64.standard_b64decode(encoded)
+
+        # By default, py4j's version of this function does extra
+        # work to support python 2. This eliminates that.
+        py4j.protocol.decode_bytearray = decode_bytearray
+
     @abc.abstractmethod
     def jvm(self):
         pass
