@@ -1474,6 +1474,26 @@ class ttuple(HailType, Sequence):
     def _convert_to_json(self, x):
         return [self.types[i]._convert_to_json_na(x[i]) for i in range(len(self.types))]
 
+    def _convert_from_encoding(self, encoding, offset):
+        def is_missing(encoding, bit_offset):
+            byte_offset = bit_offset // 8
+            remaining_bit_offset = bit_offset % 8
+            return hl.experimental.codec.lookup_bit(encoding[byte_offset], remaining_bit_offset)
+
+        num_missing_bytes = math.ceil(len(self) / 8)
+        num_bytes_read = num_missing_bytes
+
+        result = []
+        for i, t in enumerate(self.types):
+            if is_missing(encoding, offset * 8 + i):
+                result.append(None)
+            else:
+                (field_decoded, field_bytes_read) = t._convert_from_encoding(encoding, offset + num_bytes_read)
+                num_bytes_read += field_bytes_read
+                result.append(field_decoded)
+
+        return tuple(result), num_bytes_read
+
     def unify(self, t):
         if not (isinstance(t, ttuple) and len(self.types) == len(t.types)):
             return False
