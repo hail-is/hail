@@ -37,11 +37,12 @@ def test_job(client):
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
     b = builder.submit()
     status = j.wait()
-    assert 'attributes' not in status, (status, j.log())
-    assert status['state'] == 'Success', (status, j.log())
-    assert status['exit_code'] == 0, status
-    assert j._get_exit_code(status, 'main') == 0, (status, j.log())
-    assert j.log()['main'] == 'test\n', status
+    debug_info = {'batch_status': b.status(), 'job_status': status, 'job_log': j.log()}
+    assert 'attributes' not in status, str(debug_info)
+    assert status['state'] == 'Success', str(debug_info)
+    assert status['exit_code'] == 0, str(debug_info)
+    assert j._get_exit_code(status, 'main') == 0, str(debug_info)
+    assert j.log()['main'] == 'test\n', str(debug_info)
 
 
 def test_exit_code_duration(client):
@@ -49,9 +50,10 @@ def test_exit_code_duration(client):
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['bash', '-c', 'exit 7'])
     b = builder.submit()
     status = j.wait()
-    assert status['exit_code'] == 7, status
-    assert isinstance(status['duration'], int)
-    assert j._get_exit_code(status, 'main') == 7, status
+    debug_info = {'batch_status': b.status(), 'job_status': status, 'job_log': j.log()}
+    assert status['exit_code'] == 7, str(debug_info)
+    assert isinstance(status['duration'], int), str(debug_info)
+    assert j._get_exit_code(status, 'main') == 7, str(debug_info)
 
 
 def test_attributes(client):
