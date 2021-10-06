@@ -377,7 +377,7 @@ class _tint32(HailType):
         return np.int32
 
     def _convert_from_encoding(self, encoding, offset):
-        return (hl.experimental.codec.read_int(encoding, offset), 4)
+        return hl.experimental.codec.read_int(encoding, offset), 4
 
 
 class _tint64(HailType):
