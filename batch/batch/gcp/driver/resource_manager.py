@@ -66,9 +66,9 @@ class GCPResourceManager(CloudResourceManager):
             self.task_manager.shutdown()
         finally:
             try:
-                self.compute_client.close()
+                await self.compute_client.close()
             finally:
-                self.activity_logs_client.close()
+                await self.activity_logs_client.close()
 
     async def delete_vm(self, instance):
         instance_config = instance.instance_config
