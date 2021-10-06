@@ -11,7 +11,7 @@ import secrets
 from hailtop.config import get_deploy_config, DeployConfig
 from hailtop.auth import service_auth_headers
 from hailtop.utils import bounded_gather, request_retry_transient_errors, tqdm, TQDM_DEFAULT_DISABLE
-from hailtop.httpx import client_session
+from hailtop import httpx
 
 from .globals import tasks, complete_states
 
@@ -606,7 +606,7 @@ class BatchClient:
     def __init__(self,
                  billing_project: str,
                  deploy_config: Optional[DeployConfig] = None,
-                 session: Optional[aiohttp.ClientSession] = None,
+                 session: Optional[httpx.ClientSession] = None,
                  headers: Optional[Dict[str, str]] = None,
                  _token: Optional[str] = None,
                  token_file: Optional[str] = None):
@@ -618,7 +618,7 @@ class BatchClient:
         self.url = deploy_config.base_url('batch')
 
         if session is None:
-            session = client_session()
+            session = httpx.client_session()
         self._session = session
 
         h: Dict[str, str] = {}

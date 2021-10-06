@@ -2,7 +2,7 @@ from types import TracebackType
 from typing import Optional, Type, TypeVar, Mapping
 import abc
 import aiohttp
-import hailtop.httpx
+from  hailtop import httpx
 from hailtop.utils import request_retry_transient_errors, RateLimit, RateLimiter
 from .credentials import CloudCredentials
 
@@ -60,14 +60,14 @@ class RateLimitedSession(BaseSession):
 
 
 class Session(BaseSession):
-    _session: aiohttp.ClientSession
+    _session: httpx.ClientSession
     _credentials: CloudCredentials
 
     def __init__(self, *, credentials: CloudCredentials, params: Optional[Mapping[str, str]] = None, **kwargs):
         if 'raise_for_status' not in kwargs:
             kwargs['raise_for_status'] = True
         self._params = params
-        self._session = hailtop.httpx.ClientSession(**kwargs)
+        self._session = httpx.ClientSession(**kwargs)
         self._credentials = credentials
 
     async def request(self, method: str, url: str, **kwargs):
