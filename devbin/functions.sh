@@ -31,7 +31,7 @@ kssh() {
     #
     #     # kssh admin-pod
     #     root@admin-pod-5d77d69445-86m2h:/#
-    kubectl -n ${2:-default} exec -it "$(kfind1 "$1" "$2")" ${3:+--container="$3"} -- /bin/bash
+    kubectl -n ${2:-default} exec -it "$(kfind1 "$1" "$2")" ${3:+--container="$3"} -- /bin/sh
 }
 
 klog() {
