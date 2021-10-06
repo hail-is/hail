@@ -1168,6 +1168,9 @@ class tstruct(HailType, Mapping):
         return "struct{{{}}}".format(
             ', '.join('{}: {}'.format(escape_parsable(f), str(t)) for f, t in self.items()))
 
+    def items(self):
+        return self._field_types.items()
+
     def _eq(self, other):
         return (isinstance(other, tstruct)
                 and self._fields == other._fields
@@ -1197,7 +1200,7 @@ class tstruct(HailType, Mapping):
             ','.join('{}:{}'.format(escape_parsable(f), t._parsable_string()) for f, t in self.items()))
 
     def _convert_from_json(self, x):
-        return hl.utils.Struct(**{f: t._convert_from_json_na(x.get(f)) for f, t in self.items()})
+        return hl.utils.Struct(**{f: t._convert_from_json_na(x.get(f)) for f, t in self._field_types.items()})
 
     def _convert_to_json(self, x):
         return {f: t._convert_to_json_na(x[f]) for f, t in self.items()}
@@ -1212,7 +1215,7 @@ class tstruct(HailType, Mapping):
         num_bytes_read = num_missing_bytes
 
         kwargs = {}
-        for i, (f, t) in enumerate(self.items()):
+        for i, (f, t) in enumerate(self._field_types.items()):
             if is_missing(encoding, offset * 8 + i):
                 kwargs[f] = None
             else:
