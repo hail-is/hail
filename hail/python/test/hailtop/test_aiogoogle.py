@@ -76,10 +76,10 @@ async def test_compose():
     part_data = [b'a', b'bb', b'ccc']
 
     async with GoogleStorageClient() as client:
+        async def upload(i, b):
+            async with await client.insert_object(bucket, f'{token}/{i}') as f:
+                await f.write(b)
         for i, b in enumerate(part_data):
-            async def upload(i, b):
-                async with await client.insert_object(bucket, f'{token}/{i}') as f:
-                    await f.write(b)
             await retry_transient_errors(upload, i, b)
         await client.compose(bucket, [f'{token}/{i}' for i in range(len(part_data))], f'{token}/combined')
 
