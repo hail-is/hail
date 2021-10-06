@@ -1206,17 +1206,18 @@ class tstruct(HailType, Mapping):
         return {f: t._convert_to_json_na(x[f]) for f, t in self.items()}
 
     def _convert_from_encoding(self, encoding, offset):
-        def is_missing(encoding, bit_offset):
-            byte_offset = bit_offset // 8
-            remaining_bit_offset = bit_offset % 8
-            return hl.experimental.codec.lookup_bit(encoding[byte_offset], remaining_bit_offset)
-
         num_missing_bytes = math.ceil(len(self) / 8)
         num_bytes_read = num_missing_bytes
 
         kwargs = {}
+
+        current_missing_byte = None
         for i, (f, t) in enumerate(self._field_types.items()):
-            if is_missing(encoding, offset * 8 + i):
+            which_missing_bit = i % 8
+            if which_missing_bit == 0:
+                current_missing_byte = encoding[offset + i // 8]
+
+            if hl.experimental.codec.lookup_bit(current_missing_byte, which_missing_bit):
                 kwargs[f] = None
             else:
                 (field_decoded, field_bytes_read) = t._convert_from_encoding(encoding, offset + num_bytes_read)
