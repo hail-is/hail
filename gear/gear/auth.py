@@ -4,7 +4,6 @@ import logging
 from functools import wraps
 import urllib.parse
 import aiohttp
-import asyncio
 from aiohttp import web
 import aiohttp_session
 from hailtop.config import get_deploy_config
