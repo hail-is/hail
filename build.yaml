@@ -2995,13 +2995,18 @@ steps:
     image:
       valueFrom: batch_image.image
     script: |
+      set -ex
       export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
-      export HAIL_TOKEN="{{ token }}"
-      cd /io/test
-      python3 -c '
+      for token in "{{ test_batch_0.token }}" "{{ test_batch_1.token }}" "{{ test_batch_2.token }}" "{{ test_batch_3.token }}" "{{ test_batch_4.token }}"
+      do
+          export HAIL_TOKEN="$token"
+          cd /io/test
+          python3 -c '
       import test_accounts
       import asyncio
-      asyncio.get_event_loop().run_until_complete(test_accounts.delete_all_test_billing_projects())'
+      asyncio.get_event_loop().run_until_complete(test_accounts.delete_all_test_billing_projects())
+      '
+      done
     inputs:
       - from: /repo/batch/test
         to: /io/test
