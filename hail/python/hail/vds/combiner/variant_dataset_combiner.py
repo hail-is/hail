@@ -237,7 +237,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
             sample_names = self.gvcf_sample_names[:self.gvcf_batch_size * step]
             self.gvcf_sample_names = self.gvcf_sample_names[self.gvcf_batch_size * step:]
         else:
-            sample_names = None
+            names, sample_names = None, None
         merge_vds = []
         merge_n_samples = []
         while files_to_merge:
