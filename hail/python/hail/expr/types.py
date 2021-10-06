@@ -518,7 +518,7 @@ class _tfloat64(HailType):
 
     def _convert_from_encoding(self, encoding, offset):
         import struct
-        return (struct.unpack('d', encoding[offset:offset+8])[0], 8)
+        return struct.unpack('d', encoding[offset:offset+8])[0], 8
 
 
 class _tstr(HailType):
@@ -551,6 +551,13 @@ class _tstr(HailType):
 
     def clear(self):
         pass
+
+    def _convert_from_encoding(self, encoding, offset):
+        length = hl.experimental.codec.read_int(encoding, offset)
+        num_bytes_read = 4 + length
+        str_literal = encoding[offset + 4: offset + num_bytes_read].tobytes().decode()
+
+        return str_literal, num_bytes_read
 
 
 class _tbool(HailType):

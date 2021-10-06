@@ -9,8 +9,6 @@ import is.hail.types.physical.stypes.{SCode, SType, SValue}
 import is.hail.types.physical.stypes.primitives.{SFloat64, SFloat64Code}
 import is.hail.types.virtual._
 import is.hail.utils._
-import org.json4s.{JBool, JValue}
-import org.json4s.JsonAST.{JObject, JString}
 
 case object EFloat64Optional extends EFloat64(false)
 

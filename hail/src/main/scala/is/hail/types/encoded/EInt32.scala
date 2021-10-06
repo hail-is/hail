@@ -11,8 +11,6 @@ import is.hail.types.physical.stypes.interfaces.{SCall, SCallValue}
 import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Code}
 import is.hail.types.virtual._
 import is.hail.utils._
-import org.json4s.JsonAST.JString
-import org.json4s.{JBool, JObject, JValue}
 
 case object EInt32Optional extends EInt32(false)
 
