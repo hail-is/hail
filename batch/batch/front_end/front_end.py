@@ -1,3 +1,4 @@
+from typing import Optional, Union
 from numbers import Number
 import os
 import logging
@@ -106,6 +107,8 @@ def catch_ui_error_in_dev(fun):
     async def wrapped(request, userdata, *args, **kwargs):
         try:
             return await fun(request, userdata, *args, **kwargs)
+        except asyncio.CancelledError:
+            raise
         except aiohttp.web_exceptions.HTTPFound as e:
             raise e
         except Exception as e:
@@ -985,6 +988,8 @@ VALUES (%s, %s, %s);
 
             try:
                 await insert()  # pylint: disable=no-value-for-parameter
+            except asyncio.CancelledError:
+                raise
             except aiohttp.web.HTTPException:
                 raise
             except Exception as err:
@@ -1516,16 +1521,17 @@ async def ui_get_billing_limits(request, userdata):
     return await render_template('batch', request, userdata, 'billing_limits.html', page_context)
 
 
-def _parse_billing_limit(limit):
+def _parse_billing_limit(limit: Optional[Union[str, float, int]]) -> Optional[float]:
+    assert isinstance(limit, (str, float, int)) or limit is None, (limit, type(limit))
+
     if limit == 'None' or limit is None:
-        limit = None
-    else:
-        try:
-            limit = float(limit)
-            assert limit >= 0
-        except Exception as e:
-            raise InvalidBillingLimitError(limit) from e
-    return limit
+        return None
+    try:
+        parsed_limit = float(limit)
+        assert parsed_limit >= 0
+        return parsed_limit
+    except (AssertionError, ValueError) as e:
+        raise InvalidBillingLimitError(limit) from e
 
 
 async def _edit_billing_limit(db, billing_project, limit):
