@@ -20,6 +20,7 @@ async def async_get_userinfo(*,
         headers = {'Authorization': f'Bearer {session_id}'}
 
     userinfo_url = deploy_config.url('auth', '/api/v1alpha/userinfo')
+
     async def request(session):
         try:
             resp = await request_retry_transient_errors(

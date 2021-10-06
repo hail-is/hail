@@ -11,7 +11,7 @@ from hailtop.utils import time_msecs, secret_alnum_string
 from hailtop.auth.sql_config import create_secret_data_from_config, SQLConfig
 from hailtop import aiotools
 from hailtop.aiocloud import aiogoogle
-from hailtop import batch_client as bc
+from hailtop import batch_client as bc, httpx
 from gear import create_session, Database
 
 log = logging.getLogger('auth.driver')

@@ -340,6 +340,7 @@ async def on_startup(app):
 async def on_cleanup(app):
     try:
         await app['db'].async_close()
+    finally:
         try:
             await app['client_session'].close()
         finally:

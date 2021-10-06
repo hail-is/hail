@@ -1170,8 +1170,9 @@ async def on_cleanup(app):
                                 finally:
                                     try:
                                         await app['compute_client'].close()
+                                    finally:
                                         try:
-                                            await ['client_session'].close()
+                                            await app['client_session'].close()
                                         finally:
                                             del app['k8s_cache'].client
                                             await asyncio.gather(

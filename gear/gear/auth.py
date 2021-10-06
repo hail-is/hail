@@ -44,7 +44,7 @@ async def userdata_from_web_request(request):
     if 'session_id' not in session:
         return None
     return await _userdata_from_session_id(
-         session['session_id'], request.app['client_session'])
+        session['session_id'], request.app['client_session'])
 
 
 async def userdata_from_rest_request(request):
@@ -55,7 +55,7 @@ async def userdata_from_rest_request(request):
     if not session_id:
         return session_id
     return await _userdata_from_session_id(
-         auth_header[7:], request.app['client_session'])
+        auth_header[7:], request.app['client_session'])
 
 
 def rest_authenticated_users_only(fun):

@@ -365,7 +365,6 @@ async def on_cleanup(app):
         await app['client_session'].close()
 
 
-
 def run():
     app = web.Application(middlewares=[monitor_endpoints_middleware])
 

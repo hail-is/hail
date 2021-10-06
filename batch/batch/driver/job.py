@@ -386,7 +386,7 @@ async def schedule_job(app, record, instance):
 
     file_store: FileStore = app['file_store']
     db: Database = app['db']
-    client_session: ClientSession = app['client_session']
+    client_session: httpx.ClientSession = app['client_session']
 
     batch_id = record['batch_id']
     job_id = record['job_id']
