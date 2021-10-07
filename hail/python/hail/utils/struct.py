@@ -45,9 +45,6 @@ class Struct(Mapping):
 
     def __init__(self, **kwargs):
         self._fields = kwargs
-        for k, v in kwargs.items():
-            if k not in self.__dict__:
-                self.__dict__[k] = v
 
     def __contains__(self, item):
         return item in self._fields
@@ -62,8 +59,16 @@ class Struct(Mapping):
     def __getitem__(self, item):
         return self._get_field(item)
 
+    def __setattr__(self, key, value):
+        if key in self._fields:
+            self._fields[key] = value
+        else:
+            super().__setattr__(key, value)
+
     def __getattr__(self, item):
-        if item in self.__dict__:
+        if item in self._fields:
+            return self._fields[item]
+        elif item in self.__dict__:
             return self.__dict__[item]
         else:
             raise AttributeError(get_nice_attr_error(self, item))
@@ -85,6 +90,10 @@ class Struct(Mapping):
 
     def __iter__(self):
         return iter(self._fields)
+
+    def __dir__(self):
+        super_dir = super().__dir__()
+        return super_dir + list(self._fields.keys())
 
     def annotate(self, **kwargs):
         """Add new fields or recompute existing fields.
