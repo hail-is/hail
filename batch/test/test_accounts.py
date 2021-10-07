@@ -653,7 +653,7 @@ async def test_batch_cannot_be_accessed_by_users_outside_the_billing_project(
 async def test_deleted_open_batches_do_not_prevent_billing_project_closure(
         make_client: Callable[[str], Awaitable[BatchClient]],
         dev_client: BatchClient,
-        get_billing_project_name: Callable[[], str],
+        random_billing_project_name: Callable[[], str],
 ):
     try:
         project = await dev_client.create_billing_project(random_billing_project_name)
