@@ -338,15 +338,4 @@ journalctl -u docker.service > dockerd.log
         {'key': 'instance_config', 'value': base64.b64encode(json.dumps(instance_config.config).encode()).decode()}
     )
 
-<<<<<<< HEAD:batch/batch/driver/create_instance.py
-    return (config, worker_config)
-
-
-async def create_instance(app, machine_name, zone, config):
-    compute_client: aiogoogle.GoogleComputeClient = app['compute_client']
-    params = {'requestId': str(uuid.uuid4())}
-    await compute_client.post(f'/zones/{zone}/instances', params=params, json=config)
-    log.info(f'created machine {machine_name}')
-=======
     return instance_config
->>>>>>> 67ce4518d ([batch] Make batch cloud-agnostic):batch/batch/gcp/driver/create_instance.py
