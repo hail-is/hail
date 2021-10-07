@@ -200,6 +200,7 @@ class S3CreatePartManager(AsyncContextManager[WritableStream]):
 
 class S3MultiPartCreate(MultiPartCreate):
     def __init__(self, sema: asyncio.Semaphore, fs: 'S3AsyncFS', bucket: str, name: str, num_parts: int):
+        assert num_parts <= 10000
         self._sema = sema
         self._fs = fs
         self._bucket = bucket
@@ -458,4 +459,4 @@ class S3AsyncFS(AsyncFS):
     def _copy_part_size():
         # Because the S3 upload_part API call requires the entire part
         # be loaded into memory, use a smaller part size.
-        return 8 * 1024 * 1024
+        return 32 * 1024 * 1024
