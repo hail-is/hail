@@ -1528,6 +1528,27 @@ class ttuple(HailType, Sequence):
     def _get_context(self):
         return HailTypeContext.union(*self.types)
 
+def allele_pair(j, k):
+    assert j >= 0 and j <= 0xffff
+    assert k >= 0 and k <= 0xffff
+    return j | (k << 16)
+
+def allele_pair_sqrt(i):
+    k = int(math.sqrt(8 * float(i) + 1) / 2 - .5)
+    assert k * (k + 1) / 2 <= i
+    j = i - k * (k + 1) / 2
+    # TODO another assert
+    allele_pair(j, k)
+
+small_allele_pair = [
+    allele_pair(0, 0), allele_pair(0, 1), allele_pair(1, 1),
+    allele_pair(0, 2), allele_pair(1, 2), allele_pair(2, 2),
+    allele_pair(0, 3), allele_pair(1, 3), allele_pair(2, 3), allele_pair(3, 3),
+    allele_pair(0, 4), allele_pair(1, 4), allele_pair(2, 4), allele_pair(3, 4), allele_pair(4, 4),
+    allele_pair(0, 5), allele_pair(1, 5), allele_pair(2, 5), allele_pair(3, 5), allele_pair(4, 5), allele_pair(5, 5),
+    allele_pair(0, 6), allele_pair(1, 6), allele_pair(2, 6), allele_pair(3, 6), allele_pair(4, 6), allele_pair(5, 6), allele_pair(6, 6),
+    allele_pair(0, 7), allele_pair(1, 7), allele_pair(2, 7), allele_pair(3, 7), allele_pair(4, 7), allele_pair(5, 7), allele_pair(6, 7), allele_pair(7, 7)
+]
 
 class _tcall(HailType):
     """Hail type for a diploid genotype.
@@ -1575,6 +1596,49 @@ class _tcall(HailType):
 
     def _convert_to_json(self, x):
         return str(x)
+
+    def _convert_from_encoding(self, byte_reader):
+        int_rep = byte_reader.read_int32()
+
+        ploidy = (int_rep >> 1) & 0x3
+        phased = (int_rep & 1) == 1
+
+        def allele_repr(c):
+            return c >> 3
+
+        def ap_j(p):
+            return p & 0xffff
+        def ap_k(p):
+            return (p >> 16) & 0xffff
+
+        def gt_allele_pair(i):
+            if i < len(small_allele_pair):
+                return small_allele_pair[i]
+            else:
+                return allele_pair_sqrt(i)
+
+        def call_allele_pair(i):
+            if phased:
+                rep = allele_repr(i)
+                p = gt_allele_pair(rep)
+                j = ap_j(p)
+                k = ap_k(p)
+                return allele_pair(j, k - j)
+            else:
+                rep = allele_repr(i)
+                return gt_allele_pair(rep)
+
+        if ploidy == 0:
+            alleles = []
+        elif ploidy == 1:
+            alleles = [allele_repr(int_rep)]
+        elif ploidy == 2:
+            p = call_allele_pair(int_rep)
+            alleles = [ap_j(p), ap_k(p)]
+        else:
+            raise ValueError("Unsupported Ploidy")
+
+        return hl.Call(alleles, phased)
 
     def unify(self, t):
         return t == tcall
