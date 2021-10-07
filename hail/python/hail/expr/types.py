@@ -429,6 +429,9 @@ class _tint64(HailType):
     def to_numpy(self):
         return np.int64
 
+    def _convert_from_encoding(self, byte_reader):
+        return byte_reader.read_int64()
+
 
 class _tfloat32(HailType):
     """Hail type for 32-bit floating point numbers.
@@ -460,6 +463,9 @@ class _tfloat32(HailType):
             return x
         else:
             return str(x)
+
+    def _convert_from_encoding(self, byte_reader):
+        return byte_reader.read_float32()
 
     def unify(self, t):
         return t == tfloat32
@@ -1640,6 +1646,12 @@ class tlocus(HailType):
 
     def _convert_to_json(self, x):
         return {'contig': x.contig, 'position': x.position}
+
+    __struct_repr = tstruct(chr=hl.tstr, pos=hl.tint32)
+
+    def _convert_from_encoding(self, byte_reader):
+
+        return genetics.Locus(..., ..., self.reference_genome)
 
     def unify(self, t):
         return isinstance(t, tlocus) and self.reference_genome == t.reference_genome
