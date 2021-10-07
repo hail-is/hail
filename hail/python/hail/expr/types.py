@@ -266,7 +266,7 @@ class HailType(object):
     def _from_encoding(self, encoding):
         return self._convert_from_encoding(ByteReader(memoryview(encoding)))
 
-    def _convert_from_encoding(self, byte_reader, offset):
+    def _convert_from_encoding(self, byte_reader):
         raise ValueError("Not implemented yet")
 
     def _traverse(self, obj, f):
@@ -712,6 +712,14 @@ class tndarray(HailType):
 
     def _get_context(self):
         return self.element_type.get_context()
+
+    def _convert_from_encoding(self, byte_reader):
+        shape = [byte_reader.read_int64() for i in range(self.ndim)]
+        total_num_elements = np.product(shape, dtype=np.int64)
+        #TODO: Optimize with numpy.frombuffer, but that requires specifying elementsize, which can only be done with primitives
+        elements = [self.element_type._convert_from_encoding(byte_reader) for i in range(total_num_elements)]
+        np_type = self.element_type.to_numpy()
+        return np.ndarray(shape=shape, buffer=np.array(elements, dtype=np_type), dtype=np_type, order="F")
 
 
 class tarray(HailType):
