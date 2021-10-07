@@ -1666,6 +1666,8 @@ class tlocus(HailType):
     :class:`.Locus`
     """
 
+    struct_repr = tstruct(contig=_tstr(), pos=_tint32())
+
     @typecheck_method(reference_genome=reference_genome_type)
     def __init__(self, reference_genome='default'):
         self._rg = reference_genome
@@ -1712,8 +1714,7 @@ class tlocus(HailType):
         return {'contig': x.contig, 'position': x.position}
 
     def _convert_from_encoding(self, byte_reader):
-        struct_repr = tstruct(contig=hl.tstr, pos=hl.tint32)
-        as_struct = struct_repr._convert_from_encoding(byte_reader)
+        as_struct = tlocus.struct_repr._convert_from_encoding(byte_reader)
         return genetics.Locus(as_struct.contig, as_struct.pos, self.reference_genome)
 
     def unify(self, t):
