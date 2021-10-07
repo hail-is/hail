@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Union
 import hail as hl
 
 from hail.utils import Interval
-from hail.utils.java import Env, warning
+from hail.utils.java import Env, info, warning
 from hail.experimental.vcf_combiner.vcf_combiner import calculate_even_genome_partitioning, \
     calculate_new_intervals
 from hail.vds.variant_dataset import VariantDataset
@@ -114,7 +114,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         self.gvcf_external_header = gvcf_external_header
         self.gvcf_import_intervals = gvcf_import_intervals
         self._uuid = uuid.uuid4()
-        self._job_id = 0
+        self._job_id = 1
         self.__intervals_cache = {}
 
     def __eq__(self, other):
@@ -153,10 +153,22 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
             raise e
 
     def run(self):
+        flagname = 'no_ir_logging'
+        prev_flag_value = hl._get_flags(flagname).get(flagname)
+        hl._set_flags(**{flagname: '1'})
+
+        vds_samples = sum(md.n_samples for md in self.vdses)
+        info('Running VDS combiner:\n'
+             f'    VDS arguments: {len(self.vdses)} datasets with {vds_samples} samples\n'
+             f'    GVCF arguments: {len(self.gvcfs)} inputs/samples\n'
+             f'    Branch factor: {self.branch_factor}\n'
+             f'    GVCF merge batch size: {self.gvcf_batch_size}')
         while not self.finished:
             self.save()
             self.step()
         self.save()
+        info('Finished VDS combiner!')
+        hl._set_flags(**{flagname: prev_flag_value})
 
     @staticmethod
     def load(path) -> 'VariantDatasetCombiner':
@@ -200,13 +212,14 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
     def _step_vdses(self):
         files_to_merge = self.vdses[-self.branch_factor:]
         self.vdses = self.vdses[:-self.branch_factor]
+        new_n_samples = sum(f.n_samples for f in files_to_merge)
+        info(f'VDS Combine (job {self._job_id}): merging {len(files_to_merge)} datasets with {new_n_samples} samples')
 
         temp_path = self._temp_out_path(f'vds-combine_job{self._job_id}')
         largest_vds = files_to_merge[0]
         vds = hl.vds.read_vds(largest_vds.path)
         # we use the reference data since it generally has more rows than the variant data
 
-        new_n_samples = sum(f.n_samples for f in files_to_merge)
         interval_bin = math.ceil(math.log(new_n_samples, self.branch_factor))
         intervals, intervals_dtype = self.__intervals_cache.get(interval_bin, (None, None))
 
@@ -233,6 +246,10 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         step = self.branch_factor
         files_to_merge = self.gvcfs[:self.gvcf_batch_size * step]
         self.gvcfs = self.gvcfs[self.gvcf_batch_size * step:]
+
+        info(f'GVCF combine (job {self._job_id}): merging {len(files_to_merge)} GVCFs into '
+             f'{(len(files_to_merge) + step - 1) // step} datasets')
+
         if self.gvcf_external_header is not None:
             sample_names = self.gvcf_sample_names[:self.gvcf_batch_size * step]
             self.gvcf_sample_names = self.gvcf_sample_names[self.gvcf_batch_size * step:]
