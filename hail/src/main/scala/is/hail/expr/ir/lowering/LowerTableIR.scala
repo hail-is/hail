@@ -89,8 +89,8 @@ class TableStage(
   def key: IndexedSeq[String] = kType.fieldNames
   def globalType: TStruct = globals.typ.asInstanceOf[TStruct]
 
-  assert(key.forall(f => rowType.hasField(f)))
-  assert(kType.fields.forall(f => rowType.field(f.name).typ == f.typ))
+  assert(key.forall(f => rowType.hasField(f)), s"Key was ${key} \n kType was ${kType} \n rowType was ${rowType}")
+  assert(kType.fields.forall(f => rowType.field(f.name).typ == f.typ), s"Key was ${key} \n, kType was ${kType} \n rowType was ${rowType}")
   assert(broadcastVals.exists { case (name, value) => name == globals.name && value == globals})
 
   def copy(
