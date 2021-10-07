@@ -549,10 +549,10 @@ class BatchPoolFuture:
             try:
                 value, traceback = dill.loads(
                     await self.executor.fs.read(self.output_file))
-            except FileNotFoundError:
+            except FileNotFoundError as exc:
                 job_log = await self.job.log()
                 raise ValueError(
-                    f"submitted job did not write output:\n{main_container_status}\n\nLog:\n{job_log}")
+                    f"submitted job did not write output:\n{main_container_status}\n\nLog:\n{job_log}") from exc
             if traceback is None:
                 return value
             assert isinstance(value, BaseException)
