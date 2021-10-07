@@ -1749,6 +1749,7 @@ class tinterval(HailType):
     @typecheck_method(point_type=hail_type)
     def __init__(self, point_type):
         self._point_type = point_type
+        self._struct_repr = tstruct(start=point_type, end=point_type, includes_start=hl.tbool, includes_end=hl.tbool)
         super(tinterval, self).__init__()
 
     @property
@@ -1804,6 +1805,10 @@ class tinterval(HailType):
                 'end': self.point_type._convert_to_json_na(x.end),
                 'includeStart': x.includes_start,
                 'includeEnd': x.includes_end}
+
+    def _convert_from_encoding(self, byte_reader):
+        interval_as_struct = self._struct_repr._convert_from_encoding(byte_reader)
+        return hl.Interval(interval_as_struct.start, interval_as_struct.end, interval_as_struct.includes_start, interval_as_struct.includes_end)
 
     def unify(self, t):
         return isinstance(t, tinterval) and self.point_type.unify(t.point_type)
