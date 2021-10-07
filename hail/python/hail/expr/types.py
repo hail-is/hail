@@ -1647,11 +1647,10 @@ class tlocus(HailType):
     def _convert_to_json(self, x):
         return {'contig': x.contig, 'position': x.position}
 
-    __struct_repr = tstruct(chr=hl.tstr, pos=hl.tint32)
-
     def _convert_from_encoding(self, byte_reader):
-
-        return genetics.Locus(..., ..., self.reference_genome)
+        struct_repr = tstruct(contig=hl.tstr, pos=hl.tint32)
+        as_struct = struct_repr._convert_from_encoding(byte_reader)
+        return genetics.Locus(as_struct.contig, as_struct.pos, self.reference_genome)
 
     def unify(self, t):
         return isinstance(t, tlocus) and self.reference_genome == t.reference_genome
