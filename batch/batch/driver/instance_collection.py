@@ -118,7 +118,12 @@ class InstanceCollection:
 
     async def check_on_instance(self, instance):
         active_and_healthy = await instance.check_is_active_and_healthy()
-        if active_and_healthy:
+
+        if (instance.state == 'active'
+                and instance.failed_request_count > 5
+                and time_msecs() - instance.last_updated > 5 * 60 * 1000):
+            log.exception(f'deleting {instance} with {instance.failed_request_count} failed request counts after more than 5 minutes')
+            await self.call_delete_instance(instance, 'not_responding')
             return
 
         try:
@@ -128,16 +133,11 @@ class InstanceCollection:
                 await self.remove_instance(instance, 'does_not_exist')
                 return
             raise
-
-        if (instance.state == 'active'
-                and instance.failed_request_count > 5
-                and time_msecs() - instance.last_updated > 5 * 60 * 1000):
-            log.exception(f'deleting {instance} with {instance.failed_request_count} failed request counts after more than 5 minutes')
-            await self.call_delete_instance(instance, 'not_responding')
-            return
-
         # PROVISIONING, STAGING, RUNNING, STOPPING, TERMINATED
         gce_state = spec['status']
+
+        if active_and_healthy:
+            return
 
         log.info(f'{instance} gce_state {gce_state}')
 
