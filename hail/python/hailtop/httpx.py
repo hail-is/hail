@@ -37,36 +37,106 @@ class ClientResponseError(aiohttp.ClientResponseError):
         return "{}({})".format(type(self).__name__, args)
 
 
-class ClientSession(aiohttp.ClientSession):
-    async def _request(
+class ClientSession:
+    def __init__(self, *args, **kwargs):
+        self.raise_for_status = kwargs.pop('raise_for_status', False)
+        self.client_session = aiohttp.ClientSession(*args, raise_for_status=False, **kwargs)
+
+    def request(
+        self, method: str, url: aiohttp.client.StrOrURL, **kwargs: Any
+    ) -> aiohttp.client._RequestContextManager:
+        raise_for_status = kwargs.pop('raise_for_status', self.raise_for_status)
+
+        async def request_and_raise_for_status():
+            resp = await self.client_session._request(method, url, **kwargs)
+            if raise_for_status:
+                if resp.status >= 400:
+                    # reason should always be not None for a started response
+                    assert resp.reason is not None
+                    body = (await resp.read()).decode()
+                    resp.release()
+                    raise ClientResponseError(
+                        resp.request_info,
+                        resp.history,
+                        status=resp.status,
+                        message=resp.reason,
+                        headers=resp.headers,
+                        body=body
+                    )
+            return resp
+        return aiohttp.client._RequestContextManager(request_and_raise_for_status())
+
+    def ws_connect(
+        self, *args, **kwargs
+    ) -> aiohttp.client_ws.ClientWebSocketResponse:
+        return self.client_session.ws_connect(*args, **kwargs)
+
+    def get(
+        self, url: aiohttp.client.StrOrURL, *, allow_redirects: bool = True, **kwargs: Any
+    ) -> aiohttp.client._RequestContextManager:
+        return self.request('GET', url, allow_redirects=allow_redirects, **kwargs)
+
+    def options(
+        self, url: aiohttp.client.StrOrURL, *, allow_redirects: bool = True, **kwargs: Any
+    ) -> aiohttp.client._RequestContextManager:
+        return self.request('OPTIONS', url, allow_redirects=allow_redirects, **kwargs)
+
+    def head(
+        self, url: aiohttp.client.StrOrURL, *, allow_redirects: bool = False, **kwargs: Any
+    ) -> aiohttp.client._RequestContextManager:
+        return self.request('HEAD', url, allow_redirects=allow_redirects, **kwargs)
+
+    def post(
+        self, url: aiohttp.client.StrOrURL, *, data: Any = None, **kwargs: Any
+    ) -> aiohttp.client._RequestContextManager:
+        return self.request('POST', url, data=data, **kwargs)
+
+    def put(
+        self, url: aiohttp.client.StrOrURL, *, data: Any = None, **kwargs: Any
+    ) -> aiohttp.client._RequestContextManager:
+        return self.request('PUT', url, data=data, **kwargs)
+
+    def patch(
+        self, url: aiohttp.client.StrOrURL, *, data: Any = None, **kwargs: Any
+    ) -> aiohttp.client._RequestContextManager:
+        return self.request('PATCH', url, data=data, **kwargs)
+
+    def delete(
+        self, url: aiohttp.client.StrOrURL, **kwargs: Any
+    ) -> aiohttp.client._RequestContextManager:
+        return self.request('DELETE', url, **kwargs)
+
+    async def close(self) -> None:
+        await self.client_session.close()
+
+    @property
+    def closed(self) -> bool:
+        return self.client_session.closed
+
+    @property
+    def cookie_jar(self) -> aiohttp.abc.AbstractCookieJar:
+        return self.client_session.cookie_jar
+
+    @property
+    def version(self) -> Tuple[int, int]:
+        return self.client_session.version
+
+    async def __aenter__(self) -> "ClientSession":
+        return self
+
+    async def __aexit__(
         self,
-        method: str,
-        str_or_url: aiohttp.client.StrOrURL,
-        **kwargs
-    ):
-        raise_for_status = kwargs.pop('raise_for_status', self._raise_for_status)
-        resp = await super()._request(method, str_or_url, raise_for_status=False, **kwargs)
-        if raise_for_status:
-            if resp.status >= 400:
-                # reason should always be not None for a started response
-                assert resp.reason is not None
-                body = (await resp.read()).decode()
-                resp.release()
-                raise ClientResponseError(
-                    resp.request_info,
-                    resp.history,
-                    status=resp.status,
-                    message=resp.reason,
-                    headers=resp.headers,
-                    body=body
-                )
-        return resp
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        await self.client_session.__aexit__(exc_type, exc_val, exc_tb)
 
 
 def client_session(*args,
                    raise_for_status: bool = True,
                    timeout: Union[aiohttp.ClientTimeout, float] = None,
-                   **kwargs) -> aiohttp.ClientSession:
+                   **kwargs) -> ClientSession:
     location = get_deploy_config().location()
     if location == 'external':
         tls = external_client_ssl_context()
@@ -234,7 +304,7 @@ class BlockingClientWebSocketResponseContextManager(AsyncToBlockingContextManage
 
 
 class BlockingClientSession:
-    def __init__(self, session: aiohttp.ClientSession):
+    def __init__(self, session: ClientSession):
         self.session = session
 
     def request(self,
