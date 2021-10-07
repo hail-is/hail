@@ -4,7 +4,7 @@ import logging
 log = logging.getLogger('disk')
 
 
-class Disk(abc.ABC):
+class CloudDisk(abc.ABC):
     name: str
 
     async def __aenter__(self, labels=None):
