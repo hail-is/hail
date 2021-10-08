@@ -2590,7 +2590,6 @@ steps:
       cpu: '1'
     script: |
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-      export PROJECT={{ global.project }}
       hailctl config set batch/bucket {{ global.hail_test_gcs_bucket }}
       python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /io/test/
     timeout: 600
@@ -2611,6 +2610,10 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
+      - name: global-config
+        namespace:
+          valueFrom: global-config
+        mountPath: /global-config
     inputs:
       - from: /repo/memory/test
         to: /io/test
