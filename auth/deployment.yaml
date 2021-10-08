@@ -88,6 +88,9 @@ spec:
        - name: deploy-config
          secret:
            secretName: deploy-config
+       - name: global-config
+         secret:
+           secretName: global-config
        - name: database-server-config
          secret:
            secretName: database-server-config
