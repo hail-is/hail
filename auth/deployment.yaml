@@ -64,6 +64,9 @@ spec:
           - name: deploy-config
             mountPath: /deploy-config
             readOnly: true
+          - name: global-config
+            mountPath: /global-config
+            readOnly: true
           - name: database-server-config
             mountPath: /database-server-config
             readOnly: true
