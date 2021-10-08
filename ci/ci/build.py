@@ -1,7 +1,6 @@
 import abc
 import json
 import logging
-import os
 from collections import defaultdict, Counter
 from shlex import quote as shq
 import yaml
@@ -18,15 +17,9 @@ from .environment import (
     BUCKET,
 )
 from .globals import is_test_deployment
+from gear.cloud_config import get_global_config
 
 log = logging.getLogger('ci')
-
-global_config = {}
-for field in os.listdir('/global-config/'):
-    # Kubernetes inserts some hidden files that we don't care about
-    if not field.startswith('.'):
-        with open(f'/global-config/{field}') as value:
-            global_config[field] = value.read()
 
 pretty_print_log = "jq -Rr '. as $raw | try \
 (fromjson | if .hail_log == 1 then \
@@ -172,7 +165,7 @@ class Step(abc.ABC):
 
     def input_config(self, code, scope):
         config = {}
-        config['global'] = global_config
+        config['global'] = get_global_config()
         config['token'] = self.token
         config['deploy'] = scope == 'deploy'
         config['scope'] = scope
