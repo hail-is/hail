@@ -991,6 +991,7 @@ def copy_container(job, name, files, volume_mounts, cpu, memory, scratch, reques
             'hailtop.aiotools.copy',
             json.dumps(requester_pays_project),
             json.dumps(files),
+            '-v',
         ],
         'env': ['GOOGLE_APPLICATION_CREDENTIALS=/gsa-key/key.json'],
         'cpu': cpu,

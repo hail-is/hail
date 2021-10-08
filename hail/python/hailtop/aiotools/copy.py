@@ -3,6 +3,8 @@ import sys
 import json
 import urllib
 import asyncio
+import logging
+import argparse
 from concurrent.futures import ThreadPoolExecutor
 from hailtop.aiotools.fs import RouterAsyncFS, LocalAsyncFS, Transfer
 
@@ -78,10 +80,22 @@ async def copy(requester_pays_project: Optional[str],
                 copy_report.summarize()
 
 
+
 async def main() -> None:
-    assert len(sys.argv) == 3
-    requster_pays_project = json.loads(sys.argv[1])
-    files = json.loads(sys.argv[2])
+    parser = argparse.ArgumentParser(description='Hail copy tool')
+    parser.add_argument('requester_pays_project', type=str,
+                        help='a JSON string indicating the Google project to which to charge egress costs')
+    parser.add_argument('files', type=str,
+                        help='a JSON array of JSON objects indicating from where and to where to copy files')
+    parser.add_argument('-v', '--verbose', action='store_const',
+                        const=True, default=False,
+                        help='show logging information')
+    args = parser.parse_args()
+    if args.verbose:
+        logging.basicConfig()
+        logging.root.setLevel(logging.INFO)
+    requster_pays_project = json.loads(args.requester_pays_project)
+    files = json.loads(args.files)
 
     await copy(
         requster_pays_project,
