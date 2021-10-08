@@ -133,11 +133,14 @@ object AbstractRVDSpec {
           .map { case (path1, path2) => Row(path1, path2) }
 
         val ctxIR = ToStream(Literal(TArray(reader.contextType), contextsValue))
+        val partKeyPrefix = partitioner.kType.fieldNames.slice(0, requestedKey.length).toIndexedSeq
+
+        assert(requestedKey == partKeyPrefix, s"$requestedKey != $partKeyPrefix")
 
         { (globals: IR) =>
           TableStage(
             globals,
-            partitioner,
+            partitioner.coarsen(requestedKey.length),
             TableStageDependency.none,
             ctxIR,
             ReadPartition(_, requestedType, reader))

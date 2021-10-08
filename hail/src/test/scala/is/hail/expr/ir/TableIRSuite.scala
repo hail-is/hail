@@ -1009,6 +1009,10 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test def testTableNativeZippedReaderWithPrefixKey(): Unit = {
+    /*
+    This test is important because it tests that we can handle lowering with a TableNativeZippedReader
+    when elements of the original key get pruned away (so I copy key to only be "locus" instead of "locus", "alleles")
+     */
     val rowsPath = "src/test/resources/sample.vcf.mt/rows"
     val entriesPath = "src/test/resources/sample.vcf.mt/entries"
 
@@ -1023,7 +1027,7 @@ class TableIRSuite extends HailSuite {
       )))
     val optimized = Optimize(irToLower, "foo", ctx)
     val requirednessAnalysis = Requiredness.apply(optimized, ctx)
-    val lowered = LowerTableIR(optimized, DArrayLowering.All, ctx, requirednessAnalysis, Map.empty)
+    LowerTableIR(optimized, DArrayLowering.All, ctx, requirednessAnalysis, Map.empty)
   }
 
   @Test def testTableMapPartitions() {
