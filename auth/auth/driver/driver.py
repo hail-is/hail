@@ -13,10 +13,11 @@ from hailtop import aiotools
 from hailtop.aiocloud import aiogoogle
 from hailtop import batch_client as bc, httpx
 from gear import create_session, Database
+from gear.cloud_config import get_gcp_config
 
 log = logging.getLogger('auth.driver')
 
-PROJECT = os.environ['PROJECT']
+PROJECT = get_gcp_config().project
 DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
 
 is_test_deployment = DEFAULT_NAMESPACE != 'default'
