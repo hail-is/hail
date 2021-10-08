@@ -35,7 +35,7 @@ from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes,
 from hailtop.aiocloud import aiogoogle
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
-from hailtop.httpx import client_session
+from hailtop import httpx
 from hailtop.hail_logging import AccessLogger
 from hailtop import aiotools, dictfix
 from gear import (
@@ -322,18 +322,18 @@ WHERE id = %s AND NOT deleted;
 
 
 async def _get_job_log_from_record(app, batch_id, job_id, record):
+    client_session: httpx.ClientSession = app['client_session']
     state = record['state']
     ip_address = record['ip_address']
     if state == 'Running':
-        async with aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-            try:
-                url = f'http://{ip_address}:5000' f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log'
-                resp = await request_retry_transient_errors(session, 'GET', url)
-                return await resp.json()
-            except aiohttp.ClientResponseError as e:
-                if e.status == 404:
-                    return None
-                raise
+        try:
+            resp = await request_retry_transient_errors(
+                client_session, 'GET', f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
+            return await resp.json()
+        except aiohttp.ClientResponseError as e:
+            if e.status == 404:
+                return None
+            raise
 
     if state in ('Error', 'Failed', 'Success'):
         file_store: FileStore = app['file_store']
@@ -435,6 +435,7 @@ async def _get_full_job_spec(app, record):
 
 
 async def _get_full_job_status(app, record):
+    client_session: httpx.ClientSession = app['client_session']
     file_store: FileStore = app['file_store']
 
     batch_id = record['batch_id']
@@ -462,15 +463,14 @@ async def _get_full_job_status(app, record):
     assert record['status'] is None
 
     ip_address = record['ip_address']
-    async with aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-        try:
-            url = f'http://{ip_address}:5000' f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status'
-            resp = await request_retry_transient_errors(session, 'GET', url)
-            return await resp.json()
-        except aiohttp.ClientResponseError as e:
-            if e.status == 404:
-                return None
-            raise
+    try:
+        resp = await request_retry_transient_errors(
+            client_session, 'GET', f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status')
+        return await resp.json()
+    except aiohttp.ClientResponseError as e:
+        if e.status == 404:
+            return None
+        raise
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
@@ -1161,6 +1161,7 @@ async def cancel_batch(request, userdata, batch_id):  # pylint: disable=unused-a
 @routes.patch('/api/v1alpha/batches/{batch_id}/close')
 @rest_authenticated_users_only
 async def close_batch(request, userdata):
+    client_session: httpx.ClientSession = request.app['client_session']
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
 
@@ -1192,13 +1193,12 @@ WHERE user = %s AND id = %s AND NOT deleted;
             raise web.HTTPBadRequest(reason=f'wrong number of jobs: expected {expected_n_jobs}, actual {actual_n_jobs}')
         raise
 
-    async with client_session() as session:
-        await request_retry_transient_errors(
-            session,
-            'PATCH',
-            deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/close'),
-            headers=app['batch_headers'],
-        )
+    await request_retry_transient_errors(
+        client_session,
+        'PATCH',
+        deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/close'),
+        headers=app['batch_headers'],
+    )
 
     return web.Response()
 
@@ -2105,26 +2105,26 @@ async def index(request, userdata):  # pylint: disable=unused-argument
 
 
 async def cancel_batch_loop_body(app):
-    async with client_session() as session:
-        await request_retry_transient_errors(
-            session,
-            'POST',
-            deploy_config.url('batch-driver', '/api/v1alpha/batches/cancel'),
-            headers=app['batch_headers'],
-        )
+    client_session: httpx.ClientSession = app['client_session']
+    await request_retry_transient_errors(
+        client_session,
+        'POST',
+        deploy_config.url('batch-driver', '/api/v1alpha/batches/cancel'),
+        headers=app['batch_headers'],
+    )
 
     should_wait = True
     return should_wait
 
 
 async def delete_batch_loop_body(app):
-    async with client_session() as session:
-        await request_retry_transient_errors(
-            session,
-            'POST',
-            deploy_config.url('batch-driver', '/api/v1alpha/batches/delete'),
-            headers=app['batch_headers'],
-        )
+    client_session: httpx.ClientSession = app['client_session']
+    await request_retry_transient_errors(
+        client_session,
+        'POST',
+        deploy_config.url('batch-driver', '/api/v1alpha/batches/delete'),
+        headers=app['batch_headers'],
+    )
 
     should_wait = True
     return should_wait
@@ -2132,6 +2132,7 @@ async def delete_batch_loop_body(app):
 
 async def on_startup(app):
     app['task_manager'] = aiotools.BackgroundTaskManager()
+    app['client_session'] = httpx.client_session()
 
     db = Database()
     await db.async_init()
@@ -2184,7 +2185,10 @@ async def on_cleanup(app):
     try:
         app['task_manager'].shutdown()
     finally:
-        await app['file_store'].close()
+        try:
+            await app['client_session'].close()
+        finally:
+            await app['file_store'].close()
 
 
 def run():

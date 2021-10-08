@@ -17,6 +17,7 @@ from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
 from hailtop.utils import AsyncWorkerPool, retry_transient_errors, dump_all_stacktraces
+from hailtop import httpx
 from gear import setup_aiohttp_session, rest_authenticated_users_only, monitor_endpoints_middleware
 
 uvloop.install()
@@ -133,6 +134,7 @@ async def cache_file(redis: aioredis.ConnectionsPool, files: Set[str], file_key:
 
 
 async def on_startup(app):
+    app['client_session'] = httpx.client_session()
     app['worker_pool'] = AsyncWorkerPool(parallelism=100, queue_size=10)
     app['files_in_progress'] = set()
     app['users'] = {}
@@ -151,13 +153,18 @@ async def on_cleanup(app):
         finally:
             try:
                 del app['k8s_client']
-                await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
             finally:
-                for items in app['users'].values():
+                try:
+                    await app['client_session'].close()
+                finally:
                     try:
-                        await items['fs'].close()
-                    except:
-                        pass
+                        for items in app['users'].values():
+                            try:
+                                await items['fs'].close()
+                            except:
+                                pass
+                    finally:
+                        await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
 
 
 def run():

@@ -9,6 +9,7 @@ from prometheus_async.aio.web import server_stats  # type: ignore
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
+from hailtop import httpx
 from gear import setup_aiohttp_session, web_maybe_authenticated_user, monitor_endpoints_middleware
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, sass_compile
 
@@ -93,6 +94,14 @@ for fname in os.listdir(f'{MODULE_PATH}/pages'):
         routes.get('/')(make_template_handler(fname))
 
 
+async def on_startup(app):
+    app['client_session'] = httpx.client_session()
+
+
+async def on_cleanup(app):
+    await app['client_session'].close()
+
+
 def run(local_mode):
     app = web.Application(middlewares=[monitor_endpoints_middleware])
 
@@ -117,6 +126,8 @@ def run(local_mode):
         app, 'website', jinja2.PackageLoader('website', 'pages'), jinja2.PackageLoader('website', 'docs')
     )
     setup_common_static_routes(routes)
+    app.on_startup.append(on_startup)
+    app.on_cleanup.append(on_cleanup)
     app.add_routes(routes)
     app.router.add_get("/metrics", server_stats)
     sass_compile('website')

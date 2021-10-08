@@ -4,7 +4,6 @@ import os
 import logging
 import asyncio
 import concurrent.futures
-import aiohttp
 from aiohttp import web
 import aiohttp_session  # type: ignore
 import uvloop  # type: ignore
@@ -15,7 +14,7 @@ from hailtop.batch_client.aioclient import BatchClient, Batch
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
-from hailtop import aiotools
+from hailtop import aiotools, httpx
 from gear import (
     setup_aiohttp_session,
     rest_authenticated_developers_only,
@@ -482,8 +481,8 @@ async def update_loop(app):
 
 
 async def on_startup(app):
-    app['gh_client_session'] = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5))
-    app['github_client'] = gh_aiohttp.GitHubAPI(app['gh_client_session'], 'ci', oauth_token=oauth_token)
+    app['client_session'] = httpx.client_session()
+    app['github_client'] = gh_aiohttp.GitHubAPI(app['client_session'], 'ci', oauth_token=oauth_token)
     app['batch_client'] = BatchClient('ci')
     app['dbpool'] = await create_database_pool()
 
@@ -496,7 +495,7 @@ async def on_cleanup(app):
         dbpool = app['dbpool']
         dbpool.close()
         await dbpool.wait_closed()
-        await app['gh_client_session'].close()
+        await app['client_session'].close()
         await app['batch_client'].close()
     finally:
         app['task_manager'].shutdown()
