@@ -411,9 +411,6 @@ steps:
       valueFrom: auth_image.image
     script: |
       set -ex
-      export PROJECT={{ global.project }}
-      export ZONE={{ global.zone }}
-      export HAIL_PROJECT={{ global.project }}
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export HAIL_SCOPE={{ scope }}
       python3 /io/bootstrap_create_accounts.py
@@ -439,6 +436,10 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /auth-gsa-key
+      - name: global-config
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /global-config
     inputs:
       - from: /repo/ci/bootstrap_create_accounts.py
         to: /io/bootstrap_create_accounts.py
