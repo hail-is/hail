@@ -169,6 +169,9 @@ class Batch:
     def wait(self):
         return async_to_blocking(self._async_batch.wait())
 
+    def debug_info(self):
+        return async_to_blocking(self._async_batch.debug_info())
+
     def delete(self):
         async_to_blocking(self._async_batch.delete())
 

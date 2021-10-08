@@ -443,7 +443,8 @@ class ServiceTests(unittest.TestCase):
         j = b.new_job()
         j.command('echo hello')
         res = b.run()
-        assert res.status()['state'] == 'success', debug_info(res)
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
     def test_single_task_input(self):
         b = self.batch()
@@ -451,7 +452,8 @@ class ServiceTests(unittest.TestCase):
         j = b.new_job()
         j.command(f'cat {input}')
         res = b.run()
-        assert res.status()['state'] == 'success', debug_info(res)
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
     def test_single_task_input_resource_group(self):
         b = self.batch()
@@ -461,14 +463,16 @@ class ServiceTests(unittest.TestCase):
         j.command(f'cat {input.foo}')
         j.command(f'cat {input}.foo')
         res = b.run()
-        assert res.status()['state'] == 'success', debug_info(res)
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
     def test_single_task_output(self):
         b = self.batch()
         j = b.new_job(attributes={'a': 'bar', 'b': 'foo'})
         j.command(f'echo hello > {j.ofile}')
         res = b.run()
-        assert res.status()['state'] == 'success', debug_info(res)
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
     def test_single_task_write_output(self):
         b = self.batch()
@@ -476,7 +480,8 @@ class ServiceTests(unittest.TestCase):
         j.command(f'echo hello > {j.ofile}')
         b.write_output(j.ofile, f'{self.gcs_output_dir}/test_single_task_output.txt')
         res = b.run()
-        assert res.status()['state'] == 'success', debug_info(res)
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
     def test_single_task_resource_group(self):
         b = self.batch()
@@ -484,7 +489,8 @@ class ServiceTests(unittest.TestCase):
         j.declare_resource_group(output={'foo': '{root}.foo'})
         j.command(f'echo "hello" > {j.output.foo}')
         res = b.run()
-        assert res.status()['state'] == 'success', debug_info(res)
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
     def test_single_task_write_resource_group(self):
         b = self.batch()
@@ -494,7 +500,8 @@ class ServiceTests(unittest.TestCase):
         b.write_output(j.output, f'{self.gcs_output_dir}/test_single_task_write_resource_group')
         b.write_output(j.output.foo, f'{self.gcs_output_dir}/test_single_task_write_resource_group_file.txt')
         res = b.run()
-        assert res.status()['state'] == 'success', debug_info(res)
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
     def test_multiple_dependent_tasks(self):
         output_file = f'{self.gcs_output_dir}/test_multiple_dependent_tasks.txt'
@@ -510,7 +517,8 @@ class ServiceTests(unittest.TestCase):
 
         b.write_output(j.ofile, output_file)
         res = b.run()
-        assert res.status()['state'] == 'success', debug_info(res)
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
     def test_specify_cpu(self):
         b = self.batch()
@@ -518,7 +526,8 @@ class ServiceTests(unittest.TestCase):
         j.cpu('0.5')
         j.command(f'echo "hello" > {j.ofile}')
         res = b.run()
-        assert res.status()['state'] == 'success', debug_info(res)
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
     def test_specify_memory(self):
         b = self.batch()
@@ -526,7 +535,8 @@ class ServiceTests(unittest.TestCase):
         j.memory('100M')
         j.command(f'echo "hello" > {j.ofile}')
         res = b.run()
-        assert res.status()['state'] == 'success', debug_info(res)
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
     def test_scatter_gather(self):
         b = self.batch()
@@ -542,7 +552,8 @@ class ServiceTests(unittest.TestCase):
                                                       ofile=merger.ofile))
 
         res = b.run()
-        assert res.status()['state'] == 'success', debug_info(res)
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
     def test_file_name_space(self):
         b = self.batch()
@@ -551,7 +562,8 @@ class ServiceTests(unittest.TestCase):
         j.command(f'cat {input} > {j.ofile}')
         b.write_output(j.ofile, f'{self.gcs_output_dir}/hello (foo) spaces.txt')
         res = b.run()
-        assert res.status()['state'] == 'success', debug_info(res)
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
     def test_dry_run(self):
         b = self.batch()
@@ -567,7 +579,8 @@ class ServiceTests(unittest.TestCase):
         j.command(f'cat {input}')
         b.write_output(input, f'{self.gcs_output_dir}/hello.txt')
         res = b.run(verbose=True)
-        assert res.status()['state'] == 'success', debug_info(res)
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
     def test_gcsfuse(self):
         path = f'/{self.bucket_name}{self.gcs_output_path}'
@@ -583,7 +596,8 @@ class ServiceTests(unittest.TestCase):
         tail.depends_on(head)
 
         res = b.run()
-        assert res.status()['state'] == 'success', debug_info(res)
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
     def test_gcsfuse_read_only(self):
         path = f'/{self.bucket_name}{self.gcs_output_path}'
@@ -594,7 +608,8 @@ class ServiceTests(unittest.TestCase):
         j.gcsfuse(self.bucket_name, f'/{self.bucket_name}', read_only=True)
 
         res = b.run()
-        assert res.status()['state'] == 'failure', debug_info(res)
+        res_status = res.status()
+        assert res_status['state'] == 'failure', str((res_status, res.debug_info()))
 
     def test_gcsfuse_implicit_dirs(self):
         path = f'/{self.bucket_name}{self.gcs_output_path}'
@@ -610,7 +625,8 @@ class ServiceTests(unittest.TestCase):
         tail.depends_on(head)
 
         res = b.run()
-        assert res.status()['state'] == 'success', debug_info(res)
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
     def test_gcsfuse_empty_string_bucket_fails(self):
         b = self.batch()
@@ -626,7 +642,8 @@ class ServiceTests(unittest.TestCase):
         j = b.new_job()
         j.command(f'cat {input}')
         res = b.run()
-        assert res.status()['state'] == 'success', debug_info(res)
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
     def test_benchmark_lookalike_workflow(self):
         b = self.batch()
@@ -657,7 +674,8 @@ class ServiceTests(unittest.TestCase):
         j.env('SOME_VARIABLE', '123abcdef')
         j.command('[ $SOME_VARIABLE = "123abcdef" ]')
         res = b.run()
-        assert res.status()['state'] == 'success', debug_info(res)
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
     def test_single_job_with_shell(self):
         msg = 'hello world'
@@ -665,14 +683,16 @@ class ServiceTests(unittest.TestCase):
         j = b.new_job(shell='/bin/sh')
         j.command(f'echo "{msg}"')
         res = b.run()
-        assert res.status()['state'] == 'success', debug_info(res)
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
     def test_single_job_with_nonsense_shell(self):
         b = self.batch()
         j = b.new_job(shell='/bin/ajdsfoijasidojf')
         j.command(f'echo "hello"')
         res = b.run()
-        assert res.status()['state'] == 'failure', debug_info(res)
+        res_status = res.status()
+        assert res_status['state'] == 'failure', str((res_status, res.debug_info()))
 
     def test_single_job_with_intermediate_failure(self):
         b = self.batch()
@@ -682,7 +702,8 @@ class ServiceTests(unittest.TestCase):
         j2.command(f'echo "world"')
 
         res = b.run()
-        assert res.status()['state'] == 'failure', debug_info(res)
+        res_status = res.status()
+        assert res_status['state'] == 'failure', str((res_status, res.debug_info()))
 
     def test_input_directory(self):
         b = self.batch()
@@ -692,7 +713,8 @@ class ServiceTests(unittest.TestCase):
         j.command(f'ls {input1}/hello.txt')
         j.command(f'ls {input2}/hello.txt')
         res = b.run()
-        assert res.status()['state'] == 'success', debug_info(res)
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
     def test_python_job(self):
         b = self.batch(default_python_image='gcr.io/hail-vdc/python-dill:3.7-slim')
@@ -724,8 +746,9 @@ class ServiceTests(unittest.TestCase):
         tail.command(f'cat {r3.as_str()} {r5.as_repr()} {r_mult.as_str()} {r_dict.as_json()}')
 
         res = b.run()
-        assert res.status()['state'] == 'success', debug_info(res)
-        assert res.get_job_log(4)['main'] == "3\n5\n30\n{\"x\": 3, \"y\": 5}\n", debug_info(res)
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+        assert res.get_job_log(4)['main'] == "3\n5\n30\n{\"x\": 3, \"y\": 5}\n", str(res.debug_info())
 
     def test_python_job_w_resource_group_unpack_individually(self):
         b = self.batch(default_python_image='gcr.io/hail-vdc/python-dill:3.7-slim')
@@ -760,8 +783,9 @@ class ServiceTests(unittest.TestCase):
         tail.command(f'cat {r3.as_str()} {r5.as_repr()} {r_mult.as_str()} {r_dict.as_json()}')
 
         res = b.run()
-        assert res.status()['state'] == 'success', debug_info(res)
-        assert res.get_job_log(4)['main'] == "3\n5\n30\n{\"x\": 3, \"y\": 5}\n", debug_info(res)
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+        assert res.get_job_log(4)['main'] == "3\n5\n30\n{\"x\": 3, \"y\": 5}\n", str(res.debug_info())
 
     def test_python_job_w_resource_group_unpack_jointly(self):
         b = self.batch(default_python_image='gcr.io/hail-vdc/python-dill:3.7-slim')
@@ -791,8 +815,10 @@ class ServiceTests(unittest.TestCase):
         tail.command(f'cat {r_mult.as_str()}')
 
         res = b.run()
-        assert res.status()['state'] == 'success', debug_info(res)
-        assert res.get_job_log(3)['main'] == "15\n", debug_info(res)
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+        job_log_3 = res.get_job_log(3)
+        assert job_log_3['main'] == "15\n", str((job_log_3, res.debug_info()))
 
     def test_python_job_w_non_zero_ec(self):
         b = self.batch(default_python_image='gcr.io/hail-vdc/python-dill:3.7-slim')
@@ -803,7 +829,8 @@ class ServiceTests(unittest.TestCase):
 
         j.call(error)
         res = b.run()
-        assert res.status()['state'] == 'failure', debug_info(res)
+        res_status = res.status()
+        assert res_status['state'] == 'failure', str((res_status, res.debug_info()))
 
     def test_fail_fast(self):
         b = self.batch(cancel_after_n_failures=1)
@@ -816,7 +843,7 @@ class ServiceTests(unittest.TestCase):
 
         res = b.run()
         job_status = res.get_job(2).status()
-        assert job_status['state'] == 'Cancelled', str(job_status)
+        assert job_status['state'] == 'Cancelled', str((job_status, res.debug_info()))
 
     def test_service_backend_bucket_parameter(self):
         backend = ServiceBackend(bucket=HAIL_TEST_GCS_BUCKET)
