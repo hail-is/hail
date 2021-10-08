@@ -133,8 +133,8 @@ object AbstractRVDSpec {
           .map { case (path1, path2) => Row(path1, path2) }
 
         val ctxIR = ToStream(Literal(TArray(reader.contextType), contextsValue))
-        val partKeyPrefix = partitioner.kType.fieldNames.slice(0, requestedKey.length).toIndexedSeq
 
+        val partKeyPrefix = partitioner.kType.fieldNames.slice(0, requestedKey.length).toIndexedSeq
         assert(requestedKey == partKeyPrefix, s"$requestedKey != $partKeyPrefix")
 
         { (globals: IR) =>
@@ -157,6 +157,9 @@ object AbstractRVDSpec {
 
         val extendedNewPartitioner = np.extendKey(partitioner.kType)
         val tmpPartitioner = extendedNewPartitioner.intersect(partitioner)
+
+        val partKeyPrefix = tmpPartitioner.kType.fieldNames.slice(0, requestedKey.length).toIndexedSeq
+        assert(requestedKey == partKeyPrefix, s"$requestedKey != $partKeyPrefix")
 
         val reader = PartitionZippedIndexedNativeReader(specLeft.typedCodecSpec, specRight.typedCodecSpec, indexSpecLeft, indexSpecRight, specLeft.key)
 
@@ -185,7 +188,7 @@ object AbstractRVDSpec {
         { (globals: IR) =>
           val ts = TableStage(
             globals,
-            tmpPartitioner,
+            tmpPartitioner.coarsen(requestedKey.length),
             TableStageDependency.none,
             contexts,
             body)
