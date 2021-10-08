@@ -5,6 +5,7 @@ import is.hail.TestUtils._
 import is.hail.annotations.SafeNDArray
 import is.hail.expr.Nat
 import is.hail.expr.ir.TestUtils._
+import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
 import is.hail.methods.ForceCountTable
 import is.hail.types._
 import is.hail.types.physical.PStruct
@@ -1005,6 +1006,24 @@ class TableIRSuite extends HailSuite {
     }
     val table = TableParallelize(makestruct("rows" -> ToArray(rows), "global" -> makestruct()), None)
     assertEvalsTo(TableCollect(table), Row(FastIndexedSeq(Row(Row(1))), Row()))
+  }
+
+  @Test def testTableNativeZippedReaderWithPrefixKey(): Unit = {
+    val rowsPath = "src/test/resources/sample.vcf.mt/rows"
+    val entriesPath = "src/test/resources/sample.vcf.mt/entries"
+
+    val mnr = MatrixNativeReader(fs, "src/test/resources/sample.vcf.mt")
+    val mnrSpec = mnr.getSpec()
+
+    val reader = TableNativeZippedReader(rowsPath, entriesPath, None, mnrSpec.rowsSpec, mnrSpec.entriesSpec)
+    val tableType = mnr.fullMatrixType.canonicalTableType.copy(globalType = TStruct(), key=IndexedSeq("locus"))
+    val irToLower = TableAggregate(TableRead(tableType, false, reader),
+      MakeTuple.ordered(FastSeq(
+        ApplyAggOp(Collect())(GetField(Ref("row", tableType.rowType), "rsid"))
+      )))
+    val optimized = Optimize(irToLower, "foo", ctx)
+    val requirednessAnalysis = Requiredness.apply(optimized, ctx)
+    val lowered = LowerTableIR(optimized, DArrayLowering.All, ctx, requirednessAnalysis, Map.empty)
   }
 
   @Test def testTableMapPartitions() {
