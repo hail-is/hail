@@ -265,7 +265,12 @@ class BatchClient:
         b = async_to_blocking(self._async_client.get_batch(id))
         return Batch.from_async_batch(b)
 
-    def create_batch(self, attributes=None, callback=None, token=None, cancel_after_n_failures=None):
+    def create_batch(self,
+                     attributes=None,
+                     callback=None,
+                     token=None,
+                     cancel_after_n_failures=None
+                     ) -> 'BatchBuilder':
         builder = self._async_client.create_batch(attributes=attributes, callback=callback, token=token,
                                                   cancel_after_n_failures=cancel_after_n_failures)
         return BatchBuilder.from_async_builder(builder)
