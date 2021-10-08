@@ -1,5 +1,4 @@
 from typing import List, Optional
-import sys
 import json
 import urllib
 import asyncio
@@ -78,7 +77,6 @@ async def copy(requester_pays_project: Optional[str],
                         files_listener=make_tqdm_listener(file_pbar),
                         bytes_listener=make_tqdm_listener(byte_pbar))
                 copy_report.summarize()
-
 
 
 async def main() -> None:
