@@ -395,7 +395,7 @@ class Batch:
     async def debug_info(self):
         batch_status = await self.status()
         jobs = [
-            {'status': job, 'log': await self.get_job_log(j['job_id'])}
+            {'status': j, 'log': await self.get_job_log(j['job_id'])}
             async for j in await self.jobs()]
         return {'status': batch_status, 'jobs': jobs}
 
