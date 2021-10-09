@@ -16,8 +16,8 @@ class GCPDisk(CloudDisk):
         # under the information for the name field
         assert len(name) <= 63
 
-        self.compute_client = aiogoogle.ComputeClient(
-            project, credentials=aiogoogle.Credentials.from_file('/worker-key.json')
+        self.compute_client = aiogoogle.GoogleComputeClient(
+            project, credentials=aiogoogle.GoogleCredentials.from_file('/worker-key.json')
         )
         self.name = name
         self.zone = zone
