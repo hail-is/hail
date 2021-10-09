@@ -1,7 +1,7 @@
 import abc
 import datetime
 import logging
-from typing import Awaitable, Callable, TYPE_CHECKING, Optional
+from typing import Awaitable, Callable, TYPE_CHECKING, Optional, Any
 
 from gear import Database
 
@@ -17,14 +17,15 @@ class VMDoesNotExist(Exception):
 
 
 class VMState:
+    UNKNOWN = 'Unknown'
     CREATING = 'Creating'
     RUNNING = 'Running'
     TERMINATED = 'Terminated'
 
-    def __init__(self, state, full_spec, last_start_timestamp=None):
+    def __init__(self, state: str, full_spec: Any, last_state_change_timestamp_msecs: int = None):
         self.state = state
         self.full_spec = full_spec
-        self.last_start_timestamp = last_start_timestamp
+        self.last_state_change_timestamp_msecs = last_state_change_timestamp_msecs
 
 
 async def process_outstanding_events(db: Database, process_events_since: Callable[[str], Awaitable[str]]):

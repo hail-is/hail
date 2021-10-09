@@ -139,9 +139,9 @@ WHERE name = %s;
         self.max_live_instances = max_live_instances
 
     def resources_to_cores_mcpu(self, cores_mcpu, memory_bytes, storage_bytes):
-        cores_mcpu = adjust_cores_for_memory_request(self.resource_manager.cloud, cores_mcpu, memory_bytes, self.worker_type)
+        cores_mcpu = adjust_cores_for_memory_request(self.cloud, cores_mcpu, memory_bytes, self.worker_type)
         cores_mcpu = adjust_cores_for_storage_request(
-            self.resource_manager.cloud,
+            self.cloud,
             cores_mcpu,
             storage_bytes,
             self.worker_cores,

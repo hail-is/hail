@@ -134,7 +134,7 @@ class InstanceCollection:
         if (
             vm_state.state == VMState.CREATING
             and instance.state == 'pending'
-            and time_msecs() - instance.time_created > 5 * 60 * 1000
+            and time_msecs() - vm_state.last_state_change_timestamp_msecs > 5 * 60 * 1000
         ):
             log.exception(f'{instance} did not provision within 5m after creation, deleting')
             await self.call_delete_instance(instance, 'activation_timeout')
@@ -144,10 +144,8 @@ class InstanceCollection:
             await instance.deactivate('terminated')
 
         if vm_state.state == VMState.RUNNING:
-            last_start_timestamp = vm_state.last_start_timestamp
-            if last_start_timestamp is not None:
-                last_start_time_msecs = dateutil.parser.isoparse(last_start_timestamp).timestamp() * 1000
-                elapsed_time = time_msecs() - last_start_time_msecs
+            if vm_state.last_state_change_timestamp_msecs is not None:
+                elapsed_time = time_msecs() - vm_state.last_state_change_timestamp_msecs
                 if instance.state == 'pending' and elapsed_time > 5 * 60 * 1000:
                     log.exception(f'{instance} did not activate within 5m after starting, deleting')
                     await self.call_delete_instance(instance, 'activation_timeout')
