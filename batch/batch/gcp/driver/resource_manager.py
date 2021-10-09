@@ -68,7 +68,7 @@ class GCPResourceManager(CloudResourceManager):
         self.task_manager.ensure_future(periodically_call(60, self.update_region_quotas))
         self.task_manager.ensure_future(periodically_call(60, self.delete_orphaned_disks))
 
-    def shutdown(self):
+    async def shutdown(self):
         try:
             self.task_manager.shutdown()
         finally:
