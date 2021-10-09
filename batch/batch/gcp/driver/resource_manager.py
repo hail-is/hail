@@ -3,6 +3,7 @@ from typing import Optional, TYPE_CHECKING
 import aiohttp
 import logging
 import uuid
+import dateutil.parser
 
 from hailtop import aiotools
 from hailtop.aiocloud import aiogoogle
@@ -80,6 +81,11 @@ class GCPResourceManager(CloudResourceManager):
                 raise VMDoesNotExist() from e
             raise
 
+    def parse_gcp_timestamp(self, timestamp: Optional[str]) -> Optional[float]:
+        if timestamp is None:
+            return None
+        return dateutil.parser.isoparse(timestamp).timestamp() * 1000
+
     async def get_vm_state(self, instance) -> VMState:
         instance_config = instance.instance_config
         assert isinstance(instance_config, GCPInstanceConfig)
@@ -87,17 +93,19 @@ class GCPResourceManager(CloudResourceManager):
             spec = await self.compute_client.get(f'/zones/{instance_config.zone}/instances/{instance_config.name}')
             state = spec['status']  # PROVISIONING, STAGING, RUNNING, STOPPING, TERMINATED
 
-            if state in 'PROVISIONING':
-                state = VMState.CREATING
-            elif state in ('STAGING', 'RUNNING'):
-                state = VMState.RUNNING
+            if state == ('PROVISIONING', 'STAGING'):
+                vm_state = VMState(VMState.CREATING, spec, instance.time_created)
+            elif state in 'RUNNING':
+                last_start_timestamp_msecs = self.parse_gcp_timestamp(spec.get('lastStartTimestamp'))
+                vm_state = VMState(VMState.RUNNING, spec, last_start_timestamp_msecs)
             elif state in ('STOPPING', 'TERMINATED'):
-                state = VMState.TERMINATED
+                last_stop_timestamp_msecs = self.parse_gcp_timestamp(spec.get('lastStopTimestamp'))
+                vm_state = VMState(VMState.TERMINATED, spec, last_stop_timestamp_msecs)
             else:
-                log.exception(f'Unknown gce stat {state} for {instance}')
-                state = None
+                log.exception(f'Unknown gce state {state} for {instance}')
+                vm_state = VMState(VMState.UNKNOWN, spec, None)
 
-            return VMState(state, spec, spec.get('lastStartTimestamp'))
+            return vm_state
 
         except aiohttp.ClientResponseError as e:
             if e.status == 404:

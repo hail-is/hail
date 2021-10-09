@@ -17,23 +17,6 @@ log = logging.getLogger('inst_coll_manager')
 class InstanceCollectionManager:
     job_private_inst_manager: JobPrivateInstanceManager
 
-    @staticmethod
-    async def create(app, machine_name_prefix, config_manager: InstanceCollectionConfigs):
-        icm = InstanceCollectionManager(app, machine_name_prefix)
-        jpim = JobPrivateInstanceManager(app, machine_name_prefix, config_manager.jpim_config)
-        icm.job_private_inst_manager = jpim
-        icm.name_inst_coll[jpim.name] = jpim
-
-        for pool_name, config in config_manager.name_pool_config.items():
-            pool = Pool(app, machine_name_prefix, config)
-            icm.name_pool[pool_name] = pool
-            icm.name_inst_coll[pool_name] = pool
-
-        await asyncio.gather(*[inst_coll.async_init() for inst_coll in icm.name_inst_coll.values()])
-
-        log.info('finished initializing instance collections')
-        return icm
-
     def __init__(self, app, machine_name_prefix):
         self.app = app
         self.db: Database = app['db']
@@ -54,6 +37,8 @@ class InstanceCollectionManager:
             self.name_inst_coll[pool_name] = pool
 
         await asyncio.gather(*[inst_coll.async_init() for inst_coll in self.name_inst_coll.values()])
+
+        log.info('finished initializing instance collections')
 
     def shutdown(self):
         for inst_coll in self.name_inst_coll.values():

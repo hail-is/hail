@@ -1134,13 +1134,13 @@ async def on_cleanup(app):
                     app['canceller'].shutdown()
                 finally:
                     try:
-                        await app['file_store'].close()
+                        app['task_manager'].shutdown()
                     finally:
                         try:
-                            app['task_manager'].shutdown()
+                            await app['resource_manager'].shutdown()
                         finally:
                             try:
-                                await app['resource_manager'].shutdown()
+                                await app['file_store'].close()
                             finally:
                                 try:
                                     await app['client_session'].close()
