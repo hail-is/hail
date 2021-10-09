@@ -60,6 +60,8 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         'gvcf_external_header',
         'gvcf_sample_names',
         'gvcf_import_intervals',
+        'gvcf_info_to_keep',
+        'gvcf_reference_entry_fields_to_keep',
     ]
 
     __slots__ = tuple(__serialized_slots__ + ['_uuid', '_job_id', '__intervals_cache'])
@@ -79,6 +81,8 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                  gvcf_sample_names: Optional[List[str]] = None,
                  gvcf_external_header: Optional[str] = None,
                  gvcf_import_intervals: List[Interval],
+                 gvcf_info_to_keep: Optional[List[str]] = None,
+                 gvcf_reference_entry_fields_to_keep: Optional[List[str]] = None,
                  ):
         if not (vdses or gvcfs):
             raise ValueError("one of 'vdses' or 'gvcfs' must be nonempty")
@@ -113,6 +117,8 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         self.gvcf_sample_names = gvcf_sample_names
         self.gvcf_external_header = gvcf_external_header
         self.gvcf_import_intervals = gvcf_import_intervals
+        self.gvcf_info_to_keep = gvcf_info_to_keep
+        self.gvcf_reference_entry_fields_to_keep = gvcf_reference_entry_fields_to_keep
         self._uuid = uuid.uuid4()
         self._job_id = 1
         self.__intervals_cache = {}
@@ -193,6 +199,8 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                 'gvcf_batch_size': self.gvcf_batch_size,
                 'gvcf_external_header': self.gvcf_external_header,  # put this here for humans
                 'contig_recoding': self.contig_recoding,
+                'gvcf_info_to_keep': self.gvcf_info_to_keep,
+                'gvcf_reference_entry_fields_to_keep': self.gvcf_reference_entry_fields_to_keep,
                 'vdses': self.vdses,
                 'gvcfs': self.gvcfs,
                 'gvcf_sample_names': self.gvcf_sample_names,
@@ -261,7 +269,9 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
             inputs, files_to_merge = files_to_merge[:step], files_to_merge[step:]
             if sample_names is not None:
                 names, sample_names = sample_names[:step], sample_names[step:]
-            vdses = [transform_gvcf(vcf)
+            vdses = [transform_gvcf(vcf,
+                                    reference_entry_fields_to_keep=self.gvcf_reference_entry_fields_to_keep,
+                                    info_to_keep=self.gvcf_info_to_keep)
                      for vcf in hl.import_gvcfs(inputs,
                                                 self.gvcf_import_intervals,
                                                 array_elements_required=False,
@@ -302,6 +312,8 @@ def new_combiner(*,
                  use_exome_default_intervals: bool = False,
                  gvcf_external_header: Optional[str] = None,
                  gvcf_sample_names: Optional[List[str]] = None,
+                 gvcf_info_to_keep: Optional[List[str]] = None,
+                 gvcf_reference_entry_fields_to_keep: Optional[List[str]] = None,
                  branch_factor: int = VariantDatasetCombiner.default_branch_factor,
                  target_records: int = VariantDatasetCombiner.default_target_records,
                  batch_size: int = VariantDatasetCombiner.default_gvcf_batch_size,
@@ -393,6 +405,12 @@ def new_combiner(*,
         if gvcf_sample_names is not None:
             for name in gvcf_sample_names:
                 sha.update(name.encode())
+        if gvcf_info_to_keep is not None:
+            for info in gvcf_info_to_keep:
+                sha.update(info.encode())
+        if gvcf_reference_entry_fields_to_keep is not None:
+            for field in gvcf_reference_entry_fields_to_keep:
+                sha.update(field.encode())
         if contig_recoding is not None:
             for key, value in sorted(contig_recoding.items()):
                 sha.update(key.encode())
@@ -432,7 +450,9 @@ def new_combiner(*,
                                   gvcfs=gvcf_paths,
                                   gvcf_import_intervals=intervals,
                                   gvcf_external_header=gvcf_external_header,
-                                  gvcf_sample_names=gvcf_sample_names)
+                                  gvcf_sample_names=gvcf_sample_names,
+                                  gvcf_info_to_keep=gvcf_info_to_keep,
+                                  gvcf_reference_entry_fields_to_keep=gvcf_reference_entry_fields_to_keep)
 
 
 def load_combiner(path: str) -> VariantDatasetCombiner:
