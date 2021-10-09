@@ -1,7 +1,6 @@
 import asyncio
 import sortedcontainers
 import logging
-import dateutil.parser
 import collections
 from typing import Dict
 

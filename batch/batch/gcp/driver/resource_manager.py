@@ -25,6 +25,12 @@ if TYPE_CHECKING:
 log = logging.getLogger('resource_manager')
 
 
+def parse_gcp_timestamp(timestamp: Optional[str]) -> Optional[float]:
+    if timestamp is None:
+        return None
+    return dateutil.parser.isoparse(timestamp).timestamp() * 1000
+
+
 class GCPResourceManager(CloudResourceManager):
     def __init__(self, app, machine_name_prefix, credentials: Optional[aiogoogle.GoogleCredentials] = None):
         self.app = app
@@ -81,11 +87,6 @@ class GCPResourceManager(CloudResourceManager):
                 raise VMDoesNotExist() from e
             raise
 
-    def parse_gcp_timestamp(self, timestamp: Optional[str]) -> Optional[float]:
-        if timestamp is None:
-            return None
-        return dateutil.parser.isoparse(timestamp).timestamp() * 1000
-
     async def get_vm_state(self, instance) -> VMState:
         instance_config = instance.instance_config
         assert isinstance(instance_config, GCPInstanceConfig)
@@ -96,10 +97,10 @@ class GCPResourceManager(CloudResourceManager):
             if state == ('PROVISIONING', 'STAGING'):
                 vm_state = VMState(VMState.CREATING, spec, instance.time_created)
             elif state in 'RUNNING':
-                last_start_timestamp_msecs = self.parse_gcp_timestamp(spec.get('lastStartTimestamp'))
+                last_start_timestamp_msecs = parse_gcp_timestamp(spec.get('lastStartTimestamp'))
                 vm_state = VMState(VMState.RUNNING, spec, last_start_timestamp_msecs)
             elif state in ('STOPPING', 'TERMINATED'):
-                last_stop_timestamp_msecs = self.parse_gcp_timestamp(spec.get('lastStopTimestamp'))
+                last_stop_timestamp_msecs = parse_gcp_timestamp(spec.get('lastStopTimestamp'))
                 vm_state = VMState(VMState.TERMINATED, spec, last_stop_timestamp_msecs)
             else:
                 log.exception(f'Unknown gce state {state} for {instance}')
