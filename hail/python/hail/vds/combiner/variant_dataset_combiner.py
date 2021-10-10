@@ -38,6 +38,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
     default_gvcf_batch_size = 100
     default_branch_factor = 100
     default_target_records = 24_000
+    gvcf_merge_task_limit = 150_000
 
     # These are used to calculate intervals for reading GVCFs in the combiner
     # The genome interval size results in 2568 partitions for GRCh38. The exome
@@ -53,7 +54,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         'reference_genome',
         'branch_factor',
         'target_records',
-        'gvcf_batch_size',
+        '_gvcf_batch_size',
         'contig_recoding',
         'vdses',
         'gvcfs',
@@ -110,7 +111,6 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         self.reference_genome = reference_genome
         self.branch_factor = branch_factor
         self.target_records = target_records
-        self.gvcf_batch_size = gvcf_batch_size
         self.contig_recoding = contig_recoding
         self.vdses = vdses
         self.gvcfs = gvcfs
@@ -122,6 +122,20 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         self._uuid = uuid.uuid4()
         self._job_id = 1
         self.__intervals_cache = {}
+        self.gvcf_batch_size = gvcf_batch_size
+
+    @property
+    def gvcf_batch_size(self):
+        return self._gvcf_batch_size
+
+    @gvcf_batch_size.setter
+    def gvcf_batch_size(self, value: int):
+        if value * len(self.gvcf_import_intervals) > VariantDatasetCombiner.gvcf_merge_task_limit:
+            old_value = value
+            value = VariantDatasetCombiner.gvcf_merge_task_limit // len(self.gvcf_import_intervals)
+            warning(f'gvcf_batch_size of {old_value} would produce too many tasks '
+                    f'using {value} instead')
+        self._gvcf_batch_size = value
 
     def __eq__(self, other):
         if other.__class__ != VariantDatasetCombiner:
@@ -406,8 +420,8 @@ def new_combiner(*,
             for name in gvcf_sample_names:
                 sha.update(name.encode())
         if gvcf_info_to_keep is not None:
-            for info in gvcf_info_to_keep:
-                sha.update(info.encode())
+            for kept_info in gvcf_info_to_keep:
+                sha.update(kept_info.encode())
         if gvcf_reference_entry_fields_to_keep is not None:
             for field in gvcf_reference_entry_fields_to_keep:
                 sha.update(field.encode())
