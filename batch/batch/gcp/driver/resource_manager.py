@@ -1,4 +1,4 @@
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, Callable
 
 import aiohttp
 import logging
@@ -32,18 +32,20 @@ def parse_gcp_timestamp(timestamp: Optional[str]) -> Optional[float]:
 
 
 class GCPResourceManager(CloudResourceManager):
-    def __init__(self, app, machine_name_prefix, credentials: Optional[aiogoogle.GoogleCredentials] = None):
+    def __init__(self, app, machine_name_prefix, make_credentials: Optional[Callable[[], aiogoogle.GoogleCredentials]] = None):
         self.app = app
         self.db: Database = app['db']
         self.machine_name_prefix = machine_name_prefix
 
-        if credentials is None:
-            credentials = aiogoogle.GoogleCredentials.from_file('/gsa-key/key.json')
+        if make_credentials is None:
+            def _make_credentials():
+                return aiogoogle.GoogleCredentials.from_file('/gsa-key/key.json')
+            make_credentials = _make_credentials
 
-        self.compute_client = aiogoogle.GoogleComputeClient(PROJECT, credentials=credentials)
+        self.compute_client = aiogoogle.GoogleComputeClient(PROJECT, credentials=make_credentials())
 
         self.activity_logs_client = aiogoogle.GoogleLoggingClient(
-            credentials=credentials,
+            credentials=make_credentials(),
             # The project-wide logging quota is 60 request/m.  The event
             # loop sleeps 15s per iteration, so the max rate is 4
             # iterations/m.  Note, the event loop could make multiple
