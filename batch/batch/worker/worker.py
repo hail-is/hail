@@ -62,6 +62,9 @@ from ..utils import Box, instance_config_from_config_dict
 from ..resource_utils import storage_gib_to_bytes, is_valid_storage_request
 
 from ..gcp.worker.disk import GCPDisk
+from ..gcp.worker.credentials import GCPUserCredentials
+
+from .credentials import CloudUserCredentials
 
 # uvloop.install()
 
@@ -109,6 +112,7 @@ BATCH_WORKER_IMAGE_ID = os.environ['BATCH_WORKER_IMAGE_ID']
 UNRESERVED_WORKER_DATA_DISK_SIZE_GB = int(os.environ['UNRESERVED_WORKER_DATA_DISK_SIZE_GB'])
 assert UNRESERVED_WORKER_DATA_DISK_SIZE_GB >= 0
 
+log.info(f'CLOUD {CLOUD}')
 log.info(f'CORES {CORES}')
 log.info(f'NAME {NAME}')
 log.info(f'NAMESPACE {NAMESPACE}')
@@ -574,6 +578,7 @@ class Container:
                 raise
 
     async def batch_worker_access_token(self):
+        assert CLOUD == 'gcp'
         async with await request_retry_transient_errors(
             self.client_session,
             'POST',
@@ -585,8 +590,7 @@ class Container:
             return {'username': 'oauth2accesstoken', 'password': access_token}
 
     def current_user_access_token(self):
-        key = base64.b64decode(self.job.gsa_key['key.json']).decode()
-        return {'username': '_json_key', 'password': key}
+        return {'username': self.job.credentials.username, 'password': self.job.credentials.password}
 
     async def extract_rootfs(self):
         assert self.rootfs_path
@@ -1037,7 +1041,7 @@ def copy_container(
             json.dumps(files),
             '-v',
         ],
-        'env': ['GOOGLE_APPLICATION_CREDENTIALS=/gsa-key/key.json'],
+        'env': [f'{job.credentials.cloud_env_name}={job.credentials.mount_path}'],
         'cpu': cpu,
         'memory': memory,
         'scratch': scratch,
@@ -1065,22 +1069,25 @@ class Job:
         # Make sure this path isn't in self.scratch to avoid accidental bucket deletions!
         return f'/gcsfuse/{self.token}/{bucket}'
 
-    def gsa_key_file_path(self):
-        return f'{self.scratch}/gsa-key'
+    def credentials_host_dirname(self):
+        return f'{self.scratch}/{self.credentials.secret_name}'
+
+    def credentials_host_file_path(self):
+        return f'{self.credentials_host_dirname()}/{self.credentials.file_name}'
 
     @classmethod
-    def create(cls, batch_id, user, gsa_key, job_spec, format_version, task_manager, pool, client_session):
+    def create(cls, batch_id, user, credentials, job_spec, format_version, task_manager, pool, client_session):
         type = job_spec['process']['type']
         if type == 'docker':
-            return DockerJob(batch_id, user, gsa_key, job_spec, format_version, task_manager, pool, client_session)
+            return DockerJob(batch_id, user, credentials, job_spec, format_version, task_manager, pool, client_session)
         assert type == 'jvm'
-        return JVMJob(batch_id, user, gsa_key, job_spec, format_version, task_manager, pool)
+        return JVMJob(batch_id, user, credentials, job_spec, format_version, task_manager, pool)
 
     def __init__(
         self,
         batch_id: int,
         user: str,
-        gsa_key,
+        credentials: CloudUserCredentials,
         job_spec,
         format_version: BatchFormatVersion,
         task_manager: aiotools.BackgroundTaskManager,
@@ -1088,7 +1095,7 @@ class Job:
     ):
         self.batch_id = batch_id
         self.user = user
-        self.gsa_key = gsa_key
+        self.credentials = credentials
         self.job_spec = job_spec
         self.format_version = format_version
 
@@ -1228,14 +1235,14 @@ class DockerJob(Job):
         self,
         batch_id: int,
         user: str,
-        gsa_key,
+        credentials: CloudUserCredentials,
         job_spec,
         format_version,
         task_manager: aiotools.BackgroundTaskManager,
         pool: concurrent.futures.ThreadPoolExecutor,
         client_session: httpx.ClientSession,
     ):
-        super().__init__(batch_id, user, gsa_key, job_spec, format_version, task_manager, pool)
+        super().__init__(batch_id, user, credentials, job_spec, format_version, task_manager, pool)
         input_files = job_spec.get('input_files')
         output_files = job_spec.get('output_files')
 
@@ -1252,7 +1259,7 @@ class DockerJob(Job):
                     'options': ['rbind', 'rw'],
                 }
                 self.main_volume_mounts.append(volume_mount)
-                # this will be the user gsa-key
+                # this will be the user credentials
                 if secret.get('mount_in_copy', False):
                     self.input_volume_mounts.append(volume_mount)
                     self.output_volume_mounts.append(volume_mount)
@@ -1388,13 +1395,13 @@ class DockerJob(Job):
 
                 with self.step('adding gcsfuse bucket'):
                     if self.gcsfuse:
-                        populate_secret_host_path(self.gsa_key_file_path(), self.gsa_key)
+                        populate_secret_host_path(self.credentials_host_dirname(), self.credentials.secret_data)
                         for b in self.gcsfuse:
                             bucket = b['bucket']
                             await add_gcsfuse_bucket(
                                 mount_path=self.gcsfuse_path(bucket),
                                 bucket=bucket,
-                                key_file=f'{self.gsa_key_file_path()}/key.json',
+                                key_file=self.credentials_host_file_path(),
                                 read_only=b['read_only'],
                             )
                             b['mounted'] = True
@@ -1507,13 +1514,13 @@ class JVMJob(Job):
         self,
         batch_id: int,
         user: str,
-        gsa_key,
+        credentials: CloudUserCredentials,
         job_spec,
         format_version,
         task_manager: aiotools.BackgroundTaskManager,
         pool: concurrent.futures.ThreadPoolExecutor,
     ):
-        super().__init__(batch_id, user, gsa_key, job_spec, format_version, task_manager, pool)
+        super().__init__(batch_id, user, credentials, job_spec, format_version, task_manager, pool)
         assert job_spec['process']['type'] == 'jvm'
 
         input_files = job_spec.get('input_files')
@@ -1526,8 +1533,8 @@ class JVMJob(Job):
                 'HAIL_DEPLOY_CONFIG_FILE',
                 'HAIL_TOKENS_FILE',
                 'HAIL_SSL_CONFIG_DIR',
-                'HAIL_GSA_KEY_FILE',
                 'HAIL_WORKER_SCRATCH_DIR',
+                self.credentials.hail_env_name,
             }, envvar
 
         self.env.append(
@@ -1535,8 +1542,8 @@ class JVMJob(Job):
         )
         self.env.append({'name': 'HAIL_TOKENS_FILE', 'value': f'{self.scratch}/secrets/user-tokens/tokens.json'})
         self.env.append({'name': 'HAIL_SSL_CONFIG_DIR', 'value': f'{self.scratch}/secrets/ssl-config'})
-        self.env.append({'name': 'HAIL_GSA_KEY_FILE', 'value': f'{self.scratch}/secrets/gsa-key/key.json'})
         self.env.append({'name': 'HAIL_WORKER_SCRATCH_DIR', 'value': self.scratch})
+        self.env.append({'name': self.credentials.hail_env_name, 'value': self.credentials_host_file_path()})
 
         # main container
         self.main_spec = {
@@ -1598,7 +1605,7 @@ class JVMJob(Job):
                     for secret in self.secrets:
                         populate_secret_host_path(self.secret_host_path(secret), secret['data'])
 
-                populate_secret_host_path(self.gsa_key_file_path(), self.gsa_key)
+                populate_secret_host_path(self.credentials_host_dirname(), self.credentials.secret_data)
                 self.state = 'running'
 
                 log.info(f'{self}: downloading JAR')
@@ -1829,10 +1836,13 @@ class Worker:
         if not self.active:
             return web.HTTPServiceUnavailable()
 
+        assert CLOUD == 'gcp'
+        credentials = GCPUserCredentials(body['gsa_key'])
+
         job = Job.create(
             batch_id,
             body['user'],
-            body['gsa_key'],
+            credentials,
             job_spec,
             format_version,
             self.task_manager,
@@ -2060,7 +2070,7 @@ class Worker:
         resp = await request_retry_transient_errors(
             self.client_session,
             'GET',
-            deploy_config.url('batch-driver', '/api/v1alpha/instances/gsa_key'),
+            deploy_config.url('batch-driver', '/api/v1alpha/instances/credentials'),
             headers={'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {os.environ["ACTIVATION_TOKEN"]}'},
         )
         resp_json = await resp.json()
