@@ -228,6 +228,15 @@ async def get_gsa_key_1(instance):
     return web.json_response({'key': key})
 
 
+async def get_credentials_1(instance):
+    log.info(f'returning {instance.inst_coll.cloud} credentials to activating instance {instance}')
+    assert instance.inst_coll.cloud == 'gcp'
+    credentials_file = '/gsa-key/key.json'
+    with open(credentials_file, 'r') as f:
+        key = json.loads(f.read())
+    return web.json_response({'key': key})
+
+
 async def activate_instance_1(request, instance):
     body = await request.json()
     ip_address = body['ip_address']
@@ -244,6 +253,12 @@ async def activate_instance_1(request, instance):
 @activating_instances_only
 async def get_gsa_key(request, instance):  # pylint: disable=unused-argument
     return await asyncio.shield(get_gsa_key_1(instance))
+
+
+@routes.get('/api/v1alpha/instances/credentials')
+@activating_instances_only
+async def get_credentials(request, instance):  # pylint: disable=unused-argument
+    return await asyncio.shield(get_credentials_1(instance))
 
 
 @routes.post('/api/v1alpha/instances/activate')

@@ -803,6 +803,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         raise web.HTTPBadRequest(reason=f'unauthorized secret {(secret["namespace"], secret["name"])}')
 
                 spec['secrets'] = secrets
+
                 secrets.append(
                     {
                         'namespace': DEFAULT_NAMESPACE,
@@ -821,7 +822,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if spec.get('gcsfuse') and cloud != 'gcp':
                     raise web.HTTPBadRequest(reason=f'gcsfuse is not supported in {cloud}')
 
-                if all(envvar['name'] != 'GOOGLE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
+                if cloud == 'gcp' and all(envvar['name'] != 'GOOGLE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
                     spec['env'].append({'name': 'GOOGLE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
 
                 if spec.get('mount_tokens', False):
