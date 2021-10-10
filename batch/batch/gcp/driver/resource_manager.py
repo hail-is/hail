@@ -94,9 +94,9 @@ class GCPResourceManager(CloudResourceManager):
             spec = await self.compute_client.get(f'/zones/{instance_config.zone}/instances/{instance_config.name}')
             state = spec['status']  # PROVISIONING, STAGING, RUNNING, STOPPING, TERMINATED
 
-            if state == ('PROVISIONING', 'STAGING'):
+            if state in ('PROVISIONING', 'STAGING'):
                 vm_state = VMState(VMState.CREATING, spec, instance.time_created)
-            elif state in 'RUNNING':
+            elif state == 'RUNNING':
                 last_start_timestamp_msecs = parse_gcp_timestamp(spec.get('lastStartTimestamp'))
                 vm_state = VMState(VMState.RUNNING, spec, last_start_timestamp_msecs)
             elif state in ('STOPPING', 'TERMINATED'):
