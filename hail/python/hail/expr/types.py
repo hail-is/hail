@@ -915,6 +915,7 @@ class tset(HailType):
     @typecheck_method(element_type=hail_type)
     def __init__(self, element_type):
         self._element_type = element_type
+        self._array_repr = tarray(element_type)
         super(tset, self).__init__()
 
     @property
@@ -958,6 +959,9 @@ class tset(HailType):
     def _convert_to_json(self, x):
         return [self.element_type._convert_to_json_na(elt) for elt in x]
 
+    def _convert_from_encoding(self, byte_reader):
+        return set(self._array_repr._convert_from_encoding(byte_reader))
+
     def _propagate_jtypes(self, jtype):
         self._element_type._add_jtype(jtype.elementType())
 
@@ -1000,6 +1004,7 @@ class tdict(HailType):
     def __init__(self, key_type, value_type):
         self._key_type = key_type
         self._value_type = value_type
+        self._array_repr = tarray(tstruct(key=key_type, value=value_type))
         super(tdict, self).__init__()
 
     @property
@@ -1061,6 +1066,10 @@ class tdict(HailType):
     def _convert_to_json(self, x):
         return [{'key': self.key_type._convert_to_json(k),
                  'value': self.value_type._convert_to_json(v)} for k, v in x.items()]
+
+    def _convert_from_encoding(self, byte_reader):
+        array_of_pairs = self._array_repr._convert_from_encoding(byte_reader)
+        return {pair.key: pair.value for pair in array_of_pairs}
 
     def _propagate_jtypes(self, jtype):
         self._key_type._add_jtype(jtype.keyType())
