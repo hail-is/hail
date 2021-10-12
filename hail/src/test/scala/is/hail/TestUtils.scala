@@ -5,6 +5,7 @@ import breeze.linalg.{DenseMatrix, Matrix, Vector}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir._
 import is.hail.expr.ir.{BindingEnv, MakeTuple, Subst}

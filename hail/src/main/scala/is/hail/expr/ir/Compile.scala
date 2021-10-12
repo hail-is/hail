@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations._
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.agg.AggStateSig
 import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.expr.ir.streams.{EmitStream, StreamArgType}

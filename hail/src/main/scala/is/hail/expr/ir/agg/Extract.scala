@@ -2,6 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, RegionPool, RegionValue}
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.SparkTaskContext
 import is.hail.expr.ir
 import is.hail.expr.ir._

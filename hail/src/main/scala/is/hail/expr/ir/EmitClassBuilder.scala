@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.{Region, RegionPool, RegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.backend.{BackendUtils, BroadcastValue}
+import is.hail.backend.{BackendUtils, BroadcastValue, ExecuteContext}
 import is.hail.expr.ir.functions.IRRandomness
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.io.fs.FS
@@ -14,9 +14,9 @@ import is.hail.types.virtual.Type
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.TaskContext
+
 import java.io._
 import java.lang.reflect.InvocationTargetException
-
 import scala.collection.mutable
 import scala.language.existentials
 

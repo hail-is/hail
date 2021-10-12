@@ -2,9 +2,10 @@ package is.hail.rvd
 
 import is.hail.annotations._
 import is.hail.asm4s.AsmFunction3RegionLongLongLong
+import is.hail.backend.ExecuteContext
 import is.hail.expr.{JSONAnnotationImpex, ir}
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
-import is.hail.expr.ir.{ExecuteContext, IR, Literal, PartitionNativeReader, PartitionZippedIndexedNativeReader, PartitionZippedNativeReader, ReadPartition, Ref, ToStream}
+import is.hail.expr.ir.{IR, Literal, PartitionNativeReader, PartitionZippedIndexedNativeReader, PartitionZippedNativeReader, ReadPartition, Ref, ToStream}
 import is.hail.io._
 import is.hail.io.fs.FS
 import is.hail.io.index.{InternalNodeBuilder, LeafNodeBuilder}

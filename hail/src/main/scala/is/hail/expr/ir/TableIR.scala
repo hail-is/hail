@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.HailTaskContext
+import is.hail.backend.{ExecuteContext, HailTaskContext}
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, MatrixToTableFunction, StringFunctions, TableToTableFunction}
@@ -28,8 +28,8 @@ import org.apache.spark.sql.Row
 import org.json4s.JsonAST.JString
 import org.json4s.jackson.JsonMethods
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
-import java.io.{ByteArrayInputStream, DataInputStream, DataOutputStream, InputStream}
 
+import java.io.{ByteArrayInputStream, DataInputStream, DataOutputStream, InputStream}
 import is.hail.io.avro.AvroTableReader
 
 import scala.reflect.ClassTag

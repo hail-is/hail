@@ -1,5 +1,6 @@
 package is.hail.expr.ir.lowering
 
+import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.GetElement

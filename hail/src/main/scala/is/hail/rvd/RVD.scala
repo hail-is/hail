@@ -1,9 +1,9 @@
 package is.hail.rvd
 
 import java.util
-
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.PruneDeadFields.isSupertype
 import is.hail.types._
@@ -14,7 +14,7 @@ import is.hail.io.index.IndexWriter
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, RichContextRDDRegionValue, TypedCodecSpec}
 import is.hail.sparkextras._
 import is.hail.utils._
-import is.hail.expr.ir.{ExecuteContext, InferPType}
+import is.hail.expr.ir.InferPType
 import is.hail.utils.PartitionCounts.{PCSubsetOffset, getPCSubsetOffset, incrementalPCSubsetOffset}
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark.TaskContext

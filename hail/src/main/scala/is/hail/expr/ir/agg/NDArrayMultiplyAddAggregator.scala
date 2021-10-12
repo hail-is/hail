@@ -2,7 +2,8 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{UnitInfo, Value, _}
-import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder, ExecuteContext, IEmitCode}
+import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.linalg.LinalgCodeUtils
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.stypes.EmitType
