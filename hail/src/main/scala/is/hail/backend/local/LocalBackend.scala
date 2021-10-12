@@ -153,7 +153,7 @@ class LocalBackend(
       val (pt, a) = _execute(ctx, ir)
       val result = pt match {
         case None =>
-          null
+          Array[Byte]()
         case Some(PTypeReferenceSingleCodeType(pt: PTuple)) =>
           val elementType = pt.fields(0).typ
           assert(pt.isFieldDefined(a, 0))
@@ -187,7 +187,6 @@ class LocalBackend(
     val (bytes, timer) = ExecutionTimer.time("LocalBackend.encodeToBytes") { timer =>
       val bs = BufferSpec.parseOrDefault(bufferSpecString)
       withExecuteContext(timer) { ctx =>
-        assert(ir.typ != TVoid)
         executeToEncoded(timer, ir, bs)
       }
     }

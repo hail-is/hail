@@ -327,6 +327,9 @@ class _tvoid(HailType):
     def clear(self):
         pass
 
+    def _convert_from_encoding(self, byte_reader):
+        return None
+
 
 class _tint32(HailType):
     """Hail type for signed 32-bit integers.

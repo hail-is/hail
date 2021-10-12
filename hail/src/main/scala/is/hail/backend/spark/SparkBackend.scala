@@ -411,27 +411,28 @@ class SparkBackend(
 
   def executeEncode(ir: IR, bufferSpecString: String): (Array[Byte], String) = {
     val (encodedValue, timer) = ExecutionTimer.time("SparkBackend.executeEncode") { timer =>
-      encodeToBytes(ir, bufferSpecString)
+      withExecuteContext(timer) { ctx =>
+        val queryID = Backend.nextID()
+        log.info(s"starting execution of query $queryID of initial size ${ IRSize(ir) }")
+        val res = _execute(ctx, ir, true) match {
+          case Left(_) => Array[Byte]()
+          case Right((t, off)) => encodeToBytes(ctx, t, off, bufferSpecString)
+        }
+        log.info(s"finished execution of query $queryID")
+        res
+      }
     }
     (encodedValue, Serialization.write(Map("timings" -> timer.toMap))(new DefaultFormats {}))
   }
 
-  def encodeToBytes(ir: IR, bufferSpecString: String): Array[Byte] = {
-    ExecutionTimer.logTime("SparkBackend.encodeToBytes") { timer =>
-      val bs = BufferSpec.parseOrDefault(bufferSpecString)
-      withExecuteContext(timer) { ctx =>
-        _execute(ctx, ir, true) match {
-          case Left(_) => throw new RuntimeException("expression returned void")
-          case Right((t, off)) =>
-            assert(t.size == 1)
-            val elementType = t.fields(0).typ
-            val codec = TypedCodecSpec(
-              EType.fromTypeAllOptional(elementType.virtualType), elementType.virtualType, bs)
-            assert(t.isFieldDefined(off, 0))
-            codec.encode(ctx, elementType, t.loadField(off, 0))
-        }
-      }
-    }
+  def encodeToBytes(ctx: ExecuteContext, t: PTuple, off: Long, bufferSpecString: String): Array[Byte] = {
+    val bs = BufferSpec.parseOrDefault(bufferSpecString)
+    assert(t.size == 1)
+    val elementType = t.fields(0).typ
+    val codec = TypedCodecSpec(
+      EType.fromTypeAllOptional(elementType.virtualType), elementType.virtualType, bs)
+    assert(t.isFieldDefined(off, 0))
+    codec.encode(ctx, elementType, t.loadField(off, 0))
   }
 
   def decodeToJSON(ptypeString: String, b: Array[Byte], bufferSpecString: String): String = {
