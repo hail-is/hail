@@ -80,11 +80,12 @@ class Py4JBackend(Backend):
 
     def execute(self, ir, timed=False):
         jir = self._to_java_value_ir(ir)
+        stream_codec = '{"name":"StreamBufferSpec"}'
         # print(self._hail_package.expr.ir.Pretty.apply(jir, True, -1))
         try:
-            result = json.loads(self._jhc.backend().executeJSON(jir))
-            value = ir.typ._from_json(result['value'])
-            timings = result['timings']
+            result_tuple = self._jhc.backend().executeEncode(jir, stream_codec)
+            (result, timings) = (result_tuple._1(), result_tuple._2())
+            value = ir.typ._from_encoding(result)
 
             return (value, timings) if timed else value
         except FatalError as e:

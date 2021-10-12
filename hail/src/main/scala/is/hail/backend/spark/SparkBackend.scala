@@ -409,7 +409,13 @@ class SparkBackend(
     Serialization.write(Map("value" -> jsonValue, "timings" -> timer.toMap))(new DefaultFormats {})
   }
 
-  // Called from python
+  def executeEncode(ir: IR, bufferSpecString: String): (Array[Byte], String) = {
+    val (encodedValue, timer) = ExecutionTimer.time("SparkBackend.executeEncode") { timer =>
+      encodeToBytes(ir, bufferSpecString)
+    }
+    (encodedValue, Serialization.write(Map("timings" -> timer.toMap))(new DefaultFormats {}))
+  }
+
   def encodeToBytes(ir: IR, bufferSpecString: String): Array[Byte] = {
     ExecutionTimer.logTime("SparkBackend.encodeToBytes") { timer =>
       val bs = BufferSpec.parseOrDefault(bufferSpecString)

@@ -163,7 +163,7 @@ def eval_timed(expression):
 
 
 @typecheck(expression=expr_any)
-def eval_old(expression):
+def eval(expression):
     """Evaluate a Hail expression, returning the result.
 
     This method is extremely useful for learning about Hail expressions and
@@ -190,38 +190,6 @@ def eval_old(expression):
     Any
     """
     return eval_timed(expression)[0]
-
-def eval(expression):
-    """Evaluate a Hail expression, returning the result and the times taken for
-    each stage in the evaluation process.
-
-    Parameters
-    ----------
-    expression : :class:`.Expression`
-        Any expression, or a Python value that can be implicitly interpreted as an expression.
-
-    Returns
-    -------
-    (Any, dict)
-        Result of evaluating `expression` and a dictionary of the timings
-    """
-    from hail.utils.java import Env
-
-    analyze('eval2', expression, Indices(expression._indices.source))
-
-    tupled =hl.tuple([expression])
-    if tupled._indices.source is None:
-        ir_type = tupled._ir.typ
-        expression_type = tupled.dtype
-        if ir_type != tupled.dtype:
-            raise ExpressionException(f'Expression type and IR type differed: \n{ir_type}\n vs \n{expression_type}') #TODO Fix error
-        encoded_bytes = hl.experimental.encode(tupled)
-        return hl.experimental.codec.decode(ir_type, encoded_bytes)[0]
-    else:
-        uid = Env.get_uid()
-        ir = tupled._indices.source.select_globals(**{uid: tupled}).index_globals()[uid]._ir
-        encoded_bytes = hl.experimental.encode(tupled)
-        return hl.experimental.codec.decode(ir._type, encoded_bytes)[0]
 
 
 @typecheck(expression=expr_any)
