@@ -44,7 +44,8 @@ class Struct(Mapping):
     """
 
     def __init__(self, **kwargs):
-        self._fields = kwargs
+        # Set this way to avoid an infinite recursion in `__getattr__`.
+        self.__dict__["_fields"] = kwargs
 
     def __contains__(self, item):
         return item in self._fields
@@ -61,15 +62,15 @@ class Struct(Mapping):
 
     def __setattr__(self, key, value):
         if key in self._fields:
-            self._fields[key] = value
+            raise ValueError("Structs are immutable, cannot overwrite a field.")
         else:
             super().__setattr__(key, value)
 
     def __getattr__(self, item):
-        if item in self._fields:
-            return self._fields[item]
-        elif item in self.__dict__:
+        if item in self.__dict__:
             return self.__dict__[item]
+        elif item in self._fields:
+            return self._fields[item]
         else:
             raise AttributeError(get_nice_attr_error(self, item))
 
