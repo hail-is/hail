@@ -1,6 +1,7 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.HailContext
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.methods.{ForceCountTable, NPartitionsTable}

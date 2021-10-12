@@ -2,7 +2,7 @@ package is.hail.backend
 
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
-import is.hail.expr.ir.{ExecuteContext, IR, SortField}
+import is.hail.expr.ir.{IR, SortField}
 import is.hail.io.fs.FS
 import is.hail.linalg.BlockMatrix
 import is.hail.types._

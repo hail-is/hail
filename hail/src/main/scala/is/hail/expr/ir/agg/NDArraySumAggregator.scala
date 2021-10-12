@@ -2,7 +2,8 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder, ExecuteContext, EmitParamType, SCodeEmitParamType, uuid4, IEmitCode}
+import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder, EmitParamType, IEmitCode, SCodeEmitParamType, uuid4}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.stypes.{EmitType, SCode}
 import is.hail.types.physical.stypes.concrete.SNDArrayPointerSettable

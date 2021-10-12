@@ -1,8 +1,8 @@
 package is.hail.annotations
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream}
-import is.hail.backend.BroadcastValue
-import is.hail.expr.ir.{EncodedLiteral, ExecuteContext}
+import is.hail.backend.{BroadcastValue, ExecuteContext}
+import is.hail.expr.ir.EncodedLiteral
 import is.hail.types.physical.{PArray, PStruct, PType}
 import is.hail.types.virtual.{TBaseStruct, TStruct}
 import is.hail.io.{BufferSpec, Decoder, TypedCodecSpec}

@@ -1,8 +1,8 @@
 package is.hail.compatibility
 
 import is.hail.HailContext
+import is.hail.backend.ExecuteContext
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir.ExecuteContext
 import is.hail.types.encoded._
 import is.hail.types.virtual._
 import is.hail.io._

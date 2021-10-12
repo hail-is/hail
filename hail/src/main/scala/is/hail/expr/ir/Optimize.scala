@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.HailContext
+import is.hail.backend.ExecuteContext
 import is.hail.utils._
 
 object Optimize {

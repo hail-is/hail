@@ -4,6 +4,7 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import is.hail.HailSuite
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.check.{Gen, Prop}
 import is.hail.expr.ir.agg._
 import is.hail.expr.ir.orderings.CodeOrdering

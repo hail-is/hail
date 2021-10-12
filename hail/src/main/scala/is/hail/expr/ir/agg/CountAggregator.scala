@@ -3,7 +3,8 @@ package is.hail.expr.ir.agg
 import freemarker.template.utility.Execute
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitContext, ExecuteContext, IEmitCode}
+import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitContext, IEmitCode}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.interfaces.primitive

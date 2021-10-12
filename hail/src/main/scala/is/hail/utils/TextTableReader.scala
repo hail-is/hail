@@ -1,9 +1,9 @@
 package is.hail.expr.ir
 
 import java.util.regex.Pattern
-
 import is.hail.HailContext
 import is.hail.annotations.{Region, RegionValueBuilder}
+import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.ir.lowering.TableStage

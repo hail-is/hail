@@ -1,10 +1,10 @@
 package is.hail.io.index
 
 import java.io.OutputStream
-
 import is.hail.annotations.{Annotation, Region, RegionPool, RegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{CodeParam, EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, IEmitCode, IntArrayBuilder, LongArrayBuilder, ParamType}
+import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.{CodeParam, EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, IEmitCode, IntArrayBuilder, LongArrayBuilder, ParamType}
 import is.hail.io._
 import is.hail.io.fs.FS
 import is.hail.rvd.AbstractRVDSpec

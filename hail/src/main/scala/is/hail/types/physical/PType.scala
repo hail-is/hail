@@ -3,6 +3,7 @@ package is.hail.types.physical
 import is.hail.annotations._
 import is.hail.asm4s
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr.ir
 import is.hail.expr.ir._

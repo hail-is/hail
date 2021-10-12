@@ -1,10 +1,10 @@
 package is.hail.methods
 
 import java.util
-
 import is.hail.annotations._
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.MatrixToTableFunction
-import is.hail.expr.ir.{ExecuteContext, MatrixValue, TableValue}
+import is.hail.expr.ir.{MatrixValue, TableValue}
 import is.hail.types._
 import is.hail.types.physical._
 import is.hail.types.virtual._
