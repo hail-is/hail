@@ -813,18 +813,18 @@ class tarray(HailType):
     def _convert_from_encoding(self, byte_reader):
         length = byte_reader.read_int32()
 
-        def is_missing(encoding, bit_offset):
-            byte_offset = bit_offset // 8
-            remaining_bit_offset = bit_offset % 8
-            return lookup_bit(encoding[byte_offset], remaining_bit_offset)
-
         num_missing_bytes = math.ceil(length / 8)
         missing_bytes = byte_reader.read_bytes_view(num_missing_bytes)
 
         decoded = []
         i = 0
+        current_missing_byte = None
         while i < length:
-            if is_missing(missing_bytes, i):
+            which_missing_bit = i % 8
+            if which_missing_bit == 0:
+                current_missing_byte = missing_bytes[i // 8]
+
+            if lookup_bit(current_missing_byte, which_missing_bit):
                 decoded.append(None)
             else:
                 element_decoded = self.element_type._convert_from_encoding(byte_reader)
