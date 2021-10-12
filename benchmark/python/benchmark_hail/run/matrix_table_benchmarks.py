@@ -374,7 +374,7 @@ def matrix_multi_write_nothing():
 
 
 @benchmark(args=profile_25.handle("mt"))
-def test_localize_and_collect(mt_path):
+def mt_localize_and_collect(mt_path):
     mt = hl.read_matrix_table(mt_path)
     ht = mt.localize_entries("ent")
-    collected = ht.head(100).collect()
+    collected = ht.head(150).collect()
