@@ -13,7 +13,7 @@ from .type_parsing import type_grammar, type_node_visitor
 from hail.genetics.reference_genome import reference_genome_type
 from hail.typecheck import typecheck, typecheck_method, oneof, transformed
 from hail.utils.java import escape_parsable
-from hail.utils import frozendict
+from hail.utils import frozendict, lookup_bit
 from hail.utils.byte_reader import ByteReader
 
 __all__ = [
@@ -816,7 +816,7 @@ class tarray(HailType):
         def is_missing(encoding, bit_offset):
             byte_offset = bit_offset // 8
             remaining_bit_offset = bit_offset % 8
-            return hl.experimental.codec.lookup_bit(encoding[byte_offset], remaining_bit_offset)
+            return lookup_bit(encoding[byte_offset], remaining_bit_offset)
 
         num_missing_bytes = math.ceil(length / 8)
         missing_bytes = byte_reader.read_bytes_view(num_missing_bytes)
@@ -1237,7 +1237,7 @@ class tstruct(HailType, Mapping):
             if which_missing_bit == 0:
                 current_missing_byte = missing_bytes[i // 8]
 
-            if hl.experimental.codec.lookup_bit(current_missing_byte, which_missing_bit):
+            if lookup_bit(current_missing_byte, which_missing_bit):
                 kwargs[f] = None
             else:
                 field_decoded = t._convert_from_encoding(byte_reader)
@@ -1511,7 +1511,7 @@ class ttuple(HailType, Sequence):
             if which_missing_bit == 0:
                 current_missing_byte = missing_bytes[i // 8]
 
-            if hl.experimental.codec.lookup_bit(current_missing_byte, which_missing_bit):
+            if lookup_bit(current_missing_byte, which_missing_bit):
                 answer.append(None)
             else:
                 field_decoded = t._convert_from_encoding(byte_reader)

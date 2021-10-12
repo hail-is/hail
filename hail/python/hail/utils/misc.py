@@ -495,6 +495,10 @@ def divide_null(num, denom):
     return if_else(denom != 0, num / denom, missing(typ))
 
 
+def lookup_bit(byte, which_bit):
+    return (byte >> which_bit) & 1
+
+
 class HailSeedGenerator(object):
     def __init__(self, seed):
         self.seed = seed
