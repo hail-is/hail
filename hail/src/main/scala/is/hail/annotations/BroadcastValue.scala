@@ -6,7 +6,7 @@ import is.hail.expr.ir.{EncodedLiteral, ExecuteContext}
 import is.hail.types.physical.{PArray, PStruct, PType}
 import is.hail.types.virtual.{TBaseStruct, TStruct}
 import is.hail.io.{BufferSpec, Decoder, TypedCodecSpec}
-import is.hail.utils.ArrayOfByteArrayOutputStream
+import is.hail.utils.{ArrayOfByteArrayOutputStream, formatSpace, log}
 import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
 import org.apache.spark.sql.Row
 
@@ -54,7 +54,10 @@ trait BroadcastRegionValue {
     enc.flush()
     enc.close()
 
-    val srv = SerializableRegionValue(baos.toByteArrays(), decodedPType, makeDec)
+    val arrays = baos.toByteArrays()
+    val totalSize = arrays.map(_.length).sum
+    log.info(s"BroadcastRegionValue.broadcast: broadcasting ${ arrays.length } byte arrays of total size $totalSize (${ formatSpace(totalSize) }")
+    val srv = SerializableRegionValue(arrays, decodedPType, makeDec)
     ctx.backend.broadcast(srv)
   }
 
