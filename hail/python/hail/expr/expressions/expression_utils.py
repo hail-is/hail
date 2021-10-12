@@ -150,16 +150,19 @@ def eval_timed(expression):
 
     analyze('eval_timed', expression, Indices(expression._indices.source))
 
-    if expression._indices.source is None:
+    tupled_expression = hl.tuple([expression])
+    if tupled_expression._indices.source is None:
         ir_type = expression._ir.typ
         expression_type = expression.dtype
         if ir_type != expression.dtype:
             raise ExpressionException(f'Expression type and IR type differed: \n{ir_type}\n vs \n{expression_type}')
-        return Env.backend().execute(expression._ir, True)
+        (tupled_ans, timing) = Env.backend().execute(tupled_expression._ir, True)
     else:
         uid = Env.get_uid()
-        ir = expression._indices.source.select_globals(**{uid: expression}).index_globals()[uid]._ir
-        return Env.backend().execute(ir, True)
+        ir = tupled_expression._indices.source.select_globals(**{uid: expression}).index_globals()[uid]._ir
+        (tupled_ans, timing) = Env.backend().execute(ir, True)
+
+    return tupled_ans[0], timing
 
 
 @typecheck(expression=expr_any)
