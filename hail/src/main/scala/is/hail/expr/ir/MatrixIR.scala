@@ -276,6 +276,8 @@ class MatrixNativeReader(
     case that: MatrixNativeReader => params == that.params
     case _ => false
   }
+
+  def getSpec(): AbstractMatrixTableSpec = this.spec
 }
 
 object MatrixRangeReader {
