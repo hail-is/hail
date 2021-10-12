@@ -1042,7 +1042,6 @@ case class TableNativeZippedReader(
   specLeft: AbstractTableSpec,
   specRight: AbstractTableSpec
 ) extends TableReader {
-  info(s"Built TableNativeZippedReader, ${this}")
   def pathsUsed: Seq[String] = FastSeq(pathLeft, pathRight)
 
   override def renderShort(): String = s"(TableNativeZippedReader $pathLeft $pathRight ${ options.map(_.renderShort()).getOrElse("") })"
@@ -1137,7 +1136,6 @@ case class TableNativeZippedReader(
   }
 
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
-    info(s"Lowering TableNativeZippedReader, requestedType is ${requestedType}")
     val globals = lowerGlobals(ctx, requestedType.globalType)
     val rowsSpec = specLeft.rowsSpec
     val specPart = rowsSpec.partitioner
