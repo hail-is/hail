@@ -57,7 +57,7 @@ class LinearMixedModel(lmmData: LMMData) {
     else if (!(pa_t.partitionCounts() sameElements a_t.partitionCounts()))
       fatal(s"pa_t and a_t both have ${pa_t.nRows} rows, but row partitions are not aligned")
 
-    val lmmDataBc = ctx.backend.broadcast(lmmData)
+    val lmmDataBc = ctx.broadcast(lmmData)
     val rowType = LinearMixedModel.rowType
 
     val rdd = pa_t.rows.zipPartitions(a_t.rows) { case (itPAt, itAt) =>
@@ -125,7 +125,7 @@ class LinearMixedModel(lmmData: LMMData) {
   }
   
   def fitFullRank(ctx: ExecuteContext, pa_t: RowMatrix): TableIR = {
-    val lmmDataBc = ctx.backend.broadcast(lmmData)
+    val lmmDataBc = ctx.broadcast(lmmData)
     val rowType = LinearMixedModel.rowType
     
     val rdd = pa_t.rows.mapPartitions { itPAt =>

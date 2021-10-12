@@ -32,12 +32,13 @@ object BlockMatrixIR {
   }
 
   def toBlockMatrix(
+    ctx: ExecuteContext,
     nRows: Int,
     nCols: Int,
     data: Array[Double],
     blockSize: Int = BlockMatrix.defaultBlockSize): BlockMatrix = {
 
-    BlockMatrix.fromBreezeMatrix(
+    BlockMatrix.fromBreezeMatrix(ctx,
       new DenseMatrix[Double](nRows, nCols, data, 0, nCols, isTranspose = true), blockSize)
   }
 
@@ -204,7 +205,7 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
 
   def apply(ctx: ExecuteContext): BlockMatrix = {
     val breezeMatrix = RichDenseMatrixDouble.importFromDoubles(ctx.fs, path, nRows.toInt, nCols.toInt, rowMajor = true)
-    BlockMatrix.fromBreezeMatrix(breezeMatrix, blockSize)
+    BlockMatrix.fromBreezeMatrix(ctx, breezeMatrix, blockSize)
   }
 }
 
@@ -395,10 +396,10 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, leftName: 
   }
 
   private def rowVectorOnLeft(ctx: ExecuteContext, rowVector: Array[Double], right: BlockMatrixIR, f: IR): BlockMatrix =
-    opWithRowVector(right.execute(ctx), rowVector, f, reverse = true)
+    opWithRowVector(ctx, right.execute(ctx), rowVector, f, reverse = true)
 
   private def colVectorOnLeft(ctx: ExecuteContext, colVector: Array[Double], right: BlockMatrixIR, f: IR): BlockMatrix =
-    opWithColVector(right.execute(ctx), colVector, f, reverse = true)
+    opWithColVector(ctx, right.execute(ctx), colVector, f, reverse = true)
 
   private def matrixOnLeft(ctx: ExecuteContext, matrix: BlockMatrix, right: BlockMatrixIR, f: IR): BlockMatrix = {
     right match {
@@ -406,10 +407,10 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, leftName: 
         x match {
           case 1 =>
             val rightAsRowVec = coerceToVector(ctx, vectorIR)
-            opWithRowVector(matrix, rightAsRowVec, f, reverse = false)
+            opWithRowVector(ctx, matrix, rightAsRowVec, f, reverse = false)
           case 0 =>
             val rightAsColVec = coerceToVector(ctx, vectorIR)
-            opWithColVector(matrix, rightAsColVec, f, reverse = false)
+            opWithColVector(ctx, matrix, rightAsColVec, f, reverse = false)
         }
       case _ =>
         opWithTwoBlockMatrices(matrix, right.execute(ctx), f)
@@ -431,25 +432,25 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, leftName: 
     }
   }
 
-  private def opWithRowVector(left: BlockMatrix, right: Array[Double], f: IR, reverse: Boolean): BlockMatrix = {
+  private def opWithRowVector(ctx: ExecuteContext, left: BlockMatrix, right: Array[Double], f: IR, reverse: Boolean): BlockMatrix = {
     (f: @unchecked) match {
-      case ApplyBinaryPrimOp(Add(), _, _) => left.rowVectorAdd(right)
-      case ApplyBinaryPrimOp(Multiply(), _, _) => left.rowVectorMul(right)
+      case ApplyBinaryPrimOp(Add(), _, _) => left.rowVectorAdd(ctx, right)
+      case ApplyBinaryPrimOp(Multiply(), _, _) => left.rowVectorMul(ctx, right)
       case ApplyBinaryPrimOp(Subtract(), _, _) =>
-        if (reverse) left.reverseRowVectorSub(right) else left.rowVectorSub(right)
+        if (reverse) left.reverseRowVectorSub(ctx, right) else left.rowVectorSub(ctx, right)
       case ApplyBinaryPrimOp(FloatingPointDivide(), _, _) =>
-        if (reverse) left.reverseRowVectorDiv(right) else left.rowVectorDiv(right)
+        if (reverse) left.reverseRowVectorDiv(ctx, right) else left.rowVectorDiv(ctx, right)
     }
   }
 
-  private def opWithColVector(left: BlockMatrix, right: Array[Double], f: IR, reverse: Boolean): BlockMatrix = {
+  private def opWithColVector(ctx: ExecuteContext, left: BlockMatrix, right: Array[Double], f: IR, reverse: Boolean): BlockMatrix = {
     (f: @unchecked) match {
-      case ApplyBinaryPrimOp(Add(), _, _) => left.colVectorAdd(right)
-      case ApplyBinaryPrimOp(Multiply(), _, _) => left.colVectorMul(right)
+      case ApplyBinaryPrimOp(Add(), _, _) => left.colVectorAdd(ctx, right)
+      case ApplyBinaryPrimOp(Multiply(), _, _) => left.colVectorMul(ctx, right)
       case ApplyBinaryPrimOp(Subtract(), _, _) =>
-        if (reverse) left.reverseColVectorSub(right) else left.colVectorSub(right)
+        if (reverse) left.reverseColVectorSub(ctx, right) else left.colVectorSub(ctx, right)
       case ApplyBinaryPrimOp(FloatingPointDivide(), _, _) =>
-        if (reverse) left.reverseColVectorDiv(right) else left.colVectorDiv(right)
+        if (reverse) left.reverseColVectorDiv(ctx, right) else left.colVectorDiv(ctx, right)
     }
   }
 
@@ -583,31 +584,31 @@ case class BlockMatrixBroadcast(
         BlockMatrix.fill(nRows, nCols, scalar, blockSize)
       case IndexedSeq(0) =>
         BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
-        broadcastColVector(childBm.toBreezeMatrix().data, nRows.toInt, nCols.toInt)
+        broadcastColVector(ctx, childBm.toBreezeMatrix().data, nRows.toInt, nCols.toInt)
       case IndexedSeq(1) =>
         BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
-        broadcastRowVector(childBm.toBreezeMatrix().data, nRows.toInt, nCols.toInt)
+        broadcastRowVector(ctx, childBm.toBreezeMatrix().data, nRows.toInt, nCols.toInt)
         // FIXME: I'm pretty sure this case is broken.
       case IndexedSeq(0, 0) =>
         BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
-        BlockMatrixIR.toBlockMatrix(nRows.toInt, nCols.toInt, childBm.diagonal(), blockSize)
+        BlockMatrixIR.toBlockMatrix(ctx, nRows.toInt, nCols.toInt, childBm.diagonal(), blockSize)
       case IndexedSeq(1, 0) => childBm.transpose()
       case IndexedSeq(0, 1) => childBm
     }
   }
 
-  private def broadcastRowVector(vec: Array[Double], nRows: Int, nCols: Int): BlockMatrix = {
+  private def broadcastRowVector(ctx: ExecuteContext, vec: Array[Double], nRows: Int, nCols: Int): BlockMatrix = {
     val data = ArrayBuffer[Double]()
     data.sizeHint(nRows * nCols)
     (0 until nRows).foreach(_ => data ++= vec)
-    BlockMatrixIR.toBlockMatrix(nRows, nCols, data.toArray, blockSize)
+    BlockMatrixIR.toBlockMatrix(ctx, nRows, nCols, data.toArray, blockSize)
   }
 
-  private def broadcastColVector(vec: Array[Double], nRows: Int, nCols: Int): BlockMatrix = {
+  private def broadcastColVector(ctx: ExecuteContext, vec: Array[Double], nRows: Int, nCols: Int): BlockMatrix = {
     val data = ArrayBuffer[Double]()
     data.sizeHint(nRows * nCols)
     (0 until nRows).foreach(row => (0 until nCols).foreach(_ => data += vec(row)))
-    BlockMatrixIR.toBlockMatrix(nRows, nCols, data.toArray, blockSize)
+    BlockMatrixIR.toBlockMatrix(ctx, nRows, nCols, data.toArray, blockSize)
   }
 }
 
@@ -653,7 +654,7 @@ case class BlockMatrixAgg(
     val childBm = child.execute(ctx)
 
     axesToSumOut match {
-      case IndexedSeq(0, 1) => BlockMatrixIR.toBlockMatrix(nRows = 1, nCols = 1, Array(childBm.sum()), typ.blockSize)
+      case IndexedSeq(0, 1) => BlockMatrixIR.toBlockMatrix(ctx, nRows = 1, nCols = 1, Array(childBm.sum()), typ.blockSize)
       case IndexedSeq(0) => childBm.rowSum()
       case IndexedSeq(1) => childBm.colSum()
     }
@@ -738,7 +739,7 @@ case class BlockMatrixDensify(child: BlockMatrixIR) extends BlockMatrixIR {
 sealed abstract class BlockMatrixSparsifier {
   def typ: Type
   def definedBlocks(childType: BlockMatrixType): BlockMatrixSparsity
-  def sparsify(bm: BlockMatrix): BlockMatrix
+  def sparsify(ctx: ExecuteContext, bm: BlockMatrix): BlockMatrix
   def pretty(): String
 }
 
@@ -754,7 +755,7 @@ case class BandSparsifier(blocksOnly: Boolean, l: Long, u: Long) extends BlockMa
     }
   }
 
-  def sparsify(bm: BlockMatrix): BlockMatrix = {
+  def sparsify(ctx: ExecuteContext, bm: BlockMatrix): BlockMatrix = {
     bm.filterBand(l, u, blocksOnly)
   }
   def pretty(): String =
@@ -774,8 +775,8 @@ case class RowIntervalSparsifier(blocksOnly: Boolean, starts: IndexedSeq[Long], 
     }
   }
 
-  def sparsify(bm: BlockMatrix): BlockMatrix = {
-    bm.filterRowIntervals(starts.toArray, stops.toArray, blocksOnly)
+  def sparsify(ctx: ExecuteContext, bm: BlockMatrix): BlockMatrix = {
+    bm.filterRowIntervals(ctx, starts.toArray, stops.toArray, blocksOnly)
   }
 
   def pretty(): String =
@@ -802,7 +803,7 @@ case class RectangleSparsifier(rectangles: IndexedSeq[IndexedSeq[Long]]) extends
     BlockMatrixSparsity(definedBlocks)
   }
 
-  def sparsify(bm: BlockMatrix): BlockMatrix = {
+  def sparsify(ctx: ExecuteContext, bm: BlockMatrix): BlockMatrix = {
     bm.filterRectangles(rectangles.flatten.toArray)
   }
 
@@ -821,7 +822,7 @@ case class PerBlockSparsifier(blocks: IndexedSeq[Int]) extends BlockMatrixSparsi
     }
   }
 
-  override def sparsify(bm: BlockMatrix): BlockMatrix = bm.filterBlocks(blocks.toArray)
+  override def sparsify(ctx: ExecuteContext, bm: BlockMatrix): BlockMatrix = bm.filterBlocks(blocks.toArray)
 
   override def pretty(): String = s"(PerBlockSparsifier with blocks $blocks"
 }
@@ -842,7 +843,7 @@ case class BlockMatrixSparsify(
   }
 
   override def execute(ctx: ExecuteContext): BlockMatrix =
-    sparsifier.sparsify(child.execute(ctx))
+    sparsifier.sparsify(ctx, child.execute(ctx))
 }
 
 case class BlockMatrixSlice(child: BlockMatrixIR, slices: IndexedSeq[IndexedSeq[Long]]) extends BlockMatrixIR {
@@ -938,9 +939,9 @@ case class ValueToBlockMatrix(
         assert(nRows == 1 && nCols == 1)
         BlockMatrix.fill(nRows, nCols, scalar, blockSize)
       case data: IndexedSeq[_] =>
-        BlockMatrixIR.toBlockMatrix(nRows.toInt, nCols.toInt, data.asInstanceOf[IndexedSeq[Double]].toArray, blockSize)
+        BlockMatrixIR.toBlockMatrix(ctx, nRows.toInt, nCols.toInt, data.asInstanceOf[IndexedSeq[Double]].toArray, blockSize)
       case ndData: NDArray =>
-        BlockMatrixIR.toBlockMatrix(nRows.toInt, nCols.toInt, ndData.getRowMajorElements().asInstanceOf[IndexedSeq[Double]].toArray, blockSize)
+        BlockMatrixIR.toBlockMatrix(ctx, nRows.toInt, nCols.toInt, ndData.getRowMajorElements().asInstanceOf[IndexedSeq[Double]].toArray, blockSize)
     }
   }
 }

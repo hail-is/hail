@@ -271,11 +271,11 @@ case class MatrixValue(
         .cmapPartitions { (ctx, it) => it.copyToRegion(ctx.region, colPType) })
   }
 
-  def toRowMatrix(entryField: String): RowMatrix = {
+  def toRowMatrix(ctx: ExecuteContext, entryField: String): RowMatrix = {
     val partCounts: Array[Long] = rvd.countPerPartition()
     val partStarts = partCounts.scanLeft(0L)(_ + _)
     assert(partStarts.length == rvd.getNumPartitions + 1)
-    val partStartsBc = HailContext.backend.broadcast(partStarts)
+    val partStartsBc = ctx.broadcast(partStarts)
 
     val localRvRowPType = rvRowPType
     val localEntryArrayPType = entryArrayPType

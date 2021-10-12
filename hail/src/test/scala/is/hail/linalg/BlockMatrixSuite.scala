@@ -32,14 +32,14 @@ class BlockMatrixSuite extends HailSuite {
     val n = rows.length
     val m = if (n == 0) 0 else rows(0).length
 
-    BlockMatrix.fromBreezeMatrix(new BDM[Double](m, n, rows.flatten.toArray).t, blockSize)
+    BlockMatrix.fromBreezeMatrix(ctx, new BDM[Double](m, n, rows.flatten.toArray).t, blockSize)
   }
 
   def toBM(lm: BDM[Double]): BlockMatrix =
     toBM(lm, BlockMatrix.defaultBlockSize)
 
   def toBM(lm: BDM[Double], blockSize: Int): BlockMatrix =
-    BlockMatrix.fromBreezeMatrix(lm, blockSize)
+    BlockMatrix.fromBreezeMatrix(ctx, lm, blockSize)
 
   private val defaultBlockSize = choose(1, 1 << 6)
   private val defaultDims = nonEmptySquareOfAreaAtMostSize
@@ -139,14 +139,14 @@ class BlockMatrixSuite extends HailSuite {
       3,
       4))
 
-    assert(ll * lr === l.dot(lr).toBreezeMatrix())
+    assert(ll * lr === l.dot(ctx, lr).toBreezeMatrix())
   }
 
   @Test
   def randomMultiplyByLocalMatrix() {
     forAll(twoMultipliableDenseMatrices[Double]()) { case (ll, lr) =>
       val l = toBM(ll)
-      sameDoubleMatrixNaNEqualsNaN(ll * lr, l.dot(lr).toBreezeMatrix())
+      sameDoubleMatrixNaNEqualsNaN(ll * lr, l.dot(ctx, lr).toBreezeMatrix())
     }.check()
   }
 
@@ -226,7 +226,7 @@ class BlockMatrixSuite extends HailSuite {
       9, 20, 33, 48,
       13, 28, 45, 64))
 
-    assert(l.rowVectorMul(v).toBreezeMatrix() == result)
+    assert(l.rowVectorMul(ctx, v).toBreezeMatrix() == result)
   }
 
   @Test
@@ -237,7 +237,7 @@ class BlockMatrixSuite extends HailSuite {
     } yield (l, v)
 
     forAll(g) { case (l: BlockMatrix, v: Array[Double]) =>
-      val actual = l.rowVectorMul(v).toBreezeMatrix()
+      val actual = l.rowVectorMul(ctx, v).toBreezeMatrix()
       val repeatedR = (0 until l.nRows.toInt).flatMap(_ => v).toArray
       val repeatedRMatrix = new BDM(v.length, l.nRows.toInt, repeatedR).t
       val expected = l.toBreezeMatrix() *:* repeatedRMatrix
@@ -262,7 +262,7 @@ class BlockMatrixSuite extends HailSuite {
       27, 30, 33, 36,
       52, 56, 60, 64))
 
-    assert(l.colVectorMul(v).toBreezeMatrix() == result)
+    assert(l.colVectorMul(ctx, v).toBreezeMatrix() == result)
   }
 
   @Test
@@ -273,7 +273,7 @@ class BlockMatrixSuite extends HailSuite {
     } yield (l, v)
 
     forAll(g) { case (l: BlockMatrix, v: Array[Double]) =>
-      val actual = l.colVectorMul(v).toBreezeMatrix()
+      val actual = l.colVectorMul(ctx, v).toBreezeMatrix()
       val repeatedR = (0 until l.nCols.toInt).flatMap(_ => v).toArray
       val repeatedRMatrix = new BDM(v.length, l.nCols.toInt, repeatedR)
       val expected = l.toBreezeMatrix() *:* repeatedRMatrix
@@ -303,7 +303,7 @@ class BlockMatrixSuite extends HailSuite {
       12, 13, 14, 15,
       17, 18, 19, 20))
 
-    assert(l.colVectorAdd(v).toBreezeMatrix() == result)
+    assert(l.colVectorAdd(ctx, v).toBreezeMatrix() == result)
   }
 
   @Test
@@ -322,7 +322,7 @@ class BlockMatrixSuite extends HailSuite {
       10, 12, 14, 16,
       14, 16, 18, 20))
 
-    assert(l.rowVectorAdd(v).toBreezeMatrix() == result)
+    assert(l.rowVectorAdd(ctx, v).toBreezeMatrix() == result)
   }
 
   @Test
@@ -361,7 +361,7 @@ class BlockMatrixSuite extends HailSuite {
     forAll(denseMatrix[Double]().flatMap { m =>
       Gen.zip(Gen.const(m), Gen.choose(math.sqrt(m.rows).toInt, m.rows + 16))
     }) { case (lm, blockSize) =>
-      assert(lm === BlockMatrix.fromBreezeMatrix(lm, blockSize).toBreezeMatrix())
+      assert(lm === BlockMatrix.fromBreezeMatrix(ctx, lm, blockSize).toBreezeMatrix())
       true
     }.check()
   }
@@ -597,7 +597,7 @@ class BlockMatrixSuite extends HailSuite {
 
     for {blockSize <- Seq(1, 2, 3, 5, 10, 11)
     } {
-      val bm = BlockMatrix.fromBreezeMatrix(lm, blockSize)
+      val bm = BlockMatrix.fromBreezeMatrix(ctx, lm, blockSize)
       for {keep <- Seq(
         Array(0),
         Array(1),
@@ -621,7 +621,7 @@ class BlockMatrixSuite extends HailSuite {
 
     for {blockSize <- Seq(2, 3)
     } {
-      val bm = BlockMatrix.fromBreezeMatrix(lm, blockSize).transpose()
+      val bm = BlockMatrix.fromBreezeMatrix(ctx, lm, blockSize).transpose()
       for {keep <- Seq(
         Array(0),
         Array(1, 4, 5, 7, 8),
@@ -641,7 +641,7 @@ class BlockMatrixSuite extends HailSuite {
 
     for {blockSize <- Seq(2, 3)
     } {
-      val bm = BlockMatrix.fromBreezeMatrix(lm, blockSize)
+      val bm = BlockMatrix.fromBreezeMatrix(ctx, lm, blockSize)
       for {keep <- Seq(
         Array(0),
         Array(1, 4, 5, 7, 8),
@@ -661,7 +661,7 @@ class BlockMatrixSuite extends HailSuite {
 
     for {blockSize <- Seq(1, 2, 3, 5, 10, 11)
     } {
-      val bm = BlockMatrix.fromBreezeMatrix(lm, blockSize)
+      val bm = BlockMatrix.fromBreezeMatrix(ctx, lm, blockSize)
       for {keep <- Seq(
         Array(0),
         Array(1),
@@ -684,7 +684,7 @@ class BlockMatrixSuite extends HailSuite {
 
     for {blockSize <- Seq(1, 2, 3, 5, 10, 11)
     } {
-      val bm = BlockMatrix.fromBreezeMatrix(lm, blockSize)
+      val bm = BlockMatrix.fromBreezeMatrix(ctx, lm, blockSize)
       for {
         keepRows <- Seq(
           Array(1),
@@ -770,7 +770,7 @@ class BlockMatrixSuite extends HailSuite {
   @Test
   def testPowSqrt(): Unit = {
     val lm = new BDM[Double](2, 3, Array(0.0, 1.0, 4.0, 9.0, 16.0, 25.0))
-    val bm = BlockMatrix.fromBreezeMatrix(lm, blockSize = 2)
+    val bm = BlockMatrix.fromBreezeMatrix(ctx, lm, blockSize = 2)
     val expected = new BDM[Double](2, 3, Array(0.0, 1.0, 2.0, 3.0, 4.0, 5.0))
     
     TestUtils.assertMatrixEqualityDouble(bm.pow(0.0).toBreezeMatrix(), BDM.fill(2, 3)(1.0))
@@ -957,11 +957,11 @@ class BlockMatrixSuite extends HailSuite {
       assert(filteredEquals(fbm - fbm, (bm - bm).filterBlocks(keep)))
       assert(filteredEquals(fbm * fbm, (bm * bm).filterBlocks(keep)))
 
-      assert(filteredEquals(fbm.rowVectorMul(v), bm.rowVectorMul(v).filterBlocks(keep)))
-      assert(filteredEquals(fbm.rowVectorDiv(v), bm.rowVectorDiv(v).filterBlocks(keep)))
+      assert(filteredEquals(fbm.rowVectorMul(ctx, v), bm.rowVectorMul(ctx, v).filterBlocks(keep)))
+      assert(filteredEquals(fbm.rowVectorDiv(ctx, v), bm.rowVectorDiv(ctx, v).filterBlocks(keep)))
 
-      assert(filteredEquals(fbm.colVectorMul(v), bm.colVectorMul(v).filterBlocks(keep)))
-      assert(filteredEquals(fbm.colVectorDiv(v), bm.colVectorDiv(v).filterBlocks(keep)))
+      assert(filteredEquals(fbm.colVectorMul(ctx, v), bm.colVectorMul(ctx, v).filterBlocks(keep)))
+      assert(filteredEquals(fbm.colVectorDiv(ctx, v), bm.colVectorDiv(ctx, v).filterBlocks(keep)))
 
       assert(filteredEquals(fbm * 2, (bm * 2).filterBlocks(keep)))
       assert(filteredEquals(fbm / 2, (bm / 2).filterBlocks(keep)))
@@ -977,13 +977,13 @@ class BlockMatrixSuite extends HailSuite {
       assert((fbm - 2).toBreezeMatrix() === flm - 2.0)
       assert((2 - fbm).toBreezeMatrix() === 2.0 - flm)
 
-      assert(fbm.rowVectorAdd(v).toBreezeMatrix() === flm(*, ::) + BDV(v))
-      assert(fbm.rowVectorSub(v).toBreezeMatrix() === flm(*, ::) - BDV(v))
-      assert(fbm.reverseRowVectorSub(v).toBreezeMatrix() === -(flm(*, ::) - BDV(v)))
+      assert(fbm.rowVectorAdd(ctx, v).toBreezeMatrix() === flm(*, ::) + BDV(v))
+      assert(fbm.rowVectorSub(ctx, v).toBreezeMatrix() === flm(*, ::) - BDV(v))
+      assert(fbm.reverseRowVectorSub(ctx, v).toBreezeMatrix() === -(flm(*, ::) - BDV(v)))
 
-      assert(fbm.colVectorAdd(v).toBreezeMatrix() === flm(::, *) + BDV(v))
-      assert(fbm.colVectorSub(v).toBreezeMatrix() === flm(::, *) - BDV(v))
-      assert(fbm.reverseColVectorSub(v).toBreezeMatrix() === -(flm(::, *) - BDV(v)))
+      assert(fbm.colVectorAdd(ctx, v).toBreezeMatrix() === flm(::, *) + BDV(v))
+      assert(fbm.colVectorSub(ctx, v).toBreezeMatrix() === flm(::, *) - BDV(v))
+      assert(fbm.reverseColVectorSub(ctx, v).toBreezeMatrix() === -(flm(::, *) - BDV(v)))
       
       // filter ops
       assert(fbm.filterRows(Array(1, 2)).toBreezeMatrix() === flm(1 to 2, ::))
@@ -1035,12 +1035,12 @@ class BlockMatrixSuite extends HailSuite {
     val v0 = Array(0.0, Double.NaN, Double.PositiveInfinity, Double.NegativeInfinity)
     
     TestUtils.interceptFatal(notSupported) { bm0 / bm0 }
-    TestUtils.interceptFatal(notSupported) { bm0.reverseRowVectorDiv(v) }
-    TestUtils.interceptFatal(notSupported) { bm0.reverseColVectorDiv(v) }
+    TestUtils.interceptFatal(notSupported) { bm0.reverseRowVectorDiv(ctx, v) }
+    TestUtils.interceptFatal(notSupported) { bm0.reverseColVectorDiv(ctx, v) }
     TestUtils.interceptFatal(notSupported) { 1 / bm0 }
     
-    TestUtils.interceptFatal(notSupported) { bm0.rowVectorDiv(v0) }
-    TestUtils.interceptFatal(notSupported) { bm0.colVectorDiv(v0) }
+    TestUtils.interceptFatal(notSupported) { bm0.rowVectorDiv(ctx, v0) }
+    TestUtils.interceptFatal(notSupported) { bm0.colVectorDiv(ctx, v0) }
     TestUtils.interceptFatal("multiplication by scalar NaN") { bm0 * Double.NaN }
     TestUtils.interceptFatal("division by scalar 0.0") { bm0 / 0 }
     

@@ -72,6 +72,8 @@ class ServiceBackend(
 
   def broadcast[T: ClassTag](_value: T): BroadcastValue[T] = new BroadcastValue[T] with Serializable {
     def value: T = _value
+
+    override def cleanup(): Unit = ()
   }
 
   def parallelizeAndComputeWithIndex(

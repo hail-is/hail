@@ -58,7 +58,7 @@ trait BroadcastRegionValue {
     val totalSize = arrays.map(_.length).sum
     log.info(s"BroadcastRegionValue.broadcast: broadcasting ${ arrays.length } byte arrays of total size $totalSize (${ formatSpace(totalSize) }")
     val srv = SerializableRegionValue(arrays, decodedPType, makeDec)
-    ctx.backend.broadcast(srv)
+    ctx.broadcast(srv)
   }
 
   def javaValue: Any

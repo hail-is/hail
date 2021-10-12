@@ -318,5 +318,5 @@ trait FS extends Serializable {
     using(createNoCompression(filename))(_ => ())
   }
 
-  lazy val broadcast: BroadcastValue[FS] = HailContext.backend.broadcast(this)
+  lazy val broadcast: BroadcastValue[FS] = HailContext.backend.unsafeBroadcast(this)
 }

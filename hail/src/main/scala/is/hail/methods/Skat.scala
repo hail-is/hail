@@ -211,7 +211,7 @@ case class Skat(
     }
 
     val (keyGsWeightRdd, keyType) =
-      computeKeyGsWeightRdd(mv, xField, completeColIdx, keyField, weightField)
+      computeKeyGsWeightRdd(ctx, mv, xField, completeColIdx, keyField, weightField)
 
     val backend = HailContext.backend
 
@@ -229,8 +229,8 @@ case class Skat(
         }
       val sigmaSq = (res dot res) / d
       
-      val resBc = backend.broadcast(res)
-      val QtBc = backend.broadcast(qt)
+      val resBc = ctx.broadcast(res)
+      val QtBc = ctx.broadcast(qt)
       
       def linearTuple(x: BDV[Double], w: Double): SkatTuple = {
         val xw = x * math.sqrt(w)
@@ -285,9 +285,9 @@ case class Skat(
         } else
           (BDV.fill(n)(0.5), y, new BDM[Double](0, n))
       
-      val sqrtVBc = backend.broadcast(sqrtV)
-      val resBc = backend.broadcast(res)
-      val CinvXtVBc = backend.broadcast(cinvXtV)
+      val sqrtVBc = ctx.broadcast(sqrtV)
+      val resBc = ctx.broadcast(res)
+      val CinvXtVBc = ctx.broadcast(cinvXtV)
   
       def logisticTuple(x: BDV[Double], w: Double): SkatTuple = {
         val xw = x * math.sqrt(w)
@@ -317,7 +317,8 @@ case class Skat(
     TableValue(ctx, tableType.rowType, tableType.key, skatRdd)
   }
 
-  def computeKeyGsWeightRdd(mv: MatrixValue,
+  def computeKeyGsWeightRdd(ctx: ExecuteContext,
+    mv: MatrixValue,
     xField: String,
     completeColIdx: Array[Int],
     keyField: String,
@@ -343,7 +344,7 @@ case class Skat(
     val fieldIdx = entryType.fieldIdx(xField)    
 
     val n = completeColIdx.length
-    val completeColIdxBc = HailContext.backend.broadcast(completeColIdx)
+    val completeColIdxBc = ctx.broadcast(completeColIdx)
 
     // I believe no `boundary` is needed here because `mapPartitions` calls `run` which calls `cleanupRegions`.
     (mv.rvd.mapPartitions { (ctx, it) => it.flatMap { ptr =>

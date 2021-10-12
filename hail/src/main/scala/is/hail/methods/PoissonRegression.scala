@@ -59,13 +59,12 @@ case class PoissonRegression(
         else
           "Newton iteration failed to converge"))
 
-    val backend = HailContext.backend
-    val completeColIdxBc = backend.broadcast(completeColIdx)
+    val completeColIdxBc = ctx.broadcast(completeColIdx)
 
-    val yBc = backend.broadcast(y)
-    val XBc = backend.broadcast(new DenseMatrix[Double](n, k + 1, cov.toArray ++ Array.ofDim[Double](n)))
-    val nullFitBc = backend.broadcast(nullFit)
-    val poisRegTestBc = backend.broadcast(poisRegTest)
+    val yBc = ctx.broadcast(y)
+    val XBc = ctx.broadcast(new DenseMatrix[Double](n, k + 1, cov.toArray ++ Array.ofDim[Double](n)))
+    val nullFitBc = ctx.broadcast(nullFit)
+    val poisRegTestBc = ctx.broadcast(poisRegTest)
 
     val fullRowType = mv.rvRowPType
     val entryArrayType = mv.entryArrayPType

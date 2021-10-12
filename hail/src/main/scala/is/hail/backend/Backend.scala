@@ -19,14 +19,20 @@ object Backend {
   }
 }
 
-abstract class BroadcastValue[T] { def value: T }
+abstract class BroadcastValue[T] {
+  def value: T
+
+  def cleanup(): Unit
+}
 
 abstract class BackendContext
 
 abstract class Backend {
   def defaultParallelism: Int
 
-  def broadcast[T: ClassTag](value: T): BroadcastValue[T]
+  def unsafeBroadcast[T: ClassTag](value: T): BroadcastValue[T] = broadcast(value)
+
+  protected[backend] def broadcast[T: ClassTag](value: T): BroadcastValue[T]
 
   def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String): Unit
 

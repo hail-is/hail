@@ -72,13 +72,12 @@ case class LogisticRegression(
       nullFit
     })
 
-    val backend = HailContext.backend
-    val completeColIdxBc = backend.broadcast(completeColIdx)
+    val completeColIdxBc = ctx.broadcast(completeColIdx)
 
-    val yVecsBc = backend.broadcast(yVecs)
-    val XBc = backend.broadcast(new DenseMatrix[Double](n, k + 1, cov.toArray ++ Array.ofDim[Double](n)))
-    val nullFitBc = backend.broadcast(nullFits)
-    val logRegTestBc = backend.broadcast(logRegTest)
+    val yVecsBc = ctx.broadcast(yVecs)
+    val XBc = ctx.broadcast(new DenseMatrix[Double](n, k + 1, cov.toArray ++ Array.ofDim[Double](n)))
+    val nullFitBc = ctx.broadcast(nullFits)
+    val logRegTestBc = ctx.broadcast(logRegTest)
 
     val fullRowType = mv.rvRowPType
     val entryArrayType = mv.entryArrayPType

@@ -317,7 +317,7 @@ class MatrixPLINKReader(
     val fsBc = ctx.fsBc
 
     val localA2Reference = params.a2Reference
-    val variantsBc = ctx.backend.broadcast(variants)
+    val variantsBc = ctx.broadcast(variants)
     val localNSamples = nSamples
 
     val localLocusType = TLocus.schemaFromRG(referenceGenome)

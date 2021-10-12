@@ -61,12 +61,11 @@ case class LinearRegressionRowsSingle(
 
     val Qty = Qt * y
 
-    val backend = HailContext.backend
-    val completeColIdxBc = backend.broadcast(completeColIdx)
-    val yBc = backend.broadcast(y)
-    val QtBc = backend.broadcast(Qt)
-    val QtyBc = backend.broadcast(Qty)
-    val yypBc = backend.broadcast(y.t(*, ::).map(r => r dot r) - Qty.t(*, ::).map(r => r dot r))
+    val completeColIdxBc = ctx.broadcast(completeColIdx)
+    val yBc = ctx.broadcast(y)
+    val QtBc = ctx.broadcast(Qt)
+    val QtyBc = ctx.broadcast(Qty)
+    val yypBc = ctx.broadcast(y.t(*, ::).map(r => r dot r) - Qty.t(*, ::).map(r => r dot r))
 
     val fullRowType = mv.rvd.rowPType
     val entryArrayType = MatrixType.getEntryArrayType(fullRowType)
@@ -223,7 +222,7 @@ case class LinearRegressionRowsChained(
       ChainedLinregInput(n, y, completeColIdx, Qt, Qty, yyp, d)
     }
 
-    val bc = HailContext.backend.broadcast(bcData)
+    val bc = ctx.broadcast(bcData)
     val nGroups = bcData.length
 
     val fullRowType = mv.rvd.rowPType

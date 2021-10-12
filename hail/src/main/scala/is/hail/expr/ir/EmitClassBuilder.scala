@@ -630,7 +630,7 @@ class EmitClassBuilder[C](
       makeAddReferenceGenomes()
 
     val literalsBc = if (hasLiterals)
-      ctx.backend.broadcast(encodeLiterals())
+      ctx.broadcast(encodeLiterals())
     else
       // if there are no literals, there might not be a HailContext
       null

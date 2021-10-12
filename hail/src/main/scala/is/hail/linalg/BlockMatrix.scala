@@ -106,10 +106,10 @@ object BlockMatrix {
           Iterator.single(piBlock(gp, split.index))
       }, gp.blockSize, gp.nRows, gp.nCols)
 
-  def fromBreezeMatrix(lm: BDM[Double]): M =
-    fromBreezeMatrix(lm, defaultBlockSize)
+  def fromBreezeMatrix(ctx: ExecuteContext, lm: BDM[Double]): M =
+    fromBreezeMatrix(ctx, lm, defaultBlockSize)
 
-  def fromBreezeMatrix(lm: BDM[Double], blockSize: Int): M = {
+  def fromBreezeMatrix(ctx: ExecuteContext, lm: BDM[Double], blockSize: Int): M = {
     val gp = GridPartitioner(blockSize, lm.rows, lm.cols)
 
     val localBlocksBc = Array.tabulate(gp.numPartitions) { pi =>
@@ -118,7 +118,7 @@ object BlockMatrix {
       val iOffset = i * blockSize
       val jOffset = j * blockSize
 
-      HailContext.backend.broadcast(lm(iOffset until iOffset + blockNRows, jOffset until jOffset + blockNCols).copy)
+      ctx.broadcast(lm(iOffset until iOffset + blockNRows, jOffset until jOffset + blockNCols).copy)
     }
 
     BlockMatrix(gp, (gp, pi) => (gp.blockCoordinates(pi), localBlocksBc(pi).value))
@@ -551,7 +551,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   // for row i, filter to indices [starts[i], stops[i]) by dropping non-overlapping blocks
   // if not blocksOnly, also zero out elements outside ranges in overlapping blocks
   // checked in Python: start >= 0 && start <= stop && stop <= nCols
-  def filterRowIntervals(starts: Array[Long], stops: Array[Long], blocksOnly: Boolean): BlockMatrix = {
+  def filterRowIntervals(ctx: ExecuteContext, starts: Array[Long], stops: Array[Long], blocksOnly: Boolean): BlockMatrix = {
     require(nRows <= Int.MaxValue)
     require(starts.length == nRows)
     require(stops.length == nRows)
@@ -561,15 +561,14 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     if (blocksOnly)
       filteredBM
     else
-      filteredBM.zeroRowIntervals(starts, stops)
+      filteredBM.zeroRowIntervals(ctx, starts, stops)
   }
   
-  def zeroRowIntervals(starts: Array[Long], stops: Array[Long]): BlockMatrix = {    
-    val backend = HailContext.backend
-    val startBlockIndexBc = backend.broadcast(starts.map(gp.indexBlockIndex))
-    val stopBlockIndexBc = backend.broadcast(stops.map(stop => (stop / blockSize).toInt))
-    val startBlockOffsetBc = backend.broadcast(starts.map(gp.indexBlockOffset))
-    val stopBlockOffsetsBc = backend.broadcast(stops.map(gp.indexBlockOffset))
+  def zeroRowIntervals(ctx: ExecuteContext, starts: Array[Long], stops: Array[Long]): BlockMatrix = {
+    val startBlockIndexBc = ctx.broadcast(starts.map(gp.indexBlockIndex))
+    val stopBlockIndexBc = ctx.broadcast(stops.map(stop => (stop / blockSize).toInt))
+    val startBlockOffsetBc = ctx.broadcast(starts.map(gp.indexBlockOffset))
+    val stopBlockOffsetsBc = ctx.broadcast(stops.map(gp.indexBlockOffset))
 
     val zeroedBlocks = blocks.mapPartitions( { it =>
       assert(it.hasNext)
@@ -719,45 +718,45 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     "element-wise division")
   
   // row broadcast
-  def rowVectorAdd(a: Array[Double]): M = densify().rowVectorOp((lm, lv) => lm(*, ::) + lv,
+  def rowVectorAdd(ctx: ExecuteContext, a: Array[Double]): M = densify().rowVectorOp(ctx, (lm, lv) => lm(*, ::) + lv,
     "broadcasted addition of row-vector")(a)
   
-  def rowVectorSub(a: Array[Double]): M = densify().rowVectorOp((lm, lv) => lm(*, ::) - lv,
+  def rowVectorSub(ctx: ExecuteContext, a: Array[Double]): M = densify().rowVectorOp(ctx, (lm, lv) => lm(*, ::) - lv,
     "broadcasted subtraction of row-vector")(a)
   
-  def rowVectorMul(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::) *:* lv,
+  def rowVectorMul(ctx: ExecuteContext, a: Array[Double]): M = rowVectorOp(ctx, (lm, lv) => lm(*, ::) *:* lv,
     "broadcasted multiplication by row-vector containing nan, or infinity",
     reqDense = a.exists(i => i.isNaN | i.isInfinity))(a)
   
-  def rowVectorDiv(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::) /:/ lv, 
+  def rowVectorDiv(ctx: ExecuteContext, a: Array[Double]): M = rowVectorOp(ctx, (lm, lv) => lm(*, ::) /:/ lv, 
     "broadcasted division by row-vector containing zero, nan, or infinity",
     reqDense = a.exists(i => i == 0.0 | i.isNaN | i.isInfinity))(a)
 
-  def reverseRowVectorSub(a: Array[Double]): M = densify().rowVectorOp((lm, lv) => lm(*, ::).map(lv - _),
+  def reverseRowVectorSub(ctx: ExecuteContext, a: Array[Double]): M = densify().rowVectorOp(ctx, (lm, lv) => lm(*, ::).map(lv - _),
     "broadcasted row-vector minus block matrix")(a)
  
-  def reverseRowVectorDiv(a: Array[Double]): M = rowVectorOp((lm, lv) => lm(*, ::).map(lv /:/ _),
+  def reverseRowVectorDiv(ctx: ExecuteContext, a: Array[Double]): M = rowVectorOp(ctx, (lm, lv) => lm(*, ::).map(lv /:/ _),
     "broadcasted row-vector divided by block matrix")(a)
   
   // column broadcast
-  def colVectorAdd(a: Array[Double]): M = densify().colVectorOp((lm, lv) => lm(::, *) + lv,
+  def colVectorAdd(ctx: ExecuteContext, a: Array[Double]): M = densify().colVectorOp(ctx, (lm, lv) => lm(::, *) + lv,
     "broadcasted addition of column-vector")(a)
   
-  def colVectorSub(a: Array[Double]): M = densify().colVectorOp((lm, lv) => lm(::, *) - lv,
+  def colVectorSub(ctx: ExecuteContext, a: Array[Double]): M = densify().colVectorOp(ctx, (lm, lv) => lm(::, *) - lv,
     "broadcasted subtraction of column-vector")(a)
   
-  def colVectorMul(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *) *:* lv,
+  def colVectorMul(ctx: ExecuteContext, a: Array[Double]): M = colVectorOp(ctx, (lm, lv) => lm(::, *) *:* lv,
     "broadcasted multiplication column-vector containing nan or infinity",
     reqDense = a.exists(i => i.isNaN | i.isInfinity))(a)
   
-  def colVectorDiv(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *) /:/ lv,
+  def colVectorDiv(ctx: ExecuteContext, a: Array[Double]): M = colVectorOp(ctx, (lm, lv) => lm(::, *) /:/ lv,
     "broadcasted division by column-vector containing zero, nan, or infinity",
     reqDense = a.exists(i => i == 0.0 | i.isNaN | i.isInfinity))(a)
 
-  def reverseColVectorSub(a: Array[Double]): M = densify().colVectorOp((lm, lv) => lm(::, *).map(lv - _),
+  def reverseColVectorSub(ctx: ExecuteContext, a: Array[Double]): M = densify().colVectorOp(ctx, (lm, lv) => lm(::, *).map(lv - _),
     "broadcasted column-vector minus block matrix")(a)
 
-  def reverseColVectorDiv(a: Array[Double]): M = colVectorOp((lm, lv) => lm(::, *).map(lv /:/ _),
+  def reverseColVectorDiv(ctx: ExecuteContext, a: Array[Double]): M = colVectorOp(ctx, (lm, lv) => lm(::, *).map(lv /:/ _),
     "broadcasted column-vector divided by block matrix")(a)
 
   // scalar
@@ -808,10 +807,10 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   // matrix ops
   def dot(that: M): M = new BlockMatrix(new BlockMatrixMultiplyRDD(this, that), blockSize, nRows, that.nCols)
 
-  def dot(lm: BDM[Double]): M = {
+  def dot(ctx: ExecuteContext, lm: BDM[Double]): M = {
     require(nCols == lm.rows,
       s"incompatible matrix dimensions: ${ nRows } x ${ nCols } and ${ lm.rows } x ${ lm.cols }")
-    dot(BlockMatrix.fromBreezeMatrix(lm, blockSize))
+    dot(BlockMatrix.fromBreezeMatrix(ctx, lm, blockSize))
   }
 
   def transpose(): M = new BlockMatrix(new BlockMatrixTransposeRDD(this), blockSize, nCols, nRows)
@@ -1223,24 +1222,24 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     new BlockMatrix(newBlocks, blockSize, nRows, nCols)
   }
 
-  def colVectorOp(op: (BDM[Double], BDV[Double]) => BDM[Double],
+  def colVectorOp(ctx: ExecuteContext, op: (BDM[Double], BDV[Double]) => BDM[Double],
     name: String = "operation",
     reqDense: Boolean = true): Array[Double] => M = {
     a => val v = BDV(a)
       require(v.length == nRows, s"vector length must equal nRows: ${ v.length }, $nRows")
-      val vBc = HailContext.backend.broadcast(v)
+      val vBc = ctx.broadcast(v)
       blockMapWithIndex( { case ((i, _), lm) =>
         val lv = gp.vectorOnBlockRow(vBc.value, i)
         op(lm, lv)
       }, name, reqDense = reqDense)
   }
 
-  def rowVectorOp(op: (BDM[Double], BDV[Double]) => BDM[Double],
+  def rowVectorOp(ctx: ExecuteContext, op: (BDM[Double], BDV[Double]) => BDM[Double],
     name: String = "operation",
     reqDense: Boolean = true): Array[Double] => M = {
     a => val v = BDV(a)
       require(v.length == nCols, s"vector length must equal nCols: ${ v.length }, $nCols")
-      val vBc = HailContext.backend.broadcast(v)
+      val vBc = ctx.broadcast(v)
       blockMapWithIndex( { case ((_, j), lm) =>
         val lv = gp.vectorOnBlockCol(vBc.value, j)
         op(lm, lv)

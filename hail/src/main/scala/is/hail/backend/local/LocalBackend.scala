@@ -26,7 +26,9 @@ import java.io.PrintWriter
 import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
 
-class LocalBroadcastValue[T](val value: T) extends BroadcastValue[T] with Serializable
+class LocalBroadcastValue[T](val value: T) extends BroadcastValue[T] with Serializable {
+  override def cleanup(): Unit = {}
+}
 
 class LocalTaskContext(val partitionId: Int, val stageId: Int) extends HailTaskContext {
   override def attemptNumber(): Int = 0

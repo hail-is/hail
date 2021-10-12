@@ -43,6 +43,8 @@ import org.json4s.JsonAST.{JInt, JObject}
 
 class SparkBroadcastValue[T](bc: Broadcast[T]) extends BroadcastValue[T] with Serializable {
   def value: T = bc.value
+
+  override def cleanup(): Unit = bc.destroy()
 }
 
 object SparkTaskContext {

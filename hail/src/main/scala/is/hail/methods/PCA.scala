@@ -31,7 +31,7 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
       fatal(s"""requested invalid number of components: $k
                |  Expect componenents >= 1""".stripMargin)
 
-    val rowMatrix = mv.toRowMatrix(entryField)
+    val rowMatrix = mv.toRowMatrix(ctx, entryField)
     val indexedRows = rowMatrix.rows.map { case (i, a) => IndexedRow(i, Vectors.dense(a)) }
       .cache()
     val irm = new IndexedRowMatrix(indexedRows, rowMatrix.nRows, rowMatrix.nCols)
@@ -57,7 +57,7 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
     val rowType = PCanonicalStruct.canonical(TStruct(mv.typ.rowKey.zip(mv.typ.rowKeyStruct.types): _*) ++ TStruct("loadings" -> TArray(TFloat64)))
       .setRequired(true)
       .asInstanceOf[PStruct]
-    val rowKeysBc = HailContext.backend.broadcast(collectRowKeys())
+    val rowKeysBc = ctx.broadcast(collectRowKeys())
     val localRowKeySignature = mv.typ.rowKeyStruct.types
 
     val crdd: ContextRDD[Long] = if (computeLoadings) {

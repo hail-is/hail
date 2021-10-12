@@ -3,32 +3,47 @@ package is.hail.backend
 import is.hail.HailContext
 import is.hail.annotations.{Region, RegionPool}
 import is.hail.io.fs.FS
-import is.hail.utils.{ExecutionTimer, using}
+import is.hail.utils.{ExecutionTimer, using, log}
 
 import java.io._
 import java.security.SecureRandom
 import scala.collection.mutable
+import scala.reflect.ClassTag
 
 trait TempFileManager {
   def own(path: String): Unit
 
   def cleanup(): Unit
+
+  def ownBroadcast(bc: BroadcastValue[_]): Unit
 }
 
 class OwningTempFileManager(fs: FS) extends TempFileManager {
   private[this] val tmpPaths = mutable.ArrayBuffer[String]()
+  private[this] val broadcasts = mutable.ArrayBuffer[BroadcastValue[_]]()
+
 
   def own(path: String): Unit = tmpPaths += path
+  def ownBroadcast(bc: BroadcastValue[_]): Unit = broadcasts += bc
 
   override def cleanup(): Unit = {
     for (p <- tmpPaths)
       fs.delete(p, recursive = true)
     tmpPaths.clear()
+
+    log.info(s"cleaning up ${ broadcasts.length } broadcasts")
+    broadcasts.foreach { bc => bc.cleanup() }
+    broadcasts.clear()
+    log.info(s"done cleaning up broadcasts")
   }
 }
 
 class NonOwningTempFileManager(owner: TempFileManager) extends TempFileManager {
+  private[this] val broadcasts = mutable.ArrayBuffer[BroadcastValue[_]]()
+
   def own(path: String): Unit = owner.own(path)
+
+  def ownBroadcast(bc: BroadcastValue[_]): Unit = broadcasts += bc
 
   override def cleanup(): Unit = ()
 }
@@ -93,14 +108,18 @@ class ExecuteContext(
 
   private val cleanupFunctions = mutable.ArrayBuffer[() => Unit]()
 
-  private[this] val broadcasts = mutable.ArrayBuffer.empty[BroadcastValue[_]]
-
   val memo: mutable.Map[Any, Any] = new mutable.HashMap[Any, Any]()
 
   def createTmpPath(prefix: String, extension: String = null): String = {
     val path = ExecuteContext.createTmpPathNoCleanup(tmpdir, prefix, extension)
     tempFileManager.own(path)
     path
+  }
+
+  def broadcast[T: ClassTag](value: T): BroadcastValue[T] = {
+    val bc = backend.broadcast(value)
+    tempFileManager.ownBroadcast(bc)
+    bc
   }
 
   def ownCloseable(c: Closeable): Unit = {

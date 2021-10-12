@@ -1575,7 +1575,7 @@ object MatrixVCFReader {
 
     if (fileStatuses.length > 1) {
       if (params.headerFile.isEmpty) {
-        val header1Bc = backend.broadcast(header1)
+        val header1Bc = ctx.broadcast(header1)
 
         val localCallFields = params.callFields
         val localFloatType = entryFloatType
@@ -1825,7 +1825,6 @@ class VCFsReader(
 
   require(!(externalSampleIds.isEmpty ^ externalHeader.isEmpty))
 
-  private val backend = ctx.backend
   private val fs = ctx.fs
   private val fsBc = fs.broadcast
 
@@ -1849,7 +1848,7 @@ class VCFsReader(
 
   private val file1 = files.head
   private val headerLines1 = getHeaderLines(fs, externalHeader.getOrElse(file1), filterAndReplace)
-  private val headerLines1Bc = backend.broadcast(headerLines1)
+  private val headerLines1Bc = ctx.broadcast(headerLines1)
   private val entryFloatType = LoadVCF.getEntryFloatType(entryFloatTypeName)
   private val header1 = parseHeader(callFields, entryFloatType, headerLines1, arrayElementsRequired = arrayElementsRequired)
 

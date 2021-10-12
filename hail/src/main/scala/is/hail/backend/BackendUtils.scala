@@ -25,12 +25,15 @@ class BackendUtils(mods: Array[(String, (FS, Int, Region) => BackendUtils.F)]) {
     val globalsBC = backend.broadcast(globals)
     val f = getModule(modID)
 
-    backend.parallelizeAndComputeWithIndex(backendContext, fs, contexts, tsd)({ (ctx, htc, fs) =>
+    val result = backend.parallelizeAndComputeWithIndex(backendContext, fs, contexts, tsd)({ (ctx, htc, fs) =>
       val gs = globalsBC.value
       htc.getRegionPool().scopedRegion { region =>
         val res = f(fs, htc.partitionId(), region)(region, ctx, gs)
         res
       }
     })
+
+    globalsBC.cleanup()
+    result
   }
 }
