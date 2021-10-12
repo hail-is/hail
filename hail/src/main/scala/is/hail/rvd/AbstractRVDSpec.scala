@@ -195,7 +195,7 @@ object AbstractRVDSpec {
           if (filterIntervals)
             ts
           else
-            ts.repartitionNoShuffle(extendedNewPartitioner)
+            ts.repartitionNoShuffle(extendedNewPartitioner.coarsen(requestedKey.length))
         }
     }
   }
