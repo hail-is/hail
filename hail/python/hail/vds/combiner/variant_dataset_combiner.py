@@ -276,25 +276,23 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
             sample_names = self.gvcf_sample_names[:self.gvcf_batch_size * step]
             self.gvcf_sample_names = self.gvcf_sample_names[self.gvcf_batch_size * step:]
         else:
-            names, sample_names = None, None
+            sample_names = None
         merge_vds = []
         merge_n_samples = []
-        while files_to_merge:
-            inputs, files_to_merge = files_to_merge[:step], files_to_merge[step:]
-            if sample_names is not None:
-                names, sample_names = sample_names[:step], sample_names[step:]
-            vdses = [transform_gvcf(vcf,
-                                    reference_entry_fields_to_keep=self.gvcf_reference_entry_fields_to_keep,
-                                    info_to_keep=self.gvcf_info_to_keep)
-                     for vcf in hl.import_gvcfs(inputs,
-                                                self.gvcf_import_intervals,
-                                                array_elements_required=False,
-                                                _external_header=self.gvcf_external_header,
-                                                _external_sample_ids=[[name] for name in names] if names is not None else None,
-                                                reference_genome=self.reference_genome,
-                                                contig_recoding=self.contig_recoding)]
-            merge_vds.append(combine_variant_datasets(vdses))
-            merge_n_samples.append(len(vdses))
+        vcfs = [transform_gvcf(vcf,
+                               reference_entry_fields_to_keep=self.gvcf_reference_entry_fields_to_keep,
+                               info_to_keep=self.gvcf_info_to_keep)
+                for vcf in hl.import_gvcfs(files_to_merge,
+                                           self.gvcf_import_intervals,
+                                           array_elements_required=False,
+                                           _external_header=self.gvcf_external_header,
+                                           _external_sample_ids=[[name] for name in sample_names] if sample_names is not None else None,
+                                           reference_genome=self.reference_genome,
+                                           contig_recoding=self.contig_recoding)]
+        while vcfs:
+            merging, vcfs = vcfs[:step], vcfs[step:]
+            merge_vds.append(combine_variant_datasets(merging))
+            merge_n_samples.append(len(merging))
         if self.finished and len(merge_vds) == 1:
             merge_vds[0].write(self.output_path)
             return
