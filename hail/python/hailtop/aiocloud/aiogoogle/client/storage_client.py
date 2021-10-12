@@ -14,14 +14,14 @@ from hailtop.aiotools import (
     FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS,
     FeedableAsyncIterable, FileAndDirectoryError, MultiPartCreate, UnexpectedEOFError, WriteBuffer)
 
-from .base_client import GCPBaseClient
+from .base_client import GoogleBaseClient
 from ..session import GoogleSession
 
 log = logging.getLogger(__name__)
 
 
 class PageIterator:
-    def __init__(self, client: 'GCPBaseClient', path: str, request_kwargs: MutableMapping[str, Any]):
+    def __init__(self, client: 'GoogleBaseClient', path: str, request_kwargs: MutableMapping[str, Any]):
         if 'params' in request_kwargs:
             request_params = request_kwargs['params']
             del request_kwargs['params']
@@ -263,7 +263,7 @@ class GetObjectStream(ReadableStream):
         self._resp = None
 
 
-class GoogleStorageClient(GCPBaseClient):
+class GoogleStorageClient(GoogleBaseClient):
     def __init__(self, **kwargs):
         super().__init__('https://storage.googleapis.com/storage/v1', **kwargs)
 

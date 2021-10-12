@@ -1125,30 +1125,27 @@ async def on_cleanup(app):
         await app['db'].async_close()
     finally:
         try:
-            app['zone_monitor'].shutdown()
+            app['inst_coll_manager'].shutdown()
         finally:
             try:
-                app['inst_coll_manager'].shutdown()
+                app['canceller'].shutdown()
             finally:
                 try:
-                    app['canceller'].shutdown()
+                    app['task_manager'].shutdown()
                 finally:
                     try:
-                        app['task_manager'].shutdown()
+                        await app['resource_manager'].shutdown()
                     finally:
                         try:
-                            await app['resource_manager'].shutdown()
+                            await app['file_store'].close()
                         finally:
                             try:
-                                await app['file_store'].close()
+                                await app['client_session'].close()
                             finally:
-                                try:
-                                    await app['client_session'].close()
-                                finally:
-                                    del app['k8s_cache'].client
-                                    await asyncio.gather(
-                                        *(t for t in asyncio.all_tasks() if t is not asyncio.current_task())
-                                    )
+                                del app['k8s_cache'].client
+                                await asyncio.gather(
+                                    *(t for t in asyncio.all_tasks() if t is not asyncio.current_task())
+                                )
 
 
 def run():
