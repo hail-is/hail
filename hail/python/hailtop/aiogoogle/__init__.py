@@ -1,5 +1,5 @@
 import warnings
-from ..aiocloud.aiogoogle import *
+from ..aiocloud.aiogoogle import *  # noqa: F403,F401
 
 warnings.warn("importing hailtop.aiogoogle is deprecated, please use hailtop.aiocloud.aiogoogle",
               DeprecationWarning,
