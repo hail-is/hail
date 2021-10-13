@@ -963,7 +963,7 @@ class tset(HailType):
         return [self.element_type._convert_to_json_na(elt) for elt in x]
 
     def _convert_from_encoding(self, byte_reader):
-        return set(self._array_repr._convert_from_encoding(byte_reader))
+        return frozenset(self._array_repr._convert_from_encoding(byte_reader))
 
     def _propagate_jtypes(self, jtype):
         self._element_type._add_jtype(jtype.elementType())
@@ -1072,7 +1072,7 @@ class tdict(HailType):
 
     def _convert_from_encoding(self, byte_reader):
         array_of_pairs = self._array_repr._convert_from_encoding(byte_reader)
-        return {pair.key: pair.value for pair in array_of_pairs}
+        return frozendict({pair.key: pair.value for pair in array_of_pairs})
 
     def _propagate_jtypes(self, jtype):
         self._key_type._add_jtype(jtype.keyType())
