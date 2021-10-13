@@ -310,6 +310,19 @@ def docker_call_retry(timeout, name):
     return wrapper
 
 
+async def send_signal_and_wait(proc, signal, timeout=None):
+    try:
+        if signal == 'SIGTERM':
+            proc.terminate()
+        else:
+            assert signal == 'SIGKILL'
+            proc.kill()
+    except ProcessLookupError:
+        pass
+    else:
+        await asyncio.wait_for(proc.wait(), timeout=timeout)
+
+
 class JobDeletedError(Exception):
     pass
 
@@ -839,24 +852,23 @@ class Container:
         if self.container_is_running():
             try:
                 log.info(f'{self} container is still running, killing crun process')
-
-                self.process.kill()
-                await asyncio.wait_for(self.process.wait(), timeout=5)
-                self.process = None
-
                 try:
-                    await check_exec_output('crun', 'state', self.container_name)
-                except CalledProcessError:
-                    pass
-                else:
-                    try:
-                        await check_exec_output('crun', 'kill', '--all', self.container_name, 'SIGKILL')
-                    except CalledProcessError:
-                        log.info(f'could not delete container {self} because it does not exist', exc_info=True)
+                    await check_exec_output('crun', 'kill', '--all', self.container_name, 'SIGKILL')
+                except CalledProcessError as e:
+                    if not (e.returncode == 1 and
+                            f'error opening file `/run/crun/{self.container_name}/status`: No such file or directory' in e.outerr):
+                        log.exception(f'while deleting container {self}', exc_info=True)
             except asyncio.CancelledError:
                 raise
-            except Exception:
-                log.exception(f'while deleting container {self}', exc_info=True)
+            finally:
+                try:
+                    await send_signal_and_wait(self.process, 'SIGTERM', timeout=5)
+                except asyncio.TimeoutError:
+                    await send_signal_and_wait(self.process, 'SIGKILL', timeout=5)
+                except Exception:
+                    log.exception(f'could not kill process for container {self}')
+                finally:
+                    self.process = None
 
         if self.overlay_mounted:
             try:
