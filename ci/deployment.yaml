@@ -46,11 +46,19 @@ spec:
              value: /secrets/oauth-token/oauth-token
 {% if deploy %}
            - name: HAIL_WATCHED_BRANCHES
-             value: '[["hail-is/hail:main",true]]'
+             valueFrom:
+               secretKeyRef:
+                 name: global-config
+                 key: ci_watched_branches
 {% else %}
            - name: HAIL_WATCHED_BRANCHES
-             value: '[["hail-ci-test/ci-test-{{create_ci_test_repo.token}}:master", true]]'
+             value: '[["hail-ci-test/ci-test-{{create_ci_test_repo.token}}:master", true, true, true]]'
 {% endif %}
+           - name: DEPLOY_STEPS
+             valueFrom:
+               secretKeyRef:
+                 name: global-config
+                 key: ci_deploy_steps
            - name: HAIL_DOCKER_PREFIX
              valueFrom:
                secretKeyRef:
@@ -78,12 +86,12 @@ spec:
            - name: HAIL_DEFAULT_NAMESPACE
              value: "{{ default_ns.name }}"
            - name: HAIL_CI_BUCKET_NAME
-{% if deploy %}
-             value: "hail-ci-bpk3h"
-{% else %}
              valueFrom:
                secretKeyRef:
                  name: global-config
+{% if deploy %}
+                 key: hail_ci_gcs_bucket
+{% else %}
                  key: hail_test_gcs_bucket
 {% endif %}
           ports:

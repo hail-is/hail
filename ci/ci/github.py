@@ -17,6 +17,7 @@ from hailtop.utils import check_shell, check_shell_output, RETRY_FUNCTION_SCRIPT
 from .constants import GITHUB_CLONE_URL, AUTHORIZED_USERS, GITHUB_STATUS_CONTEXT, SERVICES_TEAM, COMPILER_TEAM
 from .build import BuildConfiguration, Code
 from .globals import is_test_deployment
+from .environment import DEPLOY_STEPS
 
 
 repos_lock = asyncio.Lock()
@@ -596,10 +597,12 @@ git merge {shq(self.source_sha)} -m 'merge PR'
 
 
 class WatchedBranch(Code):
-    def __init__(self, index, branch, deployable):
+    def __init__(self, index, branch, deployable, mergeable, notify_zulip):
         self.index = index
         self.branch = branch
         self.deployable = deployable
+        self.mergeable = mergeable
+        self.notify_zulip = notify_zulip
 
         self.prs: Optional[Dict[str, PR]] = None
         self.sha = None
@@ -678,7 +681,8 @@ class WatchedBranch(Code):
                 if self.state_changed:
                     self.state_changed = False
                     await self._heal(batch_client, dbpool, gh)
-                    await self.try_to_merge(gh)
+                    if self.mergeable:
+                        await self.try_to_merge(gh)
         finally:
             log.info(f'update done {self.short_str()}')
             self.updating = False
@@ -763,7 +767,7 @@ class WatchedBranch(Code):
                 else:
                     self.deploy_state = 'failure'
 
-                if not is_test_deployment and self.deploy_state == 'failure':
+                if self.notify_zulip and not is_test_deployment and self.deploy_state == 'failure':
                     url = deploy_config.external_url('ci', f'/batches/{self.deploy_batch.id}')
                     deploy_failure_message = f'''
 @**Daniel Goldstein**
@@ -847,7 +851,7 @@ mkdir -p {shq(repo_dir)}
 '''
             )
             with open(f'{repo_dir}/build.yaml', 'r') as f:
-                config = BuildConfiguration(self, f.read(), scope='deploy')
+                config = BuildConfiguration(self, f.read(), requested_step_names=DEPLOY_STEPS, scope='deploy')
 
             log.info(f'creating deploy batch for {self.branch.short_str()}')
             deploy_batch = batch_client.create_batch(

@@ -302,9 +302,8 @@ time python3 \
      {unrendered_dockerfile} \
      /home/user/Dockerfile
 
-set +x
-/bin/sh /home/user/convert-google-application-credentials-to-docker-auth-config
-set -x
+mkdir -p $HOME/.docker
+ln -sf $REGISTRY_CREDENTIALS $HOME/.docker/config.json
 
 export BUILDKITD_FLAGS='--oci-worker-no-process-sandbox --oci-worker-snapshotter=overlayfs'
 export BUILDCTL_CONNECT_RETRIES_MAX=100 # https://github.com/moby/buildkit/issues/1423
@@ -322,20 +321,18 @@ cat /home/user/trace
 
         log.info(f'step {self.name}, script:\n{script}')
 
-        docker_registry = DOCKER_PREFIX.split('/')[0]
         self.job = batch.create_job(
             BUILDKIT_IMAGE,
             command=['/bin/sh', '-c', script],
             secrets=[
                 {
                     'namespace': DEFAULT_NAMESPACE,
-                    'name': 'gcr-push-service-account-key',
-                    'mount_path': '/secrets/gcr-push-service-account-key',
+                    'name': 'container-registry-push-credentials',
+                    'mount_path': '/secrets/registry-credentials',
                 }
             ],
             env={
-                'GOOGLE_APPLICATION_CREDENTIALS': '/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json',
-                'REGISTRY': docker_registry,
+                'REGISTRY_CREDENTIALS': '/secrets/registry-credentials/config.json',
             },
             attributes={'name': self.name},
             resources=self.resources,
@@ -623,7 +620,9 @@ kubectl -n {self.namespace_name} get -o json secret global-config \
 
             for s in self.secrets:
                 script += f'''
-kubectl -n {self.namespace_name} get -o json secret {s} | jq 'del(.metadata) | .metadata.name = "{s}"' | kubectl -n {self._name} apply -f -
+if kubectl -n {self.namespace_name} get secret {s}; then
+    kubectl -n {self.namespace_name} get -o json secret {s} | jq 'del(.metadata) | .metadata.name = "{s}"' | kubectl -n {self._name} apply -f -
+fi
 '''
 
         script += '''

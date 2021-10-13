@@ -1,7 +1,7 @@
 echo 'umask 022' >> ~/.profile
 umask 022
 sudo apt update
-sudo apt install -y docker.io python3-pip openjdk-8-jre-headless jq
+sudo apt install -y docker.io python3-pip openjdk-8-jdk-headless jq
 sudo snap install --classic kubectl
 sudo usermod -a -G docker $USER
 

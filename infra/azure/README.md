@@ -69,7 +69,7 @@ To setup and run the terraform, run
 
 Once terraform has completed successfully, note the `gateway_ip` in the
 output and create an A record for the domain of your choosing for that
-IP with a DNS provider.
+IP with a DNS registry.
 
 Run the following to authenticate docker and kubectl with the new
 container registry and kubernetes cluster, respectively.

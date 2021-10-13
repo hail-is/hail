@@ -32,6 +32,15 @@ copy_images() {
     DOCKER_PREFIX=$(get_global_config_field docker_prefix)
     DOCKER_PREFIX=$DOCKER_PREFIX ./copy_images.sh
     cd -
+    make -C $HAIL/docker/python-dill push
+}
+
+install_editable() {
+    make -C $HAIL/docker hail_version
+    make -C $HAIL/hail install-editable
+    pip install --editable $HAIL/gear
+    pip install --editable $HAIL/batch
+    pip install --editable $HAIL/ci
 }
 
 generate_ssl_certs() {
@@ -55,8 +64,6 @@ generate_ssl_certs() {
             -o yaml \
         | kubectl apply -f -
 
-    make -C $HAIL/hail python/hailtop/hail_version
-
     PYTHONPATH=$HAIL/hail/python \
             python3 $HAIL/tls/create_certs.py \
             default \
@@ -69,6 +76,7 @@ generate_ssl_certs() {
 deploy_unmanaged() {
     render_config_mk
     copy_images
+    install_editable
     generate_ssl_certs
 
     kubectl -n default apply -f $HAIL/ci/bootstrap.yaml
@@ -78,7 +86,6 @@ deploy_unmanaged() {
     make -C $HAIL/letsencrypt run
 }
 
-# FIXME bootstrap.py internally still relies on google secrets
 bootstrap() {
     if [ -z "$1" ] || [ -z "$2" ]; then
         echo "Usage: bootstrap <REPO_ORG>/hail:<BRANCH> <DEPLOY_STEP>"
@@ -88,14 +95,22 @@ bootstrap() {
     DEPLOY_STEP=$2
 
     cd $HAIL
-    DOCKER_PREFIX=$(get_global_config_field docker_prefix)
-    export BATCH_WORKER_IMAGE=$DOCKER_PREFIX/batch-worker:cache
-    export HAIL_CI_UTILS_IMAGE=$DOCKER_PREFIX/ci-utils:cache
-    export HAIL_BUILDKIT_IMAGE=$DOCKER_PREFIX/hail-buildkit:cache
+    export HAIL_DOCKER_PREFIX=$(get_global_config_field docker_prefix)
+    export HAIL_DOCKER_ROOT_IMAGE=$(get_global_config_field docker_root_image)
+    export HAIL_DOMAIN=$(get_global_config_field domain)
+    export KUBERNETES_SERVER_URL=$(get_global_config_field kubernetes_server_url)
+
+    export BATCH_WORKER_IMAGE=$HAIL_DOCKER_PREFIX/batch-worker:cache
+    export HAIL_CI_UTILS_IMAGE=$HAIL_DOCKER_PREFIX/ci-utils:cache
+    export HAIL_BUILDKIT_IMAGE=$HAIL_DOCKER_PREFIX/hail-buildkit:cache
     export HAIL_DEFAULT_NAMESPACE=$(get_global_config_field default_namespace)
     export HAIL_CI_BUCKET_NAME=dummy
-    export PYTHONPATH=$HAIL/ci:$HAIL/batch:$HAIL/hail/python
 
-    python3 ci/bootstrap.py $HAIL_BRANCH $(git rev-parse HEAD) $DEPLOY_STEP
+    if [ -n "$3" ] && [ -n "$4" ]; then
+        extra_code_config="--extra-code-config {\"username\":\"""$3""\",\"email\":\"""$4""\"}"
+    else
+        extra_code_config=""
+    fi
+    python3 ci/bootstrap.py $extra_code_config $HAIL_BRANCH $(git rev-parse HEAD) $DEPLOY_STEP
     cd -
 }

@@ -18,15 +18,25 @@ variable "batch_logs_bucket_location" {}
 variable "batch_logs_bucket_storage_class" {}
 variable "hail_query_bucket_location" {}
 variable "hail_query_bucket_storage_class" {}
+variable "hail_ci_bucket_location" {}
+variable "hail_ci_bucket_storage_class" {}
 variable "hail_test_gcs_bucket_location" {}
 variable "hail_test_gcs_bucket_storage_class" {}
 variable "gcp_region" {}
 variable "gcp_zone" {}
 variable "gcp_location" {}
+variable "ci_watched_branches" {}
+variable "ci_deploy_steps" {}
+variable "ci_github_oauth_token" {}
+variable "ci_github_user1_oauth_token" {}
 variable "domain" {}
 variable "use_artifact_registry" {
   type = bool
   description = "pull the ubuntu image from Artifact Registry. Otherwise, GCR"
+}
+variable "prevent_sql_instance_deletion_on_destroy" {
+  type = bool
+  default = true
 }
 
 locals {
@@ -160,7 +170,7 @@ resource "google_container_node_pool" "vdc_nonpreemptible_pool" {
 }
 
 resource "random_id" "db_name_suffix" {
-  byte_length = 4
+  byte_length = 5
 }
 
 # Without this, I get:
@@ -182,6 +192,13 @@ resource "google_service_networking_connection" "private_vpc_connection" {
   reserved_peering_ranges = [google_compute_global_address.google_managed_services_default.name]
 }
 
+resource "google_compute_network_peering_routes_config" "private_vpc_peering_config" {
+  peering = google_service_networking_connection.private_vpc_connection.peering
+  network = google_compute_network.default.name
+  import_custom_routes = true
+  export_custom_routes = true
+}
+
 resource "google_sql_database_instance" "db" {
   name = "db-${random_id.db_name_suffix.hex}"
   database_version = "MYSQL_5_7"
@@ -200,6 +217,8 @@ resource "google_sql_database_instance" "db" {
       require_ssl = true
     }
   }
+
+  deletion_protection = var.prevent_sql_instance_deletion_on_destroy
 }
 
 resource "google_compute_address" "gateway" {
@@ -224,30 +243,6 @@ provider "kubernetes" {
   )
 }
 
-resource "kubernetes_secret" "global_config" {
-  metadata {
-    name = "global-config"
-  }
-
-  data = {
-    batch_gcp_regions = var.batch_gcp_regions
-    batch_logs_bucket = module.batch_logs.name
-    hail_query_gcs_path = "gs://${module.hail_query.name}"
-    hail_test_gcs_bucket = module.hail_test_gcs_bucket.name
-    default_namespace = "default"
-    docker_root_image = local.docker_root_image
-    domain = var.domain
-    gcp_project = var.gcp_project
-    gcp_region = var.gcp_region
-    gcp_zone = var.gcp_zone
-    docker_prefix = local.docker_prefix
-    gsuite_organization = var.gsuite_organization
-    internal_ip = google_compute_address.internal_gateway.address
-    ip = google_compute_address.gateway.address
-    kubernetes_server_url = "https://${google_container_cluster.vdc.endpoint}"
-  }
-}
-
 resource "google_sql_ssl_cert" "root_client_cert" {
   common_name = "root-client-cert"
   instance = google_sql_database_instance.db.name
@@ -261,22 +256,6 @@ resource "google_sql_user" "db_root" {
   name = "root"
   instance = google_sql_database_instance.db.name
   password = random_password.db_root_password.result
-}
-
-module "sql_config" {
-  source = "./sql_config"
-
-  server_ca_cert     = google_sql_database_instance.db.server_ca_cert.0.cert
-  client_cert        = google_sql_ssl_cert.root_client_cert.cert
-  client_private_key = google_sql_ssl_cert.root_client_cert.private_key
-
-  host     = google_sql_database_instance.db.ip_address[0].ip_address
-  user     = "root"
-  password = random_password.db_root_password.result
-
-  # instance          = google_sql_database_instance.db.name
-  # connection_name   = google_sql_database_instance.db.connection_name
-  docker_root_image = local.docker_root_image
 }
 
 resource "google_container_registry" "registry" {
@@ -329,14 +308,6 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_bat
   member = "serviceAccount:${google_service_account.batch_agent.email}"
 }
 
-resource "google_artifact_registry_repository_iam_member" "artifact_registry_ci_viewer" {
-  provider = google-beta
-  repository = google_artifact_registry_repository.repository.name
-  location = var.gcp_location
-  role = "roles/artifactregistry.reader"
-  member = "serviceAccount:${module.ci_gsa_secret.email}"
-}
-
 resource "google_storage_bucket_iam_member" "gcr_push_admin" {
   bucket = google_container_registry.registry.id
   role = "roles/storage.admin"
@@ -361,6 +332,7 @@ resource "kubernetes_secret" "gcr_pull_key" {
   }
 }
 
+# Deprecated
 resource "kubernetes_secret" "gcr_push_key" {
   metadata {
     name = "gcr-push-service-account-key"
@@ -371,9 +343,26 @@ resource "kubernetes_secret" "gcr_push_key" {
   }
 }
 
-module "ukbb" {
-  source = "./ukbb"
+resource "kubernetes_secret" "container_registry_push_credentials" {
+  metadata {
+    name = "container-registry-push-credentials"
+  }
+
+  data = {
+    "config.json" = jsonencode({
+      "auths": {
+        (local.docker_prefix): {
+          "auth": base64encode(
+              "_json_key:${base64decode(google_service_account_key.gcr_push_key.private_key)}"
+        )}
+      }
+    })
+  }
 }
+
+# module "ukbb" {
+#   source = "../ukbb"
+# }
 
 module "atgu_gsa_secret" {
   source = "./gsa_k8s_secret"
@@ -428,7 +417,29 @@ module "ci_gsa_secret" {
   name = "ci"
 }
 
-resource "google_artifact_registry_repository_iam_member" "artifact_registry_viewer" {
+resource "google_storage_bucket_iam_member" "ci_bucket_viewer" {
+  bucket = module.hail_ci_bucket.name
+  role = "roles/storage.objectAdmin"
+  member = "serviceAccount:${module.ci_gsa_secret.email}"
+}
+
+resource "google_storage_bucket_iam_member" "gcr_ci_viewer" {
+  bucket = google_container_registry.registry.id
+  role = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.ci_gsa_secret.email}"
+}
+
+resource "kubernetes_secret" "hail_ci_0_1_service_account_key" {
+  metadata {
+    name = "hail-ci-0-1-service-account-key"
+  }
+
+  data = {
+    "user1" = var.ci_github_user1_oauth_token
+  }
+}
+
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_ci_viewer" {
   provider = google-beta
   repository = google_artifact_registry_repository.repository.name
   location = var.gcp_location
@@ -439,6 +450,11 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_vie
 module "monitoring_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "monitoring"
+}
+
+module "grafana_gsa_secret" {
+  source = "./gsa_k8s_secret"
+  name = "grafana"
 }
 
 module "test_gsa_secret" {
@@ -452,10 +468,59 @@ module "test_gsa_secret" {
   ]
 }
 
+resource "google_storage_bucket_iam_member" "test_bucket_admin" {
+  bucket = module.hail_test_gcs_bucket.name
+  role = "roles/storage.admin"
+  member = "serviceAccount:${module.test_gsa_secret.email}"
+}
+
+resource "google_storage_bucket_iam_member" "test_requester_pays_viewer" {
+  bucket = module.hail_test_requester_pays_gcs_bucket.name
+  role = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.test_gsa_secret.email}"
+}
+
+resource "google_storage_bucket_iam_member" "test_gcr_viewer" {
+  bucket = google_container_registry.registry.id
+  role = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.test_gsa_secret.email}"
+}
+
 module "test_dev_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "test-dev"
 }
+
+resource "kubernetes_secret" "hail_ci_0_1_github_oauth_token" {
+  metadata {
+    name = "hail-ci-0-1-github-oauth-token"
+  }
+
+  data = {
+    "oauth-token" = var.ci_github_oauth_token
+  }
+}
+
+resource "kubernetes_secret" "zulip_config" {
+  metadata {
+    name = "zulip-config"
+  }
+
+  data = {
+    ".zuliprc" = file("~/.hail/.zuliprc")
+  }
+}
+
+resource "kubernetes_secret" "auth_oauth2_client_secret" {
+  metadata {
+    name = "auth-oauth2-client-secret"
+  }
+
+  data = {
+    "client_secret.json" = file("~/.hail/auth_oauth2_client_secret.json")
+  }
+}
+
 
 resource "google_service_account" "batch_agent" {
   account_id = "batch2-agent"
@@ -534,11 +599,32 @@ module "hail_query" {
   storage_class = var.hail_query_bucket_storage_class
 }
 
+module "hail_ci_bucket" {
+  source        = "./gcs_bucket"
+  short_name    = "hail-ci"
+  location      = var.hail_ci_bucket_location
+  storage_class = var.hail_ci_bucket_storage_class
+}
+
 module "hail_test_gcs_bucket" {
   source        = "./gcs_bucket"
   short_name    = "hail-test"
   location      = var.hail_test_gcs_bucket_location
   storage_class = var.hail_test_gcs_bucket_storage_class
+}
+
+module "hail_test_requester_pays_gcs_bucket" {
+  source         = "./gcs_bucket"
+  short_name     = "hail-requester-pays"
+  location       = var.hail_test_gcs_bucket_location
+  storage_class  = var.hail_test_gcs_bucket_storage_class
+  requester_pays = true
+}
+
+resource "google_storage_bucket_object" "hail_test_requester_pays_hello" {
+  name    = "hello"
+  content = "hello"
+  bucket  = module.hail_test_requester_pays_gcs_bucket.name
 }
 
 resource "google_dns_managed_zone" "dns_zone" {
@@ -560,4 +646,32 @@ resource "google_dns_record_set" "internal_gateway" {
   ttl = 300
 
   rrdatas = [google_compute_address.internal_gateway.address]
+}
+
+resource "kubernetes_cluster_role" "batch" {
+  metadata {
+    name = "batch"
+  }
+
+  rule {
+    api_groups = [""]
+    resources  = ["secrets", "serviceaccounts"]
+    verbs      = ["get", "list"]
+  }
+}
+
+resource "kubernetes_cluster_role_binding" "batch" {
+  metadata {
+    name = "batch"
+  }
+  role_ref {
+    kind      = "ClusterRole"
+    name      = "batch"
+    api_group = "rbac.authorization.k8s.io"
+  }
+  subject {
+    kind      = "ServiceAccount"
+    name      = "batch"
+    namespace = "default"
+  }
 }

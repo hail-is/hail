@@ -40,8 +40,10 @@ uvloop.install()
 deploy_config = get_deploy_config()
 
 watched_branches: List[WatchedBranch] = [
-    WatchedBranch(index, FQBranch.from_short_str(bss), deployable)
-    for (index, [bss, deployable]) in enumerate(json.loads(os.environ.get('HAIL_WATCHED_BRANCHES', '[]')))
+    WatchedBranch(index, FQBranch.from_short_str(bss), deployable, mergeable, notify_zulip)
+    for (index, [bss, deployable, mergeable, notify_zulip]) in enumerate(
+        json.loads(os.environ.get('HAIL_WATCHED_BRANCHES', '[]'))
+    )
 ]
 
 routes = web.RouteTableDef()

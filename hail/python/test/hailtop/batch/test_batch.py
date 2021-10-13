@@ -18,8 +18,12 @@ from hailtop.batch.utils import concatenate
 from .utils import debug_info
 
 
-DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'gcr.io/hail-vdc/ubuntu:18.04')
+PROJECT = os.environ['PROJECT']
+DOCKER_PREFIX = os.environ['DOCKER_PREFIX']
+DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
+PYTHON_DILL_IMAGE = os.environ['PYTHON_DILL_IMAGE']
 HAIL_TEST_GCS_BUCKET = os.environ['HAIL_TEST_GCS_BUCKET']
+HAIL_TEST_REQUESTER_PAYS_GCS_BUCKET = os.environ['HAIL_TEST_REQUESTER_PAYS_GCS_BUCKET']
 
 
 class LocalTests(unittest.TestCase):
@@ -414,7 +418,7 @@ class ServiceTests(unittest.TestCase):
                 in_cluster_key_file)
         else:
             credentials = None
-        gcs_client = google.cloud.storage.Client(project='hail-vdc', credentials=credentials)
+        gcs_client = google.cloud.storage.Client(project=PROJECT, credentials=credentials)
         bucket = gcs_client.bucket(self.bucket_name)
         if not bucket.blob('batch-tests/resources/hello.txt').exists():
             bucket.blob('batch-tests/resources/hello.txt').upload_from_string(
@@ -621,8 +625,8 @@ class ServiceTests(unittest.TestCase):
             j.gcsfuse(self.bucket_name, '')
 
     def test_requester_pays(self):
-        b = self.batch(requester_pays_project='hail-vdc')
-        input = b.read_input('gs://hail-services-requester-pays/hello')
+        b = self.batch(requester_pays_project=PROJECT)
+        input = b.read_input(f'gs://{HAIL_TEST_REQUESTER_PAYS_GCS_BUCKET}/hello')
         j = b.new_job()
         j.command(f'cat {input}')
         res = b.run()
@@ -695,7 +699,7 @@ class ServiceTests(unittest.TestCase):
         assert res.status()['state'] == 'success', debug_info(res)
 
     def test_python_job(self):
-        b = self.batch(default_python_image='gcr.io/hail-vdc/python-dill:3.7-slim')
+        b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
         head = b.new_job()
         head.command(f'echo "5" > {head.r5}')
         head.command(f'echo "3" > {head.r3}')
@@ -728,7 +732,7 @@ class ServiceTests(unittest.TestCase):
         assert res.get_job_log(4)['main'] == "3\n5\n30\n{\"x\": 3, \"y\": 5}\n", debug_info(res)
 
     def test_python_job_w_resource_group_unpack_individually(self):
-        b = self.batch(default_python_image='gcr.io/hail-vdc/python-dill:3.7-slim')
+        b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
         head = b.new_job()
         head.declare_resource_group(count={'r5': '{root}.r5',
                                            'r3': '{root}.r3'})
@@ -764,7 +768,7 @@ class ServiceTests(unittest.TestCase):
         assert res.get_job_log(4)['main'] == "3\n5\n30\n{\"x\": 3, \"y\": 5}\n", debug_info(res)
 
     def test_python_job_w_resource_group_unpack_jointly(self):
-        b = self.batch(default_python_image='gcr.io/hail-vdc/python-dill:3.7-slim')
+        b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
         head = b.new_job()
         head.declare_resource_group(count={'r5': '{root}.r5',
                                            'r3': '{root}.r3'})
@@ -795,7 +799,7 @@ class ServiceTests(unittest.TestCase):
         assert res.get_job_log(3)['main'] == "15\n", debug_info(res)
 
     def test_python_job_w_non_zero_ec(self):
-        b = self.batch(default_python_image='gcr.io/hail-vdc/python-dill:3.7-slim')
+        b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
         j = b.new_python_job()
 
         def error():

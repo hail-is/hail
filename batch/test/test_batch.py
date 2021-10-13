@@ -861,7 +861,7 @@ echo "hello" | nc -q 1 localhost 5000
     j = builder.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'], command=['/bin/bash', '-c', script])
     builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert status['state'] == 'Success', (str(j.log()['main']), status)
     assert 'hello\n' == j.log()['main']
 
 
@@ -878,7 +878,7 @@ echo "hello" | nc -q 1 127.0.0.1 5000
     j = builder.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'], command=['/bin/bash', '-c', script])
     builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert status['state'] == 'Success', (str(j.log()['main']), status)
     assert 'hello\n' == j.log()['main']
 
 
@@ -895,7 +895,7 @@ echo "hello" | nc -q 1 $(hostname -i) 5000
     j = builder.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'], command=['/bin/sh', '-c', script])
     builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert status['state'] == 'Success', (str(j.log()['main']), status)
     assert 'hello\n' == j.log()['main'], str(j.log())
 
 
@@ -919,7 +919,7 @@ def test_pool_highmem_instance(client):
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert status['state'] == 'Success', (str(j.log()['main']), status)
     assert 'highmem' in status['status']['worker'], str(status)
 
     builder = client.create_batch()
@@ -927,7 +927,7 @@ def test_pool_highmem_instance(client):
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert status['state'] == 'Success', (str(j.log()['main']), status)
     assert 'highmem' in status['status']['worker'], str(status)
 
     builder = client.create_batch()
@@ -935,7 +935,7 @@ def test_pool_highmem_instance(client):
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert status['state'] == 'Success', (str(j.log()['main']), status)
     assert 'standard' in status['status']['worker'], str(status)
 
 
@@ -945,7 +945,7 @@ def test_pool_highcpu_instance(client):
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert status['state'] == 'Success', (str(j.log()['main']), status)
     assert 'highcpu' in status['status']['worker'], str(status)
 
     builder = client.create_batch()
@@ -953,7 +953,7 @@ def test_pool_highcpu_instance(client):
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert status['state'] == 'Success', (str(j.log()['main']), status)
     assert 'highcpu' in status['status']['worker'], str(status)
 
     builder = client.create_batch()
@@ -961,7 +961,7 @@ def test_pool_highcpu_instance(client):
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert status['state'] == 'Success', (str(j.log()['main']), status)
     assert 'standard' in status['status']['worker'], str(status)
 
 
@@ -971,7 +971,7 @@ def test_job_private_instance_preemptible(client):
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert status['state'] == 'Success', (str(j.log()['main']), status)
     assert 'job-private' in status['status']['worker'], str(status)
 
 
@@ -981,7 +981,7 @@ def test_job_private_instance_nonpreemptible(client):
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert status['state'] == 'Success', (str(j.log()['main']), status)
     assert 'job-private' in status['status']['worker'], str(status)
 
 

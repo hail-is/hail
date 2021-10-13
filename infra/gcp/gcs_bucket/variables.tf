@@ -9,3 +9,8 @@ variable "location" {
 variable "storage_class" {
   type = string
 }
+
+variable "requester_pays" {
+  type = bool
+  default = false
+}
