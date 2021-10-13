@@ -16,6 +16,7 @@ output "global_config" {
     azure = {
       azure_resource_group = data.azurerm_resource_group.rg.name
       azure_subscription_id = var.subscription_id
+      azure_location = data.azurerm_resource_group.rg.location
     }
   }
 }
