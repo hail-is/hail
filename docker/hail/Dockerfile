@@ -9,7 +9,7 @@ RUN hail-apt-get-install \
     openjdk-8-jre-headless \
     python3 python3-pip \
     rsync \
-    unzip bzip2 zip tar \
+    unzip bzip2 zip tar tabix lz4 \
     vim pv
 COPY hail_pip_version /
 RUN hail-pip-install \
