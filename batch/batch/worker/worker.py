@@ -858,13 +858,9 @@ class Container:
                     if not (e.returncode == 1 and
                             f'error opening file `/run/crun/{self.container_name}/status`: No such file or directory' in e.outerr):
                         log.exception(f'while deleting container {self}', exc_info=True)
-            except asyncio.CancelledError:
-                raise
             finally:
                 try:
                     await send_signal_and_wait(self.process, 'SIGTERM', timeout=5)
-                except asyncio.CancelledError:
-                    raise
                 except asyncio.TimeoutError:
                     try:
                         await send_signal_and_wait(self.process, 'SIGKILL', timeout=5)
