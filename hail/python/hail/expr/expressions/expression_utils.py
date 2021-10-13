@@ -159,7 +159,7 @@ def eval_timed(expression):
         (tupled_ans, timing) = Env.backend().execute(tupled_expression._ir, True)
     else:
         uid = Env.get_uid()
-        ir = tupled_expression._indices.source.select_globals(**{uid: expression}).index_globals()[uid]._ir
+        ir = tupled_expression._indices.source.select_globals(**{uid: tupled_expression}).index_globals()[uid]._ir
         (tupled_ans, timing) = Env.backend().execute(ir, True)
 
     return tupled_ans[0], timing
