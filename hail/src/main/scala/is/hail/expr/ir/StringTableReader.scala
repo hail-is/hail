@@ -71,8 +71,8 @@ case class StringTablePartitionReader(lines: GenericLines) extends PartitionRead
            cb.assign(fileName, partitionContext.loadField(cb, "file").get(cb).asString.loadString(cb))
 
            cb.assign(iter,
-             cb.emb.getObject[(Any) => CloseableIterator[GenericLine]](lines.body)
-               .invoke[Any, CloseableIterator[GenericLine]]("apply", contextAsJavaValue)
+             cb.emb.getObject[(FS, Any) => CloseableIterator[GenericLine]](lines.body)
+               .invoke[Any, Any, CloseableIterator[GenericLine]]("apply", cb.emb.getFS, contextAsJavaValue)
            )
          }
 
@@ -144,5 +144,5 @@ class StringTableReader(
     (PCanonicalStruct(IndexedSeq(PField("file", PCanonicalString(true), 0),
                                 PField("text", PCanonicalString(true), 1)), true).subsetTo(requestedType.rowType).asInstanceOf[PStruct],
      PCanonicalStruct.empty(required = true))
-  
+
 }

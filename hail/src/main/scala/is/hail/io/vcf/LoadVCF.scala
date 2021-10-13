@@ -1561,7 +1561,6 @@ object MatrixVCFReader {
   def apply(ctx: ExecuteContext, params: MatrixVCFReaderParameters): MatrixVCFReader = {
     val backend = ctx.backend
     val fs = ctx.fs
-    val fsBc = fs.broadcast
 
     val referenceGenome = params.rg.map(ReferenceGenome.getReference)
 
@@ -1584,7 +1583,7 @@ object MatrixVCFReader {
         val localArrayElementsRequired = params.arrayElementsRequired
         val localFilterAndReplace = params.filterAndReplace
 
-        backend.parallelizeAndComputeWithIndex(ctx.backendContext, files.tail.map(_.getBytes), None) { (bytes, htc, fs) =>
+        backend.parallelizeAndComputeWithIndex(ctx.backendContext, fs, files.tail.map(_.getBytes), None) { (bytes, htc, fs) =>
           val file = new String(bytes)
 
           val hd = parseHeader(
@@ -1732,7 +1731,7 @@ class MatrixVCFReader(
     val body = { (requestedType: TStruct) =>
       val requestedPType = bodyPType(requestedType)
 
-      { (region: Region, context: Any) =>
+      { (region: Region, fs: FS, context: Any) =>
         val parseLineContext = new ParseLineContext(requestedType, makeJavaSet(localInfoFlagFieldNames), localNSamples)
 
         val rvb = new RegionValueBuilder(region)
@@ -1744,7 +1743,7 @@ class MatrixVCFReader(
 
         val transformer = localFilterAndReplace.transformer()
 
-        linesBody(context)
+        linesBody(fs, context)
           .filter { line =>
             val text = line.toString
             val newText = transformer(text)
