@@ -1,12 +1,11 @@
 from hail.utils.java import Env
-import struct
 
-block_codec = '{"name":"BlockingBufferSpec","blockSize":65536,"child":{"name":"StreamBlockBufferSpec"}}'
 stream_codec = '{"name":"StreamBufferSpec"}'
 
 
 def encode(expression, codec=stream_codec):
-    return Env.spark_backend('encode')._jbackend.encodeToBytes(Env.backend()._to_java_value_ir(expression._ir), codec)
+    jir = Env.backend()._to_java_value_ir(expression._ir)
+    return Env.backend()._jhc.backend().executeEncode(jir, codec)._1()
 
 
 def decode(typ, bytes):
