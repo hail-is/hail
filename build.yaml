@@ -2612,7 +2612,7 @@ steps:
         mountPath: /test-gsa-key
       - name: global-config
         namespace:
-          valueFrom: global-config
+          valueFrom: default_ns.name
         mountPath: /global-config
     inputs:
       - from: /repo/memory/test
