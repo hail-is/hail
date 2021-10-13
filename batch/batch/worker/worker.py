@@ -868,6 +868,8 @@ class Container:
                 except asyncio.TimeoutError:
                     try:
                         await send_signal_and_wait(self.process, 'SIGKILL', timeout=5)
+                    except asyncio.CancelledError:
+                        raise
                     except Exception:
                         log.exception(f'could not kill process for container {self}')
                 finally:
