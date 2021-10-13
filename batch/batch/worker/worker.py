@@ -863,6 +863,8 @@ class Container:
             finally:
                 try:
                     await send_signal_and_wait(self.process, 'SIGTERM', timeout=5)
+                except asyncio.CancelledError:
+                    raise
                 except asyncio.TimeoutError:
                     await send_signal_and_wait(self.process, 'SIGKILL', timeout=5)
                 except Exception:
