@@ -855,8 +855,8 @@ class Container:
                 try:
                     await check_exec_output('crun', 'kill', '--all', self.container_name, 'SIGKILL')
                 except CalledProcessError as e:
-                    if not (e.returncode == 1 and
-                            f'error opening file `/run/crun/{self.container_name}/status`: No such file or directory' in e.outerr):
+                    if not (e.returncode == 1
+                            and f'error opening file `/run/crun/{self.container_name}/status`: No such file or directory' in e.outerr):
                         log.exception(f'while deleting container {self}', exc_info=True)
             finally:
                 try:
