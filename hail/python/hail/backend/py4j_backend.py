@@ -1,5 +1,4 @@
 import abc
-import json
 
 import py4j
 
@@ -43,6 +42,7 @@ class Py4JBackend(Backend):
     @abc.abstractmethod
     def __init__(self):
         import base64
+
         def decode_bytearray(encoded):
             return base64.standard_b64decode(encoded)
 

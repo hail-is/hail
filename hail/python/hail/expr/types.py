@@ -725,7 +725,7 @@ class tndarray(HailType):
     def _convert_from_encoding(self, byte_reader):
         shape = [byte_reader.read_int64() for i in range(self.ndim)]
         total_num_elements = np.product(shape, dtype=np.int64)
-        #TODO: Optimize with numpy.frombuffer, but that requires specifying elementsize, which can only be done with primitives
+        # TODO: Optimize with numpy.frombuffer, but that requires specifying elementsize, which can only be done with primitives
         elements = [self.element_type._convert_from_encoding(byte_reader) for i in range(total_num_elements)]
         np_type = self.element_type.to_numpy()
         return np.ndarray(shape=shape, buffer=np.array(elements, dtype=np_type), dtype=np_type, order="F")
@@ -1540,10 +1540,12 @@ class ttuple(HailType, Sequence):
     def _get_context(self):
         return HailTypeContext.union(*self.types)
 
+
 def allele_pair(j, k):
     assert j >= 0 and j <= 0xffff
     assert k >= 0 and k <= 0xffff
     return j | (k << 16)
+
 
 def allele_pair_sqrt(i):
     k = int(math.sqrt(8 * float(i) + 1) / 2 - .5)
@@ -1551,6 +1553,7 @@ def allele_pair_sqrt(i):
     j = i - k * (k + 1) / 2
     # TODO another assert
     allele_pair(j, k)
+
 
 small_allele_pair = [
     allele_pair(0, 0), allele_pair(0, 1), allele_pair(1, 1),
@@ -1561,6 +1564,7 @@ small_allele_pair = [
     allele_pair(0, 6), allele_pair(1, 6), allele_pair(2, 6), allele_pair(3, 6), allele_pair(4, 6), allele_pair(5, 6), allele_pair(6, 6),
     allele_pair(0, 7), allele_pair(1, 7), allele_pair(2, 7), allele_pair(3, 7), allele_pair(4, 7), allele_pair(5, 7), allele_pair(6, 7), allele_pair(7, 7)
 ]
+
 
 class _tcall(HailType):
     """Hail type for a diploid genotype.
@@ -1620,6 +1624,7 @@ class _tcall(HailType):
 
         def ap_j(p):
             return p & 0xffff
+
         def ap_k(p):
             return (p >> 16) & 0xffff
 

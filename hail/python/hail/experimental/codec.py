@@ -10,4 +10,3 @@ def encode(expression, codec=stream_codec):
 
 def decode(typ, bytes):
     return typ._from_encoding(bytes)
-
