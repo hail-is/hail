@@ -12,5 +12,7 @@ resource "kubernetes_secret" "global_config" {
     internal_ip           = var.global_config.global.internal_ip
     ip                    = var.global_config.global.ip
     kubernetes_server_url = "https://${var.global_config.global.kubernetes_server}"
+    ci_watched_branches   = var.global_config.global.ci_watched_branches
+    ci_deploy_steps       = var.global_config.global.ci_deploy_steps
   }, var.global_config.azure, var.global_config.gcp)
 }

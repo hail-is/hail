@@ -7,6 +7,8 @@ variable "global_config" {
       ip = string
       kubernetes_server = string
       docker_prefix = string
+      ci_watched_branches = string
+      ci_deploy_steps = string
     })
     azure = map(any)
     gcp = map(any)
