@@ -310,6 +310,19 @@ def docker_call_retry(timeout, name):
     return wrapper
 
 
+async def send_signal_and_wait(proc, signal, timeout=None):
+    try:
+        if signal == 'SIGTERM':
+            proc.terminate()
+        else:
+            assert signal == 'SIGKILL'
+            proc.kill()
+    except ProcessLookupError:
+        pass
+    else:
+        await asyncio.wait_for(proc.wait(), timeout=timeout)
+
+
 class JobDeletedError(Exception):
     pass
 
@@ -604,7 +617,7 @@ class Container:
             await self.write_container_config()
             async with async_timeout.timeout(self.timeout):
                 with open(self.log_path, 'w') as container_log:
-                    log.info('Creating the crun run process')
+                    log.info(f'Creating the crun run process for {self}')
                     self.process = await asyncio.create_subprocess_exec(
                         'crun',
                         'run',
@@ -617,7 +630,7 @@ class Container:
                         stderr=container_log,
                     )
                     await self.process.wait()
-                    log.info('crun process completed')
+                    log.info(f'crun process completed for {self}')
         except asyncio.TimeoutError:
             return True
         finally:
@@ -840,13 +853,24 @@ class Container:
         if self.container_is_running():
             try:
                 log.info(f'{self} container is still running, killing crun process')
-                self.process.terminate()
-                self.process = None
-                await check_exec_output('crun', 'kill', '--all', self.container_name, 'SIGTERM')
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                log.exception(f'while deleting container {self}', exc_info=True)
+                try:
+                    await check_exec_output('crun', 'kill', '--all', self.container_name, 'SIGKILL')
+                except CalledProcessError as e:
+                    if not (e.returncode == 1
+                            and f'error opening file `/run/crun/{self.container_name}/status`: No such file or directory' in e.outerr):
+                        log.exception(f'while deleting container {self}', exc_info=True)
+            finally:
+                try:
+                    await send_signal_and_wait(self.process, 'SIGTERM', timeout=5)
+                except asyncio.TimeoutError:
+                    try:
+                        await send_signal_and_wait(self.process, 'SIGKILL', timeout=5)
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception:
+                        log.exception(f'could not kill process for container {self}')
+                finally:
+                    self.process = None
 
         if self.overlay_mounted:
             try:
