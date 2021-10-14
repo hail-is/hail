@@ -564,6 +564,8 @@ class Container:
                 await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
                     docker.images.pull, self.image_ref_str, auth=auth
                 )
+            else:
+                raise
 
     async def batch_worker_access_token(self):
         async with await request_retry_transient_errors(
