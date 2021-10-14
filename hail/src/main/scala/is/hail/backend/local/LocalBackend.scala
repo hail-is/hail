@@ -164,15 +164,6 @@ class LocalBackend(
       result
     }
 
-//  def executeJSON(ir: IR): String = {
-//    val (jsonValue, timer) = ExecutionTimer.time("LocalBackend.executeJSON") { timer =>
-//      val t = ir.typ
-//      val (value, timings) = execute(timer, ir)
-//      JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value, t))
-//    }
-//    timer.logInfo()
-//    Serialization.write(Map("value" -> jsonValue, "timings" -> timer.toMap))(new DefaultFormats {})
-//  }
 
   def executeLiteral(ir: IR): IR = {
     ExecutionTimer.logTime("LocalBackend.executeLiteral") { timer =>
