@@ -294,6 +294,7 @@ object Pretty {
       FastSeq(prettyIntOpt(nPartitions), bufferSize.toString)
     case TableExplode(_, path) => single(prettyStrings(path))
     case TableMapPartitions(_, g, p, _) => FastSeq(prettyIdentifier(g), prettyIdentifier(p))
+    case TableMapPartitions2(_, _, g, l, r, _) => FastSeq(prettyIdentifier(g), prettyIdentifier(l), prettyIdentifier(r))
     case TableParallelize(_, nPartitions) => single(prettyIntOpt(nPartitions))
     case TableOrderBy(_, sortFields) => single(prettySortFields(sortFields))
     case CastMatrixToTable(_, entriesFieldName, colsFieldName) =>

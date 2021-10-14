@@ -493,6 +493,31 @@ object PruneDeadFields {
           rowType = depRowType.asInstanceOf[TStruct],
           globalType = depGlobalType.asInstanceOf[TStruct])
         memoizeTableIR(child, dep, memo)
+      case TableMapPartitions2(leftChild, rightChild, gName, lName, rName, body) =>
+        val reqRowsType = TStream(requestedType.rowType)
+        val bodyDep = memoizeValueIR(body, reqRowsType, memo)
+        val depGlobalType = unifySeq(leftChild.typ.globalType,
+          bodyDep.eval.lookupOption(gName).map(_.result()).getOrElse(Array()) :+ requestedType.globalType)
+
+        val depLeftRowType = unifySeq(leftChild.typ.rowType,
+          bodyDep.eval.lookupOption(lName)
+            .map(_.result().map(_.asInstanceOf[TStream].elementType))
+            .getOrElse(Array()))
+        val depLeft = TableType(
+          key = requestedType.key,
+          rowType = depLeftRowType.asInstanceOf[TStruct],
+          globalType = depGlobalType.asInstanceOf[TStruct])
+        memoizeTableIR(leftChild, depLeft, memo)
+
+        val depRightRowType = unifySeq(rightChild.typ.rowType,
+          bodyDep.eval.lookupOption(rName)
+            .map(_.result().map(_.asInstanceOf[TStream].elementType))
+            .getOrElse(Array()))
+        val depRight = TableType(
+          key = FastIndexedSeq(),
+          rowType = depRightRowType.asInstanceOf[TStruct],
+          globalType = TStruct())
+        memoizeTableIR(rightChild, depRight, memo)
       case TableMapRows(child, newRow) =>
         val rowDep = memoizeAndGetDep(newRow, requestedType.rowType, child.typ, memo)
         val dep = TableType(

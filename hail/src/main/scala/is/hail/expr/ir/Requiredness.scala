@@ -287,6 +287,17 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           refMap(partitionStreamName).foreach { u => defs.bind(u, Array[BaseTypeWithRequiredness](RIterable(lookup(child).rowType))) }
         val refs = refMap.getOrElse(globalName, FastIndexedSeq()) ++ refMap.getOrElse(partitionStreamName, FastIndexedSeq())
         dependents.getOrElseUpdate(child, mutable.Set[RefEquality[BaseIR]]()) ++= refs
+      case TableMapPartitions2(leftChild, rightChild, globalName, leftStreamName, rightStreamName, body) =>
+        if (refMap.contains(globalName))
+          refMap(globalName).foreach { u => defs.bind(u, Array[BaseTypeWithRequiredness](lookup(leftChild).globalType)) }
+        if (refMap.contains(leftStreamName))
+          refMap(leftStreamName).foreach { u => defs.bind(u, Array[BaseTypeWithRequiredness](RIterable(lookup(leftChild).rowType))) }
+        if (refMap.contains(rightStreamName))
+          refMap(rightStreamName).foreach { u => defs.bind(u, Array[BaseTypeWithRequiredness](RIterable(lookup(rightChild).rowType))) }
+        val leftRefs = refMap.getOrElse(globalName, FastIndexedSeq()) ++ refMap.getOrElse(leftStreamName, FastIndexedSeq())
+        dependents.getOrElseUpdate(leftChild, mutable.Set[RefEquality[BaseIR]]()) ++= leftRefs
+        val rightRefs = refMap.getOrElse(rightStreamName, FastIndexedSeq())
+        dependents.getOrElseUpdate(rightChild, mutable.Set[RefEquality[BaseIR]]()) ++= rightRefs
       case _ => fatal(Pretty(node))
     }
   }
@@ -425,6 +436,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case TableMapPartitions(child, globalName, partitionStreamName, body) =>
         requiredness.unionRows(lookupAs[RIterable](body).elementType.asInstanceOf[RStruct])
         requiredness.unionGlobals(lookup(child))
+      case TableMapPartitions2(leftChild, rightChild, globalName, leftStreamName, rightStreamName, body) =>
+        requiredness.unionRows(lookupAs[RIterable](body).elementType.asInstanceOf[RStruct])
+        requiredness.unionGlobals(lookup(leftChild))
       case TableToTableApply(child, function) => requiredness.maximize() //FIXME: needs implementation
       case BlockMatrixToTableApply(child, _, function) => requiredness.maximize() //FIXME: needs implementation
       case BlockMatrixToTable(child) => //all required

@@ -496,6 +496,11 @@ object TypeCheck {
         assert(StreamUtils.isIterationLinear(body, partitionStreamName), "must iterate over the partition exactly once")
         val newRowType = body.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
         child.typ.key.foreach { k => if (!newRowType.hasField(k)) throw new RuntimeException(s"prev key: ${child.typ.key}, new row: ${newRowType}")}
+      case TableMapPartitions2(leftChild, rightChild, globalName, leftStreamName, rightStreamName, body) =>
+        assert(StreamUtils.isIterationLinear(body, leftStreamName), "must iterate over the left partition exactly once")
+        assert(StreamUtils.isIterationLinear(body, rightStreamName), "must iterate over the right partition exactly once")
+        val newRowType = body.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
+        leftChild.typ.key.foreach { k => if (!newRowType.hasField(k)) throw new RuntimeException(s"prev key: ${leftChild.typ.key}, new row: ${newRowType}")}
 
       case MatrixUnionCols(left, right, joinType) =>
         assert(left.typ.rowKeyStruct == right.typ.rowKeyStruct, s"${left.typ.rowKeyStruct} != ${right.typ.rowKeyStruct}")
