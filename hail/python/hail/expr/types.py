@@ -1825,7 +1825,7 @@ class tinterval(HailType):
 
     def _convert_from_encoding(self, byte_reader):
         interval_as_struct = self._struct_repr._convert_from_encoding(byte_reader)
-        return hl.Interval(interval_as_struct.start, interval_as_struct.end, interval_as_struct.includes_start, interval_as_struct.includes_end)
+        return hl.Interval(interval_as_struct.start, interval_as_struct.end, interval_as_struct.includes_start, interval_as_struct.includes_end, point_type=self.point_type)
 
     def unify(self, t):
         return isinstance(t, tinterval) and self.point_type.unify(t.point_type)
