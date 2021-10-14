@@ -1110,6 +1110,15 @@ object IRParser {
           eltType = coerce[TStream](a.typ).elementType
           body <- ir_value_expr(env.update(Map(accumName -> zero.typ, valueName -> eltType)))(it)
         } yield StreamScan(a, zero, accumName, valueName, body)
+      case "StreamWhiten" =>
+        val vecSize = int32_literal(it)
+        val windowSize = int32_literal(it)
+        val chunkSize = int32_literal(it)
+        val blockSize = int32_literal(it)
+        for {
+          stream <- ir_value_expr(env)(it)
+          prevWindow <- ir_value_expr(env)(it)
+        } yield StreamWhiten(stream, prevWindow, vecSize, windowSize, chunkSize, blockSize)
       case "StreamJoinRightDistinct" =>
         val lKey = identifiers(it)
         val rKey = identifiers(it)
@@ -1625,6 +1634,15 @@ object IRParser {
           child <- table_ir(env)(it)
           body <- ir_value_expr(env ++ Array((globalsName, child.typ.globalType), (partitionStreamName, TStream(child.typ.rowType))))(it)
         } yield TableMapPartitions(child, globalsName, partitionStreamName, body)
+      case "TableMapPartitions2" =>
+        val globalsName = identifier(it)
+        val leftStreamName = identifier(it)
+        val rightStreamName = identifier(it)
+        for {
+          leftChild <- table_ir(env)(it)
+          rightChild <- table_ir(env)(it)
+          body <- ir_value_expr(env ++ Array((globalsName, leftChild.typ.globalType), (leftStreamName, TStream(leftChild.typ.rowType)), (rightStreamName, TStream(rightChild.typ.rowType))))(it)
+        } yield TableMapPartitions2(leftChild, rightChild, globalsName, leftStreamName, rightStreamName, body)
       case "RelationalLetTable" =>
         val name = identifier(it)
         for {

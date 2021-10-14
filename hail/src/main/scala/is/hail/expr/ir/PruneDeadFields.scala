@@ -1041,6 +1041,10 @@ object PruneDeadFields {
         unifyEnvs(
           memoizeValueIR(a, requestedType, memo),
           memoizeValueIR(len, len.typ, memo))
+      case StreamWhiten(a, prevWindow, _, _, _, _) =>
+        unifyEnvs(
+          memoizeValueIR(a, requestedType, memo),
+          memoizeValueIR(prevWindow, requestedType.asInstanceOf[TStream].elementType, memo))
       case StreamMap(a, name, body) =>
         val aType = a.typ.asInstanceOf[TStream]
         val bodyEnv = memoizeValueIR(body,
@@ -1577,6 +1581,19 @@ object PruneDeadFields {
         else
           child2
         TableMapPartitions(child2Keyed, gName, pName, body2)
+      case TableMapPartitions2(leftChild, rightChild, gName, lName, rName, body) =>
+        val leftChild2 = rebuild(leftChild, memo)
+        val rightChild2 = rebuild(rightChild, memo)
+        val body2 = rebuildIR(body, BindingEnv(Env(
+          gName -> leftChild2.typ.globalType,
+          lName -> TStream(leftChild2.typ.rowType),
+          rName -> TStream(rightChild2.typ.rowType))), memo)
+        val body2ElementType = body2.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
+        val leftChild2Keyed = if (leftChild2.typ.key.exists(k => !body2ElementType.hasField(k)))
+          TableKeyBy(leftChild2, leftChild2.typ.key.takeWhile(body2ElementType.hasField))
+        else
+          leftChild2
+        TableMapPartitions2(leftChild2Keyed, rightChild2, gName, lName, rName, body2)
       case TableMapRows(child, newRow) =>
         val child2 = rebuild(child, memo)
         val newRow2 = rebuildIR(newRow, BindingEnv(child2.typ.rowEnv, scan = Some(child2.typ.rowEnv)), memo)
