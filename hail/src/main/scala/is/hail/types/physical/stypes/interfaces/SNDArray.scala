@@ -1210,4 +1210,17 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
       })
     })
   }
+
+  def initializeWindow(cb: EmitCodeBuilder, _A: SNDArrayValue): Unit = {
+    val b = _A.shapes(1)
+
+    val A = _A.coerceToShape(cb, m, b)
+    cb.ifx(b > chunksize, cb._fatal("initializeWindow: A too large"))
+    cb.ifx(curSize.cne(0), cb._fatal("initializeWindow: can only be called on empty state"))
+
+    val Rslice = R.slice(cb, (null, b), (null, b))
+    val Qslice = Q.slice(cb, ::, (null, b))
+    SNDArray.geqr_full(cb, A, Qslice, Rslice, T, work3)
+    cb.assign(curSize, b)
+  }
 }

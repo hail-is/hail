@@ -1014,6 +1014,48 @@ object EmitStream {
           SStreamValue(producer)
         }
 
+      case StreamWhiten(stream, prevWindow, vecSize, windowSize, chunkSize, blockSize) =>
+        produce(stream, cb).map(cb) { case blocks: SStreamValue =>
+          val state = new LocalWhitening(cb, SizeValueStatic(vecSize.toLong), windowSize.toLong, chunkSize.toLong, blockSize.toLong, outerRegion)
+          val resultField = mb.newPField("StreamWhiten_result", blocks.st.elementType)
+
+          val blocksProducer = blocks.producer
+          val producer: StreamProducer = new StreamProducer {
+            override val length: Option[EmitCodeBuilder => Code[Int]] = blocksProducer.length
+
+            override def initialize(cb: EmitCodeBuilder): Unit = {
+              emit(prevWindow, cb).consume(cb, {
+
+              }, { case prevWindow: SNDArrayValue =>
+                state.initializeWindow(cb, prevWindow)
+              })
+            }
+
+            override val elementRegion: Settable[Region] = blocksProducer.elementRegion
+            override val requiresMemoryManagementPerElement: Boolean = blocksProducer.requiresMemoryManagementPerElement
+
+            override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
+              cb.goto(blocksProducer.LproduceElement)
+              cb.define(blocksProducer.LproduceElementDone)
+              val result = blocksProducer.element.toI(cb).get(cb, "StreamWhiten: missing block").asNDArray
+              state.whitenBlock(cb, result)
+              cb.assign(resultField, result)
+            }
+
+            override val element: EmitCode = EmitCode.present(mb, resultField)
+
+            override def close(cb: EmitCodeBuilder): Unit = {
+              blocksProducer.close(cb)
+            }
+          }
+
+          mb.implementLabel(blocksProducer.LendOfStream) { cb =>
+            cb.goto(producer.LendOfStream)
+          }
+
+          SStreamValue(producer)
+        }
+
       case StreamFlatMap(a, name, body) =>
         produce(a, cb).map(cb) { case outerStream: SStreamValue =>
           val outerProducer = outerStream.producer

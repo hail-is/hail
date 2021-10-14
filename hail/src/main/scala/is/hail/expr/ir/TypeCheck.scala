@@ -167,6 +167,13 @@ object TypeCheck {
         assert(child.typ.isInstanceOf[TStream])
         assert(pivots.typ.isInstanceOf[TArray])
         assert(pivots.typ.asInstanceOf[TArray].elementType.isInstanceOf[TStruct])
+      case StreamWhiten(stream, prevWindow, vecSize, windowSize, chunkSize, blockSize) =>
+        assert(stream.typ.isInstanceOf[TStream])
+        val eltTyp = stream.typ.asInstanceOf[TStream].elementType
+        assert(eltTyp.isInstanceOf[TNDArray])
+        assert(eltTyp.asInstanceOf[TNDArray].elementType == TFloat64)
+        assert(prevWindow.typ.isInstanceOf[TNDArray])
+        assert(prevWindow.typ.asInstanceOf[TNDArray].elementType == TFloat64)
       case x@ArrayZeros(length) =>
         assert(length.typ == TInt32)
       case x@MakeNDArray(data, shape, rowMajor, _) =>

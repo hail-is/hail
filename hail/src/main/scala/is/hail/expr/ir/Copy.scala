@@ -92,6 +92,8 @@ object Copy {
         SeqSample(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], requiresMemoryManagementPerElement)
       case StreamDistribute(_, _, _, spec) =>
         StreamDistribute(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR], spec)
+      case StreamWhiten(stream, prevWindow, vecSize, windowSize, chunkSize, blockSize) =>
+        StreamWhiten(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], vecSize, windowSize, chunkSize, blockSize)
       case ArrayZeros(_) =>
         assert(newChildren.length == 1)
         ArrayZeros(newChildren(0).asInstanceOf[IR])
