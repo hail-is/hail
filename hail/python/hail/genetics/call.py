@@ -26,9 +26,11 @@ class Call(object):
      - :func:`.parse_call`
     """
 
-    @typecheck_method(alleles=sequenceof(int),
-                      phased=bool)
     def __init__(self, alleles, phased=False):
+        # Intentionally not using the type check annotations which are too slow.
+        assert type(alleles) == list
+        assert type(phased) == bool
+
         if len(alleles) > 2:
             raise NotImplementedError("Calls with greater than 2 alleles are not supported.")
         self._phased = phased
