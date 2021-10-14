@@ -383,6 +383,9 @@ class _tint32(HailType):
     def _convert_from_encoding(self, byte_reader):
         return byte_reader.read_int32()
 
+    def _byte_size(self):
+        return 4
+
 
 class _tint64(HailType):
     """Hail type for signed 64-bit integers.
@@ -435,6 +438,9 @@ class _tint64(HailType):
     def _convert_from_encoding(self, byte_reader):
         return byte_reader.read_int64()
 
+    def _byte_size(self):
+        return 8
+
 
 class _tfloat32(HailType):
     """Hail type for 32-bit floating point numbers.
@@ -482,6 +488,9 @@ class _tfloat32(HailType):
     def to_numpy(self):
         return np.float32
 
+    def _byte_size(self):
+        return 4
+
 
 class _tfloat64(HailType):
     """Hail type for 64-bit floating point numbers.
@@ -528,6 +537,9 @@ class _tfloat64(HailType):
 
     def _convert_from_encoding(self, byte_reader):
         return byte_reader.read_float64()
+
+    def _byte_size(self):
+        return 8
 
 
 class _tstr(HailType):
@@ -601,6 +613,9 @@ class _tbool(HailType):
 
     def to_numpy(self):
         return bool
+
+    def _byte_size(self):
+        return 1
 
     def _convert_from_encoding(self, byte_reader):
         return byte_reader.read_bool()
@@ -725,10 +740,16 @@ class tndarray(HailType):
     def _convert_from_encoding(self, byte_reader):
         shape = [byte_reader.read_int64() for i in range(self.ndim)]
         total_num_elements = np.product(shape, dtype=np.int64)
-        # TODO: Optimize with numpy.frombuffer, but that requires specifying elementsize, which can only be done with primitives
-        elements = [self.element_type._convert_from_encoding(byte_reader) for i in range(total_num_elements)]
-        np_type = self.element_type.to_numpy()
-        return np.ndarray(shape=shape, buffer=np.array(elements, dtype=np_type), dtype=np_type, order="F")
+
+        if self.element_type in _numeric_types:
+            element_byte_size = self.element_type._byte_size
+            bytes_to_read = element_byte_size * total_num_elements
+            buffer = byte_reader.read_bytes_view(bytes_to_read)
+            np.frombuffer(buffer, self.element_type.to_numpy, count=total_num_elements).reshape(shape)
+        else:
+            elements = [self.element_type._convert_from_encoding(byte_reader) for i in range(total_num_elements)]
+            np_type = self.element_type.to_numpy()
+            return np.ndarray(shape=shape, buffer=np.array(elements, dtype=np_type), dtype=np_type, order="F")
 
 
 class tarray(HailType):
