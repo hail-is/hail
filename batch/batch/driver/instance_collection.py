@@ -126,6 +126,9 @@ class InstanceCollection:
             await self.call_delete_instance(instance, 'not_responding')
             return
 
+        if active_and_healthy:
+            return
+
         try:
             spec = await self.compute_client.get(f'/zones/{instance.zone}/instances/{instance.name}')
         except aiohttp.ClientResponseError as e:
@@ -135,9 +138,6 @@ class InstanceCollection:
             raise
         # PROVISIONING, STAGING, RUNNING, STOPPING, TERMINATED
         gce_state = spec['status']
-
-        if active_and_healthy:
-            return
 
         log.info(f'{instance} gce_state {gce_state}')
 
