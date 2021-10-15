@@ -17,7 +17,7 @@ DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'gcr.io/hail-vdc/ubuntu:
 async def make_client() -> AsyncGenerator[Callable[[str], Awaitable[BatchClient]], Any]:
     _bcs = []
 
-    async def factory(project):
+    async def factory(project: str):
         bc = BatchClient(project, token_file=os.environ['HAIL_TEST_TOKEN_FILE'])
         _bcs.append(bc)
         return bc
@@ -58,7 +58,7 @@ async def delete_all_test_billing_projects():
 
 
 @pytest.fixture
-async def random_billing_project_name(dev_client) -> AsyncGenerator[str, Any]:
+async def random_billing_project_name(dev_client: BatchClient) -> AsyncGenerator[str, Any]:
     billing_project_prefix = get_billing_project_prefix()
 
     name = f'{billing_project_prefix}_{secret_alnum_string(5)}'
@@ -85,7 +85,7 @@ async def random_billing_project_name(dev_client) -> AsyncGenerator[str, Any]:
 
 
 @pytest.fixture
-async def new_billing_project(dev_client, random_billing_project_name):
+async def new_billing_project(dev_client: BatchClient, random_billing_project_name: str):
     yield await dev_client.create_billing_project(random_billing_project_name)
 
 
@@ -96,14 +96,16 @@ async def test_bad_token():
         b = bc.create_batch()
         j = b.create_job(DOCKER_ROOT_IMAGE, ['false'])
         await b.submit()
-        assert False, j
+        assert False, str(await b.debug_info())
     except aiohttp.ClientResponseError as e:
-        assert e.status == 401, e
+        assert e.status == 401, str((e, await b.debug_info()))
     finally:
         await bc.close()
 
 
-async def test_get_billing_project(make_client):
+async def test_get_billing_project(
+        make_client: Callable[[str], Awaitable[BatchClient]]
+):
     c = await make_client('billing-project-not-needed-but-required-by-BatchClient')
     r = await c.get_billing_project('test')
     assert r['billing_project'] == 'test', r
@@ -111,7 +113,9 @@ async def test_get_billing_project(make_client):
     assert r['status'] == 'open', r
 
 
-async def test_list_billing_projects(make_client):
+async def test_list_billing_projects(
+        make_client: Callable[[str], Awaitable[BatchClient]]
+):
     c = await make_client('billing-project-not-needed-but-required-by-BatchClient')
     r = await c.list_billing_projects()
     test_bps = [p for p in r if p['billing_project'] == 'test']
@@ -122,7 +126,10 @@ async def test_list_billing_projects(make_client):
     assert bp['status'] == 'open', bp
 
 
-async def test_unauthorized_billing_project_modification(make_client, new_billing_project):
+async def test_unauthorized_billing_project_modification(
+        make_client: Callable[[str], Awaitable[BatchClient]],
+        new_billing_project: str
+):
     project = new_billing_project
     client = await make_client('billing-project-not-needed-but-required-by-BatchClient')
     try:
@@ -161,7 +168,10 @@ async def test_unauthorized_billing_project_modification(make_client, new_billin
         assert False, 'expected error'
 
 
-async def test_create_billing_project(dev_client, new_billing_project):
+async def test_create_billing_project(
+        dev_client: BatchClient,
+        new_billing_project: str
+):
     project = new_billing_project
     # test idempotent
     await dev_client.create_billing_project(project)
@@ -170,7 +180,10 @@ async def test_create_billing_project(dev_client, new_billing_project):
     assert project in {bp['billing_project'] for bp in r}
 
 
-async def test_close_reopen_billing_project(dev_client, new_billing_project):
+async def test_close_reopen_billing_project(
+        dev_client: BatchClient,
+        new_billing_project: str
+):
     project = new_billing_project
 
     await dev_client.close_billing_project(project)
@@ -188,7 +201,11 @@ async def test_close_reopen_billing_project(dev_client, new_billing_project):
     ], r
 
 
-async def test_close_billing_project_with_open_batch_errors(dev_client, make_client, new_billing_project):
+async def test_close_billing_project_with_open_batch_errors(
+        make_client: Callable[[str], Awaitable[BatchClient]],
+        dev_client: BatchClient,
+        new_billing_project: str
+):
     project = new_billing_project
     await dev_client.add_user("test", project)
     client = await make_client(project)
@@ -197,13 +214,13 @@ async def test_close_billing_project_with_open_batch_errors(dev_client, make_cli
     try:
         await dev_client.close_billing_project(project)
     except aiohttp.ClientResponseError as e:
-        assert e.status == 403, e
+        assert e.status == 403, str((e, await b.debug_info()))
     else:
-        assert False, 'expected error'
+        assert False, str(await b.debug_info())
     await client._patch(f'/api/v1alpha/batches/{b.id}/close')
 
 
-async def test_close_nonexistent_billing_project(dev_client):
+async def test_close_nonexistent_billing_projet(dev_client: BatchClient):
     try:
         await dev_client.close_billing_project("nonexistent_project")
     except aiohttp.ClientResponseError as e:
@@ -212,7 +229,7 @@ async def test_close_nonexistent_billing_project(dev_client):
         assert False, 'expected error'
 
 
-async def test_add_user_with_nonexistent_billing_project(dev_client):
+async def test_add_user_with_nonexistent_billing_project(dev_client: BatchClient):
     try:
         await dev_client.add_user("test", "nonexistent_project")
     except aiohttp.ClientResponseError as e:
@@ -221,7 +238,7 @@ async def test_add_user_with_nonexistent_billing_project(dev_client):
         assert False, 'expected error'
 
 
-async def test_remove_user_with_nonexistent_billing_project(dev_client):
+async def test_remove_user_with_nonexistent_billing_project(dev_client: BatchClient):
     try:
         await dev_client.remove_user("test", "nonexistent_project")
     except aiohttp.ClientResponseError as e:
@@ -230,7 +247,10 @@ async def test_remove_user_with_nonexistent_billing_project(dev_client):
         assert False, 'expected error'
 
 
-async def test_delete_billing_project_only_when_closed(dev_client, new_billing_project):
+async def test_delete_billing_project_only_when_closed(
+        dev_client: BatchClient,
+        new_billing_project: str
+):
     project = new_billing_project
     try:
         await dev_client.delete_billing_project(project)
@@ -259,7 +279,10 @@ async def test_delete_billing_project_only_when_closed(dev_client, new_billing_p
         assert False, 'expected error'
 
 
-async def test_add_and_delete_user(dev_client, new_billing_project):
+async def test_add_and_delete_user(
+        dev_client: BatchClient,
+        new_billing_project: str
+):
     project = new_billing_project
     r = await dev_client.add_user('test', project)
     # test idempotent
@@ -281,7 +304,10 @@ async def test_add_and_delete_user(dev_client, new_billing_project):
     assert r['user'] not in bp['users']
 
 
-async def test_edit_billing_limit_dev(dev_client, new_billing_project):
+async def test_edit_billing_limit_dev(
+        dev_client: BatchClient,
+        new_billing_project: str
+):
     project = new_billing_project
     r = await dev_client.add_user('test', project)
     assert r['user'] == 'test'
@@ -320,7 +346,11 @@ async def test_edit_billing_limit_dev(dev_client, new_billing_project):
         assert False, 'expected error'
 
 
-async def test_edit_billing_limit_nondev(make_client, dev_client, new_billing_project):
+async def test_edit_billing_limit_nondev(
+        make_client: Callable[[str], Awaitable[BatchClient]],
+        dev_client: BatchClient,
+        new_billing_project: str
+):
     project = new_billing_project
     r = await dev_client.add_user('test', project)
     assert r['user'] == 'test'
@@ -339,7 +369,11 @@ async def test_edit_billing_limit_nondev(make_client, dev_client, new_billing_pr
         assert False, 'expected error'
 
 
-async def test_billing_project_accrued_costs(make_client, dev_client, new_billing_project):
+async def test_billing_project_accrued_costs(
+        make_client: Callable[[str], Awaitable[BatchClient]],
+        dev_client: BatchClient,
+        new_billing_project: str
+):
     project = new_billing_project
     r = await dev_client.add_user('test', project)
     assert r['user'] == 'test'
@@ -367,18 +401,23 @@ async def test_billing_project_accrued_costs(make_client, dev_client, new_billin
     b2 = await b2.wait()
 
     b1_expected_cost = (await j1_1.status())['cost'] + (await j1_2.status())['cost']
-    assert approx_equal(b1_expected_cost, b1['cost']), (b1_expected_cost, b1['cost'])
+    assert approx_equal(b1_expected_cost, b1['cost']), str((b1_expected_cost, b1['cost'], await b1.debug_info(), await b2.debug_info()))
 
     b2_expected_cost = (await j2_1.status())['cost'] + (await j2_2.status())['cost']
-    assert approx_equal(b2_expected_cost, b2['cost']), (b2_expected_cost, b2['cost'])
+    assert approx_equal(b2_expected_cost, b2['cost']), str((b2_expected_cost, b2['cost'], await b1.debug_info(), await b2.debug_info()))
 
     cost_by_batch = b1['cost'] + b2['cost']
     cost_by_billing_project = (await dev_client.get_billing_project(project))['accrued_cost']
 
-    assert approx_equal(cost_by_batch, cost_by_billing_project), (cost_by_batch, cost_by_billing_project)
+    assert approx_equal(cost_by_batch, cost_by_billing_project), (
+        str((cost_by_batch, cost_by_billing_project, await b1.debug_info(), await b2.debug_info())))
 
 
-async def test_billing_limit_zero(make_client, dev_client, new_billing_project):
+async def test_billing_limit_zero(
+        make_client: Callable[[str], Awaitable[BatchClient]],
+        dev_client: BatchClient,
+        new_billing_project: str
+):
     project = new_billing_project
     r = await dev_client.add_user('test', project)
     assert r['user'] == 'test'
@@ -397,12 +436,16 @@ async def test_billing_limit_zero(make_client, dev_client, new_billing_project):
         batch = client.create_batch()
         batch = await batch.submit()
     except aiohttp.ClientResponseError as e:
-        assert e.status == 403 and 'has exceeded the budget' in e.message
+        assert e.status == 403 and 'has exceeded the budget' in e.message, str(await batch.debug_info())
     else:
-        assert False, f'should receive a 403 Forbidden {batch.id}'
+        assert False, str(await batch.debug_info())
 
 
-async def test_billing_limit_tiny(make_client, dev_client, new_billing_project):
+async def test_billing_limit_tiny(
+        make_client: Callable[[str], Awaitable[BatchClient]],
+        dev_client: BatchClient,
+        new_billing_project: str
+):
     project = new_billing_project
     r = await dev_client.add_user('test', project)
     assert r['user'] == 'test'
@@ -430,7 +473,7 @@ async def test_billing_limit_tiny(make_client, dev_client, new_billing_project):
     batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'], parents=[j9])
     batch = await batch.submit()
     batch = await batch.wait()
-    assert batch['state'] == 'cancelled', batch
+    assert batch['state'] == 'cancelled', str(await batch.debug_info())
 
 
 async def search_batches(client, expected_batch_id, q):
@@ -444,7 +487,9 @@ async def search_batches(client, expected_batch_id, q):
 
 
 async def test_user_can_access_batch_made_by_other_user_in_shared_billing_project(
-    make_client, dev_client, new_billing_project
+        make_client: Callable[[str], Awaitable[BatchClient]],
+        dev_client: BatchClient,
+        new_billing_project: str
 ):
     project = new_billing_project
 
@@ -471,41 +516,41 @@ async def test_user_can_access_batch_made_by_other_user_in_shared_billing_projec
 
     # list batches results for user1
     found, batches = await search_batches(user1_client, b.id, q='')
-    assert found, str((b.id, batches))
+    assert found, str((b.id, batches, await b.debug_info()))
 
     found, batches = await search_batches(user1_client, b.id, q=f'billing_project:{project}')
-    assert found, str((b.id, batches))
+    assert found, str((b.id, batches, await b.debug_info()))
 
     found, batches = await search_batches(user1_client, b.id, q='user:test')
-    assert found, str((b.id, batches))
+    assert found, str((b.id, batches, await b.debug_info()))
 
     found, batches = await search_batches(user1_client, b.id, q='billing_project:foo')
-    assert not found, str((b.id, batches))
+    assert not found, str((b.id, batches, await b.debug_info()))
 
     found, batches = await search_batches(user1_client, b.id, q=None)
-    assert found, str((b.id, batches))
+    assert found, str((b.id, batches, await b.debug_info()))
 
     found, batches = await search_batches(user1_client, b.id, q='user:test-dev')
-    assert not found, str((b.id, batches))
+    assert not found, str((b.id, batches, await b.debug_info()))
 
     # list batches results for user2
     found, batches = await search_batches(user2_client, b.id, q='')
-    assert found, str((b.id, batches))
+    assert found, str((b.id, batches, await b.debug_info()))
 
     found, batches = await search_batches(user2_client, b.id, q=f'billing_project:{project}')
-    assert found, str((b.id, batches))
+    assert found, str((b.id, batches, await b.debug_info()))
 
     found, batches = await search_batches(user2_client, b.id, q='user:test')
-    assert found, str((b.id, batches))
+    assert found, str((b.id, batches, await b.debug_info()))
 
     found, batches = await search_batches(user2_client, b.id, q='billing_project:foo')
-    assert not found, str((b.id, batches))
+    assert not found, str((b.id, batches, await b.debug_info()))
 
     found, batches = await search_batches(user2_client, b.id, q=None)
-    assert not found, str((b.id, batches))
+    assert not found, str((b.id, batches, await b.debug_info()))
 
     found, batches = await search_batches(user2_client, b.id, q='user:test-dev')
-    assert not found, str((b.id, batches))
+    assert not found, str((b.id, batches, await b.debug_info()))
 
     await user2_batch.status()
     await user2_batch.cancel()
@@ -513,11 +558,13 @@ async def test_user_can_access_batch_made_by_other_user_in_shared_billing_projec
 
     # make sure deleted batches don't show up
     found, batches = await search_batches(user1_client, b.id, q='')
-    assert not found, str((b.id, batches))
+    assert not found, str((b.id, batches, await b.debug_info()))
 
 
 async def test_batch_cannot_be_accessed_by_users_outside_the_billing_project(
-    make_client, dev_client, new_billing_project
+        make_client: Callable[[str], Awaitable[BatchClient]],
+        dev_client: BatchClient,
+        new_billing_project: str
 ):
     project = new_billing_project
 
@@ -537,76 +584,76 @@ async def test_batch_cannot_be_accessed_by_users_outside_the_billing_project(
         try:
             await user2_client.get_batch(b.id)
         except aiohttp.ClientResponseError as e:
-            assert e.status == 404, e
+            assert e.status == 404, str((e, await b.debug_info()))
         else:
-            assert False, 'expected error'
+            assert False, str(await b.debug_info)
 
         try:
             await user2_client.get_job(j.batch_id, j.job_id)
         except aiohttp.ClientResponseError as e:
-            assert e.status == 404, e
+            assert e.status == 404, str((e, await b.debug_info()))
         else:
-            assert False, 'expected error'
+            assert False, str(await b.debug_info())
 
         try:
             await user2_client.get_job_log(j.batch_id, j.job_id)
         except aiohttp.ClientResponseError as e:
-            assert e.status == 404, e
+            assert e.status == 404, str((e, await b.debug_info()))
         else:
-            assert False, 'expected error'
+            assert False, str(await b.debug_info())
 
         try:
             await user2_client.get_job_attempts(j.batch_id, j.job_id)
         except aiohttp.ClientResponseError as e:
-            assert e.status == 404, e
+            assert e.status == 404, str((e, await b.debug_info()))
         else:
-            assert False, 'expected error'
+            assert False, str(await b.debug_info())
 
         try:
             await user2_batch.status()
         except aiohttp.ClientResponseError as e:
-            assert e.status == 404, e
+            assert e.status == 404, str((e, await b.debug_info()))
         else:
-            assert False, 'expected error'
+            assert False, str(await b.debug_info())
 
         try:
             await user2_batch.cancel()
         except aiohttp.ClientResponseError as e:
-            assert e.status == 404, e
+            assert e.status == 404, str((e, await b.debug_info()))
         else:
-            assert False, 'expected error'
+            assert False, str(await b.debug_info())
 
         try:
             await user2_batch.delete()
         except aiohttp.ClientResponseError as e:
-            assert e.status == 404, e
+            assert e.status == 404, str((e, await b.debug_info()))
         else:
-            assert False, 'expected error'
+            assert False, str(await b.debug_info())
 
         # list batches results for user2
         found, batches = await search_batches(user2_client, b.id, q='')
-        assert not found, str((b.id, batches))
+        assert not found, str((b.id, batches, await b.debug_info()))
 
         found, batches = await search_batches(user2_client, b.id, q=f'billing_project:{project}')
-        assert not found, str((b.id, batches))
+        assert not found, str((b.id, batches, await b.debug_info()))
 
         found, batches = await search_batches(user2_client, b.id, q='user:test')
-        assert not found, str((b.id, batches))
+        assert not found, str((b.id, batches, await b.debug_info()))
 
         found, batches = await search_batches(user2_client, b.id, q=None)
-        assert not found, str((b.id, batches))
+        assert not found, str((b.id, batches, await b.debug_info()))
 
         found, batches = await search_batches(user2_client, b.id, q='user:test-dev')
-        assert not found, str((b.id, batches))
+        assert not found, str((b.id, batches, await b.debug_info()))
 
     finally:
         await b.delete()
 
 
 async def test_deleted_open_batches_do_not_prevent_billing_project_closure(
-    dev_client: BatchClient,
-    make_client: Callable[[str], Awaitable[BatchClient]],
-    random_billing_project_name: str
+        make_client: Callable[[str], Awaitable[BatchClient]],
+        dev_client: BatchClient,
+        random_billing_project_name: Callable[[], str],
 ):
     try:
         project = await dev_client.create_billing_project(random_billing_project_name)

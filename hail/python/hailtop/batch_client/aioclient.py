@@ -392,6 +392,13 @@ class Batch:
                 if i < 64:
                     i = i + 1
 
+    async def debug_info(self):
+        batch_status = await self.status()
+        jobs = [
+            {'status': j, 'log': await self.get_job_log(j['job_id'])}
+            async for j in await self.jobs()]
+        return {'status': batch_status, 'jobs': jobs}
+
     async def delete(self):
         await self._client._delete(f'/api/v1alpha/batches/{self.id}')
 
