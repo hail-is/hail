@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.TestUtils._
 import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue}
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.expr.ir.streams.{EmitStream, StreamArgType, StreamUtils}
 import is.hail.types.physical._

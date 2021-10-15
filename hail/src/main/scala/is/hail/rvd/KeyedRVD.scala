@@ -1,7 +1,7 @@
 package is.hail.rvd
 
 import is.hail.annotations._
-import is.hail.expr.ir.ExecuteContext
+import is.hail.backend.ExecuteContext
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual.TInterval
 import is.hail.sparkextras._

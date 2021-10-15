@@ -1,6 +1,7 @@
 package is.hail.io.plink
 
 import is.hail.annotations.{Region, RegionValueBuilder}
+import is.hail.backend.ExecuteContext
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir._
 import is.hail.expr.ir.lowering.TableStage
@@ -349,7 +350,7 @@ class MatrixPLINKReader(
 
       val requestedPType = bodyPType(requestedType)
 
-      { (region: Region, context: Any) =>
+      { (region: Region, fs: FS, context: Any) =>
         val c = context.asInstanceOf[Row]
         val bed = c.getString(0)
         val start = c.getInt(1)

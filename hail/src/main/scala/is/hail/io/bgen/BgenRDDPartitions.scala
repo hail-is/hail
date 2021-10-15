@@ -2,8 +2,8 @@ package is.hail.io.bgen
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.backend.BroadcastValue
-import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder, ExecuteContext, IEmitCode, ParamType}
+import is.hail.backend.{BroadcastValue, ExecuteContext}
+import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder, IEmitCode, ParamType}
 import is.hail.io.fs.FS
 import is.hail.io.index.IndexReaderBuilder
 import is.hail.io.{ByteArrayReader, HadoopFSDataBinaryReader}

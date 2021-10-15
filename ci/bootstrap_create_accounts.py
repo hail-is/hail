@@ -5,11 +5,12 @@ import kubernetes_asyncio as kube
 from hailtop.aiocloud import aiogoogle
 from hailtop.utils import async_to_blocking
 from gear import Database, transaction
+from gear.cloud_config import get_gcp_config
 
 from auth.driver.driver import create_user
 
 SCOPE = os.environ['HAIL_SCOPE']
-PROJECT = os.environ['HAIL_PROJECT']
+PROJECT = get_gcp_config().project
 DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
 
 

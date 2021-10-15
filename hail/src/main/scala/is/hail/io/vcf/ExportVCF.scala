@@ -5,7 +5,8 @@ import htsjdk.tribble.SimpleFeature
 import htsjdk.tribble.index.tabix.{TabixFormat, TabixIndexCreator}
 import is.hail
 import is.hail.annotations.Region
-import is.hail.expr.ir.{ExecuteContext, MatrixValue}
+import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.MatrixValue
 import is.hail.io.compress.{BGzipLineReader, BGzipOutputStream}
 import is.hail.io.fs.FS
 import is.hail.io.{VCFAttributes, VCFFieldAttributes, VCFMetadata}
@@ -466,7 +467,7 @@ object ExportVCF {
         case ExportType.PARALLEL_SEPARATE_HEADER | ExportType.PARALLEL_HEADER_IN_SHARD =>
           val files = fs.glob(path + "/part-*").map(_.getPath.getBytes)
           info(s"Writing tabix index for ${ files.length } in $path")
-          ctx.backend.parallelizeAndComputeWithIndex(ctx.backendContext, files)({ (pathBytes, _, fs) =>
+          ctx.backend.parallelizeAndComputeWithIndex(ctx.backendContext, ctx.fs, files)({ (pathBytes, _, fs) =>
                       TabixVCF(fs, new String(pathBytes))
                       Array.empty
                     })

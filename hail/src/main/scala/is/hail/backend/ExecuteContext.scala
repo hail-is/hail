@@ -1,13 +1,12 @@
-package is.hail.expr.ir
+package is.hail.backend
+
+import is.hail.HailContext
+import is.hail.annotations.{Region, RegionPool}
+import is.hail.io.fs.FS
+import is.hail.utils.{ExecutionTimer, using}
 
 import java.io._
 import java.security.SecureRandom
-import is.hail.HailContext
-import is.hail.utils._
-import is.hail.annotations.{Region, RegionPool}
-import is.hail.backend.{Backend, BackendContext, BroadcastValue, HailTaskContext}
-import is.hail.io.fs.FS
-
 import scala.collection.mutable
 
 trait TempFileManager {
@@ -33,6 +32,7 @@ class NonOwningTempFileManager(owner: TempFileManager) extends TempFileManager {
 
   override def cleanup(): Unit = ()
 }
+
 
 object ExecuteContext {
   def scoped[T]()(f: ExecuteContext => T): T = {
@@ -92,6 +92,8 @@ class ExecuteContext(
   def fsBc: BroadcastValue[FS] = fs.broadcast
 
   private val cleanupFunctions = mutable.ArrayBuffer[() => Unit]()
+
+  private[this] val broadcasts = mutable.ArrayBuffer.empty[BroadcastValue[_]]
 
   val memo: mutable.Map[Any, Any] = new mutable.HashMap[Any, Any]()
 

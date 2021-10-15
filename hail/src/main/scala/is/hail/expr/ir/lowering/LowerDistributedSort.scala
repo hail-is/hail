@@ -2,6 +2,7 @@ package is.hail.expr.ir.lowering
 
 import is.hail.annotations.{Annotation, ExtendedOrdering, Region, SafeRow, UnsafeRow}
 import is.hail.asm4s.{AsmFunction1RegionLong, LongInfo, classInfo}
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.types.physical.{PArray, PStruct, PTuple}
 import is.hail.types.virtual.{TStream, TStruct, Type}

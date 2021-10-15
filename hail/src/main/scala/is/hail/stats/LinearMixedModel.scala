@@ -2,8 +2,9 @@ package is.hail.stats
 
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV}
 import is.hail.annotations.{BroadcastRow, Region, RegionValue, RegionValueBuilder}
+import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.SparkTaskContext
-import is.hail.expr.ir.{ExecuteContext, TableIR, TableLiteral, TableValue}
+import is.hail.expr.ir.{TableIR, TableLiteral, TableValue}
 import is.hail.linalg.RowMatrix
 import is.hail.rvd.{RVD, RVDType}
 import is.hail.sparkextras.ContextRDD

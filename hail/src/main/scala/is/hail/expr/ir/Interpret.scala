@@ -10,6 +10,7 @@ import is.hail.linalg.BlockMatrix
 import is.hail.rvd.RVDContext
 import is.hail.utils._
 import is.hail.HailContext
+import is.hail.backend.ExecuteContext
 import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeType}
 import org.apache.spark.sql.Row
 

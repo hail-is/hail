@@ -1,11 +1,11 @@
 package is.hail.io.avro
 
 import java.io.InputStream
-
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, CodeLabel, Settable, Value}
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.streams.StreamProducer
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, ExecuteContext, IEmitCode, PartitionReader}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, IEmitCode, PartitionReader}
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SBaseStructValue, SStreamValue, primitive}
 import is.hail.types.virtual._

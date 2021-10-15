@@ -15,7 +15,7 @@ from hailtop.utils import blocking_to_async, retry_transient_errors, dump_all_st
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
-from hailtop import version
+from hailtop import version, httpx
 from gear import (
     setup_aiohttp_session,
     rest_authenticated_users_only,
@@ -225,6 +225,7 @@ async def rest_get_version(request):  # pylint: disable=W0613
 
 async def on_startup(app):
     thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=16)
+    app['client_session'] = httpx.client_session()
     app['thread_pool'] = thread_pool
     app['user_keys'] = dict()
     app['users'] = set()
@@ -236,9 +237,14 @@ async def on_startup(app):
 
 
 async def on_cleanup(app):
-    if 'k8s_client' in app:
-        del app['k8s_client']
-    await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
+    try:
+        if 'k8s_client' in app:
+            del app['k8s_client']
+    finally:
+        try:
+            await app['client_session'].close()
+        finally:
+            await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
 
 
 async def on_shutdown(_):

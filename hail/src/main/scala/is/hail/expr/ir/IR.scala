@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s.Value
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.agg.{AggStateSig, PhysicalAggSig}
 import is.hail.expr.ir.functions._

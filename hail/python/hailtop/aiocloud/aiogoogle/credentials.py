@@ -48,8 +48,9 @@ class GoogleCredentials(CloudCredentials):
                 credentials_file = application_default_credentials_file
 
         if credentials_file:
-            log.info(f'using credentials file {credentials_file}')
-            return GoogleCredentials.from_file(credentials_file)
+            creds = GoogleCredentials.from_file(credentials_file)
+            log.info(f'using credentials file {credentials_file}: {creds}')
+            return creds
 
         log.warning('unable to locate Google Cloud credentials file, will attempt to '
                     'use instance metadata server instead')
@@ -79,6 +80,9 @@ class GoogleApplicationDefaultCredentials(GoogleCredentials):
         self.credentials = credentials
         self._session = hailtop.httpx.ClientSession(**kwargs)
 
+    def __str__(self):
+        return 'ApplicationDefaultCredentials'
+
     async def get_access_token(self):
         async with await request_retry_transient_errors(
                 self._session, 'POST',
@@ -103,6 +107,9 @@ class GoogleServiceAccountCredentials(GoogleCredentials):
         super().__init__()
         self.key = key
         self._session = hailtop.httpx.ClientSession(**kwargs)
+
+    def __str__(self):
+        return f'GoogleServiceAccountCredentials for {self.key["client_email"]}'
 
     async def get_access_token(self):
         now = int(time.time())

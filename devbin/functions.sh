@@ -156,7 +156,7 @@ download-secret() {
 	  mkdir contents
 	  for field in $(jq -r  '.data | keys[]' secret.json)
 	  do
-		    jq -r '.data["'$field'"]' secret.json | base64 -D > contents/$field
+		    jq -r '.data["'$field'"]' secret.json | base64 --decode > contents/$field
 	  done
 }
 
@@ -171,7 +171,23 @@ upload-secret() {
 	      | kubectl apply -f -
 }
 
-switchproject() {
+gcpsetcluster() {
+    if [ -z "$1" ]; then
+        echo "Usage: gcpsetcluster <PROJECT>"
+        return
+    fi
+
     gcloud config set project $1
     gcloud container clusters get-credentials --zone us-central1-a vdc
+}
+
+azsetcluster() {
+    if [ -z "$1" ]; then
+        echo "Usage: azsetcluster <RESOURCE_GROUP>"
+        return
+    fi
+
+    RESOURCE_GROUP=$1
+    az aks get-credentials --name vdc --resource-group $RESOURCE_GROUP
+    az acr login --name $RESOURCE_GROUP
 }
