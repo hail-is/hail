@@ -619,7 +619,7 @@ class BatchClient:
                      token_file: Optional[str] = None):
         if not deploy_config:
             deploy_config = get_deploy_config()
-            url = deploy_config.base_url('batch')
+        url = deploy_config.base_url('batch')
         if session is None:
             session = httpx.client_session()
         if headers is None:
