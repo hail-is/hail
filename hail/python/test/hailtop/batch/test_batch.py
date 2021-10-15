@@ -15,8 +15,6 @@ from hailtop.utils import grouped
 from hailtop.config import get_user_config
 from hailtop.batch.utils import concatenate
 
-from .utils import debug_info
-
 
 DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'gcr.io/hail-vdc/ubuntu:18.04')
 HAIL_TEST_GCS_BUCKET = os.environ['HAIL_TEST_GCS_BUCKET']
