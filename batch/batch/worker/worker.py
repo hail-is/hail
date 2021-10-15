@@ -162,11 +162,11 @@ class NetworkNamespace:
         self.veth_job = self.network_ns_name + '-job'
 
         if private:
-            self.host_ip = f'10.0.{subnet_index}.10'
-            self.job_ip = f'10.0.{subnet_index}.11'
+            self.host_ip = f'10.150.{subnet_index}.10'
+            self.job_ip = f'10.150.{subnet_index}.11'
         else:
-            self.host_ip = f'10.1.{subnet_index}.10'
-            self.job_ip = f'10.1.{subnet_index}.11'
+            self.host_ip = f'10.151.{subnet_index}.10'
+            self.job_ip = f'10.151.{subnet_index}.11'
 
         self.port = None
         self.host_port = None
@@ -571,7 +571,7 @@ class Container:
             'POST',
             'http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token',
             headers={'Metadata-Flavor': 'Google'},
-            timeout=aiohttp.ClientTimeout(total=60)
+            timeout=aiohttp.ClientTimeout(total=60),
         ) as resp:
             access_token = (await resp.json())['access_token']
             return {'username': 'oauth2accesstoken', 'password': access_token}
@@ -856,8 +856,11 @@ class Container:
                 try:
                     await check_exec_output('crun', 'kill', '--all', self.container_name, 'SIGKILL')
                 except CalledProcessError as e:
-                    if not (e.returncode == 1
-                            and f'error opening file `/run/crun/{self.container_name}/status`: No such file or directory' in e.outerr):
+                    if not (
+                        e.returncode == 1
+                        and f'error opening file `/run/crun/{self.container_name}/status`: No such file or directory'
+                        in e.outerr
+                    ):
                         log.exception(f'while deleting container {self}', exc_info=True)
             finally:
                 try:
@@ -1004,15 +1007,17 @@ async def add_gcsfuse_bucket(mount_path, bucket, key_file, read_only):
         delay = await sleep_and_backoff(delay)
 
 
-def copy_container(job: 'Job',
-                   name: str,
-                   files,
-                   volume_mounts,
-                   cpu,
-                   memory,
-                   scratch: str,
-                   requester_pays_project: str,
-                   client_session: httpx.ClientSession) -> Container:
+def copy_container(
+    job: 'Job',
+    name: str,
+    files,
+    volume_mounts,
+    cpu,
+    memory,
+    scratch: str,
+    requester_pays_project: str,
+    client_session: httpx.ClientSession,
+) -> Container:
     assert files
     copy_spec = {
         'image': BATCH_WORKER_IMAGE,
@@ -1247,7 +1252,7 @@ class DockerJob(Job):
         format_version,
         task_manager: aiotools.BackgroundTaskManager,
         pool: concurrent.futures.ThreadPoolExecutor,
-        client_session: httpx.ClientSession
+        client_session: httpx.ClientSession,
     ):
         super().__init__(batch_id, user, gsa_key, job_spec, format_version, task_manager, pool)
         input_files = job_spec.get('input_files')
@@ -1284,7 +1289,7 @@ class DockerJob(Job):
                 self.memory_in_bytes,
                 self.scratch,
                 requester_pays_project,
-                client_session
+                client_session,
             )
 
         # main container
@@ -1323,7 +1328,7 @@ class DockerJob(Job):
                 self.memory_in_bytes,
                 self.scratch,
                 requester_pays_project,
-                client_session
+                client_session,
             )
 
         self.containers = containers
@@ -1841,7 +1846,14 @@ class Worker:
             return web.HTTPServiceUnavailable()
 
         job = Job.create(
-            batch_id, body['user'], body['gsa_key'], job_spec, format_version, self.task_manager, self.pool, self.client_session
+            batch_id,
+            body['user'],
+            body['gsa_key'],
+            job_spec,
+            format_version,
+            self.task_manager,
+            self.pool,
+            self.client_session,
         )
 
         log.info(f'created {job}, adding to jobs')
