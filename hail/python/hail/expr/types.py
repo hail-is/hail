@@ -13,7 +13,8 @@ from .type_parsing import type_grammar, type_node_visitor
 from hail.genetics.reference_genome import reference_genome_type
 from hail.typecheck import typecheck, typecheck_method, oneof, transformed
 from hail.utils.java import escape_parsable
-from hail.utils import frozendict, lookup_bit
+from hail.utils import frozendict
+from hail.utils.misc import lookup_bit
 from hail.utils.byte_reader import ByteReader
 
 __all__ = [
