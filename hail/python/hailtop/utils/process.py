@@ -30,8 +30,6 @@ async def check_exec_output(command, *args, echo=False):
 
 
 async def check_shell_output(script, echo=False):
-    if echo:
-        print(script)
     return await check_exec_output('/bin/bash', '-c', script, echo=echo)
 
 

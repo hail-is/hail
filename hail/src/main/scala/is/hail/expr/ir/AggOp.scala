@@ -53,6 +53,7 @@ final case class PrevNonnull() extends AggOp
 final case class ImputeType() extends AggOp
 final case class NDArraySum() extends AggOp
 final case class NDArrayMultiplyAdd() extends AggOp
+final case class Fold() extends AggOp
 
 // exists === map(p).sum, needs short-circuiting aggs
 // forall === map(p).product, needs short-circuiting aggs
@@ -80,5 +81,6 @@ object AggOp {
     case "ImputeType" => ImputeType()
     case "NDArraySum" => NDArraySum()
     case "NDArrayMutiplyAdd" => NDArrayMultiplyAdd()
+    case "Fold" => Fold()
   }
 }

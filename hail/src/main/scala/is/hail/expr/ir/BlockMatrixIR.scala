@@ -9,7 +9,7 @@ import breeze.linalg
 import breeze.linalg.DenseMatrix
 import breeze.numerics
 import is.hail.annotations.{NDArray, Region}
-import is.hail.backend.BackendContext
+import is.hail.backend.{BackendContext, ExecuteContext}
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.Nat
 import is.hail.expr.ir.lowering.{BlockMatrixStage, LowererUnsupportedOperation}

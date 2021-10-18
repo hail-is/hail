@@ -1,12 +1,12 @@
 package is.hail.methods
 
 import java.io.{BufferedOutputStream, OutputStreamWriter}
-
 import is.hail.HailContext
 import is.hail.annotations.{UnsafeIndexedSeq, UnsafeRow}
+import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.TableAnnotationImpex
-import is.hail.expr.ir.{ExecuteContext, MatrixValue}
+import is.hail.expr.ir.MatrixValue
 import is.hail.expr.ir.functions.MatrixToValueFunction
 import is.hail.types.{MatrixType, RTable, TypeWithRequiredness}
 import is.hail.types.virtual.{TVoid, Type}

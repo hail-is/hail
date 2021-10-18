@@ -9,7 +9,8 @@ from hailtop.utils import (
     time_msecs,
     periodically_call,
 )
-from hailtop import aiotools, aiogoogle
+from hailtop import aiotools
+from hailtop.aiocloud import aiogoogle
 from gear import Database
 
 from .job import unschedule_job, mark_job_complete
@@ -27,7 +28,7 @@ class Canceller:
         self.cancel_running_state_changed: asyncio.Event = app['cancel_running_state_changed']
         self.db: Database = app['db']
         self.async_worker_pool: AsyncWorkerPool = self.app['async_worker_pool']
-        self.compute_client: aiogoogle.ComputeClient = self.app['compute_client']
+        self.compute_client: aiogoogle.GoogleComputeClient = self.app['compute_client']
         self.inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
 
         self.task_manager = aiotools.BackgroundTaskManager()

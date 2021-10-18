@@ -3,13 +3,14 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.BackendContext
+import is.hail.backend.{BackendContext, ExecuteContext}
 import is.hail.expr.ir.agg.{AggStateSig, ArrayAggStateSig, GroupedStateSig}
 import is.hail.expr.ir.analyses.{ComputeMethodSplits, ControlFlowPreventsSplit, ParentPointers}
 import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.expr.ir.ndarrays.EmitNDArray
 import is.hail.expr.ir.streams.{EmitStream, StreamProducer, StreamUtils}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
+import is.hail.io.fs.FS
 import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes._
@@ -27,10 +28,10 @@ import is.hail.io.fs.FS
 
 // class for holding all information computed ahead-of-time that we need in the emitter
 object EmitContext {
-  def analyze(ctx: ExecuteContext, ir: IR): EmitContext = {
+  def analyze(ctx: ExecuteContext, ir: IR, pTypeEnv: Env[PType] = Env.empty): EmitContext = {
     ctx.timer.time("EmitContext.analyze") {
       val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
-      val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
+      val requiredness = Requiredness.apply(ir, usesAndDefs, null, pTypeEnv)
       val inLoopCriticalPath = ControlFlowPreventsSplit(ir, ParentPointers(ir), usesAndDefs)
       val methodSplits = ComputeMethodSplits(ir,inLoopCriticalPath)
       new EmitContext(ctx, requiredness, usesAndDefs, methodSplits, inLoopCriticalPath, Memo.empty[Unit])
@@ -665,7 +666,7 @@ class Emit[C](
         val AggContainer(aggs, sc, _) = container.get
         assert(sig.state == aggs(i1) && sig.state == aggs(i2))
         val rvAgg = agg.Extract.getAgg(sig)
-        rvAgg.combOp(cb, sc.states(i1), sc.states(i2))
+        rvAgg.combOp(ctx.executeContext, cb, sc.states(i1), sc.states(i2))
 
       case x@SerializeAggs(start, sIdx, spec, sigs) =>
         val AggContainer(_, sc, _) = container.get
@@ -727,8 +728,8 @@ class Emit[C](
             cb.assign(aggStateOffset, region.allocate(tempState.storageType.alignment, tempState.storageType.byteSize))
             tempState.createState(cb)
             tempState.newState(cb)
-            tempState.deserializeFromBytes(cb, serializedValue.get)
-            rvAgg.combOp(cb, sc.states(i), tempState)
+            tempState.deserializeFromBytes(cb, serializedValue)
+            rvAgg.combOp(ctx.executeContext, cb, sc.states(i), tempState)
           }
         )
 
@@ -742,7 +743,7 @@ class Emit[C](
           { case serializedValue: SBinaryValue =>
             sc.states(i).createState(cb)
             sc.newState(cb, i)
-            sc.states(i).deserializeFromBytes(cb, serializedValue.get)
+            sc.states(i).deserializeFromBytes(cb, serializedValue)
           }
         )
     }
@@ -2004,7 +2005,7 @@ class Emit[C](
 
       case AggStateValue(i, _) =>
         val AggContainer(_, sc, _) = container.get
-        presentPC(sc.states(i).serializeToRegion(cb, PCanonicalBinary(), region).memoize(cb, "AggStateValue"))
+        presentPC(sc.states(i).serializeToRegion(cb, PCanonicalBinary(), region))
 
       case ToArray(a) =>
         EmitStream.produce(this, a, cb, region, env, container)

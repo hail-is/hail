@@ -1856,8 +1856,8 @@ def test_grouped_flatmap_streams():
     ht._force_count()
 
 
-# NOTE: we cannot use Hail during test parameter initialization
-def make_test(table_name, num_parts, counter, truncator, n):
+def make_test(table_name: str, num_parts: int, counter: str, truncator, n: int):
+    # NOTE: we cannot use Hail during test parameter initialization
     def test():
         if table_name == 'rt':
             table = hl.utils.range_table(10, n_partitions=num_parts)
@@ -1883,7 +1883,7 @@ head_tail_test_data = [
     for counter_name, counter in (('count', hl.Table.count), ('_force_count', hl.Table._force_count))]
 
 
+@skip_when_service_backend()
 @pytest.mark.parametrize("test", head_tail_test_data)
-@skip_when_service_backend('flaky OOMs')
 def test_table_head_and_tail(test):
     test()

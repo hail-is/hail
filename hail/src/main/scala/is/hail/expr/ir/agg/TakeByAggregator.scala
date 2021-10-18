@@ -2,6 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, _}
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.expr.ir.{Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitValue, IEmitCode, ParamType, SortOrder}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
@@ -73,7 +74,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
     }
   }
 
-  def newState(cb: EmitCodeBuilder, off: Code[Long]): Unit = cb += region.getNewRegion(regionSize)
+  def newState(cb: EmitCodeBuilder, off: Value[Long]): Unit = cb += region.getNewRegion(regionSize)
 
   def createState(cb: EmitCodeBuilder): Unit =
     cb.ifx(region.isNull, {
@@ -81,17 +82,17 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
       cb += region.invalidate()
     })
 
-  override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, srcc: Code[Long]): Unit = {
+  override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Value[Long]): Unit = {
     regionLoader(cb, r)
-    loadFields(cb, srcc)
+    loadFields(cb, src)
   }
 
-  override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, destc: Code[Long]): Unit = {
+  override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, dest: Value[Long]): Unit = {
     cb.ifx(region.isValid,
       {
         regionStorer(cb, region)
         cb += region.invalidate()
-        storeFields(cb, destc)
+        storeFields(cb, dest)
       })
   }
 
@@ -148,8 +149,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
     )
   }
 
-  def copyFrom(cb: EmitCodeBuilder, srcc: Code[Long]): Unit = {
-    val src = cb.newLocal("tba_copy_from_src", srcc)
+  def copyFrom(cb: EmitCodeBuilder, src: Value[Long]): Unit = {
     maybeGCCode(cb,
       { cb =>
         initStaging(cb)
@@ -563,7 +563,7 @@ class TakeByAggregator(valueType: VirtualTypeWithReq, keyType: VirtualTypeWithRe
     state.seqOp(cb, value, key)
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = state.combine(cb, other)
+  protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: TakeByRVAS, other: TakeByRVAS): Unit = state.combine(cb, other)
 
 
   protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {

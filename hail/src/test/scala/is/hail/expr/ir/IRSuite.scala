@@ -4,6 +4,7 @@ import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.annotations.{BroadcastRow, ExtendedOrdering, Region, SafeNDArray}
 import is.hail.asm4s.{Code, Value}
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.ir.IRSuite.TestFunctions
@@ -13,12 +14,13 @@ import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.types.encoded._
 import is.hail.expr.Nat
-import is.hail.expr.ir.agg.{CallStatsStateSig, CollectStateSig, GroupedAggSig, PhysicalAggSig, TypedStateSig}
+import is.hail.expr.ir.agg.{CallStatsStateSig, CollectStateSig, FoldStateSig, GroupedAggSig, PhysicalAggSig, TypedStateSig}
 import is.hail.io.bgen.{IndexBgen, MatrixBGENReader}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix
 import is.hail.methods._
 import is.hail.rvd.{PartitionBoundOrdering, RVD, RVDPartitioner, RVDSpecMaker}
+import is.hail.types.physical.stypes.primitives.SInt32
 import is.hail.types.physical.stypes.{EmitType, Float32SingleCodeType, Float64SingleCodeType, Int32SingleCodeType, Int64SingleCodeType, PTypeReferenceSingleCodeType, SType, SingleCodeType}
 import is.hail.utils.{FastIndexedSeq, _}
 import is.hail.variant.{Call2, Locus}
@@ -2788,10 +2790,12 @@ class IRSuite extends HailSuite {
       ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq(I32(0)), collectSig),
       ApplyAggOp(FastIndexedSeq(I32(2)), FastIndexedSeq(call), callStatsSig),
       ApplyAggOp(FastIndexedSeq(I32(10)), FastIndexedSeq(F64(-2.11), I32(4)), takeBySig),
+      AggFold(I32(0), l + I32(1), l + r, l.name, r.name, false),
       InitOp(0, FastIndexedSeq(I32(2)), pCallStatsSig),
       SeqOp(0, FastIndexedSeq(i), pCollectSig),
       CombOp(0, 1, pCollectSig),
       ResultOp(0, pCollectSig),
+      ResultOp(0, PhysicalAggSig(Fold(), FoldStateSig(EmitType(SInt32, true), "accum", "other", Ref("accum", TInt32)))),
       SerializeAggs(0, 0, BufferSpec.default, FastSeq(pCollectSig.state)),
       DeserializeAggs(0, 0, BufferSpec.default, FastSeq(pCollectSig.state)),
       CombOpValue(0, bin, pCollectSig),
@@ -2823,8 +2827,8 @@ class IRSuite extends HailSuite {
       MatrixWrite(vcf, MatrixPLINKWriter("/path/to/base")),
       MatrixWrite(bgen, MatrixGENWriter("/path/to/base")),
       MatrixWrite(mt, MatrixBlockMatrixWriter("path/to/data/bm", true, "a", 4096)),
-      MatrixMultiWrite(Array(mt, mt), MatrixNativeMultiWriter("/path/to/prefix")),
-      TableMultiWrite(Array(table, table), WrappedMatrixNativeMultiWriter(MatrixNativeMultiWriter("/path/to/prefix"), FastIndexedSeq("foo"))),
+      MatrixMultiWrite(Array(mt, mt), MatrixNativeMultiWriter(IndexedSeq("/path/to/mt1", "/path/to/mt2"))),
+      TableMultiWrite(Array(table, table), WrappedMatrixNativeMultiWriter(MatrixNativeMultiWriter(IndexedSeq("/path/to/mt1", "/path/to/mt2")), FastIndexedSeq("foo"))),
       MatrixAggregate(mt, MakeStruct(Seq("foo" -> count))),
       BlockMatrixCollect(blockMatrix),
       BlockMatrixWrite(blockMatrix, blockMatrixWriter),

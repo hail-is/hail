@@ -1,5 +1,6 @@
 package is.hail.io.avro
 
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.expr.ir._
 import is.hail.rvd.RVDPartitioner

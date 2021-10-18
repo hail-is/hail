@@ -1,4 +1,4 @@
-from typing import Any, AsyncContextManager, Optional, List, Type, BinaryIO, cast, Set, AsyncIterator, Union, Dict
+from typing import Any, AsyncContextManager, Optional, List, Type, BinaryIO, cast, Set, AsyncIterator, Union, Dict, Callable
 from types import TracebackType
 import abc
 import os
@@ -232,9 +232,11 @@ class AsyncFS(abc.ABC):
                    sema: asyncio.Semaphore,
                    transfer: Union['Transfer', List['Transfer']],
                    return_exceptions: bool = False,
-                   **kwargs) -> 'CopyReport':
+                   *,
+                   files_listener: Optional[Callable[[int], None]] = None,
+                   bytes_listener: Optional[Callable[[int], None]] = None) -> 'CopyReport':
         copier = Copier(self)
-        copy_report = CopyReport(transfer, **kwargs)
+        copy_report = CopyReport(transfer, files_listener=files_listener, bytes_listener=bytes_listener)
         await copier.copy(sema, copy_report, transfer, return_exceptions)
         copy_report.mark_done()
         return copy_report
@@ -462,8 +464,14 @@ class Transfer:
 
 
 class SourceReport:
-    def __init__(self, source, tqdm_files: Optional[Any] = None, tqdm_bytes: Optional[Any] = None):
+    def __init__(self,
+                 source,
+                 *,
+                 files_listener: Optional[Callable[[int], None]] = None,
+                 bytes_listener: Optional[Callable[[int], None]] = None):
         self._source = source
+        self._files_listener = files_listener
+        self._bytes_listener = bytes_listener
         self._source_type: Optional[str] = None
         self._files = 0
         self._bytes = 0
@@ -471,35 +479,28 @@ class SourceReport:
         self._complete = 0
         self._first_file_error: Optional[Dict[str, Any]] = None
         self._exception: Optional[Exception] = None
-        self._tqdm_files = tqdm_files
-        self._tqdm_bytes = tqdm_bytes
 
-    def start_copying(self, files: int, total_bytes: int):
-        self._files += files
-        if self._tqdm_files is not None:
-            if self._tqdm_files.total is None:
-                self._tqdm_files.total = 0
-            self._tqdm_files.total += files
-            self._tqdm_files.refresh()
+    def start_files(self, n_files: int):
+        self._files += n_files
+        if self._files_listener:
+            self._files_listener(n_files)
 
-        self._bytes += total_bytes
-        if self._tqdm_bytes is not None:
-            if self._tqdm_bytes.total is None:
-                self._tqdm_bytes.total = 0
-            self._tqdm_bytes.total += total_bytes
-            self._tqdm_bytes.refresh()
+    def start_bytes(self, n_bytes: int):
+        self._bytes += n_bytes
+        if self._bytes_listener:
+            self._bytes_listener(n_bytes)
 
-    def finish_bytes(self, part_bytes: int):
-        if self._tqdm_bytes is not None:
-            self._tqdm_bytes.update(part_bytes)
+    def finish_files(self, n_files: int, failed: bool = False):
+        if failed:
+            self._errors += n_files
+        else:
+            self._complete += n_files
+        if self._files_listener:
+            self._files_listener(-n_files)
 
-    def finish_files(self, files: int):
-        self._complete += files
-        if self._tqdm_files is not None:
-            self._tqdm_files.update(files)
-
-    def finish_as_error(self, files: int):
-        self._errors += files
+    def finish_bytes(self, n_bytes: int):
+        if self._bytes_listener:
+            self._bytes_listener(-n_bytes)
 
     def set_exception(self, exception: Exception):
         assert not self._exception
@@ -517,12 +518,19 @@ class SourceReport:
 class TransferReport:
     _source_report: Union[SourceReport, List[SourceReport]]
 
-    def __init__(self, transfer: Transfer, *args, **kwargs):
+    def __init__(self,
+                 transfer: Transfer,
+                 *,
+                 files_listener: Optional[Callable[[int], None]] = None,
+                 bytes_listener: Optional[Callable[[int], None]] = None):
         self._transfer = transfer
         if isinstance(transfer.src, str):
-            self._source_report = SourceReport(transfer.src, *args, **kwargs)
+            self._source_report = SourceReport(
+                transfer.src, files_listener=files_listener, bytes_listener=bytes_listener)
         else:
-            self._source_report = [SourceReport(s, *args, **kwargs) for s in transfer.src]
+            self._source_report = [
+                SourceReport(s, files_listener=files_listener, bytes_listener=bytes_listener)
+                for s in transfer.src]
         self._exception: Optional[Exception] = None
 
     def set_exception(self, exception: Exception):
@@ -531,14 +539,21 @@ class TransferReport:
 
 
 class CopyReport:
-    def __init__(self, transfer: Union[Transfer, List[Transfer]], *args, **kwargs):
+    def __init__(self,
+                 transfer: Union[Transfer, List[Transfer]],
+                 *,
+                 files_listener: Optional[Callable[[int], None]] = None,
+                 bytes_listener: Optional[Callable[[int], None]] = None):
         self._start_time = time_msecs()
         self._end_time = None
         self._duration = None
         if isinstance(transfer, Transfer):
-            self._transfer_report: Union[TransferReport, List[TransferReport]] = TransferReport(transfer, *args, **kwargs)
+            self._transfer_report: Union[TransferReport, List[TransferReport]] = TransferReport(
+                transfer, files_listener=files_listener, bytes_listener=bytes_listener)
         else:
-            self._transfer_report = [TransferReport(t, *args, **kwargs) for t in transfer]
+            self._transfer_report = [
+                TransferReport(t, files_listener=files_listener, bytes_listener=bytes_listener)
+                for t in transfer]
         self._exception: Optional[Exception] = None
 
     def set_exception(self, exception: Exception):
@@ -608,11 +623,7 @@ class SourceCopier:
         if self.pending == 0:
             self.barrier.set()
 
-    async def _copy_file(self,
-                         source_report: SourceReport,
-                         srcfile: str,
-                         size: int,
-                         destfile: str) -> None:
+    async def _copy_file(self, source_report: SourceReport, srcfile: str, size: int, destfile: str) -> None:
         assert not destfile.endswith('/')
 
         async with self.xfer_sema.acquire_manager(min(Copier.BUFFER_SIZE, size)):
@@ -706,11 +717,11 @@ class SourceCopier:
             srcstat: FileStatus,
             destfile: str,
             return_exceptions: bool):
-        source_report.start_copying(1, await srcstat.size())
+        source_report.start_files(1)
+        source_report.start_bytes(await srcstat.size())
         success = False
         try:
             await self._copy_file_multi_part_main(sema, source_report, srcfile, srcstat, destfile, return_exceptions)
-            source_report.finish_files(1)
             success = True
         except Exception as e:
             if return_exceptions:
@@ -718,8 +729,7 @@ class SourceCopier:
             else:
                 raise e
         finally:
-            if not success:
-                source_report.finish_as_error(1)
+            source_report.finish_files(1, failed=not success)
 
     async def _full_dest(self):
         if self.dest_type_task:

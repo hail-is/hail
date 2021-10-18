@@ -18,7 +18,6 @@ from batch.driver.k8s_cache import K8sCache
 
 KUBERNETES_SERVER_URL = os.environ['KUBERNETES_SERVER_URL']
 DOCKER_PREFIX = os.environ['HAIL_DOCKER_PREFIX']
-DOCKER_ROOT_IMAGE = os.environ['HAIL_DOCKER_ROOT_IMAGE']
 BATCH_WORKER_IMAGE = os.environ['BATCH_WORKER_IMAGE']
 
 

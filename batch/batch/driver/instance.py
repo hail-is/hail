@@ -8,6 +8,7 @@ import json
 from typing import Optional
 
 from hailtop.utils import time_msecs, time_msecs_str, retry_transient_errors
+from hailtop import httpx
 from gear import Database, transaction
 
 from ..database import check_call_procedure
@@ -122,6 +123,7 @@ VALUES (%s, %s);
         worker_config: Optional[WorkerConfig],
     ):
         self.db: Database = app['db']
+        self.client_session: httpx.ClientSession = app['client_session']
         self.inst_coll = inst_coll
         # pending, active, inactive, deleted
         self._state = state
@@ -183,11 +185,9 @@ VALUES (%s, %s);
             if self._state in ('inactive', 'deleted'):
                 return
             try:
-                async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=30)
-                ) as session:
-                    url = f'http://{self.ip_address}:5000' f'/api/v1alpha/kill'
-                    await session.post(url)
+                await self.client_session.post(
+                    f'http://{self.ip_address}:5000/api/v1alpha/kill',
+                    timeout=aiohttp.ClientTimeout(total=30))
             except aiohttp.ClientResponseError as err:
                 if err.status == 403:
                     log.info(f'cannot kill {self} -- does not exist at {self.ip_address}')
@@ -228,15 +228,12 @@ VALUES (%s, %s);
     async def check_is_active_and_healthy(self):
         if self._state == 'active' and self.ip_address:
             try:
-                async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)
-                ) as session:
-                    async with session.get(f'http://{self.ip_address}:5000/healthcheck') as resp:
-                        actual_name = (await resp.json()).get('name')
-                        if actual_name and actual_name != self.name:
-                            return False
-                    await self.mark_healthy()
-                    return True
+                async with self.client_session.get(f'http://{self.ip_address}:5000/healthcheck') as resp:
+                    actual_name = (await resp.json()).get('name')
+                    if actual_name and actual_name != self.name:
+                        return False
+                await self.mark_healthy()
+                return True
             except Exception:
                 log.exception(f'while requesting {self} /healthcheck')
                 await self.incr_failed_request_count()

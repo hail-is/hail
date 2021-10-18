@@ -23,5 +23,5 @@ def test_scale(client):
     batch.wait()
     status = legacy_batch_status(batch)
 
-    assert batch_status_job_counter(status, 'Success') == n_jobs, status
-    assert all([j['exit_code'] == 0 for j in status['jobs']])
+    assert batch_status_job_counter(status, 'Success') == n_jobs, str((status, batch.debug_info()))
+    assert all([j['exit_code'] == 0 for j in status['jobs']]), str((status, batch.debug_info()))

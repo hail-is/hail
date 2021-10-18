@@ -9,11 +9,11 @@ import java.util.concurrent._
 import is.hail.{HAIL_REVISION, HailContext}
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.{Backend, BackendContext, BroadcastValue, HailTaskContext}
+import is.hail.backend.{Backend, BackendContext, BroadcastValue, ExecuteContext, HailTaskContext}
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering._
-import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, MakeTuple, SortField}
-import is.hail.io.fs._
+import is.hail.expr.ir.{Compile, IR, IRParser, MakeTuple, SortField}
+import is.hail.io.fs.{FS, GoogleStorageFS}
 import is.hail.linalg.BlockMatrix
 import is.hail.services._
 import is.hail.services.batch_client.BatchClient

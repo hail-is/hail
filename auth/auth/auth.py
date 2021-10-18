@@ -13,6 +13,7 @@ from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
 from hailtop.utils import secret_alnum_string
+from hailtop import httpx
 from gear import (
     setup_aiohttp_session,
     rest_authenticated_users_only,
@@ -150,6 +151,8 @@ async def _wait_websocket(request, email):
                 if user['state'] != 'creating':
                     log.info(f"user {user['username']} is no longer creating")
                     break
+            except asyncio.CancelledError:
+                raise
             except Exception:  # pylint: disable=broad-except
                 log.exception(f"/creating/wait: error while updating status for user {user['username']}")
             await asyncio.sleep(1)
@@ -223,6 +226,8 @@ async def callback(request):
             flow.credentials.id_token, google.auth.transport.requests.Request()
         )
         email = token['email']
+    except asyncio.CancelledError:
+        raise
     except Exception as e:
         log.exception('oauth2 callback: could not fetch and verify token')
         raise web.HTTPUnauthorized() from e
@@ -456,6 +461,8 @@ async def rest_callback(request):
             flow.credentials.id_token, google.auth.transport.requests.Request()
         )
         email = token['email']
+    except asyncio.CancelledError:
+        raise
     except Exception as e:
         log.exception('fetching and decoding token')
         raise web.HTTPUnauthorized() from e
@@ -589,10 +596,14 @@ async def on_startup(app):
     db = Database()
     await db.async_init(maxsize=50)
     app['db'] = db
+    app['client_session'] = httpx.client_session()
 
 
 async def on_cleanup(app):
-    await app['db'].async_close()
+    try:
+        await app['db'].async_close()
+    finally:
+        await app['client_session'].close()
 
 
 def run():

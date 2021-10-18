@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.{BroadcastRow, Region}
 import is.hail.asm4s.{Code, CodeLabel, Settable, Value}
+import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.functions.UtilFunctions
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}

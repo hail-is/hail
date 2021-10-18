@@ -1,12 +1,14 @@
-import asyncio
 import unittest
-import os
 import uuid
 from memory.client import MemoryClient
 
-from hailtop.aiogoogle.client.storage_client import GoogleStorageAsyncFS
+from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
 from hailtop.config import get_user_config
 from hailtop.utils import async_to_blocking
+
+from gear.cloud_config import get_gcp_config
+
+PROJECT = get_gcp_config().project
 
 
 class BlockingMemoryClient:
@@ -33,7 +35,7 @@ class Tests(unittest.TestCase):
         token = uuid.uuid4()
         self.test_path = f'gs://{bucket_name}/memory-tests/{token}'
 
-        self.fs = GoogleStorageAsyncFS(project=os.environ['PROJECT'])
+        self.fs = GoogleStorageAsyncFS(project=PROJECT)
         self.client = BlockingMemoryClient(fs=self.fs)
         self.temp_files = set()
 

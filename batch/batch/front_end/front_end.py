@@ -1,3 +1,4 @@
+from typing import Optional, Union
 from numbers import Number
 import os
 import logging
@@ -15,8 +16,6 @@ import pandas as pd
 import pymysql
 import plotly.express as px
 import plotly
-import google.oauth2.service_account
-import google.api_core.exceptions
 import humanize
 import traceback
 from prometheus_async.aio.web import server_stats  # type: ignore
@@ -33,10 +32,10 @@ from hailtop.utils import (
     periodically_call,
 )
 from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
-import hailtop.aiogoogle as aiogoogle
+from hailtop.aiocloud import aiogoogle
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
-from hailtop.httpx import client_session
+from hailtop import httpx
 from hailtop.hail_logging import AccessLogger
 from hailtop import aiotools, dictfix
 from gear import (
@@ -108,6 +107,8 @@ def catch_ui_error_in_dev(fun):
     async def wrapped(request, userdata, *args, **kwargs):
         try:
             return await fun(request, userdata, *args, **kwargs)
+        except asyncio.CancelledError:
+            raise
         except aiohttp.web_exceptions.HTTPFound as e:
             raise e
         except Exception as e:
@@ -321,18 +322,18 @@ WHERE id = %s AND NOT deleted;
 
 
 async def _get_job_log_from_record(app, batch_id, job_id, record):
+    client_session: httpx.ClientSession = app['client_session']
     state = record['state']
     ip_address = record['ip_address']
     if state == 'Running':
-        async with aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-            try:
-                url = f'http://{ip_address}:5000' f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log'
-                resp = await request_retry_transient_errors(session, 'GET', url)
-                return await resp.json()
-            except aiohttp.ClientResponseError as e:
-                if e.status == 404:
-                    return None
-                raise
+        try:
+            resp = await request_retry_transient_errors(
+                client_session, 'GET', f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
+            return await resp.json()
+        except aiohttp.ClientResponseError as e:
+            if e.status == 404:
+                return None
+            raise
 
     if state in ('Error', 'Failed', 'Success'):
         file_store: FileStore = app['file_store']
@@ -340,8 +341,10 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
 
         async def _read_log_from_gcs(task):
             try:
-                data = await file_store.read_log_file(batch_format_version, batch_id, job_id, record['attempt_id'], task)
-            except google.api_core.exceptions.NotFound:
+                data = await file_store.read_log_file(
+                    batch_format_version, batch_id, job_id, record['attempt_id'], task
+                )
+            except FileNotFoundError:
                 id = (batch_id, job_id)
                 log.exception(f'missing log file for {id} and task {task}')
                 data = 'ERROR: could not find log file'
@@ -425,13 +428,14 @@ async def _get_full_job_spec(app, record):
     try:
         spec = await file_store.read_spec_file(batch_id, token, start_job_id, job_id)
         return json.loads(spec)
-    except google.api_core.exceptions.NotFound:
+    except FileNotFoundError:
         id = (batch_id, job_id)
         log.exception(f'missing spec file for {id}')
         return None
 
 
 async def _get_full_job_status(app, record):
+    client_session: httpx.ClientSession = app['client_session']
     file_store: FileStore = app['file_store']
 
     batch_id = record['batch_id']
@@ -450,7 +454,7 @@ async def _get_full_job_status(app, record):
         try:
             status = await file_store.read_status_file(batch_id, job_id, attempt_id)
             return json.loads(status)
-        except google.api_core.exceptions.NotFound:
+        except FileNotFoundError:
             id = (batch_id, job_id)
             log.exception(f'missing status file for {id}')
             return None
@@ -459,15 +463,14 @@ async def _get_full_job_status(app, record):
     assert record['status'] is None
 
     ip_address = record['ip_address']
-    async with aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-        try:
-            url = f'http://{ip_address}:5000' f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status'
-            resp = await request_retry_transient_errors(session, 'GET', url)
-            return await resp.json()
-        except aiohttp.ClientResponseError as e:
-            if e.status == 404:
-                return None
-            raise
+    try:
+        resp = await request_retry_transient_errors(
+            client_session, 'GET', f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status')
+        return await resp.json()
+    except aiohttp.ClientResponseError as e:
+        if e.status == 404:
+            return None
+        raise
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
@@ -978,6 +981,8 @@ VALUES (%s, %s, %s);
 
                 try:
                     await insert()  # pylint: disable=no-value-for-parameter
+                except asyncio.CancelledError:
+                    raise
                 except aiohttp.web.HTTPException:
                     raise
                 except Exception as err:
@@ -986,7 +991,7 @@ VALUES (%s, %s, %s);
                         f'jobs_args={json.dumps(jobs_args)}'
                         f'job_parents_args={json.dumps(job_parents_args)}'
                     ) from err
-        await asyncio.gather(write_spec_to_gcs(), insert_jobs_into_db())
+            await asyncio.gather(write_spec_to_gcs(), insert_jobs_into_db())
 
     return web.Response()
 
@@ -1192,6 +1197,7 @@ async def cancel_batch(request, userdata, batch_id):  # pylint: disable=unused-a
 @routes.patch('/api/v1alpha/batches/{batch_id}/close')
 @rest_authenticated_users_only
 async def close_batch(request, userdata):
+    client_session: httpx.ClientSession = request.app['client_session']
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
 
@@ -1228,7 +1234,7 @@ async def _close_batch(app: aiohttp.web.Application, batch_id: int, user: str, d
         raise
 
     await request_retry_transient_errors(
-        app['client_session'],
+        client_session,
         'PATCH',
         deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/close'),
         headers=app['batch_headers'],
@@ -1512,8 +1518,9 @@ async def ui_get_job(request, userdata, batch_id):
             color_discrete_sequence=px.colors.sequential.dense,
             category_orders={
                 'Step': ['input', 'main', 'output'],
-                'Task': ['pulling', 'setting up overlay', 'setting up network', 'running', 'uploading_log']
-            })
+                'Task': ['pulling', 'setting up overlay', 'setting up network', 'running', 'uploading_log'],
+            },
+        )
 
         plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
     else:
@@ -1554,16 +1561,17 @@ async def ui_get_billing_limits(request, userdata):
     return await render_template('batch', request, userdata, 'billing_limits.html', page_context)
 
 
-def _parse_billing_limit(limit):
+def _parse_billing_limit(limit: Optional[Union[str, float, int]]) -> Optional[float]:
+    assert isinstance(limit, (str, float, int)) or limit is None, (limit, type(limit))
+
     if limit == 'None' or limit is None:
-        limit = None
-    else:
-        try:
-            limit = float(limit)
-            assert limit >= 0
-        except Exception as e:
-            raise InvalidBillingLimitError(limit) from e
-    return limit
+        return None
+    try:
+        parsed_limit = float(limit)
+        assert parsed_limit >= 0
+        return parsed_limit
+    except (AssertionError, ValueError) as e:
+        raise InvalidBillingLimitError(limit) from e
 
 
 async def _edit_billing_limit(db, billing_project, limit):
@@ -1669,8 +1677,10 @@ async def _query_billing(request, user=None):
         where_conditions.append("`time_completed` <= %s")
         where_args.append(end)
     else:
-        where_conditions.append("((`time_completed` IS NOT NULL AND `time_completed` >= %s) OR "
-                                "(`time_closed` IS NOT NULL AND `time_completed` IS NULL))")
+        where_conditions.append(
+            "((`time_completed` IS NOT NULL AND `time_completed` >= %s) OR "
+            "(`time_closed` IS NOT NULL AND `time_completed` IS NULL))"
+        )
         where_args.append(start)
 
     if user is not None:
@@ -2135,8 +2145,9 @@ async def index(request, userdata):  # pylint: disable=unused-argument
 
 
 async def cancel_batch_loop_body(app):
+    client_session: httpx.ClientSession = app['client_session']
     await request_retry_transient_errors(
-        app['client_session'],
+        client_session,
         'POST',
         deploy_config.url('batch-driver', '/api/v1alpha/batches/cancel'),
         headers=app['batch_headers'],
@@ -2147,8 +2158,9 @@ async def cancel_batch_loop_body(app):
 
 
 async def delete_batch_loop_body(app):
+    client_session: httpx.ClientSession = app['client_session']
     await request_retry_transient_errors(
-        app['client_session'],
+        client_session,
         'POST',
         deploy_config.url('batch-driver', '/api/v1alpha/batches/delete'),
         headers=app['batch_headers'],
@@ -2160,6 +2172,7 @@ async def delete_batch_loop_body(app):
 
 async def on_startup(app):
     app['task_manager'] = aiotools.BackgroundTaskManager()
+    app['client_session'] = httpx.client_session()
 
     db = Database()
     await db.async_init()
@@ -2183,7 +2196,7 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
 
     app['frozen'] = row['frozen']
 
-    credentials = aiogoogle.auth.credentials.Credentials.from_file('/gsa-key/key.json')
+    credentials = aiogoogle.GoogleCredentials.from_file('/gsa-key/key.json')
     fs = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
     app['file_store'] = FileStore(fs, BATCH_BUCKET_NAME, instance_id)
 
@@ -2205,9 +2218,7 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
         retry_long_running('delete_batch_loop', run_if_changed, delete_batch_state_changed, delete_batch_loop_body, app)
     )
 
-    app['task_manager'].ensure_future(
-        periodically_call(5, _refresh, app)
-    )
+    app['task_manager'].ensure_future(periodically_call(5, _refresh, app))
 
     app['client_session'] = client_session()
 

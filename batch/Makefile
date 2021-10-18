@@ -59,12 +59,3 @@ gcp-create-worker-image:
 	-gcloud -q compute --project $(PROJECT) images delete batch-worker-12
 	gcloud -q compute --project $(PROJECT) images create batch-worker-12 --source-disk=build-batch-worker-image --source-disk-zone=$(ZONE)
 	gcloud -q compute --project $(PROJECT) instances delete --zone=$(ZONE) build-batch-worker-image
-
-.PHONY: az-create-build-worker-image-instance
-az-create-build-worker-image-instance:
-	sh az-create-build-worker-image-instance.sh
-	# Need to SSH into the VM and run "sudo waagent -deprovision+user -force"
-
-.PHONY: az-create-worker-image
-az-create-worker-image:
-	sh az-create-worker-image.sh

@@ -121,18 +121,6 @@ class ClientSession:
     def version(self) -> Tuple[int, int]:
         return self.client_session.version
 
-    def __enter__(self) -> None:
-        raise TypeError("Use async with instead")
-
-    def __exit__(
-        self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
-    ) -> None:
-        # __exit__ should exist in pair with __enter__ but never executed
-        pass  # pragma: no cover
-
     async def __aenter__(self) -> "ClientSession":
         return self
 

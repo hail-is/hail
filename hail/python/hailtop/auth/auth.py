@@ -1,16 +1,19 @@
+from typing import Optional
 import os
 import aiohttp
-from hailtop.config import get_deploy_config
+from hailtop.config import get_deploy_config, DeployConfig
 from hailtop.utils import async_to_blocking, request_retry_transient_errors
-from hailtop.httpx import client_session as http_client_session
+from hailtop import httpx
 
 from .tokens import get_tokens
 
 
-async def async_get_userinfo(*, deploy_config=None, session_id=None, client_session=None):
+async def async_get_userinfo(*,
+                             deploy_config: Optional[DeployConfig] = None,
+                             session_id: Optional[str] = None,
+                             client_session: Optional[httpx.ClientSession] = None):
     if deploy_config is None:
         deploy_config = get_deploy_config()
-
     if session_id is None:
         headers = service_auth_headers(deploy_config, 'auth')
     else:
@@ -29,10 +32,9 @@ async def async_get_userinfo(*, deploy_config=None, session_id=None, client_sess
             raise
 
     if client_session is None:
-        async with http_client_session() as client_session:
-            return await request(client_session)
-    else:
-        return await request(client_session)
+        async with httpx.client_session() as session:
+            return await request(session)
+    return await request(client_session)
 
 
 def get_userinfo(deploy_config=None, session_id=None, client_session=None):

@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.GetElement
 import is.hail.methods.ForceCountTable
 import is.hail.types._
@@ -244,6 +245,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         addElementBinding(name, a)
       case RunAggScan(a, name, init, seqs, result, signature) =>
         addElementBinding(name, a)
+      case AggFold(zero, seqOp, combOp, accumName, otherAccumName, _) =>
+        addBindings(accumName, Array(zero, seqOp, combOp))
+        addBindings(otherAccumName, Array(zero, seqOp, combOp))
       case AggExplode(a, name, aggBody, isScan) =>
         addElementBinding(name, a)
       case AggArrayPerElement(a, elt, idx, body, knownLength, isScan) =>
@@ -614,6 +618,10 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           initOpArgs.map(i => i -> lookup(i)),
           seqOpArgs.map(s => s -> lookup(s)))).emitResultType
         requiredness.fromEmitType(emitResult)
+      case AggFold(zero, seqOp, combOp, elementName, accumName, _) =>
+        requiredness.unionFrom(lookup(zero))
+        requiredness.unionFrom(lookup(seqOp))
+        requiredness.unionFrom(lookup(combOp))
       case MakeNDArray(data, shape, rowMajor, _) =>
         requiredness.unionFrom(lookup(data))
         requiredness.union(lookup(shape).required)

@@ -6,7 +6,7 @@ from typing import Optional, Dict, Union, List, Any, Set
 
 from hailtop.utils import secret_alnum_string
 from hailtop.aiotools import AsyncFS, RouterAsyncFS, LocalAsyncFS
-from hailtop.aiogoogle import GoogleStorageAsyncFS
+from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
 
 from . import backend as _backend, job, resource as _resource  # pylint: disable=cyclic-import
 from .exceptions import BatchException

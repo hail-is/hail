@@ -219,16 +219,13 @@ $(EGG): copy-py-files
 # if the DEPLOY_REMOTE flag is not set, then deploy init scripts into a dev-username location
 ifndef DEPLOY_REMOTE
 DEV_CLARIFIER ?= $(shell whoami)-dev/
-CLOUD_SUB_FOLDER := $(HAIL_VERSION)
+cloud_base ?= gs://hail-30-day/hailctl/dataproc/$(DEV_CLARIFIER)/$(HAIL_VERSION)
 UPLOAD_RETENTION =
 else
-CLOUD_SUB_FOLDER := $(HAIL_PIP_VERSION)
+cloud_base := gs://hail-common/hailctl/dataproc/$(HAIL_PIP_VERSION)
 UPLOAD_RETENTION = gsutil -m retention temp set "$(cloud_base)/*"
 endif
 
-HAILCTL_BUCKET_BASE ?= gs://hail-common/hailctl/dataproc
-
-cloud_base := $(HAILCTL_BUCKET_BASE)/$(DEV_CLARIFIER)$(CLOUD_SUB_FOLDER)
 wheel_cloud_path := $(cloud_base)/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 resources := $(wildcard python/hailtop/hailctl/dataproc/resources/*)
 $(eval $(call ENV_VAR,cloud_base))

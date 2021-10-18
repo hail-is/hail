@@ -2,6 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder, EmitParamType, IEmitCode, SCodeEmitParamType, uuid4}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.stypes.{EmitType, SCode}
@@ -57,7 +58,7 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
     cb.invokeVoid(seqOpMethod, nextNDCode)
   }
 
-  override protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
+  override protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: TypedRegionBackedAggState, other: TypedRegionBackedAggState): Unit = {
     val combOpMethod = cb.emb.genEmitMethod[Unit]("ndarray_sum_aggregator_comb_op")
 
     combOpMethod.voidWithBuilder { cb =>

@@ -31,7 +31,7 @@ kssh() {
     #
     #     # kssh admin-pod
     #     root@admin-pod-5d77d69445-86m2h:/#
-    kubectl -n ${2:-default} exec -it "$(kfind1 "$1" "$2")" ${3:+--container="$3"} -- /bin/bash
+    kubectl -n ${2:-default} exec -it "$(kfind1 "$1" "$2")" ${3:+--container="$3"} -- ${KSSH_SHELL:-/bin/sh}
 }
 
 klog() {
@@ -153,7 +153,7 @@ download-secret() {
 	  mkdir contents
 	  for field in $(jq -r  '.data | keys[]' secret.json)
 	  do
-		    jq -r '.data["'$field'"]' secret.json | base64 -D > contents/$field
+		    jq -r '.data["'$field'"]' secret.json | base64 --decode > contents/$field
 	  done
 }
 
@@ -168,7 +168,23 @@ upload-secret() {
 	      | kubectl apply -f -
 }
 
-switchproject() {
+gcpsetcluster() {
+    if [ -z "$1" ]; then
+        echo "Usage: gcpsetcluster <PROJECT>"
+        return
+    fi
+
     gcloud config set project $1
     gcloud container clusters get-credentials --zone us-central1-a vdc
+}
+
+azsetcluster() {
+    if [ -z "$1" ]; then
+        echo "Usage: azsetcluster <RESOURCE_GROUP>"
+        return
+    fi
+
+    RESOURCE_GROUP=$1
+    az aks get-credentials --name vdc --resource-group $RESOURCE_GROUP
+    az acr login --name $RESOURCE_GROUP
 }

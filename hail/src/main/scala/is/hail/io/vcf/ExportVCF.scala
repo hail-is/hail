@@ -5,7 +5,8 @@ import htsjdk.tribble.SimpleFeature
 import htsjdk.tribble.index.tabix.{TabixFormat, TabixIndexCreator}
 import is.hail
 import is.hail.annotations.Region
-import is.hail.expr.ir.{ExecuteContext, MatrixValue}
+import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.MatrixValue
 import is.hail.io.compress.{BGzipLineReader, BGzipOutputStream}
 import is.hail.io.fs.FS
 import is.hail.io.{VCFAttributes, VCFFieldAttributes, VCFMetadata}

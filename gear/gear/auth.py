@@ -1,4 +1,5 @@
 from typing import Optional
+import asyncio
 import logging
 from functools import wraps
 import urllib.parse
@@ -6,7 +7,7 @@ from aiohttp import web
 import aiohttp_session
 from hailtop.config import get_deploy_config
 from hailtop.auth import async_get_userinfo
-import asyncio
+from hailtop import httpx
 
 log = logging.getLogger('gear.auth')
 
@@ -21,10 +22,12 @@ def maybe_parse_bearer_header(value: str) -> Optional[str]:
     return None
 
 
-async def _userdata_from_session_id(session_id, client_session=None):
+async def _userdata_from_session_id(session_id: str, client_session: Optional[httpx.ClientSession] = None):
     try:
         return await async_get_userinfo(
-            deploy_config=deploy_config, session_id=session_id, client_session=client_session)
+            deploy_config=deploy_config,
+            session_id=session_id,
+            client_session=client_session)
     except asyncio.CancelledError:
         raise
     except Exception as e:  # pylint: disable=broad-except

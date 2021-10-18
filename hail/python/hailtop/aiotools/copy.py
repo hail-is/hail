@@ -1,13 +1,14 @@
 from typing import List, Optional
-import sys
 import json
 import urllib
 import asyncio
+import logging
+import argparse
 from concurrent.futures import ThreadPoolExecutor
 from hailtop.aiotools.fs import RouterAsyncFS, LocalAsyncFS, Transfer
-from hailtop.aiogoogle import GoogleStorageAsyncFS
-from hailtop.aiotools.s3asyncfs import S3AsyncFS
-from hailtop.aiotools.azurefs import AzureAsyncFS
+from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
+from hailtop.aiocloud.aioaws import S3AsyncFS
+from hailtop.aiocloud.aioazure import AzureAsyncFS
 from hailtop.utils import tqdm
 
 
@@ -40,6 +41,18 @@ def filesystem_from_scheme(scheme, thread_pool=None, gcs_params=None):
     raise ValueError(f'Unsupported scheme: {scheme}')
 
 
+def make_tqdm_listener(pbar):
+    def listener(delta):
+        if pbar.total is None:
+            pbar.total = 0
+        if delta > 0:
+            pbar.total += delta
+            pbar.refresh()
+        if delta < 0:
+            pbar.update(-delta)
+    return listener
+
+
 async def copy(requester_pays_project: Optional[str],
                transfers: List[Transfer]
                ) -> None:
@@ -54,16 +67,32 @@ async def copy(requester_pays_project: Optional[str],
         async with RouterAsyncFS(default_scheme, filesystems) as fs:
             sema = asyncio.Semaphore(50)
             async with sema:
-                with tqdm(desc='files', leave=False, position=0, unit='file') as tqdm_files, \
-                     tqdm(desc='bytes', leave=False, position=1, unit='byte', unit_scale=True, smoothing=0.1) as tqdm_bytes:
-                    copy_report = await fs.copy(sema, transfers, tqdm_files=tqdm_files, tqdm_bytes=tqdm_bytes)
+                with tqdm(desc='files', leave=False, position=0, unit='file') as file_pbar, \
+                     tqdm(desc='bytes', leave=False, position=1, unit='byte', unit_scale=True, smoothing=0.1) as byte_pbar:
+
+                    copy_report = await fs.copy(
+                        sema,
+                        transfers,
+                        files_listener=make_tqdm_listener(file_pbar),
+                        bytes_listener=make_tqdm_listener(byte_pbar))
                 copy_report.summarize()
 
 
 async def main() -> None:
-    assert len(sys.argv) == 3
-    requster_pays_project = json.loads(sys.argv[1])
-    files = json.loads(sys.argv[2])
+    parser = argparse.ArgumentParser(description='Hail copy tool')
+    parser.add_argument('requester_pays_project', type=str,
+                        help='a JSON string indicating the Google project to which to charge egress costs')
+    parser.add_argument('files', type=str,
+                        help='a JSON array of JSON objects indicating from where and to where to copy files')
+    parser.add_argument('-v', '--verbose', action='store_const',
+                        const=True, default=False,
+                        help='show logging information')
+    args = parser.parse_args()
+    if args.verbose:
+        logging.basicConfig()
+        logging.root.setLevel(logging.INFO)
+    requster_pays_project = json.loads(args.requester_pays_project)
+    files = json.loads(args.files)
 
     await copy(
         requster_pays_project,

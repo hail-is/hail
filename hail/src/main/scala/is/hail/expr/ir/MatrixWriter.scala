@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.MatrixWriteBlockMatrix
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage}
 import is.hail.expr.ir.streams.StreamProducer
@@ -483,9 +484,9 @@ object MatrixNativeMultiWriter {
 }
 
 case class MatrixNativeMultiWriter(
-  prefix: String,
+  paths: IndexedSeq[String],
   overwrite: Boolean = false,
   stageLocally: Boolean = false
 ) {
-  def apply(ctx: ExecuteContext, mvs: IndexedSeq[MatrixValue]): Unit = MatrixValue.writeMultiple(ctx, mvs, prefix, overwrite, stageLocally)
+  def apply(ctx: ExecuteContext, mvs: IndexedSeq[MatrixValue]): Unit = MatrixValue.writeMultiple(ctx, mvs, paths, overwrite, stageLocally)
 }

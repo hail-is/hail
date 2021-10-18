@@ -1,7 +1,7 @@
 import logging
 
 from hailtop.utils import check_shell_output, LoggingTimer, retry_all_errors_n_times
-from hailtop import aiogoogle
+from hailtop.aiocloud import aiogoogle
 
 log = logging.getLogger('disk')
 
@@ -14,8 +14,8 @@ class Disk:
         # under the information for the name field
         assert len(name) <= 63
 
-        self.compute_client = aiogoogle.ComputeClient(
-            project, credentials=aiogoogle.Credentials.from_file('/worker-key.json')
+        self.compute_client = aiogoogle.GoogleComputeClient(
+            project, credentials=aiogoogle.GoogleCredentials.from_file('/worker-key.json')
         )
         self.name = name
         self.zone = zone

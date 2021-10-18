@@ -5,7 +5,8 @@ import datetime
 import aiohttp
 
 from gear import Database
-from hailtop import aiotools, aiogoogle
+from hailtop import aiotools
+from hailtop.aiocloud import aiogoogle
 from hailtop.utils import periodically_call, time_msecs, parse_timestamp_msecs
 
 from ..batch_configuration import PROJECT, DEFAULT_NAMESPACE
@@ -28,8 +29,8 @@ class GCEEventMonitor:
         self.app = app
         self.db: Database = app['db']
         self.zone_monitor: ZoneMonitor = app['zone_monitor']
-        self.compute_client: aiogoogle.ComputeClient = app['compute_client']
-        self.logging_client: aiogoogle.LoggingClient = app['logging_client']
+        self.compute_client: aiogoogle.GoogleComputeClient = app['compute_client']
+        self.logging_client: aiogoogle.GoogleLoggingClient = app['logging_client']
         self.inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
         self.machine_name_prefix = machine_name_prefix
 

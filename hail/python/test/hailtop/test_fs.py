@@ -4,11 +4,11 @@ import secrets
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import pytest
-from hailtop.utils import secret_alnum_string
+from hailtop.utils import secret_alnum_string, retry_transient_errors
 from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS, UnexpectedEOFError
-from hailtop.aiotools.s3asyncfs import S3AsyncFS
-from hailtop.aiotools.azurefs import AzureAsyncFS
-from hailtop.aiogoogle import GoogleStorageAsyncFS
+from hailtop.aiocloud.aioaws import S3AsyncFS
+from hailtop.aiocloud.aioazure import AzureAsyncFS
+from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
 
 
 @pytest.fixture(params=['file', 'gs', 's3', 'hail-az', 'router/file', 'router/gs', 'router/s3', 'router/hail-az'])
@@ -385,11 +385,12 @@ async def test_multi_part_create(filesystem, permutation):
         if permutation:
             # do it in a fixed order
             for i in permutation:
-                await create_part(i)
+                await retry_transient_errors(create_part, i)
         else:
             # do in parallel
             await asyncio.gather(*[
-                create_part(i) for i in range(len(part_data))])
+                retry_transient_errors(create_part, i)
+                for i in range(len(part_data))])
 
     expected = b''.join(part_data)
     async with await fs.open(path) as f:

@@ -411,9 +411,6 @@ steps:
       valueFrom: auth_image.image
     script: |
       set -ex
-      export PROJECT={{ global.project }}
-      export ZONE={{ global.zone }}
-      export HAIL_PROJECT={{ global.project }}
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export HAIL_SCOPE={{ scope }}
       python3 /io/bootstrap_create_accounts.py
@@ -439,6 +436,10 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /auth-gsa-key
+      - name: global-config
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /global-config
     inputs:
       - from: /repo/ci/bootstrap_create_accounts.py
         to: /io/bootstrap_create_accounts.py
@@ -2926,7 +2927,6 @@ steps:
       cpu: '1'
     script: |
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-      export PROJECT={{ global.project }}
       hailctl config set batch/bucket {{ global.hail_test_gcs_bucket }}
       python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /io/test/
     timeout: 600
@@ -2947,6 +2947,10 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
+      - name: global-config
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /global-config
     inputs:
       - from: /repo/memory/test
         to: /io/test
@@ -3332,13 +3336,18 @@ steps:
     image:
       valueFrom: batch_image.image
     script: |
+      set -ex
       export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
-      export HAIL_TOKEN="{{ token }}"
-      cd /io/test
-      python3 -c '
+      for token in "{{ test_batch_0.token }}" "{{ test_batch_1.token }}" "{{ test_batch_2.token }}" "{{ test_batch_3.token }}" "{{ test_batch_4.token }}"
+      do
+          export HAIL_TOKEN="$token"
+          cd /io/test
+          python3 -c '
       import test_accounts
       import asyncio
-      asyncio.get_event_loop().run_until_complete(test_accounts.delete_all_test_billing_projects())'
+      asyncio.get_event_loop().run_until_complete(test_accounts.delete_all_test_billing_projects())
+      '
+      done
     inputs:
       - from: /repo/batch/test
         to: /io/test
@@ -3852,36 +3861,6 @@ steps:
       - create_ci_test_repo
       - deploy_ci
       - test_ci
-  - kind: runImage
-    name: deploy_hail
-    image: gcr.io/google.com/cloudsdktool/cloud-sdk:334.0.0
-    script: |
-      set -ex
-      gcloud auth activate-service-account --key-file=/secrets/ci-deploy-0-1--hail-is-hail.json
-      SPARK_VERSION=3.1.1
-      BRANCH=0.2
-      SHA="{{ code.sha }}"
-      GS_JAR=gs://hail-common/builds/${BRANCH}/jars/hail-${BRANCH}-${SHA}-Spark-${SPARK_VERSION}.jar
-      gsutil cp /io/hail.jar ${GS_JAR}
-      gsutil acl set public-read ${GS_JAR}
-      GS_HAIL_ZIP=gs://hail-common/builds/${BRANCH}/python/hail-${BRANCH}-${SHA}.zip
-      gsutil cp /io/hail.zip ${GS_HAIL_ZIP}
-      gsutil acl set public-read ${GS_HAIL_ZIP}
-    secrets:
-      - name: ci-deploy-0-1--hail-is-hail
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /secrets
-    inputs:
-      - from: /hail.jar
-        to: /io/hail.jar
-      - from: /hail.zip
-        to: /io/hail.zip
-    scopes:
-      - deploy
-    dependsOn:
-      - default_ns
-      - build_hail
   - kind: buildImage2
     name: blog_nginx_image
     dockerFile: /io/blog/Dockerfile.nginx

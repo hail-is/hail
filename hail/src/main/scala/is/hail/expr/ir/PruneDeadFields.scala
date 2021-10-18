@@ -1324,6 +1324,15 @@ object PruneDeadFields {
         val initEnv = unifyEnvsSeq((initOpArgs, prunedSig.initOpArgs).zipped.map { (arg, req) => memoizeValueIR(arg, req, memo) })
         val seqOpEnv = unifyEnvsSeq((seqOpArgs, prunedSig.seqOpArgs).zipped.map { (arg, req) => memoizeValueIR(arg, req, memo) })
         BindingEnv(eval = initEnv.eval, scan = Some(seqOpEnv.eval))
+      case AggFold(zero, seqOp, combOp, accumName, otherAccumName, isScan) =>
+        val initEnv = memoizeValueIR(zero, requestedType, memo)
+        val seqEnv = memoizeValueIR(seqOp, requestedType, memo)
+        val combEnv = memoizeValueIR(combOp, requestedType, memo)
+
+        if (isScan)
+          BindingEnv(eval = initEnv.eval, scan = Some(seqEnv.eval.delete(accumName)))
+        else
+          BindingEnv(eval = initEnv.eval, agg = Some(seqEnv.eval.delete(accumName)))
       case StreamAgg(a, name, query) =>
         val aType = a.typ.asInstanceOf[TStream]
         val queryEnv = memoizeValueIR(query, requestedType, memo)
@@ -2038,7 +2047,8 @@ object PruneDeadFields {
         AggArrayPerElement(a2, elementName, indexName, aggBody2, knownLength.map(rebuildIR(_, aEnv, memo)), isScan)
       case StreamAgg(a, name, query) =>
         val a2 = rebuildIR(a, env, memo)
-        val query2 = rebuildIR(query, env.copy(agg = Some(env.eval.bind(name -> a2.typ.asInstanceOf[TStream].elementType))), memo)
+        val newEnv = env.copy(agg = Some(env.eval.bind(name -> a2.typ.asInstanceOf[TStream].elementType)))
+        val query2 = rebuildIR(query, newEnv, memo)
         StreamAgg(a2, name, query2)
       case StreamAggScan(a, name, query) =>
         val a2 = rebuildIR(a, env, memo)
@@ -2069,6 +2079,11 @@ object PruneDeadFields {
           aggSig.copy(
             initOpArgs = initOpArgs2.map(_.typ),
             seqOpArgs = seqOpArgs2.map(_.typ)))
+      case AggFold(zero, seqOp, combOp, accumName, otherAccumName, isScan) =>
+        val zero2 = rebuildIR(zero, env, memo)
+        val seqOp2 = rebuildIR(seqOp, if (isScan) env.promoteScan else env.promoteAgg, memo)
+        val combOp2 = rebuildIR(combOp, env, memo)
+        AggFold(zero2, seqOp2, combOp2, accumName, otherAccumName, isScan)
       case CollectDistributedArray(contexts, globals, cname, gname, body, tsd) =>
         val contexts2 = upcast(rebuildIR(contexts, env, memo), memo.requestedType.lookup(contexts).asInstanceOf[Type])
         val globals2 = upcast(rebuildIR(globals, env, memo), memo.requestedType.lookup(globals).asInstanceOf[Type])

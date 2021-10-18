@@ -12,13 +12,12 @@ from prometheus_async.aio.web import server_stats  # type: ignore
 from collections import defaultdict
 
 from hailtop.aiotools import AsyncFS
-from hailtop.aiogoogle.client.storage_client import GoogleStorageAsyncFS
-from hailtop.aiogoogle.auth.credentials import Credentials
+from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS, GoogleCredentials
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
 from hailtop.utils import AsyncWorkerPool, retry_transient_errors, dump_all_stacktraces
-from hailtop.httpx import client_session as http_client_session
+from hailtop import httpx
 from gear import setup_aiohttp_session, rest_authenticated_users_only, monitor_endpoints_middleware
 
 uvloop.install()
@@ -150,7 +149,7 @@ async def on_startup(app):
     k8s_client = kube.client.CoreV1Api()
     app['k8s_client'] = k8s_client
     app['redis_pool']: aioredis.ConnectionsPool = await aioredis.create_pool(socket)
-    app['client_session'] = http_client_session()
+    app['client_session'] = httpx.client_session()
 
 
 async def on_cleanup(app):
@@ -161,22 +160,19 @@ async def on_cleanup(app):
             app['redis_pool'].close()
         finally:
             try:
-                app['redis_pool'].close()
+                del app['k8s_client']
             finally:
                 try:
-                    del app['k8s_client']
+                    await app['client_session'].close()
                 finally:
                     try:
-                        app['client_session'].close()
+                        for items in app['users'].values():
+                            try:
+                                await items['fs'].close()
+                            except:
+                                pass
                     finally:
-                        try:
-                            for items in app['users'].values():
-                                try:
-                                    await items['fs'].close()
-                                except:
-                                    pass
-                        finally:
-                            await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
+                        await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
 
 
 def run():

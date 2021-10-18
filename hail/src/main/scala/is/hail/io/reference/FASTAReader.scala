@@ -3,10 +3,8 @@ package is.hail.io.reference
 import java.util
 import java.util.Map.Entry
 import java.util.concurrent.locks.{Lock, ReentrantLock}
-
 import htsjdk.samtools.reference.{ReferenceSequenceFile, ReferenceSequenceFileFactory}
-import is.hail.backend.BroadcastValue
-import is.hail.expr.ir.ExecuteContext
+import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.utils._
 import is.hail.variant.{Locus, ReferenceGenome}
 import is.hail.io.fs.FS

@@ -2,6 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitRegion, EmitValue, IEmitCode}
 import is.hail.io._
@@ -73,8 +74,8 @@ class AppendOnlySetState(val kb: EmitClassBuilder[_], vt: VirtualTypeWithReq) ex
     "size" -> PInt32(true),
     "tree" -> PInt64(true))
 
-  override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, srcc: Code[Long]): Unit = {
-    super.load(cb, regionLoader, srcc)
+  override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Value[Long]): Unit = {
+    super.load(cb, regionLoader, src)
     cb.ifx(off.cne(0L),
       {
         cb.assign(size, Region.loadInt(typ.loadField(off, 0)))
@@ -82,10 +83,10 @@ class AppendOnlySetState(val kb: EmitClassBuilder[_], vt: VirtualTypeWithReq) ex
       })
   }
 
-  override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, destc: Code[Long]): Unit = {
+  override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, dest: Value[Long]): Unit = {
     cb += Region.storeInt(typ.fieldOffset(off, 0), size)
     cb += Region.storeAddress(typ.fieldOffset(off, 1), root)
-    super.store(cb, regionStorer, destc)
+    super.store(cb, regionStorer, dest)
   }
 
   def init(cb: EmitCodeBuilder): Unit = {
@@ -171,7 +172,7 @@ class CollectAsSetAggregator(elem: VirtualTypeWithReq) extends StagedAggregator 
     state.insert(cb, elt)
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
+  protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: AppendOnlySetState, other: AppendOnlySetState): Unit = {
     other.foreach(cb) { (cb, k) => state.insert(cb, k) }
   }
 

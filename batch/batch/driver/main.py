@@ -33,8 +33,8 @@ from hailtop.utils import (
     dump_all_stacktraces,
 )
 from hailtop.tls import internal_server_ssl_context
-from hailtop.httpx import client_session
-from hailtop import aiogoogle, aiotools
+from hailtop.aiocloud import aiogoogle
+from hailtop import aiogoogle, aiotools, httpx
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 import googlecloudprofiler
 import uvloop
@@ -1043,6 +1043,8 @@ async def scheduling_cancelling_bump(app):
 async def on_startup(app):
     app['task_manager'] = aiotools.BackgroundTaskManager()
 
+    app['client_session'] = httpx.client_session()
+
     kube.config.load_incluster_config()
     k8s_client = kube.client.CoreV1Api()
     k8s_cache = K8sCache(k8s_client, refresh_time=5)
@@ -1071,11 +1073,11 @@ SELECT instance_id, internal_token, frozen FROM globals;
     resources = db.select_and_fetchall('SELECT resource, rate FROM resources;')
     app['resource_rates'] = {record['resource']: record['rate'] async for record in resources}
 
-    aiogoogle_credentials = aiogoogle.Credentials.from_file('/gsa-key/key.json')
-    compute_client = aiogoogle.ComputeClient(PROJECT, credentials=aiogoogle_credentials)
+    aiogoogle_credentials = aiogoogle.GoogleCredentials.from_file('/gsa-key/key.json')
+    compute_client = aiogoogle.GoogleComputeClient(PROJECT, credentials=aiogoogle_credentials)
     app['compute_client'] = compute_client
 
-    logging_client = aiogoogle.LoggingClient(
+    logging_client = aiogoogle.GoogleLoggingClient(
         credentials=aiogoogle_credentials,
         # The project-wide logging quota is 60 request/m.  The event
         # loop sleeps 15s per iteration, so the max rate is 4
@@ -1103,7 +1105,7 @@ SELECT instance_id, internal_token, frozen FROM globals;
     async_worker_pool = AsyncWorkerPool(100, queue_size=100)
     app['async_worker_pool'] = async_worker_pool
 
-    credentials = aiogoogle.auth.credentials.Credentials.from_file('/gsa-key/key.json')
+    credentials = aiogoogle.GoogleCredentials.from_file('/gsa-key/key.json')
     fs = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
     app['file_store'] = FileStore(fs, BATCH_BUCKET_NAME, instance_id)
 
@@ -1140,8 +1142,6 @@ SELECT instance_id, internal_token, frozen FROM globals;
     app['task_manager'].ensure_future(periodically_call(60, scheduling_cancelling_bump, app))
 
     app['task_manager'].ensure_future(periodically_call(15, monitor_system, app))
-
-    app['client_session'] = client_session()
 
 
 async def on_cleanup(app):

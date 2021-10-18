@@ -1,9 +1,8 @@
 package is.hail.io
 
 import java.io._
-
 import is.hail.annotations._
-import is.hail.expr.ir.ExecuteContext
+import is.hail.backend.ExecuteContext
 import is.hail.types.physical._
 import is.hail.io.fs.FS
 import is.hail.io.index.IndexWriter

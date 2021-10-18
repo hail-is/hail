@@ -19,7 +19,7 @@ from hailtop.batch_client.parse import parse_cpu_in_mcpu
 import hailtop.batch_client.client as bc
 from hailtop.batch_client.client import BatchClient
 from hailtop.aiotools import RouterAsyncFS, LocalAsyncFS, AsyncFS
-from hailtop.aiogoogle import GoogleStorageAsyncFS
+from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
 
 from . import resource, batch, job as _job  # pylint: disable=unused-import
 from .exceptions import BatchException
@@ -703,27 +703,24 @@ class ServiceBackend(Backend[bc.Batch]):
             print(f'Built DAG with {n_jobs_submitted} jobs in {round(time.time() - build_dag_start, 3)} seconds.')
 
         submit_batch_start = time.time()
-        bc_batch = bc_batch.submit(disable_progress_bar=disable_progress_bar)
-        try:
-            jobs_to_command = {j.id: cmd for j, cmd in jobs_to_command.items()}
+        batch_handle = bc_batch.submit(disable_progress_bar=disable_progress_bar)
 
-            if verbose:
-                print(f'Submitted batch {bc_batch.id} with {n_jobs_submitted} jobs in {round(time.time() - submit_batch_start, 3)} seconds:')
-                for jid, cmd in jobs_to_command.items():
-                    print(f'{jid}: {cmd}')
-                print('')
+        jobs_to_command = {j.id: cmd for j, cmd in jobs_to_command.items()}
 
-            deploy_config = get_deploy_config()
-            url = deploy_config.url('batch', f'/batches/{bc_batch.id}')
-            print(f'Submitted batch {bc_batch.id}, see {url}')
+        if verbose:
+            print(f'Submitted batch {batch_handle.id} with {n_jobs_submitted} jobs in {round(time.time() - submit_batch_start, 3)} seconds:')
+            for jid, cmd in jobs_to_command.items():
+                print(f'{jid}: {cmd}')
+            print('')
 
-            if open:
-                webbrowser.open(url)
-            if wait:
-                print(f'Waiting for batch {bc_batch.id}...')
-                status = bc_batch.wait()
-                print(f'batch {bc_batch.id} complete: {status["state"]}')
-            return bc_batch
-        except:
-            bc_batch.cancel()
-            raise
+        deploy_config = get_deploy_config()
+        url = deploy_config.url('batch', f'/batches/{batch_handle.id}')
+        print(f'Submitted batch {batch_handle.id}, see {url}')
+
+        if open:
+            webbrowser.open(url)
+        if wait:
+            print(f'Waiting for batch {batch_handle.id}...')
+            status = batch_handle.wait()
+            print(f'batch {batch_handle.id} complete: {status["state"]}')
+        return batch_handle

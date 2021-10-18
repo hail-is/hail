@@ -2,14 +2,15 @@ import os
 import base64
 import json
 import kubernetes_asyncio as kube
-from hailtop import aiogoogle
+from hailtop.aiocloud import aiogoogle
 from hailtop.utils import async_to_blocking
 from gear import Database, transaction
+from gear.cloud_config import get_gcp_config
 
 from auth.driver.driver import create_user
 
 SCOPE = os.environ['HAIL_SCOPE']
-PROJECT = os.environ['HAIL_PROJECT']
+PROJECT = get_gcp_config().project
 DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
 
 
@@ -84,8 +85,8 @@ async def main():
     k8s_client = kube.client.CoreV1Api()
     app['k8s_client'] = k8s_client
 
-    app['iam_client'] = aiogoogle.IAmClient(
-        PROJECT, credentials=aiogoogle.Credentials.from_file('/auth-gsa-key/key.json')
+    app['iam_client'] = aiogoogle.GoogleIAmClient(
+        PROJECT, credentials=aiogoogle.GoogleCredentials.from_file('/auth-gsa-key/key.json')
     )
 
     for username, email, is_developer, is_service_account in users:

@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s.Value
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.agg.{AggStateSig, PhysicalAggSig}
 import is.hail.expr.ir.functions._
@@ -483,6 +484,8 @@ final case class ApplyAggOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[IR
 
   def op: AggOp = aggSig.op
 }
+
+final case class AggFold(zero: IR, seqOp: IR, combOp: IR, accumName: String, otherAccumName: String, isScan: Boolean) extends IR
 
 object ApplyScanOp {
   def apply(op: AggOp, initOpArgs: IR*)(seqOpArgs: IR*): ApplyScanOp =

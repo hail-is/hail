@@ -4,7 +4,6 @@ import os
 import logging
 import asyncio
 import concurrent.futures
-import aiohttp
 from aiohttp import web
 import aiohttp_session  # type: ignore
 import uvloop  # type: ignore
@@ -15,7 +14,7 @@ from hailtop.batch_client.aioclient import BatchClient, Batch
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
-from hailtop import aiotools
+from hailtop import aiotools, httpx
 from gear import (
     setup_aiohttp_session,
     rest_authenticated_developers_only,
@@ -417,6 +416,8 @@ async def dev_deploy_branch(request, userdata):
     app = request.app
     try:
         params = await request.json()
+    except asyncio.CancelledError:
+        raise
     except Exception as e:
         message = 'could not read body as JSON'
         log.info('dev deploy failed: ' + message, exc_info=True)
@@ -426,6 +427,8 @@ async def dev_deploy_branch(request, userdata):
         branch = FQBranch.from_short_str(params['branch'])
         steps = params['steps']
         excluded_steps = params['excluded_steps']
+    except asyncio.CancelledError:
+        raise
     except Exception as e:
         message = f'parameters are wrong; check the branch and steps syntax.\n\n{params}'
         log.info('dev deploy failed: ' + message, exc_info=True)
@@ -437,6 +440,8 @@ async def dev_deploy_branch(request, userdata):
     try:
         branch_gh_json = await gh.getitem(request_string)
         sha = branch_gh_json['object']['sha']
+    except asyncio.CancelledError:
+        raise
     except Exception as e:
         message = f'error finding {branch} at GitHub'
         log.info('dev deploy failed: ' + message, exc_info=True)
@@ -448,6 +453,8 @@ async def dev_deploy_branch(request, userdata):
 
     try:
         batch_id = await unwatched_branch.deploy(batch_client, steps, excluded_steps=excluded_steps)
+    except asyncio.CancelledError:
+        raise
     except Exception as e:  # pylint: disable=broad-except
         message = traceback.format_exc()
         raise web.HTTPBadRequest(text=f'starting the deploy failed due to\n{message}') from e
@@ -474,8 +481,8 @@ async def update_loop(app):
 
 
 async def on_startup(app):
-    app['gh_client_session'] = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5))
-    app['github_client'] = gh_aiohttp.GitHubAPI(app['gh_client_session'], 'ci', oauth_token=oauth_token)
+    app['client_session'] = httpx.client_session()
+    app['github_client'] = gh_aiohttp.GitHubAPI(app['client_session'], 'ci', oauth_token=oauth_token)
     app['batch_client'] = await BatchClient.create('ci')
     app['dbpool'] = await create_database_pool()
 
@@ -488,7 +495,7 @@ async def on_cleanup(app):
         dbpool = app['dbpool']
         dbpool.close()
         await dbpool.wait_closed()
-        await app['gh_client_session'].close()
+        await app['client_session'].close()
         await app['batch_client'].close()
     finally:
         app['task_manager'].shutdown()

@@ -3,7 +3,8 @@ package is.hail.expr.ir.agg
 import breeze.linalg.{DenseMatrix, DenseVector, diag, inv}
 import is.hail.annotations.{Region, RegionValueBuilder, UnsafeRow}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode}
+import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitContext, IEmitCode}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{EmitType, SCode}
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SIndexablePointer, SIndexablePointerSettable}
@@ -261,7 +262,7 @@ class LinearRegressionAggregator() extends StagedAggregator {
         optr := optr + scalar.byteSize))))
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
+  protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: AbstractTypedRegionBackedAggState, other: AbstractTypedRegionBackedAggState): Unit = {
     combOpF(state, other)(cb)
   }
 

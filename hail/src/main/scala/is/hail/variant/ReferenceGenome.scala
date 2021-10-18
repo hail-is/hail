@@ -1,13 +1,12 @@
 package is.hail.variant
 
 import java.io.InputStream
-
 import htsjdk.samtools.reference.FastaSequenceIndex
 import is.hail.HailContext
 import is.hail.asm4s.Code
-import is.hail.backend.BroadcastValue
+import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.check.Gen
-import is.hail.expr.ir.{EmitClassBuilder, ExecuteContext, RelationalSpec}
+import is.hail.expr.ir.{EmitClassBuilder, RelationalSpec}
 import is.hail.expr.{JSONExtractContig, JSONExtractIntervalLocus, JSONExtractReferenceGenome, Parser}
 import is.hail.io.fs.FS
 import is.hail.io.reference.LiftOver
@@ -22,6 +21,7 @@ import scala.language.implicitConversions
 import org.apache.spark.TaskContext
 import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
+
 import java.lang.ThreadLocal
 
 

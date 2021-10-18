@@ -3,9 +3,9 @@ package is.hail
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
-import is.hail.backend.{Backend, BroadcastValue}
+import is.hail.backend.{Backend, BroadcastValue, ExecuteContext}
 import is.hail.expr.ir.functions.IRFunctionRegistry
-import is.hail.expr.ir.{BaseIR, ExecuteContext}
+import is.hail.expr.ir.BaseIR
 import is.hail.io.fs.FS
 import is.hail.io.index._
 import is.hail.io.vcf._

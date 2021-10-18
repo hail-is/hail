@@ -1,6 +1,7 @@
 package is.hail.io.plink
 
 import is.hail.annotations.{Region, RegionValueBuilder}
+import is.hail.backend.ExecuteContext
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir._
 import is.hail.expr.ir.lowering.TableStage

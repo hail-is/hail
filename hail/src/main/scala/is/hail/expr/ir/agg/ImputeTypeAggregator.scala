@@ -2,6 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.EmitType
@@ -154,7 +155,7 @@ class ImputeTypeAggregator() extends StagedAggregator {
     state.seqOp(cb, s)
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
+  protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: ImputeTypeState, other: ImputeTypeState): Unit = {
     state.combOp(cb, other)
   }
 

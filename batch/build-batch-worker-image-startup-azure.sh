@@ -29,16 +29,7 @@ rm -rf /var/lib/apt/lists/*
 [ -f /etc/docker/daemon.json ] || echo "{}" > /etc/docker/daemon.json
 
 # Install Azure CLI
-curl -sL https://packages.microsoft.com/keys/microsoft.asc |
-    gpg --dearmor |
-    tee /etc/apt/trusted.gpg.d/microsoft.gpg > /dev/null
-
-AZ_REPO=$(lsb_release -cs)
-echo "deb [arch=amd64] https://packages.microsoft.com/repos/azure-cli/ $AZ_REPO main" |
-    tee /etc/apt/sources.list.d/azure-cli.list
-
-apt-get update
-apt-get install azure-cli
+curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
 az login --identity
 az acr login --name {{ global.container_registry_name }}

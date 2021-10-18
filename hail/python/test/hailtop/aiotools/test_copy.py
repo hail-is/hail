@@ -6,9 +6,9 @@ import functools
 import pytest
 from hailtop.utils import url_scheme, bounded_gather2
 from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS, Transfer, FileAndDirectoryError
-from hailtop.aiogoogle import GoogleStorageAsyncFS
-from hailtop.aiotools.s3asyncfs import S3AsyncFS
-from hailtop.aiotools.azurefs import AzureAsyncFS
+from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
+from hailtop.aiocloud.aioaws import S3AsyncFS
+from hailtop.aiocloud.aioazure import AzureAsyncFS
 
 
 from .generate_copy_test_specs import (

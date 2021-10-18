@@ -9,13 +9,15 @@ import aiohttp
 import kubernetes_asyncio as kube
 from hailtop.utils import time_msecs, secret_alnum_string
 from hailtop.auth.sql_config import create_secret_data_from_config, SQLConfig
-from hailtop import aiogoogle, aiotools
-from hailtop import batch_client as bc
+from hailtop import aiotools
+from hailtop.aiocloud import aiogoogle
+from hailtop import batch_client as bc, httpx
 from gear import create_session, Database
+from gear.cloud_config import get_gcp_config
 
 log = logging.getLogger('auth.driver')
 
-PROJECT = os.environ['PROJECT']
+PROJECT = get_gcp_config().project
 DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
 
 is_test_deployment = DEFAULT_NAMESPACE != 'default'
@@ -526,6 +528,8 @@ async def async_main():
         await db.async_init(maxsize=50)
         app['db'] = db
 
+        app['client_session'] = httpx.client_session()
+
         db_instance = Database()
         await db_instance.async_init(maxsize=50, config_file='/database-server-config/sql-config.json')
         app['db_instance'] = db_instance
@@ -534,8 +538,8 @@ async def async_main():
         k8s_client = kube.client.CoreV1Api()
         app['k8s_client'] = k8s_client
 
-        app['iam_client'] = aiogoogle.IAmClient(
-            PROJECT, credentials=aiogoogle.Credentials.from_file('/gsa-key/key.json')
+        app['iam_client'] = aiogoogle.GoogleIAmClient(
+            PROJECT, credentials=aiogoogle.GoogleCredentials.from_file('/gsa-key/key.json')
         )
 
         app['batch_client'] = await bc.aioclient.BatchClient.create(None)
@@ -560,5 +564,8 @@ async def async_main():
                 if 'db_instance_pool' in app:
                     await app['db_instance_pool'].async_close()
             finally:
-                if user_creation_loop is not None:
-                    user_creation_loop.shutdown()
+                try:
+                    await app['client_session'].close()
+                finally:
+                    if user_creation_loop is not None:
+                        user_creation_loop.shutdown()

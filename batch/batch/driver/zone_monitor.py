@@ -1,7 +1,8 @@
 import logging
 import random
 
-from hailtop import aiotools, aiogoogle
+from hailtop import aiotools
+from hailtop.aiocloud import aiogoogle
 from hailtop.utils import periodically_call, url_basename
 
 from ..utils import WindowFractionCounter
@@ -50,7 +51,7 @@ class ZoneSuccessRate:
 class ZoneMonitor:
     def __init__(self, app):
         self.app = app
-        self.compute_client: aiogoogle.ComputeClient = app['compute_client']
+        self.compute_client: aiogoogle.GoogleComputeClient = app['compute_client']
 
         self.zone_success_rate = ZoneSuccessRate()
 

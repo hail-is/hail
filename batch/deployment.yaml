@@ -30,6 +30,8 @@ spec:
       tolerations:
        - key: preemptible
          value: "true"
+       - key: "kubernetes.azure.com/scalesetpriority"
+         value: "spot"
 {% endif %}
       containers:
       - name: batch-driver
@@ -193,6 +195,8 @@ spec:
       tolerations:
        - key: preemptible
          value: "true"
+       - key: "kubernetes.azure.com/scalesetpriority"
+         value: "spot"
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
