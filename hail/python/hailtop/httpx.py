@@ -47,7 +47,7 @@ class ClientResponse:
 
     @property
     def closed(self) -> bool:
-        return self.client_response.closed()
+        return self.client_response.closed
 
     def close(self) -> None:
         return self.client_response.close()
@@ -56,7 +56,7 @@ class ClientResponse:
         return await self.wait_for_close()
 
     async def read(self) -> bytes:
-        return self.client_response.read()
+        return await self.client_response.read()
 
     def get_encoding(self) -> str:
         return self.client_response.get_encoding()
