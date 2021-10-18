@@ -987,8 +987,8 @@ def fraction(predicate) -> Float64Expression:
                    count())
 
 
-@typecheck(expr=expr_call)
-def hardy_weinberg_test(expr) -> StructExpression:
+@typecheck(expr=expr_call, one_sided=expr_bool)
+def hardy_weinberg_test(expr, one_sided=False) -> StructExpression:
     """Performs test of Hardy-Weinberg equilibrium.
 
     Examples
@@ -1016,10 +1016,13 @@ def hardy_weinberg_test(expr) -> StructExpression:
     - `p_value` (:py:data:`.tfloat64`) - p-value from test of Hardy-Weinberg
       equilibrium.
 
-    Hail computes the exact p-value with mid-p-value correction, i.e. the
+    By default, Hail computes the exact p-value with mid-p-value correction, i.e. the
     probability of a less-likely outcome plus one-half the probability of an
     equally-likely outcome. See this `document <_static/LeveneHaldane.pdf>`__ for
     details on the Levene-Haldane distribution and references.
+
+    To perform a one-sided test of excess heterozygosity instead, set `one_sided=True`
+    and the p-value returned will be from the one-sided exact test.
 
     Warning
     -------
@@ -1032,6 +1035,8 @@ def hardy_weinberg_test(expr) -> StructExpression:
     ----------
     expr : :class:`.CallExpression`
         Call to test for Hardy-Weinberg equilibrium.
+    one_sided: :obj:`bool`
+        ``False`` by default. When ``True``, perform one-sided test for excess heterozygosity.
 
     Returns
     -------
@@ -1046,7 +1051,7 @@ def hardy_weinberg_test(expr) -> StructExpression:
                                             .when(i < 1 << 31, hl.int(i))
                                             .or_error('hardy_weinberg_test: count greater than MAX_INT'))),
             _ctx=_agg_func.context),
-        lambda counts: hl.hardy_weinberg_test(counts.get(0, 0), counts.get(1, 0), counts.get(2, 0)))
+        lambda counts: hl.hardy_weinberg_test(counts.get(0, 0), counts.get(1, 0), counts.get(2, 0), one_sided=one_sided))
 
 
 @typecheck(f=func_spec(1, agg_expr(expr_any)), array_agg_expr=expr_oneof(expr_array(), expr_set()))
