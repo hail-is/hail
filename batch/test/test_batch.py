@@ -25,9 +25,6 @@ NAMESPACE = os.environ.get('HAIL_DEFAULT_NAMESPACE')
 SCOPE = os.environ.get('HAIL_SCOPE', 'test')
 
 
-pytestmark = pytest.mark.asyncio
-
-
 @pytest.fixture
 def client():
     client = BatchClient('test')
