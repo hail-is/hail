@@ -72,7 +72,7 @@ class ClientResponse:
 
         content_type = self.client_response.headers.get(aiohttp.hdrs.CONTENT_TYPE, None)
         assert content_type is None or content_type == 'application/json', self.client_response
-        return orjson.load(await self.read())
+        return orjson.loads(await self.read())
 
     async def __aenter__(self) -> "ClientResponse":
         return self
@@ -103,7 +103,7 @@ class ClientSession:
                     raise ValueError(
                         'data and json parameters cannot be used at the same time')
                 kwargs['data'] = aiohttp.BytesPayload(
-                    value=orjson.dump(json_data),
+                    value=orjson.dumps(json_data),
                     # https://github.com/ijl/orjson#serialize
                     #
                     # "The output is a bytes object containing UTF-8"
