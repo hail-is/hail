@@ -1197,7 +1197,6 @@ async def cancel_batch(request, userdata, batch_id):  # pylint: disable=unused-a
 @routes.patch('/api/v1alpha/batches/{batch_id}/close')
 @rest_authenticated_users_only
 async def close_batch(request, userdata):
-    client_session: httpx.ClientSession = request.app['client_session']
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
 
@@ -1222,6 +1221,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
 
 async def _close_batch(app: aiohttp.web.Application, batch_id: int, user: str, db: Database):
+    client_session: httpx.ClientSession = app['client_session']
     try:
         now = time_msecs()
         await check_call_procedure(db, 'CALL close_batch(%s, %s);', (batch_id, now))
@@ -2172,7 +2172,6 @@ async def delete_batch_loop_body(app):
 
 async def on_startup(app):
     app['task_manager'] = aiotools.BackgroundTaskManager()
-    app['client_session'] = httpx.client_session()
 
     db = Database()
     await db.async_init()
@@ -2220,7 +2219,7 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
 
     app['task_manager'].ensure_future(periodically_call(5, _refresh, app))
 
-    app['client_session'] = client_session()
+    app['client_session'] = httpx.client_session()
 
 
 async def on_cleanup(app):
