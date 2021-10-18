@@ -7,6 +7,7 @@ import os
 import sys
 import uuid
 
+from collections.abc import Collection
 from typing import Dict, List, Optional, Union
 
 import hail as hl
@@ -16,7 +17,7 @@ from hail.utils.java import Env, info, warning
 from hail.experimental.vcf_combiner.vcf_combiner import calculate_even_genome_partitioning, \
     calculate_new_intervals
 from hail.vds.variant_dataset import VariantDataset
-from .combine import combine_variant_datasets, transform_gvcf
+from .combine import combine_variant_datasets, transform_gvcf, defined_entry_fields
 
 
 VDSMetadata = collections.namedtuple('VDSMetadata', ['path', 'n_samples'])
@@ -83,7 +84,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                  gvcf_external_header: Optional[str] = None,
                  gvcf_import_intervals: List[Interval],
                  gvcf_info_to_keep: Optional[List[str]] = None,
-                 gvcf_reference_entry_fields_to_keep: Optional[List[str]] = None,
+                 gvcf_reference_entry_fields_to_keep: Optional[Collection[str]] = None,
                  ):
         if not (vdses or gvcfs):
             raise ValueError("one of 'vdses' or 'gvcfs' must be nonempty")
@@ -325,7 +326,7 @@ def new_combiner(*,
                  gvcf_external_header: Optional[str] = None,
                  gvcf_sample_names: Optional[List[str]] = None,
                  gvcf_info_to_keep: Optional[List[str]] = None,
-                 gvcf_reference_entry_fields_to_keep: Optional[List[str]] = None,
+                 gvcf_reference_entry_fields_to_keep: Optional[Collection[str]] = None,
                  branch_factor: int = VariantDatasetCombiner.default_branch_factor,
                  target_records: int = VariantDatasetCombiner.default_target_records,
                  batch_size: int = VariantDatasetCombiner.default_gvcf_batch_size,
@@ -402,6 +403,14 @@ def new_combiner(*,
 
     if isinstance(reference_genome, str):
         reference_genome = hl.get_reference(reference_genome)
+
+    if gvcf_reference_entry_fields_to_keep is None and vds_paths:
+        vds = hl.vds.read_vds(vds_paths[0])
+        gvcf_reference_entry_fields_to_keep = set(vds.reference_data.entry) - {'END'}
+    elif gvcf_reference_entry_fields_to_keep is None and gvcf_paths:
+        mt = hl.import_vcf(gvcf_paths[0], force_bgz=True)
+        mt = mt.filter_rows(hl.is_defined(mt.info.END))
+        gvcf_reference_entry_fields_to_keep = defined_entry_fields(mt, 100_000)
 
     if save_path is None:
         sha = hashlib.sha256()
