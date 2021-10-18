@@ -2,7 +2,9 @@ import asyncio
 from aiohttp import web
 from hailtop.batch_client.aioclient import BatchClient
 
+
 routes = web.RouteTableDef()
+
 
 @routes.get('/api/{route:.*}')
 async def proxy_api(request):
@@ -14,6 +16,7 @@ async def proxy_api(request):
 
 async def on_startup(app):
     app['batch_client'] = await BatchClient.create('test')
+
 
 app = web.Application()
 app.add_routes(routes)
