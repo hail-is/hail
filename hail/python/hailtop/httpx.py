@@ -97,7 +97,7 @@ class ClientSession:
         raise_for_status = kwargs.pop('raise_for_status', self.raise_for_status)
 
         async def request_and_raise_for_status():
-            json_data = kwargs.pop('json')
+            json_data = kwargs.pop('json', None)
             if json_data is not None:
                 if kwargs.get('data') is not None:
                     raise ValueError(
