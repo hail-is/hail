@@ -10,14 +10,15 @@ import kubernetes_asyncio as kube
 from hailtop.utils import time_msecs, secret_alnum_string
 from hailtop.auth.sql_config import create_secret_data_from_config, SQLConfig
 from hailtop import aiotools
-from hailtop.aiocloud import aiogoogle
+from hailtop.aiocloud import aiogoogle, aioazure
 from hailtop import batch_client as bc, httpx
 from gear import create_session, Database
-from gear.cloud_config import get_gcp_config
+from gear.cloud_config import get_gcp_config, get_global_config
 
 log = logging.getLogger('auth.driver')
 
-PROJECT = get_gcp_config().project
+
+CLOUD = get_global_config().cloud
 DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
 
 is_test_deployment = DEFAULT_NAMESPACE != 'default'
@@ -143,7 +144,8 @@ class GSAResource:
     async def create(self, username):
         assert self.gsa_email is None
 
-        gsa_email = f'{username}@{PROJECT}.iam.gserviceaccount.com'
+        project = get_gcp_config().project
+        gsa_email = f'{username}@{project}.iam.gserviceaccount.com'
 
         await self._delete(gsa_email)
 
@@ -171,6 +173,64 @@ class GSAResource:
             return
         await self._delete(self.gsa_email)
         self.gsa_email = None
+
+
+class AzureServicePrincipalResource:
+    def __init__(self, graph_client, app_id=None):
+        self.graph_client = graph_client
+        self.app_id = app_id
+
+    async def create(self, username):
+        assert self.app_id is None
+
+        params = {
+            '$filter': f"displayName eq '{username}'"
+        }
+        applications = await self.graph_client.get('/applications', params=params)
+        for application in applications['value']:
+            await self._delete(application['appId'])
+
+        config = {
+            'displayName': username,
+            'signInAudience': 'AzureADMyOrg'
+        }
+        application = await self.graph_client.post('/applications', json=config)
+
+        config = {
+            'appId': application['appId']
+        }
+        service_principal = await self.graph_client.post('/servicePrincipals', json=config)
+
+        assert application['appId'] == service_principal['appId']
+
+        password = await self.graph_client.post(f'/applications/{application["id"]}/addPassword', json={})
+
+        self.app_id = application['appId']
+
+        credentials = {
+            'appId': service_principal['appId'],
+            'displayName': service_principal['displayName'],
+            'name': service_principal['servicePrincipalNames'][0],
+            'password': password['secretText'],
+            'tenant': service_principal['appOwnerOrganizationId'],
+        }
+
+        return (self.app_id, credentials)
+
+    async def _delete(self, app_id):
+        try:
+            await self.graph_client.delete(f'/applications/{app_id}')
+        except aiohttp.ClientResponseError as e:
+            if e.status == 404:
+                pass
+            else:
+                raise
+
+    async def delete(self):
+        if self.app_id is None:
+            return
+        await self._delete(self.app_id)
+        self.app_id = None
 
 
 class DatabaseResource:
@@ -376,7 +436,7 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
         updates['tokens_secret_name'] = tokens_secret_name
 
     gsa_email = user['gsa_email']
-    if gsa_email is None:
+    if CLOUD == 'gcp' and gsa_email is None:
         gsa = GSAResource(iam_client)
         cleanup.append(gsa.delete)
 
@@ -395,6 +455,26 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
             {'key.json': base64.b64decode(key['privateKeyData']).decode('utf-8')},
         )
         updates['gsa_key_secret_name'] = gsa_key_secret_name
+
+    azure_app_id = user['azure_application_id']
+    if CLOUD == 'azure' and azure_app_id is None:
+        azure_sp = AzureServicePrincipalResource(iam_client)
+        cleanup.append(azure_sp.delete)
+
+        azure_app_id, credentials = await azure_sp.create(ident_token)
+        updates['azure_application_id'] = azure_app_id
+
+        credentials = json.dumps(credentials)
+
+        azure_credentials_secret_name = f'{ident}-azure-credentials'
+        azure_credentials_secret = K8sSecretResource(k8s_client)
+        cleanup.append(azure_credentials_secret.delete)
+        await azure_credentials_secret.create(
+            azure_credentials_secret_name,
+            DEFAULT_NAMESPACE,
+            {'credentials.json': credentials},
+        )
+        updates['azure_credentials_secret_name'] = azure_credentials_secret_name
 
     namespace_name = user['namespace_name']
     if namespace_name is None and user['is_developer'] == 1:
@@ -474,6 +554,16 @@ async def delete_user(app, user):
         gsa_key_secret = K8sSecretResource(k8s_client, gsa_key_secret_name, DEFAULT_NAMESPACE)
         await gsa_key_secret.delete()
 
+    azure_app_id = user['azure_application_id']
+    if azure_app_id is not None:
+        azure_sp = AzureServicePrincipalResource(iam_client, azure_app_id)
+        await azure_sp.delete()
+
+    azure_credentials_secret_name = user['azure_credentials_secret_name']
+    if azure_credentials_secret_name is not None:
+        azure_credentials_secret = K8sSecretResource(k8s_client, azure_credentials_secret_name, DEFAULT_NAMESPACE)
+        await azure_credentials_secret.delete()
+
     namespace_name = user['namespace_name']
     if namespace_name is not None:
         assert user['is_developer'] == 1
@@ -528,8 +618,6 @@ async def async_main():
         await db.async_init(maxsize=50)
         app['db'] = db
 
-        app['client_session'] = httpx.client_session()
-
         db_instance = Database()
         await db_instance.async_init(maxsize=50, config_file='/database-server-config/sql-config.json')
         app['db_instance'] = db_instance
@@ -538,9 +626,17 @@ async def async_main():
         k8s_client = kube.client.CoreV1Api()
         app['k8s_client'] = k8s_client
 
-        app['iam_client'] = aiogoogle.GoogleIAmClient(
-            PROJECT, credentials=aiogoogle.GoogleCredentials.from_file('/gsa-key/key.json')
-        )
+        if CLOUD == 'gcp':
+            project = get_gcp_config().project
+            app['iam_client'] = aiogoogle.GoogleIAmClient(
+                project, credentials=aiogoogle.GoogleCredentials.from_file('/gsa-key/key.json')
+            )
+        else:
+            assert CLOUD == 'azure'
+            app['iam_client'] = aioazure.AzureGraphClient(
+                credentials=aioazure.AzureCredentials.from_file('/azure-credentials/credentials.json'),
+                scopes=['https://graph.microsoft.com/.default']
+            )
 
         app['batch_client'] = bc.aioclient.BatchClient(None)
 
@@ -565,7 +661,7 @@ async def async_main():
                     await app['db_instance_pool'].async_close()
             finally:
                 try:
-                    await app['client_session'].close()
-                finally:
                     if user_creation_loop is not None:
                         user_creation_loop.shutdown()
+                finally:
+                    await app['iam_client'].close()

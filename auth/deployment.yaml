@@ -50,11 +50,6 @@ spec:
               secretKeyRef:
                 name: global-config
                 key: domain
-          - name: PROJECT
-            valueFrom:
-              secretKeyRef:
-                name: global-config
-                key: gcp_project
          resources:
            requests:
              cpu: "20m"
@@ -75,9 +70,16 @@ spec:
           - name: sql-config
             mountPath: /sql-config
             readOnly: true
+{% if global.cloud == "gcp" %}
           - name: gsa-key
             mountPath: /gsa-key
             readOnly: true
+{% endif %}
+{% if global.cloud == "azure" %}
+          - name: azure-credentials
+            mountPath: /azure-credentials
+            readOnly: true
+{% endif %}
           - name: auth-tokens
             mountPath: /user-tokens
             readOnly: true
@@ -99,9 +101,16 @@ spec:
        - name: sql-config
          secret:
            secretName: "{{ auth_database.user_secret_name }}"
+{% if global.cloud == "gcp" %}
        - name: gsa-key
          secret:
            secretName: auth-gsa-key
+{% endif %}
+{% if global.cloud == "azure" %}
+       - name: azure-credentials
+         secret:
+           secretName: auth-azure-credentials
+{% endif %}
        - name: auth-tokens
          secret:
            secretName: auth-tokens
@@ -192,9 +201,16 @@ spec:
           - name: sql-config
             mountPath: /sql-config
             readOnly: true
+{% if global.cloud == "gcp" %}
           - name: gsa-key
             mountPath: /gsa-key
             readOnly: true
+{% endif %}
+{% if global.cloud == "azure" %}
+          - name: azure-credentials
+            mountPath: /azure-credentials
+            readOnly: true
+{% endif %}
           - name: ssl-config-auth
             mountPath: /ssl-config
             readOnly: true
@@ -218,9 +234,16 @@ spec:
        - name: sql-config
          secret:
            secretName: "{{ auth_database.user_secret_name }}"
+{% if global.cloud == "gcp" %}
        - name: gsa-key
          secret:
            secretName: auth-gsa-key
+{% endif %}
+{% if global.cloud == "azure" %}
+       - name: azure-credentials
+         secret:
+           secretName: auth-azure-credentials
+{% endif %}
        - name: ssl-config-auth
          secret:
            optional: false

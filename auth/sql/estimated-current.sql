@@ -11,6 +11,9 @@ CREATE TABLE `users` (
   -- gsa
   `gsa_email` varchar(255) DEFAULT NULL,
   `gsa_key_secret_name` varchar(255) DEFAULT NULL,
+  -- azure
+  `azure_application_id` varchar(255) DEFAULT NULL,
+  `azure_credentials_secret_name` varchar(255) DEFAULT NULL,
   -- namespace, for developers
   `namespace_name` varchar(255) DEFAULT NULL,
   `trial_bp_name` varchar(300) DEFAULT NULL,
