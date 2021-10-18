@@ -1,5 +1,4 @@
 from typing import Set, Dict
-import json
 from hail.typecheck import typecheck, setof
 import hail as hl
 
