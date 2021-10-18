@@ -437,15 +437,12 @@ def new_combiner(*,
             return saved_combiner
 
     if vds_sample_counts:
-        cache = None
         vdses = [VDSMetadata(path, n_samples) for path, n_samples in zip(vds_paths, vds_sample_counts)]
     else:
         vdses = []
-        cache = {}
         for path in vds_paths:
             vds = hl.vds.read_vds(path)
             n_samples = vds.n_samples()
-            cache[path] = vds
             vdses.append(VDSMetadata(path, n_samples))
 
     vdses.sort(key=lambda x: x.n_samples, reverse=True)
