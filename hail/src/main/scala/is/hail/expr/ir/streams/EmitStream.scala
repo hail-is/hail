@@ -1024,9 +1024,7 @@ object EmitStream {
             override val length: Option[EmitCodeBuilder => Code[Int]] = blocksProducer.length
 
             override def initialize(cb: EmitCodeBuilder): Unit = {
-              emit(prevWindow, cb).consume(cb, {
-
-              }, { case prevWindow: SNDArrayValue =>
+              emit(prevWindow, cb).consume(cb, { }, { case prevWindow: SNDArrayValue =>
                 state.initializeWindow(cb, prevWindow)
               })
             }
@@ -1040,6 +1038,7 @@ object EmitStream {
               val result = blocksProducer.element.toI(cb).get(cb, "StreamWhiten: missing block").asNDArray
               state.whitenBlock(cb, result)
               cb.assign(resultField, result)
+              cb.goto(LproduceElementDone)
             }
 
             override val element: EmitCode = EmitCode.present(mb, resultField)

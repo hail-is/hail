@@ -12,7 +12,7 @@ from .ir import MatrixWrite, MatrixMultiWrite, BlockMatrixWrite, \
     NDArrayReindex, NDArrayAgg, NDArrayMatMul, NDArrayQR, NDArrayInv, NDArrayConcat, NDArrayWrite, \
     ArraySort, ToSet, ToDict, ToArray, CastToArray, ToStream, \
     LowerBoundOnOrderedCollection, GroupByKey, StreamMap, StreamZip, \
-    StreamFilter, StreamFlatMap, StreamFold, StreamScan, \
+    StreamFilter, StreamFlatMap, StreamFold, StreamScan, StreamWhiten, \
     StreamJoinRightDistinct, StreamFor, AggFilter, AggExplode, AggGroupBy, \
     AggArrayPerElement, BaseApplyAggOp, ApplyAggOp, ApplyScanOp, AggFold, Begin, \
     MakeStruct, SelectFields, InsertFields, GetField, MakeTuple, \
@@ -29,7 +29,8 @@ from .table_ir import MatrixRowsTable, TableJoin, TableLeftJoinRightDistinct, \
     TableTail, TableOrderBy, TableDistinct, RepartitionStrategy, \
     TableRepartition, CastMatrixToTable, TableRename, TableMultiWayZipJoin, \
     TableFilterIntervals, TableToTableApply, MatrixToTableApply, \
-    BlockMatrixToTableApply, BlockMatrixToTable, JavaTable, TableMapPartitions
+    BlockMatrixToTableApply, BlockMatrixToTable, JavaTable, TableMapPartitions, \
+    TableMapPartitions2
 from .matrix_ir import MatrixAggregateRowsByKey, MatrixRead, MatrixFilterRows, \
     MatrixChooseCols, MatrixMapCols, MatrixUnionCols, MatrixMapEntries, \
     MatrixFilterEntries, MatrixKeyRowsBy, MatrixMapRows, MatrixMapGlobals, \
@@ -176,6 +177,7 @@ __all__ = [
     'StreamFlatMap',
     'StreamFold',
     'StreamScan',
+    'StreamWhiten',
     'StreamJoinRightDistinct',
     'StreamFor',
     'StreamGrouped',
@@ -276,6 +278,7 @@ __all__ = [
     'TableKeyBy',
     'TableMapRows',
     'TableMapPartitions',
+    'TableMapPartitions2',
     'TableRead',
     'MatrixEntriesTable',
     'TableFilter',

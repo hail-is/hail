@@ -20,6 +20,8 @@ class ValueIRTests(unittest.TestCase):
         j = ir.I32(7)
         a = ir.Ref('a')
         st = ir.Ref('st')
+        stmat = ir.Ref('stmat')
+        mat = ir.Ref('mat')
         aa = ir.Ref('aa')
         sta = ir.Ref('sta')
         da = ir.Ref('da')
@@ -73,6 +75,7 @@ class ValueIRTests(unittest.TestCase):
             ir.StreamFlatMap(sta, 'v', ir.ToStream(v)),
             ir.StreamFold(st, ir.I32(0), 'x', 'v', v),
             ir.StreamScan(st, ir.I32(0), 'x', 'v', v),
+            ir.StreamWhiten(stmat, mat, 0, 0, 0, 0),
             ir.StreamJoinRightDistinct(st, st, ['k'], ['k'], 'l', 'r', ir.I32(1), "left"),
             ir.StreamFor(st, 'v', ir.Void()),
             ir.AggFilter(ir.TrueIR(), ir.I32(0), False),
@@ -127,6 +130,8 @@ class ValueIRTests(unittest.TestCase):
                'st': hl.tstream(hl.tint32),
                'aa': hl.tarray(hl.tarray(hl.tint32)),
                'sta': hl.tstream(hl.tarray(hl.tint32)),
+               'stmat': hl.tstream(hl.tndarray(hl.tfloat64, 2)),
+               'mat': hl.tndarray(hl.tfloat64, 2),
                'da': hl.tarray(hl.ttuple(hl.tint32, hl.tstr)),
                'nd': hl.tndarray(hl.tfloat64, 1),
                'v': hl.tint32,

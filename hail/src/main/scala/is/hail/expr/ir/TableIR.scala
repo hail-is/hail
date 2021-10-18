@@ -1993,7 +1993,7 @@ case class TableMapPartitions2(
   val rowCountUpperBound: Option[Long] = None
 
   override def copy(newChildren: IndexedSeq[BaseIR]): TableMapPartitions2 = {
-    assert(newChildren.length == 2)
+    assert(newChildren.length == 3)
     TableMapPartitions2(
       newChildren(0).asInstanceOf[TableIR],
       newChildren(1).asInstanceOf[TableIR],

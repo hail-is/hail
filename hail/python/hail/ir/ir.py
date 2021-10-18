@@ -1486,6 +1486,36 @@ class StreamScan(IR):
             return {}
 
 
+class StreamWhiten(IR):
+    @typecheck_method(stream=IR, prev_window=IR, vec_size=int, window_size=int, chunk_size=int, block_size=int)
+    def __init__(self, stream, prev_window, vec_size, window_size, chunk_size, block_size):
+        super().__init__(stream, prev_window)
+        self.stream = stream
+        self.prev_window = prev_window
+        self.vec_size = vec_size
+        self.window_size = window_size
+        self.chunk_size = chunk_size
+        self.block_size = block_size
+
+    @typecheck_method(stream=IR, prev_window=IR)
+    def copy(self, stream, prev_window):
+        return StreamWhiten(stream, prev_window, self.vec_size, self.window_size, self.chunk_size, self.block_size)
+
+    def head_str(self):
+        return f'{self.vec_size} {self.window_size} {self.chunk_size} {self.block_size}'
+
+    def _eq(self, other):
+        return other.vec_size == self.vec_size and \
+               other.window_size == self.window_size and \
+               other.chunk_size == self.chunk_size and \
+               other.block_size == self.block_size
+
+    def _compute_type(self, env, agg_env):
+        self.stream._compute_type(env, agg_env)
+        self.prev_window._compute_type(env, agg_env)
+        self._type = self.stream.typ
+
+
 class StreamJoinRightDistinct(IR):
     @typecheck_method(left=IR, right=IR, l_key=sequenceof(str), r_key=sequenceof(str), l_name=str, r_name=str, join=IR, join_type=str)
     def __init__(self, left, right, l_key, r_key, l_name, r_name, join, join_type):
