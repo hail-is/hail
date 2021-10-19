@@ -875,7 +875,7 @@ class Container:
                     if not (
                         e.returncode == 1
                         and f'error opening file `/run/crun/{self.container_name}/status`: No such file or directory'
-                        in e.outerr
+                        in e.outerr[1]
                     ):
                         log.exception(f'while deleting container {self}', exc_info=True)
             finally:
