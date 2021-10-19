@@ -75,6 +75,10 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
       cb += Region.clearBit(offset, missingIdx(fieldIdx).toLong)
   }
 
+  def setMissingByte(cb: EmitCodeBuilder, addr: Code[Long], byteIndex: Code[Long], byte: Code[Byte]): Unit = {
+    cb += Region.storeByte(addr + byteIndex, byte)
+  }
+
   override def fieldOffset(structAddress: Long, fieldIdx: Int): Long =
     structAddress + byteOffsets(fieldIdx)
 
