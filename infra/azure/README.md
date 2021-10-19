@@ -87,7 +87,7 @@ Deploy unmanaged resources by running
 Build the batch worker image by running the following in $HAIL/batch:
 
 ```
-./az-create-worker-image.sh <REGION> <RESOURCE_GROUP> <YOUR_USERNAME>
+./az-create-worker-image.sh <RESOURCE_GROUP> <REGION> <YOUR_USERNAME>
 ```
 
 Finally, run the following to deploy Hail in the cluster.

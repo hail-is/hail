@@ -88,7 +88,7 @@ bootstrap() {
     DEPLOY_STEP=$2
 
     cd $HAIL
-    DOCKER_PREFIX=$(get_global_config_field docker_prefix)
+    export HAIL_DOCKER_PREFIX=$(get_global_config_field docker_prefix)
     export BATCH_WORKER_IMAGE=$DOCKER_PREFIX/batch-worker:cache
     export HAIL_CI_UTILS_IMAGE=$DOCKER_PREFIX/ci-utils:cache
     export HAIL_BUILDKIT_IMAGE=$DOCKER_PREFIX/hail-buildkit:cache
