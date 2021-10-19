@@ -26,3 +26,12 @@ resource "kubernetes_secret" "acr_push_credentials" {
     "credentials.json" = jsonencode(var.acr_push_credentials)
   }
 }
+resource "kubernetes_secret" "zulip_config" {
+  metadata {
+    name = "zulip-config"
+  }
+
+  data = {
+    ".zuliprc" = file("~/.zuliprc")
+  }
+}

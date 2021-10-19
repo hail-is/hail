@@ -93,6 +93,8 @@ Build the batch worker image by running the following in $HAIL/batch:
 Finally, run the following to deploy Hail in the cluster.
 
 ```
-download-secret global-config && cp -r contents /global-config && cd -
+download-secret global-config && sudo cp -r contents /global-config
+download-secret zulip-config && sudo cp -r contents /zulip-config
+cd ~/hail/infra/azure
 ./bootstrap.sh bootstrap <REPO>/hail:<BRANCH> deploy_batch
 ```
