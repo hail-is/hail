@@ -1021,8 +1021,9 @@ def hardy_weinberg_test(expr, one_sided=False) -> StructExpression:
     equally-likely outcome. See this `document <_static/LeveneHaldane.pdf>`__ for
     details on the Levene-Haldane distribution and references.
 
-    To perform a one-sided test of excess heterozygosity instead, set `one_sided=True`
-    and the p-value returned will be from the one-sided exact test.
+    To perform one-sided exact test of excess heterozygosity with mid-p-value
+    correction instead, set `one_sided=True` and the p-value returned will be
+    from the one-sided exact test.
 
     Warning
     -------

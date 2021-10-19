@@ -873,8 +873,9 @@ def hardy_weinberg_test(n_hom_ref, n_het, n_hom_var, one_sided=False) -> StructE
     So the expected frequency of heterozygotes under equilibrium,
     `het_freq_hwe`, is this mean divided by ``n``.
 
-    To perform a one-sided test of excess heterozygosity instead, set `one_sided=True`
-    and the p-value returned will be from the one-sided exact test.
+    To perform one-sided exact test of excess heterozygosity with mid-p-value
+    correction instead, set `one_sided=True` and the p-value returned will be
+    from the one-sided exact test.
 
     Parameters
     ----------
