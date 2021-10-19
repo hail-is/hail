@@ -217,9 +217,7 @@ def test_ndarray_eval():
     np_equiv_fortran_style = np.asfortranarray(np_equiv)
     np_equiv_extra_dimension = np_equiv.reshape((3, 1, 3))
     assert(np.array_equal(evaled, np_equiv))
-    assert(evaled.strides == np_equiv.strides)
 
-    assert hl.eval(hl.nd.array([[], []])).strides == (8, 8)
     assert np.array_equal(hl.eval(hl.nd.array([])), np.array([]))
 
     zero_array = np.zeros((10, 10), dtype=np.int64)

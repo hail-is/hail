@@ -4,7 +4,7 @@ import is.hail.annotations.{Annotation, ExtendedOrdering, Region, SafeRow, Unsaf
 import is.hail.asm4s._
 import is.hail.expr.ir.IRParser
 import is.hail.types.encoded.EType
-import is.hail.io.{BufferSpec, TypedCodecSpec}
+import is.hail.io.{BufferSpec, StreamBufferSpec, TypedCodecSpec}
 import is.hail.HailContext
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex, Validate}
 import is.hail.expr.ir.lowering._
@@ -409,23 +409,30 @@ class SparkBackend(
     Serialization.write(Map("value" -> jsonValue, "timings" -> timer.toMap))(new DefaultFormats {})
   }
 
-  // Called from python
-  def encodeToBytes(ir: IR, bufferSpecString: String): (String, Array[Byte]) = {
-    ExecutionTimer.logTime("SparkBackend.encodeToBytes") { timer =>
-      val bs = BufferSpec.parseOrDefault(bufferSpecString)
+  def executeEncode(ir: IR, bufferSpecString: String): (Array[Byte], String) = {
+    val (encodedValue, timer) = ExecutionTimer.time("SparkBackend.executeEncode") { timer =>
       withExecuteContext(timer) { ctx =>
-        _execute(ctx, ir, true) match {
-          case Left(_) => throw new RuntimeException("expression returned void")
-          case Right((t, off)) =>
-            assert(t.size == 1)
-            val elementType = t.fields(0).typ
-            val codec = TypedCodecSpec(
-              EType.defaultFromPType(elementType), elementType.virtualType, bs)
-            assert(t.isFieldDefined(off, 0))
-            (elementType.toString, codec.encode(ctx, elementType, t.loadField(off, 0)))
+        val queryID = Backend.nextID()
+        log.info(s"starting execution of query $queryID of initial size ${ IRSize(ir) }")
+        val res = _execute(ctx, ir, true) match {
+          case Left(_) => Array[Byte]()
+          case Right((t, off)) => encodeToBytes(ctx, t, off, bufferSpecString)
         }
+        log.info(s"finished execution of query $queryID")
+        res
       }
     }
+    (encodedValue, Serialization.write(Map("timings" -> timer.toMap))(new DefaultFormats {}))
+  }
+
+  def encodeToBytes(ctx: ExecuteContext, t: PTuple, off: Long, bufferSpecString: String): Array[Byte] = {
+    val bs = BufferSpec.parseOrDefault(bufferSpecString)
+    assert(t.size == 1)
+    val elementType = t.fields(0).typ
+    val codec = TypedCodecSpec(
+      EType.fromTypeAllOptional(elementType.virtualType), elementType.virtualType, bs)
+    assert(t.isFieldDefined(off, 0))
+    codec.encode(ctx, elementType, t.loadField(off, 0))
   }
 
   def decodeToJSON(ptypeString: String, b: Array[Byte], bufferSpecString: String): String = {

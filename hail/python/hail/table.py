@@ -1175,7 +1175,7 @@ class Table(ExprContainer):
         agg_ir = ir.TableAggregate(base._tir, expr._ir)
 
         if _localize:
-            return Env.backend().execute(agg_ir)
+            return Env.backend().execute(hl.ir.MakeTuple([agg_ir]))[0]
 
         return construct_expr(ir.LiftMeOut(agg_ir), expr.dtype)
 
