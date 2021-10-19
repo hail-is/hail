@@ -329,6 +329,9 @@ class Branch(Code):
 git checkout {shq(self._sha)}
 '''
 
+    def repo_dir(self) -> str:
+        return '.'
+
 
 async def main():
     await kube.config.load_kube_config()
