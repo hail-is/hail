@@ -393,7 +393,7 @@ def user_error(e):
         # Opening GCS connection...\n', b'daemonize.Run: readFromProcess: sub-process: mountWithArgs: mountWithConn:
         # fs.NewServer: create file system: SetUpBucket: OpenBucket: Bad credentials for bucket "BUCKET". Check the
         # bucket name and your credentials.\n')
-        if 'Bad credentials for bucket' in e.outerr:
+        if b'Bad credentials for bucket' in e.stderr:
             return True
     return False
 
@@ -432,8 +432,8 @@ class Container:
         self.error = None
         self.short_error = None
         self.container_status = None
-        self.started_at = None
-        self.finished_at = None
+        self.started_at: Optional[int] = None
+        self.finished_at: Optional[int] = None
 
         self.timings = Timings(self.is_job_deleted)
 
@@ -450,12 +450,13 @@ class Container:
 
         self.overlay_mounted = False
 
+        assert worker is not None
         self.fs = LocalAsyncFS(worker.pool)
 
         self.container_name = f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}'
 
         self.netns: Optional[NetworkNamespace] = None
-        self.process = None
+        self.process: Optional[asyncio.Process] = None
 
     async def run(self, worker: 'Worker'):
         try:
@@ -872,11 +873,10 @@ class Container:
                 try:
                     await check_exec_output('crun', 'kill', '--all', self.container_name, 'SIGKILL')
                 except CalledProcessError as e:
-                    if not (
-                        e.returncode == 1
-                        and f'error opening file `/run/crun/{self.container_name}/status`: No such file or directory'
-                        in e.outerr
-                    ):
+                    not_extant_message = (b'error opening file `/run/crun/' +
+                                          self.container_name.encode() +
+                                          b'/status`: No such file or directory')
+                    if not (e.returncode == 1 and not_extant_message in e.stderr):
                         log.exception(f'while deleting container {self}', exc_info=True)
             finally:
                 try:
@@ -920,8 +920,8 @@ class Container:
     #   short_error: str, (optional)
     #   container_status: {
     #     state: str,
-    #     started_at: str, (date)
-    #     finished_at: str, (date)
+    #     started_at: int, (date)
+    #     finished_at: int, (date)
     #     out_of_memory: bool,
     #     exit_code: int
     #   }
@@ -1782,7 +1782,7 @@ class Worker:
         self.jobs: Dict[Tuple[int, int], Job] = {}
         self.stop_event = asyncio.Event()
         self.task_manager = aiotools.BackgroundTaskManager()
-        self.jar_download_locks = defaultdict(asyncio.Lock)
+        self.jar_download_locks: Dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
         self.client_session = client_session
 
         self.image_data: Dict[str, ImageData] = defaultdict(ImageData)

@@ -1,21 +1,27 @@
+from typing import Tuple, List
 import asyncio
 
 from .utils import async_to_blocking
 
 
 class CalledProcessError(Exception):
-    def __init__(self, command, returncode, outerr):
+    def __init__(self, command: List[str], returncode: int, outerr: Tuple[bytes, bytes]):
         super().__init__()
         self.command = command
         self.returncode = returncode
-        self.outerr = outerr
+        self._outerr = outerr
+        self.stdout = outerr[0]
+        self.stderr = outerr[1]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (f'Command {self.command} returned non-zero exit status {self.returncode}.'
-                f' Output:\n{self.outerr}')
+                f' Output:\n{self._outerr}')
 
 
-async def check_exec_output(command, *args, echo=False):
+async def check_exec_output(command: str,
+                            *args: List[str],
+                            echo: bool = False
+                            ) -> Tuple[bytes, bytes]:
     if echo:
         print([command, *args])
     proc = await asyncio.create_subprocess_exec(
@@ -29,19 +35,19 @@ async def check_exec_output(command, *args, echo=False):
     return outerr
 
 
-async def check_shell_output(script, echo=False):
+async def check_shell_output(script: str, echo: bool = False) -> Tuple[bytes, bytes]:
     return await check_exec_output('/bin/bash', '-c', script, echo=echo)
 
 
-async def check_shell(script, echo=False):
+async def check_shell(script: str, echo: bool = False) -> Tuple[bytes, bytes]:
     # discard output
     await check_shell_output(script, echo)
 
 
-def sync_check_shell_output(script, echo=False):
+def sync_check_shell_output(script: str, echo=False) -> Tuple[bytes, bytes]:
     return async_to_blocking(check_shell_output(script, echo))
 
 
-def sync_check_shell(script, echo=False):
+def sync_check_shell(script: str, echo=False) -> None:
     # discard output
     sync_check_shell_output(script, echo)
