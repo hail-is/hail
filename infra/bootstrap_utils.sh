@@ -73,6 +73,7 @@ deploy_unmanaged() {
 
     kubectl -n default apply -f $HAIL/ci/bootstrap.yaml
     make -C $HAIL/ci build-ci-utils build-hail-buildkit
+    make -C $HAIL/batch build-worker
     make -C $HAIL/internal-gateway deploy
     make -C $HAIL/bootstrap-gateway deploy
     make -C $HAIL/letsencrypt run
