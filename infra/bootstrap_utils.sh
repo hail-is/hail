@@ -90,6 +90,7 @@ bootstrap() {
     cd $HAIL
     export HAIL_DOCKER_PREFIX=$(get_global_config_field docker_prefix)
     export HAIL_DOCKER_ROOT_IMAGE=$(get_global_config_field docker_root_image)
+    export HAIL_DOMAIN=$(get_global_config_field domain)
     export BATCH_WORKER_IMAGE=$DOCKER_PREFIX/batch-worker:cache
     export HAIL_CI_UTILS_IMAGE=$DOCKER_PREFIX/ci-utils:cache
     export HAIL_BUILDKIT_IMAGE=$DOCKER_PREFIX/hail-buildkit:cache
