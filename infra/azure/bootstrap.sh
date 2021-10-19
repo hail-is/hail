@@ -74,6 +74,7 @@ run_k8s_terraform() {
     cat >../k8s/global.tfvars <<EOF
 global_config = $(terraform output global_config)
 sql_config    = $(terraform output sql_config)
+acr_push_credentials = $(terraform output acr_push_credentials)
 EOF
 
     cd $HAIL/infra/k8s

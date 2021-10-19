@@ -13,4 +13,4 @@ TERRAFORM_PRINCIPAL_ID=$(az identity create \
 az role assignment create \
     --assignee $TERRAFORM_PRINCIPAL_ID \
     --role Owner \
-    --scope /subscriptions/$SUBSCRIPTION_ID/resourcegroups/$RESOURCE_GROUP
+    --scope /subscriptions/$SUBSCRIPTION_ID
