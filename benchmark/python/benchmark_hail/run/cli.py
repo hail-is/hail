@@ -50,7 +50,7 @@ def main(args_):
                         action='store_true',
                         help='Print benchmarks to execute, but do not run.')
     parser.add_argument('--profile', '-p',
-                        choices=['cpu', 'alloc'],
+                        choices=['cpu', 'alloc', 'itimer'],
                         nargs='?', const='cpu',
                         help='Run with async-profiler.')
     parser.add_argument('--prof-fmt', '-f',
