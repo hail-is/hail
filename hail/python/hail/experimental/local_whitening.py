@@ -61,11 +61,11 @@ def whiten(entry_expr, window_size, chunk_size=16, partition_size=16, block_size
     new_part_ht = hl.read_table(temp_file_name, _intervals=new_partitioning).select('xs')
 
     grouped = new_part_ht._group_within_partitions("groups", chunk_size)
-    A = grouped.select(ndarray=hl.nd.array(grouped.groups.map(lambda group: group.xs)))
+    A = grouped.select(ndarray=hl.nd.array(grouped.groups.map(lambda group: group.xs)).T)
 
     trailing_blocks_ht = hl.read_table(temp_file_name, _intervals=trailing_blocks)
     trailing_blocks_ht = trailing_blocks_ht._group_within_partitions("groups", chunk_size)
-    trailing_blocks_ht = trailing_blocks_ht.select(prev_window=hl.nd.array(trailing_blocks_ht.groups.map(lambda group: group.xs)))
+    trailing_blocks_ht = trailing_blocks_ht.select(prev_window=hl.nd.array(trailing_blocks_ht.groups.map(lambda group: group.xs)).T)
     trailing_blocks_ht = trailing_blocks_ht.annotate_globals(rekey_map=hl.dict(rekey_map))
     trailing_blocks_ht = trailing_blocks_ht.key_by(**trailing_blocks_ht.rekey_map[trailing_blocks_ht.key])
 
@@ -79,8 +79,8 @@ def whiten(entry_expr, window_size, chunk_size=16, partition_size=16, block_size
     #
     # whitened = A._map_partitions2(trailing_blocks_ht, map_body)
     def map_body(part_stream):
-        stream_of_tuples = part_stream.map(lambda row: hl.tuple([row.prev_window, row.ndarray]))
-        stream_ir = ir.ToArray(ir.StreamWhiten(ir.ToStream(stream_of_tuples._ir), vec_size, window_size, chunk_size, block_size))
+        stream_ir = ir.ToArray(ir.StreamWhiten(ir.ToStream(part_stream._ir), "ndarray", "prev_window", vec_size, window_size, chunk_size, block_size))
+        return construct_expr(stream_ir, part_stream.dtype)
     joined = joined._map_partitions(map_body)
 
     return joined

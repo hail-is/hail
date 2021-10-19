@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.annotations._
+import is.hail.expr.Nat
 import is.hail.types._
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -1041,9 +1042,14 @@ object PruneDeadFields {
         unifyEnvs(
           memoizeValueIR(a, requestedType, memo),
           memoizeValueIR(len, len.typ, memo))
-      case StreamWhiten(a, _, _, _, _) =>
+      case StreamWhiten(a, newChunk, prevWindow, _, _, _, _) =>
+        val matType = TNDArray(TFloat64, Nat(2))
+        val unifiedStructType = unify(
+          a.typ.asInstanceOf[TStream].elementType,
+          requestedType.asInstanceOf[TStream].elementType,
+          TStruct((newChunk, matType), (prevWindow, matType)))
         unifyEnvs(
-          memoizeValueIR(a, TTuple(requestedType.asInstanceOf[TStream].elementType, requestedType), memo))
+          memoizeValueIR(a, TStream(unifiedStructType), memo))
       case StreamMap(a, name, body) =>
         val aType = a.typ.asInstanceOf[TStream]
         val bodyEnv = memoizeValueIR(body,

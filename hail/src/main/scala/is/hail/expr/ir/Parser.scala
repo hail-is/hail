@@ -1111,13 +1111,15 @@ object IRParser {
           body <- ir_value_expr(env.update(Map(accumName -> zero.typ, valueName -> eltType)))(it)
         } yield StreamScan(a, zero, accumName, valueName, body)
       case "StreamWhiten" =>
+        val newChunk = identifier(it)
+        val prevWindow = identifier(it)
         val vecSize = int32_literal(it)
         val windowSize = int32_literal(it)
         val chunkSize = int32_literal(it)
         val blockSize = int32_literal(it)
         for {
           stream <- ir_value_expr(env)(it)
-        } yield StreamWhiten(stream, vecSize, windowSize, chunkSize, blockSize)
+        } yield StreamWhiten(stream, newChunk, prevWindow, vecSize, windowSize, chunkSize, blockSize)
       case "StreamJoinRightDistinct" =>
         val lKey = identifiers(it)
         val rKey = identifiers(it)

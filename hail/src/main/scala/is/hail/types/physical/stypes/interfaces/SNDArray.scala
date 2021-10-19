@@ -1170,7 +1170,7 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
     val b = _A.shapes(1)
 
     val A = _A.coerceToShape(cb, m, b)
-    cb.ifx(b > chunksize, cb._fatal("whitenBlock: A too large"))
+    cb.ifx(b > chunksize, cb._fatal("whitenBlock: A too large, found ", b.toS, ", expected ", chunksize.toS))
 
     cb.ifx(curSize < w, {
       // Orthogonalize against existing Q

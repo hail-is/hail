@@ -183,7 +183,8 @@ object Pretty {
     case StreamFold(_, _, accumName, valueName, _) => FastSeq(prettyIdentifier(accumName), prettyIdentifier(valueName))
     case StreamFold2(_, acc, valueName, _, _) => FastSeq(prettyIdentifiers(acc.map(_._1)), prettyIdentifier(valueName))
     case StreamScan(_, _, accumName, valueName, _) => FastSeq(prettyIdentifier(accumName), prettyIdentifier(valueName))
-    case StreamWhiten(_, vecSize, windowSize, chunkSize, blockSize) => FastSeq(vecSize.toString, windowSize.toString, chunkSize.toString, blockSize.toString)
+    case StreamWhiten(_, newChunk, prevWindow, vecSize, windowSize, chunkSize, blockSize) =>
+      FastSeq(prettyIdentifier(newChunk), prettyIdentifier(prevWindow), vecSize.toString, windowSize.toString, chunkSize.toString, blockSize.toString)
     case StreamJoinRightDistinct(_, _, lKey, rKey, l, r, _, joinType) =>
       FastSeq(prettyIdentifiers(lKey), prettyIdentifiers(rKey), prettyIdentifier(l), prettyIdentifier(r), joinType)
     case StreamFor(_, valueName, _) => single(prettyIdentifier(valueName))
