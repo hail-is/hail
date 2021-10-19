@@ -38,4 +38,5 @@ output "acr_push_credentials" {
     name = azurerm_container_registry.acr.admin_username
     password = azurerm_container_registry.acr.admin_password
   }
+  sensitive = true
 }

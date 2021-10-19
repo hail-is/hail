@@ -63,7 +63,7 @@ from $HAIL/infra/azure/variables.tf.
 To setup and run the terraform, run
 
 ```
-./bootstrap.sh run_terraform <RESOURCE_GROUP>
+./bootstrap.sh run_azure_terraform <RESOURCE_GROUP>
 ./bootstrap.sh run_k8s_terraform <RESOURCE_GROUP>
 ```
 
