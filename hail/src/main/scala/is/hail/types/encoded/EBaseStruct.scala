@@ -133,43 +133,69 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
   }
 
   override def _buildInplaceDecoder(cb: EmitCodeBuilder, pt: PType, region: Value[Region], addr: Value[Long], in: Value[InputBuffer]): Unit = {
-    val structType: PBaseStruct = pt match {
+    val structType: PCanonicalBaseStruct = pt match {
       case t: PCanonicalLocus => t.representation
       case t: PCanonicalInterval => t.representation
       case t: PCanonicalBaseStruct => t
     }
-    val mbytes = cb.newLocal[Long]("mbytes", region.allocate(const(1), const(nMissingBytes)))
-    cb += in.readBytes(region, mbytes, nMissingBytes)
+    val eStructMbytes = cb.newLocal[Long]("mbytes", region.allocate(const(1L), const(nMissingBytes)))
+    cb += in.readBytes(region, eStructMbytes, nMissingBytes)
 
-    fields.foreach { f =>
-      if (structType.hasField(f.name)) {
-        val rf = structType.field(f.name)
-        val readElemF = f.typ.buildInplaceDecoder(rf.typ, cb.emb.ecb)
+    val missingByte = cb.newLocal[Int]("ebase_struct_decode_missing_byte")
+    val currentMissingBitIdx = cb.newLocal[Int]("ebase_struct_decode_cur_missing_bit_idx")
+    cb.println(s"Decoding ${this} into type ${structType}")
+
+    fields.foreach { ef =>
+      if (structType.hasField(ef.name)) {
+        val rf = structType.field(ef.name)
+        val readElemF = ef.typ.buildInplaceDecoder(rf.typ, cb.emb.ecb)
         val rFieldAddr = structType.fieldOffset(addr, rf.index)
-        if (f.typ.required) {
+        if (ef.typ.required) {
           readElemF(cb, region, rFieldAddr, in)
-          if (!rf.typ.required)
-            structType.setFieldPresent(cb, addr, rf.index)
+          if (!rf.typ.required) {
+            cb.assign(missingByte, missingByte << 1)
+            cb.assign(currentMissingBitIdx, currentMissingBitIdx + 1)
+            //structType.setFieldPresent(cb, addr, rf.index)
+          }
         } else {
-          cb.ifx(Region.loadBit(mbytes, const(missingIdx(f.index).toLong)), {
-            structType.setFieldMissing(cb, addr, rf.index)
+          cb.ifx(Region.loadBit(eStructMbytes, const(missingIdx(ef.index).toLong)), {
+            cb.println(s"SET MISSING BYTE TO NONZERO VALUE for field ${ef}")
+            cb.assign(missingByte, (missingByte + 1) << 1)
+            //structType.setFieldMissing(cb, addr, rf.index)
           }, {
-            structType.setFieldPresent(cb, addr, rf.index)
+            //structType.setFieldPresent(cb, addr, rf.index)
+            cb.assign(missingByte, missingByte << 1)
             readElemF(cb, region, rFieldAddr, in)
           })
+          cb.assign(currentMissingBitIdx, currentMissingBitIdx + 1)
         }
       } else {
-        val skip = f.typ.buildSkip(cb.emb.ecb)
-        if (f.typ.required)
+        val skip = ef.typ.buildSkip(cb.emb.ecb)
+        if (ef.typ.required)
           skip(cb, region, in)
         else
-          cb.ifx(!Region.loadBit(mbytes, const(missingIdx(f.index).toLong)), skip(cb, region, in))
+          cb.ifx(!Region.loadBit(eStructMbytes, const(missingIdx(ef.index).toLong)), skip(cb, region, in))
       }
+
+      cb.ifx(((currentMissingBitIdx % 8) ceq 0) && (currentMissingBitIdx > 0), {
+        val byteIdx = currentMissingBitIdx / 8
+        cb += Region.storeByte(addr + byteIdx.toL, missingByte.toB)
+        cb.assign(missingByte, 0)
+      })
     }
+    // Fix up last missing byte
+    cb.println(s"Cleaning up last byte,for type ${structType} currentMissingBitIdx = ", currentMissingBitIdx.toS, " and missing byte = ", missingByte.toS)
+    cb.ifx((currentMissingBitIdx % 8) cne 0, {
+      cb.println("Adjusted missingByte from ", missingByte.toS, " to ", (missingByte << (currentMissingBitIdx % 8)).toS)
+      cb.assign(missingByte, missingByte << (currentMissingBitIdx % 8))
+      cb += Region.storeByte(addr + structType.nMissingBytes - 1, missingByte.toB)
+      val mySV = new SBaseStructPointerValue(SBaseStructPointer(structType.setRequired(false).asInstanceOf[PBaseStruct]), addr)
+      cb.println(cb.strValue(mySV))
+    })
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
-    val mbytes = cb.newLocal[Long]("mbytes", r.allocate(const(1), const(nMissingBytes)))
+    val mbytes = cb.newLocal[Long]("mbytes", r.allocate(const(1L), const(nMissingBytes)))
     cb += in.readBytes(r, mbytes, nMissingBytes)
     fields.foreach { f =>
       val skip = f.typ.buildSkip(cb.emb.ecb)
