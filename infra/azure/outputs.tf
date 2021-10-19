@@ -32,3 +32,10 @@ output "sql_config" {
   }
   sensitive = true
 }
+
+output "acr_push_credentials" {
+  value = {
+    name = azurerm_container_registry.acr.admin_username
+    password = azurerm_container_registry.acr.admin_password
+  }
+}

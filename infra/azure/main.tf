@@ -120,6 +120,7 @@ resource "azurerm_container_registry" "acr" {
   resource_group_name = data.azurerm_resource_group.rg.name
   location            = data.azurerm_resource_group.rg.location
   sku                 = var.acr_sku
+  admin_enabled       = true
 }
 
 resource "azurerm_role_assignment" "vdc_to_acr" {

@@ -16,3 +16,13 @@ locals {
 provider "kubernetes" {
   config_path = "~/.kube_config"
 }
+
+resource "kubernetes_secret" "acr_push_credentials" {
+  metadata = {
+    name: "acr-push-credentials"
+  }
+
+  data = {
+    "credentials.json" = jsonencode(var.acr_push_credentials)
+  }
+}

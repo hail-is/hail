@@ -22,3 +22,7 @@ variable "sql_config" {
     password = string,
   })
 }
+
+variable "acr_push_credentials" {
+  type = map
+}
