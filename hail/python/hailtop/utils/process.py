@@ -5,21 +5,21 @@ from .utils import async_to_blocking
 
 
 class CalledProcessError(Exception):
-    def __init__(self, command: List[str], returncode: int, outerr: Tuple[bytes, bytes]):
+    def __init__(self, argv: List[str], returncode: int, outerr: Tuple[bytes, bytes]):
         super().__init__()
-        self.command = command
+        self.argv = argv
         self.returncode = returncode
         self._outerr = outerr
         self.stdout = outerr[0]
         self.stderr = outerr[1]
 
     def __str__(self) -> str:
-        return (f'Command {self.command} returned non-zero exit status {self.returncode}.'
+        return (f'Command {self.argv} returned non-zero exit status {self.returncode}.'
                 f' Output:\n{self._outerr}')
 
 
 async def check_exec_output(command: str,
-                            *args: List[str],
+                            *args: str,
                             echo: bool = False
                             ) -> Tuple[bytes, bytes]:
     if echo:
@@ -29,9 +29,9 @@ async def check_exec_output(command: str,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE)
     outerr = await proc.communicate()
+    assert proc.returncode is not None
     if proc.returncode != 0:
-        script = ' '.join([command, *args])
-        raise CalledProcessError(script, proc.returncode, outerr)
+        raise CalledProcessError([command, *args], proc.returncode, outerr)
     return outerr
 
 
