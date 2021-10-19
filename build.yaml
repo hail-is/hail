@@ -45,6 +45,7 @@ steps:
     secrets:
       - gcr-pull-key
       - gcr-push-service-account-key
+      - acr-push-credentials
       - hail-ci-0-1-github-oauth-token
       - test-gsa-key
       - test-aws-key
