@@ -94,7 +94,7 @@ bootstrap() {
     export HAIL_BUILDKIT_IMAGE=$DOCKER_PREFIX/hail-buildkit:cache
     export HAIL_DEFAULT_NAMESPACE=$(get_global_config_field default_namespace)
     export HAIL_CI_BUCKET_NAME=dummy
-    export PYTHONPATH=$HAIL/ci:$HAIL/batch:$HAIL/hail/python
+    export PYTHONPATH=$HAIL/ci:$HAIL/batch:$HAIL/hail/python:$HAIL/gear
 
     python3 ci/bootstrap.py $HAIL_BRANCH $(git rev-parse HEAD) $DEPLOY_STEP
     cd -
