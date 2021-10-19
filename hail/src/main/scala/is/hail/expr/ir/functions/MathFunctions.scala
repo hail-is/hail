@@ -246,14 +246,15 @@ object MathFunctions extends RegistryFunctions {
       ), deepCopy = false)
     }
 
-    registerSCode3("hardy_weinberg_test", TInt32, TInt32, TInt32, hweStruct.virtualType,
-      (_, _, _, _) => hweStruct.sType
-    ) { case (r, cb, rt, nHomRef: SInt32Value, nHet: SInt32Value, nHomVar: SInt32Value, _) =>
+    registerSCode4("hardy_weinberg_test", TInt32, TInt32, TInt32, TBoolean, hweStruct.virtualType,
+      (_, _, _, _, _) => hweStruct.sType
+    ) { case (r, cb, rt, nHomRef: SInt32Value, nHet: SInt32Value, nHomVar: SInt32Value, oneSided: SBooleanValue, _) =>
       val res = cb.newLocal[Array[Double]]("hardy_weinberg_test_res",
-        Code.invokeScalaObject3[Int, Int, Int, Array[Double]](statsPackageClass, "hardyWeinbergTest",
+        Code.invokeScalaObject4[Int, Int, Int, Boolean, Array[Double]](statsPackageClass, "hardyWeinbergTest",
           nHomRef.intCode(cb),
           nHet.intCode(cb),
-          nHomVar.intCode(cb)))
+          nHomVar.intCode(cb),
+          oneSided.boolCode(cb)))
 
       hweStruct.constructFromFields(cb, r.region, FastIndexedSeq(
         EmitValue.present(primitive(cb.memoize(res(0)))),
