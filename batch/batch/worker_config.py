@@ -1,13 +1,12 @@
+from typing import List, Optional
+from typing_extensions import Literal
+from mypy_extensions import TypedDict
 import re
 from collections import defaultdict
 
 from .globals import WORKER_CONFIG_VERSION
 from .utils import cores_mcpu_to_memory_bytes
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from .inst_coll_config import PoolConfig  # pylint: disable=cyclic-import
 
 MACHINE_TYPE_REGEX = re.compile(
     'projects/(?P<project>[^/]+)/zones/(?P<zone>[^/]+)/machineTypes/(?P<machine_family>[^-]+)-(?P<machine_type>[^-]+)-(?P<cores>\\d+)'
@@ -39,12 +38,19 @@ def is_power_two(n):
 #   type_: str (standard, highmem, highcpu)
 #   cores: int
 #   preemptible: bool
-# disks: list of dict
-#   boot: bool
-#   project: str
-#   zone: str
-#   type_: str (pd-ssd, pd-standard, local-ssd)
-#   size: int (in GB)
+# disks: list of Disk
+
+
+DiskType = Literal['pd-ssd', 'pd-standard', 'local-ssd']
+
+
+class Disk(TypedDict):
+    boot: bool
+    project: Optional[str]
+    zone: Optional[str]
+    type: DiskType
+    size: int
+    image: Optional[str]
 
 
 class WorkerConfig:
@@ -54,7 +60,7 @@ class WorkerConfig:
 
         preemptible = instance_config['scheduling']['preemptible']
 
-        disks = []
+        disks: List[Disk] = []
         for disk_config in instance_config['disks']:
             params = disk_config['initializeParams']
             disk_info = parse_disk_type(params['diskType'])
@@ -88,44 +94,6 @@ class WorkerConfig:
             },
             'disks': disks,
             'job-private': job_private,
-        }
-
-        return WorkerConfig(config)
-
-    @staticmethod
-    def from_pool_config(pool_config: 'PoolConfig'):
-        disks = [
-            {
-                'boot': True,
-                'project': None,
-                'zone': None,
-                'type': 'pd-ssd',
-                'size': pool_config.boot_disk_size_gb,
-                'image': None,
-            }
-        ]
-
-        if pool_config.worker_local_ssd_data_disk:
-            typ = 'local-ssd'
-            size = 375
-        else:
-            typ = 'pd-ssd'
-            size = pool_config.worker_pd_ssd_data_disk_size_gb
-
-        disks.append({'boot': False, 'project': None, 'zone': None, 'type': typ, 'size': size, 'image': None})
-
-        config = {
-            'version': WORKER_CONFIG_VERSION,
-            'instance': {
-                'project': None,
-                'zone': None,
-                'family': 'n1',  # FIXME: need to figure out how to handle variable family types
-                'type': pool_config.worker_type,
-                'cores': pool_config.worker_cores,
-                'preemptible': True,
-            },
-            'disks': disks,
-            'job-private': False,
         }
 
         return WorkerConfig(config)

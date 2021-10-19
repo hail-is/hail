@@ -1112,8 +1112,7 @@ SELECT instance_id, internal_token, frozen FROM globals;
     app['zone_monitor'] = zone_monitor
     await zone_monitor.async_init()
 
-    inst_coll_configs = InstanceCollectionConfigs(app)
-    await inst_coll_configs.async_init()
+    inst_coll_configs = await InstanceCollectionConfigs.create(db)
 
     inst_coll_manager = InstanceCollectionManager(app, MACHINE_NAME_PREFIX)
     app['inst_coll_manager'] = inst_coll_manager

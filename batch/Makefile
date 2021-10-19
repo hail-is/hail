@@ -12,6 +12,7 @@ PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
 check:
 	$(PYTHON) -m flake8  --config ../setup.cfg batch
 	$(PYTHON) -m pylint --rcfile ../pylintrc batch --score=n
+	$(PYTHON) -m mypy --config-file ../setup.cfg batch
 	curlylint .
 	bash ../check-sql.sh
 
