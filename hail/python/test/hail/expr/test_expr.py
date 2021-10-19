@@ -3314,9 +3314,13 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(res['odds_ratio'], 4.91805817)
 
     def test_hardy_weinberg_test(self):
-        res = hl.eval(hl.hardy_weinberg_test(1, 2, 1))
-        self.assertAlmostEqual(res['p_value'], 0.65714285)
-        self.assertAlmostEqual(res['het_freq_hwe'], 0.57142857)
+        two_sided_res = hl.eval(hl.hardy_weinberg_test(1, 2, 1, one_sided=False))
+        self.assertAlmostEqual(two_sided_res['p_value'], 0.65714285)
+        self.assertAlmostEqual(two_sided_res['het_freq_hwe'], 0.57142857)
+
+        one_sided_res = hl.eval(hl.hardy_weinberg_test(1, 2, 1, one_sided=True))
+        self.assertAlmostEqual(one_sided_res['p_value'], 0.57142857)
+        self.assertAlmostEqual(one_sided_res['het_freq_hwe'], 0.57142857)
 
     def test_hardy_weinberg_agg(self):
         mapping = {
@@ -3333,31 +3337,60 @@ class Tests(unittest.TestCase):
         }
 
         mt = hl.utils.range_matrix_table(n_rows=3, n_cols=5)
-        mt = mt.annotate_rows(hwe = hl.agg.hardy_weinberg_test(hl.literal(mapping).get((mt.row_idx, mt.col_idx))))
-        [r1, r2, r3] = mt.hwe.collect()
+        mt = mt.annotate_rows(
+            hwe_two_sided = hl.agg.hardy_weinberg_test(hl.literal(mapping).get((mt.row_idx, mt.col_idx)), one_sided=False),
+            hwe_one_sided = hl.agg.hardy_weinberg_test(hl.literal(mapping).get((mt.row_idx, mt.col_idx)), one_sided=True)
+        )
+        [r1_two_sided, r2_two_sided, r3_two_sided] = mt.hwe_two_sided.collect()
 
-        self.assertAlmostEqual(r1['p_value'], 0.65714285)
-        self.assertAlmostEqual(r1['het_freq_hwe'], 0.57142857)
+        self.assertAlmostEqual(r1_two_sided['p_value'], 0.65714285)
+        self.assertAlmostEqual(r1_two_sided['het_freq_hwe'], 0.57142857)
 
-        assert r2['p_value'] == 0.5
-        assert r2['het_freq_hwe'] == 0.0
+        assert r2_two_sided['p_value'] == 0.5
+        assert r2_two_sided['het_freq_hwe'] == 0.0
 
-        assert r3['p_value'] == 0.5
-        assert np.isnan(r3['het_freq_hwe'])
+        assert r3_two_sided['p_value'] == 0.5
+        assert np.isnan(r3_two_sided['het_freq_hwe'])
+
+        [r1_one_sided, r2_one_sided, r3_one_sided] = mt.hwe_one_sided.collect()
+
+        self.assertAlmostEqual(r1_one_sided['p_value'], 0.57142857)
+        self.assertAlmostEqual(r1_one_sided['het_freq_hwe'], 0.57142857)
+
+        assert r2_one_sided['p_value'] == 0.5
+        assert r2_one_sided['het_freq_hwe'] == 0.0
+
+        assert r3_one_sided['p_value'] == 0.5
+        assert np.isnan(r3_one_sided['het_freq_hwe'])
 
         ht = hl.utils.range_table(6)
-        ht = ht.annotate(x = hl.scan.hardy_weinberg_test(hl.literal(list(mapping.values())[:5])[ht.idx % 5]))
-        all_x = ht.x.collect()
-        [first, *mid, penultimate, last] = all_x
+        ht = ht.annotate(
+            x_two_sided = hl.scan.hardy_weinberg_test(hl.literal(list(mapping.values())[:5])[ht.idx % 5], one_sided=False),
+            x_one_sided = hl.scan.hardy_weinberg_test(hl.literal(list(mapping.values())[:5])[ht.idx % 5], one_sided=True)
+        )
+        all_x_two_sided = ht.x_two_sided.collect()
+        [first_two_sided, *mid_two_sided, penultimate_two_sided, last_two_sided] = all_x_two_sided
 
-        assert first['p_value'] == 0.5
-        assert np.isnan(first['het_freq_hwe'])
+        assert first_two_sided['p_value'] == 0.5
+        assert np.isnan(first_two_sided['het_freq_hwe'])
 
-        self.assertAlmostEqual(penultimate['p_value'], 0.7)
-        self.assertAlmostEqual(penultimate['het_freq_hwe'], 0.6)
+        self.assertAlmostEqual(penultimate_two_sided['p_value'], 0.7)
+        self.assertAlmostEqual(penultimate_two_sided['het_freq_hwe'], 0.6)
 
-        self.assertAlmostEqual(last['p_value'], 0.65714285)
-        self.assertAlmostEqual(last['het_freq_hwe'], 0.57142857)
+        self.assertAlmostEqual(last_two_sided['p_value'], 0.65714285)
+        self.assertAlmostEqual(last_two_sided['het_freq_hwe'], 0.57142857)
+
+        all_x_one_sided = ht.x_one_sided.collect()
+        [first_one_sided, *mid_one_sided, penultimate_one_sided, last_one_sided] = all_x_one_sided
+
+        assert first_one_sided['p_value'] == 0.5
+        assert np.isnan(first_one_sided['het_freq_hwe'])
+
+        self.assertAlmostEqual(penultimate_one_sided['p_value'], 0.7)
+        self.assertAlmostEqual(penultimate_one_sided['het_freq_hwe'], 0.6)
+
+        self.assertAlmostEqual(last_one_sided['p_value'], 0.57142857)
+        self.assertAlmostEqual(last_one_sided['het_freq_hwe'], 0.57142857)
 
     def test_inbreeding_aggregator(self):
         data = [
