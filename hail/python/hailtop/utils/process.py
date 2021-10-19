@@ -39,8 +39,7 @@ async def check_shell_output(script: str, echo: bool = False) -> Tuple[bytes, by
     return await check_exec_output('/bin/bash', '-c', script, echo=echo)
 
 
-async def check_shell(script: str, echo: bool = False) -> Tuple[bytes, bytes]:
-    # discard output
+async def check_shell(script: str, echo: bool = False) -> None:
     await check_shell_output(script, echo)
 
 
@@ -49,5 +48,4 @@ def sync_check_shell_output(script: str, echo=False) -> Tuple[bytes, bytes]:
 
 
 def sync_check_shell(script: str, echo=False) -> None:
-    # discard output
     sync_check_shell_output(script, echo)
