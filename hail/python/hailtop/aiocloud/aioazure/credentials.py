@@ -42,7 +42,7 @@ class AzureCredentials(CloudCredentials):
         self._expires_at = None
 
         if scopes is None:
-            scopes = ['https://management.azure.com/']
+            scopes = ['https://management.azure.com/.default']
         self.scopes = scopes
 
     async def auth_headers(self):

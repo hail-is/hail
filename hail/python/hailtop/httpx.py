@@ -205,7 +205,7 @@ def client_session(*args,
     elif location == 'k8s':
         tls = internal_client_ssl_context()
     else:
-        assert location == 'gce'
+        assert location in ('gce', 'azure')
         # no encryption on the internal gateway
         tls = external_client_ssl_context()
 

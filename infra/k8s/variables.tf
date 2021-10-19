@@ -20,5 +20,14 @@ variable "sql_config" {
     host = string,
     user = string,
     password = string,
+    instance = string,
   })
+}
+
+variable "acr_push_credentials" {
+  type = map
+}
+
+variable "service_credentials" {
+  type = map
 }

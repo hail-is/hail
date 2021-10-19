@@ -183,24 +183,17 @@ class AzureServicePrincipalResource:
     async def create(self, username):
         assert self.app_id is None
 
-        params = {
-            '$filter': f"displayName eq '{username}'"
-        }
+        params = {'$filter': f"displayName eq '{username}'"}
         applications = await self.graph_client.get('/applications', params=params)
         for application in applications['value']:
             await self._delete(application['appId'])
 
-        config = {
-            'displayName': username,
-            'signInAudience': 'AzureADMyOrg'
-        }
+        config = {'displayName': username, 'signInAudience': 'AzureADMyOrg'}
         application = await self.graph_client.post('/applications', json=config)
 
         self.app_id = application['appId']
 
-        config = {
-            'appId': application['appId']
-        }
+        config = {'appId': application['appId']}
         service_principal = await self.graph_client.post('/servicePrincipals', json=config)
 
         assert self.app_id == service_principal['appId']
@@ -281,7 +274,6 @@ GRANT ALL ON `{name}`.* TO '{name}'@'%';
             user=self.name,
             password=self.password,
             instance=server_config.instance,
-            connection_name=server_config.connection_name,
             db=self.name,
             ssl_ca='/sql-config/server-ca.pem',
             ssl_cert='/sql-config/client-cert.pem',
@@ -484,7 +476,9 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
         cleanup.append(db_secret.delete)
         await db_secret.create('database-server-config', namespace_name, db_resource.secret_data())
 
-    if not skip_trial_bp and user['is_service_account'] != 1:
+    # TODO This doesn't work on azure yet because of the circular batch dependency
+    # Once this is working, bootstrap must deploy batch not just auth
+    if CLOUD == 'gcp' and not skip_trial_bp and user['is_service_account'] != 1:
         trial_bp = user['trial_bp_name']
         if trial_bp is None:
             batch_client = app['batch_client']

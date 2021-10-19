@@ -12,12 +12,11 @@ from hailtop.utils import check_shell_output
 
 from ci.build import BuildConfiguration, Code
 from ci.github import clone_or_fetch_script
+from ci.environment import KUBERNETES_SERVER_URL
 from ci.utils import generate_token
 
 from batch.driver.k8s_cache import K8sCache
 
-KUBERNETES_SERVER_URL = os.environ['KUBERNETES_SERVER_URL']
-DOCKER_PREFIX = os.environ['HAIL_DOCKER_PREFIX']
 BATCH_WORKER_IMAGE = os.environ['BATCH_WORKER_IMAGE']
 
 
@@ -329,6 +328,9 @@ class Branch(Code):
 
 git checkout {shq(self._sha)}
 '''
+
+    def repo_dir(self) -> str:
+        return '.'
 
 
 async def main():
