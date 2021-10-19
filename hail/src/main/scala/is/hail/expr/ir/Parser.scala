@@ -1117,8 +1117,7 @@ object IRParser {
         val blockSize = int32_literal(it)
         for {
           stream <- ir_value_expr(env)(it)
-          prevWindow <- ir_value_expr(env)(it)
-        } yield StreamWhiten(stream, prevWindow, vecSize, windowSize, chunkSize, blockSize)
+        } yield StreamWhiten(stream, vecSize, windowSize, chunkSize, blockSize)
       case "StreamJoinRightDistinct" =>
         val lKey = identifiers(it)
         val rKey = identifiers(it)
@@ -1638,11 +1637,12 @@ object IRParser {
         val globalsName = identifier(it)
         val leftStreamName = identifier(it)
         val rightStreamName = identifier(it)
+        val offset = int32_literal(it)
         for {
           leftChild <- table_ir(env)(it)
           rightChild <- table_ir(env)(it)
           body <- ir_value_expr(env ++ Array((globalsName, leftChild.typ.globalType), (leftStreamName, TStream(leftChild.typ.rowType)), (rightStreamName, TStream(rightChild.typ.rowType))))(it)
-        } yield TableMapPartitions2(leftChild, rightChild, globalsName, leftStreamName, rightStreamName, body)
+        } yield TableMapPartitions2(leftChild, rightChild, globalsName, leftStreamName, rightStreamName, body, offset)
       case "RelationalLetTable" =>
         val name = identifier(it)
         for {

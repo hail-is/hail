@@ -304,7 +304,9 @@ final case class SeqSample(totalRange: IR, numToSample: IR, requiresMemoryManage
 // pivots are the endpoints of the first and last interval respectively, should not be contained in the dataset.
 final case class StreamDistribute(child: IR, pivots: IR, path: IR, spec: AbstractTypedCodecSpec) extends IR
 
-final case class StreamWhiten(stream: IR, prevWindow: IR, vecSize: Int, windowSize: Int, chunkSize: Int, blockSize: Int) extends IR
+// Takes a stream of binary tuples: left element is the previous window, if there is one,
+// and right element is the new chunk to whiten
+final case class StreamWhiten(stream: IR, vecSize: Int, windowSize: Int, chunkSize: Int, blockSize: Int) extends IR
 
 object ArrayZipBehavior extends Enumeration {
   type ArrayZipBehavior = Value

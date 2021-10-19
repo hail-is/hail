@@ -949,6 +949,11 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
   val Tlen = SizeValueDyn(cb.memoize(tsize.max(blocksize*wpb)))
   val T: SNDArrayValue = vecType.constructUnintialized(FastIndexedSeq(Tlen), cb, region)
 
+  def reset(cb: EmitCodeBuilder): Unit = {
+    cb.assign(curSize, 0L)
+    cb.assign(pivot, 0L)
+  }
+
   // Pre: A1 is current window, A2 is next window, [Q1 Q2] R = [A1 A2] is qr fact
   // Post: W contains locally whitened A2, Qout R[-w:, -w:] = A2[:, -w:] is qr fact
   def whitenBase(cb: EmitCodeBuilder,

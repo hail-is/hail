@@ -1982,7 +1982,8 @@ case class TableMapPartitions2(
   globalName: String,
   leftPartitionStreamName: String,
   rightPartitionStreamName: String,
-  body: IR
+  body: IR,
+  offset: Int
 ) extends TableIR {
   assert(body.typ.isInstanceOf[TStream], s"${ body.typ }")
   lazy val typ = leftChild.typ.copy(
@@ -1998,7 +1999,8 @@ case class TableMapPartitions2(
       newChildren(0).asInstanceOf[TableIR],
       newChildren(1).asInstanceOf[TableIR],
       globalName, leftPartitionStreamName, rightPartitionStreamName,
-      newChildren(2).asInstanceOf[IR])
+      newChildren(2).asInstanceOf[IR],
+      offset)
   }
 }
 

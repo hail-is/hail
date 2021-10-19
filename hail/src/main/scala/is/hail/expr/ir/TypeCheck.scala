@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.expr.Nat
 import is.hail.expr.ir.streams.StreamUtils
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -167,13 +168,12 @@ object TypeCheck {
         assert(child.typ.isInstanceOf[TStream])
         assert(pivots.typ.isInstanceOf[TArray])
         assert(pivots.typ.asInstanceOf[TArray].elementType.isInstanceOf[TStruct])
-      case StreamWhiten(stream, prevWindow, vecSize, windowSize, chunkSize, blockSize) =>
+      case StreamWhiten(stream, vecSize, windowSize, chunkSize, blockSize) =>
         assert(stream.typ.isInstanceOf[TStream])
         val eltTyp = stream.typ.asInstanceOf[TStream].elementType
-        assert(eltTyp.isInstanceOf[TNDArray])
-        assert(eltTyp.asInstanceOf[TNDArray].elementType == TFloat64)
-        assert(prevWindow.typ.isInstanceOf[TNDArray])
-        assert(prevWindow.typ.asInstanceOf[TNDArray].elementType == TFloat64)
+        assert(eltTyp.isInstanceOf[TTuple])
+        val tupTyp = eltTyp.asInstanceOf[TTuple]
+        assert(tupTyp == TTuple(TNDArray(TFloat64, Nat(2)), TStream(TNDArray(TFloat64, Nat(2)))))
       case x@ArrayZeros(length) =>
         assert(length.typ == TInt32)
       case x@MakeNDArray(data, shape, rowMajor, _) =>
@@ -496,7 +496,7 @@ object TypeCheck {
         assert(StreamUtils.isIterationLinear(body, partitionStreamName), "must iterate over the partition exactly once")
         val newRowType = body.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
         child.typ.key.foreach { k => if (!newRowType.hasField(k)) throw new RuntimeException(s"prev key: ${child.typ.key}, new row: ${newRowType}")}
-      case TableMapPartitions2(leftChild, rightChild, globalName, leftStreamName, rightStreamName, body) =>
+      case TableMapPartitions2(leftChild, rightChild, globalName, leftStreamName, rightStreamName, body, offset) =>
         assert(StreamUtils.isIterationLinear(body, leftStreamName), "must iterate over the left partition exactly once")
         assert(StreamUtils.isIterationLinear(body, rightStreamName), "must iterate over the right partition exactly once")
         val newRowType = body.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]

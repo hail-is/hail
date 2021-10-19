@@ -69,8 +69,8 @@ object Children {
       Array(totalRange, numToSample)
     case StreamDistribute(child, pivots, path, _) =>
       Array(child, pivots, path)
-    case StreamWhiten(stream, prevWindow, vecSize, windowSize, chunkSize, blockSize) =>
-      Array(stream, prevWindow)
+    case StreamWhiten(stream, vecSize, windowSize, chunkSize, blockSize) =>
+      Array(stream)
     case ArrayZeros(length) =>
       Array(length)
     case MakeNDArray(data, shape, rowMajor, _) =>

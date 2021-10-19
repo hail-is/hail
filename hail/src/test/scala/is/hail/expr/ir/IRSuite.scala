@@ -2671,7 +2671,7 @@ class IRSuite extends HailSuite {
     val str = Str("Hail")
     val a = Ref("a", TArray(TInt32))
     val st = Ref("st", TStream(TInt32))
-    val matst = Ref("matst", TStream(TNDArray(TFloat64, Nat(2))))
+    val whitenStream = Ref("whitenStream", TStream(TTuple(TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)))))
     val mat = Ref("mat", TNDArray(TFloat64, Nat(2)))
     val aa = Ref("aa", TArray(TArray(TInt32)))
     val sta = Ref("sta", TStream(TArray(TInt32)))
@@ -2769,7 +2769,7 @@ class IRSuite extends HailSuite {
       StreamFold(st, I32(0), "x", "v", v),
       StreamFold2(StreamFold(st, I32(0), "x", "v", v)),
       StreamScan(st, I32(0), "x", "v", v),
-      StreamWhiten(matst, mat, 0, 0, 0, 0),
+      StreamWhiten(whitenStream, 0, 0, 0, 0),
       StreamJoinRightDistinct(
         StreamMap(StreamRange(0, 2, 1), "x", MakeStruct(FastSeq("x" -> Ref("x", TInt32)))),
         StreamMap(StreamRange(0, 3, 1), "x", MakeStruct(FastSeq("x" -> Ref("x", TInt32)))),
@@ -2911,7 +2911,7 @@ class IRSuite extends HailSuite {
             Ref("ls", TStream(read.typ.rowType)), Ref("rs", TStream(read.typ.rowType))),
             FastIndexedSeq("l", "r"),
             MakeTuple.ordered(FastIndexedSeq(Ref("l", read.typ.rowType), Ref("r", read.typ.rowType))),
-            ArrayZipBehavior.AssumeSameLength)),
+            ArrayZipBehavior.AssumeSameLength), 0),
         TableMapGlobals(read,
           MakeStruct(FastIndexedSeq(
             "foo" -> NA(TArray(TInt32))))),
@@ -3067,7 +3067,7 @@ class IRSuite extends HailSuite {
       "aa" -> TArray(TArray(TInt32)),
       "da" -> TArray(TTuple(TInt32, TString)),
       "st" -> TStream(TInt32),
-      "matst" -> TStream(TNDArray(TFloat64, Nat(2))),
+      "whitenStream" -> TStream(TTuple(TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)))),
       "mat" -> TNDArray(TFloat64, Nat(2)),
       "sta" -> TStream(TArray(TInt32)),
       "std" -> TStream(TTuple(TInt32, TString)),

@@ -1014,19 +1014,18 @@ object EmitStream {
           SStreamValue(producer)
         }
 
-      case StreamWhiten(stream, prevWindow, vecSize, windowSize, chunkSize, blockSize) =>
+      case StreamWhiten(stream, vecSize, windowSize, chunkSize, blockSize) =>
         produce(stream, cb).map(cb) { case blocks: SStreamValue =>
           val state = new LocalWhitening(cb, SizeValueStatic(vecSize.toLong), windowSize.toLong, chunkSize.toLong, blockSize.toLong, outerRegion)
-          val resultField = mb.newPField("StreamWhiten_result", blocks.st.elementType)
+          val newBlockType = blocks.st.elementType.asInstanceOf[SBaseStruct].fieldTypes(1)
+          val resultField = mb.newPField("StreamWhiten_result", newBlockType)
 
           val blocksProducer = blocks.producer
           val producer: StreamProducer = new StreamProducer {
             override val length: Option[EmitCodeBuilder => Code[Int]] = blocksProducer.length
 
             override def initialize(cb: EmitCodeBuilder): Unit = {
-              emit(prevWindow, cb).consume(cb, { }, { case prevWindow: SNDArrayValue =>
-                state.initializeWindow(cb, prevWindow)
-              })
+              state.reset(cb)
             }
 
             override val elementRegion: Settable[Region] = blocksProducer.elementRegion
@@ -1035,7 +1034,11 @@ object EmitStream {
             override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
               cb.goto(blocksProducer.LproduceElement)
               cb.define(blocksProducer.LproduceElementDone)
-              val result = blocksProducer.element.toI(cb).get(cb, "StreamWhiten: missing block").asNDArray
+              val tuple = blocksProducer.element.toI(cb).get(cb, "StreamWhiten: missing tuple").asBaseStruct
+              tuple.loadField(cb, 0).consume(cb, {}, { prevWindow =>
+                state.initializeWindow(cb, prevWindow.asNDArray)
+              })
+              val result = tuple.loadField(cb, 1).get(cb, "StreamWhiten: missing chunk").asNDArray
               state.whitenBlock(cb, result)
               cb.assign(resultField, result)
               cb.goto(LproduceElementDone)

@@ -143,7 +143,7 @@ object InferType {
       case StreamDistribute(child, pivots, pathPrefix, _) =>
         val keyType = pivots.typ.asInstanceOf[TContainer].elementType
         TArray(TStruct(("interval", TInterval(keyType)), ("fileName", TString), ("numElements", TInt32)))
-      case StreamWhiten(stream, prevWindow, vecSize, windowSize, chunkSize, blockSize) =>
+      case StreamWhiten(stream, vecSize, windowSize, chunkSize, blockSize) =>
         stream.typ
       case StreamScan(a, zero, accumName, valueName, body) =>
         assert(body.typ == zero.typ)

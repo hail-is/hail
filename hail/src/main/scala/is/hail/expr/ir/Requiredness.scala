@@ -287,7 +287,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           refMap(partitionStreamName).foreach { u => defs.bind(u, Array[BaseTypeWithRequiredness](RIterable(lookup(child).rowType))) }
         val refs = refMap.getOrElse(globalName, FastIndexedSeq()) ++ refMap.getOrElse(partitionStreamName, FastIndexedSeq())
         dependents.getOrElseUpdate(child, mutable.Set[RefEquality[BaseIR]]()) ++= refs
-      case TableMapPartitions2(leftChild, rightChild, globalName, leftStreamName, rightStreamName, body) =>
+      case TableMapPartitions2(leftChild, rightChild, globalName, leftStreamName, rightStreamName, body, offset) =>
         if (refMap.contains(globalName))
           refMap(globalName).foreach { u => defs.bind(u, Array[BaseTypeWithRequiredness](lookup(leftChild).globalType)) }
         if (refMap.contains(leftStreamName))
@@ -436,7 +436,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case TableMapPartitions(child, globalName, partitionStreamName, body) =>
         requiredness.unionRows(lookupAs[RIterable](body).elementType.asInstanceOf[RStruct])
         requiredness.unionGlobals(lookup(child))
-      case TableMapPartitions2(leftChild, rightChild, globalName, leftStreamName, rightStreamName, body) =>
+      case TableMapPartitions2(leftChild, rightChild, globalName, leftStreamName, rightStreamName, body, offset) =>
         requiredness.unionRows(lookupAs[RIterable](body).elementType.asInstanceOf[RStruct])
         requiredness.unionGlobals(lookup(leftChild))
       case TableToTableApply(child, function) => requiredness.maximize() //FIXME: needs implementation
@@ -568,8 +568,8 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case StreamDrop(a, n) =>
         requiredness.union(lookup(n).required)
         requiredness.unionFrom(lookup(a))
-      case StreamWhiten(stream, prevWindow, _, _, _, _) =>
-        requiredness.unionFrom(lookup(stream))
+      case StreamWhiten(stream, _, _, _, _) =>
+        requiredness.unionFrom(lookup(stream).asInstanceOf[RBaseStruct].fields(1).typ)
       case StreamZip(as, names, body, behavior, _) =>
         requiredness.union(as.forall(lookup(_).required))
         coerce[RIterable](requiredness).elementType.unionFrom(lookup(body))

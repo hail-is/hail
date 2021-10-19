@@ -45,9 +45,11 @@ def whiten(entry_expr, window_size, chunk_size=16, partition_size=16, block_size
             for i in range(num_partitions - 1)
         ]
 
+        rekey_map = [(interval_bounds[2*i + 1], interval_bounds[2*(i+1)]) for i in range(num_partitions - 1)]
+
         trailing_blocks = [hl.utils.Interval(start=interval_bounds[0], end=interval_bounds[0], includes_start=True, includes_end=False)] + trailing_blocks
 
-        return intervals, trailing_blocks
+        return intervals, trailing_blocks, rekey_map
 
     ht = mt.localize_entries(entries_array_field_name="entries", columns_array_field_name="cols")
     ht = ht.select(xs=ht.entries.map(lambda e: e['x']))
@@ -55,22 +57,30 @@ def whiten(entry_expr, window_size, chunk_size=16, partition_size=16, block_size
     ht = ht.checkpoint(temp_file_name)
 
     num_rows = ht.count()
-    new_partitioning, trailing_blocks = get_even_partitioning(ht, num_rows)
-    new_part_ht = hl.read_table(temp_file_name, _intervals=new_partitioning).key_by().select('xs')
+    new_partitioning, trailing_blocks, rekey_map = get_even_partitioning(ht, num_rows)
+    new_part_ht = hl.read_table(temp_file_name, _intervals=new_partitioning).select('xs')
 
     grouped = new_part_ht._group_within_partitions("groups", chunk_size)
     A = grouped.select(ndarray=hl.nd.array(grouped.groups.map(lambda group: group.xs)))
 
-    trailing_blocks_ht = hl.read_table(temp_file_name, _intervals=trailing_blocks).key_by().select('xs')
+    trailing_blocks_ht = hl.read_table(temp_file_name, _intervals=trailing_blocks)
     trailing_blocks_ht = trailing_blocks_ht._group_within_partitions("groups", chunk_size)
     trailing_blocks_ht = trailing_blocks_ht.select(prev_window=hl.nd.array(trailing_blocks_ht.groups.map(lambda group: group.xs)))
+    trailing_blocks_ht = trailing_blocks_ht.annotate_globals(rekey_map=hl.dict(rekey_map))
+    trailing_blocks_ht = trailing_blocks_ht.key_by(**trailing_blocks_ht.rekey_map[trailing_blocks_ht.key])
 
     vec_size = hl.eval(ht.take(1, _localize=False)[0].xs.length())
 
-    def map_body(left, right):
-        stream_ir = ir.ToArray(ir.StreamWhiten(ir.ToStream(left.map(lambda x: x.ndarray)._ir), right.first().prev_window._ir, vec_size, window_size, chunk_size, block_size))
-        return construct_expr(stream_ir, tarray(tndarray(tfloat64, 2)), left._indices).map(lambda x: hl.struct(ndarray=x))
+    joined = A.annotate(prev_window=trailing_blocks_ht[A.key].prev_window)
 
-    whitened = A._map_partitions2(trailing_blocks_ht, map_body)
+    # def map_body(left, right):
+    #     stream_ir = ir.ToArray(ir.StreamWhiten(ir.ToStream(left.map(lambda x: x.ndarray)._ir), right.first().prev_window._ir, vec_size, window_size, chunk_size, block_size))
+    #     return construct_expr(stream_ir, tarray(tndarray(tfloat64, 2)), left._indices).map(lambda x: hl.struct(ndarray=x))
+    #
+    # whitened = A._map_partitions2(trailing_blocks_ht, map_body)
+    def map_body(part_stream):
+        stream_of_tuples = part_stream.map(lambda row: hl.tuple([row.prev_window, row.ndarray]))
+        stream_ir = ir.ToArray(ir.StreamWhiten(ir.ToStream(stream_of_tuples._ir), vec_size, window_size, chunk_size, block_size))
+    joined = joined._map_partitions(map_body)
 
-    return whitened
+    return joined

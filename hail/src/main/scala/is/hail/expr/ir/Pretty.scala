@@ -183,7 +183,7 @@ object Pretty {
     case StreamFold(_, _, accumName, valueName, _) => FastSeq(prettyIdentifier(accumName), prettyIdentifier(valueName))
     case StreamFold2(_, acc, valueName, _, _) => FastSeq(prettyIdentifiers(acc.map(_._1)), prettyIdentifier(valueName))
     case StreamScan(_, _, accumName, valueName, _) => FastSeq(prettyIdentifier(accumName), prettyIdentifier(valueName))
-    case StreamWhiten(_, _, vecSize, windowSize, chunkSize, blockSize) => FastSeq(vecSize.toString, windowSize.toString, chunkSize.toString, blockSize.toString)
+    case StreamWhiten(_, vecSize, windowSize, chunkSize, blockSize) => FastSeq(vecSize.toString, windowSize.toString, chunkSize.toString, blockSize.toString)
     case StreamJoinRightDistinct(_, _, lKey, rKey, l, r, _, joinType) =>
       FastSeq(prettyIdentifiers(lKey), prettyIdentifiers(rKey), prettyIdentifier(l), prettyIdentifier(r), joinType)
     case StreamFor(_, valueName, _) => single(prettyIdentifier(valueName))
@@ -295,7 +295,7 @@ object Pretty {
       FastSeq(prettyIntOpt(nPartitions), bufferSize.toString)
     case TableExplode(_, path) => single(prettyStrings(path))
     case TableMapPartitions(_, g, p, _) => FastSeq(prettyIdentifier(g), prettyIdentifier(p))
-    case TableMapPartitions2(_, _, g, l, r, _) => FastSeq(prettyIdentifier(g), prettyIdentifier(l), prettyIdentifier(r))
+    case TableMapPartitions2(_, _, g, l, r, _, offset) => FastSeq(prettyIdentifier(g), prettyIdentifier(l), prettyIdentifier(r), offset.toString)
     case TableParallelize(_, nPartitions) => single(prettyIntOpt(nPartitions))
     case TableOrderBy(_, sortFields) => single(prettySortFields(sortFields))
     case CastMatrixToTable(_, entriesFieldName, colsFieldName) =>

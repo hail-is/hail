@@ -493,7 +493,7 @@ object PruneDeadFields {
           rowType = depRowType.asInstanceOf[TStruct],
           globalType = depGlobalType.asInstanceOf[TStruct])
         memoizeTableIR(child, dep, memo)
-      case TableMapPartitions2(leftChild, rightChild, gName, lName, rName, body) =>
+      case TableMapPartitions2(leftChild, rightChild, gName, lName, rName, body, offset) =>
         val reqRowsType = TStream(requestedType.rowType)
         val bodyDep = memoizeValueIR(body, reqRowsType, memo)
         val depGlobalType = unifySeq(leftChild.typ.globalType,
@@ -1041,10 +1041,9 @@ object PruneDeadFields {
         unifyEnvs(
           memoizeValueIR(a, requestedType, memo),
           memoizeValueIR(len, len.typ, memo))
-      case StreamWhiten(a, prevWindow, _, _, _, _) =>
+      case StreamWhiten(a, _, _, _, _) =>
         unifyEnvs(
-          memoizeValueIR(a, requestedType, memo),
-          memoizeValueIR(prevWindow, requestedType.asInstanceOf[TStream].elementType, memo))
+          memoizeValueIR(a, TTuple(requestedType.asInstanceOf[TStream].elementType, requestedType), memo))
       case StreamMap(a, name, body) =>
         val aType = a.typ.asInstanceOf[TStream]
         val bodyEnv = memoizeValueIR(body,
@@ -1581,7 +1580,7 @@ object PruneDeadFields {
         else
           child2
         TableMapPartitions(child2Keyed, gName, pName, body2)
-      case TableMapPartitions2(leftChild, rightChild, gName, lName, rName, body) =>
+      case TableMapPartitions2(leftChild, rightChild, gName, lName, rName, body, offset) =>
         val leftChild2 = rebuild(leftChild, memo)
         val rightChild2 = rebuild(rightChild, memo)
         val body2 = rebuildIR(body, BindingEnv(Env(
@@ -1593,7 +1592,7 @@ object PruneDeadFields {
           TableKeyBy(leftChild2, leftChild2.typ.key.takeWhile(body2ElementType.hasField))
         else
           leftChild2
-        TableMapPartitions2(leftChild2Keyed, rightChild2, gName, lName, rName, body2)
+        TableMapPartitions2(leftChild2Keyed, rightChild2, gName, lName, rName, body2, offset)
       case TableMapRows(child, newRow) =>
         val child2 = rebuild(child, memo)
         val newRow2 = rebuildIR(newRow, BindingEnv(child2.typ.rowEnv, scan = Some(child2.typ.rowEnv)), memo)
