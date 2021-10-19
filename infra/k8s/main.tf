@@ -18,7 +18,7 @@ provider "kubernetes" {
 }
 
 resource "kubernetes_secret" "acr_push_credentials" {
-  metadata = {
+  metadata {
     name = "acr-push-credentials"
   }
 
