@@ -50,6 +50,7 @@ class VariantDataset:
                                    *,
                                    ref_block_fields=(),
                                    infer_ref_block_fields: bool = True):
+        """Create a VariantDataset from a sparse MatrixTable containing variant and reference data."""
 
         if 'END' not in mt.entry:
             raise ValueError("VariantDataset.from_merged_representation: expect field 'END' in matrix table entry")
@@ -109,14 +110,17 @@ class VariantDataset:
         self.variant_data: MatrixTable = variant_data
 
     def write(self, path, **kwargs):
+        """Write to `path`."""
         self.reference_data.write(VariantDataset._reference_path(path), **kwargs)
         self.variant_data.write(VariantDataset._variants_path(path), **kwargs)
 
     def checkpoint(self, path, **kwargs) -> 'VariantDataset':
+        """Write to `path` and then read from `path`."""
         self.write(path, **kwargs)
         return read_vds(path)
 
     def n_samples(self) -> int:
+        """The number of samples present."""
         return self.reference_data.count_cols()
 
     def validate(self):

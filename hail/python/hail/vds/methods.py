@@ -13,6 +13,7 @@ from hail import ir
 
 
 def write_variant_datasets(vdss, paths, overwrite=False, stage_locally=False):
+    """Write many `vdses` to their corresponding path in `paths`."""
     ref_writer = ir.MatrixNativeMultiWriter([f"{p}/reference_data" for p in paths], overwrite, stage_locally)
     var_writer = ir.MatrixNativeMultiWriter([f"{p}/variant_data" for p in paths], overwrite, stage_locally)
     Env.backend().execute(ir.MatrixMultiWrite([vds.reference_data._mir for vds in vdss], ref_writer))
@@ -150,7 +151,7 @@ def sample_qc(vds: 'VariantDataset', *, name='sample_qc', gq_bins: 'Sequence[int
         Dataset in VariantDataset representation.
     name : :obj:`str`
         Name for resulting field.
-    gq_bins : :class:`tup` of :obj:`int`
+    gq_bins : :class:`tuple` of :obj:`int`
         Tuple containing cutoffs for genotype quality (GQ) scores.
 
     Returns
