@@ -58,6 +58,7 @@ from ..utils import (
     round_storage_bytes_to_gib,
     cores_mcpu_to_storage_bytes,
 )
+
 from ..semaphore import FIFOWeightedSemaphore
 from ..file_store import FileStore
 from ..globals import (
@@ -456,7 +457,8 @@ class Container:
         self.container_name = f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}'
 
         self.netns: Optional[NetworkNamespace] = None
-        self.process: Optional[asyncio.subprocess.Process] = None
+        # regarding no-member: https://github.com/PyCQA/pylint/issues/4223
+        self.process: Optional[asyncio.subprocess.Process] = None  # pylint: disable=no-member
 
     async def run(self):
         try:
