@@ -19,6 +19,8 @@ from .environment import (
 from .globals import is_test_deployment
 from gear.cloud_config import get_global_config
 
+CLOUD = get_global_config()['cloud']
+
 log = logging.getLogger('ci')
 
 pretty_print_log = "jq -Rr '. as $raw | try \
@@ -303,7 +305,7 @@ time python3 \
      /home/user/Dockerfile
 
 set +x
-/bin/sh /home/user/convert-google-application-credentials-to-docker-auth-config
+/bin/sh /home/user/convert-cloud-credentials-to-docker-auth-config
 set -x
 
 export BUILDKITD_FLAGS='--oci-worker-no-process-sandbox --oci-worker-snapshotter=overlayfs'
@@ -323,20 +325,30 @@ cat /home/user/trace
         log.info(f'step {self.name}, script:\n{script}')
 
         docker_registry = DOCKER_PREFIX.split('/')[0]
+        job_env = {'REGISTRY': docker_registry}
+        if CLOUD == 'gcp':
+            credentials_secret = {
+                'namespace': DEFAULT_NAMESPACE,
+                'name': 'gcr-push-service-account-key',
+                'mount_path': '/secrets/gcr-push-service-account-key',
+            }
+            job_env[
+                'GOOGLE_APPLICATION_CREDENTIALS'
+            ] = '/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json'
+        else:
+            assert CLOUD == 'azure'
+            credentials_secret = {
+                'namespace': DEFAULT_NAMESPACE,
+                'name': 'acr-push-credentials',
+                'mount_path': '/secrets/acr-push-credentials',
+            }
+            job_env['AZURE_APPLICATION_CREDENTIALS'] = '/secrets/acr-push-credentials/credentials.json'
+
         self.job = batch.create_job(
             BUILDKIT_IMAGE,
             command=['/bin/sh', '-c', script],
-            secrets=[
-                {
-                    'namespace': DEFAULT_NAMESPACE,
-                    'name': 'gcr-push-service-account-key',
-                    'mount_path': '/secrets/gcr-push-service-account-key',
-                }
-            ],
-            env={
-                'GOOGLE_APPLICATION_CREDENTIALS': '/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json',
-                'REGISTRY': docker_registry,
-            },
+            secrets=[credentials_secret],
+            env=job_env,
             attributes={'name': self.name},
             resources=self.resources,
             input_files=input_files,
@@ -346,6 +358,11 @@ cat /home/user/trace
         )
 
     def cleanup(self, batch, scope, parents):
+        if CLOUD == 'azure':
+            log.warning('Image cleanup in ACR is not yet supported')
+            return
+        assert CLOUD == 'gcp'
+
         if scope == 'deploy' and self.publish_as and not is_test_deployment:
             return
 
