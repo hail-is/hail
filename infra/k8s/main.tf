@@ -10,7 +10,7 @@ terraform {
 }
 
 locals {
-  docker_root_image = "${var.global_config.docker_prefix}/ubuntu:18.04"
+  docker_root_image = "${var.global_config.global.docker_prefix}/ubuntu:18.04"
 }
 
 provider "kubernetes" {
@@ -19,7 +19,7 @@ provider "kubernetes" {
 
 resource "kubernetes_secret" "acr_push_credentials" {
   metadata = {
-    name: "acr-push-credentials"
+    name = "acr-push-credentials"
   }
 
   data = {
