@@ -825,7 +825,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     secrets.append(
                         {
                             'namespace': DEFAULT_NAMESPACE,
-                            'name': 'gce-deploy-config',
+                            'name': 'worker-deploy-config',
                             'mount_path': '/deploy-config',
                             'mount_in_copy': False,
                         }

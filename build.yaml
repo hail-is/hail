@@ -300,6 +300,7 @@ steps:
       valueFrom: base_image.image
     script: |
       set -ex
+
       # k8s deploy config
       cat > deploy-config.json <<EOF
       {"location":"k8s","default_namespace":"{{ default_ns.name }}","domain":"{{ global.domain }}"}
@@ -308,11 +309,23 @@ steps:
               --from-file=./deploy-config.json \
               --save-config --dry-run=client -o yaml \
           | kubectl -n {{ default_ns.name }} apply -f -
-      # gce deploy config
+
+      # worker deploy config
+      if [[ "{{ global.cloud }}" == "gcp" ]]
+      then
+          LOCATION="gce"
+      elif [[ "{{ global.cloud }}" == "azure" ]]
+      then
+          LOCATION="azure"
+      else
+          echo "unknown cloud: {{ global.cloud }}"
+          exit 1
+      fi
+
       cat > deploy-config.json <<EOF
-      {"location":"gce","default_namespace":"{{ default_ns.name }}","domain":"{{ global.domain }}"}
+      {"location":"$LOCATION","default_namespace":"{{ default_ns.name }}","domain":"{{ global.domain }}"}
       EOF
-      kubectl -n {{ default_ns.name }} create secret generic gce-deploy-config \
+      kubectl -n {{ default_ns.name }} create secret generic worker-deploy-config \
               --from-file=./deploy-config.json \
               --save-config --dry-run=client -o yaml \
           | kubectl -n {{ default_ns.name }} apply -f -
@@ -427,7 +440,7 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /database-server-config
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -2053,7 +2066,7 @@ steps:
       set -ex
       python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /test/
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -2122,7 +2135,7 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -2169,7 +2182,7 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -2414,7 +2427,7 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -2449,7 +2462,7 @@ steps:
       set -ex
       python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /test/
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -2593,7 +2606,7 @@ steps:
       python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /io/test/
     timeout: 600
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -2663,7 +2676,7 @@ steps:
     port: 5000
     timeout: 1200
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -2737,7 +2750,7 @@ steps:
     port: 5000
     timeout: 1200
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -2811,7 +2824,7 @@ steps:
     port: 5000
     timeout: 1200
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -2885,7 +2898,7 @@ steps:
     port: 5000
     timeout: 1200
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -2959,7 +2972,7 @@ steps:
     port: 5000
     timeout: 1200
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3014,7 +3027,7 @@ steps:
       - from: /repo/batch/test
         to: /io/test
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3128,7 +3141,7 @@ steps:
       export NAMESPACE="{{ default_ns.name }}"
       python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /test/
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3186,7 +3199,7 @@ steps:
         to: /io/hailtop
     timeout: 1200
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3239,7 +3252,7 @@ steps:
         to: /io/hailtop
     timeout: 1200
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3292,7 +3305,7 @@ steps:
         to: /io/hailtop
     timeout: 1200
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3345,7 +3358,7 @@ steps:
         to: /io/hailtop
     timeout: 1200
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3398,7 +3411,7 @@ steps:
         to: /io/hailtop
     timeout: 1200
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3437,7 +3450,7 @@ steps:
         --ignore=docs/cookbook/files/ \
         --ignore=docs/conf.py
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3696,7 +3709,7 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3788,7 +3801,7 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3814,7 +3827,7 @@ steps:
         to: /io/test
     timeout: 300
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
