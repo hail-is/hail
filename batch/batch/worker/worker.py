@@ -1830,7 +1830,7 @@ class Worker:
 
     async def run_job(self, job):
         try:
-            await job.run(self)
+            await job.run()
         except asyncio.CancelledError:
             raise
         except Exception as e:
