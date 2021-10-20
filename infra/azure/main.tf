@@ -8,6 +8,9 @@ terraform {
       source = "hashicorp/http"
       version = "2.1.0"
     }
+    tls = {
+      version = "3.1.0"
+    }
   }
   backend "azurerm" {}
 }
@@ -181,6 +184,25 @@ resource "azurerm_private_endpoint" "db_endpoint" {
     subresource_names              = [ "mysqlServer" ]
     is_manual_connection           = false
   }
+}
+
+resource "tls_private_key" "db_client_key" {
+  algorithm = "RSA"
+}
+
+resource "tls_self_signed_cert" "db_client_cert" {
+  key_algorithm   = tls_private_key.db_client_key.algorithm
+  private_key_pem = tls_private_key.db_client_key.private_key_pem
+
+  subject {
+    common_name  = "hail-client"
+  }
+
+  validity_period_hours = 24 * 365
+
+  allowed_uses = [
+    "client_auth"
+  ]
 }
 
 resource "azurerm_user_assigned_identity" "batch_worker" {

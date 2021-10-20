@@ -24,8 +24,8 @@ output "global_config" {
 output "sql_config" {
   value = {
     server_ca_cert = data.http.db_ca_cert.body
-    client_cert = ""
-    client_private_key = ""
+    client_cert = tls_self_signed_cert.db_client_cert.cert_pem
+    client_private_key = tls_private_key.db_client_key.private_key_pem
     host = azurerm_private_endpoint.db_endpoint.private_service_connection[0].private_ip_address
     user = "${azurerm_mysql_server.db.administrator_login}@${azurerm_mysql_server.db.name}"
     password = azurerm_mysql_server.db.administrator_login_password
