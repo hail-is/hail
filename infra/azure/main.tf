@@ -43,6 +43,7 @@ resource "azurerm_subnet" "k8s_subnet" {
   resource_group_name  = data.azurerm_resource_group.rg.name
   virtual_network_name = azurerm_virtual_network.default.name
 
+  service_endpoints = ["Microsoft.Sql"]
   enforce_private_link_endpoint_network_policies = true
 }
 
@@ -52,6 +53,7 @@ resource "azurerm_subnet" "batch_worker_subnet" {
   resource_group_name  = data.azurerm_resource_group.rg.name
   virtual_network_name = azurerm_virtual_network.default.name
 
+  service_endpoints = ["Microsoft.Sql"]
   enforce_private_link_endpoint_network_policies = true
 }
 
