@@ -168,7 +168,7 @@ def transform_gvcf(mt,
     Returns
     -------
     :obj:`.Table`
-        A localized matrix table that can be used as part of the input to :func:`.combine_gvcfs`
+        A localized matrix table that can be used as part of the input to `combine_gvcfs`
 
     Notes
     -----
