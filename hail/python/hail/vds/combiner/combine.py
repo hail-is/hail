@@ -154,21 +154,21 @@ def transform_gvcf(mt,
 
     Parameters
     ----------
-    mt : :obj:`MatrixTable`
+    mt : :class:`.MatrixTable`
         The gvcf being transformed.
-    reference_entry_fields_to_keep : :obj:`List[str]`
+    reference_entry_fields_to_keep : :class:`list` of :class:`str`
         Genotype fields to keep in the reference table. If empty, the first
         10,000 reference block rows of ``mt`` will be sampled and all fields
         found to be defined other than ``GT``, ``AD``, and ``PL`` will be entry
         fields in the resulting reference matrix in the dataset.
-    info_to_keep : :obj:`List[str]`
+    info_to_keep : :class:`list` of :class:`str`
         Any ``INFO`` fields in the gvcf that are to be kept and put in the ``gvcf_info`` entry
         field. By default, all ``INFO`` fields except ``END`` and ``DP`` are kept.
 
     Returns
     -------
     :obj:`.Table`
-        A localized matrix table that can be used as part of the input to :func:`.combine_gvcfs`
+        A localized matrix table that can be used as part of the input to `combine_gvcfs`
 
     Notes
     -----
