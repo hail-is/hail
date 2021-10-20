@@ -21,7 +21,7 @@ ip=$(az vm create \
     --resource-group $RESOURCE_GROUP \
     --image Canonical:UbuntuServer:18.04-LTS:latest \
     --vnet-name default \
-    --subnet batch-worker-subnet \
+    --subnet k8s-subnet \
     --public-ip-sku Standard \
     --assign-identity $TERRAFORM_PRINCIPAL_ID \
     --os-disk-size 200 \

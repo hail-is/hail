@@ -55,8 +55,6 @@ generate_ssl_certs() {
             -o yaml \
         | kubectl apply -f -
 
-    make -C $HAIL/hail python/hailtop/hail_version
-
     PYTHONPATH=$HAIL/hail/python \
             python3 $HAIL/tls/create_certs.py \
             default \
@@ -67,6 +65,8 @@ generate_ssl_certs() {
 }
 
 deploy_unmanaged() {
+    make -C $HAIL/hail python/hailtop/hail_version
+
     render_config_mk
     copy_images
     generate_ssl_certs
@@ -79,7 +79,6 @@ deploy_unmanaged() {
     make -C $HAIL/letsencrypt run
 }
 
-# FIXME bootstrap.py internally still relies on google secrets
 bootstrap() {
     if [ -z "$1" ] || [ -z "$2" ]; then
         echo "Usage: bootstrap <REPO_ORG>/hail:<BRANCH> <DEPLOY_STEP>"
