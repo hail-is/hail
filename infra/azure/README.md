@@ -68,7 +68,7 @@ At this point, log out and ssh back in (so that changes to group settings
 for Docker can be applied). In the $HAIL/infra/azure directory, run
 
 ```
-./bootstrap.sh setup_az <RESOURCE_GROUP>
+./bootstrap.sh setup_az
 ```
 
 to download and authenticate with the azure CLI.
@@ -77,7 +77,6 @@ Run the following to authenticate docker and kubectl with the new
 container registry and kubernetes cluster, respectively.
 
 ```
-source $HAIL/devbin/functions.sh
 azsetcluster <RESOURCE_GROUP>
 ```
 

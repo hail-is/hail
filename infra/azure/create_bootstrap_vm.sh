@@ -26,6 +26,6 @@ az vm identity assign \
     --name $VM_NAME \
     --resource-group $RESOURCE_GROUP \
     --role Owner \
-    --scope /subscriptions/$SUBSCRIPTION_ID
+    --scope /subscriptions/$SUBSCRIPTION_ID/resourcegroups/$RESOURCE_GROUP
 
 echo "Successfully created a vm. SSH into it with ssh -i ~/.ssh/id_rsa <username>@$ip"
