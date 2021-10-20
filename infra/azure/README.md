@@ -13,20 +13,19 @@ brew install azure-cli
 az login
 ```
 
-## Deploying Hail
+## Running Terraform
 
 Every resource in Azure must belong to a Resource Group. First, obtain
 a resource group and make sure you have Owner permissions for that
 resource group.
 
-We will first create a Managed Identity which we will use later to
+We will first create a Service Principal which we will use to
 create resources through terraform. Run the following
 (this only needs to be run once for a resource group, but it is ok to run it
 more than once).
 
 ```
-./create_terraform_identity.sh <RESOURCE_GROUP>
-./bootstrap.sh setup_az <RESOURCE_GROUP> # FIXME use service principal
+./create_terraform_sp.sh <RESOURCE_GROUP>
 ```
 
 Create a `global.tfvars` file with the necessary variables

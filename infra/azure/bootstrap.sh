@@ -5,8 +5,8 @@ source ../bootstrap_utils.sh
 export_terraform_vars() {
     export ARM_SUBSCRIPTION_ID=$(az account list | jq -rj '.[0].id')
     export ARM_TENANT_ID=$(az account list | jq -rj '.[0].tenantId')
-    export ARM_CLIENT_ID=$(jq -rj '.appId' terraform_principal.json)
-    export ARM_CLIENT_SECRET=$(jq -rj '.password' terraform_principal.json)
+    export ARM_CLIENT_ID=$(jq -rj '.appId' $HAIL/infra/azure/terraform_principal.json)
+    export ARM_CLIENT_SECRET=$(jq -rj '.password' $HAIL/infra/azure/terraform_principal.json)
 }
 
 setup_terraform_backend() {

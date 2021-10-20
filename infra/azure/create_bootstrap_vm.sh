@@ -9,13 +9,6 @@ fi
 
 RESOURCE_GROUP=$1
 
-TERRAFORM_PRINCIPAL_ID=$(az identity show \
-    --resource-group $RESOURCE_GROUP \
-    --name terraform \
-    --query id \
-    --output tsv
-)
-
 ip=$(az vm create \
     --name bootstrap-vm \
     --resource-group $RESOURCE_GROUP \
@@ -23,7 +16,6 @@ ip=$(az vm create \
     --vnet-name default \
     --subnet k8s-subnet \
     --public-ip-sku Standard \
-    --assign-identity $TERRAFORM_PRINCIPAL_ID \
     --os-disk-size 200 \
     --generate-ssh-keys | jq -jr '.publicIpAddress')
 
