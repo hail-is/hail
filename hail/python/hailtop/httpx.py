@@ -61,7 +61,7 @@ class ClientResponse:
     def get_encoding(self) -> str:
         return self.client_response.get_encoding()
 
-    async def text(self, encoding: Optional[str] = None, errors: str = "strict"):
+    async def text(self, encoding: Optional[str] = None, errors: str = 'strict'):
         return await self.client_response.text(encoding=encoding, errors=errors)
 
     async def json(self):
