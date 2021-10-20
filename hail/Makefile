@@ -218,7 +218,7 @@ $(EGG): copy-py-files
 
 # if the DEPLOY_REMOTE flag is not set, then deploy init scripts into a dev-username location
 ifndef DEPLOY_REMOTE
-DEV_CLARIFIER ?= $(shell whoami)-dev/
+DEV_CLARIFIER ?= $(shell whoami)-dev
 cloud_base ?= gs://hail-30-day/hailctl/dataproc/$(DEV_CLARIFIER)/$(HAIL_VERSION)
 UPLOAD_RETENTION =
 else
