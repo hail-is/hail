@@ -274,8 +274,6 @@ module "sql_config" {
   user     = "root"
   password = random_password.db_root_password.result
 
-  # instance          = google_sql_database_instance.db.name
-  # connection_name   = google_sql_database_instance.db.connection_name
   docker_root_image = local.docker_root_image
 }
 

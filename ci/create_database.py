@@ -107,8 +107,6 @@ GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}
         SQLConfig(
             host=sql_config.host,
             port=sql_config.port,
-            instance=sql_config.instance,
-            connection_name=sql_config.instance,
             user=admin_username,
             password=admin_password,
             db=_name,
@@ -126,8 +124,6 @@ GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}
         SQLConfig(
             host=sql_config.host,
             port=sql_config.port,
-            instance=sql_config.instance,
-            connection_name=sql_config.instance,
             user=user_username,
             password=user_password,
             db=_name,

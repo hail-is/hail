@@ -17,6 +17,8 @@ provider "kubernetes" {
   config_path = "~/.kube_config"
 }
 
+# There should be a some sort of list of "extra random secrets"
+# a object({ metadata = string, data = map })
 resource "kubernetes_secret" "acr_push_credentials" {
   metadata {
     name = "acr-push-credentials"
@@ -26,6 +28,7 @@ resource "kubernetes_secret" "acr_push_credentials" {
     "credentials.json" = jsonencode(var.acr_push_credentials)
   }
 }
+
 resource "kubernetes_secret" "zulip_config" {
   metadata {
     name = "zulip-config"
@@ -33,15 +36,5 @@ resource "kubernetes_secret" "zulip_config" {
 
   data = {
     ".zuliprc" = file("~/.zuliprc")
-  }
-}
-
-resource "kubernetes_secret" "auth_oauth2_client_secret" {
-  metadata {
-    name = "auth-oauth2-client-secret"
-  }
-
-  data = {
-    "client_secret.json" = file("~/auth_oauth2_client_secret.json")
   }
 }
