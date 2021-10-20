@@ -199,7 +199,21 @@ resource "azurerm_private_endpoint" "db_batch_worker_endpoint" {
     private_connection_resource_id = azurerm_mysql_server.db.id
     subresource_names              = [ "mysqlServer" ]
     is_manual_connection           = false
+  }
 }
+
+resource "azurerm_mysql_virtual_network_rule" "k8s_db_vnet_rule" {
+  name                = "k8s-db-vnet-rule"
+  resource_group_name = data.azurerm_resource_group.rg.name
+  server_name         = azurerm_mysql_server.db.name
+  subnet_id           = azurerm_subnet.k8s_subnet.id
+}
+
+resource "azurerm_mysql_virtual_network_rule" "batch_worker_db_vnet_rule" {
+  name                = "batch-worker-db-vnet-rule"
+  resource_group_name = data.azurerm_resource_group.rg.name
+  server_name         = azurerm_mysql_server.db.name
+  subnet_id           = azurerm_subnet.batch_worker_subnet.id
 }
 
 resource "tls_private_key" "db_client_key" {
