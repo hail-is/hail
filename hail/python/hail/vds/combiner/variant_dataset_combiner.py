@@ -7,8 +7,7 @@ import os
 import sys
 import uuid
 
-from collections.abc import Collection
-from typing import Dict, List, Optional, Union
+from typing import Collection, Dict, List, Optional, Union
 
 import hail as hl
 
