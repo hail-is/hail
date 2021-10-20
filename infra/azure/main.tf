@@ -51,6 +51,8 @@ resource "azurerm_subnet" "batch_worker_subnet" {
   address_prefixes     = ["10.128.0.0/16"]
   resource_group_name  = data.azurerm_resource_group.rg.name
   virtual_network_name = azurerm_virtual_network.default.name
+
+  enforce_private_link_endpoint_network_policies = true
 }
 
 resource "azurerm_kubernetes_cluster" "vdc" {
