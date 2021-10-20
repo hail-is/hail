@@ -43,7 +43,6 @@ steps:
     namespaceName: default
     public: true
     secrets:
-      - gcr-pull-key
       - gcr-push-service-account-key
       - hail-ci-0-1-github-oauth-token
       - test-gsa-key

@@ -289,11 +289,6 @@ resource "google_artifact_registry_repository" "repository" {
   location = var.gcp_location
 }
 
-resource "google_service_account" "gcr_pull" {
-  account_id = "gcr-pull"
-  display_name = "pull from gcr.io"
-}
-
 resource "google_service_account_key" "gcr_pull_key" {
   service_account_id = google_service_account.gcr_pull.name
 }
@@ -349,16 +344,6 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_pus
   location = var.gcp_location
   role = "roles/artifactregistry.admin"
   member = "serviceAccount:${google_service_account.gcr_push.email}"
-}
-
-resource "kubernetes_secret" "gcr_pull_key" {
-  metadata {
-    name = "gcr-pull-key"
-  }
-
-  data = {
-    "gcr-pull.json" = base64decode(google_service_account_key.gcr_pull_key.private_key)
-  }
 }
 
 resource "kubernetes_secret" "gcr_push_key" {
