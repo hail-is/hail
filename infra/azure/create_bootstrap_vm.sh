@@ -9,8 +9,11 @@ fi
 
 RESOURCE_GROUP=$1
 
+SUBSCRIPTION_ID=$(az account list | jq -rj '.[0].id')
+VM_NAME=bootstrap-vm
+
 ip=$(az vm create \
-    --name bootstrap-vm \
+    --name $VM_NAME \
     --resource-group $RESOURCE_GROUP \
     --image Canonical:UbuntuServer:18.04-LTS:latest \
     --vnet-name default \
@@ -18,5 +21,11 @@ ip=$(az vm create \
     --public-ip-sku Standard \
     --os-disk-size 200 \
     --generate-ssh-keys | jq -jr '.publicIpAddress')
+
+az vm identity assign \
+    --name $VM_NAME \
+    --resource-group $RESOURCE_GROUP \
+    --role Owner \
+    --scope /subscriptions/$SUBSCRIPTION_ID
 
 echo "Successfully created a vm. SSH into it with ssh -i ~/.ssh/id_rsa <username>@$ip"

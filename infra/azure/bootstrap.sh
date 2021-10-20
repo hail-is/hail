@@ -2,6 +2,11 @@
 
 source ../bootstrap_utils.sh
 
+setup_az() {
+    curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+    az login --identity
+}
+
 export_terraform_vars() {
     export ARM_SUBSCRIPTION_ID=$(az account list | jq -rj '.[0].id')
     export ARM_TENANT_ID=$(az account list | jq -rj '.[0].tenantId')
