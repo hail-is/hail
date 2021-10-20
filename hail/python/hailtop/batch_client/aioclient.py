@@ -396,7 +396,7 @@ class Batch:
         batch_status = await self.status()
         jobs = [
             {'status': j, 'log': await self.get_job_log(j['job_id'])}
-            async for j in await self.jobs()]
+            async for j in self.jobs()]
         return {'status': batch_status, 'jobs': jobs}
 
     async def delete(self):
