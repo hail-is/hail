@@ -9,7 +9,7 @@ from gear.cloud_config import get_gcp_config, get_global_config
 
 from auth.driver.driver import create_user
 
-CLOUD = get_global_config()['CLOUD']
+CLOUD = get_global_config()['cloud']
 SCOPE = os.environ['HAIL_SCOPE']
 PROJECT = get_gcp_config().project
 DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']

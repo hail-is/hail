@@ -10,7 +10,7 @@ import kubernetes_asyncio as kube
 from hailtop.utils import time_msecs, secret_alnum_string
 from hailtop.auth.sql_config import create_secret_data_from_config, SQLConfig
 from hailtop import aiotools
-from hailtop import batch_client as bc
+from hailtop import batch_client as bc, httpx
 from hailtop.aiocloud import get_identity_client
 from gear import create_session, Database
 from gear.cloud_config import get_gcp_config, get_global_config
@@ -603,6 +603,8 @@ async def async_main():
         db = Database()
         await db.async_init(maxsize=50)
         app['db'] = db
+
+        app['client_session'] = httpx.client_session()
 
         db_instance = Database()
         await db_instance.async_init(maxsize=50, config_file='/database-server-config/sql-config.json')
