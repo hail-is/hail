@@ -15,6 +15,7 @@ from .environment import (
     BUILDKIT_IMAGE,
     DEFAULT_NAMESPACE,
     BUCKET,
+    CLOUD,
 )
 from .globals import is_test_deployment
 from gear.cloud_config import get_global_config
@@ -622,8 +623,15 @@ kubectl -n {self.namespace_name} get -o json secret global-config \
 '''
 
             for s in self.secrets:
-                script += f'''
+                if isinstance(s, str):
+                    script += f'''
 kubectl -n {self.namespace_name} get -o json secret {s} | jq 'del(.metadata) | .metadata.name = "{s}"' | kubectl -n {self._name} apply -f -
+'''
+                else:
+                    clouds = s.get('clouds')
+                    if clouds is None or CLOUD in clouds:
+                        script += f'''
+kubectl -n {self.namespace_name} get -o json secret {s["name"]} | jq 'del(.metadata) | .metadata.name = "{s["name"]}"' | kubectl -n {self._name} apply -f -
 '''
 
         script += '''

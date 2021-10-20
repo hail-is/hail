@@ -1,5 +1,11 @@
 import os
 
+from gear.cloud_config import get_global_config
+
+global_config = get_global_config()
+
+CLOUD = global_config['cloud']
+
 DOCKER_PREFIX = os.environ['HAIL_DOCKER_PREFIX']
 DOCKER_ROOT_IMAGE = os.environ['HAIL_DOCKER_ROOT_IMAGE']
 DOMAIN = os.environ['HAIL_DOMAIN']
