@@ -280,8 +280,8 @@ steps:
         script: /io/sql/add-trial-billing-project.sql
       - name: add-roles
         script: /io/sql/add-roles.sql
-      - name: add-azure
-        script: /io/sql/add-azure.sql
+      - name: rename-gsa-identity
+        script: /io/sql/rename-gsa-identity.sql
     inputs:
       - from: /repo/auth/sql
         to: /io/sql

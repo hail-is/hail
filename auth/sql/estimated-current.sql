@@ -8,9 +8,9 @@ CREATE TABLE `users` (
   `is_service_account` tinyint(1) NOT NULL DEFAULT 0,
   -- session
   `tokens_secret_name` varchar(255) DEFAULT NULL,
-  -- gsa
-  `gsa_email` varchar(255) DEFAULT NULL,
-  `gsa_key_secret_name` varchar(255) DEFAULT NULL,
+  -- identity
+  `hail_identity` varchar(255) DEFAULT NULL,
+  `hail_identity_secret_name` varchar(255) DEFAULT NULL,
   -- azure
   `azure_application_id` varchar(255) DEFAULT NULL,
   `azure_credentials_secret_name` varchar(255) DEFAULT NULL,

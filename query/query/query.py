@@ -40,7 +40,7 @@ async def add_user(app, userdata):
 
     k8s_client = app['k8s_client']
     gsa_key_secret = await retry_transient_errors(
-        k8s_client.read_namespaced_secret, userdata['gsa_key_secret_name'], DEFAULT_NAMESPACE, _request_timeout=5.0
+        k8s_client.read_namespaced_secret, userdata['hail_identity_secret_name'], DEFAULT_NAMESPACE, _request_timeout=5.0
     )
 
     if username in users:
