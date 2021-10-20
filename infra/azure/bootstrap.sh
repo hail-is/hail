@@ -2,18 +2,11 @@
 
 source ../bootstrap_utils.sh
 
-setup_az() {
-    RESOURCE_GROUP=$1
-    curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-    az login --identity
-    PRINCIPAL_ID=$(az identity show -g $RESOURCE_GROUP -n terraform --query id --output tsv)
-    az login --identity --username $PRINCIPAL_ID
-}
-
 export_terraform_vars() {
     export ARM_SUBSCRIPTION_ID=$(az account list | jq -rj '.[0].id')
     export ARM_TENANT_ID=$(az account list | jq -rj '.[0].tenantId')
-    export ARM_USE_MSI=true
+    export ARM_CLIENT_ID=$(jq -rj '.appId' terraform_principal.json)
+    export ARM_CLIENT_SECRET=$(jq -rj '.password' terraform_principal.json)
 }
 
 setup_terraform_backend() {

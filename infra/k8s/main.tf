@@ -35,6 +35,16 @@ resource "kubernetes_secret" "zulip_config" {
   }
 
   data = {
-    ".zuliprc" = file("~/.zuliprc")
+    ".zuliprc" = file("~/.hail/.zuliprc")
+  }
+}
+
+resource "kubernetes_secret" "auth_oauth2_client_secret" {
+  metadata {
+    name = "auth-oauth2-client-secret"
+  }
+
+  data = {
+    ".zuliprc" = file("~/.hail/auth_oauth2_client_secret.json")
   }
 }
