@@ -167,7 +167,7 @@ resource "azurerm_mysql_server" "db" {
   storage_mb = 5120
 
   ssl_enforcement_enabled       = true
-  public_network_access_enabled = false
+  # public_network_access_enabled = false
 }
 
 data "http" "db_ca_cert" {
