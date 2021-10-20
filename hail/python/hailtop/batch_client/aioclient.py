@@ -643,7 +643,6 @@ class BatchClient:
                  headers: Dict[str, str]):
         self.billing_project = billing_project
         self.url = url
-        self.deploy_config = deploy_config
         self._session = session
         self._headers = headers
 
