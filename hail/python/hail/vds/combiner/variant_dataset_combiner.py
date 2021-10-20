@@ -216,7 +216,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                 'gvcf_external_header': self.gvcf_external_header,  # put this here for humans
                 'contig_recoding': self.contig_recoding,
                 'gvcf_info_to_keep': self.gvcf_info_to_keep,
-                'gvcf_reference_entry_fields_to_keep': self.gvcf_reference_entry_fields_to_keep,
+                'gvcf_reference_entry_fields_to_keep': list(self.gvcf_reference_entry_fields_to_keep),
                 'vdses': [md for i in sorted(self.vdses, reverse=True) for md in self.vdses[i]],
                 'gvcfs': self.gvcfs,
                 'gvcf_sample_names': self.gvcf_sample_names,
@@ -448,10 +448,10 @@ def new_combiner(*,
             for name in gvcf_sample_names:
                 sha.update(name.encode())
         if gvcf_info_to_keep is not None:
-            for kept_info in gvcf_info_to_keep:
+            for kept_info in sorted(gvcf_info_to_keep):
                 sha.update(kept_info.encode())
         if gvcf_reference_entry_fields_to_keep is not None:
-            for field in gvcf_reference_entry_fields_to_keep:
+            for field in sorted(gvcf_reference_entry_fields_to_keep):
                 sha.update(field.encode())
         if contig_recoding is not None:
             for key, value in sorted(contig_recoding.items()):
