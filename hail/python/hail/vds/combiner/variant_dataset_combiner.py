@@ -82,7 +82,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                  gvcf_sample_names: Optional[List[str]] = None,
                  gvcf_external_header: Optional[str] = None,
                  gvcf_import_intervals: List[Interval],
-                 gvcf_info_to_keep: Optional[List[str]] = None,
+                 gvcf_info_to_keep: Optional[Collection[str]] = None,
                  gvcf_reference_entry_fields_to_keep: Optional[Collection[str]] = None,
                  ):
         if not (vdses or gvcfs):
@@ -119,8 +119,11 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         self.gvcf_sample_names = gvcf_sample_names
         self.gvcf_external_header = gvcf_external_header
         self.gvcf_import_intervals = gvcf_import_intervals
-        self.gvcf_info_to_keep = gvcf_info_to_keep
-        self.gvcf_reference_entry_fields_to_keep = gvcf_reference_entry_fields_to_keep
+        self.gvcf_info_to_keep = set(gvcf_info_to_keep) if gvcf_info_to_keep is not None \
+            else None
+        self.gvcf_reference_entry_fields_to_keep = set(gvcf_reference_entry_fields_to_keep) \
+            if gvcf_reference_entry_fields_to_keep is not None else None
+
         self._uuid = uuid.uuid4()
         self._job_id = 1
         self.__intervals_cache = {}
@@ -215,8 +218,11 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                 'gvcf_batch_size': self.gvcf_batch_size,
                 'gvcf_external_header': self.gvcf_external_header,  # put this here for humans
                 'contig_recoding': self.contig_recoding,
-                'gvcf_info_to_keep': self.gvcf_info_to_keep,
-                'gvcf_reference_entry_fields_to_keep': list(self.gvcf_reference_entry_fields_to_keep),
+                'gvcf_info_to_keep': None if self.gvcf_info_to_keep is None
+                else list(self.gvcf_info_to_keep),
+                'gvcf_reference_entry_fields_to_keep': None
+                if self.gvcf_reference_entry_fields_to_keep is None
+                else list(self.gvcf_reference_entry_fields_to_keep),
                 'vdses': [md for i in sorted(self.vdses, reverse=True) for md in self.vdses[i]],
                 'gvcfs': self.gvcfs,
                 'gvcf_sample_names': self.gvcf_sample_names,
