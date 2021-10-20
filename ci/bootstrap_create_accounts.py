@@ -27,9 +27,9 @@ async def insert_user_if_not_exists(app, username, email, is_developer, is_servi
                 return None
             return row['id']
 
-        hail_identity_secret_name = f'{username}-gsa-key'
+        hail_credentials_secret_name = f'{username}-gsa-key'
 
-        secret = await k8s_client.read_namespaced_secret(hail_identity_secret_name, DEFAULT_NAMESPACE)
+        secret = await k8s_client.read_namespaced_secret(hail_credentials_secret_name, DEFAULT_NAMESPACE)
         credentials_json = base64.b64decode(secret.data['key.json']).decode()
         credentials = json.loads(credentials_json)
 
@@ -46,7 +46,7 @@ async def insert_user_if_not_exists(app, username, email, is_developer, is_servi
 
         return await tx.execute_insertone(
             '''
-    INSERT INTO users (state, username, email, is_developer, is_service_account, hail_identity, hail_identity_secret_name, namespace_name)
+    INSERT INTO users (state, username, email, is_developer, is_service_account, hail_identity, hail_credentials_secret_name, namespace_name)
     VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
     ''',
             (
@@ -56,7 +56,7 @@ async def insert_user_if_not_exists(app, username, email, is_developer, is_servi
                 is_developer,
                 is_service_account,
                 hail_identity,
-                hail_identity_secret_name,
+                hail_credentials_secret_name,
                 namespace_name,
             ),
         )

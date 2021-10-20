@@ -10,7 +10,7 @@ CREATE TABLE `users` (
   `tokens_secret_name` varchar(255) DEFAULT NULL,
   -- identity
   `hail_identity` varchar(255) DEFAULT NULL,
-  `hail_identity_secret_name` varchar(255) DEFAULT NULL,
+  `hail_credentials_secret_name` varchar(255) DEFAULT NULL,
   -- azure
   `azure_application_id` varchar(255) DEFAULT NULL,
   `azure_credentials_secret_name` varchar(255) DEFAULT NULL,

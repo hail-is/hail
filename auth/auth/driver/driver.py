@@ -457,15 +457,15 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
             secret_data = json.dumps(credentials)
             updates['hail_identity'] = azure_app_id
 
-        hail_identity_secret_name = f'{ident}-gsa-key'
+        hail_credentials_secret_name = f'{ident}-gsa-key'
         hail_identity_secret = K8sSecretResource(k8s_client)
         cleanup.append(hail_identity_secret.delete)
         await hail_identity_secret.create(
-            hail_identity_secret_name,
+            hail_credentials_secret_name,
             DEFAULT_NAMESPACE,
             {'key.json': secret_data},
         )
-        updates['hail_identity_secret_name'] = hail_identity_secret_name
+        updates['hail_credentials_secret_name'] = hail_credentials_secret_name
 
     namespace_name = user['namespace_name']
     if namespace_name is None and user['is_developer'] == 1:
@@ -545,9 +545,9 @@ async def delete_user(app, user):
             azure_sp = AzureServicePrincipalResource(identity_client, hail_identity)
             await azure_sp.delete()
 
-    hail_identity_secret_name = user['hail_identity_secret_name']
-    if hail_identity_secret_name is not None:
-        hail_identity_secret = K8sSecretResource(k8s_client, hail_identity_secret_name, DEFAULT_NAMESPACE)
+    hail_credentials_secret_name = user['hail_credentials_secret_name']
+    if hail_credentials_secret_name is not None:
+        hail_identity_secret = K8sSecretResource(k8s_client, hail_credentials_secret_name, DEFAULT_NAMESPACE)
         await hail_identity_secret.delete()
 
     namespace_name = user['namespace_name']

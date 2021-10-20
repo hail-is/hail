@@ -633,7 +633,7 @@ async def create_jobs(request, userdata):
     # which is sensitive
     userdata = {
         'username': user,
-        'hail_identity_secret_name': userdata['hail_identity_secret_name'],
+        'hail_credentials_secret_name': userdata['hail_credentials_secret_name'],
         'tokens_secret_name': userdata['tokens_secret_name'],
     }
 
@@ -798,7 +798,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 secrets.append(
                     {
                         'namespace': DEFAULT_NAMESPACE,
-                        'name': userdata['hail_identity_secret_name'],
+                        'name': userdata['hail_credentials_secret_name'],
                         'mount_path': '/gsa-key',
                         'mount_in_copy': True,
                     }
@@ -1024,7 +1024,7 @@ async def create_batch(request, userdata):
     # which is sensitive
     userdata = {
         'username': user,
-        'hail_identity_secret_name': userdata['hail_identity_secret_name'],
+        'hail_credentials_secret_name': userdata['hail_credentials_secret_name'],
         'tokens_secret_name': userdata['tokens_secret_name'],
     }
 
