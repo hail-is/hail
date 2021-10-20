@@ -465,6 +465,8 @@ def new_combiner(*,
         saved_combiner = maybe_load_from_saved_path(save_path)
         if saved_combiner is not None:
             return saved_combiner
+        else:
+            warning(f'generated combiner save path of {save_path}')
 
     if vds_sample_counts:
         vdses = [VDSMetadata(path, n_samples) for path, n_samples in zip(vds_paths, vds_sample_counts)]
