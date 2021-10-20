@@ -20,6 +20,8 @@ ip=$(az vm create \
     --name bootstrap-vm \
     --resource-group $RESOURCE_GROUP \
     --image Canonical:UbuntuServer:18.04-LTS:latest \
+    --vnet-name default \
+    --subnet batch-worker-subnet \
     --public-ip-sku Standard \
     --assign-identity $TERRAFORM_PRINCIPAL_ID \
     --os-disk-size 200 \

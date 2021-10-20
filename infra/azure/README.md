@@ -26,7 +26,24 @@ more than once).
 
 ```
 ./create_terraform_identity.sh <RESOURCE_GROUP>
+./bootstrap.sh setup_az <RESOURCE_GROUP> # FIXME use service principal
 ```
+
+Create a `global.tfvars` file with the necessary variables
+from $HAIL/infra/azure/variables.tf.
+
+To setup and run the terraform, run
+
+```
+./bootstrap.sh run_azure_terraform <RESOURCE_GROUP>
+./bootstrap.sh run_k8s_terraform <RESOURCE_GROUP>
+```
+
+Once terraform has completed successfully, note the `gateway_ip` in the
+output and create an A record for the domain of your choosing for that
+IP with a DNS provider.
+
+## Bootstrap the cluster
 
 We'll complete the rest of the process on a VM. To create one, run
 
@@ -57,20 +74,6 @@ for Docker can be applied). In the $HAIL/infra/azure directory, run
 
 to download and authenticate with the azure CLI.
 
-Create a `global.tfvars` file with the necessary variables
-from $HAIL/infra/azure/variables.tf.
-
-To setup and run the terraform, run
-
-```
-./bootstrap.sh run_azure_terraform <RESOURCE_GROUP>
-./bootstrap.sh run_k8s_terraform <RESOURCE_GROUP>
-```
-
-Once terraform has completed successfully, note the `gateway_ip` in the
-output and create an A record for the domain of your choosing for that
-IP with a DNS provider.
-
 Run the following to authenticate docker and kubectl with the new
 container registry and kubernetes cluster, respectively.
 
@@ -80,6 +83,7 @@ azsetcluster <RESOURCE_GROUP>
 ```
 
 Deploy unmanaged resources by running
+
 ```
 ./bootstrap.sh deploy_unmanaged
 ```
