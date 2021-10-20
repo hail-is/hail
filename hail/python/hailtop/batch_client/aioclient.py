@@ -631,14 +631,12 @@ class BatchClient:
         return BatchClient(
             billing_project=billing_project,
             url=url,
-            deploy_config=deploy_config,
             session=session,
             headers=headers)
 
     def __init__(self,
                  billing_project: str,
                  url: str,
-                 deploy_config: DeployConfig,
                  session: httpx.ClientSession,
                  headers: Dict[str, str]):
         self.billing_project = billing_project
