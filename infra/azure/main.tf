@@ -43,7 +43,6 @@ resource "azurerm_subnet" "k8s_subnet" {
   resource_group_name  = data.azurerm_resource_group.rg.name
   virtual_network_name = azurerm_virtual_network.default.name
 
-  service_endpoints = ["Microsoft.Sql"]
   enforce_private_link_endpoint_network_policies = true
 }
 
@@ -53,7 +52,6 @@ resource "azurerm_subnet" "batch_worker_subnet" {
   resource_group_name  = data.azurerm_resource_group.rg.name
   virtual_network_name = azurerm_virtual_network.default.name
 
-  service_endpoints = ["Microsoft.Sql"]
   enforce_private_link_endpoint_network_policies = true
 }
 
@@ -169,53 +167,25 @@ resource "azurerm_mysql_server" "db" {
   storage_mb = 5120
 
   ssl_enforcement_enabled       = true
-  # public_network_access_enabled = false
+  public_network_access_enabled = false
 }
 
 data "http" "db_ca_cert" {
   url = "https://www.digicert.com/CACerts/BaltimoreCyberTrustRoot.crt.pem"
 }
 
-# resource "azurerm_private_endpoint" "db_k8s_endpoint" {
-#   name                = "${azurerm_mysql_server.db.name}-k8s-endpoint"
-#   resource_group_name = data.azurerm_resource_group.rg.name
-#   location            = data.azurerm_resource_group.rg.location
-#   subnet_id           = azurerm_subnet.k8s_subnet.id
-
-#   private_service_connection {
-#     name                           = "${azurerm_mysql_server.db.name}-k8s-endpoint"
-#     private_connection_resource_id = azurerm_mysql_server.db.id
-#     subresource_names              = [ "mysqlServer" ]
-#     is_manual_connection           = false
-#   }
-# }
-
-# resource "azurerm_private_endpoint" "db_batch_worker_endpoint" {
-#   name                = "${azurerm_mysql_server.db.name}-batch-worker-endpoint"
-#   resource_group_name = data.azurerm_resource_group.rg.name
-#   location            = data.azurerm_resource_group.rg.location
-#   subnet_id           = azurerm_subnet.batch_worker_subnet.id
-
-#   private_service_connection {
-#     name                           = "${azurerm_mysql_server.db.name}-batch-worker-endpoint"
-#     private_connection_resource_id = azurerm_mysql_server.db.id
-#     subresource_names              = [ "mysqlServer" ]
-#     is_manual_connection           = false
-#   }
-# }
-
-resource "azurerm_mysql_virtual_network_rule" "k8s_db_vnet_rule" {
-  name                = "k8s-db-vnet-rule"
+resource "azurerm_private_endpoint" "db_k8s_endpoint" {
+  name                = "${azurerm_mysql_server.db.name}-k8s-endpoint"
   resource_group_name = data.azurerm_resource_group.rg.name
-  server_name         = azurerm_mysql_server.db.name
+  location            = data.azurerm_resource_group.rg.location
   subnet_id           = azurerm_subnet.k8s_subnet.id
-}
 
-resource "azurerm_mysql_virtual_network_rule" "batch_worker_db_vnet_rule" {
-  name                = "batch-worker-db-vnet-rule"
-  resource_group_name = data.azurerm_resource_group.rg.name
-  server_name         = azurerm_mysql_server.db.name
-  subnet_id           = azurerm_subnet.batch_worker_subnet.id
+  private_service_connection {
+    name                           = "${azurerm_mysql_server.db.name}-k8s-endpoint"
+    private_connection_resource_id = azurerm_mysql_server.db.id
+    subresource_names              = [ "mysqlServer" ]
+    is_manual_connection           = false
+  }
 }
 
 resource "tls_private_key" "db_client_key" {
