@@ -494,31 +494,6 @@ object PruneDeadFields {
           rowType = depRowType.asInstanceOf[TStruct],
           globalType = depGlobalType.asInstanceOf[TStruct])
         memoizeTableIR(child, dep, memo)
-      case TableMapPartitions2(leftChild, rightChild, gName, lName, rName, body, offset) =>
-        val reqRowsType = TStream(requestedType.rowType)
-        val bodyDep = memoizeValueIR(body, reqRowsType, memo)
-        val depGlobalType = unifySeq(leftChild.typ.globalType,
-          bodyDep.eval.lookupOption(gName).map(_.result()).getOrElse(Array()) :+ requestedType.globalType)
-
-        val depLeftRowType = unifySeq(leftChild.typ.rowType,
-          bodyDep.eval.lookupOption(lName)
-            .map(_.result().map(_.asInstanceOf[TStream].elementType))
-            .getOrElse(Array()))
-        val depLeft = TableType(
-          key = requestedType.key,
-          rowType = depLeftRowType.asInstanceOf[TStruct],
-          globalType = depGlobalType.asInstanceOf[TStruct])
-        memoizeTableIR(leftChild, depLeft, memo)
-
-        val depRightRowType = unifySeq(rightChild.typ.rowType,
-          bodyDep.eval.lookupOption(rName)
-            .map(_.result().map(_.asInstanceOf[TStream].elementType))
-            .getOrElse(Array()))
-        val depRight = TableType(
-          key = FastIndexedSeq(),
-          rowType = depRightRowType.asInstanceOf[TStruct],
-          globalType = TStruct())
-        memoizeTableIR(rightChild, depRight, memo)
       case TableMapRows(child, newRow) =>
         val rowDep = memoizeAndGetDep(newRow, requestedType.rowType, child.typ, memo)
         val dep = TableType(
@@ -1586,19 +1561,6 @@ object PruneDeadFields {
         else
           child2
         TableMapPartitions(child2Keyed, gName, pName, body2)
-      case TableMapPartitions2(leftChild, rightChild, gName, lName, rName, body, offset) =>
-        val leftChild2 = rebuild(leftChild, memo)
-        val rightChild2 = rebuild(rightChild, memo)
-        val body2 = rebuildIR(body, BindingEnv(Env(
-          gName -> leftChild2.typ.globalType,
-          lName -> TStream(leftChild2.typ.rowType),
-          rName -> TStream(rightChild2.typ.rowType))), memo)
-        val body2ElementType = body2.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
-        val leftChild2Keyed = if (leftChild2.typ.key.exists(k => !body2ElementType.hasField(k)))
-          TableKeyBy(leftChild2, leftChild2.typ.key.takeWhile(body2ElementType.hasField))
-        else
-          leftChild2
-        TableMapPartitions2(leftChild2Keyed, rightChild2, gName, lName, rName, body2, offset)
       case TableMapRows(child, newRow) =>
         val child2 = rebuild(child, memo)
         val newRow2 = rebuildIR(newRow, BindingEnv(child2.typ.rowEnv, scan = Some(child2.typ.rowEnv)), memo)

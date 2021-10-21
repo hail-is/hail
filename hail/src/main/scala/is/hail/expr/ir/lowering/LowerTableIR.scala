@@ -1146,16 +1146,6 @@ object LowerTableIR {
             Let(globalName, loweredChild.globals, Let(partitionStreamName, part, body))
           }
 
-        case TableMapPartitions2(leftChild, rightChild, globalName, leftStreamName, rightStreamName, body, offset) =>
-          val loweredLeftChild = lower(leftChild)
-          val loweredRightChild = lower(rightChild)
-          loweredLeftChild.zipPartitions(loweredRightChild, (l, r) => l, { (leftPart, rightPart) =>
-            Let(globalName, loweredLeftChild.globals,
-              Let(leftStreamName, leftPart,
-                Let(rightStreamName, rightPart,
-                  body)))
-          })
-
         case TableLiteral(typ, rvd, enc, encodedGlobals) =>
           RVDToTableStage(rvd, EncodedLiteral(enc, encodedGlobals))
 

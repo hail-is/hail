@@ -2903,15 +2903,6 @@ class IRSuite extends HailSuite {
             "a" -> GetField(Ref("row", read.typ.rowType), "f32"),
             "b" -> F64(-2.11)))),
         TableMapPartitions(TableKeyBy(read, FastIndexedSeq()), "g", "rs", StreamTake(Ref("rs", TStream(read.typ.rowType)), 1)),
-        TableMapPartitions2(
-          TableKeyBy(read, FastIndexedSeq()),
-          TableKeyBy(read, FastIndexedSeq()),
-          "g", "ls", "rs",
-          StreamZip(FastIndexedSeq(
-            Ref("ls", TStream(read.typ.rowType)), Ref("rs", TStream(read.typ.rowType))),
-            FastIndexedSeq("l", "r"),
-            MakeTuple.ordered(FastIndexedSeq(Ref("l", read.typ.rowType), Ref("r", read.typ.rowType))),
-            ArrayZipBehavior.AssumeSameLength), 0),
         TableMapGlobals(read,
           MakeStruct(FastIndexedSeq(
             "foo" -> NA(TArray(TInt32))))),

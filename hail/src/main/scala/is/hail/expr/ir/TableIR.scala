@@ -1976,34 +1976,6 @@ case class TableMapPartitions(child: TableIR,
   }
 }
 
-case class TableMapPartitions2(
-  leftChild: TableIR,
-  rightChild: TableIR,
-  globalName: String,
-  leftPartitionStreamName: String,
-  rightPartitionStreamName: String,
-  body: IR,
-  offset: Int
-) extends TableIR {
-  assert(body.typ.isInstanceOf[TStream], s"${ body.typ }")
-  lazy val typ = leftChild.typ.copy(
-    rowType = body.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct])
-
-  lazy val children: IndexedSeq[BaseIR] = Array(leftChild, rightChild, body)
-
-  val rowCountUpperBound: Option[Long] = None
-
-  override def copy(newChildren: IndexedSeq[BaseIR]): TableMapPartitions2 = {
-    assert(newChildren.length == 3)
-    TableMapPartitions2(
-      newChildren(0).asInstanceOf[TableIR],
-      newChildren(1).asInstanceOf[TableIR],
-      globalName, leftPartitionStreamName, rightPartitionStreamName,
-      newChildren(2).asInstanceOf[IR],
-      offset)
-  }
-}
-
 // Must leave key fields unchanged.
 case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
   val children: IndexedSeq[BaseIR] = Array(child, newRow)

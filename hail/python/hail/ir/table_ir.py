@@ -232,48 +232,6 @@ class TableMapPartitions(TableIR):
         return self.global_name == other.global_name and self.partition_stream_name == other.partition_stream_name
 
 
-class TableMapPartitions2(TableIR):
-    def __init__(self, leftChild, rightChild, global_name, left_stream_name, right_stream_name, body):
-        super().__init__(leftChild, rightChild, body)
-        self.leftChild = leftChild
-        self.rightChild = rightChild
-        self.global_name = global_name
-        self.left_stream_name = left_stream_name
-        self.right_stream_name = right_stream_name
-        self.body = body
-
-    def _compute_type(self):
-        self.body._compute_type({self.global_name: self.leftChild.typ.global_type,
-                                 self.left_stream_name: hl.tstream(self.leftChild.typ.row_type),
-                                 self.right_stream_name: hl.tstream(self.rightChild.typ.row_type)},
-                                {})
-        assert isinstance(self.body.typ, hl.tstream) and isinstance(self.body.typ.element_type, hl.tstruct)
-        new_row_type = self.body.typ.element_type
-        for k in self.leftChild.typ.row_key:
-            assert k in new_row_type
-        self._type = hl.ttable(self.leftChild.typ.global_type,
-                               new_row_type,
-                               self.leftChild.typ.row_key)
-
-    def renderable_bindings(self, i, default_value=None):
-        if i == 2:
-            return {self.global_name: self.leftChild.typ.global_type if default_value is None else default_value,
-                    self.left_stream_name: hl.tstream(
-                        self.leftChild.typ.row_type) if default_value is None else default_value,
-                    self.right_stream_name: hl.tstream(
-                        self.rightChild.typ.row_type) if default_value is None else default_value}
-        else:
-            return {}
-
-    def head_str(self):
-        return f'{escape_id(self.global_name)} {escape_id(self.left_stream_name)} {escape_id(self.right_stream_name)}'
-
-    def _eq(self, other):
-        return (self.global_name == other.global_name
-                and self.left_stream_name == other.left_stream_name
-                and self.right_stream_name == other.right_stream_name)
-
-
 class TableRead(TableIR):
     def __init__(self, reader, drop_rows=False):
         super().__init__()

@@ -1635,16 +1635,6 @@ object IRParser {
           child <- table_ir(env)(it)
           body <- ir_value_expr(env ++ Array((globalsName, child.typ.globalType), (partitionStreamName, TStream(child.typ.rowType))))(it)
         } yield TableMapPartitions(child, globalsName, partitionStreamName, body)
-      case "TableMapPartitions2" =>
-        val globalsName = identifier(it)
-        val leftStreamName = identifier(it)
-        val rightStreamName = identifier(it)
-        val offset = int32_literal(it)
-        for {
-          leftChild <- table_ir(env)(it)
-          rightChild <- table_ir(env)(it)
-          body <- ir_value_expr(env ++ Array((globalsName, leftChild.typ.globalType), (leftStreamName, TStream(leftChild.typ.rowType)), (rightStreamName, TStream(rightChild.typ.rowType))))(it)
-        } yield TableMapPartitions2(leftChild, rightChild, globalsName, leftStreamName, rightStreamName, body, offset)
       case "RelationalLetTable" =>
         val name = identifier(it)
         for {
