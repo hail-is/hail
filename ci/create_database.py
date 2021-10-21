@@ -52,6 +52,7 @@ async def create_database():
     with open('/sql-config/sql-config.json', 'r') as f:
         sql_config = SQLConfig.from_json(f.read())
 
+    cloud = create_database_config.get('cloud', 'gcp')
     namespace = create_database_config['namespace']
     database_name = create_database_config['database_name']
     cant_create_database = create_database_config['cant_create_database']
@@ -99,6 +100,13 @@ GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}
 '''
     )
 
+    # Azure MySQL requires that usernames follow username@servername format
+    if cloud == 'azure':
+        config_admin_username = admin_username + '@' + sql_config.instance
+        config_user_username = admin_username + '@' + sql_config.instance
+    else:
+        config_admin_username = admin_username
+        config_user_username = user_username
     await write_user_config(
         namespace,
         database_name,
@@ -107,7 +115,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}
             host=sql_config.host,
             port=sql_config.port,
             instance=sql_config.instance,
-            user=admin_username,
+            user=config_admin_username,
             password=admin_password,
             db=_name,
             ssl_ca=sql_config.ssl_ca,
@@ -125,7 +133,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}
             host=sql_config.host,
             port=sql_config.port,
             instance=sql_config.instance,
-            user=user_username,
+            user=config_user_username,
             password=user_password,
             db=_name,
             ssl_ca=sql_config.ssl_ca,

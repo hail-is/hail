@@ -97,6 +97,7 @@ Finally, run the following to deploy Hail in the cluster.
 ```
 download-secret global-config && sudo cp -r contents /global-config
 download-secret zulip-config && sudo cp -r contents /zulip-config
+download-secret database-server-config && sudo cp -r contents /sql-config
 cd ~/hail/infra/azure
 ./bootstrap.sh bootstrap <REPO>/hail:<BRANCH> deploy_batch
 ```
