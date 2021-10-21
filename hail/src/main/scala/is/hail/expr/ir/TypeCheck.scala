@@ -176,6 +176,7 @@ object TypeCheck {
         val matTyp = TNDArray(TFloat64, Nat(2))
         assert(structTyp.field(newChunk).typ == matTyp)
         assert(structTyp.field(prevWindow).typ == matTyp)
+        assert(windowSize % chunkSize == 0)
       case x@ArrayZeros(length) =>
         assert(length.typ == TInt32)
       case x@MakeNDArray(data, shape, rowMajor, _) =>
