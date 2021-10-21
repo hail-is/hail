@@ -114,7 +114,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         self.contig_recoding = contig_recoding
         self.vdses = collections.defaultdict(list)
         for vds in vdses:
-            self.vdses[floor(log(vds.n_samples, self.branch_factor))].append(vds)
+            self.vdses[max(1, floor(log(vds.n_samples, self.branch_factor)))].append(vds)
         self.gvcfs = gvcfs
         self.gvcf_sample_names = gvcf_sample_names
         self.gvcf_external_header = gvcf_external_header
@@ -184,7 +184,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
 
         vds_samples = sum(vds.n_samples for vdses in self.vdses.values() for vds in vdses)
         info('Running VDS combiner:\n'
-             f'    VDS arguments: {len(self.vdses)} datasets with {vds_samples} samples\n'
+             f'    VDS arguments: {self._num_vdses} datasets with {vds_samples} samples\n'
              f'    GVCF arguments: {len(self.gvcfs)} inputs/samples\n'
              f'    Branch factor: {self.branch_factor}\n'
              f'    GVCF merge batch size: {self.gvcf_batch_size}')
@@ -244,7 +244,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
             self._job_id += 1
 
     def _step_vdses(self):
-        current_bin = min(self.vdses)
+        current_bin = original_bin = min(self.vdses)
         files_to_merge = self.vdses[current_bin][:self.branch_factor]
         if len(files_to_merge) == len(self.vdses[current_bin]):
             del self.vdses[current_bin]
@@ -290,6 +290,10 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         new_path = os.path.join(temp_path, 'dataset.vds')
         combined.write(new_path, overwrite=True)
         new_bin = floor(log(new_n_samples, self.branch_factor))
+        # this ensures that we don't somehow stick a vds at the end of
+        # the same bin, ending up with a weird ordering issue
+        if new_bin <= original_bin:
+            new_bin = original_bin + 1
         self.vdses[new_bin].append(VDSMetadata(path=new_path, n_samples=new_n_samples))
 
     def _step_gvcfs(self):
@@ -333,7 +337,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         paths = [md.path for md in merge_metadata]
         hl.vds.write_variant_datasets(merge_vds, paths, overwrite=True)
         for md in merge_metadata:
-            self.vdses[floor(log(md.n_samples, self.branch_factor))].append(md)
+            self.vdses[max(1, floor(log(md.n_samples, self.branch_factor)))].append(md)
 
     def _temp_out_path(self, extra):
         return os.path.join(self.temp_path, 'combiner-intermediates', f'{self._uuid}_{extra}')
