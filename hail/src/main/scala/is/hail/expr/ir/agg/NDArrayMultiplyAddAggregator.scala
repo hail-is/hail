@@ -52,10 +52,10 @@ class NDArrayMultiplyAddAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAgg
               val shape = IndexedSeq(NDArrayA.shapes(0), NDArrayB.shapes(1))
               val uninitializedNDArray = ndTyp.constructUnintialized(shape, ndTyp.makeColumnMajorStrides(shape, cb), cb, tempRegionForCreation)
               state.storeNonmissing(cb, uninitializedNDArray)
-              SNDArray.gemm(cb, "N", "N", const(1.0), NDArrayA, NDArrayB, const(0.0), uninitializedNDArray)
+              SNDArray.gemm(cb, "N", "N", NDArrayA, NDArrayB, uninitializedNDArray)
             },
             { currentNDPValue =>
-              SNDArray.gemm(cb, "N", "N", NDArrayA, NDArrayB, currentNDPValue.asNDArray)
+              SNDArray.gemm(cb, "N", "N", const(1.0), NDArrayA, NDArrayB, const(1.0), currentNDPValue.asNDArray)
             }
           )
           cb += tempRegionForCreation.clearRegion()

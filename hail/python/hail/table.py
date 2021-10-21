@@ -3523,21 +3523,6 @@ class Table(ExprContainer):
         body_ir = ir.Let('global', ir.Ref(globals_uid), ir.ToStream(body._ir))
         return Table(ir.TableMapPartitions(self._tir, globals_uid, rows_uid, body_ir))
 
-    @typecheck_method(other=table_type, f=func_spec(2, expr_array(expr_struct())))
-    def _map_partitions2(self, other, f):
-        left_rows_uid = 'tmp_rows_left_' + Env.get_uid()
-        right_rows_uid = 'tmp_rows_right_' + Env.get_uid()
-        globals_uid = 'tmp_globals_' + Env.get_uid()
-        left_expr = construct_expr(ir.ToArray(ir.Ref(left_rows_uid)), hl.tarray(self.row.dtype), self._row_indices)
-        right_expr = construct_expr(ir.ToArray(ir.Ref(right_rows_uid)), hl.tarray(other.row.dtype), other._row_indices)
-        body = f(left_expr, right_expr)
-        result_t = body.dtype
-        if any(k not in result_t.element_type for k in self.key):
-            raise ValueError('Table._map_partitions2 must preserve key fields on the left')
-
-        body_ir = ir.Let('global', ir.Ref(globals_uid), ir.ToStream(body._ir))
-        return Table(ir.TableMapPartitions2(self._tir, other._tir, globals_uid, left_rows_uid, right_rows_uid, body_ir))
-
     def _calculate_new_partitions(self, n_partitions):
         """returns a set of range bounds that can be passed to write"""
         return Env.backend().execute(ir.TableToValueApply(

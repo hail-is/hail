@@ -3058,7 +3058,7 @@ class IRSuite extends HailSuite {
       "aa" -> TArray(TArray(TInt32)),
       "da" -> TArray(TTuple(TInt32, TString)),
       "st" -> TStream(TInt32),
-      "whitenStream" -> TStream(TTuple(TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)))),
+      "whitenStream" -> TStream(TStruct(("prevWindow" -> TNDArray(TFloat64, Nat(2))), ("newChunk" -> TNDArray(TFloat64, Nat(2))))),
       "mat" -> TNDArray(TFloat64, Nat(2)),
       "sta" -> TStream(TArray(TInt32)),
       "std" -> TStream(TTuple(TInt32, TString)),
