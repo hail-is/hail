@@ -1498,7 +1498,7 @@ class StreamWhiten(IR):
         self.chunk_size = chunk_size
         self.block_size = block_size
 
-    @typecheck_method(stream=IR, prev_window=IR)
+    @typecheck_method(stream=IR)
     def copy(self, stream):
         return StreamWhiten(stream, self.new_chunk, self.prev_window, self.vec_size, self.window_size, self.chunk_size, self.block_size)
 
