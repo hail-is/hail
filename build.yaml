@@ -2392,7 +2392,7 @@ steps:
       from hailtop.utils import async_to_blocking
       from hailtop.batch_client.aioclient import BatchClient
       async def create(billing_project, user, limit=None):
-          bc = BatchClient(None)
+          bc = await BatchClient.create(None)
           try:
               try:
                   await bc.create_billing_project(billing_project)
