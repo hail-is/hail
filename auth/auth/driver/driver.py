@@ -640,7 +640,10 @@ async def async_main():
                     await app['db_instance_pool'].async_close()
             finally:
                 try:
-                    if user_creation_loop is not None:
-                        user_creation_loop.shutdown()
+                    await app['client_session'].close()
                 finally:
-                    await app['identity_client'].close()
+                    try:
+                        if user_creation_loop is not None:
+                            user_creation_loop.shutdown()
+                    finally:
+                        await app['identity_client'].close()
