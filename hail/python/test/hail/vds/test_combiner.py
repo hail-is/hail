@@ -114,7 +114,7 @@ def test_combiner_run():
 
     parts = hl.eval([hl.parse_locus_interval('chr22:start-end', reference_genome='GRCh38')])
 
-    for input_gvcf, path, sample in zip(input_paths[:2], final_paths_individual[:2], samples[:2]):
+    for input_gvcf, path in zip(input_paths[:2], final_paths_individual[:2]):
         combiner = hl.vds.new_combiner(output_path=path, intervals=parts,
                                        temp_path=tmpdir,
                                        gvcf_paths=[input_gvcf],
@@ -126,7 +126,6 @@ def test_combiner_run():
                                    reference_genome='GRCh38',
                                    branch_factor=2, batch_size=2)
     combiner.run()
-
 
     combiner2 = hl.vds.new_combiner(output_path=final_path_2, intervals=parts, temp_path=tmpdir,
                                     gvcf_paths=input_paths,
