@@ -2,13 +2,12 @@ from typing import Optional
 
 from gear.cloud_config import get_gcp_config, get_global_config
 
-from . import aiogoogle, aioazure
+from hailtop.aiocloud import aiogoogle, aioazure
 
 
 def get_identity_client(credentials_file: Optional[str] = None):
-    # FIXME: rename '/gsa-key/key.json' with a name that is cloud-agnostic
     if credentials_file is None:
-        credentials_file = '/gsa-key/key.json'
+        credentials_file = '/hail-batch-job-credentials/key.json'
 
     cloud = get_global_config['cloud']
     if cloud == 'gcp':

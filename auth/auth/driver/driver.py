@@ -11,9 +11,9 @@ from hailtop.utils import time_msecs, secret_alnum_string
 from hailtop.auth.sql_config import create_secret_data_from_config, SQLConfig
 from hailtop import aiotools
 from hailtop import batch_client as bc, httpx
-from hailtop.aiocloud import get_identity_client
 from gear import create_session, Database
 from gear.cloud_config import get_gcp_config, get_global_config
+from gear.clients import get_identity_client
 
 log = logging.getLogger('auth.driver')
 
@@ -176,40 +176,36 @@ class GSAResource:
 
 
 class AzureServicePrincipalResource:
-    def __init__(self, graph_client, display_name=None):
+    def __init__(self, graph_client, app_id=None):
         self.graph_client = graph_client
-        self.display_name = display_name
-
-    async def _get_applications_by_display_name(self, display_name):
-        # possible to have multiple applications with the same display name in Azure
-        params = {
-            '$filter': f"displayName eq '{display_name}'"
-        }
-        applications = await self.graph_client.get('/applications', params=params)
-        return applications['value']
+        self.app_id = app_id
 
     async def create(self, username):
-        assert self.display_name is None
+        assert self.app_id is None
 
-        display_name = username
-        await self._delete(display_name)
+        params = {
+            '$filter': f"displayName eq '{username}'"
+        }
+        applications = await self.graph_client.get('/applications', params=params)
+        for application in applications['value']:
+            await self._delete(application['appId'])
 
         config = {
-            'displayName': display_name,
+            'displayName': username,
             'signInAudience': 'AzureADMyOrg'
         }
         application = await self.graph_client.post('/applications', json=config)
+
+        self.app_id = application['appId']
 
         config = {
             'appId': application['appId']
         }
         service_principal = await self.graph_client.post('/servicePrincipals', json=config)
 
-        assert application['appId'] == service_principal['appId']
+        assert self.app_id == service_principal['appId']
 
         password = await self.graph_client.post(f'/applications/{application["id"]}/addPassword', json={})
-
-        self.display_name = service_principal['displayName']
 
         credentials = {
             'appId': service_principal['appId'],
@@ -217,20 +213,25 @@ class AzureServicePrincipalResource:
             'name': service_principal['servicePrincipalNames'][0],
             'password': password['secretText'],
             'tenant': service_principal['appOwnerOrganizationId'],
+            'objectId': service_principal['id'],
         }
 
-        return (self.display_name, credentials)
+        return (self.app_id, credentials)
 
-    async def _delete(self, display_name):
-        existing_apps = await self._get_applications_by_display_name(display_name)
-        for app in existing_apps:
-            await self.graph_client.delete(f'/applications/{app["appId"]}')
+    async def _delete(self, app_id):
+        try:
+            await self.graph_client.delete(f'/applications/{app_id}')
+        except aiohttp.ClientResponseError as e:
+            if e.status == 404:
+                pass
+            else:
+                raise
 
     async def delete(self):
-        if self.display_name is None:
+        if self.app_id is None:
             return
-        await self._delete(self.display_name)
-        self.display_name = None
+        await self._delete(self.app_id)
+        self.app_id = None
 
 
 class DatabaseResource:

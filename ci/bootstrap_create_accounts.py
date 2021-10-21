@@ -2,10 +2,10 @@ import os
 import base64
 import json
 import kubernetes_asyncio as kube
-from hailtop.aiocloud import aiogoogle, get_identity_client
 from hailtop.utils import async_to_blocking
 from gear import Database, transaction
 from gear.cloud_config import get_gcp_config, get_global_config
+from gear.clients import get_identity_client
 
 from auth.driver.driver import create_user
 
@@ -37,7 +37,7 @@ async def insert_user_if_not_exists(app, username, email, is_developer, is_servi
             hail_identity = credentials['client_email']
         else:
             assert CLOUD == 'azure'
-            hail_identity = credentials['displayName']
+            hail_identity = credentials['appId']
 
         if is_developer and SCOPE != 'deploy':
             namespace_name = DEFAULT_NAMESPACE

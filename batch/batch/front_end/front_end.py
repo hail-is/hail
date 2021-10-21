@@ -795,11 +795,22 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         raise web.HTTPBadRequest(reason=f'unauthorized secret {(secret["namespace"], secret["name"])}')
 
                 spec['secrets'] = secrets
+
+                # backwards compatibility
                 secrets.append(
                     {
                         'namespace': DEFAULT_NAMESPACE,
                         'name': userdata['hail_credentials_secret_name'],
                         'mount_path': '/gsa-key',
+                        'mount_in_copy': True,
+                    }
+                )
+
+                secrets.append(
+                    {
+                        'namespace': DEFAULT_NAMESPACE,
+                        'name': userdata['hail_credentials_secret_name'],
+                        'mount_path': '/hail-batch-job-credentials',
                         'mount_in_copy': True,
                     }
                 )
