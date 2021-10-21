@@ -9,7 +9,7 @@ def get_identity_client(credentials_file: Optional[str] = None):
     if credentials_file is None:
         credentials_file = '/hail-batch-job-credentials/key.json'
 
-    cloud = get_global_config['cloud']
+    cloud = get_global_config()['cloud']
     if cloud == 'gcp':
         project = get_gcp_config().project
         return aiogoogle.GoogleIAmClient(
