@@ -7,7 +7,7 @@ from hailtop.aiocloud import aiogoogle, aioazure
 
 def get_identity_client(credentials_file: Optional[str] = None):
     if credentials_file is None:
-        credentials_file = '/hail-batch-job-credentials/key.json'
+        credentials_file = '/gsa-key/key.json'
 
     cloud = get_global_config()['cloud']
     if cloud == 'gcp':
