@@ -633,7 +633,7 @@ async def create_jobs(request, userdata):
     # which is sensitive
     userdata = {
         'username': user,
-        'gsa_key_secret_name': userdata['gsa_key_secret_name'],
+        'hail_credentials_secret_name': userdata['hail_credentials_secret_name'],
         'tokens_secret_name': userdata['tokens_secret_name'],
     }
 
@@ -795,10 +795,11 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         raise web.HTTPBadRequest(reason=f'unauthorized secret {(secret["namespace"], secret["name"])}')
 
                 spec['secrets'] = secrets
+
                 secrets.append(
                     {
                         'namespace': DEFAULT_NAMESPACE,
-                        'name': userdata['gsa_key_secret_name'],
+                        'name': userdata['hail_credentials_secret_name'],
                         'mount_path': '/gsa-key',
                         'mount_in_copy': True,
                     }
@@ -1024,7 +1025,7 @@ async def create_batch(request, userdata):
     # which is sensitive
     userdata = {
         'username': user,
-        'gsa_key_secret_name': userdata['gsa_key_secret_name'],
+        'hail_credentials_secret_name': userdata['hail_credentials_secret_name'],
         'tokens_secret_name': userdata['tokens_secret_name'],
     }
 

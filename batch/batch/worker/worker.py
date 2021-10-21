@@ -985,7 +985,7 @@ class Container:
 
 
 def populate_secret_host_path(host_path, secret_data):
-    os.makedirs(host_path)
+    os.makedirs(host_path, exist_ok=True)
     if secret_data is not None:
         for filename, data in secret_data.items():
             with open(f'{host_path}/{filename}', 'wb') as f:

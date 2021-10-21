@@ -2,13 +2,14 @@ import os
 import base64
 import json
 import kubernetes_asyncio as kube
-from hailtop.aiocloud import aiogoogle
 from hailtop.utils import async_to_blocking
 from gear import Database, transaction
-from gear.cloud_config import get_gcp_config
+from gear.cloud_config import get_gcp_config, get_global_config
+from gear.clients import get_identity_client
 
 from auth.driver.driver import create_user
 
+CLOUD = get_global_config()['cloud']
 SCOPE = os.environ['HAIL_SCOPE']
 PROJECT = get_gcp_config().project
 DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
@@ -26,12 +27,17 @@ async def insert_user_if_not_exists(app, username, email, is_developer, is_servi
                 return None
             return row['id']
 
-        gsa_key_secret_name = f'{username}-gsa-key'
+        hail_credentials_secret_name = f'{username}-gsa-key'
 
-        secret = await k8s_client.read_namespaced_secret(gsa_key_secret_name, DEFAULT_NAMESPACE)
-        key_json = base64.b64decode(secret.data['key.json']).decode()
-        key = json.loads(key_json)
-        gsa_email = key['client_email']
+        secret = await k8s_client.read_namespaced_secret(hail_credentials_secret_name, DEFAULT_NAMESPACE)
+        credentials_json = base64.b64decode(secret.data['key.json']).decode()
+        credentials = json.loads(credentials_json)
+
+        if CLOUD == 'gcp':
+            hail_identity = credentials['client_email']
+        else:
+            assert CLOUD == 'azure'
+            hail_identity = credentials['appId']
 
         if is_developer and SCOPE != 'deploy':
             namespace_name = DEFAULT_NAMESPACE
@@ -40,7 +46,7 @@ async def insert_user_if_not_exists(app, username, email, is_developer, is_servi
 
         return await tx.execute_insertone(
             '''
-    INSERT INTO users (state, username, email, is_developer, is_service_account, gsa_email, gsa_key_secret_name, namespace_name)
+    INSERT INTO users (state, username, email, is_developer, is_service_account, hail_identity, hail_credentials_secret_name, namespace_name)
     VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
     ''',
             (
@@ -49,8 +55,8 @@ async def insert_user_if_not_exists(app, username, email, is_developer, is_servi
                 email,
                 is_developer,
                 is_service_account,
-                gsa_email,
-                gsa_key_secret_name,
+                hail_identity,
+                hail_credentials_secret_name,
                 namespace_name,
             ),
         )
@@ -85,9 +91,7 @@ async def main():
     k8s_client = kube.client.CoreV1Api()
     app['k8s_client'] = k8s_client
 
-    app['iam_client'] = aiogoogle.GoogleIAmClient(
-        PROJECT, credentials=aiogoogle.GoogleCredentials.from_file('/auth-gsa-key/key.json')
-    )
+    app['identity_client'] = get_identity_client(credentials_file='/auth-gsa-key/key.json')
 
     for username, email, is_developer, is_service_account in users:
         user_id = await insert_user_if_not_exists(app, username, email, is_developer, is_service_account)

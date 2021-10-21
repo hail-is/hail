@@ -27,12 +27,14 @@ from gear import (
     maybe_parse_bearer_header,
     monitor_endpoints_middleware,
 )
+from gear.cloud_config import get_global_config
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, set_message, render_template
 
 log = logging.getLogger('auth')
 
 uvloop.install()
 
+CLOUD = get_global_config()['cloud']
 GSUITE_ORGANIZATION = os.environ['HAIL_GSUITE_ORGANIZATION']
 
 deploy_config = get_deploy_config()
@@ -286,7 +288,7 @@ async def callback(request):
 @routes.get('/user')
 @web_authenticated_users_only()
 async def user_page(request, userdata):
-    return await render_template('auth', request, userdata, 'user.html', {})
+    return await render_template('auth', request, userdata, 'user.html', {'cloud': CLOUD})
 
 
 async def create_copy_paste_token(db, session_id, max_age_secs=300):
