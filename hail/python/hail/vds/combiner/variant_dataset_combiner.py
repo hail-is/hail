@@ -182,7 +182,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         prev_flag_value = hl._get_flags(flagname).get(flagname)
         hl._set_flags(**{flagname: '1'})
 
-        vds_samples = sum(md.n_samples for md in self.vdses)
+        vds_samples = sum(vds.n_samples for vdses in self.vdses.values() for vds in vdses)
         info('Running VDS combiner:\n'
              f'    VDS arguments: {len(self.vdses)} datasets with {vds_samples} samples\n'
              f'    GVCF arguments: {len(self.gvcfs)} inputs/samples\n'
@@ -266,8 +266,8 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         info(f'VDS Combine (job {self._job_id}): merging {len(files_to_merge)} datasets with {new_n_samples} samples')
 
         temp_path = self._temp_out_path(f'vds-combine_job{self._job_id}')
-        largest_vds = max((vds.path for vds in files_to_merge), key=lambda vds: vds.n_samples)
-        vds = hl.vds.read_vds(largest_vds)
+        largest_vds = max(files_to_merge, key=lambda vds: vds.n_samples)
+        vds = hl.vds.read_vds(largest_vds.path)
 
         interval_bin = floor(log(new_n_samples, self.branch_factor))
         intervals, intervals_dtype = self.__intervals_cache.get(interval_bin, (None, None))
