@@ -134,3 +134,25 @@ def test_combiner_run():
     combiner2.run()
 
     assert hl.vds.read_vds(final_path_1)._same(hl.vds.read_vds(final_path_2))
+
+
+@fails_local_backend
+@fails_service_backend
+def test_combiner_manual_filtration():
+    sample_names = all_samples[:2]
+    paths = [os.path.join(resource('gvcfs'), '1kg_chr22', f'{s}.hg38.g.vcf.gz') for s in sample_names]
+    plan_path = new_temp_file(extension='json')
+    out_file = new_temp_file(extension='vds')
+    plan = new_combiner(gvcf_paths=paths,
+                        output_path=out_file,
+                        temp_path=Env.hc()._tmpdir,
+                        save_path=plan_path,
+                        reference_genome='GRCh38',
+                        use_exome_default_intervals=True,
+                        gvcf_reference_entry_fields_to_keep=['GQ'],
+                        gvcf_info_to_keep=['ExcessHet'])
+
+    plan.run()
+    vds = hl.vds.read_vds(out_file)
+    assert list(vds.variant_data.gvcf_info) == ['ExcessHet']
+    assert list(vds.reference_data.entry) == ['END', 'GQ']
