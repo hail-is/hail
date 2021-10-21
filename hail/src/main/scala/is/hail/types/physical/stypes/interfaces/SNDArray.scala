@@ -959,7 +959,8 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
   def whitenBase(cb: EmitCodeBuilder,
     Q1: SNDArrayValue, Q2: SNDArrayValue, Qout: SNDArrayValue,
     R: SNDArrayValue, W: SNDArrayValue,
-    work1: SNDArrayValue, work2: SNDArrayValue
+    work1: SNDArrayValue, work2: SNDArrayValue,
+    blocksize: Value[Long]
   ): Unit = {
     SNDArray.assertMatrix(Q1, Q2, Qout, R, work1, work2)
     SNDArray.assertColMajor(cb, Q1, Q2, Qout, R, work1, work2)
@@ -1066,7 +1067,8 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
   def whitenNonrecur(cb: EmitCodeBuilder,
     Q: SNDArrayValue, R: SNDArrayValue, A: SNDArrayValue,
     Qtemp: SNDArrayValue, Qtemp2: SNDArrayValue, Rtemp: SNDArrayValue,
-    work1: SNDArrayValue, work2: SNDArrayValue
+    work1: SNDArrayValue, work2: SNDArrayValue,
+    blocksize: Value[Long]
   ): Unit = {
     val Seq(m, w) = Q.shapes
     val n = A.shapes(1)
@@ -1104,7 +1106,7 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
     // now Qtemp Rtemp[r1, r1] = A_orig - Q Rtemp[r0, r1]
     // so Q Rtemp[r0, r1] + Qtemp Rtemp[r1, r1] = A_orig
     // and [Q Qtemp] R = [A0 A_orig]
-    whitenBase(cb, Q, Qtemp, Qtemp2, Rtemp, A, work1, work2)
+    whitenBase(cb, Q, Qtemp, Qtemp2, Rtemp, A, work1, work2, blocksize)
 
     // copy upper triangle of Rtemp[n:w+n, n:w+n] to R
     SNDArray.copyMatrix(cb, "U", Rtemp.slice(cb, (n, w+n), (n, w+n)), R)
@@ -1120,12 +1122,13 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
   // * A contains whitened A_orig
   def whitenStep(cb: EmitCodeBuilder,
     Q: SNDArrayValue, R: SNDArrayValue, p: Value[Long], A: SNDArrayValue, Qtemp: SNDArrayValue,
-    Qtemp2: SNDArrayValue, Rtemp: SNDArrayValue, work1: SNDArrayValue, work2: SNDArrayValue
+    Qtemp2: SNDArrayValue, Rtemp: SNDArrayValue, work1: SNDArrayValue, work2: SNDArrayValue,
+    blocksize: Value[Long]
   ): Unit = {
     val b = A.shapes(1)
     val bb = Rtemp.shapes(0)
 
-    cb.ifx(blocksize > b, cb._fatal("whitenStep: blocksize too large"))
+//    cb.ifx(blocksize > b, cb._fatal("whitenStep: blocksize too large"))
     cb.ifx((b*2).cne(bb), cb._fatal("whitenStep: invalid dimensions"))
 
     assert(Q.hasShapeStatic(m, w))
@@ -1160,7 +1163,7 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
     SNDArray.gemm(cb, "N", "N", -1.0, Q1, R12, 1.0, A)
 
     // Now A = A_orig - Q3 R32 - Q1 R12
-    whitenNonrecur(cb, Q2, R22, A, Qtemp, Qtemp2, Rtemp, work1, work2)
+    whitenNonrecur(cb, Q2, R22, A, Qtemp, Qtemp2, Rtemp, work1, work2, blocksize)
     // now A contains A_orig - Q3 R32 - Q1 R12 whitened against A2
     // and Q2 R22 = A = A_orig - Q3 R32 - Q1 R12
     // so A_orig = Q3 R32 + Q1 R12 + Q2 R22
@@ -1206,7 +1209,8 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
         Qtemp2.slice(cb, ::, (null, b)),
         Rtemp.slice(cb, (null, bb), (null, bb)),
         work1.slice(cb, (null, bb), (null, bb)),
-        work2.slice(cb, (null, bb), (null, b)))
+        work2.slice(cb, (null, bb), (null, b)),
+        cb.memoize(blocksize.min(b)))
 
       cb.assign(pivot, pivot + b)
       cb.ifx(pivot >= w, {
@@ -1220,7 +1224,7 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
     val b = _A.shapes(1)
 
     val A = _A.coerceToShape(cb, m, b)
-    cb.ifx(b > chunksize, cb._fatal("initializeWindow: A too large"))
+    cb.ifx(b > w, cb._fatal("initializeWindow: A too large"))
     cb.ifx(curSize.cne(0), cb._fatal("initializeWindow: can only be called on empty state"))
 
     val Rslice = R.slice(cb, (null, b), (null, b))

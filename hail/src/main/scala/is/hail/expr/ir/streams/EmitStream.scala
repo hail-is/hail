@@ -1018,16 +1018,13 @@ object EmitStream {
         produce(stream, cb).map(cb) { case blocks: SStreamValue =>
           val state = new LocalWhitening(cb, SizeValueStatic(vecSize.toLong), windowSize.toLong, chunkSize.toLong, blockSize.toLong, outerRegion)
           val eltType = blocks.st.elementType.asInstanceOf[SBaseStruct]
-//          val newBlockType = eltType.fieldTypes(eltType.fieldIdx(newChunkName))
           val resultField = mb.newPField("StreamWhiten_result", eltType)
 
           val blocksProducer = blocks.producer
           val producer: StreamProducer = new StreamProducer {
             override val length: Option[EmitCodeBuilder => Code[Int]] =
               blocksProducer.length.map { l => (cb: EmitCodeBuilder) =>
-//                cb.println("StreamWhiten: computing length")
                 val len = cb.memoize(l(cb))
-//                cb.println("StreamWhiten: computing length done")
                 len
               }
 
@@ -1040,20 +1037,14 @@ object EmitStream {
             override val requiresMemoryManagementPerElement: Boolean = blocksProducer.requiresMemoryManagementPerElement
 
             override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
-//              cb.println(s"StreamWhiten LproduceElement")
               cb.goto(blocksProducer.LproduceElement)
               cb.define(blocksProducer.LproduceElementDone)
-//              cb.println(s"StreamWhiten got child element")
               val row = blocksProducer.element.toI(cb).get(cb, "StreamWhiten: missing tuple").asBaseStruct
               row.loadField(cb, prevWindowName).consume(cb, {}, { prevWindow =>
-//                cb.println(s"StreamWhiten initializing window")
                 state.initializeWindow(cb, prevWindow.asNDArray)
               })
-//              cb.println(s"StreamWhiten loading newChunk")
               val result = row.loadField(cb, newChunkName).get(cb, "StreamWhiten: missing chunk").asNDArray
-//              cb.println(s"StreamWhiten running whiten")
               state.whitenBlock(cb, result)
-//              cb.println(s"StreamWhiten done running whiten")
               // mutated newChunk field in place; could cause problems
               cb.assign(resultField, row)
               cb.goto(LproduceElementDone)
@@ -1067,7 +1058,6 @@ object EmitStream {
           }
 
           mb.implementLabel(blocksProducer.LendOfStream) { cb =>
-//            cb.println(s"StreamWhiten EOS")
             cb.goto(producer.LendOfStream)
           }
 
