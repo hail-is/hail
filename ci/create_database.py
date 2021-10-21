@@ -52,7 +52,6 @@ async def create_database():
     with open('/sql-config/sql-config.json', 'r') as f:
         sql_config = SQLConfig.from_json(f.read())
 
-    cloud = create_database_config.get('cloud', 'gcp')
     namespace = create_database_config['namespace']
     database_name = create_database_config['database_name']
     cant_create_database = create_database_config['cant_create_database']
@@ -68,10 +67,6 @@ async def create_database():
     _name = create_database_config['_name']
     admin_username = create_database_config['admin_username']
     user_username = create_database_config['user_username']
-    # Azure MySQL requires usernames have the username@host format
-    if cloud == 'azure':
-        admin_username += '@' + sql_config.host
-        user_username += '@' + sql_config.host
 
     db = Database()
     await db.async_init()

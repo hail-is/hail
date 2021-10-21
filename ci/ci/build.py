@@ -17,6 +17,7 @@ from .environment import (
     BUCKET,
 )
 from .globals import is_test_deployment
+from gear import get_sql_config
 from gear.cloud_config import get_global_config
 
 CLOUD = get_global_config()['cloud']
@@ -879,6 +880,11 @@ class CreateDatabaseStep(Step):
             self.admin_username = generate_token()
             self.user_username = generate_token()
 
+        if CLOUD == 'azure' and self.admin_username and self.user_username:
+            db_host = get_sql_config().host.split('.')[0]
+            self.admin_username += '@' + db_host
+            self.user_username += '@' + db_host
+
         self.admin_password_file = f'/io/{self.admin_username}.pwd'
         self.user_password_file = f'/io/{self.user_username}.pwd'
 
@@ -916,7 +922,6 @@ class CreateDatabaseStep(Step):
 
     def build(self, batch, code, scope):  # pylint: disable=unused-argument
         create_database_config = {
-            'cloud': CLOUD,
             'namespace': self.namespace,
             'scope': scope,
             'database_name': self.database_name,
