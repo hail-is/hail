@@ -1497,7 +1497,7 @@ def test_maybe_flexindex_table_by_expr_prefix_interval_match():
     assert t1._maybe_flexindex_table_by_expr((hl.str(mt1.row_idx), mt1.row_idx)) is None
 
 
-widths = [256, 512, 1024, 2048, 4096]
+widths = [256, 512, 1024, 2048, 3072]
 
 
 def test_can_process_wide_tables():

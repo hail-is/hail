@@ -214,10 +214,10 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
           val src = cb.newLocal("downsample_state_ser_src", srcCode)
           cb += Region.loadBoolean(key.storageType.loadField(src, "empty")).orEmpty(Code._fatal[Unit]("bad"))
           val binCode = binType.loadCheapSCode(cb, key.storageType.loadField(src, "bin"))
-          binET.buildEncoder(binCode.st, kb).apply(cb, binCode.get, ob)
+          binET.buildEncoder(binCode.st, kb).apply(cb, binCode, ob)
 
           val pointCode = pointType.loadCheapSCode(cb, key.storageType.loadField(src, "point"))
-          pointET.buildEncoder(pointCode.st, kb).apply(cb, pointCode.get, ob)
+          pointET.buildEncoder(pointCode.st, kb).apply(cb, pointCode, ob)
         }
         cb += ob.writeInt(DownsampleState.serializationEndMarker)
         Code._empty

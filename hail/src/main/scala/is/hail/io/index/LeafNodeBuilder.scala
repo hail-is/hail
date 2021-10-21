@@ -64,7 +64,7 @@ class StagedLeafNodeBuilder(maxSize: Int, keyType: PType, annotationType: PType,
   def encode(cb: EmitCodeBuilder, ob: Value[OutputBuffer]): Unit = {
     val enc = EType.defaultFromPType(pType).buildEncoder(SBaseStructPointer(pType), cb.emb.ecb)
     ab.storeLength(cb)
-    enc(cb, node.get, ob)
+    enc(cb, node, ob)
   }
 
   def nodeAddress: SBaseStructValue = node

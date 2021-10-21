@@ -195,7 +195,7 @@ object EmitStreamDistribute {
       val ob = cb.newLocal[OutputBuffer]("outputBuffer_to_write", outputBuffers(fileToUse))
 
       cb += ob.writeByte(1.asInstanceOf[Byte])
-      encoder(cb, current.get(cb).get, ob)
+      encoder(cb, current.get(cb), ob)
       cb += numElementsPerFile.update(fileToUse, numElementsPerFile(fileToUse) + 1)
     }
 

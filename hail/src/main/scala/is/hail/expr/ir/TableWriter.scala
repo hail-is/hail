@@ -212,7 +212,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
         cb += ob.writeByte(1.asInstanceOf[Byte])
 
         spec.encodedType.buildEncoder(row.st, cb.emb.ecb)
-          .apply(cb, row.get, ob)
+          .apply(cb, row, ob)
 
         cb.assign(n, n + 1L)
       }
