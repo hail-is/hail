@@ -13,14 +13,14 @@ class LowerDistributedSortSuite extends HailSuite {
   implicit val execStrats = ExecStrategy.compileOnly
 
   @Test def testSamplePartition() {
-    val dataKeys = IndexedSeq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)
-    val elementType = TStruct(("key", TInt32), ("value", TInt32))
-    val data1 = ToStream(Literal(TArray(elementType), dataKeys.map(x => Row(x, x * x))))
+    val dataKeys = IndexedSeq((0, 0), (0, -1), (1, 4), (2, 8), (3, 4), (4, 5), (5, 3), (6, 9), (7, 7), (8, -3), (9, 1))
+    val elementType = TStruct(("key1", TInt32), ("key2", TInt32), ("value", TInt32))
+    val data1 = ToStream(Literal(TArray(elementType), dataKeys.map{ case (k1, k2) => Row(k1, k2, k1 * k1)}))
     val sampleSeq = ToStream(Literal(TArray(TInt32), IndexedSeq(0, 2, 3, 7)))
 
-    val sampled = samplePartition(data1, sampleSeq, IndexedSeq("key"))
+    val sampled = samplePartition(data1, sampleSeq, IndexedSeq("key1", "key2"))
 
-    assertEvalsTo(sampled, null)
+    assertEvalsTo(sampled, Row(Row(0, -1), Row(9, 1), IndexedSeq( Row(0, 0, 0), Row(1, 4, 1), Row(2, 8, 4), Row(6, 9, 36))))
   }
 
   @Test def testHowManyPerPartition(): Unit = {

@@ -116,16 +116,56 @@ object LowerDistributedSort {
       "left")
 
     // Step 2: Aggregate over joined, figure out how to collect only the rows that are marked "shouldKeep"
+    val streamElementType = joined.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
     val streamElementName = genUID()
-    val streamElementRef = Ref(streamElementName, joined.typ.asInstanceOf[TStream].elementType)
+    val streamElementRef = Ref(streamElementName, streamElementType)
     val eltName = genUID()
-    val eltRef = Ref(eltName, dataStream.typ.asInstanceOf[TStream].elementType)
+    val eltType = dataStream.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
+    val eltRef = Ref(eltName, eltType)
+
+    val keyType = eltType.typeAfterSelectNames(keyFields)
+    val minAndMaxZero = NA(keyType)
+
+    // Folding for Min
+    val aggFoldMinAccumName1 = genUID()
+    val aggFoldMinAccumName2 = genUID()
+    val aggFoldMinAccumRef1 = Ref(aggFoldMinAccumName1, keyType)
+    val aggFoldMinAccumRef2 = Ref(aggFoldMinAccumName2, keyType)
+    val minSeq = bindIR(SelectFields(eltRef, keyFields)) { keyOfCurElementRef =>
+      If(IsNA(aggFoldMinAccumRef1),
+        keyOfCurElementRef,
+        If(ApplyComparisonOp(LT(keyType), aggFoldMinAccumRef1, keyOfCurElementRef), aggFoldMinAccumRef1, keyOfCurElementRef)
+      )
+    }
+    val minComb =
+      If(IsNA(aggFoldMinAccumRef1),
+        aggFoldMinAccumRef2,
+        If (ApplyComparisonOp(LT(keyType), aggFoldMinAccumRef1, aggFoldMinAccumRef2), aggFoldMinAccumRef1, aggFoldMinAccumRef2)
+      )
+
+    // Folding for Max
+    val aggFoldMaxAccumName1 = genUID()
+    val aggFoldMaxAccumName2 = genUID()
+    val aggFoldMaxAccumRef1 = Ref(aggFoldMaxAccumName1, keyType)
+    val aggFoldMaxAccumRef2 = Ref(aggFoldMaxAccumName2, keyType)
+    val maxSeq = bindIR(SelectFields(eltRef, keyFields)) { keyOfCurElementRef =>
+      If(IsNA(aggFoldMaxAccumRef1),
+        keyOfCurElementRef,
+        If(ApplyComparisonOp(GT(keyType), aggFoldMaxAccumRef1, keyOfCurElementRef), aggFoldMaxAccumRef1, keyOfCurElementRef)
+      )
+    }
+    val maxComb =
+      If(IsNA(aggFoldMaxAccumRef1),
+        aggFoldMaxAccumRef2,
+        If (ApplyComparisonOp(GT(keyType), aggFoldMaxAccumRef1, aggFoldMaxAccumRef2), aggFoldMaxAccumRef1, aggFoldMaxAccumRef2)
+      )
+
 
     StreamAgg(joined, streamElementName, {
       AggLet(eltName, GetField(streamElementRef, "elt"),
         MakeStruct(Seq(
-          ("min", ApplyAggOp(Min())(GetField(eltRef, "key"))), //TODO: Can't hardcode getField key here.
-          ("max", ApplyAggOp(Max())(GetField(eltRef, "key"))),
+          ("min", AggFold(minAndMaxZero, minSeq, minComb, aggFoldMinAccumName1, aggFoldMinAccumName2, false)),
+          ("max", AggFold(minAndMaxZero, maxSeq, maxComb, aggFoldMaxAccumName1, aggFoldMaxAccumName2, false)),
           ("samples", AggFilter(GetField(streamElementRef, "shouldKeep"), ApplyAggOp(Collect())(eltRef), false)),
         )), false)
     })
