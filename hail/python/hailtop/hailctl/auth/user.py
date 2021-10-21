@@ -16,7 +16,7 @@ def main(args, pass_through_args):  # pylint: disable=unused-argument
     result = {
         'username': userinfo['username'],
         'email': userinfo['email'],
-        'gsa_email': userinfo['gsa_email'],  # deprecated - backwards compatibility
+        'gsa_email': userinfo['hail_identity'],  # deprecated - backwards compatibility
         'hail_identity': userinfo['hail_identity'],
     }
     print(json.dumps(result, indent=4))
