@@ -1507,11 +1507,11 @@ class StreamWhiten(IR):
 
     def _eq(self, other):
         return other.new_chunk == self.new_chunk and \
-               other.prev_window == self.prev_window and \
-               other.vec_size == self.vec_size and \
-               other.window_size == self.window_size and \
-               other.chunk_size == self.chunk_size and \
-               other.block_size == self.block_size
+            other.prev_window == self.prev_window and \
+            other.vec_size == self.vec_size and \
+            other.window_size == self.window_size and \
+            other.chunk_size == self.chunk_size and \
+            other.block_size == self.block_size
 
     def _compute_type(self, env, agg_env):
         self.stream._compute_type(env, agg_env)

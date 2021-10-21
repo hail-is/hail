@@ -35,21 +35,21 @@ def whiten(entry_expr, chunk_size, window_size, partition_size, block_size=64):
             interval_bounds=hl.agg.filter((idx_in_partition == 0) | (ht._even_partitioning_index == (total_num_rows - 1)), hl.agg.collect(ht.key)),
             trailing_blocks=hl.agg.filter((idx_in_partition == partition_size - window_size) & (partition_idx < num_partitions), hl.agg.collect(ht.key))))
         intervals = [
-            hl.utils.Interval(start=agg_result.interval_bounds[i], end=agg_result.interval_bounds[i+1], includes_start=True, includes_end=False)
+            hl.utils.Interval(start=agg_result.interval_bounds[i], end=agg_result.interval_bounds[i + 1], includes_start=True, includes_end=False)
             for i in range(num_partitions - 1)
         ]
         # intervals_bounds normally length num_partitions+1, but could be one
         # less if last partition has exactly one row. Using index -1 for end of
         # last interval handles both cases.
-        last_interval = hl.utils.Interval(start=agg_result.interval_bounds[num_partitions-1], end=agg_result.interval_bounds[-1], includes_start=True, includes_end=True)
+        last_interval = hl.utils.Interval(start=agg_result.interval_bounds[num_partitions - 1], end=agg_result.interval_bounds[-1], includes_start=True, includes_end=True)
         intervals.append(last_interval)
 
         trailing_blocks = [
-            hl.utils.Interval(start=agg_result.trailing_blocks[i], end=agg_result.interval_bounds[i+1], includes_start=True, includes_end=False)
+            hl.utils.Interval(start=agg_result.trailing_blocks[i], end=agg_result.interval_bounds[i + 1], includes_start=True, includes_end=False)
             for i in range(num_partitions - 1)
         ]
 
-        rekey_map = [(agg_result.trailing_blocks[i], agg_result.interval_bounds[i+1]) for i in range(num_partitions - 1)]
+        rekey_map = [(agg_result.trailing_blocks[i], agg_result.interval_bounds[i + 1]) for i in range(num_partitions - 1)]
 
         return intervals, trailing_blocks, rekey_map
 
