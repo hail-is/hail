@@ -9,6 +9,7 @@ import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.types.physical.{PArray, PStruct, PTuple}
 import is.hail.types.virtual.{TArray, TBoolean, TStream, TStruct, TTuple, Type}
 import is.hail.rvd.RVDPartitioner
+import is.hail.types.RStruct
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -81,6 +82,30 @@ object LowerDistributedSort {
       ctxRef => ToStream(ctxRef))
   }
 
+
+  def distributedSort(
+    ctx: ExecuteContext,
+    stage: TableStage,
+    sortFields: IndexedSeq[SortField],
+    relationalLetsAbove: Map[String, IR],
+    rowTypeRequiredness: RStruct
+  ): TableStage = {
+    // Array of struct("min", "max", "isSorted", "samples"),
+    val perPartStats = stage.mapCollect(relationalBindings = relationalLetsAbove){ partitionStreamIR =>
+      samplePartition(partitionStreamIR, ???, stage.key)
+    }
+
+    // TODO: Need to put perPartStats in the globals
+
+    stage.mapCollect(relationalBindings = relationalLetsAbove){ partitionStreamIR =>
+      // In here, need to distribute the keys into different buckets.
+      val path = ctx.createTmpPath(ctx.tmpdir)
+      StreamDistribute(partitionStreamIR, ???, path, ???)
+    }
+
+    ???
+  }
+
   def howManySamplesPerPartition(rand: IRRandomness, totalNumberOfRecords: Int, initialNumSamplesToSelect: Int, partitionCounts: IndexedSeq[Int]): IndexedSeq[Int] = {
     var successStatesRemaining = initialNumSamplesToSelect
     var failureStatesRemaining = totalNumberOfRecords - successStatesRemaining
@@ -97,22 +122,6 @@ object LowerDistributedSort {
     }
 
     ans
-  }
-
-  def irHowManySamplesPerPartition(rand: IRRandomness, totalNumberOfRecords: IR, initialNumSamplesToSelect: IR, partitionCounts: IndexedSeq[Int]): IR = {
-    val successStatesRemaining = initialNumSamplesToSelect
-    val failureStatesRemaining = totalNumberOfRecords - successStatesRemaining
-
-    val ans = new Array[Int](partitionCounts.size)
-
-    val loopName: String = ???
-    // Loop state: successStatesRemaining, failureStatesRemaining,
-    TailLoop(loopName, ???,
-      If(???,
-        ???,
-        ???
-      )
-    )
   }
 
   def samplePartition(dataStream: IR, sampleIndices: IR, keyFields: IndexedSeq[String]): IR = {
@@ -180,8 +189,16 @@ object LowerDistributedSort {
     val aggFoldSortedAccumName1 = genUID()
     val aggFoldSortedAccumName2 = genUID()
     val isSortedStateType = TStruct("lastKeySeen" -> keyType, "sortedSoFar" -> TBoolean)
-    val aggFoldSortedRef1 = Ref(aggFoldSortedAccumName1, isSortedStateType)
-    val aggFoldSortedRef2 = Ref(aggFoldSortedAccumName2, isSortedStateType)
+    val aggFoldSortedAccumRef1 = Ref(aggFoldSortedAccumName1, isSortedStateType)
+    val aggFoldSortedAccumRef2 = Ref(aggFoldSortedAccumName2, isSortedStateType)
+    val isSortedSeq = bindIR(SelectFields(eltRef, keyFields)) { keyOfCurElementRef =>
+      bindIR(GetField(aggFoldSortedAccumRef1, "lastKeySeen")) { lastKeySeenRef =>
+        If(IsNA(lastKeySeenRef),
+          MakeStruct(Seq("lastKeySeen" -> keyOfCurElementRef, "sortedSoFar" -> true)),
+          ???
+        )
+      }
+    }
 
 
 
