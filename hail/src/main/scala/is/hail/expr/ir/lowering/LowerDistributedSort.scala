@@ -7,7 +7,7 @@ import is.hail.expr.ir._
 import is.hail.expr.ir.functions.IRRandomness
 import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.types.physical.{PArray, PStruct, PTuple}
-import is.hail.types.virtual.{TArray, TStream, TStruct, TTuple, Type}
+import is.hail.types.virtual.{TArray, TBoolean, TStream, TStruct, TTuple, Type}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.utils._
@@ -99,6 +99,22 @@ object LowerDistributedSort {
     ans
   }
 
+  def irHowManySamplesPerPartition(rand: IRRandomness, totalNumberOfRecords: IR, initialNumSamplesToSelect: IR, partitionCounts: IndexedSeq[Int]): IR = {
+    val successStatesRemaining = initialNumSamplesToSelect
+    val failureStatesRemaining = totalNumberOfRecords - successStatesRemaining
+
+    val ans = new Array[Int](partitionCounts.size)
+
+    val loopName: String = ???
+    // Loop state: successStatesRemaining, failureStatesRemaining,
+    TailLoop(loopName, ???,
+      If(???,
+        ???,
+        ???
+      )
+    )
+  }
+
   def samplePartition(dataStream: IR, sampleIndices: IR, keyFields: IndexedSeq[String]): IR = {
     // Step 1: Join the dataStream zippedWithIdx on sampleIndices?
     // That requires sampleIndices to be a stream of structs
@@ -159,6 +175,14 @@ object LowerDistributedSort {
         aggFoldMaxAccumRef2,
         If (ApplyComparisonOp(GT(keyType), aggFoldMaxAccumRef1, aggFoldMaxAccumRef2), aggFoldMaxAccumRef1, aggFoldMaxAccumRef2)
       )
+
+    // Folding for isInternallySorted
+    val aggFoldSortedAccumName1 = genUID()
+    val aggFoldSortedAccumName2 = genUID()
+    val isSortedStateType = TStruct("lastKeySeen" -> keyType, "sortedSoFar" -> TBoolean)
+    val aggFoldSortedRef1 = Ref(aggFoldSortedAccumName1, isSortedStateType)
+    val aggFoldSortedRef2 = Ref(aggFoldSortedAccumName2, isSortedStateType)
+
 
 
     StreamAgg(joined, streamElementName, {
