@@ -916,6 +916,7 @@ class CreateDatabaseStep(Step):
 
     def build(self, batch, code, scope):  # pylint: disable=unused-argument
         create_database_config = {
+            'cloud': CLOUD,
             'namespace': self.namespace,
             'scope': scope,
             'database_name': self.database_name,

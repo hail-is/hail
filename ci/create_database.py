@@ -52,7 +52,7 @@ async def create_database():
     with open('/sql-config/sql-config.json', 'r') as f:
         sql_config = SQLConfig.from_json(f.read())
 
-    cloud = create_database_config['cloud']
+    cloud = create_database_config.get('cloud', 'gcp')
     namespace = create_database_config['namespace']
     database_name = create_database_config['database_name']
     cant_create_database = create_database_config['cant_create_database']
