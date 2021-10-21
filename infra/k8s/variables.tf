@@ -20,6 +20,7 @@ variable "sql_config" {
     host = string,
     user = string,
     password = string,
+    instance = string,
   })
 }
 

@@ -8,6 +8,7 @@ class SQLConfig(NamedTuple):
     port: int
     user: str
     password: str
+    instance: str
     db: Optional[str]
     ssl_ca: str
     ssl_cert: str
@@ -22,6 +23,7 @@ class SQLConfig(NamedTuple):
              'port': self.port,
              'user': self.user,
              'password': self.password,
+             'instance': self.instance,
              'ssl-ca': self.ssl_ca,
              'ssl-cert': self.ssl_cert,
              'ssl-key': self.ssl_key,
@@ -49,6 +51,7 @@ ssl-mode={self.ssl_mode}
         assert self.port is not None
         assert self.user is not None
         assert self.password is not None
+        assert self.instance is not None
         assert self.ssl_ca is not None
         assert self.ssl_cert is not None
         assert self.ssl_key is not None
@@ -65,7 +68,7 @@ ssl-mode={self.ssl_mode}
 
     @staticmethod
     def from_dict(d: Dict[str, Any]) -> 'SQLConfig':
-        for k in ('host', 'port', 'user', 'password',
+        for k in ('host', 'port', 'user', 'password', 'instance',
                   'ssl-ca', 'ssl-cert', 'ssl-key', 'ssl-mode'):
             assert k in d, f'{k} should be in {d}'
             assert d[k] is not None, f'{k} should not be None in {d}'
@@ -73,6 +76,7 @@ ssl-mode={self.ssl_mode}
                          port=d['port'],
                          user=d['user'],
                          password=d['password'],
+                         instance=d['instance'],
                          db=d.get('db'),
                          ssl_ca=d['ssl-ca'],
                          ssl_cert=d['ssl-cert'],

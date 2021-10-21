@@ -880,10 +880,11 @@ class CreateDatabaseStep(Step):
             self.admin_username = generate_token()
             self.user_username = generate_token()
 
+        # Azure MySQL requires that usernames follow username@servername format
         if CLOUD == 'azure' and self.admin_username and self.user_username:
-            db_host = get_sql_config().host.split('.')[0]
-            self.admin_username += '@' + db_host
-            self.user_username += '@' + db_host
+            db_instance_name = get_sql_config().instance
+            self.admin_username += '@' + db_instance_name
+            self.user_username += '@' + db_instance_name
 
         self.admin_password_file = f'/io/{self.admin_username}.pwd'
         self.user_password_file = f'/io/{self.user_username}.pwd'

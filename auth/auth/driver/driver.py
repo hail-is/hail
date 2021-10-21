@@ -219,6 +219,7 @@ GRANT ALL ON `{name}`.* TO '{name}'@'%';
             port=server_config.port,
             user=self.name,
             password=self.password,
+            instance=server_config.instance,
             db=self.name,
             ssl_ca='/sql-config/server-ca.pem',
             ssl_cert='/sql-config/client-cert.pem',

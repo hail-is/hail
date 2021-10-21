@@ -29,6 +29,7 @@ output "sql_config" {
     host = azurerm_private_endpoint.db_k8s_endpoint.private_service_connection[0].private_ip_address
     user = "${azurerm_mysql_server.db.administrator_login}@${azurerm_mysql_server.db.name}"
     password = azurerm_mysql_server.db.administrator_login_password
+    instance = azurerm_mysql_server.db.name
   }
   sensitive = true
 }
