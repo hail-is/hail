@@ -969,7 +969,6 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
     val n = Q2.shapes(1)
     val wpn = R.shapes(0)
 
-//    cb.ifx(n < w, cb._fatal("whitenBase: n < w"))
     cb.ifx(wpn.cne(w + n), cb._fatal("whitenBase: bad dimensions"))
 
     Q2.assertHasShape(cb, FastIndexedSeq(m, n), "")
@@ -983,7 +982,6 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
 
     // set work1 to I
     work1.setToZero(cb)
-
     cb.forLoop(cb.assign(i, 0L), i.toL < w + n, cb.assign(i, i+1), work1.setElement(FastIndexedSeq(i, i), primitive(1.0), cb))
 
     cb.forLoop(cb.assign(i, 0L), i < n, cb.assign(i, i+1), {
@@ -1037,7 +1035,6 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
     val b2 = cb.memoize(blocksize.min(w-p1))
 
     // Set lower trapezoid of R[r12, r1] to zero
-    val i = cb.mb.newLocal[Long]("i")
     val j = cb.mb.newLocal[Long]("j")
     cb.forLoop(cb.assign(j, p0), j < p1, cb.assign(j, j+1), {
       R.slice(cb, (j+1, null), j).setToZero(cb)
@@ -1046,18 +1043,15 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
     R.slice(cb, r0, r1).setToZero(cb)
 
     cb.ifx(p1 < w, {
-      // work3 > b2 * (w-p1) < b2 * w < blocksize * w
       SNDArray.tpqrt(R.slice(cb, r2, r2), R.slice(cb, r1, r2), T, work3, b2, cb)
       SNDArray.tpmqrt("L", "T", R.slice(cb, r1, r2), T, R.slice(cb, r2, r01), R.slice(cb, r1, r01), work3, b2, cb)
       SNDArray.tpmqrt("R", "N", R.slice(cb, r1, r2), T, Q.slice(cb, ::, r2), Q.slice(cb, ::, r1), work3, b2, cb)
     })
     cb.ifx(p0 > 0, {
-      // work3 > b0 * p0 < b0 * w < blocksize * w
       SNDArray.tpqrt(R.slice(cb, r0, r0), R.slice(cb, r1, r0), T, work3, b0, cb)
       SNDArray.tpmqrt("L", "T", R.slice(cb, r1, r0), T, R.slice(cb, r0, r1), R.slice(cb, r1, r1), work3, b0, cb)
       SNDArray.tpmqrt("R", "N", R.slice(cb, r1, r0), T, Q.slice(cb, ::, r0), Q.slice(cb, ::, r1), work3, b0, cb)
     })
-    // work3 > b1 * (p1-p0) < b1 * w < blocksize * w
     SNDArray.geqrt(R.slice(cb, r1, r1), T, work3, b1, cb)
     SNDArray.gemqrt("R", "N", R.slice(cb, r1, r1), T, Q.slice(cb, ::, r1), work3, b1, cb)
   }
@@ -1074,8 +1068,6 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
     val n = A.shapes(1)
     val wpn = work1.shapes(0)
 
-//    cb.ifx(w > n, cb._fatal("whitenNonrecur: w too large"))
-//    cb.ifx(blocksize > n, cb._fatal("whitenNonrecur: blocksize too large"))
     cb.ifx(wpn.cne(w + n), cb._fatal("whitenNonrecur: bad dimensions"))
 
     assert(Q.hasShapeStatic(m, w))
@@ -1128,7 +1120,6 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
     val b = A.shapes(1)
     val bb = Rtemp.shapes(0)
 
-//    cb.ifx(blocksize > b, cb._fatal("whitenStep: blocksize too large"))
     cb.ifx((b*2).cne(bb), cb._fatal("whitenStep: invalid dimensions"))
 
     assert(Q.hasShapeStatic(m, w))
@@ -1185,7 +1176,6 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
       SNDArray.gemm(cb, "N", "N", -1.0, Qslice, Rslice, 1.0, A)
 
       // Compute QR fact of A; store R fact in Rtemp[r1, r1], Q fact in Qtemp
-      // work3 > geqr_query(m, n)
       val Rslice2 = R.slice(cb, (curSize, curSize + b), (curSize, curSize + b))
       val Qslice2 = Q.slice(cb, ::, (curSize, curSize + b))
       SNDArray.geqr_full(cb, A, Qslice2, Rslice2, T, work3)
