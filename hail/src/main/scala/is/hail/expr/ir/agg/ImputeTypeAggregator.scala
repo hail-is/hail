@@ -8,7 +8,7 @@ import is.hail.types.physical._
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerValue, SStackStruct}
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.primitives.{SBoolean, SBooleanCode}
+import is.hail.types.physical.stypes.primitives.{SBoolean, SBooleanCode, SBooleanValue}
 import is.hail.types.virtual.{TBaseStruct, TBoolean, TInt32, TString, TStruct, Type}
 import is.hail.types.{RPrimitive, VirtualTypeWithReq}
 import is.hail.utils._
@@ -160,8 +160,9 @@ class ImputeTypeAggregator() extends StagedAggregator {
   }
 
   protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
-    val emitCodes = Array(state.getAnyNonMissing, state.getAllDefined, state.getSupportsBool, state.getSupportsI32, state.getSupportsI64, state.getSupportsF64).
-      map(bool => new SBooleanCode(bool).memoize(cb, "impute_type_bools")).map(sbv => EmitCode.present(cb.emb, sbv))
+    val emitCodes = Array(state.getAnyNonMissing, state.getAllDefined, state.getSupportsBool, state.getSupportsI32, state.getSupportsI64, state.getSupportsF64)
+      .map(bool => new SBooleanValue(cb.memoize(bool)))
+      .map(sbv => EmitCode.present(cb.emb, sbv))
     val sv = SStackStruct.constructFromArgs(cb, region, resultEmitType.virtualType.asInstanceOf[TBaseStruct], emitCodes:_*)
     IEmitCode.present(cb, sv)
   }

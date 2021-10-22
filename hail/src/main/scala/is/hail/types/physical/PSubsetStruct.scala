@@ -6,7 +6,7 @@ import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
 import is.hail.types.BaseStruct
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode, SBaseStructValue}
 import is.hail.types.physical.stypes.{SCode, SType, SValue}
-import is.hail.types.physical.stypes.concrete.SSubsetStruct
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointerValue, SSubsetStruct}
 import is.hail.types.virtual.TStruct
 import is.hail.utils._
 
@@ -124,10 +124,7 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String]) ext
     throw new UnsupportedOperationException
   }
 
-  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructValue =
-    throw new UnsupportedOperationException
-
-  def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructValue =
+  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long], sb: SettableBuilder): SBaseStructPointerValue =
     throw new UnsupportedOperationException
 
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {

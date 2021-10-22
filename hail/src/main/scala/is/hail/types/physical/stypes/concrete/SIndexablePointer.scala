@@ -61,11 +61,8 @@ class SIndexablePointerCode(val st: SIndexablePointer, val a: Code[Long]) extend
 
   override def codeLoadLength(): Code[Int] = pt.loadLength(a)
 
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SIndexablePointerValue = {
-    val s = SIndexablePointerSettable(sb, st, name)
-    s.store(cb, this)
-    s
-  }
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SIndexablePointerValue =
+    pt.loadCheapSCode(cb, a, sb)
 
   override def memoize(cb: EmitCodeBuilder, name: String): SIndexablePointerValue = memoize(cb, name, cb.localBuilder)
 
@@ -147,6 +144,12 @@ final class SIndexablePointerSettable(
 
   def store(cb: EmitCodeBuilder, pc: SCode): Unit = {
     cb.assign(a, pc.asInstanceOf[SIndexablePointerCode].a)
+    cb.assign(length, pt.loadLength(a))
+    cb.assign(elementsAddress, pt.firstElementOffset(a, length))
+  }
+
+  def store(cb: EmitCodeBuilder, addr: Code[Long]): Unit = {
+    cb.assign(a, addr)
     cb.assign(length, pt.loadLength(a))
     cb.assign(elementsAddress, pt.firstElementOffset(a, length))
   }

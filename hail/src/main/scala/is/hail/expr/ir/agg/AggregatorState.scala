@@ -185,7 +185,7 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
   def createState(cb: EmitCodeBuilder): Unit = {}
 
   private[this] def loadVarsFromRegion(cb: EmitCodeBuilder, srcc: Code[Long]): Unit = {
-    val pv = new SBaseStructPointerCode(sStorageType, srcc).memoize(cb, "prim_rvastate_load_vars")
+    val pv = storageType.loadCheapSCode(cb, srcc)
     foreachField { (i, es) =>
       cb.assign(es, pv.loadField(cb, i))
     }

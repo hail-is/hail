@@ -85,6 +85,9 @@ final class SBaseStructPointerSettable(
   override def store(cb: EmitCodeBuilder, pv: SCode): Unit = {
     cb.assign(a, pv.asInstanceOf[SBaseStructPointerCode].a)
   }
+
+  def store(cb: EmitCodeBuilder, addr: Code[Long]): Unit =
+    cb.assign(a, addr)
 }
 
 class SBaseStructPointerCode(val st: SBaseStructPointer, val a: Code[Long]) extends SBaseStructCode {
@@ -92,11 +95,8 @@ class SBaseStructPointerCode(val st: SBaseStructPointer, val a: Code[Long]) exte
 
   def code: Code[_] = a
 
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SBaseStructPointerValue = {
-    val s = SBaseStructPointerSettable(sb, st, name)
-    s.store(cb, this)
-    s
-  }
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SBaseStructPointerValue =
+    pt.loadCheapSCode(cb, a, sb)
 
   def memoize(cb: EmitCodeBuilder, name: String): SBaseStructPointerValue = memoize(cb, name, cb.localBuilder)
 

@@ -5,6 +5,7 @@ import is.hail.asm4s.{Code, _}
 import is.hail.check.Gen
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, SortOrder}
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerSettable, SBaseStructPointerValue}
 import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SBaseStructValue}
 import is.hail.utils._
 
@@ -152,4 +153,12 @@ abstract class PBaseStruct extends PType {
     } else
       Gen.uniformSequence(types.map(t => t.genValue)).map(a => Annotation(a: _*))
   }
+
+  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long], sb: SettableBuilder): SBaseStructPointerValue
+
+  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructPointerValue =
+    loadCheapSCode(cb, addr, cb.localBuilder)
+
+  override def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructPointerValue =
+    loadCheapSCode(cb, addr, cb.fieldBuilder)
 }

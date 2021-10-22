@@ -151,11 +151,11 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
 
   override def sType: SBaseStructPointer = SBaseStructPointer(setRequired(false).asInstanceOf[PCanonicalBaseStruct])
 
-  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructPointerValue =
-    new SBaseStructPointerCode(sType, addr).memoize(cb, "loadCheapSCode")
-
-  override def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructPointerValue =
-    new SBaseStructPointerCode(sType, addr).memoizeField(cb, "loadCheapSCodeField")
+  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long], sb: SettableBuilder): SBaseStructPointerValue = {
+    val s = SBaseStructPointerSettable(sb, SBaseStructPointer(this), "loadCheapSCode")
+    s.store(cb, addr)
+    s
+  }
 
   override def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
     value.st match {

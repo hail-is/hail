@@ -1,7 +1,7 @@
 package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, Region, UnsafeOrdering}
-import is.hail.asm4s.{Code, Value}
+import is.hail.asm4s.{Code, SettableBuilder, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.{SCode, SValue}
 import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerCode, SIndexablePointerValue}
@@ -141,11 +141,8 @@ trait PArrayBackedContainer extends PContainer {
 
   override def sType: SIndexablePointer = SIndexablePointer(setRequired(false).asInstanceOf[PArrayBackedContainer])
 
-  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SIndexablePointerValue =
-    new SIndexablePointerCode(sType, addr).memoize(cb, "loadCheapSCode")
-
-  override def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SIndexablePointerValue =
-    new SIndexablePointerCode(sType, addr).memoizeField(cb, "loadCheapSCodeField")
+  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long], sb: SettableBuilder): SIndexablePointerValue =
+    sType.pType.loadCheapSCode(cb, addr, sb)
 
   override def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] =
     arrayRep.store(cb, region, value.asIndexable.castToArray(cb), deepCopy)

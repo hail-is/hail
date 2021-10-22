@@ -3,6 +3,7 @@ package is.hail.types.physical
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
+import is.hail.types.physical.stypes.concrete.SIndexablePointerValue
 import is.hail.types.physical.stypes.interfaces.{SIndexableCode, SIndexableValue}
 
 abstract class PContainer extends PIterable {
@@ -85,4 +86,12 @@ abstract class PContainer extends PIterable {
   def nextElementAddress(currentOffset: Long): Long
 
   def nextElementAddress(currentOffset: Code[Long]): Code[Long]
+
+  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long], sb: SettableBuilder): SIndexablePointerValue
+
+  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SIndexablePointerValue =
+    loadCheapSCode(cb, addr, cb.localBuilder)
+
+  override def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SIndexablePointerValue =
+    loadCheapSCode(cb, addr, cb.fieldBuilder)
 }
