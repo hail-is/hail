@@ -263,20 +263,41 @@ resource "google_sql_user" "db_root" {
   password = random_password.db_root_password.result
 }
 
-module "sql_config" {
-  source = "./sql_config"
+resource "kubernetes_secret" "database_server_config" {
+  metadata {
+    name = "database-server-config"
+  }
 
-  server_ca_cert     = google_sql_database_instance.db.server_ca_cert.0.cert
-  client_cert        = google_sql_ssl_cert.root_client_cert.cert
-  client_private_key = google_sql_ssl_cert.root_client_cert.private_key
-
-  host     = google_sql_database_instance.db.ip_address[0].ip_address
-  user     = "root"
-  password = random_password.db_root_password.result
-
-  # instance          = google_sql_database_instance.db.name
-  # connection_name   = google_sql_database_instance.db.connection_name
-  docker_root_image = local.docker_root_image
+  data = {
+    "server-ca.pem" = google_sql_database_instance.db.server_ca_cert.0.cert
+    "client-cert.pem" = google_sql_ssl_cert.root_client_cert.cert
+    "client-key.pem" = google_sql_ssl_cert.root_client_cert.private_key
+    "sql-config.cnf" = <<END
+[client]
+host=${google_sql_database_instance.db.ip_address[0].ip_address}
+user=root
+password=${random_password.db_root_password.result}
+ssl-ca=/sql-config/server-ca.pem
+ssl-mode=VERIFY_CA
+ssl-cert=/sql-config/client-cert.pem
+ssl-key=/sql-config/client-key.pem
+END
+    "sql-config.json" = <<END
+{
+    "ssl-cert": "/sql-config/client-cert.pem",
+    "ssl-key": "/sql-config/client-key.pem",
+    "ssl-ca": "/sql-config/server-ca.pem",
+    "ssl-mode": "VERIFY_CA",
+    "host": "${google_sql_database_instance.db.ip_address[0].ip_address}",
+    "port": 3306,
+    "user": "root",
+    "password": "${random_password.db_root_password.result}",
+    "instance": "${google_sql_database_instance.db.name}",
+    "connection_name": "${google_sql_database_instance.db.connection_name}",
+    "docker_root_image": "${local.docker_root_image}"
+}
+END
+  }
 }
 
 resource "google_container_registry" "registry" {
@@ -289,10 +310,6 @@ resource "google_artifact_registry_repository" "repository" {
   location = var.gcp_location
 }
 
-resource "google_service_account_key" "gcr_pull_key" {
-  service_account_id = google_service_account.gcr_pull.name
-}
-
 resource "google_service_account" "gcr_push" {
   account_id = "gcr-push"
   display_name = "push to gcr.io"
@@ -300,20 +317,6 @@ resource "google_service_account" "gcr_push" {
 
 resource "google_service_account_key" "gcr_push_key" {
   service_account_id = google_service_account.gcr_push.name
-}
-
-resource "google_storage_bucket_iam_member" "gcr_pull_viewer" {
-  bucket = google_container_registry.registry.id
-  role = "roles/storage.objectViewer"
-  member = "serviceAccount:${google_service_account.gcr_pull.email}"
-}
-
-resource "google_artifact_registry_repository_iam_member" "artifact_registry_pull_viewer" {
-  provider = google-beta
-  repository = google_artifact_registry_repository.repository.name
-  location = var.gcp_location
-  role = "roles/artifactregistry.reader"
-  member = "serviceAccount:${google_service_account.gcr_pull.email}"
 }
 
 resource "google_artifact_registry_repository_iam_member" "artifact_registry_batch_agent_viewer" {
@@ -371,7 +374,6 @@ module "auth_gsa_secret" {
   iam_roles = [
     "iam.serviceAccountAdmin",
     "iam.serviceAccountKeyAdmin",
-    # "storage.admin",
   ]
 }
 
@@ -424,6 +426,11 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_vie
 module "monitoring_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "monitoring"
+}
+
+module "grafana_gsa_secret" {
+  source = "./gsa_k8s_secret"
+  name = "grafana"
 }
 
 module "test_gsa_secret" {
@@ -545,4 +552,32 @@ resource "google_dns_record_set" "internal_gateway" {
   ttl = 300
 
   rrdatas = [google_compute_address.internal_gateway.address]
+}
+
+resource "kubernetes_cluster_role" "batch" {
+  metadata {
+    name = "batch"
+  }
+
+  rule {
+    api_groups = [""]
+    resources  = ["secrets", "serviceaccounts"]
+    verbs      = ["get", "list"]
+  }
+}
+
+resource "kubernetes_cluster_role_binding" "batch" {
+  metadata {
+    name = "batch"
+  }
+  role_ref {
+    kind      = "ClusterRole"
+    name      = "batch"
+    api_group = "rbac.authorization.k8s.io"
+  }
+  subject {
+    kind      = "ServiceAccount"
+    name      = "batch"
+    namespace = "default"
+  }
 }
