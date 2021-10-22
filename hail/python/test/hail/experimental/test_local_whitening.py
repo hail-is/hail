@@ -18,20 +18,23 @@ def naive_whiten(X, w):
 
 class Tests(unittest.TestCase):
 
-    def test_local_whitening(self):
-        m = 10000
-        n = 100
-        w = 64
-        chunk_size = 32
-        n_partitions = 50
-        chunks_per_partition = 40
+    def run_local_whitening_test(self, vec_size, num_rows, chunk_size, window_size, partition_size, initial_num_partitions):
         rng = default_rng()
-        data = rng.normal(size=(m, n))
-        mt = hl.utils.range_matrix_table(m, n, n_partitions=n_partitions)
+        data = rng.normal(size=(num_rows, vec_size))
+        mt = hl.utils.range_matrix_table(num_rows, vec_size, n_partitions=initial_num_partitions)
         mt = mt.annotate_globals(data=data)
         mt = mt.annotate_entries(x=mt.data[mt.row_idx, mt.col_idx])
 
-        ht = whiten(mt.x, chunk_size, w, chunks_per_partition * chunk_size)
+        ht = whiten(mt.x, chunk_size, window_size, partition_size)
         whitened_hail = np.vstack(ht.aggregate(hl.agg.collect(ht.ndarray.T)))
-        whitened_naive = naive_whiten(data.T, w)
+        whitened_naive = naive_whiten(data.T, window_size)
         np.testing.assert_allclose(whitened_hail, whitened_naive)
+
+    def test_local_whitening(self):
+        self.run_local_whitening_test(
+            vec_size=100,
+            num_rows=10000,
+            chunk_size=32,
+            window_size=64,
+            partition_size=32*40,
+            initial_num_partitions=50)
