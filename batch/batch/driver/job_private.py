@@ -29,8 +29,8 @@ log = logging.getLogger('job_private_inst_coll')
 
 
 class JobPrivateInstanceManager(InstanceCollection):
-    def __init__(self, app, machine_name_prefix: str, config: JobPrivateInstanceManagerConfig):
-        super().__init__(app, config.cloud, config.name, machine_name_prefix, is_pool=False)
+    def __init__(self, app, resource_manager, machine_name_prefix: str, config: JobPrivateInstanceManagerConfig):
+        super().__init__(app, resource_manager, config.cloud, config.name, machine_name_prefix, is_pool=False)
 
         global_scheduler_state_changed: Notice = app['scheduler_state_changed']
         self.create_instances_state_changed = global_scheduler_state_changed.subscribe()

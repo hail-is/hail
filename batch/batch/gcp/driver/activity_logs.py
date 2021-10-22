@@ -3,8 +3,7 @@ import json
 import logging
 
 from hailtop.utils import parse_timestamp_msecs
-
-from ...batch_configuration import PROJECT
+from gear.cloud_config import get_gcp_config
 
 
 log = logging.getLogger('activity_logs')
@@ -78,9 +77,11 @@ async def handle_activity_log_event(event, db, inst_coll_manager, zone_success_r
 
 
 async def process_activity_log_events_since(db, inst_coll_manager, activity_logs_client, zone_success_rate, machine_name_prefix, mark):
+    project = get_gcp_config().project
+
     filter = f'''
-(logName="projects/{PROJECT}/logs/cloudaudit.googleapis.com%2Factivity" OR
-logName="projects/{PROJECT}/logs/cloudaudit.googleapis.com%2Fsystem_event"
+(logName="projects/{project}/logs/cloudaudit.googleapis.com%2Factivity" OR
+logName="projects/{project}/logs/cloudaudit.googleapis.com%2Fsystem_event"
 ) AND
 resource.type=gce_instance AND
 protoPayload.resourceName:"{machine_name_prefix}" AND
@@ -88,7 +89,7 @@ timestamp >= "{mark}"
 '''
 
     body = {
-        'resourceNames': [f'projects/{PROJECT}'],
+        'resourceNames': [f'projects/{project}'],
         'orderBy': 'timestamp asc',
         'pageSize': 100,
         'filter': filter,

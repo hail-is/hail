@@ -15,10 +15,10 @@ log = logging.getLogger('inst_collection')
 
 
 class InstanceCollection:
-    def __init__(self, app, cloud, name, machine_name_prefix, is_pool):
+    def __init__(self, app, resource_manager: CloudResourceManager, cloud, name, machine_name_prefix, is_pool):
         self.app = app
         self.db: Database = app['db']
-        self.resource_manager: CloudResourceManager = app['resource_manager']
+        self.resource_manager = resource_manager
 
         self.cloud = cloud
         self.name = name

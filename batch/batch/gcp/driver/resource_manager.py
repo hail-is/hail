@@ -1,26 +1,21 @@
-from typing import Optional, TYPE_CHECKING, Callable
+from typing import Optional, TYPE_CHECKING
 
 import aiohttp
 import logging
 import uuid
 import dateutil.parser
 
-from hailtop import aiotools
 from hailtop.aiocloud import aiogoogle
-from hailtop.utils import RateLimit, periodically_call
-from gear import Database
 
-from ...batch_configuration import PROJECT, GCP_ZONE
-from ...driver.resource_manager import CloudResourceManager, VMDoesNotExist, VMState, process_outstanding_events
+from ...driver.resource_manager import CloudResourceManager, VMDoesNotExist, VMState
 
 from ..instance_config import GCPInstanceConfig
 from .create_instance import create_instance_config
-from .disks import delete_orphaned_disks
-from .activity_logs import process_activity_log_events_since
-from .zones import get_zone, update_region_quotas, ZoneSuccessRate
+
 
 if TYPE_CHECKING:
-    from ...driver.instance_collection_manager import InstanceCollectionManager  # pylint: disable=cyclic-import
+    from .driver import GCPDriver  # pylint: disable=cyclic-import
+
 
 log = logging.getLogger('resource_manager')
 
@@ -32,52 +27,9 @@ def parse_gcp_timestamp(timestamp: Optional[str]) -> Optional[float]:
 
 
 class GCPResourceManager(CloudResourceManager):
-    def __init__(self, app, machine_name_prefix, make_credentials: Optional[Callable[[], aiogoogle.GoogleCredentials]] = None):
-        self.app = app
-        self.db: Database = app['db']
-        self.machine_name_prefix = machine_name_prefix
-
-        if make_credentials is None:
-            def _make_credentials():
-                return aiogoogle.GoogleCredentials.from_file('/gsa-key/key.json')
-            make_credentials = _make_credentials
-
-        self.compute_client = aiogoogle.GoogleComputeClient(PROJECT, credentials=make_credentials())
-
-        self.activity_logs_client = aiogoogle.GoogleLoggingClient(
-            credentials=make_credentials(),
-            # The project-wide logging quota is 60 request/m.  The event
-            # loop sleeps 15s per iteration, so the max rate is 4
-            # iterations/m.  Note, the event loop could make multiple
-            # logging requests per iteration, so these numbers are not
-            # quite comparable.  I didn't want to consume the entire quota
-            # since there will be other users of the logging API (us at
-            # the web console, test deployments, etc.)
-            rate_limit=RateLimit(10, 60),
-        )
-
-        self.zone_success_rate = ZoneSuccessRate()
-        self.region_info = None
-        self.zones = []
-
-        self.cloud = 'gcp'
-        self.default_location = GCP_ZONE
-
-        self.task_manager = aiotools.BackgroundTaskManager()
-
-    async def async_init(self):
-        self.task_manager.ensure_future(periodically_call(15, self.process_activity_logs))
-        self.task_manager.ensure_future(periodically_call(60, self.update_region_quotas))
-        self.task_manager.ensure_future(periodically_call(60, self.delete_orphaned_disks))
-
-    async def shutdown(self):
-        try:
-            self.task_manager.shutdown()
-        finally:
-            try:
-                await self.compute_client.close()
-            finally:
-                await self.activity_logs_client.close()
+    def __init__(self, driver: 'GCPDriver', compute_client: aiogoogle.GoogleComputeClient):
+        self.driver = driver
+        self.compute_client = compute_client
 
     async def delete_vm(self, instance):
         instance_config = instance.instance_config
@@ -117,18 +69,18 @@ class GCPResourceManager(CloudResourceManager):
 
     def prepare_vm(self,
                    app,
-                   machine_name,
-                   activation_token,
-                   max_idle_time_msecs,
-                   worker_local_ssd_data_disk,
-                   worker_pd_ssd_data_disk_size_gb,
-                   boot_disk_size_gb,
-                   preemptible,
-                   job_private,
-                   machine_type=None,
-                   worker_type=None,
-                   cores=None,
-                   location=None,
+                   machine_name: str,
+                   activation_token: str,
+                   max_idle_time_msecs: int,
+                   worker_local_ssd_data_disk: bool,
+                   worker_pd_ssd_data_disk_size_gb: int,
+                   boot_disk_size_gb: int,
+                   preemptible: bool,
+                   job_private: bool,
+                   machine_type: Optional[str] = None,
+                   worker_type: Optional[str] = None,
+                   cores: Optional[int] = None,
+                   location: Optional[str] = None,
                    ) -> Optional[GCPInstanceConfig]:
         assert machine_type or (worker_type and cores)
 
@@ -137,15 +89,9 @@ class GCPResourceManager(CloudResourceManager):
 
         zone = location
         if zone is None:
-            # FIXME: We can get this info from the region quotas in the future
-            inst_coll_manager: 'InstanceCollectionManager' = self.app['inst_coll_manager']
-            global_live_total_cores_mcpu = inst_coll_manager.global_live_total_cores_mcpu
-            if global_live_total_cores_mcpu // 1000 < 1_000:
-                zone = self.default_location
-            else:
-                zone = get_zone(self.region_info, self.zone_success_rate, cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)
-                if zone is None:
-                    return None
+            zone = self.driver.get_zone(cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)
+            if zone is None:
+                return None
 
         return create_instance_config(app, zone, machine_name, machine_type, activation_token, max_idle_time_msecs,
                                       worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb, boot_disk_size_gb,
@@ -157,17 +103,3 @@ class GCPResourceManager(CloudResourceManager):
         params = {'requestId': str(uuid.uuid4())}
         await self.compute_client.post(f'/zones/{zone}/instances', params=params, json=instance_config.vm_config)
         log.info(f'created machine {machine_name}')
-
-    async def process_activity_logs(self):
-        async def _process_activity_log_events_since(mark):
-            return await process_activity_log_events_since(self.db, self.app['inst_coll_manager'],
-                                                           self.activity_logs_client,
-                                                           self.zone_success_rate, self.machine_name_prefix, mark)
-
-        await process_outstanding_events(self.db, _process_activity_log_events_since)
-
-    async def update_region_quotas(self):
-        await update_region_quotas(self.compute_client)
-
-    async def delete_orphaned_disks(self):
-        await delete_orphaned_disks(self.compute_client, self.zones, self.app['inst_coll_manager'])

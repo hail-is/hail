@@ -34,8 +34,8 @@ log = logging.getLogger('pool')
 
 
 class Pool(InstanceCollection):
-    def __init__(self, app, machine_name_prefix: str, config: PoolConfig):
-        super().__init__(app, config.cloud, config.name, machine_name_prefix, is_pool=True)
+    def __init__(self, app, resource_manager, machine_name_prefix: str, config: PoolConfig):
+        super().__init__(app, resource_manager, config.cloud, config.name, machine_name_prefix, is_pool=True)
 
         global_scheduler_state_changed: Notice = app['scheduler_state_changed']
         self.scheduler_state_changed = global_scheduler_state_changed.subscribe()

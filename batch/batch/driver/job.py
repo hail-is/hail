@@ -93,7 +93,8 @@ async def mark_job_complete(
     cancel_ready_state_changed: asyncio.Event = app['cancel_ready_state_changed']
     db: Database = app['db']
     client_session: httpx.ClientSession = app['client_session']
-    inst_coll_manager: 'InstanceCollectionManager' = app['inst_coll_manager']
+
+    inst_coll_manager: 'InstanceCollectionManager' = app['driver'].inst_coll_manager
     task_manager: BackgroundTaskManager = app['task_manager']
 
     id = (batch_id, job_id)
@@ -210,7 +211,7 @@ async def unschedule_job(app, record):
     scheduler_state_changed: Notice = app['scheduler_state_changed']
     db: Database = app['db']
     client_session: httpx.ClientSession = app['client_session']
-    inst_coll_manager = app['inst_coll_manager']
+    inst_coll_manager = app['driver'].inst_coll_manager
 
     batch_id = record['batch_id']
     job_id = record['job_id']

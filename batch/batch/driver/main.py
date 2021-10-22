@@ -61,7 +61,7 @@ from ..utils import query_billing_projects, batch_only, authorization_token
 from ..resource_utils import unreserved_worker_data_disk_size_gib
 from ..exceptions import BatchUserError
 
-from ..gcp.driver import GCPResourceManager
+from ..gcp.driver import GCPDriver
 
 uvloop.install()
 
@@ -93,7 +93,7 @@ def instance_name_from_request(request):
 
 def instance_from_request(request):
     instance_name = instance_name_from_request(request)
-    inst_coll_manager = request.app['inst_coll_manager']
+    inst_coll_manager: InstanceCollectionManager = request.app['driver'].inst_coll_manager
     return inst_coll_manager.get_instance(instance_name)
 
 
@@ -341,7 +341,7 @@ async def job_started(request, instance):
 async def get_index(request, userdata):
     app = request.app
     db: Database = app['db']
-    inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
+    inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
 
     ready_cores = await db.select_and_fetchone(
         '''
@@ -386,7 +386,7 @@ def validate_int(session, url_path, name, value, predicate, description):
 @web_authenticated_developers_only()
 async def pool_config_update(request, userdata):  # pylint: disable=unused-argument
     app = request.app
-    inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
+    inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
 
     session = await aiohttp_session.get_session(request)
 
@@ -492,7 +492,7 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
 @web_authenticated_developers_only()
 async def job_private_config_update(request, userdata):  # pylint: disable=unused-argument
     app = request.app
-    inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
+    inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
 
     session = await aiohttp_session.get_session(request)
 
@@ -529,7 +529,7 @@ async def job_private_config_update(request, userdata):  # pylint: disable=unuse
 @web_authenticated_developers_only()
 async def get_pool(request, userdata):
     app = request.app
-    inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
+    inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
 
     session = await aiohttp_session.get_session(request)
 
@@ -563,7 +563,7 @@ async def get_pool(request, userdata):
 @web_authenticated_developers_only()
 async def get_job_private_inst_manager(request, userdata):
     app = request.app
-    inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
+    inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
 
     job_private_inst_manager = inst_coll_manager.job_private_inst_manager
 
@@ -981,7 +981,7 @@ GROUP BY user, inst_coll;
 
 def monitor_instances(app):
     resource_rates: Dict[str, float] = app['resource_rates']
-    inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
+    inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
 
     cost_per_hour = defaultdict(list)
     free_cores = defaultdict(list)
@@ -1086,20 +1086,15 @@ SELECT instance_id, internal_token, frozen FROM globals;
     async_worker_pool = AsyncWorkerPool(100, queue_size=100)
     app['async_worker_pool'] = async_worker_pool
 
-    credentials = aiogoogle.GoogleCredentials.from_file('/gsa-key/key.json')
+    credentials_file = '/gsa-key/key.json'
+
+    credentials = aiogoogle.GoogleCredentials.from_file(credentials_file)
     fs = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
     app['file_store'] = FileStore(fs, BATCH_BUCKET_NAME, instance_id)
 
-    resource_manager = GCPResourceManager(app, MACHINE_NAME_PREFIX)
-    app['resource_manager'] = resource_manager
-
     inst_coll_configs = await InstanceCollectionConfigs.create(app)
 
-    inst_coll_manager = InstanceCollectionManager(app, MACHINE_NAME_PREFIX)
-    app['inst_coll_manager'] = inst_coll_manager
-
-    await inst_coll_manager.async_init(inst_coll_configs)
-    await resource_manager.async_init()
+    app['driver'] = await GCPDriver.create(app, MACHINE_NAME_PREFIX, inst_coll_configs, credentials_file)
 
     canceller = await Canceller.create(app)
     app['canceller'] = canceller
@@ -1125,27 +1120,24 @@ async def on_cleanup(app):
         await app['db'].async_close()
     finally:
         try:
-            app['inst_coll_manager'].shutdown()
+            app['canceller'].shutdown()
         finally:
             try:
-                app['canceller'].shutdown()
+                app['task_manager'].shutdown()
             finally:
                 try:
-                    app['task_manager'].shutdown()
+                    await app['driver'].shutdown()
                 finally:
                     try:
-                        await app['resource_manager'].shutdown()
+                        await app['file_store'].close()
                     finally:
                         try:
-                            await app['file_store'].close()
+                            await app['client_session'].close()
                         finally:
-                            try:
-                                await app['client_session'].close()
-                            finally:
-                                del app['k8s_cache'].client
-                                await asyncio.gather(
-                                    *(t for t in asyncio.all_tasks() if t is not asyncio.current_task())
-                                )
+                            del app['k8s_cache'].client
+                            await asyncio.gather(
+                                *(t for t in asyncio.all_tasks() if t is not asyncio.current_task())
+                            )
 
 
 def run():

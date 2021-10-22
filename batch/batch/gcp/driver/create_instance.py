@@ -3,8 +3,9 @@ import logging
 import base64
 import json
 
+from gear.cloud_config import get_gcp_config
 
-from ...batch_configuration import PROJECT, DOCKER_ROOT_IMAGE, DOCKER_PREFIX, DEFAULT_NAMESPACE
+from ...batch_configuration import DOCKER_ROOT_IMAGE, DOCKER_PREFIX, DEFAULT_NAMESPACE
 from ...file_store import FileStore
 from ...resource_utils import unreserved_worker_data_disk_size_gib
 
@@ -33,6 +34,8 @@ def create_instance_config(
     job_private,
 ) -> GCPInstanceConfig:
     file_store: FileStore = app['file_store']
+    project = get_gcp_config().project
+
     _, cores = gcp_machine_type_to_worker_type_cores(machine_type)
 
     if worker_local_ssd_data_disk:
@@ -47,7 +50,7 @@ def create_instance_config(
         worker_data_disk = {
             'autoDelete': True,
             'initializeParams': {
-                'diskType': f'projects/{PROJECT}/zones/{zone}/diskTypes/pd-ssd',
+                'diskType': f'projects/{project}/zones/{zone}/diskTypes/pd-ssd',
                 'diskSizeGb': str(worker_pd_ssd_data_disk_size_gb),
             },
         }
@@ -63,15 +66,15 @@ def create_instance_config(
 
     vm_config = {
         'name': machine_name,
-        'machineType': f'projects/{PROJECT}/zones/{zone}/machineTypes/{machine_type}',
+        'machineType': f'projects/{project}/zones/{zone}/machineTypes/{machine_type}',
         'labels': {'role': 'batch2-agent', 'namespace': DEFAULT_NAMESPACE},
         'disks': [
             {
                 'boot': True,
                 'autoDelete': True,
                 'initializeParams': {
-                    'sourceImage': f'projects/{PROJECT}/global/images/batch-worker-12',
-                    'diskType': f'projects/{PROJECT}/zones/{zone}/diskTypes/pd-ssd',
+                    'sourceImage': f'projects/{project}/global/images/batch-worker-12',
+                    'diskType': f'projects/{project}/zones/{zone}/diskTypes/pd-ssd',
                     'diskSizeGb': str(boot_disk_size_gb),
                 },
             },
@@ -87,7 +90,7 @@ def create_instance_config(
         'scheduling': {'automaticRestart': False, 'onHostMaintenance': "TERMINATE", 'preemptible': preemptible},
         'serviceAccounts': [
             {
-                'email': f'batch2-agent@{PROJECT}.iam.gserviceaccount.com',
+                'email': f'batch2-agent@{project}.iam.gserviceaccount.com',
                 'scopes': ['https://www.googleapis.com/auth/cloud-platform'],
             }
         ],

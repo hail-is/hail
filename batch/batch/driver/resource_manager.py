@@ -1,13 +1,11 @@
 import abc
-import datetime
 import logging
-from typing import Awaitable, Callable, TYPE_CHECKING, Optional, Any
-
-from gear import Database
+from typing import TYPE_CHECKING, Optional, Any
 
 if TYPE_CHECKING:
     from ..instance_config import InstanceConfig
     from .instance import Instance  # pylint: disable=cyclic-import
+
 
 log = logging.getLogger('compute_manager')
 
@@ -28,24 +26,7 @@ class VMState:
         self.last_state_change_timestamp_msecs = last_state_change_timestamp_msecs
 
 
-async def process_outstanding_events(db: Database, process_events_since: Callable[[str], Awaitable[str]]):
-    row = await db.select_and_fetchone('SELECT * FROM `events_mark`;')
-
-    mark = row['mark']
-    if mark is None:
-        mark = datetime.datetime.utcnow().isoformat() + 'Z'
-        await db.execute_update('UPDATE `events_mark` SET mark = %s;', (mark,))
-
-    mark = await process_events_since(mark)
-
-    if mark is not None:
-        await db.execute_update('UPDATE `events_mark` SET mark = %s;', (mark,))
-
-
 class CloudResourceManager(abc.ABC):
-    default_location: str
-    cloud: str
-
     @abc.abstractmethod
     def prepare_vm(self,
                    app,

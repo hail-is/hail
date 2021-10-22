@@ -62,7 +62,7 @@ class Canceller:
         self.cancel_running_state_changed: asyncio.Event = app['cancel_running_state_changed']
         self.db: Database = app['db']
         self.async_worker_pool: AsyncWorkerPool = self.app['async_worker_pool']
-        self.inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
+        self.inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
 
         self.task_manager = aiotools.BackgroundTaskManager()
 

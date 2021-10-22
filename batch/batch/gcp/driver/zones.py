@@ -2,9 +2,9 @@ import logging
 import random
 
 from hailtop.utils import url_basename
+from gear.cloud_config import get_gcp_config
 
 from ...utils import WindowFractionCounter
-from ...batch_configuration import BATCH_GCP_REGIONS
 
 log = logging.getLogger('zones')
 
@@ -47,7 +47,8 @@ class ZoneSuccessRate:
 
 
 async def update_region_quotas(compute_client):
-    region_info = {name: await compute_client.get(f'/regions/{name}') for name in BATCH_GCP_REGIONS}
+    regions = get_gcp_config().regions
+    region_info = {name: await compute_client.get(f'/regions/{name}') for name in regions}
     zones = [url_basename(z) for r in region_info.values() for z in r['zones']]
     log.info('updated region quotas')
     return region_info, zones
