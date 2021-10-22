@@ -20,8 +20,6 @@ from .environment import (
 from .globals import is_test_deployment
 from gear.cloud_config import get_global_config
 
-CLOUD = get_global_config()['cloud']
-
 log = logging.getLogger('ci')
 
 pretty_print_log = "jq -Rr '. as $raw | try \
