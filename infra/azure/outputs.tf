@@ -24,11 +24,34 @@ output "global_config" {
 output "sql_config" {
   value = {
     server_ca_cert = data.http.db_ca_cert.body
-    client_cert = ""
-    client_private_key = ""
-    host = azurerm_private_endpoint.db_endpoint.private_service_connection[0].private_ip_address
+    client_cert = tls_self_signed_cert.db_client_cert.cert_pem
+    client_private_key = tls_private_key.db_client_key.private_key_pem
+    host = azurerm_private_endpoint.db_k8s_endpoint.private_service_connection[0].private_ip_address
     user = "${azurerm_mysql_server.db.administrator_login}@${azurerm_mysql_server.db.name}"
     password = azurerm_mysql_server.db.administrator_login_password
+    instance = azurerm_mysql_server.db.name
+    connection_name = azurerm_mysql_server.db.name
+  }
+  sensitive = true
+}
+
+output "acr_push_credentials" {
+  value = {
+    appId = azurerm_container_registry.acr.admin_username
+    password = azurerm_container_registry.acr.admin_password
+  }
+  sensitive = true
+}
+
+output "service_credentials" {
+  value = {
+    auth      = module.auth_sp.credentials
+    benchmark = module.benchmark_sp.credentials
+    ci        = module.auth_sp.credentials
+    test      = module.test_sp.credentials
+    test-dev  = module.test_dev_sp.credentials
+    query     = module.query_sp.credentials
+    grafana   = module.grafana_sp.credentials
   }
   sensitive = true
 }

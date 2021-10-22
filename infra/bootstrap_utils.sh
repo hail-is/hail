@@ -55,8 +55,6 @@ generate_ssl_certs() {
             -o yaml \
         | kubectl apply -f -
 
-    make -C $HAIL/hail python/hailtop/hail_version
-
     PYTHONPATH=$HAIL/hail/python \
             python3 $HAIL/tls/create_certs.py \
             default \
@@ -67,18 +65,20 @@ generate_ssl_certs() {
 }
 
 deploy_unmanaged() {
+    make -C $HAIL/hail python/hailtop/hail_version
+
     render_config_mk
     copy_images
     generate_ssl_certs
 
     kubectl -n default apply -f $HAIL/ci/bootstrap.yaml
     make -C $HAIL/ci build-ci-utils build-hail-buildkit
+    make -C $HAIL/batch build-worker
     make -C $HAIL/internal-gateway deploy
     make -C $HAIL/bootstrap-gateway deploy
     make -C $HAIL/letsencrypt run
 }
 
-# FIXME bootstrap.py internally still relies on google secrets
 bootstrap() {
     if [ -z "$1" ] || [ -z "$2" ]; then
         echo "Usage: bootstrap <REPO_ORG>/hail:<BRANCH> <DEPLOY_STEP>"
@@ -88,14 +88,19 @@ bootstrap() {
     DEPLOY_STEP=$2
 
     cd $HAIL
-    DOCKER_PREFIX=$(get_global_config_field docker_prefix)
+    export DOCKER_PREFIX=$(get_global_config_field docker_prefix)
     export BATCH_WORKER_IMAGE=$DOCKER_PREFIX/batch-worker:cache
     export HAIL_CI_UTILS_IMAGE=$DOCKER_PREFIX/ci-utils:cache
     export HAIL_BUILDKIT_IMAGE=$DOCKER_PREFIX/hail-buildkit:cache
     export HAIL_DEFAULT_NAMESPACE=$(get_global_config_field default_namespace)
     export HAIL_CI_BUCKET_NAME=dummy
-    export PYTHONPATH=$HAIL/ci:$HAIL/batch:$HAIL/hail/python
+    export PYTHONPATH=$HAIL/ci:$HAIL/batch:$HAIL/hail/python:$HAIL/gear
 
-    python3 ci/bootstrap.py $HAIL_BRANCH $(git rev-parse HEAD) $DEPLOY_STEP
+    if [ -n "$3" ] && [ -n "$4" ]; then
+        extra_code_config="--extra-code-config {\"username\":\"""$3""\",\"email\":\"""$4""\"}"
+    else
+        extra_code_config=""
+    fi
+    python3 ci/bootstrap.py $extra_code_config $HAIL_BRANCH $(git rev-parse HEAD) $DEPLOY_STEP
     cd -
 }

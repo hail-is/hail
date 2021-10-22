@@ -3,17 +3,15 @@
 source ../bootstrap_utils.sh
 
 setup_az() {
-    RESOURCE_GROUP=$1
     curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
     az login --identity
-    PRINCIPAL_ID=$(az identity show -g $RESOURCE_GROUP -n terraform --query id --output tsv)
-    az login --identity --username $PRINCIPAL_ID
 }
 
 export_terraform_vars() {
     export ARM_SUBSCRIPTION_ID=$(az account list | jq -rj '.[0].id')
     export ARM_TENANT_ID=$(az account list | jq -rj '.[0].tenantId')
-    export ARM_USE_MSI=true
+    export ARM_CLIENT_ID=$(jq -rj '.appId' $HAIL/infra/azure/terraform_principal.json)
+    export ARM_CLIENT_SECRET=$(jq -rj '.password' $HAIL/infra/azure/terraform_principal.json)
 }
 
 setup_terraform_backend() {
@@ -51,7 +49,7 @@ run_terraform() {
         return
     fi
 
-    export_terraform_vars
+    # export_terraform_vars
     setup_terraform_backend "$@"
     terraform apply -var-file=global.tfvars
 }
@@ -74,6 +72,8 @@ run_k8s_terraform() {
     cat >../k8s/global.tfvars <<EOF
 global_config = $(terraform output global_config)
 sql_config    = $(terraform output sql_config)
+acr_push_credentials = $(terraform output acr_push_credentials)
+service_credentials = $(terraform output service_credentials)
 EOF
 
     cd $HAIL/infra/k8s

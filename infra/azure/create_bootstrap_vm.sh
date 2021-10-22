@@ -9,20 +9,23 @@ fi
 
 RESOURCE_GROUP=$1
 
-TERRAFORM_PRINCIPAL_ID=$(az identity show \
-    --resource-group $RESOURCE_GROUP \
-    --name terraform \
-    --query id \
-    --output tsv
-)
+SUBSCRIPTION_ID=$(az account list | jq -rj '.[0].id')
+VM_NAME=bootstrap-vm
 
 ip=$(az vm create \
-    --name bootstrap-vm \
+    --name $VM_NAME \
     --resource-group $RESOURCE_GROUP \
     --image Canonical:UbuntuServer:18.04-LTS:latest \
+    --vnet-name default \
+    --subnet k8s-subnet \
     --public-ip-sku Standard \
-    --assign-identity $TERRAFORM_PRINCIPAL_ID \
     --os-disk-size 200 \
     --generate-ssh-keys | jq -jr '.publicIpAddress')
+
+az vm identity assign \
+    --name $VM_NAME \
+    --resource-group $RESOURCE_GROUP \
+    --role Owner \
+    --scope /subscriptions/$SUBSCRIPTION_ID/resourcegroups/$RESOURCE_GROUP
 
 echo "Successfully created a vm. SSH into it with ssh -i ~/.ssh/id_rsa <username>@$ip"
