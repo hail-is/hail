@@ -441,7 +441,7 @@ def new_combiner(*,
     elif gvcf_reference_entry_fields_to_keep is None and gvcf_paths:
         mt = hl.import_vcf(gvcf_paths[0], force_bgz=True, reference_genome=reference_genome)
         mt = mt.filter_rows(hl.is_defined(mt.info.END))
-        gvcf_reference_entry_fields_to_keep = defined_entry_fields(mt, 100_000)
+        gvcf_reference_entry_fields_to_keep = defined_entry_fields(mt, 100_000) - {'GT', 'PGT', 'PL'}
 
     if save_path is None:
         sha = hashlib.sha256()

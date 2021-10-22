@@ -101,12 +101,9 @@ def defined_entry_fields(mt: MatrixTable, sample=None) -> Set[str]:
 
 
 def make_reference_matrix_table(mt: MatrixTable,
-                                entry_to_keep: Optional[Collection[str]] = None
+                                entry_to_keep: Collection[str]
                                 ) -> MatrixTable:
     mt = mt.filter_rows(hl.is_defined(mt.info.END))
-
-    if not entry_to_keep:
-        entry_to_keep = defined_entry_fields(mt, sample=10_000) - {'GT', 'PGT', 'PL'}
 
     def make_entry_struct(e, row):
         handled_fields = dict()
@@ -142,8 +139,7 @@ def make_reference_matrix_table(mt: MatrixTable,
 
 
 def transform_gvcf(mt: MatrixTable,
-                   *,
-                   reference_entry_fields_to_keep: Optional[Collection[str]] = None,
+                   reference_entry_fields_to_keep: Collection[str],
                    info_to_keep: Optional[Collection[str]] = None) -> VariantDataset:
     """Transforms a gvcf into a sparse matrix table
 
