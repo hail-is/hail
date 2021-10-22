@@ -5,8 +5,9 @@ import is.hail.asm4s.Code
 import is.hail.io.InputBuffer
 import is.hail.utils._
 import is.hail.asm4s._
+import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.{SCode, SValue}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 
@@ -90,11 +91,11 @@ class RichCodeInputBuffer(
       ib.invoke[Region, Long, Int, Unit]("readBytes", toRegion, toOff, n)
   }
 
-  def readPrimitive(t: Type): SCode = t match {
-    case TBoolean => primitive(readBoolean())
-    case TInt32 => primitive(readInt())
-    case TInt64 => primitive(readLong())
-    case TFloat32 => primitive(readFloat())
-    case TFloat64 => primitive(readDouble())
+  def readPrimitive(cb: EmitCodeBuilder, t: Type): SValue = t match {
+    case TBoolean => primitive(cb.memoize(readBoolean()))
+    case TInt32 => primitive(cb.memoize(readInt()))
+    case TInt64 => primitive(cb.memoize(readLong()))
+    case TFloat32 => primitive(cb.memoize(readFloat()))
+    case TFloat64 => primitive(cb.memoize(readDouble()))
   }
 }

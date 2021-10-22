@@ -225,11 +225,11 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
     (cb, ib: Value[InputBuffer]) =>
       foreachField { case (_, es) =>
         if (es.emitType.required) {
-          cb.assign(es, EmitCode.present(cb.emb, ib.readPrimitive(es.st.virtualType).memoize(cb, "deserialize")))
+          cb.assign(es, EmitCode.present(cb.emb, ib.readPrimitive(cb, es.st.virtualType)))
         } else {
           cb.ifx(ib.readBoolean(),
             cb.assign(es, EmitCode.missing(cb.emb, es.st)),
-            cb.assign(es, EmitCode.present(cb.emb, ib.readPrimitive(es.st.virtualType).memoize(cb, "deserialize"))))
+            cb.assign(es, EmitCode.present(cb.emb, ib.readPrimitive(cb, es.st.virtualType))))
         }
       }
   }
