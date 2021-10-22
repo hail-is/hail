@@ -63,10 +63,6 @@ class SIndexablePointerCode(val st: SIndexablePointer, val a: Code[Long]) extend
 
   def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SIndexablePointerValue =
     pt.loadCheapSCode(cb, a, sb)
-
-  override def memoize(cb: EmitCodeBuilder, name: String): SIndexablePointerValue = memoize(cb, name, cb.localBuilder)
-
-  override def memoizeField(cb: EmitCodeBuilder, name: String): SIndexablePointerValue = memoize(cb, name, cb.fieldBuilder)
 }
 
 class SIndexablePointerValue(
@@ -142,11 +138,8 @@ final class SIndexablePointerSettable(
 ) extends SIndexablePointerValue(st, a, length, elementsAddress) with SSettable {
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a, length, elementsAddress)
 
-  def store(cb: EmitCodeBuilder, pc: SCode): Unit = {
-    cb.assign(a, pc.asInstanceOf[SIndexablePointerCode].a)
-    cb.assign(length, pt.loadLength(a))
-    cb.assign(elementsAddress, pt.firstElementOffset(a, length))
-  }
+  def store(cb: EmitCodeBuilder, pc: SCode): Unit =
+    store(cb, pc.asInstanceOf[SIndexablePointerCode].a)
 
   def store(cb: EmitCodeBuilder, addr: Code[Long]): Unit = {
     cb.assign(a, addr)

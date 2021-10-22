@@ -103,11 +103,4 @@ final class SSubsetStructSettable(st: SSubsetStruct, prev: SBaseStructSettable) 
 }
 
 class SSubsetStructCode(val st: SSubsetStruct, val prev: SBaseStructCode) extends SBaseStructCode {
-  def memoize(cb: EmitCodeBuilder, name: String): SBaseStructValue = {
-    new SSubsetStructSettable(st, prev.memoize(cb, name).asInstanceOf[SBaseStructSettable])
-  }
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SBaseStructValue = {
-    new SSubsetStructSettable(st, prev.memoizeField(cb, name).asInstanceOf[SBaseStructSettable])
-  }
 }

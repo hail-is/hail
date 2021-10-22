@@ -45,16 +45,6 @@ class SBooleanCode(val code: Code[Boolean]) extends SPrimitiveCode {
 
   def st: SBoolean.type = SBoolean
 
-  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SBooleanSettable = {
-    val s = new SBooleanSettable(sb.newSettable[Boolean]("sboolean_memoize"))
-    s.store(cb, this)
-    s
-  }
-
-  def memoize(cb: EmitCodeBuilder, name: String): SBooleanSettable = memoizeWithBuilder(cb, name, cb.localBuilder)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SBooleanSettable = memoizeWithBuilder(cb, name, cb.fieldBuilder)
-
   def boolCode(cb: EmitCodeBuilder): Code[Boolean] = code
 }
 
@@ -84,5 +74,6 @@ object SBooleanSettable {
 class SBooleanSettable(x: Settable[Boolean]) extends SBooleanValue(x) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
 
-  override def store(cb: EmitCodeBuilder, v: SCode): Unit = cb.assign(x, v.asBoolean.boolCode(cb))
+  override def store(cb: EmitCodeBuilder, v: SCode): Unit =
+    cb.assign(x, v.asBoolean.boolCode(cb))
 }

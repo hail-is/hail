@@ -56,18 +56,6 @@ class SStringPointerCode(val st: SStringPointer, val a: Code[Long]) extends SStr
 
   def toBytes(): SBinaryPointerCode = new SBinaryPointerCode(SBinaryPointer(pt.binaryRepresentation), a)
 
-  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SStringPointerValue = {
-    val s = new SStringPointerSettable(st, sb.newSettable[Long]("sstringpointer_memoize"))
-    s.store(cb, this)
-    s
-  }
-
-  def memoize(cb: EmitCodeBuilder, name: String): SStringPointerValue =
-    memoizeWithBuilder(cb, name, cb.localBuilder)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SStringPointerValue =
-    memoizeWithBuilder(cb, name, cb.fieldBuilder)
-
   def binaryRepr: SBinaryPointerCode = new SBinaryPointerCode(SBinaryPointer(st.pType.binaryRepresentation), a)
 }
 

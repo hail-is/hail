@@ -63,10 +63,10 @@ class PCanonicalString(val required: Boolean) extends PString {
   def sType: SStringPointer = SStringPointer(setRequired(false))
 
   def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SStringPointerValue =
-    new SStringPointerCode(sType, addr).memoize(cb, "loadCheapSCode")
+    new SStringPointerValue(sType, cb.memoize(addr))
 
   def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SStringPointerValue =
-    new SStringPointerCode(sType, addr).memoizeField(cb, "loadCheapSCodeField")
+    new SStringPointerValue(sType, cb.memoizeField(addr))
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
     value.st match {

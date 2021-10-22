@@ -85,9 +85,5 @@ trait SIndexableCode extends SCode {
   def st: SContainer
 
   def codeLoadLength(): Code[Int]
-
-  def memoize(cb: EmitCodeBuilder, name: String): SIndexableValue
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SIndexableValue
 }
 

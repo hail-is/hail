@@ -57,16 +57,6 @@ class SJavaStringCode(val s: Code[String]) extends SStringCode {
   def toBytes(): SBinaryCode = {
     new SJavaBytesCode(s.invoke[Array[Byte]]("getBytes"))
   }
-
-  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SValue = {
-    val s = new SJavaStringSettable(sb.newSettable[String](s"${name}_javastring"))
-    s.store(cb, this)
-    s
-  }
-
-  def memoize(cb: EmitCodeBuilder, name: String): SValue = memoizeWithBuilder(cb, name, cb.localBuilder)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SValue = memoizeWithBuilder(cb, name, cb.fieldBuilder)
 }
 
 class SJavaStringValue(val s: Value[String]) extends SStringValue {

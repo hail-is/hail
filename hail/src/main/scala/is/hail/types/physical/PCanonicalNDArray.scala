@@ -341,11 +341,17 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   def sType: SNDArrayPointer = SNDArrayPointer(setRequired(false))
 
+  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long], sb: SettableBuilder): SNDArrayPointerValue = {
+    val s = SNDArrayPointerSettable(sb, SNDArrayPointer(this), "loadCheapSCode")
+    s.store(cb, addr)
+    s
+  }
+
   def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SNDArrayPointerValue =
-    new SNDArrayPointerCode(sType, addr).memoize(cb, "loadCheapSCode")
+    loadCheapSCode(cb, addr, cb.localBuilder)
 
   def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SNDArrayPointerValue =
-    new SNDArrayPointerCode(sType, addr).memoizeField(cb, "loadCheapSCodeField")
+    loadCheapSCode(cb, addr, cb.fieldBuilder)
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
     val addr = cb.memoize(this.representation.allocate(region))
@@ -377,7 +383,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       case _ =>
         val newDataAddr = this.allocateData(shape, region)
         cb += Region.storeAddress(this.representation.fieldOffset(targetAddr, "data"), newDataAddr)
-        val outputSNDValue = new SNDArrayPointerCode(sType, targetAddr).memoize(cb, "pcanonical_ndarray_store_at_addr_output")
+        val outputSNDValue = loadCheapSCode(cb, targetAddr)
         outputSNDValue.coiterateMutate(cb, region, true, (inputSNDValue, "input")){
           case Seq(dest, elt) =>
             elt

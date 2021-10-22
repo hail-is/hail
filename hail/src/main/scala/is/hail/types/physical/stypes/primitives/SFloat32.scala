@@ -45,16 +45,6 @@ class SFloat32Code(val code: Code[Float]) extends SPrimitiveCode {
 
   override def st: SFloat32.type = SFloat32
 
-  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SFloat32Value = {
-    val s = new SFloat32Settable(sb.newSettable[Float]("sint64_memoize"))
-    s.store(cb, this)
-    s
-  }
-
-  override def memoize(cb: EmitCodeBuilder, name: String): SFloat32Value = memoizeWithBuilder(cb, name, cb.localBuilder)
-
-  override def memoizeField(cb: EmitCodeBuilder, name: String): SFloat32Value = memoizeWithBuilder(cb, name, cb.fieldBuilder)
-
   def floatCode(cb: EmitCodeBuilder): Code[Float] = code
 }
 

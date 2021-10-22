@@ -24,7 +24,7 @@ object SStackStruct {
       structType.constructFromFields(cb, region, as, false)
     } else {
       val st = SStackStruct(t, as.map(_.emitType))
-      new SStackStructCode(st, as).memoize(cb, "SStackStruct_constructFromArgs")
+      st.fromEmitCodes(cb, as)
     }
   }
 }
@@ -67,6 +67,11 @@ final case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedS
       val start = settableStarts(i)
       et.fromValues(values.slice(start, start + et.nSettables))
     })
+  }
+
+  def fromEmitCodes(cb: EmitCodeBuilder, values: IndexedSeq[EmitCode]): SStackStructValue = {
+    val s = new SStackStructValue(this, values.map(cb.memoize))
+    s
   }
 
   override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = {
@@ -135,32 +140,12 @@ final class SStackStructSettable(
 ) extends SStackStructValue(st, settables) with SBaseStructSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = settables.flatMap(_.settableTuple())
 
-  override def store(cb: EmitCodeBuilder, pv: SCode): Unit = {
-    val ssc = pv.asInstanceOf[SStackStructCode]
-    settables.zip(ssc.codes).foreach { case (s, c) => s.store(cb, c) }
-  }
+  override def store(cb: EmitCodeBuilder, pv: SCode): Unit =
+    store(cb, pv.asInstanceOf[SStackStructCode].codes)
+
+  def store(cb: EmitCodeBuilder, codes: IndexedSeq[EmitCode]): Unit =
+    settables.zip(codes).foreach { case (s, c) => s.store(cb, c) }
 }
 
 class SStackStructCode(val st: SStackStruct, val codes: IndexedSeq[EmitCode]) extends SBaseStructCode {
-  override def memoize(cb: EmitCodeBuilder, name: String): SStackStructSettable = {
-    new SStackStructSettable(st, codes.indices.map { i =>
-      val code = codes(i)
-      val es = cb.emb.newEmitLocal(s"${ name }_$i", code.emitType)
-      es.store(cb, code)
-      es
-    })
-  }
-
-  override def memoizeField(cb: EmitCodeBuilder, name: String): SStackStructSettable = {
-    new SStackStructSettable(st, codes.indices.map { i =>
-      val code = codes(i)
-      val es = cb.emb.newEmitField(s"${ name }_$i", code.emitType)
-      es.store(cb, code)
-      es
-    })
-  }
-
-  override def loadSingleField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
-    codes(fieldIdx).toI(cb)
-  }
 }

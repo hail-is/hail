@@ -43,16 +43,6 @@ class SInt32Code(val code: Code[Int]) extends SPrimitiveCode {
 
   def st: SInt32.type = SInt32
 
-  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SInt32Value = {
-    val s = new SInt32Settable(sb.newSettable[Int]("sInt32_memoize"))
-    s.store(cb, this)
-    s
-  }
-
-  def memoize(cb: EmitCodeBuilder, name: String): SInt32Value = memoizeWithBuilder(cb, name, cb.localBuilder)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SInt32Value = memoizeWithBuilder(cb, name, cb.fieldBuilder)
-
   def intCode(cb: EmitCodeBuilder): Code[Int] = code
 }
 

@@ -740,6 +740,4 @@ trait SNDArraySettable extends SNDArrayValue with SSettable
 
 trait SNDArrayCode extends SCode {
   def st: SNDArray
-
-  def memoize(cb: EmitCodeBuilder, name: String): SNDArrayValue
 }

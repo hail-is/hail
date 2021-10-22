@@ -36,10 +36,4 @@ trait SLocusCode extends SCode {
   def st: SLocus
 
   def position(cb: EmitCodeBuilder): Code[Int]
-
-  def getLocusObj(cb: EmitCodeBuilder): Code[Locus]
-
-  def memoize(cb: EmitCodeBuilder, name: String): SLocusValue
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SLocusValue
 }

@@ -73,9 +73,8 @@ class CodeSuite extends HailSuite {
     mb.emit(EmitCodeBuilder.scopedCode(mb) { cb =>
       val arrayPointer = fb.emb.getCodeParam[Long](1)
       val sIndexPointer = SIndexablePointer(pArray)
-      val arrayToHash = new SIndexablePointerCode(sIndexPointer, arrayPointer)
-      val i = arrayToHash.memoize(cb, "value_to_hash")
-      val hash = i.hash(cb)
+      val arrayToHash = pArray.loadCheapSCode(cb, arrayPointer)
+      val hash = arrayToHash.hash(cb)
       hash.intCode(cb)
     })
     val region = Region(pool=pool)
@@ -90,9 +89,8 @@ class CodeSuite extends HailSuite {
     mb.emit(EmitCodeBuilder.scopedCode(mb) { cb =>
       val structPointer = fb.emb.getCodeParam[Long](1)
       val sIndexPointer = SBaseStructPointer(pStruct)
-      val structToHash = new SBaseStructPointerCode(sIndexPointer, structPointer)
-      val i = structToHash.memoize(cb, "value_to_hash")
-      val hash = i.hash(cb)
+      val structToHash = pStruct.loadCheapSCode(cb, structPointer)
+      val hash = structToHash.hash(cb)
       hash.intCode(cb)
     })
     val region = Region(pool=pool)

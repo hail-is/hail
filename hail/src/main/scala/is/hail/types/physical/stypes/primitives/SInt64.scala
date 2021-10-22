@@ -44,16 +44,6 @@ class SInt64Code(val code: Code[Long]) extends SPrimitiveCode {
 
   def st: SInt64.type = SInt64
 
-  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SInt64Value = {
-    val s = new SInt64Settable(sb.newSettable[Long]("sint64_memoize"))
-    s.store(cb, this)
-    s
-  }
-
-  def memoize(cb: EmitCodeBuilder, name: String): SInt64Value = memoizeWithBuilder(cb, name, cb.localBuilder)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SInt64Value = memoizeWithBuilder(cb, name, cb.fieldBuilder)
-
   def longCode(cb: EmitCodeBuilder): Code[Long] = code
 }
 

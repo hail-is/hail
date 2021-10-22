@@ -60,16 +60,6 @@ final case class SJavaArrayString(elementRequired: Boolean) extends SContainer {
 
 class SJavaArrayStringCode(val st: SJavaArrayString, val array: Code[Array[String]]) extends SIndexableCode {
   def codeLoadLength(): Code[Int] = array.length()
-
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SIndexableValue = {
-    val s = SJavaArrayStringSettable(sb, st, name)
-    s.store(cb, this)
-    s
-  }
-
-  def memoize(cb: EmitCodeBuilder, name: String): SIndexableValue = memoize(cb, name, cb.localBuilder)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SIndexableValue = memoize(cb, name, cb.fieldBuilder)
 }
 
 class SJavaArrayStringValue(

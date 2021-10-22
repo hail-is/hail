@@ -155,9 +155,5 @@ class SCanonicalCallCode(val call: Code[Int]) extends SCallCode {
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String): SCanonicalCallValue = memoize(cb, name, cb.localBuilder)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SCanonicalCallValue = memoize(cb, name, cb.fieldBuilder)
-
   def loadCanonicalRepresentation(cb: EmitCodeBuilder): Code[Int] = call
 }

@@ -37,8 +37,6 @@ case object SVoidCode extends SCode with SUnrealizableCode {
   self =>
 
   override def st: SType = SVoid
-
-  def memoize(cb: EmitCodeBuilder, name: String): SValue = SVoidValue
 }
 
 case object SVoidValue extends SValue with SUnrealizableValue {

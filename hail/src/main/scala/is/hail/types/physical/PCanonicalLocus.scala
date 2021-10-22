@@ -3,7 +3,7 @@ package is.hail.types.physical
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
-import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SCanonicalLocusPointerCode, SCanonicalLocusPointerValue, SStackStruct}
+import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SCanonicalLocusPointerCode, SCanonicalLocusPointerSettable, SCanonicalLocusPointerValue, SStackStruct}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.{SCode, SValue}
 import is.hail.utils.FastIndexedSeq
@@ -95,11 +95,17 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
 
   def sType: SCanonicalLocusPointer = SCanonicalLocusPointer(setRequired(false))
 
+  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long], sb: SettableBuilder): SCanonicalLocusPointerValue = {
+    val s = SCanonicalLocusPointerSettable(sb, SCanonicalLocusPointer(this), "loadCheapSCode")
+    s.store(cb, addr)
+    s
+  }
+
   def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SCanonicalLocusPointerValue =
-    new SCanonicalLocusPointerCode(sType, addr).memoize(cb, "loadCheapSCode")
+    loadCheapSCode(cb, addr, cb.localBuilder)
 
   def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SCanonicalLocusPointerValue =
-    new SCanonicalLocusPointerCode(sType, addr).memoizeField(cb, "loadCheapSCodeField")
+    loadCheapSCode(cb, addr, cb.fieldBuilder)
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
     value.st match {

@@ -84,17 +84,6 @@ trait SBaseStructCode extends SCode {
   self =>
   def st: SBaseStruct
 
-  def memoize(cb: EmitCodeBuilder, name: String): SBaseStructValue
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SBaseStructValue
-
-  final def loadSingleField(cb: EmitCodeBuilder, fieldName: String): IEmitCode = loadSingleField(cb, st.fieldIdx(fieldName))
-
-  def loadSingleField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
-    memoize(cb, "structcode_loadsinglefield")
-      .loadField(cb, fieldIdx)
-  }
-
   protected[stypes] def _insert(newType: TStruct, fields: (String, EmitCode)*): SBaseStructCode = {
     new SInsertFieldsStructCode(
       SInsertFieldsStruct(newType, st, fields.map { case (name, ec) => (name, ec.emitType) }.toFastIndexedSeq),

@@ -87,20 +87,6 @@ abstract class SCode {
   def asCall: SCallCode = asInstanceOf[SCallCode]
 
   def asStream: SStreamCode = asInstanceOf[SStreamCode]
-
-  def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SValue =
-    castTo(cb, region, destType, false)
-
-  def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType, deepCopy: Boolean): SValue = {
-    destType.coerceOrCopy(cb, region, this.memoize(cb, "castTo"), deepCopy)
-  }
-
-  def copyToRegion(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SValue =
-    destType.coerceOrCopy(cb, region, this.memoize(cb, "copyToRegion"), deepCopy = true)
-
-  def memoize(cb: EmitCodeBuilder, name: String): SValue
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SValue
 }
 
 trait SValue {
@@ -182,8 +168,6 @@ object SSettable {
 trait SUnrealizableCode extends SCode {
   private def unsupported: Nothing =
     throw new UnsupportedOperationException(s"$this is not realizable")
-
-  override def memoizeField(cb: EmitCodeBuilder, name: String): SValue = unsupported
 }
 
 trait SUnrealizableValue extends SValue

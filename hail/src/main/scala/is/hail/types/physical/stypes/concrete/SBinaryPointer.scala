@@ -98,10 +98,4 @@ class SBinaryPointerCode(val st: SBinaryPointer, val a: Code[Long]) extends SBin
     s.store(cb, this)
     s
   }
-
-  def memoize(cb: EmitCodeBuilder, name: String): SBinaryPointerValue =
-    memoize(cb, cb.localBuilder, name)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SBinaryPointerValue =
-    memoize(cb, cb.fieldBuilder, name)
 }

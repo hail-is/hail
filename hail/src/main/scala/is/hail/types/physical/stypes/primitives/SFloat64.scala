@@ -55,16 +55,6 @@ class SFloat64Code(val code: Code[Double]) extends SPrimitiveCode {
 
   def st: SFloat64.type = SFloat64
 
-  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SFloat64Value = {
-    val s = new SFloat64Settable(sb.newSettable[Double]("sint64_memoize"))
-    s.store(cb, this)
-    s
-  }
-
-  def memoize(cb: EmitCodeBuilder, name: String): SFloat64Value = memoizeWithBuilder(cb, name, cb.localBuilder)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SFloat64Value = memoizeWithBuilder(cb, name, cb.fieldBuilder)
-
   def doubleCode(cb: EmitCodeBuilder): Code[Double] = code
 }
 

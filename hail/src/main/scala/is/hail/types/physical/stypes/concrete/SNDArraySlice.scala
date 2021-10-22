@@ -130,15 +130,4 @@ final class SNDArraySliceSettable(
 }
 
 class SNDArraySliceCode(val st: SNDArraySlice, val shape: IndexedSeq[Code[Long]], val strides: IndexedSeq[Code[Long]], val dataFirstElement: Code[Long]) extends SNDArrayCode {
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SNDArrayValue = {
-    val s = SNDArraySliceSettable(sb, st, name)
-    s.store(cb, this)
-    s
-  }
-
-  override def memoize(cb: EmitCodeBuilder, name: String): SNDArrayValue =
-    memoize(cb, name, cb.localBuilder)
-
-  override def memoizeField(cb: EmitCodeBuilder, name: String): SValue =
-    memoize(cb, name, cb.fieldBuilder)
 }

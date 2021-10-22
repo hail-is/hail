@@ -127,8 +127,11 @@ final class SNDArrayPointerSettable(
 ) extends SNDArrayPointerValue(st, a, shape.map(SizeValueDyn.apply), strides, firstDataAddress) with SNDArraySettable {
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a) ++ shape ++ strides ++ FastIndexedSeq(firstDataAddress)
 
-  def store(cb: EmitCodeBuilder, v: SCode): Unit = {
-    cb.assign(a, v.asInstanceOf[SNDArrayPointerCode].a)
+  def store(cb: EmitCodeBuilder, v: SCode): Unit =
+    store(cb, v.asInstanceOf[SNDArrayPointerCode].a)
+
+  def store(cb: EmitCodeBuilder, addr: Code[Long]): Unit = {
+    cb.assign(a, addr)
     pt.loadShapes(cb, a, shape)
     pt.loadStrides(cb, a, strides)
     cb.assign(firstDataAddress, pt.dataFirstElementPointer(a))
@@ -137,16 +140,4 @@ final class SNDArrayPointerSettable(
 
 class SNDArrayPointerCode(val st: SNDArrayPointer, val a: Code[Long]) extends SNDArrayCode {
   val pt: PCanonicalNDArray = st.pType
-
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SNDArrayPointerValue = {
-    val s = SNDArrayPointerSettable(sb, st, name)
-    s.store(cb, this)
-    s
-  }
-
-  override def memoize(cb: EmitCodeBuilder, name: String): SNDArrayPointerValue =
-    memoize(cb, name, cb.localBuilder)
-
-  override def memoizeField(cb: EmitCodeBuilder, name: String): SNDArrayPointerValue =
-    memoize(cb, name, cb.fieldBuilder)
 }
