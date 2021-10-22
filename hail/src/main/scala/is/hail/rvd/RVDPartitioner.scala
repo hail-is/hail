@@ -73,7 +73,7 @@ class RVDPartitioner(
 
   override def equals(other: Any): Boolean = other match {
     case that: RVDPartitioner =>
-      this.eq(that) || (this.kType == that.kType) && this.rangeBounds.sameElements(that.rangeBounds))
+      this.eq(that) || (this.kType == that.kType && this.rangeBounds.sameElements(that.rangeBounds))
     case _ => false
   }
 
