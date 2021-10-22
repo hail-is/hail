@@ -3,6 +3,7 @@ import pytest
 
 import hail as hl
 from hail.utils import new_temp_file
+from hail.vds.combiner.combine import defined_entry_fields
 from ..helpers import startTestHailContext, stopTestHailContext, resource, fails_local_backend, fails_service_backend
 
 setUpModule = startTestHailContext
@@ -23,7 +24,8 @@ def generate_5_sample_vds():
                     includes_end=True)
     ]
     vcfs = hl.import_gvcfs(paths, parts, reference_genome='GRCh38', array_elements_required=False)
-    vds = hl.vds.combiner.combine_variant_datasets([hl.vds.combiner.transform_gvcf(mt) for mt in vcfs])
+    to_keep = defined_entry_fields(vcfs[0].filter_rows(hl.is_defined(vcfs[0].info.END)), 100_000)
+    vds = hl.vds.combiner.combine_variant_datasets([hl.vds.combiner.transform_gvcf(mt, to_keep) for mt in vcfs])
     vds.variant_data = vds.variant_data._key_rows_by_assert_sorted('locus', 'alleles')
     vds.write(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'), overwrite=True)
 
@@ -124,66 +126,6 @@ def test_sampleqc_old_new_equivalence():
         *(hl.agg.all(res.sample_qc[field] == res.sample_qc_new[field]) for field in fields_to_test)
     ))
 
-
-@fails_local_backend
-@fails_service_backend
-def test_combiner_works():
-    from hail.vds.combiner import combine_variant_datasets, transform_gvcf
-    _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
-    paths = [resource(p) for p in _paths]
-    parts = [
-        hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 17821257, reference_genome='GRCh38')),
-                    end=hl.Struct(locus=hl.Locus('chr20', 18708366, reference_genome='GRCh38')),
-                    includes_end=True),
-        hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 18708367, reference_genome='GRCh38')),
-                    end=hl.Struct(locus=hl.Locus('chr20', 19776611, reference_genome='GRCh38')),
-                    includes_end=True),
-        hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 19776612, reference_genome='GRCh38')),
-                    end=hl.Struct(locus=hl.Locus('chr20', 21144633, reference_genome='GRCh38')),
-                    includes_end=True)
-    ]
-    vcfs = [transform_gvcf(mt.annotate_rows(info=mt.info.annotate(
-        MQ_DP=hl.missing(hl.tint32),
-        VarDP=hl.missing(hl.tint32),
-        QUALapprox=hl.missing(hl.tint32))))
-            for mt in hl.import_gvcfs(paths, parts, reference_genome='GRCh38',
-                                      array_elements_required=False)]
-    comb = combine_variant_datasets(vcfs)
-    assert len(parts) == comb.variant_data.n_partitions()
-    comb.variant_data._force_count_rows()
-    comb.reference_data._force_count_rows()
-
-
-@fails_local_backend
-@fails_service_backend
-def test_vcf_vds_combiner_equivalence():
-    import hail.experimental.vcf_combiner.vcf_combiner as vcf
-    import hail.vds.combiner as vds
-    _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
-    paths = [resource(p) for p in _paths]
-    parts = [
-        hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 17821257, reference_genome='GRCh38')),
-                    end=hl.Struct(locus=hl.Locus('chr20', 18708366, reference_genome='GRCh38')),
-                    includes_end=True),
-        hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 18708367, reference_genome='GRCh38')),
-                    end=hl.Struct(locus=hl.Locus('chr20', 19776611, reference_genome='GRCh38')),
-                    includes_end=True),
-        hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 19776612, reference_genome='GRCh38')),
-                    end=hl.Struct(locus=hl.Locus('chr20', 21144633, reference_genome='GRCh38')),
-                    includes_end=True)
-    ]
-    vcfs = [mt.annotate_rows(info=mt.info.annotate(
-        MQ_DP=hl.missing(hl.tint32),
-        VarDP=hl.missing(hl.tint32),
-        QUALapprox=hl.missing(hl.tint32)))
-            for mt in hl.import_gvcfs(paths, parts, reference_genome='GRCh38',
-                                      array_elements_required=False)]
-    vds = vds.combine_variant_datasets([vds.transform_gvcf(mt) for mt in vcfs])
-    smt = vcf.combine_gvcfs([vcf.transform_gvcf(mt) for mt in vcfs])
-    smt_from_vds = hl.vds.to_merged_sparse_mt(vds).drop('RGQ')
-    smt = smt.select_entries(*smt_from_vds.entry)  # harmonize fields and order
-    smt = smt.key_rows_by('locus', 'alleles')
-    assert smt._same(smt_from_vds)
 
 def test_filter_samples_and_merge():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
