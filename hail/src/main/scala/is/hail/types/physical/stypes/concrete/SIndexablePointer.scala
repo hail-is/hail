@@ -70,14 +70,6 @@ class SIndexablePointerCode(val st: SIndexablePointer, val a: Code[Long]) extend
   override def memoize(cb: EmitCodeBuilder, name: String): SIndexablePointerValue = memoize(cb, name, cb.localBuilder)
 
   override def memoizeField(cb: EmitCodeBuilder, name: String): SIndexablePointerValue = memoize(cb, name, cb.fieldBuilder)
-
-  override def castToArray(cb: EmitCodeBuilder): SIndexableCode = {
-    pt match {
-      case t: PArray => this
-      case t: PCanonicalDict => new SIndexablePointerCode(SIndexablePointer(t.arrayRep), a)
-      case t: PCanonicalSet => new SIndexablePointerCode(SIndexablePointer(t.arrayRep), a)
-    }
-  }
 }
 
 class SIndexablePointerValue(

@@ -102,17 +102,4 @@ trait SBaseStructCode extends SCode {
       fields.map(_._2).toFastIndexedSeq
     )
   }
-
-  def insert(cb: EmitCodeBuilder, region: Value[Region], newType: TStruct, fields: (String, EmitCode)*): SBaseStructCode = {
-    if (newType.size < 64 || fields.length < 16)
-      return _insert(newType, fields: _*)
-
-    val newFieldMap = fields.toMap
-    val oldPV = memoize(cb, "insert_fields_old")
-    val allFields = newType.fieldNames.map { f =>
-      (f, newFieldMap.getOrElse(f, EmitCode.fromI(cb.emb)(cb => oldPV.loadField(cb, f)))) }
-
-    val pcs = PCanonicalStruct(false, allFields.map { case (f, ec) => (f, ec.emitType.storageType) }: _*)
-    pcs.constructFromFields(cb, region, allFields.map(_._2), false).get
-  }
 }

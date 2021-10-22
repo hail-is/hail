@@ -141,9 +141,4 @@ class SNDArraySliceCode(val st: SNDArraySlice, val shape: IndexedSeq[Code[Long]]
 
   override def memoizeField(cb: EmitCodeBuilder, name: String): SValue =
     memoize(cb, name, cb.fieldBuilder)
-
-  override def shape(cb: EmitCodeBuilder): SStackStructCode = {
-    val shapeType = SStackStruct(st.virtualType.shapeType, Array.fill(st.nDims)(EmitType(SInt64, true)))
-    new SStackStructCode(shapeType, shape.map(x => EmitCode.present(cb.emb, primitive(cb.memoize(x)))))
-  }
 }
