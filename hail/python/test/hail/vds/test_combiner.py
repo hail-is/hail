@@ -5,6 +5,7 @@ import hail as hl
 from hail.utils.java import Env
 from hail.utils.misc import new_temp_file
 from hail.vds.combiner import combine_variant_datasets, new_combiner, load_combiner, transform_gvcf
+from hail.vds.combiner.combine import defined_entry_fields
 from ..helpers import startTestHailContext, stopTestHailContext, resource, fails_local_backend, fails_service_backend
 
 setUpModule = startTestHailContext
@@ -39,12 +40,14 @@ def test_combiner_works():
                     end=hl.Struct(locus=hl.Locus('chr20', 21144633, reference_genome='GRCh38')),
                     includes_end=True)
     ]
+    vcfs = hl.import_gvcfs(paths, parts, reference_genome='GRCh38', array_elements_required=False)
+    entry_to_keep = defined_entry_fields(vcfs[0].filter_rows(hl.is_defined(vcfs[0].info.END)), 100_000) - {'GT', 'PGT', 'PL'}
     vcfs = [transform_gvcf(mt.annotate_rows(info=mt.info.annotate(
         MQ_DP=hl.missing(hl.tint32),
         VarDP=hl.missing(hl.tint32),
-        QUALapprox=hl.missing(hl.tint32))))
-            for mt in hl.import_gvcfs(paths, parts, reference_genome='GRCh38',
-                                      array_elements_required=False)]
+        QUALapprox=hl.missing(hl.tint32))),
+                           reference_entry_fields_to_keep=entry_to_keep)
+            for mt in vcfs]
     comb = combine_variant_datasets(vcfs)
     assert len(parts) == comb.variant_data.n_partitions()
     comb.variant_data._force_count_rows()
@@ -75,7 +78,8 @@ def test_vcf_vds_combiner_equivalence():
         QUALapprox=hl.missing(hl.tint32)))
             for mt in hl.import_gvcfs(paths, parts, reference_genome='GRCh38',
                                       array_elements_required=False)]
-    vds = vds.combine_variant_datasets([vds.transform_gvcf(mt) for mt in vcfs])
+    entry_to_keep = defined_entry_fields(vcfs[0].filter_rows(hl.is_defined(vcfs[0].info.END)), 100_000) - {'GT', 'PGT', 'PL'}
+    vds = vds.combine_variant_datasets([vds.transform_gvcf(mt, reference_entry_fields_to_keep=entry_to_keep) for mt in vcfs])
     smt = vcf.combine_gvcfs([vcf.transform_gvcf(mt) for mt in vcfs])
     smt_from_vds = hl.vds.to_merged_sparse_mt(vds).drop('RGQ')
     smt = smt.select_entries(*smt_from_vds.entry)  # harmonize fields and order
@@ -141,16 +145,17 @@ def test_combiner_run():
 def test_combiner_manual_filtration():
     sample_names = all_samples[:2]
     paths = [os.path.join(resource('gvcfs'), '1kg_chr22', f'{s}.hg38.g.vcf.gz') for s in sample_names]
-    plan_path = new_temp_file(extension='json')
     out_file = new_temp_file(extension='vds')
     plan = new_combiner(gvcf_paths=paths,
                         output_path=out_file,
                         temp_path=Env.hc()._tmpdir,
-                        save_path=plan_path,
                         reference_genome='GRCh38',
                         use_exome_default_intervals=True,
                         gvcf_reference_entry_fields_to_keep=['GQ'],
-                        gvcf_info_to_keep=['ExcessHet'])
+                        gvcf_info_to_keep=['ExcessHet'],
+                        force=True)
+
+    assert plan.gvcf_info_to_keep == {'ExcessHet'}
 
     plan.run()
     vds = hl.vds.read_vds(out_file)

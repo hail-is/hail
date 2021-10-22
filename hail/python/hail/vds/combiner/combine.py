@@ -17,10 +17,11 @@ def make_variants_matrix_table(mt: MatrixTable,
         info_to_keep = []
     if not info_to_keep:
         info_to_keep = [name for name in mt.info if name not in ['END', 'DP']]
+    info_key = tuple(sorted(info_to_keep))  # hashable stable value
     mt = localize(mt)
     mt = mt.filter(hl.is_missing(mt.info.END))
 
-    if mt.row.dtype not in _transform_variant_function_map:
+    if (mt.row.dtype, info_key) not in _transform_variant_function_map:
         def get_lgt(e, n_alleles, has_non_ref, row):
             index = e.GT.unphased_diploid_gt_index()
             n_no_nonref = n_alleles - hl.int(has_non_ref)
@@ -86,8 +87,8 @@ def make_variants_matrix_table(mt: MatrixTable,
                     __entries=row.__entries.map(
                         lambda e: make_entry_struct(e, alleles_len, has_non_ref, row)))),
             mt.row.dtype)
-        _transform_variant_function_map[mt.row.dtype] = f
-    transform_row = _transform_variant_function_map[mt.row.dtype]
+        _transform_variant_function_map[mt.row.dtype, info_key] = f
+    transform_row = _transform_variant_function_map[mt.row.dtype, info_key]
     return unlocalize(Table(TableMapRows(mt._tir, Apply(transform_row._name, transform_row._ret_type, TopLevelReference('row')))))
 
 
@@ -104,6 +105,7 @@ def make_reference_matrix_table(mt: MatrixTable,
                                 entry_to_keep: Collection[str]
                                 ) -> MatrixTable:
     mt = mt.filter_rows(hl.is_defined(mt.info.END))
+    entry_key = tuple(sorted(entry_to_keep))  # hashable stable value
 
     def make_entry_struct(e, row):
         handled_fields = dict()
@@ -124,7 +126,7 @@ def make_reference_matrix_table(mt: MatrixTable,
                   .or_error('found END with non reference-genotype at' + hl.str(row.locus)))
 
     mt = localize(mt)
-    if mt.row.dtype not in _transform_reference_fuction_map:
+    if (mt.row.dtype, entry_key) not in _transform_reference_fuction_map:
         f = hl.experimental.define_function(
             lambda row: hl.struct(
                 locus=row.locus,
@@ -132,9 +134,9 @@ def make_reference_matrix_table(mt: MatrixTable,
                 __entries=row.__entries.map(
                     lambda e: make_entry_struct(e, row))),
             mt.row.dtype)
-        _transform_reference_fuction_map[mt.row.dtype] = f
+        _transform_reference_fuction_map[mt.row.dtype, entry_key] = f
 
-    transform_row = _transform_reference_fuction_map[mt.row.dtype]
+    transform_row = _transform_reference_fuction_map[mt.row.dtype, entry_key]
     return unlocalize(Table(TableMapRows(mt._tir, Apply(transform_row._name, transform_row._ret_type, TopLevelReference('row')))))
 
 
