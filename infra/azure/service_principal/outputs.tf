@@ -8,3 +8,7 @@ output "credentials" {
   }
   sensitive = true
 }
+
+output "principal_id" {
+  value = azuread_service_principal.sp.object_id
+}
