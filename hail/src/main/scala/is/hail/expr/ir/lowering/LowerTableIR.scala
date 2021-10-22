@@ -318,24 +318,19 @@ class TableStage(
     globalJoiner: (IR, IR) => IR,
     joiner: (Ref, Ref) => IR
   ): TableStage = {
-
     assert(this.kType.truncate(joinKey).isIsomorphicTo(right.kType.truncate(joinKey)))
 
     val newPartitioner = {
-      if (this.partitioner == right.partitioner) {
-        this.partitioner
-      } else {
-        def leftPart: RVDPartitioner = this.partitioner.strictify
-        def rightPart: RVDPartitioner = right.partitioner.coarsen(joinKey).extendKey(this.kType)
-        (joinType: @unchecked) match {
-          case "left" => leftPart
-          case "right" => rightPart
-          case "inner" => leftPart.intersect(rightPart)
-          case "outer" => RVDPartitioner.generate(
-            this.kType.fieldNames.take(joinKey),
-            this.kType,
-            leftPart.rangeBounds ++ rightPart.rangeBounds)
-        }
+      def leftPart: RVDPartitioner = this.partitioner.strictify
+      def rightPart: RVDPartitioner = right.partitioner.coarsen(joinKey).extendKey(this.kType)
+      (joinType: @unchecked) match {
+        case "left" => leftPart
+        case "right" => rightPart
+        case "inner" => leftPart.intersect(rightPart)
+        case "outer" => RVDPartitioner.generate(
+          this.kType.fieldNames.take(joinKey),
+          this.kType,
+          leftPart.rangeBounds ++ rightPart.rangeBounds)
       }
     }
     val repartitionedLeft: TableStage = this.repartitionNoShuffle(newPartitioner)
