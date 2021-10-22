@@ -92,19 +92,8 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
 
   def memoize[T: TypeInfo](v: Value[T]): Value[T] = memoize(v, "")
 
-  def memoize[T: TypeInfo](v: Value[T], optionalName: String): Value[T] = {
-    if (v.isConst) {
-      v
-    } else {
-      val l = new ConstLocalRef[T](mb.lmethod.newLocal("memoize" + optionalName, typeInfo[T]))
-      assert(v.v != null)
-      v.end.append(lir.store(l.l, v.v))
-      val newC = new VCode(v.start, v.end, null)
-      v.clear()
-      append(newC)
-      l
-    }
-  }
+  def memoize[T: TypeInfo](v: Value[T], optionalName: String): Value[T] =
+    if (v.isConst) v else memoize(v.get)
 
   def memoizeField[T: TypeInfo](v: Code[T]): Value[T] = {
     newField[T]("memoize", v)
@@ -123,17 +112,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   }
 
   def memoizeAny(v: Value[_], ti: TypeInfo[_]): Value[_] =
-    if (v.isConst) {
-      v
-    } else {
-      val l = new ConstLocalRef(mb.lmethod.newLocal("memoize", ti))
-      assert(v.v != null)
-      v.end.append(lir.store(l.l, v.v))
-      val newC = new VCode(v.start, v.end, null)
-      v.clear()
-      append(newC)
-      l
-    }
+    if (v.isConst) v else memoizeAny(v.get, ti)
 
   def memoize(v: EmitCode): EmitValue =
     memoize(v, "memoize")
