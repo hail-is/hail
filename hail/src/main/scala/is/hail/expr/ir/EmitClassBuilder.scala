@@ -369,7 +369,7 @@ class EmitClassBuilder[C](
     }
 
     getF.emitWithBuilder { cb =>
-      cb += storeF.invokeCode[Unit]()
+      storeF.invokeCode[Unit](cb)
       _aggOff
     }
 
@@ -955,10 +955,10 @@ class EmitMethodBuilder[C](
   }
 
 
-  def invokeCode[T](args: Param*): Code[T] = {
+  def invokeCode[T](cb: CodeBuilderLike, args: Param*): Value[T] = {
     assert(emitReturnType.isInstanceOf[CodeParamType])
     assert(args.forall(_.isInstanceOf[CodeParam]))
-    mb.invoke(args.flatMap {
+    mb.invoke(cb, args.flatMap {
       case CodeParam(c) => FastIndexedSeq(c)
       // If you hit this assertion, it means that an EmitParam was passed to
       // invokeCode. Code with EmitParams must be invoked using the EmitCodeBuilder

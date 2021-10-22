@@ -95,9 +95,10 @@ trait PointerBasedRVAState extends RegionBackedAggState {
       })
   }
 
-  def copyFrom(cb: EmitCodeBuilder, src: Value[Long]): Unit = copyFromAddress(cb, Region.loadAddress(src))
+  def copyFrom(cb: EmitCodeBuilder, src: Value[Long]): Unit =
+    copyFromAddress(cb, cb.memoize(Region.loadAddress(src)))
 
-  def copyFromAddress(cb: EmitCodeBuilder, src: Code[Long]): Unit
+  def copyFromAddress(cb: EmitCodeBuilder, src: Value[Long]): Unit
 }
 
 class TypedRegionBackedAggState(val typ: VirtualTypeWithReq, val kb: EmitClassBuilder[_]) extends AbstractTypedRegionBackedAggState(typ.canonicalPType)

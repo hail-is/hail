@@ -223,13 +223,9 @@ package object ir {
 
   implicit def toCodeParamType(ti: TypeInfo[_]): CodeParamType = CodeParamType(ti)
 
-  implicit def toCodeParam(c: Code[_]): CodeParam = CodeParam(c)
+  implicit def toCodeParam(c: Value[_]): CodeParam = CodeParam(c)
 
-  implicit def valueToCodeParam(v: Value[_]): CodeParam = CodeParam(v)
-
-  implicit def sCodeToSCodeParam(sc: SCode): SCodeParam = SCodeParam(sc)
-
-  implicit def sValueToSCodeParam(sv: SValue): SCodeParam = SCodeParam(sv.get)
+  implicit def sValueToSCodeParam(sv: SValue): SCodeParam = SCodeParam(sv)
 
   implicit def toEmitParam(ec: EmitCode): EmitParam = EmitParam(ec)
 

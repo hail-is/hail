@@ -216,7 +216,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       case s => SizeValueDyn(s)
     }
 
-    cb.invokeSCode(mb, FastIndexedSeq[Param](region, SCodeParam(dataCode.get)) ++ (newShape.map(CodeParam(_)) ++ strides.map(CodeParam(_))): _*)
+    cb.invokeSCode(mb, FastIndexedSeq[Param](region, SCodeParam(dataCode)) ++ (newShape.map(CodeParam(_)) ++ strides.map(CodeParam(_))): _*)
       .asNDArray
       .coerceToShape(cb, newShape)
   }

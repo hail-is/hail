@@ -45,7 +45,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
 
   final def buildEncoder(st: SType, kb: EmitClassBuilder[_]): StagedEncoder = {
     val mb = buildEncoderMethod(st, kb);
-    { (cb: EmitCodeBuilder, sv: SValue, ob: Value[OutputBuffer]) => cb.invokeVoid(mb, sv.get, ob) }
+    { (cb: EmitCodeBuilder, sv: SValue, ob: Value[OutputBuffer]) => cb.invokeVoid(mb, sv, ob) }
   }
 
   final def buildEncoderMethod(st: SType, kb: EmitClassBuilder[_]): EmitMethodBuilder[_] = {

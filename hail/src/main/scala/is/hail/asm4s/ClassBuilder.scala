@@ -1,19 +1,18 @@
 package is.hail.asm4s
 
 import java.io._
+import java.nio.charset.StandardCharsets
 
-import is.hail.utils._
+import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.lir
-
+import is.hail.utils._
 import org.apache.spark.TaskContext
-import org.objectweb.asm.tree._
-import org.objectweb.asm.Opcodes._
-import org.objectweb.asm.util.{Textifier, TraceClassVisitor}
 import org.objectweb.asm.ClassReader
+import org.objectweb.asm.Opcodes._
+import org.objectweb.asm.tree._
+import org.objectweb.asm.util.{Textifier, TraceClassVisitor}
 
 import scala.collection.mutable
-import scala.reflect.ClassTag
-import java.nio.charset.StandardCharsets
 
 class Field[T: TypeInfo](classBuilder: ClassBuilder[_], val name: String) {
   val ti: TypeInfo[T] = implicitly
@@ -293,11 +292,12 @@ class ClassBuilder[C](
     val m = newMethod(name, parameterTypeInfo, returnTypeInfo)
     if (maybeGenericParameterTypeInfo.exists(_.isGeneric) || maybeGenericReturnTypeInfo.isGeneric) {
       val generic = newMethod(name, maybeGenericParameterTypeInfo.map(_.generic), maybeGenericReturnTypeInfo.generic)
-      generic.emit(
-        maybeGenericReturnTypeInfo.castToGeneric(
-          m.invoke(maybeGenericParameterTypeInfo.zipWithIndex.map { case (ti, i) =>
-            ti.castFromGeneric(generic.getArg(i + 1)(ti.generic).get)
-          }: _*)))
+      generic.emitWithBuilder { cb =>
+        maybeGenericReturnTypeInfo.castToGeneric(cb,
+          m.invoke(cb, maybeGenericParameterTypeInfo.zipWithIndex.map { case (ti, i) =>
+            ti.castFromGeneric(cb, generic.getArg(i + 1)(ti.generic))
+          }: _*))
+}
     }
     m
   }
@@ -471,7 +471,9 @@ trait WrappedMethodBuilder[C] extends WrappedClassBuilder[C] {
 
   def emit(body: Code[_]): Unit = mb.emit(body)
 
-  def invoke[T](args: Code[_]*): Code[T] = mb.invoke(args: _*)
+  def emitWithBuilder[T](f: (CodeBuilder) => Code[T]): Unit = mb.emitWithBuilder(f)
+
+  def invoke[T](cb: EmitCodeBuilder, args: Value[_]*): Value[T] = mb.invoke(cb, args: _*)
 }
 
 class MethodBuilder[C](
@@ -538,8 +540,8 @@ class MethodBuilder[C](
     body.clear()
   }
 
-  def invoke[T](args: Code[_]*): Code[T] = {
-    val (start, end, argvs) = Code.sequenceValues(args.toFastIndexedSeq)
+  def invokeCode[T](args: Value[_]*): Code[T] = {
+    val (start, end, argvs) = Code.sequenceValues(args.toFastIndexedSeq.map(_.get))
     if (returnTypeInfo eq UnitInfo) {
       if (isStatic) {
         end.append(lir.methodStmt(INVOKESTATIC, lmethod, argvs))
@@ -557,6 +559,29 @@ class MethodBuilder[C](
           lir.load(new lir.Parameter(null, 0, cb.ti)) +: argvs)
       }
       new VCode(start, end, value)
+    }
+  }
+
+  def invoke[T](codeBuilder: CodeBuilderLike, args: Value[_]*): Value[T] = {
+    val (start, end, argvs) = Code.sequenceValues(args.toFastIndexedSeq.map(_.get))
+    if (returnTypeInfo eq UnitInfo) {
+      if (isStatic) {
+        end.append(lir.methodStmt(INVOKESTATIC, lmethod, argvs))
+      } else {
+        end.append(
+          lir.methodStmt(INVOKEVIRTUAL, lmethod,
+            lir.load(new lir.Parameter(null, 0, cb.ti)) +: argvs))
+      }
+      codeBuilder.append(new VCode(start, end, null))
+      coerce[T](Code._empty)
+    } else {
+      val value = if (isStatic) {
+        lir.methodInsn(INVOKESTATIC, lmethod, argvs)
+      } else {
+        lir.methodInsn(INVOKEVIRTUAL, lmethod,
+          lir.load(new lir.Parameter(null, 0, cb.ti)) +: argvs)
+      }
+      coerce[T](codeBuilder.memoizeAny(new VCode(start, end, value), returnTypeInfo))
     }
   }
 }
