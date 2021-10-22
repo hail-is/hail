@@ -222,7 +222,10 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
     - `het_freq_hwe` (``float64``) -- Expected frequency of heterozygous
       samples under Hardy-Weinberg equilibrium. See
       :func:`.functions.hardy_weinberg_test` for details.
-    - `p_value_hwe` (``float64``) -- p-value from test of Hardy-Weinberg equilibrium.
+    - `p_value_hwe` (``float64``) -- p-value from two-sided test of Hardy-Weinberg
+      equilibrium. See :func:`.functions.hardy_weinberg_test` for details.
+    - `p_value_excess_het` (``float64``) -- p-value from one-sided test of
+      Hardy-Weinberg equilibrium for excess heterozygosity.
       See :func:`.functions.hardy_weinberg_test` for details.
 
     Warning
@@ -271,12 +274,18 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
 
     result = hl.rbind(hl.struct(**bound_exprs),
                       lambda e1: hl.rbind(
-                          hl.case().when(hl.len(mt.alleles) == 2,
-                                         hl.hardy_weinberg_test(e1.call_stats.homozygote_count[0],
-                                                                e1.call_stats.AC[1] - 2
-                                                                * e1.call_stats.homozygote_count[1],
-                                                                e1.call_stats.homozygote_count[1])
-                                         ).or_missing(),
+                          hl.case().when(
+                              hl.len(mt.alleles) == 2,
+                              (hl.hardy_weinberg_test(e1.call_stats.homozygote_count[0],
+                                                      e1.call_stats.AC[1] - 2
+                                                      * e1.call_stats.homozygote_count[1],
+                                                      e1.call_stats.homozygote_count[1]),
+                               hl.hardy_weinberg_test(e1.call_stats.homozygote_count[0],
+                                                      e1.call_stats.AC[1] - 2
+                                                      * e1.call_stats.homozygote_count[1],
+                                                      e1.call_stats.homozygote_count[1],
+                                                      one_sided=True))
+                          ).or_missing(),
                           lambda hwe: hl.struct(**{
                               **gq_dp_exprs,
                               **e1.call_stats,
@@ -286,8 +295,9 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
                               'n_filtered': e1.n_filtered,
                               'n_het': e1.n_called - hl.sum(e1.call_stats.homozygote_count),
                               'n_non_ref': e1.n_called - e1.call_stats.homozygote_count[0],
-                              'het_freq_hwe': hwe.het_freq_hwe,
-                              'p_value_hwe': hwe.p_value})))
+                              'het_freq_hwe': hwe[0].het_freq_hwe,
+                              'p_value_hwe': hwe[0].p_value,
+                              'p_value_excess_het': hwe[1].p_value})))
 
     return mt.annotate_rows(**{name: result})
 
