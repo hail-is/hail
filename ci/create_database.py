@@ -105,6 +105,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}
         config_admin_username = admin_username + '@' + sql_config.instance
         config_user_username = user_username + '@' + sql_config.instance
     else:
+        assert cloud == 'gcp'
         config_admin_username = admin_username
         config_user_username = user_username
     await write_user_config(
@@ -115,6 +116,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}
             host=sql_config.host,
             port=sql_config.port,
             instance=sql_config.instance,
+            connection_name=sql_config.connection_name,
             user=config_admin_username,
             password=admin_password,
             db=_name,
@@ -133,6 +135,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}
             host=sql_config.host,
             port=sql_config.port,
             instance=sql_config.instance,
+            connection_name=sql_config.connection_name,
             user=config_user_username,
             password=user_password,
             db=_name,

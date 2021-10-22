@@ -18,7 +18,6 @@ from .environment import (
     CLOUD,
 )
 from .globals import is_test_deployment
-from gear import get_sql_config
 from gear.cloud_config import get_global_config
 
 CLOUD = get_global_config()['cloud']

@@ -21,6 +21,7 @@ variable "sql_config" {
     user = string,
     password = string,
     instance = string,
+    connection_name = string,
   })
 }
 
