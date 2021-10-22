@@ -22,7 +22,7 @@ Databricks
 ----------
 
 Hail can be installed on a Databricks Spark cluster on Microsoft Azure, Amazon Web Services, or Google Cloud Platform 
-via an open source Docker container located `here <https://hub.docker.com/r/projectglow/databricks-hail/tags?page=1&ordering=last_updated`__. 
+via an open source Docker container located `here <https://hub.docker.com/r/projectglow/databricks-hail/tags?page=1&ordering=last_updated>`__. 
 Docker files to build your own Hail container can be found 
 `here <https://github.com/projectglow/glow/tree/master/docker>`__.
 And further guidelines about working with Hail can be found on the `Databricks documentation <https://docs.databricks.com/applications/genomics/genomics-libraries/hail.html>`__. 
