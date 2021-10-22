@@ -17,6 +17,7 @@ from hailtop.batch.utils import concatenate
 
 
 DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'gcr.io/hail-vdc/ubuntu:18.04')
+PYTHON_DILL_IMAGE = os.environ['PYTHON_DILL_IMAGE']
 HAIL_TEST_GCS_BUCKET = os.environ['HAIL_TEST_GCS_BUCKET']
 
 
@@ -715,7 +716,7 @@ class ServiceTests(unittest.TestCase):
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
     def test_python_job(self):
-        b = self.batch(default_python_image='gcr.io/hail-vdc/python-dill:3.7-slim')
+        b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
         head = b.new_job()
         head.command(f'echo "5" > {head.r5}')
         head.command(f'echo "3" > {head.r3}')
@@ -749,7 +750,7 @@ class ServiceTests(unittest.TestCase):
         assert res.get_job_log(4)['main'] == "3\n5\n30\n{\"x\": 3, \"y\": 5}\n", str(res.debug_info())
 
     def test_python_job_w_resource_group_unpack_individually(self):
-        b = self.batch(default_python_image='gcr.io/hail-vdc/python-dill:3.7-slim')
+        b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
         head = b.new_job()
         head.declare_resource_group(count={'r5': '{root}.r5',
                                            'r3': '{root}.r3'})
@@ -786,7 +787,7 @@ class ServiceTests(unittest.TestCase):
         assert res.get_job_log(4)['main'] == "3\n5\n30\n{\"x\": 3, \"y\": 5}\n", str(res.debug_info())
 
     def test_python_job_w_resource_group_unpack_jointly(self):
-        b = self.batch(default_python_image='gcr.io/hail-vdc/python-dill:3.7-slim')
+        b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
         head = b.new_job()
         head.declare_resource_group(count={'r5': '{root}.r5',
                                            'r3': '{root}.r3'})
@@ -819,7 +820,7 @@ class ServiceTests(unittest.TestCase):
         assert job_log_3['main'] == "15\n", str((job_log_3, res.debug_info()))
 
     def test_python_job_w_non_zero_ec(self):
-        b = self.batch(default_python_image='gcr.io/hail-vdc/python-dill:3.7-slim')
+        b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
         j = b.new_python_job()
 
         def error():

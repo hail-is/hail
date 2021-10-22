@@ -1,7 +1,4 @@
 from typing import Set
-import random
-import datetime
-import math
 import collections
 import os
 import secrets
@@ -59,7 +56,7 @@ def test_attributes(client: BatchClient):
     a = {'name': 'test_attributes', 'foo': 'bar'}
     builder = client.create_batch()
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], attributes=a)
-    b =builder.submit()
+    b = builder.submit()
     assert j.attributes() == a, str(b.debug_info())
 
 
@@ -337,7 +334,9 @@ def test_unknown_image(client: BatchClient):
     b = b.submit()
     status = j.wait()
     assert j._get_exit_code(status, 'main') is None
-    assert status['status']['container_statuses']['main']['short_error'] == 'image not found', str((status, b.debug_info()))
+    assert status['status']['container_statuses']['main']['short_error'] == 'image not found', str(
+        (status, b.debug_info())
+    )
 
 
 def test_running_job_log_and_status(client: BatchClient):
