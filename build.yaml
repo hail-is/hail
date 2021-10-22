@@ -43,17 +43,37 @@ steps:
     namespaceName: default
     public: true
     secrets:
-      - gcr-push-service-account-key
-      - hail-ci-0-1-github-oauth-token
-      - test-gsa-key
-      - test-aws-key
-      - test-azure-key
-      - auth-oauth2-client-secret
-      - zulip-config
-      - benchmark-gsa-key
-      - billing-monitor-gsa-key
-      - hail-ci-0-1-service-account-key
-      - test-dataproc-service-account-key
+      - name: auth-oauth2-client-secret
+      - name: gcr-push-service-account-key
+        clouds:
+          - gcp
+      - name: hail-ci-0-1-github-oauth-token
+        clouds:
+          - gcp
+      - name: test-gsa-key
+        clouds:
+          - gcp
+      - name: test-aws-key
+        clouds:
+          - gcp
+      - name: test-azure-key
+        clouds:
+          - gcp
+      - name: zulip-config
+        clouds:
+          - gcp
+      - name: benchmark-gsa-key
+        clouds:
+          - gcp
+      - name: billing-monitor-gsa-key
+        clouds:
+          - gcp
+      - name: hail-ci-0-1-service-account-key
+        clouds:
+          - gcp
+      - name: test-dataproc-service-account-key
+        clouds:
+          - gcp
   - kind: buildImage2
     name: echo_image
     dockerFile: /io/echo/Dockerfile
