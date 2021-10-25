@@ -177,7 +177,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   def constructByCopyingArray(
     shape: IndexedSeq[Value[Long]],
     strides: IndexedSeq[Value[Long]],
-    dataCode: SIndexableCode,
+    dataCode: SIndexableValue,
     cb: EmitCodeBuilder,
     region: Value[Region]
   ): SNDArrayValue = {
@@ -216,9 +216,8 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       case s => SizeValueDyn(s)
     }
 
-    cb.invokeSCode(mb, FastIndexedSeq[Param](region, SCodeParam(dataCode)) ++ (newShape.map(CodeParam(_)) ++ strides.map(CodeParam(_))): _*)
+    cb.invokeSCode(mb, FastIndexedSeq[Param](region, SCodeParam(dataCode.get)) ++ (newShape.map(CodeParam(_)) ++ strides.map(CodeParam(_))): _*)
       .asNDArray
-      .memoize(cb, "constructByCopyingArray")
       .coerceToShape(cb, newShape)
   }
 

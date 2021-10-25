@@ -63,7 +63,7 @@ class SIndexablePointerCode(val st: SIndexablePointer, val a: Code[Long]) extend
 
   def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SIndexablePointerValue = {
     val s = SIndexablePointerSettable(sb, st, name)
-    cb.assign(s, this)
+    s.store(cb, this)
     s
   }
 

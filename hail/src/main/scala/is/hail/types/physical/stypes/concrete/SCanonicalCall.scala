@@ -150,7 +150,7 @@ class SCanonicalCallCode(val call: Code[Int]) extends SCallCode {
 
   def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SCanonicalCallValue = {
     val s = SCanonicalCallSettable(sb, name)
-    cb.assign(s, this)
+    s.store(cb, this)
     s
   }
 

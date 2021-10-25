@@ -283,7 +283,7 @@ class EmitClassBuilder[C](
         lits.loadField(cb, i)
           .consume(cb,
             cb._fatal("expect non-missing literals!"),
-            { pc => f.store(cb, pc.get) })
+            { pc => f.store(cb, pc) })
       }
       // Handle the pre-encoded literals, which only need to be decoded.
       preEncodedLiterals.zipWithIndex.foreach { case ((encLit, f), index) =>
@@ -294,7 +294,7 @@ class EmitClassBuilder[C](
         assert(decodedValue.st == f.st)
 
         // Because 0th index is for the regular literals
-        f.store(cb, decodedValue.get)
+        f.store(cb, decodedValue)
       }
     }
 
