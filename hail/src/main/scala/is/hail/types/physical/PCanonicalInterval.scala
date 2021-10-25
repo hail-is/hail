@@ -79,7 +79,7 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
     val a = cb.memoize(addr)
     val incStart = cb.memoize(includesStart(a))
     val incEnd = cb.memoize(includesEnd(a))
-    new SIntervalPointerValue(SIntervalPointer(this), a, incStart, incEnd)
+    new SIntervalPointerValue(sType, a, incStart, incEnd)
   }
 
   override def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {

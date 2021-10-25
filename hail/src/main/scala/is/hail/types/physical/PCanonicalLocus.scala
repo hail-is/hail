@@ -96,7 +96,7 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
   def sType: SCanonicalLocusPointer = SCanonicalLocusPointer(setRequired(false))
 
   def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long], sb: SettableBuilder): SCanonicalLocusPointerValue = {
-    val s = SCanonicalLocusPointerSettable(sb, SCanonicalLocusPointer(this), "loadCheapSCode")
+    val s = SCanonicalLocusPointerSettable(sb, sType, "loadCheapSCode")
     s.store(cb, addr)
     s
   }

@@ -343,12 +343,12 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SNDArrayPointerValue = {
     val a = cb.memoize(addr)
-    val shapeTuple = shapeType.loadCheapSCode(cb, representation.loadField(addr, "shape"))
+    val shapeTuple = shapeType.loadCheapSCode(cb, representation.loadField(a, "shape"))
     val shape = Array.tabulate(nDims)(i => SizeValueDyn(shapeTuple.loadField(cb, i).get(cb).asLong.longCode(cb)))
-    val strideTuple = strideType.loadCheapSCode(cb, representation.loadField(addr, "strides"))
+    val strideTuple = strideType.loadCheapSCode(cb, representation.loadField(a, "strides"))
     val strides = Array.tabulate(nDims)(strideTuple.loadField(cb, _).get(cb).asLong.longCode(cb))
     val firstDataAddress = cb.memoize(dataFirstElementPointer(a))
-    new SNDArrayPointerValue(SNDArrayPointer(this), a, shape, strides, firstDataAddress)
+    new SNDArrayPointerValue(sType, a, shape, strides, firstDataAddress)
   }
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
