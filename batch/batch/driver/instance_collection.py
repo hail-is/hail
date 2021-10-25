@@ -4,7 +4,7 @@ import logging
 import collections
 from typing import Dict
 
-from hailtop.utils import time_msecs, secret_alnum_string, periodically_call, time_msecs_str
+from hailtop.utils import time_msecs, secret_alnum_string, periodically_call
 from hailtop import aiotools
 from gear import Database
 
