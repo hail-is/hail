@@ -1,3 +1,4 @@
+import os
 import logging
 import base64
 import json
@@ -5,7 +6,7 @@ import json
 from gear.cloud_config import get_gcp_config
 
 from ...batch_configuration import (DOCKER_ROOT_IMAGE, DOCKER_PREFIX, DEFAULT_NAMESPACE,
-                                    INTERNAL_GATEWAY_IP, BATCH_WORKER_IMAGE)
+                                    INTERNAL_GATEWAY_IP)
 from ...file_store import FileStore
 from ...resource_utils import unreserved_worker_data_disk_size_gib
 
@@ -13,6 +14,8 @@ from ..resource_utils import gcp_machine_type_to_worker_type_cores
 from ..instance_config import GCPInstanceConfig
 
 log = logging.getLogger('create_instance')
+
+BATCH_WORKER_IMAGE = os.environ['HAIL_BATCH_WORKER_IMAGE']
 
 log.info(f'BATCH_WORKER_IMAGE {BATCH_WORKER_IMAGE}')
 
