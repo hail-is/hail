@@ -164,6 +164,10 @@ You can now install Hail:
 - Create Let's Encrypt certs. Run `make -C $HAIL/letsencrypt run`.
 
 - Deploy the internal-gateway.  Run `make -C $HAIL/internal-gateway deploy`.
+ 
+- Deploy the memory service.  Run `make -C $HAIL/memory deploy NAMESPACE=default`.
+
+- `make -C auth deploy NAMESPACE=default`
 
 - Generate the version info:
 
@@ -190,13 +194,13 @@ You can now install Hail:
 - Create the batch worker VM image. Run:
 
   ```
-  make -C $HAIL/batch create-build-worker-image-instance
+  make -C $HAIL/batch gcp-create-build-worker-image-instance
   ```
 
   Wait for the `build-batch-worker-image` instance to be stopped. Then run:
 
   ```
-  make -C $HAIL/batch create-worker-image
+  make -C $HAIL/batch gcp-create-worker-image
   ```
 
 - Create the worker Docker image. Run:
@@ -210,7 +214,12 @@ You can now install Hail:
   above, make sure your `HAIL_DOCKER_PREFIX` has the format of
   `<region>-docker.pkg.dev/<project>/hail`.
 
+  ```sh
+  mkdir /global-config
+  kubectl -n default get secret global-config -o json | jq -r '.data | map_values(@base64d) | to_entries|map("echo \(.value) > /global-config/\(.key)") | .[]' | bash
   ```
+
+  ```sh
   cd $HAIL
   export HAIL_DOCKER_PREFIX=gcr.io/<gcp-project>
   export HAIL_CI_UTILS_IMAGE=$HAIL_DOCKER_PREFIX/ci-utils:cache
@@ -222,9 +231,10 @@ You can now install Hail:
   export HAIL_DOMAIN=<domain>
   export HAIL_GCP_ZONE=<gcp-zone>
   export HAIL_GCP_PROJECT=<gcp-project>
-  export PYTHONPATH=$HOME/hail/ci:$HOME/hail/batch:$HOME/hail/hail/python
-
-  python3 ci/bootstrap.py hail-is/hail:main $(git rev-parse HEAD) test_batch_0
+  export PYTHONPATH=$HAIL/ci:$HAIL/batch:$HAIL/gear:$HAIL/hail/python
+  GIT_ORG=hail-is
+  GIT_BRANCH=main
+  python3 ci/bootstrap.py $GIT_ORG/hail:$GIT_BRANCH $(git rev-parse HEAD) test_batch_0
   ```
 
 - Deploy the gateway. First, edit `$HAIL/letsencrypt/subdomains.txt` to include

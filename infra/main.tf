@@ -14,6 +14,7 @@ terraform {
   }
 }
 
+variable "cloud" {}
 variable "gsuite_organization" {}
 variable "batch_gcp_regions" {}
 variable "gcp_project" {}
@@ -237,6 +238,7 @@ resource "kubernetes_secret" "global_config" {
   }
 
   data = {
+    cloud             = var.cloud
     batch_gcp_regions = var.batch_gcp_regions
     batch_logs_bucket = module.batch_logs.name
     hail_query_gcs_path = "gs://${module.hail_query.name}"
