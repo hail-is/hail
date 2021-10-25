@@ -28,13 +28,14 @@ from ..resource_utils import (
 )
 from .instance import Instance
 from .instance_collection import InstanceCollection
+from .resource_manager import CloudResourceManager
 from .job import schedule_job
 
 log = logging.getLogger('pool')
 
 
 class Pool(InstanceCollection):
-    def __init__(self, app, resource_manager, machine_name_prefix: str, config: PoolConfig):
+    def __init__(self, app, resource_manager: CloudResourceManager, machine_name_prefix: str, config: PoolConfig):
         super().__init__(app, resource_manager, config.cloud, config.name, machine_name_prefix, is_pool=True)
 
         global_scheduler_state_changed: Notice = app['scheduler_state_changed']

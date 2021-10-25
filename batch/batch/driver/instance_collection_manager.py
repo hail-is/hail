@@ -45,9 +45,9 @@ class InstanceCollectionManager:
         self.name_inst_coll: Dict[str, InstanceCollection] = {}
         self.name_pool: Dict[str, Pool] = {}
 
-    def shutdown(self):
+    async def shutdown(self):
         for inst_coll in self.name_inst_coll.values():
-            inst_coll.shutdown()
+            await inst_coll.shutdown()
 
     @property
     def pools(self):

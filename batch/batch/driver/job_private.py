@@ -19,17 +19,19 @@ from hailtop.utils import (
 from ..batch_format_version import BatchFormatVersion
 from ..batch_configuration import WORKER_MAX_IDLE_TIME_MSECS
 from ..inst_coll_config import JobPrivateInstanceManagerConfig
+from .resource_manager import CloudResourceManager
 from .instance_collection import InstanceCollection
 from .instance import Instance
 from .job import mark_job_creating, schedule_job
 from ..resource_utils import worker_memory_per_core_bytes
 from ..utils import Box, ExceededSharesCounter
 
+
 log = logging.getLogger('job_private_inst_coll')
 
 
 class JobPrivateInstanceManager(InstanceCollection):
-    def __init__(self, app, resource_manager, machine_name_prefix: str, config: JobPrivateInstanceManagerConfig):
+    def __init__(self, app, resource_manager: CloudResourceManager, machine_name_prefix: str, config: JobPrivateInstanceManagerConfig):
         super().__init__(app, resource_manager, config.cloud, config.name, machine_name_prefix, is_pool=False)
 
         global_scheduler_state_changed: Notice = app['scheduler_state_changed']

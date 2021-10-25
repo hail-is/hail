@@ -50,9 +50,9 @@ class GCPDriver(CloudDriver):
         driver.resource_manager = resource_manager
         driver.inst_coll_manager = inst_coll_manager
 
-        task_manager.ensure_future(periodically_call(15, driver.process_activity_logs))
-        task_manager.ensure_future(periodically_call(60, driver.update_region_quotas))
-        task_manager.ensure_future(periodically_call(60, driver.delete_orphaned_disks))
+        driver.task_manager.ensure_future(periodically_call(15, driver.process_activity_logs))
+        driver.task_manager.ensure_future(periodically_call(60, driver.update_region_quotas))
+        driver.task_manager.ensure_future(periodically_call(60, driver.delete_orphaned_disks))
 
         return driver
 
@@ -79,9 +79,9 @@ class GCPDriver(CloudDriver):
                 await self.inst_coll_manager.shutdown()
             finally:
                 try:
-                    await self.compute_client.shutdown()
+                    await self.compute_client.close()
                 finally:
-                    await self.activity_logs_client.shutdown()
+                    await self.activity_logs_client.close()
 
     def get_zone(self, cores: int, worker_local_ssd_data_disk: bool, worker_pd_ssd_data_disk_size_gb: int):
         global_live_total_cores_mcpu = self.inst_coll_manager.global_live_total_cores_mcpu

@@ -45,7 +45,7 @@ class InstanceCollection:
     async def async_init(self):
         self.task_manager.ensure_future(self.monitor_instances_loop())
 
-    def shutdown(self):
+    async def shutdown(self):
         self.task_manager.shutdown()
 
     @property
