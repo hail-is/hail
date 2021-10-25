@@ -395,11 +395,6 @@ module "batch_gsa_secret" {
   ]
 }
 
-module "grafana_gsa_secret" {
-  source = "./gsa_k8s_secret"
-  name = "grafana"
-}
-
 module "query_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "query"
