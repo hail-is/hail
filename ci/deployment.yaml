@@ -42,10 +42,10 @@ spec:
           env:
            - name: HAIL_DEPLOY_CONFIG_FILE
              value: /deploy-config/deploy-config.json
+           - name: HAIL_CI_OAUTH_TOKEN
+             value: /secrets/oauth-token/oauth-token
            - name: HAIL_WATCHED_BRANCHES
              value: '[]'
-           - name: HAIL_GCP_PROJECT
-             value: "{{ global.project }}"
            - name: HAIL_DOCKER_PREFIX
              valueFrom:
                secretKeyRef:
