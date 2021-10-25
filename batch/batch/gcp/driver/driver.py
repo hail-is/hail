@@ -76,7 +76,7 @@ class GCPDriver(CloudDriver):
             self.task_manager.shutdown()
         finally:
             try:
-                await self.inst_coll_manager.shutdown()
+                self.inst_coll_manager.shutdown()
             finally:
                 try:
                     await self.compute_client.close()
