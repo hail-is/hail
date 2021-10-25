@@ -43,11 +43,16 @@ steps:
     namespaceName: default
     public: true
     secrets:
-      - gcr-pull-key
-      - gcr-push-service-account-key
-      - test-gsa-key
-      - auth-oauth2-client-secret
-      - benchmark-gsa-key
+      - name: auth-oauth2-client-secret
+      - name: gcr-push-service-account-key
+        clouds:
+          - gcp
+      - name: test-gsa-key
+        clouds:
+          - gcp
+      - name: benchmark-gsa-key
+        clouds:
+          - gcp
   - kind: buildImage2
     name: echo_image
     dockerFile: /io/echo/Dockerfile
@@ -281,6 +286,8 @@ steps:
         script: /io/sql/add-trial-billing-project.sql
       - name: add-roles
         script: /io/sql/add-roles.sql
+      - name: rename-gsa-identity
+        script: /io/sql/rename-gsa-identity.sql
     inputs:
       - from: /repo/auth/sql
         to: /io/sql
@@ -301,6 +308,7 @@ steps:
       valueFrom: base_image.image
     script: |
       set -ex
+
       # k8s deploy config
       cat > deploy-config.json <<EOF
       {"location":"k8s","default_namespace":"{{ default_ns.name }}","domain":"{{ global.domain }}"}
@@ -309,11 +317,23 @@ steps:
               --from-file=./deploy-config.json \
               --save-config --dry-run=client -o yaml \
           | kubectl -n {{ default_ns.name }} apply -f -
-      # gce deploy config
+
+      # worker deploy config
+      if [[ "{{ global.cloud }}" == "gcp" ]]
+      then
+          LOCATION="gce"
+      elif [[ "{{ global.cloud }}" == "azure" ]]
+      then
+          LOCATION="azure"
+      else
+          echo "unknown cloud: {{ global.cloud }}"
+          exit 1
+      fi
+
       cat > deploy-config.json <<EOF
-      {"location":"gce","default_namespace":"{{ default_ns.name }}","domain":"{{ global.domain }}"}
+      {"location":"$LOCATION","default_namespace":"{{ default_ns.name }}","domain":"{{ global.domain }}"}
       EOF
-      kubectl -n {{ default_ns.name }} create secret generic gce-deploy-config \
+      kubectl -n {{ default_ns.name }} create secret generic worker-deploy-config \
               --from-file=./deploy-config.json \
               --save-config --dry-run=client -o yaml \
           | kubectl -n {{ default_ns.name }} apply -f -
@@ -411,9 +431,6 @@ steps:
       valueFrom: auth_image.image
     script: |
       set -ex
-      export PROJECT={{ global.project }}
-      export ZONE={{ global.zone }}
-      export HAIL_PROJECT={{ global.project }}
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export HAIL_SCOPE={{ scope }}
       python3 /io/bootstrap_create_accounts.py
@@ -431,7 +448,7 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /database-server-config
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -439,6 +456,10 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /auth-gsa-key
+      - name: global-config
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /global-config
     inputs:
       - from: /repo/ci/bootstrap_create_accounts.py
         to: /io/bootstrap_create_accounts.py
@@ -2053,7 +2074,7 @@ steps:
       set -ex
       python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /test/
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -2122,7 +2143,7 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -2169,7 +2190,7 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -2379,7 +2400,7 @@ steps:
       from hailtop.utils import async_to_blocking
       from hailtop.batch_client.aioclient import BatchClient
       async def create(billing_project, user, limit=None):
-          bc = BatchClient(None)
+          bc = await BatchClient.create(None)
           try:
               try:
                   await bc.create_billing_project(billing_project)
@@ -2414,7 +2435,7 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -2449,7 +2470,7 @@ steps:
       set -ex
       python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /test/
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -2588,13 +2609,12 @@ steps:
       memory: 3.75Gi
       cpu: '1'
     script: |
-      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
-      export PROJECT={{ global.project }}
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       hailctl config set batch/bucket {{ global.hail_test_gcs_bucket }}
       python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /io/test/
     timeout: 600
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -2610,6 +2630,10 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
+      - name: global-config
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /global-config
     inputs:
       - from: /repo/memory/test
         to: /io/test
@@ -2660,7 +2684,7 @@ steps:
     port: 5000
     timeout: 1200
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -2734,7 +2758,7 @@ steps:
     port: 5000
     timeout: 1200
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -2808,7 +2832,7 @@ steps:
     port: 5000
     timeout: 1200
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -2882,7 +2906,7 @@ steps:
     port: 5000
     timeout: 1200
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -2956,7 +2980,7 @@ steps:
     port: 5000
     timeout: 1200
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -2995,18 +3019,23 @@ steps:
     image:
       valueFrom: batch_image.image
     script: |
+      set -ex
       export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
-      export HAIL_TOKEN="{{ token }}"
-      cd /io/test
-      python3 -c '
+      for token in "{{ test_batch_0.token }}" "{{ test_batch_1.token }}" "{{ test_batch_2.token }}" "{{ test_batch_3.token }}" "{{ test_batch_4.token }}"
+      do
+          export HAIL_TOKEN="$token"
+          cd /io/test
+          python3 -c '
       import test_accounts
       import asyncio
-      asyncio.get_event_loop().run_until_complete(test_accounts.delete_all_test_billing_projects())'
+      asyncio.get_event_loop().run_until_complete(test_accounts.delete_all_test_billing_projects())
+      '
+      done
     inputs:
       - from: /repo/batch/test
         to: /io/test
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3119,7 +3148,7 @@ steps:
       export NAMESPACE="{{ default_ns.name }}"
       python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /test/
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3154,7 +3183,6 @@ steps:
     script: |
       cd /io/hailtop
       set -ex
-      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=0
@@ -3178,7 +3206,7 @@ steps:
         to: /io/hailtop
     timeout: 1200
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3208,7 +3236,6 @@ steps:
     script: |
       cd /io/hailtop
       set -ex
-      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=1
@@ -3232,7 +3259,7 @@ steps:
         to: /io/hailtop
     timeout: 1200
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3262,7 +3289,6 @@ steps:
     script: |
       cd /io/hailtop
       set -ex
-      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=2
@@ -3286,7 +3312,7 @@ steps:
         to: /io/hailtop
     timeout: 1200
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3316,7 +3342,6 @@ steps:
     script: |
       cd /io/hailtop
       set -ex
-      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=3
@@ -3340,7 +3365,7 @@ steps:
         to: /io/hailtop
     timeout: 1200
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3370,7 +3395,6 @@ steps:
     script: |
       cd /io/hailtop
       set -ex
-      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=4
@@ -3394,7 +3418,7 @@ steps:
         to: /io/hailtop
     timeout: 1200
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3423,7 +3447,6 @@ steps:
       valueFrom: service_base_image.image
     script: |
       set -ex
-      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       cd /io/hailtop/batch
       hailctl config set batch/billing_project test
@@ -3434,7 +3457,7 @@ steps:
         --ignore=docs/cookbook/files/ \
         --ignore=docs/conf.py
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3520,38 +3543,6 @@ steps:
       - create_ci_test_repo
       - deploy_ci
       - test_ci
-  - kind: runImage
-    name: deploy_hail
-    script: |
-      set -ex
-      gcloud auth activate-service-account --key-file=/secrets/ci-deploy-0-1--hail-is-hail.json
-      SPARK_VERSION=3.1.1
-      BRANCH=0.2
-      SHA="{{ code.sha }}"
-      GS_JAR=gs://hail-common/builds/${BRANCH}/jars/hail-${BRANCH}-${SHA}-Spark-${SPARK_VERSION}.jar
-      gsutil cp /io/hail.jar ${GS_JAR}
-      gsutil acl set public-read ${GS_JAR}
-      GS_HAIL_ZIP=gs://hail-common/builds/${BRANCH}/python/hail-${BRANCH}-${SHA}.zip
-      gsutil cp /io/hail.zip ${GS_HAIL_ZIP}
-      gsutil acl set public-read ${GS_HAIL_ZIP}
-    image:
-      valueFrom: base_image.image
-    secrets:
-      - name: ci-deploy-0-1--hail-is-hail
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /secrets
-    inputs:
-      - from: /hail.jar
-        to: /io/hail.jar
-      - from: /hail.zip
-        to: /io/hail.zip
-    scopes:
-      - deploy
-    dependsOn:
-      - default_ns
-      - base_image
-      - build_hail
   - kind: buildImage2
     name: blog_nginx_image
     dockerFile: /io/blog/Dockerfile.nginx
@@ -3599,7 +3590,7 @@ steps:
       cd hail
       chmod 755 ./gradlew
       time retry ./gradlew --version
-      make test-dataproc DEV_CLARIFIER=ci_test_dataproc/
+      make test-dataproc DEV_CLARIFIER=ci_test_dataproc
     dependsOn:
       - ci_utils_image
       - default_ns
@@ -3725,7 +3716,7 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3817,7 +3808,7 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3843,7 +3834,7 @@ steps:
         to: /io/test
     timeout: 300
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config

@@ -61,12 +61,12 @@ class SBaseStructPointerValue(
 
   override def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
     IEmitCode(cb,
-      pt.isFieldMissing(a, fieldIdx),
-      pt.fields(fieldIdx).typ.loadCheapSCode(cb, pt.loadField(a, fieldIdx)).get)
+      pt.isFieldMissing(cb, a, fieldIdx),
+      pt.fields(fieldIdx).typ.loadCheapSCode(cb, pt.loadField(a, fieldIdx)))
   }
 
-  override def isFieldMissing(fieldIdx: Int): Code[Boolean] = {
-    pt.isFieldMissing(a, fieldIdx)
+  override def isFieldMissing(cb: EmitCodeBuilder, fieldIdx: Int): Value[Boolean] = {
+    pt.isFieldMissing(cb, a, fieldIdx)
   }
 }
 

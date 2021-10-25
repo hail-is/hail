@@ -49,6 +49,12 @@ def test_simple_map(backend):
     assert [0, 3, 6, 9] == actual
 
 
+def test_empty_map(backend):
+    with BatchPoolExecutor(backend=backend, project='hail-vdc', image=PYTHON_DILL_IMAGE) as bpe:
+        actual = list(bpe.map(lambda x: x * 3, []))
+    assert [] == actual
+
+
 def test_simple_submit_result(backend):
     with BatchPoolExecutor(backend=backend, project='hail-vdc', image=PYTHON_DILL_IMAGE) as bpe:
         future_twenty_one = bpe.submit(lambda: 7 * 3)
@@ -211,3 +217,25 @@ def test_bad_image_gives_good_error(backend):
         assert 'submitted job failed:' in exc.args[0]
     else:
         assert False
+
+
+def test_call_result_after_timeout():
+    with BatchPoolExecutor(project='hail-vdc', image=PYTHON_DILL_IMAGE) as bpe:
+        def sleep_forever():
+            while True:
+                time.sleep(3600)
+
+        future = bpe.submit(sleep_forever)
+        try:
+            future.result(timeout=2)
+        except asyncio.TimeoutError:
+            try:
+                future.result(timeout=2)
+            except asyncio.TimeoutError:
+                pass
+            else:
+                assert False
+        else:
+            assert False
+        finally:
+            future.cancel()

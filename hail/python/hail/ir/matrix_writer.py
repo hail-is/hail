@@ -1,7 +1,7 @@
 import abc
 import json
 from hail.expr.types import hail_type
-from ..typecheck import typecheck_method, nullable, dictof
+from ..typecheck import typecheck_method, nullable, dictof, sequenceof
 from ..utils.misc import escape_str
 from .export_type import ExportType
 
@@ -162,23 +162,23 @@ class MatrixBlockMatrixWriter(MatrixWriter):
 
 
 class MatrixNativeMultiWriter(object):
-    @typecheck_method(prefix=str,
+    @typecheck_method(paths=sequenceof(str),
                       overwrite=bool,
                       stage_locally=bool)
-    def __init__(self, prefix, overwrite, stage_locally):
-        self.prefix = prefix
+    def __init__(self, paths, overwrite, stage_locally):
+        self.paths = paths
         self.overwrite = overwrite
         self.stage_locally = stage_locally
 
     def render(self):
         writer = {'name': 'MatrixNativeMultiWriter',
-                  'prefix': self.prefix,
+                  'paths': list(self.paths),
                   'overwrite': self.overwrite,
                   'stageLocally': self.stage_locally}
         return escape_str(json.dumps(writer))
 
     def __eq__(self, other):
         return isinstance(other, MatrixNativeMultiWriter) and \
-            other.prefix == self.prefix and \
+            other.paths == self.paths and \
             other.overwrite == self.overwrite and \
             other.stage_locally == self.stage_locally

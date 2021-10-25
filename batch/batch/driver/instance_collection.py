@@ -7,7 +7,8 @@ import collections
 from typing import Dict
 
 from hailtop.utils import time_msecs, secret_alnum_string, periodically_call, time_msecs_str
-from hailtop import aiotools, aiogoogle
+from hailtop import aiotools
+from hailtop.aiocloud import aiogoogle
 from gear import Database
 
 from .instance import Instance
@@ -20,7 +21,7 @@ class InstanceCollection:
     def __init__(self, app, name, machine_name_prefix, is_pool):
         self.app = app
         self.db: Database = app['db']
-        self.compute_client: aiogoogle.ComputeClient = self.app['compute_client']
+        self.compute_client: aiogoogle.GoogleComputeClient = self.app['compute_client']
         self.zone_monitor: ZoneMonitor = self.app['zone_monitor']
 
         self.name = name
@@ -117,6 +118,14 @@ class InstanceCollection:
 
     async def check_on_instance(self, instance):
         active_and_healthy = await instance.check_is_active_and_healthy()
+
+        if (instance.state == 'active'
+                and instance.failed_request_count > 5
+                and time_msecs() - instance.last_updated > 5 * 60 * 1000):
+            log.exception(f'deleting {instance} with {instance.failed_request_count} failed request counts after more than 5 minutes')
+            await self.call_delete_instance(instance, 'not_responding')
+            return
+
         if active_and_healthy:
             return
 
@@ -127,14 +136,6 @@ class InstanceCollection:
                 await self.remove_instance(instance, 'does_not_exist')
                 return
             raise
-
-        if (instance.state == 'active'
-                and instance.failed_request_count > 5
-                and time_msecs() - instance.last_updated > 5 * 60 * 1000):
-            log.exception(f'deleting {instance} with {instance.failed_request_count} failed request counts after more than 5 minutes')
-            await self.call_delete_instance(instance, 'not_responding')
-            return
-
         # PROVISIONING, STAGING, RUNNING, STOPPING, TERMINATED
         gce_state = spec['status']
 

@@ -35,6 +35,14 @@ object SType {
       case TFloat64 => x.asDouble.doubleCode(cb)
       case TBoolean => x.asBoolean.boolCode(cb)
     }
+
+  def extractPrimValue(cb: EmitCodeBuilder, x: SValue): Value[_] = x.st.virtualType match {
+    case TInt32 => x.asInt.intCode(cb)
+    case TInt64 => x.asLong.longCode(cb)
+    case TFloat32 => x.asFloat.floatCode(cb)
+    case TFloat64 => x.asDouble.doubleCode(cb)
+    case TBoolean => x.asBoolean.boolCode(cb)
+  }
 }
 
 trait SType {

@@ -2,16 +2,18 @@ package is.hail.expr.ir
 
 import is.hail.annotations.{BroadcastRow, Region}
 import is.hail.asm4s.{Code, CodeLabel, Settable, Value}
+import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.functions.UtilFunctions
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.expr.ir.streams.StreamProducer
+import is.hail.io.fs.FS
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
-import is.hail.types.{TableType, TypeWithRequiredness}
-import is.hail.types.physical.stypes.interfaces.{SStream, SStreamCode}
+import is.hail.types.physical.stypes.interfaces.{SStream, SStreamValue}
 import is.hail.types.physical.{PStruct, PType}
 import is.hail.types.virtual.{TArray, TStruct, Type}
+import is.hail.types.{TableType, TypeWithRequiredness}
 import is.hail.utils._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -23,7 +25,7 @@ class PartitionIteratorLongReader(
   val fullRowType: TStruct,
   val contextType: Type,
   bodyPType: Type => PType,
-  body: Type => (Region, Any) => Iterator[Long]) extends PartitionReader {
+  body: Type => (Region, FS, Any) => Iterator[Long]) extends PartitionReader {
 
   def rowRequiredness(requestedType: Type): TypeWithRequiredness = {
     val tr = TypeWithRequiredness.apply(requestedType)
@@ -52,7 +54,8 @@ class PartitionIteratorLongReader(
 
         override def initialize(cb: EmitCodeBuilder): Unit = {
           cb.assign(it, cb.emb.getObject(body(requestedType))
-            .invoke[java.lang.Object, java.lang.Object, Iterator[java.lang.Long]]("apply", region, ctxJavaValue))
+            .invoke[java.lang.Object, java.lang.Object, java.lang.Object, Iterator[java.lang.Long]](
+              "apply", region, cb.emb.getFS, ctxJavaValue))
         }
 
         override val elementRegion: Settable[Region] = region
@@ -64,12 +67,12 @@ class PartitionIteratorLongReader(
 
           cb.goto(LproduceElementDone)
         }
-        override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, eltPType.loadCheapSCode(cb, rv).get))
+        override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, eltPType.loadCheapSCode(cb, rv)))
 
         override def close(cb: EmitCodeBuilder): Unit = {}
       }
 
-      SStreamCode(SStream(producer.element.emitType), producer)
+      SStreamValue(SStream(producer.element.emitType), producer)
     }
   }
 
@@ -115,7 +118,7 @@ class GenericTableValue(
   val contextType: Type,
   var contexts: IndexedSeq[Any],
   val bodyPType: TStruct => PStruct,
-  val body: TStruct => (Region, Any) => Iterator[Long]) {
+  val body: TStruct => (Region, FS, Any) => Iterator[Long]) {
 
   var ltrCoercer: LoweredTableReaderCoercer = _
   def getLTVCoercer(ctx: ExecuteContext): LoweredTableReaderCoercer = {
@@ -160,8 +163,10 @@ class GenericTableValue(
     }
   }
 
-  def toContextRDD(requestedRowType: TStruct): ContextRDD[Long] =
-    ContextRDD(new GenericTableValueRDD(contexts, body(requestedRowType)))
+  def toContextRDD(fs: FS, requestedRowType: TStruct): ContextRDD[Long] = {
+    val localBody = body(requestedRowType)
+    ContextRDD(new GenericTableValueRDD(contexts, localBody(_, fs, _)))
+  }
 
   private[this] var rvdCoercer: RVDCoercer = _
 
@@ -171,7 +176,7 @@ class GenericTableValue(
         ctx,
         RVDType(bodyPType(fullTableType.rowType), fullTableType.key),
         1,
-        toContextRDD(fullTableType.keyType))
+        toContextRDD(ctx.fs, fullTableType.keyType))
     }
     rvdCoercer
   }
@@ -179,7 +184,7 @@ class GenericTableValue(
   def toTableValue(ctx: ExecuteContext, requestedType: TableType): TableValue = {
     val requestedRowType = requestedType.rowType
     val requestedRowPType = bodyPType(requestedType.rowType)
-    val crdd = toContextRDD(requestedRowType)
+    val crdd = toContextRDD(ctx.fs, requestedRowType)
 
     val rvd = partitioner match {
       case Some(partitioner) =>

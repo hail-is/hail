@@ -187,6 +187,11 @@ object LowerMatrixIR {
               builder += ((s, a))
               Ref(s, a.typ)
 
+            case a@AggFold(zero, seqOp, combOp, accumName, otherAccumName, true) =>
+              val s = genUID()
+              builder += ((s, a))
+              Ref(s, a.typ)
+
             case AggFilter(filt, body, true) =>
               val ab = new BoxedArrayBuilder[(String, IR)]
               val liftedBody = lift(body, ab)
@@ -290,6 +295,15 @@ object LowerMatrixIR {
           case a: ApplyAggOp =>
             val s = genUID()
             aggBindings += ((s, a))
+            Ref(s, a.typ)
+
+          case a@AggFold(zero, seqOp, combOp, accumName, otherAccumName, isScan) =>
+            val s = genUID()
+            if (isScan) {
+              scanBindings += ((s, a))
+            } else {
+              aggBindings += ((s, a))
+            }
             Ref(s, a.typ)
 
           case AggFilter(filt, body, isScan) =>

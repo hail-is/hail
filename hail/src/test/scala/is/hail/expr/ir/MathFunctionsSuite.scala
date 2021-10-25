@@ -179,7 +179,7 @@ class MathFunctionsSuite extends HailSuite {
 
   @Test(dataProvider = "hardy_weinberg_test")
   def hardyWeinbergTest(nHomRef: Int, nHet: Int, nHomVar: Int, pValue: Double, hetFreq: Double) {
-    val r = eval(invoke("hardy_weinberg_test", stats.hweStruct.virtualType, ErrorIDs.NO_ERROR, nHomRef, nHet, nHomVar)).asInstanceOf[Row]
+    val r = eval(invoke("hardy_weinberg_test", stats.hweStruct.virtualType, ErrorIDs.NO_ERROR, nHomRef, nHet, nHomVar, false)).asInstanceOf[Row]
     assert(D0_==(pValue, r.getDouble(0)))
     assert(D0_==(hetFreq, r.getDouble(1)))
   }

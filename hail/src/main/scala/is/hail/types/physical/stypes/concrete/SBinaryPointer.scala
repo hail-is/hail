@@ -60,11 +60,14 @@ class SBinaryPointerValue(
 
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a)
 
-  override def loadLength(): Code[Int] = pt.loadLength(a)
+  override def loadLength(cb: EmitCodeBuilder): Value[Int] =
+    cb.memoize(pt.loadLength(a))
 
-  override def loadBytes(): Code[Array[Byte]] = pt.loadBytes(a)
+  override def loadBytes(cb: EmitCodeBuilder): Value[Array[Byte]] =
+    cb.memoize(pt.loadBytes(a))
 
-  override def loadByte(i: Code[Int]): Code[Byte] = Region.loadByte(pt.bytesAddress(a) + i.toL)
+  override def loadByte(cb: EmitCodeBuilder, i: Code[Int]): Value[Byte] =
+    cb.memoize(Region.loadByte(pt.bytesAddress(a) + i.toL))
 }
 
 object SBinaryPointerSettable {

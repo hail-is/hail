@@ -788,6 +788,8 @@ object Simplify {
       TableMapRows(TableFilterIntervals(child, intervals, keep), newRow)
     case TableFilterIntervals(TableMapGlobals(child, newRow), intervals, keep) =>
       TableMapGlobals(TableFilterIntervals(child, intervals, keep), newRow)
+    case TableFilterIntervals(TableRename(child, rowMap, globalMap), intervals, keep) =>
+      TableRename(TableFilterIntervals(child, intervals, keep), rowMap, globalMap)
     case TableFilterIntervals(TableRepartition(child, n, strategy), intervals, keep) =>
       TableRepartition(TableFilterIntervals(child, intervals, keep), n, strategy)
     case TableFilterIntervals(TableLeftJoinRightDistinct(child, right, root), intervals, true) =>

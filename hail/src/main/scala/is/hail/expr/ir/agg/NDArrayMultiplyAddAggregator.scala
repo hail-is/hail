@@ -1,22 +1,22 @@
 package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{UnitInfo, Value}
-import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder}
+import is.hail.asm4s.{UnitInfo, Value, _}
+import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder, IEmitCode}
+import is.hail.linalg.LinalgCodeUtils
 import is.hail.types.VirtualTypeWithReq
-import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SNDArray, SNDArrayCode}
-import is.hail.types.physical.{PCanonicalBaseStruct, PCanonicalNDArray, PCanonicalTuple, PType}
+import is.hail.types.physical.stypes.EmitType
+import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayCode, SNDArrayValue}
+import is.hail.types.physical.{PCanonicalNDArray, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils.{FastIndexedSeq, valueToRichCodeRegion}
-import is.hail.asm4s.{Code, _}
-import is.hail.linalg.LinalgCodeUtils
 
-class NDArrayMultiplyAddAggregator(nDVTyp: VirtualTypeWithReq) extends StagedAggregator {
-  private val ndTyp = nDVTyp.canonicalPType.setRequired(false).asInstanceOf[PCanonicalNDArray]
-
+class NDArrayMultiplyAddAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator {
   override type State = TypedRegionBackedAggState
 
-  override def resultType: PType = ndTyp
+  override def resultEmitType: EmitType = ndVTyp.canonicalEmitType
+  private val ndTyp = resultEmitType.storageType.asInstanceOf[PCanonicalNDArray] // TODO: Set required false?
 
   override def initOpTypes: Seq[Type] = Array[Type]()
 
@@ -38,11 +38,9 @@ class NDArrayMultiplyAddAggregator(nDVTyp: VirtualTypeWithReq) extends StagedAgg
       FastIndexedSeq(nextNDArrayACode.emitParamType, nextNDArrayBCode.emitParamType), CodeParamType(UnitInfo))
     seqOpMethod.voidWithBuilder { cb =>
       val ndArrayAEmitCode = seqOpMethod.getEmitParam(cb, 1, null)
-      ndArrayAEmitCode.toI(cb).consume(cb, {}, { case nextNDArrayAPCode: SNDArrayCode =>
+      ndArrayAEmitCode.toI(cb).consume(cb, {}, { case checkA: SNDArrayValue =>
         val ndArrayBEmitCode = seqOpMethod.getEmitParam(cb, 2, null)
-        ndArrayBEmitCode.toI(cb).consume(cb, {}, { case nextNDArrayBPCode: SNDArrayCode =>
-          val checkA = nextNDArrayAPCode.memoize(cb, "ndarray_add_mutiply_seqop_A")
-          val checkB = nextNDArrayBPCode.memoize(cb, "ndarray_add_mutiply_seqop_B")
+        ndArrayBEmitCode.toI(cb).consume(cb, {}, { case checkB: SNDArrayValue =>
           val tempRegionForCreation = cb.newLocal[Region]("ndarray_add_multily_agg_temp_region", Region.stagedCreate(Region.REGULAR, cb.emb.ecb.pool()))
           val NDArrayA = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(checkA, cb, tempRegionForCreation)
           val NDArrayB = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(checkB, cb, tempRegionForCreation)
@@ -53,12 +51,11 @@ class NDArrayMultiplyAddAggregator(nDVTyp: VirtualTypeWithReq) extends StagedAgg
               state.storageType.setFieldPresent(cb, state.off.get, ndarrayFieldNumber)
               val shape = IndexedSeq(NDArrayA.shapes(0), NDArrayB.shapes(1))
               val uninitializedNDArray = ndTyp.constructUnintialized(shape, ndTyp.makeColumnMajorStrides(shape, tempRegionForCreation, cb), cb, tempRegionForCreation)
-              state.storeNonmissing(cb, uninitializedNDArray.get)
+              state.storeNonmissing(cb, uninitializedNDArray)
               SNDArray.gemm(cb, "N", "N", const(1.0), NDArrayA.get, NDArrayB.get, const(0.0), uninitializedNDArray.get)
             },
-            { currentNDPCode =>
-              val currentNDPValue = currentNDPCode.asNDArray.memoize(cb, "ndarray_add_multiply_current")
-              SNDArray.gemm(cb, "N", "N", NDArrayA.get, NDArrayB.get, currentNDPValue.get)
+            { currentNDPValue =>
+              SNDArray.gemm(cb, "N", "N", NDArrayA.get, NDArrayB.get, currentNDPValue.asNDArray.get)
             }
           )
           cb += tempRegionForCreation.clearRegion()
@@ -68,21 +65,19 @@ class NDArrayMultiplyAddAggregator(nDVTyp: VirtualTypeWithReq) extends StagedAgg
     cb.invokeVoid(seqOpMethod, nextNDArrayACode, nextNDArrayBCode)
   }
 
-  override protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
+  override protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: State, other: State): Unit = {
     val combOpMethod = cb.emb.genEmitMethod[Unit]("ndarraymutiply_add_agg_comb_op")
 
     combOpMethod.voidWithBuilder { cb =>
       val rightPV = other.storageType.loadCheapSCode(cb, other.off).asBaseStruct
       rightPV.loadField(cb, ndarrayFieldNumber).consume(cb, {},
-        { rightNDPC =>
-          val rightNdValue = rightNDPC.asNDArray.memoize(cb, "right_ndarray_mutiply_add_agg")
+        { case rightNdValue: SNDArrayValue =>
           val leftPV = state.storageType.loadCheapSCode(cb, state.off).asBaseStruct
           leftPV.loadField(cb, ndarrayFieldNumber).consume(cb,
             {
-              state.storeNonmissing(cb, rightNdValue.get)
+              state.storeNonmissing(cb, rightNdValue)
             },
-            { leftNDPC =>
-              val leftNdValue = leftNDPC.asNDArray.memoize(cb, "left_ndarray_mutiply_add_agg")
+            { case leftNdValue: SNDArrayValue =>
               NDArraySumAggregator.addValues(cb, state.region, leftNdValue, rightNdValue)
             })
         }
@@ -91,9 +86,7 @@ class NDArrayMultiplyAddAggregator(nDVTyp: VirtualTypeWithReq) extends StagedAgg
     cb.invokeVoid(combOpMethod)
   }
 
-  override protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
-    state.get(cb).consume(cb,
-      ifMissing(cb),
-      { sc => pt.storeAtAddress(cb, addr, region, sc.asNDArray, deepCopy = true) })
+  override protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
+    state.get(cb).map(cb)(sv => sv.copyToRegion(cb, region, sv.st))
   }
 }

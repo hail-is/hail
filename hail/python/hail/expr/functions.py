@@ -845,8 +845,8 @@ def ceil(x):
     return _func("ceil", x.dtype, x)
 
 
-@typecheck(n_hom_ref=expr_int32, n_het=expr_int32, n_hom_var=expr_int32)
-def hardy_weinberg_test(n_hom_ref, n_het, n_hom_var) -> StructExpression:
+@typecheck(n_hom_ref=expr_int32, n_het=expr_int32, n_hom_var=expr_int32, one_sided=expr_bool)
+def hardy_weinberg_test(n_hom_ref, n_het, n_hom_var, one_sided=False) -> StructExpression:
     """Performs test of Hardy-Weinberg equilibrium.
 
     Examples
@@ -860,7 +860,7 @@ def hardy_weinberg_test(n_hom_ref, n_het, n_hom_var) -> StructExpression:
 
     Notes
     -----
-    This method performs a two-sided exact test with mid-p-value correction of
+    By default, this method performs a two-sided exact test with mid-p-value correction of
     `Hardy-Weinberg equilibrium <https://en.wikipedia.org/wiki/Hardy%E2%80%93Weinberg_principle>`__
     via an efficient implementation of the
     `Levene-Haldane distribution <../_static/LeveneHaldane.pdf>`__,
@@ -873,6 +873,10 @@ def hardy_weinberg_test(n_hom_ref, n_het, n_hom_var) -> StructExpression:
     So the expected frequency of heterozygotes under equilibrium,
     `het_freq_hwe`, is this mean divided by ``n``.
 
+    To perform one-sided exact test of excess heterozygosity with mid-p-value
+    correction instead, set `one_sided=True` and the p-value returned will be
+    from the one-sided exact test.
+
     Parameters
     ----------
     n_hom_ref : int or :class:`.Expression` of type :py:data:`.tint32`
@@ -881,6 +885,8 @@ def hardy_weinberg_test(n_hom_ref, n_het, n_hom_var) -> StructExpression:
         Number of heterozygous genotypes.
     n_hom_var : int or :class:`.Expression` of type :py:data:`.tint32`
         Number of homozygous variant genotypes.
+    one_sided : :obj:`bool`
+        ``False`` by default. When ``True``, perform one-sided test for excess heterozygosity.
 
     Returns
     -------
@@ -890,7 +896,7 @@ def hardy_weinberg_test(n_hom_ref, n_het, n_hom_var) -> StructExpression:
     """
     ret_type = tstruct(het_freq_hwe=tfloat64,
                        p_value=tfloat64)
-    return _func("hardy_weinberg_test", ret_type, n_hom_ref, n_het, n_hom_var)
+    return _func("hardy_weinberg_test", ret_type, n_hom_ref, n_het, n_hom_var, one_sided)
 
 
 @typecheck(contig=expr_str, pos=expr_int32,

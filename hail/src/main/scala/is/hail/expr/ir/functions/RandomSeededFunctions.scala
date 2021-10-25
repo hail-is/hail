@@ -61,40 +61,40 @@ object RandomSeededFunctions extends RegistryFunctions {
     registerSeeded2("rand_unif", TFloat64, TFloat64, TFloat64, {
       case (_: Type, _: SType, _: SType) => SFloat64
     }) { case (cb, r, rt, seed, min, max) =>
-      primitive(cb.emb.newRNG(seed).invoke[Double, Double, Double]("runif", min.asDouble.doubleCode(cb), max.asDouble.doubleCode(cb)))
+      primitive(cb.memoize(cb.emb.newRNG(seed).invoke[Double, Double, Double]("runif", min.asDouble.doubleCode(cb), max.asDouble.doubleCode(cb))))
     }
 
     registerSeeded2("rand_norm", TFloat64, TFloat64, TFloat64, {
       case (_: Type, _: SType, _: SType) => SFloat64
     }) { case (cb, r, rt, seed, mean, sd) =>
-      primitive(cb.emb.newRNG(seed).invoke[Double, Double, Double]("rnorm", mean.asDouble.doubleCode(cb), sd.asDouble.doubleCode(cb)))
+      primitive(cb.memoize(cb.emb.newRNG(seed).invoke[Double, Double, Double]("rnorm", mean.asDouble.doubleCode(cb), sd.asDouble.doubleCode(cb))))
     }
 
     registerSeeded1("rand_bool", TFloat64, TBoolean, (_: Type, _: SType) => SBoolean) { case (cb, r, rt, seed, p) =>
-      primitive(cb.emb.newRNG(seed).invoke[Double, Boolean]("rcoin", p.asDouble.doubleCode(cb)))
+      primitive(cb.memoize(cb.emb.newRNG(seed).invoke[Double, Boolean]("rcoin", p.asDouble.doubleCode(cb))))
     }
 
     registerSeeded1("rand_pois", TFloat64, TFloat64, (_: Type, _: SType) => SFloat64) { case (cb, r, rt, seed, lambda) =>
-      primitive(cb.emb.newRNG(seed).invoke[Double, Double]("rpois", lambda.asDouble.doubleCode(cb)))
+      primitive(cb.memoize(cb.emb.newRNG(seed).invoke[Double, Double]("rpois", lambda.asDouble.doubleCode(cb))))
     }
 
     registerSeeded2("rand_pois", TInt32, TFloat64, TArray(TFloat64), {
       case (_: Type, _: SType, _: SType) => PCanonicalArray(PFloat64(true)).sType
     }) { case (cb, r, SIndexablePointer(rt: PCanonicalArray), seed, n, lambdaCode) =>
-      val len = cb.newLocal[Int]("rand_pos_len", n.asInt.intCode(cb))
-      val lambda = cb.newLocal[Double]("rand_pois_lambda", lambdaCode.asDouble.doubleCode(cb))
+      val len = n.asInt.intCode(cb)
+      val lambda = lambdaCode.asDouble.doubleCode(cb)
 
       rt.constructFromElements(cb, r, len, deepCopy = false) { case (cb, _) =>
-        IEmitCode.present(cb, primitive(cb.emb.newRNG(seed).invoke[Double, Double]("rpois", lambda)))
-      }.get
+        IEmitCode.present(cb, primitive(cb.memoize(cb.emb.newRNG(seed).invoke[Double, Double]("rpois", lambda))))
+      }
     }
 
     registerSeeded2("rand_beta", TFloat64, TFloat64, TFloat64, {
       case (_: Type, _: SType, _: SType) => SFloat64
     }) { case (cb, r, rt, seed, a, b) =>
-      primitive(
+      primitive(cb.memoize(
         cb.emb.newRNG(seed).invoke[Double, Double, Double]("rbeta",
-          a.asDouble.doubleCode(cb), b.asDouble.doubleCode(cb)))
+          a.asDouble.doubleCode(cb), b.asDouble.doubleCode(cb))))
     }
 
     registerSeeded4("rand_beta", TFloat64, TFloat64, TFloat64, TFloat64, TFloat64, {
@@ -102,10 +102,10 @@ object RandomSeededFunctions extends RegistryFunctions {
     }) {
       case (cb, r, rt, seed, a, b, min, max) =>
         val rng = cb.emb.newRNG(seed)
-        val la = cb.newLocal[Double]("la", a.asDouble.doubleCode(cb))
-        val lb = cb.newLocal[Double]("lb", b.asDouble.doubleCode(cb))
-        val lmin = cb.newLocal[Double]("lmin", min.asDouble.doubleCode(cb))
-        val lmax = cb.newLocal[Double]("lmax", max.asDouble.doubleCode(cb))
+        val la = a.asDouble.doubleCode(cb)
+        val lb = b.asDouble.doubleCode(cb)
+        val lmin = min.asDouble.doubleCode(cb)
+        val lmax = max.asDouble.doubleCode(cb)
         val value = cb.newLocal[Double]("value", rng.invoke[Double, Double, Double]("rbeta", la, lb))
         cb.whileLoop(value < lmin || value > lmax, {
           cb.assign(value, rng.invoke[Double, Double, Double]("rbeta", la, lb))
@@ -116,13 +116,12 @@ object RandomSeededFunctions extends RegistryFunctions {
     registerSeeded2("rand_gamma", TFloat64, TFloat64, TFloat64, {
       case (_: Type, _: SType, _: SType) => SFloat64
     }) { case (cb, r, rt, seed, a, scale) =>
-      primitive(
+      primitive(cb.memoize(
         cb.emb.newRNG(seed).invoke[Double, Double, Double]("rgamma", a.asDouble.doubleCode(cb), scale.asDouble.doubleCode(cb))
-      )
+      ))
     }
 
-    registerSeeded1("rand_cat", TArray(TFloat64), TInt32, (_: Type, _: SType) => SInt32) { case (cb, r, rt, seed, aCode) =>
-      val weights = aCode.asIndexable.memoize(cb, "rand_cat_weights")
+    registerSeeded1("rand_cat", TArray(TFloat64), TInt32, (_: Type, _: SType) => SInt32) { case (cb, r, rt, seed, weights: SIndexableValue) =>
       val len = weights.loadLength()
 
       val a = cb.newLocal[Array[Double]]("rand_cat_a", Code.newArray[Double](len))
@@ -135,7 +134,7 @@ object RandomSeededFunctions extends RegistryFunctions {
         )
         cb.assign(i, i + 1)
       })
-      primitive(cb.emb.newRNG(seed).invoke[Array[Double], Int]("rcat", a))
+      primitive(cb.memoize(cb.emb.newRNG(seed).invoke[Array[Double], Int]("rcat", a)))
     }
   }
 }

@@ -9,6 +9,15 @@ from hail.typecheck import sequenceof, typecheck
 from hail.utils.java import Env
 from hail.utils.misc import divide_null
 from hail.vds.variant_dataset import VariantDataset
+from hail import ir
+
+
+def write_variant_datasets(vdss, paths, overwrite=False, stage_locally=False):
+    """Write many `vdses` to their corresponding path in `paths`."""
+    ref_writer = ir.MatrixNativeMultiWriter([f"{p}/reference_data" for p in paths], overwrite, stage_locally)
+    var_writer = ir.MatrixNativeMultiWriter([f"{p}/variant_data" for p in paths], overwrite, stage_locally)
+    Env.backend().execute(ir.MatrixMultiWrite([vds.reference_data._mir for vds in vdss], ref_writer))
+    Env.backend().execute(ir.MatrixMultiWrite([vds.variant_data._mir for vds in vdss], var_writer))
 
 
 @typecheck(vds=VariantDataset)
@@ -142,7 +151,7 @@ def sample_qc(vds: 'VariantDataset', *, name='sample_qc', gq_bins: 'Sequence[int
         Dataset in VariantDataset representation.
     name : :obj:`str`
         Name for resulting field.
-    gq_bins : :class:`tup` of :obj:`int`
+    gq_bins : :class:`tuple` of :obj:`int`
         Tuple containing cutoffs for genotype quality (GQ) scores.
 
     Returns
@@ -246,8 +255,10 @@ def sample_qc(vds: 'VariantDataset', *, name='sample_qc', gq_bins: 'Sequence[int
     return joined_results
 
 
-@typecheck(vds=VariantDataset, samples_table=Table, keep=bool)
-def filter_samples(vds: 'VariantDataset', samples_table: 'Table', *, keep: bool = True) -> 'VariantDataset':
+@typecheck(vds=VariantDataset, samples_table=Table, keep=bool, remove_dead_alleles=bool)
+def filter_samples(vds: 'VariantDataset', samples_table: 'Table', *,
+                   keep: bool = True,
+                   remove_dead_alleles: bool = False) -> 'VariantDataset':
     """Filter samples in a :class:`.VariantDataset`.
 
     Parameters
@@ -258,6 +269,9 @@ def filter_samples(vds: 'VariantDataset', samples_table: 'Table', *, keep: bool 
         Samples to filter on.
     keep : :obj:`bool`
         Whether to keep (default), or filter out the samples from `samples_table`.
+    remove_dead_alleles : :obj:`bool`
+        If true, remove alleles observed in no samples. Alleles with AC == 0 will be
+        removed, and LA values recalculated.
 
     Returns
     -------
@@ -266,8 +280,36 @@ def filter_samples(vds: 'VariantDataset', samples_table: 'Table', *, keep: bool 
     if not list(samples_table[x].dtype for x in samples_table.key) == [hl.tstr]:
         raise TypeError(f'invalid key: {samples_table.key.dtype}')
     samples_to_keep = samples_table.aggregate(hl.agg.collect_as_set(samples_table.key[0]), _localize=False)._persist()
-    reference_data = vds.reference_data.filter_cols(samples_to_keep.contains(vds.reference_data.key[0]), keep=keep)
-    variant_data = vds.variant_data.filter_cols(samples_to_keep.contains(vds.variant_data.key[0]), keep=keep)
+    reference_data = vds.reference_data.filter_cols(samples_to_keep.contains(vds.reference_data.col_key[0]), keep=keep)
+    reference_data = reference_data.filter_rows(hl.agg.count() > 0)
+    variant_data = vds.variant_data.filter_cols(samples_to_keep.contains(vds.variant_data.col_key[0]), keep=keep)
+
+    if remove_dead_alleles:
+        vd = variant_data
+        vd = vd.annotate_rows(__allele_counts=hl.agg.explode(lambda x: hl.agg.counter(x), vd.LA), __n=hl.agg.count())
+        vd = vd.filter_rows(vd.__n > 0)
+
+        vd = vd.annotate_rows(__kept_indices=hl.dict(
+            hl.enumerate(
+                hl.range(hl.len(vd.alleles)).filter(lambda idx: (idx == 0) | (vd.__allele_counts.get(idx, 0) > 0)),
+                index_first=False)))
+
+        vd = vd.annotate_rows(
+            __old_to_new_LA=hl.range(hl.len(vd.alleles)).map(lambda idx: vd.__kept_indices.get(idx, -1)))
+
+        def new_la_index(old_idx):
+            raw_idx = vd.__old_to_new_LA[old_idx]
+            return hl.case().when(raw_idx >= 0, raw_idx) \
+                .or_error("'filter_samples': unexpected local allele: old index=" + hl.str(old_idx))
+
+        vd = vd.annotate_entries(LA=vd.LA.map(lambda la: new_la_index(la)))
+        vd = vd.key_rows_by('locus')
+        vd = vd.annotate_rows(alleles=vd.__kept_indices.keys().map(lambda i: vd.alleles[i]))
+        vd = vd._key_rows_by_assert_sorted('locus', 'alleles')
+        vd = vd.drop('__allele_counts', '__kept_indices', '__old_to_new_LA')
+        return VariantDataset(reference_data, vd)
+
+    variant_data = variant_data.filter_rows(hl.agg.count() > 0)
     return VariantDataset(reference_data, variant_data)
 
 

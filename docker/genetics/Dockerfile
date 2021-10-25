@@ -28,7 +28,7 @@ RUN curl -LO http://s3.amazonaws.com/plink1-assets/plink_linux_x86_64_latest.zip
     rm -rf plink_linux_x86_64_latest.zip
 RUN mkdir king && \
     (cd king && \
-     curl -LO http://people.virginia.edu/~wc9c/KING/Linux-king.tar.gz && \
+     curl -LO https://www.kingrelatedness.com/Linux-king.tar.gz && \
      tar -xf Linux-king.tar.gz)
 RUN mkdir gcta && \
     (cd gcta && \

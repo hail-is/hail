@@ -86,8 +86,14 @@ object TypeCheck {
       case x@AggLet(_, _, body, _) =>
         assert(x.typ == body.typ)
       case x@Ref(name, _) =>
-        val expected = env.eval.lookup(name)
-        assert(x.typ == expected, s"type mismatch:\n  name: $name\n  actual: ${ x.typ.parsableString() }\n  expect: ${ expected.parsableString() }")
+        env.eval.lookupOption(name) match {
+          case Some(expected) =>
+            assert(x.typ == expected,
+              s"type mismatch:\n  name: $name\n  actual: ${x.typ.parsableString()}\n  expect: ${expected.parsableString()}")
+          case None =>
+            throw new NoSuchElementException(s"Ref with name ${name} could not be resolved in env ${env}")
+        }
+
       case RelationalRef(name, t) =>
         env.relational.lookupOption(name) match {
           case Some(t2) =>
@@ -387,6 +393,9 @@ object TypeCheck {
         assert(x.typ == aggSig.returnType)
         assert(initOpArgs.map(_.typ).zip(aggSig.initOpArgs).forall { case (l, r) => l == r })
         assert(seqOpArgs.map(_.typ).zip(aggSig.seqOpArgs).forall { case (l, r) => l == r })
+      case x@AggFold(zero, seqOp, combOp, elementName, accumName, _) =>
+        assert(zero.typ == seqOp.typ)
+        assert(zero.typ == combOp.typ)
       case x@MakeStruct(fields) =>
         assert(x.typ == TStruct(fields.map { case (name, a) =>
           (name, a.typ)

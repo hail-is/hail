@@ -1,8 +1,8 @@
 package is.hail.utils.richUtils
 
-import java.io.{OutputStream, OutputStreamWriter}
+import is.hail.backend.ExecuteContext
 
-import is.hail.expr.ir.ExecuteContext
+import java.io.{OutputStream, OutputStreamWriter}
 import is.hail.io.FileWriteMetadata
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras._

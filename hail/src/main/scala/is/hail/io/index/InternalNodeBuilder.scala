@@ -4,10 +4,10 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{Code, SettableBuilder, Value}
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.OutputBuffer
-import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.encoded.EType
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerSettable, SIndexablePointerCode}
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerSettable, SIndexablePointerValue}
+import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.{TStruct, Type}
 
 object InternalNodeBuilder {
@@ -49,7 +49,7 @@ class StagedInternalNodeBuilder(maxSize: Int, keyType: PType, annotationType: PT
   def loadFrom(cb: EmitCodeBuilder, ib: StagedIndexWriterUtils, idx: Value[Int]): Unit = {
     cb.assign(region, ib.getRegion(idx))
     cb.assign(node.a, ib.getArrayOffset(idx))
-    val aoff = node.loadField(cb, 0).get(cb).asInstanceOf[SIndexablePointerCode].a
+    val aoff = node.loadField(cb, 0).get(cb).asInstanceOf[SIndexablePointerValue].a
     ab.loadFrom(cb, aoff, ib.getLength(idx))
   }
 
@@ -74,15 +74,15 @@ class StagedInternalNodeBuilder(maxSize: Int, keyType: PType, annotationType: PT
   def encode(cb: EmitCodeBuilder, ob: Value[OutputBuffer]): Unit = {
     val enc = EType.defaultFromPType(pType).buildEncoder(SBaseStructPointer(pType), cb.emb.ecb)
     ab.storeLength(cb)
-    enc(cb, node.get, ob)
+    enc(cb, node, ob)
   }
 
   def nodeAddress: SBaseStructValue = node
 
   def add(cb: EmitCodeBuilder, indexFileOffset: Code[Long], firstIndex: Code[Long], firstChild: SBaseStructValue): Unit = {
     ab.addChild(cb)
-    ab.setFieldValue(cb, "index_file_offset", primitive(indexFileOffset))
-    ab.setFieldValue(cb, "first_idx", primitive(firstIndex))
+    ab.setFieldValue(cb, "index_file_offset", primitive(cb.memoize(indexFileOffset)))
+    ab.setFieldValue(cb, "first_idx", primitive(cb.memoize(firstIndex)))
     ab.setField(cb, "first_key", firstChild.loadField(cb, "key"))
     ab.setField(cb, "first_record_offset", firstChild.loadField(cb, "offset"))
     ab.setField(cb, "first_annotation", firstChild.loadField(cb, "annotation"))
@@ -90,7 +90,7 @@ class StagedInternalNodeBuilder(maxSize: Int, keyType: PType, annotationType: PT
 
   def add(cb: EmitCodeBuilder, indexFileOffset: Code[Long], firstChild: SBaseStructValue): Unit = {
     ab.addChild(cb)
-    ab.setFieldValue(cb, "index_file_offset", primitive(indexFileOffset))
+    ab.setFieldValue(cb, "index_file_offset", primitive(cb.memoize(indexFileOffset)))
     ab.setField(cb, "first_idx", firstChild.loadField(cb, "first_idx"))
     ab.setField(cb, "first_key", firstChild.loadField(cb, "first_key"))
     ab.setField(cb, "first_record_offset", firstChild.loadField(cb, "first_record_offset"))

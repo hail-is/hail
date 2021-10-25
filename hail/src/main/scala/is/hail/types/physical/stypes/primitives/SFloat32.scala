@@ -2,8 +2,7 @@ package is.hail.types.physical.stypes.primitives
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, FloatInfo, Settable, SettableBuilder, TypeInfo, Value}
-import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
+import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
 import is.hail.types.physical.{PFloat32, PType}
 import is.hail.types.virtual.{TFloat32, Type}
@@ -66,12 +65,14 @@ class SFloat32Value(x: Value[Float]) extends SPrimitiveValue {
 
   override def st: SFloat32.type = SFloat32
 
+  override def _primitiveValue: Value[_] = x
+
   override def get: SCode = new SFloat32Code(x)
 
-  def floatCode(cb: EmitCodeBuilder): Code[Float] = x
+  def floatCode(cb: EmitCodeBuilder): Value[Float] = x
 
-  override def hash(cb: EmitCodeBuilder): SInt32Code =
-    new SInt32Code(Code.invokeStatic1[java.lang.Float, Float, Int]("floatToIntBits", floatCode(cb)))
+  override def hash(cb: EmitCodeBuilder): SInt32Value =
+    new SInt32Value(cb.memoize(Code.invokeStatic1[java.lang.Float, Float, Int]("floatToIntBits", floatCode(cb))))
 }
 
 object SFloat32Settable {

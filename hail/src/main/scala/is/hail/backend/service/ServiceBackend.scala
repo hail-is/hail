@@ -3,10 +3,10 @@ package is.hail.backend.service
 import is.hail.{HAIL_REVISION, HailContext}
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.{Backend, BackendContext, BroadcastValue, HailTaskContext}
+import is.hail.backend.{Backend, BackendContext, BroadcastValue, ExecuteContext, HailTaskContext}
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering._
-import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, MakeTuple, SortField}
+import is.hail.expr.ir.{Compile, IR, IRParser, MakeTuple, SortField}
 import is.hail.io.fs.{FS, GoogleStorageFS}
 import is.hail.linalg.BlockMatrix
 import is.hail.services._
@@ -74,7 +74,13 @@ class ServiceBackend(
     def value: T = _value
   }
 
-  def parallelizeAndComputeWithIndex(_backendContext: BackendContext, collection: Array[Array[Byte]], dependency: Option[TableStageDependency] = None)(f: (Array[Byte], HailTaskContext, FS) => Array[Byte]): Array[Array[Byte]] = {
+  def parallelizeAndComputeWithIndex(
+    _backendContext: BackendContext,
+    _fs: FS,
+    collection: Array[Array[Byte]],
+    dependency: Option[TableStageDependency] = None
+  )(f: (Array[Byte], HailTaskContext, FS) => Array[Byte]
+  ): Array[Array[Byte]] = {
     val backendContext = _backendContext.asInstanceOf[ServiceBackendContext]
 
     val user = users.get(backendContext.username)

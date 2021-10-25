@@ -2136,7 +2136,8 @@ class GrepTests(unittest.TestCase):
 class AvroTests(unittest.TestCase):
     def test_simple_avro(self):
         avro_file = resource('avro/weather.avro')
-        with DataFileReader(open(avro_file, 'rb'), DatumReader()) as avro:
+        fs = hl.current_backend().fs
+        with DataFileReader(fs.open(avro_file, 'rb'), DatumReader()) as avro:
             expected = list(avro)
         data = hl.import_avro([avro_file]).collect()
         data = [dict(**s) for s in data]

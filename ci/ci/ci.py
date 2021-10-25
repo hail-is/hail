@@ -1,7 +1,8 @@
 import traceback
 import json
 import logging
-import aiohttp
+import asyncio
+import concurrent.futures
 from aiohttp import web
 import uvloop  # type: ignore
 from gidgethub import aiohttp as gh_aiohttp
@@ -10,6 +11,7 @@ from hailtop.batch_client.aioclient import BatchClient
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
+from hailtop import httpx
 from gear import (
     setup_aiohttp_session,
     rest_authenticated_developers_only,
@@ -87,6 +89,8 @@ async def dev_deploy_branch(request, userdata):
     app = request.app
     try:
         params = await request.json()
+    except asyncio.CancelledError:
+        raise
     except Exception as e:
         message = 'could not read body as JSON'
         log.info('dev deploy failed: ' + message, exc_info=True)
@@ -96,6 +100,8 @@ async def dev_deploy_branch(request, userdata):
         branch = FQBranch.from_short_str(params['branch'])
         steps = params['steps']
         excluded_steps = params['excluded_steps']
+    except asyncio.CancelledError:
+        raise
     except Exception as e:
         message = f'parameters are wrong; check the branch and steps syntax.\n\n{params}'
         log.info('dev deploy failed: ' + message, exc_info=True)
@@ -107,6 +113,8 @@ async def dev_deploy_branch(request, userdata):
     try:
         branch_gh_json = await gh.getitem(request_string)
         sha = branch_gh_json['object']['sha']
+    except asyncio.CancelledError:
+        raise
     except Exception as e:
         message = f'error finding {branch} at GitHub'
         log.info('dev deploy failed: ' + message, exc_info=True)
@@ -118,6 +126,8 @@ async def dev_deploy_branch(request, userdata):
 
     try:
         batch_id = await unwatched_branch.deploy(batch_client, steps, excluded_steps=excluded_steps)
+    except asyncio.CancelledError:
+        raise
     except Exception as e:  # pylint: disable=broad-except
         message = traceback.format_exc()
         log.info('dev deploy failed: ' + message, exc_info=True)
@@ -175,9 +185,9 @@ async def prod_deploy(request, userdata):
 
 
 async def on_startup(app):
-    app['gh_client_session'] = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5))
-    app['github_client'] = gh_aiohttp.GitHubAPI(app['gh_client_session'], 'ci')
-    app['batch_client'] = BatchClient('ci')
+    app['client_session'] = httpx.client_session()
+    app['github_client'] = gh_aiohttp.GitHubAPI(app['client_session'], 'ci')
+    app['batch_client'] = await BatchClient.create('ci')
     app['dbpool'] = await create_database_pool()
 
 
@@ -185,7 +195,7 @@ async def on_cleanup(app):
     dbpool = app['dbpool']
     dbpool.close()
     await dbpool.wait_closed()
-    await app['gh_client_session'].close()
+    await app['client_session'].close()
     await app['batch_client'].close()
 
 

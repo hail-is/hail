@@ -306,7 +306,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       cb.ifx(isElementDefined(dstAddress, currentIdx),
         {
           cb.assign(currentElementAddress, elementOffset(dstAddress, len, currentIdx))
-          this.elementType.storeAtAddress(cb, currentElementAddress, region, this.elementType.loadCheapSCode(cb, this.elementType.loadFromNested(currentElementAddress)).get, true)
+          this.elementType.storeAtAddress(cb, currentElementAddress, region, this.elementType.loadCheapSCode(cb, this.elementType.loadFromNested(currentElementAddress)), true)
         }))
   }
 
@@ -415,8 +415,8 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
-    cb += Region.storeAddress(addr, store(cb, region, value.memoize(cb, "storeAtAddress"), deepCopy))
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SValue, deepCopy: Boolean): Unit = {
+    cb += Region.storeAddress(addr, store(cb, region, value, deepCopy))
   }
 
 

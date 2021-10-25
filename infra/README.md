@@ -147,7 +147,7 @@ You can now install Hail:
 - In `$HAIL/docker/third-party` run:
 
   ```
-  DOCKER_PREFIX=gcr.io/<gcp-project-id> PROJECT=<gcp-project-id> ./copy_images.sh
+  DOCKER_PREFIX=gcr.io/<gcp-project-id> ./copy_images.sh
   ```
 
   This copies some base images from Dockerhub (which now has rate
@@ -213,7 +213,6 @@ You can now install Hail:
   ```
   cd $HAIL
   export HAIL_DOCKER_PREFIX=gcr.io/<gcp-project>
-  export HAIL_DOCKER_ROOT_IMAGE=ubuntu:18.04
   export HAIL_CI_UTILS_IMAGE=$HAIL_DOCKER_PREFIX/ci-utils:cache
   export HAIL_BUILDKIT_IMAGE=$HAIL_DOCKER_PREFIX/hail-buildkit:cache
   export BATCH_WORKER_IMAGE=$HAIL_DOCKER_PREFIX/batch-worker:cache

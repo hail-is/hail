@@ -96,8 +96,8 @@ case class StoredSTypePType(sType: SType, required: Boolean) extends PType {
     addr
   }
 
-  override def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
-    ct.store(cb, cb.newLocal[Long]("stored_stype_ptype_addr", addr), value.st.coerceOrCopy(cb, region, value.memoize(cb, "storeAtAddress"), deepCopy).valueTuple.map(_.get))
+  override def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SValue, deepCopy: Boolean): Unit = {
+    ct.store(cb, cb.newLocal[Long]("stored_stype_ptype_addr", addr), value.st.coerceOrCopy(cb, region, value, deepCopy).valueTuple.map(_.get))
   }
 
   override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SValue = {

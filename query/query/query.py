@@ -15,7 +15,7 @@ from hailtop.utils import blocking_to_async, retry_transient_errors, dump_all_st
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
-from hailtop import version
+from hailtop import version, httpx
 from gear import (
     setup_aiohttp_session,
     rest_authenticated_users_only,
@@ -40,7 +40,7 @@ async def add_user(app, userdata):
 
     k8s_client = app['k8s_client']
     gsa_key_secret = await retry_transient_errors(
-        k8s_client.read_namespaced_secret, userdata['gsa_key_secret_name'], DEFAULT_NAMESPACE, _request_timeout=5.0
+        k8s_client.read_namespaced_secret, userdata['hail_credentials_secret_name'], DEFAULT_NAMESPACE, _request_timeout=5.0
     )
 
     if username in users:
@@ -237,6 +237,7 @@ async def rest_get_version(request):  # pylint: disable=W0613
 
 async def on_startup(app):
     thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=16)
+    app['client_session'] = httpx.client_session()
     app['thread_pool'] = thread_pool
     app['user_keys'] = dict()
     app['users'] = set()
@@ -248,20 +249,16 @@ async def on_startup(app):
 
 
 async def on_cleanup(app):
-    if 'k8s_client' in app:
-        del app['k8s_client']
-    await asyncio.wait(
-        *(t for t in asyncio.all_tasks() if t is not asyncio.current_task())
-    )
-
-
-async def on_shutdown(_):
-    # Filter the asyncio.current_task(), because if we await
-    # the current task we'll end up in a deadlock
-    remaining_tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
-    log.info(f"On shutdown request received, with {len(remaining_tasks)} remaining tasks")
-    await asyncio.wait(*remaining_tasks)
-    log.info("All tasks on shutdown have completed")
+    try:
+        if 'k8s_client' in app:
+            del app['k8s_client']
+    finally:
+        try:
+            await app['client_session'].close()
+        finally:
+            await asyncio.wait(
+                *(t for t in asyncio.all_tasks() if t is not asyncio.current_task())
+            )
 
 
 async def on_shutdown(_):

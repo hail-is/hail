@@ -12,7 +12,7 @@ from ..expr import StructExpression
 from ..matrixtable import MatrixTable, matrix_table_type
 from ..table import Table, table_type
 from ..typecheck import oneof, typecheck_method
-from ..utils.java import Env
+from ..utils.java import Env, info
 
 
 class DatasetVersion:
@@ -264,10 +264,10 @@ class Dataset:
         """
         all_matches = 'unique' not in self.key_properties
         compatible_indexed_values = [
-            index
-            for index in (version.maybe_index(key_expr, all_matches)
-                          for version in self.versions)
-            if index is not None]
+            (version.maybe_index(key_expr, all_matches), version.version)
+            for version in self.versions
+            if version.maybe_index(key_expr, all_matches) is not None
+        ]
         if len(compatible_indexed_values) == 0:
             versions = [f'{(v.version, v.reference_genome)}' for v in self.versions]
             raise ValueError(
@@ -276,9 +276,14 @@ class Dataset:
                 f'This annotation dataset is available for the following'
                 f' versions and reference genome builds: {", ".join(versions)}.'
             )
-        assert len(compatible_indexed_values) == 1, \
-            f'{key_expr.dtype}, {self.name}, {compatible_indexed_values}'
-        return compatible_indexed_values[0]
+        else:
+            indexed_values = sorted(compatible_indexed_values, key=lambda x: x[1])[-1]
+
+        if len(compatible_indexed_values) > 1:
+            info(f'index_compatible_version: More than one compatible version'
+                 f' exists for annotation dataset: {self.name}. Rows have been'
+                 f' annotated with version {indexed_values[1]}.')
+        return indexed_values[0]
 
 
 class DB:

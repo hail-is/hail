@@ -6,7 +6,7 @@ import is.hail.expr.ir._
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.encoded._
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.{SCode, SValue}
 import is.hail.types.physical.stypes.concrete.{SIndexablePointerCode, SIndexablePointerSettable, SIndexablePointerValue}
 import is.hail.utils._
 
@@ -139,7 +139,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
           val elt = EmitCode.fromI(cb.emb) { cb =>
             IEmitCode(cb,
               bufferType.isElementMissing(buffer(n), i),
-              elemType.loadCheapSCode(cb, bufferType.loadElement(buffer(n), capacity(n), i)).get)
+              elemType.loadCheapSCode(cb, bufferType.loadElement(buffer(n), capacity(n), i)))
           }
           f(cb, elt)
           cb.assign(i, i + 1)
@@ -230,8 +230,8 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
     cb.invokeVoid(desF, region, inputBuffer)
   }
 
-  private def appendShallow(cb: EmitCodeBuilder, r: Code[Region], aCode: SCode): Unit = {
-    val buff = cb.memoize(aCode, "sbll_append_shallow_a").asInstanceOf[SIndexablePointerSettable]
+  private def appendShallow(cb: EmitCodeBuilder, r: Code[Region], aCode: SValue): Unit = {
+    val buff = aCode.asInstanceOf[SIndexablePointerValue]
     val newNode = cb.newLocal[Long]("sbll_append_shallow_newnode", nodeType.allocate(r))
     initNode(cb, newNode, buf = buff.a, count = buff.length)
     setNext(cb, lastNode, newNode)

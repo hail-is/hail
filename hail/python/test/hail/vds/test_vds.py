@@ -1,12 +1,64 @@
 import os
+import pytest
 
 import hail as hl
 from hail.utils import new_temp_file
+from hail.vds.combiner.combine import defined_entry_fields
 from ..helpers import startTestHailContext, stopTestHailContext, resource, fails_local_backend, fails_service_backend
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
 
+
+# run this method to regenerate the combined VDS from 5 samples
+def generate_5_sample_vds():
+    paths = [os.path.join(resource('gvcfs'), '1kg_chr22', path) for path in ['HG00187.hg38.g.vcf.gz',
+                                                                             'HG00190.hg38.g.vcf.gz',
+                                                                             'HG00308.hg38.g.vcf.gz',
+                                                                             'HG00313.hg38.g.vcf.gz',
+                                                                             'HG00320.hg38.g.vcf.gz']]
+    parts = [
+        hl.Interval(start=hl.Struct(locus=hl.Locus('chr22', 1, reference_genome='GRCh38')),
+                    end=hl.Struct(locus=hl.Locus('chr22', hl.get_reference('GRCh38').contig_length('chr22') - 1,
+                                                 reference_genome='GRCh38')),
+                    includes_end=True)
+    ]
+    vcfs = hl.import_gvcfs(paths, parts, reference_genome='GRCh38', array_elements_required=False)
+    to_keep = defined_entry_fields(vcfs[0].filter_rows(hl.is_defined(vcfs[0].info.END)), 100_000)
+    vds = hl.vds.combiner.combine_variant_datasets([hl.vds.combiner.transform_gvcf(mt, to_keep) for mt in vcfs])
+    vds.variant_data = vds.variant_data._key_rows_by_assert_sorted('locus', 'alleles')
+    vds.write(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'), overwrite=True)
+
+
+def test_validate():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+    vds.validate()
+
+    with pytest.raises(ValueError):
+        hl.vds.VariantDataset(
+            vds.reference_data.annotate_rows(arr=[0, 1]).explode_rows('arr'),
+            vds.variant_data).validate()
+
+    with pytest.raises(ValueError):
+        hl.vds.VariantDataset(
+            vds.reference_data.annotate_entries(
+                END=hl.or_missing(vds.reference_data.locus.position % 2 == 0, vds.reference_data.END)),
+            vds.variant_data).validate()
+
+
+@fails_local_backend()
+@fails_service_backend()
+def test_multi_write():
+    vds1 = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+    to_keep = vds1.variant_data.filter_cols(vds1.variant_data.s == 'HG00187').cols()
+    vds2 = hl.vds.filter_samples(vds1, to_keep)
+
+    path1 = new_temp_file()
+    path2 = new_temp_file()
+    hl.vds.write_variant_datasets([vds1, vds2], [path1, path2])
+
+    assert hl.vds.read_vds(path1)._same(vds1)
+    assert hl.vds.read_vds(path2)._same(vds2)
 
 @fails_local_backend
 @fails_service_backend
@@ -73,3 +125,28 @@ def test_sampleqc_old_new_equivalence():
     assert res.aggregate_cols(hl.all(
         *(hl.agg.all(res.sample_qc[field] == res.sample_qc_new[field]) for field in fields_to_test)
     ))
+
+
+def test_filter_samples_and_merge():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+
+    samples = vds.variant_data.cols()
+    samples = samples.add_index()
+
+    samples1 = samples.filter(samples.idx < 2)
+    samples2 = samples.filter(samples.idx >= 2)
+
+    split1 = hl.vds.filter_samples(vds, samples1, remove_dead_alleles=True)
+
+    assert split1.variant_data.count_cols() == 2
+    assert split1.reference_data.count_cols() == 2
+
+    split2 = hl.vds.filter_samples(vds, samples2, remove_dead_alleles=True)
+
+    assert split2.variant_data.count_cols() == 3
+    assert split2.reference_data.count_cols() == 3
+
+    merged = hl.vds.combiner.combine_variant_datasets([split1, split2])
+
+    assert merged.reference_data._same(vds.reference_data)
+    assert merged.variant_data._same(vds.variant_data)

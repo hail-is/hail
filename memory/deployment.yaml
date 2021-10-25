@@ -68,7 +68,10 @@ spec:
            - memory
           env:
            - name: HAIL_DOMAIN
-             value: "{{ global.domain }}"
+             valueFrom:
+               secretKeyRef:
+                 name: global-config
+                 key: domain
            - name: HAIL_DEPLOY_CONFIG_FILE
              value: /deploy-config/deploy-config.json
            - name: HAIL_DEFAULT_NAMESPACE

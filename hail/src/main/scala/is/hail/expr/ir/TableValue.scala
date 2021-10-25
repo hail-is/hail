@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.backend.BroadcastValue
+import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.ir.lowering.{RVDToTableStage, TableStage, TableStageToRVD}
 import is.hail.io.fs.FS

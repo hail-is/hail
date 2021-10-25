@@ -25,6 +25,8 @@ spec:
       tolerations:
        - key: preemptible
          value: "true"
+       - key: "kubernetes.azure.com/scalesetpriority"
+         value: "spot"
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -56,14 +58,20 @@ spec:
             memory: "1G"
         env:
          - name: HAIL_DOMAIN
-           value: "{{ global.domain }}"
+           valueFrom:
+             secretKeyRef:
+               name: global-config
+               key: domain
          - name: GOOGLE_APPLICATION_CREDENTIALS
            value: /gsa-key/key.json
          - name: HAIL_ATGU_BUCKET
 {% if deploy %}
            value: hail-atgu-data
 {% else %}
-           value: "{{ global.hail_test_gcs_bucket }}"
+           valueFrom:
+             secretKeyRef:
+               name: global-config
+               key: hail_test_gcs_bucket
 {% endif %}
         volumeMounts:
          - name: deploy-config

@@ -1,7 +1,7 @@
 package is.hail.types.physical
 
 import is.hail.annotations._
-import is.hail.asm4s.Code
+import is.hail.asm4s.{Code, Value}
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
 import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SBaseStructValue}
@@ -42,9 +42,10 @@ trait PStruct extends PBaseStruct {
 
   def loadField(offset: Code[Long], fieldName: String): Code[Long]
 
-  final def isFieldDefined(offset: Code[Long], fieldName: String): Code[Boolean] = !isFieldMissing(offset, fieldName)
+  final def isFieldDefined(cb: EmitCodeBuilder, offset: Code[Long], fieldName: String): Value[Boolean] =
+    cb.memoize(!isFieldMissing(cb, offset, fieldName))
 
-  def isFieldMissing(offset: Code[Long], fieldName: String): Code[Boolean]
+  def isFieldMissing(cb: EmitCodeBuilder, offset: Code[Long], fieldName: String): Value[Boolean]
 
   def fieldOffset(offset: Code[Long], fieldName: String): Code[Long]
 

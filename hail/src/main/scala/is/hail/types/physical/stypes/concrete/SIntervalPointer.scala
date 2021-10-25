@@ -67,19 +67,21 @@ class SIntervalPointerValue(
 
   override def loadStart(cb: EmitCodeBuilder): IEmitCode =
     IEmitCode(cb,
-      !(pt.startDefined(a)),
-      pt.pointType.loadCheapSCode(cb, pt.loadStart(a)).get)
+      !pt.startDefined(cb, a),
+      pt.pointType.loadCheapSCode(cb, pt.loadStart(a)))
 
-  override def startDefined(cb: EmitCodeBuilder): Code[Boolean] = pt.startDefined(a)
+  override def startDefined(cb: EmitCodeBuilder): Value[Boolean] =
+    pt.startDefined(cb, a)
 
   override def loadEnd(cb: EmitCodeBuilder): IEmitCode =
     IEmitCode(cb,
-      !(pt.endDefined(a)),
-      pt.pointType.loadCheapSCode(cb, pt.loadEnd(a)).get)
+      !pt.endDefined(cb, a),
+      pt.pointType.loadCheapSCode(cb, pt.loadEnd(a)))
 
-  override def endDefined(cb: EmitCodeBuilder): Code[Boolean] = pt.endDefined(a)
+  override def endDefined(cb: EmitCodeBuilder): Value[Boolean] =
+    pt.endDefined(cb, a)
 
-  override def isEmpty(cb: EmitCodeBuilder): Code[Boolean] = {
+  override def isEmpty(cb: EmitCodeBuilder): Value[Boolean] = {
     val gt = cb.emb.ecb.getOrderingFunction(st.pointType, CodeOrdering.Gt())
     val gteq = cb.emb.ecb.getOrderingFunction(st.pointType, CodeOrdering.Gteq())
 

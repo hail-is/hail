@@ -4,7 +4,7 @@ import is.hail.annotations.Region
 import is.hail.expr.ir._
 import is.hail.types.physical.{PCanonicalArray, PCanonicalNDArray, PFloat32, PFloat32Required, PFloat64, PFloat64Required, PInt32, PInt32Required, PInt64, PInt64Required, PNumeric, PType}
 import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayCode}
-import is.hail.types.physical.stypes.{SCode, SType}
+import is.hail.types.physical.stypes.{SCode, SType, SValue}
 import is.hail.utils._
 import is.hail.asm4s._
 import is.hail.types.physical.stypes.interfaces._
@@ -21,7 +21,7 @@ abstract class NDArrayProducer {
   val initAll: EmitCodeBuilder => Unit
   val initAxis: IndexedSeq[(EmitCodeBuilder) => Unit]
   val stepAxis: IndexedSeq[(EmitCodeBuilder, Value[Long]) => Unit]
-  def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode
+  def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SValue
 
   def copy(
     aElementType: PType = elementType,
@@ -38,7 +38,7 @@ abstract class NDArrayProducer {
       override val initAxis: IndexedSeq[EmitCodeBuilder => Unit] = ainitAxis
       override val stepAxis: IndexedSeq[(EmitCodeBuilder, Value[Long]) => Unit] = astepAxis
 
-      override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = outer.loadElementAtCurrentAddr(cb)
+      override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SValue = outer.loadElementAtCurrentAddr(cb)
     }
   }
 
@@ -84,7 +84,7 @@ object EmitNDArray {
       var ev: EmitSettable = null
       mb.voidWithBuilder { cb =>
         emitter.ctx.tryingToSplit.update(ir, ())
-        val result: IEmitCode = deforest(ir, cb, r, env, container, loopEnv).map(cb)(ndap => ndap.toSCode(cb, PCanonicalNDArray(ndap.elementType.setRequired(true), ndap.nDims), r).get)
+        val result: IEmitCode = deforest(ir, cb, r, env, container, loopEnv).map(cb)(ndap => ndap.toSCode(cb, PCanonicalNDArray(ndap.elementType.setRequired(true), ndap.nDims), r))
 
         ev = cb.emb.ecb.newEmitField(s"${context}_result", result.emitType)
         cb.assign(ev, result)
@@ -115,7 +115,7 @@ object EmitNDArray {
                 override val initAxis: IndexedSeq[EmitCodeBuilder => Unit] = childProducer.initAxis
                 override val stepAxis: IndexedSeq[(EmitCodeBuilder, Value[Long]) => Unit] = childProducer.stepAxis
 
-                override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = {
+                override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SValue = {
                   cb.assign(elemRef, EmitCode.present(cb.emb, childProducer.loadElementAtCurrentAddr(cb)))
                   bodyEC.toI(cb).get(cb, "NDArray map body cannot be missing")
                 }
@@ -160,7 +160,7 @@ object EmitNDArray {
                   }
                   }
 
-                  override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = {
+                  override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SValue = {
                     cb.assign(lElemRef, EmitCode.present(cb.emb, leftBroadcasted.loadElementAtCurrentAddr(cb)))
                     cb.assign(rElemRef, EmitCode.present(cb.emb, rightBroadcasted.loadElementAtCurrentAddr(cb)))
 
@@ -200,23 +200,19 @@ object EmitNDArray {
                   }
                 }
 
-                override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = childProducer.loadElementAtCurrentAddr(cb)
+                override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SValue =
+                  childProducer.loadElementAtCurrentAddr(cb)
               }
             }
           case x@NDArrayReshape(childND, shape, errorID) =>
-            emitI(childND, cb).flatMap(cb) { case childND: SNDArrayCode =>
+            emitI(childND, cb).flatMap(cb) { case childND: SNDArrayValue =>
               // Plan: Run through the child row major, make an array. Then jump around it as needed.
-              val childMemo = childND.memoize(cb, "ndarray_reshape_child")
-
-              val childShapeValues = childMemo.shapes
+              val childShapeValues = childND.shapes
               val outputNDims = x.typ.nDims
 
               val requestedShapeValues = Array.tabulate(outputNDims)(i => cb.newLocal[Long](s"ndarray_reindex_request_shape_$i")).toIndexedSeq
 
-              emitI(shape, cb, env = env).map(cb) { sc: SCode =>
-                val tupleCode = sc.asBaseStruct
-                val tupleValue = tupleCode.memoize(cb, "ndarray_reshape_requested")
-
+              emitI(shape, cb, env = env).map(cb) { case tupleValue: SBaseStructValue =>
                 val hasNegativeOne = cb.newLocal[Boolean]("ndarray_reshape_has_neg_one")
                 val runningProduct = cb.newLocal[Long]("ndarray_reshape_running_product")
                 val replacesNegativeOne = cb.newLocal[Long]("ndarray_reshape_replaces_neg_one")
@@ -265,7 +261,7 @@ object EmitNDArray {
                 }
 
                 val childPType = childND.st.storageType().asInstanceOf[PCanonicalNDArray]
-                val rowMajor = fromSValue(childMemo, cb).toSCode(cb, childPType, region, true)
+                val rowMajor = fromSValue(childND, cb).toSCode(cb, childPType, region, true)
                 // The canonical row major thing is now in the order we want. We just need to read this with the row major striding that
                 // would be generated for something of the new shape.
                 val outputPType = PCanonicalNDArray(rowMajor.st.elementPType.setRequired(true), x.typ.nDims, true) // TODO Should it be required?
@@ -275,8 +271,7 @@ object EmitNDArray {
             }
 
           case x@NDArrayConcat(nds, axis) =>
-            emitI(nds, cb).flatMap(cb) { ndsPCode =>
-              val ndsArraySValue = ndsPCode.asIndexable.memoize(cb, "ndarray_concat_array_of_nds")
+            emitI(nds, cb).flatMap(cb) { case ndsArraySValue: SIndexableValue =>
               val arrLength = ndsArraySValue.loadLength()
               cb.ifx(arrLength ceq 0, {
                 cb._fatal("need at least one ndarray to concatenate")
@@ -291,7 +286,7 @@ object EmitNDArray {
                   // Need to check if the any of the ndarrays are missing.
                   val missingCheckLoopIdx = cb.newLocal[Int]("ndarray_concat_missing_check_idx")
                   cb.forLoop(cb.assign(missingCheckLoopIdx, 0), missingCheckLoopIdx < arrLength, cb.assign(missingCheckLoopIdx, missingCheckLoopIdx + 1),
-                    cb.assign(missing, missing | ndsArraySValue.isElementMissing(missingCheckLoopIdx))
+                    cb.assign(missing, missing | ndsArraySValue.isElementMissing(cb, missingCheckLoopIdx))
                   )
                   missing
                 }
@@ -299,7 +294,7 @@ object EmitNDArray {
 
               IEmitCode(cb, missing, {
                 val loopIdx = cb.newLocal[Int]("ndarray_concat_shape_check_idx")
-                val firstND = ndsArraySValue.loadElement(cb, 0).map(cb) { sCode => sCode.asNDArray }.get(cb).memoize(cb, "ndarray_concat_input_0")
+                val firstND = ndsArraySValue.loadElement(cb, 0).map(cb) { sCode => sCode.asNDArray }.get(cb)
 
                 val stagedArrayOfSizesPType = PCanonicalArray(PInt64(), true)
                 val (pushElement, finish) = stagedArrayOfSizesPType.constructFromFunctions(cb, region, arrLength, false)
@@ -313,7 +308,7 @@ object EmitNDArray {
                   }
 
                   cb.forLoop(cb.assign(loopIdx, 1), loopIdx < arrLength, cb.assign(loopIdx, loopIdx + 1), {
-                    val shapeOfNDAtIdx = ndsArraySValue.loadElement(cb, loopIdx).map(cb) { sCode => sCode.asNDArray }.get(cb).shape(cb).memoize(cb, "ndarray_concat_input_shape")
+                    val shapeOfNDAtIdx = ndsArraySValue.loadElement(cb, loopIdx).map(cb) { sCode => sCode.asNDArray }.get(cb).shapeStruct(cb)
                     val dimLength = cb.newLocal[Long]("dimLength", shapeOfNDAtIdx.loadField(cb, dimIdx).get(cb).asInt64.longCode(cb))
 
                     if (dimIdx == axis) {
@@ -378,8 +373,8 @@ object EmitNDArray {
                     })
                   }
 
-                  override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = {
-                    val currentNDArray = ndsArraySValue.loadElement(cb, currentNDArrayIdx).get(cb).asNDArray.memoize(cb, "ndarray_concat_current_active_ndarray")
+                  override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SValue = {
+                    val currentNDArray = ndsArraySValue.loadElement(cb, currentNDArrayIdx).get(cb).asNDArray
                     currentNDArray.loadElement(idxVars, cb)
                   }
                 }
@@ -387,23 +382,20 @@ object EmitNDArray {
             }
           case NDArraySlice(child, slicesIR) =>
             deforestRecur(child, cb).flatMap(cb) { childProducer =>
-              emitI(slicesIR, cb).flatMap(cb) { slicesPC =>
-                val slicesValue = slicesPC.asBaseStruct.memoize(cb, "ndarray_slice_tuple_pv")
-
+              emitI(slicesIR, cb).flatMap(cb) { case slicesValue: SBaseStructValue =>
                 val (indexingIndices, slicingIndices) = slicesValue.st.fieldTypes.zipWithIndex.partition { case (pFieldType, idx) =>
                   pFieldType.isPrimitive
                 } match {
                   case (a, b) => (a.map(_._2), b.map(_._2))
                 }
 
-                IEmitCode.multiFlatMap[Int, SCode, NDArrayProducer](indexingIndices, indexingIndex => slicesValue.loadField(cb, indexingIndex), cb) { indexingSCodes =>
+                IEmitCode.multiFlatMap[Int, SValue, NDArrayProducer](indexingIndices, indexingIndex => slicesValue.loadField(cb, indexingIndex), cb) { indexingSCodes =>
                   val indexingValues = indexingSCodes.map(sCode => cb.newLocal("ndarray_slice_indexer", sCode.asInt64.longCode(cb)))
                   val slicingValueTriplesBuilder = new BoxedArrayBuilder[(Value[Long], Value[Long], Value[Long])]()
                   val outputShape = {
-                    IEmitCode.multiFlatMap[Int, SCode, IndexedSeq[Value[Long]]](slicingIndices,
-                      valueIdx => slicesValue.loadField(cb, valueIdx), cb) { sCodeSlices: IndexedSeq[SCode] =>
-                      IEmitCode.multiFlatMap(sCodeSlices, { sCodeSlice: SCode =>
-                        val sValueSlice = sCodeSlice.asBaseStruct.memoize(cb, "ndarray_slice_sCodeSlice")
+                    IEmitCode.multiFlatMap[Int, SValue, IndexedSeq[Value[Long]]](slicingIndices,
+                      valueIdx => slicesValue.loadField(cb, valueIdx), cb) { sCodeSlices: IndexedSeq[SValue] =>
+                      IEmitCode.multiFlatMap[SValue, Value[Long], IndexedSeq[Value[Long]]](sCodeSlices, { case sValueSlice: SBaseStructValue =>
                         // I know I have a tuple of three elements here, start, stop, step
 
                         val newDimSizeI = sValueSlice.loadField(cb, 0).flatMap(cb) { startC =>
@@ -464,7 +456,8 @@ object EmitNDArray {
                         childProducer.stepAxis(whichSlicingAxis)(cb, innerStep)
                       })
 
-                      override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = childProducer.loadElementAtCurrentAddr(cb)
+                      override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SValue =
+                        childProducer.loadElementAtCurrentAddr(cb)
                     }
                   }
                 }
@@ -485,8 +478,7 @@ object EmitNDArray {
                     cb.assign(filterWasMissing(i), true)
                   },
                   {
-                    filtArrayPC => {
-                      val filtArrayPValue = filtArrayPC.asIndexable.memoize(cb, s"ndarray_filt_array_${i}")
+                    case filtArrayPValue: SIndexableValue => {
                       filtPValues(i) = filtArrayPValue
                       cb.assign(outputShape(i), filtArrayPValue.loadLength().toL)
                       cb.assign(filterWasMissing(i), false)
@@ -536,7 +528,8 @@ object EmitNDArray {
                   }
                 }
 
-                override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = childProducer.loadElementAtCurrentAddr(cb)
+                override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SValue =
+                  childProducer.loadElementAtCurrentAddr(cb)
               }
             }
           case NDArrayAgg(child, axesToSumOut) =>
@@ -568,7 +561,7 @@ object EmitNDArray {
                   axesToKeep.map(idx => childProducer.stepAxis(idx))
                 }
 
-                override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = {
+                override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SValue = {
                   // Idea: For each axis that is being summed over, step through and keep a running sum.
                   val numericElementType = elementType.asInstanceOf[PNumeric]
                   val runningSum = NumericPrimitives.newLocal(cb, "ndarray_agg_running_sum", numericElementType.virtualType)
@@ -578,7 +571,7 @@ object EmitNDArray {
                   val stepsToSumOut = axesToSumOut.map(idx => (cb: EmitCodeBuilder) => childProducer.stepAxis(idx)(cb, 1L))
 
                   SNDArray.forEachIndexWithInitAndIncColMajor(cb, newOutputShapeComplement, initsToSumOut, stepsToSumOut, "ndarray_producer_ndarray_agg") { (cb, _) =>
-                    cb.assign(runningSum, numericElementType.add(runningSum, SType.extractPrimCode(cb, childProducer.loadElementAtCurrentAddr(cb))))
+                    cb.assign(runningSum, numericElementType.add(runningSum, SType.extractPrimCode(cb, childProducer.loadElementAtCurrentAddr(cb).get)))
                   }
                   primitive(numericElementType.virtualType, runningSum)
                 }
@@ -586,9 +579,8 @@ object EmitNDArray {
             }
           case _ => {
             val ndI = emitI(x, cb)
-            ndI.map(cb) { ndPCode =>
-              val ndPv = ndPCode.asNDArray.memoize(cb, "deforestNDArray_fall_through_ndarray")
-              fromSValue(ndPv, cb)
+            ndI.map(cb) { ndPv =>
+              fromSValue(ndPv.asNDArray, cb)
             }
           }
         }
@@ -632,10 +624,10 @@ object EmitNDArray {
         }
       }
 
-      override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = {
+      override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SValue = {
         val offset = counters.foldLeft[Code[Long]](const(0L)){ (a, b) => a + b}
         val loaded = elementType.loadCheapSCode(cb, firstDataAddress + offset)
-        loaded.get
+        loaded
       }
     }
   }

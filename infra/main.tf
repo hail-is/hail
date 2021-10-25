@@ -285,23 +285,23 @@ host=${google_sql_database_instance.db.ip_address[0].ip_address}
 user=root
 password=${random_password.db_root_password.result}
 ssl-ca=/sql-config/server-ca.pem
+ssl-mode=VERIFY_CA
 ssl-cert=/sql-config/client-cert.pem
 ssl-key=/sql-config/client-key.pem
-ssl-mode=VERIFY_CA
 END
     "sql-config.json" = <<END
 {
-    "docker_root_image": "${local.docker_root_image}",
+    "ssl-cert": "/sql-config/client-cert.pem",
+    "ssl-key": "/sql-config/client-key.pem",
+    "ssl-ca": "/sql-config/server-ca.pem",
+    "ssl-mode": "VERIFY_CA",
     "host": "${google_sql_database_instance.db.ip_address[0].ip_address}",
     "port": 3306,
     "user": "root",
     "password": "${random_password.db_root_password.result}",
     "instance": "${google_sql_database_instance.db.name}",
     "connection_name": "${google_sql_database_instance.db.connection_name}",
-    "ssl-ca": "/sql-config/server-ca.pem",
-    "ssl-cert": "/sql-config/client-cert.pem",
-    "ssl-key": "/sql-config/client-key.pem",
-    "ssl-mode": "VERIFY_CA"
+    "docker_root_image": "${local.docker_root_image}"
 }
 END
   }
@@ -317,15 +317,6 @@ resource "google_artifact_registry_repository" "repository" {
   location = var.gcp_location
 }
 
-resource "google_service_account" "gcr_pull" {
-  account_id = "gcr-pull"
-  display_name = "pull from gcr.io"
-}
-
-resource "google_service_account_key" "gcr_pull_key" {
-  service_account_id = google_service_account.gcr_pull.name
-}
-
 resource "google_service_account" "gcr_push" {
   account_id = "gcr-push"
   display_name = "push to gcr.io"
@@ -333,20 +324,6 @@ resource "google_service_account" "gcr_push" {
 
 resource "google_service_account_key" "gcr_push_key" {
   service_account_id = google_service_account.gcr_push.name
-}
-
-resource "google_storage_bucket_iam_member" "gcr_pull_viewer" {
-  bucket = google_container_registry.registry.id
-  role = "roles/storage.objectViewer"
-  member = "serviceAccount:${google_service_account.gcr_pull.email}"
-}
-
-resource "google_artifact_registry_repository_iam_member" "artifact_registry_pull_viewer" {
-  provider = google-beta
-  repository = google_artifact_registry_repository.repository.name
-  location = var.gcp_location
-  role = "roles/artifactregistry.reader"
-  member = "serviceAccount:${google_service_account.gcr_pull.email}"
 }
 
 resource "google_artifact_registry_repository_iam_member" "artifact_registry_batch_agent_viewer" {
@@ -379,16 +356,6 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_pus
   member = "serviceAccount:${google_service_account.gcr_push.email}"
 }
 
-resource "kubernetes_secret" "gcr_pull_key" {
-  metadata {
-    name = "gcr-pull-key"
-  }
-
-  data = {
-    "gcr-pull.json" = base64decode(google_service_account_key.gcr_pull_key.private_key)
-  }
-}
-
 resource "kubernetes_secret" "gcr_push_key" {
   metadata {
     name = "gcr-push-service-account-key"
@@ -414,7 +381,6 @@ module "auth_gsa_secret" {
   iam_roles = [
     "iam.serviceAccountAdmin",
     "iam.serviceAccountKeyAdmin",
-    # "storage.admin",
   ]
 }
 
@@ -472,6 +438,11 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_vie
 module "monitoring_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "monitoring"
+}
+
+module "grafana_gsa_secret" {
+  source = "./gsa_k8s_secret"
+  name = "grafana"
 }
 
 module "test_gsa_secret" {
@@ -607,4 +578,32 @@ resource "google_dns_record_set" "internal_gateway" {
   ttl = 300
 
   rrdatas = [google_compute_address.internal_gateway.address]
+}
+
+resource "kubernetes_cluster_role" "batch" {
+  metadata {
+    name = "batch"
+  }
+
+  rule {
+    api_groups = [""]
+    resources  = ["secrets", "serviceaccounts"]
+    verbs      = ["get", "list"]
+  }
+}
+
+resource "kubernetes_cluster_role_binding" "batch" {
+  metadata {
+    name = "batch"
+  }
+  role_ref {
+    kind      = "ClusterRole"
+    name      = "batch"
+    api_group = "rbac.authorization.k8s.io"
+  }
+  subject {
+    kind      = "ServiceAccount"
+    name      = "batch"
+    namespace = "default"
+  }
 }

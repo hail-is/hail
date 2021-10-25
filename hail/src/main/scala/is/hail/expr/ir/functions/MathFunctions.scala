@@ -4,6 +4,7 @@ import is.hail.asm4s.Code
 import is.hail.expr.ir._
 import is.hail.stats._
 import is.hail.types.physical.stypes._
+import is.hail.types.physical.stypes.interfaces.primitive
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.physical.{PBoolean, PFloat32, PFloat64, PInt32, PInt64, PType}
 import is.hail.types.virtual._
@@ -196,7 +197,7 @@ object MathFunctions extends RegistryFunctions {
 
     registerSCode4("fisher_exact_test", TInt32, TInt32, TInt32, TInt32, fetStruct.virtualType,
       (_, _, _, _, _) => fetStruct.sType
-    ) { case (r, cb, rt, a: SInt32Code, b: SInt32Code, c: SInt32Code, d: SInt32Code, _) =>
+    ) { case (r, cb, rt, a: SInt32Value, b: SInt32Value, c: SInt32Value, d: SInt32Value, _) =>
       val res = cb.newLocal[Array[Double]]("fisher_exact_test_res",
         Code.invokeScalaObject4[Int, Int, Int, Int, Array[Double]](statsPackageClass, "fisherExactTest",
           a.intCode(cb),
@@ -205,16 +206,16 @@ object MathFunctions extends RegistryFunctions {
           d.intCode(cb)))
 
       fetStruct.constructFromFields(cb, r.region, FastIndexedSeq(
-        IEmitCode.present(cb, SFloat64Code(res(0))).memoize(cb, "fisher_exact_test_res0"),
-        IEmitCode.present(cb, SFloat64Code(res(1))).memoize(cb, "fisher_exact_test_res1"),
-        IEmitCode.present(cb, SFloat64Code(res(2))).memoize(cb, "fisher_exact_test_res2"),
-        IEmitCode.present(cb, SFloat64Code(res(3))).memoize(cb, "fisher_exact_test_res3")
-      ), deepCopy = false).get
+        EmitValue.present(primitive(cb.memoize(res(0)))),
+        EmitValue.present(primitive(cb.memoize(res(1)))),
+        EmitValue.present(primitive(cb.memoize(res(2)))),
+        EmitValue.present(primitive(cb.memoize(res(3))))
+      ), deepCopy = false)
     }
 
     registerSCode4("chi_squared_test", TInt32, TInt32, TInt32, TInt32, chisqStruct.virtualType,
       (_, _, _, _, _) => chisqStruct.sType
-    ) { case (r, cb, rt, a: SInt32Code, b: SInt32Code, c: SInt32Code, d: SInt32Code, _) =>
+    ) { case (r, cb, rt, a: SInt32Value, b: SInt32Value, c: SInt32Value, d: SInt32Value, _) =>
       val res = cb.newLocal[Array[Double]]("chi_squared_test_res",
         Code.invokeScalaObject4[Int, Int, Int, Int, Array[Double]](statsPackageClass, "chiSquaredTest",
           a.intCode(cb),
@@ -223,14 +224,14 @@ object MathFunctions extends RegistryFunctions {
           d.intCode(cb)))
 
       chisqStruct.constructFromFields(cb, r.region, FastIndexedSeq(
-        IEmitCode.present(cb, SFloat64Code(res(0))).memoize(cb, "chi_squared_test_res0"),
-        IEmitCode.present(cb, SFloat64Code(res(1))).memoize(cb, "chi_squared_test_res1")
-      ), deepCopy = false).get
+        EmitValue.present(primitive(cb.memoize(res(0)))),
+        EmitValue.present(primitive(cb.memoize(res(1))))
+      ), deepCopy = false)
     }
 
     registerSCode5("contingency_table_test", TInt32, TInt32, TInt32, TInt32, TInt32, chisqStruct.virtualType,
       (_, _, _, _, _, _) => chisqStruct.sType
-    ) { case (r, cb, rt, a: SInt32Code, b: SInt32Code, c: SInt32Code, d: SInt32Code, mcc: SInt32Code, _) =>
+    ) { case (r, cb, rt, a: SInt32Value, b: SInt32Value, c: SInt32Value, d: SInt32Value, mcc: SInt32Value, _) =>
       val res = cb.newLocal[Array[Double]]("contingency_table_test_res",
         Code.invokeScalaObject5[Int, Int, Int, Int, Int, Array[Double]](statsPackageClass, "contingencyTableTest",
           a.intCode(cb),
@@ -240,24 +241,25 @@ object MathFunctions extends RegistryFunctions {
           mcc.intCode(cb)))
 
       chisqStruct.constructFromFields(cb, r.region, FastIndexedSeq(
-        IEmitCode.present(cb, SFloat64Code(res(0))).memoize(cb, "contingency_table_test_res0"),
-        IEmitCode.present(cb, SFloat64Code(res(1))).memoize(cb, "contingency_table_test_res1")
-      ), deepCopy = false).get
+        EmitValue.present(primitive(cb.memoize(res(0)))),
+        EmitValue.present(primitive(cb.memoize(res(1))))
+      ), deepCopy = false)
     }
 
-    registerSCode3("hardy_weinberg_test", TInt32, TInt32, TInt32, hweStruct.virtualType,
-      (_, _, _, _) => hweStruct.sType
-    ) { case (r, cb, rt, nHomRef: SInt32Code, nHet: SInt32Code, nHomVar: SInt32Code, _) =>
+    registerSCode4("hardy_weinberg_test", TInt32, TInt32, TInt32, TBoolean, hweStruct.virtualType,
+      (_, _, _, _, _) => hweStruct.sType
+    ) { case (r, cb, rt, nHomRef: SInt32Value, nHet: SInt32Value, nHomVar: SInt32Value, oneSided: SBooleanValue, _) =>
       val res = cb.newLocal[Array[Double]]("hardy_weinberg_test_res",
-        Code.invokeScalaObject3[Int, Int, Int, Array[Double]](statsPackageClass, "hardyWeinbergTest",
+        Code.invokeScalaObject4[Int, Int, Int, Boolean, Array[Double]](statsPackageClass, "hardyWeinbergTest",
           nHomRef.intCode(cb),
           nHet.intCode(cb),
-          nHomVar.intCode(cb)))
+          nHomVar.intCode(cb),
+          oneSided.boolCode(cb)))
 
       hweStruct.constructFromFields(cb, r.region, FastIndexedSeq(
-        IEmitCode.present(cb, SFloat64Code(res(0))).memoize(cb, "hardy_weinberg_test_res0"),
-        IEmitCode.present(cb, SFloat64Code(res(1))).memoize(cb, "hardy_weinberg_test_res1")
-      ), deepCopy = false).get
+        EmitValue.present(primitive(cb.memoize(res(0)))),
+        EmitValue.present(primitive(cb.memoize(res(1))))
+      ), deepCopy = false)
     }
   }
 }
