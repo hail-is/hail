@@ -201,6 +201,12 @@ You can now install Hail:
   make -C $HAIL/batch build-worker
   ```
 
+- Download the global-config to be used by `bootstrap.py`.
+
+  ```
+  kubectl -n default get secret global-config -o json | jq -r '.data | map_values(@base64d) | to_entries|map("echo -n \(.value) > /global-config/\(.key)") | .[]' | bash
+  ```
+
 - Bootstrap the cluster. Make sure to substitute the values for the exported
   environment variables. Note that if you set `use_artifact_registry` for Terraform
   above, make sure your `HAIL_DOCKER_PREFIX` has the format of
