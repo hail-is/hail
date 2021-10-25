@@ -6,8 +6,9 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.IRRandomness
 import is.hail.expr.ir.orderings.StructOrdering
-import is.hail.types.physical.{PArray, PStruct, PTuple}
-import is.hail.types.virtual.{TArray, TBoolean, TStream, TStruct, TTuple, Type}
+import is.hail.io.{BufferSpec, TypedCodecSpec}
+import is.hail.types.physical.{PArray, PStruct, PTuple, PType}
+import is.hail.types.virtual.{TArray, TBoolean, TInt32, TStream, TStruct, TTuple, Type}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.RStruct
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
@@ -90,20 +91,31 @@ object LowerDistributedSort {
     relationalLetsAbove: Map[String, IR],
     rowTypeRequiredness: RStruct
   ): TableStage = {
+    val partitionCounts = stage.mapCollect(relationalBindings = relationalLetsAbove){ partitionStreamIR =>
+      StreamLen(partitionStreamIR)
+    }
+
+
+    val computed = Apply("shuffle_compute_num_samples_per_partition", Seq.empty[Type], IndexedSeq(stage.numPartitions * 3, partitionCounts), TArray(TInt32), ErrorIDs.NO_ERROR)
+
+
+
     // Array of struct("min", "max", "isSorted", "samples"),
-    val perPartStats = stage.mapCollect(relationalBindings = relationalLetsAbove){ partitionStreamIR =>
-      samplePartition(partitionStreamIR, ???, stage.key)
-    }
+//    val perPartStats = stage.mapCollect(relationalBindings = relationalLetsAbove){ partitionStreamIR =>
+//      samplePartition(partitionStreamIR, ???, stage.key)
+//    }
 
-    // TODO: Need to put perPartStats in the globals
+    // TODO: Need to put things from perPartStats in the globals
 
-    stage.mapCollect(relationalBindings = relationalLetsAbove){ partitionStreamIR =>
-      // In here, need to distribute the keys into different buckets.
-      val path = ctx.createTmpPath(ctx.tmpdir)
-      StreamDistribute(partitionStreamIR, ???, path, ???)
-    }
+//    stage.mapCollect(relationalBindings = relationalLetsAbove){ partitionStreamIR =>
+//      // In here, need to distribute the keys into different buckets.
+//      val path = Str(ctx.createTmpPath(ctx.tmpdir))
+//      val spec = TypedCodecSpec(rowTypeRequiredness.canonicalPType(stage.rowType), BufferSpec.default)
+//      val pivots = GetField(stage.globals, ???)
+//      StreamDistribute(partitionStreamIR, ???, path, spec)
+//    }
 
-    ???
+    computed
   }
 
   def howManySamplesPerPartition(rand: IRRandomness, totalNumberOfRecords: Int, initialNumSamplesToSelect: Int, partitionCounts: IndexedSeq[Int]): IndexedSeq[Int] = {

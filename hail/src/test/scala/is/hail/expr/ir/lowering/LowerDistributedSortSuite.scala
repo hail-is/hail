@@ -2,7 +2,7 @@ package is.hail.expr.ir.lowering
 
 import is.hail.TestUtils.assertEvalsTo
 import is.hail.expr.ir.functions.IRRandomness
-import is.hail.expr.ir.{Literal, ToArray, ToStream}
+import is.hail.expr.ir.{IR, Literal, TableRange, ToArray, ToStream}
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.expr.ir.lowering.LowerDistributedSort.samplePartition
 import is.hail.types.virtual.{TArray, TInt32, TStruct}
@@ -27,5 +27,10 @@ class LowerDistributedSortSuite extends HailSuite {
     val partitionCounts = (0 until 10).map(idx => 100)
     val rand = new IRRandomness((math.random() * 1000).toInt)
     println(LowerDistributedSort.howManySamplesPerPartition(rand, 1000, 10, partitionCounts))
+  }
+
+  @Test def testDistributedSort(): Unit = {
+    val myTable = TableRange(100, 10)
+    LowerTableIR(myTable, DArrayLowering.All, ctx, ???, Map.empty[String, IR])
   }
 }
