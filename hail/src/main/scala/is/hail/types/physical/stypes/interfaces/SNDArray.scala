@@ -922,7 +922,7 @@ trait SNDArrayCode extends SCode {
   def memoize(cb: EmitCodeBuilder, name: String): SNDArrayValue
 }
 
-class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], chunksize: Value[Long], _blocksize: Value[Long], region: Value[Region]) {
+class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], chunksize: Value[Long], _blocksize: Value[Long], region: Value[Region], normalizeAfterWhitening: Boolean) {
   val m = vecSize
   val w = SizeValueDyn(_w)
   val b = SizeValueDyn(chunksize)
@@ -994,7 +994,9 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
       val w1col = work1.slice(cb, ::, wpi)
       val w2col = work2.slice(cb, ::, i)
       SNDArray.copyVector(cb, w1col, w2col)
-      SNDArray.scale(cb, R.loadElement(FastIndexedSeq(wpi, wpi), cb), w2col)
+      if (!normalizeAfterWhitening) {
+        SNDArray.scale(cb, R.loadElement(FastIndexedSeq(wpi, wpi), cb), w2col)
+      }
 
       // work3 > blocksize * (w+n - i+1) < blocksize * (w+n)
       SNDArray.tpqrt(R.slice(cb, (i+1, null), (i+1, null)), R.slice(cb, (i, i+1), (i+1, null)), T, work3, blocksize, cb)

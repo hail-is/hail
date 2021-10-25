@@ -1487,8 +1487,8 @@ class StreamScan(IR):
 
 
 class StreamWhiten(IR):
-    @typecheck_method(stream=IR, new_chunk=str, prev_window=str, vec_size=int, window_size=int, chunk_size=int, block_size=int)
-    def __init__(self, stream, new_chunk, prev_window, vec_size, window_size, chunk_size, block_size):
+    @typecheck_method(stream=IR, new_chunk=str, prev_window=str, vec_size=int, window_size=int, chunk_size=int, block_size=int, normalize_after_whiten=bool)
+    def __init__(self, stream, new_chunk, prev_window, vec_size, window_size, chunk_size, block_size, normalize_after_whiten):
         super().__init__(stream)
         self.stream = stream
         self.new_chunk = new_chunk
@@ -1497,13 +1497,14 @@ class StreamWhiten(IR):
         self.window_size = window_size
         self.chunk_size = chunk_size
         self.block_size = block_size
+        self.normalize_after_whiten = normalize_after_whiten
 
     @typecheck_method(stream=IR)
     def copy(self, stream):
-        return StreamWhiten(stream, self.new_chunk, self.prev_window, self.vec_size, self.window_size, self.chunk_size, self.block_size)
+        return StreamWhiten(stream, self.new_chunk, self.prev_window, self.vec_size, self.window_size, self.chunk_size, self.block_size, self.normalize_after_whiten)
 
     def head_str(self):
-        return f'{escape_id(self.new_chunk)} {escape_id(self.prev_window)} {self.vec_size} {self.window_size} {self.chunk_size} {self.block_size}'
+        return f'{escape_id(self.new_chunk)} {escape_id(self.prev_window)} {self.vec_size} {self.window_size} {self.chunk_size} {self.block_size} {self.normalize_after_whiten}'
 
     def _eq(self, other):
         return other.new_chunk == self.new_chunk and \
@@ -1511,7 +1512,8 @@ class StreamWhiten(IR):
             other.vec_size == self.vec_size and \
             other.window_size == self.window_size and \
             other.chunk_size == self.chunk_size and \
-            other.block_size == self.block_size
+            other.block_size == self.block_size and \
+            other.normalize_after_whiten == self.normalize_after_whiten
 
     def _compute_type(self, env, agg_env):
         self.stream._compute_type(env, agg_env)

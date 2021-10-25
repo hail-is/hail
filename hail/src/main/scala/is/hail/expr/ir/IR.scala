@@ -306,7 +306,7 @@ final case class StreamDistribute(child: IR, pivots: IR, path: IR, spec: Abstrac
 
 // Takes a stream of structs, with two designated fields: `prevWindow` is the previous window, if there is one,
 // and `newChunk` is the new chunk to whiten
-final case class StreamWhiten(stream: IR, newChunk: String, prevWindow: String, vecSize: Int, windowSize: Int, chunkSize: Int, blockSize: Int) extends IR
+final case class StreamWhiten(stream: IR, newChunk: String, prevWindow: String, vecSize: Int, windowSize: Int, chunkSize: Int, blockSize: Int, normalizeAfterWhiten: Boolean) extends IR
 
 object ArrayZipBehavior extends Enumeration {
   type ArrayZipBehavior = Value

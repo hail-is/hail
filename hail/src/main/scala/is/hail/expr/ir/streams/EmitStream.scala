@@ -1014,9 +1014,9 @@ object EmitStream {
           SStreamValue(producer)
         }
 
-      case StreamWhiten(stream, newChunkName, prevWindowName, vecSize, windowSize, chunkSize, blockSize) =>
+      case StreamWhiten(stream, newChunkName, prevWindowName, vecSize, windowSize, chunkSize, blockSize, normalizeAfterWhiten) =>
         produce(stream, cb).map(cb) { case blocks: SStreamValue =>
-          val state = new LocalWhitening(cb, SizeValueStatic(vecSize.toLong), windowSize.toLong, chunkSize.toLong, blockSize.toLong, outerRegion)
+          val state = new LocalWhitening(cb, SizeValueStatic(vecSize.toLong), windowSize.toLong, chunkSize.toLong, blockSize.toLong, outerRegion, normalizeAfterWhiten)
           val eltType = blocks.st.elementType.asInstanceOf[SBaseStruct]
           val resultField = mb.newPField("StreamWhiten_result", eltType)
 

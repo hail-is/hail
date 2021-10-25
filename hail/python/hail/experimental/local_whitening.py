@@ -5,7 +5,7 @@ from hail.utils.java import Env
 import hail.ir as ir
 
 
-def whiten(entry_expr, chunk_size, window_size, partition_size, block_size=64):
+def whiten(call_expr, chunk_size, window_size, partition_size, block_size=64, normalize_after_whiten=True):
     if window_size % chunk_size != 0:
         raise ValueError('whiten window_size must be a multiple of the chunk_size')
     if partition_size % chunk_size != 0:
@@ -14,17 +14,29 @@ def whiten(entry_expr, chunk_size, window_size, partition_size, block_size=64):
         raise ValueError('whiten requires partition_size be at least 2*chunk_size')
     if partition_size < window_size:
         raise ValueError('whiten requires partition_size be at least window_size')
-    check_entry_indexed('mt_to_table_of_ndarray/entry_expr', entry_expr)
-    mt = matrix_table_source('mt_to_table_of_ndarray/entry_expr', entry_expr)
 
-    if entry_expr in mt._fields_inverse:
-        field = mt._fields_inverse[entry_expr]
+    check_entry_indexed('mt_to_table_of_ndarray/call_expr', call_expr)
+    mt = matrix_table_source('mt_to_table_of_ndarray/call_expr', call_expr)
+
+    GT = Env.get_uid()
+    AC = Env.get_uid()
+    n_called = Env.get_uid()
+    mean_gt = Env.get_uid()
+    hwe_scaled_std_dev = Env.get_uid()
+    mt = mt.select_entries(**{GT: call_expr.n_alt_alleles()})
+    mt = mt.annotate_rows(**{AC: hl.agg.sum(mt[GT]),
+                             n_called: hl.agg.count_where(hl.is_defined(mt[GT]))})
+    mt = mt.filter_rows((mt[AC] > 0) & (mt[AC] < 2 * mt[n_called]))
+    mt = mt.unfilter_entries()
+
+    mt = mt.annotate_rows(**{mean_gt: mt.__AC / mt.__n_called})
+    if normalize_after_whiten:
+        mt = mt.select_entries(x=hl.or_else((mt[GT] - mt[mean_gt]), 0.0))
     else:
-        field = Env.get_uid()
-        mt = mt.select_entries(**{field: entry_expr})
-    mt = mt.select_cols().select_rows().select_globals()
+        mt = mt.annotate_rows(**{hwe_scaled_std_dev: hl.sqrt(mt[mean_gt] * (2 - mt[mean_gt]) / 2)})
+        mt = mt.select_entries(x=hl.or_else((mt[GT] - mt[mean_gt]) / mt[hwe_scaled_std_dev], 0.0))
 
-    mt = mt.select_entries(x=mt[field])
+    mt = mt.select_cols().select_rows().select_globals()
 
     def get_even_partitioning(ht, total_num_rows):
         ht = ht.select().add_index("_even_partitioning_index")
@@ -76,12 +88,13 @@ def whiten(entry_expr, chunk_size, window_size, partition_size, block_size=64):
     joined = A.annotate(prev_window=trailing_blocks_ht[A.key].prev_window)
 
     def whiten_map_body(part_stream):
-        stream_ir = ir.ToArray(ir.StreamWhiten(ir.ToStream(part_stream._ir), "ndarray", "prev_window", vec_size, window_size, chunk_size, block_size))
+        stream_ir = ir.ToArray(ir.StreamWhiten(ir.ToStream(part_stream._ir), "ndarray", "prev_window", vec_size, window_size, chunk_size, block_size, normalize_after_whiten))
         return construct_expr(stream_ir, part_stream.dtype)
     joined = joined._map_partitions(whiten_map_body)
 
     def explode_map_body(part_stream):
         def stream_map_body(ndarray):
-            hl.range(ndarray.shape[0])
+            hl.range(ndarray.shape[1]).map(lambda j: hl.array(ndarray[:, j]))
+        part_stream.flatmap(stream_map_body)
 
     return joined

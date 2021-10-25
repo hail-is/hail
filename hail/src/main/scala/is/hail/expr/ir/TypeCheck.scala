@@ -168,7 +168,7 @@ object TypeCheck {
         assert(child.typ.isInstanceOf[TStream])
         assert(pivots.typ.isInstanceOf[TArray])
         assert(pivots.typ.asInstanceOf[TArray].elementType.isInstanceOf[TStruct])
-      case StreamWhiten(stream, newChunk, prevWindow, vecSize, windowSize, chunkSize, blockSize) =>
+      case StreamWhiten(stream, newChunk, prevWindow, vecSize, windowSize, chunkSize, blockSize, normalizeAfterWhiten) =>
         assert(stream.typ.isInstanceOf[TStream])
         val eltTyp = stream.typ.asInstanceOf[TStream].elementType
         assert(eltTyp.isInstanceOf[TStruct])

@@ -55,7 +55,7 @@ class PNDArraySuite extends PhysicalTestUtils {
 
         SNDArray.geqrt_full(cb, Acopy, Q, R, T, work3, blocksize)
 
-        new LocalWhitening(cb, m, w, n, blocksize, region).whitenBase(cb, Q.slice(cb, ::, (null, w)), Q.slice(cb, ::, (w, null)), Qout, R, W, work1, work2, blocksize)
+        new LocalWhitening(cb, m, w, n, blocksize, region, false).whitenBase(cb, Q.slice(cb, ::, (null, w)), Q.slice(cb, ::, (w, null)), Qout, R, W, work1, work2, blocksize)
 
         SNDArray.trmm(cb, "R", "U", "N", "N", 1.0, R.slice(cb, (n, null), (n, null)), Qout)
 
@@ -112,7 +112,7 @@ class PNDArraySuite extends PhysicalTestUtils {
         Acopy.coiterateMutate(cb, region, (A, "A")) { case Seq(acopy, a) => a }
         SNDArray.geqrt_full(cb, Acopy, Q, R, T, work, blocksize)
 
-        new LocalWhitening(cb, m, w, n, blocksize, region).qrPivot(cb, Q, R, 0, p)
+        new LocalWhitening(cb, m, w, n, blocksize, region, false).qrPivot(cb, Q, R, 0, p)
 
         SNDArray.trmm(cb, "R", "U", "N", "N", 1.0, R.slice(cb, (null, p), (null, p)), Q.slice(cb, ::, (null, p)))
         SNDArray.gemm(cb, "N", "N", 1.0, Q.slice(cb, ::, (p, null)), R.slice(cb, (p, null), (null, p)), 1.0, Q.slice(cb, ::, (null, p)))
@@ -186,7 +186,7 @@ class PNDArraySuite extends PhysicalTestUtils {
         val region = fb.getCodeParam[Region](1)
         val Aorig = matType.constructUnintialized(FastIndexedSeq(m, wpn), cb, region)
         val A = matType.constructUnintialized(FastIndexedSeq(m, n), cb, region)
-        val state = new LocalWhitening(cb, m, w, n, blocksize, region)
+        val state = new LocalWhitening(cb, m, w, n, blocksize, region, false)
 
         Aorig.coiterateMutate(cb, region) { case Seq(_) =>
           primitive(cb.memoize(cb.emb.newRNG(0L).invoke[Double]("rnorm")))
@@ -272,7 +272,7 @@ class PNDArraySuite extends PhysicalTestUtils {
         }
         SNDArray.copyMatrix(cb, " ", Aorig, A)
 
-        val state = new LocalWhitening(cb, m, w, b, blocksize, region)
+        val state = new LocalWhitening(cb, m, w, b, blocksize, region, false)
         val i = cb.newLocal[Long]("i", 0)
         cb.whileLoop(i < n, {
           state.whitenBlock(cb, A.slice(cb, ::, (i, (i+b).min(n))))

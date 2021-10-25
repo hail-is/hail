@@ -1017,7 +1017,7 @@ object PruneDeadFields {
         unifyEnvs(
           memoizeValueIR(a, requestedType, memo),
           memoizeValueIR(len, len.typ, memo))
-      case StreamWhiten(a, newChunk, prevWindow, _, _, _, _) =>
+      case StreamWhiten(a, newChunk, prevWindow, _, _, _, _, _) =>
         val matType = TNDArray(TFloat64, Nat(2))
         val unifiedStructType = unify(
           a.typ.asInstanceOf[TStream].elementType,

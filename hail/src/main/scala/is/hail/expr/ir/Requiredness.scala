@@ -554,7 +554,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case StreamDrop(a, n) =>
         requiredness.union(lookup(n).required)
         requiredness.unionFrom(lookup(a))
-      case StreamWhiten(stream, _, _ ,_, _, _, _) =>
+      case StreamWhiten(stream, _, _ ,_, _, _, _, _) =>
         requiredness.unionFrom(lookup(stream))
       case StreamZip(as, names, body, behavior, _) =>
         requiredness.union(as.forall(lookup(_).required))

@@ -2769,7 +2769,7 @@ class IRSuite extends HailSuite {
       StreamFold(st, I32(0), "x", "v", v),
       StreamFold2(StreamFold(st, I32(0), "x", "v", v)),
       StreamScan(st, I32(0), "x", "v", v),
-      StreamWhiten(whitenStream, "newChunk", "prevWindow", 0, 0, 0, 0),
+      StreamWhiten(whitenStream, "newChunk", "prevWindow", 0, 0, 0, 0, false),
       StreamJoinRightDistinct(
         StreamMap(StreamRange(0, 2, 1), "x", MakeStruct(FastSeq("x" -> Ref("x", TInt32)))),
         StreamMap(StreamRange(0, 3, 1), "x", MakeStruct(FastSeq("x" -> Ref("x", TInt32)))),
