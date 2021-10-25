@@ -75,9 +75,13 @@ def whiten(entry_expr, chunk_size, window_size, partition_size, block_size=64):
 
     joined = A.annotate(prev_window=trailing_blocks_ht[A.key].prev_window)
 
-    def map_body(part_stream):
+    def whiten_map_body(part_stream):
         stream_ir = ir.ToArray(ir.StreamWhiten(ir.ToStream(part_stream._ir), "ndarray", "prev_window", vec_size, window_size, chunk_size, block_size))
         return construct_expr(stream_ir, part_stream.dtype)
-    joined = joined._map_partitions(map_body)
+    joined = joined._map_partitions(whiten_map_body)
+
+    def explode_map_body(part_stream):
+        def stream_map_body(ndarray):
+            hl.range(ndarray.shape[0])
 
     return joined

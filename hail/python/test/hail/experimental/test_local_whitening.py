@@ -31,8 +31,7 @@ class Tests(unittest.TestCase):
         whitened_naive = naive_whiten(data.T, window_size)
         np.testing.assert_allclose(whitened_hail, whitened_naive)
 
-    def test_local_whitening(self)\
-            :
+    def test_local_whitening(self):
         self.run_local_whitening_test(
             vec_size=100,
             num_rows=10000,
