@@ -204,6 +204,7 @@ You can now install Hail:
 - Download the global-config to be used by `bootstrap.py`.
 
   ```
+  mkdir /global-config
   kubectl -n default get secret global-config -o json | jq -r '.data | map_values(@base64d) | to_entries|map("echo -n \(.value) > /global-config/\(.key)") | .[]' | bash
   ```
 
