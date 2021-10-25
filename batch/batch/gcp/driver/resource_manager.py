@@ -27,9 +27,10 @@ def parse_gcp_timestamp(timestamp: Optional[str]) -> Optional[float]:
 
 
 class GCPResourceManager(CloudResourceManager):
-    def __init__(self, driver: 'GCPDriver', compute_client: aiogoogle.GoogleComputeClient):
+    def __init__(self, driver: 'GCPDriver', compute_client: aiogoogle.GoogleComputeClient, default_location: str):
         self.driver = driver
         self.compute_client = compute_client
+        self.default_location = default_location
 
     async def delete_vm(self, instance):
         instance_config = instance.instance_config

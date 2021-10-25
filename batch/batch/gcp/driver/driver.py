@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Set
 
 from hailtop import aiotools
 from hailtop.aiocloud import aiogoogle
@@ -26,7 +26,10 @@ class GCPDriver(CloudDriver):
         db: Database = app['db']
         task_manager = aiotools.BackgroundTaskManager()
 
-        project = get_gcp_config().project
+        gcp_config = get_gcp_config()
+        project = gcp_config.project
+        zone = gcp_config.zone
+        regions = gcp_config.regions
 
         compute_client = aiogoogle.GoogleComputeClient(project, credentials_file=credentials_file)
 
@@ -42,9 +45,9 @@ class GCPDriver(CloudDriver):
             rate_limit=RateLimit(10, 60),
         )
 
-        driver = GCPDriver(db, machine_name_prefix, task_manager, compute_client, activity_logs_client)
+        driver = GCPDriver(db, machine_name_prefix, task_manager, compute_client, activity_logs_client, regions)
 
-        resource_manager = GCPResourceManager(driver, compute_client)
+        resource_manager = GCPResourceManager(driver, compute_client, default_location=zone)
         inst_coll_manager = await InstanceCollectionManager.create(app, resource_manager, machine_name_prefix, inst_coll_configs)
 
         driver.resource_manager = resource_manager
@@ -57,19 +60,18 @@ class GCPDriver(CloudDriver):
         return driver
 
     def __init__(self, db: Database, machine_name_prefix: str, task_manager: aiotools.BackgroundTaskManager,
-                 compute_client: aiogoogle.GoogleComputeClient, activity_logs_client: aiogoogle.GoogleLoggingClient):
+                 compute_client: aiogoogle.GoogleComputeClient, activity_logs_client: aiogoogle.GoogleLoggingClient,
+                 regions: Set[str]):
         self.db = db
         self.machine_name_prefix = machine_name_prefix
         self.task_manager = task_manager
         self.compute_client = compute_client
         self.activity_logs_client = activity_logs_client
+        self.regions = regions
 
         self.zone_success_rate = ZoneSuccessRate()
         self.region_info = None
         self.zones = []
-
-        self.cloud = 'gcp'
-        self.default_location = get_gcp_config().zone
 
     async def shutdown(self):
         try:
@@ -86,7 +88,7 @@ class GCPDriver(CloudDriver):
     def get_zone(self, cores: int, worker_local_ssd_data_disk: bool, worker_pd_ssd_data_disk_size_gb: int):
         global_live_total_cores_mcpu = self.inst_coll_manager.global_live_total_cores_mcpu
         if global_live_total_cores_mcpu // 1000 < 1_000:
-            return self.default_location
+            return self.resource_manager.default_location
         return get_zone(self.region_info, self.zone_success_rate, cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)
 
     async def process_activity_logs(self):
@@ -98,7 +100,7 @@ class GCPDriver(CloudDriver):
         await process_outstanding_events(self.db, _process_activity_log_events_since)
 
     async def update_region_quotas(self):
-        region_info, zones = await update_region_quotas(self.compute_client)
+        region_info, zones = await update_region_quotas(self.compute_client, self.regions)
         self.region_info = region_info
         self.zones = zones
 

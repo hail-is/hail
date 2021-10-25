@@ -27,6 +27,8 @@ class VMState:
 
 
 class CloudResourceManager(abc.ABC):
+    default_location: str
+
     @abc.abstractmethod
     def prepare_vm(self,
                    app,
