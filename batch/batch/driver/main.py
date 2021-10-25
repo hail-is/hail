@@ -21,6 +21,7 @@ from gear import (
     transaction,
     monitor_endpoints_middleware,
 )
+from gear.clients import get_cloud_async_fs
 from hailtop.hail_logging import AccessLogger
 from hailtop.config import get_deploy_config
 from hailtop.utils import (
@@ -32,7 +33,6 @@ from hailtop.utils import (
     dump_all_stacktraces,
 )
 from hailtop.tls import internal_server_ssl_context
-from hailtop.aiocloud import aiogoogle
 from hailtop import aiotools, httpx
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 import googlecloudprofiler
@@ -58,10 +58,9 @@ from .job import mark_job_complete, mark_job_started
 from .k8s_cache import K8sCache
 from .pool import Pool
 from ..utils import query_billing_projects, batch_only, authorization_token
-from ..resource_utils import unreserved_worker_data_disk_size_gib
+from ..cloud.cloud import get_cloud_driver
+from ..cloud.resource_utils import unreserved_worker_data_disk_size_gib
 from ..exceptions import BatchUserError
-
-from ..gcp.driver import GCPDriver
 
 uvloop.install()
 
@@ -1103,13 +1102,12 @@ SELECT instance_id, internal_token, frozen FROM globals;
 
     credentials_file = '/gsa-key/key.json'
 
-    credentials = aiogoogle.GoogleCredentials.from_file(credentials_file)
-    fs = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
+    fs = get_cloud_async_fs(credentials_file=credentials_file)
     app['file_store'] = FileStore(fs, BATCH_BUCKET_NAME, instance_id)
 
     inst_coll_configs = await InstanceCollectionConfigs.create(app)
 
-    app['driver'] = await GCPDriver.create(app, MACHINE_NAME_PREFIX, inst_coll_configs, credentials_file)
+    app['driver'] = await get_cloud_driver(app, MACHINE_NAME_PREFIX, inst_coll_configs, credentials_file)
 
     canceller = await Canceller.create(app)
     app['canceller'] = canceller

@@ -3,7 +3,7 @@ import logging
 from hailtop.utils import check_shell_output, LoggingTimer, retry_all_errors_n_times
 from hailtop.aiocloud import aiogoogle
 
-from ...worker.disk import CloudDisk
+from ....worker.disk import CloudDisk
 
 log = logging.getLogger('disk')
 

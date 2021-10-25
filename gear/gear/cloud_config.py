@@ -3,7 +3,11 @@ import os
 import json
 
 
-class GCPConfig:
+class CloudConfig:
+    pass
+
+
+class GCPConfig(CloudConfig):
     project: str
     region: str
     zone: str
@@ -20,6 +24,13 @@ class GCPConfig:
         conf.regions.add(conf.region)
 
         return conf
+
+    def __str__(self):
+        data = {'project': self.project,
+                'region': self.region,
+                'zone': self.zone,
+                'regions': self.regions}
+        return f'{data}'
 
 
 gcp_config = None

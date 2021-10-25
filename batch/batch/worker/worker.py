@@ -21,6 +21,10 @@ import aiorwlock
 from collections import defaultdict
 import psutil
 from aiodocker.exceptions import DockerError  # type: ignore
+
+from gear.cloud_config import get_global_config
+from gear.clients import get_compute_client, get_cloud_async_fs
+
 from hailtop.utils import (
     time_msecs,
     time_msecs_str,
@@ -40,7 +44,6 @@ from hailtop.utils import (
 )
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
 from hailtop.aiotools.fs import RouterAsyncFS, LocalAsyncFS
-from hailtop.aiocloud import aiogoogle
 from hailtop import aiotools, httpx
 
 # import uvloop
@@ -58,11 +61,10 @@ from ..globals import (
 )
 from ..batch_format_version import BatchFormatVersion
 from ..publicly_available_images import publicly_available_images
-from ..utils import Box, instance_config_from_config_dict
-from ..resource_utils import storage_gib_to_bytes, is_valid_storage_request
-
-from ..gcp.worker.disk import GCPDisk
-from ..gcp.worker.credentials import GCPUserCredentials
+from ..utils import Box
+from ..cloud.cloud import get_cloud_disk, get_user_credentials
+from ..cloud.utils import instance_config_from_config_dict
+from ..cloud.resource_utils import storage_gib_to_bytes, is_valid_storage_request
 
 from .credentials import CloudUserCredentials
 
@@ -90,7 +92,8 @@ MAX_DOCKER_OTHER_OPERATION_SECS = 1 * 60
 
 IPTABLES_WAIT_TIMEOUT_SECS = 60
 
-CLOUD = os.environ['CLOUD']
+CLOUD = get_global_config()['cloud']
+
 CORES = int(os.environ['CORES'])
 NAME = os.environ['NAME']
 NAMESPACE = os.environ['NAMESPACE']
@@ -100,13 +103,10 @@ IP_ADDRESS = os.environ['IP_ADDRESS']
 INTERNAL_GATEWAY_IP = os.environ['INTERNAL_GATEWAY_IP']
 BATCH_LOGS_BUCKET_NAME = os.environ['BATCH_LOGS_BUCKET_NAME']
 INSTANCE_ID = os.environ['INSTANCE_ID']
-PROJECT = os.environ['PROJECT']
-ZONE = os.environ['ZONE'].rsplit('/', 1)[1]
 DOCKER_PREFIX = os.environ['DOCKER_PREFIX']
 PUBLIC_IMAGES = publicly_available_images(DOCKER_PREFIX)
 INSTANCE_CONFIG = json.loads(base64.b64decode(os.environ['INSTANCE_CONFIG']).decode())
 MAX_IDLE_TIME_MSECS = int(os.environ['MAX_IDLE_TIME_MSECS'])
-WORKER_DATA_DISK_MOUNT = os.environ['WORKER_DATA_DISK_MOUNT']
 BATCH_WORKER_IMAGE = os.environ['BATCH_WORKER_IMAGE']
 BATCH_WORKER_IMAGE_ID = os.environ['BATCH_WORKER_IMAGE_ID']
 UNRESERVED_WORKER_DATA_DISK_SIZE_GB = int(os.environ['UNRESERVED_WORKER_DATA_DISK_SIZE_GB'])
@@ -120,12 +120,9 @@ log.info(f'NAMESPACE {NAMESPACE}')
 log.info(f'IP_ADDRESS {IP_ADDRESS}')
 log.info(f'BATCH_LOGS_BUCKET_NAME {BATCH_LOGS_BUCKET_NAME}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
-log.info(f'PROJECT {PROJECT}')
-log.info(f'ZONE {ZONE}')
 log.info(f'DOCKER_PREFIX {DOCKER_PREFIX}')
 log.info(f'INSTANCE_CONFIG {INSTANCE_CONFIG}')
 log.info(f'MAX_IDLE_TIME_MSECS {MAX_IDLE_TIME_MSECS}')
-log.info(f'WORKER_DATA_DISK_MOUNT {WORKER_DATA_DISK_MOUNT}')
 log.info(f'UNRESERVED_WORKER_DATA_DISK_SIZE_GB {UNRESERVED_WORKER_DATA_DISK_SIZE_GB}')
 
 instance_config = instance_config_from_config_dict(INSTANCE_CONFIG)
@@ -1335,17 +1332,10 @@ class DockerJob(Job):
                 # https://cloud.google.com/compute/docs/reference/rest/v1/disks#resource:-disk
                 # under the information for the name field
                 uid = self.token[:20]
-                if instance_config.cloud == 'gcp':
-                    self.disk = GCPDisk(
-                        zone=ZONE,
-                        project=PROJECT,
-                        instance_name=NAME,
-                        name=f'batch-disk-{uid}',
-                        size_in_gb=self.external_storage_in_gib,
-                        mount_path=self.io_host_path(),
-                    )
-                else:
-                    raise NotImplementedError(f'disks are not supported for cloud {instance_config.cloud}')
+                self.disk = get_cloud_disk(instance_name=NAME,
+                                           disk_name=f'batch-disk-{uid}',
+                                           size_in_gb=self.external_storage_in_gib,
+                                           mount_path=self.io_host_path())
                 labels = {'namespace': NAMESPACE, 'batch': '1', 'instance-name': NAME, 'uid': uid}
                 await self.disk.create(labels=labels)
                 log.info(f'created disk {self.disk.name} for job {self.id}')
@@ -1613,18 +1603,9 @@ class JVMJob(Job):
                     async with worker.jar_download_locks[self.revision]:
                         local_jar_location = f'/hail-jars/{self.revision}.jar'
                         if not os.path.isfile(local_jar_location):
-                            user_fs = RouterAsyncFS(
-                                'file',
-                                [
-                                    LocalAsyncFS(worker.pool),
-                                    aiogoogle.GoogleStorageAsyncFS(
-                                        credentials=aiogoogle.GoogleCredentials.from_file('/worker-key.json')
-                                    ),
-                                ],
-                            )
-                            async with await user_fs.open(self.jar_url) as jar_data:
-                                await user_fs.makedirs('/hail-jars/', exist_ok=True)
-                                async with await user_fs.create(local_jar_location) as local_file:
+                            async with await worker.fs.open(self.jar_url) as jar_data:
+                                await worker.fs.makedirs('/hail-jars/', exist_ok=True)
+                                async with await worker.fs.create(local_jar_location) as local_file:
                                     while True:
                                         b = await jar_data.read(256 * 1024)
                                         if not b:
@@ -1764,6 +1745,7 @@ class Worker:
         self.image_data[BATCH_WORKER_IMAGE_ID] += 1
 
         # filled in during activation
+        self.fs = None
         self.file_store = None
         self.headers = None
         self.compute_client = None
@@ -1775,17 +1757,22 @@ class Worker:
             log.info('shutdown task manager')
         finally:
             try:
-                if self.compute_client:
-                    await self.compute_client.close()
-                    log.info('closed compute client')
+                if self.fs:
+                    await self.fs.close()
+                    log.info('closed worker file system')
             finally:
                 try:
-                    if self.file_store:
-                        await self.file_store.close()
-                        log.info('closed file store')
+                    if self.compute_client:
+                        await self.compute_client.close()
+                        log.info('closed compute client')
                 finally:
-                    await self.client_session.close()
-                    log.info('closed client session')
+                    try:
+                        if self.file_store:
+                            await self.file_store.close()
+                            log.info('closed file store')
+                    finally:
+                        await self.client_session.close()
+                        log.info('closed client session')
 
     async def run_job(self, job):
         try:
@@ -1836,8 +1823,7 @@ class Worker:
         if not self.active:
             return web.HTTPServiceUnavailable()
 
-        assert CLOUD == 'gcp'
-        credentials = GCPUserCredentials(body['gsa_key'])
+        credentials = get_user_credentials(body['gsa_key'])
 
         job = Job.create(
             batch_id,
@@ -2075,15 +2061,22 @@ class Worker:
         )
         resp_json = await resp.json()
 
-        with open('/worker-key.json', 'w') as f:
+        credentials_file = '/worker-key.json'
+        with open(credentials_file, 'w') as f:
             f.write(json.dumps(resp_json['key']))
 
-        credentials = aiogoogle.GoogleCredentials.from_file('/worker-key.json')
-        fs = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
+        self.fs = RouterAsyncFS(
+            'file',
+            [
+                LocalAsyncFS(self.pool),
+                get_cloud_async_fs(credentials_file=credentials_file),
+            ],
+        )
+
+        fs = get_cloud_async_fs(credentials_file=credentials_file)
         self.file_store = FileStore(fs, BATCH_LOGS_BUCKET_NAME, INSTANCE_ID)
 
-        credentials = aiogoogle.GoogleCredentials.from_file('/worker-key.json')
-        self.compute_client = aiogoogle.GoogleComputeClient(PROJECT, credentials=credentials)
+        self.compute_client = get_compute_client(credentials_file=credentials_file)
 
         resp = await request_retry_transient_errors(
             self.client_session,

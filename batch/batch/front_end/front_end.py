@@ -19,6 +19,7 @@ import plotly
 import humanize
 import traceback
 from prometheus_async.aio.web import server_stats  # type: ignore
+
 from hailtop.utils import (
     time_msecs,
     time_msecs_str,
@@ -32,7 +33,6 @@ from hailtop.utils import (
     periodically_call,
 )
 from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
-from hailtop.aiocloud import aiogoogle
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop import httpx
@@ -48,12 +48,13 @@ from gear import (
     transaction,
     monitor_endpoints_middleware,
 )
+from gear.clients import get_cloud_async_fs
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 
 # import uvloop
 
 from ..utils import coalesce, query_billing_projects
-from ..resource_utils import (
+from ..cloud.resource_utils import (
     is_valid_cores_mcpu,
     cost_from_msec_mcpu,
     cores_mcpu_to_memory_bytes,
@@ -2168,8 +2169,7 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
 
     app['frozen'] = row['frozen']
 
-    credentials = aiogoogle.GoogleCredentials.from_file('/gsa-key/key.json')
-    fs = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
+    fs = get_cloud_async_fs(credentials_file='/gsa-key/key.json')
     app['file_store'] = FileStore(fs, BATCH_BUCKET_NAME, instance_id)
 
     inst_coll_configs = await InstanceCollectionConfigs.create(app)

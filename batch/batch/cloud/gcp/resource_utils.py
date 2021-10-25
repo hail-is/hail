@@ -2,7 +2,7 @@ import re
 import logging
 from typing import Any, Dict, Optional, Tuple
 
-from ..globals import RESERVED_STORAGE_GB_PER_CORE
+from ...globals import RESERVED_STORAGE_GB_PER_CORE
 
 log = logging.getLogger('utils')
 

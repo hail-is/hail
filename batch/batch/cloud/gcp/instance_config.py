@@ -1,12 +1,12 @@
 import re
 from collections import defaultdict
 
-from ..instance_config import InstanceConfig, is_power_two
+from ...instance_config import InstanceConfig, is_power_two
 
 from typing import TYPE_CHECKING, Dict, Any
 
 if TYPE_CHECKING:
-    from ..inst_coll_config import PoolConfig  # pylint: disable=cyclic-import
+    from ...inst_coll_config import PoolConfig  # pylint: disable=cyclic-import
 
 GCP_INSTANCE_CONFIG_VERSION = 4
 

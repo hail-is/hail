@@ -1,7 +1,7 @@
 import abc
 from typing import Any, Dict
 
-from .resource_utils import cores_mcpu_to_memory_bytes
+from .cloud.resource_utils import cores_mcpu_to_memory_bytes
 
 
 def is_power_two(n):

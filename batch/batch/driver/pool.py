@@ -21,7 +21,7 @@ from hailtop.utils import (
 from ..batch_configuration import STANDING_WORKER_MAX_IDLE_TIME_MSECS, WORKER_MAX_IDLE_TIME_MSECS
 from ..inst_coll_config import PoolConfig
 from ..utils import Box, ExceededSharesCounter
-from ..resource_utils import (
+from ..cloud.resource_utils import (
     adjust_cores_for_memory_request,
     adjust_cores_for_packability,
     adjust_cores_for_storage_request,

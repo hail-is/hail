@@ -23,7 +23,7 @@ from .resource_manager import CloudResourceManager
 from .instance_collection import InstanceCollection
 from .instance import Instance
 from .job import mark_job_creating, schedule_job
-from ..resource_utils import worker_memory_per_core_bytes
+from ..cloud.resource_utils import worker_memory_per_core_bytes
 from ..utils import Box, ExceededSharesCounter
 
 

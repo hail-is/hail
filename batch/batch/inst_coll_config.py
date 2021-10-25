@@ -4,7 +4,7 @@ from typing import Dict, Optional
 
 from gear import Database
 
-from .resource_utils import (
+from .cloud.resource_utils import (
     adjust_cores_for_memory_request,
     adjust_cores_for_packability,
     machine_type_to_worker_type_cores,
@@ -12,7 +12,7 @@ from .resource_utils import (
     cores_mcpu_to_memory_bytes,
     valid_machine_types,
 )
-from .utils import instance_config_from_pool_config
+from .cloud.utils import instance_config_from_pool_config
 
 
 log = logging.getLogger('inst_coll_config')

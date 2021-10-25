@@ -3,7 +3,7 @@ import aiohttp
 
 from hailtop.utils import time_msecs, parse_timestamp_msecs
 
-from ...batch_configuration import DEFAULT_NAMESPACE
+from ....batch_configuration import DEFAULT_NAMESPACE
 
 log = logging.getLogger('disks')
 

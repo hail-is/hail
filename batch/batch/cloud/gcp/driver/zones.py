@@ -3,7 +3,7 @@ import random
 
 from hailtop.utils import url_basename
 
-from ...utils import WindowFractionCounter
+from ....utils import WindowFractionCounter
 
 log = logging.getLogger('zones')
 

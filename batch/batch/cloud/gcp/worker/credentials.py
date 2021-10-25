@@ -1,7 +1,7 @@
 from typing import Dict
 import base64
 
-from ...worker.credentials import CloudUserCredentials
+from ....worker.credentials import CloudUserCredentials
 
 
 class GCPUserCredentials(CloudUserCredentials):

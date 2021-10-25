@@ -8,8 +8,8 @@ from collections import deque
 from gear import maybe_parse_bearer_header
 from hailtop.utils import secret_alnum_string
 
-from .resource_utils import cost_from_msec_mcpu
-from .gcp.instance_config import GCPInstanceConfig
+from .cloud.resource_utils import cost_from_msec_mcpu
+
 
 log = logging.getLogger('utils')
 
@@ -107,18 +107,6 @@ class ExceededSharesCounter:
 
     def __repr__(self):
         return f'global {self._global_counter}'
-
-
-def instance_config_from_config_dict(config):
-    cloud = config.get('cloud', 'gcp')
-    assert cloud == 'gcp'
-    return GCPInstanceConfig(config)
-
-
-def instance_config_from_pool_config(pool_config):
-    cloud = pool_config.cloud
-    assert cloud == 'gcp'
-    return GCPInstanceConfig.from_pool_config(pool_config)
 
 
 async def query_billing_projects(db, user=None, billing_project=None):

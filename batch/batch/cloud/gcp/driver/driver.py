@@ -6,9 +6,9 @@ from hailtop.utils import periodically_call, RateLimit
 from gear import Database
 from gear.cloud_config import get_gcp_config
 
-from ...driver.driver import CloudDriver, process_outstanding_events
-from ...driver.instance_collection_manager import InstanceCollectionManager
-from ...inst_coll_config import InstanceCollectionConfigs
+from ....driver.driver import CloudDriver, process_outstanding_events
+from ....driver.instance_collection_manager import InstanceCollectionManager
+from ....inst_coll_config import InstanceCollectionConfigs
 
 from .disks import delete_orphaned_disks
 from .activity_logs import process_activity_log_events_since

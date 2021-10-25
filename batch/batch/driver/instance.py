@@ -14,7 +14,7 @@ from gear import Database
 from ..database import check_call_procedure
 from ..globals import INSTANCE_VERSION
 from ..instance_config import InstanceConfig
-from ..utils import instance_config_from_config_dict
+from ..cloud.utils import instance_config_from_config_dict
 
 log = logging.getLogger('instance')
 
