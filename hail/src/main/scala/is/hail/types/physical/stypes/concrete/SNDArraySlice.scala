@@ -2,10 +2,10 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitValue}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitValue}
+import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.SInt64
-import is.hail.types.physical.stypes._
 import is.hail.types.physical.{PCanonicalNDArray, PType}
 import is.hail.types.virtual.{TNDArray, Type}
 import is.hail.utils.toRichIterable
@@ -77,8 +77,6 @@ class SNDArraySliceValue(
   override def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SValue =
     pt.elementType.loadCheapSCode(cb, loadElementAddress(indices, cb))
 
-  override def get: SNDArraySliceCode = new SNDArraySliceCode(st, shapes, strides, firstDataAddress)
-
   def coerceToShape(cb: EmitCodeBuilder, otherShape: IndexedSeq[SizeValue]): SNDArrayValue = {
     cb.ifx(!hasShape(cb, otherShape), cb._fatal("incompatible shapes"))
     new SNDArraySliceValue(st, otherShape, strides, firstDataAddress)
@@ -127,7 +125,4 @@ final class SNDArraySliceSettable(
       strides.zip(v.strides).foreach { case (x, s) => cb.assign(x, s) }
       cb.assign(firstDataAddress, v.firstDataAddress)
   }
-}
-
-class SNDArraySliceCode(val st: SNDArraySlice, val shape: IndexedSeq[Code[Long]], val strides: IndexedSeq[Code[Long]], val dataFirstElement: Code[Long]) extends SNDArrayCode {
 }

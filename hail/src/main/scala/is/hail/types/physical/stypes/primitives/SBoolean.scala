@@ -1,13 +1,12 @@
 package is.hail.types.physical.stypes.primitives
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{BooleanInfo, Code, Settable, SettableBuilder, TypeInfo, Value}
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
-import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
+import is.hail.asm4s.{BooleanInfo, Settable, SettableBuilder, TypeInfo, Value}
+import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.physical.{PBoolean, PType}
 import is.hail.types.virtual.{TBoolean, Type}
 import is.hail.utils.FastIndexedSeq
-
 
 case object SBoolean extends SPrimitive {
   override def ti: TypeInfo[_] = BooleanInfo
@@ -40,14 +39,6 @@ case object SBoolean extends SPrimitive {
   override def storageType(): PType = PBoolean()
 }
 
-class SBooleanCode(val code: Code[Boolean]) extends SPrimitiveCode {
-  override def _primitiveCode: Code[_] = code
-
-  def st: SBoolean.type = SBoolean
-
-  def boolCode(cb: EmitCodeBuilder): Code[Boolean] = code
-}
-
 class SBooleanValue(x: Value[Boolean]) extends SPrimitiveValue {
   val pt: PBoolean = PBoolean()
 
@@ -56,8 +47,6 @@ class SBooleanValue(x: Value[Boolean]) extends SPrimitiveValue {
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(x)
 
   override def _primitiveValue: Value[_] = x
-
-  override def get: SBooleanCode = new SBooleanCode(x)
 
   def boolCode(cb: EmitCodeBuilder): Value[Boolean] = x
 

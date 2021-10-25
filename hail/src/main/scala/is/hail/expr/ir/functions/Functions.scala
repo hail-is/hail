@@ -455,7 +455,7 @@ abstract class RegistryFunctions {
       case t if t.isPrimitive => SType.extractPrimValue(cb, code)
       case TCall => code.asCall.canonicalCall(cb)
       case TArray(TString) => code.st match {
-        case _: SJavaArrayString => cb.memoize(code.asInstanceOf[SJavaArrayStringCode].array)
+        case _: SJavaArrayString => code.asInstanceOf[SJavaArrayStringValue].array
         case _ =>
           val sv = code.asIndexable
           val arr = cb.newLocal[Array[String]]("scode_array_string", Code.newArray[String](sv.loadLength()))

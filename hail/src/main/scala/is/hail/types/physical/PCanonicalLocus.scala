@@ -3,9 +3,9 @@ package is.hail.types.physical
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
-import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SCanonicalLocusPointerCode, SCanonicalLocusPointerSettable, SCanonicalLocusPointerValue, SStackStruct}
+import is.hail.types.physical.stypes.SValue
+import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SCanonicalLocusPointerSettable, SCanonicalLocusPointerValue, SStackStruct}
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.{SCode, SValue}
 import is.hail.utils.FastIndexedSeq
 import is.hail.variant._
 

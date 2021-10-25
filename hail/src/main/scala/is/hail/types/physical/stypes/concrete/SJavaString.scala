@@ -4,7 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
+import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.physical.{PCanonicalString, PType}
 import is.hail.types.virtual.{TString, Type}
 import is.hail.utils.FastIndexedSeq
@@ -47,24 +47,10 @@ case object SJavaString extends SString {
     new SJavaStringValue(cb.memoize(s))
 }
 
-class SJavaStringCode(val s: Code[String]) extends SStringCode {
-  def st: SString = SJavaString
-
-  def loadLength(): Code[Int] = s.invoke[Int]("length")
-
-  def loadString(): Code[String] = s
-
-  def toBytes(): SBinaryCode = {
-    new SJavaBytesCode(s.invoke[Array[Byte]]("getBytes"))
-  }
-}
-
 class SJavaStringValue(val s: Value[String]) extends SStringValue {
   override def st: SString = SJavaString
 
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(s)
-
-  override def get: SJavaStringCode = new SJavaStringCode(s)
 
   override def loadLength(cb: EmitCodeBuilder): Value[Int] =
     cb.memoize(s.invoke[Int]("length"))

@@ -7,7 +7,7 @@ import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder, IEmitCode, RequirednessSu
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete.SStringPointer
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.primitives.{SInt32Code, SInt32Value}
+import is.hail.types.physical.stypes.primitives.SInt32Value
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.sql.Row

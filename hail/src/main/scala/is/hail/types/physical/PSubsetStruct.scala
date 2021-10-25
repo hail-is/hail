@@ -1,12 +1,11 @@
 package is.hail.types.physical
 
-import is.hail.annotations.{Annotation, Region, UnsafeUtils}
-import is.hail.asm4s.{Code, Settable, SettableBuilder, Value, coerce, const}
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
-import is.hail.types.BaseStruct
-import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode, SBaseStructValue}
-import is.hail.types.physical.stypes.{SCode, SType, SValue}
+import is.hail.annotations.{Annotation, Region}
+import is.hail.asm4s.{Code, SettableBuilder, Value}
+import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointerValue, SSubsetStruct}
+import is.hail.types.physical.stypes.interfaces.SBaseStruct
 import is.hail.types.virtual.TStruct
 import is.hail.utils._
 

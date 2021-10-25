@@ -9,8 +9,8 @@ import is.hail.types.coerce
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SNDArrayPointer}
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.primitives.{SBooleanCode, SBooleanValue}
-import is.hail.types.physical.{PBooleanRequired, PCanonicalNDArray, PCanonicalStruct, PFloat64Required, PType}
+import is.hail.types.physical.stypes.primitives.SBooleanValue
+import is.hail.types.physical._
 import is.hail.types.virtual._
 
 object  NDArrayFunctions extends RegistryFunctions {

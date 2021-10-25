@@ -31,9 +31,3 @@ trait SLocusValue extends SValue {
   override def hash(cb: EmitCodeBuilder): SInt32Value =
     structRepr(cb).hash(cb)
 }
-
-trait SLocusCode extends SCode {
-  def st: SLocus
-
-  def position(cb: EmitCodeBuilder): Code[Int]
-}

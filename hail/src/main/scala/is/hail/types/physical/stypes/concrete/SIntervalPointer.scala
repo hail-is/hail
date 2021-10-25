@@ -1,11 +1,11 @@
 package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{BooleanInfo, Code, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
+import is.hail.asm4s.{BooleanInfo, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
-import is.hail.types.physical.stypes.interfaces.{SInterval, SIntervalCode, SIntervalValue}
 import is.hail.types.physical.stypes._
+import is.hail.types.physical.stypes.interfaces.{SInterval, SIntervalValue}
 import is.hail.types.physical.{PInterval, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils.FastIndexedSeq
@@ -59,8 +59,6 @@ class SIntervalPointerValue(
   val includesStart: Value[Boolean],
   val includesEnd: Value[Boolean]
 ) extends SIntervalValue {
-  override def get: SIntervalPointerCode = new SIntervalPointerCode(st, a)
-
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a, includesStart, includesEnd)
 
   val pt: PInterval = st.pType
@@ -119,14 +117,4 @@ final class SIntervalPointerSettable(
       cb.assign(includesStart, pc.includesStart)
       cb.assign(includesEnd, pc.includesEnd)
   }
-}
-
-class SIntervalPointerCode(val st: SIntervalPointer, val a: Code[Long]) extends SIntervalCode {
-  val pt = st.pType
-
-  def code: Code[_] = a
-
-  def codeIncludesStart(): Code[Boolean] = pt.includesStart(a)
-
-  def codeIncludesEnd(): Code[Boolean] = pt.includesEnd(a)
 }

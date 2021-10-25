@@ -32,11 +32,3 @@ trait SIntervalValue extends SValue {
 
   def isEmpty(cb: EmitCodeBuilder): Value[Boolean]
 }
-
-trait SIntervalCode extends SCode {
-  def st: SInterval
-
-  def codeIncludesStart(): Code[Boolean]
-
-  def codeIncludesEnd(): Code[Boolean]
-}

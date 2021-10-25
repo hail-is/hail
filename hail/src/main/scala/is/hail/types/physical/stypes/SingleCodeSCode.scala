@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.ir.streams.{StreamArgType, StreamProducer}
 import is.hail.types.physical.PType
-import is.hail.types.physical.stypes.interfaces.{SStream, SStreamCode, SStreamValue}
+import is.hail.types.physical.stypes.interfaces.{SStream, SStreamValue}
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
 import is.hail.utils._

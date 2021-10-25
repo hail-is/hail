@@ -3,8 +3,8 @@ package is.hail.types.physical.stypes.concrete
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
-import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryCode, SBinaryValue}
-import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
+import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryValue}
+import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.physical.{PCanonicalBinary, PType}
 import is.hail.types.virtual._
 import is.hail.utils.FastIndexedSeq
@@ -39,20 +39,10 @@ case object SJavaBytes extends SBinary {
   }
 }
 
-class SJavaBytesCode(val bytes: Code[Array[Byte]]) extends SBinaryCode {
-  def st: SBinary = SJavaBytes
-
-  def loadLength(): Code[Int] = bytes.invoke[Int]("length")
-
-  override def loadBytes(): Code[Array[Byte]] = bytes
-}
-
 class SJavaBytesValue(val bytes: Value[Array[Byte]]) extends SBinaryValue {
   override def st: SBinary = SJavaBytes
 
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(bytes)
-
-  override def get: SJavaBytesCode = new SJavaBytesCode(bytes)
 
   override def loadLength(cb: EmitCodeBuilder): Value[Int] =
     cb.memoize(bytes.length())

@@ -3,8 +3,8 @@ package is.hail.types.physical.stypes.concrete
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
-import is.hail.types.physical.stypes.interfaces.{SContainer, SIndexableCode, SIndexableValue}
 import is.hail.types.physical.stypes._
+import is.hail.types.physical.stypes.interfaces.{SContainer, SIndexableValue}
 import is.hail.types.physical.{PCanonicalArray, PCanonicalString, PType}
 import is.hail.types.virtual.{TArray, TString, Type}
 import is.hail.utils.FastIndexedSeq
@@ -58,17 +58,11 @@ final case class SJavaArrayString(elementRequired: Boolean) extends SContainer {
     new SJavaArrayStringValue(this, cb.memoize(arr))
 }
 
-class SJavaArrayStringCode(val st: SJavaArrayString, val array: Code[Array[String]]) extends SIndexableCode {
-  def codeLoadLength(): Code[Int] = array.length()
-}
-
 class SJavaArrayStringValue(
   val st: SJavaArrayString,
   val array: Value[Array[String]]
 ) extends SIndexableValue {
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(array)
-
-  override def get: SIndexableCode = new SJavaArrayStringCode(st, array)
 
   override def loadLength(): Value[Int] = new Value[Int] {
     override def get: Code[Int] = array.length()

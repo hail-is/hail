@@ -3,7 +3,7 @@ package is.hail.types.physical.stypes.primitives
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, FloatInfo, Settable, SettableBuilder, TypeInfo, Value}
 import is.hail.expr.ir.EmitCodeBuilder
-import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
+import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.physical.{PFloat32, PType}
 import is.hail.types.virtual.{TFloat32, Type}
 import is.hail.utils.FastIndexedSeq
@@ -38,16 +38,6 @@ case object SFloat32 extends SPrimitive {
   override def storageType(): PType = PFloat32()
 }
 
-class SFloat32Code(val code: Code[Float]) extends SPrimitiveCode {
-  override def _primitiveCode: Code[_] = code
-
-  val pt: PFloat32 = PFloat32(false)
-
-  override def st: SFloat32.type = SFloat32
-
-  def floatCode(cb: EmitCodeBuilder): Code[Float] = code
-}
-
 class SFloat32Value(x: Value[Float]) extends SPrimitiveValue {
   val pt: PFloat32 = PFloat32()
 
@@ -56,8 +46,6 @@ class SFloat32Value(x: Value[Float]) extends SPrimitiveValue {
   override def st: SFloat32.type = SFloat32
 
   override def _primitiveValue: Value[_] = x
-
-  override def get: SCode = new SFloat32Code(x)
 
   def floatCode(cb: EmitCodeBuilder): Value[Float] = x
 

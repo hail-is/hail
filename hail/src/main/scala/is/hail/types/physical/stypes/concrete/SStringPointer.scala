@@ -2,11 +2,10 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
-import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
-import is.hail.types.physical.stypes.interfaces.{SBinaryCode, SString, SStringCode, SStringValue}
-import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
-import is.hail.types.physical.{PCanonicalString, PString, PType}
+import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.types.physical.stypes.interfaces.{SString, SStringValue}
+import is.hail.types.physical.stypes.{SSettable, SType, SValue}
+import is.hail.types.physical.{PString, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils.FastIndexedSeq
 
@@ -46,25 +45,10 @@ final case class SStringPointer(pType: PString) extends SString {
   override def containsPointers: Boolean = pType.containsPointers
 }
 
-
-class SStringPointerCode(val st: SStringPointer, val a: Code[Long]) extends SStringCode {
-  val pt: PString = st.pType
-
-  def loadLength(): Code[Int] = pt.loadLength(a)
-
-  def loadString(): Code[String] = pt.loadString(a)
-
-  def toBytes(): SBinaryPointerCode = new SBinaryPointerCode(SBinaryPointer(pt.binaryRepresentation), a)
-
-  def binaryRepr: SBinaryPointerCode = new SBinaryPointerCode(SBinaryPointer(st.pType.binaryRepresentation), a)
-}
-
 class SStringPointerValue(val st: SStringPointer, val a: Value[Long]) extends SStringValue {
   val pt: PString = st.pType
 
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a)
-
-  override def get: SStringPointerCode = new SStringPointerCode(st, a)
 
   def binaryRepr(): SBinaryPointerValue = new SBinaryPointerValue(SBinaryPointer(st.pType.binaryRepresentation), a)
 

@@ -1,10 +1,10 @@
 package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{Code, Settable, TypeInfo, Value}
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitSettable, EmitValue, IEmitCode}
-import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode, SBaseStructSettable, SBaseStructValue}
-import is.hail.types.physical.stypes.{EmitType, SCode, SType, SValue}
+import is.hail.asm4s.{Settable, TypeInfo, Value}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitSettable, EmitValue, IEmitCode}
+import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructSettable, SBaseStructValue}
+import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.types.physical.{PCanonicalStruct, PType}
 import is.hail.types.virtual.{TStruct, Type}
 import is.hail.utils._
@@ -138,8 +138,6 @@ class SInsertFieldsStructValue(
   val parent: SBaseStructValue,
   val newFields: IndexedSeq[EmitValue]
 ) extends SBaseStructValue {
-  override def get: SInsertFieldsStructCode = new SInsertFieldsStructCode(st, parent.get, newFields.map(_.load))
-
   override lazy val valueTuple: IndexedSeq[Value[_]] = parent.valueTuple ++ newFields.flatMap(_.valueTuple())
 
   override def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
@@ -176,16 +174,5 @@ final class SInsertFieldsStructSettable(
     case pv: SInsertFieldsStructValue =>
       parent.store(cb, pv.parent)
       newFields.zip(pv.newFields).foreach { case (settable, code) => cb.assign(settable, code) }
-  }
-}
-
-class SInsertFieldsStructCode(val st: SInsertFieldsStruct, val parent: SBaseStructCode, val newFields: IndexedSeq[EmitCode]) extends SBaseStructCode {
-  override def _insert(newType: TStruct, fields: (String, EmitCode)*): SBaseStructCode = {
-    val newFieldSet = fields.map(_._1).toSet
-    val filteredNewFields = st.insertedFields.map(_._1)
-      .zipWithIndex
-      .filter { case (name, idx) => !newFieldSet.contains(name) }
-      .map { case (name, idx) => (name, newFields(idx)) }
-    parent._insert(newType, filteredNewFields ++ fields: _*)
   }
 }

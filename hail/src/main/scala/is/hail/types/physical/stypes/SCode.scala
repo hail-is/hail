@@ -46,55 +46,10 @@ object SCode {
   def _empty: SValue = SVoidValue
 }
 
-abstract class SCode {
-
-  def st: SType
-
-  def asBoolean: SBooleanCode = asInstanceOf[SBooleanCode]
-
-  def asInt: SInt32Code = asInstanceOf[SInt32Code]
-
-  def asInt32: SInt32Code = asInstanceOf[SInt32Code]
-
-  def asLong: SInt64Code = asInstanceOf[SInt64Code]
-
-  def asInt64: SInt64Code = asInstanceOf[SInt64Code]
-
-  def asFloat: SFloat32Code = asInstanceOf[SFloat32Code]
-
-  def asFloat32: SFloat32Code = asInstanceOf[SFloat32Code]
-
-  def asFloat64: SFloat64Code = asInstanceOf[SFloat64Code]
-
-  def asDouble: SFloat64Code = asInstanceOf[SFloat64Code]
-
-  def asPrimitive: SPrimitiveCode = asInstanceOf[SPrimitiveCode]
-
-  def asBinary: SBinaryCode = asInstanceOf[SBinaryCode]
-
-  def asIndexable: SIndexableCode = asInstanceOf[SIndexableCode]
-
-  def asBaseStruct: SBaseStructCode = asInstanceOf[SBaseStructCode]
-
-  def asString: SStringCode = asInstanceOf[SStringCode]
-
-  def asInterval: SIntervalCode = asInstanceOf[SIntervalCode]
-
-  def asNDArray: SNDArrayCode = asInstanceOf[SNDArrayCode]
-
-  def asLocus: SLocusCode = asInstanceOf[SLocusCode]
-
-  def asCall: SCallCode = asInstanceOf[SCallCode]
-
-  def asStream: SStreamCode = asInstanceOf[SStreamCode]
-}
-
 trait SValue {
   def st: SType
 
   def valueTuple: IndexedSeq[Value[_]]
-
-  def get: SCode
 
   def asBoolean: SBooleanValue = asInstanceOf[SBooleanValue]
 
@@ -157,7 +112,6 @@ trait SValue {
   }
 }
 
-
 trait SSettable extends SValue {
   def store(cb: EmitCodeBuilder, v: SValue): Unit
 
@@ -170,11 +124,6 @@ object SSettable {
       sb.newSettable(s"${ name }_${ st.getClass.getSimpleName }_$i")(ti)
     })
   }
-}
-
-trait SUnrealizableCode extends SCode {
-  private def unsupported: Nothing =
-    throw new UnsupportedOperationException(s"$this is not realizable")
 }
 
 trait SUnrealizableValue extends SValue

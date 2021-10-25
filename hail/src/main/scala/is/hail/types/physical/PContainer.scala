@@ -2,9 +2,8 @@ package is.hail.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
+import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.concrete.SIndexablePointerValue
-import is.hail.types.physical.stypes.interfaces.{SIndexableCode, SIndexableValue}
 
 abstract class PContainer extends PIterable {
   override def containsPointers: Boolean = true

@@ -1,25 +1,28 @@
 package is.hail.expr.ir
 
+import java.io.{ByteArrayInputStream, DataInputStream, DataOutputStream, InputStream}
+
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.{ExecuteContext, HailTaskContext}
+import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, MatrixToTableFunction, StringFunctions, TableToTableFunction}
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage, TableStageDependency}
 import is.hail.expr.ir.streams.{StreamArgType, StreamProducer}
 import is.hail.io._
+import is.hail.io.avro.AvroTableReader
 import is.hail.io.fs.FS
-import is.hail.io.index.{IndexReadIterator, IndexReader, IndexReaderBuilder, LeafChild, MaybeIndexedReadZippedIterator}
+import is.hail.io.index.{IndexReadIterator, IndexReader, IndexReaderBuilder, LeafChild}
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, BlockMatrixReadRowBlockedRDD}
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
 import is.hail.types._
+import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete.SInsertFieldsStruct
-import is.hail.types.physical.{stypes, _}
+import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStreamValue}
 import is.hail.types.physical.stypes.{BooleanSingleCodeType, Int32SingleCodeType, PTypeReferenceSingleCodeType, StreamSingleCodeType}
-import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStream, SStreamCode, SStreamValue}
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.TaskContext
@@ -28,9 +31,6 @@ import org.apache.spark.sql.Row
 import org.json4s.JsonAST.JString
 import org.json4s.jackson.JsonMethods
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
-
-import java.io.{ByteArrayInputStream, DataInputStream, DataOutputStream, InputStream}
-import is.hail.io.avro.AvroTableReader
 
 import scala.reflect.ClassTag
 

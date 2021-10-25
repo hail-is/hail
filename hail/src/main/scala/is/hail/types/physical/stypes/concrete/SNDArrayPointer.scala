@@ -4,7 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.{SCode, SType, SValue}
+import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.{PCanonicalNDArray, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils.{FastIndexedSeq, toRichIterable}
@@ -82,8 +82,6 @@ class SNDArrayPointerValue(
     pt.elementType.loadCheapSCode(cb, loadElementAddress(indices, cb))
   }
 
-  override def get: SNDArrayPointerCode = new SNDArrayPointerCode(st, a)
-
   override def coerceToShape(cb: EmitCodeBuilder, otherShape: IndexedSeq[SizeValue]): SNDArrayValue = {
     cb.ifx(!hasShape(cb, otherShape), cb._fatal("incompatible shapes"))
     new SNDArrayPointerValue(st, a, otherShape, strides, firstDataAddress)
@@ -134,8 +132,4 @@ final class SNDArrayPointerSettable(
       (strides, v.strides).zipped.foreach(cb.assign(_, _))
       cb.assign(firstDataAddress, v.firstDataAddress)
   }
-}
-
-class SNDArrayPointerCode(val st: SNDArrayPointer, val a: Code[Long]) extends SNDArrayCode {
-  val pt: PCanonicalNDArray = st.pType
 }

@@ -1,9 +1,9 @@
 package is.hail.types.physical.stypes.primitives
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{Code, IntInfo, Settable, SettableBuilder, TypeInfo, Value}
+import is.hail.asm4s.{IntInfo, Settable, SettableBuilder, TypeInfo, Value}
 import is.hail.expr.ir.EmitCodeBuilder
-import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
+import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.physical.{PInt32, PType}
 import is.hail.types.virtual.{TInt32, Type}
 import is.hail.utils.FastIndexedSeq
@@ -38,14 +38,6 @@ case object SInt32 extends SPrimitive {
   override def storageType(): PType = PInt32()
 }
 
-class SInt32Code(val code: Code[Int]) extends SPrimitiveCode {
-  override def _primitiveCode: Code[_] = code
-
-  def st: SInt32.type = SInt32
-
-  def intCode(cb: EmitCodeBuilder): Code[Int] = code
-}
-
 class SInt32Value(x: Value[Int]) extends SPrimitiveValue {
   val pt: PInt32 = PInt32(false)
 
@@ -54,8 +46,6 @@ class SInt32Value(x: Value[Int]) extends SPrimitiveValue {
   override def st: SInt32.type = SInt32
 
   override def _primitiveValue: Value[_] = x
-
-  override def get: SCode = new SInt32Code(x)
 
   def intCode(cb: EmitCodeBuilder): Value[Int] = x
 

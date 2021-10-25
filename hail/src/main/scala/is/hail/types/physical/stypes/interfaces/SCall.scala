@@ -24,7 +24,3 @@ trait SCallValue extends SValue {
   override def hash(cb: EmitCodeBuilder): SInt32Value =
     new SInt32Value(canonicalCall(cb))
 }
-
-trait SCallCode extends SCode {
-  def loadCanonicalRepresentation(cb: EmitCodeBuilder): Code[Int]
-}

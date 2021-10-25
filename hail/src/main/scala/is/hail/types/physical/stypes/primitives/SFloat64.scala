@@ -2,9 +2,9 @@ package is.hail.types.physical.stypes.primitives
 
 import is.hail.annotations.Region
 import is.hail.asm4s.Code.invokeStatic1
-import is.hail.asm4s.{Code, DoubleInfo, Settable, SettableBuilder, TypeInfo, Value}
+import is.hail.asm4s.{DoubleInfo, Settable, SettableBuilder, TypeInfo, Value}
 import is.hail.expr.ir.EmitCodeBuilder
-import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
+import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.physical.{PFloat64, PType}
 import is.hail.types.virtual.{TFloat64, Type}
 import is.hail.utils.FastIndexedSeq
@@ -24,13 +24,6 @@ case object SFloat64 extends SPrimitive {
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(DoubleInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
-    pt match {
-      case _: PFloat64 =>
-        new SFloat64Code(Region.loadDouble(addr))
-    }
-  }
-
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SFloat64Settable = {
     val IndexedSeq(x: Settable[Double@unchecked]) = settables
     assert(x.ti == DoubleInfo)
@@ -46,18 +39,6 @@ case object SFloat64 extends SPrimitive {
   override def storageType(): PType = PFloat64()
 }
 
-object SFloat64Code {
-  def apply(code: Code[Double]): SFloat64Code = new SFloat64Code(code)
-}
-
-class SFloat64Code(val code: Code[Double]) extends SPrimitiveCode {
-  override def _primitiveCode: Code[_] = code
-
-  def st: SFloat64.type = SFloat64
-
-  def doubleCode(cb: EmitCodeBuilder): Code[Double] = code
-}
-
 object SFloat64Value {
   def apply(code: Value[Double]): SFloat64Value = new SFloat64Value(code)
 }
@@ -70,8 +51,6 @@ class SFloat64Value(x: Value[Double]) extends SPrimitiveValue {
   override def st: SFloat64.type = SFloat64
 
   override def _primitiveValue: Value[_] = x
-
-  override def get: SCode = new SFloat64Code(x)
 
   def doubleCode(cb: EmitCodeBuilder): Value[Double] = x
 

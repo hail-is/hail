@@ -2,9 +2,9 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryCode, SBinaryValue}
-import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
+import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryValue}
+import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.physical.{PBinary, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils._
@@ -56,8 +56,6 @@ class SBinaryPointerValue(
 
   def bytesAddress(): Code[Long] = st.pType.bytesAddress(a)
 
-  override def get: SBinaryPointerCode = new SBinaryPointerCode(st, a)
-
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a)
 
   override def loadLength(cb: EmitCodeBuilder): Value[Int] =
@@ -83,14 +81,4 @@ final class SBinaryPointerSettable(
 
   override def store(cb: EmitCodeBuilder, pc: SValue): Unit =
     cb.assign(a, pc.asInstanceOf[SBinaryPointerValue].a)
-}
-
-class SBinaryPointerCode(val st: SBinaryPointer, val a: Code[Long]) extends SBinaryCode {
-  private val pt: PBinary = st.pType
-
-  def code: Code[_] = a
-
-  def loadLength(): Code[Int] = pt.loadLength(a)
-
-  def loadBytes(): Code[Array[Byte]] = pt.loadBytes(a)
 }

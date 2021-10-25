@@ -7,7 +7,7 @@ import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.SValue
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointerCode, SStackStruct}
+import is.hail.types.physical.stypes.concrete.SStackStruct
 import is.hail.types.physical.stypes.interfaces.SBinaryValue
 import is.hail.utils._
 

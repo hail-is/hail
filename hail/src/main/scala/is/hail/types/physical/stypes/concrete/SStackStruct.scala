@@ -1,11 +1,11 @@
 package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{Code, Settable, TypeInfo, Value}
+import is.hail.asm4s.{Settable, TypeInfo, Value}
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitSettable, EmitValue, IEmitCode}
-import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode, SBaseStructSettable, SBaseStructValue}
-import is.hail.types.physical.stypes.{EmitType, SCode, SType, SValue}
-import is.hail.types.physical.{PCanonicalBaseStruct, PCanonicalStruct, PCanonicalTuple, PTupleField, PType}
+import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructSettable, SBaseStructValue}
+import is.hail.types.physical.stypes.{EmitType, SType, SValue}
+import is.hail.types.physical._
 import is.hail.types.virtual.{TBaseStruct, TStruct, TTuple, Type}
 
 object SStackStruct {
@@ -117,8 +117,6 @@ final case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedS
 class SStackStructValue(val st: SStackStruct, val values: IndexedSeq[EmitValue]) extends SBaseStructValue {
   override lazy val valueTuple: IndexedSeq[Value[_]] = values.flatMap(_.valueTuple)
 
-  override def get: SStackStructCode = new SStackStructCode(st, values.map(_.load))
-
   override def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
     values(fieldIdx).toI(cb)
   }
@@ -143,7 +141,4 @@ final class SStackStructSettable(
   override def store(cb: EmitCodeBuilder, pv: SValue): Unit =
     settables.zip(pv.asInstanceOf[SStackStructValue].values).foreach { case (s, c) => s.store(cb, c) }
 //    store(cb, pv.asInstanceOf[SStackStructValue].values)
-}
-
-class SStackStructCode(val st: SStackStruct, val codes: IndexedSeq[EmitCode]) extends SBaseStructCode {
 }
