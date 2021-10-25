@@ -42,9 +42,6 @@ class PInt32(override val required: Boolean) extends PNumeric with PPrimitive {
   override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SInt32Value =
     new SInt32Value(cb.memoize(Region.loadInt(addr)))
 
-  override def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SInt32Value =
-    new SInt32Value(cb.memoizeField(Region.loadInt(addr)))
-
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
     Region.storeInt(addr, annotation.asInstanceOf[Int])
   }

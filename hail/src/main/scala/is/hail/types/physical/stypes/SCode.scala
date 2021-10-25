@@ -145,14 +145,21 @@ trait SValue {
     destType.coerceOrCopy(cb, region, this, deepCopy = true)
 
   def hash(cb: EmitCodeBuilder): SInt32Value = throw new UnsupportedOperationException(s"Stype ${st} has no hashcode")
+
+  def memoizeField(cb: EmitCodeBuilder): SValue = {
+    val fields = (valueTuple, st.settableTupleTypes()).zipped.map { (v, ti) =>
+      v match {
+        case v: Value[t] =>
+          cb.memoizeField(v)(ti.asInstanceOf[TypeInfo[t]])
+      }
+    }
+    st.fromValues(fields)
+  }
 }
 
 
 trait SSettable extends SValue {
-  def store(cb: EmitCodeBuilder, v: SCode): Unit
-
-  def store(cb: EmitCodeBuilder, v: SValue): Unit =
-    store(cb, v.get)
+  def store(cb: EmitCodeBuilder, v: SValue): Unit
 
   def settableTuple(): IndexedSeq[Settable[_]]
 }

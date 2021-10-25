@@ -135,8 +135,8 @@ object SCanonicalCallSettable {
 }
 
 final class SCanonicalCallSettable(override val call: Settable[Int]) extends SCanonicalCallValue(call) with SSettable {
-  override def store(cb: EmitCodeBuilder, v: SCode): Unit =
-    cb.assign(call, v.asInstanceOf[SCanonicalCallCode].call)
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit =
+    cb.assign(call, v.asInstanceOf[SCanonicalCallValue].call)
 
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(call)
 }
@@ -148,12 +148,6 @@ class SCanonicalCallCode(val call: Code[Int]) extends SCallCode {
   val st: SCanonicalCall.type = SCanonicalCall
 
   def code: Code[_] = call
-
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SCanonicalCallValue = {
-    val s = SCanonicalCallSettable(sb, name)
-    s.store(cb, this)
-    s
-  }
 
   def loadCanonicalRepresentation(cb: EmitCodeBuilder): Code[Int] = call
 }

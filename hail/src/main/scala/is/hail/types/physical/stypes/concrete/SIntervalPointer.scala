@@ -113,13 +113,11 @@ final class SIntervalPointerSettable(
 ) extends SIntervalPointerValue(st, a, includesStart, includesEnd) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a, includesStart, includesEnd)
 
-  override def store(cb: EmitCodeBuilder, pc: SCode): Unit =
-    store(cb, pc.asInstanceOf[SIntervalPointerCode].a)
-
-  def store(cb: EmitCodeBuilder, addr: Code[Long]): Unit = {
-    cb.assign(a, addr)
-    cb.assign(includesStart, pt.includesStart(a.load()))
-    cb.assign(includesEnd, pt.includesEnd(a.load()))
+  override def store(cb: EmitCodeBuilder, pc: SValue): Unit = pc match {
+    case pc: SIntervalPointerValue =>
+      cb.assign(a, pc.a)
+      cb.assign(includesStart, pc.includesStart)
+      cb.assign(includesEnd, pc.includesEnd)
   }
 }
 
@@ -131,10 +129,4 @@ class SIntervalPointerCode(val st: SIntervalPointer, val a: Code[Long]) extends 
   def codeIncludesStart(): Code[Boolean] = pt.includesStart(a)
 
   def codeIncludesEnd(): Code[Boolean] = pt.includesEnd(a)
-
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SIntervalPointerValue = {
-    val s = SIntervalPointerSettable(sb, st, name)
-    s.store(cb, this)
-    s
-  }
 }

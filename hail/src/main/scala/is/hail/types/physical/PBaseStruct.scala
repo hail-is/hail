@@ -158,7 +158,4 @@ abstract class PBaseStruct extends PType {
 
   override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructPointerValue =
     loadCheapSCode(cb, addr, cb.localBuilder)
-
-  override def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructPointerValue =
-    loadCheapSCode(cb, addr, cb.fieldBuilder)
 }

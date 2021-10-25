@@ -44,16 +44,6 @@ class SJavaBytesCode(val bytes: Code[Array[Byte]]) extends SBinaryCode {
 
   def loadLength(): Code[Int] = bytes.invoke[Int]("length")
 
-  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SBinaryValue = {
-    val s = new SJavaBytesSettable(sb.newSettable[Array[Byte]](s"${name}_javabytearray"))
-    s.store(cb, this)
-    s
-  }
-
-  def memoize(cb: EmitCodeBuilder, name: String): SBinaryValue = memoizeWithBuilder(cb, name, cb.localBuilder)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SBinaryValue = memoizeWithBuilder(cb, name, cb.fieldBuilder)
-
   override def loadBytes(): Code[Array[Byte]] = bytes
 }
 
@@ -82,7 +72,7 @@ object SJavaBytesSettable {
 final class SJavaBytesSettable(override val bytes: Settable[Array[Byte]]) extends SJavaBytesValue(bytes) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(bytes)
 
-  override def store(cb: EmitCodeBuilder, v: SCode): Unit = {
-    cb.assign(bytes, v.asInstanceOf[SJavaBytesCode].bytes)
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit = {
+    cb.assign(bytes, v.asInstanceOf[SJavaBytesValue].bytes)
   }
 }

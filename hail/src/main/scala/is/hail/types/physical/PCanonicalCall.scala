@@ -45,9 +45,6 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
   def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SCanonicalCallValue =
     new SCanonicalCallValue(cb.memoize(Region.loadInt(addr)))
 
-  def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SCanonicalCallValue =
-    new SCanonicalCallValue(cb.memoizeField(Region.loadInt(addr)))
-
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
     value.st match {
       case SCanonicalCall =>

@@ -84,7 +84,7 @@ object SJavaStringSettable {
 final class SJavaStringSettable(override val s: Settable[String]) extends SJavaStringValue(s) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(s)
 
-  override def store(cb: EmitCodeBuilder, v: SCode): Unit = {
-    cb.assign(s, v.asInstanceOf[SJavaStringCode].s)
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit = {
+    cb.assign(s, v.asInstanceOf[SJavaStringValue].s)
   }
 }

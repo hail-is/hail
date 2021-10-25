@@ -57,6 +57,9 @@ class SBaseStructPointerValue(
 
   override def get: SBaseStructPointerCode = new SBaseStructPointerCode(st, a)
 
+  override def memoizeField(cb: EmitCodeBuilder): SBaseStructPointerValue =
+    new SBaseStructPointerValue(st, cb.memoizeField(a))
+
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a)
 
   override def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
@@ -82,8 +85,8 @@ final class SBaseStructPointerSettable(
 ) extends SBaseStructPointerValue(st, a) with SBaseStructSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
 
-  override def store(cb: EmitCodeBuilder, pv: SCode): Unit = {
-    cb.assign(a, pv.asInstanceOf[SBaseStructPointerCode].a)
+  override def store(cb: EmitCodeBuilder, pv: SValue): Unit = {
+    cb.assign(a, pv.asInstanceOf[SBaseStructPointerValue].a)
   }
 
   def store(cb: EmitCodeBuilder, addr: Code[Long]): Unit =

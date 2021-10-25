@@ -59,7 +59,7 @@ abstract class SUnreachableValue extends SSettable {
 
   override def valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq()
 
-  override def store(cb: EmitCodeBuilder, v: SCode): Unit = {}
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit = {}
 }
 
 case class SUnreachableStruct(virtualType: TBaseStruct) extends SUnreachable with SBaseStruct {

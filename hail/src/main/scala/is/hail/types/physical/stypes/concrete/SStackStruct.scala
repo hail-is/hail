@@ -140,11 +140,9 @@ final class SStackStructSettable(
 ) extends SStackStructValue(st, settables) with SBaseStructSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = settables.flatMap(_.settableTuple())
 
-  override def store(cb: EmitCodeBuilder, pv: SCode): Unit =
-    store(cb, pv.asInstanceOf[SStackStructCode].codes)
-
-  def store(cb: EmitCodeBuilder, codes: IndexedSeq[EmitCode]): Unit =
-    settables.zip(codes).foreach { case (s, c) => s.store(cb, c) }
+  override def store(cb: EmitCodeBuilder, pv: SValue): Unit =
+    settables.zip(pv.asInstanceOf[SStackStructValue].values).foreach { case (s, c) => s.store(cb, c) }
+//    store(cb, pv.asInstanceOf[SStackStructValue].values)
 }
 
 class SStackStructCode(val st: SStackStruct, val codes: IndexedSeq[EmitCode]) extends SBaseStructCode {

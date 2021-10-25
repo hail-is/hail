@@ -81,7 +81,8 @@ final class SBinaryPointerSettable(
 ) extends SBinaryPointerValue(st, a) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
 
-  override def store(cb: EmitCodeBuilder, pc: SCode): Unit = cb.assign(a, pc.asInstanceOf[SBinaryPointerCode].a)
+  override def store(cb: EmitCodeBuilder, pc: SValue): Unit =
+    cb.assign(a, pc.asInstanceOf[SBinaryPointerValue].a)
 }
 
 class SBinaryPointerCode(val st: SBinaryPointer, val a: Code[Long]) extends SBinaryCode {
@@ -92,10 +93,4 @@ class SBinaryPointerCode(val st: SBinaryPointer, val a: Code[Long]) extends SBin
   def loadLength(): Code[Int] = pt.loadLength(a)
 
   def loadBytes(): Code[Array[Byte]] = pt.loadBytes(a)
-
-  def memoize(cb: EmitCodeBuilder, sb: SettableBuilder, name: String): SBinaryPointerValue = {
-    val s = SBinaryPointerSettable(sb, st, name)
-    s.store(cb, this)
-    s
-  }
 }

@@ -72,5 +72,6 @@ object SInt32Settable {
 final class SInt32Settable(x: Settable[Int]) extends SInt32Value(x) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
 
-  override def store(cb: EmitCodeBuilder, v: SCode): Unit = cb.assign(x, v.asInt.intCode(cb))
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit =
+    cb.assign(x, v.asInt.intCode(cb))
 }

@@ -87,11 +87,5 @@ abstract class PContainer extends PIterable {
 
   def nextElementAddress(currentOffset: Code[Long]): Code[Long]
 
-  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long], sb: SettableBuilder): SIndexablePointerValue
-
-  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SIndexablePointerValue =
-    loadCheapSCode(cb, addr, cb.localBuilder)
-
-  override def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SIndexablePointerValue =
-    loadCheapSCode(cb, addr, cb.fieldBuilder)
+  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SIndexablePointerValue
 }

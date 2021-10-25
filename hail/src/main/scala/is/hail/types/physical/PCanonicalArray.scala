@@ -362,10 +362,11 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   def sType: SIndexablePointer = SIndexablePointer(setRequired(false))
 
-  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long], sb: SettableBuilder): SIndexablePointerValue = {
-    val s = SIndexablePointerSettable(sb, SIndexablePointer(this), "loadCheapSCode")
-    s.store(cb, addr)
-    s
+  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SIndexablePointerValue = {
+    val a = cb.memoize(addr)
+    val length = cb.memoize(loadLength(a))
+    val offset = cb.memoize(firstElementOffset(a, length))
+    new SIndexablePointerValue(SIndexablePointer(this), a, length, offset)
   }
 
   def storeContentsAtAddress(cb: EmitCodeBuilder, addr: Value[Long], region: Value[Region], indexable: SIndexableValue, deepCopy: Boolean): Unit = {

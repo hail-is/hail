@@ -74,6 +74,6 @@ object SBooleanSettable {
 class SBooleanSettable(x: Settable[Boolean]) extends SBooleanValue(x) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
 
-  override def store(cb: EmitCodeBuilder, v: SCode): Unit =
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit =
     cb.assign(x, v.asBoolean.boolCode(cb))
 }

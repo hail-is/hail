@@ -94,8 +94,12 @@ final class SCanonicalLocusPointerSettable(
 ) extends SCanonicalLocusPointerValue(st, a, _contig, _position) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a, _contig, _position)
 
-  override def store(cb: EmitCodeBuilder, pc: SCode): Unit =
-    store(cb, pc.asInstanceOf[SCanonicalLocusPointerCode].a)
+  override def store(cb: EmitCodeBuilder, pc: SValue): Unit = pc match {
+    case pc: SCanonicalLocusPointerValue =>
+      cb.assign(a, pc.a)
+      cb.assign(_contig, pc.contigLong(cb))
+      cb.assign(_position, pc.position(cb))
+  }
 
   def store(cb: EmitCodeBuilder, addr: Code[Long]): Unit = {
     cb.assign(a, addr)
@@ -113,12 +117,6 @@ class SCanonicalLocusPointerCode(val st: SCanonicalLocusPointer, val a: Code[Lon
   def code: Code[_] = a
 
   def position(cb: EmitCodeBuilder): Code[Int] = pt.position(a)
-
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SCanonicalLocusPointerSettable = {
-    val s = SCanonicalLocusPointerSettable(sb, st, name)
-    s.store(cb, this)
-    s
-  }
 
   def structRepr(cb: EmitCodeBuilder): SBaseStructCode = new SBaseStructPointerCode(SBaseStructPointer(st.pType.representation), a)
 }

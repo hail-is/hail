@@ -88,5 +88,6 @@ object SFloat64Settable {
 final class SFloat64Settable(x: Settable[Double]) extends SFloat64Value(x) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
 
-  override def store(cb: EmitCodeBuilder, v: SCode): Unit = cb.assign(x, v.asDouble.doubleCode(cb))
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit =
+    cb.assign(x, v.asDouble.doubleCode(cb))
 }

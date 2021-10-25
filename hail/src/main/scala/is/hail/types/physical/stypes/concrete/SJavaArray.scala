@@ -111,7 +111,7 @@ final class SJavaArrayStringSettable(
 ) extends SJavaArrayStringValue(st, array) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(array)
 
-  override def store(cb: EmitCodeBuilder, pc: SCode): Unit = {
-    cb.assign(array, pc.asInstanceOf[SJavaArrayStringCode].array)
+  override def store(cb: EmitCodeBuilder, pc: SValue): Unit = {
+    cb.assign(array, pc.asInstanceOf[SJavaArrayStringValue].array)
   }
 }

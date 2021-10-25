@@ -74,5 +74,6 @@ object SFloat32Settable {
 final class SFloat32Settable(x: Settable[Float]) extends SFloat32Value(x) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
 
-  override def store(cb: EmitCodeBuilder, v: SCode): Unit = cb.assign(x, v.asFloat.floatCode(cb))
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit =
+    cb.assign(x, v.asFloat.floatCode(cb))
 }

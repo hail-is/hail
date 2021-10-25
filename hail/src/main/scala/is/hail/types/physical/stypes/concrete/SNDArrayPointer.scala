@@ -127,14 +127,12 @@ final class SNDArrayPointerSettable(
 ) extends SNDArrayPointerValue(st, a, shape.map(SizeValueDyn.apply), strides, firstDataAddress) with SNDArraySettable {
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a) ++ shape ++ strides ++ FastIndexedSeq(firstDataAddress)
 
-  def store(cb: EmitCodeBuilder, v: SCode): Unit =
-    store(cb, v.asInstanceOf[SNDArrayPointerCode].a)
-
-  def store(cb: EmitCodeBuilder, addr: Code[Long]): Unit = {
-    cb.assign(a, addr)
-    pt.loadShapes(cb, a, shape)
-    pt.loadStrides(cb, a, strides)
-    cb.assign(firstDataAddress, pt.dataFirstElementPointer(a))
+  def store(cb: EmitCodeBuilder, v: SValue): Unit = v match {
+    case v: SNDArrayPointerValue =>
+      cb.assign(a, v.a)
+      (shape, v.shapes).zipped.foreach(cb.assign(_, _))
+      (strides, v.strides).zipped.foreach(cb.assign(_, _))
+      cb.assign(firstDataAddress, v.firstDataAddress)
   }
 }
 

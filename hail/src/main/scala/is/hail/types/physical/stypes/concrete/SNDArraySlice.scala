@@ -121,11 +121,11 @@ final class SNDArraySliceSettable(
 ) extends SNDArraySliceValue(st, shape.map(SizeValueDyn.apply), strides, firstDataAddress) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = shape ++ strides :+ firstDataAddress
 
-  override def store(cb: EmitCodeBuilder, v: SCode): Unit = {
-    val vSlice = v.asInstanceOf[SNDArraySliceCode]
-    shape.zip(vSlice.shape).foreach { case (x, s) => cb.assign(x, s) }
-    strides.zip(vSlice.strides).foreach { case (x, s) => cb.assign(x, s) }
-    cb.assign(firstDataAddress, vSlice.dataFirstElement)
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit = v match {
+    case v: SNDArraySliceValue =>
+      shape.zip(v.shapes).foreach { case (x, s) => cb.assign(x, s) }
+      strides.zip(v.strides).foreach { case (x, s) => cb.assign(x, s) }
+      cb.assign(firstDataAddress, v.firstDataAddress)
   }
 }
 

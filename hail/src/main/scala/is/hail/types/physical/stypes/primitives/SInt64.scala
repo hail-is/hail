@@ -73,5 +73,6 @@ object SInt64Settable {
 final class SInt64Settable(x: Settable[Long]) extends SInt64Value(x) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
 
-  override def store(cb: EmitCodeBuilder, v: SCode): Unit = cb.assign(x, v.asLong.longCode(cb))
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit =
+    cb.assign(x, v.asLong.longCode(cb))
 }

@@ -88,8 +88,8 @@ object SStringPointerSettable {
 final class SStringPointerSettable(st: SStringPointer, override val a: Settable[Long]) extends SStringPointerValue(st, a) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
 
-  override def store(cb: EmitCodeBuilder, v: SCode): Unit = {
-    cb.assign(a, v.asInstanceOf[SStringPointerCode].a)
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit = {
+    cb.assign(a, v.asInstanceOf[SStringPointerValue].a)
   }
 
   override def binaryRepr(): SBinaryPointerSettable = new SBinaryPointerSettable(SBinaryPointer(st.pType.binaryRepresentation), a)
