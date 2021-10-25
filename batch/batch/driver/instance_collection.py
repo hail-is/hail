@@ -131,30 +131,17 @@ class InstanceCollection:
 
         log.info(f'{instance} vm_state {vm_state}')
 
-        if (
-            vm_state.state == VMState.CREATING
-            and instance.state == 'pending'
-            and time_msecs() - vm_state.last_state_change_timestamp_msecs > 5 * 60 * 1000
-        ):
-            log.exception(f'{instance} did not provision within 5m after creation, deleting')
-            await self.call_delete_instance(instance, 'activation_timeout')
+        time_since_last_state_change = time_msecs() - vm_state.last_state_change_timestamp_msecs
 
-        if vm_state.state == VMState.TERMINATED:
+        if (instance.state == 'pending'
+                and vm_state.state in (VMState.CREATING, VMState.RUNNING)
+                and time_since_last_state_change > 5 * 60 * 1000):
+            log.exception(f'{instance} (state: {vm_state}) has made no progress in last 5m, deleting')
+            await self.call_delete_instance(instance, 'activation_timeout')
+        elif vm_state.state == VMState.TERMINATED:
             log.info(f'{instance} live but stopping or terminated, deactivating')
             await instance.deactivate('terminated')
-
-        if vm_state.state == VMState.RUNNING:
-            if vm_state.last_state_change_timestamp_msecs is not None:
-                elapsed_time = time_msecs() - vm_state.last_state_change_timestamp_msecs
-                if instance.state == 'pending' and elapsed_time > 5 * 60 * 1000:
-                    log.exception(f'{instance} did not activate within 5m after starting, deleting')
-                    await self.call_delete_instance(instance, 'activation_timeout')
-            else:
-                elapsed_time = time_msecs() - instance.time_created
-                if instance.state == 'pending' and elapsed_time > 5 * 60 * 1000:
-                    log.warning(f'{instance} did not activate within {time_msecs_str(elapsed_time)}, ignoring {vm_state.full_spec}')
-
-        if instance.state == 'inactive':
+        elif instance.state == 'inactive':
             log.info(f'{instance} is inactive, deleting')
             await self.call_delete_instance(instance, 'inactive')
 
