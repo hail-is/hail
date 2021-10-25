@@ -140,8 +140,12 @@ trait PArrayBackedContainer extends PContainer {
 
   override def sType: SIndexablePointer = SIndexablePointer(setRequired(false).asInstanceOf[PArrayBackedContainer])
 
-  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SIndexablePointerValue =
-    sType.pType.loadCheapSCode(cb, addr)
+  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SIndexablePointerValue = {
+    val a = cb.memoize(addr)
+    val length = cb.memoize(loadLength(a))
+    val elementsAddr = cb.memoize(firstElementOffset(a, length))
+    new SIndexablePointerValue(sType, a, length, elementsAddr)
+  }
 
   override def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] =
     arrayRep.store(cb, region, value.asIndexable.castToArray(cb), deepCopy)

@@ -151,7 +151,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
   override def sType: SBaseStructPointer = SBaseStructPointer(setRequired(false).asInstanceOf[PCanonicalBaseStruct])
 
   override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long], sb: SettableBuilder): SBaseStructPointerValue = {
-    val s = SBaseStructPointerSettable(sb, SBaseStructPointer(this), "loadCheapSCode")
+    val s = SBaseStructPointerSettable(sb, sType, "loadCheapSCode")
     s.store(cb, addr)
     s
   }
