@@ -1,3 +1,4 @@
+from typing import Set, Tuple
 import aioredis
 import asyncio
 import base64
@@ -9,9 +10,9 @@ import signal
 from aiohttp import web
 import kubernetes_asyncio as kube
 from prometheus_async.aio.web import server_stats  # type: ignore
-from typing import Set
 
 from hailtop.aiotools import AsyncFS
+from hailtop.aiotools.time_limited_max_size_cache import TimeLimitedMaxSizeCache
 from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS, GoogleCredentials
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
@@ -36,12 +37,12 @@ async def healthcheck(request):  # pylint: disable=unused-argument
 
 @routes.get('/api/v1alpha/objects')
 @rest_authenticated_users_only
-async def get_object(request, userdata):
+async def get_object(request, userdata: dict):
     filepath = request.query.get('q')
-    userinfo = await get_or_add_user(request.app, userdata)
+    fs = await get_or_add_user(request.app, userdata)
     username = userdata['username']
     log.info(f'memory: request for object {filepath} from user {username}')
-    maybe_file = await get_file_or_none(request.app, username, userinfo['fs'], filepath)
+    maybe_file = await get_file_or_none(request.app, username, fs, filepath)
     if maybe_file is None:
         raise web.HTTPNotFound()
     return web.Response(body=maybe_file)
@@ -49,9 +50,9 @@ async def get_object(request, userdata):
 
 @routes.post('/api/v1alpha/objects')
 @rest_authenticated_users_only
-async def write_object(request, userdata):
+async def write_object(request, userdata: dict):
     filepath = request.query.get('q')
-    userinfo = await get_or_add_user(request.app, userdata)
+    fs = await get_or_add_user(request.app, userdata)
     username = userdata['username']
     data = await request.read()
     log.info(f'memory: post for object {filepath} from user {username}')
@@ -60,33 +61,21 @@ async def write_object(request, userdata):
     files = request.app['files_in_progress']
     files.add(file_key)
 
-    await persist(userinfo['fs'], files, file_key, filepath, data)
+    await persist(fs, files, file_key, filepath, data)
     await cache_file(request.app['redis_pool'], files, file_key, filepath, data)
     return web.Response(status=200)
 
 
-async def get_or_add_user(app, userdata):
-    users = app['users']
-    username = userdata['username']
-    if username not in users:
-        k8s_client = app['k8s_client']
-        hail_identity_secret = await retry_transient_errors(
-            k8s_client.read_namespaced_secret,
-            userdata['hail_credentials_secret_name'],
-            DEFAULT_NAMESPACE,
-            _request_timeout=5.0,
-        )
-        gsa_key = json.loads(base64.b64decode(hail_identity_secret.data['key.json']).decode())
-        credentials = GoogleCredentials.from_credentials_data(gsa_key)
-        users[username] = {'fs': GoogleStorageAsyncFS(credentials=credentials)}
-    return users[username]
+async def get_or_add_user(app, userdata: dict) -> GoogleStorageAsyncFS:
+    user_credentials_cache: TimeLimitedMaxSizeCache[str, GoogleStorageAsyncFS] = app['user_credentials_cache']
+    return await user_credentials_cache.lookup(userdata['hail_credentials_secret_name'])
 
 
-def make_redis_key(username, filepath):
+def make_redis_key(username: str, filepath: str):
     return f'{ username }_{ filepath }'
 
 
-async def get_file_or_none(app, username, fs: AsyncFS, filepath):
+async def get_file_or_none(app, username: str, fs: AsyncFS, filepath: str):
     file_key = make_redis_key(username, filepath)
     redis_pool: aioredis.ConnectionsPool = app['redis_pool']
 
@@ -106,7 +95,7 @@ async def get_file_or_none(app, username, fs: AsyncFS, filepath):
     return None
 
 
-async def load_file(redis, files, file_key, fs: AsyncFS, filepath):
+async def load_file(redis, files: Set[str], file_key: str, fs: AsyncFS, filepath: str):
     try:
         log.info(f"memory: {file_key}: reading.")
         data = await fs.read(filepath)
@@ -140,10 +129,27 @@ async def on_startup(app):
     app['client_session'] = httpx.client_session()
     app['worker_pool'] = AsyncWorkerPool(parallelism=100, queue_size=10)
     app['files_in_progress'] = set()
-    app['users'] = {}
+
     kube.config.load_incluster_config()
     k8s_client = kube.client.CoreV1Api()
     app['k8s_client'] = k8s_client
+
+    async def get_secret_from_k8s(secret_name: str) -> GoogleStorageAsyncFS:
+        secret = await retry_transient_errors(
+            k8s_client.read_namespaced_secret,
+            secret_name,
+            DEFAULT_NAMESPACE,
+            _request_timeout=5.0
+        )
+        gsa_key = json.loads(base64.b64decode(secret.data['key.json']).decode())
+        credentials = GoogleCredentials.from_credentials_data(gsa_key)
+        return GoogleStorageAsyncFS(credentials=credentials)
+
+    app['user_credentials_cache'] = TimeLimitedMaxSizeCache(
+        get_secret_from_k8s,
+        lifetime_ns=60 * 60 * 1000 * 1000 * 1000,
+        max_size=100)
+
     app['redis_pool']: aioredis.ConnectionsPool = await aioredis.create_pool(socket)
 
 
@@ -161,11 +167,10 @@ async def on_cleanup(app):
                     await app['client_session'].close()
                 finally:
                     try:
-                        for items in app['users'].values():
-                            try:
-                                await items['fs'].close()
-                            except:
-                                pass
+                        async def close_fs(fs: GoogleStorageAsyncFS):
+                            await fs.close()
+
+                        await app['user_credentials_cache'].shutdown(close_fs)
                     finally:
                         await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
 
