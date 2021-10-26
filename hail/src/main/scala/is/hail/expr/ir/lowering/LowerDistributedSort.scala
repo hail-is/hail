@@ -4,11 +4,11 @@ import is.hail.annotations.{Annotation, ExtendedOrdering, Region, SafeRow, Unsaf
 import is.hail.asm4s.{AsmFunction1RegionLong, LongInfo, classInfo}
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
-import is.hail.expr.ir.functions.IRRandomness
+import is.hail.expr.ir.functions.{ArrayFunctions, IRRandomness}
 import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.types.physical.{PArray, PStruct, PTuple, PType}
-import is.hail.types.virtual.{TArray, TBoolean, TInt32, TStream, TStruct, TTuple, Type}
+import is.hail.types.virtual.{TArray, TBoolean, TInt32, TStream, TString, TStruct, TTuple, Type}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.RStruct
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
@@ -97,8 +97,10 @@ object LowerDistributedSort {
     val partitionCountsId = genUID()
     val partitionCountsRef = Ref(partitionCountsId, partitionCounts.typ)
 
+    val oversamplingNum = 3
+    val seed = 7L
 
-    val numSamplesPerPartition = ApplySeeded("shuffle_compute_num_samples_per_partition", IndexedSeq(inputStage.numPartitions * 3, partitionCounts), 3L, TArray(TInt32))
+    val numSamplesPerPartition = ApplySeeded("shuffle_compute_num_samples_per_partition", IndexedSeq(inputStage.numPartitions * oversamplingNum, partitionCounts), seed, TArray(TInt32))
     val numSamplesPerPartitionId = genUID()
     val numSamplesPerPartitionRef = Ref(numSamplesPerPartitionId, numSamplesPerPartition.typ)
 
@@ -112,21 +114,36 @@ object LowerDistributedSort {
     val perPartStats = stageWithNumSamplesPerPart.zipContextsWithIdx().mapCollectWithContextsAndGlobals(relationalBindings = relationalLetsAbove){ (partitionStreamIR, ctxRef) =>
       val numSamplesInThisPartition = ArrayRef(numSamplesPerPartitionRef, GetField(ctxRef, "idx"))
       val sizeOfPartition = ArrayRef(partitionCountsRef, GetField(ctxRef, "idx"))
-      val foo = SeqSample(sizeOfPartition, numSamplesInThisPartition, false)
-      samplePartition(partitionStreamIR, foo, stageWithNumSamplesPerPart.key)
+      val oversampled = ToArray(SeqSample(sizeOfPartition, numSamplesInThisPartition, false))
+      val regularSampledIndices = StreamRange(0, numSamplesInThisPartition, oversamplingNum)
+      bindIR(oversampled) { oversampledRef =>
+        bindIR(mapIR(regularSampledIndices){ idx => ArrayRef(oversampledRef, idx)}) { sampled =>
+          samplePartition(partitionStreamIR, sampled, stageWithNumSamplesPerPart.key)
+        }
+      }
     } { (res, global) => res}
 
+    val perPartStatsId = genUID()
+    val perPartStatsRef = Ref(perPartStatsId, perPartStats.typ)
     // TODO: Need to put things from perPartStats in the globals
+    val stageWithPivots = inputStage.copy(
+      letBindings = inputStage.letBindings :+ perPartStatsId -> perPartStats,
+      broadcastVals = inputStage.broadcastVals :+ perPartStatsId -> perPartStatsRef
+    )
 
-//    stage.mapCollect(relationalBindings = relationalLetsAbove){ partitionStreamIR =>
-//      // In here, need to distribute the keys into different buckets.
-//      val path = Str(ctx.createTmpPath(ctx.tmpdir))
-//      val spec = TypedCodecSpec(rowTypeRequiredness.canonicalPType(stage.rowType), BufferSpec.default)
-//      val pivots = GetField(stage.globals, ???)
-//      StreamDistribute(partitionStreamIR, ???, path, spec)
-//    }
+    val distribute = stageWithPivots.zipContextsWithIdx().mapCollectWithContextsAndGlobals(relationalBindings = relationalLetsAbove){ (partitionStreamIR, ctxRef) =>
+      // In here, need to distribute the keys into different buckets.
+      val path = invoke("concat", TString, Str(ctx.createTmpPath("hail_shuffle_temp")), invoke("concat", TString, Str("_"), invoke("str", TString, GetField(ctxRef, "idx"))))
+      val spec = TypedCodecSpec(rowTypeRequiredness.canonicalPType(stageWithPivots.rowType), BufferSpec.default)
+      val thisPartStats = ArrayRef(perPartStatsRef, GetField(ctxRef, "idx"))
+      // TODO: This is a bad way to append elements to front and back of array. Probably streamDistribute should just take max and min.
+      // TODO: Let bind "thisPartStats"
+      val pivots = ArrayFunctions.extend(ArrayFunctions.extend(MakeArray(GetField(thisPartStats, "min")), GetField(thisPartStats, "samples")), MakeArray(GetField(thisPartStats, "max")))
+      StreamDistribute(partitionStreamIR, pivots, path, spec)
+    } { (res, global) => res}
 
-    perPartStats
+
+    distribute
   }
 
   def howManySamplesPerPartition(rand: IRRandomness, totalNumberOfRecords: Int, initialNumSamplesToSelect: Int, partitionCounts: IndexedSeq[Int]): IndexedSeq[Int] = {
