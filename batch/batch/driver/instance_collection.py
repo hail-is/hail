@@ -131,7 +131,11 @@ class InstanceCollection:
 
         log.info(f'{instance} vm_state {vm_state}')
 
-        time_since_last_state_change = time_msecs() - vm_state.last_state_change_timestamp_msecs
+        if vm_state.last_state_change_timestamp_msecs:
+            time_since_last_state_change = time_msecs() - vm_state.last_state_change_timestamp_msecs
+        else:
+            assert vm_state.state in (VMState.UNKNOWN, VMState.TERMINATED)
+            time_since_last_state_change = None
 
         if (instance.state == 'pending'
                 and vm_state.state in (VMState.CREATING, VMState.RUNNING)
