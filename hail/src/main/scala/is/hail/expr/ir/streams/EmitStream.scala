@@ -218,10 +218,10 @@ object EmitStream {
 
       case In(n, _) =>
         // this, Code[Region], ...
-        val param = env.inputValues(n).apply(outerRegion)
+        val param = env.inputValues(n).apply(cb, outerRegion)
         if (!param.st.isInstanceOf[SStream])
           throw new RuntimeException(s"parameter ${ 2 + n } is not a stream! t=${ param.st } }, params=${ mb.emitParamTypes }")
-        param.load.toI(cb)
+        param
 
       case ToStream(a, _requiresMemoryManagementPerElement) =>
 

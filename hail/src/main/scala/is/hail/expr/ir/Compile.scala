@@ -207,7 +207,11 @@ object CompileIterator {
       val emitContext = EmitContext.analyze(ctx, ir)
       val emitter = new Emit(emitContext, stepFECB)
 
-      val env = EmitEnv(Env.empty, argTypeInfo.indices.filter(i => argTypeInfo(i).isInstanceOf[EmitParamType]).map(i => stepF.storeEmitParam(i + 1, cb)))
+      val inputValues = argTypeInfo
+        .indices
+        .filter(i => argTypeInfo(i).isInstanceOf[EmitParamType])
+        .map(i => stepF.storeEmitParam(i + 1, cb))
+      val env = EmitEnv(Env.empty, inputValues)
       val optStream = EmitCode.fromI(stepF)(cb => EmitStream.produce(emitter, ir, cb, outerRegion, env, None))
       returnType = optStream.st.asInstanceOf[SStream].elementEmitType.storageType.setRequired(true)
 

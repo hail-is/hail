@@ -47,7 +47,7 @@ class EmitContext(
   val tryingToSplit: Memo[Unit]
 )
 
-case class EmitEnv(bindings: Env[EmitValue], inputValues: IndexedSeq[Value[Region] => EmitValue]) {
+case class EmitEnv(bindings: Env[EmitValue], inputValues: IndexedSeq[(EmitCodeBuilder, Value[Region]) => IEmitCode]) {
   def bind(name: String, v: EmitValue): EmitEnv = copy(bindings = bindings.bind(name, v))
 
   def bind(newBindings: (String, EmitValue)*): EmitEnv = copy(bindings = bindings.bindIterable(newBindings))
@@ -845,6 +845,9 @@ class Emit[C](
       case IsNA(v) =>
         val m = emitI(v).consumeCode(cb, true, _ => false)
         presentPC(primitive(m))
+      case In(i, expectedPType) =>
+        // this, Code[Region], ...
+        env.inputValues(i).apply(cb, region)
 
       case Coalesce(values) =>
 
@@ -2489,11 +2492,6 @@ class Emit[C](
         if (ev.st.virtualType != t)
           throw new RuntimeException(s"emit value type did not match specified type:\n name: $name\n  ev: ${ ev.st.virtualType }\n  ir: ${ ir.typ }")
         ev.load
-
-      case In(i, expectedPType) =>
-        // this, Code[Region], ...
-        val ev = env.inputValues(i).apply(region)
-        ev
 
       case ir@Apply(fn, typeArgs, args, rt, errorID) =>
         val impl = ir.implementation
