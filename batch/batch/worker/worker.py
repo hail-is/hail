@@ -22,7 +22,6 @@ from collections import defaultdict
 import psutil
 from aiodocker.exceptions import DockerError  # type: ignore
 
-from gear.cloud_config import get_global_config
 from gear.clients import get_compute_client, get_cloud_async_fs
 
 from hailtop.utils import (
