@@ -10,3 +10,4 @@ batch_logs_bucket_storage_class = "STANDARD"
 use_artifact_registry = true
 hail_query_bucket_location = "australia-southeast1"
 hail_query_bucket_storage_class = "STANDARD"
+cloud = "gcp"
