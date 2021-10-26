@@ -86,24 +86,35 @@ object LowerDistributedSort {
 
   def distributedSort(
     ctx: ExecuteContext,
-    stage: TableStage,
+    inputStage: TableStage,
     sortFields: IndexedSeq[SortField],
     relationalLetsAbove: Map[String, IR],
     rowTypeRequiredness: RStruct
-  ): TableStage = {
-    val partitionCounts = stage.mapCollect(relationalBindings = relationalLetsAbove){ partitionStreamIR =>
+  ): IR = {
+    val partitionCounts = inputStage.mapCollect(relationalBindings = relationalLetsAbove){ partitionStreamIR =>
       StreamLen(partitionStreamIR)
     }
+    val partitionCountsId = genUID()
+    val partitionCountsRef = Ref(partitionCountsId, partitionCounts.typ)
 
 
-    val computed = Apply("shuffle_compute_num_samples_per_partition", Seq.empty[Type], IndexedSeq(stage.numPartitions * 3, partitionCounts), TArray(TInt32), ErrorIDs.NO_ERROR)
+    val numSamplesPerPartition = ApplySeeded("shuffle_compute_num_samples_per_partition", IndexedSeq(inputStage.numPartitions * 3, partitionCounts), 3L, TArray(TInt32))
+    val numSamplesPerPartitionId = genUID()
+    val numSamplesPerPartitionRef = Ref(numSamplesPerPartitionId, numSamplesPerPartition.typ)
 
+    val stageWithNumSamplesPerPart = inputStage.copy(
+      letBindings = inputStage.letBindings :+ partitionCountsId -> partitionCounts :+ numSamplesPerPartitionId -> numSamplesPerPartition,
+      broadcastVals = inputStage.broadcastVals :+ partitionCountsId -> partitionCountsRef :+ numSamplesPerPartitionId -> numSamplesPerPartitionRef
+    )
 
 
     // Array of struct("min", "max", "isSorted", "samples"),
-//    val perPartStats = stage.mapCollect(relationalBindings = relationalLetsAbove){ partitionStreamIR =>
-//      samplePartition(partitionStreamIR, ???, stage.key)
-//    }
+    val perPartStats = stageWithNumSamplesPerPart.zipContextsWithIdx().mapCollectWithContextsAndGlobals(relationalBindings = relationalLetsAbove){ (partitionStreamIR, ctxRef) =>
+      val numSamplesInThisPartition = ArrayRef(numSamplesPerPartitionRef, GetField(ctxRef, "idx"))
+      val sizeOfPartition = ArrayRef(partitionCountsRef, GetField(ctxRef, "idx"))
+      val foo = SeqSample(sizeOfPartition, numSamplesInThisPartition, false)
+      samplePartition(partitionStreamIR, foo, stageWithNumSamplesPerPart.key)
+    } { (res, global) => res}
 
     // TODO: Need to put things from perPartStats in the globals
 
@@ -115,7 +126,7 @@ object LowerDistributedSort {
 //      StreamDistribute(partitionStreamIR, ???, path, spec)
 //    }
 
-    computed
+    perPartStats
   }
 
   def howManySamplesPerPartition(rand: IRRandomness, totalNumberOfRecords: Int, initialNumSamplesToSelect: Int, partitionCounts: IndexedSeq[Int]): IndexedSeq[Int] = {
@@ -203,14 +214,14 @@ object LowerDistributedSort {
     val isSortedStateType = TStruct("lastKeySeen" -> keyType, "sortedSoFar" -> TBoolean)
     val aggFoldSortedAccumRef1 = Ref(aggFoldSortedAccumName1, isSortedStateType)
     val aggFoldSortedAccumRef2 = Ref(aggFoldSortedAccumName2, isSortedStateType)
-    val isSortedSeq = bindIR(SelectFields(eltRef, keyFields)) { keyOfCurElementRef =>
-      bindIR(GetField(aggFoldSortedAccumRef1, "lastKeySeen")) { lastKeySeenRef =>
-        If(IsNA(lastKeySeenRef),
-          MakeStruct(Seq("lastKeySeen" -> keyOfCurElementRef, "sortedSoFar" -> true)),
-          ???
-        )
-      }
-    }
+//    val isSortedSeq = bindIR(SelectFields(eltRef, keyFields)) { keyOfCurElementRef =>
+//      bindIR(GetField(aggFoldSortedAccumRef1, "lastKeySeen")) { lastKeySeenRef =>
+//        If(IsNA(lastKeySeenRef),
+//          MakeStruct(Seq("lastKeySeen" -> keyOfCurElementRef, "sortedSoFar" -> true)),
+//          ???
+//        )
+//      }
+//    }
 
 
 

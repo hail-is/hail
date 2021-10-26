@@ -2,9 +2,10 @@ package is.hail.expr.ir.lowering
 
 import is.hail.TestUtils.assertEvalsTo
 import is.hail.expr.ir.functions.IRRandomness
-import is.hail.expr.ir.{IR, Literal, TableRange, ToArray, ToStream}
-import is.hail.{ExecStrategy, HailSuite}
+import is.hail.expr.ir.{Ascending, IR, Literal, Requiredness, RequirednessAnalysis, SortField, TableRange, ToArray, ToStream}
+import is.hail.{ExecStrategy, HailSuite, TestUtils}
 import is.hail.expr.ir.lowering.LowerDistributedSort.samplePartition
+import is.hail.types.RTable
 import is.hail.types.virtual.{TArray, TInt32, TStruct}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
@@ -31,6 +32,11 @@ class LowerDistributedSortSuite extends HailSuite {
 
   @Test def testDistributedSort(): Unit = {
     val myTable = TableRange(100, 10)
-    LowerTableIR(myTable, DArrayLowering.All, ctx, ???, Map.empty[String, IR])
+    val req: RequirednessAnalysis = Requiredness(myTable, ctx)
+    val rowType = req.lookup(myTable).asInstanceOf[RTable].rowType
+    val stage = LowerTableIR.applyTable(myTable, DArrayLowering.All, ctx, req, Map.empty[String, IR])
+    val sortFields = IndexedSeq[SortField](SortField("idx", Ascending))
+    println(TestUtils.eval(LowerDistributedSort.distributedSort(ctx, stage, sortFields, Map.empty[String, IR], rowType)))
+    //assertEvalsTo(LowerDistributedSort.distributedSort(ctx, stage, sortFields, Map.empty[String, IR], rowType), null)
   }
 }
