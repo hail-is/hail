@@ -15,6 +15,14 @@ object RegionPool {
   }
 
   def scoped[T](f: RegionPool => T): T = using(RegionPool(false))(f)
+
+  lazy val maxRegionPoolSize: Long = {
+    val s = System.getenv("HAIL_WORKER_OFF_HEAP_MEMORY_PER_CORE_MB")
+    if (s != null && s.nonEmpty)
+      s.toLong * 1024 * 1024
+    else
+      Long.MaxValue
+  }
 }
 
 final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, threadID: Long) extends AutoCloseable {
@@ -28,6 +36,7 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
   private[this] var numJavaObjects: Long = 0L
   private[this] var highestTotalUsage = 0L
   private[this] val chunkCache = new ChunkCache(Memory.malloc, Memory.free)
+  private[this] val maxSize = RegionPool.maxRegionPoolSize
 
   def addJavaObject(): Unit = {
     numJavaObjects += 1
@@ -49,6 +58,8 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
     }
     if (totalAllocatedBytes >= highestTotalUsage) {
       highestTotalUsage = totalAllocatedBytes
+      if (totalAllocatedBytes > maxSize)
+        fatal(s"Hail off-heap memory exceeded maximum threshold: limit ${ formatSpace(maxSize) }, allocated ${ formatSpace(totalAllocatedBytes) }")
     }
   }
 

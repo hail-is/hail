@@ -136,7 +136,7 @@ REGION_TO_REPLICATE_MAPPING = {
 
 ANNOTATION_DB_BUCKETS = ["hail-datasets-us", "hail-datasets-eu", "gnomad-public-requester-pays"]
 
-IMAGE_VERSION = '2.0.6-debian10'
+IMAGE_VERSION = '2.0.22-debian10'
 
 
 def init_parser(parser):
@@ -200,6 +200,12 @@ def init_parser(parser):
                         required=False,
                         choices=['GRCh37', 'GRCh38'])
     parser.add_argument('--dry-run', action='store_true', help="Print gcloud dataproc command, but don't run it.")
+    parser.add_argument('--no-off-heap-memory', action='store_true',
+                        help="If true, allocate all executor memory to the JVM heap.")
+    parser.add_argument('--big-executors', action='store_true',
+                        help="If true, double memory allocated per executor, using half the cores of the cluster with an extra large memory allotment per core.")
+    parser.add_argument('--off_heap_memory_fraction', type=float, default=0.6,
+                        help="Fraction of worker memory dedicated to off-heap Hail values.")
 
     # requester pays
     parser.add_argument('--requester-pays-allow-all',
@@ -326,6 +332,35 @@ def main(args, pass_through_args):
     conf.flags['secondary-worker-boot-disk-size'] = disk_size(args.secondary_worker_boot_disk_size)
     conf.flags['worker-boot-disk-size'] = disk_size(args.worker_boot_disk_size)
     conf.flags['worker-machine-type'] = args.worker_machine_type
+
+    if not args.no_off_heap_memory:
+        worker_memory = MACHINE_MEM[args.worker_machine_type]
+        cores_per_machine = int(args.worker_machine_type.split('-')[-1])
+        executor_cores = min(cores_per_machine, 4)
+        memory_per_core_mb = worker_memory * 1024 // cores_per_machine
+
+        # 0.95 to ensure executors can be packed as intended
+        memory_per_executor_mb = int(memory_per_core_mb * executor_cores * 0.95)
+
+        off_heap_mb = int(memory_per_executor_mb * args.off_heap_memory_fraction)
+        on_heap_mb = memory_per_executor_mb - off_heap_mb
+
+        off_heap_memory_per_core = int(off_heap_mb / executor_cores)
+
+        print(f"Using a cluster with workers of machine type {args.worker_machine_type}.\n"
+              f"  Allocating {memory_per_executor_mb} MB of memory per executor, with {off_heap_mb} MB for Hail off-heap values and {on_heap_mb} MB for the JVM.\n"
+              f"  Using a maximum Hail memory reservation of {off_heap_memory_per_core} MB per core.")
+
+        conf.extend_flag('properties',
+                         {
+                             'spark:spark.executor.memory': f'{on_heap_mb}m',
+                             'spark:spark.executor.memoryOverhead': f'{off_heap_mb}m',
+                             'spark:spark.memory.storageFraction': '0.2',
+                             'spark:spark.executorEnv.HAIL_WORKER_OFF_HEAP_MEMORY_PER_CORE_MB': str(
+                                 off_heap_memory_per_core),
+                         }
+                         )
+
     if args.region:
         conf.flags['region'] = args.region
     if args.zone:
