@@ -3,7 +3,7 @@ from collections import defaultdict
 
 from ...instance_config import InstanceConfig, is_power_two
 
-from typing import TYPE_CHECKING, Dict, Any
+from typing import TYPE_CHECKING, Dict, Any, List
 
 if TYPE_CHECKING:
     from ...inst_coll_config import PoolConfig  # pylint: disable=cyclic-import
@@ -16,12 +16,12 @@ MACHINE_TYPE_REGEX = re.compile(
 DISK_TYPE_REGEX = re.compile('(projects/(?P<project>[^/]+)/)?zones/(?P<zone>[^/]+)/diskTypes/(?P<disk_type>.+)')
 
 
-def parse_machine_type_str(name):
+def parse_machine_type_str(name: str) -> Dict[str, str]:
     match = MACHINE_TYPE_REGEX.fullmatch(name)
     return match.groupdict()
 
 
-def parse_disk_type(name):
+def parse_disk_type(name: str) -> Dict[str, str]:
     match = DISK_TYPE_REGEX.fullmatch(name)
     return match.groupdict()
 
@@ -50,7 +50,7 @@ def parse_disk_type(name):
 
 class GCPInstanceConfig(InstanceConfig):
     @staticmethod
-    def from_vm_config(vm_config: Dict[str, Any], job_private: bool = False):
+    def from_vm_config(vm_config: Dict[str, Any], job_private: bool = False) -> 'GCPInstanceConfig':
         instance_info = parse_machine_type_str(vm_config['machineType'])
 
         preemptible = vm_config['scheduling']['preemptible']
@@ -97,7 +97,7 @@ class GCPInstanceConfig(InstanceConfig):
         return GCPInstanceConfig(config)
 
     @staticmethod
-    def from_pool_config(pool_config: 'PoolConfig'):
+    def from_pool_config(pool_config: 'PoolConfig') -> 'GCPInstanceConfig':
         disks = [
             {
                 'boot': True,
@@ -170,14 +170,14 @@ class GCPInstanceConfig(InstanceConfig):
         self.worker_type = instance['type']
 
     @property
-    def location(self):
+    def location(self) -> str:
         return self.zone
 
     @property
-    def machine_type(self):
+    def machine_type(self) -> str:
         return f'{self.instance_family}-{self.instance_type}-{self.cores}'
 
-    def resources(self, cpu_in_mcpu: int, memory_in_bytes: int, storage_in_gib: int):
+    def resources(self, cpu_in_mcpu: int, memory_in_bytes: int, storage_in_gib: int) -> List[Dict[str, Any]]:
         assert memory_in_bytes % (1024 * 1024) == 0, memory_in_bytes
         assert isinstance(storage_in_gib, int), storage_in_gib
 

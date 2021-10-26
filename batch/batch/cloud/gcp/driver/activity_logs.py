@@ -1,10 +1,15 @@
 import re
 import json
 import logging
+from typing import Dict, Any
 
 from hailtop.utils import parse_timestamp_msecs
-from gear.cloud_config import get_gcp_config
+from hailtop.aiocloud import aiogoogle
+from gear import Database
 
+
+from ....driver.instance_collection_manager import InstanceCollectionManager
+from .zones import ZoneSuccessRate
 
 log = logging.getLogger('activity_logs')
 
@@ -12,13 +17,14 @@ log = logging.getLogger('activity_logs')
 RESOURCE_NAME_REGEX = re.compile('projects/(?P<project>[^/]+)/zones/(?P<zone>[^/]+)/instances/(?P<name>.+)')
 
 
-def parse_resource_name(resource_name):
+def parse_resource_name(resource_name: str) -> Dict[str, str]:
     match = RESOURCE_NAME_REGEX.fullmatch(resource_name)
     assert match
     return match.groupdict()
 
 
-async def handle_activity_log_event(event, db, inst_coll_manager, zone_success_rate, machine_name_prefix):
+async def handle_activity_log_event(event: Dict[str, Any], db: Database, inst_coll_manager: InstanceCollectionManager,
+                                    zone_success_rate: ZoneSuccessRate, machine_name_prefix: str):
     payload = event.get('protoPayload')
     if payload is None:
         log.warning(f'event has no payload {json.dumps(event)}')
@@ -76,9 +82,13 @@ async def handle_activity_log_event(event, db, inst_coll_manager, zone_success_r
                 await instance.mark_deleted('deleted', timestamp_msecs)
 
 
-async def process_activity_log_events_since(db, inst_coll_manager, activity_logs_client, zone_success_rate, machine_name_prefix, mark):
-    project = get_gcp_config().project
-
+async def process_activity_log_events_since(db: Database,
+                                            inst_coll_manager: InstanceCollectionManager,
+                                            activity_logs_client: aiogoogle.GoogleLoggingClient,
+                                            zone_success_rate: ZoneSuccessRate,
+                                            machine_name_prefix: str,
+                                            project: str,
+                                            mark: str) -> str:
     filter = f'''
 (logName="projects/{project}/logs/cloudaudit.googleapis.com%2Factivity" OR
 logName="projects/{project}/logs/cloudaudit.googleapis.com%2Fsystem_event"

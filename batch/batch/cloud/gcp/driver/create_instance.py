@@ -22,16 +22,16 @@ log.info(f'BATCH_WORKER_IMAGE {BATCH_WORKER_IMAGE}')
 
 def create_instance_config(
     app,
-    zone,
-    machine_name,
-    machine_type,
-    activation_token,
-    max_idle_time_msecs,
-    worker_local_ssd_data_disk,
-    worker_pd_ssd_data_disk_size_gb,
-    boot_disk_size_gb,
-    preemptible,
-    job_private,
+    zone: str,
+    machine_name: str,
+    machine_type: str,
+    activation_token: str,
+    max_idle_time_msecs: int,
+    worker_local_ssd_data_disk: bool,
+    worker_pd_ssd_data_disk_size_gb: int,
+    boot_disk_size_gb: int,
+    preemptible: bool,
+    job_private: bool,
 ) -> GCPInstanceConfig:
     file_store: FileStore = app['file_store']
     project = get_gcp_config().project

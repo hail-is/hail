@@ -15,6 +15,7 @@ from .create_instance import create_instance_config
 
 if TYPE_CHECKING:
     from .driver import GCPDriver  # pylint: disable=cyclic-import
+    from ....driver.instance import Instance  # pylint: disable=cyclic-import
 
 
 log = logging.getLogger('resource_manager')
@@ -32,7 +33,7 @@ class GCPResourceManager(CloudResourceManager):
         self.compute_client = compute_client
         self.default_location = default_location
 
-    async def delete_vm(self, instance):
+    async def delete_vm(self, instance: 'Instance'):
         instance_config = instance.instance_config
         assert isinstance(instance_config, GCPInstanceConfig)
         try:
@@ -42,7 +43,7 @@ class GCPResourceManager(CloudResourceManager):
                 raise VMDoesNotExist() from e
             raise
 
-    async def get_vm_state(self, instance) -> VMState:
+    async def get_vm_state(self, instance: 'Instance') -> VMState:
         instance_config = instance.instance_config
         assert isinstance(instance_config, GCPInstanceConfig)
         try:

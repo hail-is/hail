@@ -45,7 +45,7 @@ class GCPDriver(CloudDriver):
             rate_limit=RateLimit(10, 60),
         )
 
-        driver = GCPDriver(db, machine_name_prefix, task_manager, compute_client, activity_logs_client, regions)
+        driver = GCPDriver(db, machine_name_prefix, task_manager, compute_client, activity_logs_client, regions, project)
 
         resource_manager = GCPResourceManager(driver, compute_client, default_location=zone)
         inst_coll_manager = await InstanceCollectionManager.create(app, resource_manager, machine_name_prefix, inst_coll_configs)
@@ -61,13 +61,14 @@ class GCPDriver(CloudDriver):
 
     def __init__(self, db: Database, machine_name_prefix: str, task_manager: aiotools.BackgroundTaskManager,
                  compute_client: aiogoogle.GoogleComputeClient, activity_logs_client: aiogoogle.GoogleLoggingClient,
-                 regions: Set[str]):
+                 regions: Set[str], project: str):
         self.db = db
         self.machine_name_prefix = machine_name_prefix
         self.task_manager = task_manager
         self.compute_client = compute_client
         self.activity_logs_client = activity_logs_client
         self.regions = regions
+        self.project = project
 
         self.zone_success_rate = ZoneSuccessRate()
         self.region_info = None
@@ -95,7 +96,10 @@ class GCPDriver(CloudDriver):
         async def _process_activity_log_events_since(mark):
             return await process_activity_log_events_since(self.db, self.inst_coll_manager,
                                                            self.activity_logs_client,
-                                                           self.zone_success_rate, self.machine_name_prefix, mark)
+                                                           self.zone_success_rate,
+                                                           self.machine_name_prefix,
+                                                           self.project,
+                                                           mark)
 
         await process_outstanding_events(self.db, _process_activity_log_events_since)
 

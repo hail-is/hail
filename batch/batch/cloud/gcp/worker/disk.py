@@ -1,4 +1,5 @@
 import logging
+from typing import Dict, Optional
 
 from hailtop.utils import check_shell_output, LoggingTimer, retry_all_errors_n_times
 from hailtop.aiocloud import aiogoogle
@@ -9,7 +10,7 @@ log = logging.getLogger('disk')
 
 
 class GCPDisk(CloudDisk):
-    def __init__(self, name, zone, project, instance_name, size_in_gb, mount_path):
+    def __init__(self, name: str, zone: str, project: str, instance_name: str, size_in_gb: int, mount_path: str):
         assert size_in_gb >= 10
         # disk name must be 63 characters or less
         # https://cloud.google.com/compute/docs/reference/rest/v1/disks#resource:-disk
@@ -31,7 +32,7 @@ class GCPDisk(CloudDisk):
 
         self.disk_path = f'/dev/disk/by-id/google-{self.name}'
 
-    async def create(self, labels=None):
+    async def create(self, labels: Optional[Dict[str, str]] = None):
         await self._create(labels)
         await self._attach()
         await self._format()
@@ -67,7 +68,7 @@ class GCPDisk(CloudDisk):
             max_errors=10, msg=f'error while formatting disk {self.name}', error_logging_interval=3
         )(format_disk)
 
-    async def _create(self, labels=None):
+    async def _create(self, labels: Optional[Dict[str, str]] = None):
         async with LoggingTimer(f'creating disk {self.name}'):
             if labels is None:
                 labels = {}

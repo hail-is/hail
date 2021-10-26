@@ -1,6 +1,8 @@
 import logging
 import random
+from typing import Dict, Any, List, Optional, Set, Tuple
 
+from hailtop.aiocloud import aiogoogle
 from hailtop.utils import url_basename
 
 from ....utils import WindowFractionCounter
@@ -45,14 +47,16 @@ class ZoneSuccessRate:
         return f'global {self._global_counter}, zones {self._zone_counters}'
 
 
-async def update_region_quotas(compute_client, regions):
+async def update_region_quotas(compute_client: aiogoogle.GoogleComputeClient, regions: Set[str]
+                               ) -> Tuple[Dict[str, Dict[str, Any]], List[str]]:
     region_info = {name: await compute_client.get(f'/regions/{name}') for name in regions}
     zones = [url_basename(z) for r in region_info.values() for z in r['zones']]
     log.info('updated region quotas')
     return region_info, zones
 
 
-def compute_zone_weights(region_info, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb):
+def compute_zone_weights(region_info: Dict[str, Dict[str, Any]], worker_cores: int,
+                         worker_local_ssd_data_disk: bool, worker_pd_ssd_data_disk_size_gb: int) -> Optional[List[ZoneWeight]]:
     if not region_info:
         return None
 
@@ -75,7 +79,8 @@ def compute_zone_weights(region_info, worker_cores, worker_local_ssd_data_disk, 
     return weights
 
 
-def get_zone(region_info, zone_success_rate, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb):
+def get_zone(region_info: Dict[str, Dict[str, Any]], zone_success_rate: ZoneSuccessRate, worker_cores: int,
+             worker_local_ssd_data_disk: bool, worker_pd_ssd_data_disk_size_gb: int) -> Optional[str]:
     zone_weights = compute_zone_weights(region_info, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)
 
     if not zone_weights:

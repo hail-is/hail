@@ -39,7 +39,7 @@ def gcp_machine_type_to_worker_type_cores(machine_type: str) -> Tuple[str, int]:
     return (worker_type, cores)
 
 
-def gcp_cost_from_msec_mcpu(msec_mcpu):
+def gcp_cost_from_msec_mcpu(msec_mcpu: int) -> float:
     assert msec_mcpu is not None
 
     worker_type = 'standard'
@@ -77,7 +77,7 @@ def gcp_cost_from_msec_mcpu(msec_mcpu):
     return (msec_mcpu * 0.001 * 0.001) * (total_cost_per_core_hour / 3600)
 
 
-def gcp_worker_memory_per_core_mib(worker_type):
+def gcp_worker_memory_per_core_mib(worker_type: str) -> int:
     if worker_type == 'standard':
         m = 3840
     elif worker_type == 'highmem':
@@ -88,7 +88,7 @@ def gcp_worker_memory_per_core_mib(worker_type):
     return m
 
 
-def gcp_total_worker_storage_gib(worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib):
+def gcp_total_worker_storage_gib(worker_local_ssd_data_disk: bool, worker_pd_ssd_data_disk_size_gib: int) -> int:
     reserved_image_size = 25
     if worker_local_ssd_data_disk:
         # local ssd is 375Gi
@@ -97,7 +97,8 @@ def gcp_total_worker_storage_gib(worker_local_ssd_data_disk, worker_pd_ssd_data_
     return worker_pd_ssd_data_disk_size_gib - reserved_image_size
 
 
-def gcp_unreserved_worker_data_disk_size_gib(worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib, worker_cores):
+def gcp_unreserved_worker_data_disk_size_gib(worker_local_ssd_data_disk: bool, worker_pd_ssd_data_disk_size_gib: int,
+                                             worker_cores: int) -> int:
     reserved_image_size = 30
     reserved_container_size = RESERVED_STORAGE_GB_PER_CORE * worker_cores
     if worker_local_ssd_data_disk:

@@ -14,5 +14,5 @@ class GCPUserCredentials(CloudUserCredentials):
         self.username = '_json_key'
 
     @property
-    def password(self):
+    def password(self) -> str:
         return base64.b64decode(self.secret_data['key.json']).decode()
