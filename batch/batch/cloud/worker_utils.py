@@ -1,17 +1,20 @@
-from typing import Dict, TYPE_CHECKING
+from typing import Dict
 
-from .gcp.worker.disk import GCPDisk
 from .gcp.worker.credentials import GCPUserCredentials
+from .gcp.worker.disk import GCPDisk
 from .gcp.instance_config import GCPInstanceConfig
 
-if TYPE_CHECKING:
-    from ..worker.disk import CloudDisk  # pylint: disable=cyclic-import
-    from ..worker.credentials import CloudUserCredentials  # pylint: disable=cyclic-import
-    from ..instance_config import InstanceConfig  # pylint: disable=cyclic-import
+from ..worker.credentials import CloudUserCredentials
+from ..worker.disk import CloudDisk
+from ..instance_config import InstanceConfig
 
 
-def get_cloud_disk(instance_name: str, disk_name: str, size_in_gb: int, mount_path: str,
-                   instance_config: 'InstanceConfig') -> 'CloudDisk':
+def get_cloud_disk(instance_name: str,
+                   disk_name: str,
+                   size_in_gb: int,
+                   mount_path: str,
+                   instance_config: InstanceConfig
+                   ) -> CloudDisk:
     cloud = instance_config.cloud
     assert cloud == 'gcp'
     assert isinstance(instance_config, GCPInstanceConfig)
@@ -26,6 +29,6 @@ def get_cloud_disk(instance_name: str, disk_name: str, size_in_gb: int, mount_pa
     return disk
 
 
-def get_user_credentials(cloud: str, credentials: Dict[str, bytes]) -> 'CloudUserCredentials':
+def get_user_credentials(cloud: str, credentials: Dict[str, bytes]) -> CloudUserCredentials:
     assert cloud == 'gcp'
     return GCPUserCredentials(credentials)

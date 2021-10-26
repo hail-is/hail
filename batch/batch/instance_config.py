@@ -17,9 +17,15 @@ class InstanceConfig(abc.ABC):
     data_disk_size_gb: int
     job_private: bool
     worker_type: str
-    machine_type: str
-    location: str
     config: Dict[str, Any]
+
+    @property
+    def machine_type(self) -> str:
+        raise NotImplementedError
+
+    @property
+    def location(self) -> str:
+        raise NotImplementedError
 
     @abc.abstractmethod
     def resources(self, cpu_in_mcpu, memory_in_bytes, storage_in_gib):

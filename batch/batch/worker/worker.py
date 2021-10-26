@@ -1076,7 +1076,7 @@ class Job:
     @staticmethod
     def create(batch_id,
                user,
-               credentials: Optional[Dict[str, str]],
+               credentials: CloudUserCredentials,
                job_spec: dict,
                format_version: BatchFormatVersion,
                task_manager: aiotools.BackgroundTaskManager,

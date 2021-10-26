@@ -9,7 +9,10 @@ class CloudUserCredentials(abc.ABC):
     cloud_env_name: str
     hail_env_name: str
     username: str
-    password: str
+
+    @property
+    def password(self) -> str:
+        raise NotImplementedError
 
     @property
     def mount_path(self):

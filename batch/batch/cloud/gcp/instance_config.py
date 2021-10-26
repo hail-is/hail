@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, cast
 from typing_extensions import Literal
 from mypy_extensions import TypedDict
 import re
@@ -16,11 +16,15 @@ DISK_TYPE_REGEX = re.compile('(projects/(?P<project>[^/]+)/)?zones/(?P<zone>[^/]
 
 def parse_machine_type_str(name: str) -> Dict[str, str]:
     match = MACHINE_TYPE_REGEX.fullmatch(name)
+    if match is None:
+        raise ValueError(f'invalid machine type string: {name}')
     return match.groupdict()
 
 
 def parse_disk_type(name: str) -> Dict[str, str]:
     match = DISK_TYPE_REGEX.fullmatch(name)
+    if match is None:
+        raise ValueError(f'invalid disk type string: {name}')
     return match.groupdict()
 
 
@@ -41,7 +45,14 @@ def parse_disk_type(name: str) -> Dict[str, str]:
 # vm_config: Dict[str, Any]
 
 
+disk_type_strs = {'pd-ssd', 'pd-standard', 'local-ssd'}
 DiskType = Literal['pd-ssd', 'pd-standard', 'local-ssd']
+
+
+def assert_valid_disk_type(disk_type: str) -> DiskType:
+    if disk_type in disk_type_strs:
+        return cast(DiskType, disk_type)
+    raise ValueError(f'invalid disk type: {disk_type}')
 
 
 class Disk(TypedDict):
@@ -64,7 +75,7 @@ class GCPInstanceConfig(InstanceConfig):
         for disk_config in vm_config['disks']:
             params = disk_config['initializeParams']
             disk_info = parse_disk_type(params['diskType'])
-            disk_type = disk_info['disk_type']
+            disk_type = assert_valid_disk_type(disk_info['disk_type'])
 
             if disk_type == 'local-ssd':
                 disk_size = 375
@@ -199,7 +210,7 @@ class GCPInstanceConfig(InstanceConfig):
         # storage is in units of MiB
         resources.append({'name': 'disk/pd-ssd/1', 'quantity': storage_in_gib * 1024})
 
-        quantities = defaultdict(lambda: 0)
+        quantities: Dict[str, int] = defaultdict(lambda: 0)
         for disk in self.disks:
             name = f'disk/{disk["type"]}/1'
             # the factors of 1024 cancel between GiB -> MiB and fraction_1024 -> fraction

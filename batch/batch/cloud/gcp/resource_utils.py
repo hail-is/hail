@@ -29,6 +29,8 @@ gcp_memory_to_worker_type = {
 
 def gcp_machine_type_to_dict(machine_type: str) -> Optional[Dict[str, Any]]:
     match = MACHINE_TYPE_REGEX.fullmatch(machine_type)
+    if match is None:
+        return match
     return match.groupdict()
 
 
