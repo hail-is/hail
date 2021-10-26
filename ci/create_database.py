@@ -96,6 +96,10 @@ GRANT ALL ON `{_name}`.* TO '{admin_username}'@'%';
 
 CREATE USER IF NOT EXISTS '{user_username}'@'%' IDENTIFIED BY '{user_password}';
 GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}'@'%';
+
+ALTER USER '{admin_username}'@'%' IDENTIFIED BY '{admin_password}';
+
+ALTER USER '{user_username}'@'%' IDENTIFIED BY '{user_password}';
 '''
     )
 
