@@ -28,16 +28,9 @@ def get_compute_client(credentials_file: Optional[str] = None):
         credentials_file = '/gsa-key/key.json'
 
     cloud = get_global_config()['cloud']
-    if cloud == 'gcp':
-        project = get_gcp_config().project
-        return aiogoogle.GoogleComputeClient(project, credentials_file=credentials_file)
-
-    assert cloud == 'azure'
-    scopes = ['https://management.microsoft.com/.default']
-    return aioazure.AzureComputeClient(
-        credentials_file=credentials_file,
-        scopes=scopes,
-    )
+    assert cloud == 'gcp'
+    project = get_gcp_config().project
+    return aiogoogle.GoogleComputeClient(project, credentials_file=credentials_file)
 
 
 def get_cloud_async_fs(credentials_file: Optional[str] = None) -> AsyncFS:
@@ -45,8 +38,6 @@ def get_cloud_async_fs(credentials_file: Optional[str] = None) -> AsyncFS:
         credentials_file = '/gsa-key/key.json'
 
     cloud = get_global_config()['cloud']
-    if cloud == 'gcp':
-        project = get_gcp_config().project
-        return aiogoogle.GoogleStorageAsyncFS(project=project, credentials_file=credentials_file)
-    assert cloud == 'azure'
-    return aioazure.AzureStorageAsyncFS(credentials_file=credentials_file)
+    assert cloud == 'gcp'
+    project = get_gcp_config().project
+    return aiogoogle.GoogleStorageAsyncFS(project=project, credentials_file=credentials_file)
