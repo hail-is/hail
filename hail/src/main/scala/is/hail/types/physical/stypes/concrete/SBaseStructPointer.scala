@@ -55,9 +55,6 @@ class SBaseStructPointerValue(
 ) extends SBaseStructValue {
   val pt: PBaseStruct = st.pType
 
-  override def memoizeField(cb: EmitCodeBuilder): SBaseStructPointerValue =
-    new SBaseStructPointerValue(st, cb.memoizeField(a))
-
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a)
 
   override def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {

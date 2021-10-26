@@ -71,9 +71,14 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   }
 
   def memoizeField(pc: SValue, name: String): SValue = {
-    val f = emb.newPField(name, pc.st)
-    assign(f, pc)
-    f
+    val st = pc.st
+    val fields = (pc.valueTuple, st.settableTupleTypes()).zipped.map { (v, ti) =>
+      v match {
+        case v: Value[t] =>
+          memoizeFieldAny(v, name, ti)
+      }
+    }
+    st.fromValues(fields)
   }
 
   def memoizeField[T: TypeInfo](v: Code[T], name: String): Value[T] = {

@@ -456,9 +456,6 @@ abstract class PType extends Serializable with Requiredness {
   // return a SCode that can cheaply operate on the region representation. Generally a pointer type, but not necessarily (e.g. primitives).
   def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SValue
 
-  final def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SValue =
-    loadCheapSCode(cb, addr).memoizeField(cb)
-
   // stores a stack value as a region value of this type
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long]
 
