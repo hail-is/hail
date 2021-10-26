@@ -33,7 +33,6 @@ def create_instance_config(
     project: str,
 ) -> GCPInstanceConfig:
     file_store: FileStore = app['file_store']
-
     _, cores = gcp_machine_type_to_worker_type_cores(machine_type)
 
     if worker_local_ssd_data_disk:

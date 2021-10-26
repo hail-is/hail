@@ -230,6 +230,7 @@ resource "kubernetes_secret" "global_config" {
   }
 
   data = {
+    cloud = "gcp"
     batch_gcp_regions = var.batch_gcp_regions
     batch_logs_bucket = module.batch_logs.name
     hail_query_gcs_path = "gs://${module.hail_query.name}"

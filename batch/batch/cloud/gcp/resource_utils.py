@@ -33,9 +33,11 @@ def gcp_machine_type_to_dict(machine_type: str) -> Optional[Dict[str, Any]]:
 
 
 def gcp_machine_type_to_worker_type_cores(machine_type: str) -> Tuple[str, int]:
-    machine_type_dict = gcp_machine_type_to_dict(machine_type)
-    worker_type = machine_type_dict['machine_type']
-    cores = int(machine_type_dict['cores'])
+    maybe_machine_type_dict = gcp_machine_type_to_dict(machine_type)
+    if maybe_machine_type_dict is None:
+        raise ValueError(f'bad machine_type: {machine_type}')
+    worker_type = maybe_machine_type_dict['machine_type']
+    cores = int(maybe_machine_type_dict['cores'])
     return (worker_type, cores)
 
 

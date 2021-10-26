@@ -1105,7 +1105,7 @@ SELECT instance_id, internal_token, frozen FROM globals;
     fs = get_cloud_async_fs(credentials_file=credentials_file)
     app['file_store'] = FileStore(fs, BATCH_BUCKET_NAME, instance_id)
 
-    inst_coll_configs = await InstanceCollectionConfigs.create(app)
+    inst_coll_configs = await InstanceCollectionConfigs.create(db)
 
     app['driver'] = await get_cloud_driver(app, MACHINE_NAME_PREFIX, DEFAULT_NAMESPACE, inst_coll_configs, credentials_file)
 

@@ -1,12 +1,10 @@
+from typing import List, Optional, Dict, Any
+from typing_extensions import Literal
+from mypy_extensions import TypedDict
 import re
 from collections import defaultdict
 
 from ...instance_config import InstanceConfig, is_power_two
-
-from typing import TYPE_CHECKING, Dict, Any, List
-
-if TYPE_CHECKING:
-    from ...inst_coll_config import PoolConfig  # pylint: disable=cyclic-import
 
 GCP_INSTANCE_CONFIG_VERSION = 4
 
@@ -38,14 +36,21 @@ def parse_disk_type(name: str) -> Dict[str, str]:
 #   type_: str (standard, highmem, highcpu)
 #   cores: int
 #   preemptible: bool
-# disks: list of dict
-#   boot: bool
-#   project: str
-#   zone: str
-#   type_: str (pd-ssd, pd-standard, local-ssd)
-#   size: int (in GB)
+# disks: list of Disk
 # job-private: bool
 # vm_config: Dict[str, Any]
+
+
+DiskType = Literal['pd-ssd', 'pd-standard', 'local-ssd']
+
+
+class Disk(TypedDict):
+    boot: bool
+    project: Optional[str]
+    zone: Optional[str]
+    type: DiskType
+    size: int
+    image: Optional[str]
 
 
 class GCPInstanceConfig(InstanceConfig):
@@ -55,7 +60,7 @@ class GCPInstanceConfig(InstanceConfig):
 
         preemptible = vm_config['scheduling']['preemptible']
 
-        disks = []
+        disks: List[Disk] = []
         for disk_config in vm_config['disks']:
             params = disk_config['initializeParams']
             disk_info = parse_disk_type(params['diskType'])
@@ -97,42 +102,41 @@ class GCPInstanceConfig(InstanceConfig):
         return GCPInstanceConfig(config)
 
     @staticmethod
-    def from_pool_config(pool_config: 'PoolConfig') -> 'GCPInstanceConfig':
-        disks = [
+    def from_worker_properties(boot_disk_size_gb: int, worker_local_ssd_data_disk: bool, worker_pd_ssd_data_disk_size_gb: int,
+                               worker_type: str, worker_cores: int) -> 'GCPInstanceConfig':
+        disks: List[Disk] = [
             {
                 'boot': True,
                 'project': None,
                 'zone': None,
                 'type': 'pd-ssd',
-                'size': pool_config.boot_disk_size_gb,
+                'size': boot_disk_size_gb,
                 'image': None,
             }
         ]
 
-        if pool_config.worker_local_ssd_data_disk:
+        typ: DiskType
+        if worker_local_ssd_data_disk:
             typ = 'local-ssd'
             size = 375
         else:
             typ = 'pd-ssd'
-            size = pool_config.worker_pd_ssd_data_disk_size_gb
+            size = worker_pd_ssd_data_disk_size_gb
 
         disks.append({'boot': False, 'project': None, 'zone': None, 'type': typ, 'size': size, 'image': None})
 
         config = {
             'version': GCP_INSTANCE_CONFIG_VERSION,
-            'name': None,
             'instance': {
                 'project': None,
                 'zone': None,
                 'family': 'n1',  # FIXME: need to figure out how to handle variable family types
-                'type': pool_config.worker_type,
-                'cores': pool_config.worker_cores,
+                'type': worker_type,
+                'cores': worker_cores,
                 'preemptible': True,
             },
             'disks': disks,
             'job-private': False,
-            'cloud': 'gcp',
-            'vm_config': None
         }
 
         return GCPInstanceConfig(config)

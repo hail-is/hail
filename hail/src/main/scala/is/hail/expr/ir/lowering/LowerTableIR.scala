@@ -224,6 +224,10 @@ class TableStage(
   }
 
   def repartitionNoShuffle(newPartitioner: RVDPartitioner): TableStage = {
+    if (newPartitioner == this.partitioner) {
+      return this
+    }
+
     require(newPartitioner.satisfiesAllowedOverlap(newPartitioner.kType.size - 1))
     require(newPartitioner.kType.isPrefixOf(kType))
 
