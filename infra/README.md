@@ -164,10 +164,6 @@ You can now install Hail:
 - Create Let's Encrypt certs. Run `make -C $HAIL/letsencrypt run`.
 
 - Deploy the internal-gateway.  Run `make -C $HAIL/internal-gateway deploy`.
- 
-- Deploy the memory service.  Run `make -C $HAIL/memory deploy NAMESPACE=default`.
-
-- `make -C auth deploy NAMESPACE=default`
 
 - Generate the version info:
 
