@@ -92,8 +92,7 @@ MAX_DOCKER_OTHER_OPERATION_SECS = 1 * 60
 
 IPTABLES_WAIT_TIMEOUT_SECS = 60
 
-CLOUD = get_global_config()['cloud']
-
+CLOUD = os.environ['CLOUD']
 CORES = int(os.environ['CORES'])
 NAME = os.environ['NAME']
 NAMESPACE = os.environ['NAMESPACE']
@@ -127,6 +126,7 @@ log.info(f'UNRESERVED_WORKER_DATA_DISK_SIZE_GB {UNRESERVED_WORKER_DATA_DISK_SIZE
 
 instance_config = instance_config_from_config_dict(INSTANCE_CONFIG)
 assert instance_config.cores == CORES
+assert instance_config.cloud == CLOUD
 
 deploy_config = DeployConfig('gce', NAMESPACE, {})
 
@@ -1335,7 +1335,8 @@ class DockerJob(Job):
                 self.disk = get_cloud_disk(instance_name=NAME,
                                            disk_name=f'batch-disk-{uid}',
                                            size_in_gb=self.external_storage_in_gib,
-                                           mount_path=self.io_host_path())
+                                           mount_path=self.io_host_path(),
+                                           instance_config=INSTANCE_CONFIG)
                 labels = {'namespace': NAMESPACE, 'batch': '1', 'instance-name': NAME, 'uid': uid}
                 await self.disk.create(labels=labels)
                 log.info(f'created disk {self.disk.name} for job {self.id}')
@@ -1820,7 +1821,7 @@ class Worker:
         if not self.active:
             return web.HTTPServiceUnavailable()
 
-        credentials = get_user_credentials(body['gsa_key'])
+        credentials = get_user_credentials(CLOUD, body['gsa_key'])
 
         job = Job.create(
             batch_id,

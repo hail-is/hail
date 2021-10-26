@@ -29,7 +29,7 @@ class CloudDriver(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    async def create(app, machine_name_prefix: str, inst_coll_configs: InstanceCollectionConfigs,
+    async def create(app, machine_name_prefix: str, namespace: str, inst_coll_configs: InstanceCollectionConfigs,
                      credentials_file: Optional[str] = None) -> 'CloudDriver':
         pass
 

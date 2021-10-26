@@ -5,17 +5,16 @@ from typing import List
 from hailtop.aiocloud import aiogoogle
 from hailtop.utils import time_msecs, parse_timestamp_msecs
 
-from ....batch_configuration import DEFAULT_NAMESPACE
 from ....driver.instance_collection_manager import InstanceCollectionManager
 
 log = logging.getLogger('disks')
 
 
 async def delete_orphaned_disks(compute_client: aiogoogle.GoogleComputeClient, zones: List[str],
-                                inst_coll_manager: InstanceCollectionManager):
+                                inst_coll_manager: InstanceCollectionManager, namespace: str):
     log.info('deleting orphaned disks')
 
-    params = {'filter': f'(labels.namespace = {DEFAULT_NAMESPACE})'}
+    params = {'filter': f'(labels.namespace = {namespace})'}
 
     for zone in zones:
         async for disk in await compute_client.list(f'/zones/{zone}/disks', params=params):

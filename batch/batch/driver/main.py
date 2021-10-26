@@ -1107,7 +1107,7 @@ SELECT instance_id, internal_token, frozen FROM globals;
 
     inst_coll_configs = await InstanceCollectionConfigs.create(app)
 
-    app['driver'] = await get_cloud_driver(app, MACHINE_NAME_PREFIX, inst_coll_configs, credentials_file)
+    app['driver'] = await get_cloud_driver(app, MACHINE_NAME_PREFIX, DEFAULT_NAMESPACE, inst_coll_configs, credentials_file)
 
     canceller = await Canceller.create(app)
     app['canceller'] = canceller

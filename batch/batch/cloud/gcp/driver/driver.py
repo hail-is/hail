@@ -21,7 +21,7 @@ class GCPDriver(CloudDriver):
     inst_coll_manager: InstanceCollectionManager
 
     @staticmethod
-    async def create(app, machine_name_prefix: str, inst_coll_configs: InstanceCollectionConfigs,
+    async def create(app, machine_name_prefix: str, namespace: str, inst_coll_configs: InstanceCollectionConfigs,
                      credentials_file: Optional[str] = None) -> 'GCPDriver':
         db: Database = app['db']
         task_manager = aiotools.BackgroundTaskManager()
@@ -45,7 +45,7 @@ class GCPDriver(CloudDriver):
             rate_limit=RateLimit(10, 60),
         )
 
-        driver = GCPDriver(db, machine_name_prefix, task_manager, compute_client, activity_logs_client, regions, project)
+        driver = GCPDriver(db, machine_name_prefix, task_manager, compute_client, activity_logs_client, regions, project, namespace)
 
         resource_manager = GCPResourceManager(driver, compute_client, default_location=zone)
         inst_coll_manager = await InstanceCollectionManager.create(app, resource_manager, machine_name_prefix, inst_coll_configs)
@@ -61,7 +61,7 @@ class GCPDriver(CloudDriver):
 
     def __init__(self, db: Database, machine_name_prefix: str, task_manager: aiotools.BackgroundTaskManager,
                  compute_client: aiogoogle.GoogleComputeClient, activity_logs_client: aiogoogle.GoogleLoggingClient,
-                 regions: Set[str], project: str):
+                 regions: Set[str], project: str, namespace: str):
         self.db = db
         self.machine_name_prefix = machine_name_prefix
         self.task_manager = task_manager
@@ -69,6 +69,7 @@ class GCPDriver(CloudDriver):
         self.activity_logs_client = activity_logs_client
         self.regions = regions
         self.project = project
+        self.namespace = namespace
 
         self.zone_success_rate = ZoneSuccessRate()
         self.region_info = None
@@ -94,7 +95,8 @@ class GCPDriver(CloudDriver):
 
     async def process_activity_logs(self):
         async def _process_activity_log_events_since(mark):
-            return await process_activity_log_events_since(self.db, self.inst_coll_manager,
+            return await process_activity_log_events_since(self.db,
+                                                           self.inst_coll_manager,
                                                            self.activity_logs_client,
                                                            self.zone_success_rate,
                                                            self.machine_name_prefix,
@@ -109,4 +111,4 @@ class GCPDriver(CloudDriver):
         self.zones = zones
 
     async def delete_orphaned_disks(self):
-        await delete_orphaned_disks(self.compute_client, self.zones, self.inst_coll_manager)
+        await delete_orphaned_disks(self.compute_client, self.zones, self.inst_coll_manager, self.namespace)
