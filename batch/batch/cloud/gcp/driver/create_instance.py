@@ -3,8 +3,6 @@ import logging
 import base64
 import json
 
-from gear.cloud_config import get_gcp_config
-
 from ....batch_configuration import (DOCKER_ROOT_IMAGE, DOCKER_PREFIX, DEFAULT_NAMESPACE,
                                      INTERNAL_GATEWAY_IP)
 from ....file_store import FileStore
@@ -32,9 +30,9 @@ def create_instance_config(
     boot_disk_size_gb: int,
     preemptible: bool,
     job_private: bool,
+    project: str,
 ) -> GCPInstanceConfig:
     file_store: FileStore = app['file_store']
-    project = get_gcp_config().project
 
     _, cores = gcp_machine_type_to_worker_type_cores(machine_type)
 

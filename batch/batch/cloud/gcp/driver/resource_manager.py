@@ -32,6 +32,7 @@ class GCPResourceManager(CloudResourceManager):
         self.driver = driver
         self.compute_client = compute_client
         self.default_location = default_location
+        self.project = driver.project
 
     async def delete_vm(self, instance: 'Instance'):
         instance_config = instance.instance_config
@@ -97,7 +98,7 @@ class GCPResourceManager(CloudResourceManager):
 
         return create_instance_config(app, zone, machine_name, machine_type, activation_token, max_idle_time_msecs,
                                       worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb, boot_disk_size_gb,
-                                      preemptible, job_private)
+                                      preemptible, job_private, self.project)
 
     async def create_vm(self, instance_config: GCPInstanceConfig):
         machine_name = instance_config.name
