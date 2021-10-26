@@ -903,19 +903,19 @@ class EmitMethodBuilder[C](
 
     et match {
       case SingleCodeEmitParamType(required, sct: StreamSingleCodeType) =>
-        val field = cb.newFieldAny(s"storeEmitParam_sct_$emitIndex", mb.getArg(codeIndex)(sct.ti).get)(sct.ti);
+        val field = cb.memoizeFieldAny(mb.getArg(codeIndex)(sct.ti), s"storeEmitParam_$emitIndex", sct.ti)
+        val missing: Value[Boolean] = if (required) const(false) else cb.memoizeField(mb.getArg[Boolean](codeIndex + 1), s"storeEmitParam_${emitIndex}_m")
+
         { (cb2: EmitCodeBuilder, region: Value[Region]) =>
-          IEmitCode(cb2,
-            if (required) const(false) else mb.getArg[Boolean](codeIndex + 1),
-            sct.loadToSValue(cb2, region, field))
+          IEmitCode(cb2, missing, sct.loadToSValue(cb2, region, field))
         }
 
       case SingleCodeEmitParamType(required, sct) =>
-        val v = sct.loadToSValue(cb, null, mb.getArg(codeIndex)(sct.ti)).memoizeField(cb);
+        val v = cb.memoizeField(sct.loadToSValue(cb, null, mb.getArg(codeIndex)(sct.ti)), s"storeEmitParam_$emitIndex")
+        val missing: Value[Boolean] = if (required) const(false) else cb.memoizeField(mb.getArg[Boolean](codeIndex + 1), s"storeEmitParam_${emitIndex}_m")
+
         { (cb2: EmitCodeBuilder, _) =>
-          IEmitCode(cb2,
-            if (required) const(false) else mb.getArg[Boolean](codeIndex + 1),
-            v)
+          IEmitCode(cb2, missing, v)
         }
 
       case SCodeEmitParamType(et) =>
