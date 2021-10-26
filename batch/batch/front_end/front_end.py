@@ -2087,7 +2087,7 @@ async def api_delete_billing_projects(request, userdata):  # pylint: disable=unu
 async def _refresh(app):
     db: Database = app['db']
     inst_coll_configs: InstanceCollectionConfigs = app['inst_coll_configs']
-    await inst_coll_configs.refresh()
+    await inst_coll_configs.refresh(db)
     row = await db.select_and_fetchone(
         '''
 SELECT frozen FROM globals;
@@ -2161,9 +2161,7 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
     fs = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
     app['file_store'] = FileStore(fs, BATCH_BUCKET_NAME, instance_id)
 
-    inst_coll_configs = InstanceCollectionConfigs(app)
-    app['inst_coll_configs'] = inst_coll_configs
-    await inst_coll_configs.async_init()
+    app['inst_coll_configs'] = await InstanceCollectionConfigs.create(db)
 
     cancel_batch_state_changed = asyncio.Event()
     app['cancel_batch_state_changed'] = cancel_batch_state_changed

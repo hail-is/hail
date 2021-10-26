@@ -58,6 +58,7 @@ from ..utils import (
     round_storage_bytes_to_gib,
     cores_mcpu_to_storage_bytes,
 )
+
 from ..semaphore import FIFOWeightedSemaphore
 from ..file_store import FileStore
 from ..globals import (
@@ -399,11 +400,12 @@ def user_error(e):
 
 
 class Container:
-    def __init__(self, job, name, spec, client_session: httpx.ClientSession):
+    def __init__(self, job, name, spec, client_session: httpx.ClientSession, worker: 'Worker'):
         self.job = job
         self.name = name
         self.spec = spec
         self.client_session = client_session
+        self.worker = worker
         self.deleted_event = asyncio.Event()
 
         image_ref = parse_docker_image_reference(self.spec['image'])
@@ -450,17 +452,16 @@ class Container:
 
         self.overlay_mounted = False
 
-        assert worker is not None
-        self.fs = LocalAsyncFS(worker.pool)
+        self.fs = LocalAsyncFS(self.worker.pool)
 
         self.container_name = f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}'
 
         self.netns: Optional[NetworkNamespace] = None
-        self.process: Optional[asyncio.Process] = None
+        # regarding no-member: https://github.com/PyCQA/pylint/issues/4223
+        self.process: Optional[asyncio.subprocess.Process] = None  # pylint: disable=no-member
 
-    async def run(self, worker: 'Worker'):
+    async def run(self):
         try:
-
             async def localize_rootfs():
                 async with image_lock.reader_lock:
                     # FIXME Authentication is entangled with pulling images. We need a way to test
@@ -468,10 +469,10 @@ class Container:
                     await self.pull_image()
                     self.image_config = image_configs[self.image_ref_str]
                     self.image_id = self.image_config['Id'].split(":")[1]
-                    worker.image_data[self.image_id] += 1
+                    self.worker.image_data[self.image_id] += 1
 
                     self.rootfs_path = f'/host/rootfs/{self.image_id}'
-                    async with worker.image_data[self.image_id].lock:
+                    async with self.worker.image_data[self.image_id].lock:
                         if not os.path.exists(self.rootfs_path):
                             await asyncio.shield(self.extract_rootfs())
                             log.info(f'Added expanded image to cache: {self.image_ref_str}, ID: {self.image_id}')
@@ -516,7 +517,7 @@ class Container:
                 await self.delete_container()
             finally:
                 if self.image_id:
-                    worker.image_data[self.image_id] -= 1
+                    self.worker.image_data[self.image_id] -= 1
 
     async def run_until_done_or_deleted(self, f: Callable[[], Awaitable[Any]]):
         step = asyncio.ensure_future(f())
@@ -868,6 +869,7 @@ class Container:
 
     async def delete_container(self):
         if self.container_is_running():
+            assert self.process is not None
             try:
                 log.info(f'{self} container is still running, killing crun process')
                 try:
@@ -964,7 +966,7 @@ class Container:
         return self.process is not None and self.process.returncode is not None
 
     async def upload_log(self):
-        await worker.file_store.write_log_file(
+        await self.worker.file_store.write_log_file(
             self.job.format_version,
             self.job.batch_id,
             self.job.job_id,
@@ -984,7 +986,7 @@ class Container:
         return f'container {self.job.id}/{self.name}'
 
 
-def populate_secret_host_path(host_path, secret_data):
+def populate_secret_host_path(host_path, secret_data: Optional[Dict[str, str]]):
     os.makedirs(host_path, exist_ok=True)
     if secret_data is not None:
         for filename, data in secret_data.items():
@@ -1032,6 +1034,7 @@ def copy_container(
     scratch: str,
     requester_pays_project: str,
     client_session: httpx.ClientSession,
+    worker: 'Worker',
 ) -> Container:
     assert files
     copy_spec = {
@@ -1051,7 +1054,7 @@ def copy_container(
         'scratch': scratch,
         'volume_mounts': volume_mounts,
     }
-    return Container(job, name, copy_spec, client_session)
+    return Container(job, name, copy_spec, client_session, worker)
 
 
 class Job:
@@ -1076,29 +1079,42 @@ class Job:
     def gsa_key_file_path(self):
         return f'{self.scratch}/gsa-key'
 
-    @classmethod
-    def create(cls, batch_id, user, gsa_key, job_spec, format_version, task_manager, pool, client_session):
+    @staticmethod
+    def create(batch_id,
+               user,
+               gsa_key: Optional[Dict[str, str]],
+               job_spec: dict,
+               format_version: BatchFormatVersion,
+               task_manager: aiotools.BackgroundTaskManager,
+               pool: concurrent.futures.ThreadPoolExecutor,
+               client_session: httpx.ClientSession,
+               worker: 'Worker'
+               ) -> 'Job':
         type = job_spec['process']['type']
         if type == 'docker':
-            return DockerJob(batch_id, user, gsa_key, job_spec, format_version, task_manager, pool, client_session)
+            return DockerJob(batch_id, user, gsa_key, job_spec, format_version, task_manager, pool, client_session, worker)
         assert type == 'jvm'
-        return JVMJob(batch_id, user, gsa_key, job_spec, format_version, task_manager, pool)
+        return JVMJob(batch_id, user, gsa_key, job_spec, format_version, task_manager, pool, worker)
 
     def __init__(
         self,
         batch_id: int,
         user: str,
-        gsa_key,
+        gsa_key: Optional[Dict[str, str]],
         job_spec,
         format_version: BatchFormatVersion,
         task_manager: aiotools.BackgroundTaskManager,
         pool: concurrent.futures.ThreadPoolExecutor,
+        worker: 'Worker',
     ):
         self.batch_id = batch_id
         self.user = user
         self.gsa_key = gsa_key
         self.job_spec = job_spec
         self.format_version = format_version
+        self.task_manager = task_manager
+        self.pool = pool
+        self.worker = worker
 
         self.deleted = False
 
@@ -1193,9 +1209,6 @@ class Job:
 
         self.project_id = Job.get_next_xfsquota_project_id()
 
-        self.task_manager = task_manager
-        self.pool = pool
-
     @property
     def job_id(self):
         return self.job_spec['job_id']
@@ -1208,7 +1221,7 @@ class Job:
     def id(self):
         return (self.batch_id, self.job_id)
 
-    async def run(self, worker):
+    async def run(self):
         pass
 
     async def get_log(self):
@@ -1262,14 +1275,15 @@ class DockerJob(Job):
         self,
         batch_id: int,
         user: str,
-        gsa_key,
+        gsa_key: Optional[Dict[str, str]],
         job_spec,
         format_version,
         task_manager: aiotools.BackgroundTaskManager,
         pool: concurrent.futures.ThreadPoolExecutor,
         client_session: httpx.ClientSession,
+        worker: 'Worker',
     ):
-        super().__init__(batch_id, user, gsa_key, job_spec, format_version, task_manager, pool)
+        super().__init__(batch_id, user, gsa_key, job_spec, format_version, task_manager, pool, worker)
         input_files = job_spec.get('input_files')
         output_files = job_spec.get('output_files')
 
@@ -1305,6 +1319,7 @@ class DockerJob(Job):
                 self.scratch,
                 requester_pays_project,
                 client_session,
+                worker,
             )
 
         # main container
@@ -1331,7 +1346,7 @@ class DockerJob(Job):
         if unconfined:
             main_spec['unconfined'] = unconfined
         main_spec['scratch'] = self.scratch
-        containers['main'] = Container(self, 'main', main_spec, client_session)
+        containers['main'] = Container(self, 'main', main_spec, client_session, worker)
 
         if output_files:
             containers['output'] = copy_container(
@@ -1344,6 +1359,7 @@ class DockerJob(Job):
                 self.scratch,
                 requester_pays_project,
                 client_session,
+                worker,
             )
 
         self.containers = containers
@@ -1353,9 +1369,9 @@ class DockerJob(Job):
 
     async def setup_io(self):
         if not worker_config.job_private:
-            if worker.data_disk_space_remaining.value < self.external_storage_in_gib:
+            if self.worker.data_disk_space_remaining.value < self.external_storage_in_gib:
                 log.info(
-                    f'worker data disk storage is full: {self.external_storage_in_gib}Gi requested and {worker.data_disk_space_remaining}Gi remaining'
+                    f'worker data disk storage is full: {self.external_storage_in_gib}Gi requested and {self.worker.data_disk_space_remaining}Gi remaining'
                 )
 
                 # disk name must be 63 characters or less
@@ -1375,20 +1391,20 @@ class DockerJob(Job):
                 log.info(f'created disk {self.disk.name} for job {self.id}')
                 return
 
-            worker.data_disk_space_remaining.value -= self.external_storage_in_gib
+            self.worker.data_disk_space_remaining.value -= self.external_storage_in_gib
             log.info(
-                f'acquired {self.external_storage_in_gib}Gi from worker data disk storage with {worker.data_disk_space_remaining}Gi remaining'
+                f'acquired {self.external_storage_in_gib}Gi from worker data disk storage with {self.worker.data_disk_space_remaining}Gi remaining'
             )
 
         assert self.disk is None, self.disk
         os.makedirs(self.io_host_path())
 
-    async def run(self, worker):
-        async with worker.cpu_sem(self.cpu_in_mcpu):
+    async def run(self):
+        async with self.worker.cpu_sem(self.cpu_in_mcpu):
             self.start_time = time_msecs()
 
             try:
-                self.task_manager.ensure_future(worker.post_job_started(self))
+                self.task_manager.ensure_future(self.worker.post_job_started(self))
 
                 log.info(f'{self}: initializing')
                 self.state = 'initializing'
@@ -1435,21 +1451,21 @@ class DockerJob(Job):
                 input = self.containers.get('input')
                 if input:
                     log.info(f'{self}: running input')
-                    await input.run(worker)
+                    await input.run()
                     log.info(f'{self} input: {input.state}')
 
                 if not input or input.state == 'succeeded':
                     log.info(f'{self}: running main')
 
                     main = self.containers['main']
-                    await main.run(worker)
+                    await main.run()
 
                     log.info(f'{self} main: {main.state}')
 
                     output = self.containers.get('output')
                     if output:
                         log.info(f'{self}: running output')
-                        await output.run(worker)
+                        await output.run()
                         log.info(f'{self} output: {output.state}')
 
                     if main.state != 'succeeded':
@@ -1479,7 +1495,7 @@ class DockerJob(Job):
                         finally:
                             await self.disk.close()
                     else:
-                        worker.data_disk_space_remaining.value += self.external_storage_in_gib
+                        self.worker.data_disk_space_remaining.value += self.external_storage_in_gib
 
                     await self.cleanup()
 
@@ -1488,7 +1504,7 @@ class DockerJob(Job):
 
         if not self.deleted:
             log.info(f'{self}: marking complete')
-            self.task_manager.ensure_future(worker.post_job_complete(self))
+            self.task_manager.ensure_future(self.worker.post_job_complete(self))
 
         log.info(f'{self}: cleaning up')
         try:
@@ -1538,13 +1554,14 @@ class JVMJob(Job):
         self,
         batch_id: int,
         user: str,
-        gsa_key,
+        gsa_key: Optional[Dict[str, str]],
         job_spec,
         format_version,
         task_manager: aiotools.BackgroundTaskManager,
         pool: concurrent.futures.ThreadPoolExecutor,
+        worker: 'Worker',
     ):
-        super().__init__(batch_id, user, gsa_key, job_spec, format_version, task_manager, pool)
+        super().__init__(batch_id, user, gsa_key, job_spec, format_version, task_manager, pool, worker)
         assert job_spec['process']['type'] == 'jvm'
 
         input_files = job_spec.get('input_files')
@@ -1608,12 +1625,12 @@ class JVMJob(Job):
         while not strm.at_eof():
             self.logbuffer.extend(await strm.readline())
 
-    async def run(self, worker):
+    async def run(self):
         async with worker.cpu_sem(self.cpu_in_mcpu):
             self.start_time = time_msecs()
 
             try:
-                self.task_manager.ensure_future(worker.post_job_started(self))
+                self.task_manager.ensure_future(self.worker.post_job_started(self))
 
                 log.info(f'{self}: initializing')
                 self.state = 'initializing'
@@ -1634,13 +1651,13 @@ class JVMJob(Job):
 
                 log.info(f'{self}: downloading JAR')
                 with self.step('downloading_jar'):
-                    async with worker.jar_download_locks[self.revision]:
+                    async with self.worker.jar_download_locks[self.revision]:
                         local_jar_location = f'/hail-jars/{self.revision}.jar'
                         if not os.path.isfile(local_jar_location):
                             user_fs = RouterAsyncFS(
                                 'file',
                                 [
-                                    LocalAsyncFS(worker.pool),
+                                    LocalAsyncFS(self.worker.pool),
                                     aiogoogle.GoogleStorageAsyncFS(
                                         credentials=aiogoogle.GoogleCredentials.from_file('/worker-key.json')
                                     ),
@@ -1670,7 +1687,7 @@ class JVMJob(Job):
 
                 log.info(f'finished {self} with return code {self.process.returncode}')
 
-                await worker.file_store.write_log_file(
+                await self.worker.file_store.write_log_file(
                     self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', self.logbuffer.decode()
                 )
 
@@ -1694,7 +1711,7 @@ class JVMJob(Job):
 
         if not self.deleted:
             log.info(f'{self}: marking complete')
-            self.task_manager.ensure_future(worker.post_job_complete(self))
+            self.task_manager.ensure_future(self.worker.post_job_complete(self))
 
         log.info(f'{self}: cleaning up')
         try:
@@ -1813,7 +1830,7 @@ class Worker:
 
     async def run_job(self, job):
         try:
-            await job.run(self)
+            await job.run()
         except asyncio.CancelledError:
             raise
         except Exception as e:
@@ -1869,6 +1886,7 @@ class Worker:
             self.task_manager,
             self.pool,
             self.client_session,
+            self
         )
 
         log.info(f'created {job}, adding to jobs')

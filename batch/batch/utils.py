@@ -1,3 +1,4 @@
+from typing import Deque, Set, Tuple
 import logging
 import math
 import json
@@ -206,9 +207,9 @@ class Box:
 class WindowFractionCounter:
     def __init__(self, window_size: int):
         self._window_size = window_size
-        self._q = deque()
+        self._q: Deque[Tuple[str, bool]] = deque()
         self._n_true = 0
-        self._seen = set()
+        self._seen: Set[str] = set()
 
     def clear(self):
         self._q.clear()
