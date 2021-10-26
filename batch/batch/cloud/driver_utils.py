@@ -1,4 +1,4 @@
-from typing import Dict, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from gear.cloud_config import get_global_config
 
