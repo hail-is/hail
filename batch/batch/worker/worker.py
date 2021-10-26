@@ -1791,26 +1791,23 @@ class Worker:
 
         format_version = BatchFormatVersion(body['format_version'])
 
-        if format_version.has_full_spec_in_gcs():
-            token = body['token']
-            start_job_id = body['start_job_id']
-            addtl_spec = body['job_spec']
+        token = body['token']
+        start_job_id = body['start_job_id']
+        addtl_spec = body['job_spec']
 
-            job_spec = await self.file_store.read_spec_file(batch_id, token, start_job_id, job_id)
-            job_spec = json.loads(job_spec)
+        job_spec = await self.file_store.read_spec_file(batch_id, token, start_job_id, job_id)
+        job_spec = json.loads(job_spec)
 
-            job_spec['attempt_id'] = addtl_spec['attempt_id']
-            job_spec['secrets'] = addtl_spec['secrets']
+        job_spec['attempt_id'] = addtl_spec['attempt_id']
+        job_spec['secrets'] = addtl_spec['secrets']
 
-            addtl_env = addtl_spec.get('env')
-            if addtl_env:
-                env = job_spec.get('env')
-                if not env:
-                    env = []
-                    job_spec['env'] = env
-                env.extend(addtl_env)
-        else:
-            job_spec = body['job_spec']
+        addtl_env = addtl_spec.get('env')
+        if addtl_env:
+            env = job_spec.get('env')
+            if not env:
+                env = []
+                job_spec['env'] = env
+            env.extend(addtl_env)
 
         assert job_spec['job_id'] == job_id
         id = (batch_id, job_id)
