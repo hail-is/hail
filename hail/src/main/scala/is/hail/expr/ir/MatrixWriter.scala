@@ -484,7 +484,9 @@ object MatrixNativeMultiWriter {
 case class MatrixNativeMultiWriter(
   paths: IndexedSeq[String],
   overwrite: Boolean = false,
-  stageLocally: Boolean = false
+  stageLocally: Boolean = false,
+  codecSpecJSONStr: String = null
 ) {
-  def apply(ctx: ExecuteContext, mvs: IndexedSeq[MatrixValue]): Unit = MatrixValue.writeMultiple(ctx, mvs, paths, overwrite, stageLocally)
+  val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
+  def apply(ctx: ExecuteContext, mvs: IndexedSeq[MatrixValue]): Unit = MatrixValue.writeMultiple(ctx, mvs, paths, overwrite, stageLocally, bufferSpec)
 }
