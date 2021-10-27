@@ -1,4 +1,3 @@
-import aiohttp
 import asyncio
 import base64
 import itertools
@@ -6,7 +5,8 @@ from dateutil.parser import isoparse
 from datetime import datetime, timedelta
 import pytz
 import json
-from typing import List, Optional, Tuple, Generator
+from typing import List, Tuple, Generator, Optional
+from typing_extensions import Literal
 import warnings
 import sys
 import kubernetes_asyncio as kube
@@ -14,6 +14,15 @@ from hailtop.aiocloud.aiogoogle import GoogleIAmClient
 from hailtop.utils import retry_transient_errors
 
 warnings.simplefilter('always', UserWarning)
+
+RotationState = Literal['up-to-date', 'in-progress', 'ready-for-delete', 'expired']
+
+OK_BLUE = '\033[94m'
+OK_GREEN = '\033[92m'
+WARNING_YELLOW = '\033[93m'
+ERROR_RED = '\033[91m'
+GREY = '\033[37m'
+ENDC = '\033[0m'
 
 
 class GSAKeySecret:
@@ -27,6 +36,9 @@ class GSAKeySecret:
 
     def private_key_id(self):
         return self.key_data['private_key_id']
+
+    def matches_iam_key(self, k: 'IAMKey'):
+        return self.private_key_id() == k.id
 
     def __str__(self):
         return f'{self.name} ({self.namespace})'
@@ -70,7 +82,17 @@ class IAMKey:
         self.created_readable = key_json['validAfterTime']
         self.expiration_readable = key_json['validBeforeTime']
         self.created = isoparse(self.created_readable)
-        self.expiration = isoparse(self.expiration_readable)
+        assert key_json['keyType'] in ('USER_MANAGED', 'SYSTEM_MANAGED')
+        self.user_managed = key_json['keyType'] == 'USER_MANAGED'
+
+    def expired(self) -> bool:
+        return self.user_managed and self.older_than(90)
+
+    def recently_created(self) -> bool:
+        return not self.older_than(30)
+
+    def older_than(self, days: int) -> bool:
+        return self.created < datetime.now(pytz.utc) - timedelta(days=days)
 
 
 class ServiceAccount:
@@ -87,14 +109,72 @@ class ServiceAccount:
         self.keys.insert(0, k)
 
     def list_keys(self) -> str:
-        msg = f'GSA Keys for {self.email}\n'
+        def color_id(k: IAMKey) -> str:
+            if not k.user_managed:
+                color = GREY
+            elif k.expired():
+                color = ERROR_RED
+            elif not k.recently_created():
+                color = WARNING_YELLOW
+            else:
+                color = OK_GREEN
+            return f'{color}{k.id}{ENDC}'
+
+        msg = f'{self}\n'
         for k in self.keys:
-            msg += f'{k.id} \t Created: {k.created_readable} \t Expires: {k.expiration_readable}'
-            matching_secrets = [str(s) for s in self.kube_secrets if s.private_key_id() == k.id]
+            msg += f'{color_id(k)} \t Created: {k.created_readable} \t Expires: {k.expiration_readable}'
+            matching_secrets = [str(s) for s in self.kube_secrets if s.matches_iam_key(k)]
             if len(matching_secrets) > 0:
                 msg += f'\t <== {" ".join(matching_secrets)}'
             msg += '\n'
         return msg
+
+    def rotation_state(self) -> RotationState:
+        active_key = self.active_user_key()
+
+        # Solely system-managed accounts are always up to date
+        if not active_key:
+            return 'up-to-date'
+
+        old_user_keys = self.redundant_user_keys()
+        if active_key.expired():
+            return 'expired'
+        elif active_key.recently_created() and len(old_user_keys) > 0:
+            return 'in-progress'
+        elif not active_key.recently_created() and len(old_user_keys) > 0:
+            return 'ready-for-delete'
+        else:
+            assert len(old_user_keys) == 0
+            return 'up-to-date'
+
+    def rotation_status(self) -> str:
+        rotation_state = self.rotation_state()
+        if rotation_state == 'up-to-date':
+            return f'{OK_GREEN}UP TO DATE{ENDC}'
+        elif rotation_state == 'in-progress':
+            return f'{OK_BLUE}IN PROGRESS{ENDC}'
+        elif rotation_state == 'ready-for-delete':
+            return f'{WARNING_YELLOW}READY FOR DELETE{ENDC}'
+        else:
+            assert rotation_state == 'expired'
+            return f'{ERROR_RED}EXPIRED{ENDC}'
+
+    def active_user_key(self) -> Optional[IAMKey]:
+        if len(self.kube_secrets) > 0:
+            kube_key = next(k for k in self.keys if all(s.matches_iam_key(k) for s in self.kube_secrets))
+            assert kube_key is not None
+            assert kube_key.user_managed
+            return kube_key
+        # We assume that if the key is not used in kubernetes, the most recently
+        # created user-managed key should be considered "active".
+        return next((k for k in self.keys if k.user_managed), None)
+
+    def redundant_user_keys(self) -> List[IAMKey]:
+        active_key = self.active_user_key()
+        return list(k for k in self.keys if k is not active_key and k.user_managed)
+
+    def __str__(self):
+        return self.rotation_status() + ' ' + self.email
 
 
 class IAMManager:
@@ -106,13 +186,10 @@ class IAMManager:
         encoded_key_data = key_json['privateKeyData']
         return IAMKey(key_json), base64.b64decode(encoded_key_data.encode('utf-8')).decode('utf-8')
 
-    async def delete_key(self, sa_email: str, key: IAMKey) -> Optional[str]:
-        try:
-            await self.iam_client.delete(f'/serviceAccounts/{sa_email}/keys/{key.id}')
-            return key.id
-        except aiohttp.ClientResponseError as e:
-            warnings.warn(str(e), stacklevel=2)
-            return None
+    async def delete_key(self, sa_email: str, key: IAMKey):
+        # SYSTEM_MANAGED keys are rotated by google and we cannot delete them
+        assert key.user_managed
+        await self.iam_client.delete(f'/serviceAccounts/{sa_email}/keys/{key.id}')
 
     async def get_all_service_accounts(self) -> List[ServiceAccount]:
         all_accounts = list(
@@ -162,26 +239,36 @@ async def add_new_keys(service_accounts: List[ServiceAccount], iam_manager: IAMM
 
 
 async def delete_old_keys(service_accounts: List[ServiceAccount], iam_manager: IAMManager):
+    async def delete_old_and_refresh(sa: ServiceAccount):
+        to_delete = sa.redundant_user_keys()
+        await asyncio.gather(*[iam_manager.delete_key(sa.email, k) for k in to_delete])
+        print(f'Deleted keys:')
+        for k in to_delete:
+            print(f'\t{k.id}')
+        sa.keys = await iam_manager.get_sa_keys(sa.email)
+        print(sa.list_keys())
+
     for sa in service_accounts:
         print(sa.list_keys())
         if input('Delete all but the newest key?\nOnly yes will be accepted: ') == 'yes':
-            newest_key, *to_delete = sa.keys
-            thirty_days_ago = datetime.now(pytz.utc) - timedelta(days=30)
-            if newest_key.created > thirty_days_ago:
+            rotation_state = sa.rotation_state()
+            if rotation_state == 'ready-for-delete':
+                await delete_old_and_refresh(sa)
+            elif rotation_state == 'in-progress':
                 warnings.warn(
-                    "The most recent key was generated less than "
-                    "thirty days ago. Old keys cannot yet be deleted "
-                    "as they might still be in use.",
+                    'The most recent key was generated less than '
+                    'thirty days ago. Old keys should not be deleted '
+                    'as they might still be in use.',
                     stacklevel=2,
                 )
+                if input('Are you sure you want to delete old keys? ') == 'yes':
+                    await delete_old_and_refresh(sa)
             else:
-                deleted_ids = await asyncio.gather(*[iam_manager.delete_key(sa.email, k) for k in to_delete])
-                deleted_ids = [kid for kid in deleted_ids if kid is not None]
-                print(f'Deleted keys:')
-                for kid in deleted_ids:
-                    print(f'\t{kid}')
-                sa.keys = await iam_manager.get_sa_keys(sa.email)
-                print(sa.list_keys())
+                warnings.warn(
+                    f'Cannot delete keys in rotation state: {rotation_state}',
+                    stacklevel=2,
+                )
+
             if input('Continue?[Yes/no] ') == 'no':
                 break
 
@@ -204,7 +291,7 @@ async def main():
         seen_secrets = set()
         for sa in service_accounts:
             for secret in gsa_key_secrets:
-                if any(k.id == secret.private_key_id() for k in sa.keys):
+                if any(secret.matches_iam_key(k) for k in sa.keys):
                     sa.kube_secrets.append(secret)
                     seen_secrets.add(secret.name)
 
@@ -224,7 +311,7 @@ async def main():
         print('Discovered the following matching service accounts and k8s secrets')
         for sa in service_accounts:
             if len(sa.kube_secrets) > 0:
-                print(f'\t{sa.username()}: {", ".join(str(s) for s in sa.kube_secrets)}')
+                print(f'\t{sa}: {", ".join(str(s) for s in sa.kube_secrets)}')
 
         print('Discovered the following key secrets with no matching service account')
         unmatched_secrets = set(k.name for k in gsa_key_secrets).difference(seen_secrets)
@@ -234,7 +321,7 @@ async def main():
         print('Discovered the following service accounts with no k8s key secrets')
         for sa in service_accounts:
             if len(sa.kube_secrets) == 0:
-                print(f'\t{sa.email}')
+                print(f'\t{sa}')
 
         action = input('What action would you like to take?[update/delete]: ')
         if action == 'update':
