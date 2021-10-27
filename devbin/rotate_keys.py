@@ -4,13 +4,16 @@ import base64
 import itertools
 from dateutil.parser import isoparse
 from datetime import datetime, timedelta
+import pytz
 import json
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Generator
 import warnings
 import sys
 import kubernetes_asyncio as kube
 from hailtop.aiocloud.aiogoogle import GoogleIAmClient
-from hailtop.utils import retry_transient_errors, time_msecs
+from hailtop.utils import retry_transient_errors
+
+warnings.simplefilter('always', UserWarning)
 
 
 class GSAKeySecret:
@@ -108,18 +111,20 @@ class IAMManager:
             await self.iam_client.delete(f'/serviceAccounts/{sa_email}/keys/{key.id}')
             return key.id
         except aiohttp.ClientResponseError as e:
-            warnings.warn(str(e))
+            warnings.warn(str(e), stacklevel=2)
             return None
 
     async def get_all_service_accounts(self) -> List[ServiceAccount]:
-        all_accounts = []
-        async for account_page in self._all_sa_emails():
-            all_keys: Tuple[List[IAMKey]] = await asyncio.gather(
-                *[self.get_sa_keys(acc['email']) for acc in account_page]
+        all_accounts = list(
+            await asyncio.gather(
+                *[asyncio.create_task(self.service_account_from_email(email)) async for email in self.all_sa_emails()]
             )
-            all_accounts.extend([ServiceAccount(acc['email'], keys) for acc, keys in zip(account_page, all_keys)])
+        )
         all_accounts.sort(key=lambda sa: sa.email)
         return all_accounts
+
+    async def service_account_from_email(self, email: str) -> ServiceAccount:
+        return ServiceAccount(email, await self.get_sa_keys(email))
 
     async def get_sa_keys(self, sa_email: str) -> List[IAMKey]:
         keys_json = (await self.iam_client.get(f'/serviceAccounts/{sa_email}/keys'))['keys']
@@ -128,14 +133,16 @@ class IAMManager:
         keys.reverse()
         return keys
 
-    async def _all_sa_emails(self):
+    async def all_sa_emails(self) -> Generator[str, None, None]:
         res = await self.iam_client.get('/serviceAccounts')
         next_page_token = res.get('nextPageToken')
-        yield res['accounts']
+        for acc in res['accounts']:
+            yield acc['email']
         while next_page_token is not None:
             res = await self.iam_client.get('/serviceAccounts', params={'pageToken': next_page_token})
             next_page_token = res.get('nextPageToken')
-            yield res['accounts']
+            for acc in res['accounts']:
+                yield acc['email']
 
 
 async def add_new_keys(service_accounts: List[ServiceAccount], iam_manager: IAMManager, k8s_manager: KubeSecretManager):
@@ -159,11 +166,13 @@ async def delete_old_keys(service_accounts: List[ServiceAccount], iam_manager: I
         print(sa.list_keys())
         if input('Delete all but the newest key?\nOnly yes will be accepted: ') == 'yes':
             newest_key, *to_delete = sa.keys
-            if newest_key.created > datetime.today() - timedelta(days=30):
+            thirty_days_ago = datetime.now(pytz.utc) - timedelta(days=30)
+            if newest_key.created > thirty_days_ago:
                 warnings.warn(
                     "The most recent key was generated less than "
                     "thirty days ago. Old keys cannot yet be deleted "
-                    "as they might still be in use."
+                    "as they might still be in use.",
+                    stacklevel=2,
                 )
             else:
                 deleted_ids = await asyncio.gather(*[iam_manager.delete_key(sa.email, k) for k in to_delete])
@@ -173,7 +182,7 @@ async def delete_old_keys(service_accounts: List[ServiceAccount], iam_manager: I
                     print(f'\t{kid}')
                 sa.keys = await iam_manager.get_sa_keys(sa.email)
                 print(sa.list_keys())
-            if input('Continue?[Yes/no]') == 'no':
+            if input('Continue?[Yes/no] ') == 'no':
                 break
 
 
@@ -208,7 +217,8 @@ async def main():
                 new_line = "\n"
                 warnings.warn(
                     f'Service account {sa.email} represented by multiple secrets in the same namespace:\n'
-                    f'{new_line.join(", ".join(str(s) for s in dups) for dups in dup_secrets)}'
+                    f'{new_line.join(", ".join(str(s) for s in dups) for dups in dup_secrets)}',
+                    stacklevel=2,
                 )
 
         print('Discovered the following matching service accounts and k8s secrets')
