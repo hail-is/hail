@@ -2,14 +2,15 @@ import aiohttp
 import asyncio
 import base64
 import itertools
-from datetime import datetime
+from dateutil.parser import isoparse
+from datetime import datetime, timedelta
 import json
 from typing import List, Optional, Tuple
 import warnings
 import sys
 import kubernetes_asyncio as kube
 from hailtop.aiocloud.aiogoogle import GoogleIAmClient
-from hailtop.utils import retry_transient_errors
+from hailtop.utils import retry_transient_errors, time_msecs
 
 
 class GSAKeySecret:
@@ -33,7 +34,7 @@ class KubeSecretManager:
         self.kube_client = kube_client
 
     async def get_gsa_key_secrets(self) -> List[GSAKeySecret]:
-        secrets = (await self.kube_client.list_secret_for_all_namespaces()).items
+        secrets = (await retry_transient_errors(self.kube_client.list_secret_for_all_namespaces)).items
         return [GSAKeySecret(s) for s in secrets if s.data is not None and 'key.json' in s.data]
 
     async def update_gsa_key_secret(self, secret: GSAKeySecret, key_data: str) -> GSAKeySecret:
@@ -43,7 +44,8 @@ class KubeSecretManager:
         return GSAKeySecret(await self.get_secret(secret.name, secret.namespace))
 
     async def update_secret(self, name, namespace, data):
-        await self.kube_client.replace_namespaced_secret(
+        await retry_transient_errors(
+            self.kube_client.replace_namespaced_secret,
             name=name,
             namespace=namespace,
             body=kube.client.V1Secret(  # type: ignore
@@ -62,10 +64,10 @@ class IAMKey:
     def __init__(self, key_json):
         self.raw_key = key_json
         self.id = key_json['name'].split('/')[-1]
-        self.created_readable = key_json['validAfterTime'][:-1]
-        self.expiration_readable = key_json['validBeforeTime'][:-1]
-        self.created = datetime.fromisoformat(self.created_readable)
-        self.expiration = datetime.fromisoformat(self.expiration_readable)
+        self.created_readable = key_json['validAfterTime']
+        self.expiration_readable = key_json['validBeforeTime']
+        self.created = isoparse(self.created_readable)
+        self.expiration = isoparse(self.expiration_readable)
 
 
 class ServiceAccount:
@@ -156,14 +158,21 @@ async def delete_old_keys(service_accounts: List[ServiceAccount], iam_manager: I
     for sa in service_accounts:
         print(sa.list_keys())
         if input('Delete all but the newest key?\nOnly yes will be accepted: ') == 'yes':
-            to_delete = sa.keys[1:]
-            deleted_ids = await asyncio.gather(*[iam_manager.delete_key(sa.email, k) for k in to_delete])
-            deleted_ids = [kid for kid in deleted_ids if kid is not None]
-            print(f'Deleted keys:')
-            for kid in deleted_ids:
-                print(f'\t{kid}')
-            sa.keys = await iam_manager.get_sa_keys(sa.email)
-            print(sa.list_keys())
+            newest_key, *to_delete = sa.keys
+            if newest_key.created > datetime.today() - timedelta(days=30):
+                warnings.warn(
+                    "The most recent key was generated less than "
+                    "thirty days ago. Old keys cannot yet be deleted "
+                    "as they might still be in use."
+                )
+            else:
+                deleted_ids = await asyncio.gather(*[iam_manager.delete_key(sa.email, k) for k in to_delete])
+                deleted_ids = [kid for kid in deleted_ids if kid is not None]
+                print(f'Deleted keys:')
+                for kid in deleted_ids:
+                    print(f'\t{kid}')
+                sa.keys = await iam_manager.get_sa_keys(sa.email)
+                print(sa.list_keys())
             if input('Continue?[Yes/no]') == 'no':
                 break
 

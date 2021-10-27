@@ -10,16 +10,16 @@ Service account keys are confidential and should be rotated at least every 90
 days to mitigate the danger of attack if a key is leaked. The key rotation
 strategy consists of two parts:
 
-1. For each Google service account whose newest key is more than 30 days old,
+1. For each Google service account whose newest key is at least 60 days old,
 create a new key and update the Kubernetes secret to reflect the new value.
-2. For each Google service account whose newest key is older than 2 days old,
+2. For each Google service account whose newest key is older than 30 days old,
 delete all but the newest key.
 
-Step 1 ensures that all keys in use are no more than a month old, while Step 2
-ensures that any key that is not in use is deleted. Step 2 does **not**
-act on service accounts that just underwent Step 1 because the old keys might
-still be in use by active pods/jobs. We assume that no pod/job will run for
-longer than two days during a key rotation.
+Step 1 ensures that all keys stored in k8s secrets are no more than two months old,
+while Step 2 ensures that any key that is not in use is deleted.
+Step 2 does **not** act on service accounts that just underwent Step 1 because
+the old keys might still be in use by active pods/jobs. We assume that no
+pod/job will run for longer than 30 days.
 
 ## Rotating keys
 
@@ -78,8 +78,7 @@ Remember to complete this step no sooner than 2 days after updating keys.
 The `delete` flow steps through each service account similarly to the update
 flow. Entering `yes` for a particular service account will delete all
 user-managed[^1] keys belonging to the service account except for the most
-recently created key. Before allowing a deletion, make sure that the top-row
-key was created more than 2 days prior.
+recently created key.
 Continue until all old service/user keys have been deleted.
 
 [^1]: All GSA keys that we create are considered "user-managed". We are responsible
