@@ -2,7 +2,7 @@ package is.hail.expr.ir.lowering
 
 import is.hail.TestUtils.assertEvalsTo
 import is.hail.expr.ir.functions.IRRandomness
-import is.hail.expr.ir.{Ascending, IR, Literal, Requiredness, RequirednessAnalysis, SortField, TableRange, ToArray, ToStream}
+import is.hail.expr.ir.{Apply, ApplyBinaryPrimOp, Ascending, ErrorIDs, GetField, I32, IR, Literal, MakeStruct, Ref, Requiredness, RequirednessAnalysis, SortField, TableMapRows, TableRange, ToArray, ToStream}
 import is.hail.{ExecStrategy, HailSuite, TestUtils}
 import is.hail.expr.ir.lowering.LowerDistributedSort.samplePartition
 import is.hail.types.RTable
@@ -31,7 +31,14 @@ class LowerDistributedSortSuite extends HailSuite {
   }
 
   @Test def testDistributedSort(): Unit = {
-    val myTable = TableRange(100, 10)
+    val tableRange = TableRange(100, 10)
+    val rangeRow = Ref("row", tableRange.typ.rowType)
+    val tableWithExtraField = TableMapRows(
+      tableRange,
+      MakeStruct(IndexedSeq("idx" -> GetField(rangeRow, "idx"), "foo" -> Apply("mod", IndexedSeq(), IndexedSeq(GetField(rangeRow, "idx"), I32(2)), TInt32, ErrorIDs.NO_ERROR)))
+    )
+
+    val myTable = tableWithExtraField
     val req: RequirednessAnalysis = Requiredness(myTable, ctx)
     val rowType = req.lookup(myTable).asInstanceOf[RTable].rowType
     val stage = LowerTableIR.applyTable(myTable, DArrayLowering.All, ctx, req, Map.empty[String, IR])
