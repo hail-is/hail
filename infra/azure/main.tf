@@ -258,24 +258,6 @@ resource "azurerm_storage_container" "batch_logs" {
   container_access_type = "private"
 }
 
-resource "azurerm_storage_management_policy" "batch" {
-  storage_account_id = azurerm_storage_account.batch.id
-
-  rule {
-    name    = "logs-retention-30-day"
-    enabled = true
-    filters {
-      prefix_match = [azurerm_storage_container.batch_logs.name]
-      blob_types   = ["blockBlob", "appendBlob"]
-    }
-    actions {
-      base_blob {
-        delete_after_days_since_modification_greater_than = 30
-      }
-    }
-  }
-}
-
 resource "azurerm_role_assignment" "batch_logs_contributor" {
   scope                = azurerm_storage_account.batch.id
   role_definition_name = "Storage Blob Data Contributor"
@@ -314,7 +296,7 @@ resource "azurerm_storage_management_policy" "ci" {
     }
     actions {
       base_blob {
-        delete_after_days_since_modification_greater_than = 30
+        delete_after_days_since_modification_greater_than = 1
       }
     }
   }
