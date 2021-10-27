@@ -80,7 +80,6 @@ async def create_database():
         rows = [row async for row in rows]
         if len(rows) > 0:
             assert len(rows) == 1
-            return
 
     with open(create_database_config['admin_password_file']) as f:
         admin_password = f.read()
