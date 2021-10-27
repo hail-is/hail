@@ -72,9 +72,9 @@ private class ChunkCache (allocator: Long => Long, freer: Long => Unit){
     if ((size + pool.getTotalAllocatedBytes) > pool.getHighestTotalUsage) {
       freeChunksFromCacheToFit(pool, size)
     }
+    pool.incrementAllocatedBytes(size)
     val newChunkPointer = allocator(size)
     chunksEncountered += (newChunkPointer -> size)
-    pool.incrementAllocatedBytes(size)
     newChunkPointer
   }
 
