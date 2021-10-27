@@ -61,7 +61,7 @@ from ..globals import (
 from ..batch_format_version import BatchFormatVersion
 from ..publicly_available_images import publicly_available_images
 from ..utils import Box
-from ..cloud.cloud import get_cloud_disk, get_user_credentials
+from ..cloud.worker import get_cloud_disk, get_user_credentials
 from ..cloud.utils import instance_config_from_config_dict
 from ..cloud.resource_utils import storage_gib_to_bytes, is_valid_storage_request
 

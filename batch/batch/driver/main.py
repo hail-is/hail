@@ -58,7 +58,7 @@ from .job import mark_job_complete, mark_job_started
 from .k8s_cache import K8sCache
 from .pool import Pool
 from ..utils import query_billing_projects, batch_only, authorization_token
-from ..cloud.cloud import get_cloud_driver
+from ..cloud.driver import get_cloud_driver
 from ..cloud.resource_utils import unreserved_worker_data_disk_size_gib
 from ..exceptions import BatchUserError
 

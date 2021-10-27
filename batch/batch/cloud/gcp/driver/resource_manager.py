@@ -59,9 +59,7 @@ class GCPResourceManager(CloudResourceManager):
                 vm_state = VMState(VMState.CREATING, spec, instance.time_created)
             elif state == 'RUNNING':
                 vm_state = VMState(VMState.RUNNING, spec, last_start_timestamp_msecs)
-            elif state == 'STOPPING':
-                vm_state = VMState(VMState.TERMINATED, spec, last_start_timestamp_msecs)
-            elif state == 'TERMINATED':
+            elif state in ('STOPPING', 'TERMINATED'):
                 vm_state = VMState(VMState.TERMINATED, spec, last_stop_timestamp_msecs)
             else:
                 log.exception(f'Unknown gce state {state} for {instance}')

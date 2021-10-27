@@ -26,6 +26,9 @@ class VMState:
         self.full_spec = full_spec
         self.last_state_change_timestamp_msecs = last_state_change_timestamp_msecs
 
+    def __str__(self):
+        return f'state={self.state} full_spec={self.full_spec} last_state_change_timestamp_msecs={self.last_state_change_timestamp_msecs}'
+
 
 class CloudResourceManager:
     default_location: str

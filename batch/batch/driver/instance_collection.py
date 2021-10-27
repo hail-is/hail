@@ -134,13 +134,12 @@ class InstanceCollection:
         if vm_state.last_state_change_timestamp_msecs:
             time_since_last_state_change = time_msecs() - vm_state.last_state_change_timestamp_msecs
         else:
-            assert vm_state.state == VMState.UNKNOWN
             time_since_last_state_change = None
 
         if (instance.state == 'pending'
                 and vm_state.state in (VMState.CREATING, VMState.RUNNING)
                 and time_since_last_state_change > 5 * 60 * 1000):
-            log.exception(f'{instance} (state: {vm_state}) has made no progress in last 5m, deleting')
+            log.exception(f'{instance} (state: {str(vm_state)}) has made no progress in last 5m, deleting')
             await self.call_delete_instance(instance, 'activation_timeout')
         elif vm_state.state == VMState.TERMINATED:
             log.info(f'{instance} live but stopping or terminated, deactivating')
