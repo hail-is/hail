@@ -151,50 +151,75 @@ object LowerDistributedSort {
     val perPartStatsMaxes = perPartStatsA.map(r => r(1))
     val perPartStatsSamples = perPartStatsA.map(r => r(2).asInstanceOf[IndexedSeq[Annotation]]).flatten
 
-    val sorted = localAnnotationSort(ctx, perPartStatsSamples, sortFields, perPartStatsType.elementType.asInstanceOf[PStruct].fieldType("samples").asInstanceOf[PArray].elementType.virtualType.asInstanceOf[TStruct])
+    val kType = perPartStatsType.elementType.asInstanceOf[PStruct].fieldType("samples").asInstanceOf[PArray].elementType.virtualType.asInstanceOf[TStruct]
+    val sorted = localAnnotationSort(ctx, perPartStatsSamples, sortFields, kType)
+    // TODO: Clearly a terrible way to find min and max
+    val min = localAnnotationSort(ctx, perPartStatsMins, sortFields, kType)(0)
+    val max = localAnnotationSort(ctx, perPartStatsMaxes, sortFields, kType).last
 
-    println(sorted)
+    val pivotsWithEndpoints = IndexedSeq(min) ++ sorted ++ IndexedSeq(max)
+    val pivotsWithEndpointsLiteral = Literal(TArray(kType), pivotsWithEndpoints)
 
-//
-//    val perPartStatsId = genUID()
-//    val perPartStatsRef = Ref(perPartStatsId, perPartStats.typ)
-//    val stageWithPivots = inputStage.copy(
-//      letBindings = inputStage.letBindings :+ perPartStatsId -> perPartStats,
-//      broadcastVals = inputStage.broadcastVals :+ perPartStatsId -> perPartStatsRef
-//    )
-//
-//    val distribute = stageWithPivots.zipContextsWithIdx().mapCollectWithContextsAndGlobals(relationalBindings = relationalLetsAbove){ (partitionStreamIR, ctxRef) =>
-//      // In here, need to distribute the keys into different buckets.
-//      val path = invoke("concat", TString, Str(ctx.createTmpPath("hail_shuffle_temp")), invoke("concat", TString, Str("_"), invoke("str", TString, GetField(ctxRef, "idx"))))
-//      val spec = TypedCodecSpec(rowTypeRequiredness.canonicalPType(stageWithPivots.rowType), BufferSpec.default)
-//      val thisPartStats = ArrayRef(perPartStatsRef, GetField(ctxRef, "idx"))
-//      // TODO: This is a bad way to append elements to front and back of array. Probably streamDistribute should just take max and min.
-//      // TODO: Let bind "thisPartStats"
-//      val pivots = ArrayFunctions.extend(ArrayFunctions.extend(MakeArray(GetField(thisPartStats, "min")), GetField(thisPartStats, "samples")), MakeArray(GetField(thisPartStats, "max")))
-//      StreamDistribute(partitionStreamIR, pivots, path, spec)
-//    } { (res, global) => res}
-//
-//    // Now, execute distribute
-//    val (Some(PTypeReferenceSingleCodeType(resultPType)), f) = ctx.timer.time("LowerDistributedSort.localSort.compile")(Compile[AsmFunction1RegionLong](ctx,
-//      FastIndexedSeq(),
-//      FastIndexedSeq(classInfo[Region]), LongInfo,
-//      distribute,
-//      print = None,
-//      optimize = true))
-//
-//    val fRunnable = ctx.timer.time("LowerDistributedSort.localSort.initialize")(f(ctx.fs, 0, ctx.r))
-//    val resultAddress = ctx.timer.time("LowerDistributedSort.localSort.run")(fRunnable(ctx.r))
-//    val splitsPerOriginalPartition = ctx.timer.time("LowerDistributedSort.localSort.toJavaObject")(SafeRow.read(resultPType, resultAddress)).asInstanceOf[IndexedSeq[Annotation]]
-//
-//    splitsPerOriginalPartition.map { splitsUntyped =>
-//      val splits = splitsUntyped.asInstanceOf[IndexedSeq[Row]]
-//      println(splits)
-//    }
-//
-//    // Next, read and local sort the individual files.
-//
-//
-    perPartStatsIR
+
+    val pivotsWithEndpointsId = genUID()
+    val pivotsWithEndpointsRef = Ref(pivotsWithEndpointsId, pivotsWithEndpointsLiteral.typ)
+    val stageWithPivots = inputStage.copy(
+      letBindings = inputStage.letBindings :+ pivotsWithEndpointsId -> pivotsWithEndpointsLiteral,
+      broadcastVals = inputStage.broadcastVals :+ pivotsWithEndpointsId -> pivotsWithEndpointsRef
+    )
+
+    val tmpPath = ctx.createTmpPath("hail_shuffle_temp")
+
+    val spec = TypedCodecSpec(rowTypeRequiredness.canonicalPType(stageWithPivots.rowType), BufferSpec.default)
+    val distribute = stageWithPivots.zipContextsWithIdx().mapCollectWithContextsAndGlobals(relationalBindings = relationalLetsAbove){ (partitionStreamIR, ctxRef) =>
+      // In here, need to distribute the keys into different buckets.
+      val path = invoke("concat", TString, Str(tmpPath + "_"), invoke("str", TString, GetField(ctxRef, "idx")))
+      StreamDistribute(partitionStreamIR, pivotsWithEndpointsRef, path, spec)
+    } { (res, global) => res}
+
+    // Now, execute distribute
+    val (Some(PTypeReferenceSingleCodeType(resultPType)), f) = ctx.timer.time("LowerDistributedSort.localSort.compile")(Compile[AsmFunction1RegionLong](ctx,
+      FastIndexedSeq(),
+      FastIndexedSeq(classInfo[Region]), LongInfo,
+      distribute,
+      print = None,
+      optimize = true))
+
+    val fRunnable = ctx.timer.time("LowerDistributedSort.localSort.initialize")(f(ctx.fs, 0, ctx.r))
+    val resultAddress = ctx.timer.time("LowerDistributedSort.localSort.run")(fRunnable(ctx.r))
+    val splitsPerOriginalPartition = ctx.timer.time("LowerDistributedSort.localSort.toJavaObject")(SafeRow.read(resultPType, resultAddress)).asInstanceOf[IndexedSeq[IndexedSeq[Annotation]]]
+
+    splitsPerOriginalPartition.map { splitsUntyped =>
+      val splits = splitsUntyped.asInstanceOf[IndexedSeq[Row]]
+      println(splits)
+    }
+
+    // Next, read and local sort the individual files.
+    // Probably should move this whole thing into IR over a streamRange.
+    val seqOfSortedPartitions = (0 until pivotsWithEndpoints.length - 1).map { idxOfPartitionBeingCreated =>
+      val dataForThisPartition = splitsPerOriginalPartition.map(inner => inner(idxOfPartitionBeingCreated))
+      val filesForThisPartition = dataForThisPartition.map(row => row.asInstanceOf[Row](1).asInstanceOf[String])
+      val reader = PartitionNativeReader(spec)
+      val filesForThisPartitionLiteral = Literal(TArray(TString), filesForThisPartition)
+      // TODO Maybe lift this out of loop to generate less IDs?
+      val leftId = genUID()
+      val refLeft = Ref(leftId, stageWithPivots.rowType)
+      val rightId = genUID()
+      val refRight = Ref(rightId, stageWithPivots.rowType)
+      val lessThan = ApplyComparisonOp(LT(kType), SelectFields(refLeft, kType.fields.map(_.name)), SelectFields(refRight, kType.fields.map(_.name)))
+      val sortedPartition = ArraySort(flatMapIR(ToStream(filesForThisPartitionLiteral)) { path =>
+        ReadPartition(path, spec._vType, reader)
+      }, leftId, rightId, lessThan)
+      sortedPartition
+    }
+
+    val partitioner = new RVDPartitioner(kType, splitsPerOriginalPartition(0).map(row => row.asInstanceOf[Row](0).asInstanceOf[Interval]))
+    val contexts = MakeStream(seqOfSortedPartitions, TStream(TStream(stageWithPivots.rowType)))
+    //val contexts = mapIR(ToStream(Literal(TArray(TArray(stageWithPivots.rowType)), seqOfSortedPartitions)))(x => ToStream(x))
+
+    val sortedTS = TableStage(MakeStruct(Seq.empty[(String, IR)]), partitioner, null, contexts, x => x)
+
+    sortedTS.collectWithGlobals(Map.empty[String, IR])
   }
 
   def howManySamplesPerPartition(rand: IRRandomness, totalNumberOfRecords: Int, initialNumSamplesToSelect: Int, partitionCounts: IndexedSeq[Int]): IndexedSeq[Int] = {
@@ -215,6 +240,7 @@ object LowerDistributedSort {
     ans
   }
 
+  // TODO: Probably wrong for this to not take SortOrder?
   def samplePartition(dataStream: IR, sampleIndices: IR, keyFields: IndexedSeq[String]): IR = {
     // Step 1: Join the dataStream zippedWithIdx on sampleIndices?
     // That requires sampleIndices to be a stream of structs
