@@ -288,7 +288,7 @@ resource "azurerm_storage_management_policy" "ci" {
   storage_account_id = azurerm_storage_account.ci.id
 
   rule {
-    name    = "test-artifacts-retention-30-day"
+    name    = "test-artifacts-retention-1-day"
     enabled = true
     filters {
       prefix_match = [azurerm_storage_container.test.name]
