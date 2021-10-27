@@ -46,13 +46,18 @@ resource "azurerm_subnet" "k8s_subnet" {
   address_prefixes     = ["10.240.0.0/16"]
   resource_group_name  = data.azurerm_resource_group.rg.name
   virtual_network_name = azurerm_virtual_network.default.name
-
-  enforce_private_link_endpoint_network_policies = true
 }
 
 resource "azurerm_subnet" "batch_worker_subnet" {
   name                 = "batch-worker-subnet"
   address_prefixes     = ["10.128.0.0/16"]
+  resource_group_name  = data.azurerm_resource_group.rg.name
+  virtual_network_name = azurerm_virtual_network.default.name
+}
+
+resource "azurerm_subnet" "db_subnet" {
+  name                 = "db-subnet"
+  address_prefixes     = ["10.44.0.0/24"]
   resource_group_name  = data.azurerm_resource_group.rg.name
   virtual_network_name = azurerm_virtual_network.default.name
 
@@ -182,7 +187,7 @@ resource "azurerm_private_endpoint" "db_k8s_endpoint" {
   name                = "${azurerm_mysql_server.db.name}-k8s-endpoint"
   resource_group_name = data.azurerm_resource_group.rg.name
   location            = data.azurerm_resource_group.rg.location
-  subnet_id           = azurerm_subnet.k8s_subnet.id
+  subnet_id           = azurerm_subnet.db_subnet.id
 
   private_service_connection {
     name                           = "${azurerm_mysql_server.db.name}-k8s-endpoint"

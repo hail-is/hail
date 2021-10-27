@@ -49,7 +49,6 @@ run_terraform() {
         return
     fi
 
-    # export_terraform_vars
     setup_terraform_backend "$@"
     terraform apply -var-file=global.tfvars
 }
