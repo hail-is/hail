@@ -1,10 +1,8 @@
+from typing import Optional, Any, TypeVar, Generic
 import abc
 import logging
-from typing import TYPE_CHECKING, Optional, Any
 
-if TYPE_CHECKING:
-    from ..instance_config import InstanceConfig
-    from .instance import Instance  # pylint: disable=cyclic-import
+from .instance import Instance
 
 
 log = logging.getLogger('compute_manager')
@@ -26,7 +24,10 @@ class VMState:
         self.last_state_change_timestamp_msecs = last_state_change_timestamp_msecs
 
 
-class CloudResourceManager(abc.ABC):
+T = TypeVar('T')
+
+
+class CloudResourceManager(Generic[T]):
     default_location: str
 
     @abc.abstractmethod
@@ -44,17 +45,17 @@ class CloudResourceManager(abc.ABC):
                    worker_type: Optional[str] = None,
                    cores: Optional[int] = None,
                    location: Optional[str] = None,
-                   ) -> Optional['InstanceConfig']:
+                   ) -> Optional[T]:
         pass
 
     @abc.abstractmethod
-    async def create_vm(self, instance_config: 'InstanceConfig'):
+    async def create_vm(self, instance_config: T):
         pass
 
     @abc.abstractmethod
-    async def delete_vm(self, instance: 'Instance'):
+    async def delete_vm(self, instance: Instance):
         pass
 
     @abc.abstractmethod
-    async def get_vm_state(self, instance: 'Instance') -> VMState:
+    async def get_vm_state(self, instance: Instance) -> VMState:
         pass

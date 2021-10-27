@@ -1,4 +1,4 @@
-from typing import Optional, Set
+from typing import Optional, Set, Dict, Any, List
 
 from hailtop import aiotools
 from hailtop.aiocloud import aiogoogle
@@ -72,8 +72,8 @@ class GCPDriver(CloudDriver):
         self.namespace = namespace
 
         self.zone_success_rate = ZoneSuccessRate()
-        self.region_info = None
-        self.zones = []
+        self.region_info: Optional[Dict[str, Dict[str, Any]]] = None
+        self.zones: List[str] = []
 
     async def shutdown(self):
         try:
@@ -91,6 +91,7 @@ class GCPDriver(CloudDriver):
         global_live_total_cores_mcpu = self.inst_coll_manager.global_live_total_cores_mcpu
         if global_live_total_cores_mcpu // 1000 < 1_000:
             return self.resource_manager.default_location
+        assert self.region_info is not None  # FIXME: this reveals a race condition: if update_region_quotas does not run before we get_zone this will fail
         return get_zone(self.region_info, self.zone_success_rate, cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)
 
     async def process_activity_logs(self):

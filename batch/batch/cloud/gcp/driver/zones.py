@@ -79,8 +79,12 @@ def compute_zone_weights(region_info: Dict[str, Dict[str, Any]], worker_cores: i
     return weights
 
 
-def get_zone(region_info: Dict[str, Dict[str, Any]], zone_success_rate: ZoneSuccessRate, worker_cores: int,
-             worker_local_ssd_data_disk: bool, worker_pd_ssd_data_disk_size_gb: int) -> Optional[str]:
+def get_zone(region_info: Dict[str, Dict[str, Any]],
+             zone_success_rate: ZoneSuccessRate,
+             worker_cores: int,
+             worker_local_ssd_data_disk: bool,
+             worker_pd_ssd_data_disk_size_gb: int
+             ) -> Optional[str]:
     zone_weights = compute_zone_weights(region_info, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)
 
     if not zone_weights:

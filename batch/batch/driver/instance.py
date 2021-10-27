@@ -5,7 +5,6 @@ import secrets
 import humanize
 import base64
 import json
-from typing import Optional
 
 from hailtop.utils import time_msecs, time_msecs_str, retry_transient_errors
 from hailtop import httpx
@@ -101,10 +100,10 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         free_cores_mcpu,
         time_created,
         failed_request_count,
-        last_updated,
+        last_updated: int,
         ip_address,
         version,
-        instance_config: Optional[InstanceConfig],
+        instance_config: InstanceConfig,
     ):
         self.db: Database = app['db']
         self.client_session: httpx.ClientSession = app['client_session']

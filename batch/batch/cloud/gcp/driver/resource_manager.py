@@ -21,13 +21,13 @@ if TYPE_CHECKING:
 log = logging.getLogger('resource_manager')
 
 
-def parse_gcp_timestamp(timestamp: Optional[str]) -> Optional[float]:
+def parse_gcp_timestamp(timestamp: Optional[str]) -> Optional[int]:
     if timestamp is None:
         return None
-    return dateutil.parser.isoparse(timestamp).timestamp() * 1000
+    return int(dateutil.parser.isoparse(timestamp).timestamp() * 1000 + 0.5)
 
 
-class GCPResourceManager(CloudResourceManager):
+class GCPResourceManager(CloudResourceManager[GCPInstanceConfig]):
     def __init__(self, driver: 'GCPDriver', compute_client: aiogoogle.GoogleComputeClient, default_location: str):
         self.driver = driver
         self.compute_client = compute_client
@@ -93,6 +93,7 @@ class GCPResourceManager(CloudResourceManager):
 
         zone = location
         if zone is None:
+            assert cores is not None, (cores, zone)
             zone = self.driver.get_zone(cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)
             if zone is None:
                 return None

@@ -1,3 +1,4 @@
+from typing import Any
 import os
 import logging
 import base64
@@ -61,7 +62,7 @@ def create_instance_config(
         )
     assert unreserved_disk_storage_gb >= 0
 
-    vm_config = {
+    vm_config: Any = {
         'name': machine_name,
         'machineType': f'projects/{project}/zones/{zone}/machineTypes/{machine_type}',
         'labels': {'role': 'batch2-agent', 'namespace': DEFAULT_NAMESPACE},
