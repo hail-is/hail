@@ -134,7 +134,7 @@ class InstanceCollection:
         if vm_state.last_state_change_timestamp_msecs:
             time_since_last_state_change = time_msecs() - vm_state.last_state_change_timestamp_msecs
         else:
-            assert vm_state.state in (VMState.UNKNOWN, VMState.TERMINATED)
+            assert vm_state.state == VMState.UNKNOWN
             time_since_last_state_change = None
 
         if (instance.state == 'pending'

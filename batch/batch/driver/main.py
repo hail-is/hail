@@ -58,7 +58,7 @@ from .job import mark_job_complete, mark_job_started
 from .k8s_cache import K8sCache
 from .pool import Pool
 from ..utils import query_billing_projects, batch_only, authorization_token
-from ..cloud.driver_utils import get_cloud_driver
+from ..cloud.cloud import get_cloud_driver
 from ..cloud.resource_utils import unreserved_worker_data_disk_size_gib
 from ..exceptions import BatchUserError
 
@@ -220,6 +220,7 @@ async def delete_batch(request):
     return web.Response()
 
 
+# deprecated
 async def get_gsa_key_1(instance):
     log.info(f'returning gsa-key to activating instance {instance}')
     with open('/gsa-key/key.json', 'r') as f:
@@ -248,6 +249,7 @@ async def activate_instance_1(request, instance):
     return web.json_response({'token': token})
 
 
+# deprecated
 @routes.get('/api/v1alpha/instances/gsa_key')
 @activating_instances_only
 async def get_gsa_key(request, instance):  # pylint: disable=unused-argument

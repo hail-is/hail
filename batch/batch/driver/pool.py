@@ -191,8 +191,9 @@ WHERE name = %s;
 
         activation_token = secrets.token_urlsafe(32)
 
-        instance_config = self.resource_manager.prepare_vm(
+        instance = await self.resource_manager.create_vm(
             app=self.app,
+            inst_coll=self,
             machine_name=machine_name,
             activation_token=activation_token,
             max_idle_time_msecs=max_idle_time_msecs,
@@ -206,21 +207,10 @@ WHERE name = %s;
             location=location,
         )
 
-        if instance_config is None:
+        if instance is None:
             return
 
-        instance = await Instance.create(
-            app=self.app,
-            inst_coll=self,
-            name=machine_name,
-            activation_token=activation_token,
-            instance_config=instance_config
-        )
-
         self.add_instance(instance)
-        log.info(f'created {instance}')
-
-        await self.resource_manager.create_vm(instance_config)
 
     async def create_instances_from_ready_cores(self, ready_cores_mcpu, location=None):
         n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']

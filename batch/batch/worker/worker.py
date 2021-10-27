@@ -61,7 +61,7 @@ from ..globals import (
 from ..batch_format_version import BatchFormatVersion
 from ..publicly_available_images import publicly_available_images
 from ..utils import Box
-from ..cloud.worker_utils import get_cloud_disk, get_user_credentials
+from ..cloud.cloud import get_cloud_disk, get_user_credentials
 from ..cloud.utils import instance_config_from_config_dict
 from ..cloud.resource_utils import storage_gib_to_bytes, is_valid_storage_request
 
@@ -1350,7 +1350,7 @@ class DockerJob(Job):
                                            disk_name=f'batch-disk-{uid}',
                                            size_in_gb=self.external_storage_in_gib,
                                            mount_path=self.io_host_path(),
-                                           instance_config=INSTANCE_CONFIG)
+                                           instance_config=instance_config)
                 labels = {'namespace': NAMESPACE, 'batch': '1', 'instance-name': NAME, 'uid': uid}
                 await self.disk.create(labels=labels)
                 log.info(f'created disk {self.disk.name} for job {self.id}')

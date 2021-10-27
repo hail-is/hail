@@ -3,6 +3,9 @@ import os
 import logging
 import base64
 import json
+from shlex import quote as shq
+
+from gear.cloud_config import get_global_config
 
 from ....batch_configuration import (DOCKER_ROOT_IMAGE, DOCKER_PREFIX, DEFAULT_NAMESPACE,
                                      INTERNAL_GATEWAY_IP)
@@ -34,6 +37,7 @@ def create_instance_config(
     project: str,
 ) -> GCPInstanceConfig:
     file_store: FileStore = app['file_store']
+
     _, cores = gcp_machine_type_to_worker_type_cores(machine_type)
 
     if worker_local_ssd_data_disk:
@@ -61,6 +65,12 @@ def create_instance_config(
             'gcp', worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb, cores
         )
     assert unreserved_disk_storage_gb >= 0
+
+    make_global_config = ['mkdir /global-config']
+    global_config = get_global_config()
+    for name, value in global_config.items():
+        make_global_config.append(f'echo -n {shq(value)} > /global-config/{name}')
+    make_global_config_str = '\n'.join(make_global_config)
 
     vm_config: Any = {
         'name': machine_name,
@@ -250,6 +260,8 @@ rm /etc/google-fluentd/google-fluentd.conf.bak
 
 sudo service google-fluentd restart
 
+{make_global_config_str}
+
 # retry once
 docker pull $BATCH_WORKER_IMAGE || \
 (echo 'pull failed, retrying' && sleep 15 && docker pull $BATCH_WORKER_IMAGE)
@@ -266,8 +278,6 @@ docker run \
 -e IP_ADDRESS=$IP_ADDRESS \
 -e BATCH_LOGS_BUCKET_NAME=$BATCH_LOGS_BUCKET_NAME \
 -e INSTANCE_ID=$INSTANCE_ID \
--e PROJECT=$PROJECT \
--e ZONE=$ZONE \
 -e DOCKER_PREFIX=$DOCKER_PREFIX \
 -e DOCKER_ROOT_IMAGE=$DOCKER_ROOT_IMAGE \
 -e INSTANCE_CONFIG=$INSTANCE_CONFIG \
@@ -282,6 +292,7 @@ docker run \
 -v /usr/sbin/xfs_quota:/usr/sbin/xfs_quota \
 -v /batch:/batch:shared \
 -v /logs:/logs \
+-v /global-config:/global-config \
 -v /gcsfuse:/gcsfuse:shared \
 -v /etc/netns:/etc/netns \
 -v /sys/fs/cgroup:/sys/fs/cgroup \

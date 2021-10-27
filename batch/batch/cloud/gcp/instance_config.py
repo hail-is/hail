@@ -113,8 +113,8 @@ class GCPInstanceConfig(InstanceConfig):
         return GCPInstanceConfig(config)
 
     @staticmethod
-    def from_worker_properties(boot_disk_size_gb: int, worker_local_ssd_data_disk: bool, worker_pd_ssd_data_disk_size_gb: int,
-                               worker_type: str, worker_cores: int) -> 'GCPInstanceConfig':
+    def from_instance_properties(boot_disk_size_gb: int, worker_local_ssd_data_disk: bool, worker_pd_ssd_data_disk_size_gb: int,
+                                 worker_type: str, worker_cores: int) -> 'GCPInstanceConfig':
         disks: List[Disk] = [
             {
                 'boot': True,

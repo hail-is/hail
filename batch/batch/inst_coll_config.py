@@ -28,10 +28,9 @@ class InstanceCollectionConfig:
 class PoolConfig(InstanceCollectionConfig):
     @staticmethod
     def from_record(record):
-        cloud = record.get('cloud', 'gcp')
         return PoolConfig(
             name=record['name'],
-            cloud=cloud,
+            cloud=record['cloud'],
             worker_type=record['worker_type'],
             worker_cores=record['worker_cores'],
             worker_local_ssd_data_disk=record['worker_local_ssd_data_disk'],
@@ -94,9 +93,8 @@ class PoolConfig(InstanceCollectionConfig):
 class JobPrivateInstanceManagerConfig(InstanceCollectionConfig):
     @staticmethod
     def from_record(record):
-        cloud = record.get('cloud', 'gcp')
         return JobPrivateInstanceManagerConfig(
-            record['name'], cloud, record['boot_disk_size_gb'], record['max_instances'], record['max_live_instances']
+            record['name'], record['cloud'], record['boot_disk_size_gb'], record['max_instances'], record['max_live_instances']
         )
 
     def __init__(self, name, cloud, boot_disk_size_gb, max_instances, max_live_instances):

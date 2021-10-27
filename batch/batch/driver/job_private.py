@@ -247,8 +247,9 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
 
         activation_token = secrets.token_urlsafe(32)
 
-        instance_config = self.resource_manager.prepare_vm(
+        instance = await self.resource_manager.create_vm(
             app=self.app,
+            inst_coll=self,
             machine_name=machine_name,
             machine_type=machine_type,
             activation_token=activation_token,
@@ -260,25 +261,16 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
             job_private=True,
         )
 
-        if instance_config is None:
+        if instance is None:
             return
 
-        instance = await Instance.create(
-            app=self.app,
-            inst_coll=self,
-            name=machine_name,
-            activation_token=activation_token,
-            instance_config=instance_config
-        )
-
         self.add_instance(instance)
+
         log.info(f'created {instance} for {(batch_id, job_id)}')
 
-        await self.resource_manager.create_vm(instance_config)
-
-        memory_in_bytes = worker_memory_per_core_bytes(self.cloud, instance_config.worker_type)
-        cores_mcpu = instance_config.cores * 1000
-        resources = instance_config.resources(
+        memory_in_bytes = worker_memory_per_core_bytes(self.cloud, instance.instance_config.worker_type)
+        cores_mcpu = instance.instance_config.cores * 1000
+        resources = instance.instance_config.resources(
             cpu_in_mcpu=cores_mcpu, memory_in_bytes=memory_in_bytes, storage_in_gib=0
         )  # this is 0 because there's no addtl disk beyond data disk
 
@@ -402,7 +394,7 @@ LIMIT %s;
                             self.app, batch_id, job_id, attempt_id, instance, time_msecs(), resources
                         )
                     except Exception:
-                        log.info(f'creating job private instance for job {id}', exc_info=True)
+                        log.exception(f'while creating job private instance for job {id}', exc_info=True)
 
                 await waitable_pool.call(create_instance_with_error_handling, batch_id, job_id, attempt_id, record, id)
 

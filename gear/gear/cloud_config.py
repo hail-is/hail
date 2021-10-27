@@ -3,11 +3,7 @@ import os
 import json
 
 
-class CloudConfig:
-    pass
-
-
-class GCPConfig(CloudConfig):
+class GCPConfig:
     project: str
     region: str
     zone: str

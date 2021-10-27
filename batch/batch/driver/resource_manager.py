@@ -1,8 +1,11 @@
-from typing import Optional, Any, TypeVar, Generic
+from typing import Optional, Any, TYPE_CHECKING
 import abc
 import logging
 
 from .instance import Instance
+
+if TYPE_CHECKING:
+    from .instance_collection import InstanceCollection  # pylint: disable=cyclic-import
 
 
 log = logging.getLogger('compute_manager')
@@ -24,32 +27,26 @@ class VMState:
         self.last_state_change_timestamp_msecs = last_state_change_timestamp_msecs
 
 
-T = TypeVar('T')
-
-
-class CloudResourceManager(Generic[T]):
+class CloudResourceManager:
     default_location: str
 
     @abc.abstractmethod
-    def prepare_vm(self,
-                   app,
-                   machine_name: str,
-                   activation_token: str,
-                   max_idle_time_msecs: int,
-                   worker_local_ssd_data_disk: bool,
-                   worker_pd_ssd_data_disk_size_gb: int,
-                   boot_disk_size_gb: int,
-                   preemptible: bool,
-                   job_private: bool,
-                   machine_type: Optional[str] = None,
-                   worker_type: Optional[str] = None,
-                   cores: Optional[int] = None,
-                   location: Optional[str] = None,
-                   ) -> Optional[T]:
-        pass
-
-    @abc.abstractmethod
-    async def create_vm(self, instance_config: T):
+    async def create_vm(self,
+                        app,
+                        inst_coll: 'InstanceCollection',
+                        machine_name: str,
+                        activation_token: str,
+                        max_idle_time_msecs: int,
+                        worker_local_ssd_data_disk: bool,
+                        worker_pd_ssd_data_disk_size_gb: int,
+                        boot_disk_size_gb: int,
+                        preemptible: bool,
+                        job_private: bool,
+                        machine_type: Optional[str] = None,
+                        worker_type: Optional[str] = None,
+                        cores: Optional[int] = None,
+                        location: Optional[str] = None,
+                        ) -> Optional[Instance]:
         pass
 
     @abc.abstractmethod
