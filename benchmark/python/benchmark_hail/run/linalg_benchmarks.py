@@ -12,9 +12,9 @@ def block_matrix_nested_multiply():
 
 
 @benchmark()
-def make_ndarray_bench():
+def make_ndarray_bench_2():
     ht = hl.utils.range_table(200_000)
-    ht = ht.annotate(x=hl.nd.array(hl.range(200_000)))
+    ht = ht.annotate(x=hl.nd.array(hl.range(ht.idx)))
     ht._force_count()
 
 

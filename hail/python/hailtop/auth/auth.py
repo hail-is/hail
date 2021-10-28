@@ -1,25 +1,27 @@
+from typing import Optional
 import os
 import aiohttp
-from hailtop.config import get_deploy_config
+from hailtop.config import get_deploy_config, DeployConfig
 from hailtop.utils import async_to_blocking, request_retry_transient_errors
-from hailtop.httpx import client_session as http_client_session
+from hailtop import httpx
 
 from .tokens import get_tokens
 
 
-async def async_get_userinfo(*, deploy_config=None, session_id=None, client_session=None):
+async def async_get_userinfo(*,
+                             deploy_config: Optional[DeployConfig] = None,
+                             session_id: Optional[str] = None,
+                             client_session: Optional[httpx.ClientSession] = None):
     if deploy_config is None:
         deploy_config = get_deploy_config()
-    if client_session is None:
-        client_session = http_client_session()
-
     if session_id is None:
         headers = service_auth_headers(deploy_config, 'auth')
     else:
         headers = {'Authorization': f'Bearer {session_id}'}
 
     userinfo_url = deploy_config.url('auth', '/api/v1alpha/userinfo')
-    async with client_session as session:
+
+    async def request(session):
         try:
             resp = await request_retry_transient_errors(
                 session, 'GET', userinfo_url, headers=headers)
@@ -28,6 +30,11 @@ async def async_get_userinfo(*, deploy_config=None, session_id=None, client_sess
             if err.status == 401:
                 return None
             raise
+
+    if client_session is None:
+        async with httpx.client_session() as session:
+            return await request(session)
+    return await request(client_session)
 
 
 def get_userinfo(deploy_config=None, session_id=None, client_session=None):

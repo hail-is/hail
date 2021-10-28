@@ -6,7 +6,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.agg.TakeByRVAS
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Code}
+import is.hail.types.physical.stypes.primitives.SInt32Value
 import is.hail.utils._
 import org.testng.annotations.Test
 
@@ -30,8 +30,8 @@ class TakeByAggregatorSuite extends HailSuite {
           cb += (i := 0L)
           cb.whileLoop(i < n.toLong, {
             cb += argR.invoke[Unit]("clear")
-            cb += (off := stringPT.allocateAndStoreString(fb.apply_method, argR, const("str").concat(i.toS)))
-            tba.seqOp(cb, false, off, false, -i)
+            cb.assign(off, stringPT.allocateAndStoreString(cb, argR, const("str").concat(i.toS)))
+            tba.seqOp(cb, false, off, false, cb.memoize(-i))
             cb += (i := i + 1L)
           })
           tba.result(cb, argR, rt).a
@@ -104,7 +104,7 @@ class TakeByAggregatorSuite extends HailSuite {
           cb.whileLoop(i < n, {
             cb += (random := rng.invoke[Double, Double, Double]("runif", -10000d, 10000d).toI)
             tba.seqOp(cb, false, random, false, random)
-            ab.append(cb, new SInt32Code(random))
+            ab.append(cb, new SInt32Value(random))
             cb += (i := i + 1)
           })
           cb += ab.size.cne(n).orEmpty(Code._fatal[Unit]("bad size!"))

@@ -8,9 +8,9 @@ CREATE TABLE `users` (
   `is_service_account` tinyint(1) NOT NULL DEFAULT 0,
   -- session
   `tokens_secret_name` varchar(255) DEFAULT NULL,
-  -- gsa
-  `gsa_email` varchar(255) DEFAULT NULL,
-  `gsa_key_secret_name` varchar(255) DEFAULT NULL,
+  -- identity
+  `hail_identity` varchar(255) DEFAULT NULL,
+  `hail_credentials_secret_name` varchar(255) DEFAULT NULL,
   -- namespace, for developers
   `namespace_name` varchar(255) DEFAULT NULL,
   `trial_bp_name` varchar(300) DEFAULT NULL,

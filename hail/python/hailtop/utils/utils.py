@@ -1,5 +1,6 @@
 from typing import Callable, TypeVar, Awaitable, Optional, Type, List, Dict
 from types import TracebackType
+import concurrent
 import subprocess
 import traceback
 import sys
@@ -18,12 +19,11 @@ import socket
 import requests
 import google.auth.exceptions
 import google.api_core.exceptions
+import botocore.exceptions
 import time
 import weakref
 from requests.adapters import HTTPAdapter
 from urllib3.poolmanager import PoolManager
-
-import hailtop
 
 from .time import time_msecs
 
@@ -36,6 +36,9 @@ RETRY_FUNCTION_SCRIPT = """function retry() {
         (sleep 2 && "$@") ||
         (sleep 5 && "$@");
 }"""
+
+
+T = TypeVar('T')  # pylint: disable=invalid-name
 
 
 def unpack_comma_delimited_inputs(inputs):
@@ -125,11 +128,14 @@ def unzip(lst):
     return a, b
 
 
-def async_to_blocking(coro):
+def async_to_blocking(coro: Awaitable[T]) -> T:
     return asyncio.get_event_loop().run_until_complete(coro)
 
 
-async def blocking_to_async(thread_pool, fun, *args, **kwargs):
+async def blocking_to_async(thread_pool: concurrent.futures.Executor,
+                            fun: Callable[..., T],
+                            *args,
+                            **kwargs) -> T:
     return await asyncio.get_event_loop().run_in_executor(
         thread_pool, lambda: fun(*args, **kwargs))
 
@@ -552,14 +558,20 @@ def is_transient_error(e):
     #
     # OSError: [Errno 51] Connect call failed ('35.188.91.25', 443)
     # https://hail.zulipchat.com/#narrow/stream/223457-Batch-support/topic/ssl.20error
+    import hailtop.aiocloud.aiogoogle.client.compute_client  # pylint: disable=import-outside-toplevel,cyclic-import
+    import hailtop.httpx  # pylint: disable=import-outside-toplevel,cyclic-import
     if isinstance(e, aiohttp.ClientResponseError) and (
             e.status in RETRYABLE_HTTP_STATUS_CODES):
         # nginx returns 502 if it cannot connect to the upstream server
         # 408 request timeout, 500 internal server error, 502 bad gateway
         # 503 service unavailable, 504 gateway timeout
         return True
+    if (isinstance(e, hailtop.aiocloud.aiogoogle.client.compute_client.GCPOperationError)
+            and 'QUOTA_EXCEEDED' in e.error_codes):
+        return True
     if isinstance(e, hailtop.httpx.ClientResponseError) and (
-            e.status == 403 and 'rateLimitExceeded' in e.body):
+            (e.status in RETRYABLE_HTTP_STATUS_CODES) or (
+                e.status == 403 and 'rateLimitExceeded' in e.body)):
         return True
     if isinstance(e, aiohttp.ServerTimeoutError):
         return True
@@ -581,7 +593,8 @@ def is_transient_error(e):
                             errno.EHOSTUNREACH,
                             errno.ECONNRESET,
                             errno.ENETUNREACH,
-                            errno.EPIPE
+                            errno.EPIPE,
+                            errno.ETIMEDOUT
                             )):
         return True
     if isinstance(e, aiohttp.ClientOSError):
@@ -596,8 +609,8 @@ def is_transient_error(e):
     if isinstance(e, socket.timeout):
         return True
     if isinstance(e, socket.gaierror):
-        # socket.EAI_AGAIN: [Errno -3] Temporary failure in name resolution
-        return e.errno == socket.EAI_AGAIN
+        # socket.EAI_NONAME: [Errno 8] nodename nor servname provided, or not known
+        return e.errno in (socket.EAI_AGAIN, socket.EAI_NONAME)
     if isinstance(e, ConnectionResetError):
         return True
     if isinstance(e, google.auth.exceptions.TransportError):
@@ -606,16 +619,18 @@ def is_transient_error(e):
         return True
     if isinstance(e, google.api_core.exceptions.ServiceUnavailable):
         return True
+    if isinstance(e, botocore.exceptions.ConnectionClosedError):
+        return True
     if isinstance(e, TransientError):
         return True
     return False
 
 
-async def sleep_and_backoff(delay):
-    # exponentially back off, up to (expected) max of 30s
+async def sleep_and_backoff(delay, max_delay=30.0):
+    # exponentially back off, up to (expected) max_delay
     t = delay * random.uniform(0.9, 1.1)
     await asyncio.sleep(t)
-    return min(delay * 2, 30.0)
+    return min(delay * 2, max_delay)
 
 
 def sync_sleep_and_backoff(delay):
@@ -659,9 +674,6 @@ def retry_all_errors_n_times(max_errors=10, msg=None, error_logging_interval=10)
                     raise
             delay = await sleep_and_backoff(delay)
     return _wrapper
-
-
-T = TypeVar('T')  # pylint: disable=invalid-name
 
 
 async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
@@ -769,6 +781,8 @@ async def retry_long_running(name, f, *args, **kwargs):
         try:
             start_time = time_msecs()
             return await f(*args, **kwargs)
+        except asyncio.CancelledError:
+            raise
         except Exception:
             end_time = time_msecs()
 

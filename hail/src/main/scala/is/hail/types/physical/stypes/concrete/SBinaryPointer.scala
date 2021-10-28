@@ -2,47 +2,72 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryCode, SBinaryValue}
-import is.hail.types.physical.stypes.{SCode, SSettable, SType}
+import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
 import is.hail.types.physical.{PBinary, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils._
 
 
-case class SBinaryPointer(pType: PBinary) extends SBinary {
+final case class SBinaryPointer(pType: PBinary) extends SBinary {
   require(!pType.required)
 
-  lazy val virtualType: Type = pType.virtualType
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
-    new SBinaryPointerCode(this, pType.store(cb, region, value, deepCopy))
+  override lazy val virtualType: Type = pType.virtualType
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = {
+    new SBinaryPointerValue(this, pType.store(cb, region, value, deepCopy))
   }
 
-  def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
+  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Value[Long]): SValue = {
     if (pt == this.pType)
-      new SBinaryPointerCode(this, addr)
+      new SBinaryPointerValue(this, addr)
     else
       coerceOrCopy(cb, region, pt.loadCheapSCode(cb, addr), deepCopy = false)
   }
 
-  def fromSettables(settables: IndexedSeq[Settable[_]]): SBinaryPointerSettable = {
+  override def fromSettables(settables: IndexedSeq[Settable[_]]): SBinaryPointerSettable = {
     val IndexedSeq(a: Settable[Long@unchecked]) = settables
     assert(a.ti == LongInfo)
     new SBinaryPointerSettable(this, a)
   }
 
-  def fromCodes(codes: IndexedSeq[Code[_]]): SBinaryPointerCode = {
-    val IndexedSeq(a: Code[Long@unchecked]) = codes
+  override def fromValues(values: IndexedSeq[Value[_]]): SBinaryPointerValue = {
+    val IndexedSeq(a: Value[Long@unchecked]) = values
     assert(a.ti == LongInfo)
-    new SBinaryPointerCode(this, a)
+    new SBinaryPointerValue(this, a)
   }
 
-  def canonicalPType(): PType = pType
+  override def storageType(): PType = pType
+
+  override def copiedType: SType = SBinaryPointer(pType.copiedType.asInstanceOf[PBinary])
+
+  override def containsPointers: Boolean = pType.containsPointers
 
   override def castRename(t: Type): SType = this
+}
+
+class SBinaryPointerValue(
+  val st: SBinaryPointer,
+  val a: Value[Long]
+) extends SBinaryValue {
+  private val pt: PBinary = st.pType
+
+  def bytesAddress(): Code[Long] = st.pType.bytesAddress(a)
+
+  override def get: SBinaryPointerCode = new SBinaryPointerCode(st, a)
+
+  override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a)
+
+  override def loadLength(cb: EmitCodeBuilder): Value[Int] =
+    cb.memoize(pt.loadLength(a))
+
+  override def loadBytes(cb: EmitCodeBuilder): Value[Array[Byte]] =
+    cb.memoize(pt.loadBytes(a))
+
+  override def loadByte(cb: EmitCodeBuilder, i: Code[Int]): Value[Byte] =
+    cb.memoize(Region.loadByte(pt.bytesAddress(a) + i.toL))
 }
 
 object SBinaryPointerSettable {
@@ -50,22 +75,13 @@ object SBinaryPointerSettable {
     new SBinaryPointerSettable(st, sb.newSettable[Long](name))
 }
 
-class SBinaryPointerSettable(val st: SBinaryPointer, val a: Settable[Long]) extends SBinaryValue with SSettable {
-  private val pt: PBinary = st.pType
+final class SBinaryPointerSettable(
+  st: SBinaryPointer,
+  override val a: Settable[Long]
+) extends SBinaryPointerValue(st, a) with SSettable {
+  override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
 
-  override def bytesAddress(): Code[Long] = st.pType.bytesAddress(a)
-
-  def get: SBinaryPointerCode = new SBinaryPointerCode(st, a)
-
-  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
-
-  def loadLength(): Code[Int] = pt.loadLength(a)
-
-  def loadBytes(): Code[Array[Byte]] = pt.loadBytes(a)
-
-  def loadByte(i: Code[Int]): Code[Byte] = Region.loadByte(pt.bytesAddress(a) + i.toL)
-
-  def store(cb: EmitCodeBuilder, pc: SCode): Unit = cb.assign(a, pc.asInstanceOf[SBinaryPointerCode].a)
+  override def store(cb: EmitCodeBuilder, pc: SCode): Unit = cb.assign(a, pc.asInstanceOf[SBinaryPointerCode].a)
 }
 
 class SBinaryPointerCode(val st: SBinaryPointer, val a: Code[Long]) extends SBinaryCode {
@@ -73,27 +89,19 @@ class SBinaryPointerCode(val st: SBinaryPointer, val a: Code[Long]) extends SBin
 
   def code: Code[_] = a
 
-  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(a)
-
   def loadLength(): Code[Int] = pt.loadLength(a)
 
   def loadBytes(): Code[Array[Byte]] = pt.loadBytes(a)
 
-  def memoize(cb: EmitCodeBuilder, sb: SettableBuilder, name: String): SBinaryPointerSettable = {
+  def memoize(cb: EmitCodeBuilder, sb: SettableBuilder, name: String): SBinaryPointerValue = {
     val s = SBinaryPointerSettable(sb, st, name)
     cb.assign(s, this)
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String): SBinaryPointerSettable =
+  def memoize(cb: EmitCodeBuilder, name: String): SBinaryPointerValue =
     memoize(cb, cb.localBuilder, name)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): SBinaryPointerSettable =
+  def memoizeField(cb: EmitCodeBuilder, name: String): SBinaryPointerValue =
     memoize(cb, cb.fieldBuilder, name)
-
-  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = {
-    EmitCodeBuilder.scopedVoid(mb) { cb =>
-      pt.storeAtAddress(cb, dst, r, this, false)
-    }
-  }
 }

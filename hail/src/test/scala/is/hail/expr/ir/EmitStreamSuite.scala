@@ -1,18 +1,19 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{Region, RegionValue, RegionValueBuilder, SafeRow, ScalaToRegionValue}
+import is.hail.TestUtils._
+import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue}
 import is.hail.asm4s._
-import is.hail.types.physical.{stypes, _}
+import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.lowering.LoweringPipeline
+import is.hail.expr.ir.streams.{EmitStream, StreamArgType, StreamUtils}
+import is.hail.types.physical._
+import is.hail.types.physical.stypes.interfaces.SStreamValue
+import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeSCode, StreamSingleCodeType}
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Call2
 import is.hail.{ExecStrategy, HailSuite}
-import is.hail.expr.ir.lowering.LoweringPipeline
-import is.hail.expr.ir.streams.{EmitStream, StreamArgType, StreamUtils}
-import is.hail.types.physical.stypes.interfaces.SStreamCode
 import org.apache.spark.sql.Row
-import is.hail.TestUtils._
-import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeSCode, StreamSingleCodeType}
 import org.testng.annotations.Test
 
 class EmitStreamSuite extends HailSuite {
@@ -94,19 +95,19 @@ class EmitStreamSuite extends HailSuite {
     }
   }
 
-  private def compileStreamWithIter(ir: IR, requiresMemoryManagementPerElement: Boolean, streamType: PStream): Iterator[Any] => IndexedSeq[Any] = {
+  private def compileStreamWithIter(ir: IR, requiresMemoryManagementPerElement: Boolean, elementType: PType): Iterator[Any] => IndexedSeq[Any] = {
     trait F {
       def apply(o: Region, a: StreamArgType): Long
     }
     compileStream[F, Iterator[Any]](ir,
-      IndexedSeq(SingleCodeEmitParamType(true, StreamSingleCodeType(requiresMemoryManagementPerElement, streamType.elementType)))) { (f: F, r: Region, it: Iterator[Any]) =>
+      IndexedSeq(SingleCodeEmitParamType(true, StreamSingleCodeType(requiresMemoryManagementPerElement, elementType)))) { (f: F, r: Region, it: Iterator[Any]) =>
       val rvi = new StreamArgType {
         def apply(outerRegion: Region, eltRegion: Region): Iterator[java.lang.Long] =
           new Iterator[java.lang.Long] {
             def hasNext: Boolean = it.hasNext
 
             def next(): java.lang.Long = {
-              ScalaToRegionValue(eltRegion, streamType.elementType, it.next())
+              ScalaToRegionValue(eltRegion, elementType, it.next())
             }
           }
       }
@@ -134,7 +135,7 @@ class EmitStreamSuite extends HailSuite {
       EmitStream.produce(new Emit(emitContext, fb.ecb), ir, cb, region, EmitEnv(Env.empty, FastIndexedSeq()), None)
         .consume(cb,
           {},
-          { case stream: SStreamCode =>
+          { case stream: SStreamValue =>
             stream.producer.memoryManagedConsume(region, cb, { cb => stream.producer.length.foreach(computeLen => cb.assign(len2, computeLen(cb))) }) { cb =>
               cb.assign(len, len + 1)
             }
@@ -191,6 +192,38 @@ class EmitStreamSuite extends HailSuite {
     assert(range(Row(0, null, 1)) == null)
     assert(range(Row(0, 10, null)) == null)
     assert(range(null) == null)
+  }
+
+  @Test def testEmitSeqSample(): Unit = {
+    val N = 20
+    val n = 2
+
+    val seqIr = SeqSample(
+        I32(N),
+        I32(n),
+        false
+      )
+
+    val compiled = compileStream[AsmFunction1RegionLong, Unit](seqIr, FastIndexedSeq()) { (f, r, _) => f(r) }
+
+    // Generate many pairs of numbers between 0 and N, every pair should be equally likely
+    val results = Array.tabulate(N, N){ case(i, j) => 0}
+    (0 until 1000000).foreach { i =>
+      val seq = compiled.apply(()).map(_.asInstanceOf[Int])
+      assert(seq.size == n)
+      results(seq(0))(seq(1)) += 1
+      assert(seq.toSet.size == n)
+      assert(seq.forall(e => e >= 0 && e < N))
+    }
+
+
+    (0 until N).foreach { i =>
+      (i + 1 until N).foreach { j =>
+        val entry = results(i)(j)
+        // Expected value of entry is 5263.
+        assert(entry > 4880 && entry < 5650)
+      }
+    }
   }
 
   @Test def testEmitToStream() {
@@ -338,6 +371,50 @@ class EmitStreamSuite extends HailSuite {
     }
   }
 
+  @Test def testStreamJoinOuterWithKeyRepeats() {
+    val lEltType = TStruct("k" -> TInt32, "idx_left" -> TInt32)
+    val lRows = FastIndexedSeq(
+      Row(1, 1),
+      Row(1, 2),
+      Row(1, 3),
+      Row(3, 4)
+    )
+
+    val a = ToStream(
+      Literal(
+        TArray(lEltType),
+        lRows
+    ))
+
+    val rEltType = TStruct("k" -> TInt32, "idx_right" -> TInt32)
+    val rRows = FastIndexedSeq(
+      Row(1, 1),
+      Row(2, 2),
+      Row(4, 3)
+    )
+    val b = ToStream(
+      Literal(
+        TArray(rEltType),
+        rRows
+      ))
+
+    val ir = StreamJoinRightDistinct(a, b,
+      FastIndexedSeq("k"), FastIndexedSeq("k"),
+      "L", "R",
+      MakeStruct(FastSeq("left" -> Ref("L", lEltType), "right" -> Ref("R", rEltType))),
+      "outer")
+
+    val compiled = evalStream(ir)
+    val expected = FastIndexedSeq(
+      Row( Row(1, 1), Row(1, 1)),
+      Row( Row(1, 2), Row(1, 1)),
+      Row( Row(1, 3), Row(1, 1)),
+      Row( null,  Row(2, 2)),
+      Row( Row(3, 4), null),
+      Row(null, Row(4, 3)))
+    assert(compiled == expected)
+  }
+
   @Test def testEmitScan() {
     def a = Ref("a", TInt32)
 
@@ -408,7 +485,7 @@ class EmitStreamSuite extends HailSuite {
   }
 
   @Test def testEmitFromIterator() {
-    val intsPType = PCanonicalStream(PInt32(true))
+    val intsPType = PInt32(true)
 
     val f1 = compileStreamWithIter(
       StreamScan(In(0, SingleCodeEmitParamType(true, StreamSingleCodeType(true, PInt32(true)))),
@@ -695,5 +772,45 @@ class EmitStreamSuite extends HailSuite {
     assertMemoryDoesNotScaleWithStreamSize() { size =>
       foldLength(flatMapIR(mapIR(StreamGrouped(rangeStructs(size), 16)) { x => ToArray(x) }) { a => ToStream(a, false) })
     }
+  }
+
+  @Test def testStreamTakeWhile(): Unit = {
+    val makestream = MakeStream(FastSeq(I32(1), I32(2), I32(0), I32(1), I32(-1)), TStream(TInt32))
+    assert(evalStream(takeWhile(makestream) { r => r > 0 }) == IndexedSeq(1, 2))
+    assert(evalStream(StreamTake(makestream, I32(3))) == IndexedSeq(1, 2, 0))
+    assert(evalStream(takeWhile(makestream) { r => NA(TBoolean) }) == IndexedSeq())
+    assert(evalStream(takeWhile(makestream) { r => If(r > 0, True(), NA(TBoolean)) }) == IndexedSeq(1, 2))
+  }
+
+  @Test def testStreamDropWhile(): Unit = {
+    val makestream = MakeStream(FastSeq(I32(1), I32(2), I32(0), I32(1), I32(-1)), TStream(TInt32))
+    assert(evalStream(dropWhile(makestream) { r => r > 0 }) == IndexedSeq(0, 1, -1))
+    assert(evalStream(StreamDrop(makestream, I32(3))) == IndexedSeq(1, -1))
+    assert(evalStream(dropWhile(makestream) { r => NA(TBoolean) }) == IndexedSeq(1, 2, 0, 1, -1))
+    assert(evalStream(dropWhile(makestream) { r => If(r > 0, True(), NA(TBoolean)) }) == IndexedSeq(0, 1, -1))
+
+  }
+
+  @Test def testStreamTakeDropMemory(): Unit = {
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      foldLength(StreamTake(rangeStructs(size), (size / 2).toI))
+    }
+
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      foldLength(StreamDrop(rangeStructs(size), (size / 2).toI))
+    }
+
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      foldLength(dropWhile(rangeStructs(size)) { elt => GetField(elt, "idx") < (size / 2).toI })
+    }
+
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      foldLength(takeWhile(rangeStructs(size)) { elt => GetField(elt, "idx") < (size / 2).toI })
+    }
+  }
+
+  @Test def testStreamIota(): Unit = {
+    assert(evalStream(takeWhile(iota(0, 2))(elt => elt < 10)) == IndexedSeq(0, 2, 4, 6, 8))
+    assert(evalStream(StreamTake(iota(5, -5), 3)) == IndexedSeq(5, 0, -5))
   }
 }

@@ -1,9 +1,12 @@
 import json
 import os
+import shutil
 import unittest
 from unittest import mock
 
-import shutil
+from avro.datafile import DataFileReader
+from avro.io import DatumReader
+
 import pytest
 import hail as hl
 from ..helpers import *
@@ -58,7 +61,6 @@ class VCFTests(unittest.TestCase):
         for f in _FLOAT_ARRAY_INFO_FIELDS:
             self.assertEqual(mt['info'][f].dtype, hl.tarray(hl.tfloat64))
 
-    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_glob(self):
         full = hl.import_vcf(resource('sample.vcf'))
         parts = hl.import_vcf(resource('samplepart*.vcf'))
@@ -155,6 +157,10 @@ class VCFTests(unittest.TestCase):
         vcf_table = vcf.rows()
         self.assertTrue(vcf_table.all(vcf_table.locus.contig == "chr22"))
         self.assertTrue(vcf.locus.dtype, hl.tlocus('GRCh37'))
+
+    def test_import_vcf_empty(self):
+        mt = hl.import_vcf([resource('0var.vcf.bgz'), resource('3var.vcf.bgz')])
+        assert mt._same(hl.import_vcf(resource('3var.vcf.bgz')))
 
     def test_import_vcf_no_reference_specified(self):
         vcf = hl.import_vcf(resource('sample2.vcf'),
@@ -700,6 +706,11 @@ class VCFTests(unittest.TestCase):
                 hl.export_vcf(mt.annotate_rows(info=mt.info.annotate(**{invalid_field: True})), t)
                 assert warning.call_count == 1
 
+    def test_vcf_different_info_errors(self):
+        with self.assertRaisesRegex(FatalError, "Check that all files have same INFO fields"):
+            mt = hl.import_vcf([resource('different_info_test1.vcf'), resource('different_info_test2.vcf')])
+            mt.rows()._force_count()
+
 class PLINKTests(unittest.TestCase):
     @fails_service_backend()
     def test_import_fam(self):
@@ -774,6 +785,34 @@ class PLINKTests(unittest.TestCase):
                               (j.a1_vqc.n_het == j.a2_vqc.n_het) &
                               (j.a1_vqc.homozygote_count[0] == j.a2_vqc.homozygote_count[1]) &
                               (j.a1_vqc.homozygote_count[1] == j.a2_vqc.homozygote_count[0])))
+
+    @fails_service_backend()
+    @fails_local_backend()
+    def test_import_plink_same_locus(self):
+        mt = hl.balding_nichols_model(n_populations=2, n_samples=10, n_variants=100)
+        mt = mt.key_rows_by(locus=hl.locus('1', 100, reference_genome='GRCh37'), alleles=mt.alleles).select_rows()
+        mt = mt.key_cols_by(s=hl.str(mt.sample_idx)).select_cols()
+        mt = mt.select_globals()
+        out = new_temp_file(prefix='plink')
+        hl.export_plink(mt, out)
+        mt2 = hl.import_plink(f'{out}.bed', f'{out}.bim', f'{out}.fam').select_cols().select_rows()
+        assert mt2._same(mt)
+
+        mt3 = hl.import_plink(f'{out}.bed', f'{out}.bim', f'{out}.fam', min_partitions=10).select_cols().select_rows()
+        assert mt3._same(mt)
+
+    @fails_service_backend()
+    @fails_local_backend()
+    def test_import_plink_partitions(self):
+        mt = hl.balding_nichols_model(n_populations=2, n_samples=10, n_variants=100)
+        mt = mt.select_rows()
+        mt = mt.key_cols_by(s=hl.str(mt.sample_idx)).select_cols()
+        mt = mt.select_globals()
+        out = new_temp_file(prefix='plink')
+        hl.export_plink(mt, out)
+        mt2 = hl.import_plink(f'{out}.bed', f'{out}.bim', f'{out}.fam', min_partitions=10).select_cols().select_rows()
+        assert mt2.n_partitions() == 10
+        assert mt2._same(mt)
 
     @fails_service_backend()
     @fails_local_backend()
@@ -1507,8 +1546,6 @@ class BGENTests(unittest.TestCase):
 
 
 class GENTests(unittest.TestCase):
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_gen(self):
         gen = hl.import_gen(resource('example.gen'),
                             sample_file=resource('example.sample'),
@@ -1518,8 +1555,15 @@ class GENTests(unittest.TestCase):
         self.assertEqual(gen.count(), 199)
         self.assertEqual(gen.locus.dtype, hl.tlocus('GRCh37'))
 
-    @fails_service_backend()
-    @fails_local_backend()
+    def test_import_gen_no_chromosome_in_file(self):
+        gen = hl.import_gen(resource('no_chromosome.gen'),
+                            resource('skip_invalid_loci.sample'),
+                            chromosome="1",
+                            reference_genome=None,
+                            skip_invalid_loci=True)
+
+        self.assertEqual(gen.aggregate_rows(hl.agg.all(gen.locus.contig == "1")), True)
+
     def test_import_gen_no_reference_specified(self):
         gen = hl.import_gen(resource('example.gen'),
                             sample_file=resource('example.sample'),
@@ -1529,19 +1573,17 @@ class GENTests(unittest.TestCase):
                          hl.tstruct(contig=hl.tstr, position=hl.tint32))
         self.assertEqual(gen.count_rows(), 199)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_gen_skip_invalid_loci(self):
         mt = hl.import_gen(resource('skip_invalid_loci.gen'),
                            resource('skip_invalid_loci.sample'),
                            reference_genome='GRCh37',
                            skip_invalid_loci=True)
-        self.assertEqual(mt._force_count_rows(),
-                         3)
+        self.assertEqual(mt._force_count_rows(), 3)
 
         with self.assertRaisesRegex(FatalError, 'Invalid locus'):
-            hl.import_gen(resource('skip_invalid_loci.gen'),
-                          resource('skip_invalid_loci.sample'))
+            mt = hl.import_gen(resource('skip_invalid_loci.gen'),
+                               resource('skip_invalid_loci.sample'))
+            mt._force_count_rows()
 
     @fails_service_backend()
     @fails_local_backend()
@@ -1951,6 +1993,29 @@ class ImportMatrixTableTests(unittest.TestCase):
         ]
 
 
+class ImportLinesTest(unittest.TestCase):
+    def test_import_lines(self):
+        lines_table = hl.import_lines(resource('example.gen'))
+        first_row = lines_table.head(1).collect()[0]
+        assert lines_table.row.dtype == hl.tstruct(file=hl.tstr, text=hl.tstr)
+        assert "01 SNPID_2 RSID_2 2000 A G 0 0 0 0.0278015 0.00863647 0.963531 0.0173645" in first_row.text
+        assert "example.gen" in first_row.file
+        assert lines_table._force_count() == 199
+
+    def test_import_lines_multiple_files(self):
+        lines_table = hl.import_lines((resource('first_half_example.gen'), resource('second_half_example.gen')))
+        first_row = lines_table.head(1).collect()[0]
+        last_row = lines_table.tail(1).collect()[0]
+        assert "01 SNPID_2 RSID_2 2000 A G 0 0 0 0.0278015 0.00863647 0.963531 0.0173645" in first_row.text
+        assert "first_half_example.gen" in first_row.file
+        assert "second_half_example.gen" in last_row.file
+        assert lines_table._force_count() == 199
+
+    def test_import_lines_glob(self):
+        lines_table = hl.import_lines(resource('*_half_example.gen'))
+        assert lines_table._force_count() == 199
+
+
 class ImportTableTests(unittest.TestCase):
     @fails_service_backend()
     @fails_local_backend()
@@ -2066,6 +2131,17 @@ class GrepTests(unittest.TestCase):
                                                'HG00121_B_B\t966.4\t4822']}
 
         assert hl.grep('HG0012[0-1]', resource('*.tsv'), show=False) == expected
+
+
+class AvroTests(unittest.TestCase):
+    def test_simple_avro(self):
+        avro_file = resource('avro/weather.avro')
+        fs = hl.current_backend().fs
+        with DataFileReader(fs.open(avro_file, 'rb'), DatumReader()) as avro:
+            expected = list(avro)
+        data = hl.import_avro([avro_file]).collect()
+        data = [dict(**s) for s in data]
+        self.assertEqual(expected, data)
 
 
 @fails_service_backend()

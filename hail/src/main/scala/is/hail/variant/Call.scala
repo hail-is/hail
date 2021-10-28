@@ -95,13 +95,18 @@ object Call extends Serializable {
 
   def alleleRepr(c: Call): Int = c >>> 3
 
-  def allelePair(c: Call): AllelePair = {
+  def allelePair(c: Call): Int = {
     if (!isDiploid(c))
       fatal(s"invalid ploidy: ${ ploidy(c) }. Only support ploidy == 2")
+    allelePairUnchecked(c)
+  }
 
+  def allelePairUnchecked(c: Call): Int = {
     if (isPhased(c)) {
-        val p = Genotype.allelePair(alleleRepr(c))
-        AllelePair(p.j, p.k - p.j)
+      val p = Genotype.allelePair(alleleRepr(c))
+      val j = AllelePair.j(p)
+      val k = AllelePair.k(p)
+      AllelePair(j, k - j)
     } else
       Genotype.allelePair(alleleRepr(c))
   }
@@ -111,7 +116,9 @@ object Call extends Serializable {
       fatal(s"unphased_diploid_gt_index only supports ploidy == 2. Found ${ Call.toString(c) }.")
     if (isPhased(c)) {
       val p = Genotype.allelePair(alleleRepr(c))
-      Genotype.diploidGtIndexWithSwap(p.j, p.k - p.j)
+      val j = AllelePair.j(p)
+      val k = AllelePair.k(p)
+      Genotype.diploidGtIndexWithSwap(j, k - j)
     } else
       alleleRepr(c)
   }
@@ -120,7 +127,7 @@ object Call extends Serializable {
     (ploidy(c): @switch) match {
       case 0 => Array.empty[Int]
       case 1 => Array(alleleByIndex(c, 0))
-      case 2 => allelePair(c).alleleIndices
+      case 2 => AllelePair.alleleIndices(allelePair(c))
       case _ => throw new UnsupportedOperationException
     }
   }
@@ -136,7 +143,7 @@ object Call extends Serializable {
         if (i != 0 && i != 1)
           fatal(s"Index out of bounds for call with ploidy=2: $i")
         val p = allelePair(c)
-        if (i == 0) p.j else p.k
+        if (i == 0) AllelePair.j(p) else AllelePair.k(p)
       case _ =>
         if (i < 0 || i >= ploidy(c))
           fatal(s"Index out of bounds for call with ploidy=${ ploidy(c) }: $i")
@@ -151,7 +158,7 @@ object Call extends Serializable {
         Call1(if (Call.alleleByIndex(c, 0) == i) 1 else 0, Call.isPhased(c))
       case 2 =>
         val p = Call.allelePair(c)
-        Call2(if (p.j == i) 1 else 0, if (p.k == i) 1 else 0, Call.isPhased(c))
+        Call2(if (AllelePair.j(p) == i) 1 else 0, if (AllelePair.k(p) == i) 1 else 0, Call.isPhased(c))
       case _ =>
         CallN(Call.alleles(c).map(a => if (a == i) 1 else 0), Call.isPhased(c))
     }
@@ -170,7 +177,7 @@ object Call extends Serializable {
         if (phased) s"|$a" else s"$a"
       case 2 =>
         val p = allelePair(c)
-        s"${ p.j }$sep${ p.k }"
+        s"${ AllelePair.j(p) }$sep${ AllelePair.k(p) }"
       case _ =>
         alleles(c).mkString(sep)
     }
@@ -190,9 +197,9 @@ object Call extends Serializable {
           sb.append(alleleByIndex(c, 0))
       case 2 =>
         val p = allelePair(c)
-        sb.append(p.j)
+        sb.append(AllelePair.j(p))
         sb.append(sep)
-        sb.append(p.k)
+        sb.append(AllelePair.k(p))
       case _ =>
         var i = 0
         val nAlleles = ploidy(c)
@@ -208,7 +215,8 @@ object Call extends Serializable {
   def isHomRef(c: Call): Boolean = {
     (ploidy(c): @switch) match {
       case 0 => false
-      case 1 | 2 => alleleRepr(c) == 0
+      case 1 => alleleRepr(c) == 0
+      case 2 => alleleRepr(c) == 0
       case _ => alleles(c).forall(_ == 0)
     }
   }
@@ -217,8 +225,8 @@ object Call extends Serializable {
     (ploidy(c): @switch) match {
       case 0 | 1 => false
       case 2 => alleleRepr(c) > 0 && {
-        val p = allelePair(c)
-        p.j != p.k
+        val p = allelePairUnchecked(c)
+        AllelePair.j(p) != AllelePair.k(p)
       }
       case _ => throw new UnsupportedOperationException
     }
@@ -229,8 +237,8 @@ object Call extends Serializable {
       case 0 => false
       case 1 => alleleRepr(c) > 0
       case 2 => alleleRepr(c) > 0 && {
-        val p = allelePair(c)
-        p.j == p.k
+        val p = allelePairUnchecked(c)
+        AllelePair.j(p) == AllelePair.k(p)
       }
       case _ => throw new UnsupportedOperationException
     }
@@ -248,8 +256,10 @@ object Call extends Serializable {
     (ploidy(c): @switch) match {
       case 0 | 1 => false
       case 2 => alleleRepr(c) > 0 && {
-        val p = allelePair(c)
-        p.j > 0 && p.k > 0 && p.k != p.j
+        val p = allelePairUnchecked(c)
+        val j = AllelePair.j(p)
+        val k = AllelePair.k(p)
+        j > 0 && k > 0 && k != j
       }
       case _ => throw new UnsupportedOperationException
     }
@@ -259,8 +269,10 @@ object Call extends Serializable {
     (ploidy(c): @switch) match {
       case 0 | 1 => false
       case 2 => alleleRepr(c) > 0 && {
-        val p = allelePair(c)
-        (p.j == 0 && p.k > 0) || (p.k == 0 && p.j > 0)
+        val p = allelePairUnchecked(c)
+        val j = AllelePair.j(p)
+        val k = AllelePair.k(p)
+        (j == 0 && k > 0) || (k == 0 && j > 0)
       }
       case _ => throw new UnsupportedOperationException
     }
@@ -270,7 +282,7 @@ object Call extends Serializable {
     (ploidy(c): @switch) match {
       case 0 => 0
       case 1 => (alleleRepr(c) > 0).toInt
-      case 2 => allelePair(c).nNonRefAlleles
+      case 2 => AllelePair.nNonRefAlleles(allelePair(c))
       case _ => alleles(c).count(_ != 0)
     }
   }
@@ -281,8 +293,8 @@ object Call extends Serializable {
 
     if (ploidy(c) == 2) {
       val p = allelePair(c)
-      j = p.j
-      k = p.k
+      j = AllelePair.j(p)
+      k = AllelePair.k(p)
     }
 
     new IndexedSeq[Int] with Serializable {
@@ -319,7 +331,7 @@ object Call extends Serializable {
         val udtn =
           if (isPhased(c)) {
             val p = allelePair(c)
-            unphasedDiploidGtIndex(Call2(p.j, p.k))
+            unphasedDiploidGtIndex(Call2(AllelePair.j(p), AllelePair.k(p)))
           } else
             unphasedDiploidGtIndex(c)
         assert(udtn < nGenotypes, s"Invalid call found '${ c.toString }' for number of alleles equal to '$nAlleles'.")

@@ -1,7 +1,8 @@
 import traceback
 import json
 import logging
-import aiohttp
+import asyncio
+import concurrent.futures
 from aiohttp import web
 import uvloop  # type: ignore
 from gidgethub import aiohttp as gh_aiohttp
@@ -10,12 +11,15 @@ from hailtop.batch_client.aioclient import BatchClient
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
+from hailtop import httpx
 from gear import (
     setup_aiohttp_session,
     rest_authenticated_developers_only,
     rest_authenticated_users_only,
     web_authenticated_developers_only,
-    monitor_endpoint,
+    check_csrf_token,
+    create_database_pool,
+    monitor_endpoints_middleware,
 )
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 
@@ -32,7 +36,6 @@ routes = web.RouteTableDef()
 
 @routes.get('')
 @routes.get('/')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def index(request, userdata):  # pylint: disable=unused-argument
     # Redirect to /batches.
@@ -40,7 +43,6 @@ async def index(request, userdata):  # pylint: disable=unused-argument
 
 
 @routes.get('/batches')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_batches(request, userdata):
     batch_client = request.app['batch_client']
@@ -51,7 +53,6 @@ async def get_batches(request, userdata):
 
 
 @routes.get('/batches/{batch_id}')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
@@ -66,7 +67,6 @@ async def get_batch(request, userdata):
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_job(request, userdata):
     batch_id = int(request.match_info['batch_id'])
@@ -84,12 +84,13 @@ async def get_job(request, userdata):
 
 
 @routes.post('/api/v1alpha/dev_deploy_branch')
-@monitor_endpoint
 @rest_authenticated_developers_only
 async def dev_deploy_branch(request, userdata):
     app = request.app
     try:
         params = await request.json()
+    except asyncio.CancelledError:
+        raise
     except Exception as e:
         message = 'could not read body as JSON'
         log.info('dev deploy failed: ' + message, exc_info=True)
@@ -99,6 +100,8 @@ async def dev_deploy_branch(request, userdata):
         branch = FQBranch.from_short_str(params['branch'])
         steps = params['steps']
         excluded_steps = params['excluded_steps']
+    except asyncio.CancelledError:
+        raise
     except Exception as e:
         message = f'parameters are wrong; check the branch and steps syntax.\n\n{params}'
         log.info('dev deploy failed: ' + message, exc_info=True)
@@ -110,6 +113,8 @@ async def dev_deploy_branch(request, userdata):
     try:
         branch_gh_json = await gh.getitem(request_string)
         sha = branch_gh_json['object']['sha']
+    except asyncio.CancelledError:
+        raise
     except Exception as e:
         message = f'error finding {branch} at GitHub'
         log.info('dev deploy failed: ' + message, exc_info=True)
@@ -121,6 +126,8 @@ async def dev_deploy_branch(request, userdata):
 
     try:
         batch_id = await unwatched_branch.deploy(batch_client, steps, excluded_steps=excluded_steps)
+    except asyncio.CancelledError:
+        raise
     except Exception as e:  # pylint: disable=broad-except
         message = traceback.format_exc()
         log.info('dev deploy failed: ' + message, exc_info=True)
@@ -178,18 +185,22 @@ async def prod_deploy(request, userdata):
 
 
 async def on_startup(app):
-    app['gh_client_session'] = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5))
-    app['github_client'] = gh_aiohttp.GitHubAPI(app['gh_client_session'], 'ci')
-    app['batch_client'] = BatchClient('ci')
+    app['client_session'] = httpx.client_session()
+    app['github_client'] = gh_aiohttp.GitHubAPI(app['client_session'], 'ci')
+    app['batch_client'] = await BatchClient.create('ci')
+    app['dbpool'] = await create_database_pool()
 
 
 async def on_cleanup(app):
-    await app['gh_client_session'].close()
+    dbpool = app['dbpool']
+    dbpool.close()
+    await dbpool.wait_closed()
+    await app['client_session'].close()
     await app['batch_client'].close()
 
 
 def run():
-    app = web.Application()
+    app = web.Application(middlewares=[monitor_endpoints_middleware])
     setup_aiohttp_jinja2(app, 'ci')
     setup_aiohttp_session(app)
 

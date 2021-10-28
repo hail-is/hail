@@ -14,6 +14,28 @@ setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
 
 
+def _test_many_equal(test_cases):
+    expressions = [t[0] for t in test_cases]
+    actuals = hl.eval(hl.tuple(expressions))
+    expecteds = [t[1] for t in test_cases]
+    for actual, expected in zip(actuals, expecteds):
+        if actual != expected:
+            raise ValueError(f'  actual: {actual}\n  expected: {expected}')
+
+
+def _test_many_equal_typed(test_cases):
+    expressions = [t[0] for t in test_cases]
+    actuals, actual_type = hl.eval_typed(hl.tuple(expressions))
+    assert isinstance(actual_type, hl.ttuple)
+    expecteds = [t[1] for t in test_cases]
+    expected_types = [t[2] for t in test_cases]
+    for expression, actual, expected, actual_type, expected_type in zip(
+            expressions, actuals, expecteds, actual_type.types, expected_types):
+        assert expression.dtype == expected_type, (expression.dtype, expected_type)
+        assert actual_type == expected_type, (actual_type, expected_type)
+        assert actual == expected, (actual, expected)
+
+
 class Tests(unittest.TestCase):
     def collect_unindexed_expression(self):
         self.assertEqual(hl.array([4,1,2,3]).collect(), [4,1,2,3])
@@ -55,7 +77,7 @@ class Tests(unittest.TestCase):
         same_as_python(10, -5, -1)
         same_as_python(10, -5, -4)
 
-        with self.assertRaisesRegex(hl.utils.FatalError, 'Array range cannot have step size 0'):
+        with self.assertRaisesRegex(hl.utils.HailUserError, 'Array range cannot have step size 0'):
             hl.eval(hl.range(0, 1, 0))
 
     def test_zeros(self):
@@ -147,6 +169,7 @@ class Tests(unittest.TestCase):
             x51=[1.0, 2.0, 3.0] <= kt.f,
             x52=[1.0, 2.0, 3.0] >= kt.f,
             x53=hl.tuple([True, 1.0]) < (1.0, 0.0),
+            x54=kt.e * kt.a,
         ).take(1)[0])
 
         expected = {'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3],
@@ -166,7 +189,8 @@ class Tests(unittest.TestCase):
                     'x42': False, 'x43': True, 'x44': True,
                     'x45': True, 'x46': True, 'x47': True,
                     'x48': True, 'x49': False, 'x50': False,
-                    'x51': True, 'x52': True, 'x53': False}
+                    'x51': True, 'x52': True, 'x53': False,
+                    'x54': "hellohellohellohello"}
 
         for k, v in expected.items():
             if isinstance(v, float):
@@ -176,22 +200,43 @@ class Tests(unittest.TestCase):
 
     def test_array_slicing(self):
         schema = hl.tstruct(a=hl.tarray(hl.tint32))
-        rows = [{'a': [1, 2, 3]}]
+        rows = [{'a': [1, 2, 3, 4, 5]}]
         kt = hl.Table.parallelize(rows, schema)
+        ha = hl.array(hl.range(100))
+        pa = list(range(100))
 
         result = convert_struct_to_dict(kt.annotate(
             x1=kt.a[0],
             x2=kt.a[2],
             x3=kt.a[:],
             x4=kt.a[1:2],
-            x5=kt.a[-1:2],
-            x6=kt.a[:2]
+            x5=kt.a[-1:4],
+            x6=kt.a[:2],
+            x7=kt.a[-20:20:-2],
+            x8=kt.a[20:-20:2],
+            x9=kt.a[-20:20:2],
+            x10=kt.a[20:-20:-2]
         ).take(1)[0])
 
-        expected = {'a': [1, 2, 3], 'x1': 1, 'x2': 3, 'x3': [1, 2, 3],
-                    'x4': [2], 'x5': [], 'x6': [1, 2]}
+        expected = {'a': [1, 2, 3, 4, 5], 'x1': 1, 'x2': 3, 'x3': [1, 2, 3, 4, 5],
+                    'x4': [2], 'x5': [], 'x6': [1, 2], 'x7': [], 'x8': [], 'x9': [1, 3, 5],
+                    'x10': [5, 3, 1]}
 
         self.assertDictEqual(result, expected)
+        self.assertEqual(pa[60:1:-3], hl.eval(ha[hl.int32(60):hl.int32(1):hl.int32(-3)]))
+        self.assertEqual(pa[::5], hl.eval(ha[::hl.int32(5)]))
+        self.assertEqual(pa[::-3], hl.eval(ha[::-3]))
+        self.assertEqual(pa[:-77:-3], hl.eval(ha[:hl.int32(-77):-3]))
+        self.assertEqual(pa[44::-7], hl.eval(ha[44::-7]))
+        self.assertEqual(pa[2:59:7], hl.eval(ha[2:59:7]))
+        self.assertEqual(pa[4:40:2], hl.eval(ha[4:40:2]))
+        self.assertEqual(pa[-400:-300:2], hl.eval(ha[hl.int32(-400):-300:2]))
+        self.assertEqual(pa[-300:-400:-2], hl.eval(ha[-300:-400:-2]))
+        self.assertEqual(pa[300:400:2], hl.eval(ha[300:400:2]))
+        self.assertEqual(pa[400:300:-2], hl.eval(ha[400:300:-2]))
+
+        with pytest.raises(hl.utils.HailUserError, match='step cannot be 0 for array slice'):
+            hl.eval(ha[::0])
 
     def test_dict_methods(self):
         schema = hl.tstruct(x=hl.tfloat64)
@@ -209,14 +254,21 @@ class Tests(unittest.TestCase):
             x6=kt.a.keys(),
             x7=kt.a.values(),
             x8=kt.a.size(),
-            x9=kt.a.map_values(lambda v: v * 2.0)
+            x9=kt.a.map_values(lambda v: v * 2.0),
+            x10=kt.a.items(),
         ).take(1)[0])
 
         expected = {'a': {'cat': 3, 'dog': 7}, 'x': 2.0, 'x1': 3, 'x2': 7, 'x3': False,
                     'x4': False, 'x5': {'cat', 'dog'}, 'x6': ['cat', 'dog'],
-                    'x7': [3, 7], 'x8': 2, 'x9': {'cat': 6.0, 'dog': 14.0}}
+                    'x7': [3, 7], 'x8': 2, 'x9': {'cat': 6.0, 'dog': 14.0},
+                    'x10': [('cat', 3), ('dog', 7)]}
 
         self.assertDictEqual(result, expected)
+
+    def test_dict_missing_error(self):
+        d = hl.dict({'a': 2, 'b': 3})
+        with pytest.raises(hl.utils.HailUserError, match='Key NA not found in dictionary'):
+            hl.eval(d[hl.missing(hl.tstr)])
 
     def test_numeric_conversion(self):
         schema = hl.tstruct(a=hl.tfloat64, b=hl.tfloat64, c=hl.tint32, d=hl.tint32)
@@ -319,6 +371,14 @@ class Tests(unittest.TestCase):
 
         with pytest.raises(TypeError, match="Expected str collection, int32 found"):
             hl.eval(hl.str(",").join([1, 2, 3]))
+
+    def test_string_multiply(self):
+        # Want to make sure all implict conversions work.
+        ps = "cat"
+        pn = 3
+        s = hl.str(ps)
+        n = hl.int32(pn)
+        assert all([x == "catcatcat" for x in hl.eval(hl.array([ps * n, n * ps, s * pn, pn * s]))])
 
     def test_cond(self):
         self.assertEqual(hl.eval('A' + hl.if_else(True, 'A', 'B')), 'AA')
@@ -444,6 +504,52 @@ class Tests(unittest.TestCase):
         expected = {'rabbit': 0.0, 'cat': 2.0, 'dog': 3.0, None: 3.0}
         assert actual == expected
 
+    def test_aggfold_agg(self):
+        ht = hl.utils.range_table(100, 5)
+        self.assertEqual(ht.aggregate(hl.agg.fold(0, lambda x: x + ht.idx, lambda a, b: a + b)), 4950)
+
+        ht = ht.annotate(s=hl.struct(x=ht.idx, y=ht.idx + 1))
+        sum_and_product = (ht.aggregate(
+            hl.agg.fold(
+                hl.struct(x=0, y=1.0),
+                lambda accum: hl.struct(x=accum.x + ht.s.x, y=accum.y * ht.s.y),
+                lambda a, b: hl.struct(x=a.x + b.x, y=a.y * b.y))))
+        self.assertEqual(sum_and_product, hl.Struct(x=4950, y=9.332621544394414e+157))
+
+        ht = ht.annotate(maybe=hl.if_else(ht.idx % 2 == 0, ht.idx, hl.missing(hl.tint32)))
+        sum_evens_missing = ht.aggregate(hl.agg.fold(0, lambda x: x + ht.maybe, lambda a, b: a + b))
+        assert sum_evens_missing is None
+        sum_evens_only = ht.aggregate(hl.agg.fold(0, lambda x: x + hl.coalesce(ht.maybe, 0), lambda a, b: hl.coalesce(a + b, a, b)))
+        self.assertEqual(sum_evens_only, 2450)
+
+        #Testing types work out
+        sum_float64 = ht.aggregate(hl.agg.fold(hl.int32(0), lambda acc: acc + hl.float32(ht.idx), lambda acc1, acc2: hl.float64(acc1) + hl.float64(acc2)))
+        self.assertEqual(sum_float64, 4950.0)
+
+        ht = ht.annotate_globals(foo=7)
+        with pytest.raises(hl.utils.java.HailUserError) as exc:
+            ht.aggregate(hl.agg.fold(0, lambda x: x + ht.idx, lambda a, b: a + b + ht.foo))
+        assert "comb_op function of fold cannot reference any fields" in str(exc.value)
+
+        mt = hl.utils.range_matrix_table(100, 10)
+        self.assertEqual(mt.aggregate_rows(hl.agg.fold(0, lambda a: a + mt.row_idx, lambda a, b: a + b)), 4950)
+        self.assertEqual(mt.aggregate_cols(hl.agg.fold(0, lambda a: a + mt.col_idx, lambda a, b: a + b)), 45)
+
+    def test_aggfold_scan(self):
+        ht = hl.utils.range_table(15, 5)
+        ht = ht.annotate(s=hl.scan.fold(0, lambda a: a + ht.idx, lambda a, b: a + b), )
+        self.assertEqual(ht.s.collect(), [0, 0, 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78, 91])
+
+        mt = hl.utils.range_matrix_table(15, 10, 5)
+        mt = mt.annotate_rows(s=hl.scan.fold(0, lambda a: a + mt.row_idx, lambda a, b: a + b))
+        mt = mt.annotate_rows(x=hl.scan.fold(0, lambda s: s + 1, lambda a, b: a + b))
+        self.assertEqual(mt.s.collect(), [0, 0, 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78, 91])
+        self.assertEqual(mt.rows().collect(),
+                         [hl.Struct(row_idx=0, s=0, x=0), hl.Struct(row_idx=1, s=0, x=1), hl.Struct(row_idx=2, s=1, x=2),
+                          hl.Struct(row_idx=3, s=3, x=3), hl.Struct(row_idx=4, s=6, x=4), hl.Struct(row_idx=5, s=10, x=5),
+                          hl.Struct(row_idx=6, s=15, x=6), hl.Struct(row_idx=7, s=21, x=7), hl.Struct(row_idx=8, s=28, x=8),
+                          hl.Struct(row_idx=9, s=36, x=9), hl.Struct(row_idx=10, s=45, x=10), hl.Struct(row_idx=11, s=55, x=11),
+                          hl.Struct(row_idx=12, s=66, x=12), hl.Struct(row_idx=13, s=78, x=13), hl.Struct(row_idx=14, s=91, x=14)])
 
     def test_agg_filter(self):
         t = hl.utils.range_table(10)
@@ -502,6 +608,14 @@ class Tests(unittest.TestCase):
                                               hl.utils.Struct(x=(3, 3), y='3,3'),
                                               None]),
         ]
+
+    @fails_service_backend(reason='service backend needs to support flags')
+    @with_flags('distributed_scan_comb_op')
+    def test_densify_table(self):
+        ht = hl.utils.range_table(100, n_partitions=33)
+        ht = ht.annotate(arr = hl.range(100).map(lambda idx: hl.or_missing(idx == ht.idx, idx)))
+        ht = ht.annotate(dense = hl.scan._densify(100, ht.arr))
+        assert ht.all(ht.dense == hl.range(100).map(lambda idx: hl.or_missing(idx < ht.idx, idx)))
 
     def test_agg_array_inside_annotate_rows(self):
         n_rows = 10
@@ -1119,8 +1233,6 @@ class Tests(unittest.TestCase):
         )
         mt.cols()._force_count()
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_aggregator_info_score(self):
         gen_file = resource('infoScoreTest.gen')
         sample_file = resource('infoScoreTest.sample')
@@ -1435,71 +1547,68 @@ class Tests(unittest.TestCase):
             self.assertEqual(t.aggregate(aggfunc(array_with_na[t.idx])), 0.)
 
     def test_str_ops(self):
-        s = hl.literal("123")
-        self.assertEqual(hl.eval(hl.int32(s)), 123)
-
-        s = hl.literal("123123123123")
-        self.assertEqual(hl.eval(hl.int64(s)), 123123123123)
-
-        s = hl.literal("1.5")
-        self.assertEqual(hl.eval(hl.float32(s)), 1.5)
-        self.assertEqual(hl.eval(hl.float64(s)), 1.5)
-
         s = hl.literal('abcABC123')
-        self.assertEqual(hl.eval(s.lower()), 'abcabc123')
-        self.assertEqual(hl.eval(s.upper()), 'ABCABC123')
-
         s_whitespace = hl.literal(' \t 1 2 3 \t\n')
-        self.assertEqual(hl.eval(s_whitespace.strip()), '1 2 3')
-
-        self.assertEqual(hl.eval(s.contains('ABC')), True)
-        self.assertEqual(hl.eval(~s.contains('ABC')), False)
-        self.assertEqual(hl.eval(s.contains('a')), True)
-        self.assertEqual(hl.eval(s.contains('C123')), True)
-        self.assertEqual(hl.eval(s.contains('')), True)
-        self.assertEqual(hl.eval(s.contains('C1234')), False)
-        self.assertEqual(hl.eval(s.contains(' ')), False)
-
-        self.assertTrue(hl.eval(s_whitespace.startswith(' \t')))
-        self.assertTrue(hl.eval(s_whitespace.endswith('\t\n')))
-        self.assertFalse(hl.eval(s_whitespace.startswith('a')))
-        self.assertFalse(hl.eval(s_whitespace.endswith('a')))
+        _test_many_equal([
+            (hl.int32(hl.literal('123')), 123),
+            (hl.int64(hl.literal("123123123123")), 123123123123),
+            (hl.float32(hl.literal('1.5')), 1.5),
+            (hl.float64(hl.literal('1.5')), 1.5),
+            (s.lower(), 'abcabc123'),
+            (s.upper(), 'ABCABC123'),
+            (s_whitespace.strip(), '1 2 3'),
+            (s.contains('ABC'), True),
+            (~s.contains('ABC'), False),
+            (s.contains('a'), True),
+            (s.contains('C123'), True),
+            (s.contains(''), True),
+            (s.contains('C1234'), False),
+            (s.contains(' '), False),
+            (s_whitespace.startswith(' \t'), True),
+            (s_whitespace.endswith('\t\n'), True),
+            (s_whitespace.startswith('a'), False),
+            (s_whitespace.endswith('a'), False)])
 
     def test_str_parsing(self):
-        assert_all_eval_to(*[(hl.bool(x), True) for x in ('true', 'True', 'TRUE')])
-        assert_all_eval_to(*[(hl.bool(x), False) for x in ('false', 'False', 'FALSE')])
-
-        for x in ('nan', 'Nan', 'naN', 'NaN'):
-            for f in (hl.float, hl.float32, hl.float64, hl.parse_float32, hl.parse_float64):
-                assert_all_eval_to(
-                    (hl.is_nan(f(x)), True),
-                    (hl.is_nan(f('+' + x)), True),
-                    (hl.is_nan(f('-' + x)), True)
-                )
-        for x in ('inf', 'Inf', 'iNf', 'InF', 'infinity', 'InfiNitY', 'INFINITY'):
-            for f in (hl.float, hl.float32, hl.float64, hl.parse_float32, hl.parse_float64):
-                assert_all_eval_to(
-                    (hl.is_infinite(f(x)), True),
-                    (hl.is_infinite(f('+' + x)), True),
-                    (hl.is_infinite(f('-' + x)), True),
-                    (f('-' + x) < 0.0, True)
-                )
-
-        for x in ('0', '1', '-5', '12382421'):
-            assert_all_eval_to(*[(f(hl.literal(x)), int(x)) for f in (hl.int32, hl.int64, hl.parse_int32, hl.parse_int64)])
-            assert_all_eval_to(*[(f(hl.literal(x)), float(x)) for f in (hl.float32, hl.float64, hl.parse_float32, hl.parse_float64)])
-
-        for x in ('-1.5', '0.0', '2.5'):
-            assert_all_eval_to(*[(f(hl.literal(x)), float(x)) for f in (hl.float32, hl.float64, hl.parse_float32, hl.parse_float64)])
-            assert_all_eval_to(*[(f(hl.literal(x)), None) for f in (hl.parse_int32, hl.parse_int64)])
-
-        for x in ('abc', '1abc', ''):
-            assert_all_eval_to(*[(f(hl.literal(x)), None) for f in (hl.parse_float32, hl.parse_float64, hl.parse_int32, hl.parse_int64)])
+        int_parsers = (hl.int32, hl.int64, hl.parse_int32, hl.parse_int64)
+        float_parsers = (hl.float, hl.float32, hl.float64, hl.parse_float32, hl.parse_float64)
+        infinity_strings = ('inf', 'Inf', 'iNf', 'InF', 'infinity', 'InfiNitY', 'INFINITY')
+        _test_many_equal([
+            *[(hl.bool(x), True)
+              for x in ('true', 'True', 'TRUE')],
+            *[(hl.bool(x), False)
+              for x in ('false', 'False', 'FALSE')],
+            *[(hl.is_nan(f(sgn + x)), True)
+              for x in ('nan', 'Nan', 'naN', 'NaN')
+              for sgn in ('', '+', '-')
+              for f in float_parsers],
+            *[(hl.is_infinite(f(sgn + x)), True)
+              for x in infinity_strings
+              for sgn in ('', '+', '-')
+              for f in float_parsers],
+            *[(f('-' + x) < 0.0, True)
+              for x in infinity_strings
+              for f in float_parsers],
+            *[(hl.tuple([int_parser(hl.literal(x)), float_parser(hl.literal(x))]),
+                     (int(x), float(x)))
+              for int_parser in int_parsers
+              for float_parser in float_parsers
+              for x in ('0', '1', '-5', '12382421')],
+            *[(hl.tuple([float_parser(hl.literal(x)), flexible_int_parser(hl.literal(x))]), (float(x), None))
+              for float_parser in float_parsers
+              for flexible_int_parser in (hl.parse_int32, hl.parse_int64)
+              for x in ('-1.5', '0.0', '2.5')],
+            *[(flexible_numeric_parser(hl.literal(x)), None)
+              for flexible_numeric_parser in (hl.parse_float32, hl.parse_float64, hl.parse_int32, hl.parse_int64)
+              for x in ('abc', '1abc', '')]
+        ])
 
     def test_str_missingness(self):
         self.assertEqual(hl.eval(hl.str(1)), '1')
         self.assertEqual(hl.eval(hl.str(hl.missing('int32'))), None)
 
+    def test_missing_with_field_starting_with_number(self):
+        assert hl.eval(hl.missing(hl.tstruct(**{"1kg": hl.tint32}))) is None
 
     def check_expr(self, expr, expected, expected_type):
         self.assertEqual(expected_type, expr.dtype)
@@ -1521,65 +1630,66 @@ class Tests(unittest.TestCase):
         expected = [0.5, 1.0, 2.0, 4.0, None]
         expected_inv = [2.0, 1.0, 0.5, 0.25, None]
 
-        self.check_expr(a_int32 / 4, expected, tarray(tfloat64))
-        self.check_expr(a_int64 / 4, expected, tarray(tfloat64))
-        self.check_expr(a_float32 / 4, expected, tarray(tfloat32))
-        self.check_expr(a_float64 / 4, expected, tarray(tfloat64))
+        _test_many_equal_typed([
+            (a_int32 / 4, expected, tarray(tfloat64)),
+            (a_int64 / 4, expected, tarray(tfloat64)),
+            (a_float32 / 4, expected, tarray(tfloat32)),
+            (a_float64 / 4, expected, tarray(tfloat64)),
 
-        self.check_expr(int32_4s / a_int32, expected_inv, tarray(tfloat64))
-        self.check_expr(int32_4s / a_int64, expected_inv, tarray(tfloat64))
-        self.check_expr(int32_4s / a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(int32_4s / a_float64, expected_inv, tarray(tfloat64))
+            (int32_4s / a_int32, expected_inv, tarray(tfloat64)),
+            (int32_4s / a_int64, expected_inv, tarray(tfloat64)),
+            (int32_4s / a_float32, expected_inv, tarray(tfloat32)),
+            (int32_4s / a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 / int32_4s, expected, tarray(tfloat64))
-        self.check_expr(a_int64 / int32_4s, expected, tarray(tfloat64))
-        self.check_expr(a_float32 / int32_4s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 / int32_4s, expected, tarray(tfloat64))
+            (a_int32 / int32_4s, expected, tarray(tfloat64)),
+            (a_int64 / int32_4s, expected, tarray(tfloat64)),
+            (a_float32 / int32_4s, expected, tarray(tfloat32)),
+            (a_float64 / int32_4s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 / int64_4, expected, tarray(tfloat64))
-        self.check_expr(a_int64 / int64_4, expected, tarray(tfloat64))
-        self.check_expr(a_float32 / int64_4, expected, tarray(tfloat32))
-        self.check_expr(a_float64 / int64_4, expected, tarray(tfloat64))
+            (a_int32 / int64_4, expected, tarray(tfloat64)),
+            (a_int64 / int64_4, expected, tarray(tfloat64)),
+            (a_float32 / int64_4, expected, tarray(tfloat32)),
+            (a_float64 / int64_4, expected, tarray(tfloat64)),
 
-        self.check_expr(int64_4 / a_int32, expected_inv, tarray(tfloat64))
-        self.check_expr(int64_4 / a_int64, expected_inv, tarray(tfloat64))
-        self.check_expr(int64_4 / a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(int64_4 / a_float64, expected_inv, tarray(tfloat64))
+            (int64_4 / a_int32, expected_inv, tarray(tfloat64)),
+            (int64_4 / a_int64, expected_inv, tarray(tfloat64)),
+            (int64_4 / a_float32, expected_inv, tarray(tfloat32)),
+            (int64_4 / a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 / int64_4s, expected, tarray(tfloat64))
-        self.check_expr(a_int64 / int64_4s, expected, tarray(tfloat64))
-        self.check_expr(a_float32 / int64_4s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 / int64_4s, expected, tarray(tfloat64))
+            (a_int32 / int64_4s, expected, tarray(tfloat64)),
+            (a_int64 / int64_4s, expected, tarray(tfloat64)),
+            (a_float32 / int64_4s, expected, tarray(tfloat32)),
+            (a_float64 / int64_4s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 / float32_4, expected, tarray(tfloat32))
-        self.check_expr(a_int64 / float32_4, expected, tarray(tfloat32))
-        self.check_expr(a_float32 / float32_4, expected, tarray(tfloat32))
-        self.check_expr(a_float64 / float32_4, expected, tarray(tfloat64))
+            (a_int32 / float32_4, expected, tarray(tfloat32)),
+            (a_int64 / float32_4, expected, tarray(tfloat32)),
+            (a_float32 / float32_4, expected, tarray(tfloat32)),
+            (a_float64 / float32_4, expected, tarray(tfloat64)),
 
-        self.check_expr(float32_4 / a_int32, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_4 / a_int64, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_4 / a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_4 / a_float64, expected_inv, tarray(tfloat64))
+            (float32_4 / a_int32, expected_inv, tarray(tfloat32)),
+            (float32_4 / a_int64, expected_inv, tarray(tfloat32)),
+            (float32_4 / a_float32, expected_inv, tarray(tfloat32)),
+            (float32_4 / a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 / float32_4s, expected, tarray(tfloat32))
-        self.check_expr(a_int64 / float32_4s, expected, tarray(tfloat32))
-        self.check_expr(a_float32 / float32_4s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 / float32_4s, expected, tarray(tfloat64))
+            (a_int32 / float32_4s, expected, tarray(tfloat32)),
+            (a_int64 / float32_4s, expected, tarray(tfloat32)),
+            (a_float32 / float32_4s, expected, tarray(tfloat32)),
+            (a_float64 / float32_4s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 / float64_4, expected, tarray(tfloat64))
-        self.check_expr(a_int64 / float64_4, expected, tarray(tfloat64))
-        self.check_expr(a_float32 / float64_4, expected, tarray(tfloat64))
-        self.check_expr(a_float64 / float64_4, expected, tarray(tfloat64))
+            (a_int32 / float64_4, expected, tarray(tfloat64)),
+            (a_int64 / float64_4, expected, tarray(tfloat64)),
+            (a_float32 / float64_4, expected, tarray(tfloat64)),
+            (a_float64 / float64_4, expected, tarray(tfloat64)),
 
-        self.check_expr(float64_4 / a_int32, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_4 / a_int64, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_4 / a_float32, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_4 / a_float64, expected_inv, tarray(tfloat64))
+            (float64_4 / a_int32, expected_inv, tarray(tfloat64)),
+            (float64_4 / a_int64, expected_inv, tarray(tfloat64)),
+            (float64_4 / a_float32, expected_inv, tarray(tfloat64)),
+            (float64_4 / a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 / float64_4s, expected, tarray(tfloat64))
-        self.check_expr(a_int64 / float64_4s, expected, tarray(tfloat64))
-        self.check_expr(a_float32 / float64_4s, expected, tarray(tfloat64))
-        self.check_expr(a_float64 / float64_4s, expected, tarray(tfloat64))
+            (a_int32 / float64_4s, expected, tarray(tfloat64)),
+            (a_int64 / float64_4s, expected, tarray(tfloat64)),
+            (a_float32 / float64_4s, expected, tarray(tfloat64)),
+            (a_float64 / float64_4s, expected, tarray(tfloat64))])
 
     def test_floor_division(self):
         a_int32 = hl.array([2, 4, 8, 16, hl.missing(tint32)])
@@ -1598,65 +1708,66 @@ class Tests(unittest.TestCase):
         expected = [0, 1, 2, 5, None]
         expected_inv = [1, 0, 0, 0, None]
 
-        self.check_expr(a_int32 // 3, expected, tarray(tint32))
-        self.check_expr(a_int64 // 3, expected, tarray(tint64))
-        self.check_expr(a_float32 // 3, expected, tarray(tfloat32))
-        self.check_expr(a_float64 // 3, expected, tarray(tfloat64))
+        _test_many_equal_typed([
+            (a_int32 // 3, expected, tarray(tint32)),
+            (a_int64 // 3, expected, tarray(tint64)),
+            (a_float32 // 3, expected, tarray(tfloat32)),
+            (a_float64 // 3, expected, tarray(tfloat64)),
 
-        self.check_expr(3 // a_int32, expected_inv, tarray(tint32))
-        self.check_expr(3 // a_int64, expected_inv, tarray(tint64))
-        self.check_expr(3 // a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(3 // a_float64, expected_inv, tarray(tfloat64))
+            (3 // a_int32, expected_inv, tarray(tint32)),
+            (3 // a_int64, expected_inv, tarray(tint64)),
+            (3 // a_float32, expected_inv, tarray(tfloat32)),
+            (3 // a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 // int32_3s, expected, tarray(tint32))
-        self.check_expr(a_int64 // int32_3s, expected, tarray(tint64))
-        self.check_expr(a_float32 // int32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 // int32_3s, expected, tarray(tfloat64))
+            (a_int32 // int32_3s, expected, tarray(tint32)),
+            (a_int64 // int32_3s, expected, tarray(tint64)),
+            (a_float32 // int32_3s, expected, tarray(tfloat32)),
+            (a_float64 // int32_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 // int64_3, expected, tarray(tint64))
-        self.check_expr(a_int64 // int64_3, expected, tarray(tint64))
-        self.check_expr(a_float32 // int64_3, expected, tarray(tfloat32))
-        self.check_expr(a_float64 // int64_3, expected, tarray(tfloat64))
+            (a_int32 // int64_3, expected, tarray(tint64)),
+            (a_int64 // int64_3, expected, tarray(tint64)),
+            (a_float32 // int64_3, expected, tarray(tfloat32)),
+            (a_float64 // int64_3, expected, tarray(tfloat64)),
 
-        self.check_expr(int64_3 // a_int32, expected_inv, tarray(tint64))
-        self.check_expr(int64_3 // a_int64, expected_inv, tarray(tint64))
-        self.check_expr(int64_3 // a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(int64_3 // a_float64, expected_inv, tarray(tfloat64))
+            (int64_3 // a_int32, expected_inv, tarray(tint64)),
+            (int64_3 // a_int64, expected_inv, tarray(tint64)),
+            (int64_3 // a_float32, expected_inv, tarray(tfloat32)),
+            (int64_3 // a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 // int64_3s, expected, tarray(tint64))
-        self.check_expr(a_int64 // int64_3s, expected, tarray(tint64))
-        self.check_expr(a_float32 // int64_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 // int64_3s, expected, tarray(tfloat64))
+            (a_int32 // int64_3s, expected, tarray(tint64)),
+            (a_int64 // int64_3s, expected, tarray(tint64)),
+            (a_float32 // int64_3s, expected, tarray(tfloat32)),
+            (a_float64 // int64_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 // float32_3, expected, tarray(tfloat32))
-        self.check_expr(a_int64 // float32_3, expected, tarray(tfloat32))
-        self.check_expr(a_float32 // float32_3, expected, tarray(tfloat32))
-        self.check_expr(a_float64 // float32_3, expected, tarray(tfloat64))
+            (a_int32 // float32_3, expected, tarray(tfloat32)),
+            (a_int64 // float32_3, expected, tarray(tfloat32)),
+            (a_float32 // float32_3, expected, tarray(tfloat32)),
+            (a_float64 // float32_3, expected, tarray(tfloat64)),
 
-        self.check_expr(float32_3 // a_int32, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_3 // a_int64, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_3 // a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_3 // a_float64, expected_inv, tarray(tfloat64))
+            (float32_3 // a_int32, expected_inv, tarray(tfloat32)),
+            (float32_3 // a_int64, expected_inv, tarray(tfloat32)),
+            (float32_3 // a_float32, expected_inv, tarray(tfloat32)),
+            (float32_3 // a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 // float32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_int64 // float32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float32 // float32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 // float32_3s, expected, tarray(tfloat64))
+            (a_int32 // float32_3s, expected, tarray(tfloat32)),
+            (a_int64 // float32_3s, expected, tarray(tfloat32)),
+            (a_float32 // float32_3s, expected, tarray(tfloat32)),
+            (a_float64 // float32_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 // float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_int64 // float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_float32 // float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_float64 // float64_3, expected, tarray(tfloat64))
+            (a_int32 // float64_3, expected, tarray(tfloat64)),
+            (a_int64 // float64_3, expected, tarray(tfloat64)),
+            (a_float32 // float64_3, expected, tarray(tfloat64)),
+            (a_float64 // float64_3, expected, tarray(tfloat64)),
 
-        self.check_expr(float64_3 // a_int32, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 // a_int64, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 // a_float32, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 // a_float64, expected_inv, tarray(tfloat64))
+            (float64_3 // a_int32, expected_inv, tarray(tfloat64)),
+            (float64_3 // a_int64, expected_inv, tarray(tfloat64)),
+            (float64_3 // a_float32, expected_inv, tarray(tfloat64)),
+            (float64_3 // a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 // float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_int64 // float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float32 // float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float64 // float64_3s, expected, tarray(tfloat64))
+            (a_int32 // float64_3s, expected, tarray(tfloat64)),
+            (a_int64 // float64_3s, expected, tarray(tfloat64)),
+            (a_float32 // float64_3s, expected, tarray(tfloat64)),
+            (a_float64 // float64_3s, expected, tarray(tfloat64))])
 
     def test_addition(self):
         a_int32 = hl.array([2, 4, 8, 16, hl.missing(tint32)])
@@ -1675,65 +1786,66 @@ class Tests(unittest.TestCase):
         expected = [5, 7, 11, 19, None]
         expected_inv = expected
 
-        self.check_expr(a_int32 + 3, expected, tarray(tint32))
-        self.check_expr(a_int64 + 3, expected, tarray(tint64))
-        self.check_expr(a_float32 + 3, expected, tarray(tfloat32))
-        self.check_expr(a_float64 + 3, expected, tarray(tfloat64))
+        _test_many_equal_typed([
+            (a_int32 + 3, expected, tarray(tint32)),
+            (a_int64 + 3, expected, tarray(tint64)),
+            (a_float32 + 3, expected, tarray(tfloat32)),
+            (a_float64 + 3, expected, tarray(tfloat64)),
 
-        self.check_expr(3 + a_int32, expected_inv, tarray(tint32))
-        self.check_expr(3 + a_int64, expected_inv, tarray(tint64))
-        self.check_expr(3 + a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(3 + a_float64, expected_inv, tarray(tfloat64))
+            (3 + a_int32, expected_inv, tarray(tint32)),
+            (3 + a_int64, expected_inv, tarray(tint64)),
+            (3 + a_float32, expected_inv, tarray(tfloat32)),
+            (3 + a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 + int32_3s, expected, tarray(tint32))
-        self.check_expr(a_int64 + int32_3s, expected, tarray(tint64))
-        self.check_expr(a_float32 + int32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 + int32_3s, expected, tarray(tfloat64))
+            (a_int32 + int32_3s, expected, tarray(tint32)),
+            (a_int64 + int32_3s, expected, tarray(tint64)),
+            (a_float32 + int32_3s, expected, tarray(tfloat32)),
+            (a_float64 + int32_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 + int64_3, expected, tarray(tint64))
-        self.check_expr(a_int64 + int64_3, expected, tarray(tint64))
-        self.check_expr(a_float32 + int64_3, expected, tarray(tfloat32))
-        self.check_expr(a_float64 + int64_3, expected, tarray(tfloat64))
+            (a_int32 + int64_3, expected, tarray(tint64)),
+            (a_int64 + int64_3, expected, tarray(tint64)),
+            (a_float32 + int64_3, expected, tarray(tfloat32)),
+            (a_float64 + int64_3, expected, tarray(tfloat64)),
 
-        self.check_expr(int64_3 + a_int32, expected_inv, tarray(tint64))
-        self.check_expr(int64_3 + a_int64, expected_inv, tarray(tint64))
-        self.check_expr(int64_3 + a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(int64_3 + a_float64, expected_inv, tarray(tfloat64))
+            (int64_3 + a_int32, expected_inv, tarray(tint64)),
+            (int64_3 + a_int64, expected_inv, tarray(tint64)),
+            (int64_3 + a_float32, expected_inv, tarray(tfloat32)),
+            (int64_3 + a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 + int64_3s, expected, tarray(tint64))
-        self.check_expr(a_int64 + int64_3s, expected, tarray(tint64))
-        self.check_expr(a_float32 + int64_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 + int64_3s, expected, tarray(tfloat64))
+            (a_int32 + int64_3s, expected, tarray(tint64)),
+            (a_int64 + int64_3s, expected, tarray(tint64)),
+            (a_float32 + int64_3s, expected, tarray(tfloat32)),
+            (a_float64 + int64_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 + float32_3, expected, tarray(tfloat32))
-        self.check_expr(a_int64 + float32_3, expected, tarray(tfloat32))
-        self.check_expr(a_float32 + float32_3, expected, tarray(tfloat32))
-        self.check_expr(a_float64 + float32_3, expected, tarray(tfloat64))
+            (a_int32 + float32_3, expected, tarray(tfloat32)),
+            (a_int64 + float32_3, expected, tarray(tfloat32)),
+            (a_float32 + float32_3, expected, tarray(tfloat32)),
+            (a_float64 + float32_3, expected, tarray(tfloat64)),
 
-        self.check_expr(float32_3 + a_int32, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_3 + a_int64, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_3 + a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_3 + a_float64, expected_inv, tarray(tfloat64))
+            (float32_3 + a_int32, expected_inv, tarray(tfloat32)),
+            (float32_3 + a_int64, expected_inv, tarray(tfloat32)),
+            (float32_3 + a_float32, expected_inv, tarray(tfloat32)),
+            (float32_3 + a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 + float32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_int64 + float32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float32 + float32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 + float32_3s, expected, tarray(tfloat64))
+            (a_int32 + float32_3s, expected, tarray(tfloat32)),
+            (a_int64 + float32_3s, expected, tarray(tfloat32)),
+            (a_float32 + float32_3s, expected, tarray(tfloat32)),
+            (a_float64 + float32_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 + float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_int64 + float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_float32 + float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_float64 + float64_3, expected, tarray(tfloat64))
+            (a_int32 + float64_3, expected, tarray(tfloat64)),
+            (a_int64 + float64_3, expected, tarray(tfloat64)),
+            (a_float32 + float64_3, expected, tarray(tfloat64)),
+            (a_float64 + float64_3, expected, tarray(tfloat64)),
 
-        self.check_expr(float64_3 + a_int32, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 + a_int64, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 + a_float32, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 + a_float64, expected_inv, tarray(tfloat64))
+            (float64_3 + a_int32, expected_inv, tarray(tfloat64)),
+            (float64_3 + a_int64, expected_inv, tarray(tfloat64)),
+            (float64_3 + a_float32, expected_inv, tarray(tfloat64)),
+            (float64_3 + a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 + float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_int64 + float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float32 + float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float64 + float64_3s, expected, tarray(tfloat64))
+            (a_int32 + float64_3s, expected, tarray(tfloat64)),
+            (a_int64 + float64_3s, expected, tarray(tfloat64)),
+            (a_float32 + float64_3s, expected, tarray(tfloat64)),
+            (a_float64 + float64_3s, expected, tarray(tfloat64))])
 
     def test_subtraction(self):
         a_int32 = hl.array([2, 4, 8, 16, hl.missing(tint32)])
@@ -1752,65 +1864,66 @@ class Tests(unittest.TestCase):
         expected = [-1, 1, 5, 13, None]
         expected_inv = [1, -1, -5, -13, None]
 
-        self.check_expr(a_int32 - 3, expected, tarray(tint32))
-        self.check_expr(a_int64 - 3, expected, tarray(tint64))
-        self.check_expr(a_float32 - 3, expected, tarray(tfloat32))
-        self.check_expr(a_float64 - 3, expected, tarray(tfloat64))
+        _test_many_equal_typed([
+            (a_int32 - 3, expected, tarray(tint32)),
+            (a_int64 - 3, expected, tarray(tint64)),
+            (a_float32 - 3, expected, tarray(tfloat32)),
+            (a_float64 - 3, expected, tarray(tfloat64)),
 
-        self.check_expr(3 - a_int32, expected_inv, tarray(tint32))
-        self.check_expr(3 - a_int64, expected_inv, tarray(tint64))
-        self.check_expr(3 - a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(3 - a_float64, expected_inv, tarray(tfloat64))
+            (3 - a_int32, expected_inv, tarray(tint32)),
+            (3 - a_int64, expected_inv, tarray(tint64)),
+            (3 - a_float32, expected_inv, tarray(tfloat32)),
+            (3 - a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 - int32_3s, expected, tarray(tint32))
-        self.check_expr(a_int64 - int32_3s, expected, tarray(tint64))
-        self.check_expr(a_float32 - int32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 - int32_3s, expected, tarray(tfloat64))
+            (a_int32 - int32_3s, expected, tarray(tint32)),
+            (a_int64 - int32_3s, expected, tarray(tint64)),
+            (a_float32 - int32_3s, expected, tarray(tfloat32)),
+            (a_float64 - int32_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 - int64_3, expected, tarray(tint64))
-        self.check_expr(a_int64 - int64_3, expected, tarray(tint64))
-        self.check_expr(a_float32 - int64_3, expected, tarray(tfloat32))
-        self.check_expr(a_float64 - int64_3, expected, tarray(tfloat64))
+            (a_int32 - int64_3, expected, tarray(tint64)),
+            (a_int64 - int64_3, expected, tarray(tint64)),
+            (a_float32 - int64_3, expected, tarray(tfloat32)),
+            (a_float64 - int64_3, expected, tarray(tfloat64)),
 
-        self.check_expr(int64_3 - a_int32, expected_inv, tarray(tint64))
-        self.check_expr(int64_3 - a_int64, expected_inv, tarray(tint64))
-        self.check_expr(int64_3 - a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(int64_3 - a_float64, expected_inv, tarray(tfloat64))
+            (int64_3 - a_int32, expected_inv, tarray(tint64)),
+            (int64_3 - a_int64, expected_inv, tarray(tint64)),
+            (int64_3 - a_float32, expected_inv, tarray(tfloat32)),
+            (int64_3 - a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 - int64_3s, expected, tarray(tint64))
-        self.check_expr(a_int64 - int64_3s, expected, tarray(tint64))
-        self.check_expr(a_float32 - int64_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 - int64_3s, expected, tarray(tfloat64))
+            (a_int32 - int64_3s, expected, tarray(tint64)),
+            (a_int64 - int64_3s, expected, tarray(tint64)),
+            (a_float32 - int64_3s, expected, tarray(tfloat32)),
+            (a_float64 - int64_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 - float32_3, expected, tarray(tfloat32))
-        self.check_expr(a_int64 - float32_3, expected, tarray(tfloat32))
-        self.check_expr(a_float32 - float32_3, expected, tarray(tfloat32))
-        self.check_expr(a_float64 - float32_3, expected, tarray(tfloat64))
+            (a_int32 - float32_3, expected, tarray(tfloat32)),
+            (a_int64 - float32_3, expected, tarray(tfloat32)),
+            (a_float32 - float32_3, expected, tarray(tfloat32)),
+            (a_float64 - float32_3, expected, tarray(tfloat64)),
 
-        self.check_expr(float32_3 - a_int32, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_3 - a_int64, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_3 - a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_3 - a_float64, expected_inv, tarray(tfloat64))
+            (float32_3 - a_int32, expected_inv, tarray(tfloat32)),
+            (float32_3 - a_int64, expected_inv, tarray(tfloat32)),
+            (float32_3 - a_float32, expected_inv, tarray(tfloat32)),
+            (float32_3 - a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 - float32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_int64 - float32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float32 - float32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 - float32_3s, expected, tarray(tfloat64))
+            (a_int32 - float32_3s, expected, tarray(tfloat32)),
+            (a_int64 - float32_3s, expected, tarray(tfloat32)),
+            (a_float32 - float32_3s, expected, tarray(tfloat32)),
+            (a_float64 - float32_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 - float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_int64 - float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_float32 - float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_float64 - float64_3, expected, tarray(tfloat64))
+            (a_int32 - float64_3, expected, tarray(tfloat64)),
+            (a_int64 - float64_3, expected, tarray(tfloat64)),
+            (a_float32 - float64_3, expected, tarray(tfloat64)),
+            (a_float64 - float64_3, expected, tarray(tfloat64)),
 
-        self.check_expr(float64_3 - a_int32, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 - a_int64, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 - a_float32, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 - a_float64, expected_inv, tarray(tfloat64))
+            (float64_3 - a_int32, expected_inv, tarray(tfloat64)),
+            (float64_3 - a_int64, expected_inv, tarray(tfloat64)),
+            (float64_3 - a_float32, expected_inv, tarray(tfloat64)),
+            (float64_3 - a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 - float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_int64 - float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float32 - float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float64 - float64_3s, expected, tarray(tfloat64))
+            (a_int32 - float64_3s, expected, tarray(tfloat64)),
+            (a_int64 - float64_3s, expected, tarray(tfloat64)),
+            (a_float32 - float64_3s, expected, tarray(tfloat64)),
+            (a_float64 - float64_3s, expected, tarray(tfloat64))])
 
     def test_multiplication(self):
         a_int32 = hl.array([2, 4, 8, 16, hl.missing(tint32)])
@@ -1829,65 +1942,66 @@ class Tests(unittest.TestCase):
         expected = [6, 12, 24, 48, None]
         expected_inv = expected
 
-        self.check_expr(a_int32 * 3, expected, tarray(tint32))
-        self.check_expr(a_int64 * 3, expected, tarray(tint64))
-        self.check_expr(a_float32 * 3, expected, tarray(tfloat32))
-        self.check_expr(a_float64 * 3, expected, tarray(tfloat64))
+        _test_many_equal_typed([
+            (a_int32 * 3, expected, tarray(tint32)),
+            (a_int64 * 3, expected, tarray(tint64)),
+            (a_float32 * 3, expected, tarray(tfloat32)),
+            (a_float64 * 3, expected, tarray(tfloat64)),
 
-        self.check_expr(3 * a_int32, expected_inv, tarray(tint32))
-        self.check_expr(3 * a_int64, expected_inv, tarray(tint64))
-        self.check_expr(3 * a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(3 * a_float64, expected_inv, tarray(tfloat64))
+            (3 * a_int32, expected_inv, tarray(tint32)),
+            (3 * a_int64, expected_inv, tarray(tint64)),
+            (3 * a_float32, expected_inv, tarray(tfloat32)),
+            (3 * a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 * int32_3s, expected, tarray(tint32))
-        self.check_expr(a_int64 * int32_3s, expected, tarray(tint64))
-        self.check_expr(a_float32 * int32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 * int32_3s, expected, tarray(tfloat64))
+            (a_int32 * int32_3s, expected, tarray(tint32)),
+            (a_int64 * int32_3s, expected, tarray(tint64)),
+            (a_float32 * int32_3s, expected, tarray(tfloat32)),
+            (a_float64 * int32_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 * int64_3, expected, tarray(tint64))
-        self.check_expr(a_int64 * int64_3, expected, tarray(tint64))
-        self.check_expr(a_float32 * int64_3, expected, tarray(tfloat32))
-        self.check_expr(a_float64 * int64_3, expected, tarray(tfloat64))
+            (a_int32 * int64_3, expected, tarray(tint64)),
+            (a_int64 * int64_3, expected, tarray(tint64)),
+            (a_float32 * int64_3, expected, tarray(tfloat32)),
+            (a_float64 * int64_3, expected, tarray(tfloat64)),
 
-        self.check_expr(int64_3 * a_int32, expected_inv, tarray(tint64))
-        self.check_expr(int64_3 * a_int64, expected_inv, tarray(tint64))
-        self.check_expr(int64_3 * a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(int64_3 * a_float64, expected_inv, tarray(tfloat64))
+            (int64_3 * a_int32, expected_inv, tarray(tint64)),
+            (int64_3 * a_int64, expected_inv, tarray(tint64)),
+            (int64_3 * a_float32, expected_inv, tarray(tfloat32)),
+            (int64_3 * a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 * int64_3s, expected, tarray(tint64))
-        self.check_expr(a_int64 * int64_3s, expected, tarray(tint64))
-        self.check_expr(a_float32 * int64_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 * int64_3s, expected, tarray(tfloat64))
+            (a_int32 * int64_3s, expected, tarray(tint64)),
+            (a_int64 * int64_3s, expected, tarray(tint64)),
+            (a_float32 * int64_3s, expected, tarray(tfloat32)),
+            (a_float64 * int64_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 * float32_3, expected, tarray(tfloat32))
-        self.check_expr(a_int64 * float32_3, expected, tarray(tfloat32))
-        self.check_expr(a_float32 * float32_3, expected, tarray(tfloat32))
-        self.check_expr(a_float64 * float32_3, expected, tarray(tfloat64))
+            (a_int32 * float32_3, expected, tarray(tfloat32)),
+            (a_int64 * float32_3, expected, tarray(tfloat32)),
+            (a_float32 * float32_3, expected, tarray(tfloat32)),
+            (a_float64 * float32_3, expected, tarray(tfloat64)),
 
-        self.check_expr(float32_3 * a_int32, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_3 * a_int64, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_3 * a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_3 * a_float64, expected_inv, tarray(tfloat64))
+            (float32_3 * a_int32, expected_inv, tarray(tfloat32)),
+            (float32_3 * a_int64, expected_inv, tarray(tfloat32)),
+            (float32_3 * a_float32, expected_inv, tarray(tfloat32)),
+            (float32_3 * a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 * float32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_int64 * float32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float32 * float32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 * float32_3s, expected, tarray(tfloat64))
+            (a_int32 * float32_3s, expected, tarray(tfloat32)),
+            (a_int64 * float32_3s, expected, tarray(tfloat32)),
+            (a_float32 * float32_3s, expected, tarray(tfloat32)),
+            (a_float64 * float32_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 * float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_int64 * float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_float32 * float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_float64 * float64_3, expected, tarray(tfloat64))
+            (a_int32 * float64_3, expected, tarray(tfloat64)),
+            (a_int64 * float64_3, expected, tarray(tfloat64)),
+            (a_float32 * float64_3, expected, tarray(tfloat64)),
+            (a_float64 * float64_3, expected, tarray(tfloat64)),
 
-        self.check_expr(float64_3 * a_int32, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 * a_int64, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 * a_float32, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 * a_float64, expected_inv, tarray(tfloat64))
+            (float64_3 * a_int32, expected_inv, tarray(tfloat64)),
+            (float64_3 * a_int64, expected_inv, tarray(tfloat64)),
+            (float64_3 * a_float32, expected_inv, tarray(tfloat64)),
+            (float64_3 * a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 * float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_int64 * float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float32 * float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float64 * float64_3s, expected, tarray(tfloat64))
+            (a_int32 * float64_3s, expected, tarray(tfloat64)),
+            (a_int64 * float64_3s, expected, tarray(tfloat64)),
+            (a_float32 * float64_3s, expected, tarray(tfloat64)),
+            (a_float64 * float64_3s, expected, tarray(tfloat64))])
 
     def test_exponentiation(self):
         a_int32 = hl.array([2, 4, 8, 16, hl.missing(tint32)])
@@ -1906,65 +2020,66 @@ class Tests(unittest.TestCase):
         expected = [8, 64, 512, 4096, None]
         expected_inv = [9.0, 81.0, 6561.0, 43046721.0, None]
 
-        self.check_expr(a_int32 ** 3, expected, tarray(tfloat64))
-        self.check_expr(a_int64 ** 3, expected, tarray(tfloat64))
-        self.check_expr(a_float32 ** 3, expected, tarray(tfloat64))
-        self.check_expr(a_float64 ** 3, expected, tarray(tfloat64))
+        _test_many_equal_typed([
+            (a_int32 ** 3, expected, tarray(tfloat64)),
+            (a_int64 ** 3, expected, tarray(tfloat64)),
+            (a_float32 ** 3, expected, tarray(tfloat64)),
+            (a_float64 ** 3, expected, tarray(tfloat64)),
 
-        self.check_expr(3 ** a_int32, expected_inv, tarray(tfloat64))
-        self.check_expr(3 ** a_int64, expected_inv, tarray(tfloat64))
-        self.check_expr(3 ** a_float32, expected_inv, tarray(tfloat64))
-        self.check_expr(3 ** a_float64, expected_inv, tarray(tfloat64))
+            (3 ** a_int32, expected_inv, tarray(tfloat64)),
+            (3 ** a_int64, expected_inv, tarray(tfloat64)),
+            (3 ** a_float32, expected_inv, tarray(tfloat64)),
+            (3 ** a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 ** int32_3s, expected, tarray(tfloat64))
-        self.check_expr(a_int64 ** int32_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float32 ** int32_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float64 ** int32_3s, expected, tarray(tfloat64))
+            (a_int32 ** int32_3s, expected, tarray(tfloat64)),
+            (a_int64 ** int32_3s, expected, tarray(tfloat64)),
+            (a_float32 ** int32_3s, expected, tarray(tfloat64)),
+            (a_float64 ** int32_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 ** int64_3, expected, tarray(tfloat64))
-        self.check_expr(a_int64 ** int64_3, expected, tarray(tfloat64))
-        self.check_expr(a_float32 ** int64_3, expected, tarray(tfloat64))
-        self.check_expr(a_float64 ** int64_3, expected, tarray(tfloat64))
+            (a_int32 ** int64_3, expected, tarray(tfloat64)),
+            (a_int64 ** int64_3, expected, tarray(tfloat64)),
+            (a_float32 ** int64_3, expected, tarray(tfloat64)),
+            (a_float64 ** int64_3, expected, tarray(tfloat64)),
 
-        self.check_expr(int64_3 ** a_int32, expected_inv, tarray(tfloat64))
-        self.check_expr(int64_3 ** a_int64, expected_inv, tarray(tfloat64))
-        self.check_expr(int64_3 ** a_float32, expected_inv, tarray(tfloat64))
-        self.check_expr(int64_3 ** a_float64, expected_inv, tarray(tfloat64))
+            (int64_3 ** a_int32, expected_inv, tarray(tfloat64)),
+            (int64_3 ** a_int64, expected_inv, tarray(tfloat64)),
+            (int64_3 ** a_float32, expected_inv, tarray(tfloat64)),
+            (int64_3 ** a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 ** int64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_int64 ** int64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float32 ** int64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float64 ** int64_3s, expected, tarray(tfloat64))
+            (a_int32 ** int64_3s, expected, tarray(tfloat64)),
+            (a_int64 ** int64_3s, expected, tarray(tfloat64)),
+            (a_float32 ** int64_3s, expected, tarray(tfloat64)),
+            (a_float64 ** int64_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 ** float32_3, expected, tarray(tfloat64))
-        self.check_expr(a_int64 ** float32_3, expected, tarray(tfloat64))
-        self.check_expr(a_float32 ** float32_3, expected, tarray(tfloat64))
-        self.check_expr(a_float64 ** float32_3, expected, tarray(tfloat64))
+            (a_int32 ** float32_3, expected, tarray(tfloat64)),
+            (a_int64 ** float32_3, expected, tarray(tfloat64)),
+            (a_float32 ** float32_3, expected, tarray(tfloat64)),
+            (a_float64 ** float32_3, expected, tarray(tfloat64)),
 
-        self.check_expr(float32_3 ** a_int32, expected_inv, tarray(tfloat64))
-        self.check_expr(float32_3 ** a_int64, expected_inv, tarray(tfloat64))
-        self.check_expr(float32_3 ** a_float32, expected_inv, tarray(tfloat64))
-        self.check_expr(float32_3 ** a_float64, expected_inv, tarray(tfloat64))
+            (float32_3 ** a_int32, expected_inv, tarray(tfloat64)),
+            (float32_3 ** a_int64, expected_inv, tarray(tfloat64)),
+            (float32_3 ** a_float32, expected_inv, tarray(tfloat64)),
+            (float32_3 ** a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 ** float32_3s, expected, tarray(tfloat64))
-        self.check_expr(a_int64 ** float32_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float32 ** float32_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float64 ** float32_3s, expected, tarray(tfloat64))
+            (a_int32 ** float32_3s, expected, tarray(tfloat64)),
+            (a_int64 ** float32_3s, expected, tarray(tfloat64)),
+            (a_float32 ** float32_3s, expected, tarray(tfloat64)),
+            (a_float64 ** float32_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 ** float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_int64 ** float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_float32 ** float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_float64 ** float64_3, expected, tarray(tfloat64))
+            (a_int32 ** float64_3, expected, tarray(tfloat64)),
+            (a_int64 ** float64_3, expected, tarray(tfloat64)),
+            (a_float32 ** float64_3, expected, tarray(tfloat64)),
+            (a_float64 ** float64_3, expected, tarray(tfloat64)),
 
-        self.check_expr(float64_3 ** a_int32, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 ** a_int64, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 ** a_float32, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 ** a_float64, expected_inv, tarray(tfloat64))
+            (float64_3 ** a_int32, expected_inv, tarray(tfloat64)),
+            (float64_3 ** a_int64, expected_inv, tarray(tfloat64)),
+            (float64_3 ** a_float32, expected_inv, tarray(tfloat64)),
+            (float64_3 ** a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 ** float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_int64 ** float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float32 ** float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float64 ** float64_3s, expected, tarray(tfloat64))
+            (a_int32 ** float64_3s, expected, tarray(tfloat64)),
+            (a_int64 ** float64_3s, expected, tarray(tfloat64)),
+            (a_float32 ** float64_3s, expected, tarray(tfloat64)),
+            (a_float64 ** float64_3s, expected, tarray(tfloat64))])
 
     def test_modulus(self):
         a_int32 = hl.array([2, 4, 8, 16, hl.missing(tint32)])
@@ -1983,65 +2098,66 @@ class Tests(unittest.TestCase):
         expected = [2, 1, 2, 1, None]
         expected_inv = [1, 3, 3, 3, None]
 
-        self.check_expr(a_int32 % 3, expected, tarray(tint32))
-        self.check_expr(a_int64 % 3, expected, tarray(tint64))
-        self.check_expr(a_float32 % 3, expected, tarray(tfloat32))
-        self.check_expr(a_float64 % 3, expected, tarray(tfloat64))
+        _test_many_equal_typed([
+            (a_int32 % 3, expected, tarray(tint32)),
+            (a_int64 % 3, expected, tarray(tint64)),
+            (a_float32 % 3, expected, tarray(tfloat32)),
+            (a_float64 % 3, expected, tarray(tfloat64)),
 
-        self.check_expr(3 % a_int32, expected_inv, tarray(tint32))
-        self.check_expr(3 % a_int64, expected_inv, tarray(tint64))
-        self.check_expr(3 % a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(3 % a_float64, expected_inv, tarray(tfloat64))
+            (3 % a_int32, expected_inv, tarray(tint32)),
+            (3 % a_int64, expected_inv, tarray(tint64)),
+            (3 % a_float32, expected_inv, tarray(tfloat32)),
+            (3 % a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 % int32_3s, expected, tarray(tint32))
-        self.check_expr(a_int64 % int32_3s, expected, tarray(tint64))
-        self.check_expr(a_float32 % int32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 % int32_3s, expected, tarray(tfloat64))
+            (a_int32 % int32_3s, expected, tarray(tint32)),
+            (a_int64 % int32_3s, expected, tarray(tint64)),
+            (a_float32 % int32_3s, expected, tarray(tfloat32)),
+            (a_float64 % int32_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 % int64_3, expected, tarray(tint64))
-        self.check_expr(a_int64 % int64_3, expected, tarray(tint64))
-        self.check_expr(a_float32 % int64_3, expected, tarray(tfloat32))
-        self.check_expr(a_float64 % int64_3, expected, tarray(tfloat64))
+            (a_int32 % int64_3, expected, tarray(tint64)),
+            (a_int64 % int64_3, expected, tarray(tint64)),
+            (a_float32 % int64_3, expected, tarray(tfloat32)),
+            (a_float64 % int64_3, expected, tarray(tfloat64)),
 
-        self.check_expr(int64_3 % a_int32, expected_inv, tarray(tint64))
-        self.check_expr(int64_3 % a_int64, expected_inv, tarray(tint64))
-        self.check_expr(int64_3 % a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(int64_3 % a_float64, expected_inv, tarray(tfloat64))
+            (int64_3 % a_int32, expected_inv, tarray(tint64)),
+            (int64_3 % a_int64, expected_inv, tarray(tint64)),
+            (int64_3 % a_float32, expected_inv, tarray(tfloat32)),
+            (int64_3 % a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 % int64_3s, expected, tarray(tint64))
-        self.check_expr(a_int64 % int64_3s, expected, tarray(tint64))
-        self.check_expr(a_float32 % int64_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 % int64_3s, expected, tarray(tfloat64))
+            (a_int32 % int64_3s, expected, tarray(tint64)),
+            (a_int64 % int64_3s, expected, tarray(tint64)),
+            (a_float32 % int64_3s, expected, tarray(tfloat32)),
+            (a_float64 % int64_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 % float32_3, expected, tarray(tfloat32))
-        self.check_expr(a_int64 % float32_3, expected, tarray(tfloat32))
-        self.check_expr(a_float32 % float32_3, expected, tarray(tfloat32))
-        self.check_expr(a_float64 % float32_3, expected, tarray(tfloat64))
+            (a_int32 % float32_3, expected, tarray(tfloat32)),
+            (a_int64 % float32_3, expected, tarray(tfloat32)),
+            (a_float32 % float32_3, expected, tarray(tfloat32)),
+            (a_float64 % float32_3, expected, tarray(tfloat64)),
 
-        self.check_expr(float32_3 % a_int32, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_3 % a_int64, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_3 % a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_3 % a_float64, expected_inv, tarray(tfloat64))
+            (float32_3 % a_int32, expected_inv, tarray(tfloat32)),
+            (float32_3 % a_int64, expected_inv, tarray(tfloat32)),
+            (float32_3 % a_float32, expected_inv, tarray(tfloat32)),
+            (float32_3 % a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 % float32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_int64 % float32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float32 % float32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 % float32_3s, expected, tarray(tfloat64))
+            (a_int32 % float32_3s, expected, tarray(tfloat32)),
+            (a_int64 % float32_3s, expected, tarray(tfloat32)),
+            (a_float32 % float32_3s, expected, tarray(tfloat32)),
+            (a_float64 % float32_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 % float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_int64 % float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_float32 % float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_float64 % float64_3, expected, tarray(tfloat64))
+            (a_int32 % float64_3, expected, tarray(tfloat64)),
+            (a_int64 % float64_3, expected, tarray(tfloat64)),
+            (a_float32 % float64_3, expected, tarray(tfloat64)),
+            (a_float64 % float64_3, expected, tarray(tfloat64)),
 
-        self.check_expr(float64_3 % a_int32, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 % a_int64, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 % a_float32, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 % a_float64, expected_inv, tarray(tfloat64))
+            (float64_3 % a_int32, expected_inv, tarray(tfloat64)),
+            (float64_3 % a_int64, expected_inv, tarray(tfloat64)),
+            (float64_3 % a_float32, expected_inv, tarray(tfloat64)),
+            (float64_3 % a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 % float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_int64 % float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float32 % float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float64 % float64_3s, expected, tarray(tfloat64))
+            (a_int32 % float64_3s, expected, tarray(tfloat64)),
+            (a_int64 % float64_3s, expected, tarray(tfloat64)),
+            (a_float32 % float64_3s, expected, tarray(tfloat64)),
+            (a_float64 % float64_3s, expected, tarray(tfloat64))])
 
     def test_comparisons(self):
         f0 = hl.float(0.0)
@@ -2049,19 +2165,20 @@ class Tests(unittest.TestCase):
         finf = hl.float(float('inf'))
         fnan = hl.float(float('nan'))
 
-        self.check_expr(f0 == fnull, None, tbool)
-        self.check_expr(f0 < fnull, None, tbool)
-        self.check_expr(f0 != fnull, None, tbool)
+        _test_many_equal_typed([
+            (f0 == fnull, None, tbool),
+            (f0 < fnull, None, tbool),
+            (f0 != fnull, None, tbool),
 
-        self.check_expr(fnan == fnan, False, tbool)
-        self.check_expr(f0 == f0, True, tbool)
-        self.check_expr(finf == finf, True, tbool)
+            (fnan == fnan, False, tbool),
+            (f0 == f0, True, tbool),
+            (finf == finf, True, tbool),
 
-        self.check_expr(f0 < finf, True, tbool)
-        self.check_expr(f0 > finf, False, tbool)
+            (f0 < finf, True, tbool),
+            (f0 > finf, False, tbool),
 
-        self.check_expr(fnan <= finf, False, tbool)
-        self.check_expr(fnan >= finf, False, tbool)
+            (fnan <= finf, False, tbool),
+            (fnan >= finf, False, tbool)])
 
     def test_bools_can_math(self):
         b1 = hl.literal(True)
@@ -2071,57 +2188,64 @@ class Tests(unittest.TestCase):
         f1 = hl.float64(5.5)
         f_array = hl.array([1.5, 2.5])
 
-        self.assertEqual(hl.eval(hl.int32(b1)), 1)
-        self.assertEqual(hl.eval(hl.int64(b1)), 1)
-        self.assertEqual(hl.eval(hl.float32(b1)), 1.0)
-        self.assertEqual(hl.eval(hl.float64(b1)), 1.0)
-        self.assertEqual(hl.eval(b1 * b2), 0)
-        self.assertEqual(hl.eval(b1 + b2), 1)
-        self.assertEqual(hl.eval(b1 - b2), 1)
-        self.assertEqual(hl.eval(b1 / b1), 1.0)
-        self.assertEqual(hl.eval(f1 * b2), 0.0)
-        self.assertEqual(hl.eval(b_array + f1), [6.5, 5.5])
-        self.assertEqual(hl.eval(b_array + f_array), [2.5, 2.5])
+        _test_many_equal([
+            (hl.int32(b1), 1),
+            (hl.int64(b1), 1),
+            (hl.float32(b1), 1.0),
+            (hl.float64(b1), 1.0),
+            (b1 * b2, 0),
+            (b1 + b2, 1),
+            (b1 - b2, 1),
+            (b1 / b1, 1.0),
+            (f1 * b2, 0.0),
+            (b_array + f1, [6.5, 5.5]),
+            (b_array + f_array, [2.5, 2.5])])
 
     def test_int_typecheck(self):
-        self.assertIsNone(hl.eval(hl.literal(None, dtype='int32')))
-        self.assertIsNone(hl.eval(hl.literal(None, dtype='int64')))
+        _test_many_equal([
+            (hl.literal(None, dtype='int32'), None),
+            (hl.literal(None, dtype='int64'), None)])
 
     @fails_service_backend()
     def test_is_transition(self):
-        self.assertTrue(hl.eval(hl.is_transition("A", "G")))
-        self.assertTrue(hl.eval(hl.is_transition("C", "T")))
-        self.assertTrue(hl.eval(hl.is_transition("AA", "AG")))
-        self.assertFalse(hl.eval(hl.is_transition("AA", "G")))
-        self.assertFalse(hl.eval(hl.is_transition("ACA", "AGA")))
-        self.assertFalse(hl.eval(hl.is_transition("A", "T")))
+        _test_many_equal([
+            (hl.is_transition("A", "G"), True),
+            (hl.is_transition("C", "T"), True),
+            (hl.is_transition("AA", "AG"), True),
+            (hl.is_transition("AA", "G"), False),
+            (hl.is_transition("ACA", "AGA"), False),
+            (hl.is_transition("A", "T"), False)])
 
     @fails_service_backend()
     def test_is_transversion(self):
-        self.assertTrue(hl.eval(hl.is_transversion("A", "T")))
-        self.assertFalse(hl.eval(hl.is_transversion("A", "G")))
-        self.assertTrue(hl.eval(hl.is_transversion("AA", "AT")))
-        self.assertFalse(hl.eval(hl.is_transversion("AA", "T")))
-        self.assertFalse(hl.eval(hl.is_transversion("ACCC", "ACCT")))
+        _test_many_equal([
+            (hl.is_transversion("A", "T"), True),
+            (hl.is_transversion("A", "G"), False),
+            (hl.is_transversion("AA", "AT"), True),
+            (hl.is_transversion("AA", "T"), False),
+            (hl.is_transversion("ACCC", "ACCT"), False)])
 
     @fails_service_backend()
     def test_is_snp(self):
-        self.assertTrue(hl.eval(hl.is_snp("A", "T")))
-        self.assertTrue(hl.eval(hl.is_snp("A", "G")))
-        self.assertTrue(hl.eval(hl.is_snp("C", "G")))
-        self.assertTrue(hl.eval(hl.is_snp("CC", "CG")))
-        self.assertTrue(hl.eval(hl.is_snp("AT", "AG")))
-        self.assertTrue(hl.eval(hl.is_snp("ATCCC", "AGCCC")))
+        _test_many_equal([
+            (hl.is_snp("A", "T"), True),
+            (hl.is_snp("A", "G"), True),
+            (hl.is_snp("C", "G"), True),
+            (hl.is_snp("CC", "CG"), True),
+            (hl.is_snp("AT", "AG"), True),
+            (hl.is_snp("ATCCC", "AGCCC"), True)])
 
     @fails_service_backend()
     def test_is_mnp(self):
-        self.assertTrue(hl.eval(hl.is_mnp("ACTGAC", "ATTGTT")))
-        self.assertTrue(hl.eval(hl.is_mnp("CA", "TT")))
+        _test_many_equal([
+            (hl.is_mnp("ACTGAC", "ATTGTT"), True),
+            (hl.is_mnp("CA", "TT"), True)])
 
     @fails_service_backend()
     def test_is_insertion(self):
-        self.assertTrue(hl.eval(hl.is_insertion("A", "ATGC")))
-        self.assertTrue(hl.eval(hl.is_insertion("ATT", "ATGCTT")))
+        _test_many_equal([
+            (hl.is_insertion("A", "ATGC"), True),
+            (hl.is_insertion("ATT", "ATGCTT"), True)])
 
     @fails_service_backend()
     def test_is_deletion(self):
@@ -2197,9 +2321,10 @@ class Tests(unittest.TestCase):
         )
 
     def test_hamming(self):
-        self.assertEqual(hl.eval(hl.hamming('A', 'T')), 1)
-        self.assertEqual(hl.eval(hl.hamming('AAAAA', 'AAAAT')), 1)
-        self.assertEqual(hl.eval(hl.hamming('abcde', 'edcba')), 4)
+        _test_many_equal([
+            (hl.hamming('A', 'T'), 1),
+            (hl.hamming('AAAAA', 'AAAAT'), 1),
+            (hl.hamming('abcde', 'edcba'), 4)])
 
     def test_gp_dosage(self):
         self.assertAlmostEqual(hl.eval(hl.gp_dosage([1.0, 0.0, 0.0])), 0.0)
@@ -2216,69 +2341,70 @@ class Tests(unittest.TestCase):
         c1 = hl.call(1)
         c0 = hl.call()
         cNull = hl.missing(tcall)
-
-        self.check_expr(c2_homref.ploidy, 2, tint32)
-        self.check_expr(c2_homref[0], 0, tint32)
-        self.check_expr(c2_homref[1], 0, tint32)
-        self.check_expr(c2_homref.phased, False, tbool)
-        self.check_expr(c2_homref.is_hom_ref(), True, tbool)
-
-        self.check_expr(c2_het.ploidy, 2, tint32)
-        self.check_expr(c2_het[0], 1, tint32)
-        self.check_expr(c2_het[1], 0, tint32)
-        self.check_expr(c2_het.phased, True, tbool)
-        self.check_expr(c2_het.is_het(), True, tbool)
-
-        self.check_expr(c2_homvar.ploidy, 2, tint32)
-        self.check_expr(c2_homvar[0], 1, tint32)
-        self.check_expr(c2_homvar[1], 1, tint32)
-        self.check_expr(c2_homvar.phased, False, tbool)
-        self.check_expr(c2_homvar.is_hom_var(), True, tbool)
-        self.check_expr(c2_homvar.unphased_diploid_gt_index(), 2, tint32)
-
-        self.check_expr(c2_hetvar.ploidy, 2, tint32)
-        self.check_expr(c2_hetvar[0], 2, tint32)
-        self.check_expr(c2_hetvar[1], 1, tint32)
-        self.check_expr(c2_hetvar.phased, True, tbool)
-        self.check_expr(c2_hetvar.is_hom_var(), False, tbool)
-        self.check_expr(c2_hetvar.is_het_non_ref(), True, tbool)
-
-        self.check_expr(c1.ploidy, 1, tint32)
-        self.check_expr(c1[0], 1, tint32)
-        self.check_expr(c1.phased, False, tbool)
-        self.check_expr(c1.is_hom_var(), True, tbool)
-
-        self.check_expr(c0.ploidy, 0, tint32)
-        self.check_expr(c0.phased, False, tbool)
-        self.check_expr(c0.is_hom_var(), False, tbool)
-
-        self.check_expr(cNull.ploidy, None, tint32)
-        self.check_expr(cNull[0], None, tint32)
-        self.check_expr(cNull.phased, None, tbool)
-        self.check_expr(cNull.is_hom_var(), None, tbool)
-
-        call_expr = hl.call(1, 2, phased=True)
-        self.check_expr(call_expr[0], 1, tint32)
-        self.check_expr(call_expr[1], 2, tint32)
-        self.check_expr(call_expr.ploidy, 2, tint32)
-
+        call_expr_1 = hl.call(1, 2, phased=True)
         a0 = hl.literal(1)
         a1 = 2
         phased = hl.literal(True)
-        call_expr = hl.call(a0, a1, phased=phased)
-        self.check_expr(call_expr[0], 1, tint32)
-        self.check_expr(call_expr[1], 2, tint32)
-        self.check_expr(call_expr.ploidy, 2, tint32)
+        call_expr_2 = hl.call(a0, a1, phased=phased)
+        call_expr_3 = hl.parse_call("1|2")
+        call_expr_4 = hl.unphased_diploid_gt_index_call(2)
 
-        call_expr = hl.parse_call("1|2")
-        self.check_expr(call_expr[0], 1, tint32)
-        self.check_expr(call_expr[1], 2, tint32)
-        self.check_expr(call_expr.ploidy, 2, tint32)
+        _test_many_equal_typed([
+            (c2_homref.ploidy, 2, tint32),
+            (c2_homref[0], 0, tint32),
+            (c2_homref[1], 0, tint32),
+            (c2_homref.phased, False, tbool),
+            (c2_homref.is_hom_ref(), True, tbool),
 
-        call_expr = hl.unphased_diploid_gt_index_call(2)
-        self.check_expr(call_expr[0], 1, tint32)
-        self.check_expr(call_expr[1], 1, tint32)
-        self.check_expr(call_expr.ploidy, 2, tint32)
+            (c2_het.ploidy, 2, tint32),
+            (c2_het[0], 1, tint32),
+            (c2_het[1], 0, tint32),
+            (c2_het.phased, True, tbool),
+            (c2_het.is_het(), True, tbool),
+
+            (c2_homvar.ploidy, 2, tint32),
+            (c2_homvar[0], 1, tint32),
+            (c2_homvar[1], 1, tint32),
+            (c2_homvar.phased, False, tbool),
+            (c2_homvar.is_hom_var(), True, tbool),
+            (c2_homvar.unphased_diploid_gt_index(), 2, tint32),
+
+            (c2_hetvar.ploidy, 2, tint32),
+            (c2_hetvar[0], 2, tint32),
+            (c2_hetvar[1], 1, tint32),
+            (c2_hetvar.phased, True, tbool),
+            (c2_hetvar.is_hom_var(), False, tbool),
+            (c2_hetvar.is_het_non_ref(), True, tbool),
+
+            (c1.ploidy, 1, tint32),
+            (c1[0], 1, tint32),
+            (c1.phased, False, tbool),
+            (c1.is_hom_var(), True, tbool),
+
+            (c0.ploidy, 0, tint32),
+            (c0.phased, False, tbool),
+            (c0.is_hom_var(), False, tbool),
+
+            (cNull.ploidy, None, tint32),
+            (cNull[0], None, tint32),
+            (cNull.phased, None, tbool),
+            (cNull.is_hom_var(), None, tbool),
+
+            (call_expr_1[0], 1, tint32),
+            (call_expr_1[1], 2, tint32),
+            (call_expr_1.ploidy, 2, tint32),
+
+            (call_expr_2[0], 1, tint32),
+            (call_expr_2[1], 2, tint32),
+            (call_expr_2.ploidy, 2, tint32),
+
+            (call_expr_3[0], 1, tint32),
+            (call_expr_3[1], 2, tint32),
+            (call_expr_3.ploidy, 2, tint32),
+
+            (call_expr_4[0], 1, tint32),
+            (call_expr_4[1], 1, tint32),
+            (call_expr_4.ploidy, 2, tint32)])
 
     def test_call_unphase_diploid_gt_index(self):
         calls_and_indices = [
@@ -2409,25 +2535,23 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.all(lambda x: x % 2 == 0, [2, 6])), True)
 
     def test_array_methods(self):
-        self.assertEqual(hl.eval(hl.map(lambda x: x % 2 == 0, [0, 1, 4, 6])), [True, False, True, True])
-
-        self.assertEqual(hl.eval(hl.len([0, 1, 4, 6])), 4)
-
-        self.assertTrue(math.isnan(hl.eval(hl.mean(hl.empty_array(hl.tint)))))
-        self.assertEqual(hl.eval(hl.mean([0, 1, 4, 6, hl.missing(tint32)])), 2.75)
-
-        self.assertEqual(hl.eval(hl.median(hl.empty_array(hl.tint))), None)
-        self.assertTrue(1 <= hl.eval(hl.median([0, 1, 4, 6])) <= 4)
-
-        for f in [lambda x: hl.int32(x), lambda x: hl.int64(x), lambda x: hl.float32(x), lambda x: hl.float64(x)]:
-            self.assertEqual(hl.eval(hl.product([f(x) for x in [1, 4, 6]])), 24)
-            self.assertEqual(hl.eval(hl.sum([f(x) for x in [1, 4, 6]])), 11)
-
-        self.assertEqual(hl.eval(hl.group_by(lambda x: x % 2 == 0, [0, 1, 4, 6])), {True: [0, 4, 6], False: [1]})
-
-        self.assertEqual(hl.eval(hl.flatmap(lambda x: hl.range(0, x), [1, 2, 3])), [0, 0, 1, 0, 1, 2])
-        fm = hl.flatmap(lambda x: hl.set(hl.range(0, x.length()).map(lambda i: x[i])), {"ABC", "AAa", "BD"})
-        self.assertEqual(hl.eval(fm), {'A', 'a', 'B', 'C', 'D'})
+        _test_many_equal([
+            (hl.map(lambda x: x % 2 == 0, [0, 1, 4, 6]), [True, False, True, True]),
+            (hl.len([0, 1, 4, 6]), 4),
+            (math.isnan(hl.eval(hl.mean(hl.empty_array(hl.tint)))), True),
+            (hl.mean([0, 1, 4, 6, hl.missing(tint32)]), 2.75),
+            (hl.median(hl.empty_array(hl.tint)), None),
+            (1 <= hl.eval(hl.median([0, 1, 4, 6])) <= 4, True)
+        ] + [test
+             for f in [lambda x: hl.int32(x), lambda x: hl.int64(x), lambda x: hl.float32(x), lambda x: hl.float64(x)]
+             for test in [(hl.product([f(x) for x in [1, 4, 6]]), 24),
+                          (hl.sum([f(x) for x in [1, 4, 6]]), 11)]
+        ] + [
+            (hl.group_by(lambda x: x % 2 == 0, [0, 1, 4, 6]), {True: [0, 4, 6], False: [1]}),
+            (hl.flatmap(lambda x: hl.range(0, x), [1, 2, 3]), [0, 0, 1, 0, 1, 2]),
+            (hl.flatmap(lambda x: hl.set(hl.range(0, x.length()).map(lambda i: x[i])), {"ABC", "AAa", "BD"}),
+             {'A', 'a', 'B', 'C', 'D'})
+        ])
 
     def test_starmap(self):
         self.assertEqual(hl.eval(hl.array([(1, 2), (2, 3)]).starmap(lambda x,y: x+y)), [3, 5])
@@ -3086,6 +3210,39 @@ class Tests(unittest.TestCase):
         self.assert_evals_to(hl.mean(s), 3)
         self.assert_evals_to(hl.median(s), 3)
 
+    def test_set_operators(self):
+        self.assert_evals_to(hl.set([1, 2, 3]) <= hl.set([1, 2]), False)
+        self.assert_evals_to(hl.set([1, 2, 3]) <= hl.set([1, 2, 3]), True)
+        self.assert_evals_to(hl.set([1, 2, 3]) <= hl.set([1, 2, 3, 4]), True)
+
+        self.assert_evals_to(hl.set([1, 2, 3]) < hl.set([1, 2]), False)
+        self.assert_evals_to(hl.set([1, 2, 3]) < hl.set([1, 2, 3]), False)
+        self.assert_evals_to(hl.set([1, 2, 3]) < hl.set([1, 2, 3, 4]), True)
+
+        self.assert_evals_to(hl.set([1, 2]) >= hl.set([1, 2, 3]), False)
+        self.assert_evals_to(hl.set([1, 2, 3]) >= hl.set([1, 2, 3]), True)
+        self.assert_evals_to(hl.set([1, 2, 3, 4]) >= hl.set([1, 2, 3]), True)
+
+        self.assert_evals_to(hl.set([1, 2]) > hl.set([1, 2, 3]), False)
+        self.assert_evals_to(hl.set([1, 2, 3]) > hl.set([1, 2, 3]), False)
+        self.assert_evals_to(hl.set([1, 2, 3, 4]) > hl.set([1, 2, 3]), True)
+
+        self.assert_evals_to(hl.set([1, 2, 3]) - hl.set([1, 3]), set([2]))
+        self.assert_evals_to(hl.set([1, 2, 3]) - set([1, 3]), set([2]))
+        self.assert_evals_to(set([1, 2, 3]) - hl.set([1, 3]), set([2]))
+
+        self.assert_evals_to(hl.set([1, 2, 3]) | hl.set([3, 4, 5]), set([1, 2, 3, 4, 5]))
+        self.assert_evals_to(hl.set([1, 2, 3]) | set([3, 4, 5]), set([1, 2, 3, 4, 5]))
+        self.assert_evals_to(set([1, 2, 3]) | hl.set([3, 4, 5]), set([1, 2, 3, 4, 5]))
+
+        self.assert_evals_to(hl.set([1, 2, 3]) & hl.set([3, 4, 5]), set([3]))
+        self.assert_evals_to(hl.set([1, 2, 3]) & set([3, 4, 5]), set([3]))
+        self.assert_evals_to(set([1, 2, 3]) & hl.set([3, 4, 5]), set([3]))
+
+        self.assert_evals_to(hl.set([1, 2, 3]) ^ hl.set([3, 4, 5]), set([1, 2, 4, 5]))
+        self.assert_evals_to(hl.set([1, 2, 3]) ^ set([3, 4, 5]), set([1, 2, 4, 5]))
+        self.assert_evals_to(set([1, 2, 3]) ^ hl.set([3, 4, 5]), set([1, 2, 4, 5]))
+
     @fails_service_backend()
     def test_uniroot(self):
         tol = 1.220703e-4
@@ -3157,9 +3314,13 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(res['odds_ratio'], 4.91805817)
 
     def test_hardy_weinberg_test(self):
-        res = hl.eval(hl.hardy_weinberg_test(1, 2, 1))
-        self.assertAlmostEqual(res['p_value'], 0.65714285)
-        self.assertAlmostEqual(res['het_freq_hwe'], 0.57142857)
+        two_sided_res = hl.eval(hl.hardy_weinberg_test(1, 2, 1, one_sided=False))
+        self.assertAlmostEqual(two_sided_res['p_value'], 0.65714285)
+        self.assertAlmostEqual(two_sided_res['het_freq_hwe'], 0.57142857)
+
+        one_sided_res = hl.eval(hl.hardy_weinberg_test(1, 2, 1, one_sided=True))
+        self.assertAlmostEqual(one_sided_res['p_value'], 0.57142857)
+        self.assertAlmostEqual(one_sided_res['het_freq_hwe'], 0.57142857)
 
     def test_hardy_weinberg_agg(self):
         mapping = {
@@ -3176,31 +3337,60 @@ class Tests(unittest.TestCase):
         }
 
         mt = hl.utils.range_matrix_table(n_rows=3, n_cols=5)
-        mt = mt.annotate_rows(hwe = hl.agg.hardy_weinberg_test(hl.literal(mapping).get((mt.row_idx, mt.col_idx))))
-        [r1, r2, r3] = mt.hwe.collect()
+        mt = mt.annotate_rows(
+            hwe_two_sided = hl.agg.hardy_weinberg_test(hl.literal(mapping).get((mt.row_idx, mt.col_idx)), one_sided=False),
+            hwe_one_sided = hl.agg.hardy_weinberg_test(hl.literal(mapping).get((mt.row_idx, mt.col_idx)), one_sided=True)
+        )
+        [r1_two_sided, r2_two_sided, r3_two_sided] = mt.hwe_two_sided.collect()
 
-        self.assertAlmostEqual(r1['p_value'], 0.65714285)
-        self.assertAlmostEqual(r1['het_freq_hwe'], 0.57142857)
+        self.assertAlmostEqual(r1_two_sided['p_value'], 0.65714285)
+        self.assertAlmostEqual(r1_two_sided['het_freq_hwe'], 0.57142857)
 
-        assert r2['p_value'] == 0.5
-        assert r2['het_freq_hwe'] == 0.0
+        assert r2_two_sided['p_value'] == 0.5
+        assert r2_two_sided['het_freq_hwe'] == 0.0
 
-        assert r3['p_value'] == 0.5
-        assert np.isnan(r3['het_freq_hwe'])
+        assert r3_two_sided['p_value'] == 0.5
+        assert np.isnan(r3_two_sided['het_freq_hwe'])
+
+        [r1_one_sided, r2_one_sided, r3_one_sided] = mt.hwe_one_sided.collect()
+
+        self.assertAlmostEqual(r1_one_sided['p_value'], 0.57142857)
+        self.assertAlmostEqual(r1_one_sided['het_freq_hwe'], 0.57142857)
+
+        assert r2_one_sided['p_value'] == 0.5
+        assert r2_one_sided['het_freq_hwe'] == 0.0
+
+        assert r3_one_sided['p_value'] == 0.5
+        assert np.isnan(r3_one_sided['het_freq_hwe'])
 
         ht = hl.utils.range_table(6)
-        ht = ht.annotate(x = hl.scan.hardy_weinberg_test(hl.literal(list(mapping.values())[:5])[ht.idx % 5]))
-        all_x = ht.x.collect()
-        [first, *mid, penultimate, last] = all_x
+        ht = ht.annotate(
+            x_two_sided = hl.scan.hardy_weinberg_test(hl.literal(list(mapping.values())[:5])[ht.idx % 5], one_sided=False),
+            x_one_sided = hl.scan.hardy_weinberg_test(hl.literal(list(mapping.values())[:5])[ht.idx % 5], one_sided=True)
+        )
+        all_x_two_sided = ht.x_two_sided.collect()
+        [first_two_sided, *mid_two_sided, penultimate_two_sided, last_two_sided] = all_x_two_sided
 
-        assert first['p_value'] == 0.5
-        assert np.isnan(first['het_freq_hwe'])
+        assert first_two_sided['p_value'] == 0.5
+        assert np.isnan(first_two_sided['het_freq_hwe'])
 
-        self.assertAlmostEqual(penultimate['p_value'], 0.7)
-        self.assertAlmostEqual(penultimate['het_freq_hwe'], 0.6)
+        self.assertAlmostEqual(penultimate_two_sided['p_value'], 0.7)
+        self.assertAlmostEqual(penultimate_two_sided['het_freq_hwe'], 0.6)
 
-        self.assertAlmostEqual(last['p_value'], 0.65714285)
-        self.assertAlmostEqual(last['het_freq_hwe'], 0.57142857)
+        self.assertAlmostEqual(last_two_sided['p_value'], 0.65714285)
+        self.assertAlmostEqual(last_two_sided['het_freq_hwe'], 0.57142857)
+
+        all_x_one_sided = ht.x_one_sided.collect()
+        [first_one_sided, *mid_one_sided, penultimate_one_sided, last_one_sided] = all_x_one_sided
+
+        assert first_one_sided['p_value'] == 0.5
+        assert np.isnan(first_one_sided['het_freq_hwe'])
+
+        self.assertAlmostEqual(penultimate_one_sided['p_value'], 0.7)
+        self.assertAlmostEqual(penultimate_one_sided['het_freq_hwe'], 0.6)
+
+        self.assertAlmostEqual(last_one_sided['p_value'], 0.57142857)
+        self.assertAlmostEqual(last_one_sided['het_freq_hwe'], 0.57142857)
 
     def test_inbreeding_aggregator(self):
         data = [
@@ -3608,3 +3798,20 @@ class Tests(unittest.TestCase):
             assert 'f5 is the new name of both' in err.args[0]
         else:
             assert False
+
+    def test_enumerate(self):
+        a1 = hl.literal(['foo', 'bar', 'baz'], 'array<str>')
+        a_empty = hl.literal([], 'array<str>')
+
+        exprs = (
+            hl.enumerate(a1),
+            hl.enumerate(a1, start=-1000),
+            hl.enumerate(a1, start=10, index_first=False),
+            hl.enumerate(a_empty, start=5)
+        )
+        assert hl.eval(exprs) == (
+            [(0, 'foo'), (1, 'bar'), (2, 'baz')],
+            [(-1000, 'foo'), (-999, 'bar'), (-998, 'baz')],
+            [('foo', 10), ('bar', 11), ('baz', 12)],
+            []
+        )

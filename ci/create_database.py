@@ -5,7 +5,6 @@ import string
 import json
 import secrets
 import asyncio
-import shutil
 from shlex import quote as shq
 from hailtop.utils import check_shell, check_shell_output
 from hailtop.auth.sql_config import create_secret_data_from_config, SQLConfig
@@ -53,6 +52,7 @@ async def create_database():
     with open('/sql-config/sql-config.json', 'r') as f:
         sql_config = SQLConfig.from_json(f.read())
 
+    cloud = create_database_config.get('cloud', 'gcp')
     namespace = create_database_config['namespace']
     database_name = create_database_config['database_name']
     cant_create_database = create_database_config['cant_create_database']
@@ -80,7 +80,6 @@ async def create_database():
         rows = [row async for row in rows]
         if len(rows) > 0:
             assert len(rows) == 1
-            return
 
     with open(create_database_config['admin_password_file']) as f:
         admin_password = f.read()
@@ -97,9 +96,21 @@ GRANT ALL ON `{_name}`.* TO '{admin_username}'@'%';
 
 CREATE USER IF NOT EXISTS '{user_username}'@'%' IDENTIFIED BY '{user_password}';
 GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}'@'%';
+
+ALTER USER '{admin_username}'@'%' IDENTIFIED BY '{admin_password}';
+
+ALTER USER '{user_username}'@'%' IDENTIFIED BY '{user_password}';
 '''
     )
 
+    # Azure MySQL requires that usernames follow username@servername format
+    if cloud == 'azure':
+        config_admin_username = admin_username + '@' + sql_config.instance
+        config_user_username = user_username + '@' + sql_config.instance
+    else:
+        assert cloud == 'gcp'
+        config_admin_username = admin_username
+        config_user_username = user_username
     await write_user_config(
         namespace,
         database_name,
@@ -108,8 +119,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}
             host=sql_config.host,
             port=sql_config.port,
             instance=sql_config.instance,
-            connection_name=sql_config.instance,
-            user=admin_username,
+            connection_name=sql_config.connection_name,
+            user=config_admin_username,
             password=admin_password,
             db=_name,
             ssl_ca=sql_config.ssl_ca,
@@ -127,8 +138,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}
             host=sql_config.host,
             port=sql_config.port,
             instance=sql_config.instance,
-            connection_name=sql_config.instance,
-            user=user_username,
+            connection_name=sql_config.connection_name,
+            user=config_user_username,
             password=user_password,
             db=_name,
             ssl_ca=sql_config.ssl_ca,

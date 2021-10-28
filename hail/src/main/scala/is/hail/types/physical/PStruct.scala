@@ -1,10 +1,10 @@
 package is.hail.types.physical
 
 import is.hail.annotations._
-import is.hail.asm4s.Code
+import is.hail.asm4s.{Code, Value}
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
-import is.hail.types.physical.stypes.interfaces.SBaseStructCode
+import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SBaseStructValue}
 import is.hail.types.virtual.{Field, TStruct}
 
 trait PStruct extends PBaseStruct {
@@ -32,7 +32,7 @@ trait PStruct extends PBaseStruct {
 
   def rename(m: Map[String, String]): PStruct
 
-  def identBase: String = "tuple"
+  def identBase: String = "struct"
 
   final def selectFields(names: Seq[String]): PCanonicalStruct = PCanonicalStruct(required, names.map(f => f -> field(f).typ): _*)
 
@@ -42,17 +42,18 @@ trait PStruct extends PBaseStruct {
 
   def loadField(offset: Code[Long], fieldName: String): Code[Long]
 
-  final def isFieldDefined(offset: Code[Long], fieldName: String): Code[Boolean] = !isFieldMissing(offset, fieldName)
+  final def isFieldDefined(cb: EmitCodeBuilder, offset: Code[Long], fieldName: String): Value[Boolean] =
+    cb.memoize(!isFieldMissing(cb, offset, fieldName))
 
-  def isFieldMissing(offset: Code[Long], fieldName: String): Code[Boolean]
+  def isFieldMissing(cb: EmitCodeBuilder, offset: Code[Long], fieldName: String): Value[Boolean]
 
   def fieldOffset(offset: Code[Long], fieldName: String): Code[Long]
 
-  def setFieldPresent(offset: Code[Long], fieldName: String): Code[Unit]
+  def setFieldPresent(cb: EmitCodeBuilder, offset: Code[Long], fieldName: String): Unit
 
-  def setFieldMissing(offset: Code[Long], fieldName: String): Code[Unit]
+  def setFieldMissing(cb: EmitCodeBuilder, offset: Code[Long], fieldName: String): Unit
 
   def insertFields(fieldsToInsert: TraversableOnce[(String, PType)]): PStruct
 
-  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructCode
+  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructValue
 }

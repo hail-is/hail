@@ -201,8 +201,9 @@ def _get_regression_row_fields(mt, pass_through, method) -> Dict[str, str]:
            x=expr_float64,
            covariates=sequenceof(expr_float64),
            block_size=int,
-           pass_through=sequenceof(oneof(str, Expression)))
-def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> hail.Table:
+           pass_through=sequenceof(oneof(str, Expression)),
+           weights=nullable(oneof(expr_float64, sequenceof(expr_float64))))
+def linear_regression_rows(y, x, covariates, block_size=16, pass_through=(), *, weights=None) -> hail.Table:
     r"""For each row, test an input variable for association with
     response variables using linear regression.
 
@@ -303,13 +304,16 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
         require more memory but may improve performance.
     pass_through : :obj:`list` of :class:`str` or :class:`.Expression`
         Additional row fields to include in the resulting table.
+    weights : :class:`.Float64Expression` or :obj:`list` of :class:`.Float64Expression`
+        Optional column-indexed weighting for doing weighted least squares regression. Specify a single weight if a
+        single y or list of ys is specified. If a list of lists of ys is specified, specify one weight per inner list.
 
     Returns
     -------
     :class:`.Table`
     """
-    if not isinstance(Env.backend(), SparkBackend):
-        return _linear_regression_rows_nd(y, x, covariates, block_size, pass_through)
+    if not isinstance(Env.backend(), SparkBackend) or weights is not None:
+        return _linear_regression_rows_nd(y, x, covariates, block_size, weights, pass_through)
 
     mt = matrix_table_source('linear_regression_rows/x', x)
     check_entry_indexed('linear_regression_rows/x', x)
@@ -374,8 +378,9 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
            x=expr_float64,
            covariates=sequenceof(expr_float64),
            block_size=int,
+           weights=nullable(oneof(expr_float64, sequenceof(expr_float64))),
            pass_through=sequenceof(oneof(str, Expression)))
-def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=()) -> hail.Table:
+def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pass_through=()) -> hail.Table:
     mt = matrix_table_source('linear_regression_rows_nd/x', x)
     check_entry_indexed('linear_regression_rows_nd/x', x)
 
@@ -389,6 +394,16 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
 
     y = wrap_to_list(y)
 
+    if weights is not None:
+        if y_is_list and is_chained and not isinstance(weights, list):
+            raise ValueError("When y is a list of lists, weights should be a list.")
+        elif y_is_list and not is_chained and isinstance(weights, list):
+            raise ValueError("When y is a single list, weights should be a single expression.")
+        elif not y_is_list and isinstance(weights, list):
+            raise ValueError("When y is a single expression, weights should be a single expression.")
+
+    weights = wrap_to_list(weights) if weights is not None else None
+
     for e in (itertools.chain.from_iterable(y) if is_chained else y):
         analyze('linear_regression_rows_nd/y', e, mt._col_indices)
 
@@ -401,19 +416,25 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     if is_chained:
         y_field_name_groups = [[f'__y_{i}_{j}' for j in range(len(y[i]))] for i in range(len(y))]
         y_dict = dict(zip(itertools.chain.from_iterable(y_field_name_groups), itertools.chain.from_iterable(y)))
-
+        if weights is not None and len(weights) != len(y):
+            raise ValueError("Must specify same number of weights as groups of phenotypes")
     else:
         y_field_name_groups = list(f'__y_{i}' for i in range(len(y)))
         y_dict = dict(zip(y_field_name_groups, y))
         # Wrapping in a list since the code is written for the more general chained case.
         y_field_name_groups = [y_field_name_groups]
+        if weights is not None and len(weights) != 1:
+            raise ValueError("Must specify same number of weights as groups of phenotypes")
 
     cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
+    weight_field_names = list(f'__weight_for_group_{i}' for i in range(len(weights))) if weights is not None else None
+    weight_dict = dict(zip(weight_field_names, weights)) if weights is not None else {}
 
     row_field_names = _get_regression_row_fields(mt, pass_through, 'linear_regression_rows_nd')
 
     # FIXME: selecting an existing entry field should be emitted as a SelectFields
     mt = mt._select_all(col_exprs=dict(**y_dict,
+                                       **weight_dict,
                                        **dict(zip(cov_field_names, covariates))),
                         row_exprs=row_field_names,
                         col_key=[],
@@ -450,37 +471,65 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
         else:
             ht = ht.annotate_globals(cov_arrays=ht[sample_field_name].map(lambda sample_struct: hl.empty_array(hl.tfloat64)))
 
-        ht = ht.annotate_globals(
-            y_arrays_per_group=[ht[sample_field_name].map(lambda sample_struct: [sample_struct[y_name] for y_name in one_y_field_name_set]) for one_y_field_name_set in y_field_name_groups]
-        )
-        all_covs_defined = ht.cov_arrays.map(lambda sample_covs: no_missing(sample_covs))
+        y_arrays_per_group = [ht[sample_field_name].map(lambda sample_struct: [sample_struct[y_name] for y_name in one_y_field_name_set]) for one_y_field_name_set in y_field_name_groups]
 
-        def get_kept_samples(sample_ys):
+        if weight_field_names:
+            weight_arrays = ht[sample_field_name].map(lambda sample_struct: [sample_struct[weight_name] for weight_name in weight_field_names])
+        else:
+            weight_arrays = ht[sample_field_name].map(lambda sample_struct: hl.empty_array(hl.tfloat64))
+
+        ht = ht.annotate_globals(
+            y_arrays_per_group=y_arrays_per_group,
+            weight_arrays=weight_arrays
+        )
+        ht = ht.annotate_globals(all_covs_defined=ht.cov_arrays.map(lambda sample_covs: no_missing(sample_covs)))
+
+        def get_kept_samples(group_idx, sample_ys):
             # sample_ys is an array of samples, with each element being an array of the y_values
             return hl.enumerate(sample_ys).filter(
-                lambda idx_and_y_values: all_covs_defined[idx_and_y_values[0]] & no_missing(idx_and_y_values[1])
+                lambda idx_and_y_values: ht.all_covs_defined[idx_and_y_values[0]] & no_missing(idx_and_y_values[1]) & (hl.is_defined(ht.weight_arrays[idx_and_y_values[0]][group_idx]) if weights else True)
             ).map(lambda idx_and_y_values: idx_and_y_values[0])
 
-        kept_samples = ht.y_arrays_per_group.map(get_kept_samples)
-        y_nds = hl.zip(kept_samples, ht.y_arrays_per_group).map(lambda sample_indices_and_y_arrays:
-                                                                hl.nd.array(sample_indices_and_y_arrays[0].map(lambda idx:
-                                                                                                               sample_indices_and_y_arrays[1][idx])))
-        cov_nds = kept_samples.map(lambda group: hl.nd.array(group.map(lambda idx: ht.cov_arrays[idx])))
+        ht = ht.annotate_globals(kept_samples=hl.enumerate(ht.y_arrays_per_group).starmap(get_kept_samples))
+        ht = ht.annotate_globals(y_nds=hl.zip(ht.kept_samples, ht.y_arrays_per_group).starmap(
+            lambda sample_indices, y_arrays: hl.nd.array(sample_indices.map(lambda idx: y_arrays[idx]))))
+        ht = ht.annotate_globals(cov_nds=ht.kept_samples.map(lambda group: hl.nd.array(group.map(lambda idx: ht.cov_arrays[idx]))))
+
+        if weights is None:
+            ht = ht.annotate_globals(sqrt_weights=hl.missing(hl.tarray(hl.tndarray(hl.tfloat64, 2))))
+            ht = ht.annotate_globals(scaled_y_nds=ht.y_nds)
+            ht = ht.annotate_globals(scaled_cov_nds=ht.cov_nds)
+        else:
+            ht = ht.annotate_globals(weight_nds=hl.enumerate(ht.kept_samples).starmap(
+                lambda group_idx, group_sample_indices: hl.nd.array(group_sample_indices.map(lambda group_sample_idx: ht.weight_arrays[group_sample_idx][group_idx]))))
+            ht = ht.annotate_globals(sqrt_weights=ht.weight_nds.map(lambda weight_nd: weight_nd.map(lambda e: hl.sqrt(e))))
+            ht = ht.annotate_globals(scaled_y_nds=hl.zip(ht.y_nds, ht.sqrt_weights).starmap(lambda y, sqrt_weight: y * sqrt_weight.reshape(-1, 1)))
+            ht = ht.annotate_globals(scaled_cov_nds=hl.zip(ht.cov_nds, ht.sqrt_weights).starmap(lambda cov, sqrt_weight: cov * sqrt_weight.reshape(-1, 1)))
 
         k = builtins.len(covariates)
-        ns = kept_samples.map(lambda one_sample_set: hl.len(one_sample_set))
-        cov_Qts = hl.if_else(k > 0,
-                             cov_nds.map(lambda one_cov_nd: hl.nd.qr(one_cov_nd)[0].T),
-                             ns.map(lambda n: hl.nd.zeros((0, n))))
-        Qtys = hl.zip(cov_Qts, y_nds).map(lambda cov_qt_and_y: cov_qt_and_y[0] @ cov_qt_and_y[1])
-        return ht.annotate_globals(
-            kept_samples=kept_samples,
-            __y_nds=y_nds,
-            ns=ns,
-            ds=ns.map(lambda n: n - k - 1),
-            __cov_Qts=cov_Qts,
-            __Qtys=Qtys,
-            __yyps=hl.range(num_y_lists).map(lambda i: dot_rows_with_themselves(y_nds[i].T) - dot_rows_with_themselves(Qtys[i].T)))
+        ht = ht.annotate_globals(ns=ht.kept_samples.map(lambda one_sample_set: hl.len(one_sample_set)))
+
+        def log_message(i):
+            if is_chained:
+                return "linear regression_rows[" + hl.str(i) + "] running on " + hl.str(ht.ns[i]) + " samples for " + hl.str(ht.scaled_y_nds[i].shape[1]) + f" response variables y, with input variables x, and {len(covariates)} additional covariates..."
+            else:
+                return "linear_regression_rows running on " + hl.str(ht.ns[0]) + " samples for " + hl.str(ht.scaled_y_nds[i].shape[1]) + f" response variables y, with input variables x, and {len(covariates)} additional covariates..."
+
+        ht = ht.annotate_globals(ns=hl.range(num_y_lists).map(lambda i: hl._console_log(log_message(i), ht.ns[i])))
+        ht = ht.annotate_globals(cov_Qts=hl.if_else(k > 0,
+                                 ht.scaled_cov_nds.map(lambda one_cov_nd: hl.nd.qr(one_cov_nd)[0].T),
+                                 ht.ns.map(lambda n: hl.nd.zeros((0, n)))))
+        ht = ht.annotate_globals(Qtys=hl.zip(ht.cov_Qts, ht.scaled_y_nds).starmap(lambda cov_qt, y: cov_qt @ y))
+
+        return ht.select_globals(
+            kept_samples=ht.kept_samples,
+            __scaled_y_nds=ht.scaled_y_nds,
+            __sqrt_weight_nds=ht.sqrt_weights,
+            ns=ht.ns,
+            ds=ht.ns.map(lambda n: n - k - 1),
+            __cov_Qts=ht.cov_Qts,
+            __Qtys=ht.Qtys,
+            __yyps=hl.range(num_y_lists).map(lambda i: dot_rows_with_themselves(ht.scaled_y_nds[i].T) - dot_rows_with_themselves(ht.Qtys[i].T)))
 
     ht = setup_globals(ht)
 
@@ -489,11 +538,14 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
 
         # Processes one block group based on given idx. Returns a single struct.
         def process_y_group(idx):
-            X = hl.nd.array(block[entries_field_name].map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples[idx])))).T
+            if weights is not None:
+                X = (hl.nd.array(block[entries_field_name].map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples[idx])))) * ht.__sqrt_weight_nds[idx]).T
+            else:
+                X = hl.nd.array(block[entries_field_name].map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples[idx])))).T
             n = ht.ns[idx]
             sum_x = X.sum(0)
             Qtx = ht.__cov_Qts[idx] @ X
-            ytx = ht.__y_nds[idx].T @ X
+            ytx = ht.__scaled_y_nds[idx].T @ X
             xyp = ytx - (ht.__Qtys[idx].T @ Qtx)
             xxpRec = (dot_rows_with_themselves(X.T) - dot_rows_with_themselves(Qtx.T)).map(lambda entry: 1 / entry)
             b = xyp * xxpRec
@@ -822,7 +874,7 @@ def mean_impute(hl_array):
 
 
 def sigmoid(hl_nd):
-    return hl_nd.map(lambda x: hl.if_else(x > 0, hl.rbind(hl.exp(x), lambda exped: exped / (exped + 1)), 1 / (1 + hl.exp(-x))))
+    return hl_nd.map(lambda x: hl.expit(x))
 
 
 def nd_max(hl_nd):
@@ -904,7 +956,7 @@ def logreg_fit(X, y, null_fit=None, max_iter=25, tol=1E-6):
 
 
 def wald_test(X, y, null_fit, link):
-    assert (link == "logistic")
+    assert link == "logistic"
     fit = logreg_fit(X, y, null_fit)
 
     se = hl.nd.diagonal(hl.nd.inv(fit.fisher)).map(lambda e: hl.sqrt(e))
@@ -919,7 +971,7 @@ def wald_test(X, y, null_fit, link):
 
 
 def lrt_test(X, y, null_fit, link):
-    assert (link == "logistic")
+    assert link == "logistic"
     fit = logreg_fit(X, y, null_fit)
 
     chi_sq = hl.if_else(~fit.converged, hl.missing(hl.tfloat64), 2 * (fit.log_lkhd - null_fit.log_lkhd))
@@ -930,6 +982,47 @@ def lrt_test(X, y, null_fit, link):
         chi_sq_stat=chi_sq,
         p_value=p,
         fit=hl.struct(n_iterations=fit.num_iter, converged=fit.converged, exploded=fit.exploded))
+
+
+def logistic_score_test(X, y, null_fit, link):
+    assert link == "logistic"
+    m = X.shape[1]
+    m0 = null_fit.b.shape[0]
+    b = hl.nd.hstack([null_fit.b, hl.nd.zeros((hl.int32(m - m0)))])
+
+    X0 = X[:, 0:m0]
+    X1 = X[:, m0:]
+
+    mu = (X @ b).map(lambda e: hl.expit(e))
+
+    score_0 = null_fit.score
+    score_1 = X1.T @ (y - mu)
+    score = hl.nd.hstack([score_0, score_1])
+
+    fisher00 = null_fit.fisher
+    fisher01 = X0.T @ (X1 * (mu * (1 - mu)).reshape(-1, 1))
+    fisher10 = fisher01.T
+    fisher11 = X1.T @ (X1 * (mu * (1 - mu)).reshape(-1, 1))
+
+    fisher = hl.nd.vstack([
+        hl.nd.hstack([fisher00, fisher01]),
+        hl.nd.hstack([fisher10, fisher11])
+    ])
+
+    solve_attempt = hl.nd.solve(fisher, score, no_crash=True)
+
+    chi_sq = hl.if_else(solve_attempt.failed,
+                        hl.missing(hl.tfloat64),
+                        (score * solve_attempt.solution).sum())
+
+    p = hl.pchisqtail(chi_sq, m - m0)
+
+    return hl.struct(chi_sq_stat=chi_sq, p_value=p)
+
+
+def firth_test(X, y, null_fit, link):
+    assert link == "logistic"
+    raise ValueError("firth not yet supported on lowered backends")
 
 
 @typecheck(test=enumeration('wald', 'lrt', 'score', 'firth'),
@@ -1206,17 +1299,19 @@ def _logistic_regression_rows_nd(test, y, x, covariates, pass_through=()) -> hai
     ht = ht.transmute(x=hl.nd.array(mean_impute(ht.entries[x_field_name])))
 
     if test == "wald":
-        # For each y vector, need to do wald test.
-        covs_and_x = hl.nd.hstack([ht.cov_nd, ht.x.reshape((-1, 1))])
-        wald_structs = hl.range(num_y_fields).map(lambda idx: wald_test(covs_and_x, ht.y_nd[:, idx], ht.nulls[idx], "logistic"))
-        ht = ht.annotate(logistic_regression=wald_structs)
+        test_func = wald_test
     elif test == "lrt":
-        covs_and_x = hl.nd.hstack([ht.cov_nd, ht.x.reshape((-1, 1))])
-        lrt_structs = hl.range(num_y_fields).map(lambda idx: lrt_test(covs_and_x, ht.y_nd[:, idx], ht.nulls[idx], "logistic"))
-        ht = ht.annotate(logistic_regression=lrt_structs)
-
+        test_func = lrt_test
+    elif test == "score":
+        test_func = logistic_score_test
+    elif test == "firth":
+        test_func = firth_test
     else:
-        raise ValueError("Only support wald and lrt so far")
+        raise ValueError(f"Illegal test type {test}")
+
+    covs_and_x = hl.nd.hstack([ht.cov_nd, ht.x.reshape((-1, 1))])
+    test_structs = hl.range(num_y_fields).map(lambda idx: test_func(covs_and_x, ht.y_nd[:, idx], ht.nulls[idx], "logistic"))
+    ht = ht.annotate(logistic_regression=test_structs)
 
     if not y_is_list:
         ht = ht.transmute(**ht.logistic_regression[0])
@@ -2095,7 +2190,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep', *, 
     non-split variants.
 
     >>> bi = mt.filter_rows(hl.len(mt.alleles) == 2)
-    >>> bi = bi.annotate_rows(was_split=False)
+    >>> bi = bi.annotate_rows(a_index=1, was_split=False)
     >>> multi = mt.filter_rows(hl.len(mt.alleles) > 2)
     >>> split = hl.split_multi_hts(multi)
     >>> mt = split.union_rows(bi)

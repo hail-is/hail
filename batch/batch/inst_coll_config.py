@@ -30,11 +30,12 @@ def machine_type_to_dict(machine_type: str) -> Optional[Dict[str, Any]]:
     return match.groupdict()
 
 
-def requested_storage_bytes_to_actual_storage_gib(storage_bytes):
+def requested_storage_bytes_to_actual_storage_gib(storage_bytes, allow_zero_storage):
     if storage_bytes > MAX_PERSISTENT_SSD_SIZE_GIB * 1024 ** 3:
         return None
-    if storage_bytes == 0:
+    if allow_zero_storage and storage_bytes == 0:
         return storage_bytes
+    # minimum storage for a GCE instance is 10Gi
     return max(10, round_storage_bytes_to_gib(storage_bytes))
 
 
@@ -85,7 +86,9 @@ class PoolConfig(InstanceCollectionConfig):
         self.worker_config = WorkerConfig.from_pool_config(self)
 
     def convert_requests_to_resources(self, cores_mcpu, memory_bytes, storage_bytes):
-        storage_gib = requested_storage_bytes_to_actual_storage_gib(storage_bytes)
+        storage_gib = requested_storage_bytes_to_actual_storage_gib(storage_bytes, allow_zero_storage=True)
+        if storage_gib is None:
+            return None
 
         cores_mcpu = adjust_cores_for_memory_request(cores_mcpu, memory_bytes, self.worker_type)
         cores_mcpu = adjust_cores_for_packability(cores_mcpu)
@@ -116,8 +119,9 @@ class JobPrivateInstanceManagerConfig(InstanceCollectionConfig):
         self.max_live_instances = max_live_instances
 
     def convert_requests_to_resources(self, machine_type, storage_bytes):
-        # minimum storage for a GCE instance is 10Gi
-        storage_gib = max(10, requested_storage_bytes_to_actual_storage_gib(storage_bytes))
+        storage_gib = requested_storage_bytes_to_actual_storage_gib(storage_bytes, allow_zero_storage=False)
+        if storage_gib is None:
+            return None
 
         machine_type_dict = machine_type_to_dict(machine_type)
         cores = int(machine_type_dict['cores'])
@@ -141,7 +145,6 @@ class InstanceCollectionConfigs:
         await self.refresh()
 
     async def refresh(self):
-        log.info('loading inst coll configs and resource rates from db')
         records = self.db.execute_and_fetchall(
             '''
 SELECT inst_colls.*, pools.*

@@ -794,6 +794,14 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         t2 = hl.read_table(f)
         self.assertTrue(t._same(t2))
 
+    @fails_service_backend()
+    def test_write_no_parts(self):
+        ht = hl.utils.range_table(10, n_partitions=2).filter(False)
+        path = new_temp_file(extension='ht')
+        path2 = new_temp_file(extension='ht')
+        assert ht.checkpoint(path)._same(ht)
+        hl.read_table(path).write(path2)
+
     def test_min_partitions(self):
         assert hl.import_table(resource('variantAnnotations.tsv'), min_partitions=50).n_partitions() == 50
 
@@ -955,22 +963,6 @@ Exception in thread "main" java.lang.RuntimeException: invalid sort order: b
             hl.utils.Struct(idx=11, x=None, y=None, z=None),
         ]
 
-    def test_table_head_returns_right_number(self):
-        rt = hl.utils.range_table(10, 11)
-        par = hl.Table.parallelize([hl.Struct(x=x) for x in range(10)], schema='struct{x: int32}', n_partitions=11)
-
-        # test TableRange and TableParallelize rewrite rules
-        tables = [rt, par, rt.cache()]
-        for table in tables:
-            self.assertEqual(table.head(10).count(), 10)
-            self.assertEqual(table.head(10)._force_count(), 10)
-            self.assertEqual(table.head(9).count(), 9)
-            self.assertEqual(table.head(9)._force_count(), 9)
-            self.assertEqual(table.head(11).count(), 10)
-            self.assertEqual(table.head(11)._force_count(), 10)
-            self.assertEqual(table.head(0).count(), 0)
-            self.assertEqual(table.head(0)._force_count(), 0)
-
     def test_table_order_by_head_rewrite(self):
         rt = hl.utils.range_table(10, 2)
         rt = rt.annotate(x = 10 - rt.idx)
@@ -1111,6 +1103,27 @@ Exception in thread "main" java.lang.RuntimeException: invalid sort order: b
         self.assertEqual(right_join.collect(), right_join_expected)
         self.assertEqual(inner_join.collect(), inner_join_expected)
         self.assertEqual(outer_join.collect(), outer_join_expected)
+
+    def test_join_types(self):
+        ht1 = hl.utils.range_table(3, 3)
+        ht1 = ht1.key_by(idx=ht1.idx + 1)
+        ht1 = ht1.annotate(L_DUP=hl.range(ht1.idx)).explode('L_DUP')
+        assert ht1.idx.collect() == [1, *([2] * 2), *([3] * 3)]
+
+        ht2 = hl.utils.range_table(3, 3)
+        ht2 = ht2.key_by(idx=ht2.idx + 2)
+        ht2 = ht2.annotate(R_DUP=hl.range(ht2.idx)).explode('R_DUP')
+        assert ht2.idx.collect() == [*([2] * 2), *([3] * 3), *([4] * 4)]
+
+        left = ht1.join(ht2, 'left')
+        right = ht1.join(ht2, 'right')
+        inner = ht1.join(ht2, 'inner')
+        outer = ht1.join(ht2, 'outer')
+
+        assert left.idx.collect() == [1, *([2] * 4), *([3] * 9)]
+        assert right.idx.collect() == [*([2] * 4), *([3] * 9), *([4] * 4)]
+        assert inner.idx.collect() == [*([2] * 4), *([3] * 9)]
+        assert outer.idx.collect() == [1, *([2] * 4), *([3] * 9), *([4] * 4)]
 
     @fails_service_backend()
     @fails_local_backend()
@@ -1484,7 +1497,7 @@ def test_maybe_flexindex_table_by_expr_prefix_interval_match():
     assert t1._maybe_flexindex_table_by_expr((hl.str(mt1.row_idx), mt1.row_idx)) is None
 
 
-widths = [256, 512, 1024, 2048, 4096]
+widths = [256, 512, 1024, 2048, 3072]
 
 
 def test_can_process_wide_tables():
@@ -1658,6 +1671,15 @@ def test_read_partitions():
     assert hl.read_table(path, _n_partitions=10).n_partitions() == 10
 
 
+@fails_service_backend()
+@fails_local_backend()
+def test_read_partitions_with_missing_key():
+    ht = hl.utils.range_table(100, 3).key_by(idx=hl.missing(hl.tint32))
+    path = new_temp_file()
+    ht.write(path)
+    assert hl.read_table(path, _n_partitions=10).n_partitions() == 1  # one key => one partition
+
+
 def test_grouped_flatmap_streams():
     ht = hl.import_vcf(resource('sample.vcf')).rows()
     ht = ht.annotate(x=hl.str(ht.locus))  # add a map node
@@ -1665,3 +1687,36 @@ def test_grouped_flatmap_streams():
         lambda group: hl.range(hl.len(group)).map(lambda i: group[i].annotate(z=group[0])),
         part.grouped(8)))
     ht._force_count()
+
+
+def make_test(table_name: str, num_parts: int, counter: str, truncator, n: int):
+    # NOTE: we cannot use Hail during test parameter initialization
+    def test():
+        if table_name == 'rt':
+            table = hl.utils.range_table(10, n_partitions=num_parts)
+        elif table_name == 'par':
+            table = hl.Table.parallelize([hl.Struct(x=x) for x in range(10)], schema='struct{x: int32}',
+                                         n_partitions=num_parts)
+        elif table_name == 'rtcache':
+            table = hl.utils.range_table(10, n_partitions=num_parts).cache()
+        else:
+            assert table_name == 'chkpt'
+            table = hl.utils.range_table(10, n_partitions=num_parts).checkpoint(new_temp_file(extension='ht'))
+        assert counter(truncator(table, n)) == min(10, n)
+    return test
+
+
+head_tail_test_data = [
+    pytest.param(make_test(table_name, num_parts, counter, truncator, n),
+                 id='__'.join([table_name, str(num_parts), str(n), truncator_name, counter_name]))
+    for table_name in ['rt', 'par', 'rtcache', 'chkpt']
+    for num_parts in [3, 11]
+    for n in (10, 9, 11, 0, 7)
+    for truncator_name, truncator in (('head', hl.Table.head), ('tail', hl.Table.tail))
+    for counter_name, counter in (('count', hl.Table.count), ('_force_count', hl.Table._force_count))]
+
+
+@skip_when_service_backend()
+@pytest.mark.parametrize("test", head_tail_test_data)
+def test_table_head_and_tail(test):
+    test()

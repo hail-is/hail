@@ -1,9 +1,8 @@
 import aioredis
 import asyncio
 import base64
-import concurrent
-import json
 import logging
+import json
 import os
 import uvloop
 import signal
@@ -12,12 +11,14 @@ import kubernetes_asyncio as kube
 from prometheus_async.aio.web import server_stats  # type: ignore
 from typing import Set
 
+from hailtop.aiotools import AsyncFS
+from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS, GoogleCredentials
 from hailtop.config import get_deploy_config
-from hailtop.google_storage import GCS
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
 from hailtop.utils import AsyncWorkerPool, retry_transient_errors, dump_all_stacktraces
-from gear import setup_aiohttp_session, rest_authenticated_users_only, monitor_endpoint
+from hailtop import httpx
+from gear import setup_aiohttp_session, rest_authenticated_users_only, monitor_endpoints_middleware
 
 uvloop.install()
 
@@ -34,7 +35,6 @@ async def healthcheck(request):  # pylint: disable=unused-argument
 
 
 @routes.get('/api/v1alpha/objects')
-@monitor_endpoint
 @rest_authenticated_users_only
 async def get_object(request, userdata):
     filepath = request.query.get('q')
@@ -48,7 +48,6 @@ async def get_object(request, userdata):
 
 
 @routes.post('/api/v1alpha/objects')
-@monitor_endpoint
 @rest_authenticated_users_only
 async def write_object(request, userdata):
     filepath = request.query.get('q')
@@ -61,7 +60,7 @@ async def write_object(request, userdata):
     files = request.app['files_in_progress']
     files.add(file_key)
 
-    await persist_in_gcs(userinfo['fs'], files, file_key, filepath, data)
+    await persist(userinfo['fs'], files, file_key, filepath, data)
     await cache_file(request.app['redis_pool'], files, file_key, filepath, data)
     return web.Response(status=200)
 
@@ -71,11 +70,12 @@ async def get_or_add_user(app, userdata):
     username = userdata['username']
     if username not in users:
         k8s_client = app['k8s_client']
-        gsa_key_secret = await retry_transient_errors(
-            k8s_client.read_namespaced_secret, userdata['gsa_key_secret_name'], DEFAULT_NAMESPACE, _request_timeout=5.0
+        hail_identity_secret = await retry_transient_errors(
+            k8s_client.read_namespaced_secret, userdata['hail_credentials_secret_name'], DEFAULT_NAMESPACE, _request_timeout=5.0
         )
-        gsa_key = base64.b64decode(gsa_key_secret.data['key.json']).decode()
-        users[username] = {'fs': GCS(blocking_pool=app['thread_pool'], key=json.loads(gsa_key))}
+        gsa_key = json.loads(base64.b64decode(hail_identity_secret.data['key.json']).decode())
+        credentials = GoogleCredentials.from_credentials_data(gsa_key)
+        users[username] = {'fs': GoogleStorageAsyncFS(credentials=credentials)}
     return users[username]
 
 
@@ -83,7 +83,7 @@ def make_redis_key(username, filepath):
     return f'{ username }_{ filepath }'
 
 
-async def get_file_or_none(app, username, fs, filepath):
+async def get_file_or_none(app, username, fs: AsyncFS, filepath):
     file_key = make_redis_key(username, filepath)
     redis_pool: aioredis.ConnectionsPool = app['redis_pool']
 
@@ -103,10 +103,10 @@ async def get_file_or_none(app, username, fs, filepath):
     return None
 
 
-async def load_file(redis, files, file_key, fs, filepath):
+async def load_file(redis, files, file_key, fs: AsyncFS, filepath):
     try:
         log.info(f"memory: {file_key}: reading.")
-        data = await fs.read_binary_gs_file(filepath)
+        data = await fs.read(filepath)
         log.info(f"memory: {file_key}: read {filepath}")
     except Exception as e:
         files.remove(file_key)
@@ -115,17 +115,17 @@ async def load_file(redis, files, file_key, fs, filepath):
     await cache_file(redis, files, file_key, filepath, data)
 
 
-async def persist_in_gcs(fs: GCS, files: Set[str], file_key: str, filepath: str, data: str):
+async def persist(fs: AsyncFS, files: Set[str], file_key: str, filepath: str, data: bytes):
     try:
         log.info(f"memory: {file_key}: persisting.")
-        await fs.write_gs_file_from_string(filepath, data)
+        await fs.write(filepath, data)
         log.info(f"memory: {file_key}: persisted {filepath}")
     except Exception as e:
         files.remove(file_key)
         raise e
 
 
-async def cache_file(redis: aioredis.ConnectionsPool, files: Set[str], file_key: str, filepath: str, data: str):
+async def cache_file(redis: aioredis.ConnectionsPool, files: Set[str], file_key: str, filepath: str, data: bytes):
     try:
         await redis.execute('HMSET', file_key, 'body', data)
         log.info(f"memory: {file_key}: stored {filepath}")
@@ -134,7 +134,7 @@ async def cache_file(redis: aioredis.ConnectionsPool, files: Set[str], file_key:
 
 
 async def on_startup(app):
-    app['thread_pool'] = concurrent.futures.ThreadPoolExecutor()
+    app['client_session'] = httpx.client_session()
     app['worker_pool'] = AsyncWorkerPool(parallelism=100, queue_size=10)
     app['files_in_progress'] = set()
     app['users'] = {}
@@ -146,20 +146,29 @@ async def on_startup(app):
 
 async def on_cleanup(app):
     try:
-        app['thread_pool'].shutdown()
+        app['worker_pool'].shutdown()
     finally:
         try:
-            app['worker_pool'].shutdown()
+            app['redis_pool'].close()
         finally:
             try:
-                app['redis_pool'].close()
-            finally:
                 del app['k8s_client']
-                await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
+            finally:
+                try:
+                    await app['client_session'].close()
+                finally:
+                    try:
+                        for items in app['users'].values():
+                            try:
+                                await items['fs'].close()
+                            except:
+                                pass
+                    finally:
+                        await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
 
 
 def run():
-    app = web.Application()
+    app = web.Application(middlewares=[monitor_endpoints_middleware])
 
     setup_aiohttp_session(app)
     app.add_routes(routes)

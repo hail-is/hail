@@ -2,14 +2,15 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, _}
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.orderings.StructOrdering
-import is.hail.expr.ir.{Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, ParamType, SortOrder}
+import is.hail.expr.ir.{Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitValue, IEmitCode, ParamType, SortOrder}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointerCode, SIndexablePointerCode}
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointerValue, SIndexablePointer, SIndexablePointerValue}
 import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.physical.stypes.{EmitType, SCode, SValue}
 import is.hail.types.virtual.{TInt32, Type}
 import is.hail.utils._
 
@@ -52,12 +53,12 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
         ("max_size", PInt32Required)) ++ garbageFields: _*
     )
 
-  def compareKey(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = {
+  def compareKey(cb: EmitCodeBuilder, k1: EmitValue, k2: EmitValue): Code[Int] = {
     val ord = cb.emb.ecb.getOrdering(k1.st, k2.st, so)
     ord.compare(cb, k1, k2, true)
   }
 
-  private def compareIndexedKey(cb: EmitCodeBuilder, k1: SCode, k2: SCode): Code[Int] = {
+  private def compareIndexedKey(cb: EmitCodeBuilder, k1: SValue, k2: SValue): Value[Int] = {
     val ord = StructOrdering.make(k1.st.asInstanceOf[SBaseStruct], k2.st.asInstanceOf[SBaseStruct], cb.emb.ecb, Array(so, Ascending), true)
     ord.compareNonnull(cb, k1, k2)
   }
@@ -73,7 +74,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
     }
   }
 
-  def newState(cb: EmitCodeBuilder, off: Code[Long]): Unit = cb += region.getNewRegion(regionSize)
+  def newState(cb: EmitCodeBuilder, off: Value[Long]): Unit = cb += region.getNewRegion(regionSize)
 
   def createState(cb: EmitCodeBuilder): Unit =
     cb.ifx(region.isNull, {
@@ -81,17 +82,17 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
       cb += region.invalidate()
     })
 
-  override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, srcc: Code[Long]): Unit = {
+  override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Value[Long]): Unit = {
     regionLoader(cb, r)
-    loadFields(cb, srcc)
+    loadFields(cb, src)
   }
 
-  override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, destc: Code[Long]): Unit = {
+  override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, dest: Value[Long]): Unit = {
     cb.ifx(region.isValid,
       {
         regionStorer(cb, region)
         cb += region.invalidate()
-        storeFields(cb, destc)
+        storeFields(cb, dest)
       })
   }
 
@@ -148,8 +149,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
     )
   }
 
-  def copyFrom(cb: EmitCodeBuilder, srcc: Code[Long]): Unit = {
-    val src = cb.newLocal("tba_copy_from_src", srcc)
+  def copyFrom(cb: EmitCodeBuilder, src: Value[Long]): Unit = {
     maybeGCCode(cb,
       { cb =>
         initStaging(cb)
@@ -197,12 +197,14 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
 
   private def elementOffset(i: Value[Int]): Code[Long] = ab.elementOffset(i)
 
-  private def keyIsMissing(offset: Code[Long]): Code[Boolean] = indexedKeyType.isFieldMissing(offset, 0)
+  private def keyIsMissing(cb: EmitCodeBuilder, offset: Code[Long]): Value[Boolean] =
+    indexedKeyType.isFieldMissing(cb, offset, 0)
 
-  private def loadKeyValue(cb: EmitCodeBuilder, offset: Code[Long]): SCode = keyType.loadCheapSCode(cb, indexedKeyType.loadField(offset, 0))
+  private def loadKeyValue(cb: EmitCodeBuilder, offset: Code[Long]): SValue =
+    keyType.loadCheapSCode(cb, indexedKeyType.loadField(offset, 0))
 
-  private def loadKey(cb: EmitCodeBuilder, offset: Value[Long]): EmitCode =
-    EmitCode(Code._empty, keyIsMissing(offset), loadKeyValue(cb, offset))
+  private def loadKey(cb: EmitCodeBuilder, offset: Value[Long]): EmitValue =
+    cb.memoize(IEmitCode(cb, keyIsMissing(cb, offset), loadKeyValue(cb, offset)))
 
   private val compareElt: (Code[Long], Code[Long]) => Code[Int] = {
     val mb = kb.genEmitMethod("i_gt_j", FastIndexedSeq[ParamType](LongInfo, LongInfo), IntInfo)
@@ -311,10 +313,10 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
     k.toI(cb)
       .consume(cb,
         {
-          cb += indexedKeyType.setFieldMissing(keyStage, 0)
+          indexedKeyType.setFieldMissing(cb, keyStage, 0)
         },
         { sc =>
-          cb += indexedKeyType.setFieldPresent(keyStage, 0)
+          indexedKeyType.setFieldPresent(cb, keyStage, 0)
           keyType.storeAtAddress(cb, indexedKeyType.fieldOffset(keyStage, 0), region, sc, deepCopy = false)
         }
       )
@@ -334,10 +336,10 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
     value.toI(cb)
       .consume(cb,
         {
-          cb += eltTuple.setFieldMissing(staging, 1)
+          eltTuple.setFieldMissing(cb, staging, 1)
         },
         { v =>
-          cb += eltTuple.setFieldPresent(staging, 1)
+          eltTuple.setFieldPresent(cb, staging, 1)
           valueType.storeAtAddress(cb, eltTuple.fieldOffset(staging, 1), region, v, deepCopy = false)
         })
   }
@@ -358,8 +360,8 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
       UnitInfo)
 
     mb.voidWithBuilder { cb =>
-      val value = mb.getEmitParam(1, null) // don't need region
-      val key = mb.getEmitParam(2, null) // don't need region
+      val value = mb.getEmitParam(cb, 1, null) // don't need region
+      val key = mb.getEmitParam(cb, 2, null) // don't need region
 
       cb.ifx(maxSize > 0, {
         cb.ifx(ab.size < maxSize, {
@@ -382,7 +384,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
   }
 
   // for tests
-  def seqOp(cb: EmitCodeBuilder, vm: Code[Boolean], v: Code[_], km: Code[Boolean], k: Code[_]): Unit = {
+  def seqOp(cb: EmitCodeBuilder, vm: Code[Boolean], v: Value[_], km: Code[Boolean], k: Value[_]): Unit = {
     val vec = EmitCode(Code._empty, vm, if (valueType.isPrimitive) primitive(valueType.virtualType, v) else valueType.loadCheapSCode(cb, coerce[Long](v)))
     val kec = EmitCode(Code._empty, km, if (keyType.isPrimitive) primitive(keyType.virtualType, k) else keyType.loadCheapSCode(cb, coerce[Long](k)))
     seqOp(cb, vec, kec)
@@ -427,7 +429,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
     cb.invokeVoid(mb)
   }
 
-  def result(cb: EmitCodeBuilder, _r: Code[Region], resultType: PCanonicalArray): SIndexablePointerCode = {
+  def result(cb: EmitCodeBuilder, _r: Code[Region], resultType: PCanonicalArray): SIndexablePointerValue = {
     val mb = kb.genEmitMethod("take_by_result", FastIndexedSeq[ParamType](classInfo[Region]), LongInfo)
 
     val quickSort: (Code[Long], Code[Int], Code[Int]) => Code[Unit] = {
@@ -530,8 +532,8 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
       resultType.constructFromElements(cb, r, ab.size, deepCopy = true) { case (cb, idx) =>
         val sortedIdx = cb.newLocal[Int]("tba_result_sortedidx", Region.loadInt(indexOffset(idx)))
         ab.loadElement(cb, sortedIdx).toI(cb)
-          .flatMap(cb) { case pct: SBaseStructPointerCode =>
-            pct.memoize(cb, "takeby_result_tuple").loadField(cb, 1)
+          .flatMap(cb) { case pct: SBaseStructPointerValue =>
+            pct.loadField(cb, 1)
           }
       }.a
     }
@@ -543,7 +545,7 @@ class TakeByAggregator(valueType: VirtualTypeWithReq, keyType: VirtualTypeWithRe
 
   type State = TakeByRVAS
 
-  val resultType: PCanonicalArray = PCanonicalArray(valueType.canonicalPType, true)
+  val resultEmitType: EmitType = EmitType(SIndexablePointer(PCanonicalArray(valueType.canonicalPType)), true)
   val initOpTypes: Seq[Type] = Array(TInt32)
   val seqOpTypes: Seq[Type] = Array(valueType.t, keyType.t)
 
@@ -561,11 +563,11 @@ class TakeByAggregator(valueType: VirtualTypeWithReq, keyType: VirtualTypeWithRe
     state.seqOp(cb, value, key)
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = state.combine(cb, other)
+  protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: TakeByRVAS, other: TakeByRVAS): Unit = state.combine(cb, other)
 
 
-  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
-    // deepCopy is false because state.result does a deep copy
-    pt.storeAtAddress(cb, addr, region, state.result(cb, region, resultType), deepCopy = false)
+  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
+    // state.result does a deep copy
+    IEmitCode.present(cb, state.result(cb, region, resultEmitType.storageType.asInstanceOf[PCanonicalArray]))
   }
 }

@@ -1,9 +1,8 @@
 package is.hail
 
 import is.hail.annotations.{Region, RegionPool}
-import is.hail.backend.BroadcastValue
+import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir.ExecuteContext
 import is.hail.utils.{ExecutionTimer, using}
 import is.hail.io.fs.FS
 import org.apache.spark.SparkContext

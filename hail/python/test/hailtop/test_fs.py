@@ -1,20 +1,17 @@
-from typing import Optional
+import random
 import os
 import secrets
-import shutil
-from itertools import accumulate
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import pytest
-import concurrent
-import urllib.parse
-from hailtop.utils import secret_alnum_string
-from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS
-from hailtop.aiotools.s3asyncfs import S3AsyncFS
-from hailtop.aiogoogle import GoogleStorageAsyncFS
+from hailtop.utils import secret_alnum_string, retry_transient_errors
+from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS, UnexpectedEOFError
+from hailtop.aiocloud.aioaws import S3AsyncFS
+from hailtop.aiocloud.aioazure import AzureAsyncFS
+from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
 
 
-@pytest.fixture(params=['file', 'gs', 's3', 'router/file', 'router/gs', 'router/s3'])
+@pytest.fixture(params=['file', 'gs', 's3', 'hail-az', 'router/file', 'router/gs', 'router/s3', 'router/hail-az'])
 async def filesystem(request):
     token = secret_alnum_string()
 
@@ -23,24 +20,31 @@ async def filesystem(request):
             fs = RouterAsyncFS(
                 'file', [LocalAsyncFS(thread_pool),
                          GoogleStorageAsyncFS(),
-                         S3AsyncFS(thread_pool)])
+                         S3AsyncFS(thread_pool),
+                         AzureAsyncFS()])
         elif request.param == 'file':
             fs = LocalAsyncFS(thread_pool)
         elif request.param.endswith('gs'):
             fs = GoogleStorageAsyncFS()
-        else:
-            assert request.param.endswith('s3')
+        elif request.param.endswith('s3'):
             fs = S3AsyncFS(thread_pool)
+        else:
+            assert request.param.endswith('hail-az')
+            fs = AzureAsyncFS()
         async with fs:
             if request.param.endswith('file'):
                 base = f'/tmp/{token}/'
             elif request.param.endswith('gs'):
                 bucket = os.environ['HAIL_TEST_GCS_BUCKET']
                 base = f'gs://{bucket}/tmp/{token}/'
-            else:
-                assert request.param.endswith('s3')
+            elif request.param.endswith('s3'):
                 bucket = os.environ['HAIL_TEST_S3_BUCKET']
                 base = f's3://{bucket}/tmp/{token}/'
+            else:
+                assert request.param.endswith('hail-az')
+                account = os.environ['HAIL_TEST_AZURE_ACCOUNT']
+                container = os.environ['HAIL_TEST_AZURE_CONTAINER']
+                base = f'hail-az://{account}/{container}/tmp/{token}/'
 
             await fs.mkdir(base)
             sema = asyncio.Semaphore(50)
@@ -66,7 +70,7 @@ async def local_filesystem(request):
 
 
 @pytest.fixture(params=['small', 'multipart', 'large'])
-async def file_data(request):
+def file_data(request):
     if request.param == 'small':
         return [b'foo']
     elif request.param == 'multipart':
@@ -108,6 +112,36 @@ async def test_open_from(filesystem):
 
 
 @pytest.mark.asyncio
+async def test_open_nonexistent_file(filesystem):
+    sema, fs, base = filesystem
+
+    file = f'{base}foo'
+
+    try:
+        async with await fs.open(file) as f:
+            await f.read()
+    except FileNotFoundError:
+        pass
+    else:
+        assert False
+
+
+@pytest.mark.asyncio
+async def test_open_from_nonexistent_file(filesystem):
+    sema, fs, base = filesystem
+
+    file = f'{base}foo'
+
+    try:
+        async with await fs.open_from(file, 2) as f:
+            await f.read()
+    except FileNotFoundError:
+        pass
+    else:
+        assert False
+
+
+@pytest.mark.asyncio
 async def test_read_from(filesystem):
     sema, fs, base = filesystem
 
@@ -132,8 +166,33 @@ async def test_read_range(filesystem):
     r = await fs.read_range(file, 2, 4)
     assert r == b'cde'
 
-    r = await fs.read_range(file, 2, 10)
-    assert r == b'cde'
+    try:
+        await fs.read_range(file, 2, 10)
+    except UnexpectedEOFError:
+        pass
+    else:
+        assert False
+
+
+@pytest.mark.asyncio
+async def test_write_read_range(filesystem, file_data):
+    sema, fs, base = filesystem
+
+    file = f'{base}foo'
+
+    async with await fs.create(file) as f:
+        for b in file_data:
+            await f.write(b)
+
+    pt1 = random.randint(0, len(file_data))
+    pt2 = random.randint(0, len(file_data))
+    start = min(pt1, pt2)
+    end = max(pt1, pt2)
+
+    expected = b''.join(file_data)[start:end+1]
+    actual = await fs.read_range(file, start, end)  # end is inclusive
+
+    assert expected == actual
 
 
 @pytest.mark.asyncio
@@ -303,7 +362,7 @@ async def test_listfiles(filesystem):
 async def test_multi_part_create(filesystem, permutation):
     sema, fs, base = filesystem
 
-    # S3 has a minimum part size (except for the last part) of 5GiB
+    # S3 has a minimum part size (except for the last part) of 5MiB
     if base.startswith('s3'):
         min_part_size = 5 * 1024 * 1024
         part_data_size = [min_part_size, min_part_size, min_part_size]
@@ -326,11 +385,12 @@ async def test_multi_part_create(filesystem, permutation):
         if permutation:
             # do it in a fixed order
             for i in permutation:
-                await create_part(i)
+                await retry_transient_errors(create_part, i)
         else:
             # do in parallel
             await asyncio.gather(*[
-                create_part(i) for i in range(len(part_data))])
+                retry_transient_errors(create_part, i)
+                for i in range(len(part_data))])
 
     expected = b''.join(part_data)
     async with await fs.open(path) as f:

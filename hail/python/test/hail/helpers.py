@@ -17,7 +17,7 @@ def startTestHailContext():
     if not _initialized:
         backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'spark')
         if backend_name == 'spark':
-            hl.init(master='local[1]', min_block_size=0, quiet=True)
+            hl.init(master='local[2]', min_block_size=0, quiet=True)
         else:
             Env.hc()  # force initialization
         _initialized = True
@@ -163,14 +163,6 @@ fails_spark_backend = pytest.mark.xfail(
     strict=True)
 
 
-def run_with_cxx_compile():
-    @decorator
-    def wrapper(func, *args, **kwargs):
-        return
-
-    return wrapper
-
-
 def assert_evals_to(e, v):
     res = hl.eval(e)
     if res != v:
@@ -180,6 +172,20 @@ def assert_evals_to(e, v):
 def assert_all_eval_to(*expr_and_expected):
     exprs, expecteds = zip(*expr_and_expected)
     assert_evals_to(hl.tuple(exprs), expecteds)
+
+
+def with_flags(*flags):
+    @decorator
+    def wrapper(func, *args, **kwargs):
+        prev_flags = {k: v for k, v in hl._get_flags().items() if k in flags}
+
+        hl._set_flags(**{k: '1' for k in flags})
+
+        try:
+            return func(*args, **kwargs)
+        finally:
+            hl._set_flags(**prev_flags)
+    return wrapper
 
 
 def lower_only():

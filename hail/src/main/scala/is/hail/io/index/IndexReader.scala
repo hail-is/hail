@@ -3,10 +3,10 @@ package is.hail.io.index
 import java.io.InputStream
 import java.util
 import java.util.Map.Entry
-
 import is.hail.annotations._
+import is.hail.backend.ExecuteContext
 import is.hail.types.virtual.{TStruct, Type, TypeSerializer}
-import is.hail.expr.ir.{ExecuteContext, IRParser}
+import is.hail.expr.ir.IRParser
 import is.hail.types.physical.{PStruct, PType}
 import is.hail.io._
 import is.hail.io.bgen.BgenSettings
@@ -282,7 +282,10 @@ final case class InternalNode(children: IndexedSeq[InternalChild]) extends Index
 final case class LeafChild(
   key: Annotation,
   recordOffset: Long,
-  annotation: Annotation)
+  annotation: Annotation) {
+
+  def longChild(j: Int): Long = annotation.asInstanceOf[Row].getAs[Long](j)
+}
 
 object LeafNode {
   def apply(r: Row): LeafNode = {

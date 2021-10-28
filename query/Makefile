@@ -28,6 +28,6 @@ HAIL_REVISION := $(shell git rev-parse HEAD)
 deploy: build
 	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
 	kubectl -n $(NAMESPACE) apply -f service-account.yaml
-	gsutil cp ./hail.jar gs://hail-test-dmk9z/$(UPLOAD_QUERY_JAR_TOKEN)/jars/$(HAIL_REVISION).jar
+	gsutil cp ./hail.jar gs://$(HAIL_TEST_GCS_BUCKET)/$(UPLOAD_QUERY_JAR_TOKEN)/jars/$(HAIL_REVISION).jar
 	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"default_ns":{"name":"$(NAMESPACE)"},"query_image":{"image":"$(QUERY_IMAGE)"},"global":{"project":"$(PROJECT)","domain":"$(DOMAIN)"},"upload_query_jar":{"token":"$(UPLOAD_QUERY_JAR_TOKEN)"}}' deployment.yaml deployment.yaml.out
 	kubectl -n $(NAMESPACE) apply -f deployment.yaml.out

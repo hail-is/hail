@@ -141,8 +141,8 @@ object Simplify {
 
     case x@StreamMap(NA(_), _, _) => NA(x.typ)
 
-    case StreamZip(as, names, body, _) if as.length == 1 => StreamMap(as.head, names.head, body)
-    case StreamMap(StreamZip(as, names, zipBody, b), name, mapBody) => StreamZip(as, names, Let(name, zipBody, mapBody), b)
+    case StreamZip(as, names, body, _, _) if as.length == 1 => StreamMap(as.head, names.head, body)
+    case StreamMap(StreamZip(as, names, zipBody, b, errorID), name, mapBody) => StreamZip(as, names, Let(name, zipBody, mapBody), b, errorID)
     case StreamMap(StreamFlatMap(child, flatMapName, flatMapBody), mapName, mapBody) => StreamFlatMap(child, flatMapName, StreamMap(flatMapBody, mapName, mapBody))
 
     case x@StreamFlatMap(NA(_), _, _) => NA(x.typ)
@@ -182,15 +182,15 @@ object Simplify {
     case ApplyBinaryPrimOp(Subtract(), I32(0), x) => x
     case ApplyBinaryPrimOp(Subtract(), x, I32(0)) => x
 
-    case ApplyIR("indexArray", _, Seq(a, i@I32(v))) if v >= 0 =>
-      ArrayRef(a, i)
+    case ApplyIR("indexArray", _, Seq(a, i@I32(v)), errorID) if v >= 0 =>
+      ArrayRef(a, i, errorID)
 
-    case ApplyIR("contains", _, Seq(CastToArray(x), element)) if x.typ.isInstanceOf[TSet] => invoke("contains", TBoolean, x, element)
+    case ApplyIR("contains", _, Seq(CastToArray(x), element), _) if x.typ.isInstanceOf[TSet] => invoke("contains", TBoolean, x, element)
 
-    case ApplyIR("contains", _, Seq(Literal(t, v), element)) if t.isInstanceOf[TArray] =>
+    case ApplyIR("contains", _, Seq(Literal(t, v), element), _) if t.isInstanceOf[TArray] =>
       invoke("contains", TBoolean, Literal(TSet(t.asInstanceOf[TArray].elementType), v.asInstanceOf[IndexedSeq[_]].toSet), element)
 
-    case ApplyIR("contains", _, Seq(ToSet(x), element)) if x.typ.isInstanceOf[TArray] => invoke("contains", TBoolean, x, element)
+    case ApplyIR("contains", _, Seq(ToSet(x), element), _) if x.typ.isInstanceOf[TArray] => invoke("contains", TBoolean, x, element)
 
     case x: ApplyIR if x.inline || x.body.size < 10 => x.explicitNode
 
@@ -208,6 +208,18 @@ object Simplify {
     case ArrayLen(ArraySort(a, _, _, _)) => ArrayLen(ToArray(a))
 
     case ArrayLen(ToArray(MakeStream(args, _, _))) => I32(args.length)
+
+    case ArraySlice(ToArray(s),I32(0), Some(x@I32(i)), I32(1), _) if i >= 0 =>
+      ToArray(StreamTake(s, x))
+
+    case ArraySlice(z@ToArray(s), x@I32(i), Some(I32(j)), I32(1), _) if i > 0 && j > 0 => {
+      if (j > i) {
+        ToArray(StreamTake(StreamDrop(s, x), I32(j-i)))
+      } else new MakeArray(Seq(), z.typ.asInstanceOf[TArray])
+    }
+
+    case ArraySlice(ToArray(s), x@I32(i), None, I32(1), _) if i >= 0 =>
+      ToArray(StreamDrop(s, x))
 
     case ArrayRef(MakeArray(args, _), I32(i), _) if i >= 0 && i < args.length => args(i)
 
@@ -241,6 +253,8 @@ object Simplify {
     case ToStream(Let(name, value, ToArray(x)), _) if x.typ.isInstanceOf[TStream] =>
       Let(name, value, x)
 
+    case MakeNDArray(ToArray(someStream), shape, rowMajor, errorId) => MakeNDArray(someStream, shape, rowMajor, errorId)
+    case MakeNDArray(ToStream(someArray, _), shape, rowMajor, errorId) => MakeNDArray(someArray, shape, rowMajor, errorId)
     case NDArrayShape(MakeNDArray(data, shape, _, _)) => {
       If(IsNA(data), NA(shape.typ), shape)
     }
@@ -527,7 +541,7 @@ object Simplify {
     //           ArrayAgg(GetField(Ref(uid, rowsAndGlobal.typ), "rows"), "row", query)))
     //   }
 
-    case ApplyIR("annotate", _, Seq(s, MakeStruct(fields))) =>
+    case ApplyIR("annotate", _, Seq(s, MakeStruct(fields)), _) =>
       InsertFields(s, fields)
 
     // simplify Boolean equality
@@ -590,7 +604,7 @@ object Simplify {
 
     case TableFilter(TableFilter(t, p1), p2) =>
       TableFilter(t,
-        ApplySpecial("land", Array.empty[Type], Array(p1, p2), TBoolean))
+        ApplySpecial("land", Array.empty[Type], Array(p1, p2), TBoolean, ErrorIDs.NO_ERROR))
 
     case TableFilter(TableKeyBy(child, key, isSorted), p) if canRepartition => TableKeyBy(TableFilter(child, p), key, isSorted)
     case TableFilter(TableRepartition(child, n, strategy), p) => TableRepartition(TableFilter(child, p), n, strategy)
@@ -774,6 +788,8 @@ object Simplify {
       TableMapRows(TableFilterIntervals(child, intervals, keep), newRow)
     case TableFilterIntervals(TableMapGlobals(child, newRow), intervals, keep) =>
       TableMapGlobals(TableFilterIntervals(child, intervals, keep), newRow)
+    case TableFilterIntervals(TableRename(child, rowMap, globalMap), intervals, keep) =>
+      TableRename(TableFilterIntervals(child, intervals, keep), rowMap, globalMap)
     case TableFilterIntervals(TableRepartition(child, n, strategy), intervals, keep) =>
       TableRepartition(TableFilterIntervals(child, intervals, keep), n, strategy)
     case TableFilterIntervals(TableLeftJoinRightDistinct(child, right, root), intervals, true) =>
@@ -882,11 +898,11 @@ object Simplify {
 
     case MatrixFilterCols(m, True()) => m
 
-    case MatrixFilterRows(MatrixFilterRows(child, pred1), pred2) => MatrixFilterRows(child, ApplySpecial("land", FastSeq(), FastSeq(pred1, pred2), TBoolean))
+    case MatrixFilterRows(MatrixFilterRows(child, pred1), pred2) => MatrixFilterRows(child, ApplySpecial("land", FastSeq(), FastSeq(pred1, pred2), TBoolean, ErrorIDs.NO_ERROR))
 
-    case MatrixFilterCols(MatrixFilterCols(child, pred1), pred2) => MatrixFilterCols(child, ApplySpecial("land", FastSeq(), FastSeq(pred1, pred2), TBoolean))
+    case MatrixFilterCols(MatrixFilterCols(child, pred1), pred2) => MatrixFilterCols(child, ApplySpecial("land", FastSeq(), FastSeq(pred1, pred2), TBoolean, ErrorIDs.NO_ERROR))
 
-    case MatrixFilterEntries(MatrixFilterEntries(child, pred1), pred2) => MatrixFilterEntries(child, ApplySpecial("land", FastSeq(), FastSeq(pred1, pred2), TBoolean))
+    case MatrixFilterEntries(MatrixFilterEntries(child, pred1), pred2) => MatrixFilterEntries(child, ApplySpecial("land", FastSeq(), FastSeq(pred1, pred2), TBoolean, ErrorIDs.NO_ERROR))
 
     case MatrixMapGlobals(MatrixMapGlobals(child, ng1), ng2) =>
       val uid = genUID()

@@ -5,6 +5,7 @@ from hail.utils import *
 from hail.utils.misc import escape_str, escape_id
 from hail.utils.java import Env
 from hail.utils.linkedlist import LinkedList
+
 from ..helpers import *
 
 setUpModule = startTestHailContext
@@ -180,10 +181,10 @@ class Tests(unittest.TestCase):
         self.assertEqual(s.annotate(**{'a': 5, 'x': 10, 'y': 15}),
                          Struct(a=5, b=2, c=3, x=10, y=15))
 
-    def test_expr_exception_results_in_fatal_error(self):
+    def test_expr_exception_results_in_hail_user_error(self):
         df = range_table(10)
         df = df.annotate(x=[1, 2])
-        with self.assertRaises(FatalError):
+        with self.assertRaises(HailUserError):
             df.filter(df.x[5] == 0).count()
 
     def test_interval_ops(self):

@@ -600,24 +600,6 @@ class Expression(object):
         key = to_expr(key)
         return self._method("index", ret_type, key)
 
-    def _slice(self, ret_type, start=None, stop=None, step=None):
-        if step is not None:
-            raise NotImplementedError('Variable slice step size is not currently supported')
-
-        if start is not None:
-            start = to_expr(start)
-            if stop is not None:
-                stop = to_expr(stop)
-                return self._method('slice', ret_type, start, stop)
-            else:
-                return self._method('sliceRight', ret_type, start)
-        else:
-            if stop is not None:
-                stop = to_expr(stop)
-                return self._method('sliceLeft', ret_type, stop)
-            else:
-                return self
-
     def _ir_lambda_method(self, irf, f, input_type, ret_type_f, *args):
         args = (to_expr(arg)._ir for arg in args)
         new_id = Env.get_uid()
@@ -626,6 +608,17 @@ class Expression(object):
 
         indices, aggregations = unify_all(self, lambda_result)
         x = irf(self._ir, new_id, lambda_result._ir, *args)
+        return expressions.construct_expr(x, ret_type_f(lambda_result._type), indices, aggregations)
+
+    def _ir_lambda_method2(self, other, irf, f, input_type1, input_type2, ret_type_f, *args):
+        args = (to_expr(arg)._ir for arg in args)
+        new_id1 = Env.get_uid()
+        new_id2 = Env.get_uid()
+        lambda_result = to_expr(
+            f(expressions.construct_variable(new_id1, input_type1, self._indices, self._aggregations),
+              expressions.construct_variable(new_id2, input_type2, other._indices, other._aggregations)))
+        indices, aggregations = unify_all(self, other, lambda_result)
+        x = irf(self._ir, other._ir, new_id1, new_id2, lambda_result._ir, *args)
         return expressions.construct_expr(x, ret_type_f(lambda_result._type), indices, aggregations)
 
     @property
@@ -638,6 +631,9 @@ class Expression(object):
 
         """
         return self._type
+
+    def __bool__(self):
+        raise TypeError("'Expression' objects cannot be converted to a 'bool'. Use 'hl.if_else' instead of Python if statements.")
 
     def __len__(self):
         raise TypeError("'Expression' objects have no static length: use 'hl.len' for the length of collections")

@@ -4,6 +4,7 @@ metadata:
   name: gateway
   labels:
     app: gateway
+    hail.is/sha: "{{ code.sha }}"
 spec:
   ports:
   - name: http

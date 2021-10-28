@@ -80,6 +80,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(r[0].vqc.n_non_ref, 2)
         self.assertEqual(r[0].vqc.het_freq_hwe, 0.6)
         self.assertEqual(r[0].vqc.p_value_hwe, 0.7)
+        self.assertEqual(r[0].vqc.p_value_excess_het, 0.7000000000000001)
         self.assertEqual(r[0].vqc.dp_stats.min, 0)
         self.assertEqual(r[0].vqc.dp_stats.max, 100)
         self.assertEqual(r[0].vqc.dp_stats.mean, 51.25)
@@ -99,6 +100,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(r[1].vqc.n_het, 2)
         self.assertEqual(r[1].vqc.n_non_ref, 4)
         self.assertEqual(r[1].vqc.p_value_hwe, None)
+        self.assertEqual(r[1].vqc.p_value_excess_het, None)
         self.assertEqual(r[1].vqc.het_freq_hwe, None)
         self.assertEqual(r[1].vqc.dp_stats.min, 5)
         self.assertEqual(r[1].vqc.dp_stats.max, 5)
@@ -109,8 +111,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(r[1].vqc.gq_stats.mean, 10)
         self.assertEqual(r[1].vqc.gq_stats.stdev, 0)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_concordance(self):
         dataset = get_dataset()
         glob_conc, cols_conc, rows_conc = hl.concordance(dataset, dataset)
@@ -139,7 +139,6 @@ class Tests(unittest.TestCase):
         rows_conc.write('/tmp/foo.kt', overwrite=True)
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_concordance_n_discordant(self):
         dataset = get_dataset()
         _, cols_conc, rows_conc = hl.concordance(dataset, dataset)
@@ -218,7 +217,6 @@ class Tests(unittest.TestCase):
         ]
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_concordance_no_values_doesnt_error(self):
         dataset = get_dataset().filter_rows(False)
         _, cols_conc, rows_conc = hl.concordance(dataset, dataset)
@@ -237,7 +235,6 @@ class Tests(unittest.TestCase):
             self.assertEqual(hl.filter_alleles(ds, lambda a, i: True).count_rows(), ds.count_rows())
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_filter_alleles_hts(self):
         # 1 variant: A:T,G
         ds = hl.import_vcf(resource('filter_alleles/input.vcf'))

@@ -9,22 +9,18 @@ from typing import Dict, List, Optional
 from hailtop.utils import flatten
 from .utils import generate_token
 from .environment import (
-    GCP_PROJECT,
-    GCP_ZONE,
     DOCKER_PREFIX,
-    DOCKER_ROOT_IMAGE,
     DOMAIN,
-    IP,
     CI_UTILS_IMAGE,
     BUILDKIT_IMAGE,
     DEFAULT_NAMESPACE,
-    KUBERNETES_SERVER_URL,
     BUCKET,
+    CLOUD,
 )
 from .globals import is_test_deployment
+from gear.cloud_config import get_global_config
 
 log = logging.getLogger('ci')
-
 
 pretty_print_log = "jq -Rr '. as $raw | try \
 (fromjson | if .hail_log == 1 then \
@@ -170,15 +166,7 @@ class Step(abc.ABC):
 
     def input_config(self, code, scope):
         config = {}
-        config['global'] = {
-            'project': GCP_PROJECT,
-            'zone': GCP_ZONE,
-            'docker_prefix': DOCKER_PREFIX,
-            'docker_root_image': DOCKER_ROOT_IMAGE,
-            'domain': DOMAIN,
-            'ip': IP,
-            'k8s_server_url': KUBERNETES_SERVER_URL,
-        }
+        config['global'] = get_global_config()
         config['token'] = self.token
         config['deploy'] = scope == 'deploy'
         config['scope'] = scope
@@ -316,10 +304,10 @@ time python3 \
      /home/user/Dockerfile
 
 set +x
-/bin/sh /home/user/convert-google-application-credentials-to-docker-auth-config
+/bin/sh /home/user/convert-cloud-credentials-to-docker-auth-config
 set -x
 
-export BUILDKITD_FLAGS=--oci-worker-no-process-sandbox
+export BUILDKITD_FLAGS='--oci-worker-no-process-sandbox --oci-worker-snapshotter=overlayfs'
 export BUILDCTL_CONNECT_RETRIES_MAX=100 # https://github.com/moby/buildkit/issues/1423
 buildctl-daemonless.sh \
      build \
@@ -336,28 +324,44 @@ cat /home/user/trace
         log.info(f'step {self.name}, script:\n{script}')
 
         docker_registry = DOCKER_PREFIX.split('/')[0]
+        job_env = {'REGISTRY': docker_registry}
+        if CLOUD == 'gcp':
+            credentials_secret = {
+                'namespace': DEFAULT_NAMESPACE,
+                'name': 'gcr-push-service-account-key',
+                'mount_path': '/secrets/gcr-push-service-account-key',
+            }
+            job_env[
+                'GOOGLE_APPLICATION_CREDENTIALS'
+            ] = '/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json'
+        else:
+            assert CLOUD == 'azure'
+            credentials_secret = {
+                'namespace': DEFAULT_NAMESPACE,
+                'name': 'acr-push-credentials',
+                'mount_path': '/secrets/acr-push-credentials',
+            }
+            job_env['AZURE_APPLICATION_CREDENTIALS'] = '/secrets/acr-push-credentials/credentials.json'
+
         self.job = batch.create_job(
             BUILDKIT_IMAGE,
             command=['/bin/sh', '-c', script],
-            secrets=[
-                {
-                    'namespace': DEFAULT_NAMESPACE,
-                    'name': 'gcr-push-service-account-key',
-                    'mount_path': '/secrets/gcr-push-service-account-key',
-                }
-            ],
-            env={
-                'GOOGLE_APPLICATION_CREDENTIALS': '/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json',
-                'REGISTRY': docker_registry,
-            },
+            secrets=[credentials_secret],
+            env=job_env,
             attributes={'name': self.name},
             resources=self.resources,
             input_files=input_files,
             parents=self.deps_parents(),
+            network='private',
             unconfined=True,
         )
 
     def cleanup(self, batch, scope, parents):
+        if CLOUD == 'azure':
+            log.warning('Image cleanup in ACR is not yet supported')
+            return
+        assert CLOUD == 'gcp'
+
         if scope == 'deploy' and self.publish_as and not is_test_deployment:
             return
 
@@ -634,8 +638,15 @@ kubectl -n {self.namespace_name} get -o json secret global-config \
 '''
 
             for s in self.secrets:
-                script += f'''
+                if isinstance(s, str):
+                    script += f'''
 kubectl -n {self.namespace_name} get -o json secret {s} | jq 'del(.metadata) | .metadata.name = "{s}"' | kubectl -n {self._name} apply -f -
+'''
+                else:
+                    clouds = s.get('clouds')
+                    if clouds is None or CLOUD in clouds:
+                        script += f'''
+kubectl -n {self.namespace_name} get -o json secret {s["name"]} | jq 'del(.metadata) | .metadata.name = "{s["name"]}"' | kubectl -n {self._name} apply -f -
 '''
 
         script += '''
@@ -911,6 +922,7 @@ class CreateDatabaseStep(Step):
 
     def build(self, batch, code, scope):  # pylint: disable=unused-argument
         create_database_config = {
+            'cloud': CLOUD,
             'namespace': self.namespace,
             'scope': scope,
             'database_name': self.database_name,

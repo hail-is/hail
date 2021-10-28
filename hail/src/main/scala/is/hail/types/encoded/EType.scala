@@ -4,14 +4,15 @@ import java.util.Map.Entry
 import is.hail.HailContext
 import is.hail.annotations.Region
 import is.hail.asm4s.{coerce => _, _}
-import is.hail.expr.ir.{EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, IRParser, ParamType, PunctuationToken, TokenIterator}
+import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.{EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, IRParser, ParamType, PunctuationToken, TokenIterator}
 import is.hail.io._
 import is.hail.types._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{SCode, SType, SValue}
 import is.hail.types.virtual._
 import is.hail.utils._
-import org.json4s.CustomSerializer
+import org.json4s.{CustomSerializer, JValue}
 import org.json4s.JsonAST.JString
 
 
@@ -23,9 +24,9 @@ class ETypeSerializer extends CustomSerializer[EType](format => ( {
 
 
 abstract class EType extends BaseType with Serializable with Requiredness {
-  type StagedEncoder = (EmitCodeBuilder, SCode, Code[OutputBuffer]) => Unit
-  type StagedDecoder = (EmitCodeBuilder, Code[Region], Code[InputBuffer]) => SCode
-  type StagedInplaceDecoder = (EmitCodeBuilder, Code[Region], Code[Long], Code[InputBuffer]) => Unit
+  type StagedEncoder = (EmitCodeBuilder, SValue, Value[OutputBuffer]) => Unit
+  type StagedDecoder = (EmitCodeBuilder, Value[Region], Value[InputBuffer]) => SValue
+  type StagedInplaceDecoder = (EmitCodeBuilder, Value[Region], Value[Long], Value[InputBuffer]) => Unit
 
   final def buildEncoder(ctx: ExecuteContext, t: PType): (OutputBuffer) => Encoder = {
     val f = EType.buildEncoder(ctx, this, t)
@@ -44,7 +45,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
 
   final def buildEncoder(st: SType, kb: EmitClassBuilder[_]): StagedEncoder = {
     val mb = buildEncoderMethod(st, kb);
-    { (cb: EmitCodeBuilder, sc: SCode, ob: Code[OutputBuffer]) => cb.invokeVoid(mb, sc, ob) }
+    { (cb: EmitCodeBuilder, sv: SValue, ob: Value[OutputBuffer]) => cb.invokeVoid(mb, sv.get, ob) }
   }
 
   final def buildEncoderMethod(st: SType, kb: EmitClassBuilder[_]): EmitMethodBuilder[_] = {
@@ -55,7 +56,6 @@ abstract class EType extends BaseType with Serializable with Requiredness {
 
       mb.voidWithBuilder { cb =>
         val arg = mb.getSCodeParam(1)
-          .memoize(cb, "encoder_method_arg")
         val out = mb.getCodeParam[OutputBuffer](2)
         _buildEncoder(cb, arg, out)
       }
@@ -64,8 +64,8 @@ abstract class EType extends BaseType with Serializable with Requiredness {
 
   final def buildDecoder(t: Type, kb: EmitClassBuilder[_]): StagedDecoder = {
     val mb = buildDecoderMethod(t: Type, kb);
-    { (cb: EmitCodeBuilder, r: Code[Region], ib: Code[InputBuffer]) =>
-      cb.invokeSCode(mb, r, ib)
+    { (cb: EmitCodeBuilder, r: Value[Region], ib: Value[InputBuffer]) =>
+      cb.invokeSCode(mb, r, ib).memoize(cb, "buildDecoder")
     }
   }
 
@@ -89,7 +89,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
 
   final def buildInplaceDecoder(pt: PType, kb: EmitClassBuilder[_]): StagedInplaceDecoder = {
     val mb = buildInplaceDecoderMethod(pt, kb);
-    { (cb: EmitCodeBuilder, r: Code[Region], addr: Code[Long], ib: Code[InputBuffer]) =>
+    { (cb: EmitCodeBuilder, r: Value[Region], addr: Value[Long], ib: Value[InputBuffer]) =>
       cb.invokeVoid(mb, r, addr, ib)
     }
   }
@@ -109,8 +109,8 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     })
   }
 
-  final def buildSkip(mb: EmitMethodBuilder[_]): (Code[Region], Code[InputBuffer]) => Code[Unit] = {
-    mb.getOrGenEmitMethod(s"SKIP_${ asIdent }",
+  final def buildSkip(kb: EmitClassBuilder[_]): (EmitCodeBuilder, Value[Region], Value[InputBuffer]) => Unit = {
+    val mb = kb.getOrGenEmitMethod(s"SKIP_${ asIdent }",
       (this, "SKIP"),
       FastIndexedSeq[ParamType](classInfo[Region], classInfo[InputBuffer]),
       UnitInfo)({ mb =>
@@ -119,12 +119,14 @@ abstract class EType extends BaseType with Serializable with Requiredness {
         val in: Value[InputBuffer] = mb.getCodeParam[InputBuffer](2)
         _buildSkip(cb, r, in)
       }
-    }).invokeCode(_, _)
+    })
+
+    { (cb, r, in) => cb.invokeVoid(mb, r, in) }
   }
 
   def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit
 
-  def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SCode
+  def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SValue
 
   def _buildInplaceDecoder(
     cb: EmitCodeBuilder,
@@ -134,7 +136,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     in: Value[InputBuffer]
   ): Unit = {
     assert(!pt.isInstanceOf[PBaseStruct]) // should be overridden for structs
-    val decoded = _buildDecoder(cb, pt.virtualType, region, in).memoize(cb, "Asd")
+    val decoded = _buildDecoder(cb, pt.virtualType, region, in)
     pt.storeAtAddress(cb, addr, region, decoded, false)
   }
 
@@ -161,7 +163,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   }
 
   final def decodedPType(requestedType: Type): PType = {
-    decodedSType(requestedType).canonicalPType().setRequired(required)
+    decodedSType(requestedType).storageType().setRequired(required)
   }
 
   def _decodedSType(requestedType: Type): SType
@@ -202,8 +204,8 @@ object EType {
       val mb = fb.apply_method
 
       mb.voidWithBuilder { cb =>
-        val addr: Code[Long] = mb.getCodeParam[Long](1)
-        val out: Code[OutputBuffer] = mb.getCodeParam[OutputBuffer](2)
+        val addr: Value[Long] = mb.getCodeParam[Long](1)
+        val out: Value[OutputBuffer] = mb.getCodeParam[OutputBuffer](2)
         val pc = pt.loadCheapSCode(cb, addr)
         val f = et.buildEncoder(pc.st, mb.ecb)
         f(cb, pc, out)
@@ -238,7 +240,7 @@ object EType {
       val f = et.buildDecoder(t, mb.ecb)
 
       val region: Value[Region] = mb.getCodeParam[Region](1)
-      val in: Code[InputBuffer] = mb.getCodeParam[InputBuffer](2)
+      val in: Value[InputBuffer] = mb.getCodeParam[InputBuffer](2)
 
       mb.emitWithBuilder[Long] { cb =>
         val pc = f(cb, region, in)
@@ -263,7 +265,6 @@ object EType {
     case TFloat64 => EFloat64(r.required)
     case TBoolean => EBoolean(r.required)
     case TBinary => EBinary(r.required)
-    case _: TShuffle => EShuffle(r.required)
     case TString => EBinary(r.required)
     case TLocus(_) =>
       EBaseStruct(Array(
@@ -293,6 +294,40 @@ object EType {
     case t: TNDArray =>
       val rndarray = r.asInstanceOf[RNDArray]
       ENDArrayColumnMajor(fromTypeAndAnalysis(t.elementType, rndarray.elementType), t.nDims, rndarray.required)
+  }
+
+  def fromTypeAllOptional(t: Type): EType = t match {
+    case TInt32 => EInt32(false)
+    case TInt64 => EInt64(false)
+    case TFloat32 => EFloat32(false)
+    case TFloat64 => EFloat64(false)
+    case TBoolean => EBoolean(false)
+    case TBinary => EBinary(false)
+    case TString => EBinary(false)
+    case TLocus(_) =>
+      EBaseStruct(Array(
+        EField("contig", EBinary(false), 0),
+        EField("position", EInt32(false), 1)),
+        required = false)
+    case TCall => EInt32(false)
+    case t: TInterval =>
+      EBaseStruct(
+        Array(
+          EField("start", fromTypeAllOptional(t.pointType), 0),
+          EField("end", fromTypeAllOptional(t.pointType), 1),
+          EField("includesStart", EBoolean(false), 2),
+          EField("includesEnd", EBoolean(false), 3)),
+        required = false)
+    case t: TIterable => EArray(fromTypeAllOptional(t.elementType), false)
+    case t: TBaseStruct =>
+      EBaseStruct(Array.tabulate(t.size) { i =>
+        val f = t.fields(i)
+        if (f.index != i)
+          throw new AssertionError(s"${t} [$i]")
+        EField(f.name, fromTypeAllOptional(t.fields(i).typ), f.index)
+      }, required = false)
+    case t: TNDArray =>
+      ENDArrayColumnMajor(fromTypeAllOptional(t.elementType), t.nDims, false)
   }
 
   def eTypeParser(it: TokenIterator): EType = {

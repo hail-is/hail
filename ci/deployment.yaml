@@ -42,10 +42,10 @@ spec:
           env:
            - name: HAIL_DEPLOY_CONFIG_FILE
              value: /deploy-config/deploy-config.json
+           - name: HAIL_CI_OAUTH_TOKEN
+             value: /secrets/oauth-token/oauth-token
            - name: HAIL_WATCHED_BRANCHES
              value: '[]'
-           - name: HAIL_GCP_PROJECT
-             value: "{{ global.project }}"
            - name: HAIL_DOCKER_PREFIX
              valueFrom:
                secretKeyRef:
@@ -56,25 +56,30 @@ spec:
                secretKeyRef:
                  name: global-config
                  key: docker_root_image
-           - name: HAIL_GCP_ZONE
-             value: "{{ global.zone }}"
+           - name: HAIL_DOMAIN
+             valueFrom:
+               secretKeyRef:
+                 name: global-config
+                 key: domain
+           - name: KUBERNETES_SERVER_URL
+             valueFrom:
+               secretKeyRef:
+                 name: global-config
+                 key: kubernetes_server_url
            - name: HAIL_CI_UTILS_IMAGE
              value: "{{ ci_utils_image.image }}"
            - name: HAIL_BUILDKIT_IMAGE
              value: "{{ hail_buildkit_image.image }}"
-           - name: HAIL_IP
-             value: "{{ global.ip }}"
-           - name: HAIL_DOMAIN
-             value: "{{ global.domain }}"
            - name: HAIL_DEFAULT_NAMESPACE
              value: "{{ default_ns.name }}"
-           - name: KUBERNETES_SERVER_URL
-             value: "{{ global.k8s_server_url }}"
            - name: HAIL_CI_BUCKET_NAME
 {% if deploy %}
              value: "cpg-hail-ci"
 {% else %}
-             value: "cpg-hail-test"
+             valueFrom:
+               secretKeyRef:
+                 name: global-config
+                 key: hail_test_gcs_bucket
 {% endif %}
           ports:
             - containerPort: 5000
@@ -82,8 +87,14 @@ spec:
            - mountPath: /deploy-config
              name: deploy-config
              readOnly: true
+           - mountPath: /global-config
+             name: global-config
+             readOnly: true
            - name: session-secret-key
              mountPath: /session-secret-key
+             readOnly: true
+           - mountPath: /sql-config
+             name: sql-config
              readOnly: true
            - mountPath: /user-tokens
              name: ci-tokens
@@ -105,10 +116,17 @@ spec:
        - name: deploy-config
          secret:
            secretName: deploy-config
+       - name: global-config
+         secret:
+           secretName: global-config
        - name: session-secret-key
          secret:
            optional: false
            secretName: session-secret-key
+       - name: sql-config
+         secret:
+           optional: false
+           secretName: "{{ ci_database.user_secret_name }}"
        - name: ci-tokens
          secret:
            secretName: ci-tokens

@@ -1662,10 +1662,10 @@ class BlockMatrix(object):
             If ``1``, returns a block matrix with a single column.
         """
         if axis is None:
-            bmir = BlockMatrixAgg(self._bmir, [])
+            bmir = BlockMatrixAgg(self._bmir, [0, 1])
             return BlockMatrix(bmir)[0, 0]
         elif axis == 0 or axis == 1:
-            out_index_expr = [dim for dim in range(len(self.shape)) if dim != axis]
+            out_index_expr = [axis]
 
             bmir = BlockMatrixAgg(self._bmir, out_index_expr)
             return BlockMatrix(bmir)
@@ -1802,7 +1802,7 @@ class BlockMatrix(object):
         """
         t = self.to_table_row_major(n_partitions, maximum_cache_memory_in_bytes)
         t = t.transmute(entries=t.entries.map(lambda i: hl.struct(element=i)))
-        t = t.annotate_globals(cols=hl.array([hl.struct(col_idx=hl.int64(i)) for i in range(self.n_cols)]))
+        t = t.annotate_globals(cols=hl.range(self.n_cols).map(lambda i: hl.struct(col_idx=hl.int64(i))))
         return t._unlocalize_entries('entries', 'cols', ['col_idx'])
 
     @staticmethod

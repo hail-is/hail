@@ -121,6 +121,16 @@ data:
        - source_labels: [__meta_kubernetes_pod_name]
          action: replace
          target_label: kubernetes_pod_name
+       - source_labels: [__meta_kubernetes_namespace]
+         action: drop
+         regex: pr-.*
+         replacement: pr
+       metric_relabel_configs:
+       - source_labels: [namespace]
+         action: replace
+         regex: pr-.*
+         replacement: pr
+         target_label: namespace
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -140,14 +150,19 @@ spec:
       labels:
         app: prometheus
     spec:
-      priorityClassName: infrastructure
       serviceAccountName: prometheus
 {% if deploy %}
+      priorityClassName: infrastructure
       nodeSelector:
         preemptible: "false"
 {% else %}
       nodeSelector:
         preemptible: "true"
+      tolerations:
+       - key: preemptible
+         value: "true"
+       - key: "kubernetes.azure.com/scalesetpriority"
+         value: "spot"
 {% endif %}
       securityContext:
         fsGroup: 65534
@@ -159,7 +174,7 @@ spec:
           - "/bin/prometheus"
           - "--config.file=/etc/prometheus/prometheus.yml"
           - "--storage.tsdb.path=/prometheus"
-          - "--storage.tsdb.retention.time=45d"
+          - "--storage.tsdb.retention.time=15d"
           - "--web.console.libraries=/usr/share/prometheus/console_libraries"
           - "--web.console.templates=/usr/share/prometheus/consoles"
           - "--web.enable-lifecycle"

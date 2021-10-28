@@ -1,9 +1,9 @@
 package is.hail.expr.ir
 
 import java.util.regex.Pattern
-
 import is.hail.HailContext
 import is.hail.annotations.{Region, RegionValueBuilder}
+import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.ir.lowering.TableStage
@@ -180,7 +180,7 @@ object TextTableReader {
     val lines = GenericLines.read(fs, fileStatuses, nPartitions = params.nPartitionsOpt,
       blockSizeInMB = None, minPartitions = None, gzAsBGZ = params.forceBGZ, allowSerialRead = params.forceGZ)
 
-    val linesRDD: RDD[GenericLine] = lines.toRDD()
+    val linesRDD: RDD[GenericLine] = lines.toRDD(fs)
 
     val (imputation, allDefined) = linesRDD.mapPartitions { it =>
       val allDefined = Array.fill(nFields)(true)
@@ -359,12 +359,12 @@ class TextTableReader(
       val rowFields = requestedRowType.fields.toArray
       val requestedPType = bodyPType(requestedRowType)
 
-      { (region: Region, context: Any) =>
+      { (region: Region, fs: FS, context: Any) =>
 
         val rvb = new RegionValueBuilder(region)
         val ab = new BoxedArrayBuilder[String]
         val sb = new StringBuilder
-        linesBody(context)
+        linesBody(fs, context)
           .filter { bline =>
             val line = transformer(bline.toString)
             if (line == null || localParams.isComment(line) ||

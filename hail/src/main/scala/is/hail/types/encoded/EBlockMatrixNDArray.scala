@@ -5,9 +5,9 @@ import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.{SCode, SType, SValue}
 import is.hail.types.physical.stypes.concrete.SNDArrayPointer
 import is.hail.types.physical.stypes.interfaces.SNDArrayValue
+import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -23,7 +23,7 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
 
   override def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = {
     val ndarray = v.asInstanceOf[SNDArrayValue]
-    val shapes = ndarray.shapes(cb)
+    val shapes = ndarray.shapes
     val r = cb.newLocal[Long]("r", shapes(0))
     val c = cb.newLocal[Long]("c", shapes(1))
     val i = cb.newLocal[Long]("i")
@@ -48,7 +48,7 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
     }
   }
 
-  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SCode = {
+  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SValue = {
     val st = decodedSType(t).asInstanceOf[SNDArrayPointer]
     val pt = st.pType
     val readElemF = elementType.buildInplaceDecoder(pt.elementType, cb.emb.ecb)
@@ -75,12 +75,12 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
-    val skip = elementType.buildSkip(cb.emb)
+    val skip = elementType.buildSkip(cb.emb.ecb)
 
     val len = cb.newLocal[Int]("len", in.readInt() * in.readInt())
     val i = cb.newLocal[Int]("i")
     cb += in.skipBoolean()
-    cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1), cb += skip(r, in))
+    cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1), skip(cb, r, in))
   }
 
   def _asIdent = s"ndarray_of_${ elementType.asIdent }"

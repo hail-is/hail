@@ -3,8 +3,9 @@ REGION := australia-southeast1
 ZONE := australia-southeast1-b
 DOCKER_PREFIX := $(REGION)-docker.pkg.dev/$(PROJECT)/hail
 DOCKER_ROOT_IMAGE := $(DOCKER_PREFIX)/ubuntu:18.04
+HAIL_TEST_GCS_BUCKET := cpg-hail-test
 DOMAIN := hail.populationgenomics.org.au
-INTERNAL_IP := 10.152.0.2
+INTERNAL_IP := 10.152.0.10
 IP := 35.201.29.236
 KUBERNETES_SERVER_URL := https://34.87.199.41
 

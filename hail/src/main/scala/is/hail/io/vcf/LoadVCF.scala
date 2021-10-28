@@ -1,35 +1,33 @@
 package is.hail.io.vcf
 
 import htsjdk.variant.vcf._
-import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.backend.BroadcastValue
 import is.hail.backend.spark.SparkBackend
+import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering.TableStage
-import is.hail.expr.ir.{ExecuteContext, GenericLine, GenericLines, GenericTableValue, IR, IRParser, Literal, LowerMatrixIR, LoweredTableReader, MatrixHybridReader, MatrixIR, MatrixLiteral, PruneDeadFields, TableRead, TableValue}
-import is.hail.types._
-import is.hail.types.physical.{PBoolean, PCall, PCanonicalArray, PCanonicalCall, PCanonicalLocus, PCanonicalSet, PCanonicalString, PCanonicalStruct, PField, PFloat64, PInt32, PStruct, PType}
-import is.hail.types.virtual._
+import is.hail.expr.ir.{GenericLines, GenericTableValue, IR, IRParser, Literal, LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, TableRead, TableValue}
 import is.hail.io.fs.{FS, FileStatus}
 import is.hail.io.tabix._
 import is.hail.io.vcf.LoadVCF.{getHeaderLines, parseHeader, parseLines}
 import is.hail.io.{VCFAttributes, VCFMetadata}
-import is.hail.rvd.{RVD, RVDCoercer, RVDContext, RVDPartitioner, RVDType}
+import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
 import is.hail.sparkextras.ContextRDD
+import is.hail.types._
+import is.hail.types.physical._
+import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import org.apache.spark.{Partition, SparkContext, TaskContext}
-import org.json4s.JsonAST.{JInt, JObject}
-import org.json4s.jackson.{JsonMethods, Serialization}
+import org.apache.spark.{Partition, TaskContext}
+import org.json4s.jackson.JsonMethods
+import org.json4s.{DefaultFormats, Formats, JValue}
 
 import scala.annotation.meta.param
 import scala.annotation.switch
 import scala.collection.JavaConverters._
 import scala.language.implicitConversions
-import org.json4s.{DefaultFormats, Extraction, Formats, JValue}
 
 class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble.readers.LineIterator {
   override def peek(): String = bit.head
@@ -1499,7 +1497,7 @@ class PartitionedVCFRDD(
     if (reg.isEmpty)
       return Iterator.empty
 
-    val lines = new TabixLineIterator(fsBc, file, reg)
+    val lines = new TabixLineIterator(fsBc.value, file, reg)
 
     // clean up
     val context = TaskContext.get
@@ -1563,7 +1561,6 @@ object MatrixVCFReader {
   def apply(ctx: ExecuteContext, params: MatrixVCFReaderParameters): MatrixVCFReader = {
     val backend = ctx.backend
     val fs = ctx.fs
-    val fsBc = fs.broadcast
 
     val referenceGenome = params.rg.map(ReferenceGenome.getReference)
 
@@ -1578,54 +1575,55 @@ object MatrixVCFReader {
 
     if (fileStatuses.length > 1) {
       if (params.headerFile.isEmpty) {
-        if (backend.isInstanceOf[SparkBackend]) {
-          val header1Bc = backend.broadcast(header1)
+        val header1Bc = backend.broadcast(header1)
 
-          val localCallFields = params.callFields
-          val localFloatType = entryFloatType
-          val files = fileStatuses.map(_.getPath)
-          val localArrayElementsRequired = params.arrayElementsRequired
-          val localFilterAndReplace = params.filterAndReplace
-          SparkBackend.sparkContext("MatrixVCFReader.apply").parallelize(files.tail, math.max(1, files.length - 1)).foreach { file =>
-            val fs = fsBc.value
-            val hd = parseHeader(
-              localCallFields, localFloatType, getHeaderLines(fs, file, localFilterAndReplace),
-              arrayElementsRequired = localArrayElementsRequired)
-            val hd1 = header1Bc.value
+        val localCallFields = params.callFields
+        val localFloatType = entryFloatType
+        val files = fileStatuses.map(_.getPath)
+        val localArrayElementsRequired = params.arrayElementsRequired
+        val localFilterAndReplace = params.filterAndReplace
 
-            if (hd1.sampleIds.length != hd.sampleIds.length) {
-              fatal(
-                s"""invalid sample IDs: expected same number of samples for all inputs.
-                   | ${ files(0) } has ${ hd1.sampleIds.length } ids and
-                   | ${ file } has ${ hd.sampleIds.length } ids.
-           """.stripMargin)
-            }
+        backend.parallelizeAndComputeWithIndex(ctx.backendContext, fs, files.tail.map(_.getBytes), None) { (bytes, htc, fs) =>
+          val file = new String(bytes)
 
-            hd1.sampleIds.iterator.zipAll(hd.sampleIds.iterator, None, None)
-              .zipWithIndex.foreach { case ((s1, s2), i) =>
-              if (s1 != s2) {
-                fatal(
-                  s"""invalid sample IDs: expected sample ids to be identical for all inputs. Found different sample IDs at position $i.
-                     |    ${ files(0) }: $s1
-                     |    $file: $s2""".stripMargin)
-              }
-            }
+          val hd = parseHeader(
+            localCallFields, localFloatType, getHeaderLines(fs, file, localFilterAndReplace),
+            arrayElementsRequired = localArrayElementsRequired)
+          val hd1 = header1Bc.value
 
-            if (hd1.genotypeSignature != hd.genotypeSignature)
-              fatal(
-                s"""invalid genotype signature: expected signatures to be identical for all inputs.
-                   |   ${ files(0) }: ${ hd1.genotypeSignature.toString }
-                   |   $file: ${ hd.genotypeSignature.toString }""".stripMargin)
-
-            if (hd1.vaSignature != hd.vaSignature)
-              fatal(
-                s"""invalid variant annotation signature: expected signatures to be identical for all inputs.
-                   |   ${ files(0) }: ${ hd1.vaSignature.toString }
-                   |   $file: ${ hd.vaSignature.toString }""".stripMargin)
+          if (hd1.sampleIds.length != hd.sampleIds.length) {
+            fatal(
+              s"""invalid sample IDs: expected same number of samples for all inputs.
+                 | ${ files(0) } has ${ hd1.sampleIds.length } ids and
+                 | ${ file } has ${ hd.sampleIds.length } ids.
+         """.stripMargin)
           }
-        } else {
-          warn("Non-Spark backend: not verifying agreement of headers between input VCF files.")
+
+          hd1.sampleIds.iterator.zipAll(hd.sampleIds.iterator, None, None)
+            .zipWithIndex.foreach { case ((s1, s2), i) =>
+            if (s1 != s2) {
+              fatal(
+                s"""invalid sample IDs: expected sample ids to be identical for all inputs. Found different sample IDs at position $i.
+                   |    ${ files(0) }: $s1
+                   |    $file: $s2""".stripMargin)
+            }
+          }
+
+          if (hd1.genotypeSignature != hd.genotypeSignature)
+            fatal(
+              s"""invalid genotype signature: expected signatures to be identical for all inputs.
+                 |   ${ files(0) }: ${ hd1.genotypeSignature.virtualType.toString }
+                 |   $file: ${ hd.genotypeSignature.virtualType.toString }""".stripMargin)
+
+          if (hd1.vaSignature != hd.vaSignature)
+            fatal(
+              s"""invalid variant annotation signature: expected signatures to be identical for all inputs. Check that all files have same INFO fields.
+                 |   ${ files(0) }: ${ hd1.vaSignature.virtualType.toString }
+                 |   $file: ${ hd.vaSignature.virtualType.toString }""".stripMargin)
+
+          bytes
         }
+
       } else {
         warn("Loading user-provided header file. The sample IDs, " +
           "INFO fields, and FORMAT fields were not checked for agreement with input data.")
@@ -1733,7 +1731,7 @@ class MatrixVCFReader(
     val body = { (requestedType: TStruct) =>
       val requestedPType = bodyPType(requestedType)
 
-      { (region: Region, context: Any) =>
+      { (region: Region, fs: FS, context: Any) =>
         val parseLineContext = new ParseLineContext(requestedType, makeJavaSet(localInfoFlagFieldNames), localNSamples)
 
         val rvb = new RegionValueBuilder(region)
@@ -1745,7 +1743,7 @@ class MatrixVCFReader(
 
         val transformer = localFilterAndReplace.transformer()
 
-        linesBody(context)
+        linesBody(fs, context)
           .filter { line =>
             val text = line.toString
             val newText = transformer(text)

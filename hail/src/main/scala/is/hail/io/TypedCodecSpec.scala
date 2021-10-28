@@ -1,10 +1,10 @@
 package is.hail.io
 
 import java.io._
-
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitFunctionBuilder, ExecuteContext}
+import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.{EmitClassBuilder, EmitFunctionBuilder}
 import is.hail.types.encoded._
 import is.hail.types.physical._
 import is.hail.types.virtual._

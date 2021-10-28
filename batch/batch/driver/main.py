@@ -1,7 +1,8 @@
 import logging
 import json
+from typing import Dict
 from functools import wraps
-import concurrent
+from collections import namedtuple, defaultdict
 import copy
 import asyncio
 import signal
@@ -9,8 +10,8 @@ import dictdiffer
 from aiohttp import web
 import aiohttp_session
 import kubernetes_asyncio as kube
-import google.oauth2.service_account
 from prometheus_async.aio.web import server_stats
+import prometheus_client as pc  # type: ignore
 from gear import (
     Database,
     setup_aiohttp_session,
@@ -18,11 +19,10 @@ from gear import (
     web_authenticated_developers_only,
     check_csrf_token,
     transaction,
-    monitor_endpoint,
+    monitor_endpoints_middleware,
 )
 from hailtop.hail_logging import AccessLogger
 from hailtop.config import get_deploy_config
-from hailtop.httpx import client_session
 from hailtop.utils import (
     time_msecs,
     RateLimit,
@@ -30,16 +30,16 @@ from hailtop.utils import (
     Notice,
     periodically_call,
     AsyncWorkerPool,
-    request_retry_transient_errors,
     dump_all_stacktraces,
 )
 from hailtop.tls import internal_server_ssl_context
-from hailtop import aiogoogle, aiotools
+from hailtop.aiocloud import aiogoogle
+from hailtop import aiotools, httpx
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 import googlecloudprofiler
 import uvloop
 
-from ..log_store import LogStore
+from ..file_store import FileStore
 from ..batch import cancel_batch_in_db
 from ..batch_configuration import (
     REFRESH_INTERVAL_IN_SECONDS,
@@ -73,6 +73,16 @@ log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
 routes = web.RouteTableDef()
 
 deploy_config = get_deploy_config()
+
+
+def ignore_failed_to_collect_and_upload_profile(record):
+    if 'Failed to collect and upload profile: [Errno 32] Broken pipe' in record.msg:
+        record.levelno = logging.INFO
+        record.levelname = "INFO"
+    return record
+
+
+googlecloudprofiler.logger.addFilter(ignore_failed_to_collect_and_upload_profile)
 
 
 def instance_name_from_request(request):
@@ -160,7 +170,6 @@ async def get_healthcheck(request):  # pylint: disable=W0613
 
 
 @routes.get('/check_invariants')
-@monitor_endpoint
 @rest_authenticated_developers_only
 async def get_check_invariants(request, userdata):  # pylint: disable=unused-argument
     app = request.app
@@ -172,7 +181,6 @@ async def get_check_invariants(request, userdata):  # pylint: disable=unused-arg
 
 
 @routes.patch('/api/v1alpha/batches/{user}/{batch_id}/close')
-@monitor_endpoint
 @batch_only
 async def close_batch(request):
     db = request.app['db']
@@ -201,7 +209,6 @@ def set_cancel_state_changed(app):
 
 
 @routes.post('/api/v1alpha/batches/cancel')
-@monitor_endpoint
 @batch_only
 async def cancel_batch(request):
     set_cancel_state_changed(request.app)
@@ -209,7 +216,6 @@ async def cancel_batch(request):
 
 
 @routes.post('/api/v1alpha/batches/delete')
-@monitor_endpoint
 @batch_only
 async def delete_batch(request):
     set_cancel_state_changed(request.app)
@@ -236,14 +242,12 @@ async def activate_instance_1(request, instance):
 
 
 @routes.get('/api/v1alpha/instances/gsa_key')
-@monitor_endpoint
 @activating_instances_only
 async def get_gsa_key(request, instance):  # pylint: disable=unused-argument
     return await asyncio.shield(get_gsa_key_1(instance))
 
 
 @routes.post('/api/v1alpha/instances/activate')
-@monitor_endpoint
 @activating_instances_only
 async def activate_instance(request, instance):
     return await asyncio.shield(activate_instance_1(request, instance))
@@ -257,7 +261,6 @@ async def deactivate_instance_1(instance):
 
 
 @routes.post('/api/v1alpha/instances/deactivate')
-@monitor_endpoint
 @active_instances_only
 async def deactivate_instance(request, instance):  # pylint: disable=unused-argument
     return await asyncio.shield(deactivate_instance_1(instance))
@@ -305,7 +308,6 @@ async def job_complete_1(request, instance):
 
 
 @routes.post('/api/v1alpha/instances/job_complete')
-@monitor_endpoint
 @active_instances_only
 async def job_complete(request, instance):
     return await asyncio.shield(job_complete_1(request, instance))
@@ -329,7 +331,6 @@ async def job_started_1(request, instance):
 
 
 @routes.post('/api/v1alpha/instances/job_started')
-@monitor_endpoint
 @active_instances_only
 async def job_started(request, instance):
     return await asyncio.shield(job_started_1(request, instance))
@@ -337,7 +338,6 @@ async def job_started(request, instance):
 
 @routes.get('/')
 @routes.get('')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_index(request, userdata):
     app = request.app
@@ -361,6 +361,7 @@ FROM user_inst_coll_resources;
         'ready_cores_mcpu': ready_cores_mcpu,
         'live_total_cores_mcpu': inst_coll_manager.global_live_total_cores_mcpu,
         'live_free_cores_mcpu': inst_coll_manager.global_live_free_cores_mcpu,
+        'frozen': app['frozen'],
     }
     return await render_template('batch-driver', request, userdata, 'index.html', page_context)
 
@@ -381,19 +382,8 @@ def validate_int(session, url_path, name, value, predicate, description):
     return validate(session, url_path, name, i, predicate, description)
 
 
-async def refresh_inst_colls_on_front_end(app):
-    async with client_session() as session:
-        await request_retry_transient_errors(
-            session,
-            'PATCH',
-            deploy_config.url('batch', '/api/v1alpha/inst_colls/refresh'),
-            headers=app['batch_headers'],
-        )
-
-
 @routes.post('/config-update/pool/{pool}')
 @check_csrf_token
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def pool_config_update(request, userdata):  # pylint: disable=unused-argument
     app = request.app
@@ -493,8 +483,6 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
         max_live_instances,
     )
 
-    await refresh_inst_colls_on_front_end(app)
-
     set_message(session, f'Updated configuration for {pool}.', 'info')
 
     return web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
@@ -502,7 +490,6 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
 
 @routes.post('/config-update/jpim')
 @check_csrf_token
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def job_private_config_update(request, userdata):  # pylint: disable=unused-argument
     app = request.app
@@ -534,15 +521,12 @@ async def job_private_config_update(request, userdata):  # pylint: disable=unuse
 
     await job_private_inst_manager.configure(boot_disk_size_gb, max_instances, max_live_instances)
 
-    await refresh_inst_colls_on_front_end(app)
-
     set_message(session, f'Updated configuration for {job_private_inst_manager}.', 'info')
 
     return web.HTTPFound(deploy_config.external_url('batch-driver', url_path))
 
 
 @routes.get('/inst_coll/pool/{pool}')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_pool(request, userdata):
     app = request.app
@@ -577,7 +561,6 @@ async def get_pool(request, userdata):
 
 
 @routes.get('/inst_coll/jpim')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_job_private_inst_manager(request, userdata):
     app = request.app
@@ -608,8 +591,55 @@ async def get_job_private_inst_manager(request, userdata):
     return await render_template('batch-driver', request, userdata, 'job_private.html', page_context)
 
 
+@routes.post('/freeze')
+@check_csrf_token
+@web_authenticated_developers_only()
+async def freeze_batch(request, userdata):  # pylint: disable=unused-argument
+    app = request.app
+    db: Database = app['db']
+    session = await aiohttp_session.get_session(request)
+
+    if app['frozen']:
+        set_message(session, 'Batch is already frozen.', 'info')
+        return web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+
+    await db.execute_update(
+        '''
+UPDATE globals SET frozen = 1;
+''')
+
+    app['frozen'] = True
+
+    set_message(session, 'Froze all instance collections and batch submissions.', 'info')
+
+    return web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+
+
+@routes.post('/unfreeze')
+@check_csrf_token
+@web_authenticated_developers_only()
+async def unfreeze_batch(request, userdata):  # pylint: disable=unused-argument
+    app = request.app
+    db: Database = app['db']
+    session = await aiohttp_session.get_session(request)
+
+    if not app['frozen']:
+        set_message(session, 'Batch is already unfrozen.', 'info')
+        return web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+
+    await db.execute_update(
+        '''
+UPDATE globals SET frozen = 0;
+''')
+
+    app['frozen'] = False
+
+    set_message(session, 'Unfroze all instance collections and batch submissions.', 'info')
+
+    return web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+
+
 @routes.get('/user_resources')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_user_resources(request, userdata):
     app = request.app
@@ -892,6 +922,114 @@ WHERE state = 'running' AND cancel_after_n_failures IS NOT NULL AND n_failed >= 
     async for batch in records:
         await _cancel_batch(app, batch['id'])
 
+USER_CORES = pc.Gauge('batch_user_cores', 'Batch user cores', ['state', 'user', 'inst_coll'])
+USER_JOBS = pc.Gauge('batch_user_jobs', 'Batch user jobs', ['state', 'user', 'inst_coll'])
+FREE_CORES = pc.Summary('batch_free_cores', 'Batch instance free cores', ['inst_coll'])
+UTILIZATION = pc.Summary('batch_utilization', 'Batch utilization rates', ['inst_coll'])
+COST_PER_HOUR = pc.Summary('batch_cost_per_hour', 'Batch cost ($/hr)', ['measure', 'inst_coll'])
+INSTANCES = pc.Gauge('batch_instances', 'Batch instances', ['inst_coll', 'state'])
+
+StateUserInstCollLabels = namedtuple('StateUserInstCollLabels', ['state', 'user', 'inst_coll'])
+InstCollLabels = namedtuple('InstCollLabels', ['inst_coll'])
+CostPerHourLabels = namedtuple('CostPerHourLabels', ['measure', 'inst_coll'])
+InstanceLabels = namedtuple('InstanceLabels', ['inst_coll', 'state'])
+
+
+async def monitor_user_resources(app):
+    db: Database = app['db']
+
+    user_cores = defaultdict(int)
+    user_jobs = defaultdict(int)
+
+    records = db.select_and_fetchall(
+        '''
+SELECT user, inst_coll,
+  CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu,
+  CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED) AS n_ready_jobs,
+  CAST(COALESCE(SUM(running_cores_mcpu), 0) AS SIGNED) AS running_cores_mcpu,
+  CAST(COALESCE(SUM(n_running_jobs), 0) AS SIGNED) AS n_running_jobs,
+  CAST(COALESCE(SUM(n_creating_jobs), 0) AS SIGNED) AS n_creating_jobs
+FROM user_inst_coll_resources
+GROUP BY user, inst_coll;
+'''
+    )
+
+    async for record in records:
+        ready_user_cores_labels = StateUserInstCollLabels(state='ready', user=record['user'], inst_coll=record['inst_coll'])
+        user_cores[ready_user_cores_labels] += record['ready_cores_mcpu'] / 1000
+
+        running_user_cores_labels = StateUserInstCollLabels(state='running', user=record['user'], inst_coll=record['inst_coll'])
+        user_cores[running_user_cores_labels] += record['running_cores_mcpu'] / 1000
+
+        ready_jobs_labels = StateUserInstCollLabels(state='ready', user=record['user'], inst_coll=record['inst_coll'])
+        user_jobs[ready_jobs_labels] += record['n_ready_jobs']
+
+        running_jobs_labels = StateUserInstCollLabels(state='running', user=record['user'], inst_coll=record['inst_coll'])
+        user_jobs[running_jobs_labels] += record['n_running_jobs']
+
+        creating_jobs_labels = StateUserInstCollLabels(state='creating', user=record['user'], inst_coll=record['inst_coll'])
+        user_jobs[creating_jobs_labels] += record['n_creating_jobs']
+
+    def set_value(gauge, data):
+        gauge.clear()
+        for labels, count in data.items():
+            if count > 0:
+                gauge.labels(**labels._asdict()).set(count)
+
+    set_value(USER_CORES, user_cores)
+    set_value(USER_JOBS, user_jobs)
+
+
+def monitor_instances(app):
+    resource_rates: Dict[str, float] = app['resource_rates']
+    inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
+
+    cost_per_hour = defaultdict(list)
+    free_cores = defaultdict(list)
+    utilization = defaultdict(list)
+    instances = defaultdict(int)
+
+    for inst_coll in inst_coll_manager.name_inst_coll.values():
+        for instance in inst_coll.name_instance.values():
+            # free cores mcpu can be negatively temporarily if the worker is oversubscribed
+            utilized_cores_mcpu = instance.cores_mcpu - max(0, instance.free_cores_mcpu)
+
+            if instance.state != 'deleted':
+                if instance.worker_config:
+                    actual_cost_per_hour_labels = CostPerHourLabels(measure='actual', inst_coll=instance.inst_coll.name)
+                    actual_rate = instance.worker_config.actual_cost_per_hour(resource_rates)
+                    cost_per_hour[actual_cost_per_hour_labels].append(actual_rate)
+
+                    billed_cost_per_hour_labels = CostPerHourLabels(measure='billed', inst_coll=instance.inst_coll.name)
+                    billed_rate = instance.worker_config.cost_per_hour_from_cores(resource_rates, utilized_cores_mcpu)
+                    cost_per_hour[billed_cost_per_hour_labels].append(billed_rate)
+
+                inst_coll_labels = InstCollLabels(inst_coll=instance.inst_coll.name)
+                free_cores[inst_coll_labels].append(instance.free_cores_mcpu / 1000)
+                utilization[inst_coll_labels].append(utilized_cores_mcpu / instance.cores_mcpu)
+
+            inst_labels = InstanceLabels(inst_coll=instance.inst_coll.name, state=instance.state)
+            instances[inst_labels] += 1
+
+    def observe(summary, data):
+        summary.clear()
+        for labels, items in data.items():
+            for item in items:
+                summary.labels(**labels._asdict()).observe(item)
+
+    observe(COST_PER_HOUR, cost_per_hour)
+    observe(FREE_CORES, free_cores)
+    observe(UTILIZATION, utilization)
+
+    INSTANCES.clear()
+    for labels, count in instances.items():
+        INSTANCES.labels(**labels._asdict()).set(count)
+
+
+async def monitor_system(app):
+    await monitor_user_resources(app)
+    monitor_instances(app)
+
 
 async def scheduling_cancelling_bump(app):
     log.info('scheduling cancelling bump loop')
@@ -903,8 +1041,8 @@ async def scheduling_cancelling_bump(app):
 
 async def on_startup(app):
     app['task_manager'] = aiotools.BackgroundTaskManager()
-    pool = concurrent.futures.ThreadPoolExecutor()
-    app['blocking_pool'] = pool
+
+    app['client_session'] = httpx.client_session()
 
     kube.config.load_incluster_config()
     k8s_client = kube.client.CoreV1Api()
@@ -917,7 +1055,7 @@ async def on_startup(app):
 
     row = await db.select_and_fetchone(
         '''
-SELECT instance_id, internal_token FROM globals;
+SELECT instance_id, internal_token, frozen FROM globals;
 '''
     )
 
@@ -929,15 +1067,16 @@ SELECT instance_id, internal_token FROM globals;
 
     app['batch_headers'] = {'Authorization': f'Bearer {row["internal_token"]}'}
 
-    resources = db.select_and_fetchall('SELECT resource FROM resources;')
+    app['frozen'] = row['frozen']
 
-    app['resources'] = [record['resource'] async for record in resources]
+    resources = db.select_and_fetchall('SELECT resource, rate FROM resources;')
+    app['resource_rates'] = {record['resource']: record['rate'] async for record in resources}
 
-    aiogoogle_credentials = aiogoogle.Credentials.from_file('/gsa-key/key.json')
-    compute_client = aiogoogle.ComputeClient(PROJECT, credentials=aiogoogle_credentials)
+    aiogoogle_credentials = aiogoogle.GoogleCredentials.from_file('/gsa-key/key.json')
+    compute_client = aiogoogle.GoogleComputeClient(PROJECT, credentials=aiogoogle_credentials)
     app['compute_client'] = compute_client
 
-    logging_client = aiogoogle.LoggingClient(
+    logging_client = aiogoogle.GoogleLoggingClient(
         credentials=aiogoogle_credentials,
         # The project-wide logging quota is 60 request/m.  The event
         # loop sleeps 15s per iteration, so the max rate is 4
@@ -965,9 +1104,9 @@ SELECT instance_id, internal_token FROM globals;
     async_worker_pool = AsyncWorkerPool(100, queue_size=100)
     app['async_worker_pool'] = async_worker_pool
 
-    credentials = google.oauth2.service_account.Credentials.from_service_account_file('/gsa-key/key.json')
-    log_store = LogStore(BATCH_BUCKET_NAME, instance_id, pool, credentials=credentials)
-    app['log_store'] = log_store
+    credentials = aiogoogle.GoogleCredentials.from_file('/gsa-key/key.json')
+    fs = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
+    app['file_store'] = FileStore(fs, BATCH_BUCKET_NAME, instance_id)
 
     zone_monitor = ZoneMonitor(app)
     app['zone_monitor'] = zone_monitor
@@ -1001,33 +1140,44 @@ SELECT instance_id, internal_token FROM globals;
 
     app['task_manager'].ensure_future(periodically_call(60, scheduling_cancelling_bump, app))
 
+    app['task_manager'].ensure_future(periodically_call(15, monitor_system, app))
+
 
 async def on_cleanup(app):
     try:
-        app['blocking_pool'].shutdown()
+        await app['db'].async_close()
     finally:
         try:
-            await app['db'].async_close()
+            app['zone_monitor'].shutdown()
         finally:
             try:
-                app['zone_monitor'].shutdown()
+                app['inst_coll_manager'].shutdown()
             finally:
                 try:
-                    app['inst_coll_manager'].shutdown()
+                    app['canceller'].shutdown()
                 finally:
                     try:
-                        app['canceller'].shutdown()
+                        app['gce_event_monitor'].shutdown()
                     finally:
                         try:
-                            app['gce_event_monitor'].shutdown()
+                            await app['file_store'].close()
                         finally:
                             try:
                                 app['task_manager'].shutdown()
                             finally:
-                                del app['k8s_cache'].client
-                                await asyncio.gather(
-                                    *(t for t in asyncio.all_tasks() if t is not asyncio.current_task())
-                                )
+                                try:
+                                    await app['logging_client'].close()
+                                finally:
+                                    try:
+                                        await app['compute_client'].close()
+                                    finally:
+                                        try:
+                                            await app['client_session'].close()
+                                        finally:
+                                            del app['k8s_cache'].client
+                                            await asyncio.gather(
+                                                *(t for t in asyncio.all_tasks() if t is not asyncio.current_task())
+                                            )
 
 
 def run():
@@ -1042,7 +1192,7 @@ def run():
             verbose=3,
         )
 
-    app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)
+    app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE, middlewares=[monitor_endpoints_middleware])
     setup_aiohttp_session(app)
 
     setup_aiohttp_jinja2(app, 'batch.driver')

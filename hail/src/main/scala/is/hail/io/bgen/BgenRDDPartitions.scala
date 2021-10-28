@@ -2,15 +2,15 @@ package is.hail.io.bgen
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.backend.BroadcastValue
-import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder, ExecuteContext, IEmitCode, ParamType}
+import is.hail.backend.{BroadcastValue, ExecuteContext}
+import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder, IEmitCode, ParamType}
 import is.hail.io.fs.FS
 import is.hail.io.index.IndexReaderBuilder
 import is.hail.io.{ByteArrayReader, HadoopFSDataBinaryReader}
 import is.hail.types._
-import is.hail.types.physical.stypes.concrete.{SCanonicalCallCode, SStackStruct, SStringPointer}
+import is.hail.types.physical._
+import is.hail.types.physical.stypes.concrete.{SCanonicalCallValue, SStackStruct, SStringPointer}
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.{PCanonicalArray, PCanonicalLocus, PCanonicalString, PCanonicalStruct, PStruct}
 import is.hail.types.virtual.{TInterval, Type}
 import is.hail.utils._
 import is.hail.variant.{Call2, ReferenceGenome}
@@ -386,7 +386,7 @@ object CompileDecoder {
                             cb.goto(Lpresent)
                           })))
 
-                    IEmitCode(Lmissing, Lpresent, new SCanonicalCallCode(value), false)
+                    IEmitCode(Lmissing, Lpresent, new SCanonicalCallValue(value), false)
                   }
 
                 if (includeGP)
@@ -397,9 +397,9 @@ object CompileDecoder {
                     val gpType = entryType.field("GP").typ.asInstanceOf[PCanonicalArray]
 
                     val (pushElement, finish) = gpType.constructFromFunctions(cb, partRegion, 3, deepCopy = false)
-                    pushElement(cb, IEmitCode.present(cb, primitive(d0.toD / divisor)))
-                    pushElement(cb, IEmitCode.present(cb, primitive(d1.toD / divisor)))
-                    pushElement(cb, IEmitCode.present(cb, primitive(d2.toD / divisor)))
+                    pushElement(cb, IEmitCode.present(cb, primitive(cb.memoize(d0.toD / divisor))))
+                    pushElement(cb, IEmitCode.present(cb, primitive(cb.memoize(d1.toD / divisor))))
+                    pushElement(cb, IEmitCode.present(cb, primitive(cb.memoize(d2.toD / divisor))))
 
                     IEmitCode.present(cb, finish(cb))
                   }
@@ -407,7 +407,7 @@ object CompileDecoder {
 
                 if (includeDosage)
                   entryFieldCodes += EmitCode.fromI(cb.emb) { cb =>
-                    IEmitCode.present(cb, primitive((d1 + (d2 << 1)).toD / 255.0))
+                    IEmitCode.present(cb, primitive(cb.memoize((d1 + (d2 << 1)).toD / 255.0)))
                   }
 
                 push(cb, IEmitCode.present(cb,

@@ -3,10 +3,11 @@ package is.hail.expr.ir.agg
 import breeze.linalg.{DenseMatrix, DenseVector, diag, inv}
 import is.hail.annotations.{Region, RegionValueBuilder, UnsafeRow}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
+import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitContext, IEmitCode}
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerSettable}
+import is.hail.types.physical.stypes.{EmitType, SCode}
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SIndexablePointer, SIndexablePointerSettable}
 import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.virtual.{TArray, TFloat64, TInt32, Type}
 import is.hail.utils.FastIndexedSeq
@@ -21,7 +22,7 @@ object LinearRegressionAggregator {
 
   private val optVector = vector.setRequired(false)
 
-  def resultType: PCanonicalStruct = PCanonicalStruct(required = true, "xty" -> optVector, "beta" -> optVector, "diag_inv" -> optVector, "beta0" -> optVector)
+  val resultPType: PCanonicalStruct = PCanonicalStruct(required = false, "xty" -> optVector, "beta" -> optVector, "diag_inv" -> optVector, "beta0" -> optVector)
 
   def computeResult(region: Region, xtyPtr: Long, xtxPtr: Long, k0: Int): Long = {
     val xty = DenseVector(UnsafeRow.readArray(vector, null, xtyPtr)
@@ -31,7 +32,7 @@ object LinearRegressionAggregator {
       .asInstanceOf[IndexedSeq[Double]].toArray[Double])
 
     val rvb = new RegionValueBuilder(region)
-    rvb.start(resultType)
+    rvb.start(resultPType)
     rvb.startStruct()
 
     try {
@@ -93,7 +94,7 @@ class LinearRegressionAggregator() extends StagedAggregator {
 
   type State = AbstractTypedRegionBackedAggState
 
-  override def resultType: PType = LinearRegressionAggregator.resultType
+  override def resultEmitType: EmitType = EmitType(SBaseStructPointer(LinearRegressionAggregator.resultPType), true)
 
   val initOpTypes: Seq[Type] = Array(TInt32, TInt32)
   val seqOpTypes: Seq[Type] = Array(TFloat64, TArray(TFloat64))
@@ -107,8 +108,8 @@ class LinearRegressionAggregator() extends StagedAggregator {
         .concat(") of covariates, inclusive"))
     )
     cb.assign(state.off, stateType.allocate(state.region))
-    cb += Region.storeAddress(stateType.fieldOffset(state.off, 0), vector.zeroes(cb.emb, state.region, k))
-    cb += Region.storeAddress(stateType.fieldOffset(state.off, 1), vector.zeroes(cb.emb, state.region, k * k))
+    cb += Region.storeAddress(stateType.fieldOffset(state.off, 0), vector.zeroes(cb, state.region, k))
+    cb += Region.storeAddress(stateType.fieldOffset(state.off, 1), vector.zeroes(cb, state.region, k * k))
     cb += Region.storeInt(stateType.loadField(state.off, 2), k0)
   }
 
@@ -220,7 +221,7 @@ class LinearRegressionAggregator() extends StagedAggregator {
           x.toI(cb)
             .consume(cb,
               {},
-              xCode => seqOpF(state)(cb, yCode.asDouble.doubleCode(cb), xCode)
+              xCode => seqOpF(state)(cb, yCode.asDouble.doubleCode(cb), xCode.get)
             )
         })
   }
@@ -261,18 +262,17 @@ class LinearRegressionAggregator() extends StagedAggregator {
         optr := optr + scalar.byteSize))))
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
+  protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: AbstractTypedRegionBackedAggState, other: AbstractTypedRegionBackedAggState): Unit = {
     combOpF(state, other)(cb)
   }
 
-  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
-    assert(pt == LinearRegressionAggregator.resultType)
+  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
     val resAddr = cb.newLocal[Long]("linear_regression_agg_res", Code.invokeScalaObject4[Region, Long, Long, Int, Long](
       LinearRegressionAggregator.getClass, "computeResult",
       region,
       stateType.loadField(state.off, 0),
       stateType.loadField(state.off, 1),
       Region.loadInt(stateType.loadField(state.off, 2))))
-    pt.storeAtAddress(cb, addr, region, LinearRegressionAggregator.resultType.loadCheapSCode(cb, resAddr), deepCopy = false)
+    IEmitCode.present(cb, LinearRegressionAggregator.resultPType.loadCheapSCode(cb, resAddr))
   }
 }

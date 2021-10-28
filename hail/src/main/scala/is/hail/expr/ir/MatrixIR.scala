@@ -3,7 +3,7 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.backend.Backend
+import is.hail.backend.{Backend, ExecuteContext}
 import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.ir.functions.MatrixToMatrixFunction
 import is.hail.types._
@@ -11,7 +11,6 @@ import is.hail.types.virtual._
 import is.hail.io.TextMatrixReader
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.io.fs.FS
-import is.hail.io.gen.MatrixGENReader
 import is.hail.io.plink.MatrixPLINKReader
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.rvd._
@@ -87,7 +86,6 @@ object MatrixReader {
       case "MatrixNativeReader" => MatrixNativeReader.fromJValue(env.ctx.fs, jv)
       case "MatrixBGENReader" => MatrixBGENReader.fromJValue(env, jv)
       case "TextMatrixReader" => TextMatrixReader.fromJValue(env.ctx, jv)
-      case "MatrixGENReader" => MatrixGENReader.fromJValue(env.ctx, jv)
       case "MatrixPLINKReader" => MatrixPLINKReader.fromJValue(env.ctx, jv)
       case "MatrixVCFReader" => MatrixVCFReader.fromJValue(env.ctx, jv)
     }
@@ -278,6 +276,8 @@ class MatrixNativeReader(
     case that: MatrixNativeReader => params == that.params
     case _ => false
   }
+
+  def getSpec(): AbstractMatrixTableSpec = this.spec
 }
 
 object MatrixRangeReader {

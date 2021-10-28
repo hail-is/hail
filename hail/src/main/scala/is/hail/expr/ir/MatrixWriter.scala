@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.MatrixWriteBlockMatrix
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage}
 import is.hail.expr.ir.streams.StreamProducer
@@ -17,7 +18,7 @@ import is.hail.rvd.{IndexSpec, RVDPartitioner, RVDSpecMaker}
 import is.hail.types.encoded.{EBaseStruct, EBlockMatrixNDArray, EType}
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.{PCanonicalBaseStruct, PCanonicalString, PCanonicalStruct, PInt64, PStream, PStruct, PType}
+import is.hail.types.physical.{PCanonicalBaseStruct, PCanonicalString, PCanonicalStruct, PInt64, PStruct, PType}
 import is.hail.types.virtual._
 import is.hail.types._
 import is.hail.utils._
@@ -45,6 +46,8 @@ case class WrappedMatrixWriter(writer: MatrixWriter,
   def apply(ctx: ExecuteContext, tv: TableValue): Unit = writer(ctx, tv.toMatrixValue(colKey, colsFieldName, entriesFieldName))
   override def lower(ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR =
     writer.lower(colsFieldName, entriesFieldName, colKey, ctx, ts, t, r, relationalLetsAbove)
+
+  override def canLowerEfficiently: Boolean = writer.canLowerEfficiently
 }
 
 abstract class MatrixWriter {
@@ -53,6 +56,8 @@ abstract class MatrixWriter {
   def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
     ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR =
     throw new LowererUnsupportedOperation(s"${ this.getClass } does not have defined lowering!")
+
+  def canLowerEfficiently: Boolean = false
 }
 
 case class MatrixNativeWriter(
@@ -65,6 +70,9 @@ case class MatrixNativeWriter(
   checkpointFile: String = null
 ) extends MatrixWriter {
   def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = mv.write(ctx, path, overwrite, stageLocally, codecSpecJSONStr, partitions, partitionsTypeStr, checkpointFile)
+
+  override def canLowerEfficiently: Boolean = !stageLocally && checkpointFile == null
+
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
     ctx: ExecuteContext, tablestage: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
     val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
@@ -104,9 +112,9 @@ case class MatrixNativeWriter(
 
     lowered.mapContexts { oldCtx =>
       val d = digitsNeeded(lowered.numPartitions)
-      val partFiles = Array.tabulate(lowered.numPartitions)(i => Str(s"${ partFile(d, i) }-"))
+      val partFiles = Array.tabulate(lowered.numPartitions)(i => s"${ partFile(d, i) }-")
 
-      zip2(oldCtx, MakeStream(partFiles, TStream(TString)), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
+      zip2(oldCtx, ToStream(Literal(TArray(TString), partFiles.toFastIndexedSeq)), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
         MakeStruct(FastSeq("oldCtx" -> ctxElt, "writeCtx" -> pf))
       }
     }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals(relationalLetsAbove) { (rows, ctx) =>
@@ -173,7 +181,10 @@ case class SplitPartitionNativeWriter(
 
   def ctxType: Type = TString
   def returnType: Type = pResultType.virtualType
-  def returnPType(ctxType: PType, streamType: PStream): PType = pResultType
+  def unionTypeRequiredness(r: TypeWithRequiredness, ctxType: TypeWithRequiredness, streamType: RIterable): Unit = {
+    r.union(ctxType.required)
+    r.union(streamType.required)
+  }
 
   if (stageLocally)
     throw new LowererUnsupportedOperation("stageLocally option not yet implemented")
@@ -192,7 +203,7 @@ case class SplitPartitionNativeWriter(
     val indexWriter = ifIndexed { StagedIndexWriter.withDefaults(keyType, mb.ecb, annotationType = iAnnotationType) }
 
 
-    context.toI(cb).map(cb) { ctxCode: SCode =>
+    context.toI(cb).map(cb) { pctx =>
       val result = mb.newLocal[Long]("write_result")
       val filename1 = mb.newLocal[String]("filename1")
       val os1 = mb.newLocal[ByteTrackingOutputStream]("write_os1")
@@ -204,8 +215,7 @@ case class SplitPartitionNativeWriter(
 
 
       def writeFile(cb: EmitCodeBuilder, codeRow: EmitCode): Unit = {
-        val pc = codeRow.toI(cb).get(cb, "row can't be missing").asBaseStruct
-        val row = pc.memoize(cb, "row")
+        val row = codeRow.toI(cb).get(cb, "row can't be missing").asBaseStruct
         if (hasIndex) {
           indexWriter.add(cb, {
             IEmitCode.present(cb, keyType.asInstanceOf[PCanonicalBaseStruct]
@@ -215,7 +225,7 @@ case class SplitPartitionNativeWriter(
           }, ob1.invoke[Long]("indexOffset"), {
             IEmitCode.present(cb,
               iAnnotationType.constructFromFields(cb, stream.elementRegion,
-                FastIndexedSeq(EmitCode.present(cb.emb, primitive(ob2.invoke[Long]("indexOffset")))),
+                FastIndexedSeq(EmitCode.present(cb.emb, primitive(cb.memoize(ob2.invoke[Long]("indexOffset"))))),
                 deepCopy = false))
           })
         }
@@ -231,8 +241,7 @@ case class SplitPartitionNativeWriter(
         cb.assign(n, n + 1L)
       }
 
-      val pctx = ctxCode.memoize(cb, "context")
-      cb.assign(filename1, pctx.asString.loadString())
+      cb.assign(filename1, pctx.asString.loadString(cb))
       if (hasIndex) {
         val indexFile = cb.newLocal[String]("indexFile")
         cb.assign(indexFile, const(index.get._1).concat(filename1).concat(".idx"))
@@ -297,10 +306,9 @@ case class MatrixSpecWriter(path: String, typ: MatrixType, rowRelPath: String, g
     cb: EmitCodeBuilder,
     region: Value[Region]): Unit = {
     cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
-    val pc = writeAnnotations.get(cb, "write annotations can't be missing!").asBaseStruct
+    val c = writeAnnotations.get(cb, "write annotations can't be missing!").asBaseStruct
     val partCounts = cb.newLocal[Array[Long]]("partCounts")
-    val c = pc.memoize(cb, "matrixPartCounts")
-    val a = c.loadField(cb, "rows").get(cb).asIndexable.memoize(cb, "rowCounts")
+    val a = c.loadField(cb, "rows").get(cb).asIndexable
 
     val n = cb.newLocal[Int]("n", a.loadLength())
     val i = cb.newLocal[Int]("i", 0)
@@ -474,9 +482,9 @@ object MatrixNativeMultiWriter {
 }
 
 case class MatrixNativeMultiWriter(
-  prefix: String,
+  paths: IndexedSeq[String],
   overwrite: Boolean = false,
   stageLocally: Boolean = false
 ) {
-  def apply(ctx: ExecuteContext, mvs: IndexedSeq[MatrixValue]): Unit = MatrixValue.writeMultiple(ctx, mvs, prefix, overwrite, stageLocally)
+  def apply(ctx: ExecuteContext, mvs: IndexedSeq[MatrixValue]): Unit = MatrixValue.writeMultiple(ctx, mvs, paths, overwrite, stageLocally)
 }

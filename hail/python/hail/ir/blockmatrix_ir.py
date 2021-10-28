@@ -149,8 +149,19 @@ class BlockMatrixAgg(BlockMatrixIR):
         return self.out_index_expr == other.out_index_expr
 
     def _compute_type(self):
-        shape = [tensor_shape_to_matrix_shape(self.child)[i] for i in self.out_index_expr]
-        is_row_vector = self.out_index_expr == [1]
+        child_matrix_shape = tensor_shape_to_matrix_shape(self.child)
+        if self.out_index_expr == [0, 1]:
+            is_row_vector = False
+            shape = []
+        elif self.out_index_expr == [0]:
+            is_row_vector = True
+            shape = [child_matrix_shape[1]]
+        elif self.out_index_expr == [1]:
+            is_row_vector = False
+            shape = [child_matrix_shape[0]]
+        else:
+            raise ValueError("Invalid out_index_expr")
+
         self._type = tblockmatrix(self.child.typ.element_type,
                                   shape,
                                   is_row_vector,

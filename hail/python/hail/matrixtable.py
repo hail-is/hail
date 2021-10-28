@@ -805,6 +805,21 @@ class MatrixTable(ExprContainer):
                     key_fields
                 )))
 
+    @typecheck_method(new_key=str)
+    def _key_rows_by_assert_sorted(self, *new_key):
+        rk_names = list(self.row_key)
+        i = 0
+        while (i < min(len(new_key), len(rk_names))):
+            if new_key[i] != rk_names[i]:
+                break
+            i += 1
+
+        if i < 1:
+            raise ValueError(
+                f'cannot implement an unsafe sort with no shared key:\n  new key: {new_key}\n  old key: {rk_names}')
+
+        return MatrixTable(ir.MatrixKeyRowsBy(self._mir, list(new_key), is_sorted=True))
+
     @typecheck_method(keys=oneof(str, Expression),
                       named_keys=expr_any)
     def key_rows_by(self, *keys, **named_keys) -> 'MatrixTable':
@@ -1984,7 +1999,7 @@ class MatrixTable(ExprContainer):
 
         agg_ir = ir.TableAggregate(ir.MatrixRowsTable(base._mir), subst_query)
         if _localize:
-            return Env.backend().execute(agg_ir)
+            return Env.backend().execute(ir.MakeTuple([agg_ir]))[0]
         else:
             return construct_expr(ir.LiftMeOut(agg_ir), expr.dtype)
 
@@ -2034,7 +2049,7 @@ class MatrixTable(ExprContainer):
 
         agg_ir = ir.TableAggregate(ir.MatrixColsTable(base._mir), subst_query)
         if _localize:
-            return Env.backend().execute(agg_ir)
+            return Env.backend().execute(ir.MakeTuple([agg_ir]))[0]
         else:
             return construct_expr(ir.LiftMeOut(agg_ir), expr.dtype)
 
@@ -2702,6 +2717,21 @@ class MatrixTable(ExprContainer):
         Extract the entry table:
 
         >>> entries_table = dataset.entries()
+
+        Notes
+        -----
+        The coordinate table representation of the source matrix table contains
+        one row for each **non-filtered** entry of the matrix -- if a matrix table
+        has no filtered entries and contains N rows and M columns, the table will contain
+        ``M * N`` rows, which can be **a very large number**.
+
+        This representation can be useful for aggregating over both axes of a matrix table
+        at the same time -- it is not possible to aggregate over a matrix table using
+        :meth:`group_rows_by` and :meth:`group_cols_by` at the same time (aggregating
+        by population and chromosome from a variant-by-sample genetics representation,
+        for instance). After moving to the coordinate representation with :meth:`entries`,
+        it is possible to group and aggregate the resulting table much more flexibly,
+        albeit with potentially poorer computational performance.
 
         Warning
         -------

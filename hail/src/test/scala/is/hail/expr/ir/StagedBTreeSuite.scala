@@ -4,6 +4,7 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import is.hail.HailSuite
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.check.{Gen, Prop}
 import is.hail.expr.ir.agg._
 import is.hail.expr.ir.orderings.CodeOrdering
@@ -18,31 +19,34 @@ import org.testng.annotations.Test
 import scala.collection.mutable
 class TestBTreeKey(mb: EmitMethodBuilder[_]) extends BTreeKey {
   private val comp = mb.ecb.getOrderingFunction(SInt64, SInt64, CodeOrdering.Compare())
-  def storageType: PTuple = PCanonicalTuple(required = true, PInt64(), PCanonicalTuple(false))
-  def compType: PType = PInt64()
-  def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Code[Boolean] =
-    storageType.isFieldMissing(off, 1)
-  def initializeEmpty(cb: EmitCodeBuilder, off: Code[Long]): Unit =
-    cb += storageType.setFieldMissing(off, 1)
+  override def storageType: PTuple = PCanonicalTuple(required = true, PInt64(), PCanonicalTuple(false))
+  override def compType: PType = PInt64()
+  override def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Value[Boolean] =
+    storageType.isFieldMissing(cb, off, 1)
+  override def initializeEmpty(cb: EmitCodeBuilder, off: Code[Long]): Unit =
+    storageType.setFieldMissing(cb, off, 1)
 
-  def storeKey(cb: EmitCodeBuilder, off: Code[Long], m: Code[Boolean], v: Code[Long]): Unit =
-    cb += Code.memoize(off, "off") { off =>
-      Code(
-        storageType.stagedInitialize(off),
-        m.mux(
-          storageType.setFieldMissing(off, 0),
-          Region.storeLong(storageType.fieldOffset(off, 0), v)))
-    }
+  def storeKey(cb: EmitCodeBuilder, _off: Code[Long], m: Code[Boolean], v: Code[Long]): Unit = {
+    val off = cb.memoize[Long](_off)
+    storageType.stagedInitialize(cb, off)
+    cb.ifx(m,
+      storageType.setFieldMissing(cb, off, 0),
+      cb += Region.storeLong(storageType.fieldOffset(off, 0), v)
+    )
+  }
 
-  def copy(cb: EmitCodeBuilder, src: Code[Long], dest: Code[Long]): Unit =
+  override def copy(cb: EmitCodeBuilder, src: Code[Long], dest: Code[Long]): Unit =
     cb += Region.copyFrom(src, dest, storageType.byteSize)
-  def deepCopy(cb: EmitCodeBuilder, er: EmitRegion, src: Code[Long], dest: Code[Long]): Unit =
+  override def deepCopy(cb: EmitCodeBuilder, er: EmitRegion, src: Code[Long], dest: Code[Long]): Unit =
     copy(cb, src, dest)
 
-  def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = comp(cb, k1, k2)
+  override def compKeys(cb: EmitCodeBuilder, k1: EmitValue, k2: EmitValue): Value[Int] =
+    comp(cb, k1, k2)
 
-  def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitCode =
-    EmitCode(Code._empty, storageType.isFieldMissing(off, 0), primitive(Region.loadLong(storageType.fieldOffset(off, 0))))
+  override def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitValue =
+    EmitValue(
+      Some(storageType.isFieldMissing(cb, off, 0)),
+      primitive(cb.memoize(Region.loadLong(storageType.fieldOffset(off, 0)))))
 }
 
 object BTreeBackedSet {
@@ -140,12 +144,12 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
       cb += (r := fb.getCodeParam[Region](1))
       cb += (root := fb.getCodeParam[Long](2))
       cb += sab.clear
-      btree.foreach(cb) { (cb, koff) =>
-        cb += Code.memoize(koff, "koff") { koff =>
-          val ec = key.loadCompKey(cb, koff)
-          ec.m.mux(sab.addMissing(),
-            sab.add(ec.pv.asInt64.longCode(cb)))
-        }
+      btree.foreach(cb) { (cb, _koff) =>
+        val koff = cb.memoize(_koff)
+        val ec = key.loadCompKey(cb, koff)
+        cb.ifx(ec.m,
+          cb += sab.addMissing(),
+          cb += sab.add(ec.pv.asInt64.longCode(cb)))
       }
       cb += (returnArray := Code.newArray[java.lang.Long](sab.size))
       cb += (idx := 0)

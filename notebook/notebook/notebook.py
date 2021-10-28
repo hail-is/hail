@@ -15,6 +15,7 @@ from prometheus_async.aio.web import server_stats  # type: ignore
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
+from hailtop import httpx
 from gear import (
     setup_aiohttp_session,
     create_database_pool,
@@ -22,7 +23,7 @@ from gear import (
     web_maybe_authenticated_user,
     web_authenticated_developers_only,
     check_csrf_token,
-    monitor_endpoint,
+    monitor_endpoints_middleware,
 )
 from web_common import sass_compile, setup_aiohttp_jinja2, setup_common_static_routes, set_message, render_template
 
@@ -120,13 +121,13 @@ async def start_pod(k8s, service, userdata, notebook_token, jupyter_token):
         env = [kube.client.V1EnvVar(name='HAIL_DEPLOY_CONFIG_FILE', value='/deploy-config/deploy-config.json')]
 
         tokens_secret_name = userdata['tokens_secret_name']
-        gsa_key_secret_name = userdata['gsa_key_secret_name']
+        hail_credentials_secret_name = userdata['hail_credentials_secret_name']
         volumes = [
             kube.client.V1Volume(
                 name='deploy-config', secret=kube.client.V1SecretVolumeSource(secret_name='deploy-config')
             ),
             kube.client.V1Volume(
-                name='gsa-key', secret=kube.client.V1SecretVolumeSource(secret_name=gsa_key_secret_name)
+                name='gsa-key', secret=kube.client.V1SecretVolumeSource(secret_name=hail_credentials_secret_name)
             ),
             kube.client.V1Volume(
                 name='user-tokens', secret=kube.client.V1SecretVolumeSource(secret_name=tokens_secret_name)
@@ -213,7 +214,7 @@ async def k8s_notebook_status_from_notebook(k8s, notebook):
         raise
 
 
-async def notebook_status_from_notebook(k8s, service, headers, cookies, notebook):
+async def notebook_status_from_notebook(client_session: httpx.ClientSession, k8s, service, headers, cookies, notebook):
     status = await k8s_notebook_status_from_notebook(k8s, notebook)
     if not status:
         return None
@@ -229,15 +230,12 @@ async def notebook_status_from_notebook(k8s, service, headers, cookies, notebook
                 service, f'/instance/{notebook["notebook_token"]}/?token={notebook["jupyter_token"]}'
             )
             try:
-                async with aiohttp.ClientSession(
-                    timeout=aiohttp.ClientTimeout(total=1), headers=headers, cookies=cookies
-                ) as session:
-                    async with session.get(ready_url) as resp:
-                        if resp.status >= 200 and resp.status < 300:
-                            log.info(f'GET on jupyter pod {pod_name} succeeded: {resp}')
-                            status['state'] = 'Ready'
-                        else:
-                            log.info(f'GET on jupyter pod {pod_name} failed: {resp}')
+                async with client_session.get(ready_url, headers=headers, cookes=cookies) as resp:
+                    if resp.status >= 200 and resp.status < 300:
+                        log.info(f'GET on jupyter pod {pod_name} succeeded: {resp}')
+                        status['state'] = 'Ready'
+                    else:
+                        log.info(f'GET on jupyter pod {pod_name} failed: {resp}')
             except aiohttp.ServerTimeoutError:
                 log.exception(f'GET on jupyter pod {pod_name} timed out: {resp}')
 
@@ -346,6 +344,7 @@ async def _wait_websocket(service, request, userdata):
     app = request.app
     k8s = app['k8s_client']
     dbpool = app['dbpool']
+    client_session: httpx.ClientSession = app['client_session']
     user_id = str(userdata['id'])
     notebook = await get_user_notebook(dbpool, user_id)
     if not notebook:
@@ -371,7 +370,7 @@ async def _wait_websocket(service, request, userdata):
     count = 0
     while count < 10:
         try:
-            new_status = await notebook_status_from_notebook(k8s, service, headers, cookies, notebook)
+            new_status = await notebook_status_from_notebook(client_session, k8s, service, headers, cookies, notebook)
             changed = await update_notebook_return_changed(dbpool, user_id, notebook, new_status)
             if changed:
                 log.info(f"pod {notebook['pod_name']} status changed: {notebook['state']} => {new_status['state']}")
@@ -491,7 +490,6 @@ async def get_error(request, userdata):
 
 
 @routes.get('/workshop-admin')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def workshop_admin(request, userdata):
     dbpool = request.app['dbpool']
@@ -506,7 +504,6 @@ async def workshop_admin(request, userdata):
 
 @routes.post('/workshop-admin-create')
 @check_csrf_token
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def create_workshop(request, userdata):  # pylint: disable=unused-argument
     dbpool = request.app['dbpool']
@@ -540,7 +537,6 @@ INSERT INTO workshops (name, image, cpu, memory, password, active, token) VALUES
 
 @routes.post('/workshop-admin-update')
 @check_csrf_token
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def update_workshop(request, userdata):  # pylint: disable=unused-argument
     app = request.app
@@ -574,7 +570,6 @@ UPDATE workshops SET name = %s, image = %s, cpu = %s, memory = %s, password = %s
 
 @routes.post('/workshop-admin-delete')
 @check_csrf_token
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def delete_workshop(request, userdata):  # pylint: disable=unused-argument
     app = request.app
@@ -605,7 +600,6 @@ workshop_routes = web.RouteTableDef()
 
 @workshop_routes.get('')
 @workshop_routes.get('/')
-@monitor_endpoint
 @web_maybe_authenticated_workshop_guest
 async def workshop_get_index(request, userdata):
     page_context = {'notebook_service': 'workshop'}
@@ -613,7 +607,6 @@ async def workshop_get_index(request, userdata):
 
 
 @workshop_routes.get('/login')
-@monitor_endpoint
 @web_maybe_authenticated_workshop_guest
 async def workshop_get_login(request, userdata):
     if userdata:
@@ -624,7 +617,6 @@ async def workshop_get_login(request, userdata):
 
 
 @workshop_routes.post('/login')
-@monitor_endpoint
 @check_csrf_token
 async def workshop_post_login(request):
     session = await aiohttp_session.get_session(request)
@@ -662,7 +654,6 @@ WHERE name = %s AND password = %s AND active = 1;
 
 @workshop_routes.post('/logout')
 @check_csrf_token
-@monitor_endpoint
 @web_authenticated_workshop_guest_only(redirect=True)
 async def workshop_post_logout(request, userdata):
     app = request.app
@@ -686,7 +677,6 @@ async def workshop_post_logout(request, userdata):
 
 
 @workshop_routes.get('/resources')
-@monitor_endpoint
 @web_maybe_authenticated_workshop_guest
 async def workshop_get_faq(request, userdata):
     page_context = {'notebook_service': 'workshop'}
@@ -694,7 +684,6 @@ async def workshop_get_faq(request, userdata):
 
 
 @workshop_routes.get('/notebook')
-@monitor_endpoint
 @web_authenticated_workshop_guest_only()
 async def workshop_get_notebook(request, userdata):
     return await _get_notebook('workshop', request, userdata)
@@ -702,14 +691,12 @@ async def workshop_get_notebook(request, userdata):
 
 @workshop_routes.post('/notebook')
 @check_csrf_token
-@monitor_endpoint
 @web_authenticated_workshop_guest_only(redirect=False)
 async def workshop_post_notebook(request, userdata):
     return await _post_notebook('workshop', request, userdata)
 
 
 @workshop_routes.get('/auth/{requested_notebook_token}')
-@monitor_endpoint
 @web_authenticated_workshop_guest_only(redirect=False)
 async def workshop_get_auth(request, userdata):
     return await _get_auth(request, userdata)
@@ -717,21 +704,18 @@ async def workshop_get_auth(request, userdata):
 
 @workshop_routes.post('/notebook/delete')
 @check_csrf_token
-@monitor_endpoint
 @web_authenticated_workshop_guest_only(redirect=False)
 async def workshop_delete_notebook(request, userdata):
     return await _delete_notebook('workshop', request, userdata)
 
 
 @workshop_routes.get('/notebook/wait')
-@monitor_endpoint
 @web_authenticated_workshop_guest_only(redirect=False)
 async def workshop_wait_websocket(request, userdata):
     return await _wait_websocket('workshop', request, userdata)
 
 
 @workshop_routes.get('/error')
-@monitor_endpoint
 @web_maybe_authenticated_user
 async def workshop_get_error(request, userdata):
     return await _get_error('workshop', request, userdata)
@@ -746,14 +730,21 @@ async def on_startup(app):
 
     app['dbpool'] = await create_database_pool()
 
+    app['client_session'] = httpx.client_session()
+
 
 async def on_cleanup(app):
-    del app['k8s_client']
-    await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
+    try:
+        del app['k8s_client']
+    finally:
+        try:
+            await app['client_session'].close()
+        finally:
+            await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
 
 
 def init_app(routes):
-    app = web.Application()
+    app = web.Application(middlewares=[monitor_endpoints_middleware])
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
     setup_aiohttp_jinja2(app, 'notebook')

@@ -14,7 +14,7 @@ BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 SCALA_VERSION ?= 2.12.13
 SPARK_VERSION ?= 3.1.1
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 70
+HAIL_PATCH_VERSION := 78
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 ELASTIC_MAJOR_VERSION ?= 7
@@ -218,11 +218,11 @@ $(EGG): copy-py-files
 
 # if the DEPLOY_REMOTE flag is not set, then deploy init scripts into a dev-username location
 ifndef DEPLOY_REMOTE
-DEV_CLARIFIER ?= $(shell whoami)-dev/
-CLOUD_SUB_FOLDER := $(HAIL_VERSION)
+DEV_CLARIFIER ?= $(shell whoami)-dev
+cloud_base ?= gs://hail-30-day/hailctl/dataproc/$(DEV_CLARIFIER)/$(HAIL_VERSION)
 UPLOAD_RETENTION =
 else
-CLOUD_SUB_FOLDER := $(HAIL_PIP_VERSION)
+cloud_base := gs://hail-common/hailctl/dataproc/$(HAIL_PIP_VERSION)
 UPLOAD_RETENTION = gsutil -m retention temp set "$(cloud_base)/*"
 endif
 

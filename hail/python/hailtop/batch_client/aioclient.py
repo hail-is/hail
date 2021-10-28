@@ -11,7 +11,7 @@ import secrets
 from hailtop.config import get_deploy_config, DeployConfig
 from hailtop.auth import service_auth_headers
 from hailtop.utils import bounded_gather, request_retry_transient_errors, tqdm, TQDM_DEFAULT_DISABLE
-from hailtop.httpx import client_session
+from hailtop import httpx
 
 from .globals import tasks, complete_states
 
@@ -35,15 +35,7 @@ class Job:
         if not container_status:
             return None
 
-        error = container_status.get('error')
-        if error:
-            return error
-
-        docker_container_status = container_status.get('container_status')
-        if not docker_container_status:
-            return None
-
-        return docker_container_status.get('error')
+        return container_status.get('error')
 
     @staticmethod
     def _get_out_of_memory(job_status, task):
@@ -55,15 +47,15 @@ class Job:
         if not container_statuses:
             return None
 
-        container_status = container_statuses.get(task)
+        task_status = container_statuses.get(task)
+        if not task_status:
+            return None
+
+        container_status = task_status.get('container_status')
         if not container_status:
             return None
 
-        docker_container_status = container_status.get('container_status')
-        if not docker_container_status:
-            return None
-
-        return docker_container_status['out_of_memory']
+        return container_status['out_of_memory']
 
     @staticmethod
     def _get_container_status_exit_code(container_status):
@@ -400,6 +392,13 @@ class Batch:
                 if i < 64:
                     i = i + 1
 
+    async def debug_info(self):
+        batch_status = await self.status()
+        jobs = [
+            {'status': j, 'log': await self.get_job_log(j['job_id'])}
+            async for j in self.jobs()]
+        return {'status': batch_status, 'jobs': jobs}
+
     async def delete(self):
         await self._client._delete(f'/api/v1alpha/batches/{self.id}')
 
@@ -426,7 +425,7 @@ class BatchBuilder:
                    input_files=None, output_files=None, always_run=False,
                    timeout=None, gcsfuse=None, requester_pays_project=None,
                    mount_tokens=False, network: Optional[str] = None,
-                   unconfined: bool = False):
+                   unconfined: bool = False, user_code: Optional[str] = None):
         if self._submitted:
             raise ValueError("cannot create a job in an already submitted batch")
 
@@ -502,6 +501,8 @@ class BatchBuilder:
             job_spec['network'] = network
         if unconfined:
             job_spec['unconfined'] = unconfined
+        if user_code:
+            job_spec['user_code'] = user_code
 
         self._job_specs.append(job_spec)
 
@@ -609,32 +610,39 @@ class BatchBuilder:
 
 
 class BatchClient:
-    def __init__(self,
-                 billing_project: str,
-                 deploy_config: Optional[DeployConfig] = None,
-                 session: Optional[aiohttp.ClientSession] = None,
-                 headers: Optional[Dict[str, str]] = None,
-                 _token: Optional[str] = None,
-                 token_file: Optional[str] = None):
-        self.billing_project = billing_project
-
+    @staticmethod
+    async def create(billing_project: str,
+                     deploy_config: Optional[DeployConfig] = None,
+                     session: Optional[httpx.ClientSession] = None,
+                     headers: Optional[Dict[str, str]] = None,
+                     _token: Optional[str] = None,
+                     token_file: Optional[str] = None):
         if not deploy_config:
             deploy_config = get_deploy_config()
-
-        self.url = deploy_config.base_url('batch')
-
+        url = deploy_config.base_url('batch')
         if session is None:
-            session = client_session()
-        self._session = session
-
-        h: Dict[str, str] = {}
-        if headers:
-            h.update(headers)
+            session = httpx.client_session()
+        if headers is None:
+            headers = dict()
         if _token:
-            h['Authorization'] = f'Bearer {_token}'
+            headers['Authorization'] = f'Bearer {_token}'
         else:
-            h.update(service_auth_headers(deploy_config, 'batch', token_file=token_file))
-        self._headers = h
+            headers.update(service_auth_headers(deploy_config, 'batch', token_file=token_file))
+        return BatchClient(
+            billing_project=billing_project,
+            url=url,
+            session=session,
+            headers=headers)
+
+    def __init__(self,
+                 billing_project: str,
+                 url: str,
+                 session: httpx.ClientSession,
+                 headers: Dict[str, str]):
+        self.billing_project = billing_project
+        self.url = url
+        self._session = session
+        self._headers = headers
 
     async def _get(self, path, params=None):
         return await request_retry_transient_errors(

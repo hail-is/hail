@@ -5,10 +5,10 @@ import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.{SCode, SType, SValue}
-import is.hail.types.physical.stypes.concrete.{SCanonicalCall, SCanonicalCallCode}
-import is.hail.types.physical.stypes.interfaces.SCallValue
-import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Code}
+import is.hail.types.physical.stypes.concrete.{SCanonicalCall, SCanonicalCallValue}
+import is.hail.types.physical.stypes.interfaces.{SCall, SCallValue}
+import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Value}
+import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -19,17 +19,17 @@ case object EInt32Required extends EInt32(true)
 class EInt32(override val required: Boolean) extends EType {
   override def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = {
     val x = v.st match {
-      case SCanonicalCall => v.asInstanceOf[SCallValue].canonicalCall(cb)
+      case _: SCall => v.asInstanceOf[SCallValue].canonicalCall(cb)
       case SInt32 => v.asInt32.intCode(cb)
     }
     cb += out.writeInt(x)
   }
 
-  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SCode = {
-    val x = in.readInt()
+  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SValue = {
+    val x = cb.memoize(in.readInt())
     t match {
-      case TCall => new SCanonicalCallCode(x)
-      case TInt32 => new SInt32Code(x)
+      case TCall => new SCanonicalCallValue(x)
+      case TInt32 => new SInt32Value(x)
     }
   }
 

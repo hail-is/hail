@@ -128,14 +128,15 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
     bound_exprs['n_het'] = hl.agg.count_where(mt['GT'].is_het())
     bound_exprs['n_singleton'] = hl.agg.sum(hl.sum(hl.range(0, mt['GT'].ploidy).map(lambda i: mt[variant_ac][mt['GT'][i]] == 1)))
 
-    def get_allele_type(allele_idx):
-        return hl.if_else(allele_idx > 0, mt[variant_atypes][allele_idx - 1], hl.missing(hl.tint32))
-
     bound_exprs['allele_type_counts'] = hl.agg.explode(
-        lambda elt: hl.agg.counter(elt),
-        hl.range(0, mt['GT'].ploidy).map(lambda i: get_allele_type(mt['GT'][i])))
-
-    zero = hl.int64(0)
+        lambda allele_type: hl.tuple(
+            hl.agg.count_where(allele_type == i) for i in range(len(allele_ints))
+        ),
+        (hl.range(0, mt['GT'].ploidy)
+         .map(lambda i: mt['GT'][i])
+         .filter(lambda allele_idx: allele_idx > 0)
+         .map(lambda allele_idx: mt[variant_atypes][allele_idx - 1]))
+    )
 
     result_struct = hl.rbind(
         hl.struct(**bound_exprs),
@@ -151,13 +152,13 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
                 'n_hom_var': x.n_called - x.n_hom_ref - x.n_het,
                 'n_non_ref': x.n_called - x.n_hom_ref,
                 'n_singleton': x.n_singleton,
-                'n_snp': (x.allele_type_counts.get(allele_ints["Transition"], zero)
-                          + x.allele_type_counts.get(allele_ints["Transversion"], zero)),
-                'n_insertion': x.allele_type_counts.get(allele_ints["Insertion"], zero),
-                'n_deletion': x.allele_type_counts.get(allele_ints["Deletion"], zero),
-                'n_transition': x.allele_type_counts.get(allele_ints["Transition"], zero),
-                'n_transversion': x.allele_type_counts.get(allele_ints["Transversion"], zero),
-                'n_star': x.allele_type_counts.get(allele_ints["Star"], zero)
+                'n_snp': (x.allele_type_counts[allele_ints["Transition"]]
+                          + x.allele_type_counts[allele_ints["Transversion"]]),
+                'n_insertion': x.allele_type_counts[allele_ints["Insertion"]],
+                'n_deletion': x.allele_type_counts[allele_ints["Deletion"]],
+                'n_transition': x.allele_type_counts[allele_ints["Transition"]],
+                'n_transversion': x.allele_type_counts[allele_ints["Transversion"]],
+                'n_star': x.allele_type_counts[allele_ints["Star"]],
             }),
             lambda s: s.annotate(
                 r_ti_tv=divide_null(hl.float64(s.n_transition), s.n_transversion),
@@ -221,7 +222,10 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
     - `het_freq_hwe` (``float64``) -- Expected frequency of heterozygous
       samples under Hardy-Weinberg equilibrium. See
       :func:`.functions.hardy_weinberg_test` for details.
-    - `p_value_hwe` (``float64``) -- p-value from test of Hardy-Weinberg equilibrium.
+    - `p_value_hwe` (``float64``) -- p-value from two-sided test of Hardy-Weinberg
+      equilibrium. See :func:`.functions.hardy_weinberg_test` for details.
+    - `p_value_excess_het` (``float64``) -- p-value from one-sided test of
+      Hardy-Weinberg equilibrium for excess heterozygosity.
       See :func:`.functions.hardy_weinberg_test` for details.
 
     Warning
@@ -270,12 +274,18 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
 
     result = hl.rbind(hl.struct(**bound_exprs),
                       lambda e1: hl.rbind(
-                          hl.case().when(hl.len(mt.alleles) == 2,
-                                         hl.hardy_weinberg_test(e1.call_stats.homozygote_count[0],
-                                                                e1.call_stats.AC[1] - 2
-                                                                * e1.call_stats.homozygote_count[1],
-                                                                e1.call_stats.homozygote_count[1])
-                                         ).or_missing(),
+                          hl.case().when(
+                              hl.len(mt.alleles) == 2,
+                              (hl.hardy_weinberg_test(e1.call_stats.homozygote_count[0],
+                                                      e1.call_stats.AC[1] - 2
+                                                      * e1.call_stats.homozygote_count[1],
+                                                      e1.call_stats.homozygote_count[1]),
+                               hl.hardy_weinberg_test(e1.call_stats.homozygote_count[0],
+                                                      e1.call_stats.AC[1] - 2
+                                                      * e1.call_stats.homozygote_count[1],
+                                                      e1.call_stats.homozygote_count[1],
+                                                      one_sided=True))
+                          ).or_missing(),
                           lambda hwe: hl.struct(**{
                               **gq_dp_exprs,
                               **e1.call_stats,
@@ -285,8 +295,9 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
                               'n_filtered': e1.n_filtered,
                               'n_het': e1.n_called - hl.sum(e1.call_stats.homozygote_count),
                               'n_non_ref': e1.n_called - e1.call_stats.homozygote_count[0],
-                              'het_freq_hwe': hwe.het_freq_hwe,
-                              'p_value_hwe': hwe.p_value})))
+                              'het_freq_hwe': hwe[0].het_freq_hwe,
+                              'p_value_hwe': hwe[0].p_value,
+                              'p_value_excess_het': hwe[1].p_value})))
 
     return mt.annotate_rows(**{name: result})
 

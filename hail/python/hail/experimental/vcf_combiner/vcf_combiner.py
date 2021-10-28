@@ -102,7 +102,7 @@ def transform_gvcf(mt, info_to_keep=[]) -> Table:
     Returns
     -------
     :obj:`.Table`
-        A localized matrix table that can be used as part of the input to :func:`.combine_gvcfs`
+        A localized matrix table that can be used as part of the input to `combine_gvcfs`.
 
     Notes
     -----
@@ -607,6 +607,9 @@ def run_combiner(sample_paths: List[str],
     None
 
     """
+    flagname = 'no_ir_logging'
+    prev_flag_value = hl._get_flags(flagname).get(flagname)
+    hl._set_flags(**{flagname: '1'})
     tmp_path += f'/combiner-temporary/{uuid.uuid4()}/'
     if header is not None:
         assert sample_names is not None
@@ -722,6 +725,7 @@ def run_combiner(sample_paths: List[str],
     assert files_to_merge == [out_file]
 
     info("Finished!")
+    hl._set_flags(**{flagname: prev_flag_value})
 
 
 def parse_sample_mapping(sample_map_path: str) -> Tuple[List[str], List[str]]:

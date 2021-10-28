@@ -2,11 +2,15 @@ import re
 import dill
 import os
 import functools
+import inspect
+import textwrap
+from shlex import quote as shq
 from io import BytesIO
 from typing import Union, Optional, Dict, List, Set, Tuple, Callable, Any, cast
 
 from . import backend, resource as _resource, batch  # pylint: disable=cyclic-import
 from .exceptions import BatchException
+from .globals import DEFAULT_SHELL
 
 
 def _add_resource_to_set(resource_set, resource, include_rg=True):
@@ -24,6 +28,12 @@ def _add_resource_to_set(resource_set, resource, include_rg=True):
     if rg is not None:
         for _, resource_file in rg._resources.items():
             resource_set.add(resource_file)
+
+
+def opt_str(x):
+    if x is None:
+        return x
+    return str(x)
 
 
 class Job:
@@ -48,13 +58,18 @@ class Job:
 
     def __init__(self,
                  batch: 'batch.Batch',
+                 token: str,
+                 *,
                  name: Optional[str] = None,
                  attributes: Optional[Dict[str, str]] = None,
                  shell: Optional[str] = None):
         self._batch = batch
         self._shell = shell
+        self._token = token
+
         self.name = name
         self.attributes = attributes
+
         self._cpu: Optional[str] = None
         self._memory: Optional[str] = None
         self._storage: Optional[str] = None
@@ -65,7 +80,8 @@ class Job:
         self._timeout: Optional[Union[int, float]] = None
         self._gcsfuse: List[Tuple[str, str, bool]] = []
         self._env: Dict[str, str] = dict()
-        self._command: List[str] = []
+        self._wrapper_code: List[str] = []
+        self._user_code: List[str] = []
 
         self._resources: Dict[str, _resource.Resource] = {}
         self._resources_inverse: Dict[_resource.Resource, str] = {}
@@ -78,6 +94,17 @@ class Job:
         self._mentioned: Set[_resource.Resource] = set()  # resources used in the command
         self._valid: Set[_resource.Resource] = set()  # resources declared in the appropriate place
         self._dependencies: Set[Job] = set()
+
+        def safe_str(s):
+            new_s = []
+            for c in s:
+                if c.isalnum() or c == '-':
+                    new_s.append(c)
+                else:
+                    new_s.append('_')
+            return ''.join(new_s)
+
+        self._dirname = f'{safe_str(name)}-{self._token}' if name else self._token
 
     def _get_resource(self, item: str) -> '_resource.Resource':
         raise NotImplementedError
@@ -144,7 +171,7 @@ class Job:
     def env(self, variable: str, value: str):
         self._env[variable] = value
 
-    def storage(self, storage: Union[str, int]) -> 'Job':
+    def storage(self, storage: Optional[Union[str, int]]) -> 'Job':
         """
         Set the job's storage size.
 
@@ -182,17 +209,18 @@ class Job:
         Parameters
         ----------
         storage:
-            Units are in bytes if `storage` is an :obj:`int`.
+            Units are in bytes if `storage` is an :obj:`int`. If `None`, use the
+            default storage size for the :class:`.ServiceBackend` (0 Gi).
 
         Returns
         -------
         Same job object with storage set.
         """
 
-        self._storage = str(storage)
+        self._storage = opt_str(storage)
         return self
 
-    def memory(self, memory: Union[str, int]) -> 'Job':
+    def memory(self, memory: Optional[Union[str, int]]) -> 'Job':
         """
         Set the job's memory requirements.
 
@@ -224,17 +252,18 @@ class Job:
         Parameters
         ----------
         memory:
-            Units are in bytes if `memory` is an :obj:`int`.
+            Units are in bytes if `memory` is an :obj:`int`. If `None`,
+            use the default value for the :class:`.ServiceBackend` ('standard').
 
         Returns
         -------
         Same job object with memory requirements set.
         """
 
-        self._memory = str(memory)
+        self._memory = opt_str(memory)
         return self
 
-    def cpu(self, cores: Union[str, int, float]) -> 'Job':
+    def cpu(self, cores: Optional[Union[str, int, float]]) -> 'Job':
         """
         Set the job's CPU requirements.
 
@@ -262,14 +291,16 @@ class Job:
         Parameters
         ----------
         cores:
-            Units are in cpu if `cores` is numeric.
+            Units are in cpu if `cores` is numeric. If `None`,
+            use the default value for the :class:`.ServiceBackend`
+            (1 cpu).
 
         Returns
         -------
         Same job object with CPU requirements set.
         """
 
-        self._cpu = str(cores)
+        self._cpu = opt_str(cores)
         return self
 
     def always_run(self, always_run: bool = True) -> 'Job':
@@ -308,7 +339,7 @@ class Job:
         self._always_run = always_run
         return self
 
-    def timeout(self, timeout: Union[float, int]) -> 'Job':
+    def timeout(self, timeout: Optional[Union[float, int]]) -> 'Job':
         """
         Set the maximum amount of time this job can run for.
 
@@ -328,6 +359,7 @@ class Job:
         ----------
         timeout:
             Maximum amount of time for a job to run before being killed.
+            If `None`, there is no timeout.
 
         Returns
         -------
@@ -387,6 +419,56 @@ class Job:
         self._gcsfuse.append((bucket, mount_point, read_only))
         return self
 
+    async def _compile(self, local_tmpdir, remote_tmpdir, *, dry_run=False):
+        raise NotImplementedError
+
+    def _interpolate_command(self, command, allow_python_results=False):
+        def handler(match_obj):
+            groups = match_obj.groupdict()
+
+            if groups['JOB']:
+                raise BatchException(f"found a reference to a Job object in command '{command}'.")
+            if groups['BATCH']:
+                raise BatchException(f"found a reference to a Batch object in command '{command}'.")
+            if groups['PYTHON_RESULT'] and not allow_python_results:
+                raise BatchException(f"found a reference to a PythonResult object. hint: Use one of the methods `as_str`, `as_json` or `as_repr` on a PythonResult. command: '{command}'")
+
+            assert groups['RESOURCE_FILE'] or groups['RESOURCE_GROUP'] or groups['PYTHON_RESULT']
+            r_uid = match_obj.group()
+            r = self._batch._resource_map.get(r_uid)
+
+            if r is None:
+                raise BatchException(f"undefined resource '{r_uid}' in command '{command}'.\n"
+                                     f"Hint: resources must be from the same batch as the current job.")
+
+            if r._source != self:
+                self._add_inputs(r)
+                if r._source is not None:
+                    if r not in r._source._valid:
+                        name = r._source._resources_inverse[r]
+                        raise BatchException(f"undefined resource '{name}'\n"
+                                             f"Hint: resources must be defined within "
+                                             f"the job methods 'command' or 'declare_resource_group'")
+                    self._dependencies.add(r._source)
+                    r._source._add_internal_outputs(r)
+            else:
+                _add_resource_to_set(self._valid, r)
+
+            self._mentioned.add(r)
+            return '${BATCH_TMPDIR}' + shq(r._get_path(''))
+
+        regexes = [_resource.ResourceFile._regex_pattern,
+                   _resource.ResourceGroup._regex_pattern,
+                   _resource.PythonResult._regex_pattern,
+                   Job._regex_pattern,
+                   batch.Batch._regex_pattern]
+
+        subst_command = re.sub('(' + ')|('.join(regexes) + ')',
+                               handler,
+                               command)
+
+        return subst_command
+
     def _pretty(self):
         s = f"Job '{self._uid}'" \
             f"\tName:\t'{self.name}'" \
@@ -431,6 +513,16 @@ class BashJob(Job):
     This class should never be created directly by the user. Use :meth:`.Batch.new_job`
     or :meth:`.Batch.new_bash_job` instead.
     """
+
+    def __init__(self,
+                 batch: 'batch.Batch',
+                 token: str,
+                 *,
+                 name: Optional[str] = None,
+                 attributes: Optional[Dict[str, str]] = None,
+                 shell: Optional[str] = None):
+        super().__init__(batch, token, name=name, attributes=attributes, shell=shell)
+        self._command: List[str] = []
 
     def _get_resource(self, item: str) -> '_resource.Resource':
         if item not in self._resources:
@@ -589,48 +681,49 @@ class BashJob(Job):
         Same job object with command appended.
         """
 
-        def handler(match_obj):
-            groups = match_obj.groupdict()
-            if groups['JOB']:
-                raise BatchException(f"found a reference to a Job object in command '{command}'.")
-            if groups['BATCH']:
-                raise BatchException(f"found a reference to a Batch object in command '{command}'.")
-            if groups['PYTHON_RESULT']:
-                raise BatchException(f"found a reference to a PythonResult object. hint: Use one of the methods `as_str`, `as_json` or `as_repr` on a PythonResult. command: '{command}'")
-
-            assert groups['RESOURCE_FILE'] or groups['RESOURCE_GROUP']
-            r_uid = match_obj.group()
-            r = self._batch._resource_map.get(r_uid)
-
-            if r is None:
-                raise BatchException(f"undefined resource '{r_uid}' in command '{command}'.\n"
-                                     f"Hint: resources must be from the same batch as the current job.")
-
-            if r._source != self:
-                self._add_inputs(r)
-                if r._source is not None:
-                    if r not in r._source._valid:
-                        name = r._source._resources_inverse[r]
-                        raise BatchException(f"undefined resource '{name}'\n"
-                                             f"Hint: resources must be defined within "
-                                             f"the job methods 'command' or 'declare_resource_group'")
-                    self._dependencies.add(r._source)
-                    r._source._add_internal_outputs(r)
-            else:
-                _add_resource_to_set(self._valid, r)
-            self._mentioned.add(r)
-            return f"${{{r_uid}}}"
-
-        regexes = [_resource.ResourceFile._regex_pattern,
-                   _resource.ResourceGroup._regex_pattern,
-                   _resource.PythonResult._regex_pattern,
-                   Job._regex_pattern,
-                   batch.Batch._regex_pattern]
-        subst_command = re.sub('(' + ')|('.join(regexes) + ')',
-                               handler,
-                               command)
-        self._command.append(subst_command)
+        command = self._interpolate_command(command)
+        self._command.append(command)
         return self
+
+    async def _compile(self, local_tmpdir, remote_tmpdir, *, dry_run=False):
+        if len(self._command) == 0:
+            return False
+
+        job_shell = self._shell if self._shell else DEFAULT_SHELL
+
+        job_command = [cmd.strip() for cmd in self._command]
+        job_command = [f'{{\n{x}\n}}' for x in job_command]
+        job_command = '\n'.join(job_command)
+
+        job_command = f'''
+#! {job_shell}
+{job_command}
+'''
+
+        job_command_bytes = job_command.encode()
+
+        if len(job_command_bytes) <= 10 * 1024:
+            self._wrapper_code.append(job_command)
+            return False
+
+        self._user_code.append(job_command)
+
+        job_path = f'{remote_tmpdir}/{self._dirname}'
+        code_path = f'{job_path}/code.sh'
+        code = self._batch.read_input(code_path)
+
+        wrapper_command = f'''
+chmod u+x {code}
+source {code}
+'''
+        wrapper_command = self._interpolate_command(wrapper_command)
+        self._wrapper_code.append(wrapper_command)
+
+        if not dry_run:
+            await self._batch._fs.makedirs(os.path.dirname(code_path), exist_ok=True)
+            await self._batch._fs.write(code_path, job_command_bytes)
+
+        return True
 
 
 class PythonJob(Job):
@@ -672,9 +765,11 @@ class PythonJob(Job):
 
     def __init__(self,
                  batch: 'batch.Batch',
+                 token: str,
+                 *,
                  name: Optional[str] = None,
                  attributes: Optional[Dict[str, str]] = None):
-        super().__init__(batch, name, attributes, None)
+        super().__init__(batch, token, name=name, attributes=attributes, shell=None)
         self._resources: Dict[str, _resource.Resource] = {}
         self._resources_inverse: Dict[_resource.Resource, str] = {}
         self._functions: List[Tuple[_resource.PythonResult, Callable, Tuple[Any, ...], Dict[str, Any]]] = []
@@ -876,7 +971,7 @@ class PythonJob(Job):
 
         return result
 
-    async def _compile(self, local_tmpdir, remote_tmpdir):
+    async def _compile(self, local_tmpdir, remote_tmpdir, *, dry_run=False):
         for i, (result, unapplied, args, kwargs) in enumerate(self._functions):
             def prepare_argument_for_serialization(arg):
                 if isinstance(arg, _resource.PythonResult):
@@ -915,38 +1010,34 @@ class PythonJob(Job):
             job_path = os.path.dirname(result._get_path(remote_tmpdir))
             code_path = f'{job_path}/code{i}.p'
 
-            await self._batch._fs.makedirs(os.path.dirname(code_path), exist_ok=True)
-            await self._batch._fs.write(code_path, pipe.getvalue())
+            if not dry_run:
+                await self._batch._fs.makedirs(os.path.dirname(code_path), exist_ok=True)
+                await self._batch._fs.write(code_path, pipe.getvalue())
 
             code = self._batch.read_input(code_path)
-            self._add_inputs(code)
-            self._mentioned.add(code)
 
             json_write = ''
             if result._json:
-                self._mentioned.add(result._json)
                 json_write = f'''
-            with open(os.environ[\\"{result._json}\\"], \\"w\\") as out:
+            with open(\\"{result._json}\\", \\"w\\") as out:
                 out.write(json.dumps(result) + \\"\\n\\")
 '''
 
             str_write = ''
             if result._str:
-                self._mentioned.add(result._str)
                 str_write = f'''
-            with open(os.environ[\\"{result._str}\\"], \\"w\\") as out:
+            with open(\\"{result._str}\\", \\"w\\") as out:
                 out.write(str(result) + \\"\\n\\")
 '''
 
             repr_write = ''
             if result._repr:
-                self._mentioned.add(result._repr)
                 repr_write = f'''
-            with open(os.environ[\\"{result._repr}\\"], \\"w\\") as out:
+            with open(\\"{result._repr}\\", \\"w\\") as out:
                 out.write(repr(result) + \\"\\n\\")
 '''
 
-            self._command.append(f'''python3 -c "
+            wrapper_code = f'''python3 -c "
 import os
 import base64
 import dill
@@ -954,9 +1045,9 @@ import traceback
 import json
 import sys
 
-with open(os.environ[\\"{result}\\"], \\"wb\\") as dill_out:
+with open(\\"{result}\\", \\"wb\\") as dill_out:
     try:
-        with open(os.environ[\\"{code}\\"], \\"rb\\") as f:
+        with open(\\"{code}\\", \\"rb\\") as f:
             result = dill.load(f)()
             dill.dump(result, dill_out, recurse=True)
             {json_write}
@@ -965,4 +1056,17 @@ with open(os.environ[\\"{result}\\"], \\"wb\\") as dill_out:
     except Exception as e:
         traceback.print_exc()
         dill.dump((e, traceback.format_exception(type(e), e, e.__traceback__)), dill_out, recurse=True)
-"''')
+        raise e
+"'''
+
+            wrapper_code = self._interpolate_command(wrapper_code, allow_python_results=True)
+            self._wrapper_code.append(wrapper_code)
+
+            self._user_code.append(textwrap.dedent(inspect.getsource(unapplied)))
+            args = ', '.join([f'{arg!r}' for _, arg in args])
+            kwargs = ', '.join([f'{k}={v!r}' for k, (_, v) in kwargs.items()])
+            separator = ', ' if args and kwargs else ''
+            func_call = f'{unapplied.__name__}({args}{separator}{kwargs})'
+            self._user_code.append(self._interpolate_command(func_call, allow_python_results=True))
+
+        return True

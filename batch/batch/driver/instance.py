@@ -3,12 +3,17 @@ import datetime
 import logging
 import secrets
 import humanize
+import base64
+import json
+from typing import Optional
 
 from hailtop.utils import time_msecs, time_msecs_str, retry_transient_errors
+from hailtop import httpx
 from gear import Database
 
 from ..database import check_call_procedure
 from ..globals import INSTANCE_VERSION
+from ..worker_config import WorkerConfig
 
 log = logging.getLogger('instance')
 
@@ -16,6 +21,12 @@ log = logging.getLogger('instance')
 class Instance:
     @staticmethod
     def from_record(app, inst_coll, record):
+        config = record.get('worker_config')
+        if config:
+            worker_config = WorkerConfig(json.loads(base64.b64decode(config).decode()))
+        else:
+            worker_config = None
+
         return Instance(
             app,
             inst_coll,
@@ -31,10 +42,11 @@ class Instance:
             record['zone'],
             record['machine_type'],
             bool(record['preemptible']),
+            worker_config,
         )
 
     @staticmethod
-    async def create(app, inst_coll, name, activation_token, worker_cores_mcpu, zone, machine_type, preemptible):
+    async def create(app, inst_coll, name, activation_token, worker_cores_mcpu, zone, machine_type, preemptible, worker_config: WorkerConfig):
         db: Database = app['db']
 
         state = 'pending'
@@ -43,8 +55,8 @@ class Instance:
         await db.just_execute(
             '''
 INSERT INTO instances (name, state, activation_token, token, cores_mcpu, free_cores_mcpu,
-  time_created, last_updated, version, zone, inst_coll, machine_type, preemptible)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+  time_created, last_updated, version, zone, inst_coll, machine_type, preemptible, worker_config)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
             (
                 name,
@@ -60,6 +72,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 inst_coll.name,
                 machine_type,
                 preemptible,
+                base64.b64encode(json.dumps(worker_config.config).encode()).decode()
             ),
         )
         return Instance(
@@ -77,6 +90,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
             zone,
             machine_type,
             preemptible,
+            worker_config
         )
 
     def __init__(
@@ -95,8 +109,10 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         zone,
         machine_type,
         preemptible,
+        worker_config: Optional[WorkerConfig],
     ):
         self.db: Database = app['db']
+        self.client_session: httpx.ClientSession = app['client_session']
         self.inst_coll = inst_coll
         # pending, active, inactive, deleted
         self._state = state
@@ -111,6 +127,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         self.zone = zone
         self.machine_type = machine_type
         self.preemptible = preemptible
+        self.worker_config = worker_config
 
     @property
     def state(self):
@@ -157,11 +174,9 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
             if self._state in ('inactive', 'deleted'):
                 return
             try:
-                async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=30)
-                ) as session:
-                    url = f'http://{self.ip_address}:5000' f'/api/v1alpha/kill'
-                    await session.post(url)
+                await self.client_session.post(
+                    f'http://{self.ip_address}:5000/api/v1alpha/kill',
+                    timeout=aiohttp.ClientTimeout(total=30))
             except aiohttp.ClientResponseError as err:
                 if err.status == 403:
                     log.info(f'cannot kill {self} -- does not exist at {self.ip_address}')
@@ -202,15 +217,12 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
     async def check_is_active_and_healthy(self):
         if self._state == 'active' and self.ip_address:
             try:
-                async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)
-                ) as session:
-                    async with session.get(f'http://{self.ip_address}:5000/healthcheck') as resp:
-                        actual_name = (await resp.json()).get('name')
-                        if actual_name and actual_name != self.name:
-                            return False
-                    await self.mark_healthy()
-                    return True
+                async with self.client_session.get(f'http://{self.ip_address}:5000/healthcheck') as resp:
+                    actual_name = (await resp.json()).get('name')
+                    if actual_name and actual_name != self.name:
+                        return False
+                await self.mark_healthy()
+                return True
             except Exception:
                 log.exception(f'while requesting {self} /healthcheck')
                 await self.incr_failed_request_count()

@@ -12,14 +12,15 @@ from hailtop.utils import time_msecs, secret_alnum_string
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
 from hailtop.config import get_deploy_config
-from hailtop import aiogoogle
+from hailtop.aiocloud import aiogoogle
+from hailtop import httpx
 from gear import (
     Database,
     setup_aiohttp_session,
     web_authenticated_developers_only,
     check_csrf_token,
     new_csrf_token,
-    monitor_endpoint,
+    monitor_endpoints_middleware,
 )
 
 
@@ -71,7 +72,6 @@ def resource_record_to_dict(record):
 @routes.get('')
 @routes.get('/')
 @routes.get('/resources')
-@monitor_endpoint
 @web_authenticated_developers_only()
 @render_template('resources.html')
 async def get_resources(request, userdata):  # pylint: disable=unused-argument
@@ -89,7 +89,6 @@ ORDER BY time_created DESC;
 
 
 @routes.get('/resources/create')
-@monitor_endpoint
 @web_authenticated_developers_only()
 @render_template('create_resource.html')
 async def get_create_resource(request, userdata):  # pylint: disable=unused-argument
@@ -99,7 +98,6 @@ async def get_create_resource(request, userdata):  # pylint: disable=unused-argu
 @routes.post('/resources/create')
 # this method has special content handling, can't call `request.post()`
 # @check_csrf_token
-@monitor_endpoint
 @web_authenticated_developers_only(redirect=False)
 async def post_create_resource(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
@@ -156,7 +154,6 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
 
 
 @routes.get('/resources/{id}')
-@monitor_endpoint
 @web_authenticated_developers_only()
 @render_template('resource.html')
 async def get_resource(request, userdata):  # pylint: disable=unused-argument
@@ -175,7 +172,6 @@ WHERE id = %s;
 
 
 @routes.get('/resources/{id}/edit')
-@monitor_endpoint
 @web_authenticated_developers_only()
 @render_template('edit_resource.html')
 async def get_edit_resource(request, userdata):  # pylint: disable=unused-argument
@@ -196,7 +192,6 @@ WHERE id = %s;
 @routes.post('/resources/{id}/edit')
 # this method has special content handling, can't call `request.post()`
 # @check_csrf_token
-@monitor_endpoint
 @web_authenticated_developers_only(redirect=False)
 async def post_edit_resource(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
@@ -274,7 +269,6 @@ WHERE id = %s
 
 @routes.post('/resources/{id}/delete')
 @check_csrf_token
-@monitor_endpoint
 @web_authenticated_developers_only(redirect=False)
 async def post_delete_resource(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
@@ -312,7 +306,6 @@ WHERE id = %s;
 
 
 @routes.get('/resources/{resource_id}/attachments/{attachment_id}')
-@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_attachment(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
@@ -361,16 +354,19 @@ async def on_startup(app):
     db = Database()
     await db.async_init()
     app['db'] = db
-
-    app['storage_client'] = aiogoogle.StorageClient()
+    app['storage_client'] = aiogoogle.GoogleStorageClient()
+    app['client_session'] = httpx.client_session()
 
 
 async def on_cleanup(app):
-    await app['storage_client'].close()
+    try:
+        await app['storage_client'].close()
+    finally:
+        await app['client_session'].close()
 
 
 def run():
-    app = web.Application()
+    app = web.Application(middlewares=[monitor_endpoints_middleware])
 
     setup_aiohttp_session(app)
 

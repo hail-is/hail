@@ -209,10 +209,6 @@ abstract class Type extends BaseType with Serializable {
     def toJSON(pk: Annotation): JValue = JSONAnnotationImpex.exportAnnotation(pk, self)
   }
 
-  /*  Fundamental types are types that can be handled natively by RegionValueBuilder: primitive
-      types, Array and Struct. */
-  def fundamentalType: Type = this
-
   def _typeCheck(a: Any): Boolean
 
   final def typeCheck(a: Any): Boolean = a == null || _typeCheck(a)

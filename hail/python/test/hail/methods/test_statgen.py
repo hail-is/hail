@@ -1,4 +1,5 @@
 import os
+import math
 import unittest
 import pytest
 import numpy as np
@@ -137,7 +138,6 @@ class Tests(unittest.TestCase):
                 linreg_function([[phenos[mt.s].Pheno]], mt.GT.n_alt_alleles(), [1.0],
                                 pass_through=[mt.filters.length()])
 
-    @skip_when_service_backend('ShuffleRead non-deterministically causes segfaults')
     def test_linreg_chained(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
                                  types={'Pheno': hl.tfloat64},
@@ -316,8 +316,6 @@ class Tests(unittest.TestCase):
             self.assertAlmostEqual(results[3].t_stat, 1.5872510, places=6)
             self.assertAlmostEqual(results[3].p_value, 0.2533675, places=6)
 
-    @fails_service_backend()
-    @fails_local_backend() # Because of import_gen
     def test_linear_regression_with_dosage(self):
 
         covariates = hl.import_table(resource('regressionLinear.cov'),
@@ -461,6 +459,148 @@ class Tests(unittest.TestCase):
 
     logreg_functions = [hl.logistic_regression_rows, hl._logistic_regression_rows_nd] if backend_name == "spark" else [hl._logistic_regression_rows_nd]
 
+    def test_weighted_linear_regression(self):
+        covariates = hl.import_table(resource('regressionLinear.cov'),
+                                     key='Sample',
+                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
+        pheno = hl.import_table(resource('regressionLinear.pheno'),
+                                key='Sample',
+                                missing='0',
+                                types={'Pheno': hl.tfloat})
+
+        weights = hl.import_table(resource('regressionLinear.weights'),
+                                  key='Sample',
+                                  missing='0',
+                                  types={'Sample': hl.tstr, 'Weight1': hl.tfloat, 'Weight2': hl.tfloat})
+
+        mt = hl.import_vcf(resource('regressionLinear.vcf'))
+        mt = mt.add_col_index()
+
+        mt = mt.annotate_cols(y=hl.coalesce(pheno[mt.s].Pheno, 1.0))
+        mt = mt.annotate_entries(x=hl.coalesce(mt.GT.n_alt_alleles(), 1.0))
+        my_covs = [1.0] + list(covariates[mt.s].values())
+
+        ht_with_weights = hl._linear_regression_rows_nd(y=mt.y,
+                                          x=mt.x,
+                                          covariates=my_covs,
+                                          weights=mt.col_idx)
+
+        ht_pre_weighted_1 = hl._linear_regression_rows_nd(y=mt.y * hl.sqrt(mt.col_idx),
+                                          x=mt.x * hl.sqrt(mt.col_idx),
+                                          covariates=list(map(lambda e: e * hl.sqrt(mt.col_idx), my_covs)))
+
+        ht_pre_weighted_2 = hl._linear_regression_rows_nd(y=mt.y * hl.sqrt(mt.col_idx + 5),
+                                                          x=mt.x * hl.sqrt(mt.col_idx + 5),
+                                                          covariates=list(map(lambda e: e * hl.sqrt(mt.col_idx + 5), my_covs)))
+
+        ht_from_agg = mt.annotate_rows(my_linreg=hl.agg.linreg(mt.y, [1, mt.x] + list(covariates[mt.s].values()), weight=mt.col_idx)).rows()
+
+        betas_with_weights = ht_with_weights.beta.collect()
+        betas_pre_weighted_1 = ht_pre_weighted_1.beta.collect()
+        betas_pre_weighted_2 = ht_pre_weighted_2.beta.collect()
+
+        betas_from_agg = ht_from_agg.my_linreg.beta[1].collect()
+
+        def equal_with_nans(arr1, arr2):
+            def both_nan_or_none(a, b):
+                return (a is None or np.isnan(a)) and (b is None or np.isnan(b))
+
+            return all([both_nan_or_none(a, b) or math.isclose(a, b) for a, b in zip(arr1, arr2)])
+
+        assert equal_with_nans(betas_with_weights, betas_pre_weighted_1)
+        assert equal_with_nans(betas_with_weights, betas_from_agg)
+
+        ht_with_multiple_weights = hl._linear_regression_rows_nd(y=[[mt.y], [hl.abs(mt.y)]],
+                                                                 x=mt.x,
+                                                                 covariates=my_covs,
+                                                                 weights=[mt.col_idx, mt.col_idx + 5])
+
+        # Check that preweighted 1 and preweighted 2 match up with fields 1 and 2 of multiple
+        multi_weight_betas = ht_with_multiple_weights.beta.collect()
+        multi_weight_betas_1 = [e[0][0] for e in multi_weight_betas]
+        multi_weight_betas_2 = [e[1][0] for e in multi_weight_betas]
+
+        assert np.array(multi_weight_betas).shape == (10, 2, 1)
+
+        assert(equal_with_nans(multi_weight_betas_1, betas_pre_weighted_1))
+        assert(equal_with_nans(multi_weight_betas_2, betas_pre_weighted_2))
+
+        # Now making sure that missing weights get excluded.
+        ht_with_missing_weights = hl._linear_regression_rows_nd(y=[[mt.y], [hl.abs(mt.y)]],
+                                                                 x=mt.x,
+                                                                 covariates=[1],
+                                                                 weights=[weights[mt.s].Weight1, weights[mt.s].Weight2])
+
+        mt_with_missing_weights = mt.annotate_cols(Weight1 = weights[mt.s].Weight1, Weight2 = weights[mt.s].Weight2)
+        mt_with_missing_weight1_filtered = mt_with_missing_weights.filter_cols(hl.is_defined(mt_with_missing_weights.Weight1))
+        mt_with_missing_weight2_filtered = mt_with_missing_weights.filter_cols(hl.is_defined(mt_with_missing_weights.Weight2))
+        ht_from_agg_weight_1 = mt_with_missing_weight1_filtered.annotate_rows(
+            my_linreg=hl.agg.linreg(mt_with_missing_weight1_filtered.y, [1, mt_with_missing_weight1_filtered.x], weight=weights[mt_with_missing_weight1_filtered.s].Weight1)
+        ).rows()
+        ht_from_agg_weight_2 = mt_with_missing_weight2_filtered.annotate_rows(
+            my_linreg=hl.agg.linreg(mt_with_missing_weight2_filtered.y, [1, mt_with_missing_weight2_filtered.x], weight=weights[mt_with_missing_weight2_filtered.s].Weight2)
+        ).rows()
+
+        multi_weight_missing_results = ht_with_missing_weights.collect()
+        multi_weight_missing_betas = [e.beta for e in multi_weight_missing_results]
+        multi_weight_missing_betas_1 = [e[0][0] for e in multi_weight_missing_betas]
+        multi_weight_missing_betas_2 = [e[1][0] for e in multi_weight_missing_betas]
+
+        betas_from_agg_weight_1 = ht_from_agg_weight_1.my_linreg.beta[1].collect()
+        betas_from_agg_weight_2 = ht_from_agg_weight_2.my_linreg.beta[1].collect()
+
+        assert equal_with_nans(multi_weight_missing_betas_1, betas_from_agg_weight_1)
+        assert equal_with_nans(multi_weight_missing_betas_2, betas_from_agg_weight_2)
+
+        multi_weight_missing_p_values = [e.p_value for e in multi_weight_missing_results]
+        multi_weight_missing_p_values_1 = [e[0][0] for e in multi_weight_missing_p_values]
+        multi_weight_missing_p_values_2 = [e[1][0] for e in multi_weight_missing_p_values]
+
+        p_values_from_agg_weight_1 = ht_from_agg_weight_1.my_linreg.p_value[1].collect()
+        p_values_from_agg_weight_2 = ht_from_agg_weight_2.my_linreg.p_value[1].collect()
+
+        assert equal_with_nans(multi_weight_missing_p_values_1, p_values_from_agg_weight_1)
+        assert equal_with_nans(multi_weight_missing_p_values_2, p_values_from_agg_weight_2)
+
+        multi_weight_missing_t_stats = [e.t_stat for e in multi_weight_missing_results]
+        multi_weight_missing_t_stats_1 = [e[0][0] for e in multi_weight_missing_t_stats]
+        multi_weight_missing_t_stats_2 = [e[1][0] for e in multi_weight_missing_t_stats]
+
+        t_stats_from_agg_weight_1 = ht_from_agg_weight_1.my_linreg.t_stat[1].collect()
+        t_stats_from_agg_weight_2 = ht_from_agg_weight_2.my_linreg.t_stat[1].collect()
+
+        assert equal_with_nans(multi_weight_missing_t_stats_1, t_stats_from_agg_weight_1)
+        assert equal_with_nans(multi_weight_missing_t_stats_2, t_stats_from_agg_weight_2)
+
+        multi_weight_missing_se = [e.standard_error for e in multi_weight_missing_results]
+        multi_weight_missing_se_1 = [e[0][0] for e in multi_weight_missing_se]
+        multi_weight_missing_se_2 = [e[1][0] for e in multi_weight_missing_se]
+
+        se_from_agg_weight_1 = ht_from_agg_weight_1.my_linreg.standard_error[1].collect()
+        se_from_agg_weight_2 = ht_from_agg_weight_2.my_linreg.standard_error[1].collect()
+
+        assert equal_with_nans(multi_weight_missing_se_1, se_from_agg_weight_1)
+        assert equal_with_nans(multi_weight_missing_se_2, se_from_agg_weight_2)
+
+    def test_errors_weighted_linear_regression(self):
+        mt = hl.utils.range_matrix_table(20, 10).annotate_entries(x=2)
+        mt = mt.annotate_cols(**{f"col_{i}": i for i in range(4)})
+
+        self.assertRaises(ValueError, lambda: hl._linear_regression_rows_nd(y=[[mt.col_1]],
+                                                                                x=mt.x,
+                                                                                covariates=[1],
+                                                                                weights=[mt.col_2, mt.col_3]))
+
+        self.assertRaises(ValueError, lambda: hl._linear_regression_rows_nd(y=[mt.col_1],
+                                                                                x=mt.x,
+                                                                                covariates=[1],
+                                                                                weights=[mt.col_2]))
+
+        self.assertRaises(ValueError, lambda: hl._linear_regression_rows_nd(y=[[mt.col_1]],
+                                                                            x=mt.x,
+                                                                            covariates=[1],
+                                                                            weights=mt.col_2))
+
     # comparing to R:
     # x = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
     # y = c(0, 0, 1, 1, 1, 1, 0, 0, 1, 1)
@@ -586,7 +726,6 @@ class Tests(unittest.TestCase):
             self.assertAlmostEqual(multi_results[1001].logistic_regression[0].p_value,single_results[1001].p_value, places=6)
             #TODO test handling of missingness
 
-
     def test_logistic_regression_wald_test_pl(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -627,8 +766,6 @@ class Tests(unittest.TestCase):
             self.assertTrue(is_constant(results[9]))
             self.assertTrue(is_constant(results[10]))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_logistic_regression_wald_dosage(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -728,8 +865,6 @@ class Tests(unittest.TestCase):
     # scoretest <- anova(logfitnull, logfit, test="Rao")
     # chi2 <- scoretest[["Rao"]][2]
     # pval <- scoretest[["Pr(>Chi)"]][2]
-    @fails_service_backend()
-    @fails_local_backend()
     def test_logistic_regression_score(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -739,31 +874,33 @@ class Tests(unittest.TestCase):
                                 missing='0',
                                 types={'isCase': hl.tbool})
         mt = hl.import_vcf(resource('regressionLogistic.vcf'))
-        ht = hl.logistic_regression_rows(
-            test='score',
-            y=pheno[mt.s].isCase,
-            x=mt.GT.n_alt_alleles(),
-            covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
-
-        results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
-
-        self.assertAlmostEqual(results[1].chi_sq_stat, 0.1502364955, places=6)
-        self.assertAlmostEqual(results[1].p_value, 0.6983094571, places=6)
-
-        self.assertAlmostEqual(results[2].chi_sq_stat, 0.1823600965, places=6)
-        self.assertAlmostEqual(results[2].p_value, 0.6693528073, places=6)
-
-        self.assertAlmostEqual(results[3].chi_sq_stat, 7.047367694, places=6)
-        self.assertAlmostEqual(results[3].p_value, 0.007938182229, places=6)
 
         def is_constant(r):
             return r.chi_sq_stat is None or r.chi_sq_stat < 1e-6
 
-        self.assertTrue(is_constant(results[6]))
-        self.assertTrue(is_constant(results[7]))
-        self.assertTrue(is_constant(results[8]))
-        self.assertTrue(is_constant(results[9]))
-        self.assertTrue(is_constant(results[10]))
+        for logreg_function in self.logreg_functions:
+            ht = logreg_function(
+                test='score',
+                y=pheno[mt.s].isCase,
+                x=mt.GT.n_alt_alleles(),
+                covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+
+            results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
+
+            self.assertAlmostEqual(results[1].chi_sq_stat, 0.1502364955, places=6)
+            self.assertAlmostEqual(results[1].p_value, 0.6983094571, places=6)
+
+            self.assertAlmostEqual(results[2].chi_sq_stat, 0.1823600965, places=6)
+            self.assertAlmostEqual(results[2].p_value, 0.6693528073, places=6)
+
+            self.assertAlmostEqual(results[3].chi_sq_stat, 7.047367694, places=6)
+            self.assertAlmostEqual(results[3].p_value, 0.007938182229, places=6)
+
+            self.assertTrue(is_constant(results[6]))
+            self.assertTrue(is_constant(results[7]))
+            self.assertTrue(is_constant(results[8]))
+            self.assertTrue(is_constant(results[9]))
+            self.assertTrue(is_constant(results[10]))
 
     @fails_service_backend()
     @fails_local_backend()
@@ -852,8 +989,6 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(firth[16117953].beta, 0.5258, places=4)
         self.assertAlmostEqual(firth[16117953].p_value, 0.22562, places=4)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_logreg_pass_through(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -862,13 +997,14 @@ class Tests(unittest.TestCase):
                                 key='Sample',
                                 missing='0',
                                 types={'isCase': hl.tbool})
-        mt = hl.import_vcf(resource('regressionLogistic.vcf')).annotate_rows(foo = hl.struct(bar=hl.rand_norm(0, 1)))
-        ht = hl.logistic_regression_rows('wald',
-                                         y=pheno[mt.s].isCase,
-                                         x=mt.GT.n_alt_alleles(),
-                                         covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2],
-                                         pass_through=['filters', mt.foo.bar, mt.qual])
+        mt = hl.import_vcf(resource('regressionLogistic.vcf')).annotate_rows(foo=hl.struct(bar=hl.rand_norm(0, 1)))
 
+        for logreg_function in self.logreg_functions:
+            ht = logreg_function('wald',
+                                 y=pheno[mt.s].isCase,
+                                 x=mt.GT.n_alt_alleles(),
+                                 covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2],
+                                 pass_through=['filters', mt.foo.bar, mt.qual])
 
         assert mt.aggregate_rows(hl.agg.all(mt.foo.bar == ht[mt.row_key].bar))
 
@@ -1172,7 +1308,6 @@ class Tests(unittest.TestCase):
         self.assertTrue(ds1._same(ds2))
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_split_multi_table(self):
         ds1 = hl.import_vcf(resource('split_test.vcf')).rows()
         ds1 = hl.split_multi(ds1)
