@@ -258,20 +258,20 @@ resource "azurerm_storage_container" "batch_logs" {
   container_access_type = "private"
 }
 
-resource "azurerm_role_assignment" "batch_logs_contributor" {
+resource "azurerm_role_assignment" "batch_batch_account_contributor" {
   scope                = azurerm_storage_account.batch.id
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = module.batch_sp.principal_id
 }
 
-resource "azurerm_role_assignment" "batch_worker_logs_contributor" {
+resource "azurerm_role_assignment" "batch_worker_batch_account_contributor" {
   scope                = azurerm_storage_account.batch.id
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = azurerm_user_assigned_identity.batch_worker.principal_id
 }
 
-resource "azurerm_storage_account" "ci" {
-  name                     = "${data.azurerm_resource_group.rg.name}ci"
+resource "azurerm_storage_account" "test" {
+  name                     = "${data.azurerm_resource_group.rg.name}test"
   resource_group_name      = data.azurerm_resource_group.rg.name
   location                 = data.azurerm_resource_group.rg.location
   account_tier             = "Standard"
@@ -280,12 +280,12 @@ resource "azurerm_storage_account" "ci" {
 
 resource "azurerm_storage_container" "test" {
   name                  = "test"
-  storage_account_name  = azurerm_storage_account.ci.name
+  storage_account_name  = azurerm_storage_account.test.name
   container_access_type = "private"
 }
 
-resource "azurerm_storage_management_policy" "ci" {
-  storage_account_id = azurerm_storage_account.ci.id
+resource "azurerm_storage_management_policy" "test" {
+  storage_account_id = azurerm_storage_account.test.id
 
   rule {
     name    = "test-artifacts-retention-1-day"
@@ -302,13 +302,13 @@ resource "azurerm_storage_management_policy" "ci" {
   }
 }
 
-resource "azurerm_role_assignment" "batch_test_contributor" {
+resource "azurerm_role_assignment" "batch_test_container_contributor" {
   scope                = azurerm_storage_container.test.resource_manager_id
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = module.batch_sp.principal_id
 }
 
-resource "azurerm_role_assignment" "batch_worker_test_contributor" {
+resource "azurerm_role_assignment" "batch_worker_test_container_contributor" {
   scope                = azurerm_storage_container.test.resource_manager_id
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = azurerm_user_assigned_identity.batch_worker.principal_id
