@@ -274,6 +274,7 @@ GRANT ALL ON `{name}`.* TO '{name}'@'%';
             user=self.name,
             password=self.password,
             instance=server_config.instance,
+            connection_name=server_config.connection_name,
             db=self.name,
             ssl_ca='/sql-config/server-ca.pem',
             ssl_cert='/sql-config/client-cert.pem',
