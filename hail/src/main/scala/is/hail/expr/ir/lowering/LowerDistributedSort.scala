@@ -112,6 +112,8 @@ object LowerDistributedSort {
     val oversamplingNum = 3
     val seed = 7L
 
+    val (newKType, _) = inputStage.rowType.select(sortFields.map(sf => sf.field))
+
     val numSamplesPerPartition = ApplySeeded("shuffle_compute_num_samples_per_partition", IndexedSeq(inputStage.numPartitions * oversamplingNum, partitionCounts), seed, TArray(TInt32))
     val numSamplesPerPartitionId = genUID()
     val numSamplesPerPartitionRef = Ref(numSamplesPerPartitionId, numSamplesPerPartition.typ)
@@ -130,7 +132,7 @@ object LowerDistributedSort {
       val regularSampledIndices = StreamRange(0, numSamplesInThisPartition, oversamplingNum)
       bindIR(oversampled) { oversampledRef =>
         bindIR(mapIR(regularSampledIndices){ idx => ArrayRef(oversampledRef, idx)}) { sampled =>
-          samplePartition(partitionStreamIR, sampled, stageWithNumSamplesPerPart.key)
+          samplePartition(partitionStreamIR, sampled, newKType.fields.map(_.name))
         }
       }
     } { (res, global) => res}
@@ -151,14 +153,15 @@ object LowerDistributedSort {
     val perPartStatsMaxes = perPartStatsA.map(r => r(1))
     val perPartStatsSamples = perPartStatsA.map(r => r(2).asInstanceOf[IndexedSeq[Annotation]]).flatten
 
-    val kType = perPartStatsType.elementType.asInstanceOf[PStruct].fieldType("samples").asInstanceOf[PArray].elementType.virtualType.asInstanceOf[TStruct]
-    val sorted = localAnnotationSort(ctx, perPartStatsSamples, sortFields, kType)
+    // TODO: This is the old key type, need to compute the new key type based on sortFields.
+    //val kType = perPartStatsType.elementType.asInstanceOf[PStruct].fieldType("samples").asInstanceOf[PArray].elementType.virtualType.asInstanceOf[TStruct]
+    val sorted = localAnnotationSort(ctx, perPartStatsSamples, sortFields, newKType)
     // TODO: Clearly a terrible way to find min and max
-    val min = localAnnotationSort(ctx, perPartStatsMins, sortFields, kType)(0)
-    val max = localAnnotationSort(ctx, perPartStatsMaxes, sortFields, kType).last
+    val min = localAnnotationSort(ctx, perPartStatsMins, sortFields, newKType)(0)
+    val max = localAnnotationSort(ctx, perPartStatsMaxes, sortFields, newKType).last
 
     val pivotsWithEndpoints = IndexedSeq(min) ++ sorted ++ IndexedSeq(max)
-    val pivotsWithEndpointsLiteral = Literal(TArray(kType), pivotsWithEndpoints)
+    val pivotsWithEndpointsLiteral = Literal(TArray(newKType), pivotsWithEndpoints)
 
 
     val pivotsWithEndpointsId = genUID()
@@ -194,30 +197,25 @@ object LowerDistributedSort {
       println(splits)
     }
 
-    // Next, read and local sort the individual files.
-    // Probably should move this whole thing into IR over a streamRange.
-    val seqOfSortedPartitions = (0 until pivotsWithEndpoints.length - 1).map { idxOfPartitionBeingCreated =>
+    val filesToReadForEachPartition = (0 until pivotsWithEndpoints.length - 1).map { idxOfPartitionBeingCreated =>
       val dataForThisPartition = splitsPerOriginalPartition.map(inner => inner(idxOfPartitionBeingCreated))
-      val filesForThisPartition = dataForThisPartition.map(row => row.asInstanceOf[Row](1).asInstanceOf[String])
-      val reader = PartitionNativeReader(spec)
-      val filesForThisPartitionLiteral = Literal(TArray(TString), filesForThisPartition)
-      // TODO Maybe lift this out of loop to generate less IDs?
-      val leftId = genUID()
-      val refLeft = Ref(leftId, stageWithPivots.rowType)
-      val rightId = genUID()
-      val refRight = Ref(rightId, stageWithPivots.rowType)
-      val lessThan = ApplyComparisonOp(LT(kType), SelectFields(refLeft, kType.fields.map(_.name)), SelectFields(refRight, kType.fields.map(_.name)))
-      val sortedPartition = ArraySort(flatMapIR(ToStream(filesForThisPartitionLiteral)) { path =>
+      dataForThisPartition.map(row => row.asInstanceOf[Row](1).asInstanceOf[String])
+    }
+    val filesToReadForEachPartitionLiteral = Literal(TArray(TArray(TString)), filesToReadForEachPartition)
+
+    // Next, read and local sort the individual files.
+    val reader = PartitionNativeReader(spec)
+
+    val seqOfSortedPartitionsIR = mapIR(StreamRange(0, pivotsWithEndpoints.length - 1, 1)) { idxOfPartitionBeingCreated =>
+      val filesForThisPartition = ArrayRef(filesToReadForEachPartitionLiteral, idxOfPartitionBeingCreated)
+      sortIR(flatMapIR(ToStream(filesForThisPartition)) { path =>
         ReadPartition(path, spec._vType, reader)
-      }, leftId, rightId, lessThan)
-      sortedPartition
+      }){ (refLeft, refRight) => ApplyComparisonOp(LT(newKType), SelectFields(refLeft, newKType.fields.map(_.name)), SelectFields(refRight, newKType.fields.map(_.name))) }
     }
 
-    val partitioner = new RVDPartitioner(kType, splitsPerOriginalPartition(0).map(row => row.asInstanceOf[Row](0).asInstanceOf[Interval]))
-    val contexts = MakeStream(seqOfSortedPartitions, TStream(TStream(stageWithPivots.rowType)))
-    //val contexts = mapIR(ToStream(Literal(TArray(TArray(stageWithPivots.rowType)), seqOfSortedPartitions)))(x => ToStream(x))
-
-    val sortedTS = TableStage(MakeStruct(Seq.empty[(String, IR)]), partitioner, null, contexts, x => x)
+    val partitioner = new RVDPartitioner(newKType, splitsPerOriginalPartition(0).map(row => row.asInstanceOf[Row](0).asInstanceOf[Interval]))
+    val contexts = seqOfSortedPartitionsIR
+    val sortedTS = TableStage(MakeStruct(Seq.empty[(String, IR)]), partitioner, TableStageDependency.none, contexts, x => ToStream(x))
 
     sortedTS.collectWithGlobals(Map.empty[String, IR])
   }
