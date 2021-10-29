@@ -21,6 +21,21 @@ from .combine import combine_variant_datasets, transform_gvcf, defined_entry_fie
 
 VDSMetadata = collections.namedtuple('VDSMetadata', ['path', 'n_samples'])
 
+FAST_CODEC_SPEC = """{
+  "name": "LEB128BufferSpec",
+  "child": {
+    "name": "BlockingBufferSpec",
+    "blockSize": 32768,
+    "child": {
+      "name": "LZ4FastBlockBufferSpec",
+      "blockSize": 32768,
+      "child": {
+        "name": "StreamBlockBufferSpec"
+      }
+    }
+  }
+}"""
+
 
 def read_variant_datasets(inputs: List[str], intervals: List[Interval], intervals_dtype):
     n_inputs = len(inputs)
@@ -288,7 +303,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
             return
 
         new_path = os.path.join(temp_path, 'dataset.vds')
-        combined.write(new_path, overwrite=True)
+        combined.write(new_path, overwrite=True, _codec_spec=FAST_CODEC_SPEC)
         new_bin = floor(log(new_n_samples, self.branch_factor))
         # this ensures that we don't somehow stick a vds at the end of
         # the same bin, ending up with a weird ordering issue
@@ -335,7 +350,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                                       n_samples=n_samples)
                           for count, n_samples in enumerate(merge_n_samples)]
         paths = [md.path for md in merge_metadata]
-        hl.vds.write_variant_datasets(merge_vds, paths, overwrite=True)
+        hl.vds.write_variant_datasets(merge_vds, paths, overwrite=True, codec_spec=FAST_CODEC_SPEC)
         for md in merge_metadata:
             self.vdses[max(1, floor(log(md.n_samples, self.branch_factor)))].append(md)
 

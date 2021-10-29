@@ -331,13 +331,13 @@ object MatrixValue {
     mvs: IndexedSeq[MatrixValue],
     paths: IndexedSeq[String],
     overwrite: Boolean,
-    stageLocally: Boolean
+    stageLocally: Boolean,
+    bufferSpec: BufferSpec
   ): Unit = {
     val first = mvs.head
     require(mvs.forall(_.typ == first.typ))
     require(mvs.length == paths.length, s"found ${ mvs.length } matrix tables but ${ paths.length } paths")
     val fs = ctx.fs
-    val bufferSpec = BufferSpec.default
 
     paths.foreach { path =>
       if (overwrite)
