@@ -1,11 +1,12 @@
 import logging
 import random
-from typing import Dict, Any, List, Optional, Set, Tuple
+from typing import Dict, Any, List, Set, Tuple
 
 from hailtop.aiocloud import aiogoogle
 from hailtop.utils import url_basename
 
 from ....utils import WindowFractionCounter
+from ....driver.location import CloudLocationMonitor
 
 log = logging.getLogger('zones')
 
@@ -47,57 +48,87 @@ class ZoneSuccessRate:
         return f'global {self._global_counter}, zones {self._zone_counters}'
 
 
-async def update_region_quotas(compute_client: aiogoogle.GoogleComputeClient, regions: Set[str]
-                               ) -> Tuple[Dict[str, Dict[str, Any]], List[str]]:
-    region_info = {name: await compute_client.get(f'/regions/{name}') for name in regions}
-    zones = [url_basename(z) for r in region_info.values() for z in r['zones']]
-    log.info('updated region quotas')
+class ZoneMonitor(CloudLocationMonitor):
+    @staticmethod
+    async def create(compute_client: aiogoogle.GoogleComputeClient,  # BORROWED
+                     regions: Set[str],
+                     default_zone: str,
+                     ) -> 'ZoneMonitor':
+        region_info, zones = await fetch_region_quotas(compute_client, regions)
+        return ZoneMonitor(compute_client, region_info, zones, regions, default_zone)
+
+    def __init__(self,
+                 compute_client: aiogoogle.GoogleComputeClient,  # BORROWED
+                 initial_region_info: Dict[str, Dict[str, Any]],
+                 initial_zones: List[str],
+                 regions: Set[str],
+                 default_zone: str,
+                 ):
+        self._compute_client = compute_client
+        self._region_info: Dict[str, Dict[str, Any]] = initial_region_info
+        self._regions = regions
+        self._zones: List[str] = initial_zones
+        self._default_zone = default_zone
+
+        self._zone_success_rate = ZoneSuccessRate()
+
+    def default_location(self) -> str:
+        return self._default_zone
+
+    def choose_location(self,
+                        worker_cores: int,
+                        worker_local_ssd_data_disk: bool,
+                        worker_pd_ssd_data_disk_size_gb: int
+                        ) -> str:
+        zone_weights = self.compute_zone_weights(
+            worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)
+
+        zones = [zw.zone for zw in zone_weights]
+
+        zone_prob_weights = [
+            min(zw.weight, 10) * self._zone_success_rate.zone_success_rate(zw.zone) for zw in zone_weights
+        ]
+
+        log.info(f'zone_success_rate {self._zone_success_rate}')
+        log.info(f'zone_prob_weights {zone_prob_weights}')
+
+        zone = random.choices(zones, zone_prob_weights)[0]
+        return zone
+
+    def compute_zone_weights(self,
+                             worker_cores: int,
+                             worker_local_ssd_data_disk: bool,
+                             worker_pd_ssd_data_disk_size_gb: int
+                             ) -> List[ZoneWeight]:
+        weights = []
+        for r in self._region_info.values():
+            quota_remaining = {q['metric']: q['limit'] - q['usage'] for q in r['quotas']}
+
+            remaining = quota_remaining['PREEMPTIBLE_CPUS'] / worker_cores
+            if worker_local_ssd_data_disk:
+                remaining = min(remaining, quota_remaining['LOCAL_SSD_TOTAL_GB'] / 375)
+            else:
+                remaining = min(remaining, quota_remaining['SSD_TOTAL_GB'] / worker_pd_ssd_data_disk_size_gb)
+
+            weight = max(remaining / len(r['zones']), 1)
+            for z in r['zones']:
+                zone_name = url_basename(z)
+                weights.append(ZoneWeight(zone_name, weight))
+
+        log.info(f'zone_weights {weights}')
+        return weights
+
+    async def update_region_quotas(self):
+        self._region_info, self._zones = await fetch_region_quotas(
+            self._compute_client, self._regions)
+        log.info('updated region quotas')
+
+
+async def fetch_region_quotas(compute_client: aiogoogle.GoogleComputeClient,
+                              regions: Set[str]
+                              ) -> Tuple[Dict[str, Dict[str, Any]], List[str]]:
+    region_info = {name: await compute_client.get(f'/regions/{name}')
+                   for name in regions}
+    zones = [url_basename(z)
+             for r in region_info.values() for z in r['zones']]
     return region_info, zones
-
-
-def compute_zone_weights(region_info: Dict[str, Dict[str, Any]], worker_cores: int,
-                         worker_local_ssd_data_disk: bool, worker_pd_ssd_data_disk_size_gb: int) -> Optional[List[ZoneWeight]]:
-    if not region_info:
-        return None
-
-    weights = []
-    for r in region_info.values():
-        quota_remaining = {q['metric']: q['limit'] - q['usage'] for q in r['quotas']}
-
-        remaining = quota_remaining['PREEMPTIBLE_CPUS'] / worker_cores
-        if worker_local_ssd_data_disk:
-            remaining = min(remaining, quota_remaining['LOCAL_SSD_TOTAL_GB'] / 375)
-        else:
-            remaining = min(remaining, quota_remaining['SSD_TOTAL_GB'] / worker_pd_ssd_data_disk_size_gb)
-
-        weight = max(remaining / len(r['zones']), 1)
-        for z in r['zones']:
-            zone_name = url_basename(z)
-            weights.append(ZoneWeight(zone_name, weight))
-
-    log.info(f'zone_weights {weights}')
-    return weights
-
-
-def get_zone(region_info: Dict[str, Dict[str, Any]],
-             zone_success_rate: ZoneSuccessRate,
-             worker_cores: int,
-             worker_local_ssd_data_disk: bool,
-             worker_pd_ssd_data_disk_size_gb: int
-             ) -> Optional[str]:
-    zone_weights = compute_zone_weights(region_info, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)
-
-    if not zone_weights:
-        return None
-
-    zones = [zw.zone for zw in zone_weights]
-
-    zone_prob_weights = [
-        min(zw.weight, 10) * zone_success_rate.zone_success_rate(zw.zone) for zw in zone_weights
-    ]
-
-    log.info(f'zone_success_rate {zone_success_rate}')
-    log.info(f'zone_prob_weights {zone_prob_weights}')
-
-    zone = random.choices(zones, zone_prob_weights)[0]
-    return zone

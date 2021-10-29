@@ -13,7 +13,7 @@ from hailtop import aiotools
 from gear import Database
 
 from .job import unschedule_job, mark_job_complete
-from .instance_collection_manager import InstanceCollectionManager
+from .instance_collection import InstanceCollectionManager
 from ..utils import Box
 
 log = logging.getLogger('canceller')

@@ -52,7 +52,7 @@ class PoolConfig(InstanceCollectionConfig):
         worker_pd_ssd_data_disk_size_gb,
         enable_standing_worker,
         standing_worker_cores,
-        boot_disk_size_gb,
+        boot_disk_size_gb: int,
         max_instances,
         max_live_instances,
     ):
@@ -97,7 +97,7 @@ class JobPrivateInstanceManagerConfig(InstanceCollectionConfig):
             record['name'], record['cloud'], record['boot_disk_size_gb'], record['max_instances'], record['max_live_instances']
         )
 
-    def __init__(self, name, cloud, boot_disk_size_gb, max_instances, max_live_instances):
+    def __init__(self, name, cloud, boot_disk_size_gb: int, max_instances, max_live_instances):
         self.name = name
         self.cloud = cloud
         self.boot_disk_size_gb = boot_disk_size_gb

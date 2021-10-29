@@ -1,10 +1,9 @@
+from typing import Optional
 import aiohttp
 import datetime
 import logging
 import secrets
 import humanize
-import base64
-import json
 
 from hailtop.utils import time_msecs, time_msecs_str, retry_transient_errors
 from hailtop import httpx
@@ -12,8 +11,6 @@ from gear import Database
 
 from ..database import check_call_procedure
 from ..globals import INSTANCE_VERSION
-from ..instance_config import InstanceConfig
-from ..cloud.utils import instance_config_from_config_dict
 
 log = logging.getLogger('instance')
 
@@ -21,12 +18,6 @@ log = logging.getLogger('instance')
 class Instance:
     @staticmethod
     def from_record(app, inst_coll, record):
-        config = record.get('instance_config')
-        if config:
-            instance_config = instance_config_from_config_dict(json.loads(base64.b64decode(config).decode()))
-        else:
-            instance_config = None
-
         return Instance(
             app,
             inst_coll,
@@ -39,24 +30,34 @@ class Instance:
             record['last_updated'],
             record['ip_address'],
             record['version'],
-            instance_config,
+            record['location'],
+            record['machine_type'],
+            record['preemptible'],
         )
 
     @staticmethod
-    async def create(app, inst_coll, name, activation_token, instance_config: InstanceConfig):
+    async def create(app,
+                     inst_coll,
+                     name: str,
+                     activation_token,
+                     cores: int,
+                     location: str,
+                     machine_type: str,
+                     preemptible: bool
+                     ) -> 'Instance':
         db: Database = app['db']
 
         state = 'pending'
         now = time_msecs()
         token = secrets.token_urlsafe(32)
 
-        cores_mcpu = instance_config.cores * 1000
+        cores_mcpu = cores * 1000
 
         await db.just_execute(
             '''
 INSERT INTO instances (name, state, activation_token, token, cores_mcpu, free_cores_mcpu,
-  time_created, last_updated, version, location, inst_coll, machine_type, preemptible, instance_config)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+  time_created, last_updated, version, location, inst_coll, machine_type, preemptible)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
             (
                 name,
@@ -68,11 +69,10 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 now,
                 now,
                 INSTANCE_VERSION,
-                instance_config.location,
+                location,
                 inst_coll.name,
-                instance_config.machine_type,
-                instance_config.preemptible,
-                base64.b64encode(json.dumps(instance_config.config).encode()).decode()
+                machine_type,
+                preemptible,
             ),
         )
         return Instance(
@@ -87,7 +87,9 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
             now,
             None,
             INSTANCE_VERSION,
-            instance_config
+            location,
+            machine_type,
+            preemptible,
         )
 
     def __init__(
@@ -103,7 +105,9 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         last_updated: int,
         ip_address,
         version,
-        instance_config: InstanceConfig,
+        location: str,
+        machine_type: str,
+        preemptible: bool,
     ):
         self.db: Database = app['db']
         self.client_session: httpx.ClientSession = app['client_session']
@@ -118,10 +122,9 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         self._last_updated = last_updated
         self.ip_address = ip_address
         self.version = version
-        self.location = instance_config.location
-        self.machine_type = instance_config.machine_type
-        self.preemptible = instance_config.preemptible
-        self.instance_config = instance_config
+        self.location = location
+        self.machine_type = machine_type
+        self.preemptible = preemptible
 
     @property
     def state(self):
@@ -142,7 +145,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 
         return rv['token']
 
-    async def deactivate(self, reason, timestamp=None):
+    async def deactivate(self, reason: str, timestamp: Optional[int] = None):
         if self._state in ('inactive', 'deleted'):
             return
 

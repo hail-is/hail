@@ -192,9 +192,9 @@ class GCPInstanceConfig(InstanceConfig):
     def machine_type(self) -> str:
         return f'{self.instance_family}-{self.instance_type}-{self.cores}'
 
-    def resources(self, cpu_in_mcpu: int, memory_in_bytes: int, storage_in_gib: int) -> List[Dict[str, Any]]:
+    def resources(self, cpu_in_mcpu: int, memory_in_bytes: int, extra_storage_in_gib: int) -> List[Dict[str, Any]]:
         assert memory_in_bytes % (1024 * 1024) == 0, memory_in_bytes
-        assert isinstance(storage_in_gib, int), storage_in_gib
+        assert isinstance(extra_storage_in_gib, int), extra_storage_in_gib
 
         resources = []
 
@@ -208,7 +208,7 @@ class GCPInstanceConfig(InstanceConfig):
         )
 
         # storage is in units of MiB
-        resources.append({'name': 'disk/pd-ssd/1', 'quantity': storage_in_gib * 1024})
+        resources.append({'name': 'disk/pd-ssd/1', 'quantity': extra_storage_in_gib * 1024})
 
         quantities: Dict[str, int] = defaultdict(lambda: 0)
         for disk in self.disks:

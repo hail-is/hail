@@ -53,10 +53,10 @@ from ..globals import HTTP_CLIENT_MAX_SIZE
 from ..inst_coll_config import InstanceCollectionConfigs
 
 from .canceller import Canceller
-from .instance_collection_manager import InstanceCollectionManager
+from .instance_collection import InstanceCollectionManager, JobPrivateInstanceManager
 from .job import mark_job_complete, mark_job_started
 from .k8s_cache import K8sCache
-from .pool import Pool
+from .instance_collection import Pool
 from ..utils import query_billing_projects, batch_only, authorization_token
 from ..cloud.driver import get_cloud_driver
 from ..cloud.resource_utils import unreserved_worker_data_disk_size_gib
@@ -358,6 +358,7 @@ async def get_index(request, userdata):
     app = request.app
     db: Database = app['db']
     inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
+    jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
 
     ready_cores = await db.select_and_fetchone(
         '''
@@ -369,7 +370,7 @@ FROM user_inst_coll_resources;
 
     page_context = {
         'pools': inst_coll_manager.pools.values(),
-        'jpim': inst_coll_manager.job_private_inst_manager,
+        'jpim': jpim,
         'instance_id': app['instance_id'],
         'n_instances_by_state': inst_coll_manager.global_n_instances_by_state,
         'instances': inst_coll_manager.name_instance.values(),
@@ -508,11 +509,10 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
 @web_authenticated_developers_only()
 async def job_private_config_update(request, userdata):  # pylint: disable=unused-argument
     app = request.app
-    inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
+    jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
 
     session = await aiohttp_session.get_session(request)
 
-    job_private_inst_manager = inst_coll_manager.job_private_inst_manager
     url_path = '/inst_coll/jpim'
 
     post = await request.post()
@@ -534,9 +534,9 @@ async def job_private_config_update(request, userdata):  # pylint: disable=unuse
         session, url_path, 'Max live instances', post['max_live_instances'], lambda v: v > 0, 'a positive integer'
     )
 
-    await job_private_inst_manager.configure(boot_disk_size_gb, max_instances, max_live_instances)
+    await jpim.configure(boot_disk_size_gb, max_instances, max_live_instances)
 
-    set_message(session, f'Updated configuration for {job_private_inst_manager}.', 'info')
+    set_message(session, f'Updated configuration for {jpim}.', 'info')
 
     return web.HTTPFound(deploy_config.external_url('batch-driver', url_path))
 
@@ -579,11 +579,9 @@ async def get_pool(request, userdata):
 @web_authenticated_developers_only()
 async def get_job_private_inst_manager(request, userdata):
     app = request.app
-    inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
+    jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
 
-    job_private_inst_manager = inst_coll_manager.job_private_inst_manager
-
-    user_resources = await job_private_inst_manager.compute_fair_share()
+    user_resources = await jpim.compute_fair_share()
     user_resources = sorted(
         user_resources.values(),
         key=lambda record: record['n_ready_jobs'] + record['n_creating_jobs'] + record['n_running_jobs'],
@@ -595,8 +593,8 @@ async def get_job_private_inst_manager(request, userdata):
     n_running_jobs = sum([record['n_running_jobs'] for record in user_resources])
 
     page_context = {
-        'jpim': job_private_inst_manager,
-        'instances': job_private_inst_manager.name_instance.values(),
+        'jpim': jpim,
+        'instances': jpim.name_instance.values(),
         'user_resources': user_resources,
         'n_ready_jobs': n_ready_jobs,
         'n_creating_jobs': n_creating_jobs,
@@ -1055,7 +1053,8 @@ async def scheduling_cancelling_bump(app):
 
 
 async def on_startup(app):
-    app['task_manager'] = aiotools.BackgroundTaskManager()
+    task_manager = aiotools.BackgroundTaskManager()
+    app['task_manager'] = task_manager
 
     app['client_session'] = httpx.client_session()
 
@@ -1109,7 +1108,8 @@ SELECT instance_id, internal_token, frozen FROM globals;
 
     inst_coll_configs = await InstanceCollectionConfigs.create(db)
 
-    app['driver'] = await get_cloud_driver(app, MACHINE_NAME_PREFIX, DEFAULT_NAMESPACE, inst_coll_configs, credentials_file)
+    app['driver'] = await get_cloud_driver(
+        app, db, MACHINE_NAME_PREFIX, DEFAULT_NAMESPACE, inst_coll_configs, credentials_file, task_manager)
 
     canceller = await Canceller.create(app)
     app['canceller'] = canceller
@@ -1118,16 +1118,13 @@ SELECT instance_id, internal_token, frozen FROM globals;
     app['check_resource_aggregation_error'] = None
 
     if HAIL_SHOULD_CHECK_INVARIANTS:
-        app['task_manager'].ensure_future(periodically_call(10, check_incremental, app, db))
-        app['task_manager'].ensure_future(periodically_call(10, check_resource_aggregation, app, db))
+        task_manager.ensure_future(periodically_call(10, check_incremental, app, db))
+        task_manager.ensure_future(periodically_call(10, check_resource_aggregation, app, db))
 
-    app['task_manager'].ensure_future(periodically_call(10, monitor_billing_limits, app))
-
-    app['task_manager'].ensure_future(periodically_call(10, cancel_fast_failing_batches, app))
-
-    app['task_manager'].ensure_future(periodically_call(60, scheduling_cancelling_bump, app))
-
-    app['task_manager'].ensure_future(periodically_call(15, monitor_system, app))
+    task_manager.ensure_future(periodically_call(10, monitor_billing_limits, app))
+    task_manager.ensure_future(periodically_call(10, cancel_fast_failing_batches, app))
+    task_manager.ensure_future(periodically_call(60, scheduling_cancelling_bump, app))
+    task_manager.ensure_future(periodically_call(15, monitor_system, app))
 
 
 async def on_cleanup(app):
@@ -1149,10 +1146,13 @@ async def on_cleanup(app):
                         try:
                             await app['client_session'].close()
                         finally:
-                            del app['k8s_cache'].client
-                            await asyncio.gather(
-                                *(t for t in asyncio.all_tasks() if t is not asyncio.current_task())
-                            )
+                            try:
+                                app['async_worker_pool'].shutdown()
+                            finally:
+                                del app['k8s_cache'].client
+                                await asyncio.gather(
+                                    *(t for t in asyncio.all_tasks() if t is not asyncio.current_task())
+                                )
 
 
 def run():

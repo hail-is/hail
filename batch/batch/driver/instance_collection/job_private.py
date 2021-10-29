@@ -1,10 +1,12 @@
+from typing import List, Tuple, Dict, Any
 import random
 import json
 import logging
 import asyncio
-import secrets
 import sortedcontainers
 
+from gear import Database
+from hailtop import aiotools
 from hailtop.utils import (
     Notice,
     run_if_changed,
@@ -16,25 +18,62 @@ from hailtop.utils import (
     periodically_call,
 )
 
-from ..batch_format_version import BatchFormatVersion
-from ..batch_configuration import WORKER_MAX_IDLE_TIME_MSECS
-from ..inst_coll_config import JobPrivateInstanceManagerConfig
-from .resource_manager import CloudResourceManager
-from .instance_collection import InstanceCollection
-from .instance import Instance
-from .job import mark_job_creating, schedule_job
-from ..cloud.resource_utils import worker_memory_per_core_bytes
-from ..utils import Box, ExceededSharesCounter
+from ...batch_format_version import BatchFormatVersion
+from ...inst_coll_config import JobPrivateInstanceManagerConfig
+from ...utils import Box, ExceededSharesCounter
 
+from ..instance import Instance
+from ..job import mark_job_creating, schedule_job
+from ..resource_manager import CloudResourceManager
+
+from .base import InstanceCollectionManager, InstanceCollection
 
 log = logging.getLogger('job_private_inst_coll')
 
 
 class JobPrivateInstanceManager(InstanceCollection):
-    def __init__(self, app, resource_manager: CloudResourceManager, machine_name_prefix: str, config: JobPrivateInstanceManagerConfig):
-        super().__init__(app, resource_manager, config.cloud, config.name, machine_name_prefix, is_pool=False)
+    @staticmethod
+    async def create(app,
+                     db: Database,  # BORROWED
+                     inst_coll_manager: InstanceCollectionManager,
+                     resource_manager: CloudResourceManager,
+                     machine_name_prefix: str,
+                     config: JobPrivateInstanceManagerConfig,
+                     task_manager: aiotools.BackgroundTaskManager,
+                     ):
+        jpim = JobPrivateInstanceManager(
+            app, db, inst_coll_manager, resource_manager, machine_name_prefix, config, task_manager)
 
-        global_scheduler_state_changed: Notice = app['scheduler_state_changed']
+        log.info(f'initializing {jpim}')
+
+        async for record in db.select_and_fetchall(
+            'SELECT * FROM instances WHERE removed = 0 AND inst_coll = %s;', (jpim.name,)
+        ):
+            jpim.add_instance(Instance.from_record(app, jpim, record))
+
+        return jpim
+
+    def __init__(self,
+                 app,
+                 db: Database,  # BORROWED
+                 inst_coll_manager: InstanceCollectionManager,
+                 resource_manager: CloudResourceManager,
+                 machine_name_prefix: str,
+                 config: JobPrivateInstanceManagerConfig,
+                 task_manager: aiotools.BackgroundTaskManager,
+                 ):
+        super().__init__(db,
+                         inst_coll_manager,
+                         resource_manager,
+                         config.cloud,
+                         config.name,
+                         machine_name_prefix,
+                         is_pool=False,
+                         max_instances=config.max_instances,
+                         max_live_instances=config.max_live_instances,
+                         task_manager=task_manager)
+        self.app = app
+        global_scheduler_state_changed: Notice = self.app['scheduler_state_changed']
         self.create_instances_state_changed = global_scheduler_state_changed.subscribe()
         self.scheduler_state_changed = asyncio.Event()
 
@@ -42,21 +81,8 @@ class JobPrivateInstanceManager(InstanceCollection):
         self.exceeded_shares_counter = ExceededSharesCounter()
 
         self.boot_disk_size_gb = config.boot_disk_size_gb
-        self.max_instances = config.max_instances
-        self.max_live_instances = config.max_live_instances
 
-    async def async_init(self):
-        log.info(f'initializing {self}')
-
-        await super().async_init()
-
-        async for record in self.db.select_and_fetchall(
-            'SELECT * FROM instances WHERE removed = 0 AND inst_coll = %s;', (self.name,)
-        ):
-            instance = Instance.from_record(self.app, self, record)
-            self.add_instance(instance)
-
-        self.task_manager.ensure_future(
+        task_manager.ensure_future(
             retry_long_running(
                 'create_instances_loop',
                 run_if_changed,
@@ -64,14 +90,13 @@ class JobPrivateInstanceManager(InstanceCollection):
                 self.create_instances_loop_body,
             )
         )
-
-        self.task_manager.ensure_future(
+        task_manager.ensure_future(
             retry_long_running(
                 'schedule_jobs_loop', run_if_changed, self.scheduler_state_changed, self.schedule_jobs_loop_body
             )
         )
-
-        self.task_manager.ensure_future(periodically_call(15, self.bump_scheduler))
+        task_manager.ensure_future(
+            periodically_call(15, self.bump_scheduler))
 
     def config(self):
         return {
@@ -237,44 +262,25 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
 
         return result
 
-    async def create_instance(self, batch_id, job_id, machine_spec):
-        assert machine_spec is not None
-
-        machine_name = self.generate_machine_name()
+    async def create_instance(self, machine_spec: dict) -> Tuple[Instance, List[Dict[str, Any]]]:
         machine_type = machine_spec['machine_type']
         preemptible = machine_spec['preemptible']
         storage_gb = machine_spec['storage_gib']
-
-        activation_token = secrets.token_urlsafe(32)
-
-        instance = await self.resource_manager.create_vm(
+        _, cores = self.resource_manager.worker_type_cores(machine_type)
+        instance, total_resources_on_instance = await self._create_instance(
             app=self.app,
-            inst_coll=self,
-            machine_name=machine_name,
+            cores=cores,
             machine_type=machine_type,
-            activation_token=activation_token,
-            max_idle_time_msecs=WORKER_MAX_IDLE_TIME_MSECS,
+            job_private=True,
+            location=None,
+            preemptible=preemptible,
+            max_idle_time_msecs=None,
             worker_local_ssd_data_disk=False,
             worker_pd_ssd_data_disk_size_gb=storage_gb,
-            boot_disk_size_gb=self.boot_disk_size_gb,
-            preemptible=preemptible,
-            job_private=True,
+            boot_disk_size_gb=self.boot_disk_size_gb
         )
 
-        if instance is None:
-            return
-
-        self.add_instance(instance)
-
-        log.info(f'created {instance} for {(batch_id, job_id)}')
-
-        memory_in_bytes = worker_memory_per_core_bytes(self.cloud, instance.instance_config.worker_type)
-        cores_mcpu = instance.instance_config.cores * 1000
-        resources = instance.instance_config.resources(
-            cpu_in_mcpu=cores_mcpu, memory_in_bytes=memory_in_bytes, storage_in_gib=0
-        )  # this is 0 because there's no addtl disk beyond data disk
-
-        return (instance, resources)
+        return (instance, total_resources_on_instance)
 
     async def create_instances_loop_body(self):
         if self.app['frozen']:
@@ -389,9 +395,10 @@ LIMIT %s;
                         batch_format_version = BatchFormatVersion(record['format_version'])
                         spec = json.loads(record['spec'])
                         machine_spec = batch_format_version.get_spec_machine_spec(spec)
-                        instance, resources = await self.create_instance(batch_id, job_id, machine_spec)
+                        instance, total_resources_on_instance = await self.create_instance(machine_spec)
+                        log.info(f'created {instance} for {(batch_id, job_id)}')
                         await mark_job_creating(
-                            self.app, batch_id, job_id, attempt_id, instance, time_msecs(), resources
+                            self.app, batch_id, job_id, attempt_id, instance, time_msecs(), total_resources_on_instance
                         )
                     except Exception:
                         log.exception(f'while creating job private instance for job {id}', exc_info=True)

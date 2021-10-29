@@ -22,7 +22,7 @@ from .k8s_cache import K8sCache
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .instance_collection_manager import InstanceCollectionManager  # pylint: disable=cyclic-import
+    from .instance_collection import InstanceCollectionManager  # pylint: disable=cyclic-import
 
 log = logging.getLogger('job')
 

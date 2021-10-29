@@ -1,7 +1,7 @@
+from typing import Optional
 import sortedcontainers
 import logging
 import asyncio
-import secrets
 import random
 import collections
 
@@ -18,29 +18,70 @@ from hailtop.utils import (
     periodically_call,
 )
 
-from ..batch_configuration import STANDING_WORKER_MAX_IDLE_TIME_MSECS, WORKER_MAX_IDLE_TIME_MSECS
-from ..inst_coll_config import PoolConfig
-from ..utils import Box, ExceededSharesCounter
-from ..cloud.resource_utils import (
+from ...batch_configuration import STANDING_WORKER_MAX_IDLE_TIME_MSECS
+from ...inst_coll_config import PoolConfig
+from ...utils import Box, ExceededSharesCounter
+from ...cloud.resource_utils import (
     adjust_cores_for_memory_request,
     adjust_cores_for_packability,
     adjust_cores_for_storage_request,
 )
-from .instance import Instance
-from .instance_collection import InstanceCollection
-from .resource_manager import CloudResourceManager
-from .job import schedule_job
+from ..instance import Instance
+from ..resource_manager import CloudResourceManager
+from ..job import schedule_job
+
+from .base import InstanceCollectionManager, InstanceCollection
 
 log = logging.getLogger('pool')
 
 
 class Pool(InstanceCollection):
-    def __init__(self, app, resource_manager: CloudResourceManager, machine_name_prefix: str, config: PoolConfig):
-        super().__init__(app, resource_manager, config.cloud, config.name, machine_name_prefix, is_pool=True)
+    @staticmethod
+    async def create(app,
+                     db: Database,  # BORROWED
+                     inst_coll_manager: InstanceCollectionManager,
+                     resource_manager: CloudResourceManager,
+                     machine_name_prefix: str,
+                     config: PoolConfig,
+                     async_worker_pool: AsyncWorkerPool,  # BORROWED
+                     task_manager: aiotools.BackgroundTaskManager
+                     ) -> 'Pool':
+        pool = Pool(
+            app, db, inst_coll_manager, resource_manager, machine_name_prefix, config, async_worker_pool, task_manager)
+        log.info(f'initializing {pool}')
 
-        global_scheduler_state_changed: Notice = app['scheduler_state_changed']
+        async for record in db.select_and_fetchall(
+            'SELECT * FROM instances WHERE removed = 0 AND inst_coll = %s;', (pool.name,)
+        ):
+            pool.add_instance(Instance.from_record(app, pool, record))
+
+        return pool
+
+    def __init__(self,
+                 app,
+                 db: Database,  # BORROWED
+                 inst_coll_manager: InstanceCollectionManager,
+                 resource_manager: CloudResourceManager,
+                 machine_name_prefix: str,
+                 config: PoolConfig,
+                 async_worker_pool: AsyncWorkerPool,  # BORROWED
+                 task_manager: aiotools.BackgroundTaskManager,  # BORROWED
+                 ):
+        super().__init__(db,
+                         inst_coll_manager,
+                         resource_manager,
+                         config.cloud,
+                         config.name,
+                         machine_name_prefix,
+                         is_pool=True,
+                         max_instances=config.max_instances,
+                         max_live_instances=config.max_live_instances,
+                         task_manager=task_manager)
+        self.app = app
+        self.inst_coll_manager = inst_coll_manager
+        global_scheduler_state_changed: Notice = self.app['scheduler_state_changed']
         self.scheduler_state_changed = global_scheduler_state_changed.subscribe()
-        self.scheduler = PoolScheduler(self.app, self)
+        self.scheduler = PoolScheduler(self.app, self, async_worker_pool, task_manager)
 
         self.healthy_instances_by_free_cores = sortedcontainers.SortedSet(key=lambda instance: instance.free_cores_mcpu)
 
@@ -51,29 +92,11 @@ class Pool(InstanceCollection):
         self.enable_standing_worker = config.enable_standing_worker
         self.standing_worker_cores = config.standing_worker_cores
         self.boot_disk_size_gb = config.boot_disk_size_gb
-        self.max_instances = config.max_instances
-        self.max_live_instances = config.max_live_instances
 
-    async def async_init(self):
-        log.info(f'initializing {self}')
+        task_manager.ensure_future(self.control_loop())
 
-        await super().async_init()
-
-        async for record in self.db.select_and_fetchall(
-            'SELECT * FROM instances WHERE removed = 0 AND inst_coll = %s;', (self.name,)
-        ):
-            instance = Instance.from_record(self.app, self, record)
-            self.add_instance(instance)
-
-        self.task_manager.ensure_future(self.control_loop())
-
-        await self.scheduler.async_init()
-
-    def shutdown(self):
-        try:
-            super().shutdown()
-        finally:
-            self.scheduler.shutdown()
+    def _default_location(self) -> str:
+        return self.inst_coll_manager.location_monitor.default_location()
 
     def config(self):
         return {
@@ -92,7 +115,7 @@ class Pool(InstanceCollection):
     async def configure(
         self,
         worker_cores,
-        boot_disk_size_gb,
+        boot_disk_size_gb: int,
         worker_local_ssd_data_disk,
         worker_pd_ssd_data_disk_size_gb,
         enable_standing_worker,
@@ -170,7 +193,7 @@ WHERE name = %s;
         while i < len(self.healthy_instances_by_free_cores):
             instance = self.healthy_instances_by_free_cores[i]
             assert cores_mcpu <= instance.free_cores_mcpu
-            if user != 'ci' or (user == 'ci' and instance.location == self.resource_manager.default_location):
+            if user != 'ci' or (user == 'ci' and instance.location == self._default_location()):
                 return instance
             i += 1
         histogram = collections.defaultdict(int)
@@ -180,37 +203,24 @@ WHERE name = %s;
 
         return None
 
-    async def create_instance(self, cores=None, max_idle_time_msecs=None, location=None):
-        if cores is None:
-            cores = self.worker_cores
-
-        if max_idle_time_msecs is None:
-            max_idle_time_msecs = WORKER_MAX_IDLE_TIME_MSECS
-
-        machine_name = self.generate_machine_name()
-
-        activation_token = secrets.token_urlsafe(32)
-
-        instance = await self.resource_manager.create_vm(
+    async def create_instance(self,
+                              cores: int,
+                              max_idle_time_msecs: Optional[int] = None,
+                              location: Optional[str] = None
+                              ):
+        machine_type = self.resource_manager.machine_type(cores, self.worker_type)
+        _, _ = await self._create_instance(
             app=self.app,
-            inst_coll=self,
-            machine_name=machine_name,
-            activation_token=activation_token,
+            cores=cores,
+            machine_type=machine_type,
+            job_private=False,
+            location=location,
+            preemptible=True,
             max_idle_time_msecs=max_idle_time_msecs,
             worker_local_ssd_data_disk=self.worker_local_ssd_data_disk,
             worker_pd_ssd_data_disk_size_gb=self.worker_pd_ssd_data_disk_size_gb,
-            boot_disk_size_gb=self.boot_disk_size_gb,
-            preemptible=True,
-            job_private=False,
-            worker_type=self.worker_type,
-            cores=cores,
-            location=location,
+            boot_disk_size_gb=self.boot_disk_size_gb
         )
-
-        if instance is None:
-            return
-
-        self.add_instance(instance)
 
     async def create_instances_from_ready_cores(self, ready_cores_mcpu, location=None):
         n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
@@ -236,7 +246,9 @@ WHERE name = %s;
         if instances_needed > 0:
             log.info(f'creating {instances_needed} new instances')
             # parallelism will be bounded by thread pool
-            await asyncio.gather(*[self.create_instance(location=location) for _ in range(instances_needed)])
+            await asyncio.gather(*[
+                self.create_instance(cores=self.worker_cores, location=location)
+                for _ in range(instances_needed)])
 
     async def create_instances(self):
         if self.app['frozen']:
@@ -273,7 +285,7 @@ GROUP BY user;
         if ready_cores_mcpu > 0 and free_cores < 500:
             await self.create_instances_from_ready_cores(ready_cores_mcpu)
 
-        default_location = self.resource_manager.default_location
+        default_location = self._default_location()
         ci_ready_cores_mcpu = ready_cores_mcpu_per_user.get('ci', 0)
         if ci_ready_cores_mcpu > 0 and self.live_free_cores_mcpu_by_location[default_location] == 0:
             await self.create_instances_from_ready_cores(ci_ready_cores_mcpu, location=default_location)
@@ -293,25 +305,21 @@ GROUP BY user;
 
 
 class PoolScheduler:
-    def __init__(self, app, pool):
+    def __init__(self,
+                 app,
+                 pool: Pool,
+                 async_worker_pool: AsyncWorkerPool,  # BORROWED
+                 task_manager: aiotools.BackgroundTaskManager,  # BORROWED
+                 ):
         self.app = app
         self.scheduler_state_changed = pool.scheduler_state_changed
         self.db: Database = app['db']
         self.pool = pool
-        self.async_worker_pool: AsyncWorkerPool = self.app['async_worker_pool']
+        self.async_worker_pool = async_worker_pool
         self.exceeded_shares_counter = ExceededSharesCounter()
-        self.task_manager = aiotools.BackgroundTaskManager()
-
-    async def async_init(self):
-        self.task_manager.ensure_future(
+        task_manager.ensure_future(
             retry_long_running('schedule_loop', run_if_changed, self.scheduler_state_changed, self.schedule_loop_body)
         )
-
-    def shutdown(self):
-        try:
-            self.task_manager.shutdown()
-        finally:
-            self.async_worker_pool.shutdown()
 
     async def compute_fair_share(self):
         free_cores_mcpu = sum([worker.free_cores_mcpu for worker in self.pool.healthy_instances_by_free_cores])

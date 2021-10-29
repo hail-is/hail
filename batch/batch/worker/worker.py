@@ -1124,14 +1124,14 @@ class Job:
 
         self.cpu_in_mcpu = job_spec['resources']['cores_mcpu']
         self.memory_in_bytes = job_spec['resources']['memory_bytes']
-        storage_in_gib = job_spec['resources']['storage_gib']
-        assert storage_in_gib == 0 or is_valid_storage_request(CLOUD, storage_in_gib)
+        extra_storage_in_gib = job_spec['resources']['storage_gib']
+        assert extra_storage_in_gib == 0 or is_valid_storage_request(CLOUD, extra_storage_in_gib)
 
         if instance_config.job_private:
             self.external_storage_in_gib = 0
-            self.data_disk_storage_in_gib = storage_in_gib
+            self.data_disk_storage_in_gib = extra_storage_in_gib
         else:
-            self.external_storage_in_gib = storage_in_gib
+            self.external_storage_in_gib = extra_storage_in_gib
             # The reason for not giving each job 5 Gi (for example) is the
             # maximum number of simultaneous jobs on a worker is 64 which
             # basically fills the disk not allowing for caches etc. Most jobs

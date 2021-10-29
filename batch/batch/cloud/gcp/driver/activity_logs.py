@@ -8,7 +8,7 @@ from hailtop.aiocloud import aiogoogle
 from gear import Database
 
 
-from ....driver.instance_collection_manager import InstanceCollectionManager
+from ....driver.instance_collection import InstanceCollectionManager
 from .zones import ZoneSuccessRate
 
 log = logging.getLogger('activity_logs')

@@ -5,7 +5,7 @@ from typing import List
 from hailtop.aiocloud import aiogoogle
 from hailtop.utils import time_msecs, parse_timestamp_msecs
 
-from ....driver.instance_collection_manager import InstanceCollectionManager
+from ....driver.instance_collection import InstanceCollectionManager
 
 log = logging.getLogger('disks')
 

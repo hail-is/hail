@@ -1,11 +1,12 @@
+from typing import Callable, Awaitable
 import abc
 import datetime
-from typing import Optional, Callable, Awaitable
 
 from gear import Database
+from hailtop import aiotools
 
 from .resource_manager import CloudResourceManager
-from .instance_collection_manager import InstanceCollectionManager
+from .instance_collection import InstanceCollectionManager
 from ..inst_coll_config import InstanceCollectionConfigs
 
 
@@ -29,10 +30,16 @@ class CloudDriver(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    async def create(app, machine_name_prefix: str, namespace: str, inst_coll_configs: InstanceCollectionConfigs,
-                     credentials_file: Optional[str] = None) -> 'CloudDriver':
-        pass
+    async def create(app,
+                     db: Database,
+                     machine_name_prefix: str,
+                     namespace: str,
+                     inst_coll_configs: InstanceCollectionConfigs,
+                     credentials_file: str,
+                     task_manager: aiotools.BackgroundTaskManager,
+                     ) -> 'CloudDriver':
+        raise NotImplementedError
 
     @abc.abstractmethod
     async def shutdown(self):
-        pass
+        raise NotImplementedError
