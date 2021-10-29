@@ -120,21 +120,25 @@ object LowerDistributedSort {
     val numSamplesPerPartitionId = genUID()
     val numSamplesPerPartitionRef = Ref(numSamplesPerPartitionId, numSamplesPerPartition.typ)
 
-    val stageWithNumSamplesPerPart = inputStage.copy(
-      letBindings = inputStage.letBindings :+ partitionCountsId -> partitionCounts :+ numSamplesPerPartitionId -> numSamplesPerPartition,
-      broadcastVals = inputStage.broadcastVals :+ partitionCountsId -> partitionCountsRef :+ numSamplesPerPartitionId -> numSamplesPerPartitionRef
+
+    val inputStageWithSegmentNumbers = inputStage.mapContexts(ctxs => mapIR(ctxs)(ctx => MakeStruct(IndexedSeq("segmentIdx" -> I32(1), "oldCtx" -> ctx))))(ctx => GetField(ctx, "oldCtx"))
+
+    val stageWithNumSamplesPerPart = inputStageWithSegmentNumbers.copy(
+      letBindings = inputStageWithSegmentNumbers.letBindings :+ partitionCountsId -> partitionCounts :+ numSamplesPerPartitionId -> numSamplesPerPartition,
+      broadcastVals = inputStageWithSegmentNumbers.broadcastVals :+ partitionCountsId -> partitionCountsRef :+ numSamplesPerPartitionId -> numSamplesPerPartitionRef
     )
 
 
-    // Array of struct("min", "max", "samples", "isSorted"),
+    // Array of (segmentNumber, struct("min", "max", "samples", "isSorted")),
     val perPartStatsIR = stageWithNumSamplesPerPart.zipContextsWithIdx().mapCollectWithContextsAndGlobals(relationalBindings = relationalLetsAbove){ (partitionStreamIR, ctxRef) =>
+      val segmentNumber = GetField(GetField(ctxRef, "elt"), "segmentIdx")
       val numSamplesInThisPartition = ArrayRef(numSamplesPerPartitionRef, GetField(ctxRef, "idx"))
       val sizeOfPartition = ArrayRef(partitionCountsRef, GetField(ctxRef, "idx"))
       val oversampled = ToArray(SeqSample(sizeOfPartition, numSamplesInThisPartition, false))
       val regularSampledIndices = StreamRange(0, numSamplesInThisPartition, oversamplingNum)
       bindIR(oversampled) { oversampledRef =>
         bindIR(mapIR(regularSampledIndices){ idx => ArrayRef(oversampledRef, idx)}) { sampled =>
-          samplePartition(partitionStreamIR, sampled, newKType.fields.map(_.name))
+          MakeTuple.ordered(IndexedSeq(segmentNumber, samplePartition(partitionStreamIR, sampled, newKType.fields.map(_.name))))
         }
       }
     } { (res, global) => res}
@@ -151,9 +155,9 @@ object LowerDistributedSort {
     val perPartStatsAddress = ctx.timer.time("LowerDistributedSort.localSort.run")(fPerPartStatsRunnable(ctx.r))
     val perPartStatsA = ctx.timer.time("LowerDistributedSort.localSort.toJavaObject")(SafeRow.read(perPartStatsType, perPartStatsAddress)).asInstanceOf[IndexedSeq[Row]]
 
-    val perPartStatsMins = perPartStatsA.map(r => r(0))
-    val perPartStatsMaxes = perPartStatsA.map(r => r(1))
-    val perPartStatsSamples = perPartStatsA.map(r => r(2).asInstanceOf[IndexedSeq[Annotation]]).flatten
+    val perPartStatsMins = perPartStatsA.map(r => r(1).asInstanceOf[Row](0))
+    val perPartStatsMaxes = perPartStatsA.map(r => r(1).asInstanceOf[Row](1))
+    val perPartStatsSamples = perPartStatsA.map(r => r(1).asInstanceOf[Row](2).asInstanceOf[IndexedSeq[Annotation]]).flatten
 
     val sorted = localAnnotationSort(ctx, perPartStatsSamples, sortFields, newKType)
     // TODO: Clearly a terrible way to find min and max
@@ -240,6 +244,9 @@ object LowerDistributedSort {
         ReadPartition(fileName, spec._vType, reader)
       }
     })
+
+
+    // At this point, we have to check if we should stop now and do a local sort, or continue again by doing another sample and reshuffle.
 
     val res = myTS.mapCollect(Map.empty[String, IR]){ part =>
       sortIR(part) { (refLeft, refRight) => ApplyComparisonOp(LT(newKType), SelectFields(refLeft, newKType.fields.map(_.name)), SelectFields(refRight, newKType.fields.map(_.name))) }
