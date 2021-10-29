@@ -21,6 +21,20 @@ Step 2 does **not** act on service accounts that just underwent Step 1 because
 the old keys might still be in use by active pods/jobs. We assume that no
 pod/job will run for longer than 30 days.
 
+We consider the "active" key for a service account to be the key stored in a
+k8s secret. If no secret is associated with a service account, we take the active
+key to be the most recently created user-managed[^1] key. We then consider
+service accounts to be in one of four states:
+
+- Expired: The active key in Kubernetes is older than 90 days and should be
+rotated immediately.
+- In Progress: The active key was created in the past 30 days and there exist
+old keys that may still be in use.
+- Ready for Delete: The active key was created more than 30 days ago and there
+exist old keys that can be safely deleted.
+- Up to Date: The active key is valid and there are no redundant keys.
+
+
 ## Rotating keys
 
 Make sure that you are first authenticated with the correct GCP project by
@@ -43,6 +57,8 @@ The script's initial output shows the following:
   can be OK, such as with the terraform service account. However, any user
   accounts should not be in this category, and it might indicate that they
   weren't properly deleted.
+
+Each service account is listed with its rotation state.
 
 NOTE: `rotate_keys.py` *only* checks secrets with a `key.json` field. This
 is an invariant of `auth` and `terraform`-created accounts, but might not catch
@@ -77,8 +93,11 @@ Remember to complete this step no sooner than 2 days after updating keys.
 
 The `delete` flow steps through each service account similarly to the update
 flow. Entering `yes` for a particular service account will delete all
-user-managed[^1] keys belonging to the service account except for the most
-recently created key.
+user-managed keys belonging to the service account except for the most
+recently created key. The script will allow deletion of old keys for service
+accounts in the Ready for Delete or In Progress state, though the latter requires
+additional confirmation to prove you are confident that old keys are not still
+in use.
 Continue until all old service/user keys have been deleted.
 
 [^1]: All GSA keys that we create are considered "user-managed". We are responsible
