@@ -15,6 +15,8 @@ import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.utils._
 import org.apache.spark.sql.Row
 
+import scala.collection.mutable.ArrayBuffer
+
 object LowerDistributedSort {
   def localSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField], relationalLetsAbove: Map[String, IR]): TableStage = {
     val numPartitions = stage.partitioner.numPartitions
@@ -153,8 +155,6 @@ object LowerDistributedSort {
     val perPartStatsMaxes = perPartStatsA.map(r => r(1))
     val perPartStatsSamples = perPartStatsA.map(r => r(2).asInstanceOf[IndexedSeq[Annotation]]).flatten
 
-    // TODO: This is the old key type, need to compute the new key type based on sortFields.
-    //val kType = perPartStatsType.elementType.asInstanceOf[PStruct].fieldType("samples").asInstanceOf[PArray].elementType.virtualType.asInstanceOf[TStruct]
     val sorted = localAnnotationSort(ctx, perPartStatsSamples, sortFields, newKType)
     // TODO: Clearly a terrible way to find min and max
     val min = localAnnotationSort(ctx, perPartStatsMins, sortFields, newKType)(0)
@@ -192,32 +192,60 @@ object LowerDistributedSort {
     val resultAddress = ctx.timer.time("LowerDistributedSort.localSort.run")(fRunnable(ctx.r))
     val splitsPerOriginalPartition = ctx.timer.time("LowerDistributedSort.localSort.toJavaObject")(SafeRow.read(resultPType, resultAddress)).asInstanceOf[IndexedSeq[IndexedSeq[Annotation]]]
 
-    splitsPerOriginalPartition.map { splitsUntyped =>
-      val splits = splitsUntyped.asInstanceOf[IndexedSeq[Row]]
-      println(splits)
+    // Splits per original partition is a numPartitions length array of arrays, where each inner array tells me what
+    // files were written to for each segment, as well as the number of entries in that file.
+
+    // I want the transpose of this, so that I have an array of information per segment.
+    val dataPerSegment = (0 until pivotsWithEndpoints.length - 1).map { idxOfPartitionBeingCreated =>
+      splitsPerOriginalPartition.map(inner => inner(idxOfPartitionBeingCreated)).asInstanceOf[IndexedSeq[Row]]
     }
 
-    val filesToReadForEachPartition = (0 until pivotsWithEndpoints.length - 1).map { idxOfPartitionBeingCreated =>
-      val dataForThisPartition = splitsPerOriginalPartition.map(inner => inner(idxOfPartitionBeingCreated))
-      dataForThisPartition.map(row => row.asInstanceOf[Row](1).asInstanceOf[String])
-    }
-    val filesToReadForEachPartitionLiteral = Literal(TArray(TArray(TString)), filesToReadForEachPartition)
+    // Now I need to figure out how many partitions to allocate to each segment.
+    val sizeOfSegments = dataPerSegment.map{ oneSegmentData => oneSegmentData.map(chunkData => chunkData(2)).asInstanceOf[IndexedSeq[Int]].sum}
+    val totalNumberOfRows = sizeOfSegments.sum
+    val idealNumberOfRowsPerPart = totalNumberOfRows / inputStage.numPartitions
+    assert(idealNumberOfRowsPerPart > 0)
 
-    // Next, read and local sort the individual files.
+    val partitionsOfSegmentIdxAndFilenames = dataPerSegment.zipWithIndex.flatMap { case (oneSegmentData, segmentIdx) =>
+      val chunkDataSizes = oneSegmentData.map(chunkData => chunkData(2)).asInstanceOf[IndexedSeq[Int]]
+      val oneSegmentSize = chunkDataSizes.sum
+      val numParts = (oneSegmentSize + idealNumberOfRowsPerPart - 1) / idealNumberOfRowsPerPart
+      // For now, let's just start a new partition every time we reach enough data to be greater than idealNumberOfRowsPerPart
+      var seenSoFar = 0
+      val groupedIntoParts = new ArrayBuffer[(Int, IndexedSeq[String])](numParts)
+      val currentFiles = new ArrayBuffer[String]()
+      oneSegmentData.foreach { chunkData =>
+        val chunkSize = chunkData(2).asInstanceOf[Int]
+        currentFiles.append(chunkData(1).asInstanceOf[String])
+        seenSoFar += chunkSize
+        if (seenSoFar > idealNumberOfRowsPerPart) {
+          groupedIntoParts.append((segmentIdx, currentFiles.result().toIndexedSeq))
+          currentFiles.clear()
+          seenSoFar = 0
+        }
+      }
+      if (!currentFiles.isEmpty) {
+        groupedIntoParts.append((segmentIdx, currentFiles.result().toIndexedSeq))
+      }
+      groupedIntoParts.result()
+    }
+
+    // Ok, we've picked our new partitioning. Now we are back at the beginning.
     val reader = PartitionNativeReader(spec)
+    val partitioner = new RVDPartitioner(newKType, splitsPerOriginalPartition(0).map(row => row.asInstanceOf[Row](0).asInstanceOf[Interval]))
+    val partitionOfSegmentIdxAndFilenamesLiteral = Literal(TArray(TTuple(TInt32, TArray(TString))), partitionsOfSegmentIdxAndFilenames.map(tuple => Row(tuple._1, tuple._2)))
+    val myTS = TableStage(MakeStruct(Seq.empty[(String, IR)]), partitioner, TableStageDependency.none, ToStream(partitionOfSegmentIdxAndFilenamesLiteral), { oneCtx =>
+      // Take a context, extract specifically the array of files, turn to stream, flatmap read over it.
+      flatMapIR(ToStream(GetTupleElement(oneCtx, 1))){ fileName =>
+        ReadPartition(fileName, spec._vType, reader)
+      }
+    })
 
-    val seqOfSortedPartitionsIR = mapIR(StreamRange(0, pivotsWithEndpoints.length - 1, 1)) { idxOfPartitionBeingCreated =>
-      val filesForThisPartition = ArrayRef(filesToReadForEachPartitionLiteral, idxOfPartitionBeingCreated)
-      sortIR(flatMapIR(ToStream(filesForThisPartition)) { path =>
-        ReadPartition(path, spec._vType, reader)
-      }){ (refLeft, refRight) => ApplyComparisonOp(LT(newKType), SelectFields(refLeft, newKType.fields.map(_.name)), SelectFields(refRight, newKType.fields.map(_.name))) }
+    val res = myTS.mapCollect(Map.empty[String, IR]){ part =>
+      sortIR(part) { (refLeft, refRight) => ApplyComparisonOp(LT(newKType), SelectFields(refLeft, newKType.fields.map(_.name)), SelectFields(refRight, newKType.fields.map(_.name))) }
     }
 
-    val partitioner = new RVDPartitioner(newKType, splitsPerOriginalPartition(0).map(row => row.asInstanceOf[Row](0).asInstanceOf[Interval]))
-    val contexts = seqOfSortedPartitionsIR
-    val sortedTS = TableStage(MakeStruct(Seq.empty[(String, IR)]), partitioner, TableStageDependency.none, contexts, x => ToStream(x))
-
-    sortedTS.collectWithGlobals(Map.empty[String, IR])
+    res
   }
 
   def howManySamplesPerPartition(rand: IRRandomness, totalNumberOfRecords: Int, initialNumSamplesToSelect: Int, partitionCounts: IndexedSeq[Int]): IndexedSeq[Int] = {
