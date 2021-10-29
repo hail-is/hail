@@ -1,4 +1,3 @@
-import sys
 import argparse
 from hailtop.utils import async_to_blocking
 from gear import Database, transaction

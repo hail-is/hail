@@ -2,7 +2,6 @@ import json
 import logging
 import asyncio
 import pytest
-import aiohttp
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import service_auth_headers
