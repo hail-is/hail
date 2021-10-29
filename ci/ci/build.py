@@ -14,7 +14,7 @@ from .environment import (
     CI_UTILS_IMAGE,
     BUILDKIT_IMAGE,
     DEFAULT_NAMESPACE,
-    BUCKET,
+    STORAGE_URI,
     CLOUD,
 )
 from .globals import is_test_deployment
@@ -273,7 +273,7 @@ class BuildImage2Step(Step):
         if self.inputs:
             input_files = []
             for i in self.inputs:
-                input_files.append((f'gs://{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', i["to"]))
+                input_files.append((f'{STORAGE_URI}/build/{batch.attributes["token"]}{i["from"]}', i["to"]))
         else:
             input_files = None
 
@@ -456,14 +456,14 @@ class RunImageStep(Step):
         if self.inputs:
             input_files = []
             for i in self.inputs:
-                input_files.append((f'gs://{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', i["to"]))
+                input_files.append((f'{STORAGE_URI}/build/{batch.attributes["token"]}{i["from"]}', i["to"]))
         else:
             input_files = None
 
         if self.outputs:
             output_files = []
             for o in self.outputs:
-                output_files.append((o["from"], f'gs://{BUCKET}/build/{batch.attributes["token"]}{o["to"]}'))
+                output_files.append((o["from"], f'{STORAGE_URI}/build/{batch.attributes["token"]}{o["to"]}'))
         else:
             output_files = None
 
@@ -955,15 +955,15 @@ EOF
         input_files = []
         if self.inputs:
             for i in self.inputs:
-                input_files.append((f'gs://{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', i["to"]))
+                input_files.append((f'{STORAGE_URI}/build/{batch.attributes["token"]}{i["from"]}', i["to"]))
 
         if not self.cant_create_database:
             password_files_input = [
                 (
-                    f'gs://{BUCKET}/build/{batch.attributes["token"]}/{self.admin_password_file}',
+                    f'{STORAGE_URI}/build/{batch.attributes["token"]}/{self.admin_password_file}',
                     self.admin_password_file,
                 ),
-                (f'gs://{BUCKET}/build/{batch.attributes["token"]}/{self.user_password_file}', self.user_password_file),
+                (f'{STORAGE_URI}/build/{batch.attributes["token"]}/{self.user_password_file}', self.user_password_file),
             ]
             input_files.extend(password_files_input)
 

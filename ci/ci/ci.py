@@ -26,7 +26,7 @@ from gear import (
 from typing import Dict, Any, Optional, List
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 
-from .environment import BUCKET
+from .environment import STORAGE_URI
 from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch, MergeFailureBatch, PR, select_random_teammate
 from .constants import AUTHORIZED_USERS, TEAMS
 
@@ -126,7 +126,9 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
                 j['duration'] = humanize_timedelta_msecs(j['duration'])
             page_context['batch'] = status
             page_context['jobs'] = jobs
-            page_context['artifacts'] = f'/{BUCKET}/build/{batch.attributes["token"]}'
+            artifacts_uri = f'{STORAGE_URI}/build/{batch.attributes["token"]}'
+            page_context['artifacts_uri'] = artifacts_uri
+            page_context['artifacts_url'] = storage_uri_to_url(artifacts_uri)
         else:
             page_context['exception'] = '\n'.join(
                 traceback.format_exception(None, batch.exception, batch.exception.__traceback__)
@@ -139,6 +141,12 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
     page_context['history'] = [await b.last_known_status() for b in batches]
 
     return await render_template('ci', request, userdata, 'pr.html', page_context)
+
+
+def storage_uri_to_url(uri: str) -> str:
+    assert uri.startswith('gs://')
+    path = uri.split('gs://')[1]
+    return f'https://console.cloud.google.com/storage/browser/{path}'
 
 
 async def retry_pr(wb, pr, request):
