@@ -232,9 +232,11 @@ resource "kubernetes_secret" "global_config" {
   data = {
     cloud = "gcp"
     batch_gcp_regions = var.batch_gcp_regions
-    batch_logs_bucket = module.batch_logs.name
+    batch_logs_bucket = module.batch_logs.name  # Deprecated
+    batch_logs_storage_uri = "gs://${module.batch_logs.name}"
     hail_query_gcs_path = "gs://${module.hail_query.name}"
-    hail_test_gcs_bucket = module.hail_test_gcs_bucket.name
+    hail_test_gcs_bucket = module.hail_test_gcs_bucket.name # Deprecated
+    test_storage_uri = "gs://${module.hail_test_gcs_bucket.name}"
     default_namespace = "default"
     docker_root_image = local.docker_root_image
     domain = var.domain

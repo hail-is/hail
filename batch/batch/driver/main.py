@@ -44,7 +44,7 @@ from ..batch import cancel_batch_in_db
 from ..batch_configuration import (
     REFRESH_INTERVAL_IN_SECONDS,
     DEFAULT_NAMESPACE,
-    BATCH_BUCKET_NAME,
+    BATCH_STORAGE_URI,
     HAIL_SHA,
     HAIL_SHOULD_PROFILE,
     HAIL_SHOULD_CHECK_INVARIANTS,
@@ -606,7 +606,8 @@ async def freeze_batch(request, userdata):  # pylint: disable=unused-argument
     await db.execute_update(
         '''
 UPDATE globals SET frozen = 1;
-''')
+'''
+    )
 
     app['frozen'] = True
 
@@ -630,7 +631,8 @@ async def unfreeze_batch(request, userdata):  # pylint: disable=unused-argument
     await db.execute_update(
         '''
 UPDATE globals SET frozen = 0;
-''')
+'''
+    )
 
     app['frozen'] = False
 
@@ -922,6 +924,7 @@ WHERE state = 'running' AND cancel_after_n_failures IS NOT NULL AND n_failed >= 
     async for batch in records:
         await _cancel_batch(app, batch['id'])
 
+
 USER_CORES = pc.Gauge('batch_user_cores', 'Batch user cores', ['state', 'user', 'inst_coll'])
 USER_JOBS = pc.Gauge('batch_user_jobs', 'Batch user jobs', ['state', 'user', 'inst_coll'])
 FREE_CORES = pc.Summary('batch_free_cores', 'Batch instance free cores', ['inst_coll'])
@@ -955,19 +958,27 @@ GROUP BY user, inst_coll;
     )
 
     async for record in records:
-        ready_user_cores_labels = StateUserInstCollLabels(state='ready', user=record['user'], inst_coll=record['inst_coll'])
+        ready_user_cores_labels = StateUserInstCollLabels(
+            state='ready', user=record['user'], inst_coll=record['inst_coll']
+        )
         user_cores[ready_user_cores_labels] += record['ready_cores_mcpu'] / 1000
 
-        running_user_cores_labels = StateUserInstCollLabels(state='running', user=record['user'], inst_coll=record['inst_coll'])
+        running_user_cores_labels = StateUserInstCollLabels(
+            state='running', user=record['user'], inst_coll=record['inst_coll']
+        )
         user_cores[running_user_cores_labels] += record['running_cores_mcpu'] / 1000
 
         ready_jobs_labels = StateUserInstCollLabels(state='ready', user=record['user'], inst_coll=record['inst_coll'])
         user_jobs[ready_jobs_labels] += record['n_ready_jobs']
 
-        running_jobs_labels = StateUserInstCollLabels(state='running', user=record['user'], inst_coll=record['inst_coll'])
+        running_jobs_labels = StateUserInstCollLabels(
+            state='running', user=record['user'], inst_coll=record['inst_coll']
+        )
         user_jobs[running_jobs_labels] += record['n_running_jobs']
 
-        creating_jobs_labels = StateUserInstCollLabels(state='creating', user=record['user'], inst_coll=record['inst_coll'])
+        creating_jobs_labels = StateUserInstCollLabels(
+            state='creating', user=record['user'], inst_coll=record['inst_coll']
+        )
         user_jobs[creating_jobs_labels] += record['n_creating_jobs']
 
     def set_value(gauge, data):
@@ -1106,7 +1117,7 @@ SELECT instance_id, internal_token, frozen FROM globals;
 
     credentials = aiogoogle.GoogleCredentials.from_file('/gsa-key/key.json')
     fs = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
-    app['file_store'] = FileStore(fs, BATCH_BUCKET_NAME, instance_id)
+    app['file_store'] = FileStore(fs, BATCH_STORAGE_URI, instance_id)
 
     zone_monitor = ZoneMonitor(app)
     app['zone_monitor'] = zone_monitor

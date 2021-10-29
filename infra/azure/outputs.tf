@@ -12,6 +12,8 @@ output "global_config" {
       internal_ip = local.internal_ip
       ip = azurerm_public_ip.gateway_ip.ip_address
       kubernetes_server = azurerm_kubernetes_cluster.vdc.fqdn
+      batch_logs_storage_uri = "hail-az://${azurerm_storage_account.batch.name}/${azurerm_storage_container.batch_logs.name}"
+      test_storage_uri = "hail-az://${azurerm_storage_account.test.name}/${azurerm_storage_container.test.name}"
     }
     azure = {
       azure_resource_group = data.azurerm_resource_group.rg.name
@@ -46,6 +48,7 @@ output "acr_push_credentials" {
 output "service_credentials" {
   value = {
     auth      = module.auth_sp.credentials
+    batch     = module.batch_sp.credentials
     benchmark = module.benchmark_sp.credentials
     ci        = module.auth_sp.credentials
     test      = module.test_sp.credentials

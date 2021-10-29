@@ -218,8 +218,8 @@ resource "azurerm_user_assigned_identity" "batch_worker" {
 }
 
 resource "azurerm_role_assignment" "batch_worker" {
-  scope                = data.azurerm_resource_group.rg.id
-  role_definition_name = "acrpull"
+  scope                = azurerm_container_registry.acr.id
+  role_definition_name = "AcrPull"
   principal_id         = azurerm_user_assigned_identity.batch_worker.principal_id
 }
 
@@ -244,6 +244,76 @@ resource "azurerm_shared_image" "batch_worker" {
   }
 }
 
+resource "azurerm_storage_account" "batch" {
+  name                     = "${data.azurerm_resource_group.rg.name}batch"
+  resource_group_name      = data.azurerm_resource_group.rg.name
+  location                 = data.azurerm_resource_group.rg.location
+  account_tier             = "Standard"
+  account_replication_type = "LRS"
+}
+
+resource "azurerm_storage_container" "batch_logs" {
+  name                  = "logs"
+  storage_account_name  = azurerm_storage_account.batch.name
+  container_access_type = "private"
+}
+
+resource "azurerm_role_assignment" "batch_batch_account_contributor" {
+  scope                = azurerm_storage_account.batch.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = module.batch_sp.principal_id
+}
+
+resource "azurerm_role_assignment" "batch_worker_batch_account_contributor" {
+  scope                = azurerm_storage_account.batch.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = azurerm_user_assigned_identity.batch_worker.principal_id
+}
+
+resource "azurerm_storage_account" "test" {
+  name                     = "${data.azurerm_resource_group.rg.name}test"
+  resource_group_name      = data.azurerm_resource_group.rg.name
+  location                 = data.azurerm_resource_group.rg.location
+  account_tier             = "Standard"
+  account_replication_type = "LRS"
+}
+
+resource "azurerm_storage_container" "test" {
+  name                  = "test"
+  storage_account_name  = azurerm_storage_account.test.name
+  container_access_type = "private"
+}
+
+resource "azurerm_storage_management_policy" "test" {
+  storage_account_id = azurerm_storage_account.test.id
+
+  rule {
+    name    = "test-artifacts-retention-1-day"
+    enabled = true
+    filters {
+      prefix_match = [azurerm_storage_container.test.name]
+      blob_types   = ["blockBlob", "appendBlob"]
+    }
+    actions {
+      base_blob {
+        delete_after_days_since_modification_greater_than = 1
+      }
+    }
+  }
+}
+
+resource "azurerm_role_assignment" "batch_test_container_contributor" {
+  scope                = azurerm_storage_container.test.resource_manager_id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = module.batch_sp.principal_id
+}
+
+resource "azurerm_role_assignment" "batch_worker_test_container_contributor" {
+  scope                = azurerm_storage_container.test.resource_manager_id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = azurerm_user_assigned_identity.batch_worker.principal_id
+}
+
 provider "azuread" {}
 
 resource "azuread_application" "auth" {
@@ -263,6 +333,15 @@ module "auth_sp" {
   source = "./service_principal"
   application_id = azuread_application.auth.application_id
   object_id      = azuread_application.auth.object_id
+}
+
+resource "azuread_application" "batch" {
+  display_name = "${data.azurerm_resource_group.rg.name}-batch"
+}
+module "batch_sp" {
+  source = "./service_principal"
+  application_id = azuread_application.batch.application_id
+  object_id      = azuread_application.batch.object_id
 }
 
 resource "azuread_application" "benchmark" {
