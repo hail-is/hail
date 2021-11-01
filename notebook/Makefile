@@ -7,11 +7,13 @@ NOTEBOOK_NGINX_IMAGE := $(DOCKER_PREFIX)/notebook_nginx:$(TOKEN)
 
 EXTRA_PYTHONPATH := ../hail/python:../gear:../web_common
 PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
+BLACK := $(PYTHON) -m black . --line-length=120 --skip-string-normalization
 
 .PHONY: check
 check:
 	$(PYTHON) -m flake8 notebook
 	$(PYTHON) -m pylint --rcfile ../pylintrc notebook --score=n
+	$(BLACK) --check --diff
 	curlylint .
 	bash ../check-sql.sh
 

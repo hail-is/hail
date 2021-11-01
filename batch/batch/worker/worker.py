@@ -99,7 +99,7 @@ INTERNAL_BATCH_DOMAIN = 'batch.hail' if NAMESPACE == 'default' else 'internal.ha
 # ACTIVATION_TOKEN
 IP_ADDRESS = os.environ['IP_ADDRESS']
 INTERNAL_GATEWAY_IP = os.environ['INTERNAL_GATEWAY_IP']
-BATCH_LOGS_BUCKET_NAME = os.environ['BATCH_LOGS_BUCKET_NAME']
+BATCH_LOGS_STORAGE_URI = os.environ['BATCH_LOGS_STORAGE_URI']
 INSTANCE_ID = os.environ['INSTANCE_ID']
 DOCKER_PREFIX = os.environ['DOCKER_PREFIX']
 PUBLIC_IMAGES = publicly_available_images(DOCKER_PREFIX)
@@ -116,7 +116,7 @@ log.info(f'NAME {NAME}')
 log.info(f'NAMESPACE {NAMESPACE}')
 # ACTIVATION_TOKEN
 log.info(f'IP_ADDRESS {IP_ADDRESS}')
-log.info(f'BATCH_LOGS_BUCKET_NAME {BATCH_LOGS_BUCKET_NAME}')
+log.info(f'BATCH_LOGS_STORAGE_URI {BATCH_LOGS_STORAGE_URI}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
 log.info(f'DOCKER_PREFIX {DOCKER_PREFIX}')
 log.info(f'INSTANCE_CONFIG {INSTANCE_CONFIG}')
@@ -866,7 +866,10 @@ class Container:
                     await check_exec_output('crun', 'kill', '--all', self.container_name, 'SIGKILL')
                 except CalledProcessError as e:
                     not_extant_message = (
-                        b'error opening file `/run/crun/' + self.container_name.encode() + b'/status`: No such file or directory')
+                        b'error opening file `/run/crun/'
+                        + self.container_name.encode()
+                        + b'/status`: No such file or directory'
+                    )
                     if not (e.returncode == 1 and not_extant_message in e.stderr):
                         log.exception(f'while deleting container {self}', exc_info=True)
             finally:
@@ -2088,7 +2091,7 @@ class Worker:
         )
 
         fs = get_cloud_async_fs(credentials_file=credentials_file)
-        self.file_store = FileStore(fs, BATCH_LOGS_BUCKET_NAME, INSTANCE_ID)
+        self.file_store = FileStore(fs, BATCH_LOGS_STORAGE_URI, INSTANCE_ID)
 
         self.compute_client = get_compute_client(credentials_file=credentials_file)
 

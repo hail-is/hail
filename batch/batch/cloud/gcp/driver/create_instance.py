@@ -169,7 +169,7 @@ ACTIVATION_TOKEN=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.
 IP_ADDRESS=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip")
 PROJECT=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/project/project-id")
 
-BATCH_LOGS_BUCKET_NAME=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_logs_bucket_name")
+BATCH_LOGS_STORAGE_URI=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_logs_storage_uri")
 INSTANCE_ID=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_id")
 INSTANCE_CONFIG=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_config")
 MAX_IDLE_TIME_MSECS=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/max_idle_time_msecs")
@@ -276,7 +276,7 @@ docker run \
 -e NAMESPACE=$NAMESPACE \
 -e ACTIVATION_TOKEN=$ACTIVATION_TOKEN \
 -e IP_ADDRESS=$IP_ADDRESS \
--e BATCH_LOGS_BUCKET_NAME=$BATCH_LOGS_BUCKET_NAME \
+-e BATCH_LOGS_STORAGE_URI=$BATCH_LOGS_STORAGE_URI \
 -e INSTANCE_ID=$INSTANCE_ID \
 -e DOCKER_PREFIX=$DOCKER_PREFIX \
 -e DOCKER_ROOT_IMAGE=$DOCKER_ROOT_IMAGE \
@@ -334,7 +334,7 @@ journalctl -u docker.service > dockerd.log
                 {'key': 'docker_prefix', 'value': DOCKER_PREFIX},
                 {'key': 'namespace', 'value': DEFAULT_NAMESPACE},
                 {'key': 'internal_ip', 'value': INTERNAL_GATEWAY_IP},
-                {'key': 'batch_logs_bucket_name', 'value': file_store.batch_logs_bucket_name},
+                {'key': 'batch_logs_storage_uri', 'value': file_store.batch_logs_storage_uri},
                 {'key': 'instance_id', 'value': file_store.instance_id},
                 {'key': 'max_idle_time_msecs', 'value': max_idle_time_msecs},
             ]

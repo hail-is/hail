@@ -73,7 +73,7 @@ from ..inst_coll_config import InstanceCollectionConfigs
 from ..file_store import FileStore
 from ..database import CallError, check_call_procedure
 from ..batch_configuration import BATCH_BUCKET_NAME, DEFAULT_NAMESPACE, SCOPE, CLOUD
-from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION
+from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION, memory_to_worker_type
 from ..spec_writer import SpecWriter
 from ..batch_format_version import BatchFormatVersion
 
@@ -330,7 +330,8 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
     if state == 'Running':
         try:
             resp = await request_retry_transient_errors(
-                client_session, 'GET', f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
+                client_session, 'GET', f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log'
+            )
             return await resp.json()
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
@@ -467,7 +468,8 @@ async def _get_full_job_status(app, record):
     ip_address = record['ip_address']
     try:
         resp = await request_retry_transient_errors(
-            client_session, 'GET', f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status')
+            client_session, 'GET', f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status'
+        )
         return await resp.json()
     except aiohttp.ClientResponseError as e:
         if e.status == 404:
@@ -2170,7 +2172,7 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
     app['frozen'] = row['frozen']
 
     fs = get_cloud_async_fs(credentials_file='/gsa-key/key.json')
-    app['file_store'] = FileStore(fs, BATCH_BUCKET_NAME, instance_id)
+    app['file_store'] = FileStore(fs, BATCH_STORAGE_URI, instance_id)
 
     app['inst_coll_configs'] = await InstanceCollectionConfigs.create(db)
 

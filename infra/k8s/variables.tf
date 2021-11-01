@@ -7,6 +7,8 @@ variable "global_config" {
       ip = string,
       kubernetes_server = string,
       docker_prefix = string,
+      batch_logs_storage_uri = string,
+      test_storage_uri = string,
     }),
     azure = map(any)
   })
