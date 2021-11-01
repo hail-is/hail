@@ -1,7 +1,7 @@
 from typing import List, Dict, Any
 
-from ...instance_config import InstanceConfig, is_power_two
-from .resource_utils import gcp_machine_type_to_dict
+from ...instance_config import InstanceConfig, is_power_two, QuantifiedResource
+from .resource_utils import gcp_machine_type_to_parts
 
 
 GCP_INSTANCE_CONFIG_VERSION = 4
@@ -24,11 +24,11 @@ class GCPSlimInstanceConfig(InstanceConfig):
         self.job_private = job_private
         self.boot_disk_size_gb = boot_disk_size_gb
 
-        machine_type_parts = gcp_machine_type_to_dict(self._machine_type)
+        machine_type_parts = gcp_machine_type_to_parts(self._machine_type)
         assert machine_type_parts is not None, machine_type
-        self._instance_family = machine_type_parts['machine_family']
-        self._worker_type = machine_type_parts['machine_type']
-        self.cores = machine_type_parts['cores']
+        self._instance_family = machine_type_parts.machine_family
+        self._worker_type = machine_type_parts.machine_type
+        self.cores = machine_type_parts.cores
 
     def worker_type(self) -> str:
         return self._worker_type
@@ -73,7 +73,11 @@ class GCPSlimInstanceConfig(InstanceConfig):
             'job_private': self.job_private
         }
 
-    def resources(self, cpu_in_mcpu: int, memory_in_bytes: int, extra_storage_in_gib: int) -> List[Dict[str, Any]]:
+    def resources(self,
+                  cpu_in_mcpu: int,
+                  memory_in_bytes: int,
+                  extra_storage_in_gib: int,
+                  ) -> List[QuantifiedResource]:
         assert memory_in_bytes % (1024 * 1024) == 0, memory_in_bytes
         assert isinstance(extra_storage_in_gib, int), extra_storage_in_gib
 

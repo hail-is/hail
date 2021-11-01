@@ -28,21 +28,30 @@ gcp_memory_to_worker_type = {
 }
 
 
-def gcp_machine_type_to_dict(machine_type: str) -> Optional[Dict[str, Any]]:
+class MachineTypeParts:
+    @staticmethod
+    def from_dict(data: dict) -> 'MachineTypeParts':
+        return MachineTypeParts(data['machine_family'], data['worker_type'], int(data['cores']))
+
+    def __init__(self, machine_family: str, worker_type: str, cores: int):
+        self.machine_family = machine_family
+        self.worker_type = worker_type
+        self.cores = cores
+
+
+def gcp_machine_type_to_parts(machine_type: str) -> Optional[MachineTypeParts]:
     match = MACHINE_TYPE_REGEX.fullmatch(machine_type)
     if match is None:
         return match
-    return match.groupdict()
+    return MachineTypeParts.from_dict(match.groupdict())
 
 
 def gcp_machine_type_to_worker_type_and_cores(machine_type: str) -> Tuple[str, int]:
     # FIXME: "WORKER TYPE" IS WRONG OR CONFUSING WHEN THE MACHINE TYPE IS NOT n1!
-    maybe_machine_type_dict = gcp_machine_type_to_dict(machine_type)
-    if maybe_machine_type_dict is None:
+    maybe_machine_type_parts = gcp_machine_type_to_parts(machine_type)
+    if maybe_machine_type_parts is None:
         raise ValueError(f'bad machine_type: {machine_type}')
-    worker_type = maybe_machine_type_dict['machine_type']
-    cores = int(maybe_machine_type_dict['cores'])
-    return (worker_type, cores)
+    return (maybe_machine_type_parts.worker_type, maybe_machine_type_parts.cores)
 
 
 def family_worker_type_cores_to_gcp_machine_type(family: str, worker_type: str, cores: int) -> str:
