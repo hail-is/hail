@@ -67,7 +67,7 @@ class ZoneMonitor(CloudLocationMonitor):
         self._compute_client = compute_client
         self._region_info: Dict[str, Dict[str, Any]] = initial_region_info
         self._regions = regions
-        self._zones: List[str] = initial_zones
+        self.zones: List[str] = initial_zones
         self._default_zone = default_zone
 
         self.zone_success_rate = ZoneSuccessRate()
