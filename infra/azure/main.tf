@@ -397,3 +397,21 @@ module "grafana_sp" {
   application_id = azuread_application.grafana.application_id
   object_id      = azuread_application.grafana.object_id
 }
+
+resource "azurerm_network_security_group" "batch_worker" {
+  name                = "batch-worker-nsg"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+
+  security_rule {
+    name                       = "default-allow-ssh"
+    priority                   = 1000
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "22"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+}
