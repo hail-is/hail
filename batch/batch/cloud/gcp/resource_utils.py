@@ -35,7 +35,7 @@ def gcp_machine_type_to_dict(machine_type: str) -> Optional[Dict[str, Any]]:
     return match.groupdict()
 
 
-def gcp_machine_type_to_worker_type_cores(machine_type: str) -> Tuple[str, int]:
+def gcp_machine_type_to_worker_type_and_cores(machine_type: str) -> Tuple[str, int]:
     # FIXME: "WORKER TYPE" IS WRONG OR CONFUSING WHEN THE MACHINE TYPE IS NOT n1!
     maybe_machine_type_dict = gcp_machine_type_to_dict(machine_type)
     if maybe_machine_type_dict is None:

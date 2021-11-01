@@ -63,7 +63,7 @@ class CloudResourceManager:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def worker_type_cores(self, machine_type: str) -> Tuple[str, int]:
+    def worker_type_and_cores(self, machine_type: str) -> Tuple[str, int]:
         raise NotImplementedError
 
     @abc.abstractmethod

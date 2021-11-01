@@ -16,7 +16,7 @@ from ....instance_config import InstanceConfig
 
 from ..instance_config import GCPSlimInstanceConfig
 from .create_instance import create_vm_config
-from ..resource_utils import (gcp_machine_type_to_worker_type_cores, gcp_worker_memory_per_core_mib,
+from ..resource_utils import (gcp_machine_type_to_worker_type_and_cores, gcp_worker_memory_per_core_mib,
                               family_worker_type_cores_to_gcp_machine_type, GCP_MACHINE_FAMILY)
 
 
@@ -72,8 +72,8 @@ class GCPResourceManager(CloudResourceManager):
         return family_worker_type_cores_to_gcp_machine_type(
             GCP_MACHINE_FAMILY, worker_type, cores)
 
-    def worker_type_cores(self, machine_type: str) -> Tuple[str, int]:
-        return gcp_machine_type_to_worker_type_cores(machine_type)
+    def worker_type_and_cores(self, machine_type: str) -> Tuple[str, int]:
+        return gcp_machine_type_to_worker_type_and_cores(machine_type)
 
     def instance_config(self,
                         machine_type: str,
@@ -113,7 +113,7 @@ class GCPResourceManager(CloudResourceManager):
         if local_ssd_data_disk:
             assert data_disk_size_gb == 375
 
-        worker_type, cores = self.worker_type_cores(machine_type)
+        worker_type, cores = self.worker_type_and_cores(machine_type)
         vm_config = create_vm_config(file_store, resource_rates, location, machine_name,
                                      machine_type, activation_token, max_idle_time_msecs,
                                      local_ssd_data_disk, data_disk_size_gb, boot_disk_size_gb,
