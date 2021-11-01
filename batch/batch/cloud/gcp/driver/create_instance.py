@@ -11,7 +11,7 @@ from ....file_store import FileStore
 from ....instance_config import InstanceConfig
 from ...resource_utils import unreserved_worker_data_disk_size_gib
 
-from ..resource_utils import gcp_machine_type_to_worker_type_cores
+from ..resource_utils import gcp_machine_type_to_worker_type_and_cores
 
 log = logging.getLogger('create_instance')
 
@@ -36,7 +36,7 @@ def create_vm_config(
     project: str,
     instance_config: InstanceConfig,
 ) -> dict:
-    _, cores = gcp_machine_type_to_worker_type_cores(machine_type)
+    _, cores = gcp_machine_type_to_worker_type_and_cores(machine_type)
 
     if worker_local_ssd_data_disk:
         worker_data_disk = {

@@ -7,7 +7,7 @@ from .gcp.resource_utils import (gcp_cost_from_msec_mcpu,
                                  gcp_total_worker_storage_gib,
                                  gcp_unreserved_worker_data_disk_size_gib,
                                  gcp_requested_to_actual_storage_bytes,
-                                 gcp_machine_type_to_worker_type_cores,
+                                 gcp_machine_type_to_worker_type_and_cores,
                                  gcp_valid_machine_types,
                                  gcp_memory_to_worker_type,
                                  gcp_is_valid_storage_request)
@@ -31,7 +31,7 @@ def memory_to_worker_type(cloud: str) -> Dict[str, str]:
 
 def machine_type_to_worker_type_cores(cloud: str, machine_type: str) -> Tuple[str, int]:
     assert cloud == 'gcp'
-    return gcp_machine_type_to_worker_type_cores(machine_type)
+    return gcp_machine_type_to_worker_type_and_cores(machine_type)
 
 
 def cost_from_msec_mcpu(msec_mcpu: int) -> Optional[float]:
