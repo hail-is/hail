@@ -1,6 +1,8 @@
 from typing import Dict
-import os
+import base64
+import json
 import logging
+import os
 from shlex import quote as shq
 
 from gear.cloud_config import get_global_config
@@ -339,7 +341,7 @@ journalctl -u docker.service > dockerd.log
                 {'key': 'batch_logs_storage_uri', 'value': file_store.batch_logs_storage_uri},
                 {'key': 'instance_id', 'value': file_store.instance_id},
                 {'key': 'max_idle_time_msecs', 'value': max_idle_time_msecs},
-                {'key': 'instance_config', 'value': instance_config.to_dict()},
+                {'key': 'instance_config', 'value': base64.b64encode(json.dumps(instance_config.to_dict()).encode()).decode()},
             ]
         },
         'tags': {'items': ["batch2-agent"]},
