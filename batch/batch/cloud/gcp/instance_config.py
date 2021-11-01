@@ -27,7 +27,7 @@ class GCPSlimInstanceConfig(InstanceConfig):
         machine_type_parts = gcp_machine_type_to_parts(self._machine_type)
         assert machine_type_parts is not None, machine_type
         self._instance_family = machine_type_parts.machine_family
-        self._worker_type = machine_type_parts.machine_type
+        self._worker_type = machine_type_parts.worker_type
         self.cores = machine_type_parts.cores
 
     def worker_type(self) -> str:
