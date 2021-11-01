@@ -29,6 +29,19 @@ variable "use_artifact_registry" {
   description = "pull the ubuntu image from Artifact Registry. Otherwise, GCR"
 }
 
+variable "ci_config" {
+  type = object({
+    github_oauth_token = string
+    github_user1_oauth_token = string
+    watched_branches = list(tuple([string, bool, bool]))
+    deploy_steps = list(string)
+    bucket_location = string
+    bucket_storage_class = string
+    github_context = string
+  })
+  default = null
+}
+
 locals {
   docker_prefix = (
     var.use_artifact_registry ?
@@ -457,6 +470,18 @@ module "test_gsa_secret" {
   ]
 }
 
+resource "google_storage_bucket_iam_member" "test_bucket_admin" {
+  bucket = module.hail_test_gcs_bucket.name
+  role = "roles/storage.admin"
+  member = "serviceAccount:${module.test_gsa_secret.email}"
+}
+
+resource "google_storage_bucket_iam_member" "test_gcr_viewer" {
+  bucket = google_container_registry.registry.id
+  role = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.test_gsa_secret.email}"
+}
+
 module "test_dev_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "test-dev"
@@ -603,4 +628,20 @@ resource "kubernetes_secret" "auth_oauth2_client_secret" {
   data = {
     "client_secret.json" = file("~/.hail/auth_oauth2_client_secret.json")
   }
+}
+
+module "ci" {
+  source = "./ci"
+  count = var.ci_config != null ? 1 : 0
+
+  github_oauth_token = var.ci_config.github_oauth_token
+  github_user1_oauth_token = var.ci_config.github_user1_oauth_token
+  watched_branches = var.ci_config.watched_branches
+  deploy_steps = var.ci_config.deploy_steps
+  bucket_location = var.ci_config.bucket_location
+  bucket_storage_class = var.ci_config.bucket_storage_class
+
+  ci_email = module.ci_gsa_secret.email
+  container_registry_id = google_container_registry.registry.id
+  github_context = var.ci_config.github_context
 }
