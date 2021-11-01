@@ -86,10 +86,10 @@ class ZoneMonitor(CloudLocationMonitor):
         zones = [zw.zone for zw in zone_weights]
 
         zone_prob_weights = [
-            min(zw.weight, 10) * self._zone_success_rate.zone_success_rate(zw.zone) for zw in zone_weights
+            min(zw.weight, 10) * self.zone_success_rate.zone_success_rate(zw.zone) for zw in zone_weights
         ]
 
-        log.info(f'zone_success_rate {self._zone_success_rate}')
+        log.info(f'zone_success_rate {self.zone_success_rate}')
         log.info(f'zone_prob_weights {zone_prob_weights}')
 
         zone = random.choices(zones, zone_prob_weights)[0]
@@ -122,7 +122,7 @@ class ZoneMonitor(CloudLocationMonitor):
         return weights
 
     async def update_region_quotas(self):
-        self._region_info, self._zones = await fetch_region_quotas(
+        self._region_info, self.zones = await fetch_region_quotas(
             self._compute_client, self._regions)
         log.info('updated region quotas')
 

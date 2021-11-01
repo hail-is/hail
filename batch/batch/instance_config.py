@@ -1,4 +1,5 @@
-from typing import TypedDict, Dict, List
+from typing import Dict, List
+from typing_extensions import TypedDict
 import abc
 
 from .cloud.resource_utils import cores_mcpu_to_memory_bytes
