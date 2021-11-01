@@ -72,8 +72,8 @@ from ..exceptions import (
 from ..inst_coll_config import InstanceCollectionConfigs
 from ..file_store import FileStore
 from ..database import CallError, check_call_procedure
-from ..batch_configuration import BATCH_BUCKET_NAME, DEFAULT_NAMESPACE, SCOPE, CLOUD
-from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION, memory_to_worker_type
+from ..batch_configuration import BATCH_STORAGE_URI, DEFAULT_NAMESPACE, SCOPE, CLOUD
+from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION
 from ..spec_writer import SpecWriter
 from ..batch_format_version import BatchFormatVersion
 

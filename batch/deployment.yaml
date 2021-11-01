@@ -107,6 +107,11 @@ spec:
               secretKeyRef:
                 name: global-config
                 key: cloud
+          - name: INTERNAL_GATEWAY_IP
+            valueFrom:
+              secretKeyRef:
+                name: global-config
+                key: internal_ip
          - name: HAIL_SHA
            value: "{{ code.sha }}"
 {% if scope != "test" %}
@@ -280,6 +285,11 @@ spec:
               secretKeyRef:
                 name: global-config
                 key: cloud
+          - name: INTERNAL_GATEWAY_IP
+            valueFrom:
+              secretKeyRef:
+                name: global-config
+                key: internal_ip
          - name: HAIL_SHA
            value: "{{ code.sha }}"
          - name: HAIL_SCOPE
