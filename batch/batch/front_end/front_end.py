@@ -2189,7 +2189,10 @@ async def on_cleanup(app):
         try:
             await app['client_session'].close()
         finally:
-            await app['file_store'].close()
+            try:
+                await app['file_store'].close()
+            finally:
+                await app['db'].async_close()
 
 
 def run():
