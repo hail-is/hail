@@ -172,8 +172,6 @@ PROJECT=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/
 BATCH_LOGS_STORAGE_URI=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_logs_storage_uri")
 INSTANCE_ID=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_id")
 INSTANCE_CONFIG=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_config")
-LOCATION=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/location")
-PROJECT=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/project")
 MAX_IDLE_TIME_MSECS=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/max_idle_time_msecs")
 NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
 ZONE=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
@@ -280,11 +278,11 @@ docker run \
 -e IP_ADDRESS=$IP_ADDRESS \
 -e BATCH_LOGS_STORAGE_URI=$BATCH_LOGS_STORAGE_URI \
 -e INSTANCE_ID=$INSTANCE_ID \
+-e PROJECT=$PROJECT \
+-e LOCATION=$ZONE \
 -e DOCKER_PREFIX=$DOCKER_PREFIX \
 -e DOCKER_ROOT_IMAGE=$DOCKER_ROOT_IMAGE \
 -e INSTANCE_CONFIG=$INSTANCE_CONFIG \
--e LOCATION=$LOCATION \
--e PROJECT=$PROJECT \
 -e MAX_IDLE_TIME_MSECS=$MAX_IDLE_TIME_MSECS \
 -e BATCH_WORKER_IMAGE=$BATCH_WORKER_IMAGE \
 -e BATCH_WORKER_IMAGE_ID=$BATCH_WORKER_IMAGE_ID \
@@ -342,8 +340,6 @@ journalctl -u docker.service > dockerd.log
                 {'key': 'instance_id', 'value': file_store.instance_id},
                 {'key': 'max_idle_time_msecs', 'value': max_idle_time_msecs},
                 {'key': 'instance_config', 'value': instance_config},
-                {'key': 'location', 'value': zone},
-                {'key': 'project', 'value': project},
             ]
         },
         'tags': {'items': ["batch2-agent"]},
