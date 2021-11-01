@@ -58,6 +58,7 @@ async def pr_config(app, pr: PR) -> Dict[str, Any]:
         # FIXME generate links to the merge log
         'batch_id': pr.batch.id if pr.batch and hasattr(pr.batch, 'id') else None,
         'build_state': build_state,
+        'source_branch_name': pr.source_branch.name,
         'review_state': pr.review_state,
         'author': pr.author,
         'assignees': pr.assignees,
