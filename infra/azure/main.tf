@@ -211,6 +211,24 @@ resource "tls_self_signed_cert" "db_client_cert" {
   ]
 }
 
+resource "azurerm_network_security_group" "batch_worker" {
+  name                = "batch-worker-nsg"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+
+  security_rule {
+    name                       = "default-allow-ssh"
+    priority                   = 1000
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "22"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+}
+
 resource "azurerm_user_assigned_identity" "batch_worker" {
   name                = "batch-worker"
   resource_group_name = data.azurerm_resource_group.rg.name
@@ -396,22 +414,4 @@ module "grafana_sp" {
   source = "./service_principal"
   application_id = azuread_application.grafana.application_id
   object_id      = azuread_application.grafana.object_id
-}
-
-resource "azurerm_network_security_group" "batch_worker" {
-  name                = "batch-worker-nsg"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-
-  security_rule {
-    name                       = "default-allow-ssh"
-    priority                   = 1000
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "22"
-    source_address_prefix      = "*"
-    destination_address_prefix = "*"
-  }
 }
