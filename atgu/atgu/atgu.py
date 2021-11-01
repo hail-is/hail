@@ -362,7 +362,10 @@ async def on_cleanup(app):
     try:
         await app['storage_client'].close()
     finally:
-        await app['client_session'].close()
+        try:
+            await app['client_session'].close()
+        finally:
+            await app['db'].async_close()
 
 
 def run():
