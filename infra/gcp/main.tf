@@ -363,7 +363,7 @@ resource "kubernetes_secret" "gcr_push_key" {
 }
 
 module "ukbb" {
-  source = "./ukbb"
+  source = "../ukbb"
 }
 
 module "atgu_gsa_secret" {
