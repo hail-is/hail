@@ -70,7 +70,7 @@ class ZoneMonitor(CloudLocationMonitor):
         self._zones: List[str] = initial_zones
         self._default_zone = default_zone
 
-        self._zone_success_rate = ZoneSuccessRate()
+        self.zone_success_rate = ZoneSuccessRate()
 
     def default_location(self) -> str:
         return self._default_zone
