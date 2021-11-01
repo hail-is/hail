@@ -104,7 +104,10 @@ INSTANCE_ID = os.environ['INSTANCE_ID']
 DOCKER_PREFIX = os.environ['DOCKER_PREFIX']
 PUBLIC_IMAGES = publicly_available_images(DOCKER_PREFIX)
 INSTANCE_CONFIG = json.loads(base64.b64decode(os.environ['INSTANCE_CONFIG']).decode())
-LOCATION = os.environ['LOCATION']
+if CLOUD == 'gcp':
+    LOCATION = os.environ['LOCATION'].rsplit('/', 1)[1]
+else:
+    assert False, (CLOUD, os.environ.get('LOCATION'))
 PROJECT = os.environ['PROJECT']
 MAX_IDLE_TIME_MSECS = int(os.environ['MAX_IDLE_TIME_MSECS'])
 BATCH_WORKER_IMAGE = os.environ['BATCH_WORKER_IMAGE']
