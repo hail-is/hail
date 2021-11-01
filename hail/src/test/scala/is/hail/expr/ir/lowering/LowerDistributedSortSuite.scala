@@ -35,14 +35,19 @@ class LowerDistributedSortSuite extends HailSuite {
     val rangeRow = Ref("row", tableRange.typ.rowType)
     val tableWithExtraField = TableMapRows(
       tableRange,
-      MakeStruct(IndexedSeq("idx" -> GetField(rangeRow, "idx"), "foo" -> Apply("mod", IndexedSeq(), IndexedSeq(GetField(rangeRow, "idx"), I32(2)), TInt32, ErrorIDs.NO_ERROR)))
+      MakeStruct(IndexedSeq(
+        "idx" -> GetField(rangeRow, "idx"),
+        "foo" -> Apply("mod", IndexedSeq(), IndexedSeq(GetField(rangeRow, "idx"), I32(2)), TInt32, ErrorIDs.NO_ERROR),
+        "backwards" -> -GetField(rangeRow, "idx")
+      ))
     )
 
     val myTable = tableWithExtraField
     val req: RequirednessAnalysis = Requiredness(myTable, ctx)
     val rowType = req.lookup(myTable).asInstanceOf[RTable].rowType
     val stage = LowerTableIR.applyTable(myTable, DArrayLowering.All, ctx, req, Map.empty[String, IR])
-    val sortFields = IndexedSeq[SortField](SortField("foo", Ascending), SortField("idx", Ascending))
+    //val sortFields = IndexedSeq[SortField](SortField("foo", Ascending), SortField("idx", Ascending))
+    val sortFields = IndexedSeq[SortField](SortField("backwards", Ascending))
     val distSort = LowerDistributedSort.distributedSort(ctx, stage, sortFields, Map.empty[String, IR], rowType)
     val res = TestUtils.eval(distSort)
     println(res)
