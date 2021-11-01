@@ -336,16 +336,14 @@ steps:
           | kubectl -n {{ default_ns.name }} apply -f -
 
       # worker deploy config
-      if [[ "{{ global.cloud }}" == "gcp" ]]
-      then
-          LOCATION="gce"
-      elif [[ "{{ global.cloud }}" == "azure" ]]
-      then
-          LOCATION="azure"
-      else
-          echo "unknown cloud: {{ global.cloud }}"
-          exit 1
-      fi
+      {% if global.cloud == "gcp" %}
+        LOCATION="gce"
+      {% elif global.cloud == "azure" %}
+        LOCATION="azure"
+      {% else %}
+        echo "unknown cloud: {{ global.cloud }}"
+        exit 1
+      {% endif %}
 
       cat > deploy-config.json <<EOF
       {"location":"$LOCATION","default_namespace":"{{ default_ns.name }}","domain":"{{ global.domain }}"}
