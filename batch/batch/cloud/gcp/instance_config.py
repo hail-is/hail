@@ -101,7 +101,7 @@ class GCPSlimInstanceConfig(InstanceConfig):
             {'name': data_disk_name, 'quantity': self.data_disk_size_gb * worker_fraction_in_1024ths})
 
         resources.append(
-            {'name': 'dsik/pd-ssd/1', 'quantity': self.boot_disk_size_gb})
+            {'name': 'disk/pd-ssd/1', 'quantity': self.boot_disk_size_gb})
 
         resources.append({'name': 'service-fee/1', 'quantity': cpu_in_mcpu})
 
