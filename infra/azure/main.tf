@@ -213,8 +213,8 @@ resource "tls_self_signed_cert" "db_client_cert" {
 
 resource "azurerm_network_security_group" "batch_worker" {
   name                = "batch-worker-nsg"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
+  location            = data.azurerm_resource_group.rg.location
+  resource_group_name = data.azurerm_resource_group.rg.name
 
   security_rule {
     name                       = "default-allow-ssh"
