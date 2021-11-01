@@ -266,7 +266,7 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
         machine_type = machine_spec['machine_type']
         preemptible = machine_spec['preemptible']
         storage_gb = machine_spec['storage_gib']
-        _, cores = self.resource_manager.worker_type_cores(machine_type)
+        _, cores = self.resource_manager.worker_type_and_cores(machine_type)
         instance, total_resources_on_instance = await self._create_instance(
             app=self.app,
             cores=cores,

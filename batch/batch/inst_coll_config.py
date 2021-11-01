@@ -22,16 +22,12 @@ log = logging.getLogger('inst_coll_config')
 def instance_config_from_pool_config(pool_config: 'PoolConfig') -> InstanceConfig:
     cloud = pool_config.cloud
     assert cloud == 'gcp'
-    if pool_config.worker_local_ssd_data_disk:
-        data_disk_size_gb = 375
-    else:
-        data_disk_size_gb = pool_config.worker_pd_ssd_data_disk_size_gb
     machine_type = family_worker_type_cores_to_gcp_machine_type(
         GCP_MACHINE_FAMILY, pool_config.worker_cores, pool_config.worker_type)
     return GCPSlimInstanceConfig(machine_type=machine_type,
                                  preemptible=True,
                                  local_ssd_data_disk=pool_config.worker_local_ssd_data_disk,
-                                 data_disk_size_gb=data_disk_size_gb,
+                                 data_disk_size_gb=pool_config.data_disk_size_gb,
                                  boot_disk_size_gb=pool_config.boot_disk_size_gb,
                                  job_private=False)
 
@@ -88,6 +84,12 @@ class PoolConfig(InstanceCollectionConfig):
         self.max_live_instances = max_live_instances
 
         self.instance_config = instance_config_from_pool_config(self)
+
+    @property
+    def data_disk_size_gb(self) -> int:
+        if self.worker_local_ssd_data_disk:
+            return 375
+        return self.worker_pd_ssd_data_disk_size_gb
 
     def convert_requests_to_resources(self, cores_mcpu, memory_bytes, storage_bytes):
         storage_gib = requested_storage_bytes_to_actual_storage_gib(self.cloud, storage_bytes, allow_zero_storage=True)

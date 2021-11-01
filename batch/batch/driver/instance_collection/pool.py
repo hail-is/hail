@@ -92,18 +92,18 @@ class Pool(InstanceCollection):
         self.enable_standing_worker = config.enable_standing_worker
         self.standing_worker_cores = config.standing_worker_cores
         self.boot_disk_size_gb = config.boot_disk_size_gb
+        self.data_disk_size_gb = config.data_disk_size_gb
+
+        if self.worker_local_ssd_data_disk:
+            assert self.data_disk_size_gb == 375
+        else:
+            assert self.data_disk_size_gb == self.worker_pd_ssd_data_disk_size_gb
 
         task_manager.ensure_future(self.control_loop())
 
     @property
     def local_ssd_data_disk(self) -> bool:
         return self.worker_local_ssd_data_disk
-
-    @property
-    def data_disk_size_gb(self) -> int:
-        if self.worker_local_ssd_data_disk:
-            return 375
-        return self.worker_pd_ssd_data_disk_size_gb
 
     def _default_location(self) -> str:
         return self.inst_coll_manager.location_monitor.default_location()
