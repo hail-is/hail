@@ -1,4 +1,4 @@
-from typing import List, Dict, Any
+from typing import List
 
 from ...instance_config import InstanceConfig, is_power_two, QuantifiedResource
 from .resource_utils import gcp_machine_type_to_parts
