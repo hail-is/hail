@@ -23,7 +23,7 @@ def instance_config_from_pool_config(pool_config: 'PoolConfig') -> InstanceConfi
     cloud = pool_config.cloud
     assert cloud == 'gcp'
     machine_type = family_worker_type_cores_to_gcp_machine_type(
-        GCP_MACHINE_FAMILY, pool_config.worker_cores, pool_config.worker_type)
+        GCP_MACHINE_FAMILY, pool_config.worker_type, pool_config.worker_cores)
     return GCPSlimInstanceConfig(machine_type=machine_type,
                                  preemptible=True,
                                  local_ssd_data_disk=pool_config.worker_local_ssd_data_disk,
@@ -59,17 +59,17 @@ class PoolConfig(InstanceCollectionConfig):
 
     def __init__(
         self,
-        name,
-        cloud,
-        worker_type,
-        worker_cores,
-        worker_local_ssd_data_disk,
-        worker_pd_ssd_data_disk_size_gb,
-        enable_standing_worker,
-        standing_worker_cores,
+        name: str,
+        cloud: str,
+        worker_type: str,
+        worker_cores: int,
+        worker_local_ssd_data_disk: bool,
+        worker_pd_ssd_data_disk_size_gb: int,
+        enable_standing_worker: bool,
+        standing_worker_cores: int,
         boot_disk_size_gb: int,
-        max_instances,
-        max_live_instances,
+        max_instances: int,
+        max_live_instances: int,
     ):
         self.name = name
         self.cloud = cloud
