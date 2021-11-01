@@ -8,10 +8,10 @@ from gear.cloud_config import get_global_config
 from ....batch_configuration import (DOCKER_ROOT_IMAGE, DOCKER_PREFIX, DEFAULT_NAMESPACE,
                                      INTERNAL_GATEWAY_IP)
 from ....file_store import FileStore
+from ....instance_config import InstanceConfig
 from ...resource_utils import unreserved_worker_data_disk_size_gib
 
 from ..resource_utils import gcp_machine_type_to_worker_type_cores
-from ..instance_config import GCPSlimInstanceConfig
 
 log = logging.getLogger('create_instance')
 
@@ -34,7 +34,7 @@ def create_vm_config(
     preemptible: bool,
     job_private: bool,
     project: str,
-    instance_config: GCPSlimInstanceConfig,
+    instance_config: InstanceConfig,
 ) -> dict:
     _, cores = gcp_machine_type_to_worker_type_cores(machine_type)
 

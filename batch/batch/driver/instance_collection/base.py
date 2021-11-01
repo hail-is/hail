@@ -212,14 +212,14 @@ class InstanceCollection:
 
         machine_name = self.generate_machine_name()
         activation_token = secrets.token_urlsafe(32)
-        cloud_specific_instance_config = self.resource_manager.instance_config(
+        instance_config = self.resource_manager.instance_config(
             machine_type=machine_type,
             preemptible=preemptible,
             local_ssd_data_disk=local_ssd_data_disk,
             data_disk_size_gb=data_disk_size_gb,
             boot_disk_size_gb=boot_disk_size_gb,
             job_private=job_private,
-        ).to_dict()
+        )
         instance = await Instance.create(
             app=app,
             inst_coll=self,
@@ -229,7 +229,7 @@ class InstanceCollection:
             location=location,
             machine_type=machine_type,
             preemptible=True,
-            cloud_specific_instance_config=cloud_specific_instance_config
+            instance_config=instance_config
         )
         self.add_instance(instance)
         total_resources_on_instance = await self.resource_manager.create_vm(
@@ -245,6 +245,7 @@ class InstanceCollection:
             job_private=job_private,
             location=location,
             machine_type=machine_type,
+            instance_config=instance_config,
         )
 
         return (instance, total_resources_on_instance)

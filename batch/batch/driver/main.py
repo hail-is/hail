@@ -1009,7 +1009,6 @@ def monitor_instances(app) -> None:
     resource_rates: Dict[str, float] = app['resource_rates']
     driver: CloudDriver = app['driver']
     inst_coll_manager = driver.inst_coll_manager
-    resource_manager = driver.resource_manager
 
     cost_per_hour: Dict[CostPerHourLabels, List[float]] = defaultdict(list)
     free_cores: Dict[InstCollLabels, List[float]] = defaultdict(list)
@@ -1022,15 +1021,12 @@ def monitor_instances(app) -> None:
             utilized_cores_mcpu = instance.cores_mcpu - max(0, instance.free_cores_mcpu)
 
             if instance.state != 'deleted':
-                instance_config = resource_manager.instance_config_from_dict(
-                    instance.cloud_specific_instance_config)
-
                 actual_cost_per_hour_labels = CostPerHourLabels(measure='actual', inst_coll=instance.inst_coll.name)
-                actual_rate = instance_config.actual_cost_per_hour(resource_rates)
+                actual_rate = instance.instance_config.actual_cost_per_hour(resource_rates)
                 cost_per_hour[actual_cost_per_hour_labels].append(actual_rate)
 
                 billed_cost_per_hour_labels = CostPerHourLabels(measure='billed', inst_coll=instance.inst_coll.name)
-                billed_rate = instance_config.cost_per_hour_from_cores(resource_rates, utilized_cores_mcpu)
+                billed_rate = instance.instance_config.cost_per_hour_from_cores(resource_rates, utilized_cores_mcpu)
                 cost_per_hour[billed_cost_per_hour_labels].append(billed_rate)
 
                 inst_coll_labels = InstCollLabels(inst_coll=instance.inst_coll.name)

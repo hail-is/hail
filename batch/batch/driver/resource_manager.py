@@ -95,6 +95,7 @@ class CloudResourceManager:
                         job_private: bool,
                         location: str,
                         machine_type: str,
+                        instance_config: InstanceConfig,
                         ) -> List[Dict[str, Any]]:
         raise NotImplementedError
 

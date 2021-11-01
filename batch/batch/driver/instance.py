@@ -12,6 +12,8 @@ from gear import Database
 
 from ..database import check_call_procedure
 from ..globals import INSTANCE_VERSION
+from ..instance_config import InstanceConfig
+from ..cloud.utils import instance_config_from_config_dict
 
 log = logging.getLogger('instance')
 
@@ -34,7 +36,8 @@ class Instance:
             record['location'],
             record['machine_type'],
             record['preemptible'],
-            json.loads(record['instance_config']),
+            instance_config_from_config_dict(
+                json.loads(record['instance_config'])),
         )
 
     @staticmethod
@@ -46,7 +49,7 @@ class Instance:
                      location: str,
                      machine_type: str,
                      preemptible: bool,
-                     cloud_specific_instance_config: dict,
+                     instance_config: InstanceConfig,
                      ) -> 'Instance':
         db: Database = app['db']
 
@@ -76,7 +79,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 inst_coll.name,
                 machine_type,
                 preemptible,
-                json.dumps(cloud_specific_instance_config),
+                json.dumps(instance_config.to_dict()),
             ),
         )
         return Instance(
@@ -94,7 +97,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
             location,
             machine_type,
             preemptible,
-            cloud_specific_instance_config,
+            instance_config,
         )
 
     def __init__(
@@ -113,7 +116,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         location: str,
         machine_type: str,
         preemptible: bool,
-        cloud_specific_instance_config: dict,
+        instance_config: InstanceConfig,
     ):
         self.db: Database = app['db']
         self.client_session: httpx.ClientSession = app['client_session']
@@ -131,7 +134,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         self.location = location
         self.machine_type = machine_type
         self.preemptible = preemptible
-        self.cloud_specific_instance_config = cloud_specific_instance_config
+        self.instance_config = instance_config
 
     @property
     def state(self):

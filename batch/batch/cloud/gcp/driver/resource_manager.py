@@ -12,6 +12,7 @@ from ....driver.resource_manager import (CloudResourceManager, VMDoesNotExist, V
                                          UnknownVMState, VMStateCreating, VMStateRunning,
                                          VMStateTerminated)
 from ....driver.instance import Instance
+from ....instance_config import InstanceConfig
 
 from ..instance_config import GCPSlimInstanceConfig
 from .create_instance import create_vm_config
@@ -107,19 +108,12 @@ class GCPResourceManager(CloudResourceManager):
                         job_private: bool,
                         location: str,
                         machine_type: str,
+                        instance_config: InstanceConfig,
                         ) -> List[Dict[str, Any]]:
         if local_ssd_data_disk:
             assert data_disk_size_gb == 375
 
         worker_type, cores = self.worker_type_cores(machine_type)
-        instance_config = GCPSlimInstanceConfig(
-            machine_type,
-            preemptible,
-            local_ssd_data_disk,
-            data_disk_size_gb,
-            boot_disk_size_gb,
-            job_private
-        )
         vm_config = create_vm_config(file_store, resource_rates, location, machine_name,
                                      machine_type, activation_token, max_idle_time_msecs,
                                      local_ssd_data_disk, data_disk_size_gb, boot_disk_size_gb,

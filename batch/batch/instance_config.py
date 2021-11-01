@@ -26,7 +26,7 @@ class InstanceConfig(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def resources(self, cpu_in_mcpu, memory_in_bytes, extra_mounted_storage_in_gib):
+    def resources(self, cpu_in_mcpu, memory_in_bytes, extra_storage_in_gib):
         raise NotImplementedError
 
     def is_valid_configuration(self, valid_resources):
