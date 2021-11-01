@@ -96,7 +96,7 @@ class Pool(InstanceCollection):
         task_manager.ensure_future(self.control_loop())
 
     @property
-    def local_ssd_data_disk(self):
+    def local_ssd_data_disk(self) -> bool:
         return self.worker_local_ssd_data_disk
 
     @property
@@ -219,10 +219,6 @@ WHERE name = %s;
                               location: Optional[str] = None
                               ):
         machine_type = self.resource_manager.machine_type(cores, self.worker_type)
-        if self.worker_local_ssd_data_disk:
-            data_disk_size_gb = 375
-        else:
-            data_disk_size_gb = self.worker_pd_ssd_data_disk_size_gb
         _, _ = await self._create_instance(
             app=self.app,
             cores=cores,
@@ -232,7 +228,7 @@ WHERE name = %s;
             preemptible=True,
             max_idle_time_msecs=max_idle_time_msecs,
             local_ssd_data_disk=self.worker_local_ssd_data_disk,
-            data_disk_size_gb=data_disk_size_gb,
+            data_disk_size_gb=self.data_disk_size_gb,
             boot_disk_size_gb=self.boot_disk_size_gb
         )
 
