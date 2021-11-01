@@ -138,5 +138,4 @@ class GCPResourceManager(CloudResourceManager):
             log.info(f'created machine {machine_name}')
         except Exception:
             log.exception(f'error while creating machine {machine_name}')
-            # FIMXE???? we should not just ignore instance creation failure?!?!?!!?
         return total_resources_on_instance
