@@ -99,13 +99,13 @@ class GCPDriver(CloudDriver):
         self.inst_coll_manager = inst_coll_manager
         self.job_private_inst_manager = job_private_inst_manager
 
-    async def shutdown(self):
+    async def shutdown(self) -> None:
         try:
             await self.compute_client.close()
         finally:
             await self.activity_logs_client.close()
 
-    async def process_activity_logs(self):
+    async def process_activity_logs(self) -> None:
         async def _process_activity_log_events_since(mark):
             return await process_activity_log_events_since(self.db,
                                                            self.inst_coll_manager,
@@ -117,5 +117,5 @@ class GCPDriver(CloudDriver):
 
         await process_outstanding_events(self.db, _process_activity_log_events_since)
 
-    async def delete_orphaned_disks(self):
+    async def delete_orphaned_disks(self) -> None:
         await delete_orphaned_disks(self.compute_client, self.zone_monitor.zones, self.inst_coll_manager, self.namespace)

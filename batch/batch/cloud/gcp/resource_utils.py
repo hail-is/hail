@@ -31,7 +31,7 @@ gcp_memory_to_worker_type = {
 class MachineTypeParts:
     @staticmethod
     def from_dict(data: dict) -> 'MachineTypeParts':
-        return MachineTypeParts(data['machine_family'], data['worker_type'], int(data['cores']))
+        return MachineTypeParts(data['machine_family'], data['machine_type'], int(data['cores']))
 
     def __init__(self, machine_family: str, worker_type: str, cores: int):
         self.machine_family = machine_family
