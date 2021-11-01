@@ -275,8 +275,8 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
             location=None,
             preemptible=preemptible,
             max_idle_time_msecs=None,
-            worker_local_ssd_data_disk=False,
-            worker_pd_ssd_data_disk_size_gb=storage_gb,
+            local_ssd_data_disk=False,
+            data_disk_size_gb=storage_gb,
             boot_disk_size_gb=self.boot_disk_size_gb
         )
 

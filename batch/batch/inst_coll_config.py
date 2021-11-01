@@ -4,6 +4,9 @@ import logging
 
 from gear import Database
 
+from .cloud.gcp.instance_config import GCPSlimInstanceConfig
+from .cloud.gcp.resource_utils import family_worker_type_cores_to_gcp_machine_type, GCP_MACHINE_FAMILY
+from .instance_config import InstanceConfig
 from .cloud.resource_utils import (
     adjust_cores_for_memory_request,
     adjust_cores_for_packability,
@@ -12,9 +15,25 @@ from .cloud.resource_utils import (
     cores_mcpu_to_memory_bytes,
     valid_machine_types,
 )
-from .cloud.utils import instance_config_from_pool_config
 
 log = logging.getLogger('inst_coll_config')
+
+
+def instance_config_from_pool_config(pool_config: 'PoolConfig') -> InstanceConfig:
+    cloud = pool_config.cloud
+    assert cloud == 'gcp'
+    if pool_config.worker_local_ssd_data_disk:
+        data_disk_size_gb = 375
+    else:
+        data_disk_size_gb = pool_config.worker_pd_ssd_data_disk_size_gb
+    machine_type = family_worker_type_cores_to_gcp_machine_type(
+        GCP_MACHINE_FAMILY, pool_config.worker_cores, pool_config.worker_type)
+    return GCPSlimInstanceConfig(machine_type=machine_type,
+                                 preemptible=True,
+                                 local_ssd_data_disk=pool_config.worker_local_ssd_data_disk,
+                                 data_disk_size_gb=data_disk_size_gb,
+                                 boot_disk_size_gb=pool_config.boot_disk_size_gb,
+                                 job_private=False)
 
 
 class PreemptibleNotSupportedError(Exception):

@@ -95,6 +95,16 @@ class Pool(InstanceCollection):
 
         task_manager.ensure_future(self.control_loop())
 
+    @property
+    def local_ssd_data_disk(self):
+        return self.worker_local_ssd_data_disk
+
+    @property
+    def data_disk_size_gb(self) -> int:
+        if self.worker_local_ssd_data_disk:
+            return 375
+        return self.worker_pd_ssd_data_disk_size_gb
+
     def _default_location(self) -> str:
         return self.inst_coll_manager.location_monitor.default_location()
 
@@ -209,6 +219,10 @@ WHERE name = %s;
                               location: Optional[str] = None
                               ):
         machine_type = self.resource_manager.machine_type(cores, self.worker_type)
+        if self.worker_local_ssd_data_disk:
+            data_disk_size_gb = 375
+        else:
+            data_disk_size_gb = self.worker_pd_ssd_data_disk_size_gb
         _, _ = await self._create_instance(
             app=self.app,
             cores=cores,
@@ -217,8 +231,8 @@ WHERE name = %s;
             location=location,
             preemptible=True,
             max_idle_time_msecs=max_idle_time_msecs,
-            worker_local_ssd_data_disk=self.worker_local_ssd_data_disk,
-            worker_pd_ssd_data_disk_size_gb=self.worker_pd_ssd_data_disk_size_gb,
+            local_ssd_data_disk=self.worker_local_ssd_data_disk,
+            data_disk_size_gb=data_disk_size_gb,
             boot_disk_size_gb=self.boot_disk_size_gb
         )
 

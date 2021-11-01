@@ -39,13 +39,13 @@ class InstanceCollectionManager:
 
     def choose_location(self,
                         cores: int,
-                        worker_local_ssd_data_disk: bool,
-                        worker_pd_ssd_data_disk_size_gb: int
+                        local_ssd_data_disk: bool,
+                        data_disk_size_gb: int
                         ) -> str:
         if self.global_live_total_cores_mcpu // 1000 < 1_000:
             return self.location_monitor.default_location()
         return self.location_monitor.choose_location(
-            cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)
+            cores, local_ssd_data_disk, data_disk_size_gb)
 
     @property
     def pools(self) -> Dict[str, 'InstanceCollection']:
@@ -135,12 +135,12 @@ class InstanceCollection:
 
     def choose_location(self,
                         cores: int,
-                        worker_local_ssd_data_disk: bool,
-                        worker_pd_ssd_data_disk_size_gb: int
+                        local_ssd_data_disk: bool,
+                        data_disk_size_gb: int
                         ) -> str:
         return self.inst_coll_manager.choose_location(cores,
-                                                      worker_local_ssd_data_disk,
-                                                      worker_pd_ssd_data_disk_size_gb)
+                                                      local_ssd_data_disk,
+                                                      data_disk_size_gb)
 
     def generate_machine_name(self) -> str:
         while True:
@@ -199,19 +199,27 @@ class InstanceCollection:
                                location: Optional[str],
                                preemptible: bool,
                                max_idle_time_msecs: Optional[int],
-                               worker_local_ssd_data_disk,
-                               worker_pd_ssd_data_disk_size_gb,
+                               local_ssd_data_disk,
+                               data_disk_size_gb,
                                boot_disk_size_gb,
                                ) -> Tuple[Instance, List[Dict[str, Any]]]:
         if location is None:
             location = self.choose_location(cores,
-                                            worker_local_ssd_data_disk,
-                                            worker_pd_ssd_data_disk_size_gb)
+                                            local_ssd_data_disk,
+                                            data_disk_size_gb)
         if max_idle_time_msecs is None:
             max_idle_time_msecs = WORKER_MAX_IDLE_TIME_MSECS
 
         machine_name = self.generate_machine_name()
         activation_token = secrets.token_urlsafe(32)
+        cloud_specific_instance_config = self.resource_manager.instance_config(
+            machine_type=machine_type,
+            preemptible=preemptible,
+            local_ssd_data_disk=local_ssd_data_disk,
+            data_disk_size_gb=data_disk_size_gb,
+            boot_disk_size_gb=boot_disk_size_gb,
+            job_private=job_private,
+        ).to_dict()
         instance = await Instance.create(
             app=app,
             inst_coll=self,
@@ -221,15 +229,17 @@ class InstanceCollection:
             location=location,
             machine_type=machine_type,
             preemptible=True,
+            cloud_specific_instance_config=cloud_specific_instance_config
         )
         self.add_instance(instance)
         total_resources_on_instance = await self.resource_manager.create_vm(
-            app=app,
+            file_store=app['file_store'],
+            resource_rates=app['resource_rates'],
             machine_name=machine_name,
             activation_token=activation_token,
             max_idle_time_msecs=max_idle_time_msecs,
-            worker_local_ssd_data_disk=worker_local_ssd_data_disk,
-            worker_pd_ssd_data_disk_size_gb=worker_pd_ssd_data_disk_size_gb,
+            local_ssd_data_disk=local_ssd_data_disk,
+            data_disk_size_gb=data_disk_size_gb,
             boot_disk_size_gb=boot_disk_size_gb,
             preemptible=preemptible,
             job_private=job_private,

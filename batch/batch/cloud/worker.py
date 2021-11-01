@@ -2,14 +2,16 @@ from typing import Dict
 
 from .gcp.worker.credentials import GCPUserCredentials
 from .gcp.worker.disk import GCPDisk
-from .gcp.instance_config import GCPInstanceConfig
+from .gcp.instance_config import GCPSlimInstanceConfig
 
 from ..worker.credentials import CloudUserCredentials
 from ..worker.disk import CloudDisk
 from ..instance_config import InstanceConfig
 
 
-def get_cloud_disk(instance_name: str,
+def get_cloud_disk(location: str,
+                   project: str,
+                   instance_name: str,
                    disk_name: str,
                    size_in_gb: int,
                    mount_path: str,
@@ -17,10 +19,10 @@ def get_cloud_disk(instance_name: str,
                    ) -> CloudDisk:
     cloud = instance_config.cloud
     assert cloud == 'gcp'
-    assert isinstance(instance_config, GCPInstanceConfig)
+    assert isinstance(instance_config, GCPSlimInstanceConfig)
     disk = GCPDisk(
-        zone=instance_config.zone,
-        project=instance_config.project,
+        zone=location,
+        project=project,
         instance_name=instance_name,
         name=disk_name,
         size_in_gb=size_in_gb,

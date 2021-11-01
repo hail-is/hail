@@ -5,6 +5,8 @@ import logging
 from hailtop.utils import time_msecs
 
 from .instance import Instance
+from ..file_store import FileStore
+from ..instance_config import InstanceConfig
 
 
 log = logging.getLogger('compute_manager')
@@ -65,13 +67,29 @@ class CloudResourceManager:
         raise NotImplementedError
 
     @abc.abstractmethod
+    def instance_config(self,
+                        machine_type: str,
+                        preemptible: bool,
+                        local_ssd_data_disk: bool,
+                        data_disk_size_gb: int,
+                        boot_disk_size_gb: int,
+                        job_private: bool,
+                        ) -> InstanceConfig:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def instance_config_from_dict(self, data: dict) -> InstanceConfig:
+        raise NotImplementedError
+
+    @abc.abstractmethod
     async def create_vm(self,
-                        app,
+                        file_store: FileStore,
+                        resource_rates: Dict[str, float],
                         machine_name: str,
                         activation_token: str,
                         max_idle_time_msecs: int,
-                        worker_local_ssd_data_disk: bool,
-                        worker_pd_ssd_data_disk_size_gb: int,
+                        local_ssd_data_disk: bool,
+                        data_disk_size_gb: int,
                         boot_disk_size_gb: int,
                         preemptible: bool,
                         job_private: bool,

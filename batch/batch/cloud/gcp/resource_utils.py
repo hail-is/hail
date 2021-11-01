@@ -8,6 +8,7 @@ log = logging.getLogger('utils')
 
 GCP_MAX_PERSISTENT_SSD_SIZE_GIB = 64 * 1024
 MACHINE_TYPE_REGEX = re.compile('(?P<machine_family>[^-]+)-(?P<machine_type>[^-]+)-(?P<cores>\\d+)')
+GCP_MACHINE_FAMILY = 'n1'
 
 
 gcp_valid_machine_types = []
@@ -17,7 +18,7 @@ for typ in ('highcpu', 'standard', 'highmem'):
     else:
         possible_cores = [2, 4, 8, 16, 32, 64, 96]
     for cores in possible_cores:
-        gcp_valid_machine_types.append(f'n1-{typ}-{cores}')
+        gcp_valid_machine_types.append(f'{GCP_MACHINE_FAMILY}-{typ}-{cores}')
 
 
 gcp_memory_to_worker_type = {
@@ -42,6 +43,10 @@ def gcp_machine_type_to_worker_type_cores(machine_type: str) -> Tuple[str, int]:
     worker_type = maybe_machine_type_dict['machine_type']
     cores = int(maybe_machine_type_dict['cores'])
     return (worker_type, cores)
+
+
+def family_worker_type_cores_to_gcp_machine_type(family: str, worker_type: str, cores: int) -> str:
+    return f'{family}-{worker_type}-{cores}'
 
 
 def gcp_cost_from_msec_mcpu(msec_mcpu: int) -> float:

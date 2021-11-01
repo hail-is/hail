@@ -1,4 +1,5 @@
 from typing import Optional
+import json
 import aiohttp
 import datetime
 import logging
@@ -33,6 +34,7 @@ class Instance:
             record['location'],
             record['machine_type'],
             record['preemptible'],
+            json.loads(record['instance_config']),
         )
 
     @staticmethod
@@ -43,7 +45,8 @@ class Instance:
                      cores: int,
                      location: str,
                      machine_type: str,
-                     preemptible: bool
+                     preemptible: bool,
+                     cloud_specific_instance_config: dict,
                      ) -> 'Instance':
         db: Database = app['db']
 
@@ -56,8 +59,8 @@ class Instance:
         await db.just_execute(
             '''
 INSERT INTO instances (name, state, activation_token, token, cores_mcpu, free_cores_mcpu,
-  time_created, last_updated, version, location, inst_coll, machine_type, preemptible)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+  time_created, last_updated, version, location, inst_coll, machine_type, preemptible, instance_config)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
             (
                 name,
@@ -73,6 +76,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 inst_coll.name,
                 machine_type,
                 preemptible,
+                json.dumps(cloud_specific_instance_config),
             ),
         )
         return Instance(
@@ -90,6 +94,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
             location,
             machine_type,
             preemptible,
+            cloud_specific_instance_config,
         )
 
     def __init__(
@@ -108,6 +113,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         location: str,
         machine_type: str,
         preemptible: bool,
+        cloud_specific_instance_config: dict,
     ):
         self.db: Database = app['db']
         self.client_session: httpx.ClientSession = app['client_session']
@@ -125,6 +131,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         self.location = location
         self.machine_type = machine_type
         self.preemptible = preemptible
+        self.cloud_specific_instance_config = cloud_specific_instance_config
 
     @property
     def state(self):

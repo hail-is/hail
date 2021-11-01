@@ -77,11 +77,11 @@ class ZoneMonitor(CloudLocationMonitor):
 
     def choose_location(self,
                         worker_cores: int,
-                        worker_local_ssd_data_disk: bool,
-                        worker_pd_ssd_data_disk_size_gb: int
+                        local_ssd_data_disk: bool,
+                        data_disk_size_gb: int
                         ) -> str:
         zone_weights = self.compute_zone_weights(
-            worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)
+            worker_cores, local_ssd_data_disk, data_disk_size_gb)
 
         zones = [zw.zone for zw in zone_weights]
 
@@ -97,18 +97,21 @@ class ZoneMonitor(CloudLocationMonitor):
 
     def compute_zone_weights(self,
                              worker_cores: int,
-                             worker_local_ssd_data_disk: bool,
-                             worker_pd_ssd_data_disk_size_gb: int
+                             local_ssd_data_disk: bool,
+                             data_disk_size_gb: int
                              ) -> List[ZoneWeight]:
         weights = []
         for r in self._region_info.values():
             quota_remaining = {q['metric']: q['limit'] - q['usage'] for q in r['quotas']}
 
             remaining = quota_remaining['PREEMPTIBLE_CPUS'] / worker_cores
-            if worker_local_ssd_data_disk:
-                remaining = min(remaining, quota_remaining['LOCAL_SSD_TOTAL_GB'] / 375)
+            if local_ssd_data_disk:
+                specific_disk_type_quota = quota_remaining['LOCAL_SSD_TOTAL_GB']
             else:
-                remaining = min(remaining, quota_remaining['SSD_TOTAL_GB'] / worker_pd_ssd_data_disk_size_gb)
+                specific_disk_type_quota = quota_remaining['SSD_TOTAL_GB']
+            # FIXME: data_disk_size_gb is assumed to be constant across all instances, but it is
+            # passed as a variable parameter to this function!!
+            remaining = min(remaining, specific_disk_type_quota / data_disk_size_gb)
 
             weight = max(remaining / len(r['zones']), 1)
             for z in r['zones']:

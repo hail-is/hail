@@ -1,6 +1,6 @@
+from typing import Dict, List
 import logging
 import json
-from typing import Dict
 from functools import wraps
 from collections import namedtuple, defaultdict
 import copy
@@ -57,6 +57,7 @@ from .instance_collection import InstanceCollectionManager, JobPrivateInstanceMa
 from .job import mark_job_complete, mark_job_started
 from .k8s_cache import K8sCache
 from .instance_collection import Pool
+from .driver import CloudDriver
 from ..utils import query_billing_projects, batch_only, authorization_token
 from ..cloud.driver import get_cloud_driver
 from ..cloud.resource_utils import unreserved_worker_data_disk_size_gib
@@ -1004,14 +1005,16 @@ GROUP BY user, inst_coll;
     set_value(USER_JOBS, user_jobs)
 
 
-def monitor_instances(app):
+def monitor_instances(app) -> None:
     resource_rates: Dict[str, float] = app['resource_rates']
-    inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
+    driver: CloudDriver = app['driver']
+    inst_coll_manager = driver.inst_coll_manager
+    resource_manager = driver.resource_manager
 
-    cost_per_hour = defaultdict(list)
-    free_cores = defaultdict(list)
-    utilization = defaultdict(list)
-    instances = defaultdict(int)
+    cost_per_hour: Dict[CostPerHourLabels, List[float]] = defaultdict(list)
+    free_cores: Dict[InstCollLabels, List[float]] = defaultdict(list)
+    utilization: Dict[InstCollLabels, List[float]] = defaultdict(list)
+    instances: Dict[InstanceLabels, int] = defaultdict(int)
 
     for inst_coll in inst_coll_manager.name_inst_coll.values():
         for instance in inst_coll.name_instance.values():
@@ -1019,14 +1022,16 @@ def monitor_instances(app):
             utilized_cores_mcpu = instance.cores_mcpu - max(0, instance.free_cores_mcpu)
 
             if instance.state != 'deleted':
-                if instance.instance_config:
-                    actual_cost_per_hour_labels = CostPerHourLabels(measure='actual', inst_coll=instance.inst_coll.name)
-                    actual_rate = instance.instance_config.actual_cost_per_hour(resource_rates)
-                    cost_per_hour[actual_cost_per_hour_labels].append(actual_rate)
+                instance_config = resource_manager.instance_config_from_dict(
+                    instance.cloud_specific_instance_config)
 
-                    billed_cost_per_hour_labels = CostPerHourLabels(measure='billed', inst_coll=instance.inst_coll.name)
-                    billed_rate = instance.instance_config.cost_per_hour_from_cores(resource_rates, utilized_cores_mcpu)
-                    cost_per_hour[billed_cost_per_hour_labels].append(billed_rate)
+                actual_cost_per_hour_labels = CostPerHourLabels(measure='actual', inst_coll=instance.inst_coll.name)
+                actual_rate = instance_config.actual_cost_per_hour(resource_rates)
+                cost_per_hour[actual_cost_per_hour_labels].append(actual_rate)
+
+                billed_cost_per_hour_labels = CostPerHourLabels(measure='billed', inst_coll=instance.inst_coll.name)
+                billed_rate = instance_config.cost_per_hour_from_cores(resource_rates, utilized_cores_mcpu)
+                cost_per_hour[billed_cost_per_hour_labels].append(billed_rate)
 
                 inst_coll_labels = InstCollLabels(inst_coll=instance.inst_coll.name)
                 free_cores[inst_coll_labels].append(instance.free_cores_mcpu / 1000)

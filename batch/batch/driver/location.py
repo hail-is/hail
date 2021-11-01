@@ -9,6 +9,6 @@ class CloudLocationMonitor(abc.ABC):
     @abc.abstractmethod
     def choose_location(self,
                         cores: int,
-                        worker_local_ssd_data_disk: bool,
-                        worker_pd_ssd_data_disk_size_gb: int) -> str:
+                        local_ssd_data_disk: bool,
+                        data_disk_size_gb: int) -> str:
         raise NotImplementedError

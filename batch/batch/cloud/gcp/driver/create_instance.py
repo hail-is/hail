@@ -1,8 +1,6 @@
-from typing import Any
+from typing import Dict
 import os
 import logging
-import base64
-import json
 from shlex import quote as shq
 
 from gear.cloud_config import get_global_config
@@ -13,7 +11,7 @@ from ....file_store import FileStore
 from ...resource_utils import unreserved_worker_data_disk_size_gib
 
 from ..resource_utils import gcp_machine_type_to_worker_type_cores
-from ..instance_config import GCPInstanceConfig
+from ..instance_config import GCPSlimInstanceConfig
 
 log = logging.getLogger('create_instance')
 
@@ -22,8 +20,9 @@ BATCH_WORKER_IMAGE = os.environ['HAIL_BATCH_WORKER_IMAGE']
 log.info(f'BATCH_WORKER_IMAGE {BATCH_WORKER_IMAGE}')
 
 
-def create_instance_config(
-    app,
+def create_vm_config(
+    file_store: FileStore,
+    resource_rates: Dict[str, float],
     zone: str,
     machine_name: str,
     machine_type: str,
@@ -35,9 +34,8 @@ def create_instance_config(
     preemptible: bool,
     job_private: bool,
     project: str,
-) -> GCPInstanceConfig:
-    file_store: FileStore = app['file_store']
-
+    instance_config: GCPSlimInstanceConfig,
+) -> dict:
     _, cores = gcp_machine_type_to_worker_type_cores(machine_type)
 
     if worker_local_ssd_data_disk:
@@ -72,7 +70,9 @@ def create_instance_config(
         make_global_config.append(f'echo -n {shq(value)} > /global-config/{name}')
     make_global_config_str = '\n'.join(make_global_config)
 
-    vm_config: Any = {
+    assert instance_config.is_valid_configuration(resource_rates.keys())
+
+    return {
         'name': machine_name,
         'machineType': f'projects/{project}/zones/{zone}/machineTypes/{machine_type}',
         'labels': {'role': 'batch2-agent', 'namespace': DEFAULT_NAMESPACE},
@@ -172,6 +172,8 @@ PROJECT=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/
 BATCH_LOGS_STORAGE_URI=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_logs_storage_uri")
 INSTANCE_ID=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_id")
 INSTANCE_CONFIG=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_config")
+LOCATION=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/location")
+PROJECT=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/project")
 MAX_IDLE_TIME_MSECS=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/max_idle_time_msecs")
 NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
 ZONE=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
@@ -281,6 +283,8 @@ docker run \
 -e DOCKER_PREFIX=$DOCKER_PREFIX \
 -e DOCKER_ROOT_IMAGE=$DOCKER_ROOT_IMAGE \
 -e INSTANCE_CONFIG=$INSTANCE_CONFIG \
+-e LOCATION=$LOCATION \
+-e PROJECT=$PROJECT \
 -e MAX_IDLE_TIME_MSECS=$MAX_IDLE_TIME_MSECS \
 -e BATCH_WORKER_IMAGE=$BATCH_WORKER_IMAGE \
 -e BATCH_WORKER_IMAGE_ID=$BATCH_WORKER_IMAGE_ID \
@@ -337,16 +341,10 @@ journalctl -u docker.service > dockerd.log
                 {'key': 'batch_logs_storage_uri', 'value': file_store.batch_logs_storage_uri},
                 {'key': 'instance_id', 'value': file_store.instance_id},
                 {'key': 'max_idle_time_msecs', 'value': max_idle_time_msecs},
+                {'key': 'instance_config', 'value': instance_config},
+                {'key': 'location', 'value': zone},
+                {'key': 'project', 'value': project},
             ]
         },
         'tags': {'items': ["batch2-agent"]},
     }
-
-    instance_config = GCPInstanceConfig.from_vm_config(vm_config, job_private)
-    resource_names = app['resource_rates'].keys()
-    assert instance_config.is_valid_configuration(resource_names)
-    vm_config['metadata']['items'].append(
-        {'key': 'instance_config', 'value': base64.b64encode(json.dumps(instance_config.config).encode()).decode()}
-    )
-
-    return instance_config

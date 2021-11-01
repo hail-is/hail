@@ -1,5 +1,4 @@
 import abc
-from typing import Any, Dict
 
 from .cloud.resource_utils import cores_mcpu_to_memory_bytes
 
@@ -10,21 +9,20 @@ def is_power_two(n):
 
 class InstanceConfig(abc.ABC):
     cloud: str
-    version: int
     cores: int
     preemptible: bool
     local_ssd_data_disk: bool
     data_disk_size_gb: int
     job_private: bool
     worker_type: str
-    config: Dict[str, Any]
 
+    @abc.abstractmethod
     @property
     def machine_type(self) -> str:
         raise NotImplementedError
 
-    @property
-    def location(self) -> str:
+    @abc.abstractmethod
+    def to_dict(self) -> dict:
         raise NotImplementedError
 
     @abc.abstractmethod
