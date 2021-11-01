@@ -339,7 +339,7 @@ journalctl -u docker.service > dockerd.log
                 {'key': 'batch_logs_storage_uri', 'value': file_store.batch_logs_storage_uri},
                 {'key': 'instance_id', 'value': file_store.instance_id},
                 {'key': 'max_idle_time_msecs', 'value': max_idle_time_msecs},
-                {'key': 'instance_config', 'value': instance_config},
+                {'key': 'instance_config', 'value': instance_config.to_dict()},
             ]
         },
         'tags': {'items': ["batch2-agent"]},
