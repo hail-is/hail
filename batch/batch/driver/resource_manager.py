@@ -20,15 +20,26 @@ class VMState:
     pass
 
 
-class UnknownVMState(VMState):
-    def __init__(self, full_spec: Any):
+class NoTimestampVMState(VMState):
+    def __init__(self, state: str, full_spec: Any):
+        self.state = state
         self.full_spec = full_spec
 
     def __str__(self):
-        return f'state=Unknown full_spec={self.full_spec}'
+        return f'state={self.state} full_spec={self.full_spec}'
 
 
-class KnownVMState(VMState):
+class UnknownVMState(NoTimestampVMState):
+    def __init__(self, full_spec: Any):
+        super().__init__('Unknown', full_spec)
+
+
+class VMStateTerminated(NoTimestampVMState):
+    def __init__(self, full_spec: Any):
+        super().__init__('Terminated', full_spec)
+
+
+class TimestampedVMState(VMState):
     def __init__(self, state: str, full_spec: Any, last_state_change_timestamp_msecs: int):
         assert last_state_change_timestamp_msecs is not None
         self.state = state
@@ -42,19 +53,14 @@ class KnownVMState(VMState):
         return f'state={self.state} full_spec={self.full_spec} last_state_change_timestamp_msecs={self.last_state_change_timestamp_msecs}'
 
 
-class VMStateCreating(KnownVMState):
+class VMStateCreating(TimestampedVMState):
     def __init__(self, full_spec: Any, last_state_change_timestamp_msecs: int):
         super().__init__('Creating', full_spec, last_state_change_timestamp_msecs)
 
 
-class VMStateRunning(KnownVMState):
+class VMStateRunning(TimestampedVMState):
     def __init__(self, full_spec: Any, last_state_change_timestamp_msecs: int):
         super().__init__('Running', full_spec, last_state_change_timestamp_msecs)
-
-
-class VMStateTerminated(KnownVMState):
-    def __init__(self, full_spec: Any, last_state_change_timestamp_msecs: int):
-        super().__init__('Terminated', full_spec, last_state_change_timestamp_msecs)
 
 
 class CloudResourceManager:

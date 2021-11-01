@@ -27,8 +27,11 @@ class GCPSlimInstanceConfig(InstanceConfig):
         machine_type_parts = gcp_machine_type_to_dict(self._machine_type)
         assert machine_type_parts is not None, machine_type
         self._instance_family = machine_type_parts['machine_family']
-        self.worker_type = machine_type_parts['worker_type']
+        self._worker_type = machine_type_parts['worker_type']
         self.cores = machine_type_parts['cores']
+
+    def worker_type(self) -> str:
+        return self._worker_type
 
     @staticmethod
     def from_dict(data: dict) -> 'GCPSlimInstanceConfig':
@@ -62,17 +65,13 @@ class GCPSlimInstanceConfig(InstanceConfig):
         return {
             'version': GCP_INSTANCE_CONFIG_VERSION,
             'cloud': 'gcp',
-            'machine_type': self.machine_type,
+            'machine_type': self._machine_type,
             'preemptible': self.preemptible,
             'local_ssd_data_disk': self.local_ssd_data_disk,
             'data_disk_size_gb': self.data_disk_size_gb,
             'boot_disk_size_gb': self.boot_disk_size_gb,
             'job_private': self.job_private
         }
-
-    @property
-    def machine_type(self) -> str:
-        return self._machine_type
 
     def resources(self, cpu_in_mcpu: int, memory_in_bytes: int, extra_storage_in_gib: int) -> List[Dict[str, Any]]:
         assert memory_in_bytes % (1024 * 1024) == 0, memory_in_bytes

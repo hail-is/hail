@@ -10,15 +10,10 @@ def is_power_two(n):
 class InstanceConfig(abc.ABC):
     cloud: str
     cores: int
-    preemptible: bool
-    local_ssd_data_disk: bool
-    data_disk_size_gb: int
     job_private: bool
-    worker_type: str
 
     @abc.abstractmethod
-    @property
-    def machine_type(self) -> str:
+    def worker_type(self) -> str:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -51,13 +46,13 @@ class InstanceConfig(abc.ABC):
 
     def cost_per_hour_from_cores(self, resource_rates, utilized_cores_mcpu):
         assert 0 <= utilized_cores_mcpu <= self.cores * 1000
-        memory_in_bytes = cores_mcpu_to_memory_bytes(self.cloud, utilized_cores_mcpu, self.worker_type)
+        memory_in_bytes = cores_mcpu_to_memory_bytes(self.cloud, utilized_cores_mcpu, self.worker_type())
         storage_in_gb = 0   # we don't need to account for external storage
         return self.cost_per_hour(resource_rates, utilized_cores_mcpu, memory_in_bytes, storage_in_gb)
 
     def actual_cost_per_hour(self, resource_rates):
         cpu_in_mcpu = self.cores * 1000
-        memory_in_bytes = cores_mcpu_to_memory_bytes(self.cloud, cpu_in_mcpu, self.worker_type)
+        memory_in_bytes = cores_mcpu_to_memory_bytes(self.cloud, cpu_in_mcpu, self.worker_type())
         storage_in_gb = 0   # we don't need to account for external storage
         resources = self.resources(cpu_in_mcpu, memory_in_bytes, storage_in_gb)
         resources = [r for r in resources if 'service-fee' not in r['name']]

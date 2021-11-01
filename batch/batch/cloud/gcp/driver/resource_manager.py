@@ -57,9 +57,7 @@ class GCPResourceManager(CloudResourceManager):
                 assert last_start_timestamp_msecs is not None
                 return VMStateRunning(spec, last_start_timestamp_msecs)
             if state in ('STOPPING', 'TERMINATED'):
-                last_stop_timestamp_msecs = parse_gcp_timestamp(spec.get('lastStopTimestamp'))
-                assert last_stop_timestamp_msecs is not None
-                return VMStateTerminated(spec, last_stop_timestamp_msecs)
+                return VMStateTerminated(spec)
             log.exception(f'Unknown gce state {state} for {instance}')
             return UnknownVMState(spec)
 
