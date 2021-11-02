@@ -1,13 +1,13 @@
 package is.hail.expr.ir.lowering
 
-import is.hail.annotations.{Annotation, ExtendedOrdering, Region, SafeRow, UnsafeRow}
-import is.hail.asm4s.{AsmFunction1RegionLong, LongInfo, classInfo}
+import is.hail.annotations.{Annotation, ExtendedOrdering, Region, RegionValueBuilder, SafeRow, UnsafeRow}
+import is.hail.asm4s.{AsmFunction1RegionLong, AsmFunction2RegionLongLong, AsmFunction3RegionLongLongLong, LongInfo, classInfo}
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.{ArrayFunctions, IRRandomness}
 import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.io.{BufferSpec, TypedCodecSpec}
-import is.hail.types.physical.{PArray, PStruct, PTuple, PType}
+import is.hail.types.physical.{PArray, PBaseStruct, PCanonicalArray, PStruct, PTuple, PType}
 import is.hail.types.virtual.{TArray, TBoolean, TInt32, TStream, TString, TStruct, TTuple, Type}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.RStruct
@@ -15,6 +15,8 @@ import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.utils._
 import org.apache.spark.sql.Row
 
+import java.io.PrintWriter
+import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 object LowerDistributedSort {
@@ -106,29 +108,48 @@ object LowerDistributedSort {
     rowTypeRequiredness: RStruct
   ): IR = {
 
-    val oversamplingNum = 3
+    val oversamplingNum = 1
     val seed = 7L
+    val branchingFactor = 4
 
     val (newKType, _) = inputStage.rowType.select(sortFields.map(sf => sf.field))
 
 
-    var partitionCounts = inputStage.mapCollect(relationalBindings = relationalLetsAbove){ partitionStreamIR =>
+    var partitionCountsPerSegment: IR = MakeArray(inputStage.mapCollect(relationalBindings = relationalLetsAbove){ partitionStreamIR =>
       StreamLen(partitionStreamIR)
-    }
-
-
+    })
 
     var inputStageWithSegmentNumbers = inputStage.mapContexts(ctxs => mapIR(ctxs)(ctx => MakeStruct(IndexedSeq("segmentIdx" -> I32(0), "oldCtx" -> ctx))))(ctx => GetField(ctx, "oldCtx"))
     var i = 0
+
     while (i < 2) {
       println(s"Loop iteration ${i}")
+
+      if (i > 0) {
+        println(s"partitionCountsPerSegment = ${eval(partitionCountsPerSegment)}")
+      }
+
+      val partitionCounts = ToArray(flatMapIR(ToStream(partitionCountsPerSegment))( inner => ToStream(inner)))
 
       val partitionCountsId = genUID()
       val partitionCountsRef = Ref(partitionCountsId, partitionCounts.typ)
 
-      val numSamplesPerPartition = ApplySeeded("shuffle_compute_num_samples_per_partition", IndexedSeq(inputStage.numPartitions * oversamplingNum, partitionCounts), seed, TArray(TInt32))
+      // Need to know partition counts per segment, so I can figure out how many samples per partition per segment.
+      val numSamplesPerPartitionPerSegment = mapIR(ToStream(partitionCountsPerSegment)) { partitionCountsForOneSegment =>
+        bindIR(streamSumIR(ToStream(partitionCountsForOneSegment))) { recordsInSegment =>
+          val numToTake = If(ApplyComparisonOp(LT(TInt32), recordsInSegment, branchingFactor * oversamplingNum), recordsInSegment, branchingFactor * oversamplingNum)
+          ApplySeeded("shuffle_compute_num_samples_per_partition", IndexedSeq(numToTake, partitionCountsForOneSegment), seed, TArray(TInt32))
+        }
+      }
+
+      println(s"numSamplesPerPartitionPerSegment = ${eval(ToArray(numSamplesPerPartitionPerSegment))}")
+
+      val numSamplesPerPartition = ToArray(flatMapIR(numSamplesPerPartitionPerSegment){ inner => ToStream(inner)})
+      //val numSamplesPerPartition = ApplySeeded("shuffle_compute_num_samples_per_partition", IndexedSeq(inputStage.numPartitions * oversamplingNum, partitionCounts), seed, TArray(TInt32))
       val numSamplesPerPartitionId = genUID()
       val numSamplesPerPartitionRef = Ref(numSamplesPerPartitionId, numSamplesPerPartition.typ)
+
+      println(s"numSamplesPerPartition = ${eval(numSamplesPerPartition)}")
 
       val stageWithNumSamplesPerPart = inputStageWithSegmentNumbers.copy(
         letBindings = inputStageWithSegmentNumbers.letBindings :+ partitionCountsId -> partitionCounts :+ numSamplesPerPartitionId -> numSamplesPerPartition,
@@ -198,7 +219,7 @@ object LowerDistributedSort {
         val segmentNumber = GetField(GetField(ctxRef, "elt"), "segmentIdx")
         // In here, need to distribute the keys into different buckets.
         val path = invoke("concat", TString, Str(tmpPath + "_"), invoke("str", TString, GetField(ctxRef, "idx")))
-        StreamDistribute(partitionStreamIR, ArrayRef(pivotsWithEndpointsGroupedBySegmentNumberRef, segmentNumber), path, spec)
+        MakeTuple.ordered(IndexedSeq(segmentNumber, StreamDistribute(partitionStreamIR, ArrayRef(pivotsWithEndpointsGroupedBySegmentNumberRef, segmentNumber), path, spec)))
       } { (res, global) => res }
 
       println("About to execute distribute")
@@ -214,7 +235,12 @@ object LowerDistributedSort {
       val fRunnable = ctx.timer.time("LowerDistributedSort.localSort.initialize")(f(ctx.fs, 0, ctx.r))
       val resultAddress = ctx.timer.time("LowerDistributedSort.localSort.run")(fRunnable(ctx.r))
       val distributeResult = ctx.timer.time("LowerDistributedSort.localSort.toJavaObject")(SafeRow.read(resultPType, resultAddress))
-        .asInstanceOf[IndexedSeq[IndexedSeq[Row]]].map(_.map(row => (row(0).asInstanceOf[Interval], row(1).asInstanceOf[String], row(2).asInstanceOf[Int])))
+        .asInstanceOf[IndexedSeq[Row]].map(row => (
+        row(0).asInstanceOf[Int],
+        row(1).asInstanceOf[IndexedSeq[Row]].map(innerRow => (
+          innerRow(0).asInstanceOf[Interval],
+          innerRow(1).asInstanceOf[String],
+          innerRow(2).asInstanceOf[Int]))))
       println("Distributed successfully")
 
       // distributeResult is a numPartitions length array of arrays, where each inner array tells me what
@@ -226,7 +252,7 @@ object LowerDistributedSort {
 
       println(distributeResult)
 
-      val protoDataPerSegment = perPartStatsA.map(r => r(0).asInstanceOf[Int]).zip(distributeResult)
+      val protoDataPerSegment = distributeResult
         .groupBy{ case (originSegment, _) => originSegment }.toIndexedSeq.sortBy { case (originSegment, _) => originSegment}.map { case (_, seqOfChunkData) => seqOfChunkData.map(_._2)}
 
       val transposedIntoNewSegments = protoDataPerSegment.map { oneOldSegment =>
@@ -273,11 +299,12 @@ object LowerDistributedSort {
         groupedIntoParts.result()
       }
 
-      partitionCounts = Literal(partitionCounts.typ, partitionsOfSegmentIdxAndFilenamesWithSizes.map(x => x._3))
+      val foo = partitionsOfSegmentIdxAndFilenamesWithSizes.groupBy(_._1).toIndexedSeq.sortBy(_._1).map(_._2.map(_._3))
+      partitionCountsPerSegment = Literal(partitionCountsPerSegment.typ, foo)
       val partitionsOfSegmentIdxAndFilenames = partitionsOfSegmentIdxAndFilenamesWithSizes.map(x => (x._1, x._2))
 
       val reader = PartitionNativeReader(spec)
-      val intervals = groupedBySegmentNumber.map(_._1).zipWithIndex.groupBy(_._1).values.toIndexedSeq.map(_.head).sortBy(_._1).flatMap(x => distributeResult(x._2).map(_._1))
+      val intervals = dataPerSegment.map(chunksData => chunksData.head._1)
       println(s"Intervals = ${intervals}")
       println(s"partitionsOfSegmentIdxAndFilenames = ${partitionsOfSegmentIdxAndFilenames}")
       val partitioner = new RVDPartitioner(newKType, intervals)
@@ -424,5 +451,122 @@ object LowerDistributedSort {
     }
 
     ???
+  }
+
+  def eval(x: IR): Any = ExecuteContext.scoped(){ ctx =>
+    eval(x, Env.empty, FastIndexedSeq(), None, None, true, ctx)
+  }
+
+  def eval(x: IR,
+           env: Env[(Any, Type)],
+           args: IndexedSeq[(Any, Type)],
+           agg: Option[(IndexedSeq[Row], TStruct)],
+           bytecodePrinter: Option[PrintWriter] = None,
+           optimize: Boolean = true,
+           ctx: ExecuteContext
+          ): Any = {
+    val inputTypesB = new BoxedArrayBuilder[Type]()
+    val inputsB = new mutable.ArrayBuffer[Any]()
+
+    args.foreach { case (v, t) =>
+      inputsB += v
+      inputTypesB += t
+    }
+
+    env.m.foreach { case (name, (v, t)) =>
+      inputsB += v
+      inputTypesB += t
+    }
+
+    val argsType = TTuple(inputTypesB.result(): _*)
+    val resultType = TTuple(x.typ)
+    val argsVar = genUID()
+
+    val (_, substEnv) = env.m.foldLeft((args.length, Env.empty[IR])) { case ((i, env), (name, (v, t))) =>
+      (i + 1, env.bind(name, GetTupleElement(Ref(argsVar, argsType), i)))
+    }
+
+    def rewrite(x: IR): IR = {
+      x match {
+        case In(i, t) =>
+          GetTupleElement(Ref(argsVar, argsType), i)
+        case _ =>
+          MapIR(rewrite)(x)
+      }
+    }
+
+    val argsPType = PType.canonical(argsType).setRequired(true)
+    agg match {
+      case Some((aggElements, aggType)) =>
+        val aggElementVar = genUID()
+        val aggArrayVar = genUID()
+        val aggPType = PType.canonical(aggType)
+        val aggArrayPType = PCanonicalArray(aggPType, required = true)
+
+        val substAggEnv = aggType.fields.foldLeft(Env.empty[IR]) { case (env, f) =>
+          env.bind(f.name, GetField(Ref(aggElementVar, aggType), f.name))
+        }
+        val aggIR = StreamAgg(ToStream(Ref(aggArrayVar, aggArrayPType.virtualType)),
+          aggElementVar,
+          MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(eval = substEnv, agg = Some(substAggEnv)))))))
+
+        val (Some(PTypeReferenceSingleCodeType(resultType2)), f) = Compile[AsmFunction3RegionLongLongLong](ctx,
+          FastIndexedSeq((argsVar, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argsPType))),
+            (aggArrayVar, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(aggArrayPType)))),
+          FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
+          aggIR,
+          print = bytecodePrinter,
+          optimize = optimize)
+        assert(resultType2.virtualType == resultType)
+
+        ctx.r.pool.scopedRegion { region =>
+          val rvb = new RegionValueBuilder(region)
+          rvb.start(argsPType)
+          rvb.startTuple()
+          var i = 0
+          while (i < inputsB.length) {
+            rvb.addAnnotation(inputTypesB(i), inputsB(i))
+            i += 1
+          }
+          rvb.endTuple()
+          val argsOff = rvb.end()
+
+          rvb.start(aggArrayPType)
+          rvb.startArray(aggElements.length)
+          aggElements.foreach { r =>
+            rvb.addAnnotation(aggType, r)
+          }
+          rvb.endArray()
+          val aggOff = rvb.end()
+
+          val resultOff = f(ctx.fs, 0, region)(region, argsOff, aggOff)
+          SafeRow(resultType2.asInstanceOf[PBaseStruct], resultOff).get(0)
+        }
+
+      case None =>
+        val (Some(PTypeReferenceSingleCodeType(resultType2)), f) = Compile[AsmFunction2RegionLongLong](ctx,
+          FastIndexedSeq((argsVar, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argsPType)))),
+          FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
+          MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(substEnv))))),
+          optimize = optimize,
+          print = bytecodePrinter)
+        assert(resultType2.virtualType == resultType)
+
+        ctx.r.pool.scopedRegion { region =>
+          val rvb = new RegionValueBuilder(region)
+          rvb.start(argsPType)
+          rvb.startTuple()
+          var i = 0
+          while (i < inputsB.length) {
+            rvb.addAnnotation(inputTypesB(i), inputsB(i))
+            i += 1
+          }
+          rvb.endTuple()
+          val argsOff = rvb.end()
+
+          val resultOff = f(ctx.fs, 0, region)(region, argsOff)
+          SafeRow(resultType2.asInstanceOf[PBaseStruct], resultOff).get(0)
+        }
+    }
   }
 }
