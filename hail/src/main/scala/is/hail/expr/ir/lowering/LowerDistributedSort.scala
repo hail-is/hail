@@ -114,44 +114,46 @@ object LowerDistributedSort {
 
     val (newKType, _) = inputStage.rowType.select(sortFields.map(sf => sf.field))
 
+    val spec = TypedCodecSpec(rowTypeRequiredness.canonicalPType(inputStage.rowType), BufferSpec.default)
+    val initialTmpPath = ctx.createTmpPath("hail_shuffle_temp_initial")
+    val writer = PartitionNativeWriter(spec, initialTmpPath, None, None)
+    val initialChunks = CompileAndEvaluate[Annotation](ctx, inputStage.mapCollect(relationalLetsAbove) { part =>
+      WritePartition(part, UUID4(), writer)
+    }).asInstanceOf[IndexedSeq[Row]].map(row => Chunk(initialTmpPath + row(0).asInstanceOf[String], row(1).asInstanceOf[Long].toInt))
+    val initialSegment = SegmentResult(IndexedSeq(0), inputStage.partitioner.range.get, initialChunks)
+
+    var loopState = LoopState(IndexedSeq(initialSegment), IndexedSeq.empty[SegmentResult])
 
     // Output of streamDistribute: ListOfSegmentResult: Interval, then per partition info (array of file names and counts)
     // Let's just make this Scala.
-    var partitionCountsPerSegment: IR = MakeArray(inputStage.mapCollect(relationalBindings = relationalLetsAbove){ partitionStreamIR =>
-      StreamLen(partitionStreamIR)
-    })
+    var partitionCountsPerSegment: IndexedSeq[IndexedSeq[Int]] = loopState.largeSegments.map(sr => sr.chunks.map(_.size))
     var inputStageWithSegmentNumbers = inputStage.mapContexts(ctxs => mapIR(ctxs)(ctx => MakeStruct(IndexedSeq("segmentIdx" -> I32(0), "oldCtx" -> ctx))))(ctx => GetField(ctx, "oldCtx"))
     var i = 0
-
+    val rand = new IRRandomness((math.random() * 1000).toInt)
 
     while (i < 2) {
       println(s"Loop iteration ${i}")
 
-      println(s"partitionCountsPerSegment = ${eval(partitionCountsPerSegment)}")
-
-      val partitionCounts = ToArray(flatMapIR(ToStream(partitionCountsPerSegment))( inner => ToStream(inner)))
+      val partitionCounts = partitionCountsPerSegment.flatten
 
       val partitionCountsId = genUID()
-      val partitionCountsRef = Ref(partitionCountsId, partitionCounts.typ)
+      val partitionCountsRef = Ref(partitionCountsId, TArray(TInt32))
 
-      // Need to know partition counts per segment, so I can figure out how many samples per partition per segment.
-      val numSamplesPerPartitionPerSegment = mapIR(ToStream(partitionCountsPerSegment)) { partitionCountsForOneSegment =>
-        bindIR(streamSumIR(ToStream(partitionCountsForOneSegment))) { recordsInSegment =>
-          val numToTake = If(ApplyComparisonOp(LT(TInt32), recordsInSegment, (branchingFactor * oversamplingNum) - 1), recordsInSegment, branchingFactor * oversamplingNum)
-          ApplySeeded("shuffle_compute_num_samples_per_partition", IndexedSeq(numToTake, partitionCountsForOneSegment), seed, TArray(TInt32))
-        }
+      val numSamplesPerPartitionPerSegment = partitionCountsPerSegment.map { partitionCountsForOneSegment =>
+        val recordsInSegment = partitionCountsForOneSegment.sum
+        howManySamplesPerPartition(rand, recordsInSegment, Math.min(recordsInSegment, (branchingFactor * oversamplingNum) - 1), partitionCountsForOneSegment)
       }
 
-      println(s"numSamplesPerPartitionPerSegment = ${eval(ToArray(numSamplesPerPartitionPerSegment))}")
+      println(s"numSamplesPerPartitionPerSegment = $numSamplesPerPartitionPerSegment")
 
-      val numSamplesPerPartition = ToArray(flatMapIR(numSamplesPerPartitionPerSegment){ inner => ToStream(inner)})
+      val numSamplesPerPartition = numSamplesPerPartitionPerSegment.flatten
       val numSamplesPerPartitionId = genUID()
-      val numSamplesPerPartitionRef = Ref(numSamplesPerPartitionId, numSamplesPerPartition.typ)
+      val numSamplesPerPartitionRef = Ref(numSamplesPerPartitionId, TArray(TInt32))
 
-      println(s"numSamplesPerPartition = ${eval(numSamplesPerPartition)}")
+      println(s"numSamplesPerPartition = ${numSamplesPerPartition}")
 
       val stageWithNumSamplesPerPart = inputStageWithSegmentNumbers.copy(
-        letBindings = inputStageWithSegmentNumbers.letBindings :+ partitionCountsId -> partitionCounts :+ numSamplesPerPartitionId -> numSamplesPerPartition,
+        letBindings = inputStageWithSegmentNumbers.letBindings :+ partitionCountsId -> Literal(TArray(TInt32), partitionCounts) :+ numSamplesPerPartitionId -> Literal(TArray(TInt32), numSamplesPerPartition),
         broadcastVals = inputStageWithSegmentNumbers.broadcastVals :+ partitionCountsId -> partitionCountsRef :+ numSamplesPerPartitionId -> numSamplesPerPartitionRef
       )
 
@@ -213,7 +215,6 @@ object LowerDistributedSort {
       val tmpPath = ctx.createTmpPath("hail_shuffle_temp")
       println(s"tmpPath = ${tmpPath}")
 
-      val spec = TypedCodecSpec(rowTypeRequiredness.canonicalPType(stageWithPivots.rowType), BufferSpec.default)
       val distribute = stageWithPivots.zipContextsWithIdx().mapCollectWithContextsAndGlobals(relationalBindings = relationalLetsAbove) { (partitionStreamIR, ctxRef) =>
         val segmentNumber = GetField(GetField(ctxRef, "elt"), "segmentIdx")
         // In here, need to distribute the keys into different buckets.
@@ -298,8 +299,7 @@ object LowerDistributedSort {
         groupedIntoParts.result()
       }
 
-      val foo = partitionsOfSegmentIdxAndFilenamesWithSizes.groupBy(_._1).toIndexedSeq.sortBy(_._1).map(_._2.map(_._3))
-      partitionCountsPerSegment = Literal(partitionCountsPerSegment.typ, foo)
+      partitionCountsPerSegment = partitionsOfSegmentIdxAndFilenamesWithSizes.groupBy(_._1).toIndexedSeq.sortBy(_._1).map(_._2.map(_._3))
       val partitionsOfSegmentIdxAndFilenames = partitionsOfSegmentIdxAndFilenamesWithSizes.map(x => (x._1, x._2))
 
       val reader = PartitionNativeReader(spec)
@@ -572,5 +572,6 @@ object LowerDistributedSort {
   }
 }
 
-case class Chunk(interval: Interval, filename: String, size: Int)
-case class SegmentResult(idx: Int, filenames: IndexedSeq[Chunk])
+case class Chunk(filename: String, size: Int)
+case class SegmentResult(indices: IndexedSeq[Int], interval: Interval, chunks: IndexedSeq[Chunk])
+case class LoopState(largeSegments: IndexedSeq[SegmentResult], smallSegments: IndexedSeq[SegmentResult])
