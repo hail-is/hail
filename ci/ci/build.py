@@ -326,22 +326,16 @@ cat /home/user/trace
         docker_registry = DOCKER_PREFIX.split('/')[0]
         job_env = {'REGISTRY': docker_registry}
         if CLOUD == 'gcp':
-            credentials_secret = {
-                'namespace': DEFAULT_NAMESPACE,
-                'name': 'gcr-push-service-account-key',
-                'mount_path': '/secrets/gcr-push-service-account-key',
-            }
-            job_env[
-                'GOOGLE_APPLICATION_CREDENTIALS'
-            ] = '/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json'
+            credentials_name = 'GOOGLE_APPLICATION_CREDENTIALS'
         else:
             assert CLOUD == 'azure'
-            credentials_secret = {
-                'namespace': DEFAULT_NAMESPACE,
-                'name': 'acr-push-credentials',
-                'mount_path': '/secrets/acr-push-credentials',
-            }
-            job_env['AZURE_APPLICATION_CREDENTIALS'] = '/secrets/acr-push-credentials/credentials.json'
+            credentials_name = 'AZURE_APPLICATION_CREDENTIALS'
+        credentials_secret = {
+            'namespace': DEFAULT_NAMESPACE,
+            'name': 'registry-push-credentials',
+            'mount_path': '/secrets/registry-push-credentials',
+        }
+        job_env[credentials_name] = '/secrets/registry-push-credentials/credentials.json'
 
         self.job = batch.create_job(
             BUILDKIT_IMAGE,
@@ -370,7 +364,7 @@ set -x
 date
 
 gcloud -q auth activate-service-account \
-  --key-file=/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json
+  --key-file=/secrets/registry-push-credentials/credentials.json
 
 until gcloud -q container images untag {shq(self.image)} || ! gcloud -q container images describe {shq(self.image)}
 do
@@ -389,8 +383,8 @@ true
             secrets=[
                 {
                     'namespace': DEFAULT_NAMESPACE,
-                    'name': 'gcr-push-service-account-key',
-                    'mount_path': '/secrets/gcr-push-service-account-key',
+                    'name': 'registry-push-credentials',
+                    'mount_path': '/secrets/registry-push-credentials',
                 }
             ],
             parents=parents,
