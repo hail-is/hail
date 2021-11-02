@@ -102,4 +102,3 @@ class GCPSlimInstanceConfig(InstanceConfig):
             {'name': 'service-fee/1', 'quantity': cpu_in_mcpu},
             {'name': 'ip-fee/1024/1', 'quantity': worker_fraction_in_1024ths},
         ]
-
