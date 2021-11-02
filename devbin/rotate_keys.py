@@ -5,8 +5,8 @@ from dateutil.parser import isoparse
 from datetime import datetime, timedelta
 import pytz
 import json
-from typing import List, Tuple, Generator, Optional
-from typing_extensions import Literal
+from typing import List, Tuple, Generator, Optional, TextIO
+from enum import Enum
 import warnings
 import sys
 import kubernetes_asyncio as kube
@@ -15,14 +15,19 @@ from hailtop.utils import retry_transient_errors
 
 warnings.simplefilter('always', UserWarning)
 
-RotationState = Literal['up-to-date', 'in-progress', 'ready-for-delete', 'expired']
-
 OK_BLUE = '\033[94m'
 OK_GREEN = '\033[92m'
 WARNING_YELLOW = '\033[93m'
 ERROR_RED = '\033[91m'
 GREY = '\033[37m'
 ENDC = '\033[0m'
+
+
+class RotationState(Enum):
+    UP_TO_DATE = f'{OK_GREEN}UP TO DATE{ENDC}'
+    IN_PROGRESS = f'{OK_BLUE}IN PROGRESS{ENDC}'
+    READY_FOR_DELETE = f'{WARNING_YELLOW}READY FOR DELETE{ENDC}'
+    EXPIRED = f'{ERROR_RED}EXPIRED{ENDC}'
 
 
 class GSAKeySecret:
@@ -86,7 +91,7 @@ class IAMKey:
         self.user_managed = key_json['keyType'] == 'USER_MANAGED'
 
     def expired(self) -> bool:
-        return self.user_managed and self.older_than(90)
+        return self.older_than(90)
 
     def recently_created(self) -> bool:
         return not self.older_than(30)
@@ -108,7 +113,7 @@ class ServiceAccount:
     def add_new_key(self, k: IAMKey):
         self.keys.insert(0, k)
 
-    def list_keys(self) -> str:
+    def list_keys(self, s: TextIO) -> None:
         def color_id(k: IAMKey) -> str:
             if not k.user_managed:
                 color = GREY
@@ -120,44 +125,31 @@ class ServiceAccount:
                 color = OK_GREEN
             return f'{color}{k.id}{ENDC}'
 
-        msg = f'{self}\n'
+        s.write(f'{self}\n')
         for k in self.keys:
-            msg += f'{color_id(k)} \t Created: {k.created_readable} \t Expires: {k.expiration_readable}'
+            s.write(f'{color_id(k)} \t Created: {k.created_readable} \t Expires: {k.expiration_readable}')
             matching_secrets = [str(s) for s in self.kube_secrets if s.matches_iam_key(k)]
             if len(matching_secrets) > 0:
-                msg += f'\t <== {" ".join(matching_secrets)}'
-            msg += '\n'
-        return msg
+                s.write(f'\t <== {" ".join(matching_secrets)}')
+            s.write('\n')
 
     def rotation_state(self) -> RotationState:
         active_key = self.active_user_key()
 
         # Solely system-managed accounts are always up to date
         if not active_key:
-            return 'up-to-date'
+            return RotationState.UP_TO_DATE
 
         old_user_keys = self.redundant_user_keys()
         if active_key.expired():
-            return 'expired'
+            return RotationState.EXPIRED
         elif active_key.recently_created() and len(old_user_keys) > 0:
-            return 'in-progress'
+            return RotationState.IN_PROGRESS
         elif not active_key.recently_created() and len(old_user_keys) > 0:
-            return 'ready-for-delete'
+            return RotationState.READY_FOR_DELETE
         else:
             assert len(old_user_keys) == 0
-            return 'up-to-date'
-
-    def rotation_status(self) -> str:
-        rotation_state = self.rotation_state()
-        if rotation_state == 'up-to-date':
-            return f'{OK_GREEN}UP TO DATE{ENDC}'
-        elif rotation_state == 'in-progress':
-            return f'{OK_BLUE}IN PROGRESS{ENDC}'
-        elif rotation_state == 'ready-for-delete':
-            return f'{WARNING_YELLOW}READY FOR DELETE{ENDC}'
-        else:
-            assert rotation_state == 'expired'
-            return f'{ERROR_RED}EXPIRED{ENDC}'
+            return RotationState.UP_TO_DATE
 
     def active_user_key(self) -> Optional[IAMKey]:
         if len(self.kube_secrets) > 0:
@@ -171,10 +163,10 @@ class ServiceAccount:
 
     def redundant_user_keys(self) -> List[IAMKey]:
         active_key = self.active_user_key()
-        return list(k for k in self.keys if k is not active_key and k.user_managed)
+        return [k for k in self.keys if k is not active_key and k.user_managed]
 
     def __str__(self):
-        return self.rotation_status() + ' ' + self.email
+        return self.rotation_state().value + ' ' + self.email
 
 
 class IAMManager:
@@ -224,7 +216,7 @@ class IAMManager:
 
 async def add_new_keys(service_accounts: List[ServiceAccount], iam_manager: IAMManager, k8s_manager: KubeSecretManager):
     for sa in service_accounts:
-        print(sa.list_keys())
+        sa.list_keys(sys.stdout)
         if input('Create new key?\nOnly yes will be accepted: ') == 'yes':
             new_key, key_data = await iam_manager.create_new_key(sa)
             sa.add_new_key(new_key)
@@ -233,7 +225,7 @@ async def add_new_keys(service_accounts: List[ServiceAccount], iam_manager: IAMM
                 *[k8s_manager.update_gsa_key_secret(s, key_data) for s in sa.kube_secrets]
             )
             sa.kube_secrets = list(new_secrets)
-            print(sa.list_keys())
+            sa.list_keys(sys.stdout)
             if input('Continue?[Yes/no]') == 'no':
                 break
 
@@ -246,15 +238,15 @@ async def delete_old_keys(service_accounts: List[ServiceAccount], iam_manager: I
         for k in to_delete:
             print(f'\t{k.id}')
         sa.keys = await iam_manager.get_sa_keys(sa.email)
-        print(sa.list_keys())
+        sa.list_keys(sys.stdout)
 
     for sa in service_accounts:
-        print(sa.list_keys())
+        sa.list_keys(sys.stdout)
         if input('Delete all but the newest key?\nOnly yes will be accepted: ') == 'yes':
             rotation_state = sa.rotation_state()
-            if rotation_state == 'ready-for-delete':
+            if rotation_state == RotationState.READY_FOR_DELETE:
                 await delete_old_and_refresh(sa)
-            elif rotation_state == 'in-progress':
+            elif rotation_state == RotationState.IN_PROGRESS:
                 warnings.warn(
                     'The most recent key was generated less than '
                     'thirty days ago. Old keys should not be deleted '
