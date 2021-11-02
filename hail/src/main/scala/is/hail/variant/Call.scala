@@ -46,7 +46,7 @@ object Call2 {
 
   def withErrorID(aj: Int, ak: Int, phased: Boolean, errorID: Int): Call = {
     if (aj < 0 || ak < 0)
-      fatal(s"allele indices must be >= 0. Found j=$aj and k=$ak.")
+      fatal(s"allele indices must be >= 0. Found j=$aj and k=$ak.", errorID)
 
     val alleleRepr =
       if (phased)
