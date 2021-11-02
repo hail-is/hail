@@ -117,10 +117,11 @@ class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
 
           cb.ifx(j >= localAlleles.loadLength(), cb._fatalWithError(errorID, "invalid lgt_to_gt: allele "))
 
-          cb.assign(repr, Code.invokeScalaObject3[Int, Int, Boolean, Int](Call2.getClass, "apply",
+          cb.assign(repr, Code.invokeScalaObject4[Int, Int, Boolean, Int, Int](Call2.getClass, "withErrorID",
             checkAndTranslate(cb, j),
             checkAndTranslate(cb, k),
-            isPhased(cb)))
+            isPhased(cb),
+            errorID))
         } // ploidy 2
       )
     )

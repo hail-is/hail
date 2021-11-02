@@ -1571,10 +1571,10 @@ def allele_pair(j, k):
 
 def allele_pair_sqrt(i):
     k = int(math.sqrt(8 * float(i) + 1) / 2 - .5)
-    assert k * (k + 1) / 2 <= i
-    j = i - k * (k + 1) / 2
+    assert k * (k + 1) // 2 <= i
+    j = i - k * (k + 1) // 2
     # TODO another assert
-    allele_pair(j, k)
+    return allele_pair(j, k)
 
 
 small_allele_pair = [
