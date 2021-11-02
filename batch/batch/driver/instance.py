@@ -1,5 +1,6 @@
 from typing import Optional
 import json
+import base64
 import aiohttp
 import datetime
 import logging
@@ -37,7 +38,8 @@ class Instance:
             record['machine_type'],
             record['preemptible'],
             instance_config_from_config_dict(
-                json.loads(record['instance_config'])),
+                json.loads(base64.b64decode(record['instance_config']).decode())
+            )
         )
 
     @staticmethod
@@ -79,7 +81,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 inst_coll.name,
                 machine_type,
                 preemptible,
-                json.dumps(instance_config.to_dict()),
+                base64.b64encode(json.dumps(instance_config.to_dict()).encode()).decode(),
             ),
         )
         return Instance(
