@@ -19,15 +19,6 @@ Every resource in Azure must belong to a Resource Group. First, obtain
 a resource group and make sure you have Owner permissions for that
 resource group.
 
-We will first create a Service Principal which we will use to
-create resources through terraform. Run the following
-(this only needs to be run once for a resource group, but it is ok to run it
-more than once).
-
-```
-./create_terraform_sp.sh <RESOURCE_GROUP>
-```
-
 Create a `global.tfvars` file with the necessary variables
 from $HAIL/infra/azure/variables.tf.
 
@@ -99,12 +90,18 @@ download-secret global-config && sudo cp -r contents /global-config
 download-secret zulip-config && sudo cp -r contents /zulip-config
 download-secret database-server-config && sudo cp -r contents /sql-config
 cd ~/hail/infra/azure
-./bootstrap.sh bootstrap <REPO>/hail:<BRANCH> deploy_batch
+./bootstrap.sh bootstrap <REPO>/hail:<BRANCH> deploy_auth
 ```
-
 
 Create the initial (developer) user.
 
-  ```
-  ./bootstrap.sh bootstrap <REPO>/hail:<BRANCH> create_initial_user <USERNAME> <EMAIL>
-  ```
+```
+./bootstrap.sh bootstrap <REPO>/hail:<BRANCH> create_initial_user <USERNAME> <EMAIL>
+```
+
+Deploy the gateway service. First trim down `$HAIL/letsencrypt/subdomains.txt`
+to only the services that are deployed and then run
+
+```
+make -C $HAIL/gateway deploy
+```
