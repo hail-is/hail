@@ -182,6 +182,13 @@ resource "google_service_networking_connection" "private_vpc_connection" {
   reserved_peering_ranges = [google_compute_global_address.google_managed_services_default.name]
 }
 
+resource "google_compute_network_peering_routes_config" "private_vpc_peering_config" {
+  peering = google_service_networking_connection.private_vpc_connection.peering
+  network = google_compute_network.default.name
+  import_custom_routes = true
+  export_custom_routes = true
+}
+
 resource "google_sql_database_instance" "db" {
   name = "db-${random_id.db_name_suffix.hex}"
   database_version = "MYSQL_5_7"

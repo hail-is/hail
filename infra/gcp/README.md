@@ -84,11 +84,7 @@ Instructions:
 - Run `terraform apply -var-file="$HOME/.hail/global.tfvars"`.  At the
   time of writing, this takes ~15m.
 
-- Go to the Google Cloud console, VPC networks > default > Private
-  service connection > Private connections to services, and enable
-  Export custom routes to both connections.
-
- - Terraform created a GKE cluster named `vdc`.  Configure `kubectl`
+- Terraform created a GKE cluster named `vdc`.  Configure `kubectl`
    to point at the vdc cluster:
 
    ```
