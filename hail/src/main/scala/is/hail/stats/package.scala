@@ -321,10 +321,12 @@ package object stats {
   }
 
   // Returns the p for which p = Prob(Z < x) with Z a standard normal RV
-  def pnorm(x: Double): Double = Normal.cumulative(x, 0, 1)
+  def pnorm(x: Double, lowerTail: Boolean, logP: Boolean): Double = Normal.cumulative(x, 0, 1, lowerTail, logP)
+  def pnorm(x: Double): Double = pnorm(x, lowerTail = true, logP = false)
 
   // Returns the x for which p = Prob(Z < x) with Z a standard normal RV
-  def qnorm(p: Double): Double = Normal.quantile(p, 0, 1, true, false)
+  def qnorm(p: Double, lowerTail: Boolean, logP: Boolean): Double = Normal.quantile(p, 0, 1, lowerTail, logP)
+  def qnorm(p: Double): Double = qnorm(p, lowerTail = true, logP = false)
 
   // Returns the p for which p = Prob(Z < x) with Z a RV having the T distribution with n degrees of freedom
   def pT(x: Double, n: Double, lower_tail: Boolean, log_p: Boolean): Double =
@@ -334,12 +336,16 @@ package object stats {
     net.sourceforge.jdistlib.F.cumulative(x, df1, df2, lower_tail, log_p)
 
   // Returns the p for which p = Prob(Z^2 > x) with Z^2 a chi-squared RV with df degrees of freedom
-  def chiSquaredTail(x: Double, df: Double): Double = ChiSquare.cumulative(x, df, false, false)
+  def chiSquaredTail(x: Double, df: Double, lowerTail: Boolean, logP: Boolean): Double = ChiSquare.cumulative(x, df, lowerTail, logP)
 
-  def nonCentralChiSquaredTail(x: Double, df: Double, ncp: Double) = NonCentralChiSquare.cumulative(x, df, ncp, false, false)
+  def chiSquaredTail(x: Double, df: Double): Double = chiSquaredTail(x, df, lowerTail = false, logP = false)
+
+  def nonCentralChiSquaredTail(x: Double, df: Double, ncp: Double, lowerTail: Boolean, logP: Boolean): Double = NonCentralChiSquare.cumulative(x, df, ncp, lowerTail, logP)
 
   // Returns the x for which p = Prob(Z^2 > x) with Z^2 a chi-squared RV with df degrees of freedom
-  def inverseChiSquaredTail(p: Double, df: Double): Double = ChiSquare.quantile(p, df, false, false)
+  def inverseChiSquaredTail(p: Double, df: Double, lowerTail: Boolean, logP: Boolean): Double = ChiSquare.quantile(p, df, lowerTail, logP)
+
+  def inverseNonCentralChiSquaredTail(p: Double, df: Double, ncp: Double, lowerTail: Boolean, logP: Boolean): Double = NonCentralChiSquare.quantile(p, df, ncp, lowerTail, logP)
 
   def dbeta(x: Double, a: Double, b: Double): Double = Beta.density(x, a, b, false)
 

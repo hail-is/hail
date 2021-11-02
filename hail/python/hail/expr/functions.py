@@ -1916,8 +1916,8 @@ def binom_test(x, n, p, alternative: str) -> Float64Expression:
     return _func("binomTest", tfloat64, x, n, p, to_expr(alt_enum))
 
 
-@typecheck(x=expr_float64, df=expr_float64, ncp=nullable(expr_float64))
-def pchisqtail(x, df, ncp=None) -> Float64Expression:
+@typecheck(x=expr_float64, df=expr_float64, ncp=nullable(expr_float64), lower_tail=expr_bool, log_p=expr_bool)
+def pchisqtail(x, df, ncp=None, lower_tail=False, log_p=False) -> Float64Expression:
     """Returns the probability under the right-tail starting at x for a chi-squared
     distribution with df degrees of freedom.
 
@@ -1937,19 +1937,24 @@ def pchisqtail(x, df, ncp=None) -> Float64Expression:
         Degrees of freedom.
     ncp: float or :class:`.Expression` of type :py:data:`.tfloat64`
         Noncentrality parameter. Defaults to 0 if unspecified.
+    lower_tail : bool or :class:`.BooleanExpression`
+        If ``True``, compute the probability of an outcome at or below `x`,
+        otherwise greater than `x`.
+    log_p : bool or :class:`.BooleanExpression`
+        Return the natural logarithm of the probability.
 
     Returns
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
     if ncp is None:
-        return _func("pchisqtail", tfloat64, x, df)
+        return _func("pchisqtail", tfloat64, x, df, lower_tail, log_p)
     else:
-        return _func("pnchisqtail", tfloat64, x, df, ncp)
+        return _func("pnchisqtail", tfloat64, x, df, ncp, lower_tail, log_p)
 
 
-@typecheck(x=expr_float64)
-def pnorm(x) -> Float64Expression:
+@typecheck(x=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
+def pnorm(x, lower_tail=True, log_p=False) -> Float64Expression:
     """The cumulative probability function of a standard normal distribution.
 
     Examples
@@ -1971,12 +1976,17 @@ def pnorm(x) -> Float64Expression:
     Parameters
     ----------
     x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    lower_tail : bool or :class:`.BooleanExpression`
+        If ``True``, compute the probability of an outcome at or below `x`,
+        otherwise greater than `x`.
+    log_p : bool or :class:`.BooleanExpression`
+        Return the natural logarithm of the probability.
 
     Returns
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return _func("pnorm", tfloat64, x)
+    return _func("pnorm", tfloat64, x, lower_tail, log_p)
 
 
 @typecheck(x=expr_float64, n=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
@@ -2106,8 +2116,8 @@ def ppois(x, lamb, lower_tail=True, log_p=False) -> Float64Expression:
     return _func("ppois", tfloat64, x, lamb, lower_tail, log_p)
 
 
-@typecheck(p=expr_float64, df=expr_float64)
-def qchisqtail(p, df) -> Float64Expression:
+@typecheck(p=expr_float64, df=expr_float64, ncp=nullable(expr_float64), lower_tail=expr_bool, log_p=expr_bool)
+def qchisqtail(p, df, ncp=None, lower_tail=False, log_p=False) -> Float64Expression:
     """Inverts :func:`~.pchisqtail`.
 
     Examples
@@ -2127,16 +2137,25 @@ def qchisqtail(p, df) -> Float64Expression:
         Probability.
     df : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Degrees of freedom.
+    ncp: float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Corresponds to `ncp` parameter in :func:`.pchisqtail`.
+    lower_tail : bool or :class:`.BooleanExpression`
+        Corresponds to `lower_tail` parameter in :func:`.pchisqtail`.
+    log_p : bool or :class:`.BooleanExpression`
+        Exponentiate `p`, corresponds to `log_p` parameter in :func:`.pchisqtail`.
 
     Returns
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return _func("qchisqtail", tfloat64, p, df)
+    if ncp is None:
+        return _func("qchisqtail", tfloat64, p, df, lower_tail, log_p)
+    else:
+        return _func("qnchisqtail", tfloat64, p, df, ncp, lower_tail, log_p)
 
 
-@typecheck(p=expr_float64)
-def qnorm(p) -> Float64Expression:
+@typecheck(p=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
+def qnorm(p, lower_tail=True, log_p=False) -> Float64Expression:
     """Inverts :func:`~.pnorm`.
 
     Examples
@@ -2154,12 +2173,16 @@ def qnorm(p) -> Float64Expression:
     ----------
     p : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Probability.
+    lower_tail : bool or :class:`.BooleanExpression`
+        Corresponds to `lower_tail` parameter in :func:`.pnorm`.
+    log_p : bool or :class:`.BooleanExpression`
+        Exponentiate `p`, corresponds to `log_p` parameter in :func:`.pnorm`.
 
     Returns
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return _func("qnorm", tfloat64, p)
+    return _func("qnorm", tfloat64, p, lower_tail, log_p)
 
 
 @typecheck(p=expr_float64, lamb=expr_float64, lower_tail=expr_bool, log_p=expr_bool)

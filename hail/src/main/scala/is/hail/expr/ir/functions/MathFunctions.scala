@@ -148,7 +148,10 @@ object MathFunctions extends RegistryFunctions {
     registerScalaFunction("dbeta", Array(TFloat64, TFloat64, TFloat64), TFloat64, null)(statsPackageClass, "dbeta")
 
     registerScalaFunction("pnorm", Array(TFloat64), TFloat64, null)(statsPackageClass, "pnorm")
+    registerScalaFunction("pnorm", Array(TFloat64, TBoolean, TBoolean), TFloat64, null)(statsPackageClass, "pnorm")
+
     registerScalaFunction("qnorm", Array(TFloat64), TFloat64, null)(statsPackageClass, "qnorm")
+    registerScalaFunction("qnorm", Array(TFloat64, TBoolean, TBoolean), TFloat64, null)(statsPackageClass, "qnorm")
 
     registerScalaFunction("pT", Array(TFloat64, TFloat64, TBoolean, TBoolean), TFloat64, null)(statsPackageClass, "pT")
     registerScalaFunction("pF", Array(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean), TFloat64, null)(statsPackageClass, "pF")
@@ -163,8 +166,12 @@ object MathFunctions extends RegistryFunctions {
     registerScalaFunction("qpois", Array(TFloat64, TFloat64, TBoolean, TBoolean), TInt32, null)(statsPackageClass, "qpois")
 
     registerScalaFunction("pchisqtail", Array(TFloat64, TFloat64), TFloat64, null)(statsPackageClass, "chiSquaredTail")
+    registerScalaFunction("pchisqtail", Array(TFloat64, TFloat64, TBoolean, TBoolean), TFloat64, null)(statsPackageClass, "chiSquaredTail")
     registerScalaFunction("pnchisqtail", Array(TFloat64, TFloat64, TFloat64), TFloat64, null)(statsPackageClass, "nonCentralChiSquaredTail")
-    registerScalaFunction("qchisqtail", Array(TFloat64, TFloat64), TFloat64, null)(statsPackageClass, "inverseChiSquaredTail")
+    registerScalaFunction("pnchisqtail", Array(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean), TFloat64, null)(statsPackageClass, "nonCentralChiSquaredTail")
+
+    registerScalaFunction("qchisqtail", Array(TFloat64, TFloat64, TBoolean, TBoolean), TFloat64, null)(statsPackageClass, "inverseChiSquaredTail")
+    registerScalaFunction("qnchisqtail", Array(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean), TFloat64, null)(statsPackageClass, "inverseNonCentralChiSquaredTail")
 
     registerScalaFunction("floor", Array(TFloat32), TFloat32, null)(thisClass, "floor")
     registerScalaFunction("floor", Array(TFloat64), TFloat64, null)(thisClass, "floor")
