@@ -50,7 +50,7 @@ from ..batch_configuration import (
     MACHINE_NAME_PREFIX,
 )
 from ..globals import HTTP_CLIENT_MAX_SIZE
-from ..inst_coll_config import InstanceCollectionConfigs
+from ..inst_coll_config import InstanceCollectionConfigs, PoolConfig
 
 from .canceller import Canceller
 from .instance_collection import InstanceCollectionManager, JobPrivateInstanceManager
@@ -404,6 +404,7 @@ def validate_int(session, url_path, name, value, predicate, description):
 @web_authenticated_developers_only()
 async def pool_config_update(request, userdata):  # pylint: disable=unused-argument
     app = request.app
+    db: Database = app['db']
     inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
 
     session = await aiohttp_session.get_session(request)
@@ -489,16 +490,21 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
 
     enable_standing_worker = 'enable_standing_worker' in post
 
-    await pool.configure(
+    pool_config = PoolConfig(
+        pool_name,
+        pool.cloud,
+        worker_type,
         worker_cores,
-        boot_disk_size_gb,
         worker_local_ssd_data_disk,
         worker_pd_ssd_data_disk_size_gb,
         enable_standing_worker,
         standing_worker_cores,
+        boot_disk_size_gb,
         max_instances,
-        max_live_instances,
+        max_live_instances
     )
+    await pool_config.update_database(db)
+    pool.configure(pool_config)
 
     set_message(session, f'Updated configuration for {pool}.', 'info')
 

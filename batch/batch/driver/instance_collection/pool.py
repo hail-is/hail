@@ -5,7 +5,7 @@ import asyncio
 import random
 import collections
 
-from gear import Database, transaction
+from gear import Database
 from hailtop import aiotools
 from hailtop.utils import (
     secret_alnum_string,
@@ -122,55 +122,21 @@ class Pool(InstanceCollection):
             'max_live_instances': self.max_live_instances,
         }
 
-    async def configure(
-        self,
-        worker_cores,
-        boot_disk_size_gb: int,
-        worker_local_ssd_data_disk,
-        worker_pd_ssd_data_disk_size_gb,
-        enable_standing_worker,
-        standing_worker_cores,
-        max_instances,
-        max_live_instances,
-    ):
-        @transaction(self.db)
-        async def update(tx):
-            await tx.just_execute(
-                '''
-UPDATE pools
-SET worker_cores = %s, worker_local_ssd_data_disk = %s, worker_pd_ssd_data_disk_size_gb = %s,
-  enable_standing_worker = %s, standing_worker_cores = %s
-WHERE name = %s;
-''',
-                (
-                    worker_cores,
-                    worker_local_ssd_data_disk,
-                    worker_pd_ssd_data_disk_size_gb,
-                    enable_standing_worker,
-                    standing_worker_cores,
-                    self.name,
-                ),
-            )
+    def configure(self, pool_config: PoolConfig):
+        assert self.name == pool_config.name
+        assert self.cloud == pool_config.cloud
+        assert self.worker_type == pool_config.worker_type
 
-            await tx.just_execute(
-                '''
-UPDATE inst_colls
-SET boot_disk_size_gb = %s, max_instances = %s, max_live_instances = %s
-WHERE name = %s;
-''',
-                (boot_disk_size_gb, max_instances, max_live_instances, self.name),
-            )
+        self.worker_cores = pool_config.worker_cores
+        self.worker_local_ssd_data_disk = pool_config.worker_local_ssd_data_disk
+        self.worker_pd_ssd_data_disk_size_gb = pool_config.worker_pd_ssd_data_disk_size_gb
+        self.enable_standing_worker = pool_config.enable_standing_worker
+        self.standing_worker_cores = pool_config.standing_worker_cores
+        self.boot_disk_size_gb = pool_config.boot_disk_size_gb
+        self.data_disk_size_gb = pool_config.data_disk_size_gb
 
-        await update()  # pylint: disable=no-value-for-parameter
-
-        self.worker_cores = worker_cores
-        self.boot_disk_size_gb = boot_disk_size_gb
-        self.worker_local_ssd_data_disk = worker_local_ssd_data_disk
-        self.worker_pd_ssd_data_disk_size_gb = worker_pd_ssd_data_disk_size_gb
-        self.enable_standing_worker = enable_standing_worker
-        self.standing_worker_cores = standing_worker_cores
-        self.max_instances = max_instances
-        self.max_live_instances = max_live_instances
+        self.max_instances = pool_config.max_instances
+        self.max_live_instances = pool_config.max_live_instances
 
     def resources_to_cores_mcpu(self, cores_mcpu, memory_bytes, storage_bytes):
         cores_mcpu = adjust_cores_for_memory_request(self.cloud, cores_mcpu, memory_bytes, self.worker_type)

@@ -57,6 +57,34 @@ class PoolConfig(InstanceCollectionConfig):
             max_live_instances=record['max_live_instances'],
         )
 
+    async def update_database(self, db: Database):
+        await db.just_execute(
+            '''
+UPDATE pools
+INNER JOIN inst_colls ON pools.name = inst_colls.name
+SET worker_cores = %s,
+    worker_local_ssd_data_disk = %s,
+    worker_pd_ssd_data_disk_size_gb = %s,
+    enable_standing_worker = %s,
+    standing_worker_cores = %s,
+    boot_disk_size_gb = %s,
+    max_instances = %s,
+    max_live_instances = %s
+WHERE pools.name = %s;
+''',
+            (
+                self.worker_cores,
+                self.worker_local_ssd_data_disk,
+                self.worker_pd_ssd_data_disk_size_gb,
+                self.enable_standing_worker,
+                self.standing_worker_cores,
+                self.boot_disk_size_gb,
+                self.max_instances,
+                self.max_live_instances,
+                self.name,
+            ),
+        )
+
     def __init__(
         self,
         name: str,
