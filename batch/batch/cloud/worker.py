@@ -1,28 +1,47 @@
 from typing import Dict
+import os
 
 from .gcp.worker.credentials import GCPUserCredentials
 from .gcp.worker.disk import GCPDisk
-from .gcp.instance_config import GCPSlimInstanceConfig
 
 from ..worker.credentials import CloudUserCredentials
 from ..worker.disk import CloudDisk
-from ..instance_config import InstanceConfig
 
 
-def get_cloud_disk(location: str,
-                   project: str,
+class CloudInstanceEnvironment:
+    pass
+
+
+class GCPInstanceEnvironment(CloudInstanceEnvironment):
+    @staticmethod
+    def from_env():
+        project = os.environ['PROJECT']
+        zone = os.environ['ZONE'].rsplit('/', 1)[1]
+        return GCPInstanceEnvironment(project, zone)
+
+    def __init__(self, project: str, zone: str):
+        self.project = project
+        self.zone = zone
+
+    def __str__(self):
+        return f'project={self.project} zone={self.zone}'
+
+
+def get_instance_environment(cloud: str):
+    assert cloud == 'gcp', cloud
+    return GCPInstanceEnvironment.from_env()
+
+
+def get_cloud_disk(instance_environment: CloudInstanceEnvironment,
                    instance_name: str,
                    disk_name: str,
                    size_in_gb: int,
                    mount_path: str,
-                   instance_config: InstanceConfig
                    ) -> CloudDisk:
-    cloud = instance_config.cloud
-    assert cloud == 'gcp'
-    assert isinstance(instance_config, GCPSlimInstanceConfig)
+    assert isinstance(instance_environment, GCPInstanceEnvironment)
     disk = GCPDisk(
-        zone=location,
-        project=project,
+        zone=instance_environment.zone,
+        project=instance_environment.project,
         instance_name=instance_name,
         name=disk_name,
         size_in_gb=size_in_gb,

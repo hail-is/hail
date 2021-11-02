@@ -61,7 +61,7 @@ from ..globals import (
 from ..batch_format_version import BatchFormatVersion
 from ..publicly_available_images import publicly_available_images
 from ..utils import Box
-from ..cloud.worker import get_cloud_disk, get_user_credentials
+from ..cloud.worker import get_cloud_disk, get_user_credentials, get_instance_environment
 from ..cloud.utils import instance_config_from_config_dict
 from ..cloud.resource_utils import storage_gib_to_bytes, is_valid_storage_request
 
@@ -104,10 +104,7 @@ INSTANCE_ID = os.environ['INSTANCE_ID']
 DOCKER_PREFIX = os.environ['DOCKER_PREFIX']
 PUBLIC_IMAGES = publicly_available_images(DOCKER_PREFIX)
 INSTANCE_CONFIG = json.loads(base64.b64decode(os.environ['INSTANCE_CONFIG']).decode())
-if CLOUD == 'gcp':
-    LOCATION = os.environ['LOCATION'].rsplit('/', 1)[1]
-else:
-    assert False, (CLOUD, os.environ.get('LOCATION'))
+INSTANCE_ENVIRONMENT = get_instance_environment(CLOUD)
 PROJECT = os.environ['PROJECT']
 MAX_IDLE_TIME_MSECS = int(os.environ['MAX_IDLE_TIME_MSECS'])
 BATCH_WORKER_IMAGE = os.environ['BATCH_WORKER_IMAGE']
@@ -125,8 +122,7 @@ log.info(f'BATCH_LOGS_STORAGE_URI {BATCH_LOGS_STORAGE_URI}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
 log.info(f'DOCKER_PREFIX {DOCKER_PREFIX}')
 log.info(f'INSTANCE_CONFIG {INSTANCE_CONFIG}')
-log.info(f'LOCATION {LOCATION}')
-log.info(f'PROJECT {PROJECT}')
+log.info(f'INSTANCE_ENVIRONMENT {INSTANCE_ENVIRONMENT}')
 log.info(f'MAX_IDLE_TIME_MSECS {MAX_IDLE_TIME_MSECS}')
 log.info(f'UNRESERVED_WORKER_DATA_DISK_SIZE_GB {UNRESERVED_WORKER_DATA_DISK_SIZE_GB}')
 
@@ -1356,13 +1352,12 @@ class DockerJob(Job):
                 # https://cloud.google.com/compute/docs/reference/rest/v1/disks#resource:-disk
                 # under the information for the name field
                 uid = self.token[:20]
-                self.disk = get_cloud_disk(location=LOCATION,
-                                           project=PROJECT,
+                self.disk = get_cloud_disk(instance_environment=INSTANCE_ENVIRONMENT,
                                            instance_name=NAME,
                                            disk_name=f'batch-disk-{uid}',
                                            size_in_gb=self.external_storage_in_gib,
                                            mount_path=self.io_host_path(),
-                                           instance_config=instance_config)
+                                           )
                 labels = {'namespace': NAMESPACE, 'batch': '1', 'instance-name': NAME, 'uid': uid}
                 await self.disk.create(labels=labels)
                 log.info(f'created disk {self.disk.name} for job {self.id}')
