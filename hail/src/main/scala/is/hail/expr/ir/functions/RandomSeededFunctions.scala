@@ -170,6 +170,9 @@ object RandomSeededFunctions extends RegistryFunctions {
         cb.assign(totalNumberOfRecords, totalNumberOfRecords + partitionCounts.loadElement(cb, i).get(cb).asInt32.intCode(cb))
       })
 
+      cb.ifx(initalNumSamplesToSelect.intCode(cb) > totalNumberOfRecords, cb._fatal("Requested selection of ", initalNumSamplesToSelect.intCode(cb).toS,
+        " samples from ", totalNumberOfRecords.toS, " records"))
+
       val successStatesRemaining = cb.newLocal[Int]("scnspp_success", initalNumSamplesToSelect.intCode(cb))
       val failureStatesRemaining = cb.newLocal[Int]("scnspp_failure", totalNumberOfRecords - successStatesRemaining)
 

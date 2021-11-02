@@ -115,19 +115,19 @@ object LowerDistributedSort {
     val (newKType, _) = inputStage.rowType.select(sortFields.map(sf => sf.field))
 
 
+    // Output of streamDistribute: ListOfSegmentResult: Interval, then per partition info (array of file names and counts)
+    // Let's just make this Scala.
     var partitionCountsPerSegment: IR = MakeArray(inputStage.mapCollect(relationalBindings = relationalLetsAbove){ partitionStreamIR =>
       StreamLen(partitionStreamIR)
     })
-
     var inputStageWithSegmentNumbers = inputStage.mapContexts(ctxs => mapIR(ctxs)(ctx => MakeStruct(IndexedSeq("segmentIdx" -> I32(0), "oldCtx" -> ctx))))(ctx => GetField(ctx, "oldCtx"))
     var i = 0
+
 
     while (i < 2) {
       println(s"Loop iteration ${i}")
 
-      if (i > 0) {
-        println(s"partitionCountsPerSegment = ${eval(partitionCountsPerSegment)}")
-      }
+      println(s"partitionCountsPerSegment = ${eval(partitionCountsPerSegment)}")
 
       val partitionCounts = ToArray(flatMapIR(ToStream(partitionCountsPerSegment))( inner => ToStream(inner)))
 
@@ -137,7 +137,7 @@ object LowerDistributedSort {
       // Need to know partition counts per segment, so I can figure out how many samples per partition per segment.
       val numSamplesPerPartitionPerSegment = mapIR(ToStream(partitionCountsPerSegment)) { partitionCountsForOneSegment =>
         bindIR(streamSumIR(ToStream(partitionCountsForOneSegment))) { recordsInSegment =>
-          val numToTake = If(ApplyComparisonOp(LT(TInt32), recordsInSegment, branchingFactor * oversamplingNum), recordsInSegment, branchingFactor * oversamplingNum)
+          val numToTake = If(ApplyComparisonOp(LT(TInt32), recordsInSegment, (branchingFactor * oversamplingNum) - 1), recordsInSegment, branchingFactor * oversamplingNum)
           ApplySeeded("shuffle_compute_num_samples_per_partition", IndexedSeq(numToTake, partitionCountsForOneSegment), seed, TArray(TInt32))
         }
       }
@@ -145,7 +145,6 @@ object LowerDistributedSort {
       println(s"numSamplesPerPartitionPerSegment = ${eval(ToArray(numSamplesPerPartitionPerSegment))}")
 
       val numSamplesPerPartition = ToArray(flatMapIR(numSamplesPerPartitionPerSegment){ inner => ToStream(inner)})
-      //val numSamplesPerPartition = ApplySeeded("shuffle_compute_num_samples_per_partition", IndexedSeq(inputStage.numPartitions * oversamplingNum, partitionCounts), seed, TArray(TInt32))
       val numSamplesPerPartitionId = genUID()
       val numSamplesPerPartitionRef = Ref(numSamplesPerPartitionId, numSamplesPerPartition.typ)
 
@@ -167,7 +166,7 @@ object LowerDistributedSort {
           bindIR(mapIR(regularSampledIndices) { idx => ArrayRef(oversampledRef, idx) }) { sampled =>
             MakeTuple.ordered(IndexedSeq(segmentNumber, samplePartition(partitionStreamIR, sampled, newKType.fields.map(_.name))))
           }
-        }
+        }  // not sorted, this is not helpful, deal with downsampling after sorting.
       } { (res, global) => res }
 
       // Going to check now if it's fully sorted, as well as collect and sort all the samples.
@@ -414,18 +413,20 @@ object LowerDistributedSort {
     // Folding for isInternallySorted
     val aggFoldSortedAccumName1 = genUID()
     val aggFoldSortedAccumName2 = genUID()
-    val isSortedStateType = TStruct("lastKeySeen" -> keyType, "sortedSoFar" -> TBoolean)
+    val isSortedStateType = TStruct("lastKeySeen" -> keyType, "sortedSoFar" -> TBoolean, "haveSeenAny" -> TBoolean)
     val aggFoldSortedAccumRef1 = Ref(aggFoldSortedAccumName1, isSortedStateType)
     val aggFoldSortedAccumRef2 = Ref(aggFoldSortedAccumName2, isSortedStateType)
-//    val isSortedSeq = bindIR(SelectFields(eltRef, keyFields)) { keyOfCurElementRef =>
-//      bindIR(GetField(aggFoldSortedAccumRef1, "lastKeySeen")) { lastKeySeenRef =>
-//        If(IsNA(lastKeySeenRef),
-//          MakeStruct(Seq("lastKeySeen" -> keyOfCurElementRef, "sortedSoFar" -> true)),
-//          ???
-//        )
-//      }
-//    }
-
+    val isSortedSeq = bindIR(SelectFields(eltRef, keyFields)) { keyOfCurElementRef =>
+      bindIR(GetField(aggFoldSortedAccumRef1, "lastKeySeen")) { lastKeySeenRef =>
+        If(!GetField(aggFoldSortedAccumRef1, "haveSeenAny"),
+          MakeStruct(Seq("lastKeySeen" -> keyOfCurElementRef, "sortedSoFar" -> true, "haveSeenAny" -> true)),
+          If (ApplyComparisonOp(LTEQ(keyType), keyOfCurElementRef, lastKeySeenRef),
+            MakeStruct(Seq("lastKeySeen" -> keyOfCurElementRef, "sortedSoFar" -> GetField(aggFoldSortedAccumRef1, "sortedSoFar"), "haveSeenAny" -> true)),
+            MakeStruct(Seq("lastKeySeen" -> keyOfCurElementRef, "sortedSoFar" -> false, "haveSeenAny" -> true))
+          )
+        )
+      }
+    }
 
 
     StreamAgg(joined, streamElementName, {
@@ -570,3 +571,6 @@ object LowerDistributedSort {
     }
   }
 }
+
+case class Chunk(interval: Interval, filename: String, size: Int)
+case class SegmentResult(idx: Int, filenames: IndexedSeq[Chunk])

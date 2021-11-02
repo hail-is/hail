@@ -43,7 +43,7 @@ object EmitStreamDistribute {
 
     val uniqueSplittersIdx = cb.newLocal[Int]("unique_splitters_idx", 0)
 
-    def cleanupSplitters() = {
+    def cleanupSplitters()= {
       // Copy each unique splitter into array. If it is seen twice, set a boolean in a parallel array for that
       // splitter, so we know what identity buckets to make later
       val paddedSplittersPType = PCanonicalArray(keyPType)
@@ -83,7 +83,9 @@ object EmitStreamDistribute {
 
       // Pad out the rest of the splitters array so tree later is balanced.
       cb.forLoop({}, uniqueSplittersIdx < paddedSplittersSize, cb.assign(uniqueSplittersIdx, uniqueSplittersIdx + 1), {
-        paddedSplittersPType.elementType.storeAtAddress(cb, paddedSplittersPType.loadElement(paddedSplittersAddr, paddedSplittersSize, uniqueSplittersIdx), region, lastKeySeen.get(cb), false)
+        cb.ifx(lastKeySeen.get(cb).asInstanceOf[SBaseStructPointerSettable].a ceq const(0L), cb._fatal("paddedSplitterSize was ", paddedSplittersSize.toS))
+        val loaded = paddedSplittersPType.loadElement(paddedSplittersAddr, paddedSplittersSize, uniqueSplittersIdx)
+        paddedSplittersPType.elementType.storeAtAddress(cb, loaded, region, lastKeySeen.get(cb), false)
       })
 
       val splitterWasDuplicated = new SIndexablePointerCode(SIndexablePointer(splittersWasDuplicatedPType), splittersWasDuplicatedAddr).memoize(cb, "stream_distrib_was_duplicated") // Same length as splitters, but full of booleans of whether it was initially duplicated.
@@ -219,7 +221,7 @@ object EmitStreamDistribute {
     val firstInterval = intervalType.constructFromCodes(cb, region,
       EmitCode.fromI(cb.emb)(cb => requestedSplittersAndEndsVal.loadElement(cb, 0)),
       EmitCode.fromI(cb.emb)(cb => paddedSplitters.loadElement(cb, 0)),
-      false,
+      true,
       cb.memoize(!splitterWasDuplicated.loadElement(cb, 0).get(cb).asBoolean.boolCode(cb))
     )
 
@@ -271,7 +273,7 @@ object EmitStreamDistribute {
       EmitCode.fromI(cb.emb)(cb => paddedSplitters.loadElement(cb, uniqueSplittersIdx - 1)),
       EmitCode.fromI(cb.emb)(cb => requestedSplittersAndEndsVal.loadElement(cb, requestedSplittersAndEndsVal.loadLength() - 1)),
       false,
-      false
+      true
     )
 
     pushElement(cb, IEmitCode.present(cb, new SStackStructValue(stackStructType, IndexedSeq(
