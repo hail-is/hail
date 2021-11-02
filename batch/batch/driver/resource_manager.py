@@ -6,7 +6,7 @@ from hailtop.utils import time_msecs
 
 from .instance import Instance
 from ..file_store import FileStore
-from ..instance_config import InstanceConfig
+from ..instance_config import InstanceConfig, QuantifiedResource
 
 
 log = logging.getLogger('compute_manager')
@@ -102,7 +102,7 @@ class CloudResourceManager:
                         location: str,
                         machine_type: str,
                         instance_config: InstanceConfig,
-                        ) -> List[Dict[str, Any]]:
+                        ) -> List[QuantifiedResource]:
         raise NotImplementedError
 
     @abc.abstractmethod

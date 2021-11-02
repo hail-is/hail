@@ -1,4 +1,4 @@
-from typing import Optional, Dict, List, Any, Tuple
+from typing import Optional, Dict, List, Tuple
 
 import aiohttp
 import logging
@@ -12,7 +12,7 @@ from ....driver.resource_manager import (CloudResourceManager, VMDoesNotExist, V
                                          UnknownVMState, VMStateCreating, VMStateRunning,
                                          VMStateTerminated)
 from ....driver.instance import Instance
-from ....instance_config import InstanceConfig
+from ....instance_config import InstanceConfig, QuantifiedResource
 
 from ..instance_config import GCPSlimInstanceConfig
 from .create_instance import create_vm_config
@@ -107,7 +107,7 @@ class GCPResourceManager(CloudResourceManager):
                         location: str,
                         machine_type: str,
                         instance_config: InstanceConfig,
-                        ) -> List[Dict[str, Any]]:
+                        ) -> List[QuantifiedResource]:
         if local_ssd_data_disk:
             assert data_disk_size_gb == 375
 

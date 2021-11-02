@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Tuple, List, Any
+from typing import Dict, Optional, Tuple, List
 import asyncio
 import sortedcontainers
 import re
@@ -10,6 +10,7 @@ from gear import Database
 from hailtop import aiotools
 from hailtop.utils import time_msecs, secret_alnum_string, periodically_call
 
+from ...instance_config import QuantifiedResource
 from ...batch_configuration import WORKER_MAX_IDLE_TIME_MSECS
 from ..instance import Instance
 from ..location import CloudLocationMonitor
@@ -202,7 +203,7 @@ class InstanceCollection:
                                local_ssd_data_disk,
                                data_disk_size_gb,
                                boot_disk_size_gb,
-                               ) -> Tuple[Instance, List[Dict[str, Any]]]:
+                               ) -> Tuple[Instance, List[QuantifiedResource]]:
         if location is None:
             location = self.choose_location(cores,
                                             local_ssd_data_disk,

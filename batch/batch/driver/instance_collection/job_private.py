@@ -1,4 +1,4 @@
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple
 import random
 import json
 import logging
@@ -21,6 +21,7 @@ from hailtop.utils import (
 from ...batch_format_version import BatchFormatVersion
 from ...inst_coll_config import JobPrivateInstanceManagerConfig
 from ...utils import Box, ExceededSharesCounter
+from ...instance_config import QuantifiedResource
 
 from ..instance import Instance
 from ..job import mark_job_creating, schedule_job
@@ -262,7 +263,7 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
 
         return result
 
-    async def create_instance(self, machine_spec: dict) -> Tuple[Instance, List[Dict[str, Any]]]:
+    async def create_instance(self, machine_spec: dict) -> Tuple[Instance, List[QuantifiedResource]]:
         machine_type = machine_spec['machine_type']
         preemptible = machine_spec['preemptible']
         storage_gb = machine_spec['storage_gib']
@@ -390,7 +391,11 @@ LIMIT %s;
 
                 log.info(f'creating job private instance for job {id}')
 
-                async def create_instance_with_error_handling(batch_id, job_id, attempt_id, record, id):
+                async def create_instance_with_error_handling(batch_id: int,
+                                                              job_id: int,
+                                                              attempt_id: str,
+                                                              record: dict,
+                                                              id: Tuple[int, int]):
                     try:
                         batch_format_version = BatchFormatVersion(record['format_version'])
                         spec = json.loads(record['spec'])

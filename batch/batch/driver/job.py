@@ -1,3 +1,4 @@
+from typing import List, TYPE_CHECKING
 import json
 import logging
 import asyncio
@@ -16,12 +17,12 @@ from ..batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, KUBERNETES_SERV
 from ..batch_format_version import BatchFormatVersion
 from ..spec_writer import SpecWriter
 from ..file_store import FileStore
+from ..instance_config import QuantifiedResource
+from .instance import Instance
 
 from .k8s_cache import K8sCache
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
+sif TYPE_CHECKING:
     from .instance_collection import InstanceCollectionManager  # pylint: disable=cyclic-import
 
 log = logging.getLogger('job')
@@ -181,7 +182,13 @@ CALL mark_job_started(%s, %s, %s, %s, %s);
     await add_attempt_resources(db, batch_id, job_id, attempt_id, resources)
 
 
-async def mark_job_creating(app, batch_id, job_id, attempt_id, instance, start_time, resources):
+async def mark_job_creating(app,
+                            batch_id: int,
+                            job_id: int,
+                            attempt_id: str,
+                            instance: Instance,
+                            start_time: int,
+                            resources: List[QuantifiedResource]):
     db: Database = app['db']
 
     id = (batch_id, job_id)
