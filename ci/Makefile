@@ -13,8 +13,9 @@ BLACK := $(PYTHON) -m black . --line-length=120 --skip-string-normalization
 
 .PHONY: check
 check:
-	$(PYTHON) -m flake8 ci
+	$(PYTHON) -m flake8 .
 	$(PYTHON) -m pylint --rcfile ../pylintrc ci --score=n
+	$(PYTHON) -m mypy --config-file ../setup.cfg .
 	$(BLACK) --check --diff
 	curlylint .
 	bash ../check-sql.sh
