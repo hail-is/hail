@@ -472,9 +472,7 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
         raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
 
     if not worker_local_ssd_data_disk:
-        unreserved_disk_storage_gb = unreserved_worker_data_disk_size_gib(
-            pool.cloud, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb, worker_cores
-        )
+        unreserved_disk_storage_gb = unreserved_worker_data_disk_size_gib(worker_pd_ssd_data_disk_size_gb, worker_cores)
         if unreserved_disk_storage_gb < 0:
             min_disk_storage = worker_pd_ssd_data_disk_size_gb - unreserved_disk_storage_gb
             set_message(session, f'PD SSD must be at least {min_disk_storage} GB', 'error')

@@ -21,11 +21,6 @@ from hailtop.utils import (
 from ...batch_configuration import STANDING_WORKER_MAX_IDLE_TIME_MSECS
 from ...inst_coll_config import PoolConfig
 from ...utils import Box, ExceededSharesCounter
-from ...cloud.resource_utils import (
-    adjust_cores_for_memory_request,
-    adjust_cores_for_packability,
-    adjust_cores_for_storage_request,
-)
 from ..instance import Instance
 from ..resource_manager import CloudResourceManager
 from ..job import schedule_job
@@ -137,22 +132,6 @@ class Pool(InstanceCollection):
 
         self.max_instances = pool_config.max_instances
         self.max_live_instances = pool_config.max_live_instances
-
-    def resources_to_cores_mcpu(self, cores_mcpu, memory_bytes, storage_bytes):
-        cores_mcpu = adjust_cores_for_memory_request(self.cloud, cores_mcpu, memory_bytes, self.worker_type)
-        cores_mcpu = adjust_cores_for_storage_request(
-            self.cloud,
-            cores_mcpu,
-            storage_bytes,
-            self.worker_cores,
-            self.worker_local_ssd_data_disk,
-            self.worker_pd_ssd_data_disk_size_gb,
-        )
-        cores_mcpu = adjust_cores_for_packability(cores_mcpu)
-
-        if cores_mcpu < self.worker_cores * 1000:
-            return cores_mcpu
-        return None
 
     def adjust_for_remove_instance(self, instance):
         super().adjust_for_remove_instance(instance)

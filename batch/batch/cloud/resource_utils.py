@@ -2,10 +2,9 @@ import logging
 import math
 from typing import Tuple, Dict, List, Optional
 
+from ..globals import RESERVED_STORAGE_GB_PER_CORE
 from .gcp.resource_utils import (gcp_cost_from_msec_mcpu,
                                  gcp_worker_memory_per_core_mib,
-                                 gcp_total_worker_storage_gib,
-                                 gcp_unreserved_worker_data_disk_size_gib,
                                  gcp_requested_to_actual_storage_bytes,
                                  gcp_machine_type_to_worker_type_and_cores,
                                  gcp_valid_machine_types,
@@ -64,40 +63,10 @@ def adjust_cores_for_memory_request(cloud: str, cores_in_mcpu: int, memory_in_by
     return max(cores_in_mcpu, min_cores_mcpu)
 
 
-def total_worker_storage_gib(cloud: str, worker_local_ssd_data_disk: bool, worker_pd_ssd_data_disk_size_gib: int) -> int:
-    assert cloud == 'gcp'
-    return gcp_total_worker_storage_gib(worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib)
-
-
-def worker_storage_per_core_bytes(cloud: str, worker_cores: int, worker_local_ssd_data_disk: bool,
-                                  worker_pd_ssd_data_disk_size_gib: int) -> int:
-    return (
-        total_worker_storage_gib(cloud, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib) * 1024 ** 3
-    ) // worker_cores
-
-
-def storage_bytes_to_cores_mcpu(
-    cloud: str, storage_in_bytes: int, worker_cores: int, worker_local_ssd_data_disk: bool, worker_pd_ssd_data_disk_size_gib: int
-) -> int:
-    return round_up_division(
-        storage_in_bytes * 1000,
-        worker_storage_per_core_bytes(cloud, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib),
-    )
-
-
-def adjust_cores_for_storage_request(
-    cloud: str, cores_in_mcpu: int, storage_in_bytes: int, worker_cores: int, worker_local_ssd_data_disk: bool, worker_pd_ssd_data_disk_size_gib: int
-) -> int:
-    min_cores_mcpu = storage_bytes_to_cores_mcpu(
-        cloud, storage_in_bytes, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib
-    )
-    return max(cores_in_mcpu, min_cores_mcpu)
-
-
-def unreserved_worker_data_disk_size_gib(cloud: str, worker_local_ssd_data_disk: bool,
-                                         worker_pd_ssd_data_disk_size_gib: int, worker_cores: int) -> int:
-    assert cloud == 'gcp'
-    return gcp_unreserved_worker_data_disk_size_gib(worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib, worker_cores)
+def unreserved_worker_data_disk_size_gib(data_disk_size_gib: int, cores: int) -> int:
+    reserved_image_size = 30
+    reserved_container_size = RESERVED_STORAGE_GB_PER_CORE * cores
+    return data_disk_size_gib - reserved_image_size - reserved_container_size
 
 
 def requested_storage_bytes_to_actual_storage_gib(cloud: str, storage_bytes: int, allow_zero_storage: bool) -> Optional[int]:

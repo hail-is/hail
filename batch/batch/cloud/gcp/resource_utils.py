@@ -107,26 +107,6 @@ def gcp_worker_memory_per_core_mib(worker_type: str) -> int:
     return m
 
 
-def gcp_total_worker_storage_gib(worker_local_ssd_data_disk: bool, worker_pd_ssd_data_disk_size_gib: int) -> int:
-    reserved_image_size = 25
-    if worker_local_ssd_data_disk:
-        # local ssd is 375Gi
-        # reserve 25Gi for images
-        return 375 - reserved_image_size
-    return worker_pd_ssd_data_disk_size_gib - reserved_image_size
-
-
-def gcp_unreserved_worker_data_disk_size_gib(worker_local_ssd_data_disk: bool, worker_pd_ssd_data_disk_size_gib: int,
-                                             worker_cores: int) -> int:
-    reserved_image_size = 30
-    reserved_container_size = RESERVED_STORAGE_GB_PER_CORE * worker_cores
-    if worker_local_ssd_data_disk:
-        # local ssd is 375Gi
-        # reserve 20Gi for images
-        return 375 - reserved_image_size - reserved_container_size
-    return worker_pd_ssd_data_disk_size_gib - reserved_image_size - reserved_container_size
-
-
 def gcp_requested_to_actual_storage_bytes(storage_bytes, allow_zero_storage):
     if storage_bytes > GCP_MAX_PERSISTENT_SSD_SIZE_GIB * 1024 ** 3:
         return None

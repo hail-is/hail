@@ -30,8 +30,8 @@ def create_vm_config(
     machine_type: str,
     activation_token: str,
     max_idle_time_msecs: int,
-    worker_local_ssd_data_disk: bool,
-    worker_pd_ssd_data_disk_size_gb: int,
+    local_ssd_data_disk: bool,
+    data_disk_size_gb: int,
     boot_disk_size_gb: int,
     preemptible: bool,
     job_private: bool,
@@ -40,7 +40,7 @@ def create_vm_config(
 ) -> dict:
     _, cores = gcp_machine_type_to_worker_type_and_cores(machine_type)
 
-    if worker_local_ssd_data_disk:
+    if local_ssd_data_disk:
         worker_data_disk = {
             'type': 'SCRATCH',
             'autoDelete': True,
@@ -53,17 +53,15 @@ def create_vm_config(
             'autoDelete': True,
             'initializeParams': {
                 'diskType': f'projects/{project}/zones/{zone}/diskTypes/pd-ssd',
-                'diskSizeGb': str(worker_pd_ssd_data_disk_size_gb),
+                'diskSizeGb': str(data_disk_size_gb),
             },
         }
         worker_data_disk_name = 'sdb'
 
     if job_private:
-        unreserved_disk_storage_gb = worker_pd_ssd_data_disk_size_gb
+        unreserved_disk_storage_gb = data_disk_size_gb
     else:
-        unreserved_disk_storage_gb = unreserved_worker_data_disk_size_gib(
-            'gcp', worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb, cores
-        )
+        unreserved_disk_storage_gb = unreserved_worker_data_disk_size_gib(data_disk_size_gb, cores)
     assert unreserved_disk_storage_gb >= 0
 
     make_global_config = ['mkdir /global-config']
