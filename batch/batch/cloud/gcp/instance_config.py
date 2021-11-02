@@ -1,7 +1,7 @@
 from typing import List
 
 from ...instance_config import InstanceConfig, is_power_two, QuantifiedResource
-from .resource_utils import gcp_machine_type_to_parts
+from .resource_utils import gcp_machine_type_to_parts, family_worker_type_cores_to_gcp_machine_type
 
 
 GCP_INSTANCE_CONFIG_VERSION = 4
@@ -44,8 +44,13 @@ class GCPSlimInstanceConfig(InstanceConfig):
             local_ssd_data_disk = disks[1]['type'] == 'local-ssd'
             data_disk_size_gb = disks[1]['size']
             job_private = data['job-private']
+            machine_type = family_worker_type_cores_to_gcp_machine_type(
+                data['instance']['family'],
+                data['instance']['type'],
+                data['instance']['cores'],
+            )
             return GCPSlimInstanceConfig(
-                data['vm_config']['machineType'],
+                machine_type,
                 data['instance']['preemptible'],
                 local_ssd_data_disk,
                 data_disk_size_gb,
