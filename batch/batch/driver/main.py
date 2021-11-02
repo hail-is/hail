@@ -60,7 +60,11 @@ from .instance_collection import Pool
 from .driver import CloudDriver
 from ..utils import query_billing_projects, batch_only, authorization_token
 from ..cloud.driver import get_cloud_driver
-from ..cloud.resource_utils import unreserved_worker_data_disk_size_gib
+from ..cloud.resource_utils import (
+    unreserved_worker_data_disk_size_gib,
+    possible_cores_from_worker_type,
+    local_ssd_size
+)
 from ..exceptions import BatchUserError
 
 uvloop.install()
@@ -421,28 +425,6 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
 
     worker_type = pool.worker_type
 
-    if worker_type == 'standard':
-        valid_worker_cores = (1, 2, 4, 8, 16, 32, 64, 96)
-    else:
-        valid_worker_cores = (2, 4, 8, 16, 32, 64, 96)
-    worker_cores = validate_int(
-        session,
-        pool_url_path,
-        f'{worker_type} worker cores',
-        post['worker_cores'],
-        lambda v: v in valid_worker_cores,
-        f'one of {", ".join(str(v) for v in valid_worker_cores)}',
-    )
-
-    standing_worker_cores = validate_int(
-        session,
-        pool_url_path,
-        f'{worker_type} standing worker cores',
-        post['standing_worker_cores'],
-        lambda v: v in valid_worker_cores,
-        f'one of {", ".join(str(v) for v in valid_worker_cores)}',
-    )
-
     boot_disk_size_gb = validate_int(
         session,
         pool_url_path,
@@ -451,32 +433,28 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
         lambda v: v >= 10,
         'a positive integer greater than or equal to 10',
     )
+    if pool.cloud == 'azure' and boot_disk_size_gb != 30:
+        set_message(session, 'The boot disk size (GB) must be 30 in azure.', 'error')
+        raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
 
     worker_local_ssd_data_disk = 'worker_local_ssd_data_disk' in post
 
-    worker_pd_ssd_data_disk_size_gb = validate_int(
+    worker_external_ssd_data_disk_size_gb = validate_int(
         session,
         pool_url_path,
-        'Worker PD SSD data disk size (in GB)',
-        post['worker_pd_ssd_data_disk_size_gb'],
+        'Worker external SSD data disk size (in GB)',
+        post['worker_external_ssd_data_disk_size_gb'],
         lambda v: v >= 0,
         'a nonnegative integer',
     )
 
-    if not worker_local_ssd_data_disk and worker_pd_ssd_data_disk_size_gb == 0:
-        set_message(session, 'Either the worker must use a local SSD or PD SSD data disk must be non-zero.', 'error')
+    if not worker_local_ssd_data_disk and worker_external_ssd_data_disk_size_gb == 0:
+        set_message(session, 'Either the worker must use a local SSD or the external SSD data disk must be non-zero.', 'error')
         raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
 
-    if worker_local_ssd_data_disk and worker_pd_ssd_data_disk_size_gb > 0:
-        set_message(session, 'Worker cannot both use local SSD and have a non-zero PD SSD data disk.', 'error')
+    if worker_local_ssd_data_disk and worker_external_ssd_data_disk_size_gb > 0:
+        set_message(session, 'Worker cannot both use local SSD and have a non-zero external SSD data disk.', 'error')
         raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
-
-    if not worker_local_ssd_data_disk:
-        unreserved_disk_storage_gb = unreserved_worker_data_disk_size_gib(worker_pd_ssd_data_disk_size_gb, worker_cores)
-        if unreserved_disk_storage_gb < 0:
-            min_disk_storage = worker_pd_ssd_data_disk_size_gb - unreserved_disk_storage_gb
-            set_message(session, f'PD SSD must be at least {min_disk_storage} GB', 'error')
-            raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
 
     max_instances = validate_int(
         session, pool_url_path, 'Max instances', post['max_instances'], lambda v: v > 0, 'a positive integer'
@@ -488,13 +466,47 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
 
     enable_standing_worker = 'enable_standing_worker' in post
 
+    possible_worker_cores = []
+    for cores in possible_cores_from_worker_type(pool.cloud, worker_type):
+        # disk storage for local ssd is proportional to the number of cores in azure
+        data_disk_size_gb = local_ssd_size(pool.cloud, worker_type, cores)
+        unreserved_disk_storage_gb = unreserved_worker_data_disk_size_gib(data_disk_size_gb, cores)
+        if unreserved_disk_storage_gb >= 0:
+            possible_worker_cores.append(cores)
+
+    worker_cores = validate_int(
+        session,
+        pool_url_path,
+        f'{worker_type} worker cores',
+        post['worker_cores'],
+        lambda c: c in possible_worker_cores,
+        f'one of {", ".join(str(c) for c in possible_worker_cores)}',
+    )
+
+    standing_worker_cores = validate_int(
+        session,
+        pool_url_path,
+        f'{worker_type} standing worker cores',
+        post['standing_worker_cores'],
+        lambda c: c in possible_worker_cores,
+        f'one of {", ".join(str(c) for c in possible_worker_cores)}',
+    )
+
+    if not worker_local_ssd_data_disk:
+        # disk storage is not proportional to the number of cores when using pd_ssd
+        unreserved_disk_storage_gb = unreserved_worker_data_disk_size_gib(worker_external_ssd_data_disk_size_gb, worker_cores)
+        if unreserved_disk_storage_gb < 0:
+            min_disk_storage = worker_external_ssd_data_disk_size_gb - unreserved_disk_storage_gb
+            set_message(session, f'External SSD must be at least {min_disk_storage} GB', 'error')
+            raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
+
     pool_config = PoolConfig(
         pool_name,
         pool.cloud,
         worker_type,
         worker_cores,
         worker_local_ssd_data_disk,
-        worker_pd_ssd_data_disk_size_gb,
+        worker_external_ssd_data_disk_size_gb,
         enable_standing_worker,
         standing_worker_cores,
         boot_disk_size_gb,

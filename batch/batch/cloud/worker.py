@@ -1,33 +1,25 @@
 from typing import Dict
-import os
+
+import aiohttp
+
+from .azure.worker.credentials import AzureUserCredentials
+from .azure.worker.disk import AzureDisk
+from .azure.worker.instance_env import AzureInstanceEnvironment
+from .azure.worker.utils import azure_worker_access_token
 
 from .gcp.worker.credentials import GCPUserCredentials
 from .gcp.worker.disk import GCPDisk
+from .gcp.worker.instance_env import GCPInstanceEnvironment
+from .gcp.worker.utils import gcp_worker_access_token
 
 from ..worker.credentials import CloudUserCredentials
 from ..worker.disk import CloudDisk
-
-
-class CloudInstanceEnvironment:
-    pass
-
-
-class GCPInstanceEnvironment(CloudInstanceEnvironment):
-    @staticmethod
-    def from_env():
-        project = os.environ['PROJECT']
-        zone = os.environ['ZONE'].rsplit('/', 1)[1]
-        return GCPInstanceEnvironment(project, zone)
-
-    def __init__(self, project: str, zone: str):
-        self.project = project
-        self.zone = zone
-
-    def __str__(self):
-        return f'project={self.project} zone={self.zone}'
+from ..worker.instance_env import CloudInstanceEnvironment
 
 
 def get_instance_environment(cloud: str):
+    if cloud == 'azure':
+        return AzureInstanceEnvironment.from_env()
     assert cloud == 'gcp', cloud
     return GCPInstanceEnvironment.from_env()
 
@@ -38,8 +30,11 @@ def get_cloud_disk(instance_environment: CloudInstanceEnvironment,
                    size_in_gb: int,
                    mount_path: str,
                    ) -> CloudDisk:
+    if isinstance(instance_environment, AzureInstanceEnvironment):
+        return AzureDisk(disk_name, instance_name, size_in_gb, mount_path)
+
     assert isinstance(instance_environment, GCPInstanceEnvironment)
-    disk = GCPDisk(
+    return GCPDisk(
         zone=instance_environment.zone,
         project=instance_environment.project,
         instance_name=instance_name,
@@ -47,9 +42,17 @@ def get_cloud_disk(instance_environment: CloudInstanceEnvironment,
         size_in_gb=size_in_gb,
         mount_path=mount_path,
     )
-    return disk
 
 
 def get_user_credentials(cloud: str, credentials: Dict[str, bytes]) -> CloudUserCredentials:
-    assert cloud == 'gcp'
+    if cloud == 'azure':
+        return AzureUserCredentials(credentials)
+    assert cloud == 'gcp', cloud
     return GCPUserCredentials(credentials)
+
+
+async def get_worker_access_token(cloud: str, session: aiohttp.ClientSession) -> Dict[str, str]:
+    if cloud == 'azure':
+        return await azure_worker_access_token(session)
+    assert cloud == 'gcp', cloud
+    return await gcp_worker_access_token(session)

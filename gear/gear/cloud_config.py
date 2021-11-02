@@ -3,6 +3,20 @@ import os
 import json
 
 
+class AzureConfig:
+    subscription_id: str
+    resource_group: str
+    region: str
+
+    @staticmethod
+    def from_global_config(global_config):
+        conf = AzureConfig()
+        conf.subscription_id = global_config['azure_subscription_id']
+        conf.resource_group = global_config['azure_resource_group']
+        conf.region = global_config['azure_region']
+        return conf
+
+
 class GCPConfig:
     project: str
     region: str
@@ -29,6 +43,7 @@ class GCPConfig:
         return f'{data}'
 
 
+azure_config = None
 gcp_config = None
 global_config = None
 
@@ -38,6 +53,13 @@ def get_global_config() -> Dict[str, str]:
     if global_config is None:
         global_config = read_config_secret('/global-config')
     return global_config
+
+
+def get_azure_config() -> AzureConfig:
+    global azure_config
+    if azure_config is None:
+        azure_config = AzureConfig.from_global_config(get_global_config())
+    return azure_config
 
 
 def get_gcp_config() -> GCPConfig:

@@ -61,7 +61,7 @@ from ..globals import (
 from ..batch_format_version import BatchFormatVersion
 from ..publicly_available_images import publicly_available_images
 from ..utils import Box
-from ..cloud.worker import get_cloud_disk, get_user_credentials, get_instance_environment
+from ..cloud.worker import get_cloud_disk, get_user_credentials, get_instance_environment, get_worker_access_token
 from ..cloud.utils import instance_config_from_config_dict
 from ..cloud.resource_utils import storage_gib_to_bytes, is_valid_storage_request
 
@@ -130,7 +130,13 @@ instance_config = instance_config_from_config_dict(INSTANCE_CONFIG)
 assert instance_config.cores == CORES
 assert instance_config.cloud == CLOUD
 
-deploy_config = DeployConfig('gce', NAMESPACE, {})
+if CLOUD == 'gcp':
+    deploy_location = 'gce'
+else:
+    assert CLOUD == 'azure'
+    deploy_location = 'azure'
+
+deploy_config = DeployConfig(deploy_location, NAMESPACE, {})
 
 docker: Optional[aiodocker.Docker] = None
 
@@ -316,6 +322,16 @@ def docker_call_retry(timeout, name):
                 delay = await sleep_and_backoff(delay)
 
     return wrapper
+
+
+def pull_docker_image(image_ref_str, auth):
+    try:
+        await check_shell_output(f'''
+docker login --username {auth["username"]} --password {auth["password"]} && \
+docker pull {image_ref_str}
+''')
+    except CalledProcessError as e:
+        raise DockerError(e.returncode, e.stderr) from e
 
 
 async def send_signal_and_wait(proc, signal, timeout=None):
@@ -553,7 +569,7 @@ class Container:
                 # per-user image cache.
                 auth = self.current_user_access_token()
                 await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                    docker.images.pull, self.image_ref_str, auth=auth
+                    pull_docker_image, self.image_ref_str, auth=auth
                 )
         except DockerError as e:
             if e.status == 404 and 'pull access denied' in e.message:
@@ -571,22 +587,13 @@ class Container:
         except DockerError as e:
             if e.status == 404:
                 await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                    docker.images.pull, self.image_ref_str, auth=auth
+                    pull_docker_image, self.image_ref_str, auth=auth
                 )
             else:
                 raise
 
     async def batch_worker_access_token(self):
-        assert CLOUD == 'gcp'
-        async with await request_retry_transient_errors(
-            self.client_session,
-            'POST',
-            'http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token',
-            headers={'Metadata-Flavor': 'Google'},
-            timeout=aiohttp.ClientTimeout(total=60),
-        ) as resp:
-            access_token = (await resp.json())['access_token']
-            return {'username': 'oauth2accesstoken', 'password': access_token}
+        await get_worker_access_token(CLOUD, self.client_session)
 
     def current_user_access_token(self):
         return {'username': self.job.credentials.username, 'password': self.job.credentials.password}
@@ -982,7 +989,7 @@ class Container:
         return f'container {self.job.id}/{self.name}'
 
 
-def populate_secret_host_path(host_path, secret_data: Optional[Dict[str, str]]):
+def populate_secret_host_path(host_path: str, secret_data: Optional[Dict[str, bytes]]):
     os.makedirs(host_path, exist_ok=True)
     if secret_data is not None:
         for filename, data in secret_data.items():

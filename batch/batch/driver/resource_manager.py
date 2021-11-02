@@ -65,7 +65,7 @@ class VMStateRunning(TimestampedVMState):
 
 class CloudResourceManager:
     @abc.abstractmethod
-    def machine_type(self, cores: int, worker_type: str):
+    def machine_type(self, cores: int, worker_type: str, local_ssd: bool) -> str:
         raise NotImplementedError
 
     @abc.abstractmethod
