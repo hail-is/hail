@@ -80,35 +80,21 @@ class GCPSlimInstanceConfig(InstanceConfig):
                   ) -> List[QuantifiedResource]:
         assert memory_in_bytes % (1024 * 1024) == 0, memory_in_bytes
         assert isinstance(extra_storage_in_gib, int), extra_storage_in_gib
-
-        resources = []
+        assert is_power_two(self.cores) and self.cores <= 256, self.cores
 
         preemptible = 'preemptible' if self.preemptible else 'nonpreemptible'
         worker_fraction_in_1024ths = 1024 * cpu_in_mcpu // (self.cores * 1000)
-
-        resources.append({'name': f'compute/{self._instance_family}-{preemptible}/1', 'quantity': cpu_in_mcpu})
-
-        resources.append(
-            {'name': f'memory/{self._instance_family}-{preemptible}/1', 'quantity': memory_in_bytes // 1024 // 1024}
-        )
-
-        # storage is in units of MiB
-        resources.append({'name': 'disk/pd-ssd/1', 'quantity': extra_storage_in_gib * 1024})
-
         if self.local_ssd_data_disk:
-            data_disk_name = 'disk/local-ssd/1'
+            data_disk_product = 'disk/local-ssd/1'
         else:
-            data_disk_name = 'disk/pd-ssd/1'
-        resources.append(
-            # the factors of 1024 cancel between GiB -> MiB and fraction_1024 -> fraction
-            {'name': data_disk_name, 'quantity': self.data_disk_size_gb * worker_fraction_in_1024ths})
+            data_disk_product = 'disk/pd-ssd/1'
+        return [
+            {'name': f'compute/{self._instance_family}-{preemptible}/1', 'quantity': cpu_in_mcpu},
+            {'name': f'memory/{self._instance_family}-{preemptible}/1', 'quantity': memory_in_bytes // 1024 // 1024},
+            {'name': 'disk/pd-ssd/1', 'quantity': self.boot_disk_size_gb * worker_fraction_in_1024ths},  # the factors of 1024 cancel between GiB -> MiB and fraction_1024 -> fraction
+            {'name': data_disk_product, 'quantity': self.data_disk_size_gb * worker_fraction_in_1024ths},  # the factors of 1024 cancel between GiB -> MiB and fraction_1024 -> fraction
+            {'name': 'disk/pd-ssd/1', 'quantity': extra_storage_in_gib * 1024},  # storage is in units of MiB
+            {'name': 'service-fee/1', 'quantity': cpu_in_mcpu},
+            {'name': 'ip-fee/1024/1', 'quantity': worker_fraction_in_1024ths},
+        ]
 
-        resources.append(
-            {'name': 'disk/pd-ssd/1', 'quantity': self.boot_disk_size_gb})
-
-        resources.append({'name': 'service-fee/1', 'quantity': cpu_in_mcpu})
-
-        assert is_power_two(self.cores) and self.cores <= 256, self.cores
-        resources.append({'name': 'ip-fee/1024/1', 'quantity': worker_fraction_in_1024ths})
-
-        return resources

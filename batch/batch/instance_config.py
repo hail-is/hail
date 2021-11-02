@@ -46,7 +46,7 @@ class InstanceConfig(abc.ABC):
     def _cost_per_hour_from_resources(resource_rates: Dict[str, float],
                                       resources: List[QuantifiedResource]
                                       ) -> float:
-        cost_per_msec = 0
+        cost_per_msec = 0.0
         for r in resources:
             name = r['name']
             quantity = r['quantity']
