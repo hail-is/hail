@@ -713,11 +713,14 @@ def dchisq(x, df, ncp=None, log_p=False) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.dchisq(1, 1))
-    6.634896601021213
+    >>> hl.eval(hl.dchisq(1, 2))
+    0.3032653298563167
 
-    >>> hl.eval(hl.dchisq(1, 1, 2))
-    6.634896601021213
+    >>> hl.eval(hl.dchisq(1, 2, ncp=2))
+    0.17472016746112667
+
+    >>> hl.eval(hl.dchisq(1, 2, log_p=True))
+    -1.1931471805599454
 
     Parameters
     ----------
@@ -733,6 +736,7 @@ def dchisq(x, df, ncp=None, log_p=False) -> Float64Expression:
     Returns
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
+        The probability density.
     """
     if ncp is None:
         return _func("dchisq", tfloat64, x, df, log_p)
@@ -750,14 +754,18 @@ def dnorm(x, mu=0, sigma=1, log_p=False) -> Float64Expression:
     --------
 
     >>> hl.eval(hl.dnorm(1))
+    0.24197072451914337
 
+    >>> hl.eval(hl.dnorm(1, mu=1, sigma=2))
+    0.19947114020071635
 
-    >>> hl.eval(hl.dnorm(1, 1, 2))
+    >>> hl.eval(hl.dnorm(1, log_p=True))
+    -1.4189385332046727
 
     Parameters
     ----------
     x : :obj:`float` or :class:`.Expression` of type :py:data:`.tfloat64`
-        Number at which to compute the probability density.
+        Real number at which to compute the probability density.
     mu : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Mean (default = 0).
     sigma: float or :class:`.Expression` of type :py:data:`.tfloat64`
@@ -768,7 +776,7 @@ def dnorm(x, mu=0, sigma=1, log_p=False) -> Float64Expression:
     Returns
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
-        The (log) probability density.
+        The probability density.
     """
     return _func("dnorm", tfloat64, x, mu, sigma, log_p)
 
@@ -1995,8 +2003,14 @@ def pchisqtail(x, df, ncp=None, lower_tail=False, log_p=False) -> Float64Express
     >>> hl.eval(hl.pchisqtail(5, 1))
     0.025347318677468304
 
-    >>> hl.eval(hl.pchisqtail(3, 1, 2))
-    0.3761310507217904
+    >>> hl.eval(hl.pchisqtail(5, 1, ncp=2))
+    0.20571085634347097
+
+    >>> hl.eval(hl.pchisqtail(5, 1, lower_tail=True))
+    0.9746526813225317
+
+    >>> hl.eval(hl.pchisqtail(5, 1, log_p=True))
+    -3.6750823266311876
 
     Parameters
     ----------
@@ -2033,16 +2047,19 @@ def pnorm(x, mu=0, sigma=1, lower_tail=True, log_p=False) -> Float64Expression:
     >>> hl.eval(hl.pnorm(0))
     0.5
 
-    >>> hl.eval(hl.pnorm(1))
-    0.8413447460685429
+    >>> hl.eval(hl.pnorm(1, mu=2, sigma=2))
+    0.30853753872598694
 
-    >>> hl.eval(hl.pnorm(2))
-    0.9772498680518208
+    >>> hl.eval(hl.pnorm(2, lower_tail=False))
+    0.022750131948179212
+
+    >>> hl.eval(hl.pnorm(2, log_p=True))
+    -0.023012909328963493
 
     Notes
     -----
     Returns the left-tail probability `p` = Prob(:math:`Z < x`) with :math:`Z`
-    a normal random variable.Defaults to a standard normal random variable.
+    a normal random variable. Defaults to a standard normal random variable.
 
     Parameters
     ----------
@@ -2199,11 +2216,17 @@ def qchisqtail(p, df, ncp=None, lower_tail=False, log_p=False) -> Float64Express
     Examples
     --------
 
-    >>> hl.eval(hl.qchisqtail(0.01, 1))
-    6.634896601021213
+    >>> hl.eval(hl.qchisqtail(0.05, 2))
+    5.991464547107979
 
-    >>> hl.eval(hl.qchisqtail(0.01, 1, 2))
-    6.634896601021213
+    >>> hl.eval(hl.qchisqtail(0.05, 2, ncp=2))
+    10.838131614372958
+
+    >>> hl.eval(hl.qchisqtail(0.05, 2, lower_tail=True))
+    0.10258658877510107
+
+    >>> hl.eval(hl.qchisqtail(hl.log(0.05), 2, log_p=True))
+    5.991464547107979
 
     Notes
     -----
@@ -2246,6 +2269,15 @@ def qnorm(p, mu=0, sigma=1, lower_tail=True, log_p=False) -> Float64Expression:
     >>> hl.eval(hl.qnorm(0.90))
     1.2815515655446008
 
+    >>> hl.eval(hl.qnorm(0.90, mu=1, sigma=2))
+    3.5631031310892016
+
+    >>> hl.eval(hl.qnorm(0.90, lower_tail=False))
+    -1.2815515655446008
+
+    >>> hl.eval(hl.qnorm(hl.log(0.90), log_p=True))
+    1.2815515655446008
+
     Notes
     -----
     Returns left-quantile `x` for which p = Prob(:math:`Z` < x) with :math:`Z`
@@ -2275,7 +2307,8 @@ def qnorm(p, mu=0, sigma=1, lower_tail=True, log_p=False) -> Float64Expression:
 
 @typecheck(p=expr_float64, lamb=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
 def qpois(p, lamb, lower_tail=True, log_p=False) -> Float64Expression:
-    r"""Inverts :func:`~.ppois`.
+    r"""The quantile function of a Poisson distribution with rate parameter
+    `lamb`, inverts :func:`~.ppois`.
 
     Examples
     --------
