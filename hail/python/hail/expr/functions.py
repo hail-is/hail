@@ -705,9 +705,44 @@ def dbeta(x, a, b) -> Float64Expression:
     return _func("dbeta", tfloat64, x, a, b)
 
 
+@typecheck(x=expr_float64, df=expr_float64, ncp=nullable(expr_float64), log_p=expr_bool)
+def dchisq(x, df, ncp=None, log_p=False) -> Float64Expression:
+    """Compute the probability density at `x` of a chi-squared distribution with `df`
+    degrees of freedom.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.dchisq(1, 1))
+    6.634896601021213
+
+    >>> hl.eval(hl.dchisq(1, 1, 2))
+    6.634896601021213
+
+    Parameters
+    ----------
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Non-negative number at which to compute the probability density.
+    df : float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Degrees of freedom.
+    ncp: float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Noncentrality parameter, defaults to 0 if unspecified.
+    log_p : bool or :class:`.BooleanExpression`
+        If ``True``, the natural logarithm of the probability density is returned.
+
+    Returns
+    -------
+    :class:`.Expression` of type :py:data:`.tfloat64`
+    """
+    if ncp is None:
+        return _func("dchisq", tfloat64, x, df, log_p)
+    else:
+        return _func("dnchisq", tfloat64, x, df, ncp, log_p)
+
+
 @typecheck(x=expr_float64, mu=expr_float64, sigma=expr_float64, log_p=expr_bool)
 def dnorm(x, mu=0, sigma=1, log_p=False) -> Float64Expression:
-    """Compute the probability density at x of a normal distribution with mean
+    """Compute the probability density at `x` of a normal distribution with mean
     `mu` and standard deviation `sigma`. Returns density of standard normal
     distribution by default.
 
@@ -715,7 +750,9 @@ def dnorm(x, mu=0, sigma=1, log_p=False) -> Float64Expression:
     --------
 
     >>> hl.eval(hl.dnorm(1))
-    0.10081881344492458
+
+
+    >>> hl.eval(hl.dnorm(1, 1, 2))
 
     Parameters
     ----------
@@ -726,7 +763,7 @@ def dnorm(x, mu=0, sigma=1, log_p=False) -> Float64Expression:
     sigma: float or :class:`.Expression` of type :py:data:`.tfloat64`
         Standard deviation (default = 1).
     log_p : :obj:`bool` or :class:`.BooleanExpression`
-        If true, the natural logarithm of the probability density is returned.
+        If ``True``, the natural logarithm of the probability density is returned.
 
     Returns
     -------
@@ -753,7 +790,7 @@ def dpois(x, lamb, log_p=False) -> Float64Expression:
     lamb : :obj:`float` or :class:`.Expression` of type :py:data:`.tfloat64`
         Poisson rate parameter. Must be non-negative.
     log_p : :obj:`bool` or :class:`.BooleanExpression`
-        If true, the natural logarithm of the probability density is returned.
+        If ``True``, the natural logarithm of the probability density is returned.
 
     Returns
     -------
@@ -1967,7 +2004,7 @@ def pchisqtail(x, df, ncp=None, lower_tail=False, log_p=False) -> Float64Express
     df : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Degrees of freedom.
     ncp: float or :class:`.Expression` of type :py:data:`.tfloat64`
-        Noncentrality parameter. Defaults to 0 if unspecified.
+        Noncentrality parameter, defaults to 0 if unspecified.
     lower_tail : bool or :class:`.BooleanExpression`
         If ``True``, compute the probability of an outcome at or below `x`,
         otherwise greater than `x`.
@@ -2156,7 +2193,8 @@ def ppois(x, lamb, lower_tail=True, log_p=False) -> Float64Expression:
 
 @typecheck(p=expr_float64, df=expr_float64, ncp=nullable(expr_float64), lower_tail=expr_bool, log_p=expr_bool)
 def qchisqtail(p, df, ncp=None, lower_tail=False, log_p=False) -> Float64Expression:
-    """Inverts :func:`~.pchisqtail`.
+    """The quantile function of a chi-squared distribution with `df` degrees of
+    freedom, inverts :func:`~.pchisqtail`.
 
     Examples
     --------
@@ -2164,10 +2202,14 @@ def qchisqtail(p, df, ncp=None, lower_tail=False, log_p=False) -> Float64Express
     >>> hl.eval(hl.qchisqtail(0.01, 1))
     6.634896601021213
 
+    >>> hl.eval(hl.qchisqtail(0.01, 1, 2))
+    6.634896601021213
+
     Notes
     -----
-    Returns right-quantile `x` for which `p` = Prob(:math:`Z^2` > x) with :math:`Z^2` a chi-squared random
-    variable with degrees of freedom specified by `df`. `p` must satisfy 0 < `p` <= 1.
+    Returns right-quantile `x` for which `p` = Prob(:math:`Z^2` > x) with
+    :math:`Z^2` a chi-squared random variable with degrees of freedom specified
+    by `df`. The probability `p` must satisfy 0 < `p` < 1.
 
     Parameters
     ----------
@@ -2208,7 +2250,8 @@ def qnorm(p, mu=0, sigma=1, lower_tail=True, log_p=False) -> Float64Expression:
     -----
     Returns left-quantile `x` for which p = Prob(:math:`Z` < x) with :math:`Z`
     a normal random variable with mean `mu` and standard deviation `sigma`.
-    Defaults to a standard normal random variable, and `p` must satisfy 0 < `p` < 1.
+    Defaults to a standard normal random variable, and the probability `p` must
+    satisfy 0 < `p` < 1.
 
     Parameters
     ----------

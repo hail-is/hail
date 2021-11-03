@@ -45,7 +45,7 @@ object PoissonScoreTest extends GLMTest {
         fisher(r1, r1) := X1.t * (X1(::, *) *:* mu)
 
         val chi2 = score dot (fisher \ score)
-        val p = chiSquaredTail(chi2, m - m0)
+        val p = pchisqtail(chi2, m - m0)
 
         Some(ScoreStats(chi2, p))
       } catch {
