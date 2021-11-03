@@ -9,7 +9,7 @@ import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.types.physical.{PArray, PBaseStruct, PCanonicalArray, PStruct, PTuple, PType}
 import is.hail.types.virtual.{TArray, TBoolean, TInt32, TStream, TString, TStruct, TTuple, Type}
-import is.hail.rvd.RVDPartitioner
+import is.hail.rvd.{PartitionBoundOrdering, RVDPartitioner}
 import is.hail.types.RStruct
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.utils._
@@ -130,12 +130,11 @@ object LowerDistributedSort {
 
     // Output of streamDistribute: ListOfSegmentResult: Interval, then per partition info (array of file names and counts)
     // Let's just make this Scala.
-    var partitionCountsPerSegment: IndexedSeq[IndexedSeq[Int]] = loopState.largeSegments.map(sr => sr.chunks.map(_.size))
-    var inputStageWithSegmentNumbers = inputStage.mapContexts(ctxs => mapIR(ctxs)(ctx => MakeStruct(IndexedSeq("segmentIdx" -> I32(0), "oldCtx" -> ctx))))(ctx => GetField(ctx, "oldCtx"))
+    //var partitionCountsPerSegment: IndexedSeq[IndexedSeq[Int]] = loopState.largeSegments.map(sr => sr.chunks.map(_.size))
     var i = 0
     val rand = new IRRandomness((math.random() * 1000).toInt)
 
-    while (i < 1) {
+    while (!loopState.largeSegments.isEmpty) {
       println(s"Loop iteration ${i}")
 
       // 1. I have a loop state with some large segments in it. I know how many samples are in each chunk of each segment
@@ -144,9 +143,13 @@ object LowerDistributedSort {
       // 4. I execute the sampling as a CDA
 
       val partitionData = segmentsToPartitionData(loopState.largeSegments, idealNumberOfRowsPerPart)
-      val partitionCounts = partitionData.map(_._3)
-      val partitionCountsId = genUID()
-      val partitionCountsRef = Ref(partitionCountsId, TArray(TInt32))
+
+      //TODO: Dumb and temporary
+      val partitionCountsPerSegment = partitionData.groupBy(_._1.last).toIndexedSeq.sortBy(_._1).map(_._2).map(oneSegment => oneSegment.map(_._3))
+      println(s"partitionCountsPerSegment = ${partitionCountsPerSegment}")
+      println(s"How many large segments? ${loopState.largeSegments.size}")
+      assert(partitionCountsPerSegment.size == loopState.largeSegments.size)
+      println(s"How many partitions did we come up with? ${partitionData.size}")
 
       val numSamplesPerPartitionPerSegment = partitionCountsPerSegment.map { partitionCountsForOneSegment =>
         val recordsInSegment = partitionCountsForOneSegment.sum
@@ -198,27 +201,27 @@ object LowerDistributedSort {
       }
 
       println(s"Pivots with endpoints groupedBySegmentNumber = ${pivotsWithEndpointsGroupedBySegmentNumber}")
+      println(s"Segment indices = ${groupedBySegmentNumber.map(_._1)}")
 
       val pivotsWithEndpointsGroupedBySegmentNumberLiteral = Literal(TArray(TArray(newKType)), pivotsWithEndpointsGroupedBySegmentNumber)
 
-      val pivotsWithEndpointsGroupedBySegmentNumberId = genUID()
-      val pivotsWithEndpointsGroupedBySegmentNumberRef = Ref(pivotsWithEndpointsGroupedBySegmentNumberId, pivotsWithEndpointsGroupedBySegmentNumberLiteral.typ)
-      val stageWithPivots = inputStageWithSegmentNumbers.copy(
-        letBindings = inputStageWithSegmentNumbers.letBindings :+ pivotsWithEndpointsGroupedBySegmentNumberId -> pivotsWithEndpointsGroupedBySegmentNumberLiteral,
-        broadcastVals = inputStageWithSegmentNumbers.broadcastVals :+ pivotsWithEndpointsGroupedBySegmentNumberId -> pivotsWithEndpointsGroupedBySegmentNumberRef
-      )
-
       val tmpPath = ctx.createTmpPath("hail_shuffle_temp")
-      println(s"tmpPath = ${tmpPath}")
 
-      val distribute = stageWithPivots.zipContextsWithIdx().mapCollectWithContextsAndGlobals(relationalBindings = relationalLetsAbove) { (partitionStreamIR, ctxRef) =>
-        val segmentNumber = GetField(GetField(ctxRef, "elt"), "segmentIdx")
-        // In here, need to distribute the keys into different buckets.
-        val path = invoke("concat", TString, Str(tmpPath + "_"), invoke("str", TString, GetField(ctxRef, "idx")))
-        MakeTuple.ordered(IndexedSeq(segmentNumber, StreamDistribute(partitionStreamIR, ArrayRef(pivotsWithEndpointsGroupedBySegmentNumberRef, segmentNumber), path, spec)))
-      } { (res, global) => res }
+      val distributeContextsData = partitionData.zipWithIndex.map { case (part, partIdx) => Row(part._1.last, part._2, partIdx, part._4) }
+      val distributeContexts = ToStream(Literal(TArray(TStruct("segmentIdx" -> TInt32, "files" -> TArray(TString), "partIdx" -> TInt32, "largeSegmentIdx" -> TInt32)), distributeContextsData))
+      val distributeGlobals = MakeStruct(IndexedSeq("pivotsWithEndpointsGroupedBySegmentIdx" -> pivotsWithEndpointsGroupedBySegmentNumberLiteral))
 
-      println("About to execute distribute")
+      val distribute = cdaIR(distributeContexts, distributeGlobals) { (ctxRef, globalsRef) =>
+        val segmentIdx = GetField(ctxRef, "segmentIdx")
+        val largeSegmentIdx = GetField(ctxRef, "largeSegmentIdx")
+        val pivotsWithEndpointsGroupedBySegmentIdx = GetField(globalsRef, "pivotsWithEndpointsGroupedBySegmentIdx")
+        val path = invoke("concat", TString, Str(tmpPath + "_"), invoke("str", TString, GetField(ctxRef, "partIdx")))
+        val filenames = GetField(ctxRef, "files")
+        val partitionStream = flatMapIR(ToStream(filenames)) { fileName =>
+          ReadPartition(fileName, spec._vType, reader)
+        }
+        MakeTuple.ordered(IndexedSeq(segmentIdx, StreamDistribute(partitionStream, ArrayRef(pivotsWithEndpointsGroupedBySegmentIdx, largeSegmentIdx), path, spec)))
+      }
 
       // Now, execute distribute
       val (Some(PTypeReferenceSingleCodeType(resultPType)), f) = ctx.timer.time("LowerDistributedSort.localSort.compile")(Compile[AsmFunction1RegionLong](ctx,
@@ -256,93 +259,63 @@ object LowerDistributedSort {
         assert(oneOldSegment.forall(x => x.length == headLen))
         (0 until headLen).map(colIdx => oneOldSegment.map(row => row(colIdx)))
       }.flatten
-      //val dataPerSegment = protoDataPerSegment.flatMap { case (_, oneSegmentChunks) => oneSegmentChunks.map(_._2)}
-      //val dataPerSegment = protoDataPerSegment.map { oneSegmentChunks => oneSegmentChunks.flatMap { chunks => chunks } }
-      val dataPerSegment = transposedIntoNewSegments
 
-      // Now I need to figure out how many partitions to allocate to each segment.
-      val sizeOfSegments = dataPerSegment.map { oneSegmentData => oneSegmentData.map(chunkData => chunkData._3).sum }
-
-      println(s"Length of data per segment = ${dataPerSegment.length}")
-
-      val partitionsOfSegmentIdxAndFilenamesWithSizes = dataPerSegment.zipWithIndex.flatMap { case (oneSegmentData, segmentIdx) =>
-        val chunkDataSizes = oneSegmentData.map(chunkData => chunkData._3)
-        val oneSegmentSize = chunkDataSizes.sum
-        val numParts = (oneSegmentSize + idealNumberOfRowsPerPart - 1) / idealNumberOfRowsPerPart
-        // For now, let's just start a new partition every time we reach enough data to be greater than idealNumberOfRowsPerPart
-        var currentPartSize = 0
-        val groupedIntoParts = new ArrayBuffer[(Int, IndexedSeq[String], Int)](numParts)
-        val currentFiles = new ArrayBuffer[String]()
-        oneSegmentData.foreach { chunkData =>
-          val chunkSize = chunkData._3
-          if (chunkSize > 0) { // Throw out empty chunks, no point.
-            currentFiles.append(chunkData._2)
-            currentPartSize += chunkSize
-            if (currentPartSize > idealNumberOfRowsPerPart) {
-              groupedIntoParts.append((segmentIdx, currentFiles.result().toIndexedSeq, currentPartSize))
-              currentFiles.clear()
-              currentPartSize = 0
-            }
-          }
-
-        }
-        if (!currentFiles.isEmpty) {
-          groupedIntoParts.append((segmentIdx, currentFiles.result().toIndexedSeq, currentPartSize))
-        }
-        groupedIntoParts.result()
+      val dataPerSegment = transposedIntoNewSegments.zipWithIndex.map { case (chunksWithSameInterval, newSegmentIdx) =>
+        val interval = chunksWithSameInterval.head._1
+        val chunks = chunksWithSameInterval.map(chunk => Chunk(chunk._2, chunk._3))
+        SegmentResult(IndexedSeq(newSegmentIdx), interval, chunks)
       }
 
-      partitionCountsPerSegment = partitionsOfSegmentIdxAndFilenamesWithSizes.groupBy(_._1).toIndexedSeq.sortBy(_._1).map(_._2.map(_._3))
-      val partitionsOfSegmentIdxAndFilenames = partitionsOfSegmentIdxAndFilenamesWithSizes.map(x => (x._1, x._2))
-
-      val intervals = dataPerSegment.map(chunksData => chunksData.head._1)
-      println(s"Intervals = ${intervals}")
-      println(s"partitionsOfSegmentIdxAndFilenames = ${partitionsOfSegmentIdxAndFilenames}")
-      val partitioner = new RVDPartitioner(newKType, intervals)
-
-      val partitionOfSegmentIdxAndFilenamesLiteral = Literal(TArray(TStruct("segmentIdx" -> TInt32, "files" -> TArray(TString))), partitionsOfSegmentIdxAndFilenames.map(tuple => Row(tuple._1, tuple._2)))
-      inputStageWithSegmentNumbers = TableStage(MakeStruct(Seq.empty[(String, IR)]), partitioner, TableStageDependency.none, ToStream(partitionOfSegmentIdxAndFilenamesLiteral), { oneCtx =>
-        // Take a context, extract specifically the array of files, turn to stream, flatmap read over it.
-        flatMapIR(ToStream(GetField(oneCtx, "files"))) { fileName =>
-          ReadPartition(fileName, spec._vType, reader)
-        }
-      })
+      // Now I need to figure out how many partitions to allocate to each segment.
+      val (newBigSegments, newSmallSegments) = dataPerSegment.partition(sr => sr.chunks.map(_.size).sum > 6)
+      loopState = LoopState(newBigSegments, loopState.smallSegments ++ newSmallSegments)
+      println(s"LoopState: Big = ${loopState.largeSegments.size}, small = ${loopState.smallSegments.size}")
 
       i = i + 1
     }
 
-    // Ok, we've picked our new partitioning. Now we are back at the beginning, and can decide whether to go around again, or sort within segments and be done.
-    // Sort within segments:
+    // Ok, now all the small partitions from loop state can be dealt with.
+    val unsortedSegments = loopState.smallSegments
+    val keyOrdering = PartitionBoundOrdering.apply(newKType)
+    val sortedSegments = unsortedSegments.sortWith((sr1, sr2) => sr1.interval.isBelow(keyOrdering, sr2.interval))
 
-    // TODO: Hmmmm, this is only a within partition sort, so it's not going to work right. Need to flatmap segments together and sort as one.
-    val res = inputStageWithSegmentNumbers.mapCollect(Map.empty[String, IR]){ part =>
-      sortIR(part) { (refLeft, refRight) => ApplyComparisonOp(LT(newKType), SelectFields(refLeft, newKType.fields.map(_.name)), SelectFields(refRight, newKType.fields.map(_.name))) }
-    }
+    val contextData = sortedSegments.map(segment => Row(segment.chunks.map(chunk => chunk.filename)))
+    val contexts = ToStream(Literal(TArray(TStruct("files" -> TArray(TString))), contextData))
+    val partitioner = new RVDPartitioner(newKType, sortedSegments.map(_.interval))
+    val finalTs = TableStage(MakeStruct(Seq()), partitioner, TableStageDependency.none, contexts, { ctxRef =>
+      val filenames = GetField(ctxRef, "files")
+      val unsortedPartitionStream = flatMapIR(ToStream(filenames)) { fileName =>
+        ReadPartition(fileName, spec._vType, reader)
+      }
+      ToStream(sortIR(unsortedPartitionStream) { (refLeft, refRight) =>
+        ApplyComparisonOp(LT(newKType), SelectFields(refLeft, newKType.fields.map(_.name)), SelectFields(refRight, newKType.fields.map(_.name)))
+      })
+    })
 
-    res
+    finalTs.mapCollect(Map.empty[String, IR])(x => ToArray(x))
   }
 
-  def segmentsToPartitionData(segments: IndexedSeq[SegmentResult], idealNumberOfRowsPerPart: Int): IndexedSeq[(IndexedSeq[Int], IndexedSeq[String], Int)] = {
-    segments.flatMap { sr =>
+  def segmentsToPartitionData(segments: IndexedSeq[SegmentResult], idealNumberOfRowsPerPart: Int): IndexedSeq[(IndexedSeq[Int], IndexedSeq[String], Int, Int)] = {
+    segments.zipWithIndex.flatMap { case (sr, largeSegmentIdx) =>
       val chunkDataSizes = sr.chunks.map(_.size)
       val segmentSize = chunkDataSizes.sum
       val numParts = (segmentSize + idealNumberOfRowsPerPart - 1) / idealNumberOfRowsPerPart
       var currentPartSize = 0
-      val groupedIntoParts = new ArrayBuffer[(IndexedSeq[Int], IndexedSeq[String], Int)](numParts)
+      val groupedIntoParts = new ArrayBuffer[(IndexedSeq[Int], IndexedSeq[String], Int, Int)](numParts)
       val currentFiles = new ArrayBuffer[String]()
       sr.chunks.foreach { chunk =>
         if (chunk.size > 0) {
           currentFiles.append(chunk.filename)
           currentPartSize += chunk.size
           if (currentPartSize > idealNumberOfRowsPerPart) {
-            groupedIntoParts.append((sr.indices, currentFiles.result().toIndexedSeq, currentPartSize))
+            groupedIntoParts.append((sr.indices, currentFiles.result().toIndexedSeq, currentPartSize, largeSegmentIdx))
             currentFiles.clear()
             currentPartSize = 0
           }
         }
       }
       if (!currentFiles.isEmpty) {
-        groupedIntoParts.append((sr.indices, currentFiles.result().toIndexedSeq, currentPartSize))
+        groupedIntoParts.append((sr.indices, currentFiles.result().toIndexedSeq, currentPartSize, largeSegmentIdx))
       }
       groupedIntoParts.result()
     }
