@@ -369,9 +369,9 @@ module "batch_sp" {
   object_id      = azuread_application.batch.object_id
 }
 
-resource "azurerm_role_assignment" "batch_compute_admin" {
+resource "azurerm_role_assignment" "batch_compute_contributor" {
   scope                = data.azurerm_subscription.primary.id
-  role_definition_name = "Compute Admin"
+  role_definition_name = "Virtual Machine Contributor"
   principal_id         = module.batch_sp.principal_id
 }
 
