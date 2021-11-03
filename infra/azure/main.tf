@@ -30,6 +30,8 @@ locals {
   internal_ip = "10.128.255.254"
 }
 
+data "azurerm_subscription" "primary" {}
+
 data "azurerm_resource_group" "rg" {
   name = var.az_resource_group_name
 }
@@ -365,6 +367,12 @@ module "batch_sp" {
   source = "./service_principal"
   application_id = azuread_application.batch.application_id
   object_id      = azuread_application.batch.object_id
+}
+
+resource "azurerm_role_assignment" "batch_compute_admin" {
+  scope                = data.azurerm_subscription.primary.id
+  role_definition_name = "Compute Admin"
+  principal_id         = module.batch_sp.principal_id
 }
 
 resource "azuread_application" "benchmark" {
