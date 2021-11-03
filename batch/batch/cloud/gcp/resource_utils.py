@@ -2,8 +2,6 @@ import re
 import logging
 from typing import Optional, Tuple
 
-from ...globals import RESERVED_STORAGE_GB_PER_CORE
-
 log = logging.getLogger('utils')
 
 GCP_MAX_PERSISTENT_SSD_SIZE_GIB = 64 * 1024
