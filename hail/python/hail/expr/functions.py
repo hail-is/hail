@@ -705,6 +705,37 @@ def dbeta(x, a, b) -> Float64Expression:
     return _func("dbeta", tfloat64, x, a, b)
 
 
+@typecheck(x=expr_float64, mu=expr_float64, sigma=expr_float64, log_p=expr_bool)
+def dnorm(x, mu=0, sigma=1, log_p=False) -> Float64Expression:
+    """Compute the probability density at x of a normal distribution with mean
+    `mu` and standard deviation `sigma`. Returns density of standard normal
+    distribution by default.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.dnorm(1))
+    0.10081881344492458
+
+    Parameters
+    ----------
+    x : :obj:`float` or :class:`.Expression` of type :py:data:`.tfloat64`
+        Number at which to compute the probability density.
+    mu : float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Mean (default = 0).
+    sigma: float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Standard deviation (default = 1).
+    log_p : :obj:`bool` or :class:`.BooleanExpression`
+        If true, the natural logarithm of the probability density is returned.
+
+    Returns
+    -------
+    :class:`.Expression` of type :py:data:`.tfloat64`
+        The (log) probability density.
+    """
+    return _func("dnorm", tfloat64, x, mu, sigma, log_p)
+
+
 @typecheck(x=expr_float64, lamb=expr_float64, log_p=expr_bool)
 def dpois(x, lamb, log_p=False) -> Float64Expression:
     """Compute the (log) probability density at x of a Poisson distribution with rate parameter `lamb`.
@@ -1953,9 +1984,11 @@ def pchisqtail(x, df, ncp=None, lower_tail=False, log_p=False) -> Float64Express
         return _func("pnchisqtail", tfloat64, x, df, ncp, lower_tail, log_p)
 
 
-@typecheck(x=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
-def pnorm(x, lower_tail=True, log_p=False) -> Float64Expression:
-    """The cumulative probability function of a standard normal distribution.
+@typecheck(x=expr_float64, mu=expr_float64, sigma=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
+def pnorm(x, mu=0, sigma=1, lower_tail=True, log_p=False) -> Float64Expression:
+    """The cumulative probability function of a normal distribution with mean
+    `mu` and standard deviation `sigma`. Returns cumulative probability of
+    standard normal distribution by default.
 
     Examples
     --------
@@ -1971,11 +2004,16 @@ def pnorm(x, lower_tail=True, log_p=False) -> Float64Expression:
 
     Notes
     -----
-    Returns the left-tail probability `p` = Prob(:math:`Z < x`) with :math:`Z` a standard normal random variable.
+    Returns the left-tail probability `p` = Prob(:math:`Z < x`) with :math:`Z`
+    a normal random variable.Defaults to a standard normal random variable.
 
     Parameters
     ----------
     x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    mu : float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Mean (default = 0).
+    sigma: float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Standard deviation (default = 1).
     lower_tail : bool or :class:`.BooleanExpression`
         If ``True``, compute the probability of an outcome at or below `x`,
         otherwise greater than `x`.
@@ -1986,7 +2024,7 @@ def pnorm(x, lower_tail=True, log_p=False) -> Float64Expression:
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return _func("pnorm", tfloat64, x, lower_tail, log_p)
+    return _func("pnorm", tfloat64, x, mu, sigma, lower_tail, log_p)
 
 
 @typecheck(x=expr_float64, n=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
@@ -2154,9 +2192,11 @@ def qchisqtail(p, df, ncp=None, lower_tail=False, log_p=False) -> Float64Express
         return _func("qnchisqtail", tfloat64, p, df, ncp, lower_tail, log_p)
 
 
-@typecheck(p=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
-def qnorm(p, lower_tail=True, log_p=False) -> Float64Expression:
-    """Inverts :func:`~.pnorm`.
+@typecheck(p=expr_float64, mu=expr_float64, sigma=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
+def qnorm(p, mu=0, sigma=1, lower_tail=True, log_p=False) -> Float64Expression:
+    """The quantile function of a normal distribution with mean `mu` and
+    standard deviation `sigma`, inverts :func:`~.pnorm`. Returns quantile of
+    standard normal distribution by default.
 
     Examples
     --------
@@ -2166,13 +2206,18 @@ def qnorm(p, lower_tail=True, log_p=False) -> Float64Expression:
 
     Notes
     -----
-    Returns left-quantile `x` for which p = Prob(:math:`Z` < x) with :math:`Z` a standard normal random variable.
-    `p` must satisfy 0 < `p` < 1.
+    Returns left-quantile `x` for which p = Prob(:math:`Z` < x) with :math:`Z`
+    a normal random variable with mean `mu` and standard deviation `sigma`.
+    Defaults to a standard normal random variable, and `p` must satisfy 0 < `p` < 1.
 
     Parameters
     ----------
     p : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Probability.
+    mu : float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Mean (default = 0).
+    sigma: float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Standard deviation (default = 1).
     lower_tail : bool or :class:`.BooleanExpression`
         Corresponds to `lower_tail` parameter in :func:`.pnorm`.
     log_p : bool or :class:`.BooleanExpression`
@@ -2182,7 +2227,7 @@ def qnorm(p, lower_tail=True, log_p=False) -> Float64Expression:
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return _func("qnorm", tfloat64, p, lower_tail, log_p)
+    return _func("qnorm", tfloat64, p, mu, sigma, lower_tail, log_p)
 
 
 @typecheck(p=expr_float64, lamb=expr_float64, lower_tail=expr_bool, log_p=expr_bool)

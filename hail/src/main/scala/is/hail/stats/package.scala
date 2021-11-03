@@ -320,13 +320,19 @@ package object stats {
     Array(pvalue, oddsRatioEstimate, confInterval._1, confInterval._2)
   }
 
+  def dnorm(x: Double, mu: Double, sigma: Double, logP: Boolean): Double = Normal.density(x, mu, sigma, logP)
+
+  def dnorm(x: Double): Double = dnorm(x, mu = 0, sigma = 1, logP = false)
+
   // Returns the p for which p = Prob(Z < x) with Z a standard normal RV
-  def pnorm(x: Double, lowerTail: Boolean, logP: Boolean): Double = Normal.cumulative(x, 0, 1, lowerTail, logP)
-  def pnorm(x: Double): Double = pnorm(x, lowerTail = true, logP = false)
+  def pnorm(x: Double, mu: Double, sigma: Double, lowerTail: Boolean, logP: Boolean): Double = Normal.cumulative(x, mu, sigma, lowerTail, logP)
+
+  def pnorm(x: Double): Double = pnorm(x, mu = 0, sigma = 1, lowerTail = true, logP = false)
 
   // Returns the x for which p = Prob(Z < x) with Z a standard normal RV
-  def qnorm(p: Double, lowerTail: Boolean, logP: Boolean): Double = Normal.quantile(p, 0, 1, lowerTail, logP)
-  def qnorm(p: Double): Double = qnorm(p, lowerTail = true, logP = false)
+  def qnorm(p: Double, mu: Double, sigma: Double, lowerTail: Boolean, logP: Boolean): Double = Normal.quantile(p, mu, sigma, lowerTail, logP)
+
+  def qnorm(p: Double): Double = qnorm(p, mu = 0, sigma = 1, lowerTail = true, logP = false)
 
   // Returns the p for which p = Prob(Z < x) with Z a RV having the T distribution with n degrees of freedom
   def pT(x: Double, n: Double, lower_tail: Boolean, log_p: Boolean): Double =
@@ -341,6 +347,8 @@ package object stats {
   def chiSquaredTail(x: Double, df: Double): Double = chiSquaredTail(x, df, lowerTail = false, logP = false)
 
   def nonCentralChiSquaredTail(x: Double, df: Double, ncp: Double, lowerTail: Boolean, logP: Boolean): Double = NonCentralChiSquare.cumulative(x, df, ncp, lowerTail, logP)
+
+  def nonCentralChiSquaredTail(x: Double, df: Double, ncp: Double): Double = nonCentralChiSquaredTail(x, df, ncp, lowerTail = false, logP = false)
 
   // Returns the x for which p = Prob(Z^2 > x) with Z^2 a chi-squared RV with df degrees of freedom
   def inverseChiSquaredTail(p: Double, df: Double, lowerTail: Boolean, logP: Boolean): Double = ChiSquare.quantile(p, df, lowerTail, logP)
