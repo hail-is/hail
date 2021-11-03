@@ -246,10 +246,11 @@ def _krylov_factorization(A_expr, V0, p, compute_U=False, compute_V=True):
     * :math:`U\in\mathbb{R}^{m\times (p+1)b` and :math:`V\in\mathbb{R}^{n\times (p+1)b` are
       orthonormal matrices (:math:`U^TU = I` and :math:`V^TV = I`)
     * :math:`\mathrm{span}(V) = \mathcal{K}_p(A^TA, W)`
-    * :math:`\mathrm{span}(U) = \mathcal{K}_p(AA^T, AW)`
-    * :math:`UR=AV`
+    * :math:`UR=AV`, hence :math:`\mathrm{span}(U) = \mathcal{K}_p(AA^T, AW)`
     * :math:`V[:, :b] = V_0`
     * :math:`R\in\mathbb{R}^{b\times b}` is upper triangular
+    where :math:`\mathcal{K}_p(X, Y)` is the block Krylov subspace
+    :math:`\mathrm{span}(Y, XY, \dots, X^pY)`.
 
     Parameters
     ----------
@@ -265,7 +266,7 @@ def _krylov_factorization(A_expr, V0, p, compute_U=False, compute_V=True):
     check_row_indexed('_krylov_factorization/A_expr', A_expr)
     t = table_source('_krylov_factorization/A_expr', A_expr)
 
-    # compute ncols of V0, use to compute final ncols
+    # FIXME: compute ncols of V0, use to compute final ncols
     g_list = [V0]
     G_i = V0
 
@@ -280,17 +281,19 @@ def _krylov_factorization(A_expr, V0, p, compute_U=False, compute_V=True):
 
     if compute_V:
         V = hl.nd.qr(V0)[0]._persist()
-        AV = t.select(ndarray=A_expr @ V)
+        t = t.annotate(AV=A_expr @ V)
     else:
         V = hl.nd.qr(V0)[0]
-        AV = t.select(ndarray=A_expr @ V)
+        t = t.annotate(AV=A_expr @ V)
         V = None
 
     if compute_U:
-        AV_local = hl.nd.vstack(AV.aggregate(hl.agg.collect(AV.ndarray)), _localize=False)
+        temp_file_name = hl.utils.new_temp_file("_krylov_factorization_intermediate", "ht")
+        t = t.checkpoint(temp_file_name)
+        AV_local = t.aggregate(hl.nd.vstack(hl.agg.collect(t.AV)), _localize=False)
         U, R = hl.nd.qr(AV_local)._persist()
     else:
-        Rs = hl.nd.vstack(AV.aggregate(hl.agg.collect(hl.nd.qr(AV.ndarray)[1])), _localize=False)
+        Rs = hl.nd.vstack(t.aggregate(hl.agg.collect(hl.nd.qr(t.AV)[1]), _localize=False))
         R = hl.nd.qr(Rs)[1]._persist()
         U = None
 
@@ -385,9 +388,6 @@ def _pca_and_moments(entry_expr, k=10, num_moments=5, compute_loadings=False, q_
     scores = V * S
     eigens = hl.eval(S * S)
     info("blanczos_pca: SVD Complete. Computing conversion to PCs.")
-
-    # Compute backward error
-    B =
 
     hail_array_scores = scores._data_array()
     cols_and_scores = hl.zip(A.index_globals().cols, hail_array_scores).map(lambda tup: tup[0].annotate(scores=tup[1]))
@@ -505,7 +505,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     A, ht = mt_to_table_of_ndarray(entry_expr, block_size, return_checkpointed_table_also=True)
     A = A.persist()
 
-    S, V, U = _reduced_svd(A.ndarray, k, compute_loadings, q_iterations, k+oversampling_param, block_size)
+    U, S, V = _reduced_svd(A.ndarray, k, compute_loadings, q_iterations, k+oversampling_param)
 
     scores = V * S
     eigens = hl.eval(S * S)
