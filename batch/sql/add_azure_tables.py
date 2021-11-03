@@ -54,7 +54,7 @@ VALUES (%s, %s, %s, %s, %s, %s)
         ]
 
         await db.execute_many('''
-INSERT INTO `inst_colls` (name, worker_type, worker_cores, worker_local_ssd_data_disk, worker_external_ssd_data_disk_size_gb, enable_standing_worker, standing_worker_cores)
+INSERT INTO `pools` (name, worker_type, worker_cores, worker_local_ssd_data_disk, worker_external_ssd_data_disk_size_gb, enable_standing_worker, standing_worker_cores)
 VALUES (%s, %s, %s, %s, %s, %s, %s)
 ''',
                               pools)
