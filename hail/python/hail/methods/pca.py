@@ -212,32 +212,30 @@ class KrylovFactorization:
     # allowed to be distributed. All properties must be persisted.
     def __init__(self, U, R, V, k):
         self.U = U
-        self.R = R
         self.V = V
         self.k = k
+        (self.U1, self.S, self.V1t) = hl.nd.svd(R, full_matrices=False)._persist()
 
 
     def reduced_svd(self, k):
-        U1, S, V1t = hl.nd.svd(self.R, full_matrices=False)
-
-        S = S[:k]._persist()
+        S = self.S[:k]._persist()
 
         if self.U is None:
             U = None
         else:
-            U = (self.U @ U1[:, :k])._persist()
+            U = (self.U @ self.U1[:, :k])._persist()
 
         if self.V is None:
             V = None
         else:
-            V = (self.V @ V1t.T[:, :k])._persist()
+            V = (self.V @ self.V1t.T[:, :k])._persist()
 
         return U, S, V
 
 
     def spectral_moments(self, num_moments):
         _, S, Vt = hl.nd.svd(self.R, full_matrices=False)
-        eigval_powers = hl.nd.vstack([S.map(lambda x: x**(2*i)) for i in range(1, num_moments + 1)])
+        eigval_powers = hl.nd.vstack([self.S.map(lambda x: x**(2*i)) for i in range(1, num_moments + 1)])
 
         # FIXME: Here
         return (eigval_powers @ ((Vt[:, :self.k] @ R1).map(lambda x: x**2) @ hl.nd.ones(k))) / k
@@ -267,6 +265,7 @@ def _krylov_factorization(A_expr, V0, p, compute_U=False, compute_V=True):
     check_row_indexed('_krylov_factorization/A_expr', A_expr)
     t = table_source('_krylov_factorization/A_expr', A_expr)
 
+    # compute ncols of V0, use to compute final ncols
     g_list = [V0]
     G_i = V0
 
@@ -377,16 +376,18 @@ def _pca_and_moments(entry_expr, k=10, num_moments=5, compute_loadings=False, q_
     G2 = G2 - fact.V @ (fact.V.T @ G2)
     Q1, R1 = hl.nd.qr(G2)._persist()
     fact2 = _krylov_factorization(A.ndarray, Q1, p, compute_U=False)
-    _, S2, V2t = hl.nd.svd(fact2.R, full_matrices=False)
-    eigval_powers = hl.nd.vstack([S2.map(lambda x: x**(2*i)) for i in range(1, num_moments + 1)])
+    eigval_powers = hl.nd.vstack([fact2.S.map(lambda x: x**(2*i)) for i in range(1, num_moments + 1)])
 
-    moments = (eigval_powers @ ((V2t[:, :moment_samples] @ R1).map(lambda x: x**2) @ hl.nd.ones(moment_samples))) / moment_samples
-    print(hl.eval(moments.shape))
-    moments = hl.eval(moments + hl.nd.array([hl.sum(S._data_array().map(lambda x: x**(2*i))) for i in range(1, num_moments + 1)]))
+    moments = (eigval_powers @ ((fact2.V1t[:, :moment_samples] @ R1).map(lambda x: x**2).sum(1))) / moment_samples
+    # Add back exact moments
+    moments = hl.eval(moments + hl.nd.array([fact.S.map(lambda x: x**(2*i)).sum()[()] for i in range(1, num_moments + 1)]))
 
     scores = V * S
     eigens = hl.eval(S * S)
     info("blanczos_pca: SVD Complete. Computing conversion to PCs.")
+
+    # Compute backward error
+    B =
 
     hail_array_scores = scores._data_array()
     cols_and_scores = hl.zip(A.index_globals().cols, hail_array_scores).map(lambda tup: tup[0].annotate(scores=tup[1]))
