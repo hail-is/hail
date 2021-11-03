@@ -375,7 +375,7 @@ def _pca_and_moments(entry_expr, k=10, num_moments=5, compute_loadings=False, q_
     fact2 = _krylov_factorization(A.ndarray, Q1, p, compute_U=False)
     moments = fact2.spectral_moments(num_moments, R1)
     # Add back exact moments
-    moments = hl.eval(moments + hl.nd.array([fact.S.map(lambda x: x**(2*i)).sum()[()] for i in range(1, num_moments + 1)]))
+    moments = hl.eval(moments + hl.nd.array([fact.S.map(lambda x: x**(2*i)).sum() for i in range(1, num_moments + 1)]))
 
     scores = V * S
     eigens = hl.eval(S * S)
