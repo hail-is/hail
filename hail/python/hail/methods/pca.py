@@ -233,12 +233,9 @@ class KrylovFactorization:
         return U, S, V
 
 
-    def spectral_moments(self, num_moments):
-        _, S, Vt = hl.nd.svd(self.R, full_matrices=False)
+    def spectral_moments(self, num_moments, R):
         eigval_powers = hl.nd.vstack([self.S.map(lambda x: x**(2*i)) for i in range(1, num_moments + 1)])
-
-        # FIXME: Here
-        return (eigval_powers @ ((Vt[:, :self.k] @ R1).map(lambda x: x**2) @ hl.nd.ones(k))) / k
+        return (eigval_powers @ ((self.V1t[:, :R.shape[1]] @ R).map(lambda x: x**2).sum(1))) / self.k
 
 
 def _krylov_factorization(A_expr, V0, p, compute_U=False, compute_V=True):
@@ -293,7 +290,7 @@ def _krylov_factorization(A_expr, V0, p, compute_U=False, compute_V=True):
         AV_local = t.aggregate(hl.nd.vstack(hl.agg.collect(t.AV)), _localize=False)
         U, R = hl.nd.qr(AV_local)._persist()
     else:
-        Rs = hl.nd.vstack(t.aggregate(hl.agg.collect(hl.nd.qr(t.AV)[1]), _localize=False))
+        Rs = t.aggregate(hl.nd.vstack(hl.agg.collect(hl.nd.qr(t.AV)[1])), _localize=False)
         R = hl.nd.qr(Rs)[1]._persist()
         U = None
 
@@ -336,10 +333,7 @@ def _spectral_moments(entry_expr, num_moments, p=None, k=100, block_size=128):
     G = hl.nd.zeros((n, k)).map(lambda n: hl.if_else(hl.rand_bool(0.5), -1, 1))
     Q1, R1 = hl.nd.qr(G)._persist()
     fact = _krylov_factorization(A.ndarray, Q1, p, compute_U=False)
-    _, S, Vt = hl.nd.svd(fact.R, full_matrices=False)
-    eigval_powers = hl.nd.vstack([S.map(lambda x: x**(2*i)) for i in range(1, num_moments + 1)])
-
-    return (eigval_powers @ ((Vt[:, :k] @ R1).map(lambda x: x**2) @ hl.nd.ones(k))) / k
+    return fact.spectral_moments(num_moments, R1)
 
 
 @typecheck(entry_expr=expr_float64,
@@ -379,9 +373,7 @@ def _pca_and_moments(entry_expr, k=10, num_moments=5, compute_loadings=False, q_
     G2 = G2 - fact.V @ (fact.V.T @ G2)
     Q1, R1 = hl.nd.qr(G2)._persist()
     fact2 = _krylov_factorization(A.ndarray, Q1, p, compute_U=False)
-    eigval_powers = hl.nd.vstack([fact2.S.map(lambda x: x**(2*i)) for i in range(1, num_moments + 1)])
-
-    moments = (eigval_powers @ ((fact2.V1t[:, :moment_samples] @ R1).map(lambda x: x**2).sum(1))) / moment_samples
+    moments = fact2.spectral_moments(num_moments, R1)
     # Add back exact moments
     moments = hl.eval(moments + hl.nd.array([fact.S.map(lambda x: x**(2*i)).sum()[()] for i in range(1, num_moments + 1)]))
 
