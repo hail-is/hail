@@ -324,7 +324,7 @@ def docker_call_retry(timeout, name):
     return wrapper
 
 
-def pull_docker_image(image_ref_str, auth):
+async def pull_docker_image(image_ref_str, auth):
     try:
         await check_shell_output(f'''
 docker login --username {auth["username"]} --password {auth["password"]} && \
