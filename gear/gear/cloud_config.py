@@ -13,7 +13,7 @@ class AzureConfig:
         conf = AzureConfig()
         conf.subscription_id = global_config['azure_subscription_id']
         conf.resource_group = global_config['azure_resource_group']
-        conf.region = global_config['azure_region']
+        conf.region = global_config['azure_location']
         return conf
 
 

@@ -29,8 +29,9 @@ class AzureDriver(CloudDriver):
         resource_group = azure_config.resource_group
         region = azure_config.region
 
-        with open(os.environ['HAIL_SSH_PUBLIC_KEY']) as f:
-            ssh_public_key = f.read()
+        # with open(os.environ['HAIL_SSH_PUBLIC_KEY']) as f:
+        #     ssh_public_key = f.read()
+        ssh_public_key = ''
 
         arm_client = aioazure.AzureResourceManagerClient(subscription_id, resource_group, credentials_file=credentials_file)
         compute_client = aioazure.AzureComputeClient(subscription_id, resource_group, credentials_file=credentials_file)

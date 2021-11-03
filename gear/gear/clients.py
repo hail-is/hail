@@ -46,7 +46,7 @@ def get_cloud_async_fs(credentials_file: Optional[str] = None) -> AsyncFS:
     cloud = get_global_config()['cloud']
 
     if cloud == 'azure':
-        return aioazure.AzureAsyncFS(credentials_file=credentials_file)
+        return aioazure.AzureAsyncFS(credential_file=credentials_file)
 
     assert cloud == 'gcp', cloud
     return aiogoogle.GoogleStorageAsyncFS(credentials_file=credentials_file)

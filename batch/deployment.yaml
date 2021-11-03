@@ -64,11 +64,6 @@ spec:
            value: "{{ default_ns.name }}"
          - name: HAIL_SSH_PUBLIC_KEY
            value: /ssh-public-key/ssh_rsa.pub
-         - name: PROJECT
-           valueFrom:
-             secretKeyRef:
-               name: global-config
-               key: gcp_project
          - name: HAIL_DOCKER_ROOT_IMAGE
            valueFrom:
              secretKeyRef:
@@ -84,21 +79,6 @@ spec:
              secretKeyRef:
                name: global-config
                key: internal_ip
-         - name: HAIL_GCP_REGION
-           valueFrom:
-             secretKeyRef:
-               name: global-config
-               key: gcp_region
-         - name: HAIL_GCP_ZONE
-           valueFrom:
-             secretKeyRef:
-               name: global-config
-               key: gcp_zone
-         - name: HAIL_BATCH_GCP_REGIONS
-           valueFrom:
-             secretKeyRef:
-               name: global-config
-               key: batch_gcp_regions
          - name: KUBERNETES_SERVER_URL
            valueFrom:
              secretKeyRef:
@@ -193,6 +173,7 @@ spec:
        - name: ssh-public-key
          secret:
            secretName: batch-ssh-public-key
+           optional: true
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -253,11 +234,6 @@ spec:
            value: /deploy-config/deploy-config.json
          - name: HAIL_DEFAULT_NAMESPACE
            value: "{{ default_ns.name }}"
-         - name: PROJECT
-           valueFrom:
-             secretKeyRef:
-               name: global-config
-               key: gcp_project
          - name: HAIL_DOCKER_ROOT_IMAGE
            valueFrom:
              secretKeyRef:
@@ -268,21 +244,6 @@ spec:
              secretKeyRef:
                name: global-config
                key: docker_prefix
-         - name: HAIL_GCP_REGION
-           valueFrom:
-             secretKeyRef:
-               name: global-config
-               key: gcp_region
-         - name: HAIL_GCP_ZONE
-           valueFrom:
-             secretKeyRef:
-               name: global-config
-               key: gcp_zone
-         - name: HAIL_BATCH_GCP_REGIONS
-           valueFrom:
-             secretKeyRef:
-               name: global-config
-               key: batch_gcp_regions
          - name: KUBERNETES_SERVER_URL
            valueFrom:
              secretKeyRef:

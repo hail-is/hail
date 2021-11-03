@@ -6,6 +6,8 @@ from gear import Database
 
 from .cloud.gcp.instance_config import GCPSlimInstanceConfig
 from .cloud.gcp.resource_utils import family_worker_type_cores_to_gcp_machine_type, GCP_MACHINE_FAMILY
+from .cloud.azure.resource_utils import azure_worker_properties_to_machine_type
+from .cloud.azure.instance_config import AzureSlimInstanceConfig
 from .instance_config import InstanceConfig
 from .cloud.resource_utils import (
     adjust_cores_for_memory_request,
@@ -22,15 +24,26 @@ log = logging.getLogger('inst_coll_config')
 
 def instance_config_from_pool_config(pool_config: 'PoolConfig') -> InstanceConfig:
     cloud = pool_config.cloud
-    assert cloud == 'gcp'
-    machine_type = family_worker_type_cores_to_gcp_machine_type(
-        GCP_MACHINE_FAMILY, pool_config.worker_type, pool_config.worker_cores)
-    return GCPSlimInstanceConfig(machine_type=machine_type,
-                                 preemptible=True,
-                                 local_ssd_data_disk=pool_config.worker_local_ssd_data_disk,
-                                 data_disk_size_gb=pool_config.data_disk_size_gb,
-                                 boot_disk_size_gb=pool_config.boot_disk_size_gb,
-                                 job_private=False)
+    if cloud == 'gcp':
+        machine_type = family_worker_type_cores_to_gcp_machine_type(
+            GCP_MACHINE_FAMILY, pool_config.worker_type, pool_config.worker_cores)
+        return GCPSlimInstanceConfig(machine_type=machine_type,
+                                     preemptible=True,
+                                     local_ssd_data_disk=pool_config.worker_local_ssd_data_disk,
+                                     data_disk_size_gb=pool_config.data_disk_size_gb,
+                                     boot_disk_size_gb=pool_config.boot_disk_size_gb,
+                                     job_private=False)
+    else:
+        assert cloud == 'azure'
+        machine_type = azure_worker_properties_to_machine_type(
+            pool_config.worker_type, pool_config.worker_cores, pool_config.worker_local_ssd_data_disk
+        )
+        return AzureSlimInstanceConfig(machine_type=machine_type,
+                                       preemptible=True,
+                                       local_ssd_data_disk=pool_config.worker_local_ssd_data_disk,
+                                       data_disk_size_gb=pool_config.data_disk_size_gb,
+                                       boot_disk_size_gb=pool_config.boot_disk_size_gb,
+                                       job_private=False)
 
 
 class PreemptibleNotSupportedError(Exception):

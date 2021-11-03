@@ -41,6 +41,7 @@ import uvloop
 from ..file_store import FileStore
 from ..batch import cancel_batch_in_db
 from ..batch_configuration import (
+    CLOUD,
     REFRESH_INTERVAL_IN_SECONDS,
     DEFAULT_NAMESPACE,
     BATCH_STORAGE_URI,
@@ -1183,7 +1184,7 @@ async def on_cleanup(app):
 
 
 def run():
-    if HAIL_SHOULD_PROFILE:
+    if HAIL_SHOULD_PROFILE and CLOUD == 'gcp':
         profiler_tag = f'{DEFAULT_NAMESPACE}'
         if profiler_tag == 'default':
             profiler_tag = DEFAULT_NAMESPACE + f'-{HAIL_SHA[0:12]}'
