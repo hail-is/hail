@@ -456,7 +456,7 @@ def segment_reference_blocks(ref: 'MatrixTable', intervals: 'Table') -> 'MatrixT
     return refl_filtered._unlocalize_entries('_ref_entries', '_ref_cols', list(ref.col_key))
 
 
-@typecheck(vds=VariantDataset, intervals=Table, min_gq=sequenceof(int))
+@typecheck(vds=VariantDataset, intervals=Table, gq_thresholds=sequenceof(int))
 def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0, 20,)) -> 'MatrixTable':
     """Compute statistics about base coverage above multiple GQ thresholds by interval.
 
@@ -475,8 +475,9 @@ def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0
     """
     ref = vds.reference_data
     split = segment_reference_blocks(ref, intervals)
-    per_interval = split.group_rows_by(interval=intervals.key[0]) \
-        .aggregate(bases_over_gq_threshold=(
+    intervals = intervals.annotate(interval_dup = intervals.key[0])
+    per_interval = split.group_rows_by(interval=intervals[split.row_key[0]].interval_dup) \
+        .aggregate(bases_over_gq_threshold=tuple(
         hl.agg.filter(split.GQ > gq_threshold, hl.agg.sum(split.END - split.locus.position + 1))
         for gq_threshold in gq_thresholds))
 
@@ -484,7 +485,7 @@ def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0
     interval_size = interval.end.position + interval.includes_end - interval.start.position + interval.includes_start
     per_interval = per_interval.annotate_rows(interval_size=interval_size)
     per_interval = per_interval.annotate_entries(
-        fraction_over_gq_threshold=(x / per_interval.interval_size for x in per_interval.bases_over_gq_threshold))
+            fraction_over_gq_threshold=tuple(x / per_interval.interval_size for x in per_interval.bases_over_gq_threshold))
     per_interval = per_interval.annotate_globals(gq_thresholds=gq_thresholds)
 
     return per_interval
