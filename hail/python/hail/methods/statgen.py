@@ -31,6 +31,7 @@ pc_relate = relatedness.pc_relate
 identity_by_descent = relatedness.identity_by_descent
 _blanczos_pca = pca._blanczos_pca
 _hwe_normalized_blanczos = pca._hwe_normalized_blanczos
+_spectral_moments = pca._spectral_moments
 hwe_normalized_pca = pca.hwe_normalized_pca
 pca = pca.pca
 

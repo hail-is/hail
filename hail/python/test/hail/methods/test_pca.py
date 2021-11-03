@@ -128,12 +128,6 @@ def test_blanczos_against_numpy():
     np.testing.assert_allclose(eigens, np_eigenvalues, rtol=0.05)
     assert bound(np_loadings, loadings) > 0.9
 
-def make_spectral_matrix(index_func, k, m, n):
-    sigma_dim = min(m, n)
-    answer = np.zeros((m, n))
-    for j in range(sigma_dim):
-        answer[j, j] = index_func(j + 1, k)
-    return answer
 
 def matrix_table_from_numpy(np_mat):
     rows, cols = np_mat.shape
@@ -142,6 +136,7 @@ def matrix_table_from_numpy(np_mat):
     mt = mt.annotate_entries(ent = mt.entries_global[mt.row_idx, mt.col_idx])
     return mt
 
+
 # k, m, n
 dim_triplets = [(20, 1000, 1000), (10, 100, 200)]
 
@@ -149,12 +144,13 @@ def spectra_helper(spec_func):
 
     for triplet in dim_triplets:
         k, m, n = triplet
-        sigma = make_spectral_matrix(spec_func, k, m, n)
+        min_dim = min(m, n)
+        sigma = np.diag([spec_func(i + 1, k) for i in range(min_dim)])
         seed = 1025
         np.random.seed(seed)
-        U = np.linalg.qr(np.random.normal(0, 1, (m, m)))[0]
-        V = np.linalg.qr(np.random.normal(0, 1, (n, n)))[0]
-        A = U @ sigma @ V
+        U = np.linalg.qr(np.random.normal(0, 1, (m, min_dim)))[0]
+        V = np.linalg.qr(np.random.normal(0, 1, (n, min_dim)))[0]
+        A = U @ sigma @ V.T
         mt_A = matrix_table_from_numpy(A)
 
         eigenvalues, scores, loadings = hl._blanczos_pca(mt_A.ent, k=k, oversampling_param=k, compute_loadings=True, q_iterations=4)
@@ -166,48 +162,106 @@ def spectra_helper(spec_func):
         np.testing.assert_allclose(norm_of_diff, spec_func(k + 1, k), rtol=1e-02, err_msg=f"Norm test failed on triplet {triplet} ")
         np.testing.assert_allclose(singulars, np.diag(sigma)[:k], rtol=1e-01, err_msg=f"Failed on triplet {triplet}")
 
+
+def spec1(j, k):
+    return 1/j
+
+
+def spec2(j, k):
+    if j == 1:
+        return 1
+    if j <= k:
+        return 2 * 10**-5
+    else:
+        return (10**-5) * (k + 1)/j
+
+
+def spec3(j, k):
+    if j <= k:
+        return 10**(-5*(j-1)/(k-1))
+    else:
+        return (10**-5)*(k+1)/j
+
+
+def spec4(j, k):
+    if j <= k:
+        return 10**(-5*(j-1)/(k-1))
+    elif j == (k + 1):
+        return 10**-5
+    else:
+        return 0
+
+
+def spec5(j, k):
+    if j <= k:
+        return 10**-5 + (1 - 10**-5)*(k - j)/(k - 1)
+    else:
+        return 10**-5 * math.sqrt((k + 1)/j)
+
+
 @fails_service_backend(reason='persist_ir')
 def test_spectra_1():
-    def spec1(j, k):
-        return 1/j
     spectra_helper(spec1)
+
 
 @fails_service_backend(reason='persist_ir')
 def test_spectra_2():
-    def spec2(j, k):
-        if j == 1:
-            return 1
-        if j <= k:
-            return 2 * 10**-5
-        else:
-            return (10**-5) * (k + 1)/j
     spectra_helper(spec2)
+
 
 @fails_service_backend(reason='persist_ir')
 def test_spectra_3():
-    def spec3(j, k):
-        if j <= k:
-            return 10**(-5*(j-1)/(k-1))
-        else:
-            return (10**-5)*(k+1)/j
     spectra_helper(spec3)
+
 
 @fails_service_backend(reason='persist_ir')
 def test_spectra_4():
-    def spec4(j, k):
-        if j <= k:
-            return 10**(-5*(j-1)/(k-1))
-        elif j == (k + 1):
-            return 10**-5
-        else:
-            return 0
     spectra_helper(spec4)
+
 
 @fails_service_backend(reason='persist_ir')
 def test_spectra_5():
-    def spec5(j, k):
-        if j <= k:
-            return 10**-5 + (1 - 10**-5)*(k - j)/(k - 1)
-        else:
-            return 10**-5 * math.sqrt((k + 1)/j)
+    spectra_helper(spec5)
+
+
+@fails_service_backend(reason='persist_ir')
+def spectral_moments_helper(spec_func):
+    for triplet in dim_triplets:
+        k, m, n = triplet
+        min_dim = min(m, n)
+        sigma = np.diag([spec_func(i+1, k) for i in range(min_dim)])
+        seed = 1025
+        np.random.seed(seed)
+        U = np.linalg.qr(np.random.normal(0, 1, (m, min_dim)))[0]
+        V = np.linalg.qr(np.random.normal(0, 1, (n, min_dim)))[0]
+        A = U @ sigma @ V.T
+        mt_A = matrix_table_from_numpy(A)
+
+        moments = hl.eval(hl._spectral_moments(mt_A.ent, 7))
+        true_moments = np.array([np.sum(np.power(sigma, 2*i)) for i in range(1, 8)])
+        np.testing.assert_allclose(moments, true_moments, rtol=2e-01)
+
+
+@fails_service_backend(reason='persist_ir')
+def test_spectral_moments_1():
+    spectra_helper(spec1)
+
+
+@fails_service_backend(reason='persist_ir')
+def test_spectral_moments_2():
+    spectra_helper(spec2)
+
+
+@fails_service_backend(reason='persist_ir')
+def test_spectral_moments_3():
+    spectra_helper(spec3)
+
+
+@fails_service_backend(reason='persist_ir')
+def test_spectral_moments_4():
+    spectra_helper(spec4)
+
+
+@fails_service_backend(reason='persist_ir')
+def test_spectral_moments_5():
     spectra_helper(spec5)

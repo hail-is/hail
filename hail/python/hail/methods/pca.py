@@ -3,7 +3,7 @@ from typing import List, Tuple
 import hail as hl
 import hail.expr.aggregators as agg
 from hail.expr import (expr_float64, expr_call, check_entry_indexed,
-                       matrix_table_source)
+                       check_row_indexed, matrix_table_source, table_source)
 from hail import ir
 from hail.table import Table
 from hail.typecheck import typecheck
@@ -207,6 +207,74 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
     return hl.eval(g.eigenvalues), scores, None if t is None else t.drop('eigenvalues', 'scores')
 
 
+def _krylov_factorization(A_expr, V0, p, compute_U=False):
+    r"""Computes matrices :math:`U`, :math:`R`, and :math:`V` satisfying the following properties:
+    * :math:`U\in\mathbb{R}^{m\times (p+1)b` and :math:`V\in\mathbb{R}^{n\times (p+1)b` are
+      orthonormal matrices (:math:`U^TU = I` and :math:`V^TV = I`)
+    * :math:`\mathrm{span}(V) = \mathcal{K}_p(A^TA, W)`
+    * :math:`\mathrm{span}(U) = \mathcal{K}_p(AA^T, AW)`
+    * :math:`UR=AV`
+    * :math:`V[:, :b] = V_0`
+    * :math:`R\in\mathbb{R}^{b\times b}` is upper triangular
+
+    Parameters
+    ----------
+    A_expr
+    V0
+    p
+    compute_U
+
+    Returns
+    -------
+
+    """
+    check_row_indexed('mt_to_table_of_ndarray/entry_expr', A_expr)
+    t = table_source('pca/A_expr', A_expr)
+
+    g_list = [V0]
+    G_i = V0
+
+    for j in range(0, p):
+        info(f"krylov_factorization: Beginning iteration {j+1}/{p}")
+        G_i = t.aggregate(hl.agg.ndarray_sum(A_expr.T @ (A_expr @ G_i)), _localize=False)
+        G_i = hl.nd.qr(G_i)[0]._persist()
+        g_list.append(G_i)
+
+    info("krylov_factorization: Iterations complete. Computing local QR")
+    V0 = hl.nd.hstack(g_list)
+    V = hl.nd.qr(V0)[0]._persist()
+
+    AV = t.select(ndarray=A_expr @ V)
+
+    if compute_U:
+        AV_local = hl.nd.vstack(AV.aggregate(hl.agg.collect(AV.ndarray)), _localize=False)
+        U, R = hl.nd.qr(AV_local)._persist()
+        return U, R, V
+    else:
+        Rs = hl.nd.vstack(AV.aggregate(hl.agg.collect(hl.nd.qr(AV.ndarray)[1])), _localize=False)
+        R = hl.nd.qr(Rs)[1]._persist()
+        return R, V
+
+
+def _spectral_moments(entry_expr, num, p=None, k=100, block_size=128):
+    check_entry_indexed('_spectral_moments/entry_expr', entry_expr)
+
+    A = mt_to_table_of_ndarray(entry_expr, block_size)
+    A = A.persist()
+    n = A.take(1)[0].ndarray.shape[1]
+
+    if p is None:
+        p = min(num_moments // 2 + 1, 10)
+
+    G = hl.nd.zeros((n, k)).map(lambda n: hl.if_else(hl.rand_bool(0.5), -1, 1))
+    Q1, R1 = hl.nd.qr(G)._persist()
+    R2, _ = _krylov_factorization(A.ndarray, Q1, p)
+    _, S, Vt = hl.nd.svd(R2, full_matrices=False)
+    eigval_powers = hl.nd.vstack([S.map(lambda x: x**(2*i)) for i in range(1, num_moments + 1)])
+
+    return (eigval_powers @ ((Vt[:, :k] @ R1).map(lambda x: x**2) @ hl.nd.ones(k))) / k
+
+
 @typecheck(entry_expr=expr_float64,
            k=int,
            compute_loadings=bool,
@@ -300,8 +368,8 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     (:obj:`list` of :obj:`float`, :class:`.Table`, :class:`.Table`)
         List of eigenvalues, table with column scores, table with row loadings.
     """
-    check_entry_indexed('mt_to_table_of_ndarray/entry_expr', entry_expr)
-    mt = matrix_table_source('pca/entry_expr', entry_expr)
+    check_entry_indexed('_blanczos_pca/entry_expr', entry_expr)
+    mt = matrix_table_source('_blanczos_pca/entry_expr', entry_expr)
 
     A, ht = mt_to_table_of_ndarray(entry_expr, block_size, return_checkpointed_table_also=True)
     A = A.persist()
@@ -314,37 +382,12 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
 
     # Generate random matrix G
     G = hl.nd.zeros((n, L)).map(lambda n: hl.rand_norm(0, 1))
-
-    def hailBlanczos(A, G, k, q, compute_U=False):
-
-        G_i = hl.nd.qr(G)[0]
-        g_list = [G_i]
-
-        for j in range(0, q):
-            info(f"blanczos_pca: Beginning iteration {j+1}/{q}")
-            G_i = A.aggregate(hl.agg.ndarray_sum(A.ndarray.T @ (A.ndarray @ G_i)), _localize=False)
-            G_i = hl.nd.qr(G_i)[0]._persist()
-            g_list.append(G_i)
-
-        info("blanczos_pca: Iterations complete. Computing local QR")
-        G = hl.nd.hstack(g_list)
-        V = hl.nd.qr(G)[0]._persist()
-
-        AV = A.select(ndarray=A.ndarray @ V)
-
-        if compute_U:
-            AV_local = hl.nd.vstack(AV.aggregate(hl.agg.collect(AV.ndarray), _localize=False))
-            U, R = hl.nd.qr(AV_local)._persist()
-            return U, R, V
-        else:
-            Rs = hl.nd.vstack(AV.aggregate(hl.agg.collect(hl.nd.qr(AV.ndarray)[1]), _localize=False))
-            R = hl.nd.qr(Rs)[1]._persist()
-            return R, V
+    G = hl.nd.qr(G)[0]._persist()
 
     if compute_loadings:
-        U0, R, V0 = hailBlanczos(A, G, k, q, compute_U=True)
+        U0, R, V0 = _krylov_factorization(A.ndarray, G, q, compute_U=True)
     else:
-        R, V0 = hailBlanczos(A, G, k, q, compute_U=False)
+        R, V0 = _krylov_factorization(A.ndarray, G, q, compute_U=False)
 
     info("blanczos_pca: QR Complete. Computing local SVD")
     U1, S, V1t = hl.nd.svd(R, full_matrices=False)._persist()
