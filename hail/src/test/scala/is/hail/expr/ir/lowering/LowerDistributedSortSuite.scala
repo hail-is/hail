@@ -47,10 +47,8 @@ class LowerDistributedSortSuite extends HailSuite {
     val rowType = req.lookup(myTable).asInstanceOf[RTable].rowType
     val stage = LowerTableIR.applyTable(myTable, DArrayLowering.All, ctx, req, Map.empty[String, IR])
     val sortFields = IndexedSeq[SortField](SortField("foo", Ascending), SortField("idx", Ascending))
-    //val sortFields = IndexedSeq[SortField](SortField("backwards", Ascending))
-    val distSort = LowerDistributedSort.distributedSort(ctx, stage, sortFields, Map.empty[String, IR], rowType)
-    val res = TestUtils.eval(distSort)
-    println(res)
-    //assertEvalsTo(LowerDistributedSort.distributedSort(ctx, stage, sortFields, Map.empty[String, IR], rowType), null)
+    val sortedTs = LowerDistributedSort.distributedSort(ctx, stage, sortFields, Map.empty[String, IR], rowType)
+    val res = TestUtils.eval(sortedTs.mapCollect(Map.empty[String, IR])(x => ToArray(x))).asInstanceOf[IndexedSeq[IndexedSeq[Row]]].flatten
+    assert(res == res.sortBy(r => (r(1).asInstanceOf[Int], r(0).asInstanceOf[Int])))
   }
 }

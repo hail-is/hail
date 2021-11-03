@@ -106,7 +106,7 @@ object LowerDistributedSort {
     sortFields: IndexedSeq[SortField],
     relationalLetsAbove: Map[String, IR],
     rowTypeRequiredness: RStruct
-  ): IR = {
+  ): TableStage = {
 
     val oversamplingNum = 1
     val seed = 7L
@@ -254,11 +254,11 @@ object LowerDistributedSort {
       val protoDataPerSegment = distributeResult
         .groupBy{ case (originSegment, _) => originSegment }.toIndexedSeq.sortBy { case (originSegment, _) => originSegment}.map { case (_, seqOfChunkData) => seqOfChunkData.map(_._2)}
 
-      val transposedIntoNewSegments = protoDataPerSegment.map { oneOldSegment =>
+      val transposedIntoNewSegments = protoDataPerSegment.flatMap { oneOldSegment =>
         val headLen = oneOldSegment.head.length
         assert(oneOldSegment.forall(x => x.length == headLen))
         (0 until headLen).map(colIdx => oneOldSegment.map(row => row(colIdx)))
-      }.flatten
+      }
 
       val dataPerSegment = transposedIntoNewSegments.zipWithIndex.map { case (chunksWithSameInterval, newSegmentIdx) =>
         val interval = chunksWithSameInterval.head._1
@@ -292,7 +292,7 @@ object LowerDistributedSort {
       })
     })
 
-    finalTs.mapCollect(Map.empty[String, IR])(x => ToArray(x))
+    finalTs
   }
 
   def segmentsToPartitionData(segments: IndexedSeq[SegmentResult], idealNumberOfRowsPerPart: Int): IndexedSeq[(IndexedSeq[Int], IndexedSeq[String], Int, Int)] = {
