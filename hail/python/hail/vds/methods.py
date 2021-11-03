@@ -5,7 +5,7 @@ from hail.expr import ArrayExpression, expr_any, expr_array, expr_interval
 from hail.matrixtable import MatrixTable
 from hail.methods.misc import require_first_key_field_locus
 from hail.table import Table
-from hail.typecheck import sequenceof, typecheck
+from hail.typecheck import sequenceof, typecheck, nullable
 from hail.utils.java import Env
 from hail.utils.misc import divide_null
 from hail.vds.variant_dataset import VariantDataset
@@ -424,15 +424,22 @@ def segment_reference_blocks(ref: 'MatrixTable', intervals: 'Table') -> 'MatrixT
     starts = starts.annotate(_include_locus=True)
     refl = ref.localize_entries('_ref_entries', '_ref_cols')
     joined = refl.join(starts, how='outer')
+    rg = ref.locus.dtype.reference_genome
+    contigs = rg.contigs
+    contig_idx_map = hl.literal({contigs[i]: i for i in range(len(contigs))}, 'dict<str, int32>')
+    joined = joined.annotate(__contig_idx=contig_idx_map[joined.locus.contig])
+    joined = joined.annotate(
+        _ref_entries=joined._ref_entries.map(lambda e: hl.struct(contig_idx=joined.__contig_idx, ref_entry=e)))
     dense = joined.annotate(
         dense_ref=hl.or_missing(
             joined._include_locus,
             hl.rbind(joined.locus.position,
                      lambda pos: hl.scan._densify(hl.len(joined._ref_cols), joined._ref_entries)
-                     .map(lambda e: hl.or_missing(e.END >= pos, e))
+                     .map(lambda e: hl.or_missing((e.contig_idx == joined.__contig_idx) & (e.ref_entry.END >= pos),
+                                                  e.ref_entry))
                      ))
     )
-    dense = dense.filter(dense._include_locus).drop('_interval_dup', '_include_locus')
+    dense = dense.filter(dense._include_locus).drop('_interval_dup', '_include_locus', '__contig_idx')
 
     # at this point, 'dense' is a table with dense rows of reference blocks, keyed by locus
 
@@ -456,8 +463,8 @@ def segment_reference_blocks(ref: 'MatrixTable', intervals: 'Table') -> 'MatrixT
     return refl_filtered._unlocalize_entries('_ref_entries', '_ref_cols', list(ref.col_key))
 
 
-@typecheck(vds=VariantDataset, intervals=Table, gq_thresholds=sequenceof(int))
-def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0, 20,)) -> 'MatrixTable':
+@typecheck(vds=VariantDataset, intervals=Table, gq_thresholds=sequenceof(int), dp_field=nullable(str))
+def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0, 20,), dp_field=None) -> 'MatrixTable':
     """Compute statistics about base coverage above multiple GQ thresholds by interval.
 
     Parameters
@@ -467,6 +474,8 @@ def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0
         Table of intervals. Must be start-inclusive, and cannot span contigs.
     gq_thresholds : tuple of int
         GQ thresholds.
+    dp_field : str, optional
+        Field for depth calculation. Uses DP or MIN_DP by default (with priority for DP if present).
 
     Returns
     -------
@@ -475,17 +484,35 @@ def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0
     """
     ref = vds.reference_data
     split = segment_reference_blocks(ref, intervals)
-    intervals = intervals.annotate(interval_dup = intervals.key[0])
+    intervals = intervals.annotate(interval_dup=intervals.key[0])
+
+    if 'DP' in ref.entry:
+        dp_field_to_use = 'DP'
+    elif 'MIN_DP' in ref.entry:
+        dp_field_to_use = 'MIN_DP'
+    else:
+        dp_field_to_use = dp_field
+
+    if dp_field_to_use is not None:
+        dp_field_dict = {'sum_dp': hl.agg.sum((split.END - split.locus.position + 1) * split[dp_field_to_use])}
+    else:
+        dp_field_dict = dict()
+
     per_interval = split.group_rows_by(interval=intervals[split.row_key[0]].interval_dup) \
         .aggregate(bases_over_gq_threshold=tuple(
         hl.agg.filter(split.GQ > gq_threshold, hl.agg.sum(split.END - split.locus.position + 1))
-        for gq_threshold in gq_thresholds))
+        for gq_threshold in gq_thresholds),
+        **dp_field_dict)
 
     interval = per_interval.interval
     interval_size = interval.end.position + interval.includes_end - interval.start.position + interval.includes_start
     per_interval = per_interval.annotate_rows(interval_size=interval_size)
     per_interval = per_interval.annotate_entries(
-            fraction_over_gq_threshold=tuple(x / per_interval.interval_size for x in per_interval.bases_over_gq_threshold))
+        fraction_over_gq_threshold=tuple(x / per_interval.interval_size for x in per_interval.bases_over_gq_threshold))
+
+    if dp_field_to_use is not None:
+        per_interval = per_interval.annotate_entries(mean_dp=per_interval.sum_dp / per_interval.interval_size)
+
     per_interval = per_interval.annotate_globals(gq_thresholds=gq_thresholds)
 
     return per_interval
