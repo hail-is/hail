@@ -115,12 +115,16 @@ object LowerDistributedSort {
     val (newKType, _) = inputStage.rowType.select(sortFields.map(sf => sf.field))
 
     val spec = TypedCodecSpec(rowTypeRequiredness.canonicalPType(inputStage.rowType), BufferSpec.default)
+    val reader = PartitionNativeReader(spec)
     val initialTmpPath = ctx.createTmpPath("hail_shuffle_temp_initial")
     val writer = PartitionNativeWriter(spec, initialTmpPath, None, None)
     val initialChunks = CompileAndEvaluate[Annotation](ctx, inputStage.mapCollect(relationalLetsAbove) { part =>
       WritePartition(part, UUID4(), writer)
     }).asInstanceOf[IndexedSeq[Row]].map(row => Chunk(initialTmpPath + row(0).asInstanceOf[String], row(1).asInstanceOf[Long].toInt))
     val initialSegment = SegmentResult(IndexedSeq(0), inputStage.partitioner.range.get, initialChunks)
+
+    val totalNumberOfRows = initialChunks.map(_.size).sum
+    val idealNumberOfRowsPerPart = totalNumberOfRows / inputStage.numPartitions
 
     var loopState = LoopState(IndexedSeq(initialSegment), IndexedSeq.empty[SegmentResult])
 
@@ -131,11 +135,16 @@ object LowerDistributedSort {
     var i = 0
     val rand = new IRRandomness((math.random() * 1000).toInt)
 
-    while (i < 2) {
+    while (i < 1) {
       println(s"Loop iteration ${i}")
 
-      val partitionCounts = partitionCountsPerSegment.flatten
+      // 1. I have a loop state with some large segments in it. I know how many samples are in each chunk of each segment
+      // 2. I take those segments, and I identify a good partitioning of them.
+      // 3. Using this partitioning, I figure out the per segment sampling rules.
+      // 4. I execute the sampling as a CDA
 
+      val partitionData = segmentsToPartitionData(loopState.largeSegments, idealNumberOfRowsPerPart)
+      val partitionCounts = partitionData.map(_._3)
       val partitionCountsId = genUID()
       val partitionCountsRef = Ref(partitionCountsId, TArray(TInt32))
 
@@ -144,32 +153,19 @@ object LowerDistributedSort {
         howManySamplesPerPartition(rand, recordsInSegment, Math.min(recordsInSegment, (branchingFactor * oversamplingNum) - 1), partitionCountsForOneSegment)
       }
 
-      println(s"numSamplesPerPartitionPerSegment = $numSamplesPerPartitionPerSegment")
-
       val numSamplesPerPartition = numSamplesPerPartitionPerSegment.flatten
-      val numSamplesPerPartitionId = genUID()
-      val numSamplesPerPartitionRef = Ref(numSamplesPerPartitionId, TArray(TInt32))
 
-      println(s"numSamplesPerPartition = ${numSamplesPerPartition}")
-
-      val stageWithNumSamplesPerPart = inputStageWithSegmentNumbers.copy(
-        letBindings = inputStageWithSegmentNumbers.letBindings :+ partitionCountsId -> Literal(TArray(TInt32), partitionCounts) :+ numSamplesPerPartitionId -> Literal(TArray(TInt32), numSamplesPerPartition),
-        broadcastVals = inputStageWithSegmentNumbers.broadcastVals :+ partitionCountsId -> partitionCountsRef :+ numSamplesPerPartitionId -> numSamplesPerPartitionRef
-      )
-
-      // Array of (segmentNumber, struct("min", "max", "samples", "isSorted")),
-      val perPartStatsIR = stageWithNumSamplesPerPart.zipContextsWithIdx().mapCollectWithContextsAndGlobals(relationalBindings = relationalLetsAbove) { (partitionStreamIR, ctxRef) =>
-        val segmentNumber = GetField(GetField(ctxRef, "elt"), "segmentIdx")
-        val numSamplesInThisPartition = ArrayRef(numSamplesPerPartitionRef, GetField(ctxRef, "idx"))
-        val sizeOfPartition = ArrayRef(partitionCountsRef, GetField(ctxRef, "idx"))
-        val oversampled = ToArray(SeqSample(sizeOfPartition, numSamplesInThisPartition, false))
-        val regularSampledIndices = StreamRange(0, numSamplesInThisPartition, oversamplingNum)
-        bindIR(oversampled) { oversampledRef =>
-          bindIR(mapIR(regularSampledIndices) { idx => ArrayRef(oversampledRef, idx) }) { sampled =>
-            MakeTuple.ordered(IndexedSeq(segmentNumber, samplePartition(partitionStreamIR, sampled, newKType.fields.map(_.name))))
-          }
-        }  // not sorted, this is not helpful, deal with downsampling after sorting.
-      } { (res, global) => res }
+      // Ctx is file to read, numSamples to take
+      val perPartStatsCDAContextData = partitionData.zip(numSamplesPerPartition).map { case (partData, numSamples) => Row(partData._1.last, partData._2, partData._3, numSamples)}
+      val perPartStatsCDAContexts = ToStream(Literal(TArray(TStruct("segmentIdx" -> TInt32, "files" -> TArray(TString), "sizeOfPartition" -> TInt32, "numSamples" -> TInt32)), perPartStatsCDAContextData))
+      val perPartStatsIR = cdaIR(perPartStatsCDAContexts, MakeStruct(Seq())){ (ctxRef, _) =>
+        val filenames = GetField(ctxRef, "files")
+        val samples = SeqSample(GetField(ctxRef, "sizeOfPartition"), GetField(ctxRef, "numSamples"), false)
+        val partitionStream = flatMapIR(ToStream(filenames)) { fileName =>
+          ReadPartition(fileName, spec._vType, reader)
+        }
+        MakeTuple.ordered(IndexedSeq(GetField(ctxRef, "segmentIdx"), samplePartition(partitionStream, samples, newKType.fields.map(_.name))))
+      }
 
       // Going to check now if it's fully sorted, as well as collect and sort all the samples.
       val (Some(PTypeReferenceSingleCodeType(perPartStatsType: PArray)), fPerPartStats) = ctx.timer.time("LowerDistributedSort.distributedSort.compilePerPartStats")(Compile[AsmFunction1RegionLong](ctx,
@@ -266,9 +262,6 @@ object LowerDistributedSort {
 
       // Now I need to figure out how many partitions to allocate to each segment.
       val sizeOfSegments = dataPerSegment.map { oneSegmentData => oneSegmentData.map(chunkData => chunkData._3).sum }
-      val totalNumberOfRows = sizeOfSegments.sum
-      val idealNumberOfRowsPerPart = totalNumberOfRows / inputStage.numPartitions
-      assert(idealNumberOfRowsPerPart > 0)
 
       println(s"Length of data per segment = ${dataPerSegment.length}")
 
@@ -302,7 +295,6 @@ object LowerDistributedSort {
       partitionCountsPerSegment = partitionsOfSegmentIdxAndFilenamesWithSizes.groupBy(_._1).toIndexedSeq.sortBy(_._1).map(_._2.map(_._3))
       val partitionsOfSegmentIdxAndFilenames = partitionsOfSegmentIdxAndFilenamesWithSizes.map(x => (x._1, x._2))
 
-      val reader = PartitionNativeReader(spec)
       val intervals = dataPerSegment.map(chunksData => chunksData.head._1)
       println(s"Intervals = ${intervals}")
       println(s"partitionsOfSegmentIdxAndFilenames = ${partitionsOfSegmentIdxAndFilenames}")
@@ -328,6 +320,32 @@ object LowerDistributedSort {
     }
 
     res
+  }
+
+  def segmentsToPartitionData(segments: IndexedSeq[SegmentResult], idealNumberOfRowsPerPart: Int): IndexedSeq[(IndexedSeq[Int], IndexedSeq[String], Int)] = {
+    segments.flatMap { sr =>
+      val chunkDataSizes = sr.chunks.map(_.size)
+      val segmentSize = chunkDataSizes.sum
+      val numParts = (segmentSize + idealNumberOfRowsPerPart - 1) / idealNumberOfRowsPerPart
+      var currentPartSize = 0
+      val groupedIntoParts = new ArrayBuffer[(IndexedSeq[Int], IndexedSeq[String], Int)](numParts)
+      val currentFiles = new ArrayBuffer[String]()
+      sr.chunks.foreach { chunk =>
+        if (chunk.size > 0) {
+          currentFiles.append(chunk.filename)
+          currentPartSize += chunk.size
+          if (currentPartSize > idealNumberOfRowsPerPart) {
+            groupedIntoParts.append((sr.indices, currentFiles.result().toIndexedSeq, currentPartSize))
+            currentFiles.clear()
+            currentPartSize = 0
+          }
+        }
+      }
+      if (!currentFiles.isEmpty) {
+        groupedIntoParts.append((sr.indices, currentFiles.result().toIndexedSeq, currentPartSize))
+      }
+      groupedIntoParts.result()
+    }
   }
 
   def howManySamplesPerPartition(rand: IRRandomness, totalNumberOfRecords: Int, initialNumSamplesToSelect: Int, partitionCounts: IndexedSeq[Int]): IndexedSeq[Int] = {
