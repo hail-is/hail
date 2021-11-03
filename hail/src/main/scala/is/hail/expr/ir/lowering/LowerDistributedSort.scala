@@ -137,11 +137,6 @@ object LowerDistributedSort {
     while (!loopState.largeSegments.isEmpty) {
       println(s"Loop iteration ${i}")
 
-      // 1. I have a loop state with some large segments in it. I know how many samples are in each chunk of each segment
-      // 2. I take those segments, and I identify a good partitioning of them.
-      // 3. Using this partitioning, I figure out the per segment sampling rules.
-      // 4. I execute the sampling as a CDA
-
       val partitionData = segmentsToPartitionData(loopState.largeSegments, idealNumberOfRowsPerPart)
 
       //TODO: Dumb and temporary
@@ -158,7 +153,6 @@ object LowerDistributedSort {
 
       val numSamplesPerPartition = numSamplesPerPartitionPerSegment.flatten
 
-      // Ctx is file to read, numSamples to take
       val perPartStatsCDAContextData = partitionData.zip(numSamplesPerPartition).map { case (partData, numSamples) => Row(partData._1.last, partData._2, partData._3, numSamples)}
       val perPartStatsCDAContexts = ToStream(Literal(TArray(TStruct("segmentIdx" -> TInt32, "files" -> TArray(TString), "sizeOfPartition" -> TInt32, "numSamples" -> TInt32)), perPartStatsCDAContextData))
       val perPartStatsIR = cdaIR(perPartStatsCDAContexts, MakeStruct(Seq())){ (ctxRef, _) =>
@@ -178,12 +172,12 @@ object LowerDistributedSort {
         print = None,
         optimize = true))
 
-      val fPerPartStatsRunnable = ctx.timer.time("LowerDistributedSort.localSort.initialize")(fPerPartStats(ctx.fs, 0, ctx.r))
-      val perPartStatsAddress = ctx.timer.time("LowerDistributedSort.localSort.run")(fPerPartStatsRunnable(ctx.r))
-      val perPartStatsA = ctx.timer.time("LowerDistributedSort.localSort.toJavaObject")(SafeRow.read(perPartStatsType, perPartStatsAddress)).asInstanceOf[IndexedSeq[Row]]
+      val fPerPartStatsRunnable = ctx.timer.time("LowerDistributedSort.distributedSort.initialize")(fPerPartStats(ctx.fs, 0, ctx.r))
+      val perPartStatsAddress = ctx.timer.time("LowerDistributedSort.distributedSort.run")(fPerPartStatsRunnable(ctx.r))
+      val perPartStatsA = ctx.timer.time("LowerDistributedSort.distributedSort.toJavaObject")(SafeRow.read(perPartStatsType, perPartStatsAddress)).asInstanceOf[IndexedSeq[Row]]
 
       println(s"per part stats = ${perPartStatsA}")
-      val groupedBySegmentNumber = perPartStatsA.groupBy(r => r(0).asInstanceOf[Int]).toIndexedSeq.sortBy(_._1)
+      val groupedBySegmentNumber = orderedGroupBy[Row, Int](perPartStatsA, r => r(0).asInstanceOf[Int])
 
       // These are the pivots for each segment number
       val pivotsWithEndpointsGroupedBySegmentNumber = groupedBySegmentNumber.map { case (segmentNumber, perPartStatsA) =>
@@ -224,16 +218,16 @@ object LowerDistributedSort {
       }
 
       // Now, execute distribute
-      val (Some(PTypeReferenceSingleCodeType(resultPType)), f) = ctx.timer.time("LowerDistributedSort.localSort.compile")(Compile[AsmFunction1RegionLong](ctx,
+      val (Some(PTypeReferenceSingleCodeType(resultPType)), f) = ctx.timer.time("LowerDistributedSort.distributedSort.compile")(Compile[AsmFunction1RegionLong](ctx,
         FastIndexedSeq(),
         FastIndexedSeq(classInfo[Region]), LongInfo,
         distribute,
         print = None,
         optimize = true))
 
-      val fRunnable = ctx.timer.time("LowerDistributedSort.localSort.initialize")(f(ctx.fs, 0, ctx.r))
-      val resultAddress = ctx.timer.time("LowerDistributedSort.localSort.run")(fRunnable(ctx.r))
-      val distributeResult = ctx.timer.time("LowerDistributedSort.localSort.toJavaObject")(SafeRow.read(resultPType, resultAddress))
+      val fRunnable = ctx.timer.time("LowerDistributedSort.distributedSort.initialize")(f(ctx.fs, 0, ctx.r))
+      val resultAddress = ctx.timer.time("LowerDistributedSort.distributedSort.run")(fRunnable(ctx.r))
+      val distributeResult = ctx.timer.time("LowerDistributedSort.distributedSort.toJavaObject")(SafeRow.read(resultPType, resultAddress))
         .asInstanceOf[IndexedSeq[Row]].map(row => (
         row(0).asInstanceOf[Int],
         row(1).asInstanceOf[IndexedSeq[Row]].map(innerRow => (
@@ -251,8 +245,7 @@ object LowerDistributedSort {
 
       println(distributeResult)
 
-      val protoDataPerSegment = distributeResult
-        .groupBy{ case (originSegment, _) => originSegment }.toIndexedSeq.sortBy { case (originSegment, _) => originSegment}.map { case (_, seqOfChunkData) => seqOfChunkData.map(_._2)}
+      val protoDataPerSegment = orderedGroupBy[(Int, IndexedSeq[(Interval, String, Int)]), Int](distributeResult, x => x._1).map { case (_, seqOfChunkData) => seqOfChunkData.map(_._2)}
 
       val transposedIntoNewSegments = protoDataPerSegment.flatMap { oneOldSegment =>
         val headLen = oneOldSegment.head.length
@@ -293,6 +286,30 @@ object LowerDistributedSort {
     })
 
     finalTs
+  }
+
+  def orderedGroupBy[T, U](is: IndexedSeq[T], func: T => U): IndexedSeq[(U, IndexedSeq[T])] = {
+    val result = new ArrayBuffer[(U, IndexedSeq[T])](is.size)
+    val currentGroup = new ArrayBuffer[T]()
+    var lastKeySeen: Option[U] = None
+    is.foreach { element =>
+      val key = func(element)
+      if (currentGroup.isEmpty) {
+        currentGroup.append(element)
+        lastKeySeen = Some(key)
+      } else if (lastKeySeen.map(lastKey => lastKey == key).getOrElse(false)) {
+        currentGroup.append(element)
+      } else {
+        result.append((lastKeySeen.get, currentGroup.result().toIndexedSeq))
+        currentGroup.clear()
+        currentGroup.append(element)
+        lastKeySeen = Some(key)
+      }
+    }
+    if (!currentGroup.isEmpty) {
+      result.append((lastKeySeen.get, currentGroup))
+    }
+    result.result().toIndexedSeq
   }
 
   def segmentsToPartitionData(segments: IndexedSeq[SegmentResult], idealNumberOfRowsPerPart: Int): IndexedSeq[(IndexedSeq[Int], IndexedSeq[String], Int, Int)] = {
