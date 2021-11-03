@@ -218,19 +218,19 @@ class KrylovFactorization:
 
 
     def reduced_svd(self, k):
-        U1, S, V1t = hl.nd.svd(self.R, full_matrices=False)._persist()
+        U1, S, V1t = hl.nd.svd(self.R, full_matrices=False)
 
-        S = S[:k]
+        S = S[:k]._persist()
 
         if self.U is None:
             U = None
         else:
-            U = self.U @ U1[:, :k]
+            U = (self.U @ U1[:, :k])._persist()
 
         if self.V is None:
             V = None
         else:
-            V = self.V @ V1t.T[:, :k]
+            V = (self.V @ V1t.T[:, :k])._persist()
 
         return U, S, V
 
@@ -242,7 +242,8 @@ class KrylovFactorization:
         # FIXME: Here
         return (eigval_powers @ ((Vt[:, :self.k] @ R1).map(lambda x: x**2) @ hl.nd.ones(k))) / k
 
-def _krylov_factorization(A_expr, V0, p, compute_U=False):
+
+def _krylov_factorization(A_expr, V0, p, compute_U=False, compute_V=True):
     r"""Computes matrices :math:`U`, :math:`R`, and :math:`V` satisfying the following properties:
     * :math:`U\in\mathbb{R}^{m\times (p+1)b` and :math:`V\in\mathbb{R}^{n\times (p+1)b` are
       orthonormal matrices (:math:`U^TU = I` and :math:`V^TV = I`)
@@ -277,9 +278,14 @@ def _krylov_factorization(A_expr, V0, p, compute_U=False):
 
     info("krylov_factorization: Iterations complete. Computing local QR")
     V0 = hl.nd.hstack(g_list)
-    V = hl.nd.qr(V0)[0]._persist()
 
-    AV = t.select(ndarray=A_expr @ V)
+    if compute_V:
+        V = hl.nd.qr(V0)[0]._persist()
+        AV = t.select(ndarray=A_expr @ V)
+    else:
+        V = hl.nd.qr(V0)[0]
+        AV = t.select(ndarray=A_expr @ V)
+        V = None
 
     if compute_U:
         AV_local = hl.nd.vstack(AV.aggregate(hl.agg.collect(AV.ndarray)), _localize=False)
@@ -289,7 +295,7 @@ def _krylov_factorization(A_expr, V0, p, compute_U=False):
         R = hl.nd.qr(Rs)[1]._persist()
         U = None
 
-    return KrylovFactorization(U, R, V)
+    return KrylovFactorization(U, R, V, V0.shape[1])
 
 
 def _reduced_svd(A_expr, k=10, compute_U=False, iterations=2, iteration_size=None):
@@ -327,11 +333,76 @@ def _spectral_moments(entry_expr, num_moments, p=None, k=100, block_size=128):
 
     G = hl.nd.zeros((n, k)).map(lambda n: hl.if_else(hl.rand_bool(0.5), -1, 1))
     Q1, R1 = hl.nd.qr(G)._persist()
-    R2, _ = _krylov_factorization(A.ndarray, Q1, p)
-    _, S, Vt = hl.nd.svd(R2, full_matrices=False)
+    fact = _krylov_factorization(A.ndarray, Q1, p, compute_U=False)
+    _, S, Vt = hl.nd.svd(fact.R, full_matrices=False)
     eigval_powers = hl.nd.vstack([S.map(lambda x: x**(2*i)) for i in range(1, num_moments + 1)])
 
     return (eigval_powers @ ((Vt[:, :k] @ R1).map(lambda x: x**2) @ hl.nd.ones(k))) / k
+
+
+@typecheck(entry_expr=expr_float64,
+           k=int,
+           num_moments=int,
+           compute_loadings=bool,
+           q_iterations=int,
+           oversampling_param=int,
+           block_size=int,
+           moment_samples=int)
+def _pca_and_moments(entry_expr, k=10, num_moments=5, compute_loadings=False, q_iterations=2, oversampling_param=2, block_size=128, moment_samples=100):
+    check_entry_indexed('_blanczos_pca/entry_expr', entry_expr)
+    mt = matrix_table_source('_blanczos_pca/entry_expr', entry_expr)
+
+    A, ht = mt_to_table_of_ndarray(entry_expr, block_size, return_checkpointed_table_also=True)
+    A = A.persist()
+
+    # Set Parameters
+
+    q = q_iterations
+    L = k + oversampling_param
+    n = A.ndarray.take(1)[0].shape[1]
+
+    # Generate random matrix G
+    G = hl.nd.zeros((n, L)).map(lambda n: hl.rand_norm(0, 1))
+    G = hl.nd.qr(G)[0]._persist()
+
+    fact = _krylov_factorization(A.ndarray, G, q, compute_loadings)
+    info("_reduced_svd: Computing local SVD")
+    U, S, V = fact.reduced_svd(k)
+
+    p = min(num_moments // 2 + 1, 10)
+
+    # Generate random matrix G2 for moment estimation
+    G2 = hl.nd.zeros((n, moment_samples)).map(lambda n: hl.if_else(hl.rand_bool(0.5), -1, 1))
+    # Project out components in subspace fact.V, which we can compute exactly
+    G2 = G2 - fact.V @ (fact.V.T @ G2)
+    Q1, R1 = hl.nd.qr(G2)._persist()
+    fact2 = _krylov_factorization(A.ndarray, Q1, p, compute_U=False)
+    _, S2, V2t = hl.nd.svd(fact2.R, full_matrices=False)
+    eigval_powers = hl.nd.vstack([S2.map(lambda x: x**(2*i)) for i in range(1, num_moments + 1)])
+
+    moments = (eigval_powers @ ((V2t[:, :moment_samples] @ R1).map(lambda x: x**2) @ hl.nd.ones(moment_samples))) / moment_samples
+    print(hl.eval(moments.shape))
+    moments = hl.eval(moments + hl.nd.array([hl.sum(S._data_array().map(lambda x: x**(2*i))) for i in range(1, num_moments + 1)]))
+
+    scores = V * S
+    eigens = hl.eval(S * S)
+    info("blanczos_pca: SVD Complete. Computing conversion to PCs.")
+
+    hail_array_scores = scores._data_array()
+    cols_and_scores = hl.zip(A.index_globals().cols, hail_array_scores).map(lambda tup: tup[0].annotate(scores=tup[1]))
+    st = hl.Table.parallelize(cols_and_scores, key=list(mt.col_key))
+
+    if compute_loadings:
+        lt = ht.select()
+        lt = lt.annotate_globals(U=U)
+        idx_name = '_tmp_pca_loading_index'
+        lt = lt.add_index(idx_name)
+        lt = lt.annotate(loadings=lt.U[lt[idx_name], :]._data_array()).select_globals()
+        lt = lt.drop(lt[idx_name])
+    else:
+        lt = None
+
+    return eigens, st, lt, moments
 
 
 @typecheck(entry_expr=expr_float64,

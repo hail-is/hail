@@ -244,24 +244,76 @@ def spectral_moments_helper(spec_func):
 
 @fails_service_backend(reason='persist_ir')
 def test_spectral_moments_1():
-    spectra_helper(spec1)
+    spectral_moments_helper(spec1)
 
 
 @fails_service_backend(reason='persist_ir')
 def test_spectral_moments_2():
-    spectra_helper(spec2)
+    spectral_moments_helper(spec2)
 
 
 @fails_service_backend(reason='persist_ir')
 def test_spectral_moments_3():
-    spectra_helper(spec3)
+    spectral_moments_helper(spec3)
 
 
 @fails_service_backend(reason='persist_ir')
 def test_spectral_moments_4():
-    spectra_helper(spec4)
+    spectral_moments_helper(spec4)
 
 
 @fails_service_backend(reason='persist_ir')
 def test_spectral_moments_5():
-    spectra_helper(spec5)
+    spectral_moments_helper(spec5)
+
+
+def spectra_and_moments_helper(spec_func):
+    from hail.methods.pca import _pca_and_moments
+
+    for triplet in dim_triplets:
+        k, m, n = triplet
+        min_dim = min(m, n)
+        sigma = np.diag([spec_func(i+1, k) for i in range(min_dim)])
+        seed = 1025
+        np.random.seed(seed)
+        U = np.linalg.qr(np.random.normal(0, 1, (m, min_dim)))[0]
+        V = np.linalg.qr(np.random.normal(0, 1, (n, min_dim)))[0]
+        A = U @ sigma @ V.T
+        mt_A = matrix_table_from_numpy(A)
+
+        eigenvalues, scores, loadings, moments = _pca_and_moments(mt_A.ent, k=k, num_moments=7, oversampling_param=k, compute_loadings=True, q_iterations=4)
+        singulars = np.sqrt(eigenvalues)
+        hail_V = (np.array(scores.scores.collect()) / singulars).T
+        hail_U = np.array(loadings.loadings.collect())
+        approx_A = hail_U @ np.diag(singulars) @ hail_V
+        norm_of_diff = np.linalg.norm(A - approx_A, 2)
+        np.testing.assert_allclose(norm_of_diff, spec_func(k + 1, k), rtol=1e-02, err_msg=f"Norm test failed on triplet {triplet} on spec{idx + 1}")
+        np.testing.assert_allclose(singulars, np.diag(sigma)[:k], rtol=1e-01, err_msg=f"Failed on triplet {triplet} on spec{idx + 1}")
+
+        true_moments = np.array([np.sum(np.power(sigma, 2*i)) for i in range(1, 8)])
+        np.testing.assert_allclose(moments, true_moments, rtol=1e-01)
+
+
+@fails_service_backend(reason='persist_ir')
+def test_spectra_and_moments_1():
+    spectra_and_moments_helper(spec1)
+
+
+@fails_service_backend(reason='persist_ir')
+def test_spectra_and_moments_2():
+    spectra_and_moments_helper(spec2)
+
+
+@fails_service_backend(reason='persist_ir')
+def test_spectra_and_moments_3():
+    spectra_and_moments_helper(spec3)
+
+
+@fails_service_backend(reason='persist_ir')
+def test_spectra_and_moments_4():
+    spectra_and_moments_helper(spec4)
+
+
+@fails_service_backend(reason='persist_ir')
+def test_spectra_and_moments_5():
+    spectra_and_moments_helper(spec5)
