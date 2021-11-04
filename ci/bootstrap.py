@@ -12,7 +12,7 @@ from hailtop.utils import check_shell_output
 
 from ci.build import BuildConfiguration, Code
 from ci.github import clone_or_fetch_script
-from ci.environment import KUBERNETES_SERVER_URL
+from ci.environment import KUBERNETES_SERVER_URL, STORAGE_URI
 from ci.utils import generate_token
 
 from batch.driver.k8s_cache import K8sCache
@@ -105,7 +105,7 @@ class LocalBatchBuilder:
 
         os.makedirs(f'{root}/shared')
 
-        prefix = f'gs://dummy/build/{batch_token}'
+        prefix = f'{STORAGE_URI}/build/{batch_token}'
 
         for j in self._jobs:
             job_name = j._attributes.get('name')
