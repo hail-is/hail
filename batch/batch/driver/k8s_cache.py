@@ -32,4 +32,4 @@ class K8sCache:
         return await self.secret_cache.lookup((name, namespace))
 
     async def read_service_account(self, name, namespace):
-        return await self.secret_cache.lookup((name, namespace))
+        return await self.service_account_cache.lookup((name, namespace))
