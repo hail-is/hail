@@ -489,6 +489,40 @@ final case class ApplyAggOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[IR
   def op: AggOp = aggSig.op
 }
 
+object AggFold {
+
+  def min(element: IR, keyType: TStruct): IR = {
+    minAndMaxHelper(element, keyType, LT(keyType))
+  }
+
+  def max(element: IR, keyType: TStruct): IR = {
+    minAndMaxHelper(element, keyType, GT(keyType))
+  }
+
+  private def minAndMaxHelper(element: IR, keyType: TStruct, comp: ComparisonOp[Boolean]): IR = {
+    val keyFields = keyType.fields.map(_.name)
+    // Folding for Min
+    val minAndMaxZero = NA(keyType)
+    val aggFoldMinAccumName1 = genUID()
+    val aggFoldMinAccumName2 = genUID()
+    val aggFoldMinAccumRef1 = Ref(aggFoldMinAccumName1, keyType)
+    val aggFoldMinAccumRef2 = Ref(aggFoldMinAccumName2, keyType)
+    val minSeq = bindIR(SelectFields(element, keyFields)) { keyOfCurElementRef =>
+      If(IsNA(aggFoldMinAccumRef1),
+        keyOfCurElementRef,
+        If(ApplyComparisonOp(comp, aggFoldMinAccumRef1, keyOfCurElementRef), aggFoldMinAccumRef1, keyOfCurElementRef)
+      )
+    }
+    val minComb =
+      If(IsNA(aggFoldMinAccumRef1),
+        aggFoldMinAccumRef2,
+        If (ApplyComparisonOp(comp, aggFoldMinAccumRef1, aggFoldMinAccumRef2), aggFoldMinAccumRef1, aggFoldMinAccumRef2)
+      )
+
+    AggFold(minAndMaxZero, minSeq, minComb, aggFoldMinAccumName1, aggFoldMinAccumName2, false)
+  }
+}
+
 final case class AggFold(zero: IR, seqOp: IR, combOp: IR, accumName: String, otherAccumName: String, isScan: Boolean) extends IR
 
 object ApplyScanOp {

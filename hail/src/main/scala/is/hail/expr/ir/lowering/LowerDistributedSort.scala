@@ -8,7 +8,7 @@ import is.hail.expr.ir.functions.{ArrayFunctions, IRRandomness}
 import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.types.physical.{PArray, PBaseStruct, PCanonicalArray, PStruct, PTuple, PType}
-import is.hail.types.virtual.{TArray, TBoolean, TInt32, TStream, TString, TStruct, TTuple, Type}
+import is.hail.types.virtual.{TArray, TBoolean, TInt32, TIterable, TStream, TString, TStruct, TTuple, Type}
 import is.hail.rvd.{PartitionBoundOrdering, RVDPartitioner}
 import is.hail.types.RStruct
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
@@ -128,9 +128,6 @@ object LowerDistributedSort {
 
     var loopState = LoopState(IndexedSeq(initialSegment), IndexedSeq.empty[SegmentResult])
 
-    // Output of streamDistribute: ListOfSegmentResult: Interval, then per partition info (array of file names and counts)
-    // Let's just make this Scala.
-    //var partitionCountsPerSegment: IndexedSeq[IndexedSeq[Int]] = loopState.largeSegments.map(sr => sr.chunks.map(_.size))
     var i = 0
     val rand = new IRRandomness((math.random() * 1000).toInt)
 
@@ -141,10 +138,7 @@ object LowerDistributedSort {
 
       //TODO: Dumb and temporary
       val partitionCountsPerSegment = partitionData.groupBy(_._1.last).toIndexedSeq.sortBy(_._1).map(_._2).map(oneSegment => oneSegment.map(_._3))
-      println(s"partitionCountsPerSegment = ${partitionCountsPerSegment}")
-      println(s"How many large segments? ${loopState.largeSegments.size}")
       assert(partitionCountsPerSegment.size == loopState.largeSegments.size)
-      println(s"How many partitions did we come up with? ${partitionData.size}")
 
       val numSamplesPerPartitionPerSegment = partitionCountsPerSegment.map { partitionCountsForOneSegment =>
         val recordsInSegment = partitionCountsForOneSegment.sum
@@ -161,41 +155,45 @@ object LowerDistributedSort {
         val partitionStream = flatMapIR(ToStream(filenames)) { fileName =>
           ReadPartition(fileName, spec._vType, reader)
         }
-        MakeTuple.ordered(IndexedSeq(GetField(ctxRef, "segmentIdx"), samplePartition(partitionStream, samples, newKType.fields.map(_.name))))
+        MakeStruct(IndexedSeq("segmentIdx" -> GetField(ctxRef, "segmentIdx"), "partData" -> samplePartition(partitionStream, samples, newKType.fields.map(_.name))))
       }
 
+      val pivotsWithEndpointsGroupedBySegmentNumberIR = ToArray(bindIR(perPartStatsIR) { perPartStats =>
+        println(s"perPartStats typ is ${perPartStats.typ}")
+        mapIR(StreamGroupByKey(ToStream(perPartStats), IndexedSeq("segmentIdx"))) { oneGroup =>
+          val streamElementRef = Ref(genUID(), oneGroup.typ.asInstanceOf[TIterable].elementType)
+          val dataRef = Ref(genUID(), streamElementRef.typ.asInstanceOf[TStruct].fieldType("partData"))
+          bindIR(StreamAgg(oneGroup, streamElementRef.name, {
+            AggLet(dataRef.name, GetField(streamElementRef, "partData"),
+              MakeStruct(Seq(
+                ("min", AggFold.min(GetField(dataRef, "min"), newKType)),
+                ("max", AggFold.max(GetField(dataRef, "max"), newKType)),
+                ("samples", ApplyAggOp(Collect())(GetField(dataRef, "samples")))
+              )), false)
+          })) { aggResults =>
+            val sorted = sortIR(flatMapIR(ToStream(GetField(aggResults, "samples"))) { onePartCollectedArray => ToStream(onePartCollectedArray)}) { case (left, right) =>
+              ApplyComparisonOp(LT(newKType), left, right)
+            }
+            val minArray = MakeArray(GetField(aggResults, "min"))
+            val maxArray = MakeArray(GetField(aggResults, "max"))
+            ArrayFunctions.extend(ArrayFunctions.extend(minArray, sorted), maxArray)
+          }
+        }
+      })
+
       // Going to check now if it's fully sorted, as well as collect and sort all the samples.
-      val (Some(PTypeReferenceSingleCodeType(perPartStatsType: PArray)), fPerPartStats) = ctx.timer.time("LowerDistributedSort.distributedSort.compilePerPartStats")(Compile[AsmFunction1RegionLong](ctx,
+      val (Some(PTypeReferenceSingleCodeType(pivotsWithEndpointsGroupedBySegmentNumberType: PArray)), fPerPartStats) = ctx.timer.time("LowerDistributedSort.distributedSort.compilePerPartStats")(Compile[AsmFunction1RegionLong](ctx,
         FastIndexedSeq(),
         FastIndexedSeq(classInfo[Region]), LongInfo,
-        perPartStatsIR,
+        pivotsWithEndpointsGroupedBySegmentNumberIR,
         print = None,
         optimize = true))
 
-      val fPerPartStatsRunnable = ctx.timer.time("LowerDistributedSort.distributedSort.initialize")(fPerPartStats(ctx.fs, 0, ctx.r))
-      val perPartStatsAddress = ctx.timer.time("LowerDistributedSort.distributedSort.run")(fPerPartStatsRunnable(ctx.r))
-      val perPartStatsA = ctx.timer.time("LowerDistributedSort.distributedSort.toJavaObject")(SafeRow.read(perPartStatsType, perPartStatsAddress)).asInstanceOf[IndexedSeq[Row]]
-
-      println(s"per part stats = ${perPartStatsA}")
-      val groupedBySegmentNumber = orderedGroupBy[Row, Int](perPartStatsA, r => r(0).asInstanceOf[Int])
-
-      // These are the pivots for each segment number
-      val pivotsWithEndpointsGroupedBySegmentNumber = groupedBySegmentNumber.map { case (segmentNumber, perPartStatsA) =>
-        val perPartStatsMins = perPartStatsA.map(r => r(1).asInstanceOf[Row](0))
-        val perPartStatsMaxes = perPartStatsA.map(r => r(1).asInstanceOf[Row](1))
-        val perPartStatsSamples = perPartStatsA.map(r => r(1).asInstanceOf[Row](2).asInstanceOf[IndexedSeq[Annotation]]).flatten
-
-        val sorted = localAnnotationSort(ctx, perPartStatsSamples, sortFields, newKType)
-        // TODO: Clearly a terrible way to find min and max
-        val min = localAnnotationSort(ctx, perPartStatsMins, sortFields, newKType)(0)
-        val max = localAnnotationSort(ctx, perPartStatsMaxes, sortFields, newKType).last
-
-        val pivotsWithEndpoints = IndexedSeq(min) ++ sorted ++ IndexedSeq(max)
-        pivotsWithEndpoints
-      }
+      val fPivotsBySegmentNumberRunnable = ctx.timer.time("LowerDistributedSort.distributedSort.initialize")(fPerPartStats(ctx.fs, 0, ctx.r))
+      val pivotsWithEndpointsGroupedBySegmentNumberAddr = ctx.timer.time("LowerDistributedSort.distributedSort.run")(fPivotsBySegmentNumberRunnable(ctx.r))
+      val pivotsWithEndpointsGroupedBySegmentNumber = ctx.timer.time("LowerDistributedSort.distributedSort.toJavaObject")(SafeRow.read(pivotsWithEndpointsGroupedBySegmentNumberType, pivotsWithEndpointsGroupedBySegmentNumberAddr)).asInstanceOf[IndexedSeq[Row]]
 
       println(s"Pivots with endpoints groupedBySegmentNumber = ${pivotsWithEndpointsGroupedBySegmentNumber}")
-      println(s"Segment indices = ${groupedBySegmentNumber.map(_._1)}")
 
       val pivotsWithEndpointsGroupedBySegmentNumberLiteral = Literal(TArray(TArray(newKType)), pivotsWithEndpointsGroupedBySegmentNumber)
 
@@ -382,41 +380,6 @@ object LowerDistributedSort {
     val eltRef = Ref(eltName, eltType)
 
     val keyType = eltType.typeAfterSelectNames(keyFields)
-    val minAndMaxZero = NA(keyType)
-
-    // Folding for Min
-    val aggFoldMinAccumName1 = genUID()
-    val aggFoldMinAccumName2 = genUID()
-    val aggFoldMinAccumRef1 = Ref(aggFoldMinAccumName1, keyType)
-    val aggFoldMinAccumRef2 = Ref(aggFoldMinAccumName2, keyType)
-    val minSeq = bindIR(SelectFields(eltRef, keyFields)) { keyOfCurElementRef =>
-      If(IsNA(aggFoldMinAccumRef1),
-        keyOfCurElementRef,
-        If(ApplyComparisonOp(LT(keyType), aggFoldMinAccumRef1, keyOfCurElementRef), aggFoldMinAccumRef1, keyOfCurElementRef)
-      )
-    }
-    val minComb =
-      If(IsNA(aggFoldMinAccumRef1),
-        aggFoldMinAccumRef2,
-        If (ApplyComparisonOp(LT(keyType), aggFoldMinAccumRef1, aggFoldMinAccumRef2), aggFoldMinAccumRef1, aggFoldMinAccumRef2)
-      )
-
-    // Folding for Max
-    val aggFoldMaxAccumName1 = genUID()
-    val aggFoldMaxAccumName2 = genUID()
-    val aggFoldMaxAccumRef1 = Ref(aggFoldMaxAccumName1, keyType)
-    val aggFoldMaxAccumRef2 = Ref(aggFoldMaxAccumName2, keyType)
-    val maxSeq = bindIR(SelectFields(eltRef, keyFields)) { keyOfCurElementRef =>
-      If(IsNA(aggFoldMaxAccumRef1),
-        keyOfCurElementRef,
-        If(ApplyComparisonOp(GT(keyType), aggFoldMaxAccumRef1, keyOfCurElementRef), aggFoldMaxAccumRef1, keyOfCurElementRef)
-      )
-    }
-    val maxComb =
-      If(IsNA(aggFoldMaxAccumRef1),
-        aggFoldMaxAccumRef2,
-        If (ApplyComparisonOp(GT(keyType), aggFoldMaxAccumRef1, aggFoldMaxAccumRef2), aggFoldMaxAccumRef1, aggFoldMaxAccumRef2)
-      )
 
     // Folding for isInternallySorted
     val aggFoldSortedAccumName1 = genUID()
@@ -440,8 +403,8 @@ object LowerDistributedSort {
     StreamAgg(joined, streamElementName, {
       AggLet(eltName, GetField(streamElementRef, "elt"),
         MakeStruct(Seq(
-          ("min", AggFold(minAndMaxZero, minSeq, minComb, aggFoldMinAccumName1, aggFoldMinAccumName2, false)),
-          ("max", AggFold(minAndMaxZero, maxSeq, maxComb, aggFoldMaxAccumName1, aggFoldMaxAccumName2, false)),
+          ("min", AggFold.min(eltRef, keyType)),
+          ("max", AggFold.max(eltRef, keyType)),
           ("samples", AggFilter(GetField(streamElementRef, "shouldKeep"), ApplyAggOp(Collect())(SelectFields(eltRef, keyFields)), false)),
         )), false)
     })
