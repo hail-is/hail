@@ -235,7 +235,7 @@ class KrylovFactorization:
 
     def spectral_moments(self, num_moments, R):
         eigval_powers = hl.nd.vstack([self.S.map(lambda x: x**(2*i)) for i in range(1, num_moments + 1)])
-        return (eigval_powers @ ((self.V1t[:, :R.shape[1]] @ R).map(lambda x: x**2).sum(1))) / self.k
+        return (eigval_powers @ ((self.V1t[:, :self.k] @ R).map(lambda x: x**2) @ hl.nd.ones(self.k))) / self.k
 
 
 def _krylov_factorization(A_expr, V0, p, compute_U=False, compute_V=True):
@@ -266,6 +266,7 @@ def _krylov_factorization(A_expr, V0, p, compute_U=False, compute_V=True):
     # FIXME: compute ncols of V0, use to compute final ncols
     g_list = [V0]
     G_i = V0
+    k = hl.eval(V0.shape[1])
 
     for j in range(0, p):
         info(f"krylov_factorization: Beginning iteration {j+1}/{p}")
@@ -294,7 +295,7 @@ def _krylov_factorization(A_expr, V0, p, compute_U=False, compute_V=True):
         R = hl.nd.qr(Rs)[1]._persist()
         U = None
 
-    return KrylovFactorization(U, R, V, V0.shape[1])
+    return KrylovFactorization(U, R, V, k)
 
 
 def _reduced_svd(A_expr, k=10, compute_U=False, iterations=2, iteration_size=None):
