@@ -1095,8 +1095,8 @@ async def on_startup(app):
     app['client_session'] = httpx.client_session()
 
     kube.config.load_incluster_config()
-    k8s_client = kube.client.CoreV1Api()
-    k8s_cache = K8sCache(k8s_client)
+    app['k8s_client'] = kube.client.CoreV1Api()
+    k8s_cache = K8sCache(app['k8s_client'], refresh_time=5)
     app['k8s_cache'] = k8s_cache
 
     db = Database()
@@ -1184,10 +1184,14 @@ async def on_cleanup(app):
                             try:
                                 app['async_worker_pool'].shutdown()
                             finally:
-                                del app['k8s_cache'].client
-                                await asyncio.gather(
-                                    *(t for t in asyncio.all_tasks() if t is not asyncio.current_task())
-                                )
+                                try:
+                                    k8s_client: kube.client.CoreV1Api = app['k8s_client']
+                                    await k8s_client.api_client.rest_client.pool_manager.close()
+                                finally:
+                                    del app['k8s_cache'].client
+                                    await asyncio.gather(
+                                        *(t for t in asyncio.all_tasks() if t is not asyncio.current_task())
+                                    )
 
 
 def run():

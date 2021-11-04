@@ -88,16 +88,19 @@ async def main():
     # kube.config.load_incluster_config()
     await kube.config.load_kube_config()
     k8s_client = kube.client.CoreV1Api()
-    app['k8s_client'] = k8s_client
+    try:
+        app['k8s_client'] = k8s_client
 
-    app['identity_client'] = get_identity_client(credentials_file='/auth-gsa-key/key.json')
+        app['identity_client'] = get_identity_client(credentials_file='/auth-gsa-key/key.json')
 
-    for username, email, is_developer, is_service_account in users:
-        user_id = await insert_user_if_not_exists(app, username, email, is_developer, is_service_account)
+        for username, email, is_developer, is_service_account in users:
+            user_id = await insert_user_if_not_exists(app, username, email, is_developer, is_service_account)
 
-        if user_id is not None:
-            db_user = await db.execute_and_fetchone('SELECT * FROM users where id = %s;', (user_id,))
-            await create_user(app, db_user, skip_trial_bp=True)
+            if user_id is not None:
+                db_user = await db.execute_and_fetchone('SELECT * FROM users where id = %s;', (user_id,))
+                await create_user(app, db_user, skip_trial_bp=True)
+    finally:
+        await k8s_client.api_client.rest_client.pool_manager.close()
 
 
 async_to_blocking(main())

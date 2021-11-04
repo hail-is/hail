@@ -61,9 +61,13 @@ async def main():
     assert args.kind == 'Pod'
     await config.load_kube_config()
     v1 = client.CoreV1Api()
-    t = wait_for_pod_complete(v1, args.namespace, args.name)
+    try:
+        t = wait_for_pod_complete(v1, args.namespace, args.name)
 
-    await asyncio.gather(timeout(args.timeout_seconds), t)
+        await asyncio.gather(timeout(args.timeout_seconds), t)
+    finally:
+        await v1.api_client.rest_client.pool_manager.close()
+
 
 
 loop = asyncio.get_event_loop()
