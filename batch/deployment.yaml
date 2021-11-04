@@ -172,7 +172,7 @@ spec:
            secretName: ssl-config-batch-driver
        - name: ssh-public-key
          secret:
-           secretName: batch-ssh-public-key
+           secretName: batch-worker-ssh-public-key
            optional: true
 ---
 apiVersion: apps/v1

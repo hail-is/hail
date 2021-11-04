@@ -249,7 +249,7 @@ done
 
     vm_config: Dict[str, Any] = {
         'apiVersion': '2021-03-01',
-        'type': 'ds',
+        'type': 'Microsoft.Compute/virtualMachines',
         'name': "[parameters('vmName')]",
         'location': "[parameters('location')]",
         'identity': {
@@ -259,7 +259,6 @@ done
             }
         },
         'tags': {
-
         },
         'dependsOn': [
             "[concat('Microsoft.Network/networkInterfaces/', variables('nicName'))]"
@@ -336,7 +335,7 @@ done
                     'value': f'/subscriptions/{subscription_id}/resourceGroups/{resource_group}/providers/Microsoft.Network/virtualNetworks/default/subnets/batch-worker-subnet'
                 },
                 'adminUsername': {
-                    'value': 'admin'
+                    'value': 'batch-worker'
                 },
                 'userAssignedIdentityName': {
                     'value': 'batch-worker'
