@@ -1188,7 +1188,6 @@ async def on_cleanup(app):
                                     k8s_client: kube.client.CoreV1Api = app['k8s_client']
                                     await k8s_client.api_client.rest_client.pool_manager.close()
                                 finally:
-                                    del app['k8s_cache'].client
                                     await asyncio.gather(
                                         *(t for t in asyncio.all_tasks() if t is not asyncio.current_task())
                                     )
