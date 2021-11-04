@@ -123,7 +123,7 @@ object LowerDistributedSort {
     val initialSegment = SegmentResult(IndexedSeq(0), inputStage.partitioner.range.get, initialChunks)
 
     val totalNumberOfRows = initialChunks.map(_.size).sum
-    val idealNumberOfRowsPerPart = totalNumberOfRows / inputStage.numPartitions
+    val idealNumberOfRowsPerPart = Math.max(1, totalNumberOfRows / inputStage.numPartitions)
 
     var loopState = LoopState(IndexedSeq(initialSegment), IndexedSeq.empty[SegmentResult])
 
