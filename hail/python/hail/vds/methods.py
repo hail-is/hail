@@ -290,6 +290,7 @@ def filter_samples(vds: 'VariantDataset', samples_table: 'Table', *,
         vd = variant_data
         vd = vd.annotate_rows(__allele_counts=hl.agg.explode(lambda x: hl.agg.counter(x), vd.LA), __n=hl.agg.count())
         vd = vd.filter_rows(vd.__n > 0)
+        vd = vd.drop('__n')
 
         vd = vd.annotate_rows(__kept_indices=hl.dict(
             hl.enumerate(
