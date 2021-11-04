@@ -20,7 +20,7 @@ def pytest_collection_modifyitems(config, items):
         return
     if not (0 <= split_index < n_splits):
         raise RuntimeError(f"invalid split_index: index={split_index}, n_splits={n_splits}\n  env={os.environ}")
-    skip_this = pytest.markskip(reason="skipped in this round")
+    skip_this = pytest.mark.skip(reason="skipped in this round")
 
     def digest(s):
         return int.from_bytes(hashlib.md5(str(s).encode('utf-8')).digest(), 'little')
