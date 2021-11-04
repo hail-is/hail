@@ -281,7 +281,7 @@ class LocalBackend(
     rowTypeRequiredness: RStruct
   ): TableStage = {
     // Use a local sort for the moment to enable larger pipelines to run
-    LowerDistributedSort.localSort(ctx, stage, sortFields, relationalLetsAbove)
+    LowerDistributedSort.distributedSort(ctx, stage, sortFields, relationalLetsAbove, rowTypeRequiredness)
   }
 
   def pyLoadReferencesFromDataset(path: String): String =

@@ -5,7 +5,6 @@ import is.hail.asm4s.{AsmFunction1RegionLong, AsmFunction2RegionLongLong, AsmFun
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.{ArrayFunctions, IRRandomness}
-import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.types.physical.{PArray, PBaseStruct, PCanonicalArray, PStruct, PTuple, PType}
 import is.hail.types.virtual.{TArray, TBoolean, TInt32, TIterable, TStream, TString, TStruct, TTuple, Type}

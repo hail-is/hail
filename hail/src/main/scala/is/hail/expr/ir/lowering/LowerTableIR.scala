@@ -394,8 +394,6 @@ class TableStage(
 
 object LowerTableIR {
   def apply(ir: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, r: RequirednessAnalysis, relationalLetsAbove: Map[String, IR]): IR = {
-    def lowerIR(ir: IR) = LowerToCDA.lower(ir, typesToLower, ctx, r, relationalLetsAbove)
-
     def lower(tir: TableIR): TableStage = {
       this.applyTable(tir, typesToLower, ctx, r, relationalLetsAbove)
     }
@@ -560,7 +558,7 @@ object LowerTableIR {
 
   def applyTable(tir: TableIR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, r: RequirednessAnalysis, relationalLetsAbove: Map[String, IR]): TableStage = {
     def lowerIR(ir: IR): IR = {
-      this.apply(ir, typesToLower, ctx, r, relationalLetsAbove)
+      LowerToCDA.lower(ir, typesToLower, ctx, r, relationalLetsAbove)
     }
 
     def lower(tir: TableIR): TableStage = {
