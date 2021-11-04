@@ -182,3 +182,47 @@ def test_segment_intervals():
     before_coverage = sum_per_sample_before.collect()
     after_coverage = sum_per_sample_after.collect()
     assert before_coverage == after_coverage
+
+
+@fails_local_backend
+@fails_service_backend
+def test_interval_coverage():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+
+    interval1 = 'chr22:10678825-10678835'
+    interval2 = 'chr22:10678970-10678979'
+
+    intervals = hl.Table.parallelize(
+        list(hl.struct(interval=hl.parse_locus_interval(x, reference_genome='GRCh38')) for x in [interval1, interval2]),
+        key='interval')
+
+    checkpoint_path = new_temp_file()
+    r = hl.vds.interval_coverage(vds, intervals).checkpoint(checkpoint_path)
+    assert r.aggregate_rows(hl.agg.collect((hl.format('%s:%d-%d', r.interval.start.contig, r.interval.start.position,
+                                                      r.interval.end.position), r.interval_size))) == [(interval1, 10),
+                                                                                                       (interval2, 9)]
+
+    r.entries().show(width=10000, n_rows=10000)
+
+    observed = r.aggregate_entries(hl.agg.collect(r.entry))
+    expected = [
+        hl.Struct(bases_over_gq_threshold=(10, 0), sum_dp=55, fraction_over_gq_threshold=(1.0, 0.0), mean_dp=5.5),
+        hl.Struct(bases_over_gq_threshold=(10, 0), sum_dp=45, fraction_over_gq_threshold=(1.0, 0.0), mean_dp=4.5),
+        hl.Struct(bases_over_gq_threshold=(0, 0), sum_dp=0, fraction_over_gq_threshold=(0.0, 0.0), mean_dp=0),
+        hl.Struct(bases_over_gq_threshold=(10, 0), sum_dp=30, fraction_over_gq_threshold=(1.0, 0.0), mean_dp=3.0),
+        hl.Struct(bases_over_gq_threshold=(9, 0), sum_dp=10, fraction_over_gq_threshold=(0.9, 0.0), mean_dp=1.0),
+
+        hl.Struct(bases_over_gq_threshold=(9, 9), sum_dp=153, fraction_over_gq_threshold=(1.0, 1.0), mean_dp=17.0),
+        hl.Struct(bases_over_gq_threshold=(9, 9), sum_dp=159, fraction_over_gq_threshold=(1.0, 1.0), mean_dp=159 / 9),
+        hl.Struct(bases_over_gq_threshold=(9, 9), sum_dp=98, fraction_over_gq_threshold=(1.0, 1.0), mean_dp=98 / 9),
+        hl.Struct(bases_over_gq_threshold=(9, 9), sum_dp=72, fraction_over_gq_threshold=(1.0, 1.0), mean_dp=8),
+        hl.Struct(bases_over_gq_threshold=(9, 0), sum_dp=20, fraction_over_gq_threshold=(1.0, 0.0), mean_dp=2 / 9),
+    ]
+
+    for i in range(len(expected)):
+        obs = observed[i]
+        exp = expected[i]
+        assert obs.bases_over_gq_threshold == exp.bases_over_gq_threshold, i
+        assert obs.sum_dp == exp.sum_dp, i
+        assert obs.fraction_over_gq_threshold == exp.fraction_over_gq_threshold, i
+        pytest.approx(obs.mean_dp, exp.mean_dp)

@@ -429,14 +429,15 @@ def segment_reference_blocks(ref: 'MatrixTable', intervals: 'Table') -> 'MatrixT
     contig_idx_map = hl.literal({contigs[i]: i for i in range(len(contigs))}, 'dict<str, int32>')
     joined = joined.annotate(__contig_idx=contig_idx_map[joined.locus.contig])
     joined = joined.annotate(
-        _ref_entries=joined._ref_entries.map(lambda e: hl.struct(contig_idx=joined.__contig_idx, ref_entry=e)))
+        _ref_entries=joined._ref_entries.map(lambda e: e.annotate(__contig_idx=joined.__contig_idx)))
     dense = joined.annotate(
         dense_ref=hl.or_missing(
             joined._include_locus,
             hl.rbind(joined.locus.position,
-                     lambda pos: hl.scan._densify(hl.len(joined._ref_cols), joined._ref_entries)
-                     .map(lambda e: hl.or_missing((e.contig_idx == joined.__contig_idx) & (e.ref_entry.END >= pos),
-                                                  e.ref_entry))
+                     lambda pos: hl.enumerate(hl.scan._densify(hl.len(joined._ref_cols), joined._ref_entries))
+                     .map(lambda idx_and_e: hl.rbind(idx_and_e[0], idx_and_e[1],
+                                                     lambda idx, e: hl.coalesce(joined._ref_entries[idx], hl.or_missing((e.__contig_idx == joined.__contig_idx) & (e.END >= pos),
+                                                  e))).drop('__contig_idx'))
                      ))
     )
     dense = dense.filter(dense._include_locus).drop('_interval_dup', '_include_locus', '__contig_idx')
@@ -465,7 +466,34 @@ def segment_reference_blocks(ref: 'MatrixTable', intervals: 'Table') -> 'MatrixT
 
 @typecheck(vds=VariantDataset, intervals=Table, gq_thresholds=sequenceof(int), dp_field=nullable(str))
 def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0, 20,), dp_field=None) -> 'MatrixTable':
-    """Compute statistics about base coverage above multiple GQ thresholds by interval.
+    """Compute statistics about base coverage by interval.
+
+    Returns a :class:`.MatrixTable` with interval row keys and sample column keys.
+
+    Contains the following row fields:
+     - ``interval`` (*interval*): Genomic interval of interest.
+     - ``interval_size`` (*int32*): Size of interval, in bases.
+
+
+    Computes the following entry fields:
+
+     -  ``bases_over_gq_threshold`` (*tuple of int64*): Number of bases in the interval
+        over each GQ threshold.
+     -  ``fraction_over_gq_threshold`` (*tuple of float64*): Fraction of interval (in bases)
+        above each GQ threshold. Computed by dividing each member of *bases_over_gq_threshold*
+        by *interval_size*.
+     -  ``sum_dp`` (*int64*): Sum of depth values by base across the interval.
+     -  ``mean_dp`` (*float64*): Mean depth of bases across the interval. Computed by dividing
+        *mean_dp* by *interval_size*.
+
+    Note
+    ----
+    The metrics computed by this method are computed **only from reference blocks**. Most
+    variant callers produce data where non-reference calls interrupt reference blocks, and
+    so the metrics computed here are slight underestimates of the true values (which would
+    include the quality/depth of non-reference calls). This is likely a negligible difference,
+    but is something to be aware of, especially as it interacts with samples of
+    ancestral backgrounds with more or fewer non-reference calls.
 
     Parameters
     ----------
@@ -505,10 +533,10 @@ def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0
         **dp_field_dict)
 
     interval = per_interval.interval
-    interval_size = interval.end.position + interval.includes_end - interval.start.position + interval.includes_start
+    interval_size = interval.end.position + interval.includes_end - interval.start.position - 1 + interval.includes_start
     per_interval = per_interval.annotate_rows(interval_size=interval_size)
     per_interval = per_interval.annotate_entries(
-        fraction_over_gq_threshold=tuple(x / per_interval.interval_size for x in per_interval.bases_over_gq_threshold))
+        fraction_over_gq_threshold=tuple(hl.float(x) / per_interval.interval_size for x in per_interval.bases_over_gq_threshold))
 
     if dp_field_to_use is not None:
         per_interval = per_interval.annotate_entries(mean_dp=per_interval.sum_dp / per_interval.interval_size)
