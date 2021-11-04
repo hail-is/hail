@@ -77,14 +77,14 @@ spec:
              value: "{{ hail_buildkit_image.image }}"
            - name: HAIL_DEFAULT_NAMESPACE
              value: "{{ default_ns.name }}"
-           - name: HAIL_CI_BUCKET_NAME
+           - name: HAIL_CI_STORAGE_URI
 {% if deploy %}
-             value: "hail-ci-bpk3h"
+             value: "gs://hail-ci-bpk3h"
 {% else %}
              valueFrom:
                secretKeyRef:
                  name: global-config
-                 key: hail_test_gcs_bucket
+                 key: test_storage_uri
 {% endif %}
           ports:
             - containerPort: 5000

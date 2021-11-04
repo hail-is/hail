@@ -12,4 +12,4 @@ DEFAULT_NAMESPACE = global_config['default_namespace']
 
 CI_UTILS_IMAGE = os.environ['HAIL_CI_UTILS_IMAGE']
 BUILDKIT_IMAGE = os.environ['HAIL_BUILDKIT_IMAGE']
-BUCKET = os.environ['HAIL_CI_BUCKET_NAME']
+STORAGE_URI = os.environ['HAIL_CI_STORAGE_URI']

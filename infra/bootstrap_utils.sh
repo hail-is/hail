@@ -93,7 +93,7 @@ bootstrap() {
     export HAIL_CI_UTILS_IMAGE=$DOCKER_PREFIX/ci-utils:cache
     export HAIL_BUILDKIT_IMAGE=$DOCKER_PREFIX/hail-buildkit:cache
     export HAIL_DEFAULT_NAMESPACE=$(get_global_config_field default_namespace)
-    export HAIL_CI_BUCKET_NAME=dummy
+    export HAIL_CI_STORAGE_URI=dummy
     export PYTHONPATH=$HAIL/ci:$HAIL/batch:$HAIL/hail/python:$HAIL/gear
 
     if [ -n "$3" ] && [ -n "$4" ]; then
