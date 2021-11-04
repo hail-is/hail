@@ -136,19 +136,15 @@ async def on_startup(app):
 
     async def get_secret_from_k8s(secret_name: str) -> GoogleStorageAsyncFS:
         secret = await retry_transient_errors(
-            k8s_client.read_namespaced_secret,
-            secret_name,
-            DEFAULT_NAMESPACE,
-            _request_timeout=5.0
+            k8s_client.read_namespaced_secret, secret_name, DEFAULT_NAMESPACE, _request_timeout=5.0
         )
         gsa_key = json.loads(base64.b64decode(secret.data['key.json']).decode())
         credentials = GoogleCredentials.from_credentials_data(gsa_key)
         return GoogleStorageAsyncFS(credentials=credentials)
 
     app['user_credentials_cache'] = TimeLimitedMaxSizeCache(
-        get_secret_from_k8s,
-        lifetime_ns=60 * 60 * 1000 * 1000 * 1000,
-        max_size=100)
+        get_secret_from_k8s, lifetime_ns=60 * 60 * 1000 * 1000 * 1000, max_size=100
+    )
 
     app['redis_pool']: aioredis.ConnectionsPool = await aioredis.create_pool(socket)
 
@@ -167,6 +163,7 @@ async def on_cleanup(app):
                     await app['client_session'].close()
                 finally:
                     try:
+
                         async def close_fs(fs: GoogleStorageAsyncFS):
                             await fs.close()
 
