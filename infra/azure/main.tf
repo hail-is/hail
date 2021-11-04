@@ -66,6 +66,13 @@ resource "azurerm_subnet" "db_subnet" {
   enforce_private_link_endpoint_network_policies = true
 }
 
+resource "azurerm_log_analytics_workspace" "logs" {
+  name                = "${data.azurerm_resource_group.rg.name}-logs"
+  location            = data.azurerm_resource_group.rg.location
+  resource_group_name = data.azurerm_resource_group.rg.name
+  retention_in_days   = 30
+}
+
 resource "azurerm_kubernetes_cluster" "vdc" {
   name                = "vdc"
   resource_group_name = data.azurerm_resource_group.rg.name
@@ -82,6 +89,13 @@ resource "azurerm_kubernetes_cluster" "vdc" {
 
   identity {
     type = "SystemAssigned"
+  }
+
+  addon_profile {
+    oms_agent {
+      enabled = true
+      log_analytics_workspace_id = azurerm_log_analytics_workspace.logs.id
+    }
   }
 }
 
