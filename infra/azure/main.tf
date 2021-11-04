@@ -375,6 +375,24 @@ resource "azurerm_role_assignment" "batch_compute_contributor" {
   principal_id         = module.batch_sp.principal_id
 }
 
+resource "azurerm_role_assignment" "batch_network_contributor" {
+  scope                = data.azurerm_resource_group.rg.id
+  role_definition_name = "Network Contributor"
+  principal_id         = module.batch_sp.principal_id
+}
+
+resource "azurerm_role_assignment" "batch_shared_gallery_reader" {
+  scope                = azurerm_shared_image_gallery.batch.id
+  role_definition_name = "Reader"
+  principal_id         = module.batch_sp.principal_id
+}
+
+resource "azurerm_role_assignment" "batch_managed_identity_operator" {
+  scope                = data.azurerm_resource_group.rg.id
+  role_definition_name = "Managed Identity Operator"
+  principal_id         = module.batch_sp.principal_id
+}
+
 resource "azuread_application" "benchmark" {
   display_name = "${data.azurerm_resource_group.rg.name}-benchmark"
 }
