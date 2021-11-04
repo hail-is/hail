@@ -1,4 +1,4 @@
-from typing import TypeVar, Callable, Awaitable, Dict, Union, Tuple, Generic, Set
+from typing import TypeVar, Callable, Awaitable, Dict, Tuple, Generic
 
 import time
 import asyncio
