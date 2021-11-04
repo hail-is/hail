@@ -1,5 +1,6 @@
 from typing import Any, Tuple, Optional, Type, TypeVar, Generic, Callable, Union
 from types import TracebackType
+import orjson
 import aiohttp
 
 from .utils import async_to_blocking
@@ -37,6 +38,54 @@ class ClientResponseError(aiohttp.ClientResponseError):
         return "{}({})".format(type(self).__name__, args)
 
 
+class ClientResponse:
+    def __init__(self, client_response: aiohttp.ClientResponse):
+        self.client_response = client_response
+
+    def release(self) -> None:
+        return self.client_response.release()
+
+    @property
+    def closed(self) -> bool:
+        return self.client_response.closed
+
+    def close(self) -> None:
+        return self.client_response.close()
+
+    async def wait_for_close(self) -> None:
+        return await self.wait_for_close()
+
+    async def read(self) -> bytes:
+        return await self.client_response.read()
+
+    def get_encoding(self) -> str:
+        return self.client_response.get_encoding()
+
+    async def text(self, encoding: Optional[str] = None, errors: str = 'strict'):
+        return await self.client_response.text(encoding=encoding, errors=errors)
+
+    async def json(self):
+        encoding = self.get_encoding()
+
+        if encoding != 'utf-8':
+            return await self.client_response.json()
+
+        content_type = self.client_response.headers.get(aiohttp.hdrs.CONTENT_TYPE, None)
+        assert content_type is None or content_type == 'application/json', self.client_response
+        return orjson.loads(await self.read())
+
+    async def __aenter__(self) -> "ClientResponse":
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        self.release()
+
+
 class ClientSession:
     def __init__(self, *args, **kwargs):
         self.raise_for_status = kwargs.pop('raise_for_status', False)
@@ -48,6 +97,19 @@ class ClientSession:
         raise_for_status = kwargs.pop('raise_for_status', self.raise_for_status)
 
         async def request_and_raise_for_status():
+            json_data = kwargs.pop('json', None)
+            if json_data is not None:
+                if kwargs.get('data') is not None:
+                    raise ValueError(
+                        'data and json parameters cannot be used at the same time')
+                kwargs['data'] = aiohttp.BytesPayload(
+                    value=orjson.dumps(json_data),
+                    # https://github.com/ijl/orjson#serialize
+                    #
+                    # "The output is a bytes object containing UTF-8"
+                    encoding="utf-8",
+                    content_type="application/json",
+                )
             resp = await self.client_session._request(method, url, **kwargs)
             if raise_for_status:
                 if resp.status >= 400:
@@ -143,7 +205,7 @@ def client_session(*args,
     elif location == 'k8s':
         tls = internal_client_ssl_context()
     else:
-        assert location == 'gce'
+        assert location in ('gce', 'azure')
         # no encryption on the internal gateway
         tls = external_client_ssl_context()
 

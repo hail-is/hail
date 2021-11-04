@@ -7,7 +7,7 @@ import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryValue, SString}
-import is.hail.types.physical.stypes.{SCode, SType, SValue}
+import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -37,7 +37,7 @@ class EBinary(override val required: Boolean) extends EType {
     }
   }
 
-  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SCode = {
+  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SValue = {
     val t1 = decodedSType(t)
     val pt = t1 match {
       case SStringPointer(t) => t.binaryRepresentation
@@ -50,8 +50,8 @@ class EBinary(override val required: Boolean) extends EType {
     bT.storeLength(cb, barray, len)
     cb += in.readBytes(region, bT.bytesAddress(barray), len)
     t1 match {
-      case t: SStringPointer => new SStringPointerCode(t, barray)
-      case t: SBinaryPointer => new SBinaryPointerCode(t, barray)
+      case t: SStringPointer => new SStringPointerValue(t, barray)
+      case t: SBinaryPointer => new SBinaryPointerValue(t, barray)
     }
   }
 

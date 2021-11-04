@@ -81,7 +81,10 @@ async def get_or_add_user(app, userdata):
                 log.info(f'get_or_add_user: cache miss: {username}')
                 k8s_client = app['k8s_client']
                 gsa_key_secret = await retry_transient_errors(
-                    k8s_client.read_namespaced_secret, userdata['gsa_key_secret_name'], DEFAULT_NAMESPACE, _request_timeout=5.0
+                    k8s_client.read_namespaced_secret,
+                    userdata['gsa_key_secret_name'],
+                    DEFAULT_NAMESPACE,
+                    _request_timeout=5.0
                 )
                 gsa_key = json.loads(base64.b64decode(gsa_key_secret.data['key.json']).decode())
                 credentials = GoogleCredentials.from_credentials_data(gsa_key)

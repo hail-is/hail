@@ -84,11 +84,7 @@ Instructions:
 - Run `terraform apply -var-file="$HOME/.hail/global.tfvars"`.  At the
   time of writing, this takes ~15m.
 
-- Go to the Google Cloud console, VPC networks > default > Private
-  service connection > Private connections to services, and enable
-  Export custom routes to both connections.
-
- - Terraform created a GKE cluster named `vdc`.  Configure `kubectl`
+- Terraform created a GKE cluster named `vdc`.  Configure `kubectl`
    to point at the vdc cluster:
 
    ```
@@ -199,6 +195,13 @@ You can now install Hail:
 
   ```
   make -C $HAIL/batch build-worker
+  ```
+
+- Download the global-config to be used by `bootstrap.py`.
+
+  ```
+  mkdir /global-config
+  kubectl -n default get secret global-config -o json | jq -r '.data | map_values(@base64d) | to_entries|map("echo -n \(.value) > /global-config/\(.key)") | .[]' | bash
   ```
 
 - Bootstrap the cluster. Make sure to substitute the values for the exported

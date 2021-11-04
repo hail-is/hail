@@ -1,18 +1,18 @@
+from typing import List, Dict, Optional, Any, Tuple
+import asyncio
 import re
 import logging
 
-from typing import Dict, Optional, Any
-
 from gear import Database
 
-from .globals import MAX_PERSISTENT_SSD_SIZE_GIB, valid_machine_types
+from .globals import MAX_PERSISTENT_SSD_SIZE_GIB, valid_machine_types, WORKER_CONFIG_VERSION
 from .utils import (
     adjust_cores_for_memory_request,
     adjust_cores_for_packability,
     round_storage_bytes_to_gib,
     cores_mcpu_to_memory_bytes,
 )
-from .worker_config import WorkerConfig
+from .worker_config import WorkerConfig, Disk, DiskType
 
 
 log = logging.getLogger('inst_coll_config')
@@ -27,6 +27,8 @@ MACHINE_TYPE_REGEX = re.compile('(?P<machine_family>[^-]+)-(?P<machine_type>[^-]
 
 def machine_type_to_dict(machine_type: str) -> Optional[Dict[str, Any]]:
     match = MACHINE_TYPE_REGEX.search(machine_type)
+    if match is None:
+        return None
     return match.groupdict()
 
 
@@ -83,7 +85,45 @@ class PoolConfig(InstanceCollectionConfig):
         self.max_instances = max_instances
         self.max_live_instances = max_live_instances
 
-        self.worker_config = WorkerConfig.from_pool_config(self)
+        self.worker_config = self.to_worker_config()
+
+    def to_worker_config(self) -> WorkerConfig:
+        disks: List[Disk] = [
+            {
+                'boot': True,
+                'project': None,
+                'zone': None,
+                'type': 'pd-ssd',
+                'size': self.boot_disk_size_gb,
+                'image': None,
+            }
+        ]
+
+        typ: DiskType
+        if self.worker_local_ssd_data_disk:
+            typ = 'local-ssd'
+            size = 375
+        else:
+            typ = 'pd-ssd'
+            size = self.worker_pd_ssd_data_disk_size_gb
+
+        disks.append({'boot': False, 'project': None, 'zone': None, 'type': typ, 'size': size, 'image': None})
+
+        config = {
+            'version': WORKER_CONFIG_VERSION,
+            'instance': {
+                'project': None,
+                'zone': None,
+                'family': 'n1',  # FIXME: need to figure out how to handle variable family types
+                'type': self.worker_type,
+                'cores': self.worker_cores,
+                'preemptible': True,
+            },
+            'disks': disks,
+            'job-private': False,
+        }
+
+        return WorkerConfig(config)
 
     def convert_requests_to_resources(self, cores_mcpu, memory_bytes, storage_bytes):
         storage_gib = requested_storage_bytes_to_actual_storage_gib(storage_bytes, allow_zero_storage=True)
@@ -124,6 +164,8 @@ class JobPrivateInstanceManagerConfig(InstanceCollectionConfig):
             return None
 
         machine_type_dict = machine_type_to_dict(machine_type)
+        if machine_type_dict is None:
+            raise ValueError(f'bad machine_type {machine_type}')
         cores = int(machine_type_dict['cores'])
         cores_mcpu = cores * 1000
 
@@ -133,44 +175,54 @@ class JobPrivateInstanceManagerConfig(InstanceCollectionConfig):
 
 
 class InstanceCollectionConfigs:
-    def __init__(self, app):
-        self.app = app
-        self.db: Database = app['db']
-        self.name_config: Dict[str, InstanceCollectionConfig] = {}
-        self.name_pool_config: Dict[str, PoolConfig] = {}
-        self.resource_rates: Optional[Dict[str, float]] = None
-        self.jpim_config: Optional[JobPrivateInstanceManagerConfig] = None
+    @staticmethod
+    async def create(db: Database):
+        (name_pool_config, jpim_config), resource_rates = await asyncio.gather(
+            InstanceCollectionConfigs.instance_collections_from_db(db),
+            InstanceCollectionConfigs.resource_rates_from_db(db))
+        return InstanceCollectionConfigs(name_pool_config, jpim_config, resource_rates)
 
-    async def async_init(self):
-        await self.refresh()
-
-    async def refresh(self):
-        records = self.db.execute_and_fetchall(
+    @staticmethod
+    async def instance_collections_from_db(db: Database) -> Tuple[Dict[str, PoolConfig], JobPrivateInstanceManagerConfig]:
+        records = db.execute_and_fetchall(
             '''
 SELECT inst_colls.*, pools.*
 FROM inst_colls
 LEFT JOIN pools ON inst_colls.name = pools.name;
 '''
         )
+        name_pool_config: Dict[str, PoolConfig] = {}
+        jpim_config: Optional[JobPrivateInstanceManagerConfig] = None
         async for record in records:
-            is_pool = bool(record['is_pool'])
-            if is_pool:
+            if record['is_pool']:
                 config = PoolConfig.from_record(record)
-                self.name_pool_config[config.name] = config
+                name_pool_config[config.name] = config
             else:
                 config = JobPrivateInstanceManagerConfig.from_record(record)
-                self.jpim_config = config
+                jpim_config = config
+        assert jpim_config is not None
+        return name_pool_config, jpim_config
 
-            self.name_config[config.name] = config
+    @staticmethod
+    async def resource_rates_from_db(db: Database) -> Dict[str, float]:
+        return {
+            record['resource']: record['rate']
+            async for record in db.execute_and_fetchall('SELECT * FROM resources;')}
 
-        assert self.jpim_config is not None
+    def __init__(self,
+                 name_pool_config: Dict[str, PoolConfig],
+                 jpim_config: JobPrivateInstanceManagerConfig,
+                 resource_rates: Dict[str, float]):
+        self.name_pool_config = name_pool_config
+        self.jpim_config = jpim_config
+        self.resource_rates = resource_rates
 
-        records = self.db.execute_and_fetchall(
-            '''
-SELECT * FROM resources;
-'''
-        )
-        self.resource_rates = {record['resource']: record['rate'] async for record in records}
+    async def refresh(self, db: Database):
+        configs, resource_rates = await asyncio.gather(
+            InstanceCollectionConfigs.instance_collections_from_db(db),
+            InstanceCollectionConfigs.resource_rates_from_db(db))
+        self.name_pool_config, self.jpim_config = configs
+        self.resource_rates = resource_rates
 
     def select_pool_from_cost(self, cores_mcpu, memory_bytes, storage_bytes):
         assert self.resource_rates is not None

@@ -4,9 +4,8 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.{InputBuffer, OutputBuffer}
-import is.hail.types.physical._
-import is.hail.types.physical.stypes.{SCode, SType, SValue}
-import is.hail.types.physical.stypes.primitives.{SFloat64, SFloat64Code}
+import is.hail.types.physical.stypes.primitives.{SFloat64, SFloat64Value}
+import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -19,8 +18,8 @@ class EFloat64(override val required: Boolean) extends EType {
     cb += out.writeDouble(v.asDouble.doubleCode(cb))
   }
 
-  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SCode = {
-    new SFloat64Code(in.readDouble())
+  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SValue = {
+    new SFloat64Value(cb.memoize(in.readDouble()))
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = cb += in.skipDouble()

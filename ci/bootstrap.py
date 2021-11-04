@@ -12,12 +12,11 @@ from hailtop.utils import check_shell_output
 
 from ci.build import BuildConfiguration, Code
 from ci.github import clone_or_fetch_script
+from ci.environment import KUBERNETES_SERVER_URL
 from ci.utils import generate_token
 
 from batch.driver.k8s_cache import K8sCache
 
-KUBERNETES_SERVER_URL = os.environ['KUBERNETES_SERVER_URL']
-DOCKER_PREFIX = os.environ['HAIL_DOCKER_PREFIX']
 BATCH_WORKER_IMAGE = os.environ['BATCH_WORKER_IMAGE']
 
 
@@ -40,7 +39,7 @@ class LocalJob:
         mount_docker_socket: bool = False,
         unconfined: bool = False,
         secrets: Optional[List[Dict[str, str]]] = None,
-        service_account: Optional[str] = None,
+        service_account: Optional[Dict[str, str]] = None,
         attributes: Optional[Dict[str, str]] = None,
         parents: Optional[List['LocalJob']] = None,
         input_files: Optional[List[Tuple[str, str]]] = None,
@@ -62,13 +61,13 @@ class LocalJob:
         self._output_files = output_files
         self._kwargs = kwargs
 
-        self._succeeded = None
+        self._succeeded: Optional[bool] = None
 
 
 async def docker_run(*args: str):
     script = ' '.join([shq(a) for a in args])
     outerr = await check_shell_output(script)
-    print(f'Container output: {outerr[0]}\n' f'Container error: {outerr[1]}')
+    print(f'Container output: {outerr[0]!r}\n' f'Container error: {outerr[1]!r}')
 
     cid = outerr[0].decode('ascii').strip()
 
@@ -81,7 +80,7 @@ class LocalBatchBuilder:
     def __init__(self, attributes: Dict[str, str], callback: Optional[str]):
         self._attributes = attributes
         self._callback = callback
-        self._jobs = []
+        self._jobs: List[LocalJob] = []
 
     @property
     def attributes(self) -> Dict[str, str]:
@@ -329,6 +328,9 @@ class Branch(Code):
 
 git checkout {shq(self._sha)}
 '''
+
+    def repo_dir(self) -> str:
+        return '.'
 
 
 async def main():

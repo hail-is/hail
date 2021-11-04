@@ -120,7 +120,7 @@ class SCanonicalLocusPointerCode(val st: SCanonicalLocusPointer, val a: Code[Lon
 
   def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SCanonicalLocusPointerSettable = {
     val s = SCanonicalLocusPointerSettable(sb, st, name)
-    cb.assign(s, this)
+    s.store(cb, this)
     s
   }
 

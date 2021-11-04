@@ -1072,7 +1072,7 @@ class Emit[C](
         emitI(orderedCollection).map(cb) { a =>
           val e = EmitCode.fromI(cb.emb)(cb => this.emitI(elem, cb, region, env, container, loopEnv))
           val bs = new BinarySearch[C](mb, a.st.asInstanceOf[SContainer], e.emitType, keyOnly = onKey)
-          primitive(cb.memoize(bs.getClosestIndex(cb, a.get, e)))
+          primitive(bs.getClosestIndex(cb, a, e))
         }
 
       case x@ArraySort(a, left, right, lessThan) =>
@@ -1333,7 +1333,7 @@ class Emit[C](
                     }
                   })
 
-                  xP.constructByCopyingArray(shapeValues, stridesSettables, dataValue.get.asIndexable, cb, region)
+                  xP.constructByCopyingArray(shapeValues, stridesSettables, dataValue.asIndexable, cb, region)
                 }
               case _: TStream =>
                 EmitStream.produce(this, dataIR, cb, region, env, container)
@@ -1985,7 +1985,7 @@ class Emit[C](
         val codeRes = emitI(result, container = Some(newContainer))
 
         codeRes.map(cb) { pc =>
-          val res = cb.memoizeField(pc.get, "agg_res")
+          val res = cb.memoizeField(pc, "agg_res")
           newContainer.cleanup()
           res
         }
@@ -2174,7 +2174,7 @@ class Emit[C](
       case ReadValue(path, spec, requestedType) =>
         emitI(path).map(cb) { pv =>
           val ib = cb.memoize[InputBuffer](spec.buildCodeInputBuffer(mb.open(pv.asString.loadString(cb), checkCodec = true)))
-          spec.encodedType.buildDecoder(requestedType, mb.ecb)(cb, region, ib).memoize(cb, "ReadValue")
+          spec.encodedType.buildDecoder(requestedType, mb.ecb)(cb, region, ib)
         }
 
       case WriteValue(value, path, spec) =>
@@ -2182,7 +2182,7 @@ class Emit[C](
           emitI(value).map(cb) { v =>
             val ob = cb.memoize[OutputBuffer](spec.buildCodeOutputBuffer(mb.create(pv.get.asString.loadString())))
             spec.encodedType.buildEncoder(v.st, cb.emb.ecb)
-              .apply(cb, v.get, ob)
+              .apply(cb, v, ob)
             cb += ob.invoke[Unit]("close")
             pv
           }
@@ -2256,8 +2256,8 @@ class Emit[C](
         val parentCB = mb.ecb
         emitStream(contexts, cb, region).map(cb) { case ctxStream: SStreamValue =>
 
-          def wrapInTuple(cb: EmitCodeBuilder, region: Value[Region], et: EmitCode): SBaseStructPointerCode = {
-            PCanonicalTuple(true, et.emitType.storageType).constructFromFields(cb, region, FastIndexedSeq(et), deepCopy = false).get
+          def wrapInTuple(cb: EmitCodeBuilder, region: Value[Region], et: EmitCode): SBaseStructPointerValue = {
+            PCanonicalTuple(true, et.emitType.storageType).constructFromFields(cb, region, FastIndexedSeq(et), deepCopy = false)
           }
 
           val bufferSpec: BufferSpec = BufferSpec.defaultUncompressed
@@ -2284,14 +2284,12 @@ class Emit[C](
             val decodedContext = contextSpec.encodedType.buildDecoder(contextSpec.encodedVirtualType, bodyFB.ecb)
               .apply(cb, region, ctxIB)
               .asBaseStruct
-              .memoize(cb, "decoded_context_tuple")
               .loadField(cb, 0)
               .memoizeField(cb, "decoded_context")
 
             val decodedGlobal = globalSpec.encodedType.buildDecoder(globalSpec.encodedVirtualType, bodyFB.ecb)
               .apply(cb, region, gIB)
               .asBaseStruct
-              .memoize(cb, "decoded_global_tuple")
               .loadField(cb, 0)
               .memoizeField(cb, "decoded_global")
 
@@ -2332,9 +2330,8 @@ class Emit[C](
             }) { cb =>
               cb += baos.invoke[Unit]("reset")
               val ctxTuple = wrapInTuple(cb, region, ctxStream.element)
-                .memoize(cb, "cda_add_contexts_addr")
               contextSpec.encodedType.buildEncoder(ctxTuple.st, parentCB)
-                .apply(cb, ctxTuple.get, buf)
+                .apply(cb, ctxTuple, buf)
               cb += buf.invoke[Unit]("flush")
               cb += ctxab.invoke[Array[Byte], Unit]("add", baos.invoke[Array[Byte]]("toByteArray"))
             }
@@ -2358,7 +2355,6 @@ class Emit[C](
               val eltTupled = bodySpec.encodedType.buildDecoder(bodySpec.encodedVirtualType, parentCB)
                 .apply(cb, region, ib)
                 .asBaseStruct
-                .memoize(cb, "cda_eltTupled")
               eltTupled.loadField(cb, 0)
             }
           }
@@ -2523,7 +2519,6 @@ class Emit[C](
           val emitArgs = args.map(a => EmitCode.fromI(cb.emb)(emitI(a, _))).toFastIndexedSeq
           IEmitCode.multiMapEmitCodes(cb, emitArgs) { codeArgs =>
             cb.invokeSCode(meth, FastIndexedSeq[Param](CodeParam(region), CodeParam(errorID)) ++ codeArgs.map(pc => pc: Param): _*)
-              .memoize(cb, "Apply")
           }
         }
 

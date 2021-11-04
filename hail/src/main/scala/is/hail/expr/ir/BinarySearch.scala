@@ -59,9 +59,8 @@ class BinarySearch[C](mb: EmitMethodBuilder[C], containerType: SContainer, eltTy
 
     val elt = findElt.getEmitParam(cb, 2, null) // no streams
 
-    val len = cb.newLocal[Int]("findelt_length", indexable.loadLength())
     val low = cb.newLocal("findelt_low", 0)
-    val high = cb.newLocal("findelt_high", len)
+    val high = cb.newLocal("findelt_high", indexable.loadLength())
 
     cb.whileLoop(low < high, {
       val i = cb.newLocal("findelt_i", (low + high) / 2)
@@ -74,7 +73,7 @@ class BinarySearch[C](mb: EmitMethodBuilder[C], containerType: SContainer, eltTy
   }
 
   // check missingness of v before calling
-  def getClosestIndex(cb: EmitCodeBuilder, array: SCode, v: EmitCode): Code[Int] = {
-    cb.invokeCode[Int](findElt, array, v)
+  def getClosestIndex(cb: EmitCodeBuilder, array: SValue, v: EmitCode): Value[Int] = {
+    cb.memoize(cb.invokeCode[Int](findElt, array, v))
   }
 }

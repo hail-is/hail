@@ -279,12 +279,11 @@ class EmitClassBuilder[C](
       val lits = spec.encodedType.buildDecoder(spec.encodedVirtualType, this)
         .apply(cb, partitionRegion, ib)
         .asBaseStruct
-        .memoize(cb, "cb_lits")
       literals.zipWithIndex.foreach { case (((_, _), f), i) =>
         lits.loadField(cb, i)
           .consume(cb,
             cb._fatal("expect non-missing literals!"),
-            { pc => f.store(cb, pc.get) })
+            { pc => f.store(cb, pc) })
       }
       // Handle the pre-encoded literals, which only need to be decoded.
       preEncodedLiterals.zipWithIndex.foreach { case ((encLit, f), index) =>
@@ -984,9 +983,9 @@ class EmitMethodBuilder[C](
 
   def voidWithBuilder(f: (EmitCodeBuilder) => Unit): Unit = emit(EmitCodeBuilder.scopedVoid(this)(f))
 
-  def emitSCode(f: (EmitCodeBuilder) => SCode): Unit = {
+  def emitSCode(f: (EmitCodeBuilder) => SValue): Unit = {
     emit(EmitCodeBuilder.scopedCode(this) { cb =>
-      val res = f(cb).memoize(cb, "emitSCode")
+      val res = f(cb)
       if (res.st.nSettables == 1)
         res.valueTuple.head
       else

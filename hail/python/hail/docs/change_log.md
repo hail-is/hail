@@ -24,6 +24,24 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.78
+
+Release 2021-10-19
+
+### Bug fixes
+- (hail#10766) Don't throw out of memory error when broadcasting more than 2^(31) - 1 bytes.
+- (hail#10910) Filters on key field won't be slowed down by uses of `MatrixTable.localize_entries` or `Table.rename`.
+- (hail#10959) Don't throw an error in certain situations where some key fields are optimized away.
+
+### New features
+- (hail#10855) Arbitrary aggregations can be implemented using `hl.agg.fold`.
+
+
+### Performance Improvements
+- (hail#10971) Substantially improve the speed of `Table.collect` when collecting large amounts of data.
+
+---
+
 ## Version 0.2.77
 
 Release 2021-09-21
@@ -55,7 +73,7 @@ Released 2021-09-10
 - (hail#10733) Fix a bug in tabix parsing when the size of the list of all sequences is large.
 - (hail#10765) Fix rare bug where valid pipelines would fail to compile if intervals were created conditionally.
 - (hail#10746) Various compiler improvements, decrease likelihood of `ClassTooLarge` errors.
-- (hail#10829) Fix a bug where `hl.missing` and `CaseBuilder.or_error` failed if their type was a struct containing a field starting with a number. 
+- (hail#10829) Fix a bug where `hl.missing` and `CaseBuilder.or_error` failed if their type was a struct containing a field starting with a number.
 
 ### New features
 
@@ -63,8 +81,8 @@ Released 2021-09-10
 
 ### Performance improvements
 
-- (hail#10625) Reduced need to copy strings around, pipelines with many string operations should get faster. 
-- (hail#10775) Improved performance of `to_matrix_table_row_major` on both `BlockMatrix` and `Table`. 
+- (hail#10625) Reduced need to copy strings around, pipelines with many string operations should get faster.
+- (hail#10775) Improved performance of `to_matrix_table_row_major` on both `BlockMatrix` and `Table`.
 
 ---
 

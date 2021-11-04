@@ -1181,7 +1181,7 @@ class Table(ExprContainer):
         agg_ir = ir.TableAggregate(base._tir, expr._ir)
 
         if _localize:
-            return Env.backend().execute(agg_ir)
+            return Env.backend().execute(hl.ir.MakeTuple([agg_ir]))[0]
 
         return construct_expr(ir.LiftMeOut(agg_ir), expr.dtype)
 
@@ -2460,7 +2460,7 @@ class Table(ExprContainer):
                              f"  left:  [{', '.join(str(t) for t in left_key_types)}]\n  "
                              f"  right: [{', '.join(str(t) for t in right_key_types)}]")
         left_fields = set(self._fields)
-        right_fields = set(right._fields)
+        right_fields = set(right._fields) - set(right.key)
 
         renames, _ = deduplicate(
             right_fields, max_attempts=100, already_used=left_fields)

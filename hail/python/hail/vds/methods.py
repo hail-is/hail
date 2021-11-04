@@ -12,9 +12,12 @@ from hail.vds.variant_dataset import VariantDataset
 from hail import ir
 
 
-def write_variant_datasets(vdss, paths, overwrite=False, stage_locally=False):
-    ref_writer = ir.MatrixNativeMultiWriter([f"{p}/reference_data" for p in paths], overwrite, stage_locally)
-    var_writer = ir.MatrixNativeMultiWriter([f"{p}/variant_data" for p in paths], overwrite, stage_locally)
+def write_variant_datasets(vdss, paths, *,
+                           overwrite=False, stage_locally=False,
+                           codec_spec=None):
+    """Write many `vdses` to their corresponding path in `paths`."""
+    ref_writer = ir.MatrixNativeMultiWriter([f"{p}/reference_data" for p in paths], overwrite, stage_locally, codec_spec)
+    var_writer = ir.MatrixNativeMultiWriter([f"{p}/variant_data" for p in paths], overwrite, stage_locally, codec_spec)
     Env.backend().execute(ir.MatrixMultiWrite([vds.reference_data._mir for vds in vdss], ref_writer))
     Env.backend().execute(ir.MatrixMultiWrite([vds.variant_data._mir for vds in vdss], var_writer))
 
@@ -150,7 +153,7 @@ def sample_qc(vds: 'VariantDataset', *, name='sample_qc', gq_bins: 'Sequence[int
         Dataset in VariantDataset representation.
     name : :obj:`str`
         Name for resulting field.
-    gq_bins : :class:`tup` of :obj:`int`
+    gq_bins : :class:`tuple` of :obj:`int`
         Tuple containing cutoffs for genotype quality (GQ) scores.
 
     Returns
@@ -287,6 +290,7 @@ def filter_samples(vds: 'VariantDataset', samples_table: 'Table', *,
         vd = variant_data
         vd = vd.annotate_rows(__allele_counts=hl.agg.explode(lambda x: hl.agg.counter(x), vd.LA), __n=hl.agg.count())
         vd = vd.filter_rows(vd.__n > 0)
+        vd = vd.drop('__n')
 
         vd = vd.annotate_rows(__kept_indices=hl.dict(
             hl.enumerate(

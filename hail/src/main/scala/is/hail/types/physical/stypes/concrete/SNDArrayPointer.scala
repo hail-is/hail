@@ -140,7 +140,7 @@ class SNDArrayPointerCode(val st: SNDArrayPointer, val a: Code[Long]) extends SN
 
   def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SNDArrayPointerValue = {
     val s = SNDArrayPointerSettable(sb, st, name)
-    cb.assign(s, this)
+    s.store(cb, this)
     s
   }
 

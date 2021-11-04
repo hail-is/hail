@@ -387,7 +387,7 @@ class Batch:
         batch_status = await self.status()
         jobs = [
             {'status': j, 'log': await self.get_job_log(j['job_id'])}
-            async for j in await self.jobs()]
+            async for j in self.jobs()]
         return {'status': batch_status, 'jobs': jobs}
 
     async def delete(self):
@@ -670,19 +670,16 @@ class BatchClient:
         return BatchClient(
             billing_project=billing_project,
             url=url,
-            deploy_config=deploy_config,
             session=session,
             headers=headers)
 
     def __init__(self,
                  billing_project: str,
                  url: str,
-                 deploy_config: DeployConfig,
                  session: httpx.ClientSession,
                  headers: Dict[str, str]):
         self.billing_project = billing_project
         self.url = url
-        self.deploy_config = deploy_config
         self._session = session
         self._headers = headers
 

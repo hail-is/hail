@@ -152,7 +152,7 @@ abstract class AbstractTypedRegionBackedAggState(val ptype: PType) extends Regio
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
     val codecSpec = TypedCodecSpec(storageType, codec)
     val enc = codecSpec.encodedType.buildEncoder(storageType.sType, kb)
-    (cb, ob: Value[OutputBuffer]) => enc(cb, storageType.loadCheapSCode(cb, off).get, ob)
+    (cb, ob: Value[OutputBuffer]) => enc(cb, storageType.loadCheapSCode(cb, off), ob)
   }
 
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
@@ -160,7 +160,7 @@ abstract class AbstractTypedRegionBackedAggState(val ptype: PType) extends Regio
 
     val dec = codecSpec.encodedType.buildDecoder(storageType.virtualType, kb)
     ((cb: EmitCodeBuilder, ib: Value[InputBuffer]) =>
-      storageType.storeAtAddress(cb, off, region, dec(cb, region, ib).memoize(cb, "deserialize"), deepCopy = false))
+      storageType.storeAtAddress(cb, off, region, dec(cb, region, ib), deepCopy = false))
   }
 }
 
@@ -208,13 +208,13 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
     (cb, ob: Value[OutputBuffer]) =>
       foreachField { case (_, es) =>
         if (es.emitType.required) {
-          ob.writePrimitive(cb, es.get(cb).get)
+          ob.writePrimitive(cb, es.get(cb))
         } else {
           es.toI(cb).consume(cb,
             cb += ob.writeBoolean(true),
             { sc =>
               cb += ob.writeBoolean(false)
-              ob.writePrimitive(cb, sc.get)
+              ob.writePrimitive(cb, sc)
             })
         }
       }

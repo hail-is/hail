@@ -1045,8 +1045,7 @@ Caused by: java.lang.NullPointerException
         self.assertTrue(t1.key_by().union(t2.key_by(), t3.key_by())
                         ._same(hl.utils.range_table(15).key_by()))
 
-    @fails_local_backend()
-    @skip_when_service_backend('slow >800s')
+    @fails_service_backend()
     def test_nested_union(self):
         N = 10
         M = 200
@@ -1636,7 +1635,7 @@ def test_maybe_flexindex_table_by_expr_prefix_interval_match():
     assert t1._maybe_flexindex_table_by_expr((hl.str(mt1.row_idx), mt1.row_idx)) is None
 
 
-widths = [256, 512, 1024, 2048, 4096]
+widths = [256, 512, 1024, 2048, 3072]
 
 
 @skip_when_service_backend('hangs')

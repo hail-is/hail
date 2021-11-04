@@ -1404,14 +1404,15 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
     @fails_service_backend(reason='filtering locus position using numeric comparison operators always returns no rows')
     def test_hardy_weinberg_test(self):
         mt = hl.import_vcf(resource('HWE_test.vcf'))
-        mt = mt.select_rows(**hl.agg.hardy_weinberg_test(mt.GT))
-        rt = mt.rows()
-        expected = hl.Table.parallelize([
+        mt_two_sided = mt.select_rows(**hl.agg.hardy_weinberg_test(mt.GT, one_sided=False))
+        rt_two_sided = mt_two_sided.rows()
+        expected_two_sided = hl.Table.parallelize([
             hl.struct(
                 locus=hl.locus('20', pos),
                 alleles=alleles,
                 het_freq_hwe=r,
-                p_value=p)
+                p_value=p
+            )
             for (pos, alleles, r, p) in [
                 (1, ['A', 'G'], 0.0, 0.5),
                 (2, ['A', 'G'], 0.25, 0.5),
@@ -1419,23 +1420,65 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
                 (4, ['T', 'A'], 0.5714285714285714, 0.6571428571428573),
                 (5, ['G', 'A'], 0.3333333333333333, 0.5)]],
             key=['locus', 'alleles'])
-        self.assertTrue(rt.filter(rt.locus.position != 6)._same(expected))
 
-        rt6 = rt.filter(rt.locus.position == 6).collect()[0]
-        self.assertEqual(rt6['p_value'], 0.5)
-        self.assertTrue(math.isnan(rt6['het_freq_hwe']))
+        self.assertTrue(rt_two_sided.filter(rt_two_sided.locus.position != 6)._same(expected_two_sided))
+        rt6_two_sided = rt_two_sided.filter(rt_two_sided.locus.position == 6).collect()[0]
+        self.assertEqual(rt6_two_sided['p_value'], 0.5)
+        self.assertTrue(math.isnan(rt6_two_sided['het_freq_hwe']))
+
+        mt_one_sided = mt.select_rows(**hl.agg.hardy_weinberg_test(mt.GT, one_sided=True))
+        rt_one_sided = mt_one_sided.rows()
+        expected_one_sided = hl.Table.parallelize([
+            hl.struct(
+                locus=hl.locus('20', pos),
+                alleles=alleles,
+                het_freq_hwe=r,
+                p_value=p
+            )
+            for (pos, alleles, r, p) in [
+                (1, ['A', 'G'], 0.0, 0.5),
+                (2, ['A', 'G'], 0.25, 0.5),
+                (3, ['T', 'C'], 0.5357142857142857, 0.7857142857142857),
+                (4, ['T', 'A'], 0.5714285714285714, 0.5714285714285715),
+                (5, ['G', 'A'], 0.3333333333333333, 0.5)]],
+            key=['locus', 'alleles'])
+
+        self.assertTrue(rt_one_sided.filter(rt_one_sided.locus.position != 6)._same(expected_one_sided))
+        rt6_one_sided = rt_one_sided.filter(rt_one_sided.locus.position == 6).collect()[0]
+        self.assertEqual(rt6_one_sided['p_value'], 0.5)
+        self.assertTrue(math.isnan(rt6_one_sided['het_freq_hwe']))
 
     def test_hw_func_and_agg_agree(self):
         mt = hl.import_vcf(resource('sample.vcf'))
-        mt = mt.annotate_rows(
+        mt_two_sided = mt.annotate_rows(
             stats=hl.agg.call_stats(mt.GT, mt.alleles),
-            hw=hl.agg.hardy_weinberg_test(mt.GT))
-        mt = mt.annotate_rows(
-            hw2=hl.hardy_weinberg_test(mt.stats.homozygote_count[0],
-                                       mt.stats.AC[1] - 2 * mt.stats.homozygote_count[1],
-                                       mt.stats.homozygote_count[1]))
-        rt = mt.rows()
-        self.assertTrue(rt.all(rt.hw == rt.hw2))
+            hw=hl.agg.hardy_weinberg_test(mt.GT, one_sided=False)
+        )
+        mt_two_sided = mt_two_sided.annotate_rows(
+            hw2=hl.hardy_weinberg_test(
+                mt_two_sided.stats.homozygote_count[0],
+                mt_two_sided.stats.AC[1] - 2 * mt_two_sided.stats.homozygote_count[1],
+                mt_two_sided.stats.homozygote_count[1],
+                one_sided=False
+            )
+        )
+        rt_two_sided = mt_two_sided.rows()
+        self.assertTrue(rt_two_sided.all(rt_two_sided.hw == rt_two_sided.hw2))
+
+        mt_one_sided = mt.annotate_rows(
+            stats=hl.agg.call_stats(mt.GT, mt.alleles),
+            hw=hl.agg.hardy_weinberg_test(mt.GT, one_sided=True)
+        )
+        mt_one_sided = mt_one_sided.annotate_rows(
+            hw2=hl.hardy_weinberg_test(
+                mt_one_sided.stats.homozygote_count[0],
+                mt_one_sided.stats.AC[1] - 2 * mt_one_sided.stats.homozygote_count[1],
+                mt_one_sided.stats.homozygote_count[1],
+                one_sided=True
+            )
+        )
+        rt_one_sided = mt_one_sided.rows()
+        self.assertTrue(rt_one_sided.all(rt_one_sided.hw == rt_one_sided.hw2))
 
     @fails_service_backend()
     @fails_local_backend()

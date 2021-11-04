@@ -43,18 +43,40 @@ steps:
     namespaceName: default
     public: true
     secrets:
-      - gcr-pull-key
-      - gcr-push-service-account-key
-      - hail-ci-0-1-github-oauth-token
-      - test-gsa-key
-      - test-aws-key
-      - test-azure-key
-      - auth-oauth2-client-secret
-      - zulip-config
-      - benchmark-gsa-key
-      - billing-monitor-gsa-key
-      - hail-ci-0-1-service-account-key
-      - test-dataproc-service-account-key
+      - name: auth-oauth2-client-secret
+      - name: gcr-push-service-account-key
+        clouds:
+          - gcp
+      - name: acr-push-credentials
+        clouds:
+          - azure
+      - name: hail-ci-0-1-github-oauth-token
+        clouds:
+          - gcp
+      - name: test-gsa-key
+        clouds:
+          - gcp
+      - name: test-aws-key
+        clouds:
+          - gcp
+      - name: test-azure-key
+        clouds:
+          - gcp
+      - name: zulip-config
+        clouds:
+          - gcp
+      - name: benchmark-gsa-key
+        clouds:
+          - gcp
+      - name: billing-monitor-gsa-key
+        clouds:
+          - gcp
+      - name: hail-ci-0-1-service-account-key
+        clouds:
+          - gcp
+      - name: test-dataproc-service-account-key
+        clouds:
+          - gcp
   - kind: buildImage2
     name: echo_image
     dockerFile: /io/echo/Dockerfile
@@ -281,6 +303,8 @@ steps:
         script: /io/sql/add-trial-billing-project.sql
       - name: add-roles
         script: /io/sql/add-roles.sql
+      - name: rename-gsa-identity
+        script: /io/sql/rename-gsa-identity.sql
     inputs:
       - from: /repo/auth/sql
         to: /io/sql
@@ -301,6 +325,7 @@ steps:
       valueFrom: base_image.image
     script: |
       set -ex
+
       # k8s deploy config
       cat > deploy-config.json <<EOF
       {"location":"k8s","default_namespace":"{{ default_ns.name }}","domain":"{{ global.domain }}"}
@@ -309,11 +334,21 @@ steps:
               --from-file=./deploy-config.json \
               --save-config --dry-run=client -o yaml \
           | kubectl -n {{ default_ns.name }} apply -f -
-      # gce deploy config
+
+      # worker deploy config
+      {% if global.cloud == "gcp" %}
+        LOCATION="gce"
+      {% elif global.cloud == "azure" %}
+        LOCATION="azure"
+      {% else %}
+        echo "unknown cloud: {{ global.cloud }}"
+        exit 1
+      {% endif %}
+
       cat > deploy-config.json <<EOF
-      {"location":"gce","default_namespace":"{{ default_ns.name }}","domain":"{{ global.domain }}"}
+      {"location":"$LOCATION","default_namespace":"{{ default_ns.name }}","domain":"{{ global.domain }}"}
       EOF
-      kubectl -n {{ default_ns.name }} create secret generic gce-deploy-config \
+      kubectl -n {{ default_ns.name }} create secret generic worker-deploy-config \
               --from-file=./deploy-config.json \
               --save-config --dry-run=client -o yaml \
           | kubectl -n {{ default_ns.name }} apply -f -
@@ -428,7 +463,7 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /database-server-config
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -2061,7 +2096,7 @@ steps:
       set -ex
       python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /test/
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -2130,7 +2165,7 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -2177,7 +2212,7 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -2430,7 +2465,7 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -2465,7 +2500,7 @@ steps:
       set -ex
       python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /test/
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -2931,7 +2966,7 @@ steps:
       python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /io/test/
     timeout: 600
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3001,7 +3036,7 @@ steps:
     port: 5000
     timeout: 1200
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3075,7 +3110,7 @@ steps:
     port: 5000
     timeout: 1200
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3149,7 +3184,7 @@ steps:
     port: 5000
     timeout: 1200
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3223,7 +3258,7 @@ steps:
     port: 5000
     timeout: 1200
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3297,7 +3332,7 @@ steps:
     port: 5000
     timeout: 1200
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3352,7 +3387,7 @@ steps:
       - from: /repo/batch/test
         to: /io/test
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3466,7 +3501,7 @@ steps:
       export NAMESPACE="{{ default_ns.name }}"
       python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /test/
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3524,7 +3559,7 @@ steps:
         to: /io/hailtop
     timeout: 1200
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3577,7 +3612,7 @@ steps:
         to: /io/hailtop
     timeout: 1200
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3630,7 +3665,7 @@ steps:
         to: /io/hailtop
     timeout: 1200
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3683,7 +3718,7 @@ steps:
         to: /io/hailtop
     timeout: 1200
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3736,7 +3771,7 @@ steps:
         to: /io/hailtop
     timeout: 1200
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3775,7 +3810,7 @@ steps:
         --ignore=docs/cookbook/files/ \
         --ignore=docs/conf.py
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3908,7 +3943,7 @@ steps:
       cd hail
       chmod 755 ./gradlew
       time retry ./gradlew --version
-      make test-dataproc DEV_CLARIFIER=ci_test_dataproc/
+      make test-dataproc DEV_CLARIFIER=ci_test_dataproc
     dependsOn:
       - ci_utils_image
       - default_ns
@@ -4034,7 +4069,7 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -4126,7 +4161,7 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -4152,7 +4187,7 @@ steps:
         to: /io/test
     timeout: 300
     secrets:
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config

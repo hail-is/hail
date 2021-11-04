@@ -63,7 +63,7 @@ class SJavaArrayStringCode(val st: SJavaArrayString, val array: Code[Array[Strin
 
   def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SIndexableValue = {
     val s = SJavaArrayStringSettable(sb, st, name)
-    cb.assign(s, this)
+    s.store(cb, this)
     s
   }
 

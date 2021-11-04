@@ -3,6 +3,7 @@ import pytest
 
 import hail as hl
 from hail.utils import new_temp_file
+from hail.vds.combiner.combine import defined_entry_fields
 from ..helpers import startTestHailContext, stopTestHailContext, resource, fails_local_backend, fails_service_backend
 
 setUpModule = startTestHailContext
@@ -23,7 +24,8 @@ def generate_5_sample_vds():
                     includes_end=True)
     ]
     vcfs = hl.import_gvcfs(paths, parts, reference_genome='GRCh38', array_elements_required=False)
-    vds = hl.vds.combiner.combine_variant_datasets([hl.vds.combiner.transform_gvcf(mt) for mt in vcfs])
+    to_keep = defined_entry_fields(vcfs[0].filter_rows(hl.is_defined(vcfs[0].info.END)), 100_000)
+    vds = hl.vds.combiner.combine_variant_datasets([hl.vds.combiner.transform_gvcf(mt, to_keep) for mt in vcfs])
     vds.variant_data = vds.variant_data._key_rows_by_assert_sorted('locus', 'alleles')
     vds.write(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'), overwrite=True)
 
@@ -184,6 +186,7 @@ def test_vcf_vds_combiner_equivalence():
     smt = smt.select_entries(*smt_from_vds.entry)  # harmonize fields and order
     smt = smt.key_rows_by('locus', 'alleles')
     assert smt._same(smt_from_vds)
+
 
 @fails_service_backend(reason='persist')
 def test_filter_samples_and_merge():

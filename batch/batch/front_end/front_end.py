@@ -70,7 +70,7 @@ from ..exceptions import (
 from ..inst_coll_config import InstanceCollectionConfigs
 from ..file_store import FileStore
 from ..database import CallError, check_call_procedure
-from ..batch_configuration import BATCH_BUCKET_NAME, DEFAULT_NAMESPACE, SCOPE
+from ..batch_configuration import BATCH_STORAGE_URI, DEFAULT_NAMESPACE, SCOPE
 from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION, memory_to_worker_type
 from ..spec_writer import SpecWriter
 from ..batch_format_version import BatchFormatVersion
@@ -328,7 +328,8 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
     if state == 'Running':
         try:
             resp = await request_retry_transient_errors(
-                client_session, 'GET', f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
+                client_session, 'GET', f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log'
+            )
             return await resp.json()
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
@@ -465,7 +466,8 @@ async def _get_full_job_status(app, record):
     ip_address = record['ip_address']
     try:
         resp = await request_retry_transient_errors(
-            client_session, 'GET', f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status')
+            client_session, 'GET', f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status'
+        )
         return await resp.json()
     except aiohttp.ClientResponseError as e:
         if e.status == 404:
@@ -639,7 +641,7 @@ async def _create_jobs(userdata: dict, job_specs: dict, batch_id: int, app: aioh
     # which is sensitive
     userdata = {
         'username': user,
-        'gsa_key_secret_name': userdata['gsa_key_secret_name'],
+        'hail_credentials_secret_name': userdata['hail_credentials_secret_name'],
         'tokens_secret_name': userdata['tokens_secret_name'],
     }
 
@@ -798,10 +800,11 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         raise web.HTTPBadRequest(reason=f'unauthorized secret {(secret["namespace"], secret["name"])}')
 
                 spec['secrets'] = secrets
+
                 secrets.append(
                     {
                         'namespace': DEFAULT_NAMESPACE,
-                        'name': userdata['gsa_key_secret_name'],
+                        'name': userdata['hail_credentials_secret_name'],
                         'mount_path': '/gsa-key',
                         'mount_in_copy': True,
                     }
@@ -828,7 +831,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     secrets.append(
                         {
                             'namespace': DEFAULT_NAMESPACE,
-                            'name': 'gce-deploy-config',
+                            'name': 'worker-deploy-config',
                             'mount_path': '/deploy-config',
                             'mount_in_copy': False,
                         }
@@ -1048,7 +1051,7 @@ async def _create_batch(batch_spec: dict, userdata: dict, db: Database):
     # which is sensitive
     userdata = {
         'username': user,
-        'gsa_key_secret_name': userdata['gsa_key_secret_name'],
+        'hail_credentials_secret_name': userdata['hail_credentials_secret_name'],
         'tokens_secret_name': userdata['tokens_secret_name'],
     }
 
@@ -2126,7 +2129,7 @@ async def api_delete_billing_projects(request, userdata):  # pylint: disable=unu
 async def _refresh(app):
     db: Database = app['db']
     inst_coll_configs: InstanceCollectionConfigs = app['inst_coll_configs']
-    await inst_coll_configs.refresh()
+    await inst_coll_configs.refresh(db)
     row = await db.select_and_fetchone(
         '''
 SELECT frozen FROM globals;
@@ -2197,11 +2200,9 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
 
     credentials = aiogoogle.GoogleCredentials.from_file('/gsa-key/key.json')
     fs = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
-    app['file_store'] = FileStore(fs, BATCH_BUCKET_NAME, instance_id)
+    app['file_store'] = FileStore(fs, BATCH_STORAGE_URI, instance_id)
 
-    inst_coll_configs = InstanceCollectionConfigs(app)
-    app['inst_coll_configs'] = inst_coll_configs
-    await inst_coll_configs.async_init()
+    app['inst_coll_configs'] = await InstanceCollectionConfigs.create(db)
 
     cancel_batch_state_changed = asyncio.Event()
     app['cancel_batch_state_changed'] = cancel_batch_state_changed
@@ -2232,7 +2233,10 @@ async def on_cleanup(app):
             try:
                 await app['client_session'].close()
             finally:
-                await app['file_store'].close()
+                try:
+                    await app['file_store'].close()
+                finally:
+                    await app['db'].async_close()
 
 
 def run():

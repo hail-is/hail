@@ -1,5 +1,6 @@
 from typing import Set, Dict
 from hail.typecheck import typecheck, setof
+import hail as hl
 
 from .indices import Indices, Aggregation
 from ..expressions import Expression, ExpressionException, expr_any
@@ -155,18 +156,19 @@ async def _async_eval_many(*expressions, timed=False, name='_eval_many'):
     irs = []
     for expression in expressions:
         analyze(name, expression, Indices(expression._indices.source))
-        if expression._indices.source is None:
+        tupled_expression = hl.tuple([expression])
+        if tupled_expression._indices.source is None:
             ir_type = expression._ir.typ
             expression_type = expression.dtype
             if ir_type != expression.dtype:
                 raise ExpressionException(f'Expression type and IR type differed: \n{ir_type}\n vs \n{expression_type}')
-            irs.append(expression._ir)
+            irs.append(tupled_expression._ir)
         else:
             uid = Env.get_uid()
-            ir = expression._indices.source.select_globals(**{uid: expression}).index_globals()[uid]._ir
+            ir = tupled_expression._indices.source.select_globals(**{uid: tupled_expression}).index_globals()[uid]._ir
             irs.append(ir)
 
-    return await Env.backend()._async_execute_many(*irs, timed=timed)
+    return [(x[0][0], x[1]) for x in await Env.backend()._async_execute_many(*irs, timed=timed)]
 
 
 @typecheck(expression=expr_any)

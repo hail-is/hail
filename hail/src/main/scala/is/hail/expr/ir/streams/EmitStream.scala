@@ -1798,7 +1798,7 @@ object EmitStream {
 
           mb.implementLabel(childProducer.LproduceElementDone) { cb =>
             cb.assign(xCurElt, childProducer.element.toI(cb).get(cb))
-            cb.assign(curKey, subsetCode.get)
+            cb.assign(curKey, subsetCode)
             cb.ifx(inOuter, cb.goto(LchildProduceDoneOuter), cb.goto(LchildProduceDoneInner))
           }
 

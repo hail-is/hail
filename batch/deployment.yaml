@@ -111,19 +111,19 @@ spec:
          - name: HAIL_SCOPE
            value: "{{ scope }}"
 {% if deploy %}
-         - name: HAIL_BATCH_BUCKET_NAME
+         - name: HAIL_BATCH_STORAGE_URI
            valueFrom:
              secretKeyRef:
                name: global-config
-               key: batch_logs_bucket
+               key: batch_logs_storage_uri
          - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
            value: "7200" # 2 hours
 {% else %}
-         - name: HAIL_BATCH_BUCKET_NAME
+         - name: HAIL_BATCH_STORAGE_URI
            valueFrom:
              secretKeyRef:
                name: global-config
-               key: hail_test_gcs_bucket
+               key: test_storage_uri
          - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
            value: "300"
 {% endif %}
@@ -267,19 +267,19 @@ spec:
          - name: HAIL_SCOPE
            value: "{{ scope }}"
 {% if deploy %}
-         - name: HAIL_BATCH_BUCKET_NAME
+         - name: HAIL_BATCH_STORAGE_URI
            valueFrom:
              secretKeyRef:
                name: global-config
-               key: batch_logs_bucket
+               key: batch_logs_storage_uri
          - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
            value: "7200" # 2 hours
 {% else %}
-         - name: HAIL_BATCH_BUCKET_NAME
+         - name: HAIL_BATCH_STORAGE_URI
            valueFrom:
              secretKeyRef:
                name: global-config
-               key: hail_test_gcs_bucket
+               key: test_storage_uri
          - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
            value: "300"
 {% endif %}
