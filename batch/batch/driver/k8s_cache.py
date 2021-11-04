@@ -6,7 +6,10 @@ from ..batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS
 
 
 class K8sCache:
-    def __init__(self, client, refresh_time_ns: int, max_size: int = 100):
+    def __init__(self,
+                 client,
+                 refresh_time_ns: int = 5 * 1000 * 1000 * 1000,
+                 max_size: int = 100):
         self.client = client
         self.secret_cache = TimeLimitedMaxSizeCache(
             self._get_secret_from_k8s, refresh_time_ns, max_size)
@@ -25,8 +28,8 @@ class K8sCache:
             *name_and_namespace,
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
 
-    async def read_secret(self, name, namespace, timeout):
+    async def read_secret(self, name, namespace):
         return await self.secret_cache.lookup((name, namespace))
 
-    async def read_service_account(self, name, namespace, timeout):
+    async def read_service_account(self, name, namespace):
         return await self.secret_cache.lookup((name, namespace))
