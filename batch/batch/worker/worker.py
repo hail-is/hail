@@ -17,9 +17,9 @@ from aiohttp import web
 import async_timeout
 import concurrent
 import aiodocker  # type: ignore
+import docker as syncdocker
 import aiorwlock
 from collections import defaultdict
-import psutil
 from aiodocker.exceptions import DockerError  # type: ignore
 
 from gear.clients import get_compute_client, get_cloud_async_fs
@@ -140,6 +140,7 @@ else:
 deploy_config = DeployConfig(deploy_location, NAMESPACE, {})
 
 docker: Optional[aiodocker.Docker] = None
+docker_sync: Optional[syncdocker.DockerClient] = None
 
 port_allocator: Optional['PortAllocator'] = None
 network_allocator: Optional['NetworkAllocator'] = None
@@ -320,14 +321,8 @@ def docker_call_retry(timeout, name):
     return wrapper
 
 
-async def pull_docker_image(image_ref_str, auth):
-    try:
-        await check_shell_output(f'''
-docker login --username {auth["username"]} --password {auth["password"]} && \
-docker pull {image_ref_str}
-''')
-    except CalledProcessError as e:
-        raise DockerError(e.returncode, e.stderr) from e
+async def pull_docker_image(pool: concurrent.futures.ThreadPoolExecutor, image_ref_str: str, auth: dict):
+    return await blocking_to_async(pool, docker_sync.images.pull, image_ref_str, auth=auth)
 
 
 async def send_signal_and_wait(proc, signal, timeout=None):
@@ -565,7 +560,7 @@ class Container:
                 # per-user image cache.
                 auth = self.current_user_access_token()
                 await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                    pull_docker_image, self.image_ref_str, auth=auth
+                    pull_docker_image, worker.pool, self.image_ref_str, auth=auth
                 )
         except DockerError as e:
             if e.status == 404 and 'pull access denied' in e.message:
@@ -583,7 +578,7 @@ class Container:
         except DockerError as e:
             if e.status == 404:
                 await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                    pull_docker_image, self.image_ref_str, auth=auth
+                    pull_docker_image, worker.pool, self.image_ref_str, auth=auth
                 )
             else:
                 raise
@@ -2139,6 +2134,7 @@ async def async_main():
     global port_allocator, network_allocator, worker, docker
 
     docker = aiodocker.Docker()
+    docker_sync = syncdocker.DockerClient()
 
     port_allocator = PortAllocator()
     network_allocator = NetworkAllocator()
@@ -2152,18 +2148,24 @@ async def async_main():
             await worker.shutdown()
             log.info('worker shutdown')
         finally:
-            await docker.close()
-            log.info('docker closed')
-            asyncio.get_event_loop().set_debug(True)
-            log.debug('Tasks immediately after docker close')
-            dump_all_stacktraces()
-            other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
-            if other_tasks:
-                _, pending = await asyncio.wait(other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED)
-                for t in pending:
-                    log.debug('Dangling task:')
-                    t.print_stack()
-                    t.cancel()
+            try:
+                docker_sync.close()
+                log.info('sync docker closed')
+            finally:
+                try:
+                    await docker.close()
+                    log.info('docker closed')
+                finally:
+                    asyncio.get_event_loop().set_debug(True)
+                    log.debug('Tasks immediately after docker close')
+                    dump_all_stacktraces()
+                    other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
+                    if other_tasks:
+                        _, pending = await asyncio.wait(other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED)
+                        for t in pending:
+                            log.debug('Dangling task:')
+                            t.print_stack()
+                            t.cancel()
 
 
 loop = asyncio.get_event_loop()
