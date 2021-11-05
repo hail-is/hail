@@ -149,9 +149,9 @@ LOCATION=$(curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metada
 CORES=$(nproc)
 NAMESPACE=$(jq -r '.namespace' userdata)
 ACTIVATION_TOKEN=$(jq -r '.activation_token' userdata)
-IP_ADDRESS=$(curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metadata/instance/network/interface/0/ipv4/ipAddress/0/publicIpAddress?api-version=2021-02-01&format=text")
+IP_ADDRESS=$(curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metadata/instance/network/interface/0/ipv4/ipAddress/0/privateIpAddress?api-version=2021-02-01&format=text")
 
-BATCH_LOGS_BUCKET_NAME=$(jq -r '.batch_logs_bucket_name' userdata)
+BATCH_LOGS_STORAGE_URI=$(jq -r '.batch_logs_storage_uri' userdata)
 INSTANCE_ID=$(jq -r '.instance_id' userdata)
 INSTANCE_CONFIG=$(jq -r '.instance_config' userdata)
 MAX_IDLE_TIME_MSECS=$(jq -r '.max_idle_time_msecs' userdata)
@@ -161,7 +161,7 @@ BATCH_WORKER_IMAGE=$(jq -r '.batch_worker_image' userdata)
 DOCKER_ROOT_IMAGE=$(jq -r '.docker_root_image' userdata)
 DOCKER_PREFIX=$(jq -r '.docker_prefix' userdata)
 
-INTERNAL_GATEWAY_IP=$(jq -r '.internal_gateway_ip' userdata)
+INTERNAL_GATEWAY_IP=$(jq -r '.internal_ip' userdata)
 
 # private job network = 10.0.0.0/16
 # public job network = 10.1.0.0/16
@@ -176,8 +176,13 @@ sudo iptables --append FORWARD --destination $INTERNAL_GATEWAY_IP --jump ACCEPT
 # And this worker
 sudo iptables --append FORWARD --destination $IP_ADDRESS --jump ACCEPT
 # Forbid outgoing requests to cluster-internal IP addresses
-ENS_DEVICE=$(ip link list | grep ens | awk -F": " '{{ print $2 }}')
-sudo iptables --append FORWARD --out-interface $ENS_DEVICE ! --destination 10.128.0.0/16 --jump ACCEPT
+INTERNET_INTERFACE=eth0
+sudo iptables --append FORWARD --out-interface $INTERNET_INTERFACE ! --destination 10.128.0.0/16 --jump ACCEPT
+
+cat >> /etc/hosts <<EOF
+$INTERNAL_GATEWAY_IP batch-driver.hail
+$INTERNAL_GATEWAY_IP batch.hail
+EOF
 
 {make_global_config_str}
 
@@ -196,7 +201,7 @@ docker run \
 -e NAMESPACE=$NAMESPACE \
 -e ACTIVATION_TOKEN=$ACTIVATION_TOKEN \
 -e IP_ADDRESS=$IP_ADDRESS \
--e BATCH_LOGS_BUCKET_NAME=$BATCH_LOGS_BUCKET_NAME \
+-e BATCH_LOGS_STORAGE_URI=$BATCH_LOGS_STORAGE_URI \
 -e INSTANCE_ID=$INSTANCE_ID \
 -e SUBSCRIPTION_ID=$SUBSCRIPTION_ID \
 -e RESOURCE_GROUP=$RESOURCE_GROUP \
@@ -207,6 +212,7 @@ docker run \
 -e MAX_IDLE_TIME_MSECS=$MAX_IDLE_TIME_MSECS \
 -e BATCH_WORKER_IMAGE=$BATCH_WORKER_IMAGE \
 -e BATCH_WORKER_IMAGE_ID=$BATCH_WORKER_IMAGE_ID \
+-e INTERNET_INTERFACE=$INTERNET_INTERFACE \
 -e UNRESERVED_WORKER_DATA_DISK_SIZE_GB=$UNRESERVED_WORKER_DATA_DISK_SIZE_GB \
 -e INTERNAL_GATEWAY_IP=$INTERNAL_GATEWAY_IP \
 -v /var/run/docker.sock:/var/run/docker.sock \
@@ -247,9 +253,10 @@ done
         'docker_prefix': DOCKER_PREFIX,
         'namespace': DEFAULT_NAMESPACE,
         'internal_ip': INTERNAL_GATEWAY_IP,
-        'batch_logs_bucket_name': file_store.batch_logs_storage_uri,
+        'batch_logs_storage_uri': file_store.batch_logs_storage_uri,
         'instance_id': file_store.instance_id,
         'max_idle_time_msecs': max_idle_time_msecs,
+        'instance_config': base64.b64encode(json.dumps(instance_config.to_dict()).encode()).decode()
     }
     user_data_str = base64.b64encode(json.dumps(user_data).encode('utf-8')).decode('utf-8')
 

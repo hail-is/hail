@@ -105,10 +105,10 @@ DOCKER_PREFIX = os.environ['DOCKER_PREFIX']
 PUBLIC_IMAGES = publicly_available_images(DOCKER_PREFIX)
 INSTANCE_CONFIG = json.loads(base64.b64decode(os.environ['INSTANCE_CONFIG']).decode())
 INSTANCE_ENVIRONMENT = get_instance_environment(CLOUD)
-PROJECT = os.environ['PROJECT']
 MAX_IDLE_TIME_MSECS = int(os.environ['MAX_IDLE_TIME_MSECS'])
 BATCH_WORKER_IMAGE = os.environ['BATCH_WORKER_IMAGE']
 BATCH_WORKER_IMAGE_ID = os.environ['BATCH_WORKER_IMAGE_ID']
+INTERNET_INTERFACE = os.environ['INTERNET_INTERFACE']
 UNRESERVED_WORKER_DATA_DISK_SIZE_GB = int(os.environ['UNRESERVED_WORKER_DATA_DISK_SIZE_GB'])
 assert UNRESERVED_WORKER_DATA_DISK_SIZE_GB >= 0
 
@@ -124,6 +124,7 @@ log.info(f'DOCKER_PREFIX {DOCKER_PREFIX}')
 log.info(f'INSTANCE_CONFIG {INSTANCE_CONFIG}')
 log.info(f'INSTANCE_ENVIRONMENT {INSTANCE_ENVIRONMENT}')
 log.info(f'MAX_IDLE_TIME_MSECS {MAX_IDLE_TIME_MSECS}')
+log.info(f'INTERNET_INTERFACE {INTERNET_INTERFACE}')
 log.info(f'UNRESERVED_WORKER_DATA_DISK_SIZE_GB {UNRESERVED_WORKER_DATA_DISK_SIZE_GB}')
 
 instance_config = instance_config_from_config_dict(INSTANCE_CONFIG)
@@ -201,6 +202,7 @@ class NetworkNamespace:
         with open(f'/etc/netns/{self.network_ns_name}/resolv.conf', 'w') as resolv:
             if self.private:
                 resolv.write('nameserver 169.254.169.254\n')
+                # FIXME?: This is google-specific
                 resolv.write('search c.hail-vdc.internal google.internal\n')
             else:
                 resolv.write('nameserver 8.8.8.8\n')
@@ -260,13 +262,7 @@ class NetworkAllocator:
     def __init__(self):
         self.private_networks = asyncio.Queue()
         self.public_networks = asyncio.Queue()
-
-        for nic in psutil.net_if_addrs().keys():
-            if nic.startswith('ens'):
-                self.internet_interface = nic
-                break
-        else:
-            raise Exception('No ens interface detected')
+        self.internet_interface = INTERNET_INTERFACE
 
     async def reserve(self, netns_pool_min_size: int = 64):
         for subnet_index in range(netns_pool_min_size):

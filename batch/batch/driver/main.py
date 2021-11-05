@@ -236,7 +236,6 @@ async def get_gsa_key_1(instance):
 
 async def get_credentials_1(instance):
     log.info(f'returning {instance.inst_coll.cloud} credentials to activating instance {instance}')
-    assert instance.inst_coll.cloud == 'gcp'
     credentials_file = '/gsa-key/key.json'
     with open(credentials_file, 'r') as f:
         key = json.loads(f.read())
