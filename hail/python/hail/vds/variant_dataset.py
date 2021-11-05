@@ -127,7 +127,7 @@ class VariantDataset:
         return self.reference_data.count_cols()
 
     @typecheck_method(check_data=bool)
-    def validate(self, *, check_data: bool = False):
+    def validate(self, *, check_data: bool = True):
         """Eagerly checks necessary representational properties of the VDS."""
 
         rd = self.reference_data

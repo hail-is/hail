@@ -16,7 +16,8 @@ def write_variant_datasets(vdss, paths, *,
                            overwrite=False, stage_locally=False,
                            codec_spec=None):
     """Write many `vdses` to their corresponding path in `paths`."""
-    ref_writer = ir.MatrixNativeMultiWriter([f"{p}/reference_data" for p in paths], overwrite, stage_locally, codec_spec)
+    ref_writer = ir.MatrixNativeMultiWriter([f"{p}/reference_data" for p in paths], overwrite, stage_locally,
+                                            codec_spec)
     var_writer = ir.MatrixNativeMultiWriter([f"{p}/variant_data" for p in paths], overwrite, stage_locally, codec_spec)
     Env.backend().execute(ir.MatrixMultiWrite([vds.reference_data._mir for vds in vdss], ref_writer))
     Env.backend().execute(ir.MatrixMultiWrite([vds.variant_data._mir for vds in vdss], var_writer))
@@ -436,8 +437,9 @@ def segment_reference_blocks(ref: 'MatrixTable', intervals: 'Table') -> 'MatrixT
             hl.rbind(joined.locus.position,
                      lambda pos: hl.enumerate(hl.scan._densify(hl.len(joined._ref_cols), joined._ref_entries))
                      .map(lambda idx_and_e: hl.rbind(idx_and_e[0], idx_and_e[1],
-                                                     lambda idx, e: hl.coalesce(joined._ref_entries[idx], hl.or_missing((e.__contig_idx == joined.__contig_idx) & (e.END >= pos),
-                                                  e))).drop('__contig_idx'))
+                                                     lambda idx, e: hl.coalesce(joined._ref_entries[idx], hl.or_missing(
+                                                         (e.__contig_idx == joined.__contig_idx) & (e.END >= pos),
+                                                         e))).drop('__contig_idx'))
                      ))
     )
     dense = dense.filter(dense._include_locus).drop('_interval_dup', '_include_locus', '__contig_idx')
@@ -536,7 +538,8 @@ def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0
     interval_size = interval.end.position + interval.includes_end - interval.start.position - 1 + interval.includes_start
     per_interval = per_interval.annotate_rows(interval_size=interval_size)
     per_interval = per_interval.annotate_entries(
-        fraction_over_gq_threshold=tuple(hl.float(x) / per_interval.interval_size for x in per_interval.bases_over_gq_threshold))
+        fraction_over_gq_threshold=tuple(
+            hl.float(x) / per_interval.interval_size for x in per_interval.bases_over_gq_threshold))
 
     if dp_field_to_use is not None:
         per_interval = per_interval.annotate_entries(mean_dp=per_interval.sum_dp / per_interval.interval_size)
