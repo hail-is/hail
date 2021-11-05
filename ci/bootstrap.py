@@ -244,7 +244,7 @@ users:
                             '--security-opt',
                             'seccomp=unconfined',
                             '--security-opt',
-                            'apparmor=unconfined'
+                            'apparmor=unconfined',
                         ]
                     else:
                         security_options = []
