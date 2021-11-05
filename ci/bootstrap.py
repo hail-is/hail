@@ -240,7 +240,12 @@ users:
                         mount_options.extend(['-v', '/var/run/docker.sock:/var/run/docker.sock'])
 
                     if j._unconfined:
-                        security_options = ['--security-opt', 'seccomp=unconfined', '--security-opt', 'apparmor=unconfined']
+                        security_options = [
+                            '--security-opt',
+                            'seccomp=unconfined',
+                            '--security-opt',
+                            'apparmor=unconfined'
+                        ]
                     else:
                         security_options = []
 
