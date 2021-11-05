@@ -195,6 +195,15 @@ resource "azurerm_mysql_server" "db" {
   public_network_access_enabled = false
 }
 
+# Without this setting batch is not permitted to create
+# MySQL functions since it is not SUPER
+resource "azurerm_mysql_configuration" "example" {
+  name                = "log_bin_trust_function_creators"
+  resource_group_name = data.azurerm_resource_group.rg.name
+  server_name         = azurerm_mysql_server.db.name
+  value               = "1"
+}
+
 data "http" "db_ca_cert" {
   url = "https://www.digicert.com/CACerts/BaltimoreCyberTrustRoot.crt.pem"
 }
