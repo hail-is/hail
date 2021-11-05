@@ -27,7 +27,7 @@ variable "sql_config" {
   })
 }
 
-variable "acr_push_credentials" {
+variable "registry_push_credentials" {
   type = map
 }
 
