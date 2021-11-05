@@ -3,7 +3,7 @@ from typing import List, Tuple
 import hail as hl
 import hail.expr.aggregators as agg
 from hail.expr import (expr_float64, expr_call, check_entry_indexed,
-                       check_row_indexed, matrix_table_source, table_source)
+                       matrix_table_source)
 from hail import ir
 from hail.table import Table
 from hail.typecheck import typecheck
@@ -234,7 +234,6 @@ class KrylovFactorization:
         self.k = k
         (self.U1, self.S, self.V1t) = hl.nd.svd(R, full_matrices=False)._persist()
 
-
     def reduced_svd(self, k):
         S = self.S[:k]._persist()
 
@@ -250,9 +249,8 @@ class KrylovFactorization:
 
         return U, S, V
 
-
     def spectral_moments(self, num_moments, R):
-        eigval_powers = hl.nd.vstack([self.S.map(lambda x: x**(2*i)) for i in range(1, num_moments + 1)])
+        eigval_powers = hl.nd.vstack([self.S.map(lambda x: x**(2 * i)) for i in range(1, num_moments + 1)])
         return (eigval_powers @ ((self.V1t[:, :self.k] @ R).map(lambda x: x**2).sum(1))) / self.k
 
 
@@ -323,7 +321,7 @@ def _reduced_svd(A: TallSkinnyMatrix, k=10, compute_U=False, iterations=2, itera
         L = k + 2
     else:
         L = iteration_size
-    assert((q+1)*L >= k)
+    assert((q + 1) * L >= k)
     n = A.ncols
 
     # Generate random matrix G
@@ -386,7 +384,7 @@ def _pca_and_moments(entry_expr, k=10, num_moments=5, compute_loadings=False, q_
     fact2 = _krylov_factorization(A, Q1, p, compute_U=False)
     moments = fact2.spectral_moments(num_moments, R1)
     # Add back exact moments
-    moments = hl.eval(moments + hl.nd.array([fact.S.map(lambda x: x**(2*i)).sum() for i in range(1, num_moments + 1)]))
+    moments = hl.eval(moments + hl.nd.array([fact.S.map(lambda x: x**(2 * i)).sum() for i in range(1, num_moments + 1)]))
 
     scores = V * S
     eigens = hl.eval(S * S)
@@ -505,7 +503,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     check_entry_indexed('_blanczos_pca/entry_expr', entry_expr)
     A = _make_tsm(entry_expr, block_size)
 
-    U, S, V = _reduced_svd(A, k, compute_loadings, q_iterations, k+oversampling_param)
+    U, S, V = _reduced_svd(A, k, compute_loadings, q_iterations, k + oversampling_param)
 
     scores = V * S
     eigens = hl.eval(S * S)
