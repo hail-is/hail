@@ -41,6 +41,16 @@ Instructions:
 - Delete the default network if it exists. Enabling the networking
   API creates it.
 
+- Go to the Google Cloud console, API & Services, Credentials.
+  Configure the consent screen.  Add the scope:
+  https://www.googleapis.com/auth/userinfo.email.  Back in Credentials, create an OAuth
+  client ID.  Authorize the redirect URIs:
+
+   - https://auth.<domain>/oauth2callback
+   - http://127.0.0.1/oauth2callback
+
+  Download the client secret as `~/.hail/auth_oauth2_client_secret.json`.
+
 - Install terraform.
 
 - Create `$HOME/.hail/global.tfvars` that looks like:
@@ -91,6 +101,11 @@ Instructions:
    gcloud container clusters get-credentials --zone <gcp-zone> vdc
    ```
 
+   Register `domain` with a DNS registry with the `ip` field in the
+   Kubernetes global-config. This should point to the kubernetes
+   external load balancer.
+
+
 You can now install Hail:
 
 - Create a VM on the internal network, standard-8, 100GB PD-SSD,
@@ -100,83 +115,33 @@ You can now install Hail:
   connect to this instance with ssh.  You may want to add a suiteable
   ssh forwarding rule to the default network.
 
-- Standardize file permissions.  This is for docker, which considers
-  permissions for caching.  Run `echo 'umask 022' >> ~/.profile`.  You
-  will need to log out/in or run `umask 022`.
-
 - Clone the Hail Github repository:
 
   ```
   git clone https://github.com/hail-is/hail.git
   ```
 
-- Install some dependencies on the VM:
+- In the $HAIL/infra directory, run
 
   ```
-  sudo apt update
-  sudo apt install -y docker.io python3-pip openjdk-8-jre-headless jq
-  sudo snap install --classic kubectl
-  sudo usermod -a -G docker $USER
-  gcloud -q auth configure-docker
-  # If you are using the Artifact Registry:
-  # gcloud -q auth configure-docker $REGION-docker.pkg.dev
-  gcloud container clusters get-credentials --zone <gcp-zone> vdc
-  python3 -m pip install -r $HOME/hail/docker/requirements.txt
+  ./install_bootstrap_dependencies.sh
   ```
 
-  You will have to log out/in for the usermod to take effect.
+  At this point, log out and ssh back in (so that changes to group settings
+  for Docker can be applied). The following steps should be completed from
+  the $HAIL/infra/gcp directory, unless otherwise stated.
 
-- Update $HAIL/config.mk with your infrastructure settings.  You can
-  get settings from the default/global-config secret:
-
-  ```
-  kubectl -n default get secret global-config -o json | jq '.data | map_values(@base64d)'
-  ```
-
-  Make sure that by this point you've registered the `domain` from config.mk with
-  a DNS registry with a record pointing to the Kubernetes external load balancer.
-
-- In `$HAIL/docker/third-party` run:
+- Run the following to authenticate docker and kubectl with the new
+  container registry and kubernetes cluster, respectively.
 
   ```
-  DOCKER_PREFIX=gcr.io/<gcp-project-id> ./copy_images.sh
+  ./bootstrap.sh configure_gcloud <ZONE>
   ```
 
-  This copies some base images from Dockerhub (which now has rate
-  limits) to GCR.
-
-- Generate TLS certificates.  See ../dev-docs/tls-cookbook.md.
-
-- Run `kubectl -n default apply -f $HAIL/ci/bootstrap.yaml`.
-
-- Build the CI utils image.  Run `make -C $HAIL/ci build-ci-utils build-hail-buildkit`.
-
-- Deploy the bootstrap gateway.  Run `make -C $HAIL/bootstrap-gateway deploy`.
-
-- Create Let's Encrypt certs. Run `make -C $HAIL/letsencrypt run`.
-
-- Deploy the internal-gateway.  Run `make -C $HAIL/internal-gateway deploy`.
-
-- Generate the version info:
+- Deploy unmanaged resources by running
 
   ```
-  make -C $HAIL/hail python-version-info
-  make -C $HAIL/docker hail_version
-  ```
-
-- Go to the Google Cloud console, API & Services, Credentials.
-  Configure the consent screen.  Add the scope:
-  https://www.googleapis.com/auth/userinfo.email.  Back in Credentials, create an OAuth
-  client ID.  Authorize the redirect URIs:
-
-   - https://auth.<domain>/oauth2callback
-   - http://127.0.0.1/oauth2callback
-
-  Download the client secret as client_secret.json.  Create the
-  auth-oauth2-client-secret secret with:
-
-  ```
-  kubectl -n default create secret generic auth-oauth2-client-secret --from-file=./client_secret.json
+  ./bootstrap.sh deploy_unmanaged
   ```
 
 - Create the batch worker VM image. Run:
@@ -191,12 +156,6 @@ You can now install Hail:
   make -C $HAIL/batch create-worker-image
   ```
 
-- Create the worker Docker image. Run:
-
-  ```
-  make -C $HAIL/batch build-worker
-  ```
-
 - Download the global-config to be used by `bootstrap.py`.
 
   ```
@@ -204,36 +163,19 @@ You can now install Hail:
   kubectl -n default get secret global-config -o json | jq -r '.data | map_values(@base64d) | to_entries|map("echo -n \(.value) > /global-config/\(.key)") | .[]' | bash
   ```
 
-- Bootstrap the cluster. Make sure to substitute the values for the exported
-  environment variables. Note that if you set `use_artifact_registry` for Terraform
-  above, make sure your `HAIL_DOCKER_PREFIX` has the format of
-  `<region>-docker.pkg.dev/<project>/hail`.
+- Bootstrap the cluster.
 
   ```
-  cd $HAIL
-  export HAIL_DOCKER_PREFIX=gcr.io/<gcp-project>
-  export HAIL_CI_UTILS_IMAGE=$HAIL_DOCKER_PREFIX/ci-utils:cache
-  export HAIL_BUILDKIT_IMAGE=$HAIL_DOCKER_PREFIX/hail-buildkit:cache
-  export BATCH_WORKER_IMAGE=$HAIL_DOCKER_PREFIX/batch-worker:cache
-  export HAIL_CI_BUCKET_NAME=dummy
-  export KUBERNETES_SERVER_URL='<k8s-server-url>'
-  export HAIL_DEFAULT_NAMESPACE='default'
-  export HAIL_DOMAIN=<domain>
-  export HAIL_GCP_ZONE=<gcp-zone>
-  export HAIL_GCP_PROJECT=<gcp-project>
-  export PYTHONPATH=$HOME/hail/ci:$HOME/hail/batch:$HOME/hail/hail/python
-
-  python3 ci/bootstrap.py hail-is/hail:main $(git rev-parse HEAD) test_batch_0
+  ./bootstrap.sh bootstrap <REPO>/hail:<BRANCH> deploy_batch
   ```
 
 - Deploy the gateway. First, edit `$HAIL/letsencrypt/subdomains.txt` to include
   just the deployed services. Then run `make -C $HAIL/gateway deploy`.
 
-- Create the initial (developer) user. Make sure to use the same environment
-  variables as in the block above.
+- Create the initial (developer) user.
 
   ```
-  python3 ci/bootstrap.py --extra-code-config '{"username":"<username>","email":"<email>"}' hail-is/hail:main $(git rev-parse HEAD) create_initial_user
+  ./bootstrap.sh bootstrap <REPO>/hail:<BRANCH> create_initial_user <USERNAME> <EMAIL>
   ```
 
   Additional users can be added by the initial user by going to auth.<domain>/users.

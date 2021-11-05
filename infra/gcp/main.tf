@@ -591,3 +591,13 @@ resource "kubernetes_cluster_role_binding" "batch" {
     namespace = "default"
   }
 }
+
+resource "kubernetes_secret" "auth_oauth2_client_secret" {
+  metadata {
+    name = "auth-oauth2-client-secret"
+  }
+
+  data = {
+    "client_secret.json" = file("~/.hail/auth_oauth2_client_secret.json")
+  }
+}
