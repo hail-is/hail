@@ -3266,6 +3266,42 @@ class Tests(unittest.TestCase):
         result = hl.eval(hl.uniroot(multiple_roots, 0, 5.5, tolerance=tol))
         self.assertTrue(any(abs(result - root) < tol for root in roots))
 
+    def test_dnorm(self):
+        self.assert_evals_to(hl.dnorm(0), 0.3989422804014327)
+        self.assert_evals_to(hl.dnorm(0, mu=1, sigma=2), 0.17603266338214976)
+        self.assert_evals_to(hl.dnorm(0, log_p=True), -0.9189385332046728)
+
+    def test_pnorm(self):
+        self.assert_evals_to(hl.pnorm(0), 0.5)
+        self.assert_evals_to(hl.pnorm(1, mu=1, sigma=2), 0.5)
+        self.assert_evals_to(hl.pnorm(1), 0.8413447460685429)
+        self.assert_evals_to(hl.pnorm(1, lower_tail=False), 0.15865525393145705)
+        self.assert_evals_to(hl.pnorm(1, log_p=True), -0.17275377902344988)
+
+    def test_qnorm(self):
+        self.assert_evals_to(hl.qnorm(hl.pnorm(0)), 0.0)
+        self.assert_evals_to(hl.qnorm(hl.pnorm(1, mu=1, sigma=2), mu=1, sigma=2), 1.0)
+        self.assert_evals_to(hl.qnorm(hl.pnorm(1)), 1.0)
+        self.assert_evals_to(hl.qnorm(hl.pnorm(1, lower_tail=False), lower_tail=False), 1.0)
+        self.assert_evals_to(hl.qnorm(hl.pnorm(1, log_p=True), log_p=True), 1.0)
+
+    def test_dchisq(self):
+        self.assert_evals_to(hl.dchisq(10, 5), 0.028334555341734464)
+        self.assert_evals_to(hl.dchisq(10, 5, ncp=5), 0.07053548900555977)
+        self.assert_evals_to(hl.dchisq(10, 5, log_p=True), -3.5636731823817143)
+
+    def test_pchisqtail(self):
+        self.assert_evals_to(hl.pchisqtail(10, 5), 0.07523524614651216)
+        self.assert_evals_to(hl.pchisqtail(10, 5, ncp=2), 0.20772889456608998)
+        self.assert_evals_to(hl.pchisqtail(10, 5, lower_tail=True), 0.9247647538534879)
+        self.assert_evals_to(hl.pchisqtail(10, 5, log_p=True), -2.5871354590744855)
+
+    def test_qchisqtail(self):
+        self.assertAlmostEqual(hl.eval(hl.qchisqtail(hl.pchisqtail(10, 5), 5)), 10.0)
+        self.assertAlmostEqual(hl.eval(hl.qchisqtail(hl.pchisqtail(10, 5, ncp=2), 5, ncp=2)), 10.0)
+        self.assertAlmostEqual(hl.eval(hl.qchisqtail(hl.pchisqtail(10, 5, lower_tail=True), 5, lower_tail=True)), 10.0)
+        self.assertAlmostEqual(hl.eval(hl.qchisqtail(hl.pchisqtail(10, 5, log_p=True), 5, log_p=True)), 10.0)
+
     def test_pT(self):
         self.assert_evals_to(hl.pT(0, 10), 0.5)
         self.assert_evals_to(hl.pT(1, 10), 0.82955343384897)
