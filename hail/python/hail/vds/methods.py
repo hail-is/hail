@@ -5,7 +5,7 @@ from hail.expr import ArrayExpression, expr_any, expr_array, expr_interval
 from hail.matrixtable import MatrixTable
 from hail.methods.misc import require_first_key_field_locus
 from hail.table import Table
-from hail.typecheck import sequenceof, typecheck
+from hail.typecheck import sequenceof, typecheck, nullable
 from hail.utils.java import Env
 from hail.utils.misc import divide_null
 from hail.vds.variant_dataset import VariantDataset
@@ -16,7 +16,8 @@ def write_variant_datasets(vdss, paths, *,
                            overwrite=False, stage_locally=False,
                            codec_spec=None):
     """Write many `vdses` to their corresponding path in `paths`."""
-    ref_writer = ir.MatrixNativeMultiWriter([f"{p}/reference_data" for p in paths], overwrite, stage_locally, codec_spec)
+    ref_writer = ir.MatrixNativeMultiWriter([f"{p}/reference_data" for p in paths], overwrite, stage_locally,
+                                            codec_spec)
     var_writer = ir.MatrixNativeMultiWriter([f"{p}/variant_data" for p in paths], overwrite, stage_locally, codec_spec)
     Env.backend().execute(ir.MatrixMultiWrite([vds.reference_data._mir for vds in vdss], ref_writer))
     Env.backend().execute(ir.MatrixMultiWrite([vds.variant_data._mir for vds in vdss], var_writer))
@@ -384,3 +385,168 @@ def split_multi(vds: 'VariantDataset', *, filter_changed_loci: bool = False) -> 
     """
     variant_data = hl.experimental.sparse_split_multi(vds.variant_data, filter_changed_loci=filter_changed_loci)
     return VariantDataset(vds.reference_data, variant_data)
+
+
+@typecheck(ref=MatrixTable, intervals=Table)
+def segment_reference_blocks(ref: 'MatrixTable', intervals: 'Table') -> 'MatrixTable':
+    """Returns a matrix table of reference blocks segmented according to intervals.
+
+    Loci outside the given intervals are discarded. Reference blocks that start before
+    but span an interval will appear at the interval start locus.
+
+    Note
+    ----
+        Assumes disjoint intervals which do not span contigs.
+
+        Requires start-inclusive intervals.
+
+    Parameters
+    ----------
+    ref : :class:`.MatrixTable`
+        MatrixTable of reference blocks.
+    intervals : :class:`.Table`
+        Table of intervals at which to segment reference blocks.
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+    """
+    interval_field = list(intervals.key)[0]
+    if not intervals[interval_field].dtype == hl.tinterval(ref.locus.dtype):
+        raise ValueError(f"expect intervals to be keyed by intervals of loci matching the VariantDataset:"
+                         f" found {intervals[interval_field].dtype} / {ref.locus.dtype}")
+    intervals = intervals.select(_interval_dup=intervals[interval_field])
+
+    if not intervals.aggregate(
+            hl.agg.all(intervals[interval_field].includes_start & (
+                intervals[interval_field].start.contig == intervals[interval_field].end.contig))):
+        raise ValueError("expect intervals to be start-inclusive")
+
+    starts = intervals.key_by(_start_locus=intervals[interval_field].start)
+    starts = starts.annotate(_include_locus=True)
+    refl = ref.localize_entries('_ref_entries', '_ref_cols')
+    joined = refl.join(starts, how='outer')
+    rg = ref.locus.dtype.reference_genome
+    contigs = rg.contigs
+    contig_idx_map = hl.literal({contigs[i]: i for i in range(len(contigs))}, 'dict<str, int32>')
+    joined = joined.annotate(__contig_idx=contig_idx_map[joined.locus.contig])
+    joined = joined.annotate(
+        _ref_entries=joined._ref_entries.map(lambda e: e.annotate(__contig_idx=joined.__contig_idx)))
+    dense = joined.annotate(
+        dense_ref=hl.or_missing(
+            joined._include_locus,
+            hl.rbind(joined.locus.position,
+                     lambda pos: hl.enumerate(hl.scan._densify(hl.len(joined._ref_cols), joined._ref_entries))
+                     .map(lambda idx_and_e: hl.rbind(idx_and_e[0], idx_and_e[1],
+                                                     lambda idx, e: hl.coalesce(joined._ref_entries[idx], hl.or_missing(
+                                                         (e.__contig_idx == joined.__contig_idx) & (e.END >= pos),
+                                                         e))).drop('__contig_idx'))
+                     ))
+    )
+    dense = dense.filter(dense._include_locus).drop('_interval_dup', '_include_locus', '__contig_idx')
+
+    # at this point, 'dense' is a table with dense rows of reference blocks, keyed by locus
+
+    refl_filtered = refl.annotate(**{interval_field: intervals[refl.locus]._interval_dup})
+
+    # remove rows that are not contained in an interval, and rows that are the start of an
+    # interval (interval starts come from the 'dense' table)
+    refl_filtered = refl_filtered.filter(
+        hl.is_defined(refl_filtered[interval_field]) & (refl_filtered.locus != refl_filtered[interval_field].start))
+
+    # union dense interval starts with filtered table
+    refl_filtered = refl_filtered.union(dense.transmute(_ref_entries=dense.dense_ref))
+
+    # rewrite reference blocks to end at the first of (interval end, reference block end)
+    refl_filtered = refl_filtered.annotate(
+        interval_end=refl_filtered[interval_field].end.position - ~refl_filtered[interval_field].includes_end)
+    refl_filtered = refl_filtered.annotate(
+        _ref_entries=refl_filtered._ref_entries.map(
+            lambda entry: entry.annotate(END=hl.min(entry.END, refl_filtered.interval_end))))
+
+    return refl_filtered._unlocalize_entries('_ref_entries', '_ref_cols', list(ref.col_key))
+
+
+@typecheck(vds=VariantDataset, intervals=Table, gq_thresholds=sequenceof(int), dp_field=nullable(str))
+def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0, 20,), dp_field=None) -> 'MatrixTable':
+    """Compute statistics about base coverage by interval.
+
+    Returns a :class:`.MatrixTable` with interval row keys and sample column keys.
+
+    Contains the following row fields:
+     - ``interval`` (*interval*): Genomic interval of interest.
+     - ``interval_size`` (*int32*): Size of interval, in bases.
+
+
+    Computes the following entry fields:
+
+     -  ``bases_over_gq_threshold`` (*tuple of int64*): Number of bases in the interval
+        over each GQ threshold.
+     -  ``fraction_over_gq_threshold`` (*tuple of float64*): Fraction of interval (in bases)
+        above each GQ threshold. Computed by dividing each member of *bases_over_gq_threshold*
+        by *interval_size*.
+     -  ``sum_dp`` (*int64*): Sum of depth values by base across the interval.
+     -  ``mean_dp`` (*float64*): Mean depth of bases across the interval. Computed by dividing
+        *mean_dp* by *interval_size*.
+
+    Note
+    ----
+    The metrics computed by this method are computed **only from reference blocks**. Most
+    variant callers produce data where non-reference calls interrupt reference blocks, and
+    so the metrics computed here are slight underestimates of the true values (which would
+    include the quality/depth of non-reference calls). This is likely a negligible difference,
+    but is something to be aware of, especially as it interacts with samples of
+    ancestral backgrounds with more or fewer non-reference calls.
+
+    Parameters
+    ----------
+    vds : :class:`.VariantDataset`
+    intervals : :class:`.Table`
+        Table of intervals. Must be start-inclusive, and cannot span contigs.
+    gq_thresholds : tuple of int
+        GQ thresholds.
+    dp_field : str, optional
+        Field for depth calculation. Uses DP or MIN_DP by default (with priority for DP if present).
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+        Interval-by-sample matrix
+    """
+    ref = vds.reference_data
+    split = segment_reference_blocks(ref, intervals)
+    intervals = intervals.annotate(interval_dup=intervals.key[0])
+
+    if 'DP' in ref.entry:
+        dp_field_to_use = 'DP'
+    elif 'MIN_DP' in ref.entry:
+        dp_field_to_use = 'MIN_DP'
+    else:
+        dp_field_to_use = dp_field
+
+    if dp_field_to_use is not None:
+        dp_field_dict = {'sum_dp': hl.agg.sum((split.END - split.locus.position + 1) * split[dp_field_to_use])}
+    else:
+        dp_field_dict = dict()
+
+    per_interval = split.group_rows_by(interval=intervals[split.row_key[0]].interval_dup) \
+        .aggregate(
+        bases_over_gq_threshold=tuple(
+            hl.agg.filter(split.GQ > gq_threshold, hl.agg.sum(split.END - split.locus.position + 1)) for gq_threshold in
+            gq_thresholds),
+        **dp_field_dict
+    )
+
+    interval = per_interval.interval
+    interval_size = interval.end.position + interval.includes_end - interval.start.position - 1 + interval.includes_start
+    per_interval = per_interval.annotate_rows(interval_size=interval_size)
+    per_interval = per_interval.annotate_entries(
+        fraction_over_gq_threshold=tuple(
+            hl.float(x) / per_interval.interval_size for x in per_interval.bases_over_gq_threshold))
+
+    if dp_field_to_use is not None:
+        per_interval = per_interval.annotate_entries(mean_dp=per_interval.sum_dp / per_interval.interval_size)
+
+    per_interval = per_interval.annotate_globals(gq_thresholds=gq_thresholds)
+
+    return per_interval

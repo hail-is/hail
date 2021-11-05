@@ -150,3 +150,81 @@ def test_filter_samples_and_merge():
 
     assert merged.reference_data._same(vds.reference_data)
     assert merged.variant_data._same(vds.variant_data)
+
+
+@fails_local_backend
+@fails_service_backend
+def test_segment_intervals():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+
+    contig_len = vds.reference_data.locus.dtype.reference_genome.lengths['chr22']
+    breakpoints = hl.literal([*range(1, contig_len, 5_000_000), contig_len])
+    intervals = hl.range(hl.len(breakpoints) - 1) \
+        .map(lambda i: hl.struct(
+        interval=hl.locus_interval('chr22', breakpoints[i], breakpoints[i + 1], reference_genome='GRCh38')))
+    intervals_ht = hl.Table.parallelize(intervals, key='interval')
+
+    path = new_temp_file()
+    r = hl.vds.segment_reference_blocks(vds.reference_data, intervals_ht)
+    r.write(path)
+    after = hl.read_matrix_table(path)
+
+    es = after.entries()
+    es = es.filter((es.END < es.locus.position) | (es.END >= es.interval.end.position))
+    if es.count() > 0:
+        es.show(width=1000)
+        assert False, "found entries with END < position or END >= interval end"
+
+    before = vds.reference_data
+
+    sum_per_sample_before = before.select_cols(
+        ref_block_bases=hl.agg.sum(before.END + 1 - before.locus.position)).cols()
+    sum_per_sample_after = after.select_cols(ref_block_bases=hl.agg.sum(after.END + 1 - after.locus.position)).cols()
+
+    before_coverage = sum_per_sample_before.collect()
+    after_coverage = sum_per_sample_after.collect()
+    assert before_coverage == after_coverage
+
+
+@fails_local_backend
+@fails_service_backend
+def test_interval_coverage():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+
+    interval1 = 'chr22:10678825-10678835'
+    interval2 = 'chr22:10678970-10678979'
+
+    intervals = hl.Table.parallelize(
+        list(hl.struct(interval=hl.parse_locus_interval(x, reference_genome='GRCh38')) for x in [interval1, interval2]),
+        key='interval')
+
+    checkpoint_path = new_temp_file()
+    r = hl.vds.interval_coverage(vds, intervals).checkpoint(checkpoint_path)
+    assert r.aggregate_rows(hl.agg.collect((hl.format('%s:%d-%d', r.interval.start.contig, r.interval.start.position,
+                                                      r.interval.end.position), r.interval_size))) == [(interval1, 10),
+                                                                                                       (interval2, 9)]
+
+    r.entries().show(width=10000, n_rows=10000)
+
+    observed = r.aggregate_entries(hl.agg.collect(r.entry))
+    expected = [
+        hl.Struct(bases_over_gq_threshold=(10, 0), sum_dp=55, fraction_over_gq_threshold=(1.0, 0.0), mean_dp=5.5),
+        hl.Struct(bases_over_gq_threshold=(10, 0), sum_dp=45, fraction_over_gq_threshold=(1.0, 0.0), mean_dp=4.5),
+        hl.Struct(bases_over_gq_threshold=(0, 0), sum_dp=0, fraction_over_gq_threshold=(0.0, 0.0), mean_dp=0),
+        hl.Struct(bases_over_gq_threshold=(10, 0), sum_dp=30, fraction_over_gq_threshold=(1.0, 0.0), mean_dp=3.0),
+        hl.Struct(bases_over_gq_threshold=(9, 0), sum_dp=10, fraction_over_gq_threshold=(0.9, 0.0), mean_dp=1.0),
+
+        hl.Struct(bases_over_gq_threshold=(9, 9), sum_dp=153, fraction_over_gq_threshold=(1.0, 1.0), mean_dp=17.0),
+        hl.Struct(bases_over_gq_threshold=(9, 9), sum_dp=159, fraction_over_gq_threshold=(1.0, 1.0), mean_dp=159 / 9),
+        hl.Struct(bases_over_gq_threshold=(9, 9), sum_dp=98, fraction_over_gq_threshold=(1.0, 1.0), mean_dp=98 / 9),
+        hl.Struct(bases_over_gq_threshold=(9, 9), sum_dp=72, fraction_over_gq_threshold=(1.0, 1.0), mean_dp=8),
+        hl.Struct(bases_over_gq_threshold=(9, 0), sum_dp=20, fraction_over_gq_threshold=(1.0, 0.0), mean_dp=2 / 9),
+    ]
+
+    for i in range(len(expected)):
+        obs = observed[i]
+        exp = expected[i]
+        assert obs.bases_over_gq_threshold == exp.bases_over_gq_threshold, i
+        assert obs.sum_dp == exp.sum_dp, i
+        assert obs.fraction_over_gq_threshold == exp.fraction_over_gq_threshold, i
+        pytest.approx(obs.mean_dp, exp.mean_dp)
