@@ -152,6 +152,8 @@ def test_filter_samples_and_merge():
     assert merged.variant_data._same(vds.variant_data)
 
 
+@fails_local_backend
+@fails_service_backend
 def test_segment_intervals():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
 

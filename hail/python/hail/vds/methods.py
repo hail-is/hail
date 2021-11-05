@@ -417,9 +417,9 @@ def segment_reference_blocks(ref: 'MatrixTable', intervals: 'Table') -> 'MatrixT
     intervals = intervals.select(_interval_dup=intervals[interval_field])
 
     if not intervals.aggregate(
-            hl.agg.all(intervals[interval_field].includes_start &
-                       (intervals[interval_field].start.contig == intervals[interval_field].end.contig))):
-        raise ValueError(f"expect intervals to be start-inclusive")
+            hl.agg.all(intervals[interval_field].includes_start & (
+                intervals[interval_field].start.contig == intervals[interval_field].end.contig))):
+        raise ValueError("expect intervals to be start-inclusive")
 
     starts = intervals.key_by(_start_locus=intervals[interval_field].start)
     starts = starts.annotate(_include_locus=True)
@@ -450,8 +450,8 @@ def segment_reference_blocks(ref: 'MatrixTable', intervals: 'Table') -> 'MatrixT
 
     # remove rows that are not contained in an interval, and rows that are the start of an
     # interval (interval starts come from the 'dense' table)
-    refl_filtered = refl_filtered.filter(hl.is_defined(refl_filtered[interval_field]) &
-                                         (refl_filtered.locus != refl_filtered[interval_field].start))
+    refl_filtered = refl_filtered.filter(
+        hl.is_defined(refl_filtered[interval_field]) & (refl_filtered.locus != refl_filtered[interval_field].start))
 
     # union dense interval starts with filtered table
     refl_filtered = refl_filtered.union(dense.transmute(_ref_entries=dense.dense_ref))
@@ -529,10 +529,12 @@ def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0
         dp_field_dict = dict()
 
     per_interval = split.group_rows_by(interval=intervals[split.row_key[0]].interval_dup) \
-        .aggregate(bases_over_gq_threshold=tuple(
-        hl.agg.filter(split.GQ > gq_threshold, hl.agg.sum(split.END - split.locus.position + 1))
-        for gq_threshold in gq_thresholds),
-        **dp_field_dict)
+        .aggregate(
+        bases_over_gq_threshold=tuple(
+            hl.agg.filter(split.GQ > gq_threshold, hl.agg.sum(split.END - split.locus.position + 1)) for gq_threshold in
+            gq_thresholds),
+        **dp_field_dict
+    )
 
     interval = per_interval.interval
     interval_size = interval.end.position + interval.includes_end - interval.start.position - 1 + interval.includes_start
