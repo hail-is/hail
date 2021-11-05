@@ -192,3 +192,19 @@ azsetcluster() {
     az aks get-credentials --name vdc --resource-group $RESOURCE_GROUP
     az acr login --name $RESOURCE_GROUP
 }
+
+azsshworker() {
+    if [ -z "$1" ] || [ -z "$2" ]; then
+        echo "Usage: azsshworker <RESOURCE_GROUP> <WORKER_NAME>"
+        return
+    fi
+
+    RESOURCE_GROUP=$1
+    WORKER_NAME=$2
+    SSH_PRIVATE_KEY_PATH=$3
+
+    worker_ip=$(az vm list-ip-addresses -g $RESOURCE_GROUP -n $WORKER_NAME \
+        | jq -jr '.[0].virtualMachine.network.publicIpAddresses[0].ipAddress')
+
+    ssh -i ~/.ssh/batch_worker_ssh_rsa batch-worker@$worker_ip
+}
