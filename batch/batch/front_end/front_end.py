@@ -1007,7 +1007,7 @@ VALUES (%s, %s, %s);
                         f'jobs_args={json.dumps(jobs_args)}'
                         f'job_parents_args={json.dumps(job_parents_args)}'
                     ) from err
-            await asyncio.gather(write_spec_to_gcs(), insert_jobs_into_db())
+        await asyncio.gather(write_spec_to_gcs(), insert_jobs_into_db())
 
     return web.Response()
 
