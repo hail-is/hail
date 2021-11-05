@@ -10,7 +10,7 @@ terraform {
 }
 
 locals {
-  docker_root_image = "${var.global_config.global.docker_prefix}/ubuntu:18.04"
+  docker_root_image = "${var.global_config.global.docker_prefix}/ubuntu:20.04"
 }
 
 provider "kubernetes" {

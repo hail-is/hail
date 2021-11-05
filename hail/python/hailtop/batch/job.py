@@ -587,11 +587,11 @@ class BashJob(Job):
         Examples
         --------
 
-        Set the job's docker image to `ubuntu:18.04`:
+        Set the job's docker image to `ubuntu:20.04`:
 
         >>> b = Batch()
         >>> j = b.new_job()
-        >>> (j.image('ubuntu:18.04')
+        >>> (j.image('ubuntu:20.04')
         ...   .command(f'echo "hello"'))
         >>> b.run()  # doctest: +SKIP
 

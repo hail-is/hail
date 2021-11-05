@@ -18,6 +18,7 @@ deploy_config = get_deploy_config()
 
 DOCKER_PREFIX = os.environ['DOCKER_PREFIX']
 DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
+UBUNTU_IMAGE = 'ubuntu:20.04'
 NAMESPACE = os.environ.get('HAIL_DEFAULT_NAMESPACE')
 SCOPE = os.environ.get('HAIL_SCOPE', 'test')
 
@@ -190,7 +191,7 @@ def test_quota_shared_by_io_and_rootfs(client: BatchClient):
 def test_nonzero_storage(client: BatchClient):
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '20Gi'}
-    j = builder.create_job('ubuntu:18.04', ['/bin/sh', '-c', 'true'], resources=resources)
+    j = builder.create_job(UBUNTU_IMAGE, ['/bin/sh', '-c', 'true'], resources=resources)
     b = builder.submit()
     status = j.wait()
     assert status['state'] == 'Success', str((status, b.debug_info()))
@@ -199,7 +200,7 @@ def test_nonzero_storage(client: BatchClient):
 def test_attached_disk(client: BatchClient):
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '400Gi'}
-    j = builder.create_job('ubuntu:18.04', ['/bin/sh', '-c', 'df -h; fallocate -l 390GiB /io/foo'], resources=resources)
+    j = builder.create_job(UBUNTU_IMAGE, ['/bin/sh', '-c', 'df -h; fallocate -l 390GiB /io/foo'], resources=resources)
     b = builder.submit()
     status = j.wait()
     assert status['state'] == 'Success', str((status, b.debug_info()))
