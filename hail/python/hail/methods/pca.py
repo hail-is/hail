@@ -6,14 +6,14 @@ from hail.expr import (expr_float64, expr_call, check_entry_indexed,
                        matrix_table_source)
 from hail import ir
 from hail.table import Table
-from hail.typecheck import typecheck
+from hail.typecheck import (typecheck, oneof, nullable)
 from hail.utils import FatalError
 from hail.utils.java import Env, info
 from hail.experimental import mt_to_table_of_ndarray
 
 
 def hwe_normalize(call_expr):
-    mt = matrix_table_source('hwe_normalized_pca/call_expr', call_expr)
+    mt = matrix_table_source('hwe_normalize/call_expr', call_expr)
     mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
     mt = mt.annotate_rows(__AC=agg.sum(mt.__gt),
                           __n_called=agg.count_where(hl.is_defined(mt.__gt)))
@@ -21,8 +21,8 @@ def hwe_normalize(call_expr):
 
     n_variants = mt.count_rows()
     if n_variants == 0:
-        raise FatalError("hwe_normalized_pca: found 0 variants after filtering out monomorphic sites.")
-    info("hwe_normalized_pca: running PCA using {} variants.".format(n_variants))
+        raise FatalError("hwe_normalize: found 0 variants after filtering out monomorphic sites.")
+    info(f"hwe_normalize: found {n_variants} variants after filtering out monomorphic sites.")
 
     mt = mt.annotate_rows(__mean_gt=mt.__AC / mt.__n_called)
     mt = mt.annotate_rows(
@@ -218,9 +218,32 @@ class TallSkinnyMatrix:
         self.source_table = source_table
 
 
-def _make_tsm(entry_expr, block_size):
-    mt = matrix_table_source('_make_tsm/entry_expr', entry_expr)
-    A, ht = mt_to_table_of_ndarray(entry_expr, block_size, return_checkpointed_table_also=True)
+def _make_tsm(call_expr, block_size, mean_center=False, hwe_normalize=False):
+    mt = matrix_table_source('_make_tsm/entry_expr', call_expr)
+    mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
+    if mean_center or hwe_normalize:
+        mt = mt.annotate_rows(__AC=agg.sum(mt.__gt),
+                              __n_called=agg.count_where(hl.is_defined(mt.__gt)))
+        mt = mt.filter_rows((mt.__AC > 0) & (mt.__AC < 2 * mt.__n_called))
+
+        n_variants = mt.count_rows()
+        if n_variants == 0:
+            raise FatalError("_make_tsm: found 0 variants after filtering out monomorphic sites.")
+        info(f"_make_tsm: found {n_variants} variants after filtering out monomorphic sites.")
+
+        mt = mt.annotate_rows(__mean_gt=mt.__AC / mt.__n_called)
+        mt = mt.unfilter_entries()
+
+        mt = mt.select_entries(__x=hl.or_else(mt.__gt - mt.__mean_gt, 0.0))
+
+        if hwe_normalize:
+            mt = mt.annotate_rows(
+                __hwe_scaled_std_dev=hl.sqrt(mt.__mean_gt * (2 - mt.__mean_gt) * n_variants / 2))
+            mt = mt.select_entries(__x=mt.__x / mt.__hwe_scaled_std_dev)
+    else:
+        mt = mt.select_entries(__x=mt.__gt)
+
+    A, ht = mt_to_table_of_ndarray(mt.__x, block_size, return_checkpointed_table_also=True)
     A = A.persist()
     return TallSkinnyMatrix(A, A.ndarray, ht, list(mt.col_key))
 
@@ -333,10 +356,16 @@ def _reduced_svd(A: TallSkinnyMatrix, k=10, compute_U=False, iterations=2, itera
     return fact.reduced_svd(k)
 
 
-def _spectral_moments(entry_expr, num_moments, p=None, moment_samples=500, block_size=128):
-    check_entry_indexed('_spectral_moments/entry_expr', entry_expr)
+@typecheck(A=oneof(expr_float64, TallSkinnyMatrix),
+           num_moments=int,
+           p=nullable(int),
+           moment_samples=int,
+           block_size=int)
+def _spectral_moments(A, num_moments, p=None, moment_samples=500, block_size=128):
+    if not isinstance(A, TallSkinnyMatrix):
+        check_entry_indexed('_spectral_moments/entry_expr', A)
+        A = _make_tsm(A, block_size)
 
-    A = _make_tsm(entry_expr, block_size)
     n = A.ncols
 
     if p is None:
@@ -350,7 +379,7 @@ def _spectral_moments(entry_expr, num_moments, p=None, moment_samples=500, block
     return hl.eval(fact.spectral_moments(num_moments, R1))
 
 
-@typecheck(entry_expr=expr_float64,
+@typecheck(A=oneof(expr_float64, TallSkinnyMatrix),
            k=int,
            num_moments=int,
            compute_loadings=bool,
@@ -358,8 +387,10 @@ def _spectral_moments(entry_expr, num_moments, p=None, moment_samples=500, block
            oversampling_param=int,
            block_size=int,
            moment_samples=int)
-def _pca_and_moments(entry_expr, k=10, num_moments=5, compute_loadings=False, q_iterations=2, oversampling_param=2, block_size=128, moment_samples=100):
-    A = _make_tsm(entry_expr, block_size)
+def _pca_and_moments(A, k=10, num_moments=5, compute_loadings=False, q_iterations=2, oversampling_param=2, block_size=128, moment_samples=100):
+    if not isinstance(A, TallSkinnyMatrix):
+        check_entry_indexed('_spectral_moments/entry_expr', A)
+        A = _make_tsm(A, block_size)
 
     # Set Parameters
     q = q_iterations
@@ -407,13 +438,13 @@ def _pca_and_moments(entry_expr, k=10, num_moments=5, compute_loadings=False, q_
     return eigens, st, lt, moments
 
 
-@typecheck(entry_expr=expr_float64,
+@typecheck(A=oneof(expr_float64, TallSkinnyMatrix),
            k=int,
            compute_loadings=bool,
            q_iterations=int,
            oversampling_param=int,
            block_size=int)
-def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, oversampling_param=2, block_size=128):
+def _blanczos_pca(A, k=10, compute_loadings=False, q_iterations=2, oversampling_param=2, block_size=128):
     r"""Run randomized principal component analysis approximation (PCA)
     on numeric columns derived from a matrix table.
 
@@ -500,8 +531,9 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     (:obj:`list` of :obj:`float`, :class:`.Table`, :class:`.Table`)
         List of eigenvalues, table with column scores, table with row loadings.
     """
-    check_entry_indexed('_blanczos_pca/entry_expr', entry_expr)
-    A = _make_tsm(entry_expr, block_size)
+    if not isinstance(A, TallSkinnyMatrix):
+        check_entry_indexed('_blanczos_pca/entry_expr', A)
+        A = _make_tsm(A, block_size)
 
     U, S, V = _reduced_svd(A, k, compute_loadings, q_iterations, k + oversampling_param)
 
@@ -564,6 +596,8 @@ def _hwe_normalized_blanczos(call_expr, k=10, compute_loadings=False, q_iteratio
     (:obj:`list` of :obj:`float`, :class:`.Table`, :class:`.Table`)
         List of eigenvalues, table with column scores, table with row loadings.
     """
+    check_entry_indexed('_blanczos_pca/entry_expr', call_expr)
+    A = _make_tsm(call_expr, block_size, hwe_normalize=True)
 
-    return _blanczos_pca(hwe_normalize(call_expr), k, compute_loadings=compute_loadings, q_iterations=q_iterations,
+    return _blanczos_pca(A, k, compute_loadings=compute_loadings, q_iterations=q_iterations,
                          oversampling_param=oversampling_param, block_size=block_size)
