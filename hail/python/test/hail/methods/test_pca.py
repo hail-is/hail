@@ -1,6 +1,5 @@
 import math
 
-import pytest
 import numpy as np
 
 import hail as hl
@@ -237,7 +236,7 @@ def spectral_moments_helper(spec_func):
         A = U @ sigma @ V.T
         mt_A = matrix_table_from_numpy(A)
 
-        moments = hl.eval(hl._spectral_moments(mt_A.ent, 7))
+        moments = hl._spectral_moments(mt_A.ent, 7)
         true_moments = np.array([np.sum(np.power(sigma, 2*i)) for i in range(1, 8)])
         np.testing.assert_allclose(moments, true_moments, rtol=2e-01)
 
@@ -268,8 +267,6 @@ def test_spectral_moments_5():
 
 
 def spectra_and_moments_helper(spec_func):
-    from hail.methods.pca import _pca_and_moments
-
     for triplet in [(20, 1000, 1000)]:
         k, m, n = triplet
         min_dim = min(m, n)
@@ -281,7 +278,7 @@ def spectra_and_moments_helper(spec_func):
         A = U @ sigma @ V.T
         mt_A = matrix_table_from_numpy(A)
 
-        eigenvalues, scores, loadings, moments = _pca_and_moments(mt_A.ent, k=k, num_moments=7, oversampling_param=k, compute_loadings=True, q_iterations=4)
+        eigenvalues, scores, loadings, moments = hl._pca_and_moments(mt_A.ent, k=k, num_moments=7, oversampling_param=k, compute_loadings=True, q_iterations=4)
         singulars = np.sqrt(eigenvalues)
         hail_V = (np.array(scores.scores.collect()) / singulars).T
         hail_U = np.array(loadings.loadings.collect())

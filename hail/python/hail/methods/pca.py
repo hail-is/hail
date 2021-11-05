@@ -349,7 +349,7 @@ def _spectral_moments(entry_expr, num_moments, p=None, moment_samples=500, block
     G = hl.nd.zeros((n, moment_samples)).map(lambda n: hl.if_else(hl.rand_bool(0.5), -1, 1))
     Q1, R1 = hl.nd.qr(G)._persist()
     fact = _krylov_factorization(A, Q1, p, compute_U=False)
-    return fact.spectral_moments(num_moments, R1)
+    return hl.eval(fact.spectral_moments(num_moments, R1))
 
 
 @typecheck(entry_expr=expr_float64,
