@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Optional, Union, Dict
 from numbers import Number
 import os
 import logging
@@ -674,7 +674,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
             job_parents_args = []
             job_attributes_args = []
 
-            inst_coll_resources = collections.defaultdict(
+            inst_coll_resources: Dict[str, Dict[str, int]] = collections.defaultdict(
                 lambda: {
                     'n_jobs': 0,
                     'n_ready_jobs': 0,
