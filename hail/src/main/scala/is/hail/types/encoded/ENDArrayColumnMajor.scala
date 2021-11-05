@@ -36,7 +36,7 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
     shapeVars.foreach { s =>
       cb.assign(totalNumElements, totalNumElements * s)
     }
-    val strides = pnd.makeColumnMajorStrides(shapeVars, region, cb)
+    val strides = pnd.makeColumnMajorStrides(shapeVars, cb)
 
     val (pndFirstElementAddress, pndFinisher) = pnd.constructDataFunction(shapeVars, strides, cb, region)
 

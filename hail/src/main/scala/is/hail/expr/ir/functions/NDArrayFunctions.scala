@@ -97,7 +97,7 @@ object  NDArrayFunctions extends RegistryFunctions {
 
       val outputPType = coerce[PCanonicalNDArray](outputPt)
       val outputShape = IndexedSeq(n, nrhs)
-      val (outputAddress, outputFinisher) = outputPType.constructDataFunction(outputShape, outputPType.makeColumnMajorStrides(outputShape, region, cb), cb, region)
+      val (outputAddress, outputFinisher) = outputPType.constructDataFunction(outputShape, outputPType.makeColumnMajorStrides(outputShape, cb), cb, region)
 
       cb.append(Region.copyFrom(bColMajor.firstDataAddress, outputAddress, n * nrhs * 8L))
 

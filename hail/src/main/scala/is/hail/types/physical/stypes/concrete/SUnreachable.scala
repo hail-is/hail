@@ -3,8 +3,8 @@ package is.hail.types.physical.stypes.concrete
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitValue, IEmitCode}
-import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.physical.stypes._
 import is.hail.types.physical.{PCanonicalNDArray, PNDArray, PType}
 import is.hail.types.virtual._
 import is.hail.utils.FastIndexedSeq
@@ -326,6 +326,8 @@ class SUnreachableNDArrayValue(override val st: SUnreachableNDArray) extends SUn
   override def firstDataAddress: Value[Long] = const(0L)
 
   override def get: SUnreachableNDArrayCode = st.sc
+
+  override def setToZero(cb: EmitCodeBuilder): Unit = {}
 
   override def coiterateMutate(cb: EmitCodeBuilder, region: Value[Region], deepCopy: Boolean, indexVars: IndexedSeq[String],
     destIndices: IndexedSeq[Int], arrays: (SNDArrayValue, IndexedSeq[Int], String)*)(body: IndexedSeq[SValue] => SValue): Unit = ()

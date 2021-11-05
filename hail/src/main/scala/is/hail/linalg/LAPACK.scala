@@ -95,6 +95,30 @@ object LAPACK {
     infoInt.getValue()
   }
 
+  def dgeqr(m: Int, n: Int, A: Long, ldA: Int, T: Long, Tsize: Int, work: Long, lWork: Int): Int = {
+    val mInt = new IntByReference(m)
+    val nInt = new IntByReference(n)
+    val ldAInt = new IntByReference(ldA)
+    val TsizeInt = new IntByReference(Tsize)
+    val lWorkInt = new IntByReference(lWork)
+    val infoInt = new IntByReference(1)
+    libraryInstance.get.dgeqr(mInt, nInt, A, ldAInt, T, TsizeInt, work, lWorkInt, infoInt)
+    infoInt.getValue()
+  }
+
+  def dgemqr(side: String, trans: String, m: Int, n: Int, k: Int, A: Long, ldA: Int, T: Long, Tsize: Int, C: Long, ldC: Int, work: Long, Lwork: Int): Int = {
+    val mInt = new IntByReference(m)
+    val nInt = new IntByReference(n)
+    val kInt = new IntByReference(k)
+    val ldAInt = new IntByReference(ldA)
+    val TsizeInt = new IntByReference(Tsize)
+    val ldCInt = new IntByReference(ldC)
+    val LworkInt = new IntByReference(Lwork)
+    val infoInt = new IntByReference(1)
+    libraryInstance.get.dgemqr(side, trans, mInt, nInt, kInt, A, ldAInt, T, TsizeInt, C, ldCInt, work, LworkInt, infoInt)
+    infoInt.getValue()
+  }
+
   def dtpqrt(m: Int, n: Int, l: Int, nb: Int, A: Long, ldA: Int, B: Long, ldB: Int, T: Long, ldT: Int, work: Long): Int = {
     val mInt = new IntByReference(m)
     val nInt = new IntByReference(n)
@@ -181,6 +205,14 @@ object LAPACK {
     INFOref.getValue()
   }
 
+  def dlacpy(uplo: String, M: Int, N: Int, A: Long, ldA: Int, B: Long, ldB: Int): Unit = {
+    val Mref = new IntByReference(M)
+    val Nref = new IntByReference(N)
+    val ldAref = new IntByReference(ldA)
+    val ldBref = new IntByReference(ldB)
+    libraryInstance.get.dlacpy(uplo, Mref, Nref, A, ldAref, B, ldBref)
+  }
+
   def ilaenv(ispec: Int, name: String, opts: String, n1: Int, n2: Int, n3: Int, n4: Int): Int = {
     val ispecref = new IntByReference(ispec)
     val n1ref = new IntByReference(n1)
@@ -209,6 +241,8 @@ trait LAPACKLibrary extends Library {
   def dorgqr(M: IntByReference, N: IntByReference, K: IntByReference, A: Long, LDA: IntByReference, TAU: Long, WORK: Long, LWORK: IntByReference, INFO: IntByReference)
   def dgeqrt(m: IntByReference, n: IntByReference, nb: IntByReference, A: Long, ldA: IntByReference, T: Long, ldT: IntByReference, work: Long, info: IntByReference)
   def dgemqrt(side: String, trans: String, m: IntByReference, n: IntByReference, k: IntByReference, nb: IntByReference, V: Long, ldV: IntByReference, T: Long, ldT: IntByReference, C: Long, ldC: IntByReference, work: Long, info: IntByReference)
+  def dgeqr(m: IntByReference, n: IntByReference, A: Long, ldA: IntByReference, T: Long, Tsize: IntByReference, work: Long, lWork: IntByReference, info: IntByReference)
+  def dgemqr(side: String, trans: String, m: IntByReference, n: IntByReference, k: IntByReference, A: Long, ldA: IntByReference, T: Long, Tsize: IntByReference, C: Long, ldC: IntByReference, work: Long, Lwork: IntByReference, info: IntByReference)
   def dtpqrt(M: IntByReference, N: IntByReference, L: IntByReference, NB: IntByReference, A: Long, LDA: IntByReference, B: Long, LDB: IntByReference, T: Long, LDT: IntByReference, WORK: Long, INFO: IntByReference)
   def dtpmqrt(side: String, trans: String, M: IntByReference, N: IntByReference, K: IntByReference, L: IntByReference, NB: IntByReference, V: Long, LDV: IntByReference, T: Long, LDT: IntByReference, A: Long, LDA: IntByReference, B: Long, LDB: IntByReference, WORK: Long, INFO: IntByReference)
   def dgetrf(M: IntByReference, N: IntByReference, A: Long, LDA: IntByReference, IPIV: Long, INFO: IntByReference)
@@ -217,4 +251,5 @@ trait LAPACKLibrary extends Library {
   def ilaver(MAJOR: IntByReference, MINOR: IntByReference, PATCH: IntByReference)
   def ilaenv(ispec: IntByReference, name: String, opts: String, n1: IntByReference, n2: IntByReference, n3: IntByReference, n4: IntByReference): Int
   def dtrtrs(UPLO: String, TRANS: String, DIAG: String, N: IntByReference, NRHS: IntByReference, A: Long, LDA: IntByReference, B: Long, LDB: IntByReference, INFO:IntByReference)
+  def dlacpy(uplo: String, M: IntByReference, N: IntByReference, A: Long, ldA: IntByReference, B: Long, ldB: IntByReference)
 }
