@@ -48,15 +48,16 @@ def create_vm_config(
         unreserved_disk_storage_gb = unreserved_worker_data_disk_size_gib(data_disk_size_gb, cores)
     assert unreserved_disk_storage_gb >= 0
 
-    worker_data_disk_name = 'sdb'
+    worker_data_disk_name = 'data-disk'
 
     if local_ssd_data_disk:
         data_disks = []
+        disk_location = '/dev/disk/azure/resource'
     else:
         data_disks = [
             {
                 "name": "[concat(parameters('vmName'), '-data')]",
-                "lun": 1,  # because this is 1, the data disk will always be at 'sdb'
+                "lun": 2,  # because this is 2, the data disk will always be at 'sdc'
                 "managedDisk": {
                     "storageAccountType": "Standard_LRS"
                 },
@@ -65,6 +66,7 @@ def create_vm_config(
                 "deleteOption": 'Delete'
             }
         ]
+        disk_location = '/dev/disk/sdc'
 
     make_global_config = ['mkdir /global-config']
     global_config = get_global_config()
@@ -74,28 +76,37 @@ def create_vm_config(
 
     assert instance_config.is_valid_configuration(resource_rates.keys())
 
-    startup_script = r'''#!/bin/sh
-set -ex
+    startup_script = r'''#cloud-config
 
-RESOURCE_GROUP=$(curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metadata/instance/compute/resourceGroupName?api-version=2021-02-01&format=text")
-NAME=$(curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metadata/instance/compute/name?api-version=2021-02-01&format=text")
+mounts:
+  - [ ephemeral0, null ]
+  - [ ephemeral0.1, null ]
 
-if [ -f "/started" ]; then
-    echo "instance $NAME has previously been started"
-    while true; do
-    az vm delete -g $RESOURCE_GROUP -n $NAME --yes
-    sleep 1
-    done
-    exit
-else
-    touch /started
-fi
+write_files:
+  - owner: batch-worker:batch-worker
+    path: /startup.sh
+    content: |
+      #!/bin/sh
+      set -ex
+      RESOURCE_GROUP=$(curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metadata/instance/compute/resourceGroupName?api-version=2021-02-01&format=text")
+      NAME=$(curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metadata/instance/compute/name?api-version=2021-02-01&format=text")
+      if [ -f "/started" ]; then
+          echo "instance $NAME has previously been started"
+          while true; do
+          az vm delete -g $RESOURCE_GROUP -n $NAME --yes
+          sleep 1
+          done
+          exit
+      else
+          touch /started
+      fi
+      curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metadata/instance/compute/userData?api-version=2021-02-01&format=text" | \
+        base64 --decode | \
+        jq -r '.run_script' > ./run.sh
+      nohup /bin/bash run.sh >run.log 2>&1 &
 
-curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metadata/instance/compute/userData?api-version=2021-02-01&format=text" | \
-  base64 --decode | \
-  jq -r '.run_script' > ./run.sh
-
-nohup /bin/bash run.sh >run.log 2>&1 &
+runcmd:
+  - sh /startup.sh
 '''
     startup_script = base64.b64encode(startup_script.encode('utf-8')).decode('utf-8')
 
@@ -107,19 +118,19 @@ WORKER_DATA_DISK_NAME="{worker_data_disk_name}"
 UNRESERVED_WORKER_DATA_DISK_SIZE_GB="{unreserved_disk_storage_gb}"
 
 # format worker data disk
-sudo mkfs.xfs -m reflink=1 -n ftype=1 /dev/$WORKER_DATA_DISK_NAME
+sudo mkfs.xfs -f -m reflink=1 -n ftype=1 {disk_location}
 sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME
-sudo mount -o prjquota /dev/$WORKER_DATA_DISK_NAME /mnt/disks/$WORKER_DATA_DISK_NAME
+sudo mount -o prjquota {disk_location} /mnt/disks/$WORKER_DATA_DISK_NAME
 sudo chmod a+w /mnt/disks/$WORKER_DATA_DISK_NAME
 XFS_DEVICE=$(xfs_info /mnt/disks/$WORKER_DATA_DISK_NAME | head -n 1 | awk '{{ print $1 }}' | awk  'BEGIN {{ FS = "=" }}; {{ print $2 }}')
 
-# reconfigure docker to use local SSD
+# reconfigure docker to use data disk
 sudo service docker stop
 sudo mv /var/lib/docker /mnt/disks/$WORKER_DATA_DISK_NAME/docker
 sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/docker /var/lib/docker
 sudo service docker start
 
-# reconfigure /batch and /logs and /gcsfuse to use local SSD
+# reconfigure /batch and /logs to use data disk
 sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/batch/
 sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/batch /batch
 
@@ -171,6 +182,7 @@ sudo iptables --append FORWARD --out-interface $ENS_DEVICE ! --destination 10.12
 {make_global_config_str}
 
 # retry once
+az acr login --name $RESOURCE_GROUP
 docker pull $BATCH_WORKER_IMAGE || \
 (echo 'pull failed, retrying' && sleep 15 && docker pull $BATCH_WORKER_IMAGE)
 
@@ -210,7 +222,6 @@ docker run \
 --mount type=bind,source=/mnt/disks/$WORKER_DATA_DISK_NAME,target=/host \
 --mount type=bind,source=/dev,target=/dev,bind-propagation=rshared \
 -p 5000:5000 \
---device /dev/fuse \
 --device $XFS_DEVICE \
 --device /dev \
 --privileged \
