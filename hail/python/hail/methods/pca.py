@@ -253,7 +253,7 @@ class KrylovFactorization:
 
     def spectral_moments(self, num_moments, R):
         eigval_powers = hl.nd.vstack([self.S.map(lambda x: x**(2*i)) for i in range(1, num_moments + 1)])
-        return (eigval_powers @ ((self.V1t[:, :self.k] @ R).map(lambda x: x**2) @ hl.nd.ones(self.k))) / self.k
+        return (eigval_powers @ ((self.V1t[:, :self.k] @ R).map(lambda x: x**2).sum(1))) / self.k
 
 
 def _krylov_factorization(A: TallSkinnyMatrix, V0, p, compute_U=False, compute_V=True):
@@ -344,6 +344,8 @@ def _spectral_moments(entry_expr, num_moments, p=None, moment_samples=500, block
     if p is None:
         p = min(num_moments // 2 + 1, 10)
 
+    # TODO: Breaks when moment_samples > n. But in that case, we should just
+    # compute all n eigenvalues directly
     G = hl.nd.zeros((n, moment_samples)).map(lambda n: hl.if_else(hl.rand_bool(0.5), -1, 1))
     Q1, R1 = hl.nd.qr(G)._persist()
     fact = _krylov_factorization(A, Q1, p, compute_U=False)
