@@ -218,7 +218,14 @@ class TallSkinnyMatrix:
         self.source_table = source_table
 
 
-def _make_tsm(call_expr, block_size, mean_center=False, hwe_normalize=False):
+def _make_tsm(entry_expr, block_size):
+    mt = matrix_table_source('_make_tsm/entry_expr', entry_expr)
+    A, ht = mt_to_table_of_ndarray(entry_expr, block_size, return_checkpointed_table_also=True)
+    A = A.persist()
+    return TallSkinnyMatrix(A, A.ndarray, ht, list(mt.col_key))
+
+
+def _make_tsm_from_call(call_expr, block_size, mean_center=False, hwe_normalize=False):
     mt = matrix_table_source('_make_tsm/entry_expr', call_expr)
     mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
     if mean_center or hwe_normalize:
@@ -364,7 +371,7 @@ def _reduced_svd(A: TallSkinnyMatrix, k=10, compute_U=False, iterations=2, itera
 def _spectral_moments(A, num_moments, p=None, moment_samples=500, block_size=128):
     if not isinstance(A, TallSkinnyMatrix):
         check_entry_indexed('_spectral_moments/entry_expr', A)
-        A = _make_tsm(A, block_size)
+        A = _make_tsm_from_call(A, block_size)
 
     n = A.ncols
 
@@ -390,7 +397,7 @@ def _spectral_moments(A, num_moments, p=None, moment_samples=500, block_size=128
 def _pca_and_moments(A, k=10, num_moments=5, compute_loadings=False, q_iterations=2, oversampling_param=2, block_size=128, moment_samples=100):
     if not isinstance(A, TallSkinnyMatrix):
         check_entry_indexed('_spectral_moments/entry_expr', A)
-        A = _make_tsm(A, block_size)
+        A = _make_tsm_from_call(A, block_size)
 
     # Set Parameters
     q = q_iterations
@@ -597,7 +604,7 @@ def _hwe_normalized_blanczos(call_expr, k=10, compute_loadings=False, q_iteratio
         List of eigenvalues, table with column scores, table with row loadings.
     """
     check_entry_indexed('_blanczos_pca/entry_expr', call_expr)
-    A = _make_tsm(call_expr, block_size, hwe_normalize=True)
+    A = _make_tsm_from_call(call_expr, block_size, hwe_normalize=True)
 
     return _blanczos_pca(A, k, compute_loadings=compute_loadings, q_iterations=q_iterations,
                          oversampling_param=oversampling_param, block_size=block_size)
