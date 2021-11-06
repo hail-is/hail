@@ -919,6 +919,14 @@ def is_google_registry_domain(domain: Optional[str]) -> bool:
     return domain == 'gcr.io' or domain.endswith('docker.pkg.dev')
 
 
+def is_azure_registry_domain(domain: Optional[str]) -> bool:
+    """Returns true if the given Docker image path points to the Azure
+    Container Registry."""
+    if domain is None:
+        return False
+    return domain.endswith('azurecr.io')
+
+
 class Notice:
     def __init__(self):
         self.subscribers = []

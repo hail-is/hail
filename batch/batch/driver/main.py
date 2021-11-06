@@ -433,6 +433,7 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
         lambda v: v >= 10,
         'a positive integer greater than or equal to 10',
     )
+
     if pool.cloud == 'azure' and boot_disk_size_gb != 30:
         set_message(session, 'The boot disk size (GB) must be 30 in azure.', 'error')
         raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
@@ -468,6 +469,10 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
 
     possible_worker_cores = []
     for cores in possible_cores_from_worker_type(pool.cloud, worker_type):
+        if not worker_local_ssd_data_disk:
+            possible_worker_cores.append(cores)
+            continue
+
         # disk storage for local ssd is proportional to the number of cores in azure
         data_disk_size_gb = local_ssd_size(pool.cloud, worker_type, cores)
         unreserved_disk_storage_gb = unreserved_worker_data_disk_size_gib(data_disk_size_gb, cores)
@@ -493,7 +498,6 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
     )
 
     if not worker_local_ssd_data_disk:
-        # disk storage is not proportional to the number of cores when using pd_ssd
         unreserved_disk_storage_gb = unreserved_worker_data_disk_size_gib(worker_external_ssd_data_disk_size_gb, worker_cores)
         if unreserved_disk_storage_gb < 0:
             min_disk_storage = worker_external_ssd_data_disk_size_gb - unreserved_disk_storage_gb
@@ -542,6 +546,10 @@ async def job_private_config_update(request, userdata):  # pylint: disable=unuse
         lambda v: v >= 10,
         'a positive integer greater than or equal to 10',
     )
+
+    if jpim.cloud == 'azure' and boot_disk_size_gb != 30:
+        set_message(session, 'The boot disk size (GB) must be 30 in azure.', 'error')
+        raise web.HTTPFound(deploy_config.external_url('batch-driver', url_path))
 
     max_instances = validate_int(
         session, url_path, 'Max instances', post['max_instances'], lambda v: v > 0, 'a positive integer'

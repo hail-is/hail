@@ -66,7 +66,7 @@ def create_vm_config(
                 "deleteOption": 'Delete'
             }
         ]
-        disk_location = '/dev/disk/sdc'
+        disk_location = '/dev/disk/azure/scsi1/lun2'
 
     make_global_config = ['mkdir /global-config']
     global_config = get_global_config()

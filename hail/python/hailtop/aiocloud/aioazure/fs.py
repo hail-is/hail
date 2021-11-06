@@ -251,10 +251,11 @@ class AzureAsyncFS(AsyncFS):
 
     def __init__(self, *, credential_file: Optional[str] = None, credentials: Optional[AzureCredentials] = None):
         if credentials is None:
+            scopes = ['https://storage.azure.com/.default']
             if credential_file is not None:
-                credentials = AzureCredentials.from_file(credential_file)
+                credentials = AzureCredentials.from_file(credential_file, scopes=scopes)
             else:
-                credentials = AzureCredentials.default_credentials()
+                credentials = AzureCredentials.default_credentials(scopes=scopes)
         else:
             if credential_file is not None:
                 raise ValueError('credential and credential_file cannot both be defined')

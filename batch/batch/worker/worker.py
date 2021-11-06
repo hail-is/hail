@@ -35,6 +35,7 @@ from hailtop.utils import (
     check_exec_output,
     check_shell_output,
     is_google_registry_domain,
+    is_azure_registry_domain,
     find_spark_home,
     dump_all_stacktraces,
     parse_docker_image_reference,
@@ -203,8 +204,8 @@ class NetworkNamespace:
         with open(f'/etc/netns/{self.network_ns_name}/resolv.conf', 'w') as resolv:
             if self.private:
                 resolv.write('nameserver 169.254.169.254\n')
-                # FIXME?: This is google-specific
-                resolv.write('search c.hail-vdc.internal google.internal\n')
+                if CLOUD == 'gcp':
+                    resolv.write('search c.hail-vdc.internal google.internal\n')
             else:
                 resolv.write('nameserver 8.8.8.8\n')
 
@@ -322,7 +323,7 @@ def docker_call_retry(timeout, name):
 
 
 async def pull_docker_image(pool: concurrent.futures.ThreadPoolExecutor, image_ref_str: str, auth: dict):
-    return await blocking_to_async(pool, docker_sync.images.pull, image_ref_str, auth=auth)
+    return await blocking_to_async(pool, docker_sync.images.pull, image_ref_str, auth_config=auth)
 
 
 async def send_signal_and_wait(proc, signal, timeout=None):
@@ -544,11 +545,12 @@ class Container:
         return self.timings.step(name)
 
     async def pull_image(self):
-        is_google_image = is_google_registry_domain(self.image_ref.domain)
+        is_cloud_image = (is_google_registry_domain(self.image_ref.domain)
+                          or is_azure_registry_domain(self.image_ref.domain))
         is_public_image = self.image_ref.name() in PUBLIC_IMAGES
 
         try:
-            if not is_google_image:
+            if not is_cloud_image:
                 await self.ensure_image_is_pulled()
             elif is_public_image:
                 auth = await self.batch_worker_access_token()
@@ -567,6 +569,10 @@ class Container:
                 self.short_error = 'image cannot be pulled'
             elif 'not found: manifest unknown' in e.message:
                 self.short_error = 'image not found'
+            elif e.status == 500 and 'unauthorized: authentication required' in e.message:
+                self.short_error = 'image cannot be pulled'
+            elif e.status == 404 and 'no such image' in e.message:
+                self.short_error = 'image not found'
             raise
 
         image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
@@ -584,7 +590,7 @@ class Container:
                 raise
 
     async def batch_worker_access_token(self):
-        await get_worker_access_token(CLOUD, self.client_session)
+        return await get_worker_access_token(CLOUD, self.client_session)
 
     def current_user_access_token(self):
         return {'username': self.job.credentials.username, 'password': self.job.credentials.password}
@@ -2131,7 +2137,7 @@ class Worker:
 
 
 async def async_main():
-    global port_allocator, network_allocator, worker, docker
+    global port_allocator, network_allocator, worker, docker, docker_sync
 
     docker = aiodocker.Docker()
     docker_sync = syncdocker.DockerClient()
