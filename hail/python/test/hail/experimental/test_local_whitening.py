@@ -1,6 +1,6 @@
 import numpy as np
 from numpy.random import default_rng
-from hail.experimental import whiten
+from hail.methods.pca import _make_tsm
 import hail as hl
 import unittest
 from ..helpers import *
@@ -26,10 +26,12 @@ class Tests(unittest.TestCase):
         mt = mt.annotate_globals(data=data)
         mt = mt.annotate_entries(x=mt.data[mt.row_idx, mt.col_idx])
 
-        ht = whiten(mt.x, chunk_size, window_size, partition_size)
-        whitened_hail = np.vstack(ht.aggregate(hl.agg.collect(ht.ndarray.T)))
+        tsm = _make_tsm(mt.x, chunk_size, partition_size=partition_size, whiten_window_size=window_size)
+        ht = tsm.block_table
+        # ht = whiten(mt.x, chunk_size, window_size, partition_size)
+        whitened_hail = np.vstack(ht.aggregate(hl.agg.collect(tsm.block_expr.T)))
         whitened_naive = naive_whiten(data.T, window_size)
-        np.testing.assert_allclose(whitened_hail, whitened_naive)
+        np.testing.assert_allclose(whitened_hail, whitened_naive, rtol=1e-05)
 
     def test_local_whitening(self):
         self.run_local_whitening_test(

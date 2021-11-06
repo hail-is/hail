@@ -2,6 +2,7 @@ from typing import List, Tuple
 
 import hail as hl
 import hail.expr.aggregators as agg
+from hail.expr.expressions import construct_expr
 from hail.expr import (expr_float64, expr_call, check_entry_indexed,
                        matrix_table_source)
 from hail import ir
@@ -217,14 +218,41 @@ class TallSkinnyMatrix:
         self.source_table = source_table
 
 
-def _make_tsm(entry_expr, block_size):
+def _make_tsm(entry_expr, block_size, *, partition_size=None, whiten_window_size=None, whiten_block_size=64, normalize_after_whiten=False):
     mt = matrix_table_source('_make_tsm/entry_expr', entry_expr)
-    A, ht = mt_to_table_of_ndarray(entry_expr, block_size, return_checkpointed_table_also=True)
-    A = A.persist()
-    return TallSkinnyMatrix(A, A.ndarray, ht, list(mt.col_key))
+
+    if whiten_window_size is None:
+        A, ht = mt_to_table_of_ndarray(entry_expr, block_size, return_checkpointed_table_also=True)
+        A = A.persist()
+        return TallSkinnyMatrix(A, A.ndarray, ht, list(mt.col_key))
+    else:
+        A, trailing_blocks_ht, ht = mt_to_table_of_ndarray(
+            entry_expr, block_size,
+            return_checkpointed_table_also=True,
+            partition_size=partition_size,
+            window_size=whiten_window_size)
+
+        A = A.annotate(ndarray=A.ndarray.T)
+        vec_size = hl.eval(ht.take(1, _localize=False)[0].xs.length())
+        joined = A.annotate(prev_window=trailing_blocks_ht[A.key].prev_window)
+
+        def whiten_map_body(part_stream):
+            stream_ir = ir.ToArray(ir.StreamWhiten(
+                ir.ToStream(part_stream._ir),
+                "ndarray",
+                "prev_window",
+                vec_size,
+                whiten_window_size,
+                block_size,
+                whiten_block_size,
+                normalize_after_whiten))
+            return construct_expr(stream_ir, part_stream.dtype)
+        whitened = joined._map_partitions(whiten_map_body)
+
+        return TallSkinnyMatrix(whitened, whitened.ndarray, ht, list(mt.col_key))
 
 
-def _make_tsm_from_call(call_expr, block_size, mean_center=False, hwe_normalize=False):
+def _make_tsm_from_call(call_expr, block_size, *, mean_center=False, hwe_normalize=False, partition_size=None, whiten_window_size=None, whiten_block_size=64, normalize_after_whiten=False):
     mt = matrix_table_source('_make_tsm/entry_expr', call_expr)
     mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
     if mean_center or hwe_normalize:
@@ -249,9 +277,11 @@ def _make_tsm_from_call(call_expr, block_size, mean_center=False, hwe_normalize=
     else:
         mt = mt.select_entries(__x=mt.__gt)
 
-    A, ht = mt_to_table_of_ndarray(mt.__x, block_size, return_checkpointed_table_also=True)
-    A = A.persist()
-    return TallSkinnyMatrix(A, A.ndarray, ht, list(mt.col_key))
+    _make_tsm(mt.__x, block_size,
+              partition_size=partition_size,
+              whiten_window_size=whiten_window_size,
+              whiten_block_size=whiten_block_size,
+              normalize_after_whiten=normalize_after_whiten)
 
 
 class KrylovFactorization:
