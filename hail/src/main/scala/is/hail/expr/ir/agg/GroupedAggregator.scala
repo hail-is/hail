@@ -21,7 +21,7 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
     "container" -> states.storageType)
   override val compType: PType = kt
 
-  override def compWithKey(cb: EmitCodeBuilder, off: Code[Long], k: EmitValue): Value[Int] = {
+  override def compWithKey(cb: EmitCodeBuilder, off: Value[Long], k: EmitValue): Value[Int] = {
     val mb = kb.getOrGenEmitMethod("compWithKey",
       ("compWithKey_grouped_btree", kt, k.emitType),
       FastIndexedSeq[ParamType](typeInfo[Long], k.emitParamType),
@@ -35,7 +35,7 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
         comp(cb, ev1, ev2)
       }
     }
-    cb.memoize[Int](cb.invokeCode(mb, off, k))
+    cb.invokeCode(mb, off, k)
   }
 
   val regionIdx: Value[Int] = new Value[Int] {
@@ -191,11 +191,10 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
       f(cb, EmitCode.fromI(cb.emb)(cb => IEmitCode(cb, keyed.isKeyMissing(cb, _elt), keyed.loadKey(cb, _elt))))
     }
 
-  def copyFromAddress(cb: EmitCodeBuilder, srcCode: Code[Long]): Unit = {
-    val src = cb.newLocal("ga_copy_from_addr_src", srcCode)
+  def copyFromAddress(cb: EmitCodeBuilder, src: Value[Long]): Unit = {
     init(cb, { cb => initContainer.copyFrom(cb, cb.memoize(typ.loadField(src, 0))) })
     cb.assign(size, Region.loadInt(typ.loadField(src, 1)))
-    tree.deepCopy(cb, Region.loadAddress(typ.loadField(src, 2)))
+    tree.deepCopy(cb, cb.memoize(Region.loadAddress(typ.loadField(src, 2))))
   }
 
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {

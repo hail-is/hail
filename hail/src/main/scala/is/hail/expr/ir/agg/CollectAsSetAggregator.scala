@@ -113,12 +113,11 @@ class AppendOnlySetState(val kb: EmitClassBuilder[_], vt: VirtualTypeWithReq) ex
       f(cb, EmitCode.fromI(cb.emb)(cb => IEmitCode(cb, key.isKeyMissing(cb, eoff), key.loadKey(cb, eoff))))
     }
 
-  def copyFromAddress(cb: EmitCodeBuilder, srcc: Code[Long]): Unit = {
-    val src = cb.newLocal[Long]("aoss_copy_from_addr_src", srcc)
+  def copyFromAddress(cb: EmitCodeBuilder, src: Value[Long]): Unit = {
     cb.assign(off, region.allocate(typ.alignment, typ.byteSize))
     cb.assign(size, Region.loadInt(typ.loadField(src, 0)))
     tree.init(cb)
-    tree.deepCopy(cb, Region.loadAddress(typ.loadField(src, 1)))
+    tree.deepCopy(cb, cb.memoize(Region.loadAddress(typ.loadField(src, 1))))
   }
 
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {

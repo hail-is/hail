@@ -106,7 +106,12 @@ class FunctionSuite extends HailSuite {
     val mb2 = fb.getOrGenEmitMethod("foo", "foo", FastIndexedSeq[ParamType](), UnitInfo) { mb =>
       mb.emit(i := i - 100)
     }
-    fb.emit(Code(i := 0, mb1.invokeCode(), mb2.invokeCode(), i))
+    fb.emitWithBuilder(cb => {
+      cb.assign(i, 0)
+      mb1.invokeCode(cb)
+      mb2.invokeCode(cb)
+      i
+    })
     pool.scopedRegion { r =>
 
       assert(fb.resultWithIndex().apply(ctx.fs, 0, r)() == 2)

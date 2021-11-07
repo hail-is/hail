@@ -76,19 +76,8 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     f
   }
 
-  def memoize[T: TypeInfo](v: Code[T], optionalName: String = ""): Value[T] = v match {
-    case b: ConstCodeBoolean => coerce[T](b.b)
-    case _ => newLocal[T]("memoize" + optionalName, v)
-  }
-
   def memoizeField[T: TypeInfo](v: Code[T]): Value[T] = {
     newField[T]("memoize", v)
-  }
-
-  def memoizeAny(v: Code[_], ti: TypeInfo[_]): Value[_] = {
-    val l = newLocal("memoize")(ti)
-    append(l.storeAny(v))
-    l
   }
 
   def memoize(v: EmitCode): EmitValue =
@@ -145,7 +134,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     l
   }
 
-  private def _invoke[T](callee: EmitMethodBuilder[_], _args: Param*): Code[T] = {
+  private def _invoke[T](callee: EmitMethodBuilder[_], _args: Param*): Value[T] = {
     val expectedArgs = callee.emitParamTypes
     val args = _args.toArray
     if (expectedArgs.size != args.length)
@@ -167,7 +156,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
             throw new RuntimeException(s"invoke ${ callee.mb.methodName }: arg $i: type mismatch:" +
               s"\n  got ${ pc.st }" +
               s"\n  expected ${ pcpt.st }")
-          pc.memoize(this, "_invoke").valueTuple.map(_.get)
+          pc.valueTuple
         case (EmitParam(ec), SCodeEmitParamType(et)) =>
           if (!ec.emitType.equalModuloRequired(et)) {
             throw new RuntimeException(s"invoke ${callee.mb.methodName}: arg $i: type mismatch:" +
@@ -182,14 +171,14 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
             case _ => ec
           }
           val castEv = memoize(castEc, "_invoke")
-          castEv.valueTuple().map(_.get)
+          castEv.valueTuple()
         case (arg, expected) =>
           throw new RuntimeException(s"invoke ${ callee.mb.methodName }: arg $i: type mismatch:" +
             s"\n  got ${ arg }" +
             s"\n  expected ${ expected }")
       }
     }
-    callee.mb.invoke(codeArgs: _*)
+    callee.mb.invoke(this, codeArgs: _*)
   }
 
   def invokeVoid(callee: EmitMethodBuilder[_], args: Param*): Unit = {
@@ -197,7 +186,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     append(_invoke[Unit](callee, args: _*))
   }
 
-  def invokeCode[T](callee: EmitMethodBuilder[_], args: Param*): Code[T] = {
+  def invokeCode[T](callee: EmitMethodBuilder[_], args: Param*): Value[T] = {
     callee.emitReturnType match {
       case CodeParamType(UnitInfo) =>
         throw new AssertionError("CodeBuilder.invokeCode had unit return type, use invokeVoid")
@@ -210,9 +199,9 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   def invokeSCode(callee: EmitMethodBuilder[_], args: Param*): SValue = {
     val st = callee.emitReturnType.asInstanceOf[SCodeParamType].st
     if (st.nSettables == 1)
-      st.fromValues(FastIndexedSeq(memoize(_invoke(callee, args: _*))(st.settableTupleTypes()(0))))
+      st.fromValues(FastIndexedSeq(_invoke(callee, args: _*)))
     else {
-      val tup = newLocal("invokepcode_tuple", _invoke(callee, args: _*))(callee.asmTuple.ti)
+      val tup = _invoke(callee, args: _*)
       st.fromValues(callee.asmTuple.loadElementsAny(tup))
     }
   }
