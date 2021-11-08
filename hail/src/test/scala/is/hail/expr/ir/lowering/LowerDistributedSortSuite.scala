@@ -2,7 +2,7 @@ package is.hail.expr.ir.lowering
 
 import is.hail.TestUtils.assertEvalsTo
 import is.hail.expr.ir.functions.IRRandomness
-import is.hail.expr.ir.{Apply, ApplyBinaryPrimOp, Ascending, ErrorIDs, GetField, I32, IR, Literal, MakeStruct, Ref, Requiredness, RequirednessAnalysis, SortField, TableMapRows, TableRange, ToArray, ToStream}
+import is.hail.expr.ir.{Apply, ApplyBinaryPrimOp, Ascending, ErrorIDs, GetField, I32, IR, Literal, MakeStruct, Ref, Requiredness, RequirednessAnalysis, SortField, TableIR, TableMapRows, TableRange, ToArray, ToStream}
 import is.hail.{ExecStrategy, HailSuite, TestUtils}
 import is.hail.expr.ir.lowering.LowerDistributedSort.samplePartition
 import is.hail.types.RTable
@@ -30,6 +30,36 @@ class LowerDistributedSortSuite extends HailSuite {
     println(LowerDistributedSort.howManySamplesPerPartition(rand, 1000, 10, partitionCounts))
   }
 
+  // Only does ascending for now
+  def testDistributedSortHelper(myTable: TableIR, sortFieldNames: IndexedSeq[String]): Unit = {
+    val req: RequirednessAnalysis = Requiredness(myTable, ctx)
+    val rowType = req.lookup(myTable).asInstanceOf[RTable].rowType
+    val stage = LowerTableIR.applyTable(myTable, DArrayLowering.All, ctx, req, Map.empty[String, IR])
+    val sortFields = sortFieldNames.map(x => SortField(x, Ascending) )
+    val sortedTs = LowerDistributedSort.distributedSort(ctx, stage, sortFields, Map.empty[String, IR], rowType)
+    val res = TestUtils.eval(sortedTs.mapCollect(Map.empty[String, IR])(x => ToArray(x))).asInstanceOf[IndexedSeq[IndexedSeq[Row]]].flatten
+
+    val rowFunc = myTable.typ.rowType.select(sortFieldNames)._2
+    val unsortedCollect = is.hail.expr.ir.TestUtils.collect(myTable)
+    val unsortedReq = Requiredness(unsortedCollect, ctx)
+    val unsorted = TestUtils.eval(LowerTableIR.apply(unsortedCollect, DArrayLowering.All, ctx, unsortedReq, Map.empty[String, IR])).asInstanceOf[Row](0).asInstanceOf[IndexedSeq[Row]]
+    val scalaSorted = unsorted.sortWith{ case (l, r) =>
+      val leftKey = rowFunc(l)
+      val rightKey = rowFunc(r)
+      var ans = false
+      var i = 0
+      while (i < sortFieldNames.size) {
+        if (leftKey(i).asInstanceOf[Int] != rightKey(i).asInstanceOf[Int]) {
+          ans = leftKey(i).asInstanceOf[Int] < rightKey(i).asInstanceOf[Int]
+          i = sortFieldNames.size
+        }
+        i += 1
+      }
+      ans
+    }
+    assert(res == scalaSorted)
+  }
+
   @Test def testDistributedSort(): Unit = {
     val tableRange = TableRange(100, 10)
     val rangeRow = Ref("row", tableRange.typ.rowType)
@@ -42,13 +72,8 @@ class LowerDistributedSortSuite extends HailSuite {
       ))
     )
 
-    val myTable = tableWithExtraField
-    val req: RequirednessAnalysis = Requiredness(myTable, ctx)
-    val rowType = req.lookup(myTable).asInstanceOf[RTable].rowType
-    val stage = LowerTableIR.applyTable(myTable, DArrayLowering.All, ctx, req, Map.empty[String, IR])
-    val sortFields = IndexedSeq[SortField](SortField("foo", Ascending), SortField("idx", Ascending))
-    val sortedTs = LowerDistributedSort.distributedSort(ctx, stage, sortFields, Map.empty[String, IR], rowType)
-    val res = TestUtils.eval(sortedTs.mapCollect(Map.empty[String, IR])(x => ToArray(x))).asInstanceOf[IndexedSeq[IndexedSeq[Row]]].flatten
-    assert(res == res.sortBy(r => (r(1).asInstanceOf[Int], r(0).asInstanceOf[Int])))
+    testDistributedSortHelper(tableWithExtraField, IndexedSeq("foo", "idx"))
+    testDistributedSortHelper(tableWithExtraField, IndexedSeq("idx"))
+    testDistributedSortHelper(tableWithExtraField, IndexedSeq("backwards"))
   }
 }

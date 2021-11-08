@@ -110,6 +110,7 @@ object LowerDistributedSort {
     val oversamplingNum = 1
     val seed = 7L
     val branchingFactor = 4
+    val sizeCutoff = 6
 
     val (newKType, _) = inputStage.rowType.select(sortFields.map(sf => sf.field))
 
@@ -117,9 +118,13 @@ object LowerDistributedSort {
     val reader = PartitionNativeReader(spec)
     val initialTmpPath = ctx.createTmpPath("hail_shuffle_temp_initial")
     val writer = PartitionNativeWriter(spec, initialTmpPath, None, None)
-    val initialChunks = CompileAndEvaluate[Annotation](ctx, inputStage.mapCollect(relationalLetsAbove) { part =>
+
+    val initialStageDataRow = CompileAndEvaluate[Annotation](ctx, inputStage.mapCollectWithGlobals(relationalLetsAbove) { part =>
       WritePartition(part, UUID4(), writer)
-    }).asInstanceOf[IndexedSeq[Row]].map(row => Chunk(initialTmpPath + row(0).asInstanceOf[String], row(1).asInstanceOf[Long].toInt))
+    }{ case (part, globals) => MakeTuple.ordered(Seq(part, globals))}).asInstanceOf[Row]
+    val (initialPartInfo, initialGlobals) = (initialStageDataRow(0).asInstanceOf[IndexedSeq[Row]], initialStageDataRow(1).asInstanceOf[Row])
+    val initialGlobalsLiteral = Literal(inputStage.globalType, initialGlobals)
+    val initialChunks = initialPartInfo.map(row => Chunk(initialTmpPath + row(0).asInstanceOf[String], row(1).asInstanceOf[Long].toInt))
     val initialSegment = SegmentResult(IndexedSeq(0), inputStage.partitioner.range.get, initialChunks)
 
     val totalNumberOfRows = initialChunks.map(_.size).sum
@@ -257,7 +262,9 @@ object LowerDistributedSort {
       }
 
       // Now I need to figure out how many partitions to allocate to each segment.
-      val (newBigSegments, newSmallSegments) = dataPerSegment.partition(sr => sr.chunks.map(_.size).sum > 6)
+      val (newBigSegments, newSmallSegments) = dataPerSegment.partition{ sr =>
+        sr.chunks.map(_.size).sum > sizeCutoff && (sr.interval.left != sr.interval.right)
+      }
       loopState = LoopState(newBigSegments, loopState.smallSegments ++ newSmallSegments)
       println(s"LoopState: Big = ${loopState.largeSegments.size}, small = ${loopState.smallSegments.size}")
 
@@ -272,7 +279,7 @@ object LowerDistributedSort {
     val contextData = sortedSegments.map(segment => Row(segment.chunks.map(chunk => chunk.filename)))
     val contexts = ToStream(Literal(TArray(TStruct("files" -> TArray(TString))), contextData))
     val partitioner = new RVDPartitioner(newKType, sortedSegments.map(_.interval))
-    val finalTs = TableStage(MakeStruct(Seq()), partitioner, TableStageDependency.none, contexts, { ctxRef =>
+    val finalTs = TableStage(initialGlobalsLiteral, partitioner, TableStageDependency.none, contexts, { ctxRef =>
       val filenames = GetField(ctxRef, "files")
       val unsortedPartitionStream = flatMapIR(ToStream(filenames)) { fileName =>
         ReadPartition(fileName, spec._vType, reader)
