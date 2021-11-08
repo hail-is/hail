@@ -1,4 +1,4 @@
-from typing import Set
+from typing import Set, Optional
 import aioredis
 import asyncio
 import base64
@@ -24,6 +24,7 @@ from gear import setup_aiohttp_session, rest_authenticated_users_only, monitor_e
 uvloop.install()
 
 DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
+ONE_HOUR_NS = 60 * 60 * 1000 * 1000 * 1000
 log = logging.getLogger('memory')
 routes = web.RouteTableDef()
 
@@ -39,7 +40,7 @@ async def healthcheck(request):  # pylint: disable=unused-argument
 @rest_authenticated_users_only
 async def get_object(request, userdata: dict):
     filepath = request.query.get('q')
-    fs = await get_or_add_user(request.app, userdata)
+    fs = await get_user_fs(request.app, userdata)
     username = userdata['username']
     log.info(f'memory: request for object {filepath} from user {username}')
     maybe_file = await get_file_or_none(request.app, username, fs, filepath)
@@ -52,7 +53,7 @@ async def get_object(request, userdata: dict):
 @rest_authenticated_users_only
 async def write_object(request, userdata: dict):
     filepath = request.query.get('q')
-    fs = await get_or_add_user(request.app, userdata)
+    fs = await get_user_fs(request.app, userdata)
     username = userdata['username']
     data = await request.read()
     log.info(f'memory: post for object {filepath} from user {username}')
@@ -66,7 +67,7 @@ async def write_object(request, userdata: dict):
     return web.Response(status=200)
 
 
-async def get_or_add_user(app, userdata: dict) -> GoogleStorageAsyncFS:
+async def get_user_fs(app, userdata: dict) -> GoogleStorageAsyncFS:
     user_credentials_cache: TimeLimitedMaxSizeCache[str, GoogleStorageAsyncFS] = app['user_credentials_cache']
     return await user_credentials_cache.lookup(userdata['hail_credentials_secret_name'])
 
@@ -75,7 +76,7 @@ def make_redis_key(username: str, filepath: str):
     return f'{ username }_{ filepath }'
 
 
-async def get_file_or_none(app, username: str, fs: AsyncFS, filepath: str):
+async def get_file_or_none(app, username: str, fs: AsyncFS, filepath: str) -> Optional[str]:
     file_key = make_redis_key(username, filepath)
     redis_pool: aioredis.ConnectionsPool = app['redis_pool']
 
@@ -143,7 +144,7 @@ async def on_startup(app):
         return GoogleStorageAsyncFS(credentials=credentials)
 
     app['user_credentials_cache'] = TimeLimitedMaxSizeCache(
-        get_secret_from_k8s, lifetime_ns=60 * 60 * 1000 * 1000 * 1000, max_size=100
+        get_secret_from_k8s, lifetime_ns=ONE_HOUR_NS, num_slots=100
     )
 
     app['redis_pool']: aioredis.ConnectionsPool = await aioredis.create_pool(socket)
