@@ -16,8 +16,8 @@ from .failure_injecting_client_session import FailureInjectingClientSession
 
 deploy_config = get_deploy_config()
 
-DOCKER_PREFIX = os.environ.get('DOCKER_PREFIX')
-DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'gcr.io/hail-vdc/ubuntu:18.04')
+DOCKER_PREFIX = os.environ['DOCKER_PREFIX']
+DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
 NAMESPACE = os.environ.get('HAIL_DEFAULT_NAMESPACE')
 SCOPE = os.environ.get('HAIL_SCOPE', 'test')
 
