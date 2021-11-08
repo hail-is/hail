@@ -13,13 +13,12 @@ from hailtop.batch.globals import arg_max
 from hailtop.utils import grouped
 from hailtop.config import get_user_config
 from hailtop.batch.utils import concatenate
-from hailtop.aiocloud import aiogoogle, aioazure
+from hailtop.aiocloud import aiogoogle
 from hailtop.aiotools import RouterAsyncFS
 
 
 DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
 PYTHON_DILL_IMAGE = os.environ['PYTHON_DILL_IMAGE']
-HAIL_TEST_GCS_BUCKET = os.environ['HAIL_TEST_GCS_BUCKET']
 
 
 class LocalTests(unittest.TestCase):
@@ -855,17 +854,8 @@ class ServiceTests(unittest.TestCase):
         job_status = res.get_job(2).status()
         assert job_status['state'] == 'Cancelled', str((job_status, res.debug_info()))
 
-    def test_service_backend_bucket_parameter(self):
-        backend = ServiceBackend(bucket=HAIL_TEST_GCS_BUCKET)
-        b = Batch(backend=backend)
-        j1 = b.new_job()
-        j1.command(f'echo hello > {j1.ofile}')
-        j2 = b.new_job()
-        j2.command(f'cat {j1.ofile}')
-        b.run()
-
     def test_service_backend_remote_tempdir_with_trailing_slash(self):
-        backend = ServiceBackend(remote_tmpdir=f'gs://{HAIL_TEST_GCS_BUCKET}/temporary-files/')
+        backend = ServiceBackend(remote_tmpdir=f'{self.remote_tmpdir}/temporary-files/')
         b = Batch(backend=backend)
         j1 = b.new_job()
         j1.command(f'echo hello > {j1.ofile}')
@@ -874,7 +864,7 @@ class ServiceTests(unittest.TestCase):
         b.run()
 
     def test_service_backend_remote_tempdir_with_no_trailing_slash(self):
-        backend = ServiceBackend(remote_tmpdir=f'gs://{HAIL_TEST_GCS_BUCKET}/temporary-files/')
+        backend = ServiceBackend(remote_tmpdir=f'{self.remote_tmpdir}/temporary-files')
         b = Batch(backend=backend)
         j1 = b.new_job()
         j1.command(f'echo hello > {j1.ofile}')
@@ -883,7 +873,7 @@ class ServiceTests(unittest.TestCase):
         b.run()
 
     def test_large_command(self):
-        backend = ServiceBackend(remote_tmpdir=f'gs://{HAIL_TEST_GCS_BUCKET}/temporary-files')
+        backend = ServiceBackend(remote_tmpdir=f'{self.remote_tmpdir}/temporary-files')
         b = Batch(backend=backend)
         j1 = b.new_job()
         long_str = secrets.token_urlsafe(15 * 1024)
