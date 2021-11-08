@@ -1,5 +1,6 @@
 package is.hail.expr.ir.lowering
 
+import is.hail.HailContext
 import is.hail.annotations.{Annotation, ExtendedOrdering, Region, RegionValueBuilder, SafeRow, UnsafeRow}
 import is.hail.asm4s.{AsmFunction1RegionLong, AsmFunction2RegionLongLong, AsmFunction3RegionLongLongLong, LongInfo, classInfo}
 import is.hail.backend.ExecuteContext
@@ -110,7 +111,7 @@ object LowerDistributedSort {
     val oversamplingNum = 1
     val seed = 7L
     val branchingFactor = 4
-    val sizeCutoff = 6
+    val sizeCutoff = HailContext.getFlag("shuffle_local_sort_cutoff").toInt
 
     val (newKType, _) = inputStage.rowType.select(sortFields.map(sf => sf.field))
 

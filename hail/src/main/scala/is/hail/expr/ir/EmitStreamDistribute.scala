@@ -209,7 +209,16 @@ object EmitStreamDistribute {
     val intervalType = PCanonicalInterval(keyPType.setRequired(false), true)
     val returnType = PCanonicalArray(PCanonicalStruct(("interval", intervalType), ("fileName", PCanonicalStringRequired), ("numElements", PInt32Required)), true)
 
-    val (pushElement, finisher) = returnType.constructFromFunctions(cb, region, numFilesToWrite, false)
+
+    val min = requestedSplittersAndEndsVal.loadElement(cb, 0).memoize(cb, "stream_dist_min")
+    val firstSplitter = paddedSplitters.loadElement(cb, 0).memoize(cb, "stream_dist_first_splitter")
+    val max = requestedSplittersAndEndsVal.loadElement(cb, requestedSplittersAndEndsVal.loadLength() - 1).memoize(cb, "stream_dist_min")
+    val lastSplitter = paddedSplitters.loadElement(cb, paddedSplitters.loadLength() - 1).memoize(cb, "stream_dist_last_splitter")
+
+//    val hasFirstInterval = cb.memoize(equal(cb, min, firstSplitter))
+//    val hasLastInterval = cb.memoize(equal(cb, max, lastSplitter))
+
+    val (pushElement, finisher) = returnType.constructFromFunctions(cb, region, cb.memoize(numFilesToWrite), false)
 
     val stackStructType = new SStackStruct(returnType.virtualType.elementType.asInstanceOf[TBaseStruct], IndexedSeq(
       EmitType(intervalType.sType, true),
@@ -217,10 +226,10 @@ object EmitStreamDistribute {
       EmitType(SInt32, true)
     ))
 
-    // Add first
+    // Add first, but only if min != first key.
     val firstInterval = intervalType.constructFromCodes(cb, region,
-      EmitCode.fromI(cb.emb)(cb => requestedSplittersAndEndsVal.loadElement(cb, 0)),
-      EmitCode.fromI(cb.emb)(cb => paddedSplitters.loadElement(cb, 0)),
+      min,
+      firstSplitter,
       true,
       cb.memoize(!splitterWasDuplicated.loadElement(cb, 0).get(cb).asBoolean.boolCode(cb))
     )
