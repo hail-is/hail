@@ -191,7 +191,7 @@ async def test_close_billing_project_with_open_batch_errors(
     project = new_billing_project
     await dev_client.add_user("test", project)
     client = await make_client(project)
-    b = await client.create_batch()._create()
+    b = await client.create_batch()._open_batch()
 
     try:
         await dev_client.close_billing_project(project)
@@ -642,7 +642,7 @@ async def test_deleted_open_batches_do_not_prevent_billing_project_closure(
         project = await dev_client.create_billing_project(random_billing_project_name)
         await dev_client.add_user('test', project)
         client = await make_client(project)
-        open_batch = await client.create_batch()._create()
+        open_batch = await client.create_batch()._open_batch()
         await open_batch.delete()
     finally:
         await dev_client.close_billing_project(project)

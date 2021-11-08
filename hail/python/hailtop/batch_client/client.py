@@ -222,9 +222,12 @@ class BatchBuilder:
 
         return Job.from_async_job(async_job)
 
-    def _create(self):
-        async_batch = async_to_blocking(self._async_builder._create())
+    def _open_batch(self) -> Batch:
+        async_batch = async_to_blocking(self._async_builder._open_batch())
         return Batch.from_async_batch(async_batch)
+
+    def _close_batch(self, id: int):
+        async_to_blocking(self._async_builder._close_batch(id))
 
     def submit(self, *args, **kwargs) -> Batch:
         async_batch = async_to_blocking(self._async_builder.submit(*args, **kwargs))

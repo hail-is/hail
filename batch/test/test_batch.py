@@ -629,8 +629,8 @@ def test_create_idempotence(client: BatchClient):
     token = secrets.token_urlsafe(32)
     builder1 = client.create_batch(token=token)
     builder2 = client.create_batch(token=token)
-    b1 = builder1._create()
-    b2 = builder2._create()
+    b1 = builder1._open_batch()
+    b2 = builder2._open_batch()
     assert b1.id == b2.id
 
 

@@ -524,7 +524,7 @@ class BatchBuilder:
         self._jobs.append(j)
         return j
 
-    async def _fast_create_submit_close(self, byte_job_specs: List[bytes], n_jobs: int, pbar) -> Batch:
+    async def _open_submit_close(self, byte_job_specs: List[bytes], n_jobs: int, pbar) -> Batch:
         assert n_jobs == len(self._job_specs)
         b = bytearray()
         b.extend(b'{"bunch":')
@@ -580,10 +580,13 @@ class BatchBuilder:
             batch_spec['cancel_after_n_failures'] = self._cancel_after_n_failures
         return batch_spec
 
-    async def _slow_create(self):
+    async def _open_batch(self) -> Batch:
         batch_spec = self._batch_spec()
         batch_json = await (await self._client._post('/api/v1alpha/batches/create', json=batch_spec)).json()
         return Batch(self._client, batch_json['id'], self.attributes, batch_spec['n_jobs'], self.token)
+
+    async def _close_batch(self, id: int):
+        await self._client._patch(f'/api/v1alpha/batches/{id}/close')
 
     MAX_BUNCH_BYTESIZE = 1024 * 1024
     MAX_BUNCH_SIZE = 1024
@@ -627,10 +630,10 @@ class BatchBuilder:
                   disable=disable_progress_bar,
                   desc='jobs submitted to queue') as pbar:
             if len(byte_job_specs_bunches) == 1:
-                batch = await self._fast_create_submit_close(byte_job_specs_bunches[0], bunch_sizes[0], pbar)
+                batch = await self._open_submit_close(byte_job_specs_bunches[0], bunch_sizes[0], pbar)
                 id = batch.id
             else:
-                batch = await self._slow_create()
+                batch = await self._open_batch()
                 id = batch.id
                 await bounded_gather(
                     *[functools.partial(self._submit_jobs, id, bunch, size, pbar)
@@ -638,7 +641,7 @@ class BatchBuilder:
                       ],
                     parallelism=6,
                 )
-                await self._client._patch(f'/api/v1alpha/batches/{id}/close')
+                await self._close_batch(id)
 
         log.info(f'created batch {id}')
 
