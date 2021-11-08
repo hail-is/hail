@@ -9,7 +9,7 @@ validations = {
     ('batch', 'bucket'): (lambda x: re.fullmatch(r'[^:/\s]+', x) is not None,
                           'should be valid Google Bucket identifier, with no gs:// prefix'),
     ('batch', 'remote_tmpdir'): (lambda x: any([re.fullmatch(fr'^{scheme}://.*', x) is not None for scheme in {'gs', 's3', 'hail-az'}]),
-                                               'should be valid cloud storage URI such as gs://my-bucket/batch-tmp/'),
+                                 'should be valid cloud storage URI such as gs://my-bucket/batch-tmp/'),
     ('email',): (lambda x: re.fullmatch(r'.+@.+', x) is not None, 'should be valid email address')
 }
 
