@@ -10,7 +10,7 @@ import re
 from hailtop.batch import Batch, ServiceBackend, LocalBackend
 from hailtop.batch.exceptions import BatchException
 from hailtop.batch.globals import arg_max
-from hailtop.utils import grouped
+from hailtop.utils import grouped, async_to_blocking
 from hailtop.config import get_user_config
 from hailtop.batch.utils import concatenate
 from hailtop.aiocloud import aiogoogle
@@ -424,12 +424,18 @@ class ServiceTests(unittest.TestCase):
             aiogoogle.GoogleStorageAsyncFS(project='hail-vdc', credentials_file=in_cluster_key_file),
         ])
 
-        if not await router_fs.exists(f'{self.remote_tmpdir}batch-tests/resources/hello.txt'):
-            await router_fs.write(f'{self.remote_tmpdir}batch-tests/resources/hello.txt', b'hello world')
-        if not await router_fs.exists(f'{self.remote_tmpdir}batch-tests/resources/hello spaces.txt'):
-            await router_fs.write(f'{self.remote_tmpdir}batch-tests/resources/hello spaces.txt', b'hello')
-        if not await router_fs.exists(f'{self.remote_tmpdir}batch-tests/resources/hello (foo) spaces.txt'):
-            await router_fs.write(f'{self.remote_tmpdir}batch-tests/resources/hello (foo) spaces.txt', b'hello')
+        def sync_exists(url):
+            return async_to_blocking(router_fs.exists(url))
+
+        def sync_write(url, data):
+            return async_to_blocking(router_fs.write(url, data))
+
+        if not sync_exists(f'{self.remote_tmpdir}batch-tests/resources/hello.txt'):
+            sync_write(f'{self.remote_tmpdir}batch-tests/resources/hello.txt', b'hello world')
+        if not sync_exists(f'{self.remote_tmpdir}batch-tests/resources/hello spaces.txt'):
+            sync_write(f'{self.remote_tmpdir}batch-tests/resources/hello spaces.txt', b'hello')
+        if not sync_exists(f'{self.remote_tmpdir}batch-tests/resources/hello (foo) spaces.txt'):
+            sync_write(f'{self.remote_tmpdir}batch-tests/resources/hello (foo) spaces.txt', b'hello')
 
     def tearDown(self):
         self.backend.close()
