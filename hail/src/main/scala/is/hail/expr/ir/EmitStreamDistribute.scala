@@ -152,6 +152,7 @@ object EmitStreamDistribute {
       cb.assign(numberOfBuckets, const(1) << treeHeight))
 
     // Without identity buckets you'd have numUniqueSplitters + 1 buckets, but we have to add an extra for each identity bucket.
+    // FIXME: We should have less files if we aren't writing endpoint buckets.
     val numFilesToWrite = cb.newLocal[Int]("stream_dist_num_files_to_write", 1)
     cb.forLoop(cb.assign(uniqueSplittersIdx, 0), uniqueSplittersIdx < numUniqueSplitters, cb.assign(uniqueSplittersIdx, uniqueSplittersIdx + 1), {
       cb.assign(numFilesToWrite, numFilesToWrite + 1 + splitterWasDuplicated.loadElement(cb, uniqueSplittersIdx).get(cb).asBoolean.boolCode(cb).toI)
@@ -209,16 +210,15 @@ object EmitStreamDistribute {
     val intervalType = PCanonicalInterval(keyPType.setRequired(false), true)
     val returnType = PCanonicalArray(PCanonicalStruct(("interval", intervalType), ("fileName", PCanonicalStringRequired), ("numElements", PInt32Required)), true)
 
-
     val min = requestedSplittersAndEndsVal.loadElement(cb, 0).memoize(cb, "stream_dist_min")
     val firstSplitter = paddedSplitters.loadElement(cb, 0).memoize(cb, "stream_dist_first_splitter")
     val max = requestedSplittersAndEndsVal.loadElement(cb, requestedSplittersAndEndsVal.loadLength() - 1).memoize(cb, "stream_dist_min")
     val lastSplitter = paddedSplitters.loadElement(cb, paddedSplitters.loadLength() - 1).memoize(cb, "stream_dist_last_splitter")
 
-//    val hasFirstInterval = cb.memoize(equal(cb, min, firstSplitter))
-//    val hasLastInterval = cb.memoize(equal(cb, max, lastSplitter))
+    val skipMinInterval = cb.memoize(equal(cb, min, firstSplitter) && splitterWasDuplicated.loadElement(cb, 0).get(cb).asBoolean.boolCode(cb))
+    val skipMaxInterval = cb.memoize(equal(cb, max, lastSplitter))
 
-    val (pushElement, finisher) = returnType.constructFromFunctions(cb, region, cb.memoize(numFilesToWrite), false)
+    val (pushElement, finisher) = returnType.constructFromFunctions(cb, region, cb.memoize(numFilesToWrite - skipMinInterval.toI - skipMaxInterval.toI), false)
 
     val stackStructType = new SStackStruct(returnType.virtualType.elementType.asInstanceOf[TBaseStruct], IndexedSeq(
       EmitType(intervalType.sType, true),
@@ -227,18 +227,20 @@ object EmitStreamDistribute {
     ))
 
     // Add first, but only if min != first key.
-    val firstInterval = intervalType.constructFromCodes(cb, region,
-      min,
-      firstSplitter,
-      true,
-      cb.memoize(!splitterWasDuplicated.loadElement(cb, 0).get(cb).asBoolean.boolCode(cb))
-    )
+    cb.ifx(!skipMinInterval, {
+      val firstInterval = intervalType.constructFromCodes(cb, region,
+        min,
+        firstSplitter,
+        true,
+        cb.memoize(!splitterWasDuplicated.loadElement(cb, 0).get(cb).asBoolean.boolCode(cb))
+      )
 
-    pushElement(cb, IEmitCode.present(cb, new SStackStructValue(stackStructType, IndexedSeq(
-      EmitValue.present(firstInterval),
-      EmitValue.present(SJavaString.construct(cb, makeFileName(cb, 0))),
-      EmitValue.present(primitive(cb.memoize(numElementsPerFile(0))))
-    ))))
+      pushElement(cb, IEmitCode.present(cb, new SStackStructValue(stackStructType, IndexedSeq(
+        EmitValue.present(firstInterval),
+        EmitValue.present(SJavaString.construct(cb, makeFileName(cb, 0))),
+        EmitValue.present(primitive(cb.memoize(numElementsPerFile(0))))
+      ))))
+    })
 
     cb.forLoop({cb.assign(uniqueSplittersIdx, 0); cb.assign(fileArrayIdx, 1) }, uniqueSplittersIdx < numUniqueSplitters, cb.assign(uniqueSplittersIdx, uniqueSplittersIdx + 1), {
       cb.ifx(uniqueSplittersIdx cne 0, {
@@ -277,19 +279,21 @@ object EmitStreamDistribute {
       })
     })
 
-    // Add last
-    val lastInterval = intervalType.constructFromCodes(cb, region,
-      EmitCode.fromI(cb.emb)(cb => paddedSplitters.loadElement(cb, uniqueSplittersIdx - 1)),
-      EmitCode.fromI(cb.emb)(cb => requestedSplittersAndEndsVal.loadElement(cb, requestedSplittersAndEndsVal.loadLength() - 1)),
-      false,
-      true
-    )
+    // Add last, but only if max != last key
+    cb.ifx(!skipMaxInterval, {
+      val lastInterval = intervalType.constructFromCodes(cb, region,
+        EmitCode.fromI(cb.emb)(cb => paddedSplitters.loadElement(cb, uniqueSplittersIdx - 1)),
+        EmitCode.fromI(cb.emb)(cb => requestedSplittersAndEndsVal.loadElement(cb, requestedSplittersAndEndsVal.loadLength() - 1)),
+        false,
+        true
+      )
 
-    pushElement(cb, IEmitCode.present(cb, new SStackStructValue(stackStructType, IndexedSeq(
-      EmitValue.present(lastInterval),
-      EmitValue.present(SJavaString.construct(cb, makeFileName(cb, fileArrayIdx))),
-      EmitValue.present(primitive(cb.memoize(numElementsPerFile(fileArrayIdx))))
-    ))))
+      pushElement(cb, IEmitCode.present(cb, new SStackStructValue(stackStructType, IndexedSeq(
+        EmitValue.present(lastInterval),
+        EmitValue.present(SJavaString.construct(cb, makeFileName(cb, fileArrayIdx))),
+        EmitValue.present(primitive(cb.memoize(numElementsPerFile(fileArrayIdx))))
+      ))))
+    })
 
     finisher(cb)
   }

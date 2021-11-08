@@ -264,7 +264,7 @@ object LowerDistributedSort {
 
       // Now I need to figure out how many partitions to allocate to each segment.
       val (newBigSegments, newSmallSegments) = dataPerSegment.partition{ sr =>
-        sr.chunks.map(_.size).sum > sizeCutoff && (sr.interval.left != sr.interval.right)
+        sr.chunks.map(_.size).sum > sizeCutoff && (sr.interval.left.point != sr.interval.right.point)
       }
       loopState = LoopState(newBigSegments, loopState.smallSegments ++ newSmallSegments)
       println(s"LoopState: Big = ${loopState.largeSegments.size}, small = ${loopState.smallSegments.size}")
