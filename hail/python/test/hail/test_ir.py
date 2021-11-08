@@ -75,7 +75,7 @@ class ValueIRTests(unittest.TestCase):
             ir.StreamFlatMap(sta, 'v', ir.ToStream(v)),
             ir.StreamFold(st, ir.I32(0), 'x', 'v', v),
             ir.StreamScan(st, ir.I32(0), 'x', 'v', v),
-            ir.StreamWhiten(whitenStream, "newChunk", "prevWindow", 0, 0, 0, 0),
+            ir.StreamWhiten(whitenStream, "newChunk", "prevWindow", 0, 0, 0, 0, False),
             ir.StreamJoinRightDistinct(st, st, ['k'], ['k'], 'l', 'r', ir.I32(1), "left"),
             ir.StreamFor(st, 'v', ir.Void()),
             ir.AggFilter(ir.TrueIR(), ir.I32(0), False),

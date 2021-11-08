@@ -277,11 +277,11 @@ def _make_tsm_from_call(call_expr, block_size, *, mean_center=False, hwe_normali
     else:
         mt = mt.select_entries(__x=mt.__gt)
 
-    _make_tsm(mt.__x, block_size,
-              partition_size=partition_size,
-              whiten_window_size=whiten_window_size,
-              whiten_block_size=whiten_block_size,
-              normalize_after_whiten=normalize_after_whiten)
+    return _make_tsm(mt.__x, block_size,
+                     partition_size=partition_size,
+                     whiten_window_size=whiten_window_size,
+                     whiten_block_size=whiten_block_size,
+                     normalize_after_whiten=normalize_after_whiten)
 
 
 class KrylovFactorization:
@@ -403,7 +403,7 @@ def _reduced_svd(A: TallSkinnyMatrix, k=10, compute_U=False, iterations=2, itera
 def _spectral_moments(A, num_moments, p=None, moment_samples=500, block_size=128):
     if not isinstance(A, TallSkinnyMatrix):
         check_entry_indexed('_spectral_moments/entry_expr', A)
-        A = _make_tsm_from_call(A, block_size)
+        A = _make_tsm(A, block_size)
 
     n = A.ncols
 
@@ -433,7 +433,7 @@ def _spectral_moments(A, num_moments, p=None, moment_samples=500, block_size=128
 def _pca_and_moments(A, k=10, num_moments=5, compute_loadings=False, q_iterations=2, oversampling_param=2, block_size=128, moment_samples=100):
     if not isinstance(A, TallSkinnyMatrix):
         check_entry_indexed('_spectral_moments/entry_expr', A)
-        A = _make_tsm_from_call(A, block_size)
+        A = _make_tsm(A, block_size)
 
     # Set Parameters
     q = q_iterations
