@@ -126,23 +126,11 @@ async def test_exception_propagates_everywhere():
     y = asyncio.create_task(c.lookup(0))
     z = asyncio.create_task(c.lookup(0))
 
-    try:
+    with pytest.raises(ValueError, match='^boom$'):
         await x
-    except ValueError as err:
-        assert err.args[0] == 'boom'
-    else:
-        assert False
 
-    try:
+    with pytest.raises(ValueError, match='^boom$'):
         await y
-    except ValueError as err:
-        assert err.args[0] == 'boom'
-    else:
-        assert False
 
-    try:
+    with pytest.raises(ValueError, match='^boom$'):
         await z
-    except ValueError as err:
-        assert err.args[0] == 'boom'
-    else:
-        assert False
