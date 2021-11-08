@@ -140,8 +140,14 @@ async def on_startup(app):
             k8s_client.read_namespaced_secret, secret_name, DEFAULT_NAMESPACE, _request_timeout=5.0
         )
         gsa_key = json.loads(base64.b64decode(secret.data['key.json']).decode())
-        credentials = GoogleCredentials.from_credentials_data(gsa_key)
-        return GoogleStorageAsyncFS(credentials=credentials)
+        credentials = GoogleCredentials.from_credentials_data(
+            gsa_key,
+            http_session=app['client_session'],
+        )
+        return GoogleStorageAsyncFS(
+            credentials=credentials,
+            http_session=app['client_session'],
+        )
 
     app['user_credentials_cache'] = TimeLimitedMaxSizeCache(
         get_secret_from_k8s, lifetime_ns=ONE_HOUR_NS, num_slots=100
@@ -163,14 +169,7 @@ async def on_cleanup(app):
                 try:
                     await app['client_session'].close()
                 finally:
-                    try:
-
-                        async def close_fs(fs: GoogleStorageAsyncFS):
-                            await fs.close()
-
-                        await app['user_credentials_cache'].shutdown(close_fs)
-                    finally:
-                        await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
+                    await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
 
 
 def run():

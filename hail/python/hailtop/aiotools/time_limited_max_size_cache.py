@@ -1,4 +1,4 @@
-from typing import TypeVar, Callable, Awaitable, Dict, Tuple, Generic
+from typing import TypeVar, Callable, Awaitable, Dict, Generic
 
 import time
 import asyncio
@@ -22,18 +22,16 @@ class TimeLimitedMaxSizeCache(Generic[T, U]):
         self._keys_by_expiry = sortedcontainers.SortedSet(key=lambda k: self._expiry_time[k])
         self._shutting_down = False
 
-    async def shutdown(self, cleanup_value: Callable[[U], Awaitable[None]]):
-        """Wait for all outstanding futures to complete and cleanup values.
+    async def shutdown(self):
+        """Wait for all outstanding futures to complete and prevent new lookups.
 
-        It is not necessary to shutdown a TimeLimitedMaxSizeCache unless the values need to be
-        cleaned up.
+        This class does not manage any resources itself and this function is *not required* to be
+        called.
 
         """
         self._shutting_down = True
         await asyncio.wait(self._futures.values())
         assert len(self._futures) == 0
-        for u in self._cache.values():
-            await cleanup_value(u)
 
     async def lookup(self, k: T) -> U:
         if self._shutting_down:
