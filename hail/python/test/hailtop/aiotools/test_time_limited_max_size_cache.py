@@ -73,7 +73,9 @@ async def test_lifetime():
     assert await c.lookup(10) == 100
     assert load_counts == 5
 
-    # these two are a bit racy, but should be fine
+    # Python should execute these lookups before the one second timeout on keys 3 and 10, but this
+    # code is unavoidably a data race. This test can fail under extraordinary conditions which cause
+    # a stall in the Python interpreter.
     assert await c.lookup(3) == 9
     assert load_counts == 5
     assert await c.lookup(10) == 100
