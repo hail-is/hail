@@ -35,16 +35,17 @@ async def test_num_slots():
 
     c = TimeLimitedMaxSizeCache(load_secret_only_twice, one_day_ns, 2)
     assert await c.lookup(3) == 9
+    assert load_counts == 1
     assert await c.lookup(10) == 100
+    assert load_counts == 2
     assert await c.lookup(3) == 9
     assert await c.lookup(3) == 9
     assert await c.lookup(10) == 100
-    try:
+
+    assert load_counts == 2
+    with pytest.raises(ValueError, match='^already loaded secret twice$'):
         await c.lookup(4)
-    except ValueError:
-        assert load_counts == 2
-    else:
-        assert False
+    assert load_counts == 2
 
 
 async def test_lifetime():
