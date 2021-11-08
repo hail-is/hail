@@ -5,10 +5,13 @@ from hailtop.aiotools.time_limited_max_size_cache import TimeLimitedMaxSizeCache
 from ..batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS
 
 
+FIVE_SECONDS_NS = 5 * 1000 * 1000 * 1000
+
+
 class K8sCache:
     def __init__(self,
                  client,
-                 refresh_time_ns: int = 5 * 1000 * 1000 * 1000,
+                 refresh_time_ns: int = FIVE_SECONDS_NS,
                  max_size: int = 100):
         self.client = client
         self.secret_cache = TimeLimitedMaxSizeCache(

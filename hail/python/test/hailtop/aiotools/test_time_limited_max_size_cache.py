@@ -24,7 +24,7 @@ async def test_simple():
     assert await c.lookup(4) == 16
 
 
-async def test_max_size():
+async def test_num_slots():
     load_counts = 0
     async def load_secret_only_twice(k: int):
         nonlocal load_counts
@@ -79,7 +79,7 @@ async def test_lifetime():
     assert await c.lookup(10) == 100
     assert load_counts == 5
 
-async def test_max_size_deletes_oldest():
+async def test_num_slots_deletes_oldest():
     load_counts = 0
     async def load_secret(k: int):
         nonlocal load_counts
