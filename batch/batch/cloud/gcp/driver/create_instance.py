@@ -1,47 +1,46 @@
-import os
-import logging
+from typing import Dict
 import base64
 import json
-import uuid
-from typing import Tuple, Dict, Any
+import logging
+import os
+from shlex import quote as shq
 
-from hailtop.aiocloud import aiogoogle
+from gear.cloud_config import get_global_config
 
-from ..batch_configuration import PROJECT, DOCKER_ROOT_IMAGE, DOCKER_PREFIX, DEFAULT_NAMESPACE
-from ..inst_coll_config import machine_type_to_dict
-from ..worker_config import WorkerConfig
-from ..file_store import FileStore
-from ..utils import unreserved_worker_data_disk_size_gib
+from ....batch_configuration import (DOCKER_ROOT_IMAGE, DOCKER_PREFIX, DEFAULT_NAMESPACE,
+                                     INTERNAL_GATEWAY_IP)
+from ....file_store import FileStore
+from ....instance_config import InstanceConfig
+from ...resource_utils import unreserved_worker_data_disk_size_gib
+
+from ..resource_utils import gcp_machine_type_to_worker_type_and_cores
 
 log = logging.getLogger('create_instance')
 
 BATCH_WORKER_IMAGE = os.environ['HAIL_BATCH_WORKER_IMAGE']
-INTERNAL_GATEWAY_IP = os.environ['HAIL_INTERNAL_IP']
 
 log.info(f'BATCH_WORKER_IMAGE {BATCH_WORKER_IMAGE}')
 
 
-def create_instance_config(
-    app,
-    zone,
-    machine_name,
-    machine_type,
-    activation_token,
-    max_idle_time_msecs,
-    worker_local_ssd_data_disk,
-    worker_pd_ssd_data_disk_size_gb,
-    boot_disk_size_gb,
-    preemptible,
-    job_private,
-) -> Tuple[Dict[str, Any], WorkerConfig]:
-    file_store: FileStore = app['file_store']
+def create_vm_config(
+    file_store: FileStore,
+    resource_rates: Dict[str, float],
+    zone: str,
+    machine_name: str,
+    machine_type: str,
+    activation_token: str,
+    max_idle_time_msecs: int,
+    local_ssd_data_disk: bool,
+    data_disk_size_gb: int,
+    boot_disk_size_gb: int,
+    preemptible: bool,
+    job_private: bool,
+    project: str,
+    instance_config: InstanceConfig,
+) -> dict:
+    _, cores = gcp_machine_type_to_worker_type_and_cores(machine_type)
 
-    maybe_machine_type_dict = machine_type_to_dict(machine_type)
-    if maybe_machine_type_dict is None:
-        raise ValueError(f'bad machine_type: {machine_type}')
-    cores = int(maybe_machine_type_dict['cores'])
-
-    if worker_local_ssd_data_disk:
+    if local_ssd_data_disk:
         worker_data_disk = {
             'type': 'SCRATCH',
             'autoDelete': True,
@@ -53,31 +52,37 @@ def create_instance_config(
         worker_data_disk = {
             'autoDelete': True,
             'initializeParams': {
-                'diskType': f'projects/{PROJECT}/zones/{zone}/diskTypes/pd-ssd',
-                'diskSizeGb': str(worker_pd_ssd_data_disk_size_gb),
+                'diskType': f'projects/{project}/zones/{zone}/diskTypes/pd-ssd',
+                'diskSizeGb': str(data_disk_size_gb),
             },
         }
         worker_data_disk_name = 'sdb'
 
     if job_private:
-        unreserved_disk_storage_gb = worker_pd_ssd_data_disk_size_gb
+        unreserved_disk_storage_gb = data_disk_size_gb
     else:
-        unreserved_disk_storage_gb = unreserved_worker_data_disk_size_gib(
-            worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb, cores
-        )
+        unreserved_disk_storage_gb = unreserved_worker_data_disk_size_gib(data_disk_size_gb, cores)
     assert unreserved_disk_storage_gb >= 0
 
-    config = {
+    make_global_config = ['mkdir /global-config']
+    global_config = get_global_config()
+    for name, value in global_config.items():
+        make_global_config.append(f'echo -n {shq(value)} > /global-config/{name}')
+    make_global_config_str = '\n'.join(make_global_config)
+
+    assert instance_config.is_valid_configuration(resource_rates.keys())
+
+    return {
         'name': machine_name,
-        'machineType': f'projects/{PROJECT}/zones/{zone}/machineTypes/{machine_type}',
+        'machineType': f'projects/{project}/zones/{zone}/machineTypes/{machine_type}',
         'labels': {'role': 'batch2-agent', 'namespace': DEFAULT_NAMESPACE},
         'disks': [
             {
                 'boot': True,
                 'autoDelete': True,
                 'initializeParams': {
-                    'sourceImage': f'projects/{PROJECT}/global/images/batch-worker-12',
-                    'diskType': f'projects/{PROJECT}/zones/{zone}/diskTypes/pd-ssd',
+                    'sourceImage': f'projects/{project}/global/images/batch-worker-12',
+                    'diskType': f'projects/{project}/zones/{zone}/diskTypes/pd-ssd',
                     'diskSizeGb': str(boot_disk_size_gb),
                 },
             },
@@ -93,7 +98,7 @@ def create_instance_config(
         'scheduling': {'automaticRestart': False, 'onHostMaintenance': "TERMINATE", 'preemptible': preemptible},
         'serviceAccounts': [
             {
-                'email': f'batch2-agent@{PROJECT}.iam.gserviceaccount.com',
+                'email': f'batch2-agent@{project}.iam.gserviceaccount.com',
                 'scopes': ['https://www.googleapis.com/auth/cloud-platform'],
             }
         ],
@@ -166,7 +171,7 @@ PROJECT=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/
 
 BATCH_LOGS_STORAGE_URI=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_logs_storage_uri")
 INSTANCE_ID=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_id")
-WORKER_CONFIG=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/worker_config")
+INSTANCE_CONFIG=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_config")
 MAX_IDLE_TIME_MSECS=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/max_idle_time_msecs")
 NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
 ZONE=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
@@ -255,6 +260,8 @@ rm /etc/google-fluentd/google-fluentd.conf.bak
 
 sudo service google-fluentd restart
 
+{make_global_config_str}
+
 # retry once
 docker pull $BATCH_WORKER_IMAGE || \
 (echo 'pull failed, retrying' && sleep 15 && docker pull $BATCH_WORKER_IMAGE)
@@ -263,6 +270,7 @@ BATCH_WORKER_IMAGE_ID=$(docker inspect $BATCH_WORKER_IMAGE --format='{{{{.Id}}}}
 
 # So here I go it's my shot.
 docker run \
+-e CLOUD=gcp \
 -e CORES=$CORES \
 -e NAME=$NAME \
 -e NAMESPACE=$NAMESPACE \
@@ -274,9 +282,8 @@ docker run \
 -e ZONE=$ZONE \
 -e DOCKER_PREFIX=$DOCKER_PREFIX \
 -e DOCKER_ROOT_IMAGE=$DOCKER_ROOT_IMAGE \
--e WORKER_CONFIG=$WORKER_CONFIG \
+-e INSTANCE_CONFIG=$INSTANCE_CONFIG \
 -e MAX_IDLE_TIME_MSECS=$MAX_IDLE_TIME_MSECS \
--e WORKER_DATA_DISK_MOUNT=/mnt/disks/$WORKER_DATA_DISK_NAME \
 -e BATCH_WORKER_IMAGE=$BATCH_WORKER_IMAGE \
 -e BATCH_WORKER_IMAGE_ID=$BATCH_WORKER_IMAGE_ID \
 -e UNRESERVED_WORKER_DATA_DISK_SIZE_GB=$UNRESERVED_WORKER_DATA_DISK_SIZE_GB \
@@ -287,6 +294,7 @@ docker run \
 -v /usr/sbin/xfs_quota:/usr/sbin/xfs_quota \
 -v /batch:/batch:shared \
 -v /logs:/logs \
+-v /global-config:/global-config \
 -v /gcsfuse:/gcsfuse:shared \
 -v /etc/netns:/etc/netns \
 -v /sys/fs/cgroup:/sys/fs/cgroup \
@@ -331,23 +339,8 @@ journalctl -u docker.service > dockerd.log
                 {'key': 'batch_logs_storage_uri', 'value': file_store.batch_logs_storage_uri},
                 {'key': 'instance_id', 'value': file_store.instance_id},
                 {'key': 'max_idle_time_msecs', 'value': max_idle_time_msecs},
+                {'key': 'instance_config', 'value': base64.b64encode(json.dumps(instance_config.to_dict()).encode()).decode()},
             ]
         },
         'tags': {'items': ["batch2-agent"]},
     }
-
-    worker_config = WorkerConfig.from_instance_config(config, job_private)
-    resource_names = app['resource_rates'].keys()
-    assert worker_config.is_valid_configuration(resource_names)
-    config['metadata']['items'].append(
-        {'key': 'worker_config', 'value': base64.b64encode(json.dumps(worker_config.config).encode()).decode()}
-    )
-
-    return (config, worker_config)
-
-
-async def create_instance(app, machine_name, zone, config):
-    compute_client: aiogoogle.GoogleComputeClient = app['compute_client']
-    params = {'requestId': str(uuid.uuid4())}
-    await compute_client.post(f'/zones/{zone}/instances', params=params, json=config)
-    log.info(f'created machine {machine_name}')

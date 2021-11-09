@@ -19,6 +19,7 @@ import plotly
 import humanize
 import traceback
 from prometheus_async.aio.web import server_stats  # type: ignore
+
 from hailtop.utils import (
     time_msecs,
     time_msecs_str,
@@ -32,7 +33,6 @@ from hailtop.utils import (
     periodically_call,
 )
 from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
-from hailtop.aiocloud import aiogoogle
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop import httpx
@@ -48,16 +48,18 @@ from gear import (
     transaction,
     monitor_endpoints_middleware,
 )
+from gear.clients import get_cloud_async_fs
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 
 # import uvloop
 
-from ..utils import (
-    coalesce,
-    query_billing_projects,
+from ..utils import coalesce, query_billing_projects
+from ..cloud.resource_utils import (
     is_valid_cores_mcpu,
     cost_from_msec_mcpu,
     cores_mcpu_to_memory_bytes,
+    memory_to_worker_type,
+    valid_machine_types,
 )
 from ..batch import batch_record_to_dict, job_record_to_dict, cancel_batch_in_db
 from ..exceptions import (
@@ -70,8 +72,8 @@ from ..exceptions import (
 from ..inst_coll_config import InstanceCollectionConfigs
 from ..file_store import FileStore
 from ..database import CallError, check_call_procedure
-from ..batch_configuration import BATCH_STORAGE_URI, DEFAULT_NAMESPACE, SCOPE
-from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION, memory_to_worker_type
+from ..batch_configuration import BATCH_STORAGE_URI, DEFAULT_NAMESPACE, SCOPE, CLOUD
+from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION
 from ..spec_writer import SpecWriter
 from ..batch_format_version import BatchFormatVersion
 
@@ -689,6 +691,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 parent_ids = spec.pop('parent_ids', [])
                 always_run = spec.pop('always_run', False)
 
+                cloud = spec.get('cloud', CLOUD)
+
                 if batch_format_version.has_full_spec_in_gcs():
                     attributes = spec.pop('attributes', None)
                 else:
@@ -715,6 +719,9 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 machine_type = resources.get('machine_type')
                 preemptible = resources.get('preemptible', BATCH_JOB_DEFAULT_PREEMPTIBLE)
 
+                if machine_type and machine_type not in valid_machine_types(cloud):
+                    raise web.HTTPBadRequest(reason=f'unknown machine type {machine_type} for cloud {cloud}')
+
                 if machine_type and ('cpu' in resources or 'memory' in resources):
                     raise web.HTTPBadRequest(reason='cannot specify cpu and memory with machine_type')
 
@@ -737,9 +744,10 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     resources['req_memory'] = resources['memory']
                     del resources['memory']
                     req_memory = resources['req_memory']
-                    if req_memory in memory_to_worker_type:
-                        worker_type = memory_to_worker_type[req_memory]
-                        req_memory_bytes = cores_mcpu_to_memory_bytes(req_cores_mcpu, worker_type)
+                    memory_to_worker_types = memory_to_worker_type(cloud)
+                    if req_memory in memory_to_worker_types:
+                        worker_type = memory_to_worker_types[req_memory]
+                        req_memory_bytes = cores_mcpu_to_memory_bytes(cloud, req_cores_mcpu, worker_type)
                     else:
                         req_memory_bytes = parse_memory_in_bytes(req_memory)
                 else:
@@ -762,7 +770,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 inst_coll_configs: InstanceCollectionConfigs = app['inst_coll_configs']
 
                 result, exc = inst_coll_configs.select_inst_coll(
-                    machine_type, preemptible, worker_type, req_cores_mcpu, req_memory_bytes, req_storage_bytes
+                    cloud, machine_type, preemptible, worker_type, req_cores_mcpu, req_memory_bytes, req_storage_bytes
                 )
 
                 if exc:
@@ -771,11 +779,12 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if result is None:
                     raise web.HTTPBadRequest(
                         reason=f'resource requests for job {id} are unsatisfiable: '
-                        f'cpu={resources.get("req_cpu")}, '
-                        f'memory={resources.get("req_memory")}, '
-                        f'storage={resources["req_storage"]}, '
-                        f'preemptible={preemptible}, '
-                        f'machine_type={machine_type}'
+                               f'cloud={cloud}, '
+                               f'cpu={resources.get("req_cpu")}, '
+                               f'memory={resources.get("req_memory")}, '
+                               f'storage={resources["req_storage"]}, '
+                               f'preemptible={preemptible}, '
+                               f'machine_type={machine_type}'
                     )
 
                 inst_coll_name, cores_mcpu, memory_bytes, storage_gib = result
@@ -813,7 +822,10 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     spec['env'] = env
                 assert isinstance(spec['env'], list)
 
-                if all(envvar['name'] != 'GOOGLE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
+                if spec.get('gcsfuse') and cloud != 'gcp':
+                    raise web.HTTPBadRequest(reason=f'gcsfuse is not supported in {cloud}')
+
+                if cloud == 'gcp' and all(envvar['name'] != 'GOOGLE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
                     spec['env'].append({'name': 'GOOGLE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
 
                 if spec.get('mount_tokens', False):
@@ -2159,8 +2171,7 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
 
     app['frozen'] = row['frozen']
 
-    credentials = aiogoogle.GoogleCredentials.from_file('/gsa-key/key.json')
-    fs = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
+    fs = get_cloud_async_fs(credentials_file='/gsa-key/key.json')
     app['file_store'] = FileStore(fs, BATCH_STORAGE_URI, instance_id)
 
     app['inst_coll_configs'] = await InstanceCollectionConfigs.create(db)

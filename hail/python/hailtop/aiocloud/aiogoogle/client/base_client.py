@@ -6,7 +6,7 @@ from ...common import CloudBaseClient
 from ..session import GoogleSession
 
 
-class GCPBaseClient(CloudBaseClient):
+class GoogleBaseClient(CloudBaseClient):
     _session: GoogleSession
 
     def __init__(self, base_url: str, *, session: Optional[GoogleSession] = None,

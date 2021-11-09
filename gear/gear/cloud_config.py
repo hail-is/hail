@@ -1,11 +1,13 @@
-from typing import Dict
+from typing import Dict, Set
 import os
+import json
 
 
 class GCPConfig:
     project: str
     region: str
     zone: str
+    regions: Set[str]
 
     @staticmethod
     def from_global_config(global_config):
@@ -13,7 +15,18 @@ class GCPConfig:
         conf.project = global_config['gcp_project']
         conf.region = global_config['gcp_region']
         conf.zone = global_config['gcp_zone']
+
+        conf.regions = set(json.loads(global_config['batch_gcp_regions']))
+        conf.regions.add(conf.region)
+
         return conf
+
+    def __str__(self):
+        data = {'project': self.project,
+                'region': self.region,
+                'zone': self.zone,
+                'regions': self.regions}
+        return f'{data}'
 
 
 gcp_config = None

@@ -10,17 +10,51 @@ from hailtop.utils import (
     periodically_call,
 )
 from hailtop import aiotools
-from hailtop.aiocloud import aiogoogle
 from gear import Database
 
 from .job import unschedule_job, mark_job_complete
-from .instance_collection_manager import InstanceCollectionManager
+from .instance_collection import InstanceCollectionManager
 from ..utils import Box
 
 log = logging.getLogger('canceller')
 
 
 class Canceller:
+    @staticmethod
+    async def create(app):
+        c = Canceller(app)
+
+        c.task_manager.ensure_future(
+            retry_long_running(
+                'cancel_cancelled_ready_jobs_loop',
+                run_if_changed,
+                c.cancel_ready_state_changed,
+                c.cancel_cancelled_ready_jobs_loop_body,
+            )
+        )
+
+        c.task_manager.ensure_future(
+            retry_long_running(
+                'cancel_cancelled_creating_jobs_loop',
+                run_if_changed,
+                c.cancel_creating_state_changed,
+                c.cancel_cancelled_creating_jobs_loop_body,
+            )
+        )
+
+        c.task_manager.ensure_future(
+            retry_long_running(
+                'cancel_cancelled_running_jobs_loop',
+                run_if_changed,
+                c.cancel_running_state_changed,
+                c.cancel_cancelled_running_jobs_loop_body,
+            )
+        )
+
+        c.task_manager.ensure_future(periodically_call(60, c.cancel_orphaned_attempts_loop_body))
+
+        return c
+
     def __init__(self, app):
         self.app = app
         self.cancel_ready_state_changed: asyncio.Event = app['cancel_ready_state_changed']
@@ -28,38 +62,9 @@ class Canceller:
         self.cancel_running_state_changed: asyncio.Event = app['cancel_running_state_changed']
         self.db: Database = app['db']
         self.async_worker_pool: AsyncWorkerPool = self.app['async_worker_pool']
-        self.compute_client: aiogoogle.GoogleComputeClient = self.app['compute_client']
-        self.inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
+        self.inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
 
         self.task_manager = aiotools.BackgroundTaskManager()
-
-    async def async_init(self):
-        self.task_manager.ensure_future(
-            retry_long_running(
-                'cancel_cancelled_ready_jobs_loop',
-                run_if_changed,
-                self.cancel_ready_state_changed,
-                self.cancel_cancelled_ready_jobs_loop_body,
-            )
-        )
-        self.task_manager.ensure_future(
-            retry_long_running(
-                'cancel_cancelled_creating_jobs_loop',
-                run_if_changed,
-                self.cancel_creating_state_changed,
-                self.cancel_cancelled_creating_jobs_loop_body,
-            )
-        )
-        self.task_manager.ensure_future(
-            retry_long_running(
-                'cancel_cancelled_running_jobs_loop',
-                run_if_changed,
-                self.cancel_running_state_changed,
-                self.cancel_cancelled_running_jobs_loop_body,
-            )
-        )
-
-        self.task_manager.ensure_future(periodically_call(60, self.cancel_orphaned_attempts_loop_body))
 
     def shutdown(self):
         try:

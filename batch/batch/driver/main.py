@@ -1,6 +1,6 @@
+from typing import Dict, List
 import logging
 import json
-from typing import Dict
 from functools import wraps
 from collections import namedtuple, defaultdict
 import copy
@@ -21,11 +21,11 @@ from gear import (
     transaction,
     monitor_endpoints_middleware,
 )
+from gear.clients import get_cloud_async_fs
 from hailtop.hail_logging import AccessLogger
 from hailtop.config import get_deploy_config
 from hailtop.utils import (
     time_msecs,
-    RateLimit,
     serialization,
     Notice,
     periodically_call,
@@ -33,7 +33,6 @@ from hailtop.utils import (
     dump_all_stacktraces,
 )
 from hailtop.tls import internal_server_ssl_context
-from hailtop.aiocloud import aiogoogle
 from hailtop import aiotools, httpx
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 import googlecloudprofiler
@@ -48,20 +47,20 @@ from ..batch_configuration import (
     HAIL_SHA,
     HAIL_SHOULD_PROFILE,
     HAIL_SHOULD_CHECK_INVARIANTS,
-    PROJECT,
     MACHINE_NAME_PREFIX,
 )
 from ..globals import HTTP_CLIENT_MAX_SIZE
-from ..inst_coll_config import InstanceCollectionConfigs
+from ..inst_coll_config import InstanceCollectionConfigs, PoolConfig
 
-from .zone_monitor import ZoneMonitor
-from .gce import GCEEventMonitor
 from .canceller import Canceller
-from .instance_collection_manager import InstanceCollectionManager
+from .instance_collection import InstanceCollectionManager, JobPrivateInstanceManager
 from .job import mark_job_complete, mark_job_started
 from .k8s_cache import K8sCache
-from .pool import Pool
-from ..utils import query_billing_projects, unreserved_worker_data_disk_size_gib, batch_only, authorization_token
+from .instance_collection import Pool
+from .driver import CloudDriver
+from ..utils import query_billing_projects, batch_only, authorization_token
+from ..cloud.driver import get_cloud_driver
+from ..cloud.resource_utils import unreserved_worker_data_disk_size_gib
 from ..exceptions import BatchUserError
 
 uvloop.install()
@@ -94,7 +93,7 @@ def instance_name_from_request(request):
 
 def instance_from_request(request):
     instance_name = instance_name_from_request(request)
-    inst_coll_manager = request.app['inst_coll_manager']
+    inst_coll_manager: InstanceCollectionManager = request.app['driver'].inst_coll_manager
     return inst_coll_manager.get_instance(instance_name)
 
 
@@ -222,9 +221,19 @@ async def delete_batch(request):
     return web.Response()
 
 
+# deprecated
 async def get_gsa_key_1(instance):
     log.info(f'returning gsa-key to activating instance {instance}')
     with open('/gsa-key/key.json', 'r') as f:
+        key = json.loads(f.read())
+    return web.json_response({'key': key})
+
+
+async def get_credentials_1(instance):
+    log.info(f'returning {instance.inst_coll.cloud} credentials to activating instance {instance}')
+    assert instance.inst_coll.cloud == 'gcp'
+    credentials_file = '/gsa-key/key.json'
+    with open(credentials_file, 'r') as f:
         key = json.loads(f.read())
     return web.json_response({'key': key})
 
@@ -241,10 +250,17 @@ async def activate_instance_1(request, instance):
     return web.json_response({'token': token})
 
 
+# deprecated
 @routes.get('/api/v1alpha/instances/gsa_key')
 @activating_instances_only
 async def get_gsa_key(request, instance):  # pylint: disable=unused-argument
     return await asyncio.shield(get_gsa_key_1(instance))
+
+
+@routes.get('/api/v1alpha/instances/credentials')
+@activating_instances_only
+async def get_credentials(request, instance):  # pylint: disable=unused-argument
+    return await asyncio.shield(get_credentials_1(instance))
 
 
 @routes.post('/api/v1alpha/instances/activate')
@@ -342,7 +358,8 @@ async def job_started(request, instance):
 async def get_index(request, userdata):
     app = request.app
     db: Database = app['db']
-    inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
+    inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
+    jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
 
     ready_cores = await db.select_and_fetchone(
         '''
@@ -354,7 +371,7 @@ FROM user_inst_coll_resources;
 
     page_context = {
         'pools': inst_coll_manager.pools.values(),
-        'jpim': inst_coll_manager.job_private_inst_manager,
+        'jpim': jpim,
         'instance_id': app['instance_id'],
         'n_instances_by_state': inst_coll_manager.global_n_instances_by_state,
         'instances': inst_coll_manager.name_instance.values(),
@@ -387,7 +404,8 @@ def validate_int(session, url_path, name, value, predicate, description):
 @web_authenticated_developers_only()
 async def pool_config_update(request, userdata):  # pylint: disable=unused-argument
     app = request.app
-    inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
+    db: Database = app['db']
+    inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
 
     session = await aiohttp_session.get_session(request)
 
@@ -454,9 +472,7 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
         raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
 
     if not worker_local_ssd_data_disk:
-        unreserved_disk_storage_gb = unreserved_worker_data_disk_size_gib(
-            worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb, worker_cores
-        )
+        unreserved_disk_storage_gb = unreserved_worker_data_disk_size_gib(worker_pd_ssd_data_disk_size_gb, worker_cores)
         if unreserved_disk_storage_gb < 0:
             min_disk_storage = worker_pd_ssd_data_disk_size_gb - unreserved_disk_storage_gb
             set_message(session, f'PD SSD must be at least {min_disk_storage} GB', 'error')
@@ -472,16 +488,21 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
 
     enable_standing_worker = 'enable_standing_worker' in post
 
-    await pool.configure(
+    pool_config = PoolConfig(
+        pool_name,
+        pool.cloud,
+        worker_type,
         worker_cores,
-        boot_disk_size_gb,
         worker_local_ssd_data_disk,
         worker_pd_ssd_data_disk_size_gb,
         enable_standing_worker,
         standing_worker_cores,
+        boot_disk_size_gb,
         max_instances,
-        max_live_instances,
+        max_live_instances
     )
+    await pool_config.update_database(db)
+    pool.configure(pool_config)
 
     set_message(session, f'Updated configuration for {pool}.', 'info')
 
@@ -493,11 +514,10 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
 @web_authenticated_developers_only()
 async def job_private_config_update(request, userdata):  # pylint: disable=unused-argument
     app = request.app
-    inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
+    jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
 
     session = await aiohttp_session.get_session(request)
 
-    job_private_inst_manager = inst_coll_manager.job_private_inst_manager
     url_path = '/inst_coll/jpim'
 
     post = await request.post()
@@ -519,9 +539,9 @@ async def job_private_config_update(request, userdata):  # pylint: disable=unuse
         session, url_path, 'Max live instances', post['max_live_instances'], lambda v: v > 0, 'a positive integer'
     )
 
-    await job_private_inst_manager.configure(boot_disk_size_gb, max_instances, max_live_instances)
+    await jpim.configure(boot_disk_size_gb, max_instances, max_live_instances)
 
-    set_message(session, f'Updated configuration for {job_private_inst_manager}.', 'info')
+    set_message(session, f'Updated configuration for {jpim}.', 'info')
 
     return web.HTTPFound(deploy_config.external_url('batch-driver', url_path))
 
@@ -530,7 +550,7 @@ async def job_private_config_update(request, userdata):  # pylint: disable=unuse
 @web_authenticated_developers_only()
 async def get_pool(request, userdata):
     app = request.app
-    inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
+    inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
 
     session = await aiohttp_session.get_session(request)
 
@@ -564,11 +584,9 @@ async def get_pool(request, userdata):
 @web_authenticated_developers_only()
 async def get_job_private_inst_manager(request, userdata):
     app = request.app
-    inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
+    jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
 
-    job_private_inst_manager = inst_coll_manager.job_private_inst_manager
-
-    user_resources = await job_private_inst_manager.compute_fair_share()
+    user_resources = await jpim.compute_fair_share()
     user_resources = sorted(
         user_resources.values(),
         key=lambda record: record['n_ready_jobs'] + record['n_creating_jobs'] + record['n_running_jobs'],
@@ -580,8 +598,8 @@ async def get_job_private_inst_manager(request, userdata):
     n_running_jobs = sum([record['n_running_jobs'] for record in user_resources])
 
     page_context = {
-        'jpim': job_private_inst_manager,
-        'instances': job_private_inst_manager.name_instance.values(),
+        'jpim': jpim,
+        'instances': jpim.name_instance.values(),
         'user_resources': user_resources,
         'n_ready_jobs': n_ready_jobs,
         'n_creating_jobs': n_creating_jobs,
@@ -991,14 +1009,15 @@ GROUP BY user, inst_coll;
     set_value(USER_JOBS, user_jobs)
 
 
-def monitor_instances(app):
+def monitor_instances(app) -> None:
     resource_rates: Dict[str, float] = app['resource_rates']
-    inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
+    driver: CloudDriver = app['driver']
+    inst_coll_manager = driver.inst_coll_manager
 
-    cost_per_hour = defaultdict(list)
-    free_cores = defaultdict(list)
-    utilization = defaultdict(list)
-    instances = defaultdict(int)
+    cost_per_hour: Dict[CostPerHourLabels, List[float]] = defaultdict(list)
+    free_cores: Dict[InstCollLabels, List[float]] = defaultdict(list)
+    utilization: Dict[InstCollLabels, List[float]] = defaultdict(list)
+    instances: Dict[InstanceLabels, int] = defaultdict(int)
 
     for inst_coll in inst_coll_manager.name_inst_coll.values():
         for instance in inst_coll.name_instance.values():
@@ -1006,14 +1025,13 @@ def monitor_instances(app):
             utilized_cores_mcpu = instance.cores_mcpu - max(0, instance.free_cores_mcpu)
 
             if instance.state != 'deleted':
-                if instance.worker_config:
-                    actual_cost_per_hour_labels = CostPerHourLabels(measure='actual', inst_coll=instance.inst_coll.name)
-                    actual_rate = instance.worker_config.actual_cost_per_hour(resource_rates)
-                    cost_per_hour[actual_cost_per_hour_labels].append(actual_rate)
+                actual_cost_per_hour_labels = CostPerHourLabels(measure='actual', inst_coll=instance.inst_coll.name)
+                actual_rate = instance.instance_config.actual_cost_per_hour(resource_rates)
+                cost_per_hour[actual_cost_per_hour_labels].append(actual_rate)
 
-                    billed_cost_per_hour_labels = CostPerHourLabels(measure='billed', inst_coll=instance.inst_coll.name)
-                    billed_rate = instance.worker_config.cost_per_hour_from_cores(resource_rates, utilized_cores_mcpu)
-                    cost_per_hour[billed_cost_per_hour_labels].append(billed_rate)
+                billed_cost_per_hour_labels = CostPerHourLabels(measure='billed', inst_coll=instance.inst_coll.name)
+                billed_rate = instance.instance_config.cost_per_hour_from_cores(resource_rates, utilized_cores_mcpu)
+                cost_per_hour[billed_cost_per_hour_labels].append(billed_rate)
 
                 inst_coll_labels = InstCollLabels(inst_coll=instance.inst_coll.name)
                 free_cores[inst_coll_labels].append(instance.free_cores_mcpu / 1000)
@@ -1051,7 +1069,8 @@ async def scheduling_cancelling_bump(app):
 
 
 async def on_startup(app):
-    app['task_manager'] = aiotools.BackgroundTaskManager()
+    task_manager = aiotools.BackgroundTaskManager()
+    app['task_manager'] = task_manager
 
     app['client_session'] = httpx.client_session()
 
@@ -1083,23 +1102,6 @@ SELECT instance_id, internal_token, frozen FROM globals;
     resources = db.select_and_fetchall('SELECT resource, rate FROM resources;')
     app['resource_rates'] = {record['resource']: record['rate'] async for record in resources}
 
-    aiogoogle_credentials = aiogoogle.GoogleCredentials.from_file('/gsa-key/key.json')
-    compute_client = aiogoogle.GoogleComputeClient(PROJECT, credentials=aiogoogle_credentials)
-    app['compute_client'] = compute_client
-
-    logging_client = aiogoogle.GoogleLoggingClient(
-        credentials=aiogoogle_credentials,
-        # The project-wide logging quota is 60 request/m.  The event
-        # loop sleeps 15s per iteration, so the max rate is 4
-        # iterations/m.  Note, the event loop could make multiple
-        # logging requests per iteration, so these numbers are not
-        # quite comparable.  I didn't want to consume the entire quota
-        # since there will be other users of the logging API (us at
-        # the web console, test deployments, etc.)
-        rate_limit=RateLimit(10, 60),
-    )
-    app['logging_client'] = logging_client
-
     scheduler_state_changed = Notice()
     app['scheduler_state_changed'] = scheduler_state_changed
 
@@ -1115,42 +1117,29 @@ SELECT instance_id, internal_token, frozen FROM globals;
     async_worker_pool = AsyncWorkerPool(100, queue_size=100)
     app['async_worker_pool'] = async_worker_pool
 
-    credentials = aiogoogle.GoogleCredentials.from_file('/gsa-key/key.json')
-    fs = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
+    credentials_file = '/gsa-key/key.json'
+    fs = get_cloud_async_fs(credentials_file=credentials_file)
     app['file_store'] = FileStore(fs, BATCH_STORAGE_URI, instance_id)
-
-    zone_monitor = ZoneMonitor(app)
-    app['zone_monitor'] = zone_monitor
-    await zone_monitor.async_init()
 
     inst_coll_configs = await InstanceCollectionConfigs.create(db)
 
-    inst_coll_manager = InstanceCollectionManager(app, MACHINE_NAME_PREFIX)
-    app['inst_coll_manager'] = inst_coll_manager
-    await inst_coll_manager.async_init(inst_coll_configs)
+    app['driver'] = await get_cloud_driver(
+        app, db, MACHINE_NAME_PREFIX, DEFAULT_NAMESPACE, inst_coll_configs, credentials_file, task_manager)
 
-    canceller = Canceller(app)
+    canceller = await Canceller.create(app)
     app['canceller'] = canceller
-    await canceller.async_init()
-
-    gce_event_monitor = GCEEventMonitor(app, MACHINE_NAME_PREFIX)
-    app['gce_event_monitor'] = gce_event_monitor
-    await gce_event_monitor.async_init()
 
     app['check_incremental_error'] = None
     app['check_resource_aggregation_error'] = None
 
     if HAIL_SHOULD_CHECK_INVARIANTS:
-        app['task_manager'].ensure_future(periodically_call(10, check_incremental, app, db))
-        app['task_manager'].ensure_future(periodically_call(10, check_resource_aggregation, app, db))
+        task_manager.ensure_future(periodically_call(10, check_incremental, app, db))
+        task_manager.ensure_future(periodically_call(10, check_resource_aggregation, app, db))
 
-    app['task_manager'].ensure_future(periodically_call(10, monitor_billing_limits, app))
-
-    app['task_manager'].ensure_future(periodically_call(10, cancel_fast_failing_batches, app))
-
-    app['task_manager'].ensure_future(periodically_call(60, scheduling_cancelling_bump, app))
-
-    app['task_manager'].ensure_future(periodically_call(15, monitor_system, app))
+    task_manager.ensure_future(periodically_call(10, monitor_billing_limits, app))
+    task_manager.ensure_future(periodically_call(10, cancel_fast_failing_batches, app))
+    task_manager.ensure_future(periodically_call(60, scheduling_cancelling_bump, app))
+    task_manager.ensure_future(periodically_call(15, monitor_system, app))
 
 
 async def on_cleanup(app):
@@ -1158,36 +1147,27 @@ async def on_cleanup(app):
         await app['db'].async_close()
     finally:
         try:
-            app['zone_monitor'].shutdown()
+            app['canceller'].shutdown()
         finally:
             try:
-                app['inst_coll_manager'].shutdown()
+                app['task_manager'].shutdown()
             finally:
                 try:
-                    app['canceller'].shutdown()
+                    await app['driver'].shutdown()
                 finally:
                     try:
-                        app['gce_event_monitor'].shutdown()
+                        await app['file_store'].close()
                     finally:
                         try:
-                            await app['file_store'].close()
+                            await app['client_session'].close()
                         finally:
                             try:
-                                app['task_manager'].shutdown()
+                                app['async_worker_pool'].shutdown()
                             finally:
-                                try:
-                                    await app['logging_client'].close()
-                                finally:
-                                    try:
-                                        await app['compute_client'].close()
-                                    finally:
-                                        try:
-                                            await app['client_session'].close()
-                                        finally:
-                                            del app['k8s_cache'].client
-                                            await asyncio.gather(
-                                                *(t for t in asyncio.all_tasks() if t is not asyncio.current_task())
-                                            )
+                                del app['k8s_cache'].client
+                                await asyncio.gather(
+                                    *(t for t in asyncio.all_tasks() if t is not asyncio.current_task())
+                                )
 
 
 def run():

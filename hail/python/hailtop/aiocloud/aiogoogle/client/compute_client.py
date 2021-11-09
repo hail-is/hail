@@ -5,7 +5,7 @@ import aiohttp
 
 from hailtop.utils import retry_transient_errors, sleep_and_backoff
 
-from .base_client import GCPBaseClient
+from .base_client import GoogleBaseClient
 
 log = logging.getLogger('compute_client')
 
@@ -59,7 +59,7 @@ class PagedIterator:
                 raise StopAsyncIteration
 
 
-class GoogleComputeClient(GCPBaseClient):
+class GoogleComputeClient(GoogleBaseClient):
     def __init__(self, project, **kwargs):
         super().__init__(f'https://compute.googleapis.com/compute/v1/projects/{project}', **kwargs)
 

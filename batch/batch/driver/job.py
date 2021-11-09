@@ -1,3 +1,4 @@
+from typing import List, TYPE_CHECKING
 import json
 import logging
 import asyncio
@@ -16,13 +17,13 @@ from ..batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, KUBERNETES_SERV
 from ..batch_format_version import BatchFormatVersion
 from ..spec_writer import SpecWriter
 from ..file_store import FileStore
+from ..instance_config import QuantifiedResource
+from .instance import Instance
 
 from .k8s_cache import K8sCache
 
-from typing import TYPE_CHECKING
-
 if TYPE_CHECKING:
-    from .instance_collection_manager import InstanceCollectionManager  # pylint: disable=cyclic-import
+    from .instance_collection import InstanceCollectionManager  # pylint: disable=cyclic-import
 
 log = logging.getLogger('job')
 
@@ -93,7 +94,8 @@ async def mark_job_complete(
     cancel_ready_state_changed: asyncio.Event = app['cancel_ready_state_changed']
     db: Database = app['db']
     client_session: httpx.ClientSession = app['client_session']
-    inst_coll_manager: 'InstanceCollectionManager' = app['inst_coll_manager']
+
+    inst_coll_manager: 'InstanceCollectionManager' = app['driver'].inst_coll_manager
     task_manager: BackgroundTaskManager = app['task_manager']
 
     id = (batch_id, job_id)
@@ -180,7 +182,13 @@ CALL mark_job_started(%s, %s, %s, %s, %s);
     await add_attempt_resources(db, batch_id, job_id, attempt_id, resources)
 
 
-async def mark_job_creating(app, batch_id, job_id, attempt_id, instance, start_time, resources):
+async def mark_job_creating(app,
+                            batch_id: int,
+                            job_id: int,
+                            attempt_id: str,
+                            instance: Instance,
+                            start_time: int,
+                            resources: List[QuantifiedResource]):
     db: Database = app['db']
 
     id = (batch_id, job_id)
@@ -210,7 +218,7 @@ async def unschedule_job(app, record):
     scheduler_state_changed: Notice = app['scheduler_state_changed']
     db: Database = app['db']
     client_session: httpx.ClientSession = app['client_session']
-    inst_coll_manager = app['inst_coll_manager']
+    inst_coll_manager = app['driver'].inst_coll_manager
 
     batch_id = record['batch_id']
     job_id = record['job_id']
