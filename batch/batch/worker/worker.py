@@ -323,6 +323,7 @@ def docker_call_retry(timeout, name):
 
 
 async def pull_docker_image(pool: concurrent.futures.ThreadPoolExecutor, image_ref_str: str, auth: dict):
+    assert docker_sync
     return await blocking_to_async(pool, docker_sync.images.pull, image_ref_str, auth_config=auth)
 
 
