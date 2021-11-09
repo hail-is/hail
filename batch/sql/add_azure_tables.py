@@ -16,10 +16,10 @@ async def main():
         scope = os.environ['HAIL_SCOPE']
 
         await db.just_execute('''
-DELETE FROM `pools`;    
+DELETE FROM `pools`;
 ''')
         await db.just_execute('''
-DELETE FROM `inst_colls`;    
+DELETE FROM `inst_colls`;
 ''')
 
         enable_standing_worker = scope != 'dev'
