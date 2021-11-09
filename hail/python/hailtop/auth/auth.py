@@ -46,7 +46,7 @@ def get_userinfo(deploy_config=None, session_id=None, client_session=None):
 
 def namespace_auth_headers(deploy_config: DeployConfig,
                            ns: str,
-                           authorize_target = True,
+                           authorize_target: bool = True,
                            *,
                            token_file: Optional[str] = None
                            ) -> Dict[str, str]:
