@@ -38,7 +38,8 @@ class TimeLimitedMaxSizeCache(Generic[T, U]):
             raise ValueError('Cache is shutting down.')
 
         if k in self._expiry_time:
-            assert k in self._cache
+            assert k in self._cache, (self._cache, self._expiry_time, self._keys_by_expiry)
+            assert k in self._keys_by_expiry, (self._cache, self._expiry_time, self._keys_by_expiry)
             if self._expiry_time[k] <= time.monotonic_ns():
                 self._remove(k)
 
@@ -69,8 +70,8 @@ class TimeLimitedMaxSizeCache(Generic[T, U]):
 
     def _remove(self, k: T) -> None:
         del self._cache[k]
-        del self._expiry_time[k]
         self._keys_by_expiry.remove(k)
+        del self._expiry_time[k]
 
     def _over_capacity(self) -> bool:
         return len(self._keys_by_expiry) > self.num_slots
