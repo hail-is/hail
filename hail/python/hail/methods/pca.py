@@ -211,7 +211,6 @@ class TallSkinnyMatrix:
     def __init__(self, block_table, block_expr, source_table, col_key):
         self.col_key = col_key
         first_block = block_expr.take(1)[0]
-        self.nrows = first_block.shape[0]
         self.ncols = first_block.shape[1]
         self.block_table = block_table
         self.block_expr = block_expr
@@ -309,7 +308,6 @@ def _krylov_factorization(A: TallSkinnyMatrix, V0, p, compute_U=False, compute_V
     t = A.block_table
     A_expr = A.block_expr
 
-    # FIXME: compute ncols of V0, use to compute final ncols
     g_list = [V0]
     G_i = V0
     k = hl.eval(V0.shape[1])
