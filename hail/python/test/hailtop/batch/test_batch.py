@@ -16,7 +16,7 @@ from hailtop.config import get_user_config
 from hailtop.batch.utils import concatenate
 
 
-DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'gcr.io/hail-vdc/ubuntu:18.04')
+DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
 PYTHON_DILL_IMAGE = os.environ['PYTHON_DILL_IMAGE']
 HAIL_TEST_GCS_BUCKET = os.environ['HAIL_TEST_GCS_BUCKET']
 

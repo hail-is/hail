@@ -1,4 +1,4 @@
-from typing import AsyncGenerator, Any, Callable, Awaitable, List
+from typing import AsyncGenerator, Any, Callable, Awaitable
 import aiohttp
 import os
 import pytest
@@ -10,7 +10,7 @@ from hailtop.utils import secret_alnum_string
 
 pytestmark = pytest.mark.asyncio
 
-DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'gcr.io/hail-vdc/ubuntu:18.04')
+DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
 
 
 @pytest.fixture

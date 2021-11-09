@@ -11,7 +11,7 @@ import hailtop.batch_client.aioclient as aioclient
 from .utils import batch_status_job_counter, legacy_batch_status
 from .serverthread import ServerThread
 
-DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'gcr.io/hail-vdc/ubuntu:18.04')
+DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
 
 
 @pytest.fixture
