@@ -139,10 +139,9 @@ object LowerDistributedSort {
     while (!loopState.largeSegments.isEmpty) {
       println(s"Loop iteration ${i}")
 
-      val partitionData = segmentsToPartitionData(loopState.largeSegments, idealNumberOfRowsPerPart)
+      val partitionDataPerSegment = segmentsToPartitionData(loopState.largeSegments, idealNumberOfRowsPerPart)
 
-      //TODO: Dumb and temporary
-      val partitionCountsPerSegment = partitionData.groupBy(_._1.last).toIndexedSeq.sortBy(_._1).map(_._2).map(oneSegment => oneSegment.map(_._3))
+      val partitionCountsPerSegment = partitionDataPerSegment.map(oneSegment => oneSegment.map(_._3))
       assert(partitionCountsPerSegment.size == loopState.largeSegments.size)
 
       val numSamplesPerPartitionPerSegment = partitionCountsPerSegment.map { partitionCountsForOneSegment =>
@@ -152,7 +151,7 @@ object LowerDistributedSort {
 
       val numSamplesPerPartition = numSamplesPerPartitionPerSegment.flatten
 
-      val perPartStatsCDAContextData = partitionData.zip(numSamplesPerPartition).map { case (partData, numSamples) => Row(partData._1.last, partData._2, partData._3, numSamples)}
+      val perPartStatsCDAContextData = partitionDataPerSegment.flatten.zip(numSamplesPerPartition).map { case (partData, numSamples) => Row(partData._1.last, partData._2, partData._3, numSamples)}
       val perPartStatsCDAContexts = ToStream(Literal(TArray(TStruct("segmentIdx" -> TInt32, "files" -> TArray(TString), "sizeOfPartition" -> TInt32, "numSamples" -> TInt32)), perPartStatsCDAContextData))
       val perPartStatsIR = cdaIR(perPartStatsCDAContexts, MakeStruct(Seq())){ (ctxRef, _) =>
         val filenames = GetField(ctxRef, "files")
@@ -189,7 +188,6 @@ object LowerDistributedSort {
           }
         }
       })) { segmentsInfo =>
-        println(s"Type is ${segmentsInfo.typ}")
         // First, check if they were all internally sorted
         val allInternallySorted = foldIR(mapIR(ToStream(segmentsInfo)) { segmentInfo => GetField(segmentInfo, "isSorted")}, True()) { case (accum, elt) =>
           ApplySpecial("land", Seq.empty[Type], Seq(accum, elt), TBoolean, ErrorIDs.NO_ERROR)
@@ -229,7 +227,7 @@ object LowerDistributedSort {
 
       val tmpPath = ctx.createTmpPath("hail_shuffle_temp")
 
-      val distributeContextsData = partitionData.zipWithIndex.map { case (part, partIdx) => Row(part._1.last, part._2, partIdx, part._4) }
+      val distributeContextsData = partitionDataPerSegment.flatten.zipWithIndex.map { case (part, partIdx) => Row(part._1.last, part._2, partIdx, part._4) }
       val distributeContexts = ToStream(Literal(TArray(TStruct("segmentIdx" -> TInt32, "files" -> TArray(TString), "partIdx" -> TInt32, "largeSegmentIdx" -> TInt32)), distributeContextsData))
       val distributeGlobals = MakeStruct(IndexedSeq("pivotsWithEndpointsGroupedBySegmentIdx" -> pivotsWithEndpointsGroupedBySegmentNumberLiteral))
 
@@ -342,8 +340,8 @@ object LowerDistributedSort {
     result.result().toIndexedSeq
   }
 
-  def segmentsToPartitionData(segments: IndexedSeq[SegmentResult], idealNumberOfRowsPerPart: Int): IndexedSeq[(IndexedSeq[Int], IndexedSeq[String], Int, Int)] = {
-    segments.zipWithIndex.flatMap { case (sr, largeSegmentIdx) =>
+  def segmentsToPartitionData(segments: IndexedSeq[SegmentResult], idealNumberOfRowsPerPart: Int): IndexedSeq[IndexedSeq[(IndexedSeq[Int], IndexedSeq[String], Int, Int)]] = {
+    segments.zipWithIndex.map { case (sr, largeSegmentIdx) =>
       val chunkDataSizes = sr.chunks.map(_.size)
       val segmentSize = chunkDataSizes.sum
       val numParts = (segmentSize + idealNumberOfRowsPerPart - 1) / idealNumberOfRowsPerPart
