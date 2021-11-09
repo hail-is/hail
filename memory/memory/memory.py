@@ -149,9 +149,7 @@ async def on_startup(app):
             http_session=app['client_session'],
         )
 
-    app['user_credentials_cache'] = TimeLimitedMaxSizeCache(
-        get_secret_from_k8s, lifetime_ns=ONE_HOUR_NS, num_slots=100
-    )
+    app['user_credentials_cache'] = TimeLimitedMaxSizeCache(get_secret_from_k8s, lifetime_ns=ONE_HOUR_NS, num_slots=100)
 
     app['redis_pool']: aioredis.ConnectionsPool = await aioredis.create_pool(socket)
 
