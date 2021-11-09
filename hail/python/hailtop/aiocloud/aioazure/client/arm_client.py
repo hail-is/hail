@@ -1,7 +1,3 @@
-from typing import Optional, Mapping
-
-from ..session import AzureSession
-from ..credentials import AzureCredentials
 from .base_client import AzureBaseClient
 
 

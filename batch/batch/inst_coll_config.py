@@ -33,17 +33,16 @@ def instance_config_from_pool_config(pool_config: 'PoolConfig') -> InstanceConfi
                                      data_disk_size_gb=pool_config.data_disk_size_gb,
                                      boot_disk_size_gb=pool_config.boot_disk_size_gb,
                                      job_private=False)
-    else:
-        assert cloud == 'azure'
-        machine_type = azure_worker_properties_to_machine_type(
-            pool_config.worker_type, pool_config.worker_cores, pool_config.worker_local_ssd_data_disk
-        )
-        return AzureSlimInstanceConfig(machine_type=machine_type,
-                                       preemptible=True,
-                                       local_ssd_data_disk=pool_config.worker_local_ssd_data_disk,
-                                       data_disk_size_gb=pool_config.data_disk_size_gb,
-                                       boot_disk_size_gb=pool_config.boot_disk_size_gb,
-                                       job_private=False)
+    assert cloud == 'azure'
+    machine_type = azure_worker_properties_to_machine_type(
+        pool_config.worker_type, pool_config.worker_cores, pool_config.worker_local_ssd_data_disk
+    )
+    return AzureSlimInstanceConfig(machine_type=machine_type,
+                                   preemptible=True,
+                                   local_ssd_data_disk=pool_config.worker_local_ssd_data_disk,
+                                   data_disk_size_gb=pool_config.data_disk_size_gb,
+                                   boot_disk_size_gb=pool_config.boot_disk_size_gb,
+                                   job_private=False)
 
 
 class PreemptibleNotSupportedError(Exception):
