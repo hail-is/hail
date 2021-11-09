@@ -499,6 +499,12 @@ object AggFold {
     minAndMaxHelper(element, keyType, GT(keyType))
   }
 
+  def all(element: IR): IR = {
+    aggFoldIR(True(), element) { case (accum, element) =>
+      ApplySpecial("land", Seq.empty[Type], Seq(accum, element), TBoolean, ErrorIDs.NO_ERROR)
+    } { case (accum1, accum2) => ApplySpecial("land", Seq.empty[Type], Seq(accum1, accum2), TBoolean, ErrorIDs.NO_ERROR) }
+  }
+
   private def minAndMaxHelper(element: IR, keyType: TStruct, comp: ComparisonOp[Boolean]): IR = {
     val keyFields = keyType.fields.map(_.name)
     // Folding for Min

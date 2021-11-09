@@ -163,8 +163,7 @@ object LowerDistributedSort {
         MakeStruct(IndexedSeq("segmentIdx" -> GetField(ctxRef, "segmentIdx"), "partData" -> samplePartition(partitionStream, samples, newKType.fields.map(_.name))))
       }
 
-      val pivotsWithEndpointsGroupedBySegmentNumberIR = ToArray(bindIR(perPartStatsIR) { perPartStats =>
-        println(s"perPartStats typ is ${perPartStats.typ}")
+      val pivotsPerSegmentAndSortedCheck = bindIR(ToArray(bindIR(perPartStatsIR) { perPartStats =>
         mapIR(StreamGroupByKey(ToStream(perPartStats), IndexedSeq("segmentIdx"))) { oneGroup =>
           val streamElementRef = Ref(genUID(), oneGroup.typ.asInstanceOf[TIterable].elementType)
           val dataRef = Ref(genUID(), streamElementRef.typ.asInstanceOf[TStruct].fieldType("partData"))
@@ -173,7 +172,8 @@ object LowerDistributedSort {
               MakeStruct(Seq(
                 ("min", AggFold.min(GetField(dataRef, "min"), newKType)),
                 ("max", AggFold.max(GetField(dataRef, "max"), newKType)),
-                ("samples", ApplyAggOp(Collect())(GetField(dataRef, "samples")))
+                ("samples", ApplyAggOp(Collect())(GetField(dataRef, "samples"))),
+                ("isSorted", AggFold.all(GetField(dataRef, "isSorted")))
               )), false)
           })) { aggResults =>
             val sorted = sortIR(flatMapIR(ToStream(GetField(aggResults, "samples"))) { onePartCollectedArray => ToStream(onePartCollectedArray)}) { case (left, right) =>
@@ -181,22 +181,47 @@ object LowerDistributedSort {
             }
             val minArray = MakeArray(GetField(aggResults, "min"))
             val maxArray = MakeArray(GetField(aggResults, "max"))
-            ArrayFunctions.extend(ArrayFunctions.extend(minArray, sorted), maxArray)
+            MakeStruct(Seq(
+              "pivotsWithEndpoints" -> ArrayFunctions.extend(ArrayFunctions.extend(minArray, sorted), maxArray),
+              "isSorted" -> GetField(aggResults, "isSorted"),
+              "intervalTuple" -> MakeTuple.ordered(Seq(GetField(aggResults, "min"), GetField(aggResults, "max")))
+            ))
           }
         }
-      })
+      })) { segmentsInfo =>
+        println(s"Type is ${segmentsInfo.typ}")
+        // First, check if they were all internally sorted
+        val allInternallySorted = foldIR(mapIR(ToStream(segmentsInfo)) { segmentInfo => GetField(segmentInfo, "isSorted")}, True()) { case (accum, elt) =>
+          ApplySpecial("land", Seq.empty[Type], Seq(accum, elt), TBoolean, ErrorIDs.NO_ERROR)
+        }
+        bindIR(
+          If(allInternallySorted,
+            tuplesAreSorted(ToArray(mapIR(ToStream(segmentsInfo)) { segmentInfo =>
+              GetField(segmentInfo, "intervalTuple")
+            })),
+            False()
+          )
+        ) { alreadySortedRef =>
+          val pivotsWithEndpointsGroupedBySegmentNumberIR = ToArray(mapIR(ToStream(segmentsInfo))(x => GetField(x, "pivotsWithEndpoints")))
+          MakeTuple.ordered(Seq(pivotsWithEndpointsGroupedBySegmentNumberIR, alreadySortedRef))
+        }
+      }
 
       // Going to check now if it's fully sorted, as well as collect and sort all the samples.
-      val (Some(PTypeReferenceSingleCodeType(pivotsWithEndpointsGroupedBySegmentNumberType: PArray)), fPerPartStats) = ctx.timer.time("LowerDistributedSort.distributedSort.compilePerPartStats")(Compile[AsmFunction1RegionLong](ctx,
+      val (Some(PTypeReferenceSingleCodeType(pivotsWithEndpointsGroupedBySegmentNumberAndOverallSortingType: PTuple)), fPerPartStats) = ctx.timer.time("LowerDistributedSort.distributedSort.compilePerPartStats")(Compile[AsmFunction1RegionLong](ctx,
         FastIndexedSeq(),
         FastIndexedSeq(classInfo[Region]), LongInfo,
-        pivotsWithEndpointsGroupedBySegmentNumberIR,
+        pivotsPerSegmentAndSortedCheck,
         print = None,
         optimize = true))
 
       val fPivotsBySegmentNumberRunnable = ctx.timer.time("LowerDistributedSort.distributedSort.initialize")(fPerPartStats(ctx.fs, 0, ctx.r))
       val pivotsWithEndpointsGroupedBySegmentNumberAddr = ctx.timer.time("LowerDistributedSort.distributedSort.run")(fPivotsBySegmentNumberRunnable(ctx.r))
-      val pivotsWithEndpointsGroupedBySegmentNumber = ctx.timer.time("LowerDistributedSort.distributedSort.toJavaObject")(SafeRow.read(pivotsWithEndpointsGroupedBySegmentNumberType, pivotsWithEndpointsGroupedBySegmentNumberAddr)).asInstanceOf[IndexedSeq[Row]]
+      val pivotsWithEndpointsGroupedBySegmentNumberAndOverallSorting = ctx.timer.time("LowerDistributedSort.distributedSort.toJavaObject")(SafeRow.read(pivotsWithEndpointsGroupedBySegmentNumberAndOverallSortingType, pivotsWithEndpointsGroupedBySegmentNumberAddr)).asInstanceOf[Row]
+
+      val pivotsWithEndpointsGroupedBySegmentNumber = pivotsWithEndpointsGroupedBySegmentNumberAndOverallSorting(0).asInstanceOf[IndexedSeq[Row]]
+      val isAlreadySorted = pivotsWithEndpointsGroupedBySegmentNumberAndOverallSorting(1).asInstanceOf[Boolean]
+      println(s"isAlreadySorted = ${isAlreadySorted}")
 
       println(s"Pivots with endpoints groupedBySegmentNumber = ${pivotsWithEndpointsGroupedBySegmentNumber}")
 
@@ -389,11 +414,11 @@ object LowerDistributedSort {
     val keyType = eltType.typeAfterSelectNames(keyFields)
 
     // Folding for isInternallySorted
+    val aggFoldSortedZero = MakeStruct(Seq("lastKeySeen" -> NA(keyType), "sortedSoFar" -> true, "haveSeenAny" -> false))
     val aggFoldSortedAccumName1 = genUID()
     val aggFoldSortedAccumName2 = genUID()
     val isSortedStateType = TStruct("lastKeySeen" -> keyType, "sortedSoFar" -> TBoolean, "haveSeenAny" -> TBoolean)
     val aggFoldSortedAccumRef1 = Ref(aggFoldSortedAccumName1, isSortedStateType)
-    val aggFoldSortedAccumRef2 = Ref(aggFoldSortedAccumName2, isSortedStateType)
     val isSortedSeq = bindIR(SelectFields(eltRef, keyFields)) { keyOfCurElementRef =>
       bindIR(GetField(aggFoldSortedAccumRef1, "lastKeySeen")) { lastKeySeenRef =>
         If(!GetField(aggFoldSortedAccumRef1, "haveSeenAny"),
@@ -406,6 +431,8 @@ object LowerDistributedSort {
       }
     }
 
+    val isSortedComb = aggFoldSortedAccumRef1 // Do nothing, as this will never be called in a StreamAgg
+
 
     StreamAgg(joined, streamElementName, {
       AggLet(eltName, GetField(streamElementRef, "elt"),
@@ -413,23 +440,20 @@ object LowerDistributedSort {
           ("min", AggFold.min(eltRef, keyType)),
           ("max", AggFold.max(eltRef, keyType)),
           ("samples", AggFilter(GetField(streamElementRef, "shouldKeep"), ApplyAggOp(Collect())(SelectFields(eltRef, keyFields)), false)),
+          ("isSorted", GetField(AggFold(aggFoldSortedZero, isSortedSeq, isSortedComb, aggFoldSortedAccumName1, aggFoldSortedAccumName2, false), "sortedSoFar"))
         )), false)
     })
   }
 
   // Given an IR of type TArray(TTuple(minKey, maxKey)), determine if there's any overlap between these closed intervals.
-  def tuplesAreSorted(arrayOfTuples: IR, sortFields: IndexedSeq[SortField]): IR = {
-    // assume for now array is sorted, could sort later.
-
+  def tuplesAreSorted(arrayOfTuples: IR): IR = {
     val intervalElementType = arrayOfTuples.typ.asInstanceOf[TArray].elementType.asInstanceOf[TTuple].types(0)
 
-    // Make a code ordering:
-
-    mapIR(rangeIR(1, ArrayLen(arrayOfTuples))) { idxOfTuple =>
-      ApplyComparisonOp(LTEQ(intervalElementType), ArrayRef(arrayOfTuples, idxOfTuple - 1), ArrayRef(arrayOfTuples, idxOfTuple))
+    foldIR(mapIR(rangeIR(1, ArrayLen(arrayOfTuples))) { idxOfTuple =>
+      ApplyComparisonOp(LTEQ(intervalElementType), GetTupleElement(ArrayRef(arrayOfTuples, idxOfTuple - 1), 1), GetTupleElement(ArrayRef(arrayOfTuples, idxOfTuple), 0))
+    }, True()) { case (accum, elt) =>
+      ApplySpecial("land", Seq.empty[Type], Seq(accum, elt), TBoolean, ErrorIDs.NO_ERROR)
     }
-
-    ???
   }
 
   def eval(x: IR): Any = ExecuteContext.scoped(){ ctx =>
