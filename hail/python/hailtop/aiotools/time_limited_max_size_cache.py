@@ -38,8 +38,7 @@ class TimeLimitedMaxSizeCache(Generic[T, U]):
             raise ValueError('Cache is shutting down.')
 
         if k in self._expiry_time:
-            assert k in self._cache, (self._cache, self._expiry_time, self._keys_by_expiry)
-            assert k in self._keys_by_expiry, (self._cache, self._expiry_time, self._keys_by_expiry)
+            assert k in self._cache
             if self._expiry_time[k] <= time.monotonic_ns():
                 self._remove(k)
 
