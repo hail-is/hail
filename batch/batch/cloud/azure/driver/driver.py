@@ -2,6 +2,7 @@ import asyncio
 import os
 
 from hailtop import aiotools
+from hailtop.utils import periodically_call
 from hailtop.aiocloud import aioazure
 from gear import Database
 from gear.cloud_config import get_azure_config
@@ -12,6 +13,7 @@ from ....inst_coll_config import InstanceCollectionConfigs
 
 from .resource_manager import AzureResourceManager
 from .regions import RegionMonitor
+from .networks import delete_orphaned_nics, delete_orphaned_public_ips
 
 
 class AzureDriver(CloudDriver):
@@ -34,6 +36,8 @@ class AzureDriver(CloudDriver):
 
         arm_client = aioazure.AzureResourceManagerClient(subscription_id, resource_group, credentials_file=credentials_file)
         compute_client = aioazure.AzureComputeClient(subscription_id, resource_group, credentials_file=credentials_file)
+        resources_client = aioazure.AzureResourcesClient(subscription_id, credentials_file=credentials_file)
+        network_client = aioazure.AzureNetworkClient(subscription_id, resource_group, credentials_file=credentials_file)
 
         region_monitor = await RegionMonitor.create(region)
         inst_coll_manager = InstanceCollectionManager(db, machine_name_prefix, region_monitor)
@@ -60,12 +64,17 @@ class AzureDriver(CloudDriver):
                              machine_name_prefix,
                              arm_client,
                              compute_client,
+                             resources_client,
+                             network_client,
                              subscription_id,
                              resource_group,
                              namespace,
                              region_monitor,
                              inst_coll_manager,
                              jpim)
+
+        task_manager.ensure_future(periodically_call(60, driver.delete_orphaned_nics))
+        task_manager.ensure_future(periodically_call(60, driver.delete_orphaned_public_ips))
 
         return driver
 
@@ -74,6 +83,8 @@ class AzureDriver(CloudDriver):
                  machine_name_prefix: str,
                  arm_client: aioazure.AzureResourceManagerClient,
                  compute_client: aioazure.AzureComputeClient,
+                 resources_client: aioazure.AzureResourcesClient,
+                 network_client: aioazure.AzureNetworkClient,
                  subscription_id: str,
                  resource_group: str,
                  namespace: str,
@@ -84,6 +95,8 @@ class AzureDriver(CloudDriver):
         self.machine_name_prefix = machine_name_prefix
         self.arm_client = arm_client
         self.compute_client = compute_client
+        self.resources_client = resources_client
+        self.network_client = network_client
         self.subscription_id = subscription_id
         self.resource_group = resource_group
         self.namespace = namespace
@@ -95,4 +108,18 @@ class AzureDriver(CloudDriver):
         try:
             await self.arm_client.close()
         finally:
-            await self.compute_client.close()
+            try:
+                await self.compute_client.close()
+            finally:
+                try:
+                    await self.resources_client.close()
+                finally:
+                    await self.network_client.close()
+
+    async def delete_orphaned_nics(self) -> None:
+        await delete_orphaned_nics(self.resources_client, self.network_client, self.inst_coll_manager,
+                                   self.machine_name_prefix)
+
+    async def delete_orphaned_public_ips(self) -> None:
+        await delete_orphaned_public_ips(self.resources_client, self.network_client, self.inst_coll_manager,
+                                         self.machine_name_prefix)
