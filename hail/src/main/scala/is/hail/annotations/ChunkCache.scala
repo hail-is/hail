@@ -40,7 +40,7 @@ private class ChunkCache (allocator: Long => Long, freer: Long => Unit){
 
   def freeChunkFromMemory(pool: RegionPool, chunkPointer: Long):Unit = {
     val size = chunksEncountered(chunkPointer)
-    pool.incrementAllocatedBytes(-1 * size)
+    pool.decrementAllocatedBytes(size)
     freer(chunkPointer)
     chunksEncountered -= chunkPointer
   }

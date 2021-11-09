@@ -204,8 +204,11 @@ def init_parser(parser):
                         help="If true, allocate all executor memory to the JVM heap.")
     parser.add_argument('--big-executors', action='store_true',
                         help="If true, double memory allocated per executor, using half the cores of the cluster with an extra large memory allotment per core.")
-    parser.add_argument('--off_heap_memory_fraction', type=float, default=0.6,
+    parser.add_argument('--off-heap-memory-fraction', type=float, default=0.6,
                         help="Fraction of worker memory dedicated to off-heap Hail values.")
+    parser.add_argument('--yarn-memory-fraction', type=float,
+                        help="Fraction of machine memory to allocate to the yarn container scheduler.",
+                        default=0.95)
 
     # requester pays
     parser.add_argument('--requester-pays-allow-all',
@@ -335,24 +338,29 @@ def main(args, pass_through_args):
 
     if not args.no_off_heap_memory:
         worker_memory = MACHINE_MEM[args.worker_machine_type]
+        available_memory_fraction = args.yarn_memory_fraction
+        available_memory_mb = int(worker_memory * available_memory_fraction * 1024)
         cores_per_machine = int(args.worker_machine_type.split('-')[-1])
         executor_cores = min(cores_per_machine, 4)
-        memory_per_core_mb = worker_memory * 1024 // cores_per_machine
+        available_memory_per_core_mb = available_memory_mb // cores_per_machine
 
-        # 0.95 to ensure executors can be packed as intended
-        memory_per_executor_mb = int(memory_per_core_mb * executor_cores * 0.95)
+        memory_per_executor_mb = int(available_memory_per_core_mb * executor_cores)
 
         off_heap_mb = int(memory_per_executor_mb * args.off_heap_memory_fraction)
         on_heap_mb = memory_per_executor_mb - off_heap_mb
 
-        off_heap_memory_per_core = int(off_heap_mb / executor_cores)
+        off_heap_memory_per_core = off_heap_mb // executor_cores
 
-        print(f"Using a cluster with workers of machine type {args.worker_machine_type}.\n"
-              f"  Allocating {memory_per_executor_mb} MB of memory per executor, with {off_heap_mb} MB for Hail off-heap values and {on_heap_mb} MB for the JVM.\n"
+        print(f"hailctl dataproc: Creating a cluster with workers of machine type {args.worker_machine_type}.\n"
+              f"  Allocating {memory_per_executor_mb} MB of memory per executor ({executor_cores} cores),\n"
+              f"  with {off_heap_mb} MB for Hail off-heap values and {on_heap_mb} MB for the JVM.\n"
               f"  Using a maximum Hail memory reservation of {off_heap_memory_per_core} MB per core.")
 
         conf.extend_flag('properties',
                          {
+                             'yarn:yarn.nodemanager.resource.memory-mb': f'{available_memory_mb}',
+                             'yarn:yarn.scheduler.maximum-allocation-mb': f'{executor_cores * available_memory_per_core_mb}',
+                             'spark:spark.executor.cores': f'{executor_cores}',
                              'spark:spark.executor.memory': f'{on_heap_mb}m',
                              'spark:spark.executor.memoryOverhead': f'{off_heap_mb}m',
                              'spark:spark.memory.storageFraction': '0.2',

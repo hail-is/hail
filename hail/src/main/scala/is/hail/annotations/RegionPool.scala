@@ -50,6 +50,13 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
 
   def getHighestTotalUsage: Long = highestTotalUsage
   def getUsage: (Int, Int) = chunkCache.getUsage()
+
+  private[annotations] def decrementAllocatedBytes(toSubtract: Long): Unit = totalAllocatedBytes -= toSubtract
+
+  def closeAndThrow(msg: String): Unit = {
+    close()
+    fatal(msg)
+  }
   private[annotations] def incrementAllocatedBytes(toAdd: Long): Unit = {
     totalAllocatedBytes += toAdd
     if (totalAllocatedBytes >= allocationEchoThreshold) {
@@ -58,8 +65,9 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
     }
     if (totalAllocatedBytes >= highestTotalUsage) {
       highestTotalUsage = totalAllocatedBytes
-      if (totalAllocatedBytes > maxSize)
-        fatal(s"Hail off-heap memory exceeded maximum threshold: limit ${ formatSpace(maxSize) }, allocated ${ formatSpace(totalAllocatedBytes) }")
+      if (totalAllocatedBytes > maxSize) {
+        closeAndThrow(s"Hail off-heap memory exceeded maximum threshold: limit ${ formatSpace(maxSize) }, allocated ${ formatSpace(totalAllocatedBytes) }")
+      }
     }
   }
 
@@ -73,9 +81,9 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
       pool.pop()
     } else {
       chunkCache.freeChunksFromCacheToFit(this, size.toLong)
-      blocks(size) += 1
       val blockByteSize = Region.SIZES(size)
       incrementAllocatedBytes(blockByteSize)
+      blocks(size) += 1
       Memory.malloc(blockByteSize)
     }
   }
