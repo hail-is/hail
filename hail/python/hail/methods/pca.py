@@ -287,8 +287,8 @@ def _krylov_factorization(A: TallSkinnyMatrix, V0, p, compute_U=False, compute_V
     r"""Computes matrices :math:`U`, :math:`R`, and :math:`V` satisfying the following properties:
     * :math:`U\in\mathbb{R}^{m\times (p+1)b` and :math:`V\in\mathbb{R}^{n\times (p+1)b` are
       orthonormal matrices (:math:`U^TU = I` and :math:`V^TV = I`)
-    * :math:`\mathrm{span}(V) = \mathcal{K}_p(A^TA, W)`
-    * :math:`UR=AV`, hence :math:`\mathrm{span}(U) = \mathcal{K}_p(AA^T, AW)`
+    * :math:`\mathrm{span}(V) = \mathcal{K}_p(A^TA, V_0)`
+    * :math:`UR=AV`, hence :math:`\mathrm{span}(U) = \mathcal{K}_p(AA^T, AV_0)`
     * :math:`V[:, :b] = V_0`
     * :math:`R\in\mathbb{R}^{b\times b}` is upper triangular
     where :math:`\mathcal{K}_p(X, Y)` is the block Krylov subspace
