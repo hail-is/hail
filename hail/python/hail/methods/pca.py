@@ -380,8 +380,9 @@ def _spectral_moments(A, num_moments, p=None, moment_samples=500, block_size=128
     if p is None:
         p = min(num_moments // 2, 10)
 
-    # TODO: Breaks when moment_samples > n. But in that case, we should just
-    # compute all n eigenvalues directly
+    # TODO: When moment_samples > n, we should just do a TSQR on A, and compute
+    # the spectrum of R.
+    assert moment_samples < n, '_spectral_moments: moment_samples must be smaller than num cols of A'
     G = hl.nd.zeros((n, moment_samples)).map(lambda n: hl.if_else(hl.rand_bool(0.5), -1, 1))
     Q1, R1 = hl.nd.qr(G)._persist()
     fact = _krylov_factorization(A, Q1, p, compute_U=False)
