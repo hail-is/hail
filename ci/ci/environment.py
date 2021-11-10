@@ -4,6 +4,8 @@ from gear.cloud_config import get_global_config
 global_config = get_global_config()
 
 CLOUD = global_config['cloud']
+assert CLOUD in ('gcp', 'azure'), CLOUD
+
 DOCKER_PREFIX = global_config['docker_prefix']
 DOCKER_ROOT_IMAGE = global_config['docker_root_image']
 DOMAIN = global_config['domain']
