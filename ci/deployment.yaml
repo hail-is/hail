@@ -45,14 +45,10 @@ spec:
            - name: HAIL_CI_OAUTH_TOKEN
              value: /secrets/oauth-token/oauth-token
            - name: HAIL_CI_GITHUB_CONTEXT
-{% if deploy %}
              valueFrom:
                secretKeyRef:
                  name: ci-config
                  key: github_context
-{% else %}
-             value: "ci-test"
-{% endif %}
            - name: HAIL_WATCHED_BRANCHES
              valueFrom:
                secretKeyRef:
