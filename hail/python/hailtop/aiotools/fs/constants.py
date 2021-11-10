@@ -1,0 +1,2 @@
+FILE = 'file'
+DIR = 'dir'

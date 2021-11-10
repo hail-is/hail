@@ -88,7 +88,7 @@ class AzureMultiPartCreate(MultiPartCreate):
         self._client = client
         self._block_ids: List[List[str]] = [[] for _ in range(num_parts)]
 
-    async def create_part(self, number: int, start: int, size_hint: Optional[int] = None) -> AsyncContextManager[WritableStream]:
+    async def create_part(self, number: int, start: int, size_hint: Optional[int] = None) -> AsyncContextManager[WritableStream]:  # pylint: disable=unused-argument
         return AzureCreatePartManager(self._client, self._block_ids[number])
 
     async def __aenter__(self) -> 'AzureMultiPartCreate':
