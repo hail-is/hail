@@ -145,7 +145,7 @@ class BuildConfiguration:
             )
 
             if ((step.scopes is None or scope in step.scopes)
-                    and (step.clouds in None or CLOUD in step.clouds)):
+                    and (step.clouds is None or CLOUD in step.clouds)):
                 step.cleanup(batch, scope, parent_jobs)
 
 
