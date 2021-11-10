@@ -35,8 +35,6 @@ trait SLocusValue extends SValue {
 trait SLocusCode extends SCode {
   def st: SLocus
 
-  def contig(cb: EmitCodeBuilder): SStringCode
-
   def position(cb: EmitCodeBuilder): Code[Int]
 
   def getLocusObj(cb: EmitCodeBuilder): Code[Locus]

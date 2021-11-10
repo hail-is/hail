@@ -571,7 +571,7 @@ object EmitNDArray {
                   val stepsToSumOut = axesToSumOut.map(idx => (cb: EmitCodeBuilder) => childProducer.stepAxis(idx)(cb, 1L))
 
                   SNDArray.forEachIndexWithInitAndIncColMajor(cb, newOutputShapeComplement, initsToSumOut, stepsToSumOut, "ndarray_producer_ndarray_agg") { (cb, _) =>
-                    cb.assign(runningSum, numericElementType.add(runningSum, SType.extractPrimCode(cb, childProducer.loadElementAtCurrentAddr(cb).get)))
+                    cb.assign(runningSum, numericElementType.add(runningSum, SType.extractPrimValue(cb, childProducer.loadElementAtCurrentAddr(cb))))
                   }
                   primitive(numericElementType.virtualType, runningSum)
                 }

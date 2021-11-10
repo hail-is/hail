@@ -109,8 +109,6 @@ class SCanonicalLocusPointerCode(val st: SCanonicalLocusPointer, val a: Code[Lon
 
   def code: Code[_] = a
 
-  def contig(cb: EmitCodeBuilder): SStringCode = pt.contigType.loadCheapSCode(cb, pt.contigAddr(a)).asString.get
-
   def position(cb: EmitCodeBuilder): Code[Int] = pt.position(a)
 
   def getLocusObj(cb: EmitCodeBuilder): Code[Locus] = {

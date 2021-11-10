@@ -83,9 +83,6 @@ class SUnreachableStructCode(override val st: SUnreachableStruct) extends SUnrea
   override def loadSingleField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode =
     IEmitCode.present(cb, SUnreachable.fromVirtualType(st.virtualType.types(fieldIdx)).defaultValue)
 
-  override def insert(cb: EmitCodeBuilder, region: Value[Region], newType: TStruct, fields: (String, EmitCode)*): SBaseStructCode =
-    new SUnreachableStructCode(SUnreachableStruct(newType))
-
   override def _insert(newType: TStruct, fields: (String, EmitCode)*): SBaseStructCode =
     new SUnreachableStructCode(SUnreachableStruct(newType))
 }
@@ -208,8 +205,6 @@ class SUnreachableLocusCode(override val st: SUnreachableLocus) extends SUnreach
 
   override def position(cb: EmitCodeBuilder): Code[Int] = const(0)
 
-  override def contig(cb: EmitCodeBuilder): SStringCode = SUnreachableString.sc
-
   override def getLocusObj(cb: EmitCodeBuilder): Code[Locus] = Code._null[Locus]
 }
 
@@ -307,8 +302,6 @@ class SUnreachableNDArrayCode(override val st: SUnreachableNDArray) extends SUnr
   override def memoizeField(cb: EmitCodeBuilder, name: String): SUnreachableNDArrayValue = st.sv
 
   override def memoize(cb: EmitCodeBuilder, name: String): SUnreachableNDArrayValue = st.sv
-
-  override def shape(cb: EmitCodeBuilder): SBaseStructCode = SUnreachableStruct(TTuple((0 until st.nDims).map(_ => TInt64): _*)).sc
 }
 
 class SUnreachableNDArrayValue(override val st: SUnreachableNDArray) extends SUnreachableValue with SNDArraySettable {
@@ -369,7 +362,4 @@ class SUnreachableContainerCode(override val st: SUnreachableContainer) extends 
   override def memoize(cb: EmitCodeBuilder, name: String): SUnreachableContainerValue = st.sv
 
   override def codeLoadLength(): Code[Int] = const(0)
-
-  override def castToArray(cb: EmitCodeBuilder): SIndexableCode =
-    SUnreachable.fromVirtualType(st.virtualType.arrayElementsRepr).defaultValue.get.asIndexable
 }

@@ -88,15 +88,15 @@ abstract class SCode {
 
   def asStream: SStreamCode = asInstanceOf[SStreamCode]
 
-  def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SCode =
+  def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SValue =
     castTo(cb, region, destType, false)
 
-  def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType, deepCopy: Boolean): SCode = {
-    destType.coerceOrCopy(cb, region, this.memoize(cb, "castTo"), deepCopy).get
+  def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType, deepCopy: Boolean): SValue = {
+    destType.coerceOrCopy(cb, region, this.memoize(cb, "castTo"), deepCopy)
   }
 
-  def copyToRegion(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SCode =
-    destType.coerceOrCopy(cb, region, this.memoize(cb, "copyToRegion"), deepCopy = true).get
+  def copyToRegion(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SValue =
+    destType.coerceOrCopy(cb, region, this.memoize(cb, "copyToRegion"), deepCopy = true)
 
   def memoize(cb: EmitCodeBuilder, name: String): SValue
 
@@ -169,8 +169,6 @@ trait SSettable extends SValue {
     store(cb, v.get)
 
   def settableTuple(): IndexedSeq[Settable[_]]
-
-  def load(): SCode = get
 }
 
 object SSettable {

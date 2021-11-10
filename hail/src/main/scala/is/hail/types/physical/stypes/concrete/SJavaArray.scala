@@ -70,8 +70,6 @@ class SJavaArrayStringCode(val st: SJavaArrayString, val array: Code[Array[Strin
   def memoize(cb: EmitCodeBuilder, name: String): SIndexableValue = memoize(cb, name, cb.localBuilder)
 
   def memoizeField(cb: EmitCodeBuilder, name: String): SIndexableValue = memoize(cb, name, cb.fieldBuilder)
-
-  def castToArray(cb: EmitCodeBuilder): SIndexableCode = this
 }
 
 class SJavaArrayStringValue(
