@@ -28,7 +28,9 @@ class MaybeIndexedReadZippedIterator(
 
   private[this] val startAndEnd = Option(idxr).map(_.boundsByInterval(bounds))
   private[this] val firstAnnotation = try {
-    startAndEnd.map { case (startIdx, _) => idxr.queryByIndex(startIdx) }
+    startAndEnd.flatMap { case (start, _) =>
+      if (idxr.nKeys == 0) None else Some(idxr.queryByIndex(start))
+    }
   } catch {
     case e: Exception =>
       if (idxr != null)
