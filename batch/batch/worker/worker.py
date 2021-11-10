@@ -570,10 +570,13 @@ class Container:
                 self.short_error = 'image cannot be pulled'
             elif 'not found: manifest unknown' in e.message:
                 self.short_error = 'image not found'
-            elif e.status == 500 and 'unauthorized: authentication required' in e.message:
+            raise
+        except syncdocker.errors.APIError as e:
+            if e.status == 500 and 'unauthorized: authentication required' in e.message:
                 self.short_error = 'image cannot be pulled'
-            elif e.status == 404 and 'no such image' in e.message:
-                self.short_error = 'image not found'
+            raise
+        except syncdocker.errors.NotFound:
+            self.short_error = 'image not found'
             raise
 
         image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
