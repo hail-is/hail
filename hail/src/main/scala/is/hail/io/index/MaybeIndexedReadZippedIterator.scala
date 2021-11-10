@@ -27,6 +27,17 @@ class MaybeIndexedReadZippedIterator(
   private[this] var closed: Boolean = false
 
   private[this] val startAndEnd = Option(idxr).map(_.boundsByInterval(bounds))
+  private[this] val firstAnnotation = try {
+    startAndEnd.map { case (startIdx, _) => idxr.queryByIndex(startIdx) }
+  } catch {
+    case e: Exception =>
+      if (idxr != null)
+        idxr.close()
+      isRows.close()
+      isEntries.close()
+      throw e
+  }
+
   private[this] var n = startAndEnd.map(x => x._2 - x._1)
 
   private[this] val trackedRowsIn = new ByteTrackingInputStream(isRows)
@@ -38,8 +49,7 @@ class MaybeIndexedReadZippedIterator(
   private[this] val rows = try {
     if (n.forall(_ > 0)) {
       val dec = mkRowsDec(trackedRowsIn)
-      startAndEnd.foreach { case (startIdx, _) =>
-        val i = idxr.queryByIndex(startIdx)
+      firstAnnotation.foreach { i =>
         val off = rowsIdxField.map { j => i.annotation.asInstanceOf[Row].getAs[Long](j) }.getOrElse(i.recordOffset)
         dec.seek(off)
       }
@@ -62,8 +72,7 @@ class MaybeIndexedReadZippedIterator(
       null
     } else {
       val dec = mkEntriesDec(trackedEntriesIn)
-      startAndEnd.foreach { case (startIdx, _) =>
-        val i = idxr.queryByIndex(startIdx)
+      firstAnnotation.foreach { i =>
         val off = entriesIdxField.map { j => i.annotation.asInstanceOf[Row].getAs[Long](j) }.getOrElse(i.recordOffset)
         dec.seek(off)
       }
