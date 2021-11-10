@@ -338,6 +338,11 @@ def main(args, pass_through_args):
 
     if not args.no_off_heap_memory:
         worker_memory = MACHINE_MEM[args.worker_machine_type]
+
+        # A Google support engineer recommended the strategy of passing the YARN
+        # config params, and the default value of 95% of machine memory to give to YARN.
+        # yarn.nodemanager.resource.memory-mb - total memory per machine
+        # yarn.scheduler.maximum-allocation-mb - max memory to allocate to each container
         available_memory_fraction = args.yarn_memory_fraction
         available_memory_mb = int(worker_memory * available_memory_fraction * 1024)
         cores_per_machine = int(args.worker_machine_type.split('-')[-1])
