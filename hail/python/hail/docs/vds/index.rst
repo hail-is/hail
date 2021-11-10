@@ -36,6 +36,7 @@ sequencing datasets.
     filter_intervals
     sample_qc
     split_multi
+    interval_coverage
     to_dense_mt
     to_merged_sparse_mt
 
@@ -63,13 +64,13 @@ For a high level overview of the VDS combiner, see the overview at the bottom of
 .. _sec-vds-overview:
 
 The data model of :class:`.VariantDataset`
-==========================================
+------------------------------------------
 
 A VariantDataset is the Hail implementation of a data structure called the
 "scalable variant call representation", or SVCR.
 
 The Scalable Variant Call Representation (SVCR)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Like the project VCF (multi-sample VCF) representation, the scalable variant
 call representation is a variant-by-sample matrix of records. There are two
@@ -118,7 +119,7 @@ fundamental differences, however:
     match its inherent information content.
 
 Component tables
-~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^
 
 The :class:`.VariantDataset` is made up of two component matrix tables -- the
 ``reference_data`` and the ``variant_data``.
@@ -147,7 +148,7 @@ it does not define the END INFO field. This means that some records of the
 semantics of the variant caller that produced the GVCFs.
 
 Building analyses on the :class:`.VariantDataset`
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Analyses operating on sequencing data can be largely grouped into three categories
 by functionality used.
@@ -174,7 +175,7 @@ by functionality used.
 
 
 The :class:`.VariantDataset` Combiner
-=====================================
+-------------------------------------
 
 .. _sec-vds-combiner:
 
