@@ -162,7 +162,11 @@ object LowerDistributedSort {
         MakeStruct(IndexedSeq("segmentIdx" -> GetField(ctxRef, "segmentIdx"), "partData" -> samplePartition(partitionStream, samples, newKType.fields.map(_.name))))
       }
 
-      val pivotsPerSegmentAndSortedCheck = bindIR(ToArray(bindIR(perPartStatsIR) { perPartStats =>
+      // Three levels here:
+      // 1. Is the individual partition sorted? This was checked above and is part of the collection in the CDA.
+      // 2. Is the segment sorted? This is a question of whether the constituent partitions sorted.
+      // 3. Are all of the segments sorted?
+      val pivotsPerSegmentAndSortedCheck = ToArray(bindIR(perPartStatsIR) { perPartStats =>
         mapIR(StreamGroupByKey(ToStream(perPartStats), IndexedSeq("segmentIdx"))) { oneGroup =>
           val streamElementRef = Ref(genUID(), oneGroup.typ.asInstanceOf[TIterable].elementType)
           val dataRef = Ref(genUID(), streamElementRef.typ.asInstanceOf[TStruct].fieldType("partData"))
@@ -172,7 +176,7 @@ object LowerDistributedSort {
                 ("min", AggFold.min(GetField(dataRef, "min"), newKType)),
                 ("max", AggFold.max(GetField(dataRef, "max"), newKType)),
                 ("samples", ApplyAggOp(Collect())(GetField(dataRef, "samples"))),
-                ("isSorted", AggFold.all(GetField(dataRef, "isSorted")))
+                ("isSorted", AggFold.all(GetField(dataRef, "isSorted")))  // Here I have checked if the whole segment is sorted.
               )), false)
           })) { aggResults =>
             val sorted = sortIR(flatMapIR(ToStream(GetField(aggResults, "samples"))) { onePartCollectedArray => ToStream(onePartCollectedArray)}) { case (left, right) =>
@@ -187,26 +191,10 @@ object LowerDistributedSort {
             ))
           }
         }
-      })) { segmentsInfo =>
-        // First, check if they were all internally sorted
-        val allInternallySorted = foldIR(mapIR(ToStream(segmentsInfo)) { segmentInfo => GetField(segmentInfo, "isSorted")}, True()) { case (accum, elt) =>
-          ApplySpecial("land", Seq.empty[Type], Seq(accum, elt), TBoolean, ErrorIDs.NO_ERROR)
-        }
-        bindIR(
-          If(allInternallySorted,
-            tuplesAreSorted(ToArray(mapIR(ToStream(segmentsInfo)) { segmentInfo =>
-              GetField(segmentInfo, "intervalTuple")
-            })),
-            False()
-          )
-        ) { alreadySortedRef =>
-          val pivotsWithEndpointsGroupedBySegmentNumberIR = ToArray(mapIR(ToStream(segmentsInfo))(x => GetField(x, "pivotsWithEndpoints")))
-          MakeTuple.ordered(Seq(pivotsWithEndpointsGroupedBySegmentNumberIR, alreadySortedRef))
-        }
-      }
+      })
 
       // Going to check now if it's fully sorted, as well as collect and sort all the samples.
-      val (Some(PTypeReferenceSingleCodeType(pivotsWithEndpointsGroupedBySegmentNumberAndOverallSortingType: PTuple)), fPerPartStats) = ctx.timer.time("LowerDistributedSort.distributedSort.compilePerPartStats")(Compile[AsmFunction1RegionLong](ctx,
+      val (Some(PTypeReferenceSingleCodeType(pivotsWithEndpointsGroupedBySegmentNumberP: PArray)), fPerPartStats) = ctx.timer.time("LowerDistributedSort.distributedSort.compilePerPartStats")(Compile[AsmFunction1RegionLong](ctx,
         FastIndexedSeq(),
         FastIndexedSeq(classInfo[Region]), LongInfo,
         pivotsPerSegmentAndSortedCheck,
@@ -215,13 +203,12 @@ object LowerDistributedSort {
 
       val fPivotsBySegmentNumberRunnable = ctx.timer.time("LowerDistributedSort.distributedSort.initialize")(fPerPartStats(ctx.fs, 0, ctx.r))
       val pivotsWithEndpointsGroupedBySegmentNumberAddr = ctx.timer.time("LowerDistributedSort.distributedSort.run")(fPivotsBySegmentNumberRunnable(ctx.r))
-      val pivotsWithEndpointsGroupedBySegmentNumberAndOverallSorting = ctx.timer.time("LowerDistributedSort.distributedSort.toJavaObject")(SafeRow.read(pivotsWithEndpointsGroupedBySegmentNumberAndOverallSortingType, pivotsWithEndpointsGroupedBySegmentNumberAddr)).asInstanceOf[Row]
+      val pivotsWithEndpointsAndInfoGroupedBySegmentNumber = ctx.timer.time("LowerDistributedSort.distributedSort.toJavaObject")(SafeRow.read(pivotsWithEndpointsGroupedBySegmentNumberP, pivotsWithEndpointsGroupedBySegmentNumberAddr)).asInstanceOf[IndexedSeq[Row]]
 
-      val pivotsWithEndpointsGroupedBySegmentNumber = pivotsWithEndpointsGroupedBySegmentNumberAndOverallSorting(0).asInstanceOf[IndexedSeq[Row]]
-      val isAlreadySorted = pivotsWithEndpointsGroupedBySegmentNumberAndOverallSorting(1).asInstanceOf[Boolean]
-      println(s"isAlreadySorted = ${isAlreadySorted}")
+      println(s"Pivots with endpoints groupedBySegmentNumber = ${pivotsWithEndpointsAndInfoGroupedBySegmentNumber}")
+      // TODO: Should pull out already sorted segments here.
 
-      println(s"Pivots with endpoints groupedBySegmentNumber = ${pivotsWithEndpointsGroupedBySegmentNumber}")
+      val pivotsWithEndpointsGroupedBySegmentNumber = pivotsWithEndpointsAndInfoGroupedBySegmentNumber.map(r => r(0))
 
       val pivotsWithEndpointsGroupedBySegmentNumberLiteral = Literal(TArray(TArray(newKType)), pivotsWithEndpointsGroupedBySegmentNumber)
 
@@ -265,13 +252,7 @@ object LowerDistributedSort {
       // distributeResult is a numPartitions length array of arrays, where each inner array tells me what
       // files were written to for each partition, as well as the number of entries in that file.
 
-      // I need to:
-      // 1. Group the partitions by their origin segment.
-      // 2. Within an origin segment, I can trust that all inner arrays are the same length. So do a transpose within an origin segment to get things grouped by their new segments.
-
-      println(distributeResult)
-
-      val protoDataPerSegment = orderedGroupBy[(Int, IndexedSeq[(Interval, String, Int)]), Int](distributeResult, x => x._1).map { case (_, seqOfChunkData) => seqOfChunkData.map(_._2)}
+      val protoDataPerSegment = orderedGroupBy[(Int, IndexedSeq[(Interval, String, Int)]), Int](distributeResult, x => x._1).map { case (_, seqOfChunkData) => seqOfChunkData.map(_._2) }
 
       val transposedIntoNewSegments = protoDataPerSegment.flatMap { oneOldSegment =>
         val headLen = oneOldSegment.head.length
@@ -286,7 +267,7 @@ object LowerDistributedSort {
       }
 
       // Now I need to figure out how many partitions to allocate to each segment.
-      val (newBigSegments, newSmallSegments) = dataPerSegment.partition{ sr =>
+      val (newBigSegments, newSmallSegments) = dataPerSegment.partition { sr =>
         sr.chunks.map(_.size).sum > sizeCutoff && (sr.interval.left.point != sr.interval.right.point)
       }
       loopState = LoopState(newBigSegments, loopState.smallSegments ++ newSmallSegments)
@@ -295,7 +276,6 @@ object LowerDistributedSort {
       i = i + 1
     }
 
-    // Ok, now all the small partitions from loop state can be dealt with.
     val unsortedSegments = loopState.smallSegments
     val keyOrdering = PartitionBoundOrdering.apply(newKType)
     val sortedSegments = unsortedSegments.sortWith((sr1, sr2) => sr1.interval.isBelow(keyOrdering, sr2.interval))
@@ -454,122 +434,6 @@ object LowerDistributedSort {
     }
   }
 
-  def eval(x: IR): Any = ExecuteContext.scoped(){ ctx =>
-    eval(x, Env.empty, FastIndexedSeq(), None, None, true, ctx)
-  }
-
-  def eval(x: IR,
-           env: Env[(Any, Type)],
-           args: IndexedSeq[(Any, Type)],
-           agg: Option[(IndexedSeq[Row], TStruct)],
-           bytecodePrinter: Option[PrintWriter] = None,
-           optimize: Boolean = true,
-           ctx: ExecuteContext
-          ): Any = {
-    val inputTypesB = new BoxedArrayBuilder[Type]()
-    val inputsB = new mutable.ArrayBuffer[Any]()
-
-    args.foreach { case (v, t) =>
-      inputsB += v
-      inputTypesB += t
-    }
-
-    env.m.foreach { case (name, (v, t)) =>
-      inputsB += v
-      inputTypesB += t
-    }
-
-    val argsType = TTuple(inputTypesB.result(): _*)
-    val resultType = TTuple(x.typ)
-    val argsVar = genUID()
-
-    val (_, substEnv) = env.m.foldLeft((args.length, Env.empty[IR])) { case ((i, env), (name, (v, t))) =>
-      (i + 1, env.bind(name, GetTupleElement(Ref(argsVar, argsType), i)))
-    }
-
-    def rewrite(x: IR): IR = {
-      x match {
-        case In(i, t) =>
-          GetTupleElement(Ref(argsVar, argsType), i)
-        case _ =>
-          MapIR(rewrite)(x)
-      }
-    }
-
-    val argsPType = PType.canonical(argsType).setRequired(true)
-    agg match {
-      case Some((aggElements, aggType)) =>
-        val aggElementVar = genUID()
-        val aggArrayVar = genUID()
-        val aggPType = PType.canonical(aggType)
-        val aggArrayPType = PCanonicalArray(aggPType, required = true)
-
-        val substAggEnv = aggType.fields.foldLeft(Env.empty[IR]) { case (env, f) =>
-          env.bind(f.name, GetField(Ref(aggElementVar, aggType), f.name))
-        }
-        val aggIR = StreamAgg(ToStream(Ref(aggArrayVar, aggArrayPType.virtualType)),
-          aggElementVar,
-          MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(eval = substEnv, agg = Some(substAggEnv)))))))
-
-        val (Some(PTypeReferenceSingleCodeType(resultType2)), f) = Compile[AsmFunction3RegionLongLongLong](ctx,
-          FastIndexedSeq((argsVar, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argsPType))),
-            (aggArrayVar, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(aggArrayPType)))),
-          FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
-          aggIR,
-          print = bytecodePrinter,
-          optimize = optimize)
-        assert(resultType2.virtualType == resultType)
-
-        ctx.r.pool.scopedRegion { region =>
-          val rvb = new RegionValueBuilder(region)
-          rvb.start(argsPType)
-          rvb.startTuple()
-          var i = 0
-          while (i < inputsB.length) {
-            rvb.addAnnotation(inputTypesB(i), inputsB(i))
-            i += 1
-          }
-          rvb.endTuple()
-          val argsOff = rvb.end()
-
-          rvb.start(aggArrayPType)
-          rvb.startArray(aggElements.length)
-          aggElements.foreach { r =>
-            rvb.addAnnotation(aggType, r)
-          }
-          rvb.endArray()
-          val aggOff = rvb.end()
-
-          val resultOff = f(ctx.fs, 0, region)(region, argsOff, aggOff)
-          SafeRow(resultType2.asInstanceOf[PBaseStruct], resultOff).get(0)
-        }
-
-      case None =>
-        val (Some(PTypeReferenceSingleCodeType(resultType2)), f) = Compile[AsmFunction2RegionLongLong](ctx,
-          FastIndexedSeq((argsVar, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argsPType)))),
-          FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
-          MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(substEnv))))),
-          optimize = optimize,
-          print = bytecodePrinter)
-        assert(resultType2.virtualType == resultType)
-
-        ctx.r.pool.scopedRegion { region =>
-          val rvb = new RegionValueBuilder(region)
-          rvb.start(argsPType)
-          rvb.startTuple()
-          var i = 0
-          while (i < inputsB.length) {
-            rvb.addAnnotation(inputTypesB(i), inputsB(i))
-            i += 1
-          }
-          rvb.endTuple()
-          val argsOff = rvb.end()
-
-          val resultOff = f(ctx.fs, 0, region)(region, argsOff)
-          SafeRow(resultType2.asInstanceOf[PBaseStruct], resultOff).get(0)
-        }
-    }
-  }
 }
 
 case class Chunk(filename: String, size: Int)
