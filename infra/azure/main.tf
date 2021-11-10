@@ -201,7 +201,7 @@ resource "azurerm_mysql_configuration" "example" {
   name                = "log_bin_trust_function_creators"
   resource_group_name = data.azurerm_resource_group.rg.name
   server_name         = azurerm_mysql_server.db.name
-  value               = "1"
+  value               = "ON"
 }
 
 data "http" "db_ca_cert" {
@@ -318,7 +318,7 @@ resource "azurerm_role_assignment" "batch_worker_batch_account_contributor" {
   principal_id         = azurerm_user_assigned_identity.batch_worker.principal_id
 }
 
-resource "azurerm_role_assignment" "batch_compute_contributor" {
+resource "azurerm_role_assignment" "batch_worker_virtual_machine_contributor" {
   scope                = data.azurerm_subscription.primary.id
   role_definition_name = "Virtual Machine Contributor"
   principal_id         = azurerm_user_assigned_identity.batch_worker.principal_id
