@@ -571,12 +571,13 @@ class Container:
             elif 'not found: manifest unknown' in e.message:
                 self.short_error = 'image not found'
             raise
-        except syncdocker.errors.APIError as e:
-            if e.status == 500 and 'unauthorized: authentication required' in e.message:
-                self.short_error = 'image cannot be pulled'
-            raise
-        except syncdocker.errors.NotFound:
+        # errors is just a top level python file and not actually exposed in docker's __init__.py
+        except syncdocker.errors.NotFound:  # pylint: disable=maybe-no-member
             self.short_error = 'image not found'
+            raise
+        except syncdocker.errors.APIError as e:  # pylint: disable=maybe-no-member
+            if e.is_server_error() and 'unauthorized: authentication required' in str(e):
+                self.short_error = 'image cannot be pulled'
             raise
 
         image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
