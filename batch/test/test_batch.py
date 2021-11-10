@@ -706,9 +706,9 @@ def test_verify_no_access_to_metadata_server(client: BatchClient):
 
 def test_submit_batch_in_job(client: BatchClient):
     builder = client.create_batch()
-    bucket_name = get_user_config().get('batch', 'bucket')
+    remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
     script = f'''import hailtop.batch as hb
-backend = hb.ServiceBackend("test", "{bucket_name}")
+backend = hb.ServiceBackend("test", remote_tmpdir="{remote_tmpdir}")
 b = hb.Batch(backend=backend)
 j = b.new_bash_job()
 j.command("echo hi")
@@ -726,9 +726,9 @@ backend.close()
 
 
 def test_cant_submit_to_default_with_other_ns_creds(client: BatchClient):
-    bucket_name = get_user_config().get('batch', 'bucket')
+    remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
     script = f'''import hailtop.batch as hb
-backend = hb.ServiceBackend("test", "{bucket_name}")
+backend = hb.ServiceBackend("test", remote_tmpdir="{remote_tmpdir}")
 b = hb.Batch(backend=backend)
 j = b.new_bash_job()
 j.command("echo hi")
@@ -803,12 +803,12 @@ curl -fsSL -m 5 $OTHER_IP
 
 def test_can_use_google_credentials(client: BatchClient):
     token = os.environ["HAIL_TOKEN"]
-    bucket_name = get_user_config().get('batch', 'bucket')
+    remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
     builder = client.create_batch()
     script = f'''import hail as hl
 import secrets
 attempt_token = secrets.token_urlsafe(5)
-location = f"gs://{ bucket_name }/{ token }/{{ attempt_token }}/test_can_use_hailctl_auth.t"
+location = f"{remote_tmpdir}/{ token }/{{ attempt_token }}/test_can_use_hailctl_auth.t"
 hl.utils.range_table(10).write(location)
 hl.read_table(location).show()
 '''

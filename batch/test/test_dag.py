@@ -185,17 +185,17 @@ def test_no_parents_allowed_in_other_batches(client):
 
 
 def test_input_dependency(client):
-    bucket_name = get_user_config().get('batch', 'bucket')
+    remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
     batch = client.create_batch()
     head = batch.create_job(
         DOCKER_ROOT_IMAGE,
         command=['/bin/sh', '-c', 'echo head1 > /io/data1; echo head2 > /io/data2'],
-        output_files=[('/io/data1', f'gs://{bucket_name}/data1'), ('/io/data2', f'gs://{bucket_name}/data2')],
+        output_files=[('/io/data1', f'{remote_tmpdir}data1'), ('/io/data2', f'{remote_tmpdir}data2')],
     )
     tail = batch.create_job(
         DOCKER_ROOT_IMAGE,
         command=['/bin/sh', '-c', 'cat /io/data1; cat /io/data2'],
-        input_files=[(f'gs://{bucket_name}/data1', '/io/data1'), (f'gs://{bucket_name}/data2', '/io/data2')],
+        input_files=[(f'{remote_tmpdir}data1', '/io/data1'), (f'{remote_tmpdir}data2', '/io/data2')],
         parents=[head],
     )
     batch = batch.submit()
@@ -207,17 +207,17 @@ def test_input_dependency(client):
 
 
 def test_input_dependency_wildcard(client):
-    bucket_name = get_user_config().get('batch', 'bucket')
+    remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
     batch = client.create_batch()
     head = batch.create_job(
         DOCKER_ROOT_IMAGE,
         command=['/bin/sh', '-c', 'echo head1 > /io/data1 ; echo head2 > /io/data2'],
-        output_files=[('/io/data1', f'gs://{bucket_name}/data1'), ('/io/data2', f'gs://{bucket_name}/data2')],
+        output_files=[('/io/data1', f'{remote_tmpdir}data1'), ('/io/data2', f'{remote_tmpdir}data2')],
     )
     tail = batch.create_job(
         DOCKER_ROOT_IMAGE,
         command=['/bin/sh', '-c', 'cat /io/data1 ; cat /io/data2'],
-        input_files=[(f'gs://{bucket_name}/data1', '/io/data1'), (f'gs://{bucket_name}/data2', '/io/data2')],
+        input_files=[(f'{remote_tmpdir}data1', '/io/data1'), (f'{remote_tmpdir}data2', '/io/data2')],
         parents=[head],
     )
     batch = batch.submit()
@@ -229,17 +229,17 @@ def test_input_dependency_wildcard(client):
 
 
 def test_input_dependency_directory(client):
-    bucket_name = get_user_config().get('batch', 'bucket')
+    remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
     batch = client.create_batch()
     head = batch.create_job(
         DOCKER_ROOT_IMAGE,
         command=['/bin/sh', '-c', 'mkdir -p /io/test/; echo head1 > /io/test/data1 ; echo head2 > /io/test/data2'],
-        output_files=[('/io/test', f'gs://{bucket_name}/test')],
+        output_files=[('/io/test', f'{remote_tmpdir}test')],
     )
     tail = batch.create_job(
         DOCKER_ROOT_IMAGE,
         command=['/bin/sh', '-c', 'cat /io/test/data1; cat /io/test/data2'],
-        input_files=[(f'gs://{bucket_name}/test', '/io/test')],
+        input_files=[(f'{remote_tmpdir}test', '/io/test')],
         parents=[head],
     )
     batch = batch.submit()
