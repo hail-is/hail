@@ -503,7 +503,7 @@ class ServiceBackend(Backend[bc.Batch]):
         batch_remote_tmpdir = f'{self.remote_tmpdir}{uid}'
         local_tmpdir = f'/io/batch/{uid}'
 
-        default_image = 'ubuntu:18.04'
+        default_image = 'ubuntu:20.04'
 
         attributes = copy.deepcopy(batch.attributes)
         if batch.name is not None:
