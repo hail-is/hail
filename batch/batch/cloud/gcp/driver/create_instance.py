@@ -181,14 +181,14 @@ DOCKER_PREFIX=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.int
 
 INTERNAL_GATEWAY_IP=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/internal_ip")
 
-# private job network = 172.34.0.0/16
-# public job network = 172.35.0.0/16
+# private job network = 172.20.0.0/16
+# public job network = 172.21.0.0/16
 # [all networks] Rewrite traffic coming from containers to masquerade as the host
-iptables --table nat --append POSTROUTING --source 172.34.0.0/15 --jump MASQUERADE
+iptables --table nat --append POSTROUTING --source 172.20.0.0/15 --jump MASQUERADE
 
 # [public]
 # Block public traffic to the metadata server
-iptables --append FORWARD --source 172.35.0.0/16 --destination 169.254.169.254 --jump DROP
+iptables --append FORWARD --source 172.21.0.0/16 --destination 169.254.169.254 --jump DROP
 # But allow the internal gateway
 iptables --append FORWARD --destination $INTERNAL_GATEWAY_IP --jump ACCEPT
 # And this worker
