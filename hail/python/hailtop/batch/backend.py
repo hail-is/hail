@@ -426,7 +426,7 @@ class ServiceBackend(Backend[bc.Batch]):
                     'Use the remote_tmpdir parameter to specify a path.')
             remote_tmpdir = f'gs://{bucket}/batch'
         else:
-            schemes = {'gs', 'hail-az', 's3'}
+            schemes = {'gs'}
             found_scheme = any([remote_tmpdir.startswith(f'{scheme}://') for scheme in schemes])
             if not found_scheme:
                 raise ValueError(
