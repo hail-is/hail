@@ -318,6 +318,12 @@ resource "azurerm_role_assignment" "batch_worker_batch_account_contributor" {
   principal_id         = azurerm_user_assigned_identity.batch_worker.principal_id
 }
 
+resource "azurerm_role_assignment" "batch_compute_contributor" {
+  scope                = data.azurerm_subscription.primary.id
+  role_definition_name = "Virtual Machine Contributor"
+  principal_id         = azurerm_user_assigned_identity.batch_worker.principal_id
+}
+
 resource "azurerm_storage_account" "test" {
   name                     = "${data.azurerm_resource_group.rg.name}test"
   resource_group_name      = data.azurerm_resource_group.rg.name
