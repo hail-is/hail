@@ -276,8 +276,7 @@ done
                 "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('userAssignedIdentityName'))]": {}
             }
         },
-        'tags': {
-        },
+        'tags': tags,
         'dependsOn': [
             "[concat('Microsoft.Network/networkInterfaces/', variables('nicName'))]"
         ],
