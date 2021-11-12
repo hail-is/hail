@@ -50,12 +50,12 @@ class AzureWorkerAPI(CloudWorkerAPI):
 class LazyShortLivedToken(abc.ABC):
     def __init__(self):
         self._token: Optional[str] = None
-        self._expiration_time: Optional[int] = None
+        self._expiration_time_ms: Optional[int] = None
 
     async def token(self, session: httpx.ClientSession) -> str:
         now = time_msecs()
-        if not self._expiration_time or now >= self._expiration_time:
-            self._token, self._expiration_time = await self._fetch(session)
+        if not self._expiration_time_ms or now >= self._expiration_time_ms:
+            self._token, self._expiration_time_ms = await self._fetch(session)
         assert self._token
         return self._token
 
@@ -81,8 +81,8 @@ class AadAccessToken(LazyShortLivedToken):
         ) as resp:
             resp_json = await resp.json()
             access_token: str = resp_json['access_token']
-            expiration_time = int(isoparse(resp_json['expires_on']).timestamp())
-            return access_token, expiration_time
+            expiration_time_ms = int(isoparse(resp_json['expires_on']).timestamp()) * 1000
+            return access_token, expiration_time_ms
 
 
 class AcrRefreshToken(LazyShortLivedToken):
@@ -107,5 +107,5 @@ class AcrRefreshToken(LazyShortLivedToken):
             timeout=aiohttp.ClientTimeout(total=60)  # type: ignore
         ) as resp:
             refresh_token: str = (await resp.json())['refresh_token']
-            expiration_time = time_msecs() + 60 * 60 * 1000  # token expires in 3 hours so we refresh after 1 hour
-            return refresh_token, expiration_time
+            expiration_time_ms = time_msecs() + 60 * 60 * 1000  # token expires in 3 hours so we refresh after 1 hour
+            return refresh_token, expiration_time_ms
