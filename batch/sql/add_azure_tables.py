@@ -22,7 +22,6 @@ DELETE FROM `pools`;
 DELETE FROM `inst_colls`;
 ''')
 
-        enable_standing_worker = scope != 'dev'
         boot_disk_size_gb = 30
         worker_cores = 16
 
@@ -48,9 +47,9 @@ VALUES (%s, %s, %s, %s, %s, %s)
                               inst_colls)
 
         pools = [
-            ('highcpu', 'F', worker_cores, True, 0, enable_standing_worker, 8),
-            ('standard', 'D', worker_cores, True, 0, enable_standing_worker, 4),
-            ('highmem', 'E', worker_cores, True, 0, enable_standing_worker, 4),
+            ('highcpu', 'F', worker_cores, True, 0, False, 8),
+            ('standard', 'D', worker_cores, True, 0, False, 4),
+            ('highmem', 'E', worker_cores, True, 0, scope != 'dev', 4),
         ]
 
         await db.execute_many('''

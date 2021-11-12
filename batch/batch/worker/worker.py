@@ -62,8 +62,9 @@ from ..globals import (
 from ..batch_format_version import BatchFormatVersion
 from ..publicly_available_images import publicly_available_images
 from ..utils import Box
-from ..cloud.worker import get_cloud_disk, get_user_credentials, get_instance_environment, get_worker_access_token
-from ..cloud.utils import instance_config_from_config_dict
+from ..worker.instance_env import CloudWorkerAPI
+from ..cloud.gcp.worker.instance_env import GCPWorkerAPI
+from ..cloud.azure.worker.instance_env import AzureWorkerAPI
 from ..cloud.resource_utils import storage_gib_to_bytes, is_valid_storage_request
 
 from .credentials import CloudUserCredentials
@@ -105,13 +106,18 @@ INSTANCE_ID = os.environ['INSTANCE_ID']
 DOCKER_PREFIX = os.environ['DOCKER_PREFIX']
 PUBLIC_IMAGES = publicly_available_images(DOCKER_PREFIX)
 INSTANCE_CONFIG = json.loads(base64.b64decode(os.environ['INSTANCE_CONFIG']).decode())
-INSTANCE_ENVIRONMENT = get_instance_environment(CLOUD)
 MAX_IDLE_TIME_MSECS = int(os.environ['MAX_IDLE_TIME_MSECS'])
 BATCH_WORKER_IMAGE = os.environ['BATCH_WORKER_IMAGE']
 BATCH_WORKER_IMAGE_ID = os.environ['BATCH_WORKER_IMAGE_ID']
 INTERNET_INTERFACE = os.environ['INTERNET_INTERFACE']
 UNRESERVED_WORKER_DATA_DISK_SIZE_GB = int(os.environ['UNRESERVED_WORKER_DATA_DISK_SIZE_GB'])
 assert UNRESERVED_WORKER_DATA_DISK_SIZE_GB >= 0
+
+if CLOUD == 'gcp':
+    CLOUD_WORKER_API: CloudWorkerAPI = GCPWorkerAPI.from_env()
+else:
+    assert CLOUD == 'azure'
+    CLOUD_WORKER_API: CloudWorkerAPI = AzureWorkerAPI.from_env()
 
 log.info(f'CLOUD {CLOUD}')
 log.info(f'CORES {CORES}')
@@ -123,12 +129,12 @@ log.info(f'BATCH_LOGS_STORAGE_URI {BATCH_LOGS_STORAGE_URI}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
 log.info(f'DOCKER_PREFIX {DOCKER_PREFIX}')
 log.info(f'INSTANCE_CONFIG {INSTANCE_CONFIG}')
-log.info(f'INSTANCE_ENVIRONMENT {INSTANCE_ENVIRONMENT}')
+log.info(f'CLOUD_WORKER_API {CLOUD_WORKER_API}')
 log.info(f'MAX_IDLE_TIME_MSECS {MAX_IDLE_TIME_MSECS}')
 log.info(f'INTERNET_INTERFACE {INTERNET_INTERFACE}')
 log.info(f'UNRESERVED_WORKER_DATA_DISK_SIZE_GB {UNRESERVED_WORKER_DATA_DISK_SIZE_GB}')
 
-instance_config = instance_config_from_config_dict(INSTANCE_CONFIG)
+instance_config = CLOUD_WORKER_API.instance_config_from_config_dict(INSTANCE_CONFIG)
 assert instance_config.cores == CORES
 assert instance_config.cloud == CLOUD
 
@@ -595,7 +601,7 @@ class Container:
                 raise
 
     async def batch_worker_access_token(self):
-        return await get_worker_access_token(CLOUD, self.client_session)
+        return await CLOUD_WORKER_API.worker_access_token(self.client_session)
 
     def current_user_access_token(self):
         return {'username': self.job.credentials.username, 'password': self.job.credentials.password}
@@ -1361,12 +1367,11 @@ class DockerJob(Job):
                 # https://cloud.google.com/compute/docs/reference/rest/v1/disks#resource:-disk
                 # under the information for the name field
                 uid = self.token[:20]
-                self.disk = get_cloud_disk(instance_environment=INSTANCE_ENVIRONMENT,
-                                           instance_name=NAME,
-                                           disk_name=f'batch-disk-{uid}',
-                                           size_in_gb=self.external_storage_in_gib,
-                                           mount_path=self.io_host_path(),
-                                           )
+                self.disk = CLOUD_WORKER_API.create_disk(instance_name=NAME,
+                                                   disk_name=f'batch-disk-{uid}',
+                                                   size_in_gb=self.external_storage_in_gib,
+                                                   mount_path=self.io_host_path(),
+                                                   )
                 labels = {'namespace': NAMESPACE, 'batch': '1', 'instance-name': NAME, 'uid': uid}
                 await self.disk.create(labels=labels)
                 log.info(f'created disk {self.disk.name} for job {self.id}')
@@ -1852,7 +1857,7 @@ class Worker:
         if not self.active:
             return web.HTTPServiceUnavailable()
 
-        credentials = get_user_credentials(CLOUD, body['gsa_key'])
+        credentials = CLOUD_WORKER_API.user_credentials(body['gsa_key'])
 
         job = Job.create(
             batch_id,
