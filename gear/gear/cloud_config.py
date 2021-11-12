@@ -4,43 +4,55 @@ import json
 
 
 class AzureConfig:
-    subscription_id: str
-    resource_group: str
-    region: str
-
     @staticmethod
     def from_global_config(global_config):
-        conf = AzureConfig()
-        conf.subscription_id = global_config['azure_subscription_id']
-        conf.resource_group = global_config['azure_resource_group']
-        conf.region = global_config['azure_location']
-        return conf
+        return AzureConfig(
+            global_config['azure_subscription_id'],
+            global_config['azure_resource_group'],
+            global_config['azure_location'],
+        )
+
+    def __init__(self, subscription_id, resource_group, region):
+        self.subscription_id = subscription_id
+        self.resource_group = resource_group
+        self.region = region
+
+    def __str__(self):
+        data = {
+            'subscription_id': self.subscription_id,
+            'resource_group': self.resource_group,
+            'region': self.region,
+        }
+        return str(data)
 
 
 class GCPConfig:
-    project: str
-    region: str
-    zone: str
-    regions: Set[str]
-
     @staticmethod
     def from_global_config(global_config):
-        conf = GCPConfig()
-        conf.project = global_config['gcp_project']
-        conf.region = global_config['gcp_region']
-        conf.zone = global_config['gcp_zone']
+        regions: Set[str] = set(json.loads(global_config['batch_gcp_regions']))
+        region = global_config['gcp_region']
+        regions.add(region)
+        return GCPConfig(
+            global_config['gcp_project'],
+            region,
+            global_config['gcp_zone'],
+            regions,
+        )
 
-        conf.regions = set(json.loads(global_config['batch_gcp_regions']))
-        conf.regions.add(conf.region)
-
-        return conf
+    def __init__(self, project, region, zone, regions):
+        self.project = project
+        self.region = region
+        self.zone = zone
+        self.regions = regions
 
     def __str__(self):
-        data = {'project': self.project,
-                'region': self.region,
-                'zone': self.zone,
-                'regions': self.regions}
-        return f'{data}'
+        data = {
+            'project': self.project,
+            'region': self.region,
+            'zone': self.zone,
+            'regions': self.regions,
+        }
+        return str(data)
 
 
 azure_config = None
