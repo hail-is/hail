@@ -138,13 +138,7 @@ instance_config = CLOUD_WORKER_API.instance_config_from_config_dict(INSTANCE_CON
 assert instance_config.cores == CORES
 assert instance_config.cloud == CLOUD
 
-if CLOUD == 'gcp':
-    deploy_location = 'gce'
-else:
-    assert CLOUD == 'azure'
-    deploy_location = 'azure'
-
-deploy_config = DeployConfig(deploy_location, NAMESPACE, {})
+deploy_config = DeployConfig('gce', NAMESPACE, {})
 
 docker: Optional[aiodocker.Docker] = None
 docker_sync: Optional[syncdocker.DockerClient] = None
