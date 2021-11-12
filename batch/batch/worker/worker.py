@@ -1360,11 +1360,12 @@ class DockerJob(Job):
                 # https://cloud.google.com/compute/docs/reference/rest/v1/disks#resource:-disk
                 # under the information for the name field
                 uid = self.token[:20]
-                self.disk = CLOUD_WORKER_API.create_disk(instance_name=NAME,
-                                                   disk_name=f'batch-disk-{uid}',
-                                                   size_in_gb=self.external_storage_in_gib,
-                                                   mount_path=self.io_host_path(),
-                                                   )
+                self.disk = CLOUD_WORKER_API.create_disk(
+                    instance_name=NAME,
+                    disk_name=f'batch-disk-{uid}',
+                    size_in_gb=self.external_storage_in_gib,
+                    mount_path=self.io_host_path(),
+                )
                 labels = {'namespace': NAMESPACE, 'batch': '1', 'instance-name': NAME, 'uid': uid}
                 await self.disk.create(labels=labels)
                 log.info(f'created disk {self.disk.name} for job {self.id}')

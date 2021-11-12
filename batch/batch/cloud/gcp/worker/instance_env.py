@@ -1,3 +1,4 @@
+import aiohttp
 from typing import Dict
 import os
 
@@ -8,6 +9,7 @@ from ....worker.instance_env import CloudWorkerAPI
 from .disk import GCPDisk
 from .credentials import GCPUserCredentials
 from ..instance_config import GCPSlimInstanceConfig
+
 
 class GCPWorkerAPI(CloudWorkerAPI):
     @staticmethod

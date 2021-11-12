@@ -87,6 +87,7 @@ class AadAccessToken(LazyShortLivedToken):
 
 class AcrRefreshToken(LazyShortLivedToken):
     def __init__(self, acr_url: str, aad_access_token: AadAccessToken):
+        super().__init__()
         self.acr_url: str = acr_url
         self.aad_access_token: AadAccessToken = aad_access_token
 
