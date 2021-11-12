@@ -113,11 +113,7 @@ INTERNET_INTERFACE = os.environ['INTERNET_INTERFACE']
 UNRESERVED_WORKER_DATA_DISK_SIZE_GB = int(os.environ['UNRESERVED_WORKER_DATA_DISK_SIZE_GB'])
 assert UNRESERVED_WORKER_DATA_DISK_SIZE_GB >= 0
 
-if CLOUD == 'gcp':
-    CLOUD_WORKER_API: CloudWorkerAPI = GCPWorkerAPI.from_env()
-else:
-    assert CLOUD == 'azure'
-    CLOUD_WORKER_API: CloudWorkerAPI = AzureWorkerAPI.from_env()
+CLOUD_WORKER_API: CloudWorkerAPI = GCPWorkerAPI.from_env() if CLOUD == 'gcp' else AzureWorkerAPI.from_env()
 
 log.info(f'CLOUD {CLOUD}')
 log.info(f'CORES {CORES}')
