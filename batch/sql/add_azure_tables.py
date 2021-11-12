@@ -47,7 +47,7 @@ VALUES (%s, %s, %s, %s, %s, %s)
                               inst_colls)
 
         pools = [
-            ('highcpu', 'F', worker_cores, True, 0, False, 8),
+            ('highcpu', 'F', worker_cores, False, worker_cores * 5 + 30, False, 8),
             ('standard', 'D', worker_cores, True, 0, False, 4),
             ('highmem', 'E', worker_cores, True, 0, scope != 'dev', 4),
         ]
