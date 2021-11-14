@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.HailSuite
 import is.hail.TestUtils.eval
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir
 import is.hail.types.virtual.{TArray, TBoolean, TSet, TString}
 import is.hail.utils._

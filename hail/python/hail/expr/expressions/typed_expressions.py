@@ -1,4 +1,4 @@
-from typing import Mapping, Dict, Sequence
+from typing import Mapping, Dict, Sequence, Union
 
 from deprecated import deprecated
 
@@ -1754,7 +1754,7 @@ class DictExpression(Expression):
             hl.agg.explode(lambda elt: hl.tuple((elt[0]._all_summary_aggs(), elt[1]._all_summary_aggs())), hl.array(self))))
 
 
-class StructExpression(Mapping[str, Expression], Expression):
+class StructExpression(Mapping[Union[str, int], Expression], Expression):
     """Expression of type :class:`.tstruct`.
 
     >>> struct = hl.struct(a=5, b='Foo')

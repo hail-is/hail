@@ -1,9 +1,9 @@
 from typing import Optional, Dict, Any
-import aiohttp
 import asyncio
 
 from ..config import DeployConfig
 from . import aioclient
+from .. import httpx
 
 
 def async_to_blocking(coro):
@@ -169,6 +169,9 @@ class Batch:
     def wait(self):
         return async_to_blocking(self._async_batch.wait())
 
+    def debug_info(self):
+        return async_to_blocking(self._async_batch.debug_info())
+
     def delete(self):
         async_to_blocking(self._async_batch.delete())
 
@@ -232,11 +235,11 @@ class BatchClient:
     def __init__(self,
                  billing_project: str,
                  deploy_config: Optional[DeployConfig] = None,
-                 session: Optional[aiohttp.ClientSession] = None,
+                 session: Optional[httpx.ClientSession] = None,
                  headers: Optional[Dict[str, str]] = None,
                  _token: Optional[str] = None):
-        self._async_client = aioclient.BatchClient(
-            billing_project, deploy_config, session, headers=headers, _token=_token)
+        self._async_client = async_to_blocking(aioclient.BatchClient.create(
+            billing_project, deploy_config, session, headers=headers, _token=_token))
 
     @property
     def billing_project(self):
@@ -262,7 +265,12 @@ class BatchClient:
         b = async_to_blocking(self._async_client.get_batch(id))
         return Batch.from_async_batch(b)
 
-    def create_batch(self, attributes=None, callback=None, token=None, cancel_after_n_failures=None):
+    def create_batch(self,
+                     attributes=None,
+                     callback=None,
+                     token=None,
+                     cancel_after_n_failures=None
+                     ) -> 'BatchBuilder':
         builder = self._async_client.create_batch(attributes=attributes, callback=callback, token=token,
                                                   cancel_after_n_failures=cancel_after_n_failures)
         return BatchBuilder.from_async_builder(builder)

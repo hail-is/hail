@@ -6,8 +6,8 @@ import is.hail.expr.ir._
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.encoded._
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.{SIndexablePointerCode, SIndexablePointerSettable}
+import is.hail.types.physical.stypes.{SCode, SValue}
+import is.hail.types.physical.stypes.concrete.{SIndexablePointerCode, SIndexablePointerSettable, SIndexablePointerValue}
 import is.hail.utils._
 
 object StagedBlockLinkedList {
@@ -139,7 +139,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
           val elt = EmitCode.fromI(cb.emb) { cb =>
             IEmitCode(cb,
               bufferType.isElementMissing(buffer(n), i),
-              elemType.loadCheapSCode(cb, bufferType.loadElement(buffer(n), capacity(n), i)).get)
+              elemType.loadCheapSCode(cb, bufferType.loadElement(buffer(n), capacity(n), i)))
           }
           f(cb, elt)
           cb.assign(i, i + 1)
@@ -188,7 +188,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
     cb.invokeVoid(appF, region)
   }
 
-  def resultArray(cb: EmitCodeBuilder, region: Value[Region], resType: PCanonicalArray): SIndexablePointerCode = {
+  def resultArray(cb: EmitCodeBuilder, region: Value[Region], resType: PCanonicalArray): SIndexablePointerValue = {
     val (pushElement, finish) = resType.constructFromFunctions(cb, region, totalCount, deepCopy = true)
     foreach(cb) { (cb, elt) =>
       pushElement(cb, elt.toI(cb))
@@ -196,7 +196,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
     finish(cb)
   }
 
-  def serialize(cb: EmitCodeBuilder, region: Value[Region], outputBuffer: Code[OutputBuffer]): Unit = {
+  def serialize(cb: EmitCodeBuilder, region: Value[Region], outputBuffer: Value[OutputBuffer]): Unit = {
     val serF = kb.genEmitMethod("blockLinkedListSerialize",
       FastIndexedSeq[ParamType](typeInfo[Region], typeInfo[OutputBuffer]),
       typeInfo[Unit])
@@ -215,7 +215,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
     cb.invokeVoid(serF, region, outputBuffer)
   }
 
-  def deserialize(cb: EmitCodeBuilder, region: Code[Region], inputBuffer: Code[InputBuffer]): Unit = {
+  def deserialize(cb: EmitCodeBuilder, region: Value[Region], inputBuffer: Value[InputBuffer]): Unit = {
     val desF = kb.genEmitMethod("blockLinkedListDeserialize",
       FastIndexedSeq[ParamType](typeInfo[Region], typeInfo[InputBuffer]),
       typeInfo[Unit])
@@ -230,8 +230,8 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
     cb.invokeVoid(desF, region, inputBuffer)
   }
 
-  private def appendShallow(cb: EmitCodeBuilder, r: Code[Region], aCode: SCode): Unit = {
-    val buff = cb.memoize(aCode, "sbll_append_shallow_a").asInstanceOf[SIndexablePointerSettable]
+  private def appendShallow(cb: EmitCodeBuilder, r: Value[Region], aCode: SValue): Unit = {
+    val buff = aCode.asInstanceOf[SIndexablePointerValue]
     val newNode = cb.newLocal[Long]("sbll_append_shallow_newnode", nodeType.allocate(r))
     initNode(cb, newNode, buf = buff.a, count = buff.length)
     setNext(cb, lastNode, newNode)

@@ -1,3 +1,4 @@
+from typing import List, TYPE_CHECKING
 import json
 import logging
 import asyncio
@@ -7,7 +8,7 @@ import traceback
 
 from hailtop.aiotools import BackgroundTaskManager
 from hailtop.utils import time_msecs, Notice, retry_transient_errors
-from hailtop.httpx import client_session
+from hailtop import httpx
 from gear import Database
 
 from ..batch import batch_record_to_dict
@@ -15,19 +16,19 @@ from ..globals import complete_states, tasks, STATUS_FORMAT_VERSION
 from ..batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, KUBERNETES_SERVER_URL
 from ..batch_format_version import BatchFormatVersion
 from ..spec_writer import SpecWriter
-from ..log_store import LogStore
+from ..file_store import FileStore
+from ..instance_config import QuantifiedResource
+from .instance import Instance
 
 from .k8s_cache import K8sCache
 
-from typing import TYPE_CHECKING
-
 if TYPE_CHECKING:
-    from .instance_collection_manager import InstanceCollectionManager  # pylint: disable=cyclic-import
+    from .instance_collection import InstanceCollectionManager  # pylint: disable=cyclic-import
 
 log = logging.getLogger('job')
 
 
-async def notify_batch_job_complete(db, batch_id):
+async def notify_batch_job_complete(db: Database, client_session: httpx.ClientSession, batch_id):
     record = await db.select_and_fetchone(
         '''
 SELECT batches.*, SUM(`usage` * rate) AS cost
@@ -49,15 +50,19 @@ GROUP BY batches.id;
 
     log.info(f'making callback for batch {batch_id}: {callback}')
 
-    if record['user'] == 'ci':
-        # only jobs from CI may use batch's TLS identity
-        http_client_session = client_session(timeout=aiohttp.ClientTimeout(total=5))
-    else:
-        http_client_session = aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5))
+    async def request(session):
+        await session.post(callback, json=batch_record_to_dict(record))
+        log.info(f'callback for batch {batch_id} successful')
+
     try:
-        async with http_client_session as session:
-            await session.post(callback, json=batch_record_to_dict(record))
-            log.info(f'callback for batch {batch_id} successful')
+        if record['user'] == 'ci':
+            # only jobs from CI may use batch's TLS identity
+            await request(client_session)
+        else:
+            async with aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+                await request(session)
+    except asyncio.CancelledError:
+        raise
     except Exception:
         log.exception(f'callback for batch {batch_id} failed, will not retry.')
 
@@ -88,7 +93,9 @@ async def mark_job_complete(
     scheduler_state_changed: Notice = app['scheduler_state_changed']
     cancel_ready_state_changed: asyncio.Event = app['cancel_ready_state_changed']
     db: Database = app['db']
-    inst_coll_manager: 'InstanceCollectionManager' = app['inst_coll_manager']
+    client_session: httpx.ClientSession = app['client_session']
+
+    inst_coll_manager: 'InstanceCollectionManager' = app['driver'].inst_coll_manager
     task_manager: BackgroundTaskManager = app['task_manager']
 
     id = (batch_id, job_id)
@@ -145,7 +152,7 @@ async def mark_job_complete(
 
     log.info(f'job {id} changed state: {rv["old_state"]} => {new_state}')
 
-    await notify_batch_job_complete(db, batch_id)
+    await notify_batch_job_complete(db, client_session, batch_id)
 
     if instance and not instance.inst_coll.is_pool and instance.state == 'active':
         task_manager.ensure_future(instance.kill())
@@ -175,7 +182,13 @@ CALL mark_job_started(%s, %s, %s, %s, %s);
     await add_attempt_resources(db, batch_id, job_id, attempt_id, resources)
 
 
-async def mark_job_creating(app, batch_id, job_id, attempt_id, instance, start_time, resources):
+async def mark_job_creating(app,
+                            batch_id: int,
+                            job_id: int,
+                            attempt_id: str,
+                            instance: Instance,
+                            start_time: int,
+                            resources: List[QuantifiedResource]):
     db: Database = app['db']
 
     id = (batch_id, job_id)
@@ -204,7 +217,8 @@ async def unschedule_job(app, record):
     cancel_ready_state_changed: asyncio.Event = app['cancel_ready_state_changed']
     scheduler_state_changed: Notice = app['scheduler_state_changed']
     db: Database = app['db']
-    inst_coll_manager = app['inst_coll_manager']
+    client_session: httpx.ClientSession = app['client_session']
+    inst_coll_manager = app['driver'].inst_coll_manager
 
     batch_id = record['batch_id']
     job_id = record['job_id']
@@ -242,15 +256,14 @@ async def unschedule_job(app, record):
         scheduler_state_changed.notify()
         log.info(f'unschedule job {id}, attempt {attempt_id}: updated {instance} free cores')
 
-    url = f'http://{instance.ip_address}:5000' f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete'
+    url = f'http://{instance.ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete'
 
     async def make_request():
         if instance.state in ('inactive', 'deleted'):
             return
         try:
-            async with aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-                await session.delete(url)
-                await instance.mark_healthy()
+            await client_session.delete(url)
+            await instance.mark_healthy()
         except asyncio.TimeoutError:
             await instance.incr_failed_request_count()
             return
@@ -300,8 +313,12 @@ async def job_config(app, record, attempt_id):
     )
 
     gsa_key = None
+
+    # backwards compatibility
+    gsa_key_secret_name = userdata.get('hail_credentials_secret_name') or userdata['gsa_key_secret_name']
+
     for secret, k8s_secret in zip(secrets, k8s_secrets):
-        if secret['name'] == userdata['gsa_key_secret_name']:
+        if secret['name'] == gsa_key_secret_name:
             gsa_key = k8s_secret.data
         secret['data'] = k8s_secret.data
 
@@ -379,8 +396,9 @@ users:
 async def schedule_job(app, record, instance):
     assert instance.state == 'active'
 
-    log_store: LogStore = app['log_store']
+    file_store: FileStore = app['file_store']
     db: Database = app['db']
+    client_session: httpx.ClientSession = app['client_session']
 
     batch_id = record['batch_id']
     job_id = record['job_id']
@@ -407,7 +425,7 @@ async def schedule_job(app, record, instance):
             }
 
             if format_version.has_full_status_in_gcs():
-                await log_store.write_status_file(batch_id, job_id, attempt_id, json.dumps(status))
+                await file_store.write_status_file(batch_id, job_id, attempt_id, json.dumps(status))
 
             db_status = format_version.db_status(status)
             resources = []
@@ -420,10 +438,11 @@ async def schedule_job(app, record, instance):
         log.info(f'schedule job {id} on {instance}: made job config')
 
         try:
-            async with aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=2)) as session:
-                url = f'http://{instance.ip_address}:5000' f'/api/v1alpha/batches/jobs/create'
-                await session.post(url, json=body)
-                await instance.mark_healthy()
+            await client_session.post(
+                f'http://{instance.ip_address}:5000/api/v1alpha/batches/jobs/create',
+                json=body,
+                timeout=aiohttp.ClientTimeout(total=2))
+            await instance.mark_healthy()
         except aiohttp.ClientResponseError as e:
             await instance.mark_healthy()
             if e.status == 403:

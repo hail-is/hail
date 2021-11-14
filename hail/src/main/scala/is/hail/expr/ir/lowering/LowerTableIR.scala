@@ -1,6 +1,7 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.HailContext
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.methods.{ForceCountTable, NPartitionsTable}
@@ -89,8 +90,8 @@ class TableStage(
   def key: IndexedSeq[String] = kType.fieldNames
   def globalType: TStruct = globals.typ.asInstanceOf[TStruct]
 
-  assert(key.forall(f => rowType.hasField(f)))
-  assert(kType.fields.forall(f => rowType.field(f.name).typ == f.typ))
+  assert(key.forall(f => rowType.hasField(f)), s"Key was ${key} \n kType was ${kType} \n rowType was ${rowType}")
+  assert(kType.fields.forall(f => rowType.field(f.name).typ == f.typ), s"Key was ${key} \n, kType was ${kType} \n rowType was ${rowType}")
   assert(broadcastVals.exists { case (name, value) => name == globals.name && value == globals})
 
   def copy(
@@ -223,6 +224,10 @@ class TableStage(
   }
 
   def repartitionNoShuffle(newPartitioner: RVDPartitioner): TableStage = {
+    if (newPartitioner == this.partitioner) {
+      return this
+    }
+
     require(newPartitioner.satisfiesAllowedOverlap(newPartitioner.kType.size - 1))
     require(newPartitioner.kType.isPrefixOf(kType))
 
@@ -455,7 +460,7 @@ object LowerTableIR {
 
           val ranges = Array.tabulate(nPartitionsAdj) { i =>
             partStarts(i) -> partStarts(i + 1)
-          }
+          }.toFastIndexedSeq
 
           TableStage(
             MakeStruct(FastSeq()),
@@ -464,11 +469,8 @@ object LowerTableIR {
                 Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
               }),
             TableStageDependency.none,
-            MakeStream(
-              ranges.map { case (start, end) =>
-                MakeStruct(FastIndexedSeq("start" -> start, "end" -> end))
-              },
-              TStream(contextType)),
+            ToStream(Literal(TArray(contextType),
+              ranges.map { case (start, end) => Row(start, end) })),
             (ctxRef: Ref) => mapIR(StreamRange(GetField(ctxRef, "start"), GetField(ctxRef, "end"), I32(1), true)) { i =>
               MakeStruct(FastSeq("idx" -> i))
             })
@@ -865,6 +867,8 @@ object LowerTableIR {
           } else{
               val resultUID = genUID()
               val aggs = agg.Extract(newRow, resultUID, r, isScan = true)
+
+              val results: IR = ResultOp.makeTuple(aggs.aggs)
               val initState = RunAgg(
                 aggs.init,
                 MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }),
@@ -943,7 +947,7 @@ object LowerTableIR {
                         aggs.seqPerElt,
                         Let(
                           resultUID,
-                          ResultOp(0, aggs.aggs),
+                          results,
                           aggs.postAggIR),
                         aggs.states
                       )
@@ -1200,6 +1204,9 @@ object LowerTableIR {
       case TableAggregate(child, query) =>
         val resultUID = genUID()
         val aggs = agg.Extract(query, resultUID, r, false)
+
+        def results: IR = ResultOp.makeTuple(aggs.aggs)
+
         val lc = lower(child)
 
         val initState = Let("global", lc.globals,
@@ -1283,7 +1290,7 @@ object LowerTableIR {
                 Let("global", globals,
                   Let(
                     resultUID,
-                    ResultOp(0, aggs.aggs),
+                    results,
                     aggs.postAggIR)),
                 aggs.states
               )
@@ -1316,7 +1323,7 @@ object LowerTableIR {
                 )),
                 Let(
                   resultUID,
-                  ResultOp(0, aggs.aggs),
+                  results,
                   aggs.postAggIR),
                 aggs.states
               ))

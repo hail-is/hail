@@ -2,13 +2,15 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, RegionPool, RegionValue}
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.SparkTaskContext
 import is.hail.expr.ir
 import is.hail.expr.ir._
 import is.hail.io.BufferSpec
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.{EmitType, SType}
 import is.hail.types.virtual._
-import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
+import is.hail.types.{BaseTypeWithRequiredness, TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.utils._
 import org.apache.spark.TaskContext
 
@@ -45,6 +47,7 @@ object AggStateSig {
         DownsampleStateSig(labelType)
       case ImputeType() => ImputeTypeStateSig()
       case NDArraySum() => NDArraySumStateSig(seqVTypes.head.setRequired(false)) // set required to false to handle empty aggs
+      case NDArrayMultiplyAdd() => NDArrayMultiplyAddStateSig(seqVTypes.head.setRequired(false))
       case _ => throw new UnsupportedExtraction(op.toString)
     }
   }
@@ -68,6 +71,12 @@ object AggStateSig {
     case ArrayAggStateSig(nested) => new ArrayElementState(cb, StateTuple(nested.map(sig => AggStateSig.getState(sig, cb)).toArray))
     case GroupedStateSig(kt, nested) => new DictState(cb, kt, StateTuple(nested.map(sig => AggStateSig.getState(sig, cb)).toArray))
     case NDArraySumStateSig(nda) => new TypedRegionBackedAggState(nda, cb)
+    case NDArrayMultiplyAddStateSig(nda) =>
+      new TypedRegionBackedAggState(nda, cb)
+    case FoldStateSig(resultEmitType, accumName, otherAccumName, combOpIR) => {
+      val vWithReq = resultEmitType.typeWithRequiredness
+      new TypedRegionBackedAggState(vWithReq, cb)
+    }
     case LinearRegressionStateSig() => new LinearRegressionAggregatorState(cb)
   }
 }
@@ -89,6 +98,11 @@ case class LinearRegressionStateSig() extends AggStateSig(Array[VirtualTypeWithR
 case class NDArraySumStateSig(nda: VirtualTypeWithReq) extends AggStateSig(Array[VirtualTypeWithReq](nda), None) {
   require(!nda.r.required)
 }
+case class NDArrayMultiplyAddStateSig(nda: VirtualTypeWithReq) extends AggStateSig(Array[VirtualTypeWithReq](nda), None) {
+  require(!nda.r.required)
+}
+
+case class FoldStateSig(resultEmitType: EmitType, accumName: String, otherAccumName: String, combOpIR: IR) extends AggStateSig(Array[VirtualTypeWithReq](resultEmitType.typeWithRequiredness), None)
 
 object PhysicalAggSig {
   def apply(op: AggOp, state: AggStateSig): PhysicalAggSig = BasicPhysicalAggSig(op, state)
@@ -99,8 +113,8 @@ class PhysicalAggSig(val op: AggOp, val state: AggStateSig, val nestedOps: Array
   val allOps: Array[AggOp] = nestedOps :+ op
   def initOpTypes: IndexedSeq[Type] = Extract.getAgg(this).initOpTypes.toFastIndexedSeq
   def seqOpTypes: IndexedSeq[Type] = Extract.getAgg(this).seqOpTypes.toFastIndexedSeq
-  def pResultType: PType = Extract.getAgg(this).resultType
-  def resultType: Type = pResultType.virtualType
+  def emitResultType: EmitType = Extract.getAgg(this).resultEmitType
+  def resultType: Type = emitResultType.virtualType
 }
 
 case class BasicPhysicalAggSig(override val op: AggOp, override val state: AggStateSig) extends PhysicalAggSig(op, state, Array())
@@ -128,6 +142,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
       case AggElementsLengthCheck() => true
       case Downsample() => true
       case NDArraySum() => true
+      case NDArrayMultiplyAdd() => true
       case Densify() => true
       case _ => false
     }
@@ -239,7 +254,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
 
       for (i <- 0 until nAggs) {
         val rvAgg = agg.Extract.getAgg(aggs(i))
-        rvAgg.combOp(cb, leftAggState.states(i), rightAggState.states(i))
+        rvAgg.combOp(ctx, cb, leftAggState.states(i), rightAggState.states(i))
       }
 
       leftAggState.store(cb)
@@ -258,7 +273,9 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
     }
   }
 
-  def results: IR = ResultOp(0, aggs)
+  def results: IR = {
+    ResultOp.makeTuple(aggs)
+  }
 }
 
 object Extract {
@@ -293,19 +310,21 @@ object Extract {
     case AggSignature(Max(), _, Seq(t)) => t
     case AggSignature(Count(), _, _) => TInt64
     case AggSignature(Take(), _, Seq(t)) => TArray(t)
-    case AggSignature(CallStats(), _, _) => CallStatsState.resultType.virtualType
+    case AggSignature(CallStats(), _, _) => CallStatsState.resultPType.virtualType
     case AggSignature(TakeBy(_), _, Seq(value, key)) => TArray(value)
     case AggSignature(PrevNonnull(), _, Seq(t)) => t
     case AggSignature(CollectAsSet(), _, Seq(t)) => TSet(t)
     case AggSignature(Collect(), _, Seq(t)) => TArray(t)
     case AggSignature(Densify(), _, Seq(t)) => t
-    case AggSignature(ImputeType(), _, _) => ImputeTypeState.resultType.virtualType
+    case AggSignature(ImputeType(), _, _) => ImputeTypeState.resultEmitType.virtualType
     case AggSignature(LinearRegression(), _, _) =>
-      LinearRegressionAggregator.resultType.virtualType
-    case AggSignature(ApproxCDF(), _, _) => QuantilesAggregator.resultType.virtualType
+      LinearRegressionAggregator.resultPType.virtualType
+    case AggSignature(ApproxCDF(), _, _) => QuantilesAggregator.resultPType.virtualType
     case AggSignature(Downsample(), _, Seq(_, _, label)) => DownsampleAggregator.resultType
     case AggSignature(NDArraySum(), _, Seq(t)) => t
-    case _ => throw new UnsupportedExtraction(aggSig.toString)  }
+    case AggSignature(NDArrayMultiplyAdd(), _, Seq(a : TNDArray, _)) => a
+    case _ => throw new UnsupportedExtraction(aggSig.toString)
+  }
 
   def getAgg(sig: PhysicalAggSig): StagedAggregator = sig match {
     case PhysicalAggSig(Sum(), TypedStateSig(t)) => new SumAggregator(t.t)
@@ -332,6 +351,10 @@ object Extract {
       new GroupedAggregator(k, nested.map(getAgg).toArray)
     case PhysicalAggSig(NDArraySum(), NDArraySumStateSig(nda)) =>
       new NDArraySumAggregator(nda)
+    case PhysicalAggSig(NDArrayMultiplyAdd(), NDArrayMultiplyAddStateSig(nda)) =>
+      new NDArrayMultiplyAddAggregator(nda)
+    case PhysicalAggSig(Fold(), FoldStateSig(res, accumName, otherAccumName, combOpIR)) =>
+      new FoldAggregator(res, accumName, otherAccumName, combOpIR)
   }
 
   def apply(ir: IR, resultName: String, r: RequirednessAnalysis, isScan: Boolean = false): Aggs = {
@@ -374,6 +397,22 @@ object Extract {
           val state = PhysicalAggSig(op, AggStateSig(op, x.initOpArgs, x.seqOpArgs, r))
           ab += InitOp(i, x.initOpArgs, state) -> state
           seqBuilder += SeqOp(i, x.seqOpArgs, state)
+          i
+        })
+        GetTupleElement(result, idx)
+      case x@AggFold(zero, seqOp, combOp, accumName, otherAccumName, isScan) =>
+        val idx = memo.getOrElseUpdate(x, {
+          val i = ab.length
+          val initOpArgs = IndexedSeq(zero)
+          val seqOpArgs = IndexedSeq(seqOp)
+          val op = Fold()
+          val resultEmitType = r(x).canonicalEmitType(x.typ)
+          val foldStateSig = FoldStateSig(resultEmitType, accumName, otherAccumName, combOp)
+          val signature = PhysicalAggSig(op, foldStateSig)
+          ab += InitOp(i, initOpArgs, signature) -> signature
+          // So seqOp has to be able to reference accumName.
+          val seqWithLet = Let(accumName, ResultOp(i, signature), SeqOp(i, seqOpArgs, signature))
+          seqBuilder += seqWithLet
           i
         })
         GetTupleElement(result, idx)

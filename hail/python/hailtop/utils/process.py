@@ -1,34 +1,27 @@
+from typing import Tuple, List
 import asyncio
 
 from .utils import async_to_blocking
 
 
 class CalledProcessError(Exception):
-    def __init__(self, command, returncode, outerr):
+    def __init__(self, argv: List[str], returncode: int, outerr: Tuple[bytes, bytes]):
         super().__init__()
-        self.command = command
+        self.argv = argv
         self.returncode = returncode
-        self.outerr = outerr
+        self._outerr = outerr
+        self.stdout = outerr[0]
+        self.stderr = outerr[1]
 
-    def __str__(self):
-        return (f'Command {self.command} returned non-zero exit status {self.returncode}.'
-                f' Output:\n{self.outerr}')
-
-
-async def check_shell_output(script, echo=False):
-    if echo:
-        print(script)
-    proc = await asyncio.create_subprocess_exec(
-        '/bin/bash', '-c', script,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE)
-    outerr = await proc.communicate()
-    if proc.returncode != 0:
-        raise CalledProcessError(script, proc.returncode, outerr)
-    return outerr
+    def __str__(self) -> str:
+        return (f'Command {self.argv} returned non-zero exit status {self.returncode}.'
+                f' Output:\n{self._outerr}')
 
 
-async def check_exec_output(command, *args, echo=False):
+async def check_exec_output(command: str,
+                            *args: str,
+                            echo: bool = False
+                            ) -> Tuple[bytes, bytes]:
     if echo:
         print([command, *args])
     proc = await asyncio.create_subprocess_exec(
@@ -36,21 +29,23 @@ async def check_exec_output(command, *args, echo=False):
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE)
     outerr = await proc.communicate()
+    assert proc.returncode is not None
     if proc.returncode != 0:
-        script = ' '.join([command, *args])
-        raise CalledProcessError(script, proc.returncode, outerr)
+        raise CalledProcessError([command, *args], proc.returncode, outerr)
     return outerr
 
 
-async def check_shell(script, echo=False):
-    # discard output
+async def check_shell_output(script: str, echo: bool = False) -> Tuple[bytes, bytes]:
+    return await check_exec_output('/bin/bash', '-c', script, echo=echo)
+
+
+async def check_shell(script: str, echo: bool = False) -> None:
     await check_shell_output(script, echo)
 
 
-def sync_check_shell_output(script, echo=False):
+def sync_check_shell_output(script: str, echo=False) -> Tuple[bytes, bytes]:
     return async_to_blocking(check_shell_output(script, echo))
 
 
-def sync_check_shell(script, echo=False):
-    # discard output
+def sync_check_shell(script: str, echo=False) -> None:
     sync_check_shell_output(script, echo)

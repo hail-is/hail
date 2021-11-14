@@ -11,7 +11,7 @@ import is.hail.types.virtual.{TBaseStruct, TStruct, TTuple, Type}
 object SStackStruct {
   val MAX_FIELDS_FOR_CONSTRUCT: Int = 64
 
-  def constructFromArgs(cb: EmitCodeBuilder, region: Value[Region], t: TBaseStruct, args: EmitCode*): SBaseStructCode = {
+  def constructFromArgs(cb: EmitCodeBuilder, region: Value[Region], t: TBaseStruct, args: EmitCode*): SBaseStructValue = {
     val as = args.toArray
     assert(t.size == args.size)
     if (as.length > MAX_FIELDS_FOR_CONSTRUCT) {
@@ -24,7 +24,7 @@ object SStackStruct {
       structType.constructFromFields(cb, region, as, false)
     } else {
       val st = SStackStruct(t, as.map(_.emitType))
-      new SStackStructCode(st, as)
+      new SStackStructCode(st, as).memoize(cb, "SStackStruct_constructFromArgs")
     }
   }
 }
@@ -88,7 +88,7 @@ final case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedS
         new SStackStructValue(this, Array.tabulate[EmitValue](size) { i =>
           val newType = fieldEmitTypes(i)
           val ec = EmitCode.fromI(cb.emb) { cb =>
-            sv.loadField(cb, i).map(cb) { field => newType.st.coerceOrCopy(cb, region, field.memoize(cb, "_coerceOrCopy"), deepCopy).get }
+            sv.loadField(cb, i).map(cb) { field => newType.st.coerceOrCopy(cb, region, field, deepCopy) }
           }
           val ev = ec.memoize(cb, "_coerceOrCopy")
           (newType.required, ev.required) match {
@@ -118,7 +118,7 @@ class SStackStructValue(val st: SStackStruct, val values: IndexedSeq[EmitValue])
     values(fieldIdx).toI(cb)
   }
 
-  override def isFieldMissing(fieldIdx: Int): Code[Boolean] =
+  override def isFieldMissing(cb: EmitCodeBuilder, fieldIdx: Int): Value[Boolean] =
     values(fieldIdx).m
 
   override def subset(fieldNames: String*): SStackStructValue = {

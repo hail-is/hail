@@ -1,6 +1,6 @@
+from typing import Optional, Union
 from numbers import Number
 import os
-import concurrent
 import logging
 import json
 import random
@@ -16,11 +16,10 @@ import pandas as pd
 import pymysql
 import plotly.express as px
 import plotly
-import google.oauth2.service_account
-import google.api_core.exceptions
 import humanize
 import traceback
 from prometheus_async.aio.web import server_stats  # type: ignore
+
 from hailtop.utils import (
     time_msecs,
     time_msecs_str,
@@ -36,7 +35,7 @@ from hailtop.utils import (
 from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
-from hailtop.httpx import client_session
+from hailtop import httpx
 from hailtop.hail_logging import AccessLogger
 from hailtop import aiotools, dictfix
 from gear import (
@@ -49,16 +48,18 @@ from gear import (
     transaction,
     monitor_endpoints_middleware,
 )
+from gear.clients import get_cloud_async_fs
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 
 # import uvloop
 
-from ..utils import (
-    coalesce,
-    query_billing_projects,
+from ..utils import coalesce, query_billing_projects
+from ..cloud.resource_utils import (
     is_valid_cores_mcpu,
     cost_from_msec_mcpu,
     cores_mcpu_to_memory_bytes,
+    memory_to_worker_type,
+    valid_machine_types,
 )
 from ..batch import batch_record_to_dict, job_record_to_dict, cancel_batch_in_db
 from ..exceptions import (
@@ -69,10 +70,10 @@ from ..exceptions import (
     BatchOperationAlreadyCompletedError,
 )
 from ..inst_coll_config import InstanceCollectionConfigs
-from ..log_store import LogStore
+from ..file_store import FileStore
 from ..database import CallError, check_call_procedure
-from ..batch_configuration import BATCH_BUCKET_NAME, DEFAULT_NAMESPACE, SCOPE
-from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION, memory_to_worker_type
+from ..batch_configuration import BATCH_STORAGE_URI, DEFAULT_NAMESPACE, SCOPE, CLOUD
+from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION
 from ..spec_writer import SpecWriter
 from ..batch_format_version import BatchFormatVersion
 
@@ -108,6 +109,8 @@ def catch_ui_error_in_dev(fun):
     async def wrapped(request, userdata, *args, **kwargs):
         try:
             return await fun(request, userdata, *args, **kwargs)
+        except asyncio.CancelledError:
+            raise
         except aiohttp.web_exceptions.HTTPFound as e:
             raise e
         except Exception as e:
@@ -321,27 +324,30 @@ WHERE id = %s AND NOT deleted;
 
 
 async def _get_job_log_from_record(app, batch_id, job_id, record):
+    client_session: httpx.ClientSession = app['client_session']
     state = record['state']
     ip_address = record['ip_address']
     if state == 'Running':
-        async with aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-            try:
-                url = f'http://{ip_address}:5000' f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log'
-                resp = await request_retry_transient_errors(session, 'GET', url)
-                return await resp.json()
-            except aiohttp.ClientResponseError as e:
-                if e.status == 404:
-                    return None
-                raise
+        try:
+            resp = await request_retry_transient_errors(
+                client_session, 'GET', f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log'
+            )
+            return await resp.json()
+        except aiohttp.ClientResponseError as e:
+            if e.status == 404:
+                return None
+            raise
 
     if state in ('Error', 'Failed', 'Success'):
-        log_store: LogStore = app['log_store']
+        file_store: FileStore = app['file_store']
         batch_format_version = BatchFormatVersion(record['format_version'])
 
         async def _read_log_from_gcs(task):
             try:
-                data = await log_store.read_log_file(batch_format_version, batch_id, job_id, record['attempt_id'], task)
-            except google.api_core.exceptions.NotFound:
+                data = await file_store.read_log_file(
+                    batch_format_version, batch_id, job_id, record['attempt_id'], task
+                )
+            except FileNotFoundError:
                 id = (batch_id, job_id)
                 log.exception(f'missing log file for {id} and task {task}')
                 data = 'ERROR: could not find log file'
@@ -411,7 +417,7 @@ WHERE batch_id = %s AND job_id = %s;
 
 async def _get_full_job_spec(app, record):
     db: Database = app['db']
-    log_store: LogStore = app['log_store']
+    file_store: FileStore = app['file_store']
 
     batch_id = record['batch_id']
     job_id = record['job_id']
@@ -423,16 +429,17 @@ async def _get_full_job_spec(app, record):
     token, start_job_id = await SpecWriter.get_token_start_id(db, batch_id, job_id)
 
     try:
-        spec = await log_store.read_spec_file(batch_id, token, start_job_id, job_id)
+        spec = await file_store.read_spec_file(batch_id, token, start_job_id, job_id)
         return json.loads(spec)
-    except google.api_core.exceptions.NotFound:
+    except FileNotFoundError:
         id = (batch_id, job_id)
         log.exception(f'missing spec file for {id}')
         return None
 
 
 async def _get_full_job_status(app, record):
-    log_store: LogStore = app['log_store']
+    client_session: httpx.ClientSession = app['client_session']
+    file_store: FileStore = app['file_store']
 
     batch_id = record['batch_id']
     job_id = record['job_id']
@@ -448,9 +455,9 @@ async def _get_full_job_status(app, record):
             return json.loads(record['status'])
 
         try:
-            status = await log_store.read_status_file(batch_id, job_id, attempt_id)
+            status = await file_store.read_status_file(batch_id, job_id, attempt_id)
             return json.loads(status)
-        except google.api_core.exceptions.NotFound:
+        except FileNotFoundError:
             id = (batch_id, job_id)
             log.exception(f'missing status file for {id}')
             return None
@@ -459,15 +466,15 @@ async def _get_full_job_status(app, record):
     assert record['status'] is None
 
     ip_address = record['ip_address']
-    async with aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-        try:
-            url = f'http://{ip_address}:5000' f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status'
-            resp = await request_retry_transient_errors(session, 'GET', url)
-            return await resp.json()
-        except aiohttp.ClientResponseError as e:
-            if e.status == 404:
-                return None
-            raise
+    try:
+        resp = await request_retry_transient_errors(
+            client_session, 'GET', f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status'
+        )
+        return await resp.json()
+    except aiohttp.ClientResponseError as e:
+        if e.status == 404:
+            return None
+        raise
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
@@ -616,7 +623,7 @@ def check_service_account_permissions(user, sa):
 async def create_jobs(request, userdata):
     app = request.app
     db: Database = app['db']
-    log_store: LogStore = app['log_store']
+    file_store: FileStore = app['file_store']
 
     if app['frozen']:
         log.info('ignoring batch create request; batch is frozen')
@@ -630,7 +637,7 @@ async def create_jobs(request, userdata):
     # which is sensitive
     userdata = {
         'username': user,
-        'gsa_key_secret_name': userdata['gsa_key_secret_name'],
+        'hail_credentials_secret_name': userdata['hail_credentials_secret_name'],
         'tokens_secret_name': userdata['tokens_secret_name'],
     }
 
@@ -660,7 +667,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 raise web.HTTPBadRequest(reason=e.reason)
 
         async with timer.step('build db args'):
-            spec_writer = SpecWriter(log_store, batch_id)
+            spec_writer = SpecWriter(file_store, batch_id)
 
             jobs_args = []
             job_parents_args = []
@@ -683,6 +690,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 job_id = spec['job_id']
                 parent_ids = spec.pop('parent_ids', [])
                 always_run = spec.pop('always_run', False)
+
+                cloud = spec.get('cloud', CLOUD)
 
                 if batch_format_version.has_full_spec_in_gcs():
                     attributes = spec.pop('attributes', None)
@@ -710,6 +719,9 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 machine_type = resources.get('machine_type')
                 preemptible = resources.get('preemptible', BATCH_JOB_DEFAULT_PREEMPTIBLE)
 
+                if machine_type and machine_type not in valid_machine_types(cloud):
+                    raise web.HTTPBadRequest(reason=f'unknown machine type {machine_type} for cloud {cloud}')
+
                 if machine_type and ('cpu' in resources or 'memory' in resources):
                     raise web.HTTPBadRequest(reason='cannot specify cpu and memory with machine_type')
 
@@ -732,9 +744,10 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     resources['req_memory'] = resources['memory']
                     del resources['memory']
                     req_memory = resources['req_memory']
-                    if req_memory in memory_to_worker_type:
-                        worker_type = memory_to_worker_type[req_memory]
-                        req_memory_bytes = cores_mcpu_to_memory_bytes(req_cores_mcpu, worker_type)
+                    memory_to_worker_types = memory_to_worker_type(cloud)
+                    if req_memory in memory_to_worker_types:
+                        worker_type = memory_to_worker_types[req_memory]
+                        req_memory_bytes = cores_mcpu_to_memory_bytes(cloud, req_cores_mcpu, worker_type)
                     else:
                         req_memory_bytes = parse_memory_in_bytes(req_memory)
                 else:
@@ -757,7 +770,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 inst_coll_configs: InstanceCollectionConfigs = app['inst_coll_configs']
 
                 result, exc = inst_coll_configs.select_inst_coll(
-                    machine_type, preemptible, worker_type, req_cores_mcpu, req_memory_bytes, req_storage_bytes
+                    cloud, machine_type, preemptible, worker_type, req_cores_mcpu, req_memory_bytes, req_storage_bytes
                 )
 
                 if exc:
@@ -766,11 +779,12 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if result is None:
                     raise web.HTTPBadRequest(
                         reason=f'resource requests for job {id} are unsatisfiable: '
-                        f'cpu={resources.get("req_cpu")}, '
-                        f'memory={resources.get("req_memory")}, '
-                        f'storage={resources["req_storage"]}, '
-                        f'preemptible={preemptible}, '
-                        f'machine_type={machine_type}'
+                               f'cloud={cloud}, '
+                               f'cpu={resources.get("req_cpu")}, '
+                               f'memory={resources.get("req_memory")}, '
+                               f'storage={resources["req_storage"]}, '
+                               f'preemptible={preemptible}, '
+                               f'machine_type={machine_type}'
                     )
 
                 inst_coll_name, cores_mcpu, memory_bytes, storage_gib = result
@@ -792,10 +806,11 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         raise web.HTTPBadRequest(reason=f'unauthorized secret {(secret["namespace"], secret["name"])}')
 
                 spec['secrets'] = secrets
+
                 secrets.append(
                     {
                         'namespace': DEFAULT_NAMESPACE,
-                        'name': userdata['gsa_key_secret_name'],
+                        'name': userdata['hail_credentials_secret_name'],
                         'mount_path': '/gsa-key',
                         'mount_in_copy': True,
                     }
@@ -807,7 +822,10 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     spec['env'] = env
                 assert isinstance(spec['env'], list)
 
-                if all(envvar['name'] != 'GOOGLE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
+                if spec.get('gcsfuse') and cloud != 'gcp':
+                    raise web.HTTPBadRequest(reason=f'gcsfuse is not supported in {cloud}')
+
+                if cloud == 'gcp' and all(envvar['name'] != 'GOOGLE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
                     spec['env'].append({'name': 'GOOGLE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
 
                 if spec.get('mount_tokens', False):
@@ -822,7 +840,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     secrets.append(
                         {
                             'namespace': DEFAULT_NAMESPACE,
-                            'name': 'gce-deploy-config',
+                            'name': 'worker-deploy-config',
                             'mount_path': '/deploy-config',
                             'mount_in_copy': False,
                         }
@@ -985,6 +1003,8 @@ VALUES (%s, %s, %s);
 
             try:
                 await insert()  # pylint: disable=no-value-for-parameter
+            except asyncio.CancelledError:
+                raise
             except aiohttp.web.HTTPException:
                 raise
             except Exception as err:
@@ -1019,7 +1039,7 @@ async def create_batch(request, userdata):
     # which is sensitive
     userdata = {
         'username': user,
-        'gsa_key_secret_name': userdata['gsa_key_secret_name'],
+        'hail_credentials_secret_name': userdata['hail_credentials_secret_name'],
         'tokens_secret_name': userdata['tokens_secret_name'],
     }
 
@@ -1156,6 +1176,7 @@ async def cancel_batch(request, userdata, batch_id):  # pylint: disable=unused-a
 @routes.patch('/api/v1alpha/batches/{batch_id}/close')
 @rest_authenticated_users_only
 async def close_batch(request, userdata):
+    client_session: httpx.ClientSession = request.app['client_session']
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
 
@@ -1187,13 +1208,12 @@ WHERE user = %s AND id = %s AND NOT deleted;
             raise web.HTTPBadRequest(reason=f'wrong number of jobs: expected {expected_n_jobs}, actual {actual_n_jobs}')
         raise
 
-    async with client_session() as session:
-        await request_retry_transient_errors(
-            session,
-            'PATCH',
-            deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/close'),
-            headers=app['batch_headers'],
-        )
+    await request_retry_transient_errors(
+        client_session,
+        'PATCH',
+        deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/close'),
+        headers=app['batch_headers'],
+    )
 
     return web.Response()
 
@@ -1473,8 +1493,9 @@ async def ui_get_job(request, userdata, batch_id):
             color_discrete_sequence=px.colors.sequential.dense,
             category_orders={
                 'Step': ['input', 'main', 'output'],
-                'Task': ['pulling', 'setting up overlay', 'setting up network', 'running', 'uploading_log']
-            })
+                'Task': ['pulling', 'setting up overlay', 'setting up network', 'running', 'uploading_log'],
+            },
+        )
 
         plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
     else:
@@ -1515,16 +1536,17 @@ async def ui_get_billing_limits(request, userdata):
     return await render_template('batch', request, userdata, 'billing_limits.html', page_context)
 
 
-def _parse_billing_limit(limit):
+def _parse_billing_limit(limit: Optional[Union[str, float, int]]) -> Optional[float]:
+    assert isinstance(limit, (str, float, int)) or limit is None, (limit, type(limit))
+
     if limit == 'None' or limit is None:
-        limit = None
-    else:
-        try:
-            limit = float(limit)
-            assert limit >= 0
-        except Exception as e:
-            raise InvalidBillingLimitError(limit) from e
-    return limit
+        return None
+    try:
+        parsed_limit = float(limit)
+        assert parsed_limit >= 0
+        return parsed_limit
+    except (AssertionError, ValueError) as e:
+        raise InvalidBillingLimitError(limit) from e
 
 
 async def _edit_billing_limit(db, billing_project, limit):
@@ -1630,8 +1652,10 @@ async def _query_billing(request, user=None):
         where_conditions.append("`time_completed` <= %s")
         where_args.append(end)
     else:
-        where_conditions.append("((`time_completed` IS NOT NULL AND `time_completed` >= %s) OR "
-                                "(`time_closed` IS NOT NULL AND `time_completed` IS NULL))")
+        where_conditions.append(
+            "((`time_completed` IS NOT NULL AND `time_completed` >= %s) OR "
+            "(`time_closed` IS NOT NULL AND `time_completed` IS NULL))"
+        )
         where_args.append(start)
 
     if user is not None:
@@ -2077,7 +2101,7 @@ async def api_delete_billing_projects(request, userdata):  # pylint: disable=unu
 async def _refresh(app):
     db: Database = app['db']
     inst_coll_configs: InstanceCollectionConfigs = app['inst_coll_configs']
-    await inst_coll_configs.refresh()
+    await inst_coll_configs.refresh(db)
     row = await db.select_and_fetchone(
         '''
 SELECT frozen FROM globals;
@@ -2096,26 +2120,26 @@ async def index(request, userdata):  # pylint: disable=unused-argument
 
 
 async def cancel_batch_loop_body(app):
-    async with client_session() as session:
-        await request_retry_transient_errors(
-            session,
-            'POST',
-            deploy_config.url('batch-driver', '/api/v1alpha/batches/cancel'),
-            headers=app['batch_headers'],
-        )
+    client_session: httpx.ClientSession = app['client_session']
+    await request_retry_transient_errors(
+        client_session,
+        'POST',
+        deploy_config.url('batch-driver', '/api/v1alpha/batches/cancel'),
+        headers=app['batch_headers'],
+    )
 
     should_wait = True
     return should_wait
 
 
 async def delete_batch_loop_body(app):
-    async with client_session() as session:
-        await request_retry_transient_errors(
-            session,
-            'POST',
-            deploy_config.url('batch-driver', '/api/v1alpha/batches/delete'),
-            headers=app['batch_headers'],
-        )
+    client_session: httpx.ClientSession = app['client_session']
+    await request_retry_transient_errors(
+        client_session,
+        'POST',
+        deploy_config.url('batch-driver', '/api/v1alpha/batches/delete'),
+        headers=app['batch_headers'],
+    )
 
     should_wait = True
     return should_wait
@@ -2123,8 +2147,7 @@ async def delete_batch_loop_body(app):
 
 async def on_startup(app):
     app['task_manager'] = aiotools.BackgroundTaskManager()
-    pool = concurrent.futures.ThreadPoolExecutor()
-    app['blocking_pool'] = pool
+    app['client_session'] = httpx.client_session()
 
     db = Database()
     await db.async_init()
@@ -2148,12 +2171,10 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
 
     app['frozen'] = row['frozen']
 
-    credentials = google.oauth2.service_account.Credentials.from_service_account_file('/gsa-key/key.json')
-    app['log_store'] = LogStore(BATCH_BUCKET_NAME, instance_id, pool, credentials=credentials)
+    fs = get_cloud_async_fs(credentials_file='/gsa-key/key.json')
+    app['file_store'] = FileStore(fs, BATCH_STORAGE_URI, instance_id)
 
-    inst_coll_configs = InstanceCollectionConfigs(app)
-    app['inst_coll_configs'] = inst_coll_configs
-    await inst_coll_configs.async_init()
+    app['inst_coll_configs'] = await InstanceCollectionConfigs.create(db)
 
     cancel_batch_state_changed = asyncio.Event()
     app['cancel_batch_state_changed'] = cancel_batch_state_changed
@@ -2169,16 +2190,20 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
         retry_long_running('delete_batch_loop', run_if_changed, delete_batch_state_changed, delete_batch_loop_body, app)
     )
 
-    app['task_manager'].ensure_future(
-        periodically_call(5, _refresh, app)
-    )
+    app['task_manager'].ensure_future(periodically_call(5, _refresh, app))
 
 
 async def on_cleanup(app):
     try:
-        app['blocking_pool'].shutdown()
-    finally:
         app['task_manager'].shutdown()
+    finally:
+        try:
+            await app['client_session'].close()
+        finally:
+            try:
+                await app['file_store'].close()
+            finally:
+                await app['db'].async_close()
 
 
 def run():

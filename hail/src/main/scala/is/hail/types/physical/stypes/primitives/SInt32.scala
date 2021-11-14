@@ -2,8 +2,7 @@ package is.hail.types.physical.stypes.primitives
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, IntInfo, Settable, SettableBuilder, TypeInfo, Value}
-import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
+import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
 import is.hail.types.physical.{PInt32, PType}
 import is.hail.types.virtual.{TInt32, Type}
@@ -64,11 +63,14 @@ class SInt32Value(x: Value[Int]) extends SPrimitiveValue {
 
   override def st: SInt32.type = SInt32
 
+  override def _primitiveValue: Value[_] = x
+
   override def get: SCode = new SInt32Code(x)
 
-  def intCode(cb: EmitCodeBuilder): Code[Int] = x
+  def intCode(cb: EmitCodeBuilder): Value[Int] = x
 
-  override def hash(cb: EmitCodeBuilder): SInt32Code = new SInt32Code(intCode(cb))
+  override def hash(cb: EmitCodeBuilder): SInt32Value =
+    new SInt32Value(intCode(cb))
 }
 
 object SInt32Settable {

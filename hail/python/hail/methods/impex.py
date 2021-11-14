@@ -1,4 +1,5 @@
 import json
+import os
 import re
 from typing import List
 
@@ -501,6 +502,12 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
         **Note**: This feature is experimental, and the interface and defaults
         may change in future versions.
     """
+    _, ext = os.path.splitext(output)
+    if ext == '.gz':
+        warning('VCF export with standard gzip compression requested. This is almost *never* desired and will '
+                'cause issues with other tools that consume VCF files. The compression format used for VCF '
+                'files is traditionally *block* gzip compression. To use block gzip compression with hail VCF '
+                'export, use a path ending in `.bgz`.')
     if isinstance(dataset, Table):
         mt = MatrixTable.from_rows_table(dataset)
         dataset = mt.key_cols_by(sample="")

@@ -19,7 +19,7 @@ from hailtop.batch_client.parse import parse_cpu_in_mcpu
 import hailtop.batch_client.client as bc
 from hailtop.batch_client.client import BatchClient
 from hailtop.aiotools import RouterAsyncFS, LocalAsyncFS, AsyncFS
-from hailtop.aiogoogle import GoogleStorageAsyncFS
+from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
 
 from . import resource, batch, job as _job  # pylint: disable=unused-import
 from .exceptions import BatchException
@@ -338,27 +338,20 @@ class ServiceBackend(Backend[bc.Batch]):
     Examples
     --------
 
-    >>> service_backend = ServiceBackend('my-billing-account', bucket='my-bucket') # doctest: +SKIP
+    >>> service_backend = ServiceBackend(billing_project='my-billing-account', remote_tmpdir='gs://my-bucket/temporary-files/') # doctest: +SKIP
     >>> b = Batch(backend=service_backend) # doctest: +SKIP
     >>> b.run() # doctest: +SKIP
     >>> service_backend.close() # doctest: +SKIP
 
     If the Hail configuration parameters batch/billing_project and
-    batch/bucket were previously set with ``hailctl config set``, then
-    one may elide the `billing_project` and `bucket` parameters.
+    batch/remote_tmpdir were previously set with ``hailctl config set``, then
+    one may elide the `billing_project` and `remote_tmpdir` parameters.
 
     >>> service_backend = ServiceBackend()
     >>> b = Batch(backend=service_backend)
     >>> b.run() # doctest: +SKIP
     >>> service_backend.close()
 
-    Instead of a bucket, a full path may be specified for the remote temporary directory:
-
-    >>> service_backend = ServiceBackend('my-billing-account',
-    ...                                  remote_tmpdir='gs://my-bucket/temporary-files/')
-    >>> b = Batch(backend=service_backend)
-    >>> b.run() # doctest: +SKIP
-    >>> service_backend.close()
 
     Parameters
     ----------
@@ -366,11 +359,11 @@ class ServiceBackend(Backend[bc.Batch]):
         Name of billing project to use.
     bucket:
         Name of bucket to use. Should not include the ``gs://`` prefix. Cannot be used with
-        remote_tmpdir. Temporary data will be stored in the "/batch" folder of this
-        bucket. Using this parameter as a positional argument is deprecated.
+        `remote_tmpdir`. Temporary data will be stored in the "/batch" folder of this
+        bucket. This argument is deprecated. Use `remote_tmpdir` instead.
     remote_tmpdir:
-        Temporary data will be stored in this google cloud storage folder. Cannot be used with
-        bucket.
+        Temporary data will be stored in this cloud storage folder. Cannot be used with deprecated
+        argument `bucket`. Paths should start with one of gs://, hail-az://, or s3://.
     google_project:
         If specified, the project to use when authenticating with Google
         Storage. Google Storage is used to transfer serialized values between
@@ -398,9 +391,6 @@ class ServiceBackend(Backend[bc.Batch]):
             warnings.warn('Use of deprecated positional argument \'bucket\' in ServiceBackend(). Specify \'bucket\' as a keyword argument instead.')
             bucket = args[1]
 
-        if remote_tmpdir is not None and bucket is not None:
-            raise ValueError('Cannot specify both remote_tmpdir and bucket in ServiceBackend()')
-
         if billing_project is None:
             billing_project = get_user_config().get('batch', 'billing_project', fallback=None)
         if billing_project is None:
@@ -409,28 +399,44 @@ class ServiceBackend(Backend[bc.Batch]):
                 'or run `hailctl config set batch/billing_project '
                 'MY_BILLING_PROJECT`')
         self._batch_client = BatchClient(billing_project)
-        self.__fs: AsyncFS = RouterAsyncFS('file', [LocalAsyncFS(ThreadPoolExecutor()),
-                                                    GoogleStorageAsyncFS(project=google_project)])
+
+        user_config = get_user_config()
+
+        if bucket is not None:
+            warnings.warn('Use of deprecated argument \'bucket\' in ServiceBackend(). Specify \'remote_tmpdir\' as a keyword argument instead.')
+
+        if remote_tmpdir is not None and bucket is not None:
+            raise ValueError('Cannot specify both \'remote_tmpdir\' and \'bucket\' in ServiceBackend(). Specify \'remote_tmpdir\' as a keyword argument instead.')
+
+        if bucket is None and remote_tmpdir is None:
+            remote_tmpdir = user_config.get('batch', 'remote_tmpdir', fallback=None)
 
         if remote_tmpdir is None:
             if bucket is None:
-                bucket = get_user_config().get('batch', 'bucket', fallback=None)
+                bucket = user_config.get('batch', 'bucket', fallback=None)
+                warnings.warn('Using deprecated configuration setting \'batch\\bucket\'. Run `hailctl config set batch/remote_tmpdir` '
+                              'to set the default for \'remote_tmpdir\' instead.')
             if bucket is None:
                 raise ValueError(
-                    'either the bucket or remote_tmpdir parameter of ServiceBackend '
-                    'must be set or run `hailctl config set batch/bucket MY_BUCKET`')
+                    'The \'remote_tmpdir\' parameter of ServiceBackend must be set. '
+                    'Run `hailctl config set batch/remote_tmpdir REMOTE_TMPDIR`')
             if 'gs://' in bucket:
                 raise ValueError(
                     'The bucket parameter to ServiceBackend() should be a bucket name, not a path. '
                     'Use the remote_tmpdir parameter to specify a path.')
             remote_tmpdir = f'gs://{bucket}/batch'
         else:
-            if not remote_tmpdir.startswith('gs://'):
+            schemes = {'gs'}
+            found_scheme = any([remote_tmpdir.startswith(f'{scheme}://') for scheme in schemes])
+            if not found_scheme:
                 raise ValueError(
-                    'remote_tmpdir must be a google storage path like gs://bucket/folder')
+                    f'remote_tmpdir must be a storage uri path like gs://bucket/folder. Possible schemes include {schemes}')
         if remote_tmpdir[-1] != '/':
             remote_tmpdir += '/'
         self.remote_tmpdir = remote_tmpdir
+
+        self.__fs: AsyncFS = RouterAsyncFS('file', [LocalAsyncFS(ThreadPoolExecutor()),
+                                                    GoogleStorageAsyncFS(project=google_project)])
 
     @property
     def _fs(self):
@@ -503,7 +509,7 @@ class ServiceBackend(Backend[bc.Batch]):
         batch_remote_tmpdir = f'{self.remote_tmpdir}{uid}'
         local_tmpdir = f'/io/batch/{uid}'
 
-        default_image = 'ubuntu:18.04'
+        default_image = 'ubuntu:20.04'
 
         attributes = copy.deepcopy(batch.attributes)
         if batch.name is not None:
@@ -703,24 +709,24 @@ class ServiceBackend(Backend[bc.Batch]):
             print(f'Built DAG with {n_jobs_submitted} jobs in {round(time.time() - build_dag_start, 3)} seconds.')
 
         submit_batch_start = time.time()
-        bc_batch = bc_batch.submit(disable_progress_bar=disable_progress_bar)
+        batch_handle = bc_batch.submit(disable_progress_bar=disable_progress_bar)
 
         jobs_to_command = {j.id: cmd for j, cmd in jobs_to_command.items()}
 
         if verbose:
-            print(f'Submitted batch {bc_batch.id} with {n_jobs_submitted} jobs in {round(time.time() - submit_batch_start, 3)} seconds:')
+            print(f'Submitted batch {batch_handle.id} with {n_jobs_submitted} jobs in {round(time.time() - submit_batch_start, 3)} seconds:')
             for jid, cmd in jobs_to_command.items():
                 print(f'{jid}: {cmd}')
             print('')
 
         deploy_config = get_deploy_config()
-        url = deploy_config.url('batch', f'/batches/{bc_batch.id}')
-        print(f'Submitted batch {bc_batch.id}, see {url}')
+        url = deploy_config.url('batch', f'/batches/{batch_handle.id}')
+        print(f'Submitted batch {batch_handle.id}, see {url}')
 
         if open:
             webbrowser.open(url)
         if wait:
-            print(f'Waiting for batch {bc_batch.id}...')
-            status = bc_batch.wait()
-            print(f'batch {bc_batch.id} complete: {status["state"]}')
-        return bc_batch
+            print(f'Waiting for batch {batch_handle.id}...')
+            status = batch_handle.wait()
+            print(f'batch {batch_handle.id} complete: {status["state"]}')
+        return batch_handle

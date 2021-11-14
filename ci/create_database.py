@@ -5,7 +5,6 @@ import string
 import json
 import secrets
 import asyncio
-import shutil
 from shlex import quote as shq
 from hailtop.utils import check_shell, check_shell_output
 from hailtop.auth.sql_config import create_secret_data_from_config, SQLConfig
@@ -53,6 +52,7 @@ async def create_database():
     with open('/sql-config/sql-config.json', 'r') as f:
         sql_config = SQLConfig.from_json(f.read())
 
+    cloud = create_database_config.get('cloud', 'gcp')
     namespace = create_database_config['namespace']
     database_name = create_database_config['database_name']
     cant_create_database = create_database_config['cant_create_database']
@@ -100,6 +100,14 @@ GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}
 '''
     )
 
+    # Azure MySQL requires that usernames follow username@servername format
+    if cloud == 'azure':
+        config_admin_username = admin_username + '@' + sql_config.instance
+        config_user_username = user_username + '@' + sql_config.instance
+    else:
+        assert cloud == 'gcp'
+        config_admin_username = admin_username
+        config_user_username = user_username
     await write_user_config(
         namespace,
         database_name,
@@ -108,8 +116,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}
             host=sql_config.host,
             port=sql_config.port,
             instance=sql_config.instance,
-            connection_name=sql_config.instance,
-            user=admin_username,
+            connection_name=sql_config.connection_name,
+            user=config_admin_username,
             password=admin_password,
             db=_name,
             ssl_ca=sql_config.ssl_ca,
@@ -127,8 +135,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}
             host=sql_config.host,
             port=sql_config.port,
             instance=sql_config.instance,
-            connection_name=sql_config.instance,
-            user=user_username,
+            connection_name=sql_config.connection_name,
+            user=config_user_username,
             password=user_password,
             db=_name,
             ssl_ca=sql_config.ssl_ca,
@@ -218,6 +226,7 @@ async def async_main():
 
     namespace = create_database_config['namespace']
     scope = create_database_config['scope']
+    cloud = create_database_config['cloud']
     database_name = create_database_config['database_name']
 
     admin_secret_name = f'sql-{database_name}-admin-config'
@@ -236,6 +245,7 @@ kubectl -n {namespace} get -o json secret {shq(admin_secret_name)}
 
     os.environ['HAIL_DATABASE_CONFIG_FILE'] = '/sql-config.json'
     os.environ['HAIL_SCOPE'] = scope
+    os.environ['HAIL_CLOUD'] = cloud
 
     db = Database()
     await db.async_init()

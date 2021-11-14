@@ -42,8 +42,8 @@ object InferType {
       case _: InitOp => TVoid
       case _: SeqOp => TVoid
       case _: CombOp => TVoid
-      case ResultOp(_, aggSigs) =>
-        TTuple(aggSigs.map(_.resultType): _*)
+      case ResultOp(_, aggSig) =>
+        aggSig.resultType
       case AggStateValue(i, sig) => TBinary
       case _: CombOpValue => TVoid
       case _: InitFromSerializedValue => TVoid
@@ -217,6 +217,8 @@ object InferType {
         aggSig.returnType
       case ApplyScanOp(_, _, aggSig) =>
         aggSig.returnType
+      case AggFold(zero, _, _, _, _, _) =>
+        zero.typ
       case MakeStruct(fields) =>
         TStruct(fields.map { case (name, a) =>
           (name, a.typ)

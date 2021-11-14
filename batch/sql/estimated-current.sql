@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS `inst_colls` (
   `boot_disk_size_gb` BIGINT NOT NULL,
   `max_instances` BIGINT NOT NULL,
   `max_live_instances` BIGINT NOT NULL,
+  `cloud` VARCHAR(100) NOT NULL,
   PRIMARY KEY (`name`)
 ) ENGINE = InnoDB;
 CREATE INDEX `inst_colls_pool` ON `inst_colls` (`pool`);
@@ -96,10 +97,11 @@ CREATE TABLE IF NOT EXISTS `instances` (
   `time_deactivated` BIGINT,
   `removed` BOOLEAN NOT NULL DEFAULT FALSE,
   `version` INT NOT NULL,
+  `location` VARCHAR(40) NOT NULL,
   `inst_coll` VARCHAR(255) NOT NULL,
   `machine_type` VARCHAR(255) NOT NULL,
   `preemptible` BOOLEAN NOT NULL,
-  `worker_config` MEDIUMTEXT,
+  `instance_config` MEDIUMTEXT,
   PRIMARY KEY (`name`),
   FOREIGN KEY (`inst_coll`) REFERENCES inst_colls(`name`)
 ) ENGINE = InnoDB;

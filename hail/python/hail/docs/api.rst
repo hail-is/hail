@@ -40,6 +40,7 @@ Modules
     stats <stats/index>
     genetics <genetics/index>
     plot <plot>
+    vds <vds/index>
     experimental <experimental/index>
 
 Top-Level Functions

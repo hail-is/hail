@@ -1,10 +1,9 @@
 package is.hail.io
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream, OutputStream}
-
 import is.hail.annotations.{Region, RegionValue}
 import is.hail.asm4s.Code
-import is.hail.expr.ir.ExecuteContext
+import is.hail.backend.ExecuteContext
 import is.hail.types.encoded.EType
 import is.hail.types.physical.PType
 import is.hail.types.virtual.Type

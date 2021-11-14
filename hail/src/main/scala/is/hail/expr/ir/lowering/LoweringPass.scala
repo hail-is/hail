@@ -1,5 +1,6 @@
 package is.hail.expr.ir.lowering
 
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.agg.Extract
 import is.hail.expr.ir._
 import is.hail.utils._
@@ -26,7 +27,7 @@ case class OptimizePass(_context: String) extends LoweringPass {
   val context = s"optimize: ${_context}"
   val before: IRState = AnyIR
   val after: IRState = AnyIR
-  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = Optimize(ir, true, context, ctx)
+  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = Optimize(ir, context, ctx)
 }
 
 case object LowerMatrixToTablePass extends LoweringPass {

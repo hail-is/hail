@@ -9,23 +9,18 @@ from typing import Dict, List, Optional
 from hailtop.utils import flatten
 from .utils import generate_token
 from .environment import (
-    GCP_PROJECT,
-    GCP_ZONE,
     DOCKER_PREFIX,
-    DOCKER_ROOT_IMAGE,
-    HAIL_TEST_GCS_BUCKET,
     DOMAIN,
-    IP,
     CI_UTILS_IMAGE,
     BUILDKIT_IMAGE,
     DEFAULT_NAMESPACE,
-    KUBERNETES_SERVER_URL,
-    BUCKET,
+    STORAGE_URI,
+    CLOUD,
 )
 from .globals import is_test_deployment
+from gear.cloud_config import get_global_config
 
 log = logging.getLogger('ci')
-
 
 pretty_print_log = "jq -Rr '. as $raw | try \
 (fromjson | if .hail_log == 1 then \
@@ -130,7 +125,7 @@ class BuildConfiguration:
         assert scope in ('deploy', 'test', 'dev')
 
         for step in self.steps:
-            if step.scopes is None or scope in step.scopes:
+            if (step.scopes is None or scope in step.scopes) and (step.clouds is None or CLOUD in step.clouds):
                 step.build(batch, code, scope)
 
         if scope == 'dev':
@@ -148,7 +143,7 @@ class BuildConfiguration:
                 f"Cleanup {step.name} after running {[parent_step.name for parent_step in step_to_parent_steps[step]]}"
             )
 
-            if step.scopes is None or scope in step.scopes:
+            if (step.scopes is None or scope in step.scopes) and (step.clouds is None or CLOUD in step.clouds):
                 step.cleanup(batch, scope, parent_jobs)
 
 
@@ -165,22 +160,14 @@ class Step(abc.ABC):
         else:
             self.deps = []
         self.scopes = json.get('scopes')
+        self.clouds = json.get('clouds')
         self.run_if_requested = json.get('runIfRequested', False)
 
         self.token = generate_token()
 
     def input_config(self, code, scope):
         config = {}
-        config['global'] = {
-            'project': GCP_PROJECT,
-            'zone': GCP_ZONE,
-            'docker_prefix': DOCKER_PREFIX,
-            'docker_root_image': DOCKER_ROOT_IMAGE,
-            'hail_test_gcs_bucket': HAIL_TEST_GCS_BUCKET,
-            'domain': DOMAIN,
-            'ip': IP,
-            'k8s_server_url': KUBERNETES_SERVER_URL,
-        }
+        config['global'] = get_global_config()
         config['token'] = self.token
         config['deploy'] = scope == 'deploy'
         config['scope'] = scope
@@ -287,7 +274,7 @@ class BuildImage2Step(Step):
         if self.inputs:
             input_files = []
             for i in self.inputs:
-                input_files.append((f'gs://{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', i["to"]))
+                input_files.append((f'{STORAGE_URI}/build/{batch.attributes["token"]}{i["from"]}', i["to"]))
         else:
             input_files = None
 
@@ -318,7 +305,7 @@ time python3 \
      /home/user/Dockerfile
 
 set +x
-/bin/sh /home/user/convert-google-application-credentials-to-docker-auth-config
+/bin/sh /home/user/convert-cloud-credentials-to-docker-auth-config
 set -x
 
 export BUILDKITD_FLAGS='--oci-worker-no-process-sandbox --oci-worker-snapshotter=overlayfs'
@@ -338,20 +325,24 @@ cat /home/user/trace
         log.info(f'step {self.name}, script:\n{script}')
 
         docker_registry = DOCKER_PREFIX.split('/')[0]
+        job_env = {'REGISTRY': docker_registry}
+        if CLOUD == 'gcp':
+            credentials_name = 'GOOGLE_APPLICATION_CREDENTIALS'
+        else:
+            assert CLOUD == 'azure'
+            credentials_name = 'AZURE_APPLICATION_CREDENTIALS'
+        credentials_secret = {
+            'namespace': DEFAULT_NAMESPACE,
+            'name': 'registry-push-credentials',
+            'mount_path': '/secrets/registry-push-credentials',
+        }
+        job_env[credentials_name] = '/secrets/registry-push-credentials/credentials.json'
+
         self.job = batch.create_job(
             BUILDKIT_IMAGE,
             command=['/bin/sh', '-c', script],
-            secrets=[
-                {
-                    'namespace': DEFAULT_NAMESPACE,
-                    'name': 'gcr-push-service-account-key',
-                    'mount_path': '/secrets/gcr-push-service-account-key',
-                }
-            ],
-            env={
-                'GOOGLE_APPLICATION_CREDENTIALS': '/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json',
-                'REGISTRY': docker_registry,
-            },
+            secrets=[credentials_secret],
+            env=job_env,
             attributes={'name': self.name},
             resources=self.resources,
             input_files=input_files,
@@ -361,6 +352,11 @@ cat /home/user/trace
         )
 
     def cleanup(self, batch, scope, parents):
+        if CLOUD == 'azure':
+            log.warning('Image cleanup in ACR is not yet supported')
+            return
+        assert CLOUD == 'gcp'
+
         if scope == 'deploy' and self.publish_as and not is_test_deployment:
             return
 
@@ -369,7 +365,7 @@ set -x
 date
 
 gcloud -q auth activate-service-account \
-  --key-file=/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json
+  --key-file=/secrets/registry-push-credentials/credentials.json
 
 until gcloud -q container images untag {shq(self.image)} || ! gcloud -q container images describe {shq(self.image)}
 do
@@ -388,8 +384,8 @@ true
             secrets=[
                 {
                     'namespace': DEFAULT_NAMESPACE,
-                    'name': 'gcr-push-service-account-key',
-                    'mount_path': '/secrets/gcr-push-service-account-key',
+                    'name': 'registry-push-credentials',
+                    'mount_path': '/secrets/registry-push-credentials',
                 }
             ],
             parents=parents,
@@ -455,14 +451,14 @@ class RunImageStep(Step):
         if self.inputs:
             input_files = []
             for i in self.inputs:
-                input_files.append((f'gs://{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', i["to"]))
+                input_files.append((f'{STORAGE_URI}/build/{batch.attributes["token"]}{i["from"]}', i["to"]))
         else:
             input_files = None
 
         if self.outputs:
             output_files = []
             for o in self.outputs:
-                output_files.append((o["from"], f'gs://{BUCKET}/build/{batch.attributes["token"]}{o["to"]}'))
+                output_files.append((o["from"], f'{STORAGE_URI}/build/{batch.attributes["token"]}{o["to"]}'))
         else:
             output_files = None
 
@@ -637,8 +633,15 @@ kubectl -n {self.namespace_name} get -o json secret global-config \
 '''
 
             for s in self.secrets:
-                script += f'''
+                if isinstance(s, str):
+                    script += f'''
 kubectl -n {self.namespace_name} get -o json secret {s} | jq 'del(.metadata) | .metadata.name = "{s}"' | kubectl -n {self._name} apply -f -
+'''
+                else:
+                    clouds = s.get('clouds')
+                    if clouds is None or CLOUD in clouds:
+                        script += f'''
+kubectl -n {self.namespace_name} get -o json secret {s["name"]} | jq 'del(.metadata) | .metadata.name = "{s["name"]}"' | kubectl -n {self._name} apply -f -
 '''
 
         script += '''
@@ -914,6 +917,7 @@ class CreateDatabaseStep(Step):
 
     def build(self, batch, code, scope):  # pylint: disable=unused-argument
         create_database_config = {
+            'cloud': CLOUD,
             'namespace': self.namespace,
             'scope': scope,
             'database_name': self.database_name,
@@ -946,15 +950,15 @@ EOF
         input_files = []
         if self.inputs:
             for i in self.inputs:
-                input_files.append((f'gs://{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', i["to"]))
+                input_files.append((f'{STORAGE_URI}/build/{batch.attributes["token"]}{i["from"]}', i["to"]))
 
         if not self.cant_create_database:
             password_files_input = [
                 (
-                    f'gs://{BUCKET}/build/{batch.attributes["token"]}/{self.admin_password_file}',
+                    f'{STORAGE_URI}/build/{batch.attributes["token"]}/{self.admin_password_file}',
                     self.admin_password_file,
                 ),
-                (f'gs://{BUCKET}/build/{batch.attributes["token"]}/{self.user_password_file}', self.user_password_file),
+                (f'{STORAGE_URI}/build/{batch.attributes["token"]}/{self.user_password_file}', self.user_password_file),
             ]
             input_files.extend(password_files_input)
 

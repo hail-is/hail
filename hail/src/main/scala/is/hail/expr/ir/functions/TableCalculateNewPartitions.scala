@@ -1,6 +1,7 @@
 package is.hail.expr.ir.functions
 
-import is.hail.expr.ir.{ExecuteContext, TableValue}
+import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.TableValue
 import is.hail.types
 import is.hail.types.virtual._
 import is.hail.rvd.RVD

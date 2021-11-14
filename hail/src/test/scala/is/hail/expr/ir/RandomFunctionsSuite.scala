@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
 import is.hail.asm4s.Code
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.{IRRandomness, RegistryFunctions}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SInt32, SInt64}
@@ -37,15 +38,15 @@ object TestRandomFunctions extends RegistryFunctions {
 
   def registerAll() {
     registerSeeded0("counter_seeded", TInt32, SInt32) { case (cb, r, rt, seed) =>
-      primitive(getTestRNG(cb.emb, seed).invoke[Int]("counter"))
+      primitive(cb.memoize(getTestRNG(cb.emb, seed).invoke[Int]("counter")))
     }
 
     registerSeeded0("seed_seeded", TInt64, SInt64) { case (cb, r, rt, seed) =>
-      primitive(getTestRNG(cb.emb, seed).invoke[Long]("seed"))
+      primitive(cb.memoize(getTestRNG(cb.emb, seed).invoke[Long]("seed")))
     }
 
     registerSeeded0("pi_seeded", TInt32, SInt32) { case (cb, r, rt, seed) =>
-      primitive(getTestRNG(cb.emb, seed).invoke[Int]("partitionIndex"))
+      primitive(cb.memoize(getTestRNG(cb.emb, seed).invoke[Int]("partitionIndex")))
     }
   }
 }

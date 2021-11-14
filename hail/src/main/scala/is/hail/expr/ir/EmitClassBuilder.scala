@@ -2,21 +2,21 @@ package is.hail.expr.ir
 
 import is.hail.annotations.{Region, RegionPool, RegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.backend.{BackendUtils, BroadcastValue}
+import is.hail.backend.{BackendUtils, BroadcastValue, ExecuteContext}
 import is.hail.expr.ir.functions.IRRandomness
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.io.fs.FS
 import is.hail.io.{BufferSpec, InputBuffer, TypedCodecSpec}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.stypes._
-import is.hail.types.physical.{PCanonicalTuple, PType}
+import is.hail.types.physical.{PCanonicalTuple, PType, typeToTypeInfo}
 import is.hail.types.virtual.Type
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.TaskContext
+
 import java.io._
 import java.lang.reflect.InvocationTargetException
-
 import scala.collection.mutable
 import scala.language.existentials
 
@@ -279,7 +279,6 @@ class EmitClassBuilder[C](
       val lits = spec.encodedType.buildDecoder(spec.encodedVirtualType, this)
         .apply(cb, partitionRegion, ib)
         .asBaseStruct
-        .memoize(cb, "cb_lits")
       literals.zipWithIndex.foreach { case (((_, _), f), i) =>
         lits.loadField(cb, i)
           .consume(cb,
@@ -370,7 +369,7 @@ class EmitClassBuilder[C](
     }
 
     getF.emitWithBuilder { cb =>
-      cb += storeF.invokeCode[Unit]()
+      storeF.invokeCode[Unit](cb)
       _aggOff
     }
 
@@ -484,11 +483,11 @@ class EmitClassBuilder[C](
     sortOrder: SortOrder,
     op: CodeOrdering.Op
   ): CodeOrdering.F[op.ReturnType] = {
-    val ord = getOrdering(t1, t2, sortOrder);
+    val ord = getOrdering(t1, t2, sortOrder)
 
-    { (cb: EmitCodeBuilder, v1: EmitCode, v2: EmitCode) =>
+    { (cb: EmitCodeBuilder, v1: EmitValue, v2: EmitValue) =>
 
-      val r = op match {
+      val r: Code[_] = op match {
         case CodeOrdering.Compare(missingEqual) => ord.compare(cb, v1, v2, missingEqual)
         case CodeOrdering.Equiv(missingEqual) => ord.equiv(cb, v1, v2, missingEqual)
         case CodeOrdering.Lt(missingEqual) => ord.lt(cb, v1, v2, missingEqual)
@@ -497,7 +496,7 @@ class EmitClassBuilder[C](
         case CodeOrdering.Gteq(missingEqual) => ord.gteq(cb, v1, v2, missingEqual)
         case CodeOrdering.Neq(missingEqual) => !ord.equiv(cb, v1, v2, missingEqual)
       }
-      coerce[op.ReturnType](r)
+      cb.memoize[op.ReturnType](coerce[op.ReturnType](r))(op.rtti)
     }
   }
 
@@ -586,8 +585,8 @@ class EmitClassBuilder[C](
       val rgs = mb.getCodeParam[Array[ReferenceGenome]](1)
       cb.ifx(rgs.length().cne(const(rgFields.length)), cb._fatal("Invalid number of references, expected ", rgFields.length.toString, " got ", rgs.length().toS))
       for ((fld, i) <- rgFields.zipWithIndex) {
+        cb += rgs(i).invoke[String, FS, Unit]("heal", ctx.localTmpdir, getFS)
         cb += fld.put(rgs(i))
-        cb += fld.get().invoke[String, FS, Unit]("heal", ctx.localTmpdir, getFS)
       }
     }
   }
@@ -879,7 +878,7 @@ class EmitMethodBuilder[C](
     }
   }
 
-  def getSCodeParam(emitIndex: Int): SCode = {
+  def getSCodeParam(emitIndex: Int): SValue = {
     assert(mb.isStatic || emitIndex != 0)
     val static = (!mb.isStatic).toInt
     val _st = emitParamTypes(emitIndex - static).asInstanceOf[SCodeParamType].st
@@ -890,7 +889,7 @@ class EmitMethodBuilder[C](
 
     _st.fromValues(ts.zipWithIndex.map { case (t, i) =>
       mb.getArg(codeIndex + i)(t)
-    }).get
+    })
   }
 
   def storeEmitParam(emitIndex: Int, cb: EmitCodeBuilder): Value[Region] => EmitValue = {
@@ -956,10 +955,10 @@ class EmitMethodBuilder[C](
   }
 
 
-  def invokeCode[T](args: Param*): Code[T] = {
+  def invokeCode[T](cb: CodeBuilderLike, args: Param*): Value[T] = {
     assert(emitReturnType.isInstanceOf[CodeParamType])
     assert(args.forall(_.isInstanceOf[CodeParam]))
-    mb.invoke(args.flatMap {
+    mb.invoke(cb, args.flatMap {
       case CodeParam(c) => FastIndexedSeq(c)
       // If you hit this assertion, it means that an EmitParam was passed to
       // invokeCode. Code with EmitParams must be invoked using the EmitCodeBuilder
@@ -984,9 +983,9 @@ class EmitMethodBuilder[C](
 
   def voidWithBuilder(f: (EmitCodeBuilder) => Unit): Unit = emit(EmitCodeBuilder.scopedVoid(this)(f))
 
-  def emitSCode(f: (EmitCodeBuilder) => SCode): Unit = {
+  def emitSCode(f: (EmitCodeBuilder) => SValue): Unit = {
     emit(EmitCodeBuilder.scopedCode(this) { cb =>
-      val res = f(cb).memoize(cb, "emitSCode")
+      val res = f(cb)
       if (res.st.nSettables == 1)
         res.valueTuple.head
       else

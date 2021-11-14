@@ -3,8 +3,9 @@ from .stream import (
     ReadableStream, WritableStream, blocking_readable_stream_to_async,
     blocking_writable_stream_to_async)
 from .fs import (
-    FileStatus, FileListEntry, AsyncFS, LocalAsyncFS, RouterAsyncFS, Transfer, MultiPartCreate)
-from .utils import FeedableAsyncIterable
+    FileStatus, FileListEntry, AsyncFS, LocalAsyncFS, RouterAsyncFS, Transfer,
+    MultiPartCreate)
+from .utils import FeedableAsyncIterable, WriteBuffer
 from .tasks import BackgroundTaskManager
 from .weighted_semaphore import WeightedSemaphore
 
@@ -24,5 +25,6 @@ __all__ = [
     'FileAndDirectoryError',
     'MultiPartCreate',
     'UnexpectedEOFError',
-    'WeightedSemaphore'
+    'WeightedSemaphore',
+    'WriteBuffer',
 ]

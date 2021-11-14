@@ -54,7 +54,8 @@ final case class SJavaArrayString(elementRequired: Boolean) extends SContainer {
     new SJavaArrayStringValue(this, a)
   }
 
-  def construct(arr: Code[Array[String]]): SJavaArrayStringCode = new SJavaArrayStringCode(this, arr)
+  def construct(cb: EmitCodeBuilder, arr: Code[Array[String]]): SJavaArrayStringValue =
+    new SJavaArrayStringValue(this, cb.memoize(arr))
 }
 
 class SJavaArrayStringCode(val st: SJavaArrayString, val array: Code[Array[String]]) extends SIndexableCode {
@@ -62,15 +63,13 @@ class SJavaArrayStringCode(val st: SJavaArrayString, val array: Code[Array[Strin
 
   def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SIndexableValue = {
     val s = SJavaArrayStringSettable(sb, st, name)
-    cb.assign(s, this)
+    s.store(cb, this)
     s
   }
 
   def memoize(cb: EmitCodeBuilder, name: String): SIndexableValue = memoize(cb, name, cb.localBuilder)
 
   def memoizeField(cb: EmitCodeBuilder, name: String): SIndexableValue = memoize(cb, name, cb.fieldBuilder)
-
-  def castToArray(cb: EmitCodeBuilder): SIndexableCode = this
 }
 
 class SJavaArrayStringValue(
@@ -87,22 +86,23 @@ class SJavaArrayStringValue(
 
   override def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode = {
     if (st.elementRequired)
-      IEmitCode.present(cb, new SJavaStringCode(array(i)))
+      IEmitCode.present(cb, new SJavaStringValue(cb.memoize(array(i))))
     else {
-      val iv = cb.newLocal("pcindval_i", i)
+      val iv = cb.memoize(i)
       IEmitCode(cb,
-        isElementMissing(iv),
-        new SJavaStringCode(array(i)))
+        isElementMissing(cb, iv),
+        new SJavaStringValue(cb.memoize(array(iv))))
     }
   }
 
-  override def isElementMissing(i: Code[Int]): Code[Boolean] = array(i).isNull
+  override def isElementMissing(cb: EmitCodeBuilder, i: Code[Int]): Value[Boolean] =
+    cb.memoize(array(i).isNull)
 
-  override def hasMissingValues(cb: EmitCodeBuilder): Code[Boolean] = {
+  override def hasMissingValues(cb: EmitCodeBuilder): Value[Boolean] = {
     if (st.elementRequired)
       const(false)
     else
-      Code.invokeScalaObject1[Array[String], Boolean](SJavaArrayHelpers.getClass, "hasNulls", array)
+      cb.memoize(Code.invokeScalaObject1[Array[String], Boolean](SJavaArrayHelpers.getClass, "hasNulls", array))
   }
 
   override def castToArray(cb: EmitCodeBuilder): SIndexableValue = this

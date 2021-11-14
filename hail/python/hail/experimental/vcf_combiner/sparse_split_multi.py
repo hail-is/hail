@@ -8,7 +8,7 @@ def sparse_split_multi(sparse_mt, *, filter_changed_loci=False):
     representations.
 
     Takes a dataset formatted like the output of :func:`.run_combiner`. The
-    splitting will add `was_split` and `a_index` fields, as :func:`.split_multi`
+    splitting will add `was_split` and `a_index` fields, as :func:`.vds.split_multi`
     does. This function drops the `LA` (local alleles) field, as it re-computes
     entry fields based on the new, split globals alleles.
 
