@@ -3096,7 +3096,10 @@ steps:
 
       # checkout new ci repo
       cd /io
-      git clone https://$TOKEN@github.com/hail-ci-test/$REPO_NAME.git
+      for i in {1..12}; do
+          git clone https://$TOKEN@github.com/hail-ci-test/$REPO_NAME.git && break
+          sleep 5;
+      done
       cd $REPO_NAME
 
       mkdir -p ./ci/test ./hail/
