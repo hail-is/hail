@@ -924,9 +924,9 @@ trait SNDArrayCode extends SCode {
 
 class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], chunksize: Value[Long], _blocksize: Value[Long], region: Value[Region], normalizeAfterWhitening: Boolean) {
   val m = vecSize
-  val w = SizeValueDyn(_w)
-  val b = SizeValueDyn(chunksize)
-  val wpb = SizeValueDyn(cb.memoize(w+b))
+  val w = SizeValueDyn(cb.memoizeField(_w))
+  val b = SizeValueDyn(cb.memoizeField(chunksize))
+  val wpb = SizeValueDyn(cb.memoizeField(w+b))
 
   val curSize = cb.newField[Long]("curSize", 0)
   val pivot = cb.newField[Long]("pivot", 0)
@@ -936,18 +936,18 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
 
   val (tsize, worksize) = SNDArray.geqr_query(cb, m, chunksize, region)
 
-  val Q = matType.constructUnintialized(FastIndexedSeq(m, w), cb, region)
-  val R = matType.constructUnintialized(FastIndexedSeq(w, w), cb, region)
-  val work1 = matType.constructUnintialized(FastIndexedSeq(wpb, wpb), cb, region)
-  val work2 = matType.constructUnintialized(FastIndexedSeq(wpb, b), cb, region)
-  val Rtemp = matType.constructUnintialized(FastIndexedSeq(wpb, wpb), cb, region)
-  val Qtemp = matType.constructUnintialized(FastIndexedSeq(m, b), cb, region)
-  val Qtemp2 = matType.constructUnintialized(FastIndexedSeq(m, w), cb, region)
-  val blocksize = cb.memoize(_blocksize.min(w))
+  val Q = cb.memoizeField(matType.constructUnintialized(FastIndexedSeq(m, w), cb, region), "LW_Q").asNDArray.coerceToShape(cb, m, w)
+  val R = cb.memoizeField(matType.constructUnintialized(FastIndexedSeq(w, w), cb, region), "LW_R").asNDArray.coerceToShape(cb, w, w)
+  val work1 = cb.memoizeField(matType.constructUnintialized(FastIndexedSeq(wpb, wpb), cb, region), "LW_work1").asNDArray.coerceToShape(cb, wpb, wpb)
+  val work2 = cb.memoizeField(matType.constructUnintialized(FastIndexedSeq(wpb, b), cb, region), "LW_work2").asNDArray.coerceToShape(cb, wpb, b)
+  val Rtemp = cb.memoizeField(matType.constructUnintialized(FastIndexedSeq(wpb, wpb), cb, region), "LW_Rtemp").asNDArray.coerceToShape(cb, wpb, wpb)
+  val Qtemp = cb.memoizeField(matType.constructUnintialized(FastIndexedSeq(m, b), cb, region), "LW_Qtemp").asNDArray.coerceToShape(cb, m, b)
+  val Qtemp2 = cb.memoizeField(matType.constructUnintialized(FastIndexedSeq(m, w), cb, region), "LW_Qtemp2").asNDArray.coerceToShape(cb, m, w)
+  val blocksize = cb.memoizeField(_blocksize.min(w))
   val work3len = SizeValueDyn(cb.memoize(worksize.max(blocksize*m)))
-  val work3: SNDArrayValue = vecType.constructUnintialized(FastIndexedSeq(work3len), cb, region)
-  val Tlen = SizeValueDyn(cb.memoize(tsize.max(blocksize*wpb)))
-  val T: SNDArrayValue = vecType.constructUnintialized(FastIndexedSeq(Tlen), cb, region)
+  val work3: SNDArrayValue = cb.memoizeField(vecType.constructUnintialized(FastIndexedSeq(work3len), cb, region), "LW_work3").asNDArray
+  val Tlen = SizeValueDyn(cb.memoizeField(tsize.max(blocksize*wpb)))
+  val T: SNDArrayValue = cb.memoizeField(vecType.constructUnintialized(FastIndexedSeq(Tlen), cb, region), "LW_T").asNDArray
 
   def reset(cb: EmitCodeBuilder): Unit = {
     cb.assign(curSize, 0L)
