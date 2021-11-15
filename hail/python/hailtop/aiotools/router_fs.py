@@ -1,10 +1,9 @@
-from typing import Any, Optional, List, Set, AsyncIterator, Dict, AsyncContextManager, KeysView
+from typing import Any, Optional, List, Set, AsyncIterator, Dict, AsyncContextManager
 import asyncio
 import urllib.parse
 
 from ..aiocloud import aioaws, aioazure, aiogoogle
-from .stream import ReadableStream, WritableStream
-from .fs import AsyncFS, MultiPartCreate, FileStatus, FileListEntry
+from .fs import AsyncFS, MultiPartCreate, FileStatus, FileListEntry, ReadableStream, WritableStream
 from .local_fs import LocalAsyncFS
 
 
@@ -69,9 +68,7 @@ class RouterAsyncFS(AsyncFS):
             self._load_fs(scheme)
 
         fs = self._scheme_fs.get(parsed.scheme)
-        if fs is None:
-            raise ValueError(f"unknown scheme: {parsed.scheme}")
-
+        assert fs is not None
         return fs
 
     async def open(self, url: str) -> ReadableStream:

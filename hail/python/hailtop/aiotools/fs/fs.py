@@ -1,9 +1,9 @@
-from typing import Any, AsyncContextManager, Optional, List, Type, Set, AsyncIterator, Union, Callable
+from typing import Any, AsyncContextManager, Optional, Type, Set, AsyncIterator
 from types import TracebackType
 import abc
 import asyncio
 from hailtop.utils import retry_transient_errors, OnlineBoundedGather2
-from ..stream import ReadableStream, WritableStream
+from .stream import ReadableStream, WritableStream
 from .exceptions import FileAndDirectoryError
 from .constants import FILE, DIR
 
@@ -62,8 +62,8 @@ class MultiPartCreate(abc.ABC):
 
 
 class AsyncFS(abc.ABC):
-    @abc.abstractmethod
     @property
+    @abc.abstractmethod
     def schemes(self) -> Set[str]:
         pass
 

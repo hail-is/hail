@@ -2,6 +2,7 @@ from .fs import AsyncFS, ReadableStream, WritableStream, MultiPartCreate, FileLi
 from .copier import Copier, CopyReport, SourceCopier, SourceReport, Transfer, TransferReport
 from .exceptions import UnexpectedEOFError, FileAndDirectoryError
 from .constants import FILE, DIR
+from .stream import ReadableStream, WritableStream, blocking_readable_stream_to_async, blocking_writable_stream_to_async
 
 __all__ = [
     'AsyncFS',
@@ -13,6 +14,8 @@ __all__ = [
     'TransferReport',
     'ReadableStream',
     'WritableStream',
+    'blocking_readable_stream_to_async',
+    'blocking_writable_stream_to_async',
     'MultiPartCreate',
     'FileListEntry',
     'FileStatus',

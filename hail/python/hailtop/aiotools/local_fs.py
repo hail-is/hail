@@ -11,8 +11,9 @@ import urllib.parse
 
 from hailtop.utils import blocking_to_async
 
-from .stream import ReadableStream, WritableStream, blocking_readable_stream_to_async, blocking_writable_stream_to_async
-from .fs import FileStatus, FileListEntry, MultiPartCreate, AsyncFS, FILE, DIR
+from .fs import (FileStatus, FileListEntry, MultiPartCreate, AsyncFS, FILE, DIR,
+                 ReadableStream, WritableStream, blocking_readable_stream_to_async,
+                 blocking_writable_stream_to_async)
 
 
 class LocalStatFileStatus(FileStatus):
