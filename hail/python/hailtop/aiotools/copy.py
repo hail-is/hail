@@ -5,7 +5,7 @@ import asyncio
 import logging
 import argparse
 from concurrent.futures import ThreadPoolExecutor
-from hailtop.aiotools import RouterAsyncFS, Transfer
+from hailtop.aiotools import RouterAsyncFS, Transfer, Copier
 from hailtop.utils import tqdm
 
 
@@ -67,8 +67,8 @@ async def copy(*,
             async with sema:
                 with tqdm(desc='files', leave=False, position=0, unit='file') as file_pbar, \
                      tqdm(desc='bytes', leave=False, position=1, unit='byte', unit_scale=True, smoothing=0.1) as byte_pbar:
-
-                    copy_report = await fs.copy(
+                    copy_report = await Copier.copy(
+                        fs,
                         sema,
                         transfers,
                         files_listener=make_tqdm_listener(file_pbar),

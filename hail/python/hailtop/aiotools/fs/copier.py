@@ -1,20 +1,18 @@
-from typing import TYPE_CHECKING, Any, Optional, List, Union, Dict, Callable
+from typing import Any, Optional, List, Union, Dict, Callable
 import os
 import os.path
 import asyncio
 import functools
 import humanize
+
 from hailtop.utils import (
     retry_transient_errors, url_basename, url_join, bounded_gather2,
     time_msecs, humanize_timedelta_msecs)
-from .exceptions import FileAndDirectoryError, UnexpectedEOFError
+
 from ..weighted_semaphore import WeightedSemaphore
-
 from .constants import FILE, DIR
-
-if TYPE_CHECKING:
-    from ..router_fs import RouterAsyncFS  # pylint: disable=cyclic-import
-    from .fs import MultiPartCreate, FileStatus  # pylint: disable=cyclic-import
+from .exceptions import FileAndDirectoryError, UnexpectedEOFError
+from .fs import MultiPartCreate, FileStatus, AsyncFS
 
 
 class Transfer:
@@ -178,7 +176,7 @@ class SourceCopier:
     created for each source.
     '''
 
-    def __init__(self, router_fs: 'RouterAsyncFS', xfer_sema: WeightedSemaphore, src: str, dest: str, treat_dest_as: str, dest_type_task):
+    def __init__(self, router_fs: AsyncFS, xfer_sema: WeightedSemaphore, src: str, dest: str, treat_dest_as: str, dest_type_task):
         self.router_fs = router_fs
         self.xfer_sema = xfer_sema
         self.src = src
@@ -254,8 +252,7 @@ class SourceCopier:
             return_exceptions: bool):
         size = await srcstat.size()
 
-        dest_fs = self.router_fs._get_fs(destfile)
-        part_size = dest_fs._copy_part_size()
+        part_size = self.router_fs.copy_part_size(destfile)
 
         if size <= part_size:
             await retry_transient_errors(self._copy_file, source_report, srcfile, size, destfile)
@@ -430,6 +427,20 @@ class Copier:
 
     BUFFER_SIZE = 8 * 1024 * 1024
 
+    @staticmethod
+    async def copy(fs: AsyncFS,
+                   sema: asyncio.Semaphore,
+                   transfer: Union[Transfer, List[Transfer]],
+                   return_exceptions: bool = False,
+                   *,
+                   files_listener: Optional[Callable[[int], None]] = None,
+                   bytes_listener: Optional[Callable[[int], None]] = None) -> CopyReport:
+        copier = Copier(fs)
+        copy_report = CopyReport(transfer, files_listener=files_listener, bytes_listener=bytes_listener)
+        await copier._copy(sema, copy_report, transfer, return_exceptions)
+        copy_report.mark_done()
+        return copy_report
+
     def __init__(self, router_fs):
         self.router_fs = router_fs
         # This is essentially a limit on amount of memory in temporary
@@ -498,7 +509,11 @@ class Copier:
             else:
                 raise e
 
-    async def copy(self, sema: asyncio.Semaphore, copy_report: CopyReport, transfer: Union[Transfer, List[Transfer]], return_exceptions: bool):
+    async def _copy(self,
+                    sema: asyncio.Semaphore,
+                    copy_report: CopyReport,
+                    transfer: Union[Transfer, List[Transfer]],
+                    return_exceptions: bool):
         transfer_report = copy_report._transfer_report
         try:
             if isinstance(transfer, Transfer):

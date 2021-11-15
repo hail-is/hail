@@ -1,4 +1,4 @@
-from typing import Any, Optional, List, Set, AsyncIterator, Dict, AsyncContextManager
+from typing import Any, Optional, List, Set, AsyncIterator, Dict, AsyncContextManager, KeysView
 import asyncio
 import urllib.parse
 
@@ -17,20 +17,17 @@ class RouterAsyncFS(AsyncFS):
                  gcs_kwargs: Optional[Dict[str, Any]] = None,
                  azure_kwargs: Optional[Dict[str, Any]] = None,
                  s3_kwargs: Optional[Dict[str, Any]] = None):
-        scheme_fs = {}
-        schemes = set()
+        scheme_fs: Dict[str, AsyncFS] = {}
 
         filesystems = [] if filesystems is None else filesystems
 
         for fs in filesystems:
             for scheme in fs.schemes:
-                if scheme not in schemes:
+                if scheme not in scheme_fs:
                     scheme_fs[scheme] = fs
-                    schemes.add(scheme)
 
         self._default_scheme = default_scheme
         self._filesystems = filesystems
-        self._schemes = schemes
         self._scheme_fs = scheme_fs
 
         self._local_kwargs = local_kwargs or {}
@@ -40,7 +37,7 @@ class RouterAsyncFS(AsyncFS):
 
     @property
     def schemes(self) -> Set[str]:
-        return self._schemes
+        return set(self._scheme_fs.keys())
 
     def _load_fs(self, scheme: str):
         fs: AsyncFS
@@ -56,7 +53,6 @@ class RouterAsyncFS(AsyncFS):
         else:
             raise ValueError(f'no file system found for scheme {scheme}')
 
-        self._schemes.add(scheme)
         self._scheme_fs[scheme] = fs
         self._filesystems.append(fs)
 
@@ -137,3 +133,7 @@ class RouterAsyncFS(AsyncFS):
     async def close(self) -> None:
         for fs in self._filesystems:
             await fs.close()
+
+    def copy_part_size(self, url: str) -> int:
+        fs = self._get_fs(url)
+        return fs.copy_part_size(url)

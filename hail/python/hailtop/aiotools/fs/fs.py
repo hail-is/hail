@@ -5,8 +5,6 @@ import asyncio
 from hailtop.utils import retry_transient_errors, OnlineBoundedGather2
 from ..stream import ReadableStream, WritableStream
 from .exceptions import FileAndDirectoryError
-from .copier import Copier, CopyReport, Transfer
-
 from .constants import FILE, DIR
 
 
@@ -211,21 +209,7 @@ class AsyncFS(abc.ABC):
                         exc_tb: Optional[TracebackType]) -> None:
         await self.close()
 
-    @staticmethod
-    def _copy_part_size():
+    def copy_part_size(self, url: str) -> int:
         '''Part size when copying using multi-part uploads.  The part size of
         the destination filesystem is used.'''
         return 128 * 1024 * 1024
-
-    async def copy(self,
-                   sema: asyncio.Semaphore,
-                   transfer: Union[Transfer, List[Transfer]],
-                   return_exceptions: bool = False,
-                   *,
-                   files_listener: Optional[Callable[[int], None]] = None,
-                   bytes_listener: Optional[Callable[[int], None]] = None) -> CopyReport:
-        copier = Copier(self)
-        copy_report = CopyReport(transfer, files_listener=files_listener, bytes_listener=bytes_listener)
-        await copier.copy(sema, copy_report, transfer, return_exceptions)
-        copy_report.mark_done()
-        return copy_report

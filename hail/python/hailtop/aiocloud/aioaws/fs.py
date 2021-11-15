@@ -455,7 +455,7 @@ class S3AsyncFS(AsyncFS):
         pass
 
     @staticmethod
-    def _copy_part_size():
+    def copy_part_size(self, url: str) -> int:
         # Because the S3 upload_part API call requires the entire part
         # be loaded into memory, use a smaller part size.
         return 32 * 1024 * 1024
