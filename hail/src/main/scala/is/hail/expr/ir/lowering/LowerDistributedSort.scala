@@ -131,18 +131,18 @@ object LowerDistributedSort {
     val totalNumberOfRows = initialChunks.map(_.size).sum
     val idealNumberOfRowsPerPart = Math.max(1, totalNumberOfRows / inputStage.numPartitions)
 
-    var loopState = LoopState(IndexedSeq(initialSegment), IndexedSeq.empty[SegmentResult])
+    var loopState = LoopState(IndexedSeq(initialSegment), IndexedSeq.empty[SegmentResult], IndexedSeq.empty[SegmentResult])
 
     var i = 0
     val rand = new IRRandomness((math.random() * 1000).toInt)
 
-    while (!loopState.largeSegments.isEmpty) {
+    while (!loopState.largeUnsortedSegments.isEmpty) {
       println(s"Loop iteration ${i}")
 
-      val partitionDataPerSegment = segmentsToPartitionData(loopState.largeSegments, idealNumberOfRowsPerPart)
+      val partitionDataPerSegment = segmentsToPartitionData(loopState.largeUnsortedSegments, idealNumberOfRowsPerPart)
 
       val partitionCountsPerSegment = partitionDataPerSegment.map(oneSegment => oneSegment.map(_._3))
-      assert(partitionCountsPerSegment.size == loopState.largeSegments.size)
+      assert(partitionCountsPerSegment.size == loopState.largeUnsortedSegments.size)
 
       val numSamplesPerPartitionPerSegment = partitionCountsPerSegment.map { partitionCountsForOneSegment =>
         val recordsInSegment = partitionCountsForOneSegment.sum
@@ -203,101 +203,121 @@ object LowerDistributedSort {
 
       val fPivotsBySegmentNumberRunnable = ctx.timer.time("LowerDistributedSort.distributedSort.initialize")(fPerPartStats(ctx.fs, 0, ctx.r))
       val pivotsWithEndpointsGroupedBySegmentNumberAddr = ctx.timer.time("LowerDistributedSort.distributedSort.run")(fPivotsBySegmentNumberRunnable(ctx.r))
-      val pivotsWithEndpointsAndInfoGroupedBySegmentNumber = ctx.timer.time("LowerDistributedSort.distributedSort.toJavaObject")(SafeRow.read(pivotsWithEndpointsGroupedBySegmentNumberP, pivotsWithEndpointsGroupedBySegmentNumberAddr)).asInstanceOf[IndexedSeq[Row]]
+      val pivotsWithEndpointsAndInfoGroupedBySegmentNumber = ctx.timer.time("LowerDistributedSort.distributedSort.toJavaObject")(SafeRow.read(pivotsWithEndpointsGroupedBySegmentNumberP, pivotsWithEndpointsGroupedBySegmentNumberAddr))
+        .asInstanceOf[IndexedSeq[Row]].map(x => (x(0).asInstanceOf[IndexedSeq[Row]], x(1).asInstanceOf[Boolean], x(2).asInstanceOf[Row]))
 
       println(s"Pivots with endpoints groupedBySegmentNumber = ${pivotsWithEndpointsAndInfoGroupedBySegmentNumber}")
       // TODO: Should pull out already sorted segments here.
+      val (sortedSegmentsTuples, unsortedPivotsWithEndpointsAndInfoGroupedBySegmentNumber) = pivotsWithEndpointsAndInfoGroupedBySegmentNumber.zipWithIndex.partition { case ((_, isSorted, _), _) => isSorted}
 
-      val pivotsWithEndpointsGroupedBySegmentNumber = pivotsWithEndpointsAndInfoGroupedBySegmentNumber.map(r => r(0))
+      println(s"Found ${sortedSegmentsTuples.length} sorted segments and ${unsortedPivotsWithEndpointsAndInfoGroupedBySegmentNumber.size} unsorted segments")
 
-      val pivotsWithEndpointsGroupedBySegmentNumberLiteral = Literal(TArray(TArray(newKType)), pivotsWithEndpointsGroupedBySegmentNumber)
+      val sortedSegments = sortedSegmentsTuples.map { case (_, idx) => loopState.largeUnsortedSegments(idx)}
+      val remainingUnsortedSegments = unsortedPivotsWithEndpointsAndInfoGroupedBySegmentNumber.map {case (_, idx) => loopState.largeUnsortedSegments(idx)}
 
-      val tmpPath = ctx.createTmpPath("hail_shuffle_temp")
+      println(s"Intervals of sortedSegments are ${sortedSegments.map(_.interval)}")
+      println(s"Intervals of unsortedSegments are ${remainingUnsortedSegments.map(_.interval)}")
 
-      val partitionDataPerSegmentWithPivotIndex = partitionDataPerSegment.zipWithIndex.map { case (partitionDataForOneSegment, indexIntoPivotsArray) =>
-        partitionDataForOneSegment.map(x => (x._1, x._2, x._3, indexIntoPivotsArray))
-      }
+      val (newBigUnsortedSegments, newSmallSegments) = if (unsortedPivotsWithEndpointsAndInfoGroupedBySegmentNumber.size > 0) {
 
-      val distributeContextsData = partitionDataPerSegmentWithPivotIndex.flatten.zipWithIndex.map { case (part, partIdx) => Row(part._1.last, part._2, partIdx, part._4) }
-      val distributeContexts = ToStream(Literal(TArray(TStruct("segmentIdx" -> TInt32, "files" -> TArray(TString), "partIdx" -> TInt32, "indexIntoPivotsArray" -> TInt32)), distributeContextsData))
-      val distributeGlobals = MakeStruct(IndexedSeq("pivotsWithEndpointsGroupedBySegmentIdx" -> pivotsWithEndpointsGroupedBySegmentNumberLiteral))
+        val pivotsWithEndpointsGroupedBySegmentNumber = unsortedPivotsWithEndpointsAndInfoGroupedBySegmentNumber.map{ case (r, _) => r._1 }
 
-      val distribute = cdaIR(distributeContexts, distributeGlobals) { (ctxRef, globalsRef) =>
-        val segmentIdx = GetField(ctxRef, "segmentIdx")
-        val indexIntoPivotsArray = GetField(ctxRef, "indexIntoPivotsArray")
-        val pivotsWithEndpointsGroupedBySegmentIdx = GetField(globalsRef, "pivotsWithEndpointsGroupedBySegmentIdx")
-        val path = invoke("concat", TString, Str(tmpPath + "_"), invoke("str", TString, GetField(ctxRef, "partIdx")))
-        val filenames = GetField(ctxRef, "files")
-        val partitionStream = flatMapIR(ToStream(filenames)) { fileName =>
-          ReadPartition(fileName, spec._vType, reader)
+        val pivotsWithEndpointsGroupedBySegmentNumberLiteral = Literal(TArray(TArray(newKType)), pivotsWithEndpointsGroupedBySegmentNumber)
+
+        val tmpPath = ctx.createTmpPath("hail_shuffle_temp")
+        val unsortedPartitionDataPerSegment = unsortedPivotsWithEndpointsAndInfoGroupedBySegmentNumber.map { case (_, idx) => partitionDataPerSegment(idx)}
+
+        val partitionDataPerSegmentWithPivotIndex = unsortedPartitionDataPerSegment.zipWithIndex.map { case (partitionDataForOneSegment, indexIntoPivotsArray) =>
+          partitionDataForOneSegment.map(x => (x._1, x._2, x._3, indexIntoPivotsArray))
         }
-        MakeTuple.ordered(IndexedSeq(segmentIdx, StreamDistribute(partitionStream, ArrayRef(pivotsWithEndpointsGroupedBySegmentIdx, indexIntoPivotsArray), path, spec)))
-      }
 
-      // Now, execute distribute
-      val (Some(PTypeReferenceSingleCodeType(resultPType)), f) = ctx.timer.time("LowerDistributedSort.distributedSort.compile")(Compile[AsmFunction1RegionLong](ctx,
-        FastIndexedSeq(),
-        FastIndexedSeq(classInfo[Region]), LongInfo,
-        distribute,
-        print = None,
-        optimize = true))
+        val distributeContextsData = partitionDataPerSegmentWithPivotIndex.flatten.zipWithIndex.map { case (part, partIdx) => Row(part._1.last, part._2, partIdx, part._4) }
+        val distributeContexts = ToStream(Literal(TArray(TStruct("segmentIdx" -> TInt32, "files" -> TArray(TString), "partIdx" -> TInt32, "indexIntoPivotsArray" -> TInt32)), distributeContextsData))
+        val distributeGlobals = MakeStruct(IndexedSeq("pivotsWithEndpointsGroupedBySegmentIdx" -> pivotsWithEndpointsGroupedBySegmentNumberLiteral))
 
-      val fRunnable = ctx.timer.time("LowerDistributedSort.distributedSort.initialize")(f(ctx.fs, 0, ctx.r))
-      val resultAddress = ctx.timer.time("LowerDistributedSort.distributedSort.run")(fRunnable(ctx.r))
-      val distributeResult = ctx.timer.time("LowerDistributedSort.distributedSort.toJavaObject")(SafeRow.read(resultPType, resultAddress))
-        .asInstanceOf[IndexedSeq[Row]].map(row => (
-        row(0).asInstanceOf[Int],
-        row(1).asInstanceOf[IndexedSeq[Row]].map(innerRow => (
-          innerRow(0).asInstanceOf[Interval],
-          innerRow(1).asInstanceOf[String],
-          innerRow(2).asInstanceOf[Int]))))
-      println("Distributed successfully")
+        val distribute = cdaIR(distributeContexts, distributeGlobals) { (ctxRef, globalsRef) =>
+          val segmentIdx = GetField(ctxRef, "segmentIdx")
+          val indexIntoPivotsArray = GetField(ctxRef, "indexIntoPivotsArray")
+          val pivotsWithEndpointsGroupedBySegmentIdx = GetField(globalsRef, "pivotsWithEndpointsGroupedBySegmentIdx")
+          val path = invoke("concat", TString, Str(tmpPath + "_"), invoke("str", TString, GetField(ctxRef, "partIdx")))
+          val filenames = GetField(ctxRef, "files")
+          val partitionStream = flatMapIR(ToStream(filenames)) { fileName =>
+            ReadPartition(fileName, spec._vType, reader)
+          }
+          MakeTuple.ordered(IndexedSeq(segmentIdx, StreamDistribute(partitionStream, ArrayRef(pivotsWithEndpointsGroupedBySegmentIdx, indexIntoPivotsArray), path, spec)))
+        }
 
-      // distributeResult is a numPartitions length array of arrays, where each inner array tells me what
-      // files were written to for each partition, as well as the number of entries in that file.
+        // Now, execute distribute
+        val (Some(PTypeReferenceSingleCodeType(resultPType)), f) = ctx.timer.time("LowerDistributedSort.distributedSort.compile")(Compile[AsmFunction1RegionLong](ctx,
+          FastIndexedSeq(),
+          FastIndexedSeq(classInfo[Region]), LongInfo,
+          distribute,
+          print = None,
+          optimize = true))
 
+        val fRunnable = ctx.timer.time("LowerDistributedSort.distributedSort.initialize")(f(ctx.fs, 0, ctx.r))
+        val resultAddress = ctx.timer.time("LowerDistributedSort.distributedSort.run")(fRunnable(ctx.r))
+        val distributeResult = ctx.timer.time("LowerDistributedSort.distributedSort.toJavaObject")(SafeRow.read(resultPType, resultAddress))
+          .asInstanceOf[IndexedSeq[Row]].map(row => (
+          row(0).asInstanceOf[Int],
+          row(1).asInstanceOf[IndexedSeq[Row]].map(innerRow => (
+            innerRow(0).asInstanceOf[Interval],
+            innerRow(1).asInstanceOf[String],
+            innerRow(2).asInstanceOf[Int]))))
+        println("Distributed successfully")
 
-      val protoDataPerSegment = orderedGroupBy[(Int, IndexedSeq[(Interval, String, Int)]), Int](distributeResult, x => x._1).map { case (_, seqOfChunkData) => seqOfChunkData.map(_._2) }
-      // Need to zip the segment history onto these guys.
+        // distributeResult is a numPartitions length array of arrays, where each inner array tells me what
+        // files were written to for each partition, as well as the number of entries in that file.
 
-      // TODO: Probably can't use largeSegments once we deal with presorted segments.
-      val transposedIntoNewSegments = protoDataPerSegment.zip(loopState.largeSegments.map(_.indices)).flatMap { case (oneOldSegment, priorIndices) =>
-        val headLen = oneOldSegment.head.length
-        assert(oneOldSegment.forall(x => x.length == headLen))
-        (0 until headLen).map(colIdx => (oneOldSegment.map(row => row(colIdx)), priorIndices))
-      }
+        val protoDataPerSegment = orderedGroupBy[(Int, IndexedSeq[(Interval, String, Int)]), Int](distributeResult, x => x._1).map { case (_, seqOfChunkData) => seqOfChunkData.map(_._2) }
+        // Need to zip the segment history onto these guys.
 
-      val dataPerSegment = transposedIntoNewSegments.zipWithIndex.map { case ((chunksWithSameInterval, priorIndices), newIndex) =>
-        val interval = chunksWithSameInterval.head._1
-        val chunks = chunksWithSameInterval.map(chunk => Chunk(chunk._2, chunk._3))
-        val newSegmentIndices = priorIndices :+ newIndex
-        SegmentResult(newSegmentIndices, interval, chunks)
-      }
+        println("About to transpose problematically.")
+        // TODO: Probably can't use largeSegments once we deal with presorted segments.
+        val transposedIntoNewSegments = protoDataPerSegment.zip(remainingUnsortedSegments.map(_.indices)).flatMap { case (oneOldSegment, priorIndices) =>
+          val headLen = oneOldSegment.head.length
+          assert(oneOldSegment.forall(x => x.length == headLen))
+          (0 until headLen).map(colIdx => (oneOldSegment.map(row => row(colIdx)), priorIndices))
+        }
 
-      // Now I need to figure out how many partitions to allocate to each segment.
-      val (newBigSegments, newSmallSegments) = dataPerSegment.partition { sr =>
-        sr.chunks.map(_.size).sum > sizeCutoff && (sr.interval.left.point != sr.interval.right.point)
-      }
-      loopState = LoopState(newBigSegments, loopState.smallSegments ++ newSmallSegments)
-      println(s"LoopState: Big = ${loopState.largeSegments.size}, small = ${loopState.smallSegments.size}")
+        val dataPerSegment = transposedIntoNewSegments.zipWithIndex.map { case ((chunksWithSameInterval, priorIndices), newIndex) =>
+          val interval = chunksWithSameInterval.head._1
+          val chunks = chunksWithSameInterval.map(chunk => Chunk(chunk._2, chunk._3))
+          val newSegmentIndices = priorIndices :+ newIndex
+          SegmentResult(newSegmentIndices, interval, chunks)
+        }
+
+        // Now I need to figure out how many partitions to allocate to each segment.
+        dataPerSegment.partition { sr =>
+          sr.chunks.map(_.size).sum > sizeCutoff && (sr.interval.left.point != sr.interval.right.point)
+        }
+      } else { (IndexedSeq.empty[SegmentResult], IndexedSeq.empty[SegmentResult]) }
+      loopState = LoopState(newBigUnsortedSegments, loopState.largeSortedSegments ++ sortedSegments, loopState.smallSegments ++ newSmallSegments)
+      println(s"LoopState: \n Big Unsorted = ${loopState.largeUnsortedSegments.map(_.interval)}, \n Big Sorted = ${loopState.largeSortedSegments.map(_.interval)}, \n small = ${loopState.smallSegments.map(_.interval)}")
 
       i = i + 1
     }
 
-    val unsortedSegments = loopState.smallSegments
-    val sortedSegments = unsortedSegments.sortWith{ (sr1, sr2) => lessThanForSegmentIndices(sr1.indices, sr2.indices)}
+    val unorderedSegments = loopState.smallSegments.map(x => (x, false)) ++ loopState.largeSortedSegments.map(x => (x, true))
+    val orderedSegments = unorderedSegments.sortWith{ (srt1, srt2) => lessThanForSegmentIndices(srt1._1.indices, srt2._1.indices)}
 
-    val contextData = sortedSegments.map(segment => Row(segment.chunks.map(chunk => chunk.filename)))
-    val contexts = ToStream(Literal(TArray(TStruct("files" -> TArray(TString))), contextData))
-    val partitioner = new RVDPartitioner(newKType, sortedSegments.map(_.interval))
+    println(s" Partitions are ${orderedSegments.map(_._1.interval)}")
+    // Great, now the problem is that they aren't broken up evenly, let's try doing that again.
+
+    val contextData = orderedSegments.map { case (segment, isSorted) => Row(segment.chunks.map(chunk => chunk.filename), isSorted) }
+    val contexts = ToStream(Literal(TArray(TStruct("files" -> TArray(TString), "isSorted" -> TBoolean)), contextData))
+    val partitioner = new RVDPartitioner(newKType, orderedSegments.map{ case (segment, _) => segment.interval})
     val finalTs = TableStage(initialGlobalsLiteral, partitioner, TableStageDependency.none, contexts, { ctxRef =>
       val filenames = GetField(ctxRef, "files")
-      val unsortedPartitionStream = flatMapIR(ToStream(filenames)) { fileName =>
+      val partitionInputStream = flatMapIR(ToStream(filenames)) { fileName =>
         ReadPartition(fileName, spec._vType, reader)
       }
-      ToStream(sortIR(unsortedPartitionStream) { (refLeft, refRight) =>
-        ApplyComparisonOp(LT(newKType), SelectFields(refLeft, newKType.fields.map(_.name)), SelectFields(refRight, newKType.fields.map(_.name)))
-      })
+      If(GetField(ctxRef, "isSorted"),
+        partitionInputStream,
+        ToStream(sortIR(partitionInputStream) { (refLeft, refRight) =>
+          ApplyComparisonOp(LT(newKType), SelectFields(refLeft, newKType.fields.map(_.name)), SelectFields(refRight, newKType.fields.map(_.name)))
+        })
+      )
     })
 
     finalTs
@@ -422,14 +442,14 @@ object LowerDistributedSort {
       bindIR(GetField(aggFoldSortedAccumRef1, "lastKeySeen")) { lastKeySeenRef =>
         If(!GetField(aggFoldSortedAccumRef1, "haveSeenAny"),
           MakeStruct(Seq("lastKeySeen" -> keyOfCurElementRef, "sortedSoFar" -> true, "haveSeenAny" -> true)),
-          If (ApplyComparisonOp(LTEQ(keyType), keyOfCurElementRef, lastKeySeenRef),
+          If (ApplyComparisonOp(LTEQ(keyType), lastKeySeenRef, keyOfCurElementRef),
             MakeStruct(Seq("lastKeySeen" -> keyOfCurElementRef, "sortedSoFar" -> GetField(aggFoldSortedAccumRef1, "sortedSoFar"), "haveSeenAny" -> true)),
             MakeStruct(Seq("lastKeySeen" -> keyOfCurElementRef, "sortedSoFar" -> false, "haveSeenAny" -> true))
           )
         )
       }
     }
-
+    println(s"keyFields are ${keyFields}")
     val isSortedComb = aggFoldSortedAccumRef1 // Do nothing, as this will never be called in a StreamAgg
 
 
@@ -459,4 +479,4 @@ object LowerDistributedSort {
 
 case class Chunk(filename: String, size: Int)
 case class SegmentResult(indices: IndexedSeq[Int], interval: Interval, chunks: IndexedSeq[Chunk])
-case class LoopState(largeSegments: IndexedSeq[SegmentResult], smallSegments: IndexedSeq[SegmentResult])
+case class LoopState(largeUnsortedSegments: IndexedSeq[SegmentResult], largeSortedSegments: IndexedSeq[SegmentResult], smallSegments: IndexedSeq[SegmentResult])
