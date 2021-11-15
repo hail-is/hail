@@ -214,20 +214,24 @@ object LowerDistributedSort {
 
       val tmpPath = ctx.createTmpPath("hail_shuffle_temp")
 
-      val distributeContextsData = partitionDataPerSegment.flatten.zipWithIndex.map { case (part, partIdx) => Row(part._1.last, part._2, partIdx, part._4) }
-      val distributeContexts = ToStream(Literal(TArray(TStruct("segmentIdx" -> TInt32, "files" -> TArray(TString), "partIdx" -> TInt32, "largeSegmentIdx" -> TInt32)), distributeContextsData))
+      val partitionDataPerSegmentWithPivotIndex = partitionDataPerSegment.zipWithIndex.map { case (partitionDataForOneSegment, indexIntoPivotsArray) =>
+        partitionDataForOneSegment.map(x => (x._1, x._2, x._3, indexIntoPivotsArray))
+      }
+
+      val distributeContextsData = partitionDataPerSegmentWithPivotIndex.flatten.zipWithIndex.map { case (part, partIdx) => Row(part._1.last, part._2, partIdx, part._4) }
+      val distributeContexts = ToStream(Literal(TArray(TStruct("segmentIdx" -> TInt32, "files" -> TArray(TString), "partIdx" -> TInt32, "indexIntoPivotsArray" -> TInt32)), distributeContextsData))
       val distributeGlobals = MakeStruct(IndexedSeq("pivotsWithEndpointsGroupedBySegmentIdx" -> pivotsWithEndpointsGroupedBySegmentNumberLiteral))
 
       val distribute = cdaIR(distributeContexts, distributeGlobals) { (ctxRef, globalsRef) =>
         val segmentIdx = GetField(ctxRef, "segmentIdx")
-        val largeSegmentIdx = GetField(ctxRef, "largeSegmentIdx")
+        val indexIntoPivotsArray = GetField(ctxRef, "indexIntoPivotsArray")
         val pivotsWithEndpointsGroupedBySegmentIdx = GetField(globalsRef, "pivotsWithEndpointsGroupedBySegmentIdx")
         val path = invoke("concat", TString, Str(tmpPath + "_"), invoke("str", TString, GetField(ctxRef, "partIdx")))
         val filenames = GetField(ctxRef, "files")
         val partitionStream = flatMapIR(ToStream(filenames)) { fileName =>
           ReadPartition(fileName, spec._vType, reader)
         }
-        MakeTuple.ordered(IndexedSeq(segmentIdx, StreamDistribute(partitionStream, ArrayRef(pivotsWithEndpointsGroupedBySegmentIdx, largeSegmentIdx), path, spec)))
+        MakeTuple.ordered(IndexedSeq(segmentIdx, StreamDistribute(partitionStream, ArrayRef(pivotsWithEndpointsGroupedBySegmentIdx, indexIntoPivotsArray), path, spec)))
       }
 
       // Now, execute distribute
@@ -252,18 +256,22 @@ object LowerDistributedSort {
       // distributeResult is a numPartitions length array of arrays, where each inner array tells me what
       // files were written to for each partition, as well as the number of entries in that file.
 
-      val protoDataPerSegment = orderedGroupBy[(Int, IndexedSeq[(Interval, String, Int)]), Int](distributeResult, x => x._1).map { case (_, seqOfChunkData) => seqOfChunkData.map(_._2) }
 
-      val transposedIntoNewSegments = protoDataPerSegment.flatMap { oneOldSegment =>
+      val protoDataPerSegment = orderedGroupBy[(Int, IndexedSeq[(Interval, String, Int)]), Int](distributeResult, x => x._1).map { case (_, seqOfChunkData) => seqOfChunkData.map(_._2) }
+      // Need to zip the segment history onto these guys.
+
+      // TODO: Probably can't use largeSegments once we deal with presorted segments.
+      val transposedIntoNewSegments = protoDataPerSegment.zip(loopState.largeSegments.map(_.indices)).flatMap { case (oneOldSegment, priorIndices) =>
         val headLen = oneOldSegment.head.length
         assert(oneOldSegment.forall(x => x.length == headLen))
-        (0 until headLen).map(colIdx => oneOldSegment.map(row => row(colIdx)))
+        (0 until headLen).map(colIdx => (oneOldSegment.map(row => row(colIdx)), priorIndices))
       }
 
-      val dataPerSegment = transposedIntoNewSegments.zipWithIndex.map { case (chunksWithSameInterval, newSegmentIdx) =>
+      val dataPerSegment = transposedIntoNewSegments.zipWithIndex.map { case ((chunksWithSameInterval, priorIndices), newIndex) =>
         val interval = chunksWithSameInterval.head._1
         val chunks = chunksWithSameInterval.map(chunk => Chunk(chunk._2, chunk._3))
-        SegmentResult(IndexedSeq(newSegmentIdx), interval, chunks)
+        val newSegmentIndices = priorIndices :+ newIndex
+        SegmentResult(newSegmentIndices, interval, chunks)
       }
 
       // Now I need to figure out how many partitions to allocate to each segment.
@@ -320,27 +328,27 @@ object LowerDistributedSort {
     result.result().toIndexedSeq
   }
 
-  def segmentsToPartitionData(segments: IndexedSeq[SegmentResult], idealNumberOfRowsPerPart: Int): IndexedSeq[IndexedSeq[(IndexedSeq[Int], IndexedSeq[String], Int, Int)]] = {
-    segments.zipWithIndex.map { case (sr, largeSegmentIdx) =>
+  def segmentsToPartitionData(segments: IndexedSeq[SegmentResult], idealNumberOfRowsPerPart: Int): IndexedSeq[IndexedSeq[(IndexedSeq[Int], IndexedSeq[String], Int)]] = {
+    segments.map { sr =>
       val chunkDataSizes = sr.chunks.map(_.size)
       val segmentSize = chunkDataSizes.sum
       val numParts = (segmentSize + idealNumberOfRowsPerPart - 1) / idealNumberOfRowsPerPart
       var currentPartSize = 0
-      val groupedIntoParts = new ArrayBuffer[(IndexedSeq[Int], IndexedSeq[String], Int, Int)](numParts)
+      val groupedIntoParts = new ArrayBuffer[(IndexedSeq[Int], IndexedSeq[String], Int)](numParts)
       val currentFiles = new ArrayBuffer[String]()
       sr.chunks.foreach { chunk =>
         if (chunk.size > 0) {
           currentFiles.append(chunk.filename)
           currentPartSize += chunk.size
           if (currentPartSize > idealNumberOfRowsPerPart) {
-            groupedIntoParts.append((sr.indices, currentFiles.result().toIndexedSeq, currentPartSize, largeSegmentIdx))
+            groupedIntoParts.append((sr.indices, currentFiles.result().toIndexedSeq, currentPartSize))
             currentFiles.clear()
             currentPartSize = 0
           }
         }
       }
       if (!currentFiles.isEmpty) {
-        groupedIntoParts.append((sr.indices, currentFiles.result().toIndexedSeq, currentPartSize, largeSegmentIdx))
+        groupedIntoParts.append((sr.indices, currentFiles.result().toIndexedSeq, currentPartSize))
       }
       groupedIntoParts.result()
     }
