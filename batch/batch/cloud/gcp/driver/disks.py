@@ -44,6 +44,6 @@ async def delete_orphaned_disks(compute_client: aiogoogle.GoogleComputeClient, z
             except asyncio.CancelledError:
                 raise
             except Exception as e:
-                if isinstance(e, aiohttp.ClientResponseError) and e.status == 404:
+                if isinstance(e, aiohttp.ClientResponseError) and e.status == 404:  # pylint: disable=no-member
                     continue
                 log.exception(f'error while deleting orphaned disk {disk_name}')

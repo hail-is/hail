@@ -28,7 +28,7 @@ async def delete_orphaned_nics(
             except asyncio.CancelledError:
                 raise
             except Exception as e:
-                if isinstance(e, aiohttp.ClientResponseError) and e.status == 404:
+                if isinstance(e, aiohttp.ClientResponseError) and e.status == 404:  # pylint: disable=no-member
                     continue
                 log.exception(f'error while deleting {resource_name}')
 
@@ -52,6 +52,6 @@ async def delete_orphaned_public_ips(
             except asyncio.CancelledError:
                 raise
             except Exception as e:
-                if isinstance(e, aiohttp.ClientResponseError) and e.status == 404:
+                if isinstance(e, aiohttp.ClientResponseError) and e.status == 404:  # pylint: disable=no-member
                     continue
                 log.exception(f'error while deleting {resource_name}')
