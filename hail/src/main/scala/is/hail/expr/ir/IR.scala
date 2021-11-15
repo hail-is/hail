@@ -90,33 +90,37 @@ final case class Literal(_typ: Type, value: Annotation) extends IR {
 }
 
 object EncodedLiteral {
-  def apply(codec: AbstractTypedCodecSpec, value: Array[Byte]): EncodedLiteral = {
-    EncodedLiteral(codec, new WrappedByteArray(value))
+  def apply(codec: AbstractTypedCodecSpec, value: Array[Array[Byte]]): EncodedLiteral = {
+    EncodedLiteral(codec, new WrappedByteArrays(value))
   }
 
   def fromPTypeAndAddress(pt: PType, addr: Long, ctx: ExecuteContext): IR = {
     val etype = EType.defaultFromPType(pt)
     val codec = TypedCodecSpec(etype, pt.virtualType, BufferSpec.defaultUncompressed)
-    val bytes = codec.encode(ctx, pt, addr)
+    val bytes = codec.encodeArrays(ctx, pt, addr)
     EncodedLiteral(codec, bytes)
   }
 }
 
-final case class EncodedLiteral(codec: AbstractTypedCodecSpec, value: WrappedByteArray) extends IR {
+final case class EncodedLiteral(codec: AbstractTypedCodecSpec, value: WrappedByteArrays) extends IR {
   require(!CanEmit(codec.encodedVirtualType))
   require(value != null)
 }
 
-class WrappedByteArray(val ba: Array[Byte]) {
-  override def hashCode(): Int = java.util.Arrays.hashCode(ba)
+class WrappedByteArrays(val ba: Array[Array[Byte]]) {
+  override def hashCode(): Int = {
+    ba.foldLeft(31) { (h, b) => 37 * h + java.util.Arrays.hashCode(b) }
+  }
 
   override def equals(obj: Any): Boolean = {
-    if (!obj.isInstanceOf[WrappedByteArray]) {
-      false
-    }
-    else {
-      val other = obj.asInstanceOf[WrappedByteArray]
-      java.util.Arrays.equals(ba, other.ba)
+    this.eq(obj.asInstanceOf[AnyRef]) || {
+      if (!obj.isInstanceOf[WrappedByteArrays]) {
+        false
+      }
+      else {
+        val other = obj.asInstanceOf[WrappedByteArrays]
+        ba.length == other.ba.length && (ba, other.ba).zipped.forall(java.util.Arrays.equals)
+      }
     }
   }
 }

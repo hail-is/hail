@@ -8,7 +8,8 @@ import is.hail.types.encoded.EType
 import is.hail.types.physical.PType
 import is.hail.types.virtual.Type
 import is.hail.sparkextras.ContextRDD
-import is.hail.utils.using
+import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
+import is.hail.utils.{ArrayOfByteArrayOutputStream, using}
 import org.apache.spark.rdd.RDD
 
 trait AbstractTypedCodecSpec extends Spec {
@@ -38,8 +39,20 @@ trait AbstractTypedCodecSpec extends Spec {
     baos.toByteArray
   }
 
+  def encodeArrays(ctx: ExecuteContext, t: PType, offset: Long): Array[Array[Byte]] = {
+    val baos = new ArrayOfByteArrayOutputStream()
+    using(buildEncoder(ctx, t)(baos))(_.writeRegionValue(offset))
+    baos.toByteArrays()
+  }
+
   def decode(ctx: ExecuteContext, requestedType: Type, bytes: Array[Byte], region: Region): (PType, Long) = {
     val bais = new ByteArrayInputStream(bytes)
+    val (pt, dec) = buildDecoder(ctx, requestedType)
+    (pt, dec(bais).readRegionValue(region))
+  }
+
+  def decodeArrays(ctx: ExecuteContext, requestedType: Type, bytes: Array[Array[Byte]], region: Region): (PType, Long) = {
+    val bais = new ArrayOfByteArrayInputStream(bytes)
     val (pt, dec) = buildDecoder(ctx, requestedType)
     (pt, dec(bais).readRegionValue(region))
   }
