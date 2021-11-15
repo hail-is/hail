@@ -175,11 +175,11 @@ class NetworkNamespace:
         self.veth_job = self.network_ns_name + '-job'
 
         if private:
-            self.host_ip = f'10.0.{subnet_index}.10'
-            self.job_ip = f'10.0.{subnet_index}.11'
+            self.host_ip = f'172.20.{subnet_index}.10'
+            self.job_ip = f'172.20.{subnet_index}.11'
         else:
-            self.host_ip = f'10.1.{subnet_index}.10'
-            self.job_ip = f'10.1.{subnet_index}.11'
+            self.host_ip = f'172.21.{subnet_index}.10'
+            self.job_ip = f'172.21.{subnet_index}.11'
 
         self.port = None
         self.host_port = None

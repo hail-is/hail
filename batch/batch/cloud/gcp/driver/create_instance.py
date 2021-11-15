@@ -7,8 +7,7 @@ from shlex import quote as shq
 
 from gear.cloud_config import get_global_config
 
-from ....batch_configuration import (DOCKER_ROOT_IMAGE, DOCKER_PREFIX, DEFAULT_NAMESPACE,
-                                     INTERNAL_GATEWAY_IP)
+from ....batch_configuration import DOCKER_ROOT_IMAGE, DOCKER_PREFIX, DEFAULT_NAMESPACE, INTERNAL_GATEWAY_IP
 from ....file_store import FileStore
 from ....instance_config import InstanceConfig
 from ...resource_utils import unreserved_worker_data_disk_size_gib
@@ -182,14 +181,14 @@ DOCKER_PREFIX=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.int
 
 INTERNAL_GATEWAY_IP=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/internal_ip")
 
-# private job network = 10.0.0.0/16
-# public job network = 10.1.0.0/16
+# private job network = 172.20.0.0/16
+# public job network = 172.21.0.0/16
 # [all networks] Rewrite traffic coming from containers to masquerade as the host
-iptables --table nat --append POSTROUTING --source 10.0.0.0/15 --jump MASQUERADE
+iptables --table nat --append POSTROUTING --source 172.20.0.0/15 --jump MASQUERADE
 
 # [public]
 # Block public traffic to the metadata server
-iptables --append FORWARD --source 10.1.0.0/16 --destination 169.254.169.254 --jump DROP
+iptables --append FORWARD --source 172.21.0.0/16 --destination 169.254.169.254 --jump DROP
 # But allow the internal gateway
 iptables --append FORWARD --destination $INTERNAL_GATEWAY_IP --jump ACCEPT
 # And this worker
