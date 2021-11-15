@@ -2358,6 +2358,10 @@ steps:
         script: /io/sql/add-instance-config.sql
       - name: cloud-agnostic
         script: /io/sql/cloud-agnostic.sql
+      - name: support-azure
+        script: /io/sql/support-azure.sql
+      - name: add-azure-tables
+        script: /io/sql/add_azure_tables.py
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

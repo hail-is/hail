@@ -92,11 +92,11 @@ async def main() -> None:
     if args.verbose:
         logging.basicConfig()
         logging.root.setLevel(logging.INFO)
-    requster_pays_project = json.loads(args.requester_pays_project)
+    requester_pays_project = json.loads(args.requester_pays_project)
     files = json.loads(args.files)
 
     await copy(
-        requster_pays_project,
+        requester_pays_project,
         [Transfer(f['from'], f['to'], treat_dest_as=Transfer.DEST_IS_TARGET) for f in files]
     )
 

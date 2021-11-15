@@ -30,6 +30,8 @@ locals {
   internal_ip = "10.128.255.254"
 }
 
+data "azurerm_subscription" "primary" {}
+
 data "azurerm_resource_group" "rg" {
   name = var.az_resource_group_name
 }
@@ -64,6 +66,13 @@ resource "azurerm_subnet" "db_subnet" {
   enforce_private_link_endpoint_network_policies = true
 }
 
+resource "azurerm_log_analytics_workspace" "logs" {
+  name                = "${data.azurerm_resource_group.rg.name}-logs"
+  location            = data.azurerm_resource_group.rg.location
+  resource_group_name = data.azurerm_resource_group.rg.name
+  retention_in_days   = 30
+}
+
 resource "azurerm_kubernetes_cluster" "vdc" {
   name                = "vdc"
   resource_group_name = data.azurerm_resource_group.rg.name
@@ -80,6 +89,13 @@ resource "azurerm_kubernetes_cluster" "vdc" {
 
   identity {
     type = "SystemAssigned"
+  }
+
+  addon_profile {
+    oms_agent {
+      enabled = true
+      log_analytics_workspace_id = azurerm_log_analytics_workspace.logs.id
+    }
   }
 }
 
@@ -177,6 +193,15 @@ resource "azurerm_mysql_server" "db" {
 
   ssl_enforcement_enabled       = true
   public_network_access_enabled = false
+}
+
+# Without this setting batch is not permitted to create
+# MySQL functions since it is not SUPER
+resource "azurerm_mysql_configuration" "example" {
+  name                = "log_bin_trust_function_creators"
+  resource_group_name = data.azurerm_resource_group.rg.name
+  server_name         = azurerm_mysql_server.db.name
+  value               = "ON"
 }
 
 data "http" "db_ca_cert" {
@@ -293,6 +318,12 @@ resource "azurerm_role_assignment" "batch_worker_batch_account_contributor" {
   principal_id         = azurerm_user_assigned_identity.batch_worker.principal_id
 }
 
+resource "azurerm_role_assignment" "batch_worker_virtual_machine_contributor" {
+  scope                = data.azurerm_subscription.primary.id
+  role_definition_name = "Virtual Machine Contributor"
+  principal_id         = azurerm_user_assigned_identity.batch_worker.principal_id
+}
+
 resource "azurerm_storage_account" "test" {
   name                     = "${data.azurerm_resource_group.rg.name}test"
   resource_group_name      = data.azurerm_resource_group.rg.name
@@ -365,6 +396,30 @@ module "batch_sp" {
   source = "./service_principal"
   application_id = azuread_application.batch.application_id
   object_id      = azuread_application.batch.object_id
+}
+
+resource "azurerm_role_assignment" "batch_compute_contributor" {
+  scope                = data.azurerm_subscription.primary.id
+  role_definition_name = "Virtual Machine Contributor"
+  principal_id         = module.batch_sp.principal_id
+}
+
+resource "azurerm_role_assignment" "batch_network_contributor" {
+  scope                = data.azurerm_resource_group.rg.id
+  role_definition_name = "Network Contributor"
+  principal_id         = module.batch_sp.principal_id
+}
+
+resource "azurerm_role_assignment" "batch_shared_gallery_reader" {
+  scope                = azurerm_shared_image_gallery.batch.id
+  role_definition_name = "Reader"
+  principal_id         = module.batch_sp.principal_id
+}
+
+resource "azurerm_role_assignment" "batch_managed_identity_operator" {
+  scope                = data.azurerm_resource_group.rg.id
+  role_definition_name = "Managed Identity Operator"
+  principal_id         = module.batch_sp.principal_id
 }
 
 resource "azuread_application" "benchmark" {

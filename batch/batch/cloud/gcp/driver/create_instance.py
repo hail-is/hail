@@ -195,8 +195,8 @@ iptables --append FORWARD --destination $INTERNAL_GATEWAY_IP --jump ACCEPT
 # And this worker
 iptables --append FORWARD --destination $IP_ADDRESS --jump ACCEPT
 # Forbid outgoing requests to cluster-internal IP addresses
-ENS_DEVICE=$(ip link list | grep ens | awk -F": " '{{ print $2 }}')
-iptables --append FORWARD --out-interface $ENS_DEVICE ! --destination 10.128.0.0/16 --jump ACCEPT
+INTERNET_INTERFACE=$(ip link list | grep ens | awk -F": " '{{ print $2 }}')
+iptables --append FORWARD --out-interface $INTERNET_INTERFACE ! --destination 10.128.0.0/16 --jump ACCEPT
 
 
 # Setup fluentd
@@ -286,6 +286,7 @@ docker run \
 -e MAX_IDLE_TIME_MSECS=$MAX_IDLE_TIME_MSECS \
 -e BATCH_WORKER_IMAGE=$BATCH_WORKER_IMAGE \
 -e BATCH_WORKER_IMAGE_ID=$BATCH_WORKER_IMAGE_ID \
+-e INTERNET_INTERFACE=$INTERNET_INTERFACE \
 -e UNRESERVED_WORKER_DATA_DISK_SIZE_GB=$UNRESERVED_WORKER_DATA_DISK_SIZE_GB \
 -e INTERNAL_GATEWAY_IP=$INTERNAL_GATEWAY_IP \
 -v /var/run/docker.sock:/var/run/docker.sock \

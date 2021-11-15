@@ -1,16 +1,18 @@
 from typing import Dict
 import base64
+import json
 
 from ....worker.credentials import CloudUserCredentials
 
 
-class GCPUserCredentials(CloudUserCredentials):
+class AzureUserCredentials(CloudUserCredentials):
     def __init__(self, data: Dict[str, bytes]):
         self._data = data
+        self._credentials = json.loads(base64.b64decode(data['key.json']).decode())
 
     @property
     def secret_name(self) -> str:
-        return 'gsa-key'
+        return 'azure-credentials'
 
     @property
     def secret_data(self) -> Dict[str, bytes]:
@@ -22,19 +24,19 @@ class GCPUserCredentials(CloudUserCredentials):
 
     @property
     def cloud_env_name(self) -> str:
-        return 'GOOGLE_APPLICATION_CREDENTIALS'
+        return 'AZURE_APPLICATION_CREDENTIALS'
 
     @property
     def hail_env_name(self) -> str:
-        return 'HAIL_GSA_KEY_FILE'
+        return 'HAIL_AZURE_CREDENTIAL_FILE'
 
     @property
     def username(self):
-        return '_json_key'
+        return self._credentials['appId']
 
     @property
-    def password(self) -> str:
-        return base64.b64decode(self.secret_data['key.json']).decode()
+    def password(self):
+        return self._credentials['password']
 
     @property
     def mount_path(self):

@@ -27,6 +27,16 @@ resource "kubernetes_secret" "registry_push_credentials" {
   }
 }
 
+resource "kubernetes_secret" "batch_worker_ssh_public_key" {
+  metadata {
+    name = "batch-worker-ssh-public-key"
+  }
+
+  data = {
+    "ssh_rsa.pub" = file("~/.ssh/batch_worker_ssh_rsa.pub")
+  }
+}
+
 resource "kubernetes_secret" "zulip_config" {
   metadata {
     name = "zulip-config"

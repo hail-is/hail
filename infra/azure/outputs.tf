@@ -16,6 +16,8 @@ output "global_config" {
       test_storage_uri = "hail-az://${azurerm_storage_account.test.name}/${azurerm_storage_container.test.name}"
     }
     azure = {
+      # FIXME Just for testing
+      gsuite_organization = "broadinstitute.org"
       azure_resource_group = data.azurerm_resource_group.rg.name
       azure_subscription_id = var.subscription_id
       azure_location = data.azurerm_resource_group.rg.location
