@@ -285,8 +285,7 @@ object LowerDistributedSort {
     }
 
     val unsortedSegments = loopState.smallSegments
-    val keyOrdering = PartitionBoundOrdering.apply(newKType)
-    val sortedSegments = unsortedSegments.sortWith((sr1, sr2) => sr1.interval.isBelow(keyOrdering, sr2.interval))
+    val sortedSegments = unsortedSegments.sortWith{ (sr1, sr2) => lessThanForSegmentIndices(sr1.indices, sr2.indices)}
 
     val contextData = sortedSegments.map(segment => Row(segment.chunks.map(chunk => chunk.filename)))
     val contexts = ToStream(Literal(TArray(TStruct("files" -> TArray(TString))), contextData))
@@ -326,6 +325,20 @@ object LowerDistributedSort {
       result.append((lastKeySeen.get, currentGroup))
     }
     result.result().toIndexedSeq
+  }
+
+  def lessThanForSegmentIndices(i1: IndexedSeq[Int], i2: IndexedSeq[Int]): Boolean = {
+    var idx = 0
+    val minLength = math.min(i1.length, i2.length)
+    while (idx < minLength) {
+      if (i1(idx) != i2(idx)) {
+        return i1(idx) < i2(idx)
+      }
+      idx += 1
+    }
+    // For there to be no difference at this point, they had to be equal whole way. Assert that they're same length.
+    assert(i1.length == i2.length)
+    false
   }
 
   def segmentsToPartitionData(segments: IndexedSeq[SegmentResult], idealNumberOfRowsPerPart: Int): IndexedSeq[IndexedSeq[(IndexedSeq[Int], IndexedSeq[String], Int)]] = {
