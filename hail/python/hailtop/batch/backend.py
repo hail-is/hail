@@ -10,7 +10,6 @@ import copy
 from shlex import quote as shq
 import webbrowser
 import warnings
-from concurrent.futures import ThreadPoolExecutor
 
 from hailtop.config import get_deploy_config, get_user_config
 from hailtop.utils import is_google_registry_domain, parse_docker_image_reference, async_to_blocking, bounded_gather, tqdm
@@ -18,8 +17,7 @@ from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
 import hailtop.batch_client.client as bc
 from hailtop.batch_client.client import BatchClient
-from hailtop.aiotools import RouterAsyncFS, LocalAsyncFS, AsyncFS
-from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
+from hailtop.aiotools import RouterAsyncFS, AsyncFS
 
 from . import resource, batch, job as _job  # pylint: disable=unused-import
 from .exceptions import BatchException
@@ -127,7 +125,7 @@ class LocalBackend(Backend[None]):
             flags += f' -v {gsa_key_file}:/gsa-key/key.json'
 
         self._extra_docker_run_flags = flags
-        self.__fs: AsyncFS = LocalAsyncFS(ThreadPoolExecutor())
+        self.__fs: AsyncFS = RouterAsyncFS(default_scheme='file')
 
     @property
     def _fs(self):
@@ -435,8 +433,8 @@ class ServiceBackend(Backend[bc.Batch]):
             remote_tmpdir += '/'
         self.remote_tmpdir = remote_tmpdir
 
-        self.__fs: AsyncFS = RouterAsyncFS('file', [LocalAsyncFS(ThreadPoolExecutor()),
-                                                    GoogleStorageAsyncFS(project=google_project)])
+        gcs_kwargs = {'project': google_project}
+        self.__fs: AsyncFS = RouterAsyncFS(default_scheme='file', gcs_kwargs=gcs_kwargs)
 
     @property
     def _fs(self):

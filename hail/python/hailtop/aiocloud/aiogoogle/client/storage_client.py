@@ -10,9 +10,10 @@ import aiohttp
 from hailtop.utils import (
     secret_alnum_string, OnlineBoundedGather2,
     TransientError, retry_transient_errors)
-from hailtop.aiotools import (
+from hailtop.aiotools.fs import (
     FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS,
-    FeedableAsyncIterable, FileAndDirectoryError, MultiPartCreate, UnexpectedEOFError, WriteBuffer)
+    FileAndDirectoryError, MultiPartCreate, UnexpectedEOFError)
+from hailtop.aiotools.utils import FeedableAsyncIterable, WriteBuffer
 
 from .base_client import GoogleBaseClient
 from ..session import GoogleSession
@@ -496,6 +497,8 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
 
 
 class GoogleStorageAsyncFS(AsyncFS):
+    schemes: Set[str] = {'gs'}
+
     def __init__(self, *,
                  storage_client: Optional[GoogleStorageClient] = None,
                  project: Optional[str] = None,
@@ -507,9 +510,6 @@ class GoogleStorageAsyncFS(AsyncFS):
                 kwargs['params']['userProject'] = project
             storage_client = GoogleStorageClient(**kwargs)
         self._storage_client = storage_client
-
-    def schemes(self) -> Set[str]:
-        return {'gs'}
 
     @staticmethod
     def _get_bucket_name(url: str) -> Tuple[str, str]:

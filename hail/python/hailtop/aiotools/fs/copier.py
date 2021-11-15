@@ -7,13 +7,13 @@ import humanize
 from hailtop.utils import (
     retry_transient_errors, url_basename, url_join, bounded_gather2,
     time_msecs, humanize_timedelta_msecs)
-from ..exceptions import FileAndDirectoryError, UnexpectedEOFError
+from .exceptions import FileAndDirectoryError, UnexpectedEOFError
 from ..weighted_semaphore import WeightedSemaphore
 
 from .constants import FILE, DIR
 
 if TYPE_CHECKING:
-    from .router_fs import RouterAsyncFS  # pylint: disable=cyclic-import
+    from ..router_fs import RouterAsyncFS  # pylint: disable=cyclic-import
     from .fs import MultiPartCreate, FileStatus  # pylint: disable=cyclic-import
 
 

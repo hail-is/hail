@@ -1,39 +1,76 @@
-from typing import Optional, List, Set, AsyncIterator
+from typing import Any, Optional, List, Set, AsyncIterator, Dict, AsyncContextManager
 import asyncio
 import urllib.parse
 
-from ..stream import ReadableStream, WritableStream
+from ..aiocloud import aioaws, aioazure, aiogoogle
+from .stream import ReadableStream, WritableStream
 from .fs import AsyncFS, MultiPartCreate, FileStatus, FileListEntry
+from .local_fs import LocalAsyncFS
 
 
 class RouterAsyncFS(AsyncFS):
-    def __init__(self, default_scheme: Optional[str], filesystems: List[AsyncFS]):
+    def __init__(self,
+                 default_scheme: Optional[str],
+                 *,
+                 filesystems: Optional[List[AsyncFS]] = None,
+                 local_kwargs: Optional[Dict[str, Any]] = None,
+                 gcs_kwargs: Optional[Dict[str, Any]] = None,
+                 azure_kwargs: Optional[Dict[str, Any]] = None,
+                 s3_kwargs: Optional[Dict[str, Any]] = None):
         scheme_fs = {}
         schemes = set()
+
+        filesystems = [] if filesystems is None else filesystems
+
         for fs in filesystems:
-            for scheme in fs.schemes():
+            for scheme in fs.schemes:
                 if scheme not in schemes:
                     scheme_fs[scheme] = fs
                     schemes.add(scheme)
-
-        if default_scheme is not None and default_scheme not in schemes:
-            raise ValueError(f'default scheme {default_scheme} not in set of schemes: {", ".join(schemes)}')
 
         self._default_scheme = default_scheme
         self._filesystems = filesystems
         self._schemes = schemes
         self._scheme_fs = scheme_fs
 
+        self._local_kwargs = local_kwargs or {}
+        self._gcs_kwargs = gcs_kwargs or {}
+        self._azure_kwargs = azure_kwargs or {}
+        self._s3_kwargs = s3_kwargs or {}
+
+    @property
     def schemes(self) -> Set[str]:
         return self._schemes
 
-    def _get_fs(self, url):
+    def _load_fs(self, scheme: str):
+        fs: AsyncFS
+
+        if scheme in LocalAsyncFS.schemes:
+            fs = LocalAsyncFS(**self._local_kwargs)
+        elif scheme in aiogoogle.GoogleStorageAsyncFS.schemes:
+            fs = aiogoogle.GoogleStorageAsyncFS(**self._gcs_kwargs)
+        elif scheme in aioazure.AzureAsyncFS.schemes:
+            fs = aioazure.AzureAsyncFS(**self._azure_kwargs)
+        elif scheme in aioaws.S3AsyncFS.schemes:
+            fs = aioaws.S3AsyncFS(**self._s3_kwargs)
+        else:
+            raise ValueError(f'no file system found for scheme {scheme}')
+
+        self._schemes.add(scheme)
+        self._scheme_fs[scheme] = fs
+        self._filesystems.append(fs)
+
+    def _get_fs(self, url: str) -> AsyncFS:
         parsed = urllib.parse.urlparse(url)
         if not parsed.scheme:
             if self._default_scheme:
                 parsed = parsed._replace(scheme=self._default_scheme)
             else:
                 raise ValueError(f"no default scheme and URL has no scheme: {url}")
+
+        scheme = parsed.scheme
+        if scheme not in self._scheme_fs:
+            self._load_fs(scheme)
 
         fs = self._scheme_fs.get(parsed.scheme)
         if fs is None:
@@ -49,7 +86,7 @@ class RouterAsyncFS(AsyncFS):
         fs = self._get_fs(url)
         return await fs.open_from(url, start)
 
-    async def create(self, url: str, retry_writes: bool = True) -> WritableStream:
+    async def create(self, url: str, retry_writes: bool = True) -> AsyncContextManager[WritableStream]:
         fs = self._get_fs(url)
         return await fs.create(url, retry_writes=retry_writes)
 

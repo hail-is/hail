@@ -1,12 +1,10 @@
 import os
 import warnings
 import re
-from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Dict, Union, List, Any, Set
 
 from hailtop.utils import secret_alnum_string
-from hailtop.aiotools import AsyncFS, RouterAsyncFS, LocalAsyncFS
-from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
+from hailtop.aiotools import AsyncFS, RouterAsyncFS
 
 from . import backend as _backend, job, resource as _resource  # pylint: disable=cyclic-import
 from .exceptions import BatchException
@@ -160,8 +158,8 @@ class Batch:
     def _fs(self) -> AsyncFS:
         if self._DEPRECATED_project is not None:
             if self._DEPRECATED_fs is None:
-                self._DEPRECATED_fs = RouterAsyncFS('file', [LocalAsyncFS(ThreadPoolExecutor()),
-                                                             GoogleStorageAsyncFS(project=self._DEPRECATED_project)])
+                gcs_kwargs = {'project': self._DEPRECATED_project}
+                self._DEPRECATED_fs = RouterAsyncFS('file', gcs_kwargs=gcs_kwargs)
             return self._DEPRECATED_fs
         return self._backend._fs
 

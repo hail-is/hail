@@ -11,9 +11,8 @@ import urllib.parse
 
 from hailtop.utils import blocking_to_async
 
-from ..stream import ReadableStream, WritableStream, blocking_readable_stream_to_async, blocking_writable_stream_to_async
-from .fs import FileStatus, FileListEntry, MultiPartCreate, AsyncFS
-from .constants import FILE, DIR
+from .stream import ReadableStream, WritableStream, blocking_readable_stream_to_async, blocking_writable_stream_to_async
+from .fs import FileStatus, FileListEntry, MultiPartCreate, AsyncFS, FILE, DIR
 
 
 class LocalStatFileStatus(FileStatus):
@@ -90,13 +89,12 @@ class LocalMultiPartCreate(MultiPartCreate):
 
 
 class LocalAsyncFS(AsyncFS):
-    def __init__(self, thread_pool: Optional[ThreadPoolExecutor], max_workers: Optional[int] = None):
+    schemes: Set[str] = {'file'}
+
+    def __init__(self, thread_pool: Optional[ThreadPoolExecutor] = None, max_workers: Optional[int] = None):
         if not thread_pool:
             thread_pool = ThreadPoolExecutor(max_workers=max_workers)
         self._thread_pool = thread_pool
-
-    def schemes(self) -> Set[str]:
-        return {'file'}
 
     @staticmethod
     def _get_path(url):

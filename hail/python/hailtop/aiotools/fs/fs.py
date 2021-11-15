@@ -3,8 +3,8 @@ from types import TracebackType
 import abc
 import asyncio
 from hailtop.utils import retry_transient_errors, OnlineBoundedGather2
-from ..exceptions import FileAndDirectoryError
 from ..stream import ReadableStream, WritableStream
+from .exceptions import FileAndDirectoryError
 from .copier import Copier, CopyReport, Transfer
 
 from .constants import FILE, DIR
@@ -65,6 +65,7 @@ class MultiPartCreate(abc.ABC):
 
 class AsyncFS(abc.ABC):
     @abc.abstractmethod
+    @property
     def schemes(self) -> Set[str]:
         pass
 
