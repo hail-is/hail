@@ -17,8 +17,10 @@ class AzureBaseClient(CloudBaseClient):
         super().__init__(base_url, session, rate_limit=rate_limit)
 
     async def delete(self, path: Optional[str] = None, *, url: Optional[str] = None, **kwargs) -> aiohttp.ClientResponse:
-        async with await self._session.delete(
-                f'{self._base_url}{path}', **kwargs) as resp:
+        if url is None:
+            assert path
+            url = f'{self._base_url}{path}'
+        async with await self._session.delete(url, **kwargs) as resp:
             return resp
 
     async def delete_and_wait(self, path: Optional[str] = None, *, url: Optional[str] = None, **kwargs) -> aiohttp.ClientResponse:
