@@ -12,6 +12,8 @@ import is.hail.expr.ir.streams.{EmitStream, StreamArgType, StreamUtils}
 import is.hail.types.physical.stypes.interfaces.SStreamCode
 import org.apache.spark.sql.Row
 import is.hail.TestUtils._
+import is.hail.expr.ir.agg.{PhysicalAggSig, TypedStateSig}
+import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeSCode, StreamSingleCodeType}
 import org.testng.annotations.Test
 
@@ -319,8 +321,23 @@ class EmitStreamSuite extends HailSuite {
     }
   }
 
+  @Test def testStreamBufferedAggregator(): Unit = {
+    val streamType = TStream(TStruct("a" -> TInt64, "b" -> TInt64))
+    val numSeq = (0 to 10).map(i => Seq(I64(i), I64(i + 1)))
+    val numTupleSeq = numSeq.map(_ => Seq("a", "b")).zip(numSeq)
+    val countStructSeq = numTupleSeq.map { case (s, i) => s.zip(i)}.map(is => MakeStruct(is))
+    val countStructStream = MakeStream(countStructSeq, streamType, false)
+    val countAggSig = PhysicalAggSig(Count(), TypedStateSig(VirtualTypeWithReq.fullyOptional(TInt64).setRequired(true)))
+    val initOps = InitOp(0, FastIndexedSeq(), countAggSig)
+    val seqOps = SeqOp(0, FastIndexedSeq(), countAggSig)
+    val newKey = MakeStruct(Seq("count" -> SelectFields(Ref("foo", streamType.elementType), Seq("a", "b"))))
+    val streamBuffAggCount = StreamBufferedAggregate(countStructStream, initOps, newKey, seqOps, "foo",  IndexedSeq(countAggSig))
+    evalStream(streamBuffAggCount)
+
+  }
   @Test def testEmitJoinRightDistinct() {
     val eltType = TStruct("k" -> TInt32, "v" -> TString)
+
 
     def join(lstream: IR, rstream: IR, joinType: String): IR =
       StreamJoinRightDistinct(

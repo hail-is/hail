@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.expr.Nat
-import is.hail.types.physical.PCanonicalBinaryRequired
+import is.hail.types.physical.{PCanonicalBinary, PCanonicalBinaryRequired}
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SStackStruct}
 import is.hail.types.virtual._
@@ -38,7 +38,7 @@ object InferType {
       case StreamBufferedAggregate(_, _, newKey, _, _, aggSignatures) =>
         val tupleFieldTypes = aggSignatures.map(_ => TBinary)
         val tupleFields = (0 to tupleFieldTypes.length).zip(tupleFieldTypes).map { case (fieldIdx, fieldType) => TupleField(fieldIdx, fieldType) }.toIndexedSeq
-        val serializedAggSType = SStackStruct(TTuple(tupleFields), tupleFieldTypes.map(_ => EmitType(SBinaryPointer(PCanonicalBinaryRequired), true)).toIndexedSeq)
+        val serializedAggSType = SStackStruct(TTuple(tupleFields), tupleFieldTypes.map(_ => EmitType(SBinaryPointer(PCanonicalBinary()), true)).toIndexedSeq)
         newKey.typ.asInstanceOf[TStruct].insertFields(IndexedSeq(("agg", serializedAggSType.virtualType)))
       case _: ArrayLen => TInt32
       case _: StreamIota => TStream(TInt32)
@@ -230,6 +230,7 @@ object InferType {
           (name, a.typ)
         }: _*)
       case SelectFields(old, fields) =>
+        assert(old.typ.isInstanceOf[TStruct], s" got ${old.typ}")
         val tbs = coerce[TStruct](old.typ)
         tbs.select(fields.toFastIndexedSeq)._1
       case InsertFields(old, fields, fieldOrder) =>

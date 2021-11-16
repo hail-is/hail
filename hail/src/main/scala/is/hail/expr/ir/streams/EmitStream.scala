@@ -260,20 +260,22 @@ object EmitStream {
         }
       case x@StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, name,
         aggSignatures: IndexedSeq[PhysicalAggSig]) =>
+        val (newContainer, aggSetup, aggCleanup) = AggContainer.fromMethodBuilder(aggSignatures.toArray.map(sig => sig.state), mb, "run_agg_scan")
         val region = mb.genFieldThisRef[Region]("stream_buff_agg_region")
         produce(streamChild, cb)
           .map(cb) { case childStream: SStreamCode =>
             val childProducer = childStream.producer
             val eltField = mb.newEmitField("stream_buff_agg_elt", childProducer.element.emitType)
-            val newKeyResultCode = EmitCode.fromI(mb) { cb =>
-              emit(newKey,
-                cb = cb,
-                env = env.bind(name, eltField),
-                region = childProducer.elementRegion)
-            }
-            val newKeyVal = newKeyResultCode.memoize(cb, "stream_buff_agg_new_key").get(cb).asInstanceOf[SBaseStructValue]
-            val newKeyType = newKeyVal.st._typeWithRequiredness
-            val newKeyVType = new VirtualTypeWithReq(newKeyVal.st.virtualType, newKeyType)
+//            val newKeyResultCode = EmitCode.fromI(mb) { cb =>
+//              emit(newKey,
+//                cb = cb,
+//                env = env.bind(name, eltField),
+//                region = childProducer.elementRegion)
+//            }
+//            val newKeyVal = newKeyResultCode.memoize(cb, "stream_buff_agg_new_key")
+//            val newKeySVal =  newKeyVal.get(cb).asInstanceOf[SBaseStructValue]
+            //val newKeyType = newKeySVal.st._typeWithRequiredness
+            val newKeyVType = typeWithReqx(newKey)
             val kb = mb.ecb
             val nestedStates = aggSignatures.toArray.map(sig => AggStateSig.getState(sig.state, kb))
             val nested = StateTuple(nestedStates)
@@ -284,8 +286,8 @@ object EmitStream {
             val returnType= x.typ.asInstanceOf[TBaseStruct]
             val tupleFieldTypes = aggSignatures.map(_ => TBinary)
             val tupleFields = (0 to tupleFieldTypes.length).zip(tupleFieldTypes).map { case (fieldIdx, fieldType) => TupleField(fieldIdx, fieldType) }.toIndexedSeq
-            val serializedAggSType = SStackStruct(TTuple(tupleFields), tupleFieldTypes.map(_ => EmitType(SBinaryPointer(PCanonicalBinaryRequired), true)).toIndexedSeq)
-            val keyAndAggFields = newKeyVal.st.fieldEmitTypes ++ serializedAggSType.fieldEmitTypes
+            val serializedAggSType = SStackStruct(TTuple(tupleFields), tupleFieldTypes.map(_ => EmitType(SBinaryPointer(PCanonicalBinary()), true)).toIndexedSeq)
+            val keyAndAggFields = newKeyVType.canonicalPType.asInstanceOf[PCanonicalStruct].sType.fieldEmitTypes ++ serializedAggSType.fieldEmitTypes
             val returnSType = SStackStruct(returnType, keyAndAggFields)
             val newStreamElem = mb.newEmitField("stream_buff_agg_new_stream_elem", EmitType(returnSType, true))
 //            val initStateAddress: Settable[Long] = mb.genFieldThisRef[Long]("stream_buff_agg_init_add")
@@ -346,22 +348,36 @@ object EmitStream {
                 */
               override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
                 val elementProduceLabel = CodeLabel()
+                val getElemLabel = CodeLabel()
+                val startLabel = CodeLabel()
+                cb.define(startLabel)
                 cb.ifx(produceElementMode, cb.goto(elementProduceLabel))
                 dictState.clearTree(cb)
-                dictState.init(cb, { cb => emitVoid(initAggs, cb) })
+                dictState.init(cb, { cb => emitVoid(initAggs, cb, container = Some(newContainer)) })
                 cb.goto(childProducer.LproduceElement)
                 cb.define(childProducer.LproduceElementDone)
-                cb.assign(childEltField, childProducer.element)
-                dictState.withContainer(cb, childEltField.load, { cb => emitVoid(seqOps, cb) })
+                cb.define(getElemLabel)
+                cb.assign(eltField, childProducer.element)
+                val newKeyResultCode = EmitCode.fromI(mb) { cb =>
+                  emit(newKey,
+                    cb = cb,
+                    env = env.bind(name, eltField),
+                    region = childProducer.elementRegion)
+                }
+                val resultKeyValue = newKeyResultCode.memoize(cb, "buff_agg_stream_result_key")
+                dictState.withContainer(cb, resultKeyValue, { cb => emitVoid(seqOps, cb, container = Some(newContainer)) })
                 cb.ifx(dictState.size >= maxSize,{
                   cb.assign(produceElementMode, true)
                 })
-                cb.ifx(produceElementMode, cb.goto(elementProduceLabel), cb.goto(LproduceElement))
+                cb.println(produceElementMode.toS)
+                cb.ifx(produceElementMode,
+                  cb.goto(elementProduceLabel),
+                  cb.goto(getElemLabel))
                 cb.define(childProducer.LendOfStream)
                 cb.assign(childStreamEnded, false)
 
                 cb.define(elementProduceLabel)
-                cb.ifx(numElemInArray == 0, {
+                cb.ifx(numElemInArray ceq 0, {
                   dictState.tree.foreach(cb) { (cb, elementOff) =>
                     cb += elementArray.update(numElemInArray, elementOff)
                     cb.assign(numElemInArray, numElemInArray + 1)
@@ -373,17 +389,17 @@ object EmitStream {
                   cb.assign(idx, 0)
                   cb.assign(numElemInArray, 0)
                   cb.assign(produceElementMode, false)
-                  cb.ifx(childStreamEnded, cb.goto(LendOfStream), cb.goto(LproduceElement))
+                  cb.ifx(childStreamEnded, cb.goto(LendOfStream), cb.goto(startLabel))
                 })
                 val elementAddress = cb.memoize(elementArray(idx))
                 val key = dictState.keyed.storageType.loadCheapSCode(cb, elementAddress).loadField(cb, "kt").memoize(cb, "steam_buff_agg_key")
                 dictState.loadContainer(cb, key.load)
-                val AggContainer(_, tupleAggState, _) = container.get
-                val serializedAggValue = tupleAggState.states.states.map(state => state.serializeToRegion(cb, PCanonicalBinary(), region).memoize(cb, "stream_buff_agg_value"))
+                val serializedAggValue = newContainer.container.states.states.map(state => state.serializeToRegion(cb, PCanonicalBinary(), region).memoize(cb, "stream_buff_agg_value"))
                 val serializedAggEmitCodes = serializedAggValue.map(aggValue => EmitCode.present(mb, aggValue.get))
                 val serializedAggTupleSValue = SStackStruct.constructFromArgs(cb, region, serializedAggSType.virtualType, serializedAggEmitCodes: _*).memoize(cb, "stream_buff_agg_agg_tuple_SValue")
                 val keyValue = key.get(cb).asInstanceOf[SBaseStructValue]
                 val sStructToReturn = keyValue.get.insert(cb, region, returnType.asInstanceOf[TStruct], ("agg", EmitCode.present(mb, serializedAggTupleSValue.get)))
+
                 cb.assign(newStreamElem, EmitCode.present(mb, sStructToReturn).toI(cb))
 
                 cb.goto(LproduceElementDone)

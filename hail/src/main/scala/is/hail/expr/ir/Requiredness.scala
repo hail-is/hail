@@ -242,6 +242,8 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         addElementBinding(name, a)
       case StreamAggScan(a, name, query) =>
         addElementBinding(name, a)
+      case StreamBufferedAggregate(stream, _, _, _, name, _) =>
+        addElementBinding(name, stream)
       case RunAggScan(a, name, init, seqs, result, signature) =>
         addElementBinding(name, a)
       case AggExplode(a, name, aggBody, isScan) =>
@@ -724,6 +726,10 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         r.fields.foreach { f => f.typ.fromPType(sigs(f.index).pResultType) }
       case RunAgg(_, result, _) =>
         requiredness.unionFrom(lookup(result))
+      case StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, _, _) =>
+        requiredness.union(lookup(streamChild).required)
+        val newKeyReq = lookupAs[RStruct](newKey)
+        requiredness.union(newKeyReq.required)
       case RunAggScan(array, name, init, seqs, result, signature) =>
         requiredness.union(lookup(array).required)
         coerce[RIterable](requiredness).elementType.unionFrom(lookup(result))

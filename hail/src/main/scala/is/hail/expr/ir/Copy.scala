@@ -234,6 +234,9 @@ object Copy {
       case RunAggScan(_, name, _, _, _, signatures) =>
         RunAggScan(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR],
           newChildren(2).asInstanceOf[IR], newChildren(3).asInstanceOf[IR], signatures)
+      case StreamBufferedAggregate(_, _, _, _, name, aggSignatures) =>
+        StreamBufferedAggregate(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR],
+          newChildren(2).asInstanceOf[IR], newChildren(3).asInstanceOf[IR], name, aggSignatures)
       case AggFilter(_, _, isScan) =>
         assert(newChildren.length == 2)
         AggFilter(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], isScan)
