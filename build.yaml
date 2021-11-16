@@ -49,8 +49,6 @@ steps:
         clouds:
           - gcp
       - name: test-gsa-key
-        clouds:
-          - gcp
       - name: test-aws-key
         clouds:
           - gcp
@@ -58,8 +56,6 @@ steps:
         clouds:
           - gcp
       - name: zulip-config
-        clouds:
-          - gcp
       - name: benchmark-gsa-key
         clouds:
           - gcp
@@ -67,11 +63,12 @@ steps:
         clouds:
           - gcp
       - name: hail-ci-0-1-service-account-key
-        clouds:
-          - gcp
       - name: test-dataproc-service-account-key
         clouds:
           - gcp
+      - name: batch-worker-ssh-public-key
+        clouds:
+          - azure
   - kind: buildImage2
     name: echo_image
     dockerFile: /io/echo/Dockerfile
@@ -331,17 +328,8 @@ steps:
           | kubectl -n {{ default_ns.name }} apply -f -
 
       # worker deploy config
-      {% if global.cloud == "gcp" %}
-        LOCATION="gce"
-      {% elif global.cloud == "azure" %}
-        LOCATION="azure"
-      {% else %}
-        echo "unknown cloud: {{ global.cloud }}"
-        exit 1
-      {% endif %}
-
       cat > deploy-config.json <<EOF
-      {"location":"$LOCATION","default_namespace":"{{ default_ns.name }}","domain":"{{ global.domain }}"}
+      {"location":"gce","default_namespace":"{{ default_ns.name }}","domain":"{{ global.domain }}"}
       EOF
       kubectl -n {{ default_ns.name }} create secret generic worker-deploy-config \
               --from-file=./deploy-config.json \

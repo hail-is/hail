@@ -163,25 +163,26 @@ DOCKER_PREFIX=$(jq -r '.docker_prefix' userdata)
 
 INTERNAL_GATEWAY_IP=$(jq -r '.internal_ip' userdata)
 
-# private job network = 10.0.0.0/16
-# public job network = 10.1.0.0/16
+# private job network = 172.20.0.0/16
+# public job network = 172.21.0.0/16
 # [all networks] Rewrite traffic coming from containers to masquerade as the host
-sudo iptables --table nat --append POSTROUTING --source 10.0.0.0/15 --jump MASQUERADE
+iptables --table nat --append POSTROUTING --source 172.20.0.0/15 --jump MASQUERADE
 
 # [public]
 # Block public traffic to the metadata server
-sudo iptables --append FORWARD --source 10.1.0.0/16 --destination 169.254.169.254 --jump DROP
+iptables --append FORWARD --source 172.21.0.0/16 --destination 169.254.169.254 --jump DROP
 # But allow the internal gateway
-sudo iptables --append FORWARD --destination $INTERNAL_GATEWAY_IP --jump ACCEPT
+iptables --append FORWARD --destination $INTERNAL_GATEWAY_IP --jump ACCEPT
 # And this worker
-sudo iptables --append FORWARD --destination $IP_ADDRESS --jump ACCEPT
+iptables --append FORWARD --destination $IP_ADDRESS --jump ACCEPT
 # Forbid outgoing requests to cluster-internal IP addresses
 INTERNET_INTERFACE=eth0
-sudo iptables --append FORWARD --out-interface $INTERNET_INTERFACE ! --destination 10.128.0.0/16 --jump ACCEPT
+iptables --append FORWARD --out-interface $INTERNET_INTERFACE ! --destination 10.128.0.0/16 --jump ACCEPT
 
 cat >> /etc/hosts <<EOF
 $INTERNAL_GATEWAY_IP batch-driver.hail
 $INTERNAL_GATEWAY_IP batch.hail
+$INTERNAL_GATEWAY_IP internal.hail
 EOF
 
 {make_global_config_str}

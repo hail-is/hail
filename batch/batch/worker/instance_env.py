@@ -9,6 +9,11 @@ from ..instance_config import InstanceConfig
 
 
 class CloudWorkerAPI(abc.ABC):
+    @property
+    @abc.abstractmethod
+    def nameserver_ip(self):
+        raise NotImplementedError
+
     @abc.abstractmethod
     def create_disk(self, instance_name: str, disk_name: str, size_in_gb: int, mount_path: str) -> CloudDisk:
         raise NotImplementedError
