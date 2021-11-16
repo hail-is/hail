@@ -3886,7 +3886,7 @@ steps:
       - test_hailtop_batch_3
       - test_hailtop_batch_4
   - kind: runImage
-    name: delete_batch_instances
+    name: delete_gcp_batch_instances
     image:
       valueFrom: base_image.image
     alwaysRun: true
@@ -3912,6 +3912,54 @@ steps:
     scopes:
       - dev
       - test
+    clouds:
+      - gcp
+    dependsOn:
+      - default_ns
+      - base_image
+      - test_batch_invariants
+      - test_batch_0
+      - test_batch_1
+      - test_batch_2
+      - test_batch_3
+      - test_batch_4
+      - test_ci
+      - test_hailtop_batch_0
+      - test_hailtop_batch_1
+      - test_hailtop_batch_2
+      - test_hailtop_batch_3
+      - test_hailtop_batch_4
+  - kind: runImage
+    name: delete_azure_batch_instances
+    image: mcr.microsoft.com/azure-cli
+    alwaysRun: true
+    script: |
+      set -e
+      AZURE_USERNAME=$(jq -r '.appId' /test-gsa-key/key.json)
+      AZURE_PASSWORD=$(jq -r '.password' /test-gsa-key/key.json)
+      AZURE_TENANT_ID=$(jq -r '.tenant' /test-gsa-key/key.json)
+      AZURE_RESOURCE_GROUP="{{ global.azure_resource_group }}"
+      az login --username $AZURE_USERNAME --password $AZURE_PASSWORD --tenant $AZURE_TENANT_ID
+      set +e
+      az vm list --resource-group $AZURE_RESOURCE_GROUP -o tsv \
+          --query "[?tags.namespace == '{{ default_ns.name }}'].name"
+        | xargs -n1 -r sh -c 'az vm delete --resource-group $AZURE_RESOURCE_GROUP --name "$1" || true' argv0
+      az network nic list --resource-group $AZURE_RESOURCE_GROUP -o tsv \
+          --query "[?tags.namespace == '{{ default_ns.name }}'].name"
+        | xargs -n1 -r sh -c 'az network nic delete --resource-group $AZURE_RESOURCE_GROUP --name "$1" || true' argv0
+      az network public-ip list --resource-group $AZURE_RESOURCE_GROUP -o tsv \
+          --query "[?tags.namespace == '{{ default_ns.name }}'].name"
+        | xargs -n1 -r sh -c 'az network public-ip delete --resource-group $AZURE_RESOURCE_GROUP --name "$1" || true' argv0
+    secrets:
+      - name: test-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-gsa-key
+    scopes:
+      - dev
+      - test
+    clouds:
+      - azure
     dependsOn:
       - default_ns
       - base_image
