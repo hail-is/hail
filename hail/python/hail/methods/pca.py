@@ -272,7 +272,7 @@ def _make_tsm_from_call(call_expr, block_size, *, mean_center=False, hwe_normali
 
         if hwe_normalize:
             mt = mt.annotate_rows(
-                __hwe_scaled_std_dev=hl.sqrt(mt.__mean_gt * (2 - mt.__mean_gt) * n_variants / 2))
+                __hwe_scaled_std_dev=hl.sqrt(mt.__mean_gt * (2 - mt.__mean_gt) / 2))
             mt = mt.select_entries(__x=mt.__x / mt.__hwe_scaled_std_dev)
     else:
         mt = mt.select_entries(__x=mt.__gt)
