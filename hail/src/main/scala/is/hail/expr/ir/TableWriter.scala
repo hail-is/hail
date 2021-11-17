@@ -278,7 +278,11 @@ class TableSpecHelper(path: String, rowRelPath: String, globalRelPath: String, r
       typ,
       Map("globals" -> RVDComponentSpec(globalRelPath),
         "rows" -> RVDComponentSpec(rowRelPath),
-        "partition_counts" -> PartitionCountsComponentSpec(partCounts)))
+        "partition_counts" -> PartitionCountsComponentSpec(partCounts),
+        "flags" -> FlagsSpec(Map(
+          "distinctlyKeyed" -> false
+        ))
+      ))
 
     spec.write(fs, path)
 

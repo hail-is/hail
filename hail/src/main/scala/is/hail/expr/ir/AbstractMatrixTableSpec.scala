@@ -128,6 +128,8 @@ case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
 
 case class PartitionCountsComponentSpec(counts: Seq[Long]) extends ComponentSpec
 
+case class FlagsSpec(flags: Map[String, Boolean]) extends ComponentSpec
+
 abstract class AbstractMatrixTableSpec extends RelationalSpec {
   def matrix_type: MatrixType
 
