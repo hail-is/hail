@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 
 from hailtop import aiotools
@@ -13,7 +14,9 @@ from ....inst_coll_config import InstanceCollectionConfigs
 
 from .resource_manager import AzureResourceManager
 from .regions import RegionMonitor
-from .networks import delete_orphaned_nics, delete_orphaned_public_ips
+
+
+log = logging.getLogger('driver')
 
 
 class AzureDriver(CloudDriver):
@@ -116,10 +119,28 @@ class AzureDriver(CloudDriver):
                 finally:
                     await self.network_client.close()
 
+    def _resource_is_orphaned(self, resource_name: str) -> bool:
+        instance_name = resource_name.rsplit('-', maxsplit=1)[0]
+        return self.inst_coll_manager.get_instance(instance_name) is None
+
     async def delete_orphaned_nics(self) -> None:
-        await delete_orphaned_nics(self.resources_client, self.network_client, self.inst_coll_manager,
-                                   self.machine_name_prefix)
+        log.info('deleting orphaned nics')
+        async for nic_name in self.resources_client.list_nic_names(self.machine_name_prefix):
+            if self._resource_is_orphaned(nic_name):
+                try:
+                    await self.network_client.delete_nic(nic_name, ignore_not_found=True)
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    log.exception(f'while deleting orphaned nic {nic_name}')
 
     async def delete_orphaned_public_ips(self) -> None:
-        await delete_orphaned_public_ips(self.resources_client, self.network_client, self.inst_coll_manager,
-                                         self.machine_name_prefix)
+        log.info('deleting orphaned public ips')
+        async for public_ip_name in self.resources_client.list_public_ip_names(self.machine_name_prefix):
+            if self._resource_is_orphaned(public_ip_name):
+                try:
+                    await self.network_client.delete_public_ip(public_ip_name, ignore_not_found=True)
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    log.exception(f'while deleting orphaned public ip {public_ip_name}')
