@@ -5,7 +5,6 @@ import asyncio
 from hailtop.utils import retry_transient_errors, OnlineBoundedGather2
 from .stream import ReadableStream, WritableStream
 from .exceptions import FileAndDirectoryError
-from .constants import FILE, DIR
 
 
 class FileStatus(abc.ABC):
@@ -62,6 +61,9 @@ class MultiPartCreate(abc.ABC):
 
 
 class AsyncFS(abc.ABC):
+    FILE = 'file'
+    DIR = 'dir'
+
     @property
     @abc.abstractmethod
     def schemes(self) -> Set[str]:
@@ -127,10 +129,10 @@ class AsyncFS(abc.ABC):
         if is_file:
             if is_dir:
                 raise FileAndDirectoryError(url)
-            return FILE
+            return AsyncFS.FILE
 
         if is_dir:
-            return DIR
+            return AsyncFS.DIR
 
         raise FileNotFoundError(url)
 
@@ -209,7 +211,7 @@ class AsyncFS(abc.ABC):
                         exc_tb: Optional[TracebackType]) -> None:
         await self.close()
 
-    def copy_part_size(self, url: str) -> int:
+    def copy_part_size(self, url: str) -> int:  # pylint: disable=unused-argument,no-self-use
         '''Part size when copying using multi-part uploads.  The part size of
         the destination filesystem is used.'''
         return 128 * 1024 * 1024

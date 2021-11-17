@@ -10,7 +10,6 @@ from hailtop.utils import (
     time_msecs, humanize_timedelta_msecs)
 
 from ..weighted_semaphore import WeightedSemaphore
-from .constants import FILE, DIR
 from .exceptions import FileAndDirectoryError, UnexpectedEOFError
 from .fs import MultiPartCreate, FileStatus, AsyncFS
 
@@ -221,7 +220,7 @@ class SourceCopier:
                          srcfile: str,
                          part_number: int,
                          this_part_size: int,
-                         part_creator: 'MultiPartCreate',
+                         part_creator: MultiPartCreate,
                          return_exceptions: bool) -> None:
         try:
             async with self.xfer_sema.acquire_manager(min(Copier.BUFFER_SIZE, this_part_size)):
@@ -247,7 +246,7 @@ class SourceCopier:
             sema: asyncio.Semaphore,
             source_report: SourceReport,
             srcfile: str,
-            srcstat: 'FileStatus',
+            srcstat: FileStatus,
             destfile: str,
             return_exceptions: bool):
         size = await srcstat.size()
@@ -285,7 +284,7 @@ class SourceCopier:
             sema: asyncio.Semaphore,
             source_report: SourceReport,
             srcfile: str,
-            srcstat: 'FileStatus',
+            srcstat: FileStatus,
             destfile: str,
             return_exceptions: bool):
         source_report.start_files(1)
@@ -310,14 +309,14 @@ class SourceCopier:
 
         if (self.treat_dest_as == Transfer.DEST_DIR
                 or (self.treat_dest_as == Transfer.INFER_DEST
-                    and dest_type == DIR)):
+                    and dest_type == AsyncFS.DIR)):
             # We know dest is a dir, but we're copying to
             # dest/basename(src), and we don't know its type.
             return url_join(self.dest, url_basename(self.src.rstrip('/'))), None
 
         if (self.treat_dest_as == Transfer.DEST_IS_TARGET
                 and self.dest.endswith('/')):
-            dest_type = DIR
+            dest_type = AsyncFS.DIR
 
         return self.dest, dest_type
 
@@ -343,10 +342,10 @@ class SourceCopier:
         if self.src_is_dir:
             raise FileAndDirectoryError(self.src)
 
-        source_report._source_type = FILE
+        source_report._source_type = AsyncFS.FILE
 
         full_dest, full_dest_type = await self._full_dest()
-        if full_dest_type == DIR:
+        if full_dest_type == AsyncFS.DIR:
             raise IsADirectoryError(full_dest)
 
         await self._copy_file_multi_part(sema, source_report, src, srcstat, full_dest, return_exceptions)
@@ -371,10 +370,10 @@ class SourceCopier:
         if self.src_is_file:
             raise FileAndDirectoryError(self.src)
 
-        source_report._source_type = DIR
+        source_report._source_type = AsyncFS.DIR
 
         full_dest, full_dest_type = await self._full_dest()
-        if full_dest_type == FILE:
+        if full_dest_type == AsyncFS.FILE:
             raise NotADirectoryError(full_dest)
 
         async def copy_source(srcentry):
@@ -460,7 +459,7 @@ class Copier:
         if (transfer.treat_dest_as == Transfer.DEST_DIR
                 or isinstance(transfer.src, list)
                 or transfer.dest.endswith('/')):
-            return DIR
+            return AsyncFS.DIR
 
         assert not transfer.dest.endswith('/')
         try:

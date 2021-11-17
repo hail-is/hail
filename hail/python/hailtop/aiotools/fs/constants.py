@@ -1,2 +1,0 @@
-FILE = 'file'
-DIR = 'dir'
