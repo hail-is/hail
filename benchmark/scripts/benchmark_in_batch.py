@@ -48,7 +48,7 @@ if __name__ == '__main__':
         j = b.new_job(f'create_resource_{r.name()}').cpu(4)
         j.depends_on(test_permissions)
         j.command(f'hail-bench create-resources --data-dir benchmark-resources --group {r.name()}')
-        j.command(f"time tar -cf {r.name()}.tar benchmark-resources/{r.name()} --exclude='*.crc'")
+        j.command(f"time tar --exclude='*.crc' -cf {r.name()}.tar benchmark-resources/{r.name()}")
         j.command(f'ls -lh {r.name()}.tar')
         j.command(f'mv {r.name()}.tar {j.ofile}')
         resource_tasks[r] = j
