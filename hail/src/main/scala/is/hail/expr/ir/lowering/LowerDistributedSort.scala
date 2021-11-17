@@ -207,7 +207,6 @@ object LowerDistributedSort {
         .asInstanceOf[IndexedSeq[Row]].map(x => (x(0).asInstanceOf[IndexedSeq[Row]], x(1).asInstanceOf[Boolean], x(2).asInstanceOf[Row]))
 
       println(s"Pivots with endpoints groupedBySegmentNumber = ${pivotsWithEndpointsAndInfoGroupedBySegmentNumber}")
-      // TODO: Should pull out already sorted segments here.
       val (sortedSegmentsTuples, unsortedPivotsWithEndpointsAndInfoGroupedBySegmentNumber) = pivotsWithEndpointsAndInfoGroupedBySegmentNumber.zipWithIndex.partition { case ((_, isSorted, _), _) => isSorted}
 
       println(s"Found ${sortedSegmentsTuples.length} sorted segments and ${unsortedPivotsWithEndpointsAndInfoGroupedBySegmentNumber.size} unsorted segments")
