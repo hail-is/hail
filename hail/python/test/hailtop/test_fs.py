@@ -18,10 +18,10 @@ async def filesystem(request):
     with ThreadPoolExecutor() as thread_pool:
         if request.param.startswith('router/'):
             fs = RouterAsyncFS(
-                'file', [LocalAsyncFS(thread_pool),
-                         GoogleStorageAsyncFS(),
-                         S3AsyncFS(thread_pool),
-                         AzureAsyncFS()])
+                'file', filesystems=[LocalAsyncFS(thread_pool),
+                                     GoogleStorageAsyncFS(),
+                                     S3AsyncFS(thread_pool),
+                                     AzureAsyncFS()])
         elif request.param == 'file':
             fs = LocalAsyncFS(thread_pool)
         elif request.param.endswith('gs'):

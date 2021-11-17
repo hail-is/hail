@@ -11,7 +11,7 @@ import urllib.parse
 
 from hailtop.utils import blocking_to_async
 
-from .fs import (FileStatus, FileListEntry, MultiPartCreate, AsyncFS, FILE, DIR,
+from .fs import (FileStatus, FileListEntry, MultiPartCreate, AsyncFS,
                  ReadableStream, WritableStream, blocking_readable_stream_to_async,
                  blocking_writable_stream_to_async)
 
@@ -182,8 +182,8 @@ class LocalAsyncFS(AsyncFS):
         path = self._get_path(url)
         stat_result = await blocking_to_async(self._thread_pool, os.stat, path)
         if stat.S_ISDIR(stat_result.st_mode):
-            return DIR
-        return FILE
+            return AsyncFS.DIR
+        return AsyncFS.FILE
 
     async def mkdir(self, url: str) -> None:
         path = self._get_path(url)

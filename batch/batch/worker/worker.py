@@ -2092,7 +2092,7 @@ class Worker:
 
         self.fs = RouterAsyncFS(
             'file',
-            [
+            filesystems=[
                 LocalAsyncFS(self.pool),
                 get_cloud_async_fs(credentials_file=credentials_file),
             ],
