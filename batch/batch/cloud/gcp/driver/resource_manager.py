@@ -66,7 +66,7 @@ class GCPResourceManager(CloudResourceManager):
                 raise VMDoesNotExist() from e
             raise
 
-    def machine_type(self, cores: int, worker_type: str) -> str:
+    def machine_type(self, cores: int, worker_type: str, local_ssd: bool) -> str:  # pylint: disable=unused-argument
         return family_worker_type_cores_to_gcp_machine_type(
             GCP_MACHINE_FAMILY, worker_type, cores)
 

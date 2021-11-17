@@ -46,7 +46,7 @@ class DeployConfig:
         return DeployConfig.from_config(config)
 
     def __init__(self, location, default_namespace, domain):
-        assert location in ('external', 'k8s', 'gce', 'azure')
+        assert location in ('external', 'k8s', 'gce')
         self._location = location
         self._default_namespace = default_namespace
         self._domain = domain
@@ -71,7 +71,7 @@ class DeployConfig:
         ns = self.service_ns(service)
         if self._location == 'k8s':
             return f'{service}.{ns}'
-        if self._location in ('gce', 'azure'):
+        if self._location == 'gce':
             if ns == 'default':
                 return f'{service}.hail'
             return 'internal.hail'

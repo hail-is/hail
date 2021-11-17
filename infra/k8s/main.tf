@@ -10,7 +10,7 @@ terraform {
 }
 
 locals {
-  docker_root_image = "${var.global_config.global.docker_prefix}/ubuntu:18.04"
+  docker_root_image = "${var.global_config.global.docker_prefix}/ubuntu:20.04"
 }
 
 provider "kubernetes" {
@@ -24,6 +24,16 @@ resource "kubernetes_secret" "registry_push_credentials" {
 
   data = {
     "credentials.json" = jsonencode(var.registry_push_credentials)
+  }
+}
+
+resource "kubernetes_secret" "batch_worker_ssh_public_key" {
+  metadata {
+    name = "batch-worker-ssh-public-key"
+  }
+
+  data = {
+    "ssh_rsa.pub" = file("~/.ssh/batch_worker_ssh_rsa.pub")
   }
 }
 

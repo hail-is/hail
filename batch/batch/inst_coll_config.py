@@ -6,6 +6,8 @@ from gear import Database
 
 from .cloud.gcp.instance_config import GCPSlimInstanceConfig
 from .cloud.gcp.resource_utils import family_worker_type_cores_to_gcp_machine_type, GCP_MACHINE_FAMILY
+from .cloud.azure.resource_utils import azure_worker_properties_to_machine_type
+from .cloud.azure.instance_config import AzureSlimInstanceConfig
 from .instance_config import InstanceConfig
 from .cloud.resource_utils import (
     adjust_cores_for_memory_request,
@@ -14,6 +16,7 @@ from .cloud.resource_utils import (
     requested_storage_bytes_to_actual_storage_gib,
     cores_mcpu_to_memory_bytes,
     valid_machine_types,
+    local_ssd_size
 )
 
 log = logging.getLogger('inst_coll_config')
@@ -21,15 +24,25 @@ log = logging.getLogger('inst_coll_config')
 
 def instance_config_from_pool_config(pool_config: 'PoolConfig') -> InstanceConfig:
     cloud = pool_config.cloud
-    assert cloud == 'gcp'
-    machine_type = family_worker_type_cores_to_gcp_machine_type(
-        GCP_MACHINE_FAMILY, pool_config.worker_type, pool_config.worker_cores)
-    return GCPSlimInstanceConfig(machine_type=machine_type,
-                                 preemptible=True,
-                                 local_ssd_data_disk=pool_config.worker_local_ssd_data_disk,
-                                 data_disk_size_gb=pool_config.data_disk_size_gb,
-                                 boot_disk_size_gb=pool_config.boot_disk_size_gb,
-                                 job_private=False)
+    if cloud == 'gcp':
+        machine_type = family_worker_type_cores_to_gcp_machine_type(
+            GCP_MACHINE_FAMILY, pool_config.worker_type, pool_config.worker_cores)
+        return GCPSlimInstanceConfig(machine_type=machine_type,
+                                     preemptible=True,
+                                     local_ssd_data_disk=pool_config.worker_local_ssd_data_disk,
+                                     data_disk_size_gb=pool_config.data_disk_size_gb,
+                                     boot_disk_size_gb=pool_config.boot_disk_size_gb,
+                                     job_private=False)
+    assert cloud == 'azure'
+    machine_type = azure_worker_properties_to_machine_type(
+        pool_config.worker_type, pool_config.worker_cores, pool_config.worker_local_ssd_data_disk
+    )
+    return AzureSlimInstanceConfig(machine_type=machine_type,
+                                   preemptible=True,
+                                   local_ssd_data_disk=pool_config.worker_local_ssd_data_disk,
+                                   data_disk_size_gb=pool_config.data_disk_size_gb,
+                                   boot_disk_size_gb=pool_config.boot_disk_size_gb,
+                                   job_private=False)
 
 
 class PreemptibleNotSupportedError(Exception):
@@ -49,7 +62,7 @@ class PoolConfig(InstanceCollectionConfig):
             worker_type=record['worker_type'],
             worker_cores=record['worker_cores'],
             worker_local_ssd_data_disk=record['worker_local_ssd_data_disk'],
-            worker_pd_ssd_data_disk_size_gb=record['worker_pd_ssd_data_disk_size_gb'],
+            worker_external_ssd_data_disk_size_gb=record['worker_external_ssd_data_disk_size_gb'],
             enable_standing_worker=record['enable_standing_worker'],
             standing_worker_cores=record['standing_worker_cores'],
             boot_disk_size_gb=record['boot_disk_size_gb'],
@@ -64,7 +77,7 @@ UPDATE pools
 INNER JOIN inst_colls ON pools.name = inst_colls.name
 SET worker_cores = %s,
     worker_local_ssd_data_disk = %s,
-    worker_pd_ssd_data_disk_size_gb = %s,
+    worker_external_ssd_data_disk_size_gb = %s,
     enable_standing_worker = %s,
     standing_worker_cores = %s,
     boot_disk_size_gb = %s,
@@ -75,7 +88,7 @@ WHERE pools.name = %s;
             (
                 self.worker_cores,
                 self.worker_local_ssd_data_disk,
-                self.worker_pd_ssd_data_disk_size_gb,
+                self.worker_external_ssd_data_disk_size_gb,
                 self.enable_standing_worker,
                 self.standing_worker_cores,
                 self.boot_disk_size_gb,
@@ -92,7 +105,7 @@ WHERE pools.name = %s;
         worker_type: str,
         worker_cores: int,
         worker_local_ssd_data_disk: bool,
-        worker_pd_ssd_data_disk_size_gb: int,
+        worker_external_ssd_data_disk_size_gb: int,
         enable_standing_worker: bool,
         standing_worker_cores: int,
         boot_disk_size_gb: int,
@@ -104,7 +117,7 @@ WHERE pools.name = %s;
         self.worker_type = worker_type
         self.worker_cores = worker_cores
         self.worker_local_ssd_data_disk = worker_local_ssd_data_disk
-        self.worker_pd_ssd_data_disk_size_gb = worker_pd_ssd_data_disk_size_gb
+        self.worker_external_ssd_data_disk_size_gb = worker_external_ssd_data_disk_size_gb
         self.enable_standing_worker = enable_standing_worker
         self.standing_worker_cores = standing_worker_cores
         self.boot_disk_size_gb = boot_disk_size_gb
@@ -116,8 +129,14 @@ WHERE pools.name = %s;
     @property
     def data_disk_size_gb(self) -> int:
         if self.worker_local_ssd_data_disk:
-            return 375
-        return self.worker_pd_ssd_data_disk_size_gb
+            return local_ssd_size(self.cloud, self.worker_type, self.worker_cores)
+        return self.worker_external_ssd_data_disk_size_gb
+
+    @property
+    def data_disk_size_standing_gb(self) -> int:
+        if self.worker_local_ssd_data_disk:
+            return local_ssd_size(self.cloud, self.worker_type, self.standing_worker_cores)
+        return self.worker_external_ssd_data_disk_size_gb
 
     def convert_requests_to_resources(self, cores_mcpu, memory_bytes, storage_bytes):
         storage_gib = requested_storage_bytes_to_actual_storage_gib(self.cloud, storage_bytes, allow_zero_storage=True)

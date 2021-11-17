@@ -18,7 +18,7 @@
              {% if pool.worker_local_ssd_data_disk %}checked{% endif %}
       value="true" />
     </div>
-    <div>Worker PD SSD data disk size (in GB): <input name="worker_pd_ssd_data_disk_size_gb" value="{{ pool.worker_pd_ssd_data_disk_size_gb }}" /></div>
+    <div>Worker External SSD data disk size (in GB): <input name="worker_external_ssd_data_disk_size_gb" value="{{ pool.worker_external_ssd_data_disk_size_gb }}" /></div>
     <div>
       <label for="enable_standing_worker">Enable standing worker: </label>
       <input type="checkbox"

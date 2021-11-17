@@ -9,12 +9,16 @@ MACHINE_TYPE_REGEX = re.compile('(?P<machine_family>[^-]+)-(?P<machine_type>[^-]
 GCP_MACHINE_FAMILY = 'n1'
 
 
+gcp_valid_cores_from_worker_type = {
+    'highcpu': [2, 4, 8, 16, 32, 64, 96],
+    'standard': [1, 2, 4, 8, 16, 32, 64, 96],
+    'highmem': [2, 4, 8, 16, 32, 64, 96],
+}
+
+
 gcp_valid_machine_types = []
 for typ in ('highcpu', 'standard', 'highmem'):
-    if typ == 'standard':
-        possible_cores = [1, 2, 4, 8, 16, 32, 64, 96]
-    else:
-        possible_cores = [2, 4, 8, 16, 32, 64, 96]
+    possible_cores = gcp_valid_cores_from_worker_type[typ]
     for cores in possible_cores:
         gcp_valid_machine_types.append(f'{GCP_MACHINE_FAMILY}-{typ}-{cores}')
 
@@ -116,3 +120,7 @@ def gcp_requested_to_actual_storage_bytes(storage_bytes, allow_zero_storage):
 
 def gcp_is_valid_storage_request(storage_in_gib: int) -> bool:
     return 10 <= storage_in_gib <= GCP_MAX_PERSISTENT_SSD_SIZE_GIB
+
+
+def gcp_local_ssd_size() -> int:
+    return 375

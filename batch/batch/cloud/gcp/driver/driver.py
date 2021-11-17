@@ -48,6 +48,7 @@ class GCPDriver(CloudDriver):
         zone_monitor = await ZoneMonitor.create(compute_client, regions, zone)
         inst_coll_manager = InstanceCollectionManager(db, machine_name_prefix, zone_monitor)
         resource_manager = GCPResourceManager(project, compute_client)
+
         create_pools_coros = [
             Pool.create(app,
                         db,
@@ -59,10 +60,12 @@ class GCPDriver(CloudDriver):
                         task_manager)
             for pool_name, config in inst_coll_configs.name_pool_config.items()
         ]
+
         jpim, *_ = await asyncio.gather(
             JobPrivateInstanceManager.create(
                 app, db, inst_coll_manager, resource_manager, machine_name_prefix, inst_coll_configs.jpim_config, task_manager),
             *create_pools_coros)
+
         driver = GCPDriver(db,
                            machine_name_prefix,
                            compute_client,

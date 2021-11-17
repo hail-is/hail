@@ -83,16 +83,12 @@ class Pool(InstanceCollection):
         self.worker_type = config.worker_type
         self.worker_cores = config.worker_cores
         self.worker_local_ssd_data_disk = config.worker_local_ssd_data_disk
-        self.worker_pd_ssd_data_disk_size_gb = config.worker_pd_ssd_data_disk_size_gb
+        self.worker_external_ssd_data_disk_size_gb = config.worker_external_ssd_data_disk_size_gb
         self.enable_standing_worker = config.enable_standing_worker
         self.standing_worker_cores = config.standing_worker_cores
         self.boot_disk_size_gb = config.boot_disk_size_gb
         self.data_disk_size_gb = config.data_disk_size_gb
-
-        if self.worker_local_ssd_data_disk:
-            assert self.data_disk_size_gb == 375
-        else:
-            assert self.data_disk_size_gb == self.worker_pd_ssd_data_disk_size_gb
+        self.data_disk_size_standing_gb = config.data_disk_size_standing_gb
 
         task_manager.ensure_future(self.control_loop())
 
@@ -110,7 +106,7 @@ class Pool(InstanceCollection):
             'worker_cores': self.worker_cores,
             'boot_disk_size_gb': self.boot_disk_size_gb,
             'worker_local_ssd_data_disk': self.worker_local_ssd_data_disk,
-            'worker_pd_ssd_data_disk_size_gb': self.worker_pd_ssd_data_disk_size_gb,
+            'worker_external_ssd_data_disk_size_gb': self.worker_external_ssd_data_disk_size_gb,
             'enable_standing_worker': self.enable_standing_worker,
             'standing_worker_cores': self.standing_worker_cores,
             'max_instances': self.max_instances,
@@ -124,12 +120,12 @@ class Pool(InstanceCollection):
 
         self.worker_cores = pool_config.worker_cores
         self.worker_local_ssd_data_disk = pool_config.worker_local_ssd_data_disk
-        self.worker_pd_ssd_data_disk_size_gb = pool_config.worker_pd_ssd_data_disk_size_gb
+        self.worker_external_ssd_data_disk_size_gb = pool_config.worker_external_ssd_data_disk_size_gb
         self.enable_standing_worker = pool_config.enable_standing_worker
         self.standing_worker_cores = pool_config.standing_worker_cores
         self.boot_disk_size_gb = pool_config.boot_disk_size_gb
         self.data_disk_size_gb = pool_config.data_disk_size_gb
-
+        self.data_disk_size_standing_gb = pool_config.data_disk_size_standing_gb
         self.max_instances = pool_config.max_instances
         self.max_live_instances = pool_config.max_live_instances
 
@@ -160,10 +156,11 @@ class Pool(InstanceCollection):
 
     async def create_instance(self,
                               cores: int,
+                              data_disk_size_gb: int,
                               max_idle_time_msecs: Optional[int] = None,
-                              location: Optional[str] = None
+                              location: Optional[str] = None,
                               ):
-        machine_type = self.resource_manager.machine_type(cores, self.worker_type)
+        machine_type = self.resource_manager.machine_type(cores, self.worker_type, self.worker_local_ssd_data_disk)
         _, _ = await self._create_instance(
             app=self.app,
             cores=cores,
@@ -173,7 +170,7 @@ class Pool(InstanceCollection):
             preemptible=True,
             max_idle_time_msecs=max_idle_time_msecs,
             local_ssd_data_disk=self.worker_local_ssd_data_disk,
-            data_disk_size_gb=self.data_disk_size_gb,
+            data_disk_size_gb=data_disk_size_gb,
             boot_disk_size_gb=self.boot_disk_size_gb
         )
 
@@ -202,7 +199,11 @@ class Pool(InstanceCollection):
             log.info(f'creating {instances_needed} new instances')
             # parallelism will be bounded by thread pool
             await asyncio.gather(*[
-                self.create_instance(cores=self.worker_cores, location=location)
+                self.create_instance(
+                    cores=self.worker_cores,
+                    data_disk_size_gb=self.data_disk_size_gb,
+                    location=location
+                )
                 for _ in range(instances_needed)])
 
     async def create_instances(self):
@@ -249,6 +250,7 @@ GROUP BY user;
         if self.enable_standing_worker and n_live_instances == 0 and self.max_instances > 0:
             await self.create_instance(
                 cores=self.standing_worker_cores,
+                data_disk_size_gb=self.data_disk_size_standing_gb,
                 max_idle_time_msecs=STANDING_WORKER_MAX_IDLE_TIME_MSECS
             )
 

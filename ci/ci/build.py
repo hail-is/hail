@@ -125,7 +125,7 @@ class BuildConfiguration:
         assert scope in ('deploy', 'test', 'dev')
 
         for step in self.steps:
-            if step.scopes is None or scope in step.scopes:
+            if (step.scopes is None or scope in step.scopes) and (step.clouds is None or CLOUD in step.clouds):
                 step.build(batch, code, scope)
 
         if scope == 'dev':
@@ -143,7 +143,7 @@ class BuildConfiguration:
                 f"Cleanup {step.name} after running {[parent_step.name for parent_step in step_to_parent_steps[step]]}"
             )
 
-            if step.scopes is None or scope in step.scopes:
+            if (step.scopes is None or scope in step.scopes) and (step.clouds is None or CLOUD in step.clouds):
                 step.cleanup(batch, scope, parent_jobs)
 
 
@@ -160,6 +160,7 @@ class Step(abc.ABC):
         else:
             self.deps = []
         self.scopes = json.get('scopes')
+        self.clouds = json.get('clouds')
         self.run_if_requested = json.get('runIfRequested', False)
 
         self.token = generate_token()

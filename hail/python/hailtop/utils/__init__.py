@@ -8,7 +8,7 @@ from .utils import (
     WaitableSharedPool, RETRY_FUNCTION_SCRIPT, sync_retry_transient_errors,
     retry_response_returning_functions, first_extant_file, secret_alnum_string,
     flatten, partition, cost_str, external_requests_client_session, url_basename,
-    url_join, is_google_registry_domain, parse_docker_image_reference,
+    url_join, is_google_registry_domain, is_azure_registry_domain, parse_docker_image_reference,
     url_scheme, Notice, periodically_call, dump_all_stacktraces, find_spark_home, TransientError,
     bounded_gather2, OnlineBoundedGather2, unpack_comma_delimited_inputs, retry_all_errors_n_times)
 from .process import (
@@ -82,6 +82,7 @@ __all__ = [
     'OnlineBoundedGather2',
     'unpack_comma_delimited_inputs',
     'is_google_registry_domain',
+    'is_azure_registry_domain',
     'parse_docker_image_reference',
     'retry_all_errors_n_times',
     'parse_timestamp_msecs',

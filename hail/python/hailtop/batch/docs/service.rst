@@ -222,19 +222,19 @@ and execute the following batch:
 .. code-block:: python
 
     >>> import hailtop.batch as hb # doctest: +SKIP
-    >>> backend = hb.ServiceBackend('my-billing-project', 'my-bucket') # doctest: +SKIP
+    >>> backend = hb.ServiceBackend('my-billing-project', remote_tmpdir='gs://my-bucket/batch/tmp/') # doctest: +SKIP
     >>> b = hb.Batch(backend=backend, name='test') # doctest: +SKIP
     >>> j = b.new_job(name='hello') # doctest: +SKIP
     >>> j.command('echo "hello world"') # doctest: +SKIP
     >>> b.run(open=True) # doctest: +SKIP
 
-You may elide the ``billing_project`` and ``bucket`` parameters if you
+You may elide the ``billing_project`` and ``remote_tmpdir`` parameters if you
 have previously set them with ``hailctl``:
 
 .. code-block:: sh
 
     hailctl config set batch/billing_project my-billing-project
-    hailctl config set batch/bucket my-bucket
+    hailctl config set batch/remote_tmpdir my-remote-tmpdir
 
 .. note::
 

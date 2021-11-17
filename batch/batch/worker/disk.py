@@ -13,6 +13,7 @@ class CloudDisk(abc.ABC):
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.delete()
+        await self.close()
 
     @abc.abstractmethod
     async def create(self, labels=None):

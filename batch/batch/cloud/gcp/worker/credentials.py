@@ -6,13 +6,36 @@ from ....worker.credentials import CloudUserCredentials
 
 class GCPUserCredentials(CloudUserCredentials):
     def __init__(self, data: Dict[str, bytes]):
-        self.secret_data = data
-        self.secret_name = 'gsa-key'
-        self.file_name = 'key.json'
-        self.cloud_env_name = 'GOOGLE_APPLICATION_CREDENTIALS'
-        self.hail_env_name = 'HAIL_GSA_KEY_FILE'
-        self.username = '_json_key'
+        self._data = data
+
+    @property
+    def secret_name(self) -> str:
+        return 'gsa-key'
+
+    @property
+    def secret_data(self) -> Dict[str, bytes]:
+        return self._data
+
+    @property
+    def file_name(self) -> str:
+        return 'key.json'
+
+    @property
+    def cloud_env_name(self) -> str:
+        return 'GOOGLE_APPLICATION_CREDENTIALS'
+
+    @property
+    def hail_env_name(self) -> str:
+        return 'HAIL_GSA_KEY_FILE'
+
+    @property
+    def username(self):
+        return '_json_key'
 
     @property
     def password(self) -> str:
         return base64.b64decode(self.secret_data['key.json']).decode()
+
+    @property
+    def mount_path(self):
+        return f'/{self.secret_name}/{self.file_name}'

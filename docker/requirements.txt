@@ -18,6 +18,7 @@ curlylint==0.12.0
 decorator==4.4.0
 dictdiffer==0.8.1
 dill>=0.3.1.1,<0.4
+docker==5.0.3
 flake8==3.8.3
 Flask-Cors==3.0.9
 Flask-Sockets==0.2.1
@@ -27,10 +28,8 @@ gcsfs==0.8.0
 # https://github.com/dask/gcsfs/issues/372
 fsspec==0.9.0
 gidgethub==4.1.0
-google-auth==1.27.0
 google-api-python-client==1.7.10
 google-cloud-logging==1.12.1
-google-cloud-storage==1.25.0
 humanize==1.0.0
 hurry.filesize==0.9
 orjson==3.6.4

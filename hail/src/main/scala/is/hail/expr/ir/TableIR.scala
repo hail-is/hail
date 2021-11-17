@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import java.io.{ByteArrayInputStream, DataInputStream, DataOutputStream, InputStream}
+import java.io.{DataInputStream, DataOutputStream, InputStream}
 
 import is.hail.HailContext
 import is.hail.annotations._
@@ -25,6 +25,7 @@ import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStreamValue}
 import is.hail.types.physical.stypes.{BooleanSingleCodeType, Int32SingleCodeType, PTypeReferenceSingleCodeType, StreamSingleCodeType}
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
 import org.apache.spark.TaskContext
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark.sql.Row
@@ -76,16 +77,11 @@ class TableRunContext(val req: RequirednessAnalysis)
 
 object TableLiteral {
   def apply(value: TableValue): TableLiteral = {
-    val globalPType = PType.canonical(value.globals.t)
-    val enc = TypedCodecSpec(globalPType, BufferSpec.wireSpec) // use wireSpec to save memory
-    using(new ByteArrayEncoder(enc.buildEncoder(value.ctx, value.globals.t))) { encoder =>
-      TableLiteral(value.typ, value.rvd, enc,
-        encoder.regionValueToBytes(value.globals.value.offset))
-    }
+    TableLiteral(value.typ, value.rvd, value.globals.encoding, value.globals.encodeToByteArrays())
   }
 }
 
-case class TableLiteral(typ: TableType, rvd: RVD, enc: AbstractTypedCodecSpec, encodedGlobals: Array[Byte]) extends TableIR {
+case class TableLiteral(typ: TableType, rvd: RVD, enc: AbstractTypedCodecSpec, encodedGlobals: Array[Array[Byte]]) extends TableIR {
   val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
   lazy val rowCountUpperBound: Option[Long] = None
@@ -98,7 +94,7 @@ case class TableLiteral(typ: TableType, rvd: RVD, enc: AbstractTypedCodecSpec, e
   protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
     val (globalPType: PStruct, dec) = enc.buildDecoder(ctx, typ.globalType)
 
-    val bais = new ByteArrayInputStream(encodedGlobals)
+    val bais = new ArrayOfByteArrayInputStream(encodedGlobals)
     val globalOffset = dec.apply(bais).readRegionValue(ctx.r)
     new TableValueIntermediate(TableValue(ctx, typ, BroadcastRow(ctx, RegionValue(ctx.r, globalOffset), globalPType), rvd))
   }
