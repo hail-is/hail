@@ -516,10 +516,10 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
                 return "linear_regression_rows running on " + hl.str(ht.ns[0]) + " samples for " + hl.str(ht.scaled_y_nds[i].shape[1]) + f" response variables y, with input variables x, and {len(covariates)} additional covariates..."
 
         ht = ht.annotate_globals(ns=hl.range(num_y_lists).map(lambda i: hl._console_log(log_message(i), ht.ns[i])))
-        ht = ht.annotate_globals(cov_Qts=hl.if_else(k > 0,
-                                 ht.scaled_cov_nds.map(lambda one_cov_nd: hl.nd.qr(one_cov_nd)[0].T),
-                                 ht.ns.map(lambda n: hl.nd.zeros((0, n)))))
-        ht = ht.annotate_globals(Qtys=hl.zip(ht.cov_Qts, ht.scaled_y_nds).starmap(lambda cov_qt, y: cov_qt @ y))
+        ht = ht.annotate_globals(cov_Qs=hl.if_else(k > 0,
+                                     ht.scaled_cov_nds.map(lambda one_cov_nd: hl.nd.qr(one_cov_nd)[0]),
+                                     ht.ns.map(lambda n: hl.nd.zeros((n, 0)))))
+        ht = ht.annotate_globals(Qtys=hl.zip(ht.cov_Qs, ht.scaled_y_nds).starmap(lambda cov_q, y: cov_q.T @ y))
 
         return ht.select_globals(
             kept_samples=ht.kept_samples,
@@ -527,8 +527,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
             __sqrt_weight_nds=ht.sqrt_weights,
             ns=ht.ns,
             ds=ht.ns.map(lambda n: n - k - 1),
-            __cov_Qts=ht.cov_Qts,
-            __Qtys=ht.Qtys,
+            __cov_Qs=ht.cov_Qs,
             __yyps=hl.range(num_y_lists).map(lambda i: dot_rows_with_themselves(ht.scaled_y_nds[i].T) - dot_rows_with_themselves(ht.Qtys[i].T)))
 
     ht = setup_globals(ht)
@@ -542,21 +541,22 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
                 X = (hl.nd.array(block[entries_field_name].map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples[idx])))) * ht.__sqrt_weight_nds[idx]).T
             else:
                 X = hl.nd.array(block[entries_field_name].map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples[idx])))).T
-            n = ht.ns[idx]
-            sum_x = X.sum(0)
-            Qtx = ht.__cov_Qts[idx] @ X
-            ytx = ht.__scaled_y_nds[idx].T @ X
-            xyp = ytx - (ht.__Qtys[idx].T @ Qtx)
-            xxpRec = (dot_rows_with_themselves(X.T) - dot_rows_with_themselves(Qtx.T)).map(lambda entry: 1 / entry)
-            b = xyp * xxpRec
-            se = ((1.0 / ht.ds[idx]) * (ht.__yyps[idx].reshape((-1, 1)) @ xxpRec.reshape((1, -1)) - (b * b))).map(lambda entry: hl.sqrt(entry))
-            t = b / se
+            X_residuals = X - ht.__cov_Qs[idx] @ (ht.__cov_Qs[idx].T @ X)
+            X_residual_norms = X_residuals.map(lambda x: x**2).sum(0).map(lambda x: hl.sqrt(x))
+            X_residuals_normalized = X_residuals / X_residual_norms
+            ytX = ht.__scaled_y_nds[idx].T @ X_residuals_normalized # (num right hand sides) by rows_in_block
+            betas = ytX / X_residual_norms
+            standard_errors = ((ht.__yyps[idx].reshape((-1, 1)) - ytX.map(lambda x: x**2)) / ht.ds[idx]).map(lambda x: hl.sqrt(x)) / X_residual_norms
+            t = betas / standard_errors
             return hl.rbind(t, lambda t:
                             hl.rbind(ht.ds[idx], lambda d:
                                      hl.rbind(t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), d, True, False)), lambda p:
-                                              hl.struct(n=hl.range(rows_in_block).map(lambda i: n), sum_x=sum_x._data_array(),
-                                                        y_transpose_x=ytx.T._data_array(), beta=b.T._data_array(),
-                                                        standard_error=se.T._data_array(), t_stat=t.T._data_array(),
+                                              hl.struct(n=hl.range(rows_in_block).map(lambda i: ht.ns[idx]),
+                                                        sum_x=X.sum(0)._data_array(),
+                                                        y_transpose_x=(X.T @ ht.__scaled_y_nds[idx])._data_array(),
+                                                        beta=betas.T._data_array(),
+                                                        standard_error=standard_errors.T._data_array(),
+                                                        t_stat=t.T._data_array(),
                                                         p_value=p.T._data_array()))))
 
         per_y_list = hl.range(num_y_lists).map(lambda i: process_y_group(i))

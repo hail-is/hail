@@ -476,24 +476,24 @@ class Tests(unittest.TestCase):
         mt = hl.import_vcf(resource('regressionLinear.vcf'))
         mt = mt.add_col_index()
 
-        mt = mt.annotate_cols(y=hl.coalesce(pheno[mt.s].Pheno, 1.0))
+        mt = mt.annotate_cols(y=hl.coalesce(pheno[mt.s].Pheno, 1.0), weight=(mt.col_idx % 2) + 1, weight2=3 * (mt.col_idx % 3) + 1)
         mt = mt.annotate_entries(x=hl.coalesce(mt.GT.n_alt_alleles(), 1.0))
         my_covs = [1.0] + list(covariates[mt.s].values())
 
         ht_with_weights = hl._linear_regression_rows_nd(y=mt.y,
                                           x=mt.x,
                                           covariates=my_covs,
-                                          weights=mt.col_idx)
+                                          weights=mt.weight)
 
-        ht_pre_weighted_1 = hl._linear_regression_rows_nd(y=mt.y * hl.sqrt(mt.col_idx),
-                                          x=mt.x * hl.sqrt(mt.col_idx),
-                                          covariates=list(map(lambda e: e * hl.sqrt(mt.col_idx), my_covs)))
+        ht_pre_weighted_1 = hl._linear_regression_rows_nd(y=mt.y * hl.sqrt(mt.weight),
+                                          x=mt.x * hl.sqrt(mt.weight),
+                                          covariates=list(map(lambda e: e * hl.sqrt(mt.weight), my_covs)))
 
-        ht_pre_weighted_2 = hl._linear_regression_rows_nd(y=mt.y * hl.sqrt(mt.col_idx + 5),
-                                                          x=mt.x * hl.sqrt(mt.col_idx + 5),
-                                                          covariates=list(map(lambda e: e * hl.sqrt(mt.col_idx + 5), my_covs)))
+        ht_pre_weighted_2 = hl._linear_regression_rows_nd(y=mt.y * hl.sqrt(mt.weight2),
+                                                          x=mt.x * hl.sqrt(mt.weight2),
+                                                          covariates=list(map(lambda e: e * hl.sqrt(mt.weight2), my_covs)))
 
-        ht_from_agg = mt.annotate_rows(my_linreg=hl.agg.linreg(mt.y, [1, mt.x] + list(covariates[mt.s].values()), weight=mt.col_idx)).rows()
+        ht_from_agg = mt.annotate_rows(my_linreg=hl.agg.linreg(mt.y, [1, mt.x] + list(covariates[mt.s].values()), weight=mt.weight)).rows()
 
         betas_with_weights = ht_with_weights.beta.collect()
         betas_pre_weighted_1 = ht_pre_weighted_1.beta.collect()
@@ -513,7 +513,7 @@ class Tests(unittest.TestCase):
         ht_with_multiple_weights = hl._linear_regression_rows_nd(y=[[mt.y], [hl.abs(mt.y)]],
                                                                  x=mt.x,
                                                                  covariates=my_covs,
-                                                                 weights=[mt.col_idx, mt.col_idx + 5])
+                                                                 weights=[mt.weight, mt.weight2])
 
         # Check that preweighted 1 and preweighted 2 match up with fields 1 and 2 of multiple
         multi_weight_betas = ht_with_multiple_weights.beta.collect()
