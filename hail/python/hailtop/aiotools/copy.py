@@ -92,8 +92,7 @@ async def main() -> None:
     requester_pays_project = json.loads(args.requester_pays_project)
     files = json.loads(args.files)
 
-    if requester_pays_project is not None:
-        gcs_kwargs = {'project': requester_pays_project}
+    gcs_kwargs = {'project': requester_pays_project}
 
     await copy(
         gcs_kwargs=gcs_kwargs,
