@@ -1,10 +1,11 @@
 import random
+import functools
 import os
 import secrets
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import pytest
-from hailtop.utils import secret_alnum_string, retry_transient_errors
+from hailtop.utils import secret_alnum_string, retry_transient_errors, bounded_gather2
 from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS, UnexpectedEOFError
 from hailtop.aiocloud.aioaws import S3AsyncFS
 from hailtop.aiocloud.aioazure import AzureAsyncFS
@@ -267,12 +268,37 @@ async def test_rmtree(filesystem):
     sema, fs, base = filesystem
 
     dir = f'{base}foo/'
+    subdir1 = f'{dir}foo/'
+    subdir1subdir1 = f'{subdir1}foo/'
+    subdir1subdir2 = f'{subdir1}bar/'
+    subdir1subdir3 = f'{subdir1}baz/'
+    subdir2 = f'{dir}bar/'
+    subdir3 = f'{dir}baz/'
 
     await fs.mkdir(dir)
     await fs.touch(f'{dir}a')
     await fs.touch(f'{dir}b')
 
+    await fs.mkdir(subdir1)
+    await fs.mkdir(subdir1subdir1)
+    await fs.mkdir(subdir1subdir2)
+    await fs.mkdir(subdir1subdir3)
+    await fs.mkdir(subdir2)
+    await fs.mkdir(subdir3)
+
+    sema = asyncio.Semaphore(200)
+    await bounded_gather2(sema, *[
+        functools.partial(fs.touch, f'{subdir}a{i:02}')
+        for subdir in [dir, subdir1, subdir2, subdir3, subdir1subdir1, subdir1subdir2, subdir1subdir3]
+        for i in range(30)])
+
     assert await fs.isdir(dir)
+    assert await fs.isdir(subdir1)
+    assert await fs.isdir(subdir1subdir1)
+    assert await fs.isdir(subdir1subdir2)
+    assert await fs.isdir(subdir1subdir3)
+    assert await fs.isdir(subdir2)
+    assert await fs.isdir(subdir3)
 
     await fs.rmtree(sema, dir)
 

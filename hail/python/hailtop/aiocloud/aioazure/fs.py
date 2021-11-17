@@ -12,11 +12,11 @@ from azure.storage.blob import BlobProperties
 from azure.storage.blob.aio import BlobClient, ContainerClient, BlobServiceClient, StorageStreamDownloader
 from azure.storage.blob.aio._list_blobs_helper import BlobPrefix
 import azure.core.exceptions
-from hailtop.utils import retry_transient_errors, flatten, OnlineBoundedGather2
 
+from hailtop.utils import retry_transient_errors, flatten, OnlineBoundedGather2
+from hailtop.aiotools import WriteBuffer
 from hailtop.aiotools.fs import (AsyncFS, ReadableStream, WritableStream, MultiPartCreate, FileListEntry, FileStatus,
                                  FileAndDirectoryError, UnexpectedEOFError)
-from hailtop.aiotools.utils import WriteBuffer
 
 from .credentials import AzureCredentials
 
@@ -374,7 +374,10 @@ class AzureAsyncFS(AsyncFS):
                 url = f'hail-az://{client.account_name}/{client.container_name}/{item.name}'
                 yield AzureFileListEntry(url, item)
 
-    async def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
+    async def listfiles(self,
+                        url: str, recursive: bool = False,
+                        exclude_trailing_slash_files: bool = True
+                        ) -> AsyncIterator[FileListEntry]:
         _, _, name = self._get_account_container_name(url)
         if name and not name.endswith('/'):
             name = f'{name}/'
@@ -394,6 +397,9 @@ class AzureAsyncFS(AsyncFS):
         async def should_yield(entry):
             url = await entry.url()
             if url.endswith('/') and await entry.is_file():
+                if not exclude_trailing_slash_files:
+                    return True
+
                 stat = await entry.status()
                 if await stat.size() != 0:
                     raise FileAndDirectoryError(url)
@@ -421,25 +427,6 @@ class AzureAsyncFS(AsyncFS):
             await self.get_blob_client(url).delete_blob()
         except azure.core.exceptions.ResourceNotFoundError as e:
             raise FileNotFoundError(url) from e
-
-    async def _rmtree(self, sema: asyncio.Semaphore, url: str) -> None:
-        async with OnlineBoundedGather2(sema) as pool:
-            _, _, name = self._get_account_container_name(url)
-            if name and not name.endswith('/'):
-                name = f'{name}/'
-
-            client = self.get_container_client(url)
-            it = self._listfiles_recursive(client, name)
-            async for entry in it:
-                await pool.call(self._remove_doesnt_exist_ok, await entry.url())
-
-    async def rmtree(self, sema: Optional[asyncio.Semaphore], url: str) -> None:
-        if sema is None:
-            sema = asyncio.Semaphore(50)
-            async with sema:
-                return await self._rmtree(sema, url)
-
-        return await self._rmtree(sema, url)
 
     async def close(self) -> None:
         if self._credential:

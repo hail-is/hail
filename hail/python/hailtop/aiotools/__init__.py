@@ -3,7 +3,8 @@ from .fs import (FileStatus, FileListEntry, AsyncFS, Transfer, MultiPartCreate,
                  WritableStream, blocking_readable_stream_to_async, blocking_writable_stream_to_async)
 from .local_fs import LocalAsyncFS
 from .router_fs import RouterAsyncFS
-from .utils import FeedableAsyncIterable, WriteBuffer
+from .feedable_async_iterator import FeedableAsyncIterable
+from .write_buffer import WriteBuffer
 from .tasks import BackgroundTaskManager
 from .weighted_semaphore import WeightedSemaphore
 

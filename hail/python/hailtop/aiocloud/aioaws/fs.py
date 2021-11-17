@@ -1,4 +1,5 @@
-from typing import Any, AsyncIterator, BinaryIO, cast, AsyncContextManager, Dict, List, Optional, Set, Tuple, Type
+from typing import (Any, AsyncIterator, BinaryIO, cast, AsyncContextManager, Dict, List, Optional,
+                    Set, Tuple, Type)
 from types import TracebackType
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -383,7 +384,10 @@ class S3AsyncFS(AsyncFS):
                 for item in contents:
                     yield S3FileListEntry(bucket, item['Key'], item)
 
-    async def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
+    async def listfiles(self,
+                        url: str,
+                        recursive: bool = False,
+                        exclude_trailing_slash_files: bool = True) -> AsyncIterator[FileListEntry]:
         bucket, name = self._get_bucket_name(url)
         if name and not name.endswith('/'):
             name += '/'
@@ -439,17 +443,6 @@ class S3AsyncFS(AsyncFS):
                                     Key=name)
         except self._s3.exceptions.NoSuchKey as e:
             raise FileNotFoundError(url) from e
-
-    async def _rmtree(self, sema: asyncio.Semaphore, url: str) -> None:
-        await self._rmtree_with_recursive_listfiles(sema, url)
-
-    async def rmtree(self, sema: Optional[asyncio.Semaphore], url: str) -> None:
-        if sema is None:
-            sema = asyncio.Semaphore(50)
-            async with sema:
-                return await self._rmtree(sema, url)
-
-        return await self._rmtree(sema, url)
 
     async def close(self) -> None:
         pass

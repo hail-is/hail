@@ -353,7 +353,7 @@ class OnlineBoundedGather2:
 
         self._done_event.set()
 
-    async def call(self, f, *args, **kwargs) -> asyncio.Task:
+    def call(self, f, *args, **kwargs) -> asyncio.Task:
         '''Invoke a function as a background task.
 
         Return the task, which can be used to wait on (using
