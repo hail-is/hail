@@ -111,7 +111,7 @@ object LowerDistributedSort {
     val oversamplingNum = 1
     val seed = 7L
     val branchingFactor = 4
-    val sizeCutoff = HailContext.getFlag("shuffle_local_sort_cutoff").toInt
+    val sizeCutoff = HailContext.getFlag("shuffle_cutoff_to_local_sort").toInt
 
     val (newKType, _) = inputStage.rowType.select(sortFields.map(sf => sf.field))
 
@@ -134,7 +134,7 @@ object LowerDistributedSort {
     var loopState = LoopState(IndexedSeq(initialSegment), IndexedSeq.empty[SegmentResult], IndexedSeq.empty[SegmentResult])
 
     var i = 0
-    val rand = new IRRandomness((math.random() * 1000).toInt)
+    val rand = new IRRandomness(seed)
 
     while (!loopState.largeUnsortedSegments.isEmpty) {
       println(s"Loop iteration ${i}")
