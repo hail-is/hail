@@ -1,8 +1,8 @@
+from typing import Dict, Optional
 import os
 import json
 import time
 import logging
-from typing import Any, Dict, Optional
 from urllib.parse import urlencode
 import jwt
 from hailtop.utils import request_retry_transient_errors
@@ -12,34 +12,55 @@ from ..common.credentials import CloudCredentials
 log = logging.getLogger(__name__)
 
 
-class GoogleCredentials(CloudCredentials):
-    _session: hailtop.httpx.ClientSession
-    _access_token: Optional[Dict[str, Any]]
-    _expires_at: Optional[int]
+class GoogleExpiringAccessToken:
+    @staticmethod
+    def from_dict(data: dict) -> 'GoogleExpiringAccessToken':
+        now = time.time()
+        token = data['access_token']
+        expiry_time = now + data['expires_in'] // 2
+        return GoogleExpiringAccessToken(token, expiry_time)
 
-    def __init__(self):
-        self._access_token = None
-        self._expires_at = None
+    def __init__(self, token, expiry_time: int):
+        self.token = token
+        self._expiry_time = expiry_time
+
+    def expired(self) -> bool:
+        now = time.time()
+        return self._expiry_time <= now
+
+
+class GoogleCredentials(CloudCredentials):
+    _http_session: hailtop.httpx.ClientSession
+
+    def __init__(self,
+                 http_session: Optional[hailtop.httpx.ClientSession] = None,
+                 **kwargs):
+        self._access_token: Optional[GoogleExpiringAccessToken] = None
+        if http_session is not None:
+            assert len(kwargs) == 0
+            self._http_session = http_session
+        else:
+            self._http_session = hailtop.httpx.ClientSession(**kwargs)
 
     @staticmethod
-    def from_file(credentials_file):
+    def from_file(credentials_file: str) -> 'GoogleCredentials':
         with open(credentials_file) as f:
             credentials = json.load(f)
         return GoogleCredentials.from_credentials_data(credentials)
 
     @staticmethod
-    def from_credentials_data(credentials):
+    def from_credentials_data(credentials: dict, **kwargs) -> 'GoogleCredentials':
         credentials_type = credentials['type']
         if credentials_type == 'service_account':
-            return GoogleServiceAccountCredentials(credentials)
+            return GoogleServiceAccountCredentials(credentials, **kwargs)
 
         if credentials_type == 'authorized_user':
-            return GoogleApplicationDefaultCredentials(credentials)
+            return GoogleApplicationDefaultCredentials(credentials, **kwargs)
 
         raise ValueError(f'unknown Google Cloud credentials type {credentials_type}')
 
     @staticmethod
-    def default_credentials():
+    def default_credentials() -> 'GoogleCredentials':
         credentials_file = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
 
         if credentials_file is None:
@@ -57,18 +78,16 @@ class GoogleCredentials(CloudCredentials):
 
         return GoogleInstanceMetadataCredentials()
 
-    async def auth_headers(self):
-        now = time.time()
-        if self._access_token is None or now > self._expires_at:
-            self._access_token = await self.get_access_token()
-            self._expires_at = now + self._access_token['expires_in'] // 2
-        return {'Authorization': f'Bearer {self._access_token["access_token"]}'}
+    async def auth_headers(self) -> Dict[str, str]:
+        if self._access_token is None or self._access_token.expired():
+            self._access_token = await self._get_access_token()
+        return {'Authorization': f'Bearer {self._access_token.token}'}
 
-    async def get_access_token(self):
+    async def _get_access_token(self) -> GoogleExpiringAccessToken:
         raise NotImplementedError
 
     async def close(self):
-        await self._session.close()
+        await self._http_session.close()
 
 
 # protocol documented here:
@@ -76,16 +95,15 @@ class GoogleCredentials(CloudCredentials):
 # studying `gcloud --log-http print-access-token` was also useful
 class GoogleApplicationDefaultCredentials(GoogleCredentials):
     def __init__(self, credentials, **kwargs):
-        super().__init__()
+        super().__init__(**kwargs)
         self.credentials = credentials
-        self._session = hailtop.httpx.ClientSession(**kwargs)
 
     def __str__(self):
         return 'ApplicationDefaultCredentials'
 
-    async def get_access_token(self):
+    async def _get_access_token(self) -> GoogleExpiringAccessToken:
         async with await request_retry_transient_errors(
-                self._session, 'POST',
+                self._http_session, 'POST',
                 'https://www.googleapis.com/oauth2/v4/token',
                 headers={
                     'content-type': 'application/x-www-form-urlencoded'
@@ -96,7 +114,7 @@ class GoogleApplicationDefaultCredentials(GoogleCredentials):
                     'client_secret': self.credentials['client_secret'],
                     'refresh_token': self.credentials['refresh_token']
                 })) as resp:
-            return await resp.json()
+            return GoogleExpiringAccessToken.from_dict(await resp.json())
 
 
 # protocol documented here:
@@ -104,14 +122,13 @@ class GoogleApplicationDefaultCredentials(GoogleCredentials):
 # studying `gcloud --log-http print-access-token` was also useful
 class GoogleServiceAccountCredentials(GoogleCredentials):
     def __init__(self, key, **kwargs):
-        super().__init__()
+        super().__init__(**kwargs)
         self.key = key
-        self._session = hailtop.httpx.ClientSession(**kwargs)
 
     def __str__(self):
         return f'GoogleServiceAccountCredentials for {self.key["client_email"]}'
 
-    async def get_access_token(self):
+    async def _get_access_token(self) -> GoogleExpiringAccessToken:
         now = int(time.time())
         scope = 'openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/appengine.admin https://www.googleapis.com/auth/compute'
         assertion = {
@@ -123,7 +140,7 @@ class GoogleServiceAccountCredentials(GoogleCredentials):
         }
         encoded_assertion = jwt.encode(assertion, self.key['private_key'], algorithm='RS256')
         async with await request_retry_transient_errors(
-                self._session, 'POST',
+                self._http_session, 'POST',
                 'https://www.googleapis.com/oauth2/v4/token',
                 headers={
                     'content-type': 'application/x-www-form-urlencoded'
@@ -132,18 +149,14 @@ class GoogleServiceAccountCredentials(GoogleCredentials):
                     'grant_type': 'urn:ietf:params:oauth:grant-type:jwt-bearer',
                     'assertion': encoded_assertion
                 })) as resp:
-            return await resp.json()
+            return GoogleExpiringAccessToken.from_dict(await resp.json())
 
 
 # https://cloud.google.com/compute/docs/access/create-enable-service-accounts-for-instances#applications
 class GoogleInstanceMetadataCredentials(GoogleCredentials):
-    def __init__(self, **kwargs):
-        super().__init__()
-        self._session = hailtop.httpx.ClientSession(**kwargs)
-
-    async def get_access_token(self):
+    async def _get_access_token(self) -> GoogleExpiringAccessToken:
         async with await request_retry_transient_errors(
-                self._session, 'GET',
+                self._http_session, 'GET',
                 'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token',
                 headers={'Metadata-Flavor': 'Google'}) as resp:
-            return await resp.json()
+            return GoogleExpiringAccessToken.from_dict(await resp.json())

@@ -59,14 +59,23 @@ class RateLimitedSession(BaseSession):
 
 
 class Session(BaseSession):
-    _session: httpx.ClientSession
+    _http_session: httpx.ClientSession
     _credentials: CloudCredentials
 
-    def __init__(self, *, credentials: CloudCredentials, params: Optional[Mapping[str, str]] = None, **kwargs):
+    def __init__(self,
+                 *,
+                 credentials: CloudCredentials,
+                 params: Optional[Mapping[str, str]] = None,
+                 http_session: Optional[httpx.ClientSession] = None,
+                 **kwargs):
         if 'raise_for_status' not in kwargs:
             kwargs['raise_for_status'] = True
         self._params = params
-        self._session = httpx.ClientSession(**kwargs)
+        if http_session is not None:
+            assert len(kwargs) == 0
+            self._http_session = http_session
+        else:
+            self._http_session = httpx.ClientSession(**kwargs)
         self._credentials = credentials
 
     async def request(self, method: str, url: str, **kwargs):
@@ -89,13 +98,13 @@ class Session(BaseSession):
         # retry by default
         retry = kwargs.pop('retry', True)
         if retry:
-            return await request_retry_transient_errors(self._session, method, url, **kwargs)
-        return await self._session.request(method, url, **kwargs)
+            return await request_retry_transient_errors(self._http_session, method, url, **kwargs)
+        return await self._http_session.request(method, url, **kwargs)
 
     async def close(self) -> None:
-        if hasattr(self, '_session'):
-            await self._session.close()
-            del self._session
+        if hasattr(self, '_http_session'):
+            await self._http_session.close()
+            del self._http_session
 
         if hasattr(self, '_credentials'):
             await self._credentials.close()

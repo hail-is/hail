@@ -13,7 +13,7 @@ from gear import Database
 
 from ..batch import batch_record_to_dict
 from ..globals import complete_states, tasks, STATUS_FORMAT_VERSION
-from ..batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, KUBERNETES_SERVER_URL
+from ..batch_configuration import KUBERNETES_SERVER_URL
 from ..batch_format_version import BatchFormatVersion
 from ..spec_writer import SpecWriter
 from ..file_store import FileStore
@@ -307,7 +307,7 @@ async def job_config(app, record, attempt_id):
     secrets = job_spec.get('secrets', [])
     k8s_secrets = await asyncio.gather(
         *[
-            k8s_cache.read_secret(secret['name'], secret['namespace'], KUBERNETES_TIMEOUT_IN_SECONDS)
+            k8s_cache.read_secret(secret['name'], secret['namespace'])
             for secret in secrets
         ]
     )
@@ -329,12 +329,12 @@ async def job_config(app, record, attempt_id):
         namespace = service_account['namespace']
         name = service_account['name']
 
-        sa = await k8s_cache.read_service_account(name, namespace, KUBERNETES_TIMEOUT_IN_SECONDS)
+        sa = await k8s_cache.read_service_account(name, namespace)
         assert len(sa.secrets) == 1
 
         token_secret_name = sa.secrets[0].name
 
-        secret = await k8s_cache.read_secret(token_secret_name, namespace, KUBERNETES_TIMEOUT_IN_SECONDS)
+        secret = await k8s_cache.read_secret(token_secret_name, namespace)
 
         token = base64.b64decode(secret.data['token']).decode()
         cert = secret.data['ca.crt']
