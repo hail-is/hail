@@ -247,7 +247,6 @@ object LowerDistributedSort {
           MakeTuple.ordered(IndexedSeq(segmentIdx, StreamDistribute(partitionStream, ArrayRef(pivotsWithEndpointsGroupedBySegmentIdx, indexIntoPivotsArray), path, spec)))
         }
 
-        // Now, execute distribute
         val (Some(PTypeReferenceSingleCodeType(resultPType)), f) = ctx.timer.time("LowerDistributedSort.distributedSort.compile")(Compile[AsmFunction1RegionLong](ctx,
           FastIndexedSeq(),
           FastIndexedSeq(classInfo[Region]), LongInfo,
@@ -270,10 +269,7 @@ object LowerDistributedSort {
         // files were written to for each partition, as well as the number of entries in that file.
 
         val protoDataPerSegment = orderedGroupBy[(Int, IndexedSeq[(Interval, String, Int)]), Int](distributeResult, x => x._1).map { case (_, seqOfChunkData) => seqOfChunkData.map(_._2) }
-        // Need to zip the segment history onto these guys.
 
-        println("About to transpose problematically.")
-        // TODO: Probably can't use largeSegments once we deal with presorted segments.
         val transposedIntoNewSegments = protoDataPerSegment.zip(remainingUnsortedSegments.map(_.indices)).flatMap { case (oneOldSegment, priorIndices) =>
           val headLen = oneOldSegment.head.length
           assert(oneOldSegment.forall(x => x.length == headLen))
@@ -302,7 +298,7 @@ object LowerDistributedSort {
     val orderedSegments = unorderedSegments.sortWith{ (srt1, srt2) => lessThanForSegmentIndices(srt1._1.indices, srt2._1.indices)}
 
     println(s" Partitions are ${orderedSegments.map(_._1.interval)}")
-    // Great, now the problem is that they aren't broken up evenly, let's try doing that again.
+    // TODO: Partitions are not broken up evenly.
 
     val contextData = orderedSegments.map { case (segment, isSorted) => Row(segment.chunks.map(chunk => chunk.filename), isSorted) }
     val contexts = ToStream(Literal(TArray(TStruct("files" -> TArray(TString), "isSorted" -> TBoolean)), contextData))
