@@ -284,7 +284,7 @@ class KrylovFactorization:
         means = moments.sum(1) / self.k
         variances = (moments - means.reshape(-1, 1)).map(lambda x: x**2).sum(1) / (self.k - 1)
         stdevs = variances.map(lambda x: hl.sqrt(x))
-        return means, stdevs
+        return hl.struct(moments=means, stdevs=stdevs)
 
 
 def _krylov_factorization(A: TallSkinnyMatrix, V0, p, compute_U=False, compute_V=True):
@@ -386,8 +386,7 @@ def _spectral_moments(A, num_moments, p=None, moment_samples=500, block_size=128
     G = hl.nd.zeros((n, moment_samples)).map(lambda n: hl.if_else(hl.rand_bool(0.5), -1, 1))
     Q1, R1 = hl.nd.qr(G)._persist()
     fact = _krylov_factorization(A, Q1, p, compute_U=False)
-    moments, stdevs = fact.spectral_moments(num_moments, R1)
-    moments_and_stdevs = hl.eval(hl.struct(moments=moments, stdevs=stdevs))
+    moments_and_stdevs = hl.eval(fact.spectral_moments(num_moments, R1))
     moments = moments_and_stdevs.moments
     stdevs = moments_and_stdevs.stdevs
     return moments, stdevs
@@ -427,10 +426,10 @@ def _pca_and_moments(A, k=10, num_moments=5, compute_loadings=False, q_iteration
     G2 = G2 - fact.V @ (fact.V.T @ G2)
     Q1, R1 = hl.nd.qr(G2)._persist()
     fact2 = _krylov_factorization(A, Q1, p, compute_U=False)
-    moments, stdevs = fact2.spectral_moments(num_moments, R1)
+    moments_and_stdevs = fact2.spectral_moments(num_moments, R1)
     # Add back exact moments
-    moments = moments + hl.nd.array([fact.S.map(lambda x: x**(2 * i)).sum() for i in range(1, num_moments + 1)])
-    moments_and_stdevs = hl.eval(hl.struct(moments=moments, stdevs=stdevs))
+    moments = moments_and_stdevs.moments + hl.nd.array([fact.S.map(lambda x: x**(2 * i)).sum() for i in range(1, num_moments + 1)])
+    moments_and_stdevs = hl.eval(hl.struct(moments=moments, stdevs=moments_and_stdevs.stdevs))
     moments = moments_and_stdevs.moments
     stdevs = moments_and_stdevs.stdevs
 
