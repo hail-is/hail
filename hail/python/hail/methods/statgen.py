@@ -454,9 +454,6 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
     def select_array_indices(hl_array, indices):
         return indices.map(lambda i: hl_array[i])
 
-    def dot_rows_with_themselves(matrix):
-        return (matrix * matrix).sum(1)
-
     def no_missing(hail_array):
         return hail_array.all(lambda element: hl.is_defined(element))
 
@@ -528,7 +525,8 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
             ns=ht.ns,
             ds=ht.ns.map(lambda n: n - k - 1),
             __cov_Qs=ht.cov_Qs,
-            __yyps=hl.range(num_y_lists).map(lambda i: dot_rows_with_themselves(ht.scaled_y_nds[i].T) - dot_rows_with_themselves(ht.Qtys[i].T)))
+            __yyps=hl.range(num_y_lists).map(
+                lambda i: ht.scaled_y_nds[i].map(lambda x: x**2).sum(0) - ht.Qtys[i].map(lambda x: x**2).sum(0)))
 
     ht = setup_globals(ht)
 
