@@ -162,10 +162,6 @@ object LowerDistributedSort {
         MakeStruct(IndexedSeq("segmentIdx" -> GetField(ctxRef, "segmentIdx"), "partData" -> samplePartition(partitionStream, samples, newKType.fields.map(_.name))))
       }
 
-      // Three levels here:
-      // 1. Is the individual partition sorted? This was checked above and is part of the collection in the CDA.
-      // 2. Is the segment sorted? This is a question of whether the constituent partitions sorted.
-      // 3. Are all of the segments sorted?
       val pivotsPerSegmentAndSortedCheck = ToArray(bindIR(perPartStatsIR) { perPartStats =>
         mapIR(StreamGroupByKey(ToStream(perPartStats), IndexedSeq("segmentIdx"))) { oneGroup =>
           val streamElementRef = Ref(genUID(), oneGroup.typ.asInstanceOf[TIterable].elementType)
@@ -176,17 +172,19 @@ object LowerDistributedSort {
                 ("min", AggFold.min(GetField(dataRef, "min"), newKType)),
                 ("max", AggFold.max(GetField(dataRef, "max"), newKType)),
                 ("samples", ApplyAggOp(Collect())(GetField(dataRef, "samples"))),
-                ("isSorted", AggFold.all(GetField(dataRef, "isSorted")))  // Here I have checked if the whole segment is sorted.
+                ("eachPartSorted", AggFold.all(GetField(dataRef, "isSorted"))),
+                ("perPartIntervalTuples", ApplyAggOp(Collect())(MakeTuple.ordered(Seq(GetField(dataRef, "min"), GetField(dataRef, "max")))))
               )), false)
           })) { aggResults =>
-            val sorted = sortIR(flatMapIR(ToStream(GetField(aggResults, "samples"))) { onePartCollectedArray => ToStream(onePartCollectedArray)}) { case (left, right) =>
+            val sortedSamples = sortIR(flatMapIR(ToStream(GetField(aggResults, "samples"))) { onePartCollectedArray => ToStream(onePartCollectedArray)}) { case (left, right) =>
               ApplyComparisonOp(LT(newKType), left, right)
             }
             val minArray = MakeArray(GetField(aggResults, "min"))
             val maxArray = MakeArray(GetField(aggResults, "max"))
+            val tuplesInSortedOrder = tuplesAreSorted(GetField(aggResults, "perPartIntervalTuples"))
             MakeStruct(Seq(
-              "pivotsWithEndpoints" -> ArrayFunctions.extend(ArrayFunctions.extend(minArray, sorted), maxArray),
-              "isSorted" -> GetField(aggResults, "isSorted"),
+              "pivotsWithEndpoints" -> ArrayFunctions.extend(ArrayFunctions.extend(minArray, sortedSamples), maxArray),
+              "isSorted" -> ApplySpecial("land", Seq.empty[Type], Seq(GetField(aggResults, "eachPartSorted"), tuplesInSortedOrder), TBoolean, ErrorIDs.NO_ERROR),
               "intervalTuple" -> MakeTuple.ordered(Seq(GetField(aggResults, "min"), GetField(aggResults, "max")))
             ))
           }

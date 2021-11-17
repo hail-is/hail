@@ -76,13 +76,13 @@ class LowerDistributedSortSuite extends HailSuite {
         "idx" -> GetField(rangeRow, "idx"),
         "foo" -> Apply("mod", IndexedSeq(), IndexedSeq(GetField(rangeRow, "idx"), I32(2)), TInt32, ErrorIDs.NO_ERROR),
         "backwards" -> -GetField(rangeRow, "idx"),
-        "const" -> I32(4) // Make sure it at least terminates in this scenario.
+        "const" -> I32(4)
       ))
     )
 
     testDistributedSortHelper(tableWithExtraField, IndexedSeq("foo", "idx"))
-//    testDistributedSortHelper(tableWithExtraField, IndexedSeq("idx"))
-//    testDistributedSortHelper(tableWithExtraField, IndexedSeq("backwards"))
-//    testDistributedSortHelper(tableWithExtraField, IndexedSeq("const"))
+    testDistributedSortHelper(tableWithExtraField, IndexedSeq("idx"))
+    testDistributedSortHelper(tableWithExtraField, IndexedSeq("backwards"))
+    testDistributedSortHelper(tableWithExtraField, IndexedSeq("const"))
   }
 }
