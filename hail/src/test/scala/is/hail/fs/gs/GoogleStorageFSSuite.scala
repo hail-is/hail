@@ -6,19 +6,28 @@ import is.hail.fs.FSSuite
 import is.hail.io.fs.GoogleStorageFS
 import org.apache.commons.io.IOUtils
 import org.scalatest.testng.TestNGSuite
-import org.testng.annotations.Test
+import org.testng.annotations.{Test, BeforeClass}
+import org.testng.SkipException
 
 class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
+  @BeforeClass
+  def beforeclass(): Unit = {
+    if (System.getenv("CLOUD") != "gcp") {
+      throw new SkipException("This test suite is only run in GCP.");
+    }
+  }
+
   val bucket: String = System.getenv("HAIL_TEST_GCS_BUCKET")
+
+  assert(bucket != null)
 
   val root: String = s"gs://$bucket"
 
-  val fsResourcesRoot: String = System.getenv("HAIL_GS_FS_TEST_RESOURCES")
+  val fsResourcesRoot: String = System.getenv("HAIL_FS_TEST_CLOUD_RESOURCES_URI")
 
-  private val keyFile = "/test-gsa-key/key.json"
+  assert(fsResourcesRoot != null)
 
-  lazy val fs = new GoogleStorageFS(
-    new String(IOUtils.toByteArray(new FileInputStream(keyFile))))
+  lazy val fs = new GoogleStorageFS()
 
   lazy val tmpdir: String = s"gs://$bucket/tmp"
 
