@@ -5,7 +5,7 @@ import asyncio
 import functools
 import pytest
 from hailtop.utils import url_scheme, bounded_gather2
-from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS, Transfer, FileAndDirectoryError
+from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS, Transfer, FileAndDirectoryError, Copier
 from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
 from hailtop.aiocloud.aioaws import S3AsyncFS
 from hailtop.aiocloud.aioazure import AzureAsyncFS
@@ -43,10 +43,14 @@ async def router_filesystem(request):
 
     with ThreadPoolExecutor() as thread_pool:
         async with RouterAsyncFS(
-                'file', [LocalAsyncFS(thread_pool),
-                         GoogleStorageAsyncFS(),
-                         S3AsyncFS(thread_pool),
-                         AzureAsyncFS()]) as fs:
+                'file',
+                filesystems=[
+                    LocalAsyncFS(thread_pool),
+                    GoogleStorageAsyncFS(),
+                    S3AsyncFS(thread_pool),
+                    AzureAsyncFS()
+                ]
+        ) as fs:
             file_base = f'/tmp/{token}/'
             await fs.mkdir(file_base)
 
@@ -168,7 +172,7 @@ async def test_copy_doesnt_exist(copy_test_context):
     sema, fs, src_base, dest_base = copy_test_context
 
     with pytest.raises(FileNotFoundError):
-        await fs.copy(sema, Transfer(f'{src_base}a', dest_base))
+        await Copier.copy(fs, sema, Transfer(f'{src_base}a', dest_base))
 
 
 @pytest.mark.asyncio
@@ -177,7 +181,7 @@ async def test_copy_file(copy_test_context):
 
     await create_test_file(fs, 'src', src_base, 'a')
 
-    await fs.copy(sema, Transfer(f'{src_base}a', dest_base.rstrip('/')))
+    await Copier.copy(fs, sema, Transfer(f'{src_base}a', dest_base.rstrip('/')))
 
     await expect_file(fs, f'{dest_base}a', 'src/a')
 
@@ -191,7 +195,7 @@ async def test_copy_large_file(copy_test_context):
     async with await fs.create(f'{src_base}a') as f:
         await f.write(contents)
 
-    await fs.copy(sema, Transfer(f'{src_base}a', dest_base.rstrip('/')))
+    await Copier.copy(fs, sema, Transfer(f'{src_base}a', dest_base.rstrip('/')))
 
     async with await fs.open(f'{dest_base}a') as f:
         copy_contents = await f.read()
@@ -204,7 +208,7 @@ async def test_copy_rename_file(copy_test_context):
 
     await create_test_file(fs, 'src', src_base, 'a')
 
-    await fs.copy(sema, Transfer(f'{src_base}a', f'{dest_base}x'))
+    await Copier.copy(fs, sema, Transfer(f'{src_base}a', f'{dest_base}x'))
 
     await expect_file(fs, f'{dest_base}x', 'src/a')
 
@@ -215,7 +219,7 @@ async def test_copy_rename_file_dest_target_file(copy_test_context):
 
     await create_test_file(fs, 'src', src_base, 'a')
 
-    await fs.copy(sema, Transfer(f'{src_base}a', f'{dest_base}x', treat_dest_as=Transfer.DEST_IS_TARGET))
+    await Copier.copy(fs, sema, Transfer(f'{src_base}a', f'{dest_base}x', treat_dest_as=Transfer.DEST_IS_TARGET))
 
     await expect_file(fs, f'{dest_base}x', 'src/a')
 
@@ -227,7 +231,7 @@ async def test_copy_file_dest_target_directory_doesnt_exist(copy_test_context):
     await create_test_file(fs, 'src', src_base, 'a')
 
     # SourceCopier._copy_file creates destination directories as needed
-    await fs.copy(sema, Transfer(f'{src_base}a', f'{dest_base}x', treat_dest_as=Transfer.DEST_DIR))
+    await Copier.copy(fs, sema, Transfer(f'{src_base}a', f'{dest_base}x', treat_dest_as=Transfer.DEST_DIR))
     await expect_file(fs, f'{dest_base}x/a', 'src/a')
 
 
@@ -238,7 +242,7 @@ async def test_overwrite_rename_file(copy_test_context):
     await create_test_file(fs, 'src', src_base, 'a')
     await create_test_file(fs, 'dest', dest_base, 'x')
 
-    await fs.copy(sema, Transfer(f'{src_base}a', f'{dest_base}x'))
+    await Copier.copy(fs, sema, Transfer(f'{src_base}a', f'{dest_base}x'))
 
     await expect_file(fs, f'{dest_base}x', 'src/a')
 
@@ -249,7 +253,7 @@ async def test_copy_rename_dir(copy_test_context):
 
     await create_test_dir(fs, 'src', src_base, 'a/')
 
-    await fs.copy(sema, Transfer(f'{src_base}a', f'{dest_base}x'))
+    await Copier.copy(fs, sema, Transfer(f'{src_base}a', f'{dest_base}x'))
 
     await expect_file(fs, f'{dest_base}x/file1', 'src/a/file1')
     await expect_file(fs, f'{dest_base}x/subdir/file2', 'src/a/subdir/file2')
@@ -261,7 +265,7 @@ async def test_copy_rename_dir_dest_is_target(copy_test_context):
 
     await create_test_dir(fs, 'src', src_base, 'a/')
 
-    await fs.copy(sema, Transfer(f'{src_base}a', f'{dest_base}x', treat_dest_as=Transfer.DEST_IS_TARGET))
+    await Copier.copy(fs, sema, Transfer(f'{src_base}a', f'{dest_base}x', treat_dest_as=Transfer.DEST_IS_TARGET))
 
     await expect_file(fs, f'{dest_base}x/file1', 'src/a/file1')
     await expect_file(fs, f'{dest_base}x/subdir/file2', 'src/a/subdir/file2')
@@ -274,7 +278,7 @@ async def test_overwrite_rename_dir(copy_test_context):
     await create_test_dir(fs, 'src', src_base, 'a/')
     await create_test_dir(fs, 'dest', dest_base, 'x/')
 
-    await fs.copy(sema, Transfer(f'{src_base}a', f'{dest_base}x', treat_dest_as=Transfer.DEST_IS_TARGET))
+    await Copier.copy(fs, sema, Transfer(f'{src_base}a', f'{dest_base}x', treat_dest_as=Transfer.DEST_IS_TARGET))
 
     await expect_file(fs, f'{dest_base}x/file1', 'src/a/file1')
     await expect_file(fs, f'{dest_base}x/subdir/file2', 'src/a/subdir/file2')
@@ -287,7 +291,7 @@ async def test_copy_file_dest_trailing_slash_target_dir(copy_test_context):
 
     await create_test_file(fs, 'src', src_base, 'a')
 
-    await fs.copy(sema, Transfer(f'{src_base}a', dest_base, treat_dest_as=Transfer.DEST_DIR))
+    await Copier.copy(fs, sema, Transfer(f'{src_base}a', dest_base, treat_dest_as=Transfer.DEST_DIR))
 
     await expect_file(fs, f'{dest_base}a', 'src/a')
 
@@ -298,7 +302,7 @@ async def test_copy_file_dest_target_dir(copy_test_context):
 
     await create_test_file(fs, 'src', src_base, 'a')
 
-    await fs.copy(sema, Transfer(f'{src_base}a', dest_base.rstrip('/'), treat_dest_as=Transfer.DEST_DIR))
+    await Copier.copy(fs, sema, Transfer(f'{src_base}a', dest_base.rstrip('/'), treat_dest_as=Transfer.DEST_DIR))
 
     await expect_file(fs, f'{dest_base}a', 'src/a')
 
@@ -309,7 +313,7 @@ async def test_copy_file_dest_target_file(copy_test_context):
 
     await create_test_file(fs, 'src', src_base, 'a')
 
-    await fs.copy(sema, Transfer(f'{src_base}a', f'{dest_base}a', treat_dest_as=Transfer.DEST_IS_TARGET))
+    await Copier.copy(fs, sema, Transfer(f'{src_base}a', f'{dest_base}a', treat_dest_as=Transfer.DEST_IS_TARGET))
 
     await expect_file(fs, f'{dest_base}a', 'src/a')
 
@@ -321,7 +325,7 @@ async def test_copy_dest_target_file_is_dir(copy_test_context):
     await create_test_file(fs, 'src', src_base, 'a')
 
     with RaisesOrObjectStore(dest_base, IsADirectoryError):
-        await fs.copy(sema, Transfer(f'{src_base}a', dest_base.rstrip('/'), treat_dest_as=Transfer.DEST_IS_TARGET))
+        await Copier.copy(fs, sema, Transfer(f'{src_base}a', dest_base.rstrip('/'), treat_dest_as=Transfer.DEST_IS_TARGET))
 
 
 @pytest.mark.asyncio
@@ -331,7 +335,7 @@ async def test_overwrite_file(copy_test_context):
     await create_test_file(fs, 'src', src_base, 'a')
     await create_test_file(fs, 'dest', dest_base, 'a')
 
-    await fs.copy(sema, Transfer(f'{src_base}a', dest_base.rstrip('/')))
+    await Copier.copy(fs, sema, Transfer(f'{src_base}a', dest_base.rstrip('/')))
 
     await expect_file(fs, f'{dest_base}a', 'src/a')
 
@@ -343,7 +347,7 @@ async def test_copy_file_src_trailing_slash(copy_test_context):
     await create_test_file(fs, 'src', src_base, 'a')
 
     with pytest.raises(FileNotFoundError):
-        await fs.copy(sema, Transfer(f'{src_base}a/', dest_base))
+        await Copier.copy(fs, sema, Transfer(f'{src_base}a/', dest_base))
 
 
 @pytest.mark.asyncio
@@ -352,7 +356,7 @@ async def test_copy_dir(copy_test_context):
 
     await create_test_dir(fs, 'src', src_base, 'a/')
 
-    await fs.copy(sema, Transfer(f'{src_base}a', dest_base.rstrip('/')))
+    await Copier.copy(fs, sema, Transfer(f'{src_base}a', dest_base.rstrip('/')))
 
     await expect_file(fs, f'{dest_base}a/file1', 'src/a/file1')
     await expect_file(fs, f'{dest_base}a/subdir/file2', 'src/a/subdir/file2')
@@ -365,7 +369,7 @@ async def test_overwrite_dir(copy_test_context):
     await create_test_dir(fs, 'src', src_base, 'a/')
     await create_test_dir(fs, 'dest', dest_base, 'a/')
 
-    await fs.copy(sema, Transfer(f'{src_base}a', dest_base.rstrip('/')))
+    await Copier.copy(fs, sema, Transfer(f'{src_base}a', dest_base.rstrip('/')))
 
     await expect_file(fs, f'{dest_base}a/file1', 'src/a/file1')
     await expect_file(fs, f'{dest_base}a/subdir/file2', 'src/a/subdir/file2')
@@ -379,7 +383,7 @@ async def test_copy_multiple(copy_test_context):
     await create_test_file(fs, 'src', src_base, 'a')
     await create_test_file(fs, 'src', src_base, 'b')
 
-    await fs.copy(sema, Transfer([f'{src_base}a', f'{src_base}b'], dest_base.rstrip('/')))
+    await Copier.copy(fs, sema, Transfer([f'{src_base}a', f'{src_base}b'], dest_base.rstrip('/')))
 
     await expect_file(fs, f'{dest_base}a', 'src/a')
     await expect_file(fs, f'{dest_base}b', 'src/b')
@@ -393,7 +397,7 @@ async def test_copy_multiple_dest_target_file(copy_test_context):
     await create_test_file(fs, 'src', src_base, 'b')
 
     with RaisesOrObjectStore(dest_base, NotADirectoryError):
-        await fs.copy(sema, Transfer([f'{src_base}a', f'{src_base}b'], dest_base.rstrip('/'), treat_dest_as=Transfer.DEST_IS_TARGET))
+        await Copier.copy(fs, sema, Transfer([f'{src_base}a', f'{src_base}b'], dest_base.rstrip('/'), treat_dest_as=Transfer.DEST_IS_TARGET))
 
 
 @pytest.mark.asyncio
@@ -405,7 +409,7 @@ async def test_copy_multiple_dest_file(copy_test_context):
     await create_test_file(fs, 'dest', dest_base, 'x')
 
     with RaisesOrObjectStore(dest_base, NotADirectoryError):
-        await fs.copy(sema, Transfer([f'{src_base}a', f'{src_base}b'], f'{dest_base}x'))
+        await Copier.copy(fs, sema, Transfer([f'{src_base}a', f'{src_base}b'], f'{dest_base}x'))
 
 
 @pytest.mark.asyncio
@@ -415,7 +419,7 @@ async def test_file_overwrite_dir(copy_test_context):
     await create_test_file(fs, 'src', src_base, 'a')
 
     with RaisesOrObjectStore(dest_base, IsADirectoryError):
-        await fs.copy(sema, Transfer(f'{src_base}a', dest_base.rstrip('/'), treat_dest_as=Transfer.DEST_IS_TARGET))
+        await Copier.copy(fs, sema, Transfer(f'{src_base}a', dest_base.rstrip('/'), treat_dest_as=Transfer.DEST_IS_TARGET))
 
 
 @pytest.mark.asyncio
@@ -429,7 +433,7 @@ async def test_file_and_directory_error(router_filesystem):
     await create_test_file(fs, 'src', src_base, 'a/subfile')
 
     with pytest.raises(FileAndDirectoryError):
-        await fs.copy(sema, Transfer(f'{src_base}a', dest_base.rstrip('/')))
+        await Copier.copy(fs, sema, Transfer(f'{src_base}a', dest_base.rstrip('/')))
 
 
 @pytest.mark.asyncio
@@ -438,7 +442,7 @@ async def test_copy_src_parts(copy_test_context):
 
     await create_test_dir(fs, 'src', src_base, 'a/')
 
-    await fs.copy(sema, Transfer([f'{src_base}a/file1', f'{src_base}a/subdir'], dest_base.rstrip('/'), treat_dest_as=Transfer.DEST_DIR))
+    await Copier.copy(fs, sema, Transfer([f'{src_base}a/file1', f'{src_base}a/subdir'], dest_base.rstrip('/'), treat_dest_as=Transfer.DEST_DIR))
 
     await expect_file(fs, f'{dest_base}file1', 'src/a/file1')
     await expect_file(fs, f'{dest_base}subdir/file2', 'src/a/subdir/file2')
@@ -470,11 +474,11 @@ async def test_file_and_directory_error_with_slash_empty_file(router_filesystem)
     for transfer_type in (Transfer.DEST_IS_TARGET, Transfer.DEST_DIR, Transfer.INFER_DEST):
         dest_base = await fresh_dir(fs, bases, 'gs')
 
-        await fs.copy(sema, Transfer(f'{src_base}', dest_base.rstrip('/'), treat_dest_as=transfer_type))
+        await Copier.copy(fs, sema, Transfer(f'{src_base}', dest_base.rstrip('/'), treat_dest_as=transfer_type))
 
         dest_base = await fresh_dir(fs, bases, 'gs')
 
-        await fs.copy(sema, Transfer(f'{src_base}empty/', dest_base.rstrip('/'), treat_dest_as=transfer_type))
+        await Copier.copy(fs, sema, Transfer(f'{src_base}empty/', dest_base.rstrip('/'), treat_dest_as=transfer_type))
 
         await collect_files(await fs.listfiles(f'{dest_base}'))
         await collect_files(await fs.listfiles(f'{dest_base}', recursive=True))
@@ -515,7 +519,7 @@ async def test_file_and_directory_error_with_slash_non_empty_file(router_filesys
     for transfer_type in (Transfer.DEST_IS_TARGET, Transfer.DEST_DIR, Transfer.INFER_DEST):
         dest_base = await fresh_dir(fs, bases, 'gs')
 
-        await fs.copy(sema, Transfer(f'{src_base}not-empty/bar', dest_base.rstrip('/'), treat_dest_as=transfer_type))
+        await Copier.copy(fs, sema, Transfer(f'{src_base}not-empty/bar', dest_base.rstrip('/'), treat_dest_as=transfer_type))
         if transfer_type == Transfer.DEST_DIR:
             exp_dest = f'{dest_base}bar'
             await expect_file(fs, exp_dest, 'bar')
@@ -528,11 +532,11 @@ async def test_file_and_directory_error_with_slash_non_empty_file(router_filesys
 
         with pytest.raises(FileAndDirectoryError):
             dest_base = await fresh_dir(fs, bases, 'gs')
-            await fs.copy(sema, Transfer(f'{src_base}not-empty/', dest_base.rstrip('/'), treat_dest_as=transfer_type))
+            await Copier.copy(fs, sema, Transfer(f'{src_base}not-empty/', dest_base.rstrip('/'), treat_dest_as=transfer_type))
 
         with pytest.raises(FileAndDirectoryError):
             dest_base = await fresh_dir(fs, bases, 'gs')
-            await fs.copy(sema, Transfer(f'{src_base}', dest_base.rstrip('/'), treat_dest_as=transfer_type))
+            await Copier.copy(fs, sema, Transfer(f'{src_base}', dest_base.rstrip('/'), treat_dest_as=transfer_type))
 
 
 @pytest.mark.asyncio
@@ -550,7 +554,7 @@ async def test_file_and_directory_error_with_slash_empty_file_only(router_filesy
 
     for transfer_type in (Transfer.DEST_IS_TARGET, Transfer.DEST_DIR, Transfer.INFER_DEST):
         dest_base = await fresh_dir(fs, bases, 'gs')
-        await fs.copy(sema, Transfer(f'{src_base}empty-only/', dest_base.rstrip('/'), treat_dest_as=transfer_type))
+        await Copier.copy(fs, sema, Transfer(f'{src_base}empty-only/', dest_base.rstrip('/'), treat_dest_as=transfer_type))
 
         # We ignore empty directories when copying
         with pytest.raises(FileNotFoundError):
@@ -560,7 +564,7 @@ async def test_file_and_directory_error_with_slash_empty_file_only(router_filesy
             await collect_files(await fs.listfiles(f'{dest_base}empty-only/', recursive=True))
 
         dest_base = await fresh_dir(fs, bases, 'gs')
-        await fs.copy(sema, Transfer(f'{src_base}', dest_base.rstrip('/'), treat_dest_as=transfer_type))
+        await Copier.copy(fs, sema, Transfer(f'{src_base}', dest_base.rstrip('/'), treat_dest_as=transfer_type))
 
 
 @pytest.mark.asyncio
@@ -586,8 +590,8 @@ async def test_file_and_directory_error_with_slash_non_empty_file_only(router_fi
     for transfer_type in (Transfer.DEST_IS_TARGET, Transfer.DEST_DIR, Transfer.INFER_DEST):
         with pytest.raises(FileAndDirectoryError):
             dest_base = await fresh_dir(fs, bases, 'gs')
-            await fs.copy(sema, Transfer(f'{src_base}not-empty-file-w-slash/', dest_base.rstrip('/'), treat_dest_as=transfer_type))
+            await Copier.copy(fs, sema, Transfer(f'{src_base}not-empty-file-w-slash/', dest_base.rstrip('/'), treat_dest_as=transfer_type))
 
         with pytest.raises(FileAndDirectoryError):
             dest_base = await fresh_dir(fs, bases, 'gs')
-            await fs.copy(sema, Transfer(f'{src_base}', dest_base.rstrip('/'), treat_dest_as=transfer_type))
+            await Copier.copy(fs, sema, Transfer(f'{src_base}', dest_base.rstrip('/'), treat_dest_as=transfer_type))

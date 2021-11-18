@@ -11,10 +11,10 @@ import logging
 import botocore.exceptions
 import boto3
 from hailtop.utils import blocking_to_async
-from hailtop.aiotools import (
+from hailtop.aiotools.fs import (
     FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS,
     MultiPartCreate)
-from hailtop.aiotools.stream import (
+from hailtop.aiotools.fs.stream import (
     AsyncQueueWritableStream,
     async_writable_blocking_readable_stream_pair,
     async_writable_blocking_collect_pair,
@@ -250,14 +250,13 @@ class S3MultiPartCreate(MultiPartCreate):
 
 
 class S3AsyncFS(AsyncFS):
-    def __init__(self, thread_pool: ThreadPoolExecutor, max_workers=None):
+    schemes: Set[str] = {'s3'}
+
+    def __init__(self, thread_pool: Optional[ThreadPoolExecutor] = None, max_workers: Optional[int] = None):
         if not thread_pool:
             thread_pool = ThreadPoolExecutor(max_workers=max_workers)
         self._thread_pool = thread_pool
         self._s3 = boto3.client('s3')
-
-    def schemes(self) -> Set[str]:
-        return {'s3'}
 
     @staticmethod
     def _get_bucket_name(url: str) -> Tuple[str, str]:
@@ -455,8 +454,7 @@ class S3AsyncFS(AsyncFS):
     async def close(self) -> None:
         pass
 
-    @staticmethod
-    def _copy_part_size():
+    def copy_part_size(self, url: str) -> int:  # pylint: disable=unused-argument
         # Because the S3 upload_part API call requires the entire part
         # be loaded into memory, use a smaller part size.
         return 32 * 1024 * 1024

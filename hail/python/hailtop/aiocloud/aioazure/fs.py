@@ -13,10 +13,9 @@ from azure.storage.blob.aio import BlobClient, ContainerClient, BlobServiceClien
 from azure.storage.blob.aio._list_blobs_helper import BlobPrefix
 import azure.core.exceptions
 from hailtop.utils import retry_transient_errors, flatten, OnlineBoundedGather2
-from hailtop.aiotools import UnexpectedEOFError
 
 from hailtop.aiotools.fs import (AsyncFS, ReadableStream, WritableStream, MultiPartCreate, FileListEntry, FileStatus,
-                                 FileAndDirectoryError)
+                                 FileAndDirectoryError, UnexpectedEOFError)
 from hailtop.aiotools.utils import WriteBuffer
 
 from .credentials import AzureCredentials
@@ -88,7 +87,7 @@ class AzureMultiPartCreate(MultiPartCreate):
         self._client = client
         self._block_ids: List[List[str]] = [[] for _ in range(num_parts)]
 
-    async def create_part(self, number: int, start: int, size_hint: Optional[int] = None) -> AsyncContextManager[WritableStream]:
+    async def create_part(self, number: int, start: int, size_hint: Optional[int] = None) -> AsyncContextManager[WritableStream]:  # pylint: disable=unused-argument
         return AzureCreatePartManager(self._client, self._block_ids[number])
 
     async def __aenter__(self) -> 'AzureMultiPartCreate':
@@ -247,6 +246,7 @@ class AzureFileStatus(FileStatus):
 
 
 class AzureAsyncFS(AsyncFS):
+    schemes: Set[str] = {'hail-az'}
     PATH_REGEX = re.compile('/(?P<container>[^/]+)(?P<name>.*)')
 
     def __init__(self, *, credential_file: Optional[str] = None, credentials: Optional[AzureCredentials] = None):
@@ -262,9 +262,6 @@ class AzureAsyncFS(AsyncFS):
 
         self._credential = credentials.credential
         self._blob_service_clients: Dict[str, BlobServiceClient] = {}
-
-    def schemes(self) -> Set[str]:
-        return {'hail-az'}
 
     @staticmethod
     def _get_account_container_name(url: str) -> Tuple[str, str, str]:

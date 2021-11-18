@@ -5,11 +5,7 @@ import asyncio
 import logging
 import argparse
 from concurrent.futures import ThreadPoolExecutor
-from hailtop.aiotools.fs import RouterAsyncFS, LocalAsyncFS, Transfer
-
-from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
-from hailtop.aiocloud.aioaws import S3AsyncFS
-from hailtop.aiocloud.aioazure import AzureAsyncFS
+from hailtop.aiotools import RouterAsyncFS, Transfer, Copier
 from hailtop.utils import tqdm
 
 
@@ -28,20 +24,6 @@ def referenced_schemes(transfers: List[Transfer]):
         for url in [transfer.src, transfer.dest]}
 
 
-def filesystem_from_scheme(scheme, thread_pool=None, gcs_params=None):
-    if scheme == 'file':
-        assert thread_pool is not None
-        return LocalAsyncFS(thread_pool)
-    if scheme == 'gs':
-        return GoogleStorageAsyncFS(params=gcs_params)
-    if scheme == 's3':
-        assert thread_pool is not None
-        return S3AsyncFS(thread_pool)
-    if scheme == 'hail-az':
-        return AzureAsyncFS()
-    raise ValueError(f'Unsupported scheme: {scheme}')
-
-
 def make_tqdm_listener(pbar):
     def listener(delta):
         if pbar.total is None:
@@ -54,24 +36,39 @@ def make_tqdm_listener(pbar):
     return listener
 
 
-async def copy(requester_pays_project: Optional[str],
+async def copy(*,
+               local_kwargs: Optional[dict] = None,
+               gcs_kwargs: Optional[dict] = None,
+               azure_kwargs: Optional[dict] = None,
+               s3_kwargs: Optional[dict] = None,
                transfers: List[Transfer]
                ) -> None:
-    gcs_params = {'userProject': requester_pays_project} if requester_pays_project else None
+
     schemes = referenced_schemes(transfers)
     default_scheme = 'file' if 'file' in schemes else None
+
     with ThreadPoolExecutor() as thread_pool:
-        filesystems = [filesystem_from_scheme(s,
-                                              thread_pool=thread_pool,
-                                              gcs_params=gcs_params)
-                       for s in schemes]
-        async with RouterAsyncFS(default_scheme, filesystems) as fs:
+        if local_kwargs is None:
+            local_kwargs = {}
+        if 'thread_pool' not in local_kwargs:
+            local_kwargs['thread_pool'] = thread_pool
+
+        if s3_kwargs is None:
+            s3_kwargs = {}
+        if 'thread_pool' not in s3_kwargs:
+            s3_kwargs['thread_pool'] = thread_pool
+
+        async with RouterAsyncFS(default_scheme,
+                                 local_kwargs=local_kwargs,
+                                 gcs_kwargs=gcs_kwargs,
+                                 azure_kwargs=azure_kwargs,
+                                 s3_kwargs=s3_kwargs) as fs:
             sema = asyncio.Semaphore(50)
             async with sema:
                 with tqdm(desc='files', leave=False, position=0, unit='file') as file_pbar, \
                      tqdm(desc='bytes', leave=False, position=1, unit='byte', unit_scale=True, smoothing=0.1) as byte_pbar:
-
-                    copy_report = await fs.copy(
+                    copy_report = await Copier.copy(
+                        fs,
                         sema,
                         transfers,
                         files_listener=make_tqdm_listener(file_pbar),
@@ -95,9 +92,11 @@ async def main() -> None:
     requester_pays_project = json.loads(args.requester_pays_project)
     files = json.loads(args.files)
 
+    gcs_kwargs = {'project': requester_pays_project}
+
     await copy(
-        requester_pays_project,
-        [Transfer(f['from'], f['to'], treat_dest_as=Transfer.DEST_IS_TARGET) for f in files]
+        gcs_kwargs=gcs_kwargs,
+        transfers=[Transfer(f['from'], f['to'], treat_dest_as=Transfer.DEST_IS_TARGET) for f in files]
     )
 
 

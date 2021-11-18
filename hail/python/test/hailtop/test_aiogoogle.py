@@ -17,8 +17,8 @@ async def gs_filesystem(request):
     with ThreadPoolExecutor() as thread_pool:
         if request.param.startswith('router/'):
             fs = RouterAsyncFS(
-                'file', [LocalAsyncFS(thread_pool),
-                         GoogleStorageAsyncFS()])
+                'file', filesystems=[LocalAsyncFS(thread_pool),
+                                     GoogleStorageAsyncFS()])
         else:
             assert request.param.endswith('gs')
             fs = GoogleStorageAsyncFS()

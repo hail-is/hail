@@ -13,7 +13,6 @@ from hailtop.batch.globals import arg_max
 from hailtop.utils import grouped, async_to_blocking
 from hailtop.config import get_user_config
 from hailtop.batch.utils import concatenate
-from hailtop.aiocloud import aiogoogle
 from hailtop.aiotools import RouterAsyncFS
 
 
@@ -419,10 +418,9 @@ class ServiceTests(unittest.TestCase):
         if not os.path.exists(in_cluster_key_file):
             in_cluster_key_file = None
 
-        # FIXME: Make this lazy
-        router_fs = RouterAsyncFS('gs', [
-            aiogoogle.GoogleStorageAsyncFS(project='hail-vdc', credentials_file=in_cluster_key_file),
-        ])
+        router_fs = RouterAsyncFS('gs',
+                                  gcs_kwargs={'project': 'hail-vdc', 'credentials_file': in_cluster_key_file},
+                                  azure_kwargs={'credential_file': in_cluster_key_file})
 
         def sync_exists(url):
             return async_to_blocking(router_fs.exists(url))
