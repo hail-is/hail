@@ -1,4 +1,4 @@
-FROM {{ hail_public_image.image }}
+FROM {{ hailgenetics_hail_image.image }}
 
 RUN hail-apt-get-install \
     cmake \
