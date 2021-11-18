@@ -114,7 +114,11 @@ class AsyncFS(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
+    async def listfiles(self,
+                        url: str,
+                        recursive: bool = False,
+                        exclude_trailing_slash_files=False
+                        ) -> AsyncIterator[FileListEntry]:
         pass
 
     @abc.abstractmethod
@@ -412,7 +416,7 @@ class LocalAsyncFS(AsyncFS):
     async def listfiles(self,
                         url: str,
                         recursive: bool = False,
-                        exclude_trailing_slash_files: bool = True
+                        exclude_trailing_slash_files: bool = True  # pylint: disable=unused-argument
                         ) -> AsyncIterator[FileListEntry]:
         path = self._get_path(url)
         entries = await blocking_to_async(self._thread_pool, os.scandir, path)

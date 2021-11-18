@@ -387,7 +387,8 @@ class S3AsyncFS(AsyncFS):
     async def listfiles(self,
                         url: str,
                         recursive: bool = False,
-                        exclude_trailing_slash_files: bool = True) -> AsyncIterator[FileListEntry]:
+                        exclude_trailing_slash_files: bool = True  # pylint: disable=unused-argument
+                        ) -> AsyncIterator[FileListEntry]:
         bucket, name = self._get_bucket_name(url)
         if name and not name.endswith('/'):
             name += '/'
