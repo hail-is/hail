@@ -464,9 +464,9 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
     def setup_globals(ht):
         # cov_arrays is per sample, then per cov.
         if covariates:
-            ht = ht.annotate_globals(cov_arrays=ht[sample_field_name].map(lambda sample_struct: [sample_struct[cov_name] for cov_name in cov_field_names]))
+            cov_arrays = ht[sample_field_name].map(lambda sample_struct: [sample_struct[cov_name] for cov_name in cov_field_names])
         else:
-            ht = ht.annotate_globals(cov_arrays=ht[sample_field_name].map(lambda sample_struct: hl.empty_array(hl.tfloat64)))
+            cov_arrays = ht[sample_field_name].map(lambda sample_struct: hl.empty_array(hl.tfloat64))
 
         y_arrays_per_group = [ht[sample_field_name].map(lambda sample_struct: [sample_struct[y_name] for y_name in one_y_field_name_set]) for one_y_field_name_set in y_field_name_groups]
 
@@ -475,59 +475,54 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
         else:
             weight_arrays = ht[sample_field_name].map(lambda sample_struct: hl.empty_array(hl.tfloat64))
 
-        ht = ht.annotate_globals(
-            y_arrays_per_group=y_arrays_per_group,
-            weight_arrays=weight_arrays
-        )
-        ht = ht.annotate_globals(all_covs_defined=ht.cov_arrays.map(lambda sample_covs: no_missing(sample_covs)))
+        all_covs_defined = cov_arrays.map(lambda sample_covs: no_missing(sample_covs))
 
         def get_kept_samples(group_idx, sample_ys):
             # sample_ys is an array of samples, with each element being an array of the y_values
             return hl.enumerate(sample_ys).filter(
-                lambda idx_and_y_values: ht.all_covs_defined[idx_and_y_values[0]] & no_missing(idx_and_y_values[1]) & (hl.is_defined(ht.weight_arrays[idx_and_y_values[0]][group_idx]) if weights else True)
+                lambda idx_and_y_values: all_covs_defined[idx_and_y_values[0]] & no_missing(idx_and_y_values[1]) & (hl.is_defined(weight_arrays[idx_and_y_values[0]][group_idx]) if weights else True)
             ).map(lambda idx_and_y_values: idx_and_y_values[0])
 
-        ht = ht.annotate_globals(kept_samples=hl.enumerate(ht.y_arrays_per_group).starmap(get_kept_samples))
-        ht = ht.annotate_globals(y_nds=hl.zip(ht.kept_samples, ht.y_arrays_per_group).starmap(
-            lambda sample_indices, y_arrays: hl.nd.array(sample_indices.map(lambda idx: y_arrays[idx]))))
-        ht = ht.annotate_globals(cov_nds=ht.kept_samples.map(lambda group: hl.nd.array(group.map(lambda idx: ht.cov_arrays[idx]))))
+        kept_samples = hl.enumerate(y_arrays_per_group).starmap(get_kept_samples)
+        y_nds = hl.zip(kept_samples, y_arrays_per_group).starmap(
+            lambda sample_indices, y_arrays: hl.nd.array(sample_indices.map(lambda idx: y_arrays[idx])))
+        cov_nds = kept_samples.map(lambda group: hl.nd.array(group.map(lambda idx: cov_arrays[idx])))
 
         if weights is None:
-            ht = ht.annotate_globals(sqrt_weights=hl.missing(hl.tarray(hl.tndarray(hl.tfloat64, 2))))
-            ht = ht.annotate_globals(scaled_y_nds=ht.y_nds)
-            ht = ht.annotate_globals(scaled_cov_nds=ht.cov_nds)
+            sqrt_weights = hl.missing(hl.tarray(hl.tndarray(hl.tfloat64, 2)))
+            scaled_y_nds = y_nds
+            scaled_cov_nds = cov_nds
         else:
-            ht = ht.annotate_globals(weight_nds=hl.enumerate(ht.kept_samples).starmap(
-                lambda group_idx, group_sample_indices: hl.nd.array(group_sample_indices.map(lambda group_sample_idx: ht.weight_arrays[group_sample_idx][group_idx]))))
-            ht = ht.annotate_globals(sqrt_weights=ht.weight_nds.map(lambda weight_nd: weight_nd.map(lambda e: hl.sqrt(e))))
-            ht = ht.annotate_globals(scaled_y_nds=hl.zip(ht.y_nds, ht.sqrt_weights).starmap(lambda y, sqrt_weight: y * sqrt_weight.reshape(-1, 1)))
-            ht = ht.annotate_globals(scaled_cov_nds=hl.zip(ht.cov_nds, ht.sqrt_weights).starmap(lambda cov, sqrt_weight: cov * sqrt_weight.reshape(-1, 1)))
+            weight_nds = hl.enumerate(kept_samples).starmap(
+                lambda group_idx, group_sample_indices: hl.nd.array(group_sample_indices.map(lambda group_sample_idx: weight_arrays[group_sample_idx][group_idx])))
+            sqrt_weights = weight_nds.map(lambda weight_nd: weight_nd.map(lambda e: hl.sqrt(e)))
+            scaled_y_nds = hl.zip(y_nds, sqrt_weights).starmap(lambda y, sqrt_weight: y * sqrt_weight.reshape(-1, 1))
+            scaled_cov_nds = hl.zip(cov_nds, sqrt_weights).starmap(lambda cov, sqrt_weight: cov * sqrt_weight.reshape(-1, 1))
 
         k = builtins.len(covariates)
-        ht = ht.annotate_globals(ns=ht.kept_samples.map(lambda one_sample_set: hl.len(one_sample_set)))
+        ns = kept_samples.map(lambda one_sample_set: hl.len(one_sample_set))
 
         def log_message(i):
             if is_chained:
-                return "linear regression_rows[" + hl.str(i) + "] running on " + hl.str(ht.ns[i]) + " samples for " + hl.str(ht.scaled_y_nds[i].shape[1]) + f" response variables y, with input variables x, and {len(covariates)} additional covariates..."
+                return "linear regression_rows[" + hl.str(i) + "] running on " + hl.str(ns[i]) + " samples for " + hl.str(scaled_y_nds[i].shape[1]) + f" response variables y, with input variables x, and {len(covariates)} additional covariates..."
             else:
-                return "linear_regression_rows running on " + hl.str(ht.ns[0]) + " samples for " + hl.str(ht.scaled_y_nds[i].shape[1]) + f" response variables y, with input variables x, and {len(covariates)} additional covariates..."
+                return "linear_regression_rows running on " + hl.str(ns[0]) + " samples for " + hl.str(scaled_y_nds[i].shape[1]) + f" response variables y, with input variables x, and {len(covariates)} additional covariates..."
 
-        ht = ht.annotate_globals(ns=hl.range(num_y_lists).map(lambda i: hl._console_log(log_message(i), ht.ns[i])))
-        ht = ht.annotate_globals(
-            cov_Qs=hl.if_else(k > 0,
-                              ht.scaled_cov_nds.map(lambda one_cov_nd: hl.nd.qr(one_cov_nd)[0]),
-                              ht.ns.map(lambda n: hl.nd.zeros((n, 0)))))
-        ht = ht.annotate_globals(Qtys=hl.zip(ht.cov_Qs, ht.scaled_y_nds).starmap(lambda cov_q, y: cov_q.T @ y))
+        ns = hl.range(num_y_lists).map(lambda i: hl._console_log(log_message(i), ns[i]))
+        cov_Qs = hl.if_else(k > 0,
+                            scaled_cov_nds.map(lambda one_cov_nd: hl.nd.qr(one_cov_nd)[0]),
+                            ns.map(lambda n: hl.nd.zeros((n, 0))))
+        Qtys = hl.zip(cov_Qs, scaled_y_nds).starmap(lambda cov_q, y: cov_q.T @ y)
 
         return ht.select_globals(
-            kept_samples=ht.kept_samples,
-            __scaled_y_nds=ht.scaled_y_nds,
-            __sqrt_weight_nds=ht.sqrt_weights,
-            ns=ht.ns,
-            ds=ht.ns.map(lambda n: n - k - 1),
-            __cov_Qs=ht.cov_Qs,
+            kept_samples=kept_samples,
+            __scaled_y_nds=scaled_y_nds,
+            __sqrt_weight_nds=sqrt_weights,
+            ns=ns,
+            ds=ns.map(lambda n: n - k - 1),
+            __cov_Qs=cov_Qs,
             __yyps=hl.range(num_y_lists).map(
-                lambda i: ht.scaled_y_nds[i].map(lambda x: x**2).sum(0) - ht.Qtys[i].map(lambda x: x**2).sum(0)))
+                lambda i: scaled_y_nds[i].map(lambda x: x**2).sum(0) - Qtys[i].map(lambda x: x**2).sum(0)))
 
     ht = setup_globals(ht)
 
@@ -547,16 +542,16 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
             betas = ytX / X_residual_norms
             standard_errors = ((ht.__yyps[idx].reshape((-1, 1)) - ytX.map(lambda x: x**2)) / ht.ds[idx]).map(lambda x: hl.sqrt(x)) / X_residual_norms
             t = betas / standard_errors
-            return hl.rbind(t, lambda t:
-                            hl.rbind(ht.ds[idx], lambda d:
-                                     hl.rbind(t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), d, True, False)), lambda p:
-                                              hl.struct(n=hl.range(rows_in_block).map(lambda i: ht.ns[idx]),
-                                                        sum_x=X.sum(0)._data_array(),
-                                                        y_transpose_x=(X.T @ ht.__scaled_y_nds[idx])._data_array(),
-                                                        beta=betas.T._data_array(),
-                                                        standard_error=standard_errors.T._data_array(),
-                                                        t_stat=t.T._data_array(),
-                                                        p_value=p.T._data_array()))))
+            d = ht.ds[idx]
+            p = t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), d, True, False))
+
+            return hl.struct(n=hl.range(rows_in_block).map(lambda i: ht.ns[idx]),
+                      sum_x=X.sum(0)._data_array(),
+                      y_transpose_x=(X.T @ ht.__scaled_y_nds[idx])._data_array(),
+                      beta=betas.T._data_array(),
+                      standard_error=standard_errors.T._data_array(),
+                      t_stat=t.T._data_array(),
+                      p_value=p.T._data_array())
 
         per_y_list = hl.range(num_y_lists).map(lambda i: process_y_group(i))
 
