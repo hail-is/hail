@@ -545,13 +545,14 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
             t = betas / standard_errors
             p = t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), d, True, False))
 
-            return hl.struct(n=hl.range(rows_in_block).map(lambda i: ht.ns[idx]),
-                      sum_x=X.sum(0)._data_array(),
-                      y_transpose_x=(X.T @ ht.__scaled_y_nds[idx])._data_array(),
-                      beta=betas.T._data_array(),
-                      standard_error=standard_errors.T._data_array(),
-                      t_stat=t.T._data_array(),
-                      p_value=p.T._data_array())
+            return hl.struct(
+                n=hl.range(rows_in_block).map(lambda i: ht.ns[idx]),
+                sum_x=X.sum(0)._data_array(),
+                y_transpose_x=(X.T @ ht.__scaled_y_nds[idx])._data_array(),
+                beta=betas.T._data_array(),
+                standard_error=standard_errors.T._data_array(),
+                t_stat=t.T._data_array(),
+                p_value=p.T._data_array())
 
         per_y_list = hl.range(num_y_lists).map(lambda i: process_y_group(i))
 
