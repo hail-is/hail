@@ -513,9 +513,10 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
                 return "linear_regression_rows running on " + hl.str(ht.ns[0]) + " samples for " + hl.str(ht.scaled_y_nds[i].shape[1]) + f" response variables y, with input variables x, and {len(covariates)} additional covariates..."
 
         ht = ht.annotate_globals(ns=hl.range(num_y_lists).map(lambda i: hl._console_log(log_message(i), ht.ns[i])))
-        ht = ht.annotate_globals(cov_Qs=hl.if_else(k > 0,
-                                     ht.scaled_cov_nds.map(lambda one_cov_nd: hl.nd.qr(one_cov_nd)[0]),
-                                     ht.ns.map(lambda n: hl.nd.zeros((n, 0)))))
+        ht = ht.annotate_globals(
+            cov_Qs=hl.if_else(k > 0,
+                              ht.scaled_cov_nds.map(lambda one_cov_nd: hl.nd.qr(one_cov_nd)[0]),
+                              ht.ns.map(lambda n: hl.nd.zeros((n, 0)))))
         ht = ht.annotate_globals(Qtys=hl.zip(ht.cov_Qs, ht.scaled_y_nds).starmap(lambda cov_q, y: cov_q.T @ y))
 
         return ht.select_globals(
@@ -542,7 +543,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
             X_residuals = X - ht.__cov_Qs[idx] @ (ht.__cov_Qs[idx].T @ X)
             X_residual_norms = X_residuals.map(lambda x: x**2).sum(0).map(lambda x: hl.sqrt(x))
             X_residuals_normalized = X_residuals / X_residual_norms
-            ytX = ht.__scaled_y_nds[idx].T @ X_residuals_normalized # (num right hand sides) by rows_in_block
+            ytX = ht.__scaled_y_nds[idx].T @ X_residuals_normalized  # (num right hand sides) by rows_in_block
             betas = ytX / X_residual_norms
             standard_errors = ((ht.__yyps[idx].reshape((-1, 1)) - ytX.map(lambda x: x**2)) / ht.ds[idx]).map(lambda x: hl.sqrt(x)) / X_residual_norms
             t = betas / standard_errors
