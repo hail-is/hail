@@ -872,8 +872,8 @@ steps:
     dependsOn:
       - default_ns
   - kind: buildImage2
-    name: hail_repl_image
-    dockerFile: /io/hail/Dockerfile.hail-repl
+    name: hail_pip_installed_image
+    dockerFile: /io/hail/Dockerfile.hail-pip-installed
     contextPath: /io/hail
     publishAs: hail-run
     inputs:
@@ -882,30 +882,23 @@ steps:
       - from: /wheel-container.tar
         to: /io/hail/wheel-container.tar
     dependsOn:
-      - base_image
+      - service_base_image
       - build_hail
       - merge_code
-  - kind: deploy
-    name: deploy_hail_repl
-    runIfRequested: true
-    scopes:
-      - dev
-    namespace:
-      valueFrom: default_ns.name
-    config: hail/hail_repl.yaml
-    dependsOn:
-      - default_ns
-      - hail_repl_image
   - kind: runImage
     name: upload_test_resources_to_gcs
     image:
-      valueFrom: base_image.image
+      valueFrom: hail_pip_installed_image.image
     script: |
       set -ex
       cd /io/repo/hail/
-      gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
-      gsutil -m cp -r src/test/resources/* gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/test/resources/
-      gsutil -m cp -r python/hail/docs/data/* gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/doctest/data/
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      python3 -m hailtop.aiotools.copy 'null' '[
+      {"from": "src/test/resources",
+       "to":   "gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/test/resources"},
+      {"from": "python/hail/docs/data",
+       "to":   "gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/doctest/data"}
+      ]'
     secrets:
       - name: test-gsa-key
         namespace:
@@ -918,7 +911,7 @@ steps:
         to: /io/repo/hail/python/hail/docs/data
     dependsOn:
       - default_ns
-      - base_image
+      - hail_pip_installed_image
       - merge_code
   - kind: runImage
     name: test_hail_java_0
@@ -1859,7 +1852,7 @@ steps:
   - kind: runImage
     name: make_pip_versioned_docs
     image:
-      valueFrom: hail_run_image.image
+      valueFrom: hail_pip_installed_image.image
     script: |
       set -ex
 
@@ -1882,7 +1875,11 @@ steps:
 
       PYTHONPATH=$PYTHONPATH:$(pwd)/hail/python make -C hail hail-docs-no-test batch-docs
 
-      gsutil cp gs://hail-common/builds/0.1/docs/hail-0.1-docs-5a6778710097.tar.gz .
+      python3 -m hailtop.aiotools.copy 'null' '[
+      {"from": "gs://hail-common/builds/0.1/docs/hail-0.1-docs-5a6778710097.tar.gz",
+       "to": "hail-0.1-docs-5a6778710097.tar.gz"}
+      ]'
+
       mkdir hail/build/www/docs/0.1
       tar -xvf hail-0.1-docs-5a6778710097.tar.gz -C hail/build/www/docs/0.1 --strip-components 2
 
@@ -1897,7 +1894,7 @@ steps:
       - from: /io/docs.tar.gz
         to: /docs.tar.gz
     dependsOn:
-      - hail_run_image
+      - hail_pip_installed_image
       - merge_code
   - kind: deploy
     name: deploy_grafana
@@ -2497,10 +2494,10 @@ steps:
   - kind: runImage
     name: upload_query_jar
     image:
-      valueFrom: base_image.image
+      valueFrom: hail_pip_installed_image.image
     script: |
       set -ex
-      gcloud -q auth activate-service-account --key-file=/query-gsa-key/key.json
+      GOOGLE_APPLICATION_CREDENTIALS=/query-gsa-key/key.json
 
       {% if deploy %}
       destination=$(cat /global-config/hail_query_gcs_path)/jars/
@@ -2508,7 +2505,10 @@ steps:
       destination=gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/
       {% endif %}
 
-      gsutil -m cp /io/hail.jar ${destination}$(cat /io/git_version).jar
+      python3 -m hailtop.aiotools.copy 'null' '[
+      {"from": "/io/hail.jar",
+       "to":   "'${destination}$(cat /io/git_version)'.jar"}
+      ]'
     secrets:
       - name: query-gsa-key
         namespace:
@@ -2525,7 +2525,7 @@ steps:
         to: /io/git_version
     dependsOn:
       - default_ns
-      - base_image
+      - hail_pip_installed_image
       - build_hail_jar_only
       - merge_code
       - create_test_gsa_keys
