@@ -98,7 +98,7 @@ class RouterAsyncFS(AsyncFS):
     async def listfiles(self,
                         url: str,
                         recursive: bool = False,
-                        exclude_trailing_slash_files: bool = False
+                        exclude_trailing_slash_files: bool = True
                         ) -> AsyncIterator[FileListEntry]:
         fs = self._get_fs(url)
         return await fs.listfiles(url, recursive, exclude_trailing_slash_files)

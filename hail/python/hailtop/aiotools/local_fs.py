@@ -172,7 +172,7 @@ class LocalAsyncFS(AsyncFS):
     async def listfiles(self,
                         url: str,
                         recursive: bool = False,
-                        exclude_trailing_slash_files: bool = False
+                        exclude_trailing_slash_files: bool = True
                         ) -> AsyncIterator[FileListEntry]:
         del exclude_trailing_slash_files  # such files do not exist on local file systems
         path = self._get_path(url)
