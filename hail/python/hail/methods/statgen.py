@@ -521,7 +521,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
             ns=ns,
             ds=ns.map(lambda n: n - k - 1),
             __cov_Qs=cov_Qs,
-            __yyps=hl.range(num_y_lists).map(
+            __y_residual_norms=hl.range(num_y_lists).map(
                 lambda i: scaled_y_nds[i].map(lambda x: x**2).sum(0) - Qtys[i].map(lambda x: x**2).sum(0)))
 
     ht = setup_globals(ht)
@@ -540,7 +540,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
             X_residuals_normalized = X_residuals / X_residual_norms
             ytX = ht.__scaled_y_nds[idx].T @ X_residuals_normalized  # (num right hand sides) by rows_in_block
             betas = ytX / X_residual_norms
-            standard_errors = ((ht.__yyps[idx].reshape((-1, 1)) - ytX.map(lambda x: x**2)) / ht.ds[idx]).map(lambda x: hl.sqrt(x)) / X_residual_norms
+            standard_errors = ((ht.__y_residual_norms[idx].reshape((-1, 1)) - ytX.map(lambda x: x**2)) / ht.ds[idx]).map(lambda x: hl.sqrt(x)) / X_residual_norms
             t = betas / standard_errors
             d = ht.ds[idx]
             p = t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), d, True, False))
