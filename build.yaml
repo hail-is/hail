@@ -2350,6 +2350,8 @@ steps:
         script: /io/sql/support-azure.sql
       - name: add-azure-tables
         script: /io/sql/add_azure_tables.py
+      - name: change-azure-test-highcpu-pool
+        script: /io/sql/change_azure_test_highcpu_pool.py
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -2671,6 +2673,7 @@ steps:
       export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
       export HAIL_TOKEN="{{ token }}"
       export HAIL_SCOPE="{{ scope }}"
+      export HAIL_CLOUD="{{ global.cloud }}"
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/batch/
       python3 -m pytest \
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2745,6 +2748,7 @@ steps:
       export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
       export HAIL_TOKEN="{{ token }}"
       export HAIL_SCOPE="{{ scope }}"
+      export HAIL_CLOUD="{{ global.cloud }}"
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/batch/
       python3 -m pytest \
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2819,6 +2823,7 @@ steps:
       export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
       export HAIL_TOKEN="{{ token }}"
       export HAIL_SCOPE="{{ scope }}"
+      export HAIL_CLOUD="{{ global.cloud }}"
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/batch/
       python3 -m pytest \
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2893,6 +2898,7 @@ steps:
       export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
       export HAIL_TOKEN="{{ token }}"
       export HAIL_SCOPE="{{ scope }}"
+      export HAIL_CLOUD="{{ global.cloud }}"
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/batch/
       python3 -m pytest \
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2967,6 +2973,7 @@ steps:
       export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
       export HAIL_TOKEN="{{ token }}"
       export HAIL_SCOPE="{{ scope }}"
+      export HAIL_CLOUD="{{ global.cloud }}"
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/batch/
       python3 -m pytest \
               --log-date-format="%Y-%m-%dT%H:%M:%S" \

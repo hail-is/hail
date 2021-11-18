@@ -8,6 +8,8 @@ from hailtop.auth import session_id_encode_to_str
 from hailtop.batch_client.aioclient import BatchClient, Batch
 from hailtop.utils import secret_alnum_string
 
+from .utils import fails_in_azure
+
 pytestmark = pytest.mark.asyncio
 
 DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
@@ -441,6 +443,7 @@ async def test_billing_limit_zero(
         assert False, str(await batch.debug_info())
 
 
+@fails_in_azure()
 async def test_billing_limit_tiny(
         make_client: Callable[[str], Awaitable[BatchClient]],
         dev_client: BatchClient,
@@ -472,8 +475,8 @@ async def test_billing_limit_tiny(
     j9 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'], parents=[j8])
     batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'], parents=[j9])
     batch = await batch.submit()
-    batch = await batch.wait()
-    assert batch['state'] == 'cancelled', str(await batch.debug_info())
+    status = await batch.wait()
+    assert status['state'] == 'cancelled', str(await batch.debug_info())
 
 
 async def search_batches(client, expected_batch_id, q):
