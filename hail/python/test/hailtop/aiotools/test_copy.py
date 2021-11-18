@@ -5,7 +5,8 @@ import asyncio
 import functools
 import pytest
 from hailtop.utils import url_scheme, bounded_gather2
-from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS, Transfer, FileAndDirectoryError, Copier
+from hailtop.aiotools import LocalAsyncFS, Transfer, FileAndDirectoryError, Copier
+from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
 from hailtop.aiocloud.aioaws import S3AsyncFS
 from hailtop.aiocloud.aioazure import AzureAsyncFS

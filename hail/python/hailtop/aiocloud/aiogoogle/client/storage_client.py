@@ -14,7 +14,7 @@ from hailtop.utils import (
 from hailtop.aiotools.fs import (
     FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS,
     FileAndDirectoryError, MultiPartCreate, UnexpectedEOFError)
-from hailtop.aiotools.utils import FeedableAsyncIterable, WriteBuffer
+from hailtop.aiotools import FeedableAsyncIterable, WriteBuffer
 
 from .base_client import GoogleBaseClient
 from ..session import GoogleSession

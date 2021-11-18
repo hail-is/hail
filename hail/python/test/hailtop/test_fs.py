@@ -6,7 +6,8 @@ from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import pytest
 from hailtop.utils import secret_alnum_string, retry_transient_errors, bounded_gather2
-from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS, UnexpectedEOFError
+from hailtop.aiotools import LocalAsyncFS, UnexpectedEOFError
+from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiocloud.aioaws import S3AsyncFS
 from hailtop.aiocloud.aioazure import AzureAsyncFS
 from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS

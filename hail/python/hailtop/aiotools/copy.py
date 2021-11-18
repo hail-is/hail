@@ -1,4 +1,4 @@
-from typing import List, Optional, Set
+from typing import List, Optional
 import json
 import asyncio
 import logging
@@ -6,8 +6,9 @@ import argparse
 from concurrent.futures import ThreadPoolExecutor
 
 from ..utils import tqdm
-from . import RouterAsyncFS, Transfer
-from .utils import filesystem_from_scheme, scheme_from_url, make_tqdm_listener
+from . import Transfer, Copier
+from .router_fs import RouterAsyncFS
+from .utils import make_tqdm_listener
 
 
 async def copy(*,

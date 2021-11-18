@@ -3,20 +3,16 @@ import asyncio
 import logging
 import argparse
 from concurrent.futures import ThreadPoolExecutor
-from hailtop.aiotools.fs import RouterAsyncFS
 
 from ..utils import tqdm
-
-from .utils import filesystem_from_scheme, scheme_from_url, make_tqdm_listener
+from .router_fs import RouterAsyncFS
+from .utils import make_tqdm_listener
 
 
 async def delete(paths: List[str]) -> None:
-    schemes = {scheme_from_url(path) for path in paths}
-    default_scheme = 'file' if 'file' in schemes else None
     with ThreadPoolExecutor() as thread_pool:
-        filesystems = [filesystem_from_scheme(s, thread_pool=thread_pool)
-                       for s in schemes]
-        async with RouterAsyncFS(default_scheme, filesystems) as fs:
+        kwargs = {'thread_pool': thread_pool}
+        async with RouterAsyncFS(default_scheme='file', local_kwargs=kwargs, s3_kwargs=kwargs) as fs:
             sema = asyncio.Semaphore(50)
             async with sema:
                 with tqdm(desc='files', leave=False, position=0, unit='file') as file_pbar:

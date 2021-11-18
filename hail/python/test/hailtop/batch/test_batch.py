@@ -13,7 +13,7 @@ from hailtop.batch.globals import arg_max
 from hailtop.utils import grouped, async_to_blocking
 from hailtop.config import get_user_config
 from hailtop.batch.utils import concatenate
-from hailtop.aiotools import RouterAsyncFS
+from hailtop.aiotools.router_fs import RouterAsyncFS
 
 
 DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']

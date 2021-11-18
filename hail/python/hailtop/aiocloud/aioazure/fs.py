@@ -13,7 +13,7 @@ from azure.storage.blob.aio import BlobClient, ContainerClient, BlobServiceClien
 from azure.storage.blob.aio._list_blobs_helper import BlobPrefix
 import azure.core.exceptions
 
-from hailtop.utils import retry_transient_errors, flatten, OnlineBoundedGather2
+from hailtop.utils import retry_transient_errors, flatten
 from hailtop.aiotools import WriteBuffer
 from hailtop.aiotools.fs import (AsyncFS, ReadableStream, WritableStream, MultiPartCreate, FileListEntry, FileStatus,
                                  FileAndDirectoryError, UnexpectedEOFError)

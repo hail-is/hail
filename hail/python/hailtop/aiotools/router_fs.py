@@ -1,4 +1,4 @@
-from typing import Any, Optional, List, Set, AsyncIterator, Dict, AsyncContextManager
+from typing import Any, Optional, List, Set, AsyncIterator, Dict, AsyncContextManager, Callable
 import asyncio
 import urllib.parse
 
@@ -95,9 +95,13 @@ class RouterAsyncFS(AsyncFS):
         fs = self._get_fs(url)
         return await fs.statfile(url)
 
-    async def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
+    async def listfiles(self,
+                        url: str,
+                        recursive: bool = False,
+                        exclude_trailing_slash_files: bool = False
+                        ) -> AsyncIterator[FileListEntry]:
         fs = self._get_fs(url)
-        return await fs.listfiles(url, recursive)
+        return await fs.listfiles(url, recursive, exclude_trailing_slash_files)
 
     async def staturl(self, url: str) -> str:
         fs = self._get_fs(url)
@@ -123,9 +127,12 @@ class RouterAsyncFS(AsyncFS):
         fs = self._get_fs(url)
         return await fs.remove(url)
 
-    async def rmtree(self, sema: Optional[asyncio.Semaphore], url: str) -> None:
+    async def rmtree(self,
+                     sema: Optional[asyncio.Semaphore],
+                     url: str,
+                     listener: Optional[Callable[[int], None]] = None) -> None:
         fs = self._get_fs(url)
-        return await fs.rmtree(sema, url)
+        return await fs.rmtree(sema, url, listener)
 
     async def close(self) -> None:
         for fs in self._filesystems:

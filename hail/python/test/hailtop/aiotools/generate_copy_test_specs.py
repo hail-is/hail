@@ -2,7 +2,8 @@ import secrets
 from concurrent.futures import ThreadPoolExecutor
 import pprint
 import asyncio
-from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS, Transfer, Copier
+from hailtop.aiotools import LocalAsyncFS, Transfer, Copier
+from hailtop.aiotools.router_fs import RouterAsyncFS
 
 
 def remove_prefix(s, prefix):
