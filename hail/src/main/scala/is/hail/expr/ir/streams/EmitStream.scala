@@ -4,10 +4,11 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.ir.orderings.StructOrdering
+import is.hail.methods.LocalWhitening
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete.SUnreachable
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.primitives.{SInt32Code, SInt32Value}
+import is.hail.types.physical.stypes.primitives.SInt32Value
 import is.hail.types.physical.{PCanonicalArray, PCanonicalStruct}
 import is.hail.types.virtual.TStream
 import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
