@@ -271,7 +271,7 @@ GRANT ALL ON `{name}`.* TO '{name}'@'%';
         config = SQLConfig(
             host=server_config.host,
             port=server_config.port,
-            user=self.name,
+            user=self.name if CLOUD != 'azure' else f'{self.name}@{server_config.instance}',
             password=self.password,
             instance=server_config.instance,
             connection_name=server_config.connection_name,

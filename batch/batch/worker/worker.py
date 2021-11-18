@@ -97,7 +97,6 @@ CLOUD = os.environ['CLOUD']
 CORES = int(os.environ['CORES'])
 NAME = os.environ['NAME']
 NAMESPACE = os.environ['NAMESPACE']
-INTERNAL_BATCH_DOMAIN = 'batch.hail' if NAMESPACE == 'default' else 'internal.hail'
 # ACTIVATION_TOKEN
 IP_ADDRESS = os.environ['IP_ADDRESS']
 INTERNAL_GATEWAY_IP = os.environ['INTERNAL_GATEWAY_IP']
@@ -192,14 +191,16 @@ class NetworkNamespace:
         with open(f'/etc/netns/{self.network_ns_name}/hosts', 'w') as hosts:
             hosts.write('127.0.0.1 localhost\n')
             hosts.write(f'{self.job_ip} {self.hostname}\n')
-            hosts.write(f'{INTERNAL_GATEWAY_IP} {INTERNAL_BATCH_DOMAIN}\n')
+            if NAMESPACE == 'default':
+                hosts.write(f'{INTERNAL_GATEWAY_IP} batch.hail\n')
+            hosts.write(f'{INTERNAL_GATEWAY_IP} internal.hail\n')
 
         # Jobs on the private network should have access to the metadata server
         # and our vdc. The public network should not so we use google's public
         # resolver.
         with open(f'/etc/netns/{self.network_ns_name}/resolv.conf', 'w') as resolv:
             if self.private:
-                resolv.write('nameserver 169.254.169.254\n')
+                resolv.write(f'nameserver {CLOUD_WORKER_API.nameserver_ip}\n')
                 if CLOUD == 'gcp':
                     resolv.write('search c.hail-vdc.internal google.internal\n')
             else:

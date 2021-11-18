@@ -22,6 +22,10 @@ class GCPWorkerAPI(CloudWorkerAPI):
         self.project = project
         self.zone = zone
 
+    @property
+    def nameserver_ip(self):
+        return '169.254.169.254'
+
     def create_disk(self, instance_name: str, disk_name: str, size_in_gb: int, mount_path: str) -> GCPDisk:
         return GCPDisk(
             zone=self.zone,
