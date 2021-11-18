@@ -540,9 +540,9 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
             X_residuals_normalized = X_residuals / X_residual_norms
             ytX = ht.__scaled_y_nds[idx].T @ X_residuals_normalized  # (num right hand sides) by rows_in_block
             betas = ytX / X_residual_norms
-            standard_errors = ((ht.__y_residual_norms[idx].reshape((-1, 1)) - ytX.map(lambda x: x**2)) / ht.ds[idx]).map(lambda x: hl.sqrt(x)) / X_residual_norms
-            t = betas / standard_errors
             d = ht.ds[idx]
+            standard_errors = ((ht.__y_residual_norms[idx].reshape((-1, 1)) - ytX.map(lambda x: x**2)) / d).map(lambda x: hl.sqrt(x)) / X_residual_norms
+            t = betas / standard_errors
             p = t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), d, True, False))
 
             return hl.struct(n=hl.range(rows_in_block).map(lambda i: ht.ns[idx]),
