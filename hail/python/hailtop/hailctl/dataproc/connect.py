@@ -39,7 +39,7 @@ def get_chrome_path():
     raise ValueError(f"unsupported system: {system}, set environment variable HAILCTL_CHROME to a chrome executable")
 
 
-def main(args, pass_through_args):  # pylint: disable=unused-argument
+async def main(args, pass_through_args):  # pylint: disable=unused-argument
     # shortcut mapping
     shortcut = {
         'ui': 'spark-ui',

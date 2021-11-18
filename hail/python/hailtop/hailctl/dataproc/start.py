@@ -225,7 +225,7 @@ def init_parser(parser):
                         help="Enable debug features on created cluster (heap dump on out-of-memory error)")
 
 
-def main(args, pass_through_args):
+async def main(args, pass_through_args):
     conf = ClusterConfig()
     conf.extend_flag('image-version', IMAGE_VERSION)
 
