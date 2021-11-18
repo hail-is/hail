@@ -22,6 +22,7 @@ class GCPWorkerAPI(CloudWorkerAPI):
         self.project = project
         self.zone = zone
 
+    @property
     def nameserver_ip(self):
         return '169.254.169.254'
 

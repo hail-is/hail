@@ -26,6 +26,7 @@ class AzureWorkerAPI(CloudWorkerAPI):
         self.resource_group = resource_group
         self.acr_refresh_token = AcrRefreshToken(acr_url, AadAccessToken())
 
+    @property
     def nameserver_ip(self):
         return '168.63.129.16'
 

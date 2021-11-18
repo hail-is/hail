@@ -200,7 +200,7 @@ class NetworkNamespace:
         # resolver.
         with open(f'/etc/netns/{self.network_ns_name}/resolv.conf', 'w') as resolv:
             if self.private:
-                resolv.write(f'nameserver {CLOUD_WORKER_API.nameserver_ip()}\n')
+                resolv.write(f'nameserver {CLOUD_WORKER_API.nameserver_ip}\n')
                 if CLOUD == 'gcp':
                     resolv.write('search c.hail-vdc.internal google.internal\n')
             else:
