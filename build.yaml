@@ -475,7 +475,13 @@ steps:
       valueFrom: service_base_image.image
     script: |
       set -ex
+      export NAMESPACE={{ default_ns.name }}
+      export CLOUD={{ global.cloud }}
       python3 /io/create_initial_account.py {{ code.username }} {{ code.email }}
+    serviceAccount:
+      name: admin
+      namespace:
+        valueFrom: default_ns.name
     secrets:
       - name:
           valueFrom: auth_database.user_secret_name
