@@ -88,9 +88,13 @@ abstract class RelationalSpec {
 
   def getComponent[T <: ComponentSpec](name: String): T = components(name).asInstanceOf[T]
 
+  def getOptionalComponent[T <: ComponentSpec](name: String): Option[T] = components.get(name).map(_.asInstanceOf[T])
+
   def globalsComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("globals")
 
   def partitionCounts: Array[Long] = getComponent[PartitionCountsComponentSpec]("partition_counts").counts.toArray
+
+  def isDistinctlyKeyed: Boolean = getOptionalComponent[FlagsSpec]("flags").flatMap(_.flags.get("distinctlyKeyed")).getOrElse(false)
 
   def indexed: Boolean
 
