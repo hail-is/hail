@@ -24,6 +24,20 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.79
+
+Release 2021-11-17
+
+### Bug fixes
+
+- (hail#11023) Fixed bug in call decoding that was introduced in version 0.2.78.
+
+### New features
+
+- (hail#10993) New function `p_value_excess_het`.
+
+---
+
 ## Version 0.2.78
 
 Release 2021-10-19
