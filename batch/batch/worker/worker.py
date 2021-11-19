@@ -490,9 +490,6 @@ class Container:
 
             self.container_status = await self.get_container_status()
 
-            with self.step('uploading_log'):
-                await self.upload_log()
-
             if timed_out:
                 self.short_error = 'timed out'
                 raise JobTimeoutError(f'timed out after {self.timeout}s')
@@ -513,10 +510,14 @@ class Container:
             self.error = traceback.format_exc()
         finally:
             try:
-                await self.delete_container()
+                with self.step('uploading_log'):
+                    await self.upload_log()
             finally:
-                if self.image_id:
-                    self.worker.image_data[self.image_id] -= 1
+                try:
+                    await self.delete_container()
+                finally:
+                    if self.image_id:
+                        self.worker.image_data[self.image_id] -= 1
 
     async def run_until_done_or_deleted(self, f: Callable[[], Awaitable[Any]]):
         step = asyncio.ensure_future(f())
