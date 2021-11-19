@@ -77,7 +77,7 @@ steps:
     resources:
       storage: 10Gi
       cpu: "2"
-      memory: 7.5Gi
+      memory: standard
     inputs:
       - from: /repo/echo
         to: /io/echo
@@ -121,7 +121,7 @@ steps:
     resources:
       storage: 10Gi
       cpu: "2"
-      memory: 7.5Gi
+      memory: standard
     inputs:
       - from: /repo
         to: /io/repo
@@ -150,7 +150,7 @@ steps:
     resources:
       storage: 10Gi
       cpu: "2"
-      memory: 7.5Gi
+      memory: standard
     dependsOn:
       - base_image
       - merge_code
@@ -510,7 +510,7 @@ steps:
     resources:
       storage: 10Gi
       cpu: "2"
-      memory: 7.5Gi
+      memory: standard
     inputs:
       - from: /repo/hail
         to: /io/hail
@@ -685,7 +685,7 @@ steps:
     image:
       valueFrom: hail_build_image.image
     resources:
-      memory: 7.5G
+      memory: standard
       cpu: '4'
     script: |
       set -ex
@@ -707,7 +707,7 @@ steps:
     image:
       valueFrom: hail_build_image.image
     resources:
-      memory: 7.5G
+      memory: standard
       cpu: '4'
     script: |
       set -ex
@@ -771,7 +771,7 @@ steps:
     image:
       valueFrom: hail_build_image.image
     resources:
-      memory: 7.5G
+      memory: standard
       cpu: '4'
     script: |
       set -ex
@@ -791,7 +791,7 @@ steps:
     image:
       valueFrom: hail_build_image.image
     resources:
-      memory: 7.5G
+      memory: standard
       cpu: '4'
     script: |
       set -ex
@@ -925,7 +925,7 @@ steps:
     image:
       valueFrom: hail_run_tests_image.image
     resources:
-      memory: 7.5G
+      memory: standard
       cpu: '2'
     script: |
       set -ex
@@ -962,7 +962,7 @@ steps:
     image:
       valueFrom: hail_run_tests_image.image
     resources:
-      memory: 7.5G
+      memory: standard
       cpu: '2'
     script: |
       set -ex
@@ -999,7 +999,7 @@ steps:
     image:
       valueFrom: hail_run_tests_image.image
     resources:
-      memory: 7.5G
+      memory: standard
       cpu: '2'
     script: |
       set -ex
@@ -1036,7 +1036,7 @@ steps:
     image:
       valueFrom: hail_run_tests_image.image
     resources:
-      memory: 7.5G
+      memory: standard
       cpu: '2'
     script: |
       set -ex
@@ -1073,7 +1073,7 @@ steps:
     image:
       valueFrom: hail_run_tests_image.image
     resources:
-      memory: 7.5G
+      memory: standard
       cpu: '2'
     script: |
       set -ex
@@ -1113,7 +1113,7 @@ steps:
     resources:
       storage: 10Gi
       cpu: "2"
-      memory: 7.5Gi
+      memory: standard
     inputs:
       - from: /repo
         to: /io/repo
@@ -1255,7 +1255,7 @@ steps:
     image:
       valueFrom: hail_run_tests_image.image
     resources:
-      memory: 7.5G
+      memory: standard
       cpu: '2'
     script: |
       set -ex
@@ -1309,7 +1309,7 @@ steps:
     image:
       valueFrom: hail_run_tests_image.image
     resources:
-      memory: 7.5G
+      memory: standard
       cpu: '2'
     script: |
       set -ex
@@ -1363,7 +1363,7 @@ steps:
     image:
       valueFrom: hail_run_tests_image.image
     resources:
-      memory: 7.5G
+      memory: standard
       cpu: '2'
     script: |
       set -ex
@@ -1417,7 +1417,7 @@ steps:
     image:
       valueFrom: hail_run_tests_image.image
     resources:
-      memory: 7.5G
+      memory: standard
       cpu: '2'
     script: |
       set -ex
@@ -1471,7 +1471,7 @@ steps:
     image:
       valueFrom: hail_run_tests_image.image
     resources:
-      memory: 7.5G
+      memory: standard
       cpu: '2'
     script: |
       set -ex
@@ -1525,7 +1525,7 @@ steps:
     image:
       valueFrom: hail_run_image.image
     resources:
-      memory: 7.5G
+      memory: standard
       cpu: '2'
     script: |
       set -ex
@@ -1568,7 +1568,7 @@ steps:
     image:
       valueFrom: hail_run_tests_image.image
     resources:
-      memory: 7.5G
+      memory: standard
       cpu: '2'
     script: |
       set -ex
@@ -1607,7 +1607,7 @@ steps:
     image:
       valueFrom: hail_run_tests_image.image
     resources:
-      memory: 7.5G
+      memory: standard
       cpu: '2'
     script: |
       set -ex
@@ -1646,7 +1646,7 @@ steps:
     image:
       valueFrom: hail_run_tests_image.image
     resources:
-      memory: 7.5G
+      memory: standard
       cpu: '2'
     script: |
       set -ex
@@ -1685,7 +1685,7 @@ steps:
     image:
       valueFrom: hail_run_tests_image.image
     resources:
-      memory: 7.5G
+      memory: standard
       cpu: '2'
     script: |
       set -ex
@@ -1724,7 +1724,7 @@ steps:
     image:
       valueFrom: hail_run_tests_image.image
     resources:
-      memory: 7.5G
+      memory: standard
       cpu: '2'
     script: |
       set -ex
@@ -1763,7 +1763,7 @@ steps:
     image:
       valueFrom: hail_run_tests_image.image
     resources:
-      memory: 7.5G
+      memory: standard
       cpu: '2'
     script: |
       set -ex
@@ -1843,7 +1843,7 @@ steps:
 
       tar czf /io/www.tar.gz www
     resources:
-      memory: 7.5G
+      memory: standard
       cpu: '2'
     inputs:
       - from: /hail.zip
@@ -1888,7 +1888,7 @@ steps:
 
       tar czf /io/docs.tar.gz -C hail/build/www .
     resources:
-      memory: 7.5G
+      memory: standard
       cpu: '2'
     inputs:
       - from: /repo
@@ -3788,7 +3788,7 @@ steps:
     image:
       valueFrom: hail_run_tests_image.image
     resources:
-      memory: 7.5G
+      memory: standard
       cpu: '2'
     script: |
       set -ex
