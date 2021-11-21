@@ -186,7 +186,6 @@ class S3CreatePartManager(AsyncContextManager[WritableStream]):
             self, exc_type: Optional[Type[BaseException]] = None,
             exc_value: Optional[BaseException] = None,
             exc_traceback: Optional[TracebackType] = None) -> None:
-        assert self._async_writable is not None
         await self._async_writable.wait_closed()
 
 
