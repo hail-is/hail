@@ -4,6 +4,7 @@ import urllib
 import asyncio
 import logging
 import argparse
+import uvloop
 from concurrent.futures import ThreadPoolExecutor
 from hailtop.aiotools import RouterAsyncFS, Transfer, Copier
 from hailtop.utils import tqdm
@@ -101,4 +102,5 @@ async def main() -> None:
 
 
 if __name__ == '__main__':
+    uvloop.install()
     asyncio.run(main())
