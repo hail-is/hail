@@ -325,8 +325,11 @@ async def test_rmtree_empty_dir(filesystem: Tuple[asyncio.Semaphore, AsyncFS, st
 
 
 @pytest.mark.asyncio
-async def test_rmtree_file_ending_in_slash(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
+async def test_cloud_rmtree_file_ending_in_slash(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
     sema, fs, base = filesystem
+
+    if isinstance(fs, LocalAsyncFS):
+        return
 
     fname = f'{base}bar/'
 
