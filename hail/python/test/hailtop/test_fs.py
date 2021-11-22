@@ -287,7 +287,7 @@ async def test_rmtree(filesystem):
     await fs.mkdir(subdir2)
     await fs.mkdir(subdir3)
 
-    sema = asyncio.Semaphore(200)
+    sema = asyncio.Semaphore(100)
     await bounded_gather2(sema, *[
         functools.partial(fs.touch, f'{subdir}a{i:02}')
         for subdir in [dir, subdir1, subdir2, subdir3, subdir1subdir1, subdir1subdir2, subdir1subdir3]

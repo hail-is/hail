@@ -216,6 +216,7 @@ class LocalAsyncFS(AsyncFS):
                      sema: Optional[asyncio.Semaphore],
                      url: str,
                      listener: Optional[Callable[[int], None]] = None) -> None:
+        path = self._get_path(url)
         if listener is None:
             listener = lambda _: None  # noqa: E731
         if sema is None:
@@ -238,19 +239,15 @@ class LocalAsyncFS(AsyncFS):
             listener(-1)
 
         async with OnlineBoundedGather2(sema) as pool:
-            tasks = []
-            rm_directory_task_by_url: Dict[str, asyncio.Task] = {}
-            for dirpath, dirnames, filenames in os.walk(url, topdown=False):
+            contents_tasks_by_dir: Dict[str, List[asyncio.Task]] = {}
+            for dirpath, dirnames, filenames in os.walk(path, topdown=False):
                 contents_tasks = [
                     pool.call(rm_file, os.path.join(dirpath, filename))
                     for filename in filenames
                 ] + [
-                    rm_directory_task_by_url[os.path.join(dirpath, dirname)]
+                    pool.call(rm_dir, pool, contents_tasks_by_dir.get(fulldirname, []), fulldirname)
                     for dirname in dirnames
+                    for fulldirname in [os.path.join(dirpath, dirname)]
                 ]
-                tasks.extend(contents_tasks)
-                dir_task = pool.call(rm_dir, pool, contents_tasks, dirpath)
-                tasks.append(dir_task)
-                rm_directory_task_by_url[dirpath] = dir_task
-            if tasks:
-                await pool.wait(tasks)
+                contents_tasks_by_dir[dirpath] = contents_tasks
+            await rm_dir(pool, contents_tasks_by_dir.get(path, []), path)
