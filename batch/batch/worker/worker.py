@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Callable, Tuple, Awaitable, Any
+from typing import Optional, Dict, Callable, Tuple, Awaitable, Any, Union, MutableMapping
 import os
 import json
 import sys
@@ -16,11 +16,13 @@ import aiohttp.client_exceptions
 from aiohttp import web
 import async_timeout
 import concurrent
+
 import aiodocker  # type: ignore
-import docker as syncdocker
+import aiodocker.images
+from aiodocker.exceptions import DockerError  # type: ignore
+
 import aiorwlock
 from collections import defaultdict
-from aiodocker.exceptions import DockerError  # type: ignore
 
 from gear.clients import get_compute_client, get_cloud_async_fs
 
@@ -84,6 +86,22 @@ def deeper_stack_level_warn(*args, **kwargs):
 
 warnings.warn = deeper_stack_level_warn
 
+
+def compose_auth_header_urlsafe(orig_f):
+    def compose(auth: Union[MutableMapping, str, bytes], registry_addr: str = None):
+        orig_auth_header = orig_f(auth, registry_addr=registry_addr)
+        auth = json.loads(base64.b64decode(orig_auth_header))
+        auth_json = json.dumps(auth).encode('ascii')
+        return base64.urlsafe_b64encode(auth_json).decode('ascii')
+    return compose
+
+
+# We patched aiodocker's utility function `compose_auth_header` because it does not base64 encode strings
+# in urlsafe mode which is required for Azure's credentials.
+# https://github.com/aio-libs/aiodocker/blob/17e08844461664244ea78ecd08d1672b1779acc1/aiodocker/utils.py#L297
+aiodocker.images.compose_auth_header = compose_auth_header_urlsafe(aiodocker.images.compose_auth_header)
+
+
 configure_logging()
 log = logging.getLogger('batch-worker')
 
@@ -136,7 +154,6 @@ assert instance_config.cloud == CLOUD
 deploy_config = DeployConfig('gce', NAMESPACE, {})
 
 docker: Optional[aiodocker.Docker] = None
-docker_sync: Optional[syncdocker.DockerClient] = None
 
 port_allocator: Optional['PortAllocator'] = None
 network_allocator: Optional['NetworkAllocator'] = None
@@ -317,11 +334,6 @@ def docker_call_retry(timeout, name):
                 delay = await sleep_and_backoff(delay)
 
     return wrapper
-
-
-async def pull_docker_image(pool: concurrent.futures.ThreadPoolExecutor, image_ref_str: str, auth: dict):
-    assert docker_sync
-    return await blocking_to_async(pool, docker_sync.images.pull, image_ref_str, auth_config=auth)
 
 
 async def send_signal_and_wait(proc, signal, timeout=None):
@@ -562,20 +574,13 @@ class Container:
                 # per-user image cache.
                 auth = self.current_user_access_token()
                 await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                    pull_docker_image, worker.pool, self.image_ref_str, auth=auth
+                    docker.images.pull, self.image_ref_str, auth=auth
                 )
         except DockerError as e:
             if e.status == 404 and 'pull access denied' in e.message:
                 self.short_error = 'image cannot be pulled'
             elif 'not found: manifest unknown' in e.message:
                 self.short_error = 'image not found'
-            raise
-        except syncdocker.errors.NotFound:  # pylint: disable=maybe-no-member
-            self.short_error = 'image not found'
-            raise
-        except syncdocker.errors.APIError as e:  # pylint: disable=maybe-no-member
-            if e.is_server_error() and 'unauthorized: authentication required' in str(e):
-                self.short_error = 'image cannot be pulled'
             raise
 
         image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
@@ -587,7 +592,7 @@ class Container:
         except DockerError as e:
             if e.status == 404:
                 await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                    pull_docker_image, worker.pool, self.image_ref_str, auth=auth
+                    docker.images.pull, self.image_ref_str, auth=auth
                 )
             else:
                 raise
@@ -2140,10 +2145,9 @@ class Worker:
 
 
 async def async_main():
-    global port_allocator, network_allocator, worker, docker, docker_sync
+    global port_allocator, network_allocator, worker, docker
 
     docker = aiodocker.Docker()
-    docker_sync = syncdocker.DockerClient()
 
     port_allocator = PortAllocator()
     network_allocator = NetworkAllocator()
@@ -2158,23 +2162,19 @@ async def async_main():
             log.info('worker shutdown')
         finally:
             try:
-                docker_sync.close()
-                log.info('sync docker closed')
+                await docker.close()
+                log.info('docker closed')
             finally:
-                try:
-                    await docker.close()
-                    log.info('docker closed')
-                finally:
-                    asyncio.get_event_loop().set_debug(True)
-                    log.debug('Tasks immediately after docker close')
-                    dump_all_stacktraces()
-                    other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
-                    if other_tasks:
-                        _, pending = await asyncio.wait(other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED)
-                        for t in pending:
-                            log.debug('Dangling task:')
-                            t.print_stack()
-                            t.cancel()
+                asyncio.get_event_loop().set_debug(True)
+                log.debug('Tasks immediately after docker close')
+                dump_all_stacktraces()
+                other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
+                if other_tasks:
+                    _, pending = await asyncio.wait(other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED)
+                    for t in pending:
+                        log.debug('Dangling task:')
+                        t.print_stack()
+                        t.cancel()
 
 
 loop = asyncio.get_event_loop()
