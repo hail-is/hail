@@ -350,27 +350,28 @@ class Timings:
         self.timings: Dict[str, Dict[str, float]] = dict()
         self.is_deleted = is_deleted
 
-    def step(self, name: str):
+    def step(self, name: str, ignore_job_deletion: bool = False):
         assert name not in self.timings
         self.timings[name] = dict()
-        return ContainerStepManager(self.timings[name], self.is_deleted)
+        return ContainerStepManager(self.timings[name], self.is_deleted, ignore_job_deletion=ignore_job_deletion)
 
     def to_dict(self):
         return self.timings
 
 
 class ContainerStepManager:
-    def __init__(self, timing: Dict[str, float], is_deleted: Callable[[], bool]):
+    def __init__(self, timing: Dict[str, float], is_deleted: Callable[[], bool], ignore_job_deletion: bool = False):
         self.timing: Dict[str, float] = timing
         self.is_deleted = is_deleted
+        self.ignore_job_deletion = ignore_job_deletion
 
     def __enter__(self):
-        if self.is_deleted():
+        if self.is_deleted() and not self.ignore_job_deletion:
             raise JobDeletedError()
         self.timing['start_time'] = time_msecs()
 
     def __exit__(self, exc_type, exc, tb):
-        if self.is_deleted():
+        if self.is_deleted() and not self.ignore_job_deletion:
             return
         finish_time = time_msecs()
         self.timing['finish_time'] = finish_time
@@ -510,7 +511,7 @@ class Container:
             self.error = traceback.format_exc()
         finally:
             try:
-                with self.step('uploading_log'):
+                with self.step('uploading_log', ignore_job_deletion=True):
                     await self.upload_log()
             finally:
                 try:
@@ -540,8 +541,8 @@ class Container:
     def is_job_deleted(self) -> bool:
         return self.job.deleted
 
-    def step(self, name: str):
-        return self.timings.step(name)
+    def step(self, name: str, ignore_job_deletion: bool = False):
+        return self.timings.step(name, ignore_job_deletion=ignore_job_deletion)
 
     async def pull_image(self):
         is_cloud_image = (is_google_registry_domain(self.image_ref.domain)
