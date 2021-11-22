@@ -239,7 +239,8 @@ async def on_startup(app):
 async def on_cleanup(app):
     try:
         if 'k8s_client' in app:
-            del app['k8s_client']
+            k8s_client: kube.client.CoreV1Api = app['k8s_client']
+            await k8s_client.api_client.rest_client.pool_manager.close()
     finally:
         try:
             await app['client_session'].close()

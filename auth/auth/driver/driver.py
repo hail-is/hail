@@ -605,8 +605,7 @@ async def async_main():
         app['db_instance'] = db_instance
 
         kube.config.load_incluster_config()
-        k8s_client = kube.client.CoreV1Api()
-        app['k8s_client'] = k8s_client
+        app['k8s_client'] = kube.client.CoreV1Api()
 
         app['identity_client'] = get_identity_client()
 
@@ -639,4 +638,8 @@ async def async_main():
                         if user_creation_loop is not None:
                             user_creation_loop.shutdown()
                     finally:
-                        await app['identity_client'].close()
+                        try:
+                            await app['identity_client'].close()
+                        finally:
+                            k8s_client: kube.client.CoreV1Api = app['k8s_client']
+                            await k8s_client.api_client.rest_client.pool_manager.close()
