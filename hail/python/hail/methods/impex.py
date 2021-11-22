@@ -1602,6 +1602,9 @@ def import_table(paths,
     comment = wrap_to_list(comment)
     missing = wrap_to_list(missing)
 
+    if "" in missing:
+        raise ValueError("Missing value cannot be empty string.")
+
     tr = ir.TextTableReader(paths, min_partitions, types, comment,
                             delimiter, missing, no_header, quote,
                             skip_blank_lines, force_bgz, filter, find_replace,
