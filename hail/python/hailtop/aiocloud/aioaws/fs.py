@@ -151,42 +151,51 @@ class S3FileListEntry(FileListEntry):
         return self._status
 
 
-class S3PartWritableStream(WritableStream):
-    def __init__(self, mpc, number):
-        super().__init__()
-        self._bytes = bytearray()
-        self._mpc = mpc
-        self._number = number
-
-    async def write(self, b: bytes) -> int:
-        self._bytes.extend(b)
-        return len(b)
-
-    async def _wait_closed(self) -> None:
-        resp = await blocking_to_async(
-            self._mpc._fs._thread_pool,
-            self._mpc._fs._s3.upload_part,
-            Bucket=self._mpc._bucket,
-            Key=self._mpc._name,
-            PartNumber=self._number + 1,
-            UploadId=self._mpc._upload_id,
-            Body=self._bytes)
-        self._mpc._etags[self._number] = resp['ETag']
-
-
 class S3CreatePartManager(AsyncContextManager[WritableStream]):
     def __init__(self, mpc, number: int, size_hint: int):
-        del size_hint
-        self._async_writable: WritableStream = S3PartWritableStream(mpc, number)
+        self._mpc = mpc
+        self._number = number
+        self._size_hint = size_hint
+        self._async_writable: Optional[AsyncQueueWritableStream] = None
+        self._put_thread: Optional[threading.Thread] = None
+        self._exc: Optional[BaseException] = None
 
     async def __aenter__(self) -> WritableStream:
-        return self._async_writable
+        async_writable, blocking_collect = async_writable_blocking_collect_pair(self._size_hint)
+        self._async_writable = async_writable
+
+        def put():
+            try:
+                b = blocking_collect.get()
+                resp = self._mpc._fs._s3.upload_part(
+                    Bucket=self._mpc._bucket,
+                    Key=self._mpc._name,
+                    PartNumber=self._number + 1,
+                    UploadId=self._mpc._upload_id,
+                    Body=b)
+                self._mpc._etags[self._number] = resp['ETag']
+            except BaseException as e:
+                self._exc = e
+
+        self._put_thread = threading.Thread(target=put)
+        self._put_thread.start()
+        return async_writable
 
     async def __aexit__(
             self, exc_type: Optional[Type[BaseException]] = None,
             exc_value: Optional[BaseException] = None,
             exc_traceback: Optional[TracebackType] = None) -> None:
+        assert self._async_writable is not None
+        assert self._put_thread is not None
         await self._async_writable.wait_closed()
+        try:
+            await blocking_to_async(self._mpc._fs._thread_pool, self._put_thread.join)
+        finally:
+            if self._exc:
+                _, exc, _ = sys.exc_info()
+                if exc:
+                    log.info('discarding exception', exc_info=True)
+                raise self._exc
 
 
 class S3MultiPartCreate(MultiPartCreate):
