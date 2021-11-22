@@ -92,7 +92,7 @@ def compose_auth_header_urlsafe(orig_f):
         orig_auth_header = orig_f(auth, registry_addr=registry_addr)
         auth = json.loads(base64.b64decode(orig_auth_header))
         auth_json = json.dumps(auth).encode('ascii')
-        return base64.urlsafe_b64encode(auth_json)
+        return base64.urlsafe_b64encode(auth_json).decode('ascii')
     return compose
 
 
