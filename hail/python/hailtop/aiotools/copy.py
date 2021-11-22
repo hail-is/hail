@@ -4,6 +4,7 @@ import urllib
 import asyncio
 import logging
 import argparse
+import uvloop
 from concurrent.futures import ThreadPoolExecutor
 from hailtop.aiotools import RouterAsyncFS, Transfer, Copier
 from hailtop.utils import tqdm
@@ -63,7 +64,7 @@ async def copy(*,
                                  gcs_kwargs=gcs_kwargs,
                                  azure_kwargs=azure_kwargs,
                                  s3_kwargs=s3_kwargs) as fs:
-            sema = asyncio.Semaphore(50)
+            sema = asyncio.Semaphore(200)
             async with sema:
                 with tqdm(desc='files', leave=False, position=0, unit='file') as file_pbar, \
                      tqdm(desc='bytes', leave=False, position=1, unit='byte', unit_scale=True, smoothing=0.1) as byte_pbar:
@@ -101,4 +102,5 @@ async def main() -> None:
 
 
 if __name__ == '__main__':
+    uvloop.install()
     asyncio.run(main())
