@@ -273,8 +273,10 @@ async def test_rmtree(filesystem):
     subdir1subdir1 = f'{subdir1}foo/'
     subdir1subdir2 = f'{subdir1}bar/'
     subdir1subdir3 = f'{subdir1}baz/'
+    subdir1subdir4_empty = f'{subdir1}qux/'
     subdir2 = f'{dir}bar/'
     subdir3 = f'{dir}baz/'
+    subdir4_empty = f'{dir}qux/'
 
     await fs.mkdir(dir)
     await fs.touch(f'{dir}a')
@@ -284,8 +286,10 @@ async def test_rmtree(filesystem):
     await fs.mkdir(subdir1subdir1)
     await fs.mkdir(subdir1subdir2)
     await fs.mkdir(subdir1subdir3)
+    await fs.mkdir(subdir1subdir4_empty)
     await fs.mkdir(subdir2)
     await fs.mkdir(subdir3)
+    await fs.mkdir(subdir4_empty)
 
     sema = asyncio.Semaphore(100)
     await bounded_gather2(sema, *[
@@ -298,11 +302,24 @@ async def test_rmtree(filesystem):
     assert await fs.isdir(subdir1subdir1)
     assert await fs.isdir(subdir1subdir2)
     assert await fs.isdir(subdir1subdir3)
+    assert await fs.isdir(subdir1subdir4_empty)
     assert await fs.isdir(subdir2)
     assert await fs.isdir(subdir3)
+    assert await fs.isdir(subdir4_empty)
 
     await fs.rmtree(sema, dir)
 
+    assert not await fs.isdir(dir)
+
+
+@pytest.mark.asyncio
+async def test_rmtree_empty_dir(filesystem):
+    sema, fs, base = filesystem
+
+    dir = f'{base}bar/'
+
+    await fs.mkdir(dir)
+    await fs.rmtree(sema, dir)
     assert not await fs.isdir(dir)
 
 

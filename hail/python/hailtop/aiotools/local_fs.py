@@ -245,9 +245,9 @@ class LocalAsyncFS(AsyncFS):
                     pool.call(rm_file, os.path.join(dirpath, filename))
                     for filename in filenames
                 ] + [
-                    pool.call(rm_dir, pool, contents_tasks_by_dir.get(fulldirname, []), fulldirname)
+                    pool.call(rm_dir, pool, contents_tasks_by_dir[fulldirname], fulldirname)
                     for dirname in dirnames
                     for fulldirname in [os.path.join(dirpath, dirname)]
                 ]
                 contents_tasks_by_dir[dirpath] = contents_tasks
-            await rm_dir(pool, contents_tasks_by_dir.get(path, []), path)
+            await rm_dir(pool, contents_tasks_by_dir[path], path)
