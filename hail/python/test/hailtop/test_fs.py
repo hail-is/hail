@@ -308,6 +308,28 @@ async def test_rmtree(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
     assert await fs.isdir(subdir3)
     # subdir4_empty: in cloud fses, empty dirs do not exist and thus are not dirs
 
+    await fs.rmtree(sema, subdir1subdir2)
+
+    assert await fs.isdir(dir)
+    assert await fs.isfile(f'{dir}a')
+    assert await fs.isfile(f'{dir}b')
+
+    assert await fs.isdir(subdir1)
+    assert await fs.isfile(f'{subdir1}a00')
+
+    assert await fs.isdir(subdir1subdir1)
+    assert await fs.isfile(f'{subdir1subdir1}a00')
+
+    assert not await fs.isdir(subdir1subdir2)
+
+    assert await fs.isdir(subdir1subdir3)
+    assert await fs.isfile(f'{subdir1subdir3}a00')
+
+    assert await fs.isdir(subdir2)
+    assert await fs.isfile(f'{subdir2}a00')
+    assert await fs.isdir(subdir3)
+    assert await fs.isfile(f'{subdir3}a00')
+
     await fs.rmtree(sema, dir)
 
     assert not await fs.isdir(dir)
