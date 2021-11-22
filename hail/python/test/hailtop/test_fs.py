@@ -302,10 +302,10 @@ async def test_rmtree(filesystem):
     assert await fs.isdir(subdir1subdir1)
     assert await fs.isdir(subdir1subdir2)
     assert await fs.isdir(subdir1subdir3)
-    assert await fs.isdir(subdir1subdir4_empty)
+    # subdir1subdir4_empty: in cloud fses, empty dirs do not exist and thus are not dirs
     assert await fs.isdir(subdir2)
     assert await fs.isdir(subdir3)
-    assert await fs.isdir(subdir4_empty)
+    # subdir4_empty: in cloud fses, empty dirs do not exist and thus are not dirs
 
     await fs.rmtree(sema, dir)
 
