@@ -6,7 +6,7 @@ import secrets
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import pytest
-from hailtop.utils import secret_alnum_string, retry_transient_errors, bounded_gather2
+from hailtop.utils import secret_alnum_string, retry_transient_errors, bounded_gather2, url_scheme
 from hailtop.aiotools import LocalAsyncFS, UnexpectedEOFError, AsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiocloud.aioaws import S3AsyncFS
@@ -19,6 +19,7 @@ async def filesystem(request) -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS,
     token = secret_alnum_string()
 
     with ThreadPoolExecutor() as thread_pool:
+        fs: AsyncFS
         if request.param.startswith('router/'):
             fs = RouterAsyncFS(
                 'file', filesystems=[LocalAsyncFS(thread_pool),
@@ -350,7 +351,8 @@ async def test_rmtree_empty_dir(filesystem: Tuple[asyncio.Semaphore, AsyncFS, st
 async def test_cloud_rmtree_file_ending_in_slash(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
     sema, fs, base = filesystem
 
-    if isinstance(fs, LocalAsyncFS):
+    base_scheme = url_scheme(base)
+    if isinstance(fs, LocalAsyncFS) or base_scheme in ('', 'file'):
         return
 
     fname = f'{base}bar/'
