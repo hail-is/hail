@@ -429,7 +429,7 @@ async def test_file_overwrite_dir(copy_test_context):
 
 
 @pytest.mark.asyncio
-async def test_file_and_directory_error(router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]], cloud_scheme):
+async def test_file_and_directory_error(router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]], cloud_scheme: str):
     sema, fs, bases = router_filesystem
 
     src_base = await fresh_dir(fs, bases, cloud_scheme)
@@ -464,7 +464,7 @@ async def collect_files(it):
 
 
 @pytest.mark.asyncio
-async def test_file_and_directory_error_with_slash_empty_file(router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]], cloud_scheme):
+async def test_file_and_directory_error_with_slash_empty_file(router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]], cloud_scheme: str):
     sema, fs, bases = router_filesystem
 
     src_base = await fresh_dir(fs, bases, cloud_scheme)
@@ -517,7 +517,7 @@ async def test_file_and_directory_error_with_slash_non_empty_file_for_google_non
 
 
 @pytest.mark.asyncio
-async def test_file_and_directory_error_with_slash_non_empty_file(router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]], cloud_scheme):
+async def test_file_and_directory_error_with_slash_non_empty_file(router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]], cloud_scheme: str):
     sema, fs, bases = router_filesystem
 
     src_base = await fresh_dir(fs, bases, cloud_scheme)
@@ -575,7 +575,7 @@ async def test_file_and_directory_error_with_slash_non_empty_file_only_for_googl
 
 
 @pytest.mark.asyncio
-async def test_file_and_directory_error_with_slash_empty_file_only(router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]], cloud_scheme):
+async def test_file_and_directory_error_with_slash_empty_file_only(router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]], cloud_scheme: str):
     sema, fs, bases = router_filesystem
 
     src_base = await fresh_dir(fs, bases, cloud_scheme)
@@ -612,7 +612,7 @@ async def test_file_and_directory_error_with_slash_non_empty_file_only_google_no
 
 
 @pytest.mark.asyncio
-async def test_file_and_directory_error_with_slash_non_empty_file_only(router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]], cloud_scheme):
+async def test_file_and_directory_error_with_slash_non_empty_file_only(router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]], cloud_scheme: str):
     sema, fs, bases = router_filesystem
 
     src_base = await fresh_dir(fs, bases, cloud_scheme)

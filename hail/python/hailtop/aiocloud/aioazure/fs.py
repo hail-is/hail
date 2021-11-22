@@ -375,7 +375,8 @@ class AzureAsyncFS(AsyncFS):
                 yield AzureFileListEntry(url, item)
 
     async def listfiles(self,
-                        url: str, recursive: bool = False,
+                        url: str,
+                        recursive: bool = False,
                         exclude_trailing_slash_files: bool = True
                         ) -> AsyncIterator[FileListEntry]:
         _, _, name = self._get_account_container_name(url)

@@ -374,7 +374,6 @@ class S3AsyncFS(AsyncFS):
     async def _listfiles_flat(self, bucket: str, name: str) -> AsyncIterator[S3FileListEntry]:
         assert not name or name.endswith('/')
         async for page in PageIterator(self, bucket, name, delimiter='/'):
-            print('page:', page)
             prefixes = page.get('CommonPrefixes')
             if prefixes is not None:
                 for prefix in prefixes:
@@ -387,7 +386,7 @@ class S3AsyncFS(AsyncFS):
     async def listfiles(self,
                         url: str,
                         recursive: bool = False,
-                        exclude_trailing_slash_files: bool = True  # pylint: disable=unused-argument
+                        exclude_trailing_slash_files: bool = True
                         ) -> AsyncIterator[FileListEntry]:
         bucket, name = self._get_bucket_name(url)
         if name and not name.endswith('/'):
