@@ -588,7 +588,7 @@ class Container:
         except DockerError as e:
             if e.status == 404:
                 await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                    docker.images.pull, worker.pool, self.image_ref_str, auth=auth
+                    docker.images.pull, self.image_ref_str, auth=auth
                 )
             else:
                 raise
