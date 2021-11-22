@@ -1096,7 +1096,7 @@ async def on_startup(app):
 
     kube.config.load_incluster_config()
     app['k8s_client'] = kube.client.CoreV1Api()
-    k8s_cache = K8sCache(app['k8s_client'], refresh_time=5)
+    k8s_cache = K8sCache(app['k8s_client'])
     app['k8s_cache'] = k8s_cache
 
     db = Database()

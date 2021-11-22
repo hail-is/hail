@@ -175,18 +175,18 @@ class LocalBatchBuilder:
                 # issue.
                 k8s_client = kube.client.CoreV1Api()
                 try:
-                    k8s_cache = K8sCache(k8s_client, refresh_time=5)
+                    k8s_cache = K8sCache(k8s_client)
 
                     if j._service_account:
                         namespace = j._service_account['namespace']
                         name = j._service_account['name']
 
-                        sa = await k8s_cache.read_service_account(name, namespace, 5)
+                        sa = await k8s_cache.read_service_account(name, namespace)
                         assert len(sa.secrets) == 1
 
                         token_secret_name = sa.secrets[0].name
 
-                        secret = await k8s_cache.read_secret(token_secret_name, namespace, 5)
+                        secret = await k8s_cache.read_secret(token_secret_name, namespace)
 
                         token = base64.b64decode(secret.data['token']).decode()
                         cert = secret.data['ca.crt']
