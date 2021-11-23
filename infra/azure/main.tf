@@ -479,6 +479,16 @@ module "ci_sp" {
 
 resource "azuread_application" "test" {
   display_name = "${data.azurerm_resource_group.rg.name}-test"
+
+  required_resource_access {
+    resource_app_id = "00000003-0000-0000-c000-000000000000"
+
+    resource_access {
+      # Application.ReadWrite.All
+      id   = "1bfefb4e-e0b5-418b-a88f-73c46d2cc8e9"
+      type = "Role"
+    }
+  }
 }
 module "test_sp" {
   source = "./service_principal"
