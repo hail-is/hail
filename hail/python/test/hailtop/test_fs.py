@@ -322,6 +322,7 @@ async def test_rmtree(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
     assert await fs.isfile(f'{subdir1subdir1}a00')
 
     assert not await fs.isdir(subdir1subdir2)
+    assert not await fs.isfile(f'{subdir1subdir2}a00')
 
     assert await fs.isdir(subdir1subdir3)
     assert await fs.isfile(f'{subdir1subdir3}a00')
