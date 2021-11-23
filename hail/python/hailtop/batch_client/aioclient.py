@@ -311,14 +311,28 @@ class SubmittedJob:
         return await resp.json()
 
 
+class BatchSubmissionInfo:
+    def __init__(self, used_fast_create):
+        self.used_fast_create = used_fast_create
+
+
 class Batch:
-    def __init__(self, client, id, attributes, n_jobs, token, last_known_status=None):
+    def __init__(self,
+                 client: 'BatchClient',
+                 id: int,
+                 attributes: Dict[str, str],
+                 n_jobs: int,
+                 token: str,
+                 *,
+                 last_known_status: bool = None,
+                 submission_info: Optional[BatchSubmissionInfo] = None):
         self._client = client
         self.id = id
         self.attributes = attributes
         self.n_jobs = n_jobs
         self.token = token
         self._last_known_status = last_known_status
+        self.submission_info = submission_info
 
     async def cancel(self):
         await self._client._patch(f'/api/v1alpha/batches/{self.id}/cancel')
@@ -543,7 +557,12 @@ class BatchBuilder:
         )
         batch_json = await resp.json()
         pbar.update(n_jobs)
-        return Batch(self._client, batch_json['id'], self.attributes, n_jobs, self.token)
+        return Batch(self._client,
+                     batch_json['id'],
+                     self.attributes,
+                     n_jobs,
+                     self.token,
+                     submission_info=BatchSubmissionInfo(True))
 
     async def _submit_jobs(self, batch_id: Optional[int], byte_job_specs: List[bytes], n_jobs: int, pbar):
         assert len(byte_job_specs) > 0, byte_job_specs
@@ -583,7 +602,12 @@ class BatchBuilder:
     async def _open_batch(self) -> Batch:
         batch_spec = self._batch_spec()
         batch_json = await (await self._client._post('/api/v1alpha/batches/create', json=batch_spec)).json()
-        return Batch(self._client, batch_json['id'], self.attributes, batch_spec['n_jobs'], self.token)
+        return Batch(self._client,
+                     batch_json['id'],
+                     self.attributes,
+                     batch_spec['n_jobs'],
+                     self.token,
+                     submission_info=BatchSubmissionInfo(False))
 
     async def _close_batch(self, id: int):
         await self._client._patch(f'/api/v1alpha/batches/{id}/close')
