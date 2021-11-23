@@ -464,6 +464,12 @@ resource "azurerm_role_assignment" "batch_managed_identity_operator" {
   principal_id         = module.batch_sp.principal_id
 }
 
+resource "azurerm_role_assignment" "batch_log_analytics_contributor" {
+  scope                = data.azurerm_resource_group.rg.id
+  role_definition_name = "Log Analytics Contributor"
+  principal_id         = module.batch_sp.principal_id
+}
+
 resource "azuread_application" "benchmark" {
   display_name = "${data.azurerm_resource_group.rg.name}-benchmark"
 }
@@ -536,6 +542,12 @@ resource "azurerm_role_assignment" "test_shared_gallery_reader" {
 resource "azurerm_role_assignment" "test_managed_identity_operator" {
   scope                = data.azurerm_resource_group.rg.id
   role_definition_name = "Managed Identity Operator"
+  principal_id         = module.test_sp.principal_id
+}
+
+resource "azurerm_role_assignment" "test_log_analytics_contributor" {
+  scope                = data.azurerm_resource_group.rg.id
+  role_definition_name = "Log Analytics Contributor"
   principal_id         = module.test_sp.principal_id
 }
 

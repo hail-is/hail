@@ -110,7 +110,7 @@ runcmd:
 '''
     startup_script = base64.b64encode(startup_script.encode('utf-8')).decode('utf-8')
 
-    run_script = f'''
+    run_script = rf'''
 #!/bin/bash
 set -x
 
@@ -136,6 +136,29 @@ sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/batch /batch
 
 sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/logs/
 sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/logs /logs
+
+# Forward syslog logs to Log Analytics Agent
+cat >>/etc/rsyslog.d/95-omsagent.conf <<EOF
+kern.warning       @127.0.0.1:25224
+user.warning       @127.0.0.1:25224
+daemon.warning     @127.0.0.1:25224
+auth.warning       @127.0.0.1:25224
+syslog.warning     @127.0.0.1:25224
+uucp.warning       @127.0.0.1:25224
+authpriv.warning   @127.0.0.1:25224
+ftp.warning        @127.0.0.1:25224
+cron.warning       @127.0.0.1:25224
+local0.warning     @127.0.0.1:25224
+local1.warning     @127.0.0.1:25224
+local2.warning     @127.0.0.1:25224
+local3.warning     @127.0.0.1:25224
+local4.warning     @127.0.0.1:25224
+local5.warning     @127.0.0.1:25224
+local6.warning     @127.0.0.1:25224
+local7.warning     @127.0.0.1:25224
+EOF
+
+sudo service rsyslog restart
 
 sudo mkdir -p /etc/netns
 
@@ -325,7 +348,31 @@ done
                 }
             },
             'userData': "[parameters('userData')]"
-        }
+        },
+        'resources': [
+            {
+                'apiVersion': '2018-06-01',
+                'type': 'extensions',
+                'name': 'OMSExtension',
+                'location': "[parameters('location')]",
+                'tags': tags,
+                'dependsOn': [
+                    "[concat('Microsoft.Compute/virtualMachines/', parameters('vmName'))]"
+                ],
+                'properties': {
+                    'publisher': 'Microsoft.EnterpriseCloud.Monitoring',
+                    'type': 'OmsAgentForLinux',
+                    'typeHandlerVersion': '1.13',
+                    'autoUpgradeMinorVersion': True,
+                    'settings': {
+                        'workspaceId': "[reference(resourceId('Microsoft.OperationalInsights/workspaces/', parameters('workspaceName')), '2015-03-20').customerId]"
+                    },
+                    'protectedSettings': {
+                        'workspaceKey': "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces/', parameters('workspaceName')), '2015-03-20').primarySharedKey]"
+                    }
+                }
+            },
+        ]
     }
 
     properties = vm_config['properties']
@@ -369,6 +416,9 @@ done
                         'id': f'/subscriptions/{subscription_id}/resourceGroups/{resource_group}/providers/'
                               f'Microsoft.Compute/galleries/{resource_group}_batch/images/batch-worker/versions/0.0.12'
                     }
+                },
+                'workspaceName': {
+                    'value': f'{resource_group}-logs',
                 }
             },
             'template': {
@@ -411,12 +461,15 @@ done
                                 'sku': '18.04-LTS',
                                 'version': 'latest'
                             }
-                    }
+                    },
+                    'workspaceName': {
+                        'type': 'string'
+                    },
                 },
                 'variables': {
                     'ipName': "[concat(parameters('vmName'), '-ip')]",
                     'nicName': "[concat(parameters('vmName'), '-nic')]",
-                    'ipconfigName': "[concat(parameters('vmName'), '-ipconfig')]"
+                    'ipconfigName': "[concat(parameters('vmName'), '-ipconfig')]",
                 },
                 'resources': [
                     {
