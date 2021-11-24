@@ -13,6 +13,7 @@ def init_parser(parser):
     parser.add_argument('--properties', '-p', required=False, type=str, help='Extra Spark properties to set.')
     parser.add_argument('--gcloud_configuration', help='Google Cloud configuration to submit job (defaults to currently set configuration).')
     parser.add_argument('--dry-run', action='store_true', help="Print gcloud dataproc command, but don't run it.")
+    parser.add_argument('--region', help='Compute region for the cluster.')
 
 
 def main(args, pass_through_args):  # pylint: disable=unused-argument
@@ -69,6 +70,9 @@ def main(args, pass_through_args):  # pylint: disable=unused-argument
     ]
     if args.gcloud_configuration:
         cmd.append('--configuration={}'.format(args.gcloud_configuration))
+
+    if args.region:
+        cmd.append('--region={}'.format(args.region))
 
     # append arguments to pass to the Hail script
     if pass_through_args:
