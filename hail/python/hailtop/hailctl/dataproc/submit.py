@@ -15,6 +15,7 @@ def init_parser(parser):
     parser.add_argument('--dry-run', action='store_true', help="Print gcloud dataproc command, but don't run it.")
     parser.add_argument('--region', help='Compute region for the cluster.')
 
+
 def main(args, pass_through_args):  # pylint: disable=unused-argument
     print("Submitting to cluster '{}'...".format(args.name))
 
@@ -66,7 +67,6 @@ def main(args, pass_through_args):  # pylint: disable=unused-argument
 
     if args.region:
         cmd.append('--region={}'.format(args.region))
-
 
     # append arguments to pass to the Hail script
     if pass_through_args:
