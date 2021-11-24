@@ -777,16 +777,26 @@ def de_novo(mt: MatrixTable,
     mt = require_biallelic(mt, 'de_novo')
 
     tm = trio_matrix(mt, pedigree, complete_trios=True)
+    tm = tm.annotate_rows(__autosomal=tm.locus.in_autosome_or_par(),
+                          __x_nonpar=tm.locus.in_x_nonpar(),
+                          __y_nonpar=tm.locus.in_y_nonpar(),
+                          __mito=tm.locus.in_mito())
 
-    autosomal = tm.locus.in_autosome_or_par() | (tm.locus.in_x_nonpar() & tm.is_female)
-    hemi_x = tm.locus.in_x_nonpar() & ~tm.is_female
-    hemi_y = tm.locus.in_y_nonpar() & ~tm.is_female
-    hemi_mt = tm.locus.in_mito() & tm.is_female
+    autosomal = tm.__autosomal | (tm.__x_nonpar & tm.is_female)
+    hemi_x = tm.__x_nonpar & ~tm.is_female
+    hemi_y = tm.__y_nonpar & ~tm.is_female
+    hemi_mt = tm.__mito
+
+    is_hemi = hemi_x | hemi_y | hemi_mt
 
     is_snp = hl.is_snp(tm.alleles[0], tm.alleles[1])
     n_alt_alleles = tm.__alt_alleles
     prior = tm.__site_freq
-    het_hom_hom = tm.proband_entry.GT.is_het() & tm.father_entry.GT.is_hom_ref() & tm.mother_entry.GT.is_hom_ref()
+    has_candidate_gt_configuration = (tm.proband_entry.GT.is_non_ref() &
+                   tm.father_entry.GT.is_hom_ref() &
+                   tm.mother_entry.GT.is_hom_ref()) & (
+                          (is_hemi & tm.proband_entry.GT.is_hom_var()) | tm.proband_entry.GT.is_het()
+                  )
     kid_ad_fail = tm.proband_entry.AD[1] / hl.sum(tm.proband_entry.AD) < min_child_ab
 
     failure = hl.missing(hl.tstruct(p_de_novo=hl.tfloat64, confidence=hl.tstr))
@@ -844,7 +854,7 @@ def de_novo(mt: MatrixTable,
 
         return hl.bind(solve, p_de_novo)
 
-    def call_hemi(kid_pp, parent, parent_pp, kid_ad_ratio):
+    def call_hemi(kid_pp, parent, parent_pp):
         p_data_given_dn = parent_pp[0] * kid_pp[1] * DE_NOVO_PRIOR
         p_het_in_parent = 1 - (1 - prior) ** 4
         p_data_given_missed_het = (parent_pp[1] + parent_pp[2]) * kid_pp[2] * p_het_in_parent
@@ -882,10 +892,10 @@ def de_novo(mt: MatrixTable,
 
     de_novo_call = (
         hl.case()
-        .when(~het_hom_hom | kid_ad_fail, failure)
+        .when(~has_candidate_gt_configuration | kid_ad_fail, failure)
         .when(autosomal, hl.bind(call_auto, kid_pp, dad_pp, mom_pp, kid_ad_ratio))
-        .when(hemi_x | hemi_mt, hl.bind(call_hemi, kid_pp, mom, mom_pp, kid_ad_ratio))
-        .when(hemi_y, hl.bind(call_hemi, kid_pp, dad, dad_pp, kid_ad_ratio))
+        .when(hemi_x | hemi_mt, hl.bind(call_hemi, kid_pp, mom, mom_pp))
+        .when(hemi_y, hl.bind(call_hemi, kid_pp, dad, dad_pp))
         .or_missing())
 
     tm = tm.annotate_entries(__call=de_novo_call)
