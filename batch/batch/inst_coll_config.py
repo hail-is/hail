@@ -4,6 +4,7 @@ import logging
 
 from gear import Database
 
+from .driver.billing_manager import ResourceVersions
 from .cloud.gcp.instance_config import GCPSlimInstanceConfig
 from .cloud.gcp.resource_utils import family_worker_type_cores_to_gcp_machine_type, GCP_MACHINE_FAMILY
 from .cloud.azure.resource_utils import azure_worker_properties_to_machine_type
@@ -18,31 +19,39 @@ from .cloud.resource_utils import (
     valid_machine_types,
     local_ssd_size
 )
+from .cloud.utils import possible_cloud_locations
+
 
 log = logging.getLogger('inst_coll_config')
 
 
-def instance_config_from_pool_config(pool_config: 'PoolConfig') -> InstanceConfig:
+def instance_config_from_pool_config(pool_config: 'PoolConfig',
+                                     resource_versions: ResourceVersions,
+                                     location: str) -> InstanceConfig:
     cloud = pool_config.cloud
     if cloud == 'gcp':
         machine_type = family_worker_type_cores_to_gcp_machine_type(
             GCP_MACHINE_FAMILY, pool_config.worker_type, pool_config.worker_cores)
-        return GCPSlimInstanceConfig(machine_type=machine_type,
-                                     preemptible=True,
-                                     local_ssd_data_disk=pool_config.worker_local_ssd_data_disk,
-                                     data_disk_size_gb=pool_config.data_disk_size_gb,
-                                     boot_disk_size_gb=pool_config.boot_disk_size_gb,
-                                     job_private=False)
+        return GCPSlimInstanceConfig.create(resource_versions=resource_versions,
+                                            machine_type=machine_type,
+                                            preemptible=True,
+                                            local_ssd_data_disk=pool_config.worker_local_ssd_data_disk,
+                                            data_disk_size_gb=pool_config.data_disk_size_gb,
+                                            boot_disk_size_gb=pool_config.boot_disk_size_gb,
+                                            job_private=False,
+                                            location=location)
     assert cloud == 'azure'
     machine_type = azure_worker_properties_to_machine_type(
         pool_config.worker_type, pool_config.worker_cores, pool_config.worker_local_ssd_data_disk
     )
-    return AzureSlimInstanceConfig(machine_type=machine_type,
-                                   preemptible=True,
-                                   local_ssd_data_disk=pool_config.worker_local_ssd_data_disk,
-                                   data_disk_size_gb=pool_config.data_disk_size_gb,
-                                   boot_disk_size_gb=pool_config.boot_disk_size_gb,
-                                   job_private=False)
+    return AzureSlimInstanceConfig.create(resource_versions=resource_versions,
+                                          machine_type=machine_type,
+                                          preemptible=True,
+                                          local_ssd_data_disk=pool_config.worker_local_ssd_data_disk,
+                                          data_disk_size_gb=pool_config.data_disk_size_gb,
+                                          boot_disk_size_gb=pool_config.boot_disk_size_gb,
+                                          job_private=False,
+                                          location=location)
 
 
 class PreemptibleNotSupportedError(Exception):
@@ -124,7 +133,8 @@ WHERE pools.name = %s;
         self.max_instances = max_instances
         self.max_live_instances = max_live_instances
 
-        self.instance_config = instance_config_from_pool_config(self)
+    def instance_config(self, resource_versions: ResourceVersions, location: str) -> InstanceConfig:
+        return instance_config_from_pool_config(self, resource_versions, location)
 
     @property
     def data_disk_size_gb(self) -> int:
@@ -153,8 +163,9 @@ WHERE pools.name = %s;
 
         return None
 
-    def cost_per_hour(self, resource_rates, cores_mcpu, memory_bytes, storage_gib):
-        cost_per_hour = self.instance_config.cost_per_hour(resource_rates, cores_mcpu, memory_bytes, storage_gib)
+    def cost_per_hour(self, resource_rates, resource_versions, location, cores_mcpu, memory_bytes, storage_gib):
+        instance_config = self.instance_config(resource_versions, location)
+        cost_per_hour = instance_config.cost_per_hour(resource_rates, cores_mcpu, memory_bytes, storage_gib)
         return cost_per_hour
 
 
@@ -187,10 +198,11 @@ class JobPrivateInstanceManagerConfig(InstanceCollectionConfig):
 class InstanceCollectionConfigs:
     @staticmethod
     async def create(db: Database):
-        (name_pool_config, jpim_config), resource_rates = await asyncio.gather(
+        (name_pool_config, jpim_config), resource_rates, resource_versions_data = await asyncio.gather(
             InstanceCollectionConfigs.instance_collections_from_db(db),
-            InstanceCollectionConfigs.resource_rates_from_db(db))
-        return InstanceCollectionConfigs(name_pool_config, jpim_config, resource_rates)
+            InstanceCollectionConfigs.resource_rates_from_db(db),
+            InstanceCollectionConfigs.resource_versions_from_db(db))
+        return InstanceCollectionConfigs(name_pool_config, jpim_config, resource_rates, resource_versions_data)
 
     @staticmethod
     async def instance_collections_from_db(db: Database) -> Tuple[Dict[str, PoolConfig], JobPrivateInstanceManagerConfig]:
@@ -218,20 +230,31 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
             record['resource']: record['rate']
             async for record in db.execute_and_fetchall('SELECT * FROM resources;')}
 
+    @staticmethod
+    async def resource_versions_from_db(db: Database) -> Dict[str, str]:
+        return {
+            record['prefix']: record['version']
+            async for record in db.execute_and_fetchall('SELECT * FROM latest_resource_versions;')
+        }
+
     def __init__(self,
                  name_pool_config: Dict[str, PoolConfig],
                  jpim_config: JobPrivateInstanceManagerConfig,
-                 resource_rates: Dict[str, float]):
+                 resource_rates: Dict[str, float],
+                 resource_versions_data: Dict[str, str]):
         self.name_pool_config = name_pool_config
         self.jpim_config = jpim_config
         self.resource_rates = resource_rates
+        self.resource_versions = ResourceVersions(resource_versions_data)
 
     async def refresh(self, db: Database):
-        configs, resource_rates = await asyncio.gather(
+        configs, resource_rates, resource_versions_data = await asyncio.gather(
             InstanceCollectionConfigs.instance_collections_from_db(db),
-            InstanceCollectionConfigs.resource_rates_from_db(db))
+            InstanceCollectionConfigs.resource_rates_from_db(db),
+            InstanceCollectionConfigs.resource_versions_from_db(db))
         self.name_pool_config, self.jpim_config = configs
         self.resource_rates = resource_rates
+        self.resource_versions.update(resource_versions_data)
 
     def select_pool_from_cost(self, cloud, cores_mcpu, memory_bytes, storage_bytes):
         assert self.resource_rates is not None
@@ -245,11 +268,17 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
             result = pool.convert_requests_to_resources(cores_mcpu, memory_bytes, storage_bytes)
             if result:
                 maybe_cores_mcpu, maybe_memory_bytes, maybe_storage_gib = result
-                maybe_cost = pool.cost_per_hour(
-                    self.resource_rates, maybe_cores_mcpu, maybe_memory_bytes, maybe_storage_gib
-                )
-                if optimal_cost is None or maybe_cost < optimal_cost:
-                    optimal_cost = maybe_cost
+
+                max_regional_maybe_cost = None
+                for location in possible_cloud_locations(pool.cloud):
+                    maybe_cost = pool.cost_per_hour(
+                        self.resource_rates, self.resource_versions, location, maybe_cores_mcpu, maybe_memory_bytes, maybe_storage_gib
+                    )
+                    if max_regional_maybe_cost is None or maybe_cost > max_regional_maybe_cost:
+                        max_regional_maybe_cost = maybe_cost
+
+                if optimal_cost is None or max_regional_maybe_cost < optimal_cost:
+                    optimal_cost = max_regional_maybe_cost
                     optimal_result = (pool.name, maybe_cores_mcpu, maybe_memory_bytes, maybe_storage_gib)
         return optimal_result
 

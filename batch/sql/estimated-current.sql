@@ -11,6 +11,12 @@ CREATE TABLE IF NOT EXISTS `resources` (
   PRIMARY KEY (`resource`)
 ) ENGINE = InnoDB;
 
+CREATE TABLE IF NOT EXISTS `latest_resource_versions` (
+  `prefix` VARCHAR(100) NOT NULL,
+  `version` VARCHAR(100) NOT NULL,
+  PRIMARY KEY (`prefix`)
+) ENGINE = InnoDB;
+
 CREATE TABLE IF NOT EXISTS `inst_colls` (
   `name` VARCHAR(255) NOT NULL,
   `is_pool` BOOLEAN NOT NULL,

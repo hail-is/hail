@@ -80,6 +80,7 @@ class CloudResourceManager:
                         data_disk_size_gb: int,
                         boot_disk_size_gb: int,
                         job_private: bool,
+                        location: str,
                         ) -> InstanceConfig:
         raise NotImplementedError
 

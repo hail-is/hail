@@ -1,9 +1,9 @@
 from types import TracebackType
-from typing import Optional, Type, TypeVar, Mapping
+from typing import Optional, Type, TypeVar, Mapping, Union
 import abc
 from hailtop import httpx
 from hailtop.utils import request_retry_transient_errors, RateLimit, RateLimiter
-from .credentials import CloudCredentials
+from .credentials import CloudCredentials, EmptyCloudCredentials
 
 SessionType = TypeVar('SessionType', bound='BaseSession')
 
@@ -60,11 +60,11 @@ class RateLimitedSession(BaseSession):
 
 class Session(BaseSession):
     _http_session: httpx.ClientSession
-    _credentials: CloudCredentials
+    _credentials: Union[CloudCredentials, EmptyCloudCredentials]
 
     def __init__(self,
                  *,
-                 credentials: CloudCredentials,
+                 credentials: Union[CloudCredentials, EmptyCloudCredentials],
                  params: Optional[Mapping[str, str]] = None,
                  http_session: Optional[httpx.ClientSession] = None,
                  **kwargs):
@@ -79,11 +79,12 @@ class Session(BaseSession):
         self._credentials = credentials
 
     async def request(self, method: str, url: str, **kwargs):
-        auth_headers = await self._credentials.auth_headers()
-        if 'headers' in kwargs:
-            kwargs['headers'].update(auth_headers)
-        else:
-            kwargs['headers'] = auth_headers
+        if not isinstance(self._credentials, EmptyCloudCredentials):
+            auth_headers = await self._credentials.auth_headers()
+            if 'headers' in kwargs:
+                kwargs['headers'].update(auth_headers)
+            else:
+                kwargs['headers'] = auth_headers
 
         if self._params:
             if 'params' in kwargs:

@@ -2371,6 +2371,12 @@ steps:
         script: /io/sql/add_azure_tables.py
       - name: change-azure-test-highcpu-pool
         script: /io/sql/change_azure_test_highcpu_pool.py
+      - name: add-latest-resource-versions
+        script: /io/sql/add-latest-resource-versions.sql
+      - name: populate-latest-resource-versions
+        script: /io/sql/populate_latest_resource_versions.py
+      - name: populate-azure-fixed-resources
+        script: /io/sql/populate_azure_fixed_resources.py
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

@@ -58,6 +58,10 @@ def flatten(xxs):
     return [x for xs in xxs for x in xs]
 
 
+def flatmap(xs):
+    return [x for x in xs if x is not None]
+
+
 def first_extant_file(*files: Optional[str]) -> Optional[str]:
     for f in files:
         if f is not None and os.path.isfile(f):

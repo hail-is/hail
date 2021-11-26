@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 import base64
 import json
 import logging
@@ -38,9 +38,14 @@ def create_vm_config(
         subscription_id: str,
         resource_group: str,
         ssh_public_key: str,
+        max_price: Optional[float],
         instance_config: InstanceConfig,
 ) -> dict:
     _, cores = azure_machine_type_to_worker_type_and_cores(machine_type)
+
+    if max_price is not None and not preemptible:
+        log.exception(f'max price given for a nonpreemptible machine {max_price}')
+        raise ValueError(f'max price given for a nonpreemptible machine {max_price}')
 
     if job_private:
         unreserved_disk_storage_gb = data_disk_size_gb
@@ -59,7 +64,7 @@ def create_vm_config(
                 "name": "[concat(parameters('vmName'), '-data')]",
                 "lun": 2,  # because this is 2, the data disk will always be at 'sdc'
                 "managedDisk": {
-                    "storageAccountType": "Standard_LRS"
+                    "storageAccountType": "Premium_LRS"
                 },
                 "createOption": "Empty",
                 "diskSizeGB": data_disk_size_gb,
@@ -267,7 +272,7 @@ while true; do
 az vm delete -g $RESOURCE_GROUP -n $NAME --yes
 sleep 1
 done
-    '''
+'''
 
     user_data = {
         'run_script': run_script,
@@ -379,7 +384,7 @@ done
     if preemptible:
         properties['priority'] = 'Spot'
         properties['evictionPolicy'] = 'Delete'
-        properties['billingProfile'] = {'maxPrice': -1}
+        properties['billingProfile'] = {'maxPrice': max_price if max_price is not None else -1}
     else:
         properties['priority'] = 'Regular'
 
