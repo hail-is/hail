@@ -3243,14 +3243,14 @@ steps:
       - create_ci_test_repo
   - kind: buildImage2
     name: hailgenetics_hail_image
-    dockerFile: /io/hail/Dockerfile
-    contextPath: /io/hail/
+    dockerFile: /io/docker/hail/Dockerfile
+    contextPath: /io/docker/hail/
     publishAs: hailgenetics/hail
     inputs:
       - from: /repo/docker/hail
         to: /io/docker/hail
       - from: /wheel-container.tar
-        to: /io/wheel-container.tar
+        to: /io/docker/hail/wheel-container.tar
     dependsOn:
       - merge_code
       - build_hail
@@ -3268,8 +3268,8 @@ steps:
       - hailgenetics_hail_image
   - kind: buildImage2
     name: hailgenetics_genetics_image
-    dockerFile: /io/genetics/Dockerfile
-    contextPath: /io/genetics/
+    dockerFile: /io/docker/genetics/Dockerfile
+    contextPath: /io/docker/genetics/
     publishAs: hailgenetics/genetics
     inputs:
       - from: /repo/docker/genetics
