@@ -218,19 +218,6 @@ class LocalBackend(Backend[None]):
             assert isinstance(r, (resource.JobResourceFile, resource.PythonResult))
             return []
 
-        def copy_external_output(r):
-            def _cp(src: str, dest: str):
-                transfers = orjson.dumps([{"from": src, "to": dest}]).decode('utf-8')
-                return f'python3 -m hailtop.aiotools.copy {shq(requester_pays_project_json)} {shq(transfers)}'
-
-            if isinstance(r, resource.InputResourceFile):
-                return [f'{_cp(dest)} {shq(r._input_path)} {shq(dest)}'
-                        for dest in r._output_paths]
-
-            assert isinstance(r, (resource.JobResourceFile, resource.PythonResult))
-            return [f'{_cp(dest)} {r._get_path(tmpdir)} {shq(dest)}'
-                    for dest in r._output_paths]
-
         def symlink_input_resource_group(r):
             symlinks = []
             if isinstance(r, resource.ResourceGroup) and r._source is None:
@@ -241,11 +228,22 @@ class LocalBackend(Backend[None]):
             return symlinks
 
         try:
-            write_inputs = [x for r in batch._input_resources for x in copy_external_output(r)]
-            if write_inputs:
+            transfer_dicts = []
+            for input_resource in batch._input_resources:
+                if isinstance(input_resource, resource.InputResourceFile):
+                    source = input_resource._input_path
+                else:
+                    assert isinstance(input_resource, (resource.JobResourceFile, resource.PythonResult))
+                    source = input_resource._get_path(tmpdir)
+
+                for dest in input_resource._output_paths:
+                    transfer_dicts.append({"from": source, "to": dest})
+
+            if transfer_dicts:
+                transfers = orjson.dumps(transfer_dicts).decode('utf-8')
                 code = new_code_block()
                 code += ["# Write input resources to output destinations"]
-                code += write_inputs
+                code += [f'python3 -m hailtop.aiotools.copy {shq(requester_pays_project_json)} {shq(transfers)}']
                 code += ['\n']
                 run_code(code)
 
