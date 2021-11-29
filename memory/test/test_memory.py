@@ -5,7 +5,7 @@ from memory.client import MemoryClient
 from hailtop.aiocloud import aiogoogle
 from hailtop.config import get_user_config
 from hailtop.utils import async_to_blocking
-from hailtop.aiotools import RouterAsyncFS
+from hailtop.aiotools.router_fs import RouterAsyncFS
 
 from gear.cloud_config import get_gcp_config
 

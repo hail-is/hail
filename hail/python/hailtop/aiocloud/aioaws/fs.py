@@ -1,4 +1,5 @@
-from typing import Any, AsyncIterator, BinaryIO, cast, AsyncContextManager, Dict, List, Optional, Set, Tuple, Type
+from typing import (Any, AsyncIterator, BinaryIO, cast, AsyncContextManager, Dict, List, Optional,
+                    Set, Tuple, Type)
 from types import TracebackType
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -13,7 +14,7 @@ import boto3
 from hailtop.utils import blocking_to_async
 from hailtop.aiotools.fs import (
     FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS,
-    MultiPartCreate)
+    MultiPartCreate, FileAndDirectoryError)
 from hailtop.aiotools.fs.stream import (
     AsyncQueueWritableStream,
     async_writable_blocking_readable_stream_pair,
@@ -122,7 +123,6 @@ class S3CreateManager(AsyncContextManager[WritableStream]):
 
 class S3FileListEntry(FileListEntry):
     def __init__(self, bucket: str, key: str, item: Optional[Dict[str, Any]]):
-        assert key.endswith('/') == (item is None)
         self._bucket = bucket
         self._key = key
         self._item = item
@@ -362,7 +362,7 @@ class S3AsyncFS(AsyncFS):
                 raise FileNotFoundError(url) from e
             raise e
 
-    async def _listfiles_recursive(self, bucket: str, name: str) -> AsyncIterator[FileListEntry]:
+    async def _listfiles_recursive(self, bucket: str, name: str) -> AsyncIterator[S3FileListEntry]:
         assert not name or name.endswith('/')
         async for page in PageIterator(self, bucket, name):
             assert 'CommonPrefixes' not in page
@@ -371,7 +371,7 @@ class S3AsyncFS(AsyncFS):
                 for item in contents:
                     yield S3FileListEntry(bucket, item['Key'], item)
 
-    async def _listfiles_flat(self, bucket: str, name: str) -> AsyncIterator[FileListEntry]:
+    async def _listfiles_flat(self, bucket: str, name: str) -> AsyncIterator[S3FileListEntry]:
         assert not name or name.endswith('/')
         async for page in PageIterator(self, bucket, name, delimiter='/'):
             prefixes = page.get('CommonPrefixes')
@@ -383,7 +383,11 @@ class S3AsyncFS(AsyncFS):
                 for item in contents:
                     yield S3FileListEntry(bucket, item['Key'], item)
 
-    async def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
+    async def listfiles(self,
+                        url: str,
+                        recursive: bool = False,
+                        exclude_trailing_slash_files: bool = True
+                        ) -> AsyncIterator[FileListEntry]:
         bucket, name = self._get_bucket_name(url)
         if name and not name.endswith('/'):
             name += '/'
@@ -398,11 +402,26 @@ class S3AsyncFS(AsyncFS):
         except StopAsyncIteration:
             raise FileNotFoundError(url)  # pylint: disable=raise-missing-from
 
+        async def should_yield(entry: S3FileListEntry):
+            url = await entry.url()
+            if url.endswith('/') and await entry.is_file():
+                if not exclude_trailing_slash_files:
+                    return True
+
+                stat = await entry.status()
+                if await stat.size() != 0:
+                    raise FileAndDirectoryError(url)
+                return False
+            return True
+
         async def cons(first_entry, it):
-            yield first_entry
+            if await should_yield(first_entry):
+                yield first_entry
             try:
                 while True:
-                    yield await it.__anext__()
+                    next_entry = await it.__anext__()
+                    if await should_yield(next_entry):
+                        yield next_entry
             except StopAsyncIteration:
                 pass
 
@@ -439,17 +458,6 @@ class S3AsyncFS(AsyncFS):
                                     Key=name)
         except self._s3.exceptions.NoSuchKey as e:
             raise FileNotFoundError(url) from e
-
-    async def _rmtree(self, sema: asyncio.Semaphore, url: str) -> None:
-        await self._rmtree_with_recursive_listfiles(sema, url)
-
-    async def rmtree(self, sema: Optional[asyncio.Semaphore], url: str) -> None:
-        if sema is None:
-            sema = asyncio.Semaphore(50)
-            async with sema:
-                return await self._rmtree(sema, url)
-
-        return await self._rmtree(sema, url)
 
     async def close(self) -> None:
         pass

@@ -5,10 +5,9 @@ import asyncio
 import functools
 import humanize
 
-from hailtop.utils import (
-    retry_transient_errors, url_basename, url_join, bounded_gather2,
-    time_msecs, humanize_timedelta_msecs)
 
+from ...utils import (retry_transient_errors, url_basename, url_join, bounded_gather2, time_msecs,
+                      humanize_timedelta_msecs)
 from ..weighted_semaphore import WeightedSemaphore
 from .exceptions import FileAndDirectoryError, UnexpectedEOFError
 from .fs import MultiPartCreate, FileStatus, AsyncFS

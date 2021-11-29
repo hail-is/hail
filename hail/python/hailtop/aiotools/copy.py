@@ -1,40 +1,15 @@
 from typing import List, Optional
 import json
-import urllib
 import asyncio
 import logging
 import argparse
 import uvloop
 from concurrent.futures import ThreadPoolExecutor
-from hailtop.aiotools import RouterAsyncFS, Transfer, Copier
-from hailtop.utils import tqdm
 
-
-def referenced_schemes(transfers: List[Transfer]):
-    def scheme_from_url(url):
-        parsed = urllib.parse.urlparse(url)
-        scheme = parsed.scheme
-        if scheme == '':
-            scheme = 'file'
-        if scheme not in {'file', 'gs', 's3', 'hail-az'}:
-            raise ValueError(f'Unsupported scheme: {scheme}')
-        return scheme
-    return {
-        scheme_from_url(url)
-        for transfer in transfers
-        for url in [transfer.src, transfer.dest]}
-
-
-def make_tqdm_listener(pbar):
-    def listener(delta):
-        if pbar.total is None:
-            pbar.total = 0
-        if delta > 0:
-            pbar.total += delta
-            pbar.refresh()
-        if delta < 0:
-            pbar.update(-delta)
-    return listener
+from ..utils import tqdm
+from . import Transfer, Copier
+from .router_fs import RouterAsyncFS
+from .utils import make_tqdm_listener
 
 
 async def copy(*,
@@ -44,10 +19,6 @@ async def copy(*,
                s3_kwargs: Optional[dict] = None,
                transfers: List[Transfer]
                ) -> None:
-
-    schemes = referenced_schemes(transfers)
-    default_scheme = 'file' if 'file' in schemes else None
-
     with ThreadPoolExecutor() as thread_pool:
         if local_kwargs is None:
             local_kwargs = {}
@@ -59,7 +30,7 @@ async def copy(*,
         if 'thread_pool' not in s3_kwargs:
             s3_kwargs['thread_pool'] = thread_pool
 
-        async with RouterAsyncFS(default_scheme,
+        async with RouterAsyncFS(default_scheme='file',
                                  local_kwargs=local_kwargs,
                                  gcs_kwargs=gcs_kwargs,
                                  azure_kwargs=azure_kwargs,

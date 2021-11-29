@@ -1,16 +1,14 @@
-from typing import Any, Optional, Type, BinaryIO, cast, Set, AsyncIterator
+from typing import Any, Optional, Type, BinaryIO, cast, Set, AsyncIterator, Callable, Dict, List
 from types import TracebackType
 import os
 import os.path
 import io
 import stat
-import shutil
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import urllib.parse
 
-from hailtop.utils import blocking_to_async
-
+from ..utils import blocking_to_async, OnlineBoundedGather2
 from .fs import (FileStatus, FileListEntry, MultiPartCreate, AsyncFS,
                  ReadableStream, WritableStream, blocking_readable_stream_to_async,
                  blocking_writable_stream_to_async)
@@ -171,7 +169,12 @@ class LocalAsyncFS(AsyncFS):
             for entry in entries:
                 yield LocalFileListEntry(self._thread_pool, url, entry)
 
-    async def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
+    async def listfiles(self,
+                        url: str,
+                        recursive: bool = False,
+                        exclude_trailing_slash_files: bool = True
+                        ) -> AsyncIterator[FileListEntry]:
+        del exclude_trailing_slash_files  # such files do not exist on local file systems
         path = self._get_path(url)
         entries = await blocking_to_async(self._thread_pool, os.scandir, path)
         if recursive:
@@ -205,14 +208,46 @@ class LocalAsyncFS(AsyncFS):
         path = self._get_path(url)
         return await blocking_to_async(self._thread_pool, os.remove, path)
 
-    async def rmtree(self, sema: Optional[asyncio.Semaphore], url: str) -> None:
+    async def rmdir(self, url: str) -> None:
         path = self._get_path(url)
+        return await blocking_to_async(self._thread_pool, os.rmdir, path)
 
-        def f():
-            try:
-                shutil.rmtree(path)
-            except FileNotFoundError:
-                # no error if path does not exist
-                pass
+    async def rmtree(self,
+                     sema: Optional[asyncio.Semaphore],
+                     url: str,
+                     listener: Optional[Callable[[int], None]] = None) -> None:
+        path = self._get_path(url)
+        if listener is None:
+            listener = lambda _: None  # noqa: E731
+        if sema is None:
+            sema = asyncio.Semaphore(50)
 
-        await blocking_to_async(self._thread_pool, f)
+        async def rm_file(path: str):
+            assert listener is not None
+            listener(1)
+            await self.remove(path)
+            listener(-1)
+
+        async def rm_dir(pool: OnlineBoundedGather2,
+                         contents_tasks: List[asyncio.Task],
+                         path: str):
+            assert listener is not None
+            listener(1)
+            if contents_tasks:
+                await pool.wait(contents_tasks)
+            await self.rmdir(path)
+            listener(-1)
+
+        async with OnlineBoundedGather2(sema) as pool:
+            contents_tasks_by_dir: Dict[str, List[asyncio.Task]] = {}
+            for dirpath, dirnames, filenames in os.walk(path, topdown=False):
+                contents_tasks = [
+                    pool.call(rm_file, os.path.join(dirpath, filename))
+                    for filename in filenames
+                ] + [
+                    pool.call(rm_dir, pool, contents_tasks_by_dir[fulldirname], fulldirname)
+                    for dirname in dirnames
+                    for fulldirname in [os.path.join(dirpath, dirname)]
+                ]
+                contents_tasks_by_dir[dirpath] = contents_tasks
+            await rm_dir(pool, contents_tasks_by_dir[path], path)

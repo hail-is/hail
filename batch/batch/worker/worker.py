@@ -45,7 +45,8 @@ from hailtop.utils import (
     periodically_call,
 )
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
-from hailtop.aiotools import RouterAsyncFS, LocalAsyncFS
+from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.aiotools import LocalAsyncFS
 from hailtop import aiotools, httpx
 
 # import uvloop

@@ -6,7 +6,8 @@ import pytest
 import concurrent
 import functools
 from hailtop.utils import secret_alnum_string, bounded_gather2, retry_transient_errors
-from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS
+from hailtop.aiotools import LocalAsyncFS
+from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiocloud.aiogoogle import GoogleStorageClient, GoogleStorageAsyncFS
 
 
