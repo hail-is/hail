@@ -227,14 +227,14 @@ class LocalBackend(Backend[None]):
                     symlinks.append(f'ln -sf {shq(src)} {shq(dest)}')
             return symlinks
 
-        def transfer_dicts_for_resource_file(resource: resource.ResourceFile) -> List[dict]:
-            if isinstance(resource, resource.InputResourceFile):
-                source = resource._input_path
+        def transfer_dicts_for_resource_file(res_file: resource.ResourceFile) -> List[dict]:
+            if isinstance(res_file, resource.InputResourceFile):
+                source = res_file._input_path
             else:
-                assert isinstance(resource, (resource.JobResourceFile, resource.PythonResult))
-                source = resource._get_path(tmpdir)
+                assert isinstance(res_file, (resource.JobResourceFile, resource.PythonResult))
+                source = res_file._get_path(tmpdir)
 
-            return [{"from": source, "to": dest} for dest in resource._output_paths]
+            return [{"from": source, "to": dest} for dest in res_file._output_paths]
 
         try:
             input_transfer_dicts = [
