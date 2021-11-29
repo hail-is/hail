@@ -1,5 +1,5 @@
 class closing:
-    """Async equivalent of :meth:`.contextlib.closing`.
+    """Async equivalent of :class:`.contextlib.closing`.
 
     Code like this:
 
