@@ -947,8 +947,6 @@ steps:
       - default_ns
       - hail_run_tests_image
       - build_hail
-    clouds:
-      - gcp
   - kind: runImage
     name: test_hail_java_1
     image:
@@ -983,8 +981,6 @@ steps:
       - default_ns
       - hail_run_tests_image
       - build_hail
-    clouds:
-      - gcp
   - kind: runImage
     name: test_hail_java_2
     image:
@@ -1019,8 +1015,6 @@ steps:
       - default_ns
       - hail_run_tests_image
       - build_hail
-    clouds:
-      - gcp
   - kind: runImage
     name: test_hail_java_3
     image:
@@ -1055,8 +1049,6 @@ steps:
       - default_ns
       - hail_run_tests_image
       - build_hail
-    clouds:
-      - gcp
   - kind: runImage
     name: test_hail_java_4
     image:
@@ -1091,8 +1083,6 @@ steps:
       - default_ns
       - hail_run_tests_image
       - build_hail
-    clouds:
-      - gcp
   - kind: buildImage2
     name: hail_base_image
     dockerFile: /io/repo/hail/Dockerfile.hail-base
