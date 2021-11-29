@@ -11,7 +11,7 @@ from hailtop.auth import service_auth_headers
 from hailtop.utils import retry_response_returning_functions, external_requests_client_session, sync_sleep_and_backoff
 from hailtop.batch_client.client import BatchClient
 
-from .utils import legacy_batch_status
+from .utils import legacy_batch_status, smallest_machine_type, skip_in_azure, fails_in_azure
 from .failure_injecting_client_session import FailureInjectingClientSession
 
 deploy_config = get_deploy_config()
@@ -21,6 +21,7 @@ DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
 UBUNTU_IMAGE = 'ubuntu:20.04'
 NAMESPACE = os.environ.get('HAIL_DEFAULT_NAMESPACE')
 SCOPE = os.environ.get('HAIL_SCOPE', 'test')
+CLOUD = os.environ.get('HAIL_CLOUD')
 
 
 @pytest.fixture
@@ -120,7 +121,7 @@ def test_invalid_resource_requests(client: BatchClient):
         builder.submit()
 
     builder = client.create_batch()
-    resources = {'storage': '10000000Gi', 'machine_type': 'n1-standard-1'}
+    resources = {'storage': '10000000Gi', 'machine_type': smallest_machine_type(CLOUD)}
     builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     with pytest.raises(aiohttp.client.ClientResponseError, match='resource requests.*unsatisfiable'):
         builder.submit()
@@ -197,6 +198,7 @@ def test_nonzero_storage(client: BatchClient):
     assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
+@fails_in_azure()
 def test_attached_disk(client: BatchClient):
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '400Gi'}
@@ -427,7 +429,7 @@ def test_get_job(client: BatchClient):
 
     j2 = client.get_job(*j.id)
     status2 = j2.status()
-    assert (status2['batch_id'], status2['job_id']) == j.id, str((status, b.debug_info()))
+    assert (status2['batch_id'], status2['job_id']) == j.id, str((status2, b.debug_info()))
 
 
 def test_batch(client: BatchClient):
@@ -541,7 +543,7 @@ def test_authorized_users_only():
         assert r.status_code == expected, (full_url, r, expected)
 
 
-def test_gcr_image(client: BatchClient):
+def test_cloud_image(client: BatchClient):
     builder = client.create_batch()
     j = builder.create_job(os.environ['HAIL_CURL_IMAGE'], ['echo', 'test'])
     b = builder.submit()
@@ -617,8 +619,8 @@ def test_restartable_insert(client: BatchClient):
 
         b = builder.submit(max_bunch_size=1)
         b = client.get_batch(b.id)  # get a batch untainted by the FailureInjectingClientSession
-        batch = b.wait()
-        assert batch['state'] == 'success', str((status, b.debug_info()))
+        status = b.wait()
+        assert status['state'] == 'success', str((status, b.debug_info()))
         jobs = list(b.jobs())
         assert len(jobs) == 9, str((jobs, b.debug_info()))
 
@@ -684,7 +686,8 @@ def test_duplicate_parents(client: BatchClient):
         assert False, f'should receive a 400 Bad Request {batch.id}'
 
 
-def test_verify_no_access_to_metadata_server(client: BatchClient):
+@skip_in_azure()
+def test_verify_no_access_to_google_metadata_server(client: BatchClient):
     builder = client.create_batch()
     j = builder.create_job(
         os.environ['HAIL_CURL_IMAGE'], ['curl', '-fsSL', 'metadata.google.internal', '--max-time', '10']
@@ -695,6 +698,8 @@ def test_verify_no_access_to_metadata_server(client: BatchClient):
     job_log = j.log()
     assert "Could not resolve host" in job_log['main'], str((job_log, b.debug_info()))
 
+
+def test_verify_no_access_to_metadata_server(client: BatchClient):
     builder = client.create_batch()
     j = builder.create_job(os.environ['HAIL_CURL_IMAGE'], ['curl', '-fsSL', '169.254.169.254', '--max-time', '10'])
     builder.submit()
@@ -801,6 +806,7 @@ curl -fsSL -m 5 $OTHER_IP
     assert "Connection timed out" in job_log['main'], str((job_log, b.debug_info()))
 
 
+@skip_in_azure()
 def test_can_use_google_credentials(client: BatchClient):
     token = os.environ["HAIL_TOKEN"]
     remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
@@ -846,7 +852,7 @@ def test_user_authentication_within_job(client: BatchClient):
     b = batch.submit()
 
     no_token_status = no_token.wait()
-    assert no_token_status['state'] == 'Failed', str((not_token_status, b.debug_info()))
+    assert no_token_status['state'] == 'Failed', str((no_token_status, b.debug_info()))
 
 
 def test_verify_access_to_public_internet(client: BatchClient):
@@ -934,6 +940,9 @@ def test_pool_highmem_instance(client: BatchClient):
     assert status['state'] == 'Success', str((status, b.debug_info()))
     assert 'highmem' in status['status']['worker'], str((status, b.debug_info()))
 
+
+@fails_in_azure()
+def test_pool_highmem_instance_cheapest(client: BatchClient):
     builder = client.create_batch()
     resources = {'cpu': '1', 'memory': '5Gi'}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
@@ -941,14 +950,6 @@ def test_pool_highmem_instance(client: BatchClient):
     status = j.wait()
     assert status['state'] == 'Success', str((status, b.debug_info()))
     assert 'highmem' in status['status']['worker'], str((status, b.debug_info()))
-
-    builder = client.create_batch()
-    resources = {'cpu': '0.25', 'memory': '500Mi'}
-    j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
-    b = builder.submit()
-    status = j.wait()
-    assert status['state'] == 'Success', str((status, b.debug_info()))
-    assert 'standard' in status['status']['worker'], str((status, b.debug_info()))
 
 
 def test_pool_highcpu_instance(client: BatchClient):
@@ -960,6 +961,8 @@ def test_pool_highcpu_instance(client: BatchClient):
     assert status['state'] == 'Success', str((status, b.debug_info()))
     assert 'highcpu' in status['status']['worker'], str((status, b.debug_info()))
 
+
+def test_pool_highcpu_instance_cheapest(client: BatchClient):
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '50Mi'}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
@@ -968,6 +971,20 @@ def test_pool_highcpu_instance(client: BatchClient):
     assert status['state'] == 'Success', str((status, b.debug_info()))
     assert 'highcpu' in status['status']['worker'], str((status, b.debug_info()))
 
+
+@fails_in_azure
+def test_pool_standard_instance(client: BatchClient):
+    builder = client.create_batch()
+    resources = {'cpu': '0.25', 'memory': '500Mi'}
+    j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    b = builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+    assert 'standard' in status['status']['worker'], str((status, b.debug_info()))
+
+
+@fails_in_azure()
+def test_pool_standard_instance_cheapest(client: BatchClient):
     builder = client.create_batch()
     resources = {'cpu': '0.5', 'memory': '1Gi'}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
@@ -979,7 +996,7 @@ def test_pool_highcpu_instance(client: BatchClient):
 
 def test_job_private_instance_preemptible(client: BatchClient):
     builder = client.create_batch()
-    resources = {'machine_type': 'n1-standard-1'}
+    resources = {'machine_type': smallest_machine_type(CLOUD)}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     b = builder.submit()
     status = j.wait()
@@ -989,7 +1006,7 @@ def test_job_private_instance_preemptible(client: BatchClient):
 
 def test_job_private_instance_nonpreemptible(client: BatchClient):
     builder = client.create_batch()
-    resources = {'machine_type': 'n1-standard-1', 'preemptible': False}
+    resources = {'machine_type': smallest_machine_type(CLOUD), 'preemptible': False}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     b = builder.submit()
     status = j.wait()
@@ -999,7 +1016,7 @@ def test_job_private_instance_nonpreemptible(client: BatchClient):
 
 def test_job_private_instance_cancel(client: BatchClient):
     builder = client.create_batch()
-    resources = {'machine_type': 'n1-standard-1'}
+    resources = {'machine_type': smallest_machine_type(CLOUD)}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     b = builder.submit()
 

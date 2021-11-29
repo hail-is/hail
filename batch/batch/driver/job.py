@@ -31,7 +31,7 @@ log = logging.getLogger('job')
 async def notify_batch_job_complete(db: Database, client_session: httpx.ClientSession, batch_id):
     record = await db.select_and_fetchone(
         '''
-SELECT batches.*, SUM(`usage` * rate) AS cost
+SELECT batches.*, COALESCE(SUM(`usage` * rate), 0) AS cost
 FROM batches
 LEFT JOIN aggregated_batch_resources
   ON batches.id = aggregated_batch_resources.batch_id
@@ -292,7 +292,7 @@ async def job_config(app, record, attempt_id):
 
     db_spec = json.loads(record['spec'])
 
-    if format_version.has_full_spec_in_gcs():
+    if format_version.has_full_spec_in_cloud():
         job_spec = {
             'secrets': format_version.get_spec_secrets(db_spec),
             'service_account': format_version.get_spec_service_account(db_spec),
@@ -375,7 +375,7 @@ users:
             job_spec['env'] = env
         env.append({'name': 'KUBECONFIG', 'value': '/.kube/config'})
 
-    if format_version.has_full_spec_in_gcs():
+    if format_version.has_full_spec_in_cloud():
         token, start_job_id = await SpecWriter.get_token_start_id(db, batch_id, job_id)
     else:
         token = None

@@ -1475,6 +1475,8 @@ class DockerJob(Job):
                         try:
                             await self.disk.delete()
                             log.info(f'deleted disk {self.disk.name} for {self.id}')
+                        except asyncio.CancelledError:
+                            raise
                         except Exception:
                             log.exception(f'while detaching and deleting disk {self.disk.name} for {self.id}')
                         finally:
