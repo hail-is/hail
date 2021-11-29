@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any, TypeVar, Generic, List
+from typing import Optional, Dict, Any, TypeVar, Generic, List, Union
 import sys
 import abc
 import orjson
@@ -227,7 +227,7 @@ class LocalBackend(Backend[None]):
                     symlinks.append(f'ln -sf {shq(src)} {shq(dest)}')
             return symlinks
 
-        def transfer_dicts_for_resource_file(res_file: resource.ResourceFile) -> List[dict]:
+        def transfer_dicts_for_resource_file(res_file: Union[resource.ResourceFile, resource.PythonResult]) -> List[dict]:
             if isinstance(res_file, resource.InputResourceFile):
                 source = res_file._input_path
             else:
