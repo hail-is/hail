@@ -895,9 +895,9 @@ steps:
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       python3 -m hailtop.aiotools.copy 'null' '[
       {"from": "src/test/resources",
-       "to":   "{{ global.hail_test_storage_uri }}/{{ token }}/test/resources"},
+       "to":   "{{ global.test_storage_uri }}/{{ token }}/test/resources"},
       {"from": "python/hail/docs/data",
-       "to":   "{{ global.hail_test_storage_uri }}/{{ token }}/doctest/data"}
+       "to":   "{{ global.test_storage_uri }}/{{ token }}/doctest/data"}
       ]'
     secrets:
       - name: test-gsa-key
@@ -2521,7 +2521,7 @@ steps:
       {% if deploy %}
       destination=$(cat /global-config/hail_query_gcs_path)/jars/
       {% else %}
-      destination={{ global.hail_test_storage_uri }}/{{ token }}/jars/
+      destination={{ global.test_storage_uri }}/{{ token }}/jars/
       {% endif %}
 
       python3 -m hailtop.aiotools.copy 'null' '[
@@ -3848,7 +3848,7 @@ steps:
 
       export CLOUD={{ global.cloud }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-      export HAIL_FS_TEST_CLOUD_RESOURCES_URI={{ global.hail_test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/fs
+      export HAIL_FS_TEST_CLOUD_RESOURCES_URI={{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/fs
       export HAIL_TEST_GCS_BUCKET={{ global.hail_test_gcs_bucket }}
 
       java -Xms7500M -Xmx7500M \
