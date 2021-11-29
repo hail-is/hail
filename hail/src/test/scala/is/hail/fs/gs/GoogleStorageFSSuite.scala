@@ -12,7 +12,7 @@ import org.testng.SkipException
 class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
   @BeforeClass
   def beforeclass(): Unit = {
-    if (System.getenv("CLOUD") != "gcp") {
+    if (System.getenv("HAIL_CLOUD") != "gcp") {
       throw new SkipException("This test suite is only run in GCP.");
     }
   }
