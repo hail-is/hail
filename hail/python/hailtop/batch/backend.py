@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any, TypeVar, Generic
+from typing import Optional, Dict, Any, TypeVar, Generic, List
 import sys
 import abc
 import orjson
@@ -227,23 +227,26 @@ class LocalBackend(Backend[None]):
                     symlinks.append(f'ln -sf {shq(src)} {shq(dest)}')
             return symlinks
 
+        def transfer_dicts_for_resource_file(resource: resource.ResourceFile) -> List[dict]:
+            if isinstance(resource, resource.InputResourceFile):
+                source = resource._input_path
+            else:
+                assert isinstance(resource, (resource.JobResourceFile, resource.PythonResult))
+                source = resource._get_path(tmpdir)
+
+            return [{"from": source, "to": dest} for dest in resource._output_paths]
+
         try:
-            transfer_dicts = []
-            for input_resource in batch._input_resources:
-                if isinstance(input_resource, resource.InputResourceFile):
-                    source = input_resource._input_path
-                else:
-                    assert isinstance(input_resource, (resource.JobResourceFile, resource.PythonResult))
-                    source = input_resource._get_path(tmpdir)
+            input_transfer_dicts = [
+                transfer_dict
+                for input_resource in batch._input_resources
+                for transfer_dict in transfer_dicts_for_resource_file(input_resource)]
 
-                for dest in input_resource._output_paths:
-                    transfer_dicts.append({"from": source, "to": dest})
-
-            if transfer_dicts:
-                transfers = orjson.dumps(transfer_dicts).decode('utf-8')
+            if input_transfer_dicts:
+                input_transfers = orjson.dumps(input_transfer_dicts).decode('utf-8')
                 code = new_code_block()
                 code += ["# Write input resources to output destinations"]
-                code += [f'python3 -m hailtop.aiotools.copy {shq(requester_pays_project_json)} {shq(transfers)}']
+                code += [f'python3 -m hailtop.aiotools.copy {shq(requester_pays_project_json)} {shq(input_transfers)}']
                 code += ['\n']
                 run_code(code)
 
@@ -305,7 +308,13 @@ class LocalBackend(Backend[None]):
                 else:
                     code.append(f"{job_shell} -c {quoted_job_script}")
 
-                code += [x for r in job._external_outputs for x in copy_external_output(r)]
+                output_transfer_dicts = [
+                    transfer_dict
+                    for output_resource in job._external_outputs
+                    for transfer_dict in transfer_dicts_for_resource_file(output_resource)]
+                output_transfers = orjson.dumps(output_transfer_dicts).decode('utf-8')
+
+                code += [f'python3 -m hailtop.aiotools.copy {shq(requester_pays_project_json)} {shq(output_transfers)}']
                 code += ['\n']
 
                 run_code(code)
