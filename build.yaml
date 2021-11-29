@@ -2587,6 +2587,8 @@ steps:
       - memory_image
       - deploy_memory_sa
       - create_certs
+    clouds:
+      - gcp
   - kind: runImage
     name: test_lsm
     image:
