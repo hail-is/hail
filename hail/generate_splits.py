@@ -34,7 +34,9 @@ with open('classes', 'r') as f:
                 .replace('.java\n', '')
                 .replace('/', '.')
                for x in foo]
-    classes = [cls for cls in classes if not cls.startswith('is.hail.services')]
+    classes = [cls for cls in classes
+               if not cls.startswith('is.hail.services')
+               if not cls.startswith('is.hail.fs')]
 
 random.shuffle(classes, lambda: 0.0)
 
