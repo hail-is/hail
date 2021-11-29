@@ -89,8 +89,8 @@ class Job:
         self._job_id: Optional[int] = None
 
         self._inputs: Set[_resource.Resource] = set()
-        self._internal_outputs: Set[_resource.Resource] = set()
-        self._external_outputs: Set[_resource.Resource] = set()
+        self._internal_outputs: Set[_resource.ResourceFile] = set()
+        self._external_outputs: Set[_resource.ResourceFile] = set()
         self._mentioned: Set[_resource.Resource] = set()  # resources used in the command
         self._valid: Set[_resource.Resource] = set()  # resources declared in the appropriate place
         self._dependencies: Set[Job] = set()
