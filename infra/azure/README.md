@@ -25,8 +25,7 @@ from $HAIL/infra/azure/variables.tf.
 To setup and run the terraform, run
 
 ```
-./bootstrap.sh run_azure_terraform <RESOURCE_GROUP>
-./bootstrap.sh run_k8s_terraform <RESOURCE_GROUP>
+./bootstrap.sh run_terraform <RESOURCE_GROUP>
 ```
 
 Once terraform has completed successfully, note the `gateway_ip` in the
@@ -90,7 +89,7 @@ download-secret global-config && sudo cp -r contents /global-config
 download-secret zulip-config && sudo cp -r contents /zulip-config
 download-secret database-server-config && sudo cp -r contents /sql-config
 cd ~/hail/infra/azure
-./bootstrap.sh bootstrap <REPO>/hail:<BRANCH> deploy_auth
+./bootstrap.sh bootstrap <REPO>/hail:<BRANCH> deploy_batch
 ```
 
 Create the initial (developer) user. The OBJECT_ID is the Azure Active

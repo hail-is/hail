@@ -1,10 +1,11 @@
-variable "resource_group" {
+variable resource_group {
   type = object({
+    id       = string
     name     = string
     location = string
   })
 }
 
-variable "ci_principal_id" {
+variable container_registry_id {
   type = string
 }
