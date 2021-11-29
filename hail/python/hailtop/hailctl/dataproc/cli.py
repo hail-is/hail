@@ -1,5 +1,6 @@
 import sys
 
+import asyncio
 import argparse
 
 from . import connect
@@ -119,4 +120,5 @@ def main(args):
         # then continue and attempt to run gcloud.
         print("Warning: unable to determine Google Cloud SDK version", file=sys.stderr)
 
-    jmp[args.module].main(args, pass_through_args)
+    asyncio.get_event_loop().run_until_complete(
+        jmp[args.module].main(args, pass_through_args))

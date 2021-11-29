@@ -1,9 +1,12 @@
-import json
+import orjson
 from os import path
 from zlib import decompress, MAX_WBITS
-from subprocess import check_output
 from statistics import median, mean, stdev
 from collections import OrderedDict
+
+from ...aiotools import aio_contextlib
+from ...aiotools.router_fs import RouterAsyncFS
+
 
 SECTION_SEPARATOR = '-' * 40
 IDENT = ' ' * 4
@@ -104,62 +107,56 @@ def init_parser(parser):
     parser.add_argument('--requester-pays-project-id', '-u', help='Project to be billed for GCS requests.')
 
 
-def main(args, pass_through_args):  # pylint: disable=unused-argument
-    command = []
-    if args.file.startswith('gs://'):
-        command = ['gsutil']
-        if args.requester_pays_project_id:
-            command.extend(['-u', args.requester_pays_project_id])
+async def main(args, pass_through_args):  # pylint: disable=unused-argument
+    gcs_kwargs = {}
+    if args.requester_pays_project_id:
+        gcs_kwargs['project'] = args.requester_pays_project_id
 
-    j = json.loads(
-        decompress(
-            check_output(command + ['cat', path.join(args.file, 'metadata.json.gz')]),
-            16 + MAX_WBITS
-        )
-    )
+    async with aio_contextlib.closing(
+            RouterAsyncFS(default_scheme='file', gcs_kwargs=gcs_kwargs)) as fs:
+        j = orjson.loads(decompress(await fs.read(path.join(args.file, 'metadata.json.gz')),
+                                    16 + MAX_WBITS))
 
-    # Get the file schema
-    file_schema = parse_schema(j[[k for k in j.keys() if k.endswith('type')][0]])
+        # Get the file schema
+        file_schema = parse_schema(j[[k for k in j.keys() if k.endswith('type')][0]])
 
-    # Print file information
-    print(SECTION_SEPARATOR)
-    print('File Type: {}'.format(file_schema['type']))
-    print(IDENT + get_partitions_info_str(j))
-
-    # Print global fields
-    print(SECTION_SEPARATOR)
-    print('Global fields:')
-    print(type_str(file_schema['value']['global']['value']))
-
-    # Print column fields if present
-    if 'col' in file_schema['value']:
+        # Print file information
         print(SECTION_SEPARATOR)
-        print('Column fields:')
-        print(type_str(file_schema['value']['col']['value']))
+        print('File Type: {}'.format(file_schema['type']))
+        print(IDENT + get_partitions_info_str(j))
 
-    # Print row fields
-    print(SECTION_SEPARATOR)
-    print('Row fields:')
-    print(type_str(file_schema['value']['row']['value']))
-
-    # Print entry fields if present
-    if 'entry' in file_schema['value']:
+        # Print global fields
         print(SECTION_SEPARATOR)
-        print('Entry fields:')
-        print(type_str(file_schema['value']['entry']['value']))
+        print('Global fields:')
+        print(type_str(file_schema['value']['global']['value']))
 
-    # Print keys
-    print(SECTION_SEPARATOR)
-    if 'col_key' in file_schema['value']:
-        print("Column key: {}".format(key_str(file_schema['value']['col_key'])))
-        print("Row key: {}".format(key_str(file_schema['value']['row_key'])))
-    else:
-        print("Key: {}".format(key_str(file_schema['value']['key'])))
-    print(SECTION_SEPARATOR)
+        # Print column fields if present
+        if 'col' in file_schema['value']:
+            print(SECTION_SEPARATOR)
+            print('Column fields:')
+            print(type_str(file_schema['value']['col']['value']))
 
-    # Check for _SUCCESS
-    try:
-        check_output(command + ['ls', path.join(args.file, '_SUCCESS')])
-    except Exception:  # pylint: disable=broad-except
-        print(
-            "\033[;1m\033[1;31mCould not find _SUCCESS for file: {}\nThis file will not work.\033[0m".format(args.file))
+        # Print row fields
+        print(SECTION_SEPARATOR)
+        print('Row fields:')
+        print(type_str(file_schema['value']['row']['value']))
+
+        # Print entry fields if present
+        if 'entry' in file_schema['value']:
+            print(SECTION_SEPARATOR)
+            print('Entry fields:')
+            print(type_str(file_schema['value']['entry']['value']))
+
+        # Print keys
+        print(SECTION_SEPARATOR)
+        if 'col_key' in file_schema['value']:
+            print("Column key: {}".format(key_str(file_schema['value']['col_key'])))
+            print("Row key: {}".format(key_str(file_schema['value']['row_key'])))
+        else:
+            print("Key: {}".format(key_str(file_schema['value']['key'])))
+        print(SECTION_SEPARATOR)
+
+        # Check for _SUCCESS
+        if not await fs.exists(path.join(args.file, '_SUCCESS')):
+            print(
+                "\033[;1m\033[1;31mCould not find _SUCCESS for file: {}\nThis file will not work.\033[0m".format(args.file))

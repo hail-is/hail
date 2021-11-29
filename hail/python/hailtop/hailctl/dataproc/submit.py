@@ -16,7 +16,7 @@ def init_parser(parser):
     parser.add_argument('--region', help='Compute region for the cluster.')
 
 
-def main(args, pass_through_args):  # pylint: disable=unused-argument
+async def main(args, pass_through_args):  # pylint: disable=unused-argument
     print("Submitting to cluster '{}'...".format(args.name))
 
     # create files argument
