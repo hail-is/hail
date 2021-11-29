@@ -1,4 +1,3 @@
-import contextlib
 import orjson
 from os import path
 from zlib import decompress, MAX_WBITS
