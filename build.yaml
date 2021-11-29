@@ -893,6 +893,7 @@ steps:
       set -ex
       cd /io/repo/hail/
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       python3 -m hailtop.aiotools.copy 'null' '[
       {"from": "src/test/resources",
        "to":   "{{ global.test_storage_uri }}/{{ token }}/test/resources"},
@@ -3839,7 +3840,10 @@ steps:
       export CLOUD={{ global.cloud }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export HAIL_FS_TEST_CLOUD_RESOURCES_URI={{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/fs
+
+      {% if global.cloud == 'gcp' %}
       export HAIL_TEST_GCS_BUCKET={{ global.hail_test_gcs_bucket }}
+      {% endif %}
 
       java -Xms7500M -Xmx7500M \
            -cp hail-test.jar:$SPARK_HOME/jars/* \
