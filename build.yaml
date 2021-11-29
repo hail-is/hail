@@ -3038,9 +3038,9 @@ steps:
           export HAIL_TOKEN="$token"
           cd /io/test
           python3 -c '
-      import test_accounts
+      import billing_projects
       import asyncio
-      asyncio.get_event_loop().run_until_complete(test_accounts.delete_all_test_billing_projects())
+      asyncio.get_event_loop().run_until_complete(billing_projects.delete_all_test_billing_projects())
       '
       done
     inputs:

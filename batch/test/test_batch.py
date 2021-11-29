@@ -21,7 +21,7 @@ DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
 UBUNTU_IMAGE = 'ubuntu:20.04'
 NAMESPACE = os.environ.get('HAIL_DEFAULT_NAMESPACE')
 SCOPE = os.environ.get('HAIL_SCOPE', 'test')
-CLOUD = os.environ['HAIL_CLOUD']
+CLOUD = os.environ.get('HAIL_CLOUD')
 
 
 @pytest.fixture
