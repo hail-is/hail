@@ -957,6 +957,8 @@ steps:
       - upload_test_resources_to_gcs
       - hail_run_tests_image
       - build_hail
+    clouds:
+      - gcp
   - kind: runImage
     name: test_hail_java_1
     image:
@@ -994,6 +996,8 @@ steps:
       - upload_test_resources_to_gcs
       - hail_run_tests_image
       - build_hail
+    clouds:
+      - gcp
   - kind: runImage
     name: test_hail_java_2
     image:
@@ -1031,6 +1035,8 @@ steps:
       - upload_test_resources_to_gcs
       - hail_run_tests_image
       - build_hail
+    clouds:
+      - gcp
   - kind: runImage
     name: test_hail_java_3
     image:
@@ -1068,6 +1074,8 @@ steps:
       - upload_test_resources_to_gcs
       - hail_run_tests_image
       - build_hail
+    clouds:
+      - gcp
   - kind: runImage
     name: test_hail_java_4
     image:
@@ -1105,6 +1113,8 @@ steps:
       - upload_test_resources_to_gcs
       - hail_run_tests_image
       - build_hail
+    clouds:
+      - gcp
   - kind: buildImage2
     name: hail_base_image
     dockerFile: /io/repo/hail/Dockerfile.hail-base
@@ -1304,6 +1314,8 @@ steps:
       - default_ns
       - hail_run_tests_image
       - build_hail
+    clouds:
+      - gcp
   - kind: runImage
     name: test_hail_python_1
     image:
@@ -1358,6 +1370,8 @@ steps:
       - default_ns
       - hail_run_tests_image
       - build_hail
+    clouds:
+      - gcp
   - kind: runImage
     name: test_hail_python_2
     image:
@@ -1412,6 +1426,8 @@ steps:
       - default_ns
       - hail_run_tests_image
       - build_hail
+    clouds:
+      - gcp
   - kind: runImage
     name: test_hail_python_3
     image:
@@ -1466,6 +1482,8 @@ steps:
       - default_ns
       - hail_run_tests_image
       - build_hail
+    clouds:
+      - gcp
   - kind: runImage
     name: test_hail_python_4
     image:
@@ -1520,6 +1538,8 @@ steps:
       - default_ns
       - hail_run_tests_image
       - build_hail
+    clouds:
+      - gcp
   - kind: runImage
     name: test_hail_python_copy
     image:
@@ -1563,6 +1583,8 @@ steps:
       - default_ns
       - hail_run_image
       - build_hail
+    clouds:
+      - gcp
   - kind: runImage
     name: test_hail_python_unchecked_allocator
     image:
@@ -1602,6 +1624,8 @@ steps:
       - default_ns
       - hail_run_tests_image
       - build_hail
+    clouds:
+      - gcp
   - kind: runImage
     name: test_hail_python_local_backend_0
     image:
@@ -2064,6 +2088,8 @@ steps:
       - deploy_auth
       - create_certs
       - create_accounts
+    clouds:
+      - gcp
   - kind: runImage
     name: test_monitoring
     image:
@@ -2092,6 +2118,8 @@ steps:
       - default_ns
       - create_certs
       - deploy_monitoring
+    clouds:
+      - gcp
   - kind: runImage
     name: test_auth_copy_paste_login
     image:
@@ -2559,6 +2587,8 @@ steps:
       - memory_image
       - deploy_memory_sa
       - create_certs
+    clouds:
+      - gcp
   - kind: runImage
     name: test_lsm
     image:
@@ -2648,6 +2678,8 @@ steps:
       - merge_code
       - memory_image
       - deploy_memory
+    clouds:
+      - gcp
   - kind: runImage
     name: test_batch_0
     image:
@@ -3636,6 +3668,8 @@ steps:
     scopes:
       - deploy
       - dev
+    clouds:
+      - gcp
   - kind: runImage
     name: deploy
     image:
@@ -3702,6 +3736,8 @@ steps:
       - ci_utils_image
       - build_hail
       - merge_code
+    clouds:
+      - gcp
   - kind: buildImage2
     name: website_image
     dockerFile: /io/website/Dockerfile
