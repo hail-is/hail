@@ -483,6 +483,14 @@ module "ci_sp" {
   object_id      = azuread_application.ci.object_id
 }
 
+resource "azurerm_role_assignment" "ci_acr_role" {
+  for_each = toset(["AcrPush", "AcrDelete"])
+
+  scope                = azurerm_container_registry.acr.id
+  role_definition_name = each.key
+  principal_id         = module.ci_sp.principal_id
+}
+
 resource "azuread_application" "test" {
   display_name = "${data.azurerm_resource_group.rg.name}-test"
 
@@ -565,7 +573,6 @@ module "ci" {
 
   resource_group        = data.azurerm_resource_group.rg
   ci_principal_id       = module.ci_sp.principal_id
-  container_registry_id = azurerm_container_registry.acr.id
 }
 
 module "ci_k8s_resources" {

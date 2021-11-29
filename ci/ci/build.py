@@ -352,15 +352,37 @@ cat /home/user/trace
         )
 
     def cleanup(self, batch, scope, parents):
-        if CLOUD == 'azure':
-            log.warning('Image cleanup in ACR is not yet supported')
-            return
-        assert CLOUD == 'gcp'
-
         if scope == 'deploy' and self.publish_as and not is_test_deployment:
             return
 
-        script = f'''
+        if CLOUD == 'azure':
+            image = 'mcr.microsoft.com/azure-cli'
+            assert self.image.startswith(DOCKER_PREFIX)
+            image_name = self.image[len(f'{DOCKER_PREFIX}/') :]
+            script = f'''
+set -x
+date
+
+set +x
+USERNAME=$(cat /secrets/registry-push-credentials/credentials.json | jq -j '.appId')
+PASSWORD=$(cat /secrets/registry-push-credentials/credentials.json | jq -j '.password')
+TENANT=$(cat /secrets/registry-push-credentials/credentials.json | jq -j '.tenant')
+az login --service-principal -u $USERNAME -p $PASSWORD --tenant $TENANT
+set -x
+
+until az acr repository untag -n {shq(DOCKER_PREFIX)} --image {shq(image_name)} || ! az acr repository show -n {shq(DOCKER_PREFIX)} --image {shq(image_name)}
+do
+    echo 'failed, will sleep 2 and retry'
+    sleep 2
+done
+
+date
+true
+'''
+        else:
+            assert CLOUD == 'gcp'
+            image = CI_UTILS_IMAGE
+            script = f'''
 set -x
 date
 
@@ -378,7 +400,7 @@ true
 '''
 
         self.job = batch.create_job(
-            CI_UTILS_IMAGE,
+            image,
             command=['bash', '-c', script],
             attributes={'name': f'cleanup_{self.name}'},
             secrets=[
