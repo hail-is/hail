@@ -526,9 +526,6 @@ class ServiceBackend(Backend[bc.Batch]):
 
         bash_flags = 'set -e' + ('x' if verbose else '')
 
-        activate_service_account = 'gcloud -q auth activate-service-account ' \
-                                   '--key-file=/gsa-key/key.json'
-
         def copy_input(r):
             if isinstance(r, resource.InputResourceFile):
                 return [(r._input_path, r._get_path(local_tmpdir))]
