@@ -161,7 +161,8 @@ class CopyReport:
         print(f'  Files: {total_files}')
         print(f'  Bytes: {humanize.naturalsize(total_bytes)}')
         print(f'  Time: {humanize_timedelta_msecs(self._duration)}')
-        print(f'  Average transfer rate: {humanize.naturalsize(total_bytes / (self._duration / 1000))}/s')
+        if self._duration > 0:
+            print(f'  Average transfer rate: {humanize.naturalsize(total_bytes / (self._duration / 1000))}/s')
 
         print('Sources:')
         for sr in source_reports:
