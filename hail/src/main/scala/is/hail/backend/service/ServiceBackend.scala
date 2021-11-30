@@ -58,7 +58,7 @@ class ServiceBackend(
   private[this] val users = new ConcurrentHashMap[String, User]()
 
   def addUser(username: String, key: String): Unit = synchronized {
-    val previous = users.put(username, new User(username, "/tmp", new GoogleStorageFS(key)))
+    val previous = users.put(username, new User(username, "/tmp", new GoogleStorageFS(Some(key))))
     assert(previous == null)
   }
 

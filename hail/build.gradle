@@ -307,8 +307,31 @@ task testServices(type: Test) {
     }
 }
 
+task testFS(type: Test) {
+    useTestNG() {
+        suites 'testng-fs.xml'
+    }
+
+    testLogging {
+        events "passed", "skipped", "failed"
+    }
+
+    // listen to events in the test execution lifecycle
+    beforeTest { descriptor ->
+        logger.lifecycle("Running test: " + descriptor)
+    }
+
+    maxParallelForks((System.env.PARALLELISM == null ? "1" : System.env.PARALLELISM).toInteger())
+
+    testLogging {
+        outputs.upToDateWhen {false}
+        showStandardStreams = true
+    }
+}
+
 test.dependsOn(checkSettings)
 testServices.dependsOn(checkSettings)
+testFS.dependsOn(checkSettings)
 
 tasks.withType(ShadowJar) {
     manifest {

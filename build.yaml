@@ -745,6 +745,8 @@ steps:
         to: /testng-build.xml
       - from: /io/repo/hail/testng-services.xml
         to: /testng-services.xml
+      - from: /io/repo/hail/testng-fs.xml
+        to: /testng-fs.xml
       - from: /io/repo/hail/python/hail.zip
         to: /hail.zip
       - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
@@ -872,8 +874,8 @@ steps:
     dependsOn:
       - default_ns
   - kind: buildImage2
-    name: hail_repl_image
-    dockerFile: /io/hail/Dockerfile.hail-repl
+    name: hail_pip_installed_image
+    dockerFile: /io/hail/Dockerfile.hail-pip-installed
     contextPath: /io/hail
     publishAs: hail-run
     inputs:
@@ -882,30 +884,24 @@ steps:
       - from: /wheel-container.tar
         to: /io/hail/wheel-container.tar
     dependsOn:
-      - base_image
+      - service_base_image
       - build_hail
       - merge_code
-  - kind: deploy
-    name: deploy_hail_repl
-    runIfRequested: true
-    scopes:
-      - dev
-    namespace:
-      valueFrom: default_ns.name
-    config: hail/hail_repl.yaml
-    dependsOn:
-      - default_ns
-      - hail_repl_image
   - kind: runImage
-    name: upload_test_resources_to_gcs
+    name: upload_test_resources_to_blob_storage
     image:
-      valueFrom: base_image.image
+      valueFrom: hail_pip_installed_image.image
     script: |
       set -ex
       cd /io/repo/hail/
-      gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
-      gsutil -m cp -r src/test/resources/* gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/test/resources/
-      gsutil -m cp -r python/hail/docs/data/* gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/doctest/data/
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      python3 -m hailtop.aiotools.copy 'null' '[
+      {"from": "src/test/resources",
+       "to":   "{{ global.test_storage_uri }}/{{ token }}/test/resources"},
+      {"from": "python/hail/docs/data",
+       "to":   "{{ global.test_storage_uri }}/{{ token }}/doctest/data"}
+      ]'
     secrets:
       - name: test-gsa-key
         namespace:
@@ -918,7 +914,7 @@ steps:
         to: /io/repo/hail/python/hail/docs/data
     dependsOn:
       - default_ns
-      - base_image
+      - hail_pip_installed_image
       - merge_code
   - kind: runImage
     name: test_hail_java_0
@@ -934,8 +930,6 @@ steps:
       tar xzf resources.tar.gz -C src/test
       tar xzf splits.tar.gz
       export HAIL_TEST_SKIP_R=1
-      export HAIL_GS_FS_TEST_RESOURCES=gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/test/resources/fs
-      export HAIL_TEST_GCS_BUCKET={{ global.hail_test_gcs_bucket }}
       java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-0.xml
     inputs:
       - from: /resources.tar.gz
@@ -954,11 +948,8 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
-      - upload_test_resources_to_gcs
       - hail_run_tests_image
       - build_hail
-    clouds:
-      - gcp
   - kind: runImage
     name: test_hail_java_1
     image:
@@ -973,8 +964,6 @@ steps:
       tar xzf resources.tar.gz -C src/test
       tar xzf splits.tar.gz
       export HAIL_TEST_SKIP_R=1
-      export HAIL_GS_FS_TEST_RESOURCES=gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/test/resources/fs
-      export HAIL_TEST_GCS_BUCKET={{ global.hail_test_gcs_bucket }}
       java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-1.xml
     inputs:
       - from: /resources.tar.gz
@@ -993,11 +982,8 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
-      - upload_test_resources_to_gcs
       - hail_run_tests_image
       - build_hail
-    clouds:
-      - gcp
   - kind: runImage
     name: test_hail_java_2
     image:
@@ -1012,8 +998,6 @@ steps:
       tar xzf resources.tar.gz -C src/test
       tar xzf splits.tar.gz
       export HAIL_TEST_SKIP_R=1
-      export HAIL_GS_FS_TEST_RESOURCES=gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/test/resources/fs
-      export HAIL_TEST_GCS_BUCKET={{ global.hail_test_gcs_bucket }}
       java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-2.xml
     inputs:
       - from: /resources.tar.gz
@@ -1032,11 +1016,8 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
-      - upload_test_resources_to_gcs
       - hail_run_tests_image
       - build_hail
-    clouds:
-      - gcp
   - kind: runImage
     name: test_hail_java_3
     image:
@@ -1051,8 +1032,6 @@ steps:
       tar xzf resources.tar.gz -C src/test
       tar xzf splits.tar.gz
       export HAIL_TEST_SKIP_R=1
-      export HAIL_GS_FS_TEST_RESOURCES=gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/test/resources/fs
-      export HAIL_TEST_GCS_BUCKET={{ global.hail_test_gcs_bucket }}
       java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-3.xml
     inputs:
       - from: /resources.tar.gz
@@ -1071,11 +1050,8 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
-      - upload_test_resources_to_gcs
       - hail_run_tests_image
       - build_hail
-    clouds:
-      - gcp
   - kind: runImage
     name: test_hail_java_4
     image:
@@ -1090,8 +1066,6 @@ steps:
       tar xzf resources.tar.gz -C src/test
       tar xzf splits.tar.gz
       export HAIL_TEST_SKIP_R=1
-      export HAIL_GS_FS_TEST_RESOURCES=gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/test/resources/fs
-      export HAIL_TEST_GCS_BUCKET={{ global.hail_test_gcs_bucket }}
       java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-4.xml
     inputs:
       - from: /resources.tar.gz
@@ -1110,11 +1084,8 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
-      - upload_test_resources_to_gcs
       - hail_run_tests_image
       - build_hail
-    clouds:
-      - gcp
   - kind: buildImage2
     name: hail_base_image
     dockerFile: /io/repo/hail/Dockerfile.hail-base
@@ -1604,6 +1575,9 @@ steps:
       export HAIL_DOCTEST_DATA_DIR=./data
       export HAIL_TEST_GCS_BUCKET={{ global.hail_test_gcs_bucket }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export HAIL_TEST_AZURE_ACCOUNT=hailtest
+      export HAIL_TEST_AZURE_CONTAINER=hail-test-4nxei
+      export AZURE_APPLICATION_CREDENTIALS=/test-azure-key/credentials.json
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       python3 -m pytest -m unchecked_allocator --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
     inputs:
@@ -1883,7 +1857,7 @@ steps:
   - kind: runImage
     name: make_pip_versioned_docs
     image:
-      valueFrom: hail_run_image.image
+      valueFrom: hail_pip_installed_image.image
     script: |
       set -ex
 
@@ -1906,7 +1880,11 @@ steps:
 
       PYTHONPATH=$PYTHONPATH:$(pwd)/hail/python make -C hail hail-docs-no-test batch-docs
 
-      gsutil cp gs://hail-common/builds/0.1/docs/hail-0.1-docs-5a6778710097.tar.gz .
+      python3 -m hailtop.aiotools.copy 'null' '[
+      {"from": "gs://hail-common/builds/0.1/docs/hail-0.1-docs-5a6778710097.tar.gz",
+       "to": "hail-0.1-docs-5a6778710097.tar.gz"}
+      ]'
+
       mkdir hail/build/www/docs/0.1
       tar -xvf hail-0.1-docs-5a6778710097.tar.gz -C hail/build/www/docs/0.1 --strip-components 2
 
@@ -1921,7 +1899,7 @@ steps:
       - from: /io/docs.tar.gz
         to: /docs.tar.gz
     dependsOn:
-      - hail_run_image
+      - hail_pip_installed_image
       - merge_code
   - kind: deploy
     name: deploy_grafana
@@ -2527,18 +2505,24 @@ steps:
   - kind: runImage
     name: upload_query_jar
     image:
-      valueFrom: base_image.image
+      valueFrom: hail_pip_installed_image.image
     script: |
       set -ex
-      gcloud -q auth activate-service-account --key-file=/query-gsa-key/key.json
+      export GOOGLE_APPLICATION_CREDENTIALS=/query-gsa-key/key.json
+      export HAIL_TEST_AZURE_ACCOUNT=hailtest
+      export HAIL_TEST_AZURE_CONTAINER=hail-test-4nxei
+      export AZURE_APPLICATION_CREDENTIALS=/test-azure-key/credentials.json
 
       {% if deploy %}
       destination=$(cat /global-config/hail_query_gcs_path)/jars/
       {% else %}
-      destination=gs://{{ global.hail_test_gcs_bucket }}/{{ token }}/jars/
+      destination={{ global.test_storage_uri }}/{{ token }}/jars/
       {% endif %}
 
-      gsutil -m cp /io/hail.jar ${destination}$(cat /io/git_version).jar
+      python3 -m hailtop.aiotools.copy 'null' '[
+      {"from": "/io/hail.jar",
+       "to":   "'${destination}$(cat /io/git_version)'.jar"}
+      ]'
     secrets:
       - name: query-gsa-key
         namespace:
@@ -2555,7 +2539,7 @@ steps:
         to: /io/git_version
     dependsOn:
       - default_ns
-      - base_image
+      - hail_pip_installed_image
       - build_hail_jar_only
       - merge_code
       - create_test_gsa_keys
@@ -3841,6 +3825,63 @@ steps:
       - create_accounts
       - service_base_image
       - deploy_website
+  - kind: runImage
+    name: test_hail_fs
+    image:
+      valueFrom: hail_run_tests_image.image
+    resources:
+      memory: standard
+      cpu: '2'
+    script: |
+      set -ex
+      cd /io
+      mkdir -p src/test
+      tar xzf resources.tar.gz -C src/test
+
+      export HAIL_CLOUD={{ global.cloud }}
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export HAIL_FS_TEST_CLOUD_RESOURCES_URI={{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/fs
+
+      {% if global.cloud == 'gcp' %}
+      export HAIL_TEST_GCS_BUCKET={{ global.hail_test_gcs_bucket }}
+      {% endif %}
+
+      java -Xms7500M -Xmx7500M \
+           -cp hail-test.jar:$SPARK_HOME/jars/* \
+           org.testng.TestNG \
+           -listener is.hail.LogTestListener \
+           testng-fs.xml
+    inputs:
+      - from: /resources.tar.gz
+        to: /io/resources.tar.gz
+      - from: /hail-test.jar
+        to: /io/hail-test.jar
+      - from: /testng-fs.xml
+        to: /io/testng-fs.xml
+    secrets:
+      - name: test-tokens
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /user-tokens
+      - name: worker-deploy-config
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /deploy-config
+      - name: ssl-config-services-java-tests
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /ssl-config
+      - name: test-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-gsa-key
+    timeout: 1200
+    dependsOn:
+      - default_ns
+      - create_certs
+      - hail_run_tests_image
+      - build_hail
+      - upload_test_resources_to_blob_storage
   - kind: runImage
     name: test_hail_services_java
     image:
