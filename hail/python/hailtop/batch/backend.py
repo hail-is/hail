@@ -14,7 +14,7 @@ import warnings
 
 from hailtop import pip_version
 from hailtop.config import get_deploy_config, get_user_config
-from hailtop.utils import is_google_registry_domain, parse_docker_image_reference, async_to_blocking, bounded_gather, tqdm
+from hailtop.utils import is_google_registry_domain, parse_docker_image_reference, async_to_blocking, bounded_gather, tqdm, url_scheme
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
 import hailtop.batch_client.client as bc
@@ -197,7 +197,8 @@ class LocalBackend(Backend[None]):
                 if r not in copied_input_resource_files:
                     copied_input_resource_files.add(r)
 
-                    if r._input_path.startswith('gs://'):
+                    input_scheme = url_scheme(r._input_path)
+                    if input_scheme != '':
                         transfers_bytes = orjson.dumps([{"from": r._input_path, "to": r._get_path(tmpdir)}])
                         transfers = transfers_bytes.decode('utf-8')
                         return [f'python3 -m hailtop.aiotools.copy {shq(requester_pays_project_json)} {shq(transfers)}']

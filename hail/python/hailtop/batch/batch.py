@@ -3,7 +3,7 @@ import warnings
 import re
 from typing import Optional, Dict, Union, List, Any, Set
 
-from hailtop.utils import secret_alnum_string
+from hailtop.utils import secret_alnum_string, url_scheme
 from hailtop.aiotools import AsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 
@@ -488,7 +488,8 @@ class Batch:
                                  f"using the PythonJob 'call' method")
 
         if isinstance(self._backend, _backend.LocalBackend):
-            if not dest.startswith('gs://'):
+            dest_scheme = url_scheme(dest)
+            if dest_scheme == '':
                 dest = os.path.abspath(os.path.expanduser(dest))
 
         resource._add_output_path(dest)
