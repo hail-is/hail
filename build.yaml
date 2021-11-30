@@ -3835,6 +3835,7 @@ steps:
     script: |
       set -ex
       cd /io
+      mkdir -p src/test
       tar xzf resources.tar.gz -C src/test
 
       export HAIL_CLOUD={{ global.cloud }}
@@ -3855,8 +3856,8 @@ steps:
         to: /io/resources.tar.gz
       - from: /hail-test.jar
         to: /io/hail-test.jar
-      - from: /testng-services.xml
-        to: /io/testng-services.xml
+      - from: /testng-fs.xml
+        to: /io/testng-fs.xml
     secrets:
       - name: test-tokens
         namespace:
