@@ -13,7 +13,7 @@ import is.hail.io.index.StagedIndexWriter
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, OutputBuffer, TypedCodecSpec}
 import is.hail.rvd.{AbstractRVDSpec, IndexSpec, RVDPartitioner, RVDSpecMaker}
 import is.hail.types.encoded.EType
-import is.hail.types.physical.stypes.interfaces.{SStringValue, SVoidValue}
+import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SContainer, SStringValue, SVoidValue}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.virtual._
@@ -212,17 +212,21 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
       val firstSeenSettable = mb.newEmitLocal(EmitType(keyType.sType, false))
       val lastSeenSettable = mb.newEmitLocal(EmitType(keyType.sType, false))
       // Start off missing, we will use this to determine if we haven't processed any rows yet.
-      cb.assign(lastSeenSettable, EmitCode.missing(cb.emb, keyType.sType))
+      cb.assign(firstSeenSettable, EmitCode.missing(cb.emb, keyType.sType))
       cb.assign(lastSeenSettable, EmitCode.missing(cb.emb, keyType.sType))
 
-      def writeFile(cb: EmitCodeBuilder, codeRow: EmitCode): Unit = {
+
+      def writeFile(cb: EmitCodeBuilder, codeRow: EmitCode, lastSeenSettable: EmitSettable): Unit = {
         val row = codeRow.toI(cb).get(cb, "row can't be missing").asBaseStruct
 
         val key = keyType.asInstanceOf[PCanonicalBaseStruct]
           .constructFromFields(cb, stream.elementRegion,
-            keyType.fields.map(f => EmitCode.fromI(cb.emb)(cb => row.loadField(cb, f.name))),
-            deepCopy = false)
+            keyType.fields.map{f =>
+              EmitCode.fromI(cb.emb)(cb => row.loadField(cb, f.name))
+            },
+            deepCopy = true)
 
+        cb.println("afterKey: lastSeen is currently ", lastSeenSettable.loadI(cb).consumeCode(cb, {const("NA")}, { foo => cb.memoize(cb.strValue(foo))}))
         if (hasIndex) {
           indexWriter.add(cb, {
             IEmitCode.present(cb, key)
@@ -236,16 +240,18 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
             // If there's no last seen, we are in the first row.
             cb.assign(firstSeenSettable, EmitValue.present(key))
           }, { lastSeen =>
-            val comparator = NEQ(lastSeenSettable.emitType.virtualType).codeOrdering(cb.emb.ecb, lastSeenSettable.st, key.st)
-            val notEqualToLast = comparator(cb, lastSeenSettable, EmitValue.present(key))
+            val comparator = EQ(lastSeenSettable.emitType.virtualType).codeOrdering(cb.emb.ecb, lastSeenSettable.st, key.st)
+            val equalToLast = comparator(cb, lastSeenSettable, EmitValue.present(key))
             // FIXME: Why do I need to cast here? Shouldn't it know it's a boolean?
-            cb.ifx(notEqualToLast.asInstanceOf[Value[Boolean]], {
+            cb.ifx(equalToLast.asInstanceOf[Value[Boolean]], {
+              cb.println("key ", cb.strValue(key), " was equal to last ", cb.strValue(lastSeenSettable.get(cb)))
               cb.assign(distinctlyKeyed, false)
             })
           })
         })
         // Always want to do this, as lastSeen is returned at the end.
-        cb.assign(lastSeenSettable, IEmitCode.present(cb, key))
+        cb.assign(lastSeenSettable, IEmitCode.present(cb, key.copyToRegion(cb, region, key.st)))
+        cb.println("Setting lastSeen to ", cb.strValue(key))
 
         cb += ob.writeByte(1.asInstanceOf[Byte])
 
@@ -267,7 +273,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
       cb.assign(n, 0L)
 
       stream.memoryManagedConsume(region, cb) { cb =>
-        writeFile(cb, stream.element)
+        writeFile(cb, stream.element, lastSeenSettable)
       }
 
       cb += ob.writeByte(0.asInstanceOf[Byte])
@@ -278,7 +284,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
       cb += os.invoke[Unit]("close")
       filenameType.storeAtAddress(cb, pResultType.fieldOffset(result, "filePath"), region, ctx, false)
       cb += Region.storeLong(pResultType.fieldOffset(result, "partitionCounts"), n)
-      cb += Region.storeBoolean(pResultType.fieldOffset(result, "distinctlyKeyed"), false)
+      cb += Region.storeBoolean(pResultType.fieldOffset(result, "distinctlyKeyed"), distinctlyKeyed)
       // Not going to work if it's empty. Ugh.
       keyType.storeAtAddress(cb, pResultType.fieldOffset(result, "firstKey"), region, firstSeenSettable.get(cb), true)
       keyType.storeAtAddress(cb, pResultType.fieldOffset(result, "lastKey"), region, lastSeenSettable.get(cb), true)
@@ -312,7 +318,7 @@ case class RVDSpecWriter(path: String, spec: RVDSpecMaker) extends MetadataWrite
 }
 
 class TableSpecHelper(path: String, rowRelPath: String, globalRelPath: String, refRelPath: String, typ: TableType, log: Boolean) {
-  def write(fs: FS, partCounts: Array[Long]): Unit = {
+  def write(fs: FS, partCounts: Array[Long], distinctlyKeyed: Boolean): Unit = {
     val spec = TableSpecParameters(
       FileFormat.version.rep,
       is.hail.HAIL_PRETTY_VERSION,
@@ -322,7 +328,7 @@ class TableSpecHelper(path: String, rowRelPath: String, globalRelPath: String, r
         "rows" -> RVDComponentSpec(rowRelPath),
         "partition_counts" -> PartitionCountsComponentSpec(partCounts),
         "flags" -> FlagsSpec(Map(
-          "distinctlyKeyed" -> false
+          "distinctlyKeyed" -> distinctlyKeyed
         ))
       ))
 
@@ -336,7 +342,7 @@ class TableSpecHelper(path: String, rowRelPath: String, globalRelPath: String, r
 }
 
 case class TableSpecWriter(path: String, typ: TableType, rowRelPath: String, globalRelPath: String, refRelPath: String, log: Boolean) extends MetadataWriter {
-  def annotationType: Type = TArray(TInt64)
+  def annotationType: Type = TArray(TStruct("partitionCounts" -> TInt64, "distinctlyKeyed" -> TBoolean, "firstKey" -> typ.keyType, "lastKey" -> typ.keyType))
 
   def writeMetadata(
     writeAnnotations: => IEmitCode,
@@ -350,16 +356,34 @@ case class TableSpecWriter(path: String, typ: TableType, rowRelPath: String, glo
     val a = writeAnnotations.get(cb, "write annotations can't be missing!").asIndexable
     val partCounts = cb.newLocal[Array[Long]]("partCounts")
 
+    val idxOfFirstKeyField = annotationType.asInstanceOf[TArray].elementType.asInstanceOf[TStruct].fieldIdx("firstKey")
+    val keySType = a.st.elementType.asInstanceOf[SBaseStruct].fieldTypes(idxOfFirstKeyField)
+
+    val lastSeenSettable = cb.emb.newEmitLocal(EmitType(keySType, false))
+    cb.assign(lastSeenSettable, EmitCode.missing(cb.emb, keySType))
+    val distinctlyKeyed = cb.newLocal[Boolean]("tsw_write_metadata_distinctlyKeyed", true)
+
     val n = cb.newLocal[Int]("n", a.loadLength())
     val i = cb.newLocal[Int]("i", 0)
     cb.assign(partCounts, Code.newArray[Long](n))
     cb.whileLoop(i < n, {
-      val count = a.loadElement(cb, i).get(cb, "part count can't be missing!")
+      val curElement =  a.loadElement(cb, i).get(cb, "writeMetadata annotation can't be missing").asBaseStruct
+      val curFirst = curElement.loadField(cb, "firstKey").get(cb)
+
+      val comparator = NEQ(lastSeenSettable.emitType.virtualType).codeOrdering(cb.emb.ecb, lastSeenSettable.st, curFirst.st)
+      val notEqualToLast = comparator(cb, lastSeenSettable, EmitValue.present(curFirst)).asInstanceOf[Value[Boolean]]
+
+      val partWasDistinctlyKeyed = curElement.loadField(cb, "distinctlyKeyed").get(cb).asBoolean.boolCode(cb)
+      cb.println(s"Was part distinctlyKeyed? ", partWasDistinctlyKeyed.get.toS)
+      cb.assign(distinctlyKeyed, distinctlyKeyed && partWasDistinctlyKeyed && notEqualToLast)
+
+      cb.assign(lastSeenSettable, curElement.loadField(cb, "lastKey"))
+      val count = curElement.asBaseStruct.loadField(cb, "partitionCounts").get(cb, "part count can't be missing!")
       cb += partCounts.update(i, count.asLong.longCode(cb))
       cb.assign(i, i + 1)
     })
     cb += cb.emb.getObject(new TableSpecHelper(path, rowRelPath, globalRelPath, refRelPath, typ, log))
-      .invoke[FS, Array[Long], Unit]("write", cb.emb.getFS, partCounts)
+      .invoke[FS, Array[Long], Boolean, Unit]("write", cb.emb.getFS, partCounts, distinctlyKeyed)
   }
 }
 
