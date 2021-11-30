@@ -137,8 +137,6 @@ object LowerDistributedSort {
     val rand = new IRRandomness(seed)
 
     while (!loopState.largeUnsortedSegments.isEmpty) {
-      println(s"Loop iteration ${i}")
-
       val partitionDataPerSegment = segmentsToPartitionData(loopState.largeUnsortedSegments, idealNumberOfRowsPerPart)
 
       val partitionCountsPerSegment = partitionDataPerSegment.map(oneSegment => oneSegment.map(_._3))
@@ -204,16 +202,10 @@ object LowerDistributedSort {
       val pivotsWithEndpointsAndInfoGroupedBySegmentNumber = ctx.timer.time("LowerDistributedSort.distributedSort.toJavaObject")(SafeRow.read(pivotsWithEndpointsGroupedBySegmentNumberP, pivotsWithEndpointsGroupedBySegmentNumberAddr))
         .asInstanceOf[IndexedSeq[Row]].map(x => (x(0).asInstanceOf[IndexedSeq[Row]], x(1).asInstanceOf[Boolean], x(2).asInstanceOf[Row]))
 
-      println(s"Pivots with endpoints groupedBySegmentNumber = ${pivotsWithEndpointsAndInfoGroupedBySegmentNumber}")
       val (sortedSegmentsTuples, unsortedPivotsWithEndpointsAndInfoGroupedBySegmentNumber) = pivotsWithEndpointsAndInfoGroupedBySegmentNumber.zipWithIndex.partition { case ((_, isSorted, _), _) => isSorted}
-
-      println(s"Found ${sortedSegmentsTuples.length} sorted segments and ${unsortedPivotsWithEndpointsAndInfoGroupedBySegmentNumber.size} unsorted segments")
 
       val sortedSegments = sortedSegmentsTuples.map { case (_, idx) => loopState.largeUnsortedSegments(idx)}
       val remainingUnsortedSegments = unsortedPivotsWithEndpointsAndInfoGroupedBySegmentNumber.map {case (_, idx) => loopState.largeUnsortedSegments(idx)}
-
-      println(s"Intervals of sortedSegments are ${sortedSegments.map(_.interval)}")
-      println(s"Intervals of unsortedSegments are ${remainingUnsortedSegments.map(_.interval)}")
 
       val (newBigUnsortedSegments, newSmallSegments) = if (unsortedPivotsWithEndpointsAndInfoGroupedBySegmentNumber.size > 0) {
 
@@ -260,7 +252,6 @@ object LowerDistributedSort {
             innerRow(0).asInstanceOf[Interval],
             innerRow(1).asInstanceOf[String],
             innerRow(2).asInstanceOf[Int]))))
-        println("Distributed successfully")
 
         // distributeResult is a numPartitions length array of arrays, where each inner array tells me what
         // files were written to for each partition, as well as the number of entries in that file.
@@ -286,7 +277,6 @@ object LowerDistributedSort {
         }
       } else { (IndexedSeq.empty[SegmentResult], IndexedSeq.empty[SegmentResult]) }
       loopState = LoopState(newBigUnsortedSegments, loopState.largeSortedSegments ++ sortedSegments, loopState.smallSegments ++ newSmallSegments)
-      println(s"LoopState: \n Big Unsorted = ${loopState.largeUnsortedSegments.map(_.interval)}, \n Big Sorted = ${loopState.largeSortedSegments.map(_.interval)}, \n small = ${loopState.smallSegments.map(_.interval)}")
 
       i = i + 1
     }
@@ -294,7 +284,6 @@ object LowerDistributedSort {
     val unorderedSegments = loopState.smallSegments.map(x => (x, false)) ++ loopState.largeSortedSegments.map(x => (x, true))
     val orderedSegments = unorderedSegments.sortWith{ (srt1, srt2) => lessThanForSegmentIndices(srt1._1.indices, srt2._1.indices)}
 
-    println(s" Partitions are ${orderedSegments.map(_._1.interval)}")
     // TODO: Partitions are not broken up evenly.
 
     val contextData = orderedSegments.map { case (segment, isSorted) => Row(segment.chunks.map(chunk => chunk.filename), isSorted) }
@@ -442,7 +431,6 @@ object LowerDistributedSort {
         )
       }
     }
-    println(s"keyFields are ${keyFields}")
     val isSortedComb = aggFoldSortedAccumRef1 // Do nothing, as this will never be called in a StreamAgg
 
 
