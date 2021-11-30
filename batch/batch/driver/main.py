@@ -399,7 +399,7 @@ def validate_int(session, url_path, name, value, predicate, description):
         i = int(value)
     except ValueError as e:
         set_message(session, f'{name} invalid: {value}.  Must be an integer.', 'error')
-        raise web.HTTPFound(deploy_config.external_url('batch-driver', url_path)) from e
+        raise web.HTTPFound(deploy_config.external_url('batch-driver', url_path))
     return validate(session, url_path, name, i, predicate, description)
 
 
