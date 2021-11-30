@@ -3248,6 +3248,31 @@ steps:
       - deploy_ci
       - test_ci_image
       - create_ci_test_repo
+  - kind: buildImage2
+    name: hailgenetics_hail_image
+    dockerFile: /io/docker/hail/Dockerfile
+    contextPath: /io/docker/hail/
+    publishAs: hailgenetics/hail
+    inputs:
+      - from: /repo/docker/hail
+        to: /io/docker/hail
+      - from: /wheel-container.tar
+        to: /io/docker/hail/wheel-container.tar
+    dependsOn:
+      - merge_code
+      - build_hail
+      - hail_ubuntu_image
+  - kind: runImage
+    name: test_hailgenetics_hail_image
+    image:
+      valueFrom: hailgenetics_hail_image.image
+    script: |
+      set -ex
+      python3 -c 'import hail as hl; hl.balding_nichols_model(3, 100, 100)._force_count_rows()'
+      python3 -c 'import numpy; import pandas; import sklearn; import matplotlib; import scipy'
+      gsutil --version
+    dependsOn:
+      - hailgenetics_hail_image
   - kind: runImage
     name: test_hailtop_batch_0
     image:
@@ -3261,6 +3286,7 @@ steps:
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
       export PYTHON_DILL_IMAGE="{{ global.docker_prefix }}/python-dill:3.7-slim"
+      export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
       hailctl config set batch/billing_project test
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/batch/
       python3 -m pytest \
@@ -3294,6 +3320,7 @@ steps:
           valueFrom: default_ns.name
         mountPath: /ssl-config
     dependsOn:
+      - hailgenetics_hail_image
       - create_deploy_config
       - create_accounts
       - default_ns
@@ -3313,6 +3340,7 @@ steps:
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
       export PYTHON_DILL_IMAGE="{{ global.docker_prefix }}/python-dill:3.7-slim"
+      export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
       hailctl config set batch/billing_project test
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/batch/
       python3 -m pytest \
@@ -3346,6 +3374,7 @@ steps:
           valueFrom: default_ns.name
         mountPath: /ssl-config
     dependsOn:
+      - hailgenetics_hail_image
       - create_deploy_config
       - create_accounts
       - default_ns
@@ -3365,6 +3394,7 @@ steps:
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
       export PYTHON_DILL_IMAGE="{{ global.docker_prefix }}/python-dill:3.7-slim"
+      export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
       hailctl config set batch/billing_project test
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/batch/
       python3 -m pytest \
@@ -3398,6 +3428,7 @@ steps:
           valueFrom: default_ns.name
         mountPath: /ssl-config
     dependsOn:
+      - hailgenetics_hail_image
       - create_deploy_config
       - create_accounts
       - default_ns
@@ -3417,6 +3448,7 @@ steps:
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
       export PYTHON_DILL_IMAGE="{{ global.docker_prefix }}/python-dill:3.7-slim"
+      export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
       hailctl config set batch/billing_project test
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/batch/
       python3 -m pytest \
@@ -3450,6 +3482,7 @@ steps:
           valueFrom: default_ns.name
         mountPath: /ssl-config
     dependsOn:
+      - hailgenetics_hail_image
       - create_deploy_config
       - create_accounts
       - default_ns
@@ -3469,6 +3502,7 @@ steps:
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
       export PYTHON_DILL_IMAGE="{{ global.docker_prefix }}/python-dill:3.7-slim"
+      export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
       hailctl config set batch/billing_project test
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/batch/
       python3 -m pytest \
@@ -3502,6 +3536,7 @@ steps:
           valueFrom: default_ns.name
         mountPath: /ssl-config
     dependsOn:
+      - hailgenetics_hail_image
       - create_deploy_config
       - create_accounts
       - default_ns
@@ -3686,6 +3721,10 @@ steps:
       cd /io
 
       gcloud auth activate-service-account --key-file=/ci-deploy-0-1--hail-is-hail/ci-deploy-0-1--hail-is-hail.json
+
+      gcloud auth -q configure-docker gcr.io
+      cat /docker-hub-hailgenetics/password | skopeo login --username hailgenetics --password-stdin
+
       cp /pypi-credentials/pypirc $HOME/.pypirc
       printf 'Authorization: token ' > github-oauth
       cat /hail-ci-0-1-github-oauth-token/oauth-token >>github-oauth
@@ -3711,7 +3750,8 @@ steps:
                              $(cat /io/git_version) \
                              origin \
                              /io/repo/hail/build/deploy/dist/hail-*-py3-none-any.whl \
-                             /io/github-oauth
+                             /io/github-oauth \
+                             hailgenetics_hail_image
     inputs:
       - from: /hail_version
         to: /io/hail_version
@@ -3730,6 +3770,10 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /ci-deploy-0-1--hail-is-hail
+      - name: docker-hub-hailgenetics
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /docker-hub-hailgenetics
       - name: hail-ci-0-1-github-oauth-token
         namespace:
           valueFrom: default_ns.name
@@ -3743,6 +3787,7 @@ steps:
       - ci_utils_image
       - build_hail
       - merge_code
+      - hailgenetics_hail_image
     clouds:
       - gcp
   - kind: buildImage2
@@ -3796,60 +3841,6 @@ steps:
       - create_accounts
       - service_base_image
       - deploy_website
-  - kind: buildImage2
-    name: hail_public_image
-    dockerFile: /io/hail/Dockerfile
-    contextPath: /io/hail/
-    publishAs: hail-public
-    inputs:
-      - from: /docker/hail
-        to: /io/hail
-      - from: /hail/hail_pip_version
-        to: /io/hail/hail_pip_version
-    dependsOn:
-      - merge_code
-      - hail_ubuntu_image
-    scopes:
-      - dev
-  - kind: runImage
-    name: test_hail_public_image
-    image:
-      valueFrom: hail_public_image.image
-    script: |
-      set -ex
-      python3 -c 'import hail as hl; hl.balding_nichols_model(3, 100, 100)._force_count_rows()'
-      python3 -c 'import numpy; import pandas; import sklearn; import matplotlib; import scipy'
-      gsutil --version
-    dependsOn:
-      - hail_public_image
-    scopes:
-      - dev
-  - kind: buildImage2
-    name: genetics_public_image
-    dockerFile: /io/genetics/Dockerfile
-    contextPath: /io/genetics/
-    publishAs: genetics-public
-    inputs:
-      - from: /repo/genetics
-        to: /io/genetics
-    dependsOn:
-      - hail_public_image
-      - merge_code
-    scopes:
-      - dev
-  - kind: runImage
-    name: test_genetics_public_image
-    image:
-      valueFrom: genetics_public_image.image
-    script: |
-      set -ex
-      samtools --version
-      plink --version
-      plink2 --version
-    dependsOn:
-      - genetics_public_image
-    scopes:
-      - dev
   - kind: runImage
     name: test_hail_services_java
     image:

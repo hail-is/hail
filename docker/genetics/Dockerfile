@@ -1,4 +1,4 @@
-FROM {{ hail_public_image.image }}
+FROM {{ hailgenetics_hail_image.image }}
 
 RUN hail-apt-get-install \
     cmake \
@@ -29,7 +29,7 @@ RUN curl -LO http://s3.amazonaws.com/plink1-assets/plink_linux_x86_64_latest.zip
 RUN mkdir king && \
     (cd king && \
      curl -LO https://www.kingrelatedness.com/Linux-king.tar.gz && \
-     tar -xf Linux-king.tar.gz)
+     tar -xf Linux-king.tar.gz --no-same-owner --no-same-permissions)
 RUN mkdir gcta && \
     (cd gcta && \
      curl -LO https://cnsgenomics.com/software/gcta/bin/gcta_1.93.1beta.zip && \
