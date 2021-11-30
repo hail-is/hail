@@ -3266,6 +3266,28 @@ steps:
       gsutil --version
     dependsOn:
       - hailgenetics_hail_image
+  - kind: buildImage2
+    name: hailgenetics_genetics_image
+    dockerFile: /io/docker/genetics/Dockerfile
+    contextPath: /io/docker/genetics/
+    publishAs: hailgenetics/genetics
+    inputs:
+      - from: /repo/docker/genetics
+        to: /io/docker/genetics
+    dependsOn:
+      - hailgenetics_hail_image
+      - merge_code
+  - kind: runImage
+    name: test_hailgenetics_genetics_image
+    image:
+      valueFrom: hailgenetics_genetics_image.image
+    script: |
+      set -ex
+      samtools --version
+      plink --version
+      plink2 --version
+    dependsOn:
+      - hailgenetics_genetics_image
   - kind: runImage
     name: test_hailtop_batch_0
     image:
@@ -3744,7 +3766,8 @@ steps:
                              origin \
                              /io/repo/hail/build/deploy/dist/hail-*-py3-none-any.whl \
                              /io/github-oauth \
-                             hailgenetics_hail_image
+                             hailgenetics_hail_image \
+                             hailgenetics_genetics_image
     inputs:
       - from: /hail_version
         to: /io/hail_version
@@ -3781,6 +3804,7 @@ steps:
       - build_hail
       - merge_code
       - hailgenetics_hail_image
+      - hailgenetics_genetics_image
     clouds:
       - gcp
   - kind: buildImage2
