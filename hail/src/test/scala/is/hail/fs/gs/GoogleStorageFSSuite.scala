@@ -33,7 +33,7 @@ class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
       new GoogleStorageFS()
     } else {
       new GoogleStorageFS(
-        new String(Some(IOUtils.toByteArray(new FileInputStream(gac)))))
+        Some(new String(IOUtils.toByteArray(new FileInputStream(gac)))))
     }
   }
 
