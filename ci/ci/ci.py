@@ -145,10 +145,11 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
 
 
 def storage_uri_to_url(uri: str) -> str:
-    protocol = 'gs://'
-    assert uri.startswith(protocol)
-    path = uri[len(protocol) :]
-    return f'https://console.cloud.google.com/storage/browser/{path}'
+    if uri.startswith('gs://'):
+        protocol = 'gs://'
+        path = uri[len(protocol) :]
+        return f'https://console.cloud.google.com/storage/browser/{path}'
+    return uri
 
 
 async def retry_pr(wb, pr, request):
