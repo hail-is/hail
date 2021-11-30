@@ -745,6 +745,8 @@ steps:
         to: /testng-build.xml
       - from: /io/repo/hail/testng-services.xml
         to: /testng-services.xml
+      - from: /io/repo/hail/testng-fs.xml
+        to: /testng-fs.xml
       - from: /io/repo/hail/python/hail.zip
         to: /hail.zip
       - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
