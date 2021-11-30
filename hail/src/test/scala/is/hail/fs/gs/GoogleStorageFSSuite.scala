@@ -27,7 +27,15 @@ class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
 
   assert(fsResourcesRoot != null)
 
-  lazy val fs = new GoogleStorageFS()
+  lazy val fs = {
+    val gac = System.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    if (gac == null) {
+      new GoogleStorageFS()
+    } else {
+      new GoogleStorageFS(
+        new String(IOUtils.toByteArray(new FileInputStream(gac))))
+    }
+  }
 
   lazy val tmpdir: String = s"gs://$bucket/tmp"
 
