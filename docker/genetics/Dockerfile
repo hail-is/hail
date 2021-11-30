@@ -51,7 +51,7 @@ RUN mkdir eigenstrat && \
      make install)
 RUN find \
       eigenstrat/EIG/bin \
-      gcta/gcta_1.91.7beta \
+      gcta/gcta_1.93.1beta \
       king \
       -type f -executable \
     | xargs -I % /bin/sh -c 'set -ex ; ln -s ${PWD}/% /usr/local/bin/$(basename %)'
