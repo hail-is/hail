@@ -131,17 +131,19 @@ data:
   datasources.yaml: |
     apiVersion: 1
     datasources:
+{% if global.cloud == 'gcp' %}
       - name: Google Cloud Monitoring
         type: stackdriver
         access: proxy
         isDefault: true
         jsonData:
           authenticationType: gce
-          defaultProject: {{ global.project }}
+          defaultProject: {{ global.gcp_project }}
         editable: true
+{% endif %}
       - name: Prometheus
         type: prometheus
-        url: https://prometheus/	
+        url: https://prometheus/
         jsonData:
           httpHeaderName1: 'Authorization'
           tlsSkipVerify: true
