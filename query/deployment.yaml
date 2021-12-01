@@ -95,14 +95,13 @@ spec:
              value: "{{ code.sha }}"
            - name: HAIL_QUERY_WORKER_IMAGE
              value: {{ query_image.image }}
-{% if deploy %}
            - name: HAIL_QUERY_STORAGE_UI
+{% if deploy %}
              valueFrom:
                secretKeyRef:
                  name: global-config
                  key: query_storage_uri
 {% else %}
-           - name: HAIL_QUERY_STORAGE_UI
              value: {{ global.test_storage_uri }}/{{ upload_query_jar.token }}
 {% endif %}
           ports:
