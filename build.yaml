@@ -1809,6 +1809,8 @@ steps:
         --ignore=docs/doctest_write_data.py
     dependsOn:
       - hail_base_image
+    clouds:
+      - gcp
   - kind: runImage
     name: make_docs
     image:
@@ -1901,6 +1903,8 @@ steps:
     dependsOn:
       - hail_pip_installed_image
       - merge_code
+    clouds:
+      - gcp
   - kind: deploy
     name: deploy_grafana
     namespace:
