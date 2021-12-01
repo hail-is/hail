@@ -199,6 +199,7 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
   }
 
   def clearTree(cb: EmitCodeBuilder): Unit = {
+    cb.ifx(region.isNull, cb._fatal("Tried to clearTree when region was null"))
     newState(cb, initStatesOffset)
     region.clear()
   }

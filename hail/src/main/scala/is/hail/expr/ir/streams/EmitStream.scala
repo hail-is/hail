@@ -291,7 +291,7 @@ object EmitStream {
             val tupleFieldTypes = aggSignatures.map(_ => TBinary)
             val tupleFields = (0 to tupleFieldTypes.length).zip(tupleFieldTypes).map { case (fieldIdx, fieldType) => TupleField(fieldIdx, fieldType) }.toIndexedSeq
             val serializedAggSType = SStackStruct(TTuple(tupleFields), tupleFieldTypes.map(_ => EmitType(SBinaryPointer(PCanonicalBinary()), true)).toIndexedSeq)
-            val keyAndAggFields = newKeyVType.canonicalPType.asInstanceOf[PCanonicalStruct].sType.fieldEmitTypes ++ serializedAggSType.fieldEmitTypes
+            val keyAndAggFields = newKeyVType.canonicalPType.asInstanceOf[PCanonicalStruct].sType.fieldEmitTypes :+ EmitType(serializedAggSType, true) // TODO is this required?
             val returnElemSType = SStackStruct(returnElemType.asInstanceOf[TBaseStruct], keyAndAggFields)
             val newStreamElem = mb.newEmitField("stream_buff_agg_new_stream_elem", EmitType(returnElemSType, true))
 //            val initStateAddress: Settable[Long] = mb.genFieldThisRef[Long]("stream_buff_agg_init_add")
@@ -326,8 +326,9 @@ object EmitStream {
                 cb.assign(maxSize, 8)
                 cb.assign(elementArray, Code.newArray[Long](maxSize))
                 cb.assign(numElemInArray, 0)
-                println("initialize")
-
+                dictState.createState(cb)
+                cb.assign(region, Region.stagedCreate(Region.REGULAR, outerRegion.getPool())) //TODO find out what actually goes here
+                cb.println("initialize")
 
               }
 
@@ -336,7 +337,7 @@ object EmitStream {
                 * Stream element region, into which the `element` is emitted. The assignment, clearing,
                 * and freeing of the element region is the responsibility of the stream consumer.
                 */
-              override val elementRegion: Settable[Region] = region
+              override val elementRegion: Settable[Region] = childProducer.elementRegion
               /**
                 * This boolean parameter indicates whether the producer's elements should be allocated in
                 * separate regions (by clearing when elements leave a consumer's scope). This parameter
@@ -356,14 +357,21 @@ object EmitStream {
                 val getElemLabel = CodeLabel()
                 val startLabel = CodeLabel()
                 cb.define(startLabel)
-                println("start")
-                cb.ifx(produceElementMode, cb.goto(elementProduceLabel))
-                dictState.clearTree(cb)
+                cb.println("start, produceElementMode = ", produceElementMode.toS)
+                cb.ifx(produceElementMode, {
+                  cb.println("About to go to elementProduceLabel")
+                  cb.goto(elementProduceLabel)
+                })
+                cb.ifx(!dictState.region.isNull,
+                  dictState.clearTree(cb)
+                )
                 dictState.init(cb, { cb => emitVoid(initAggs, cb, container = Some(newContainer)) })
+                cb.println("About to go to childProduceElement")
                 cb.goto(childProducer.LproduceElement)
                 cb.define(childProducer.LproduceElementDone)
+
                 cb.define(getElemLabel)
-                println("initialize")
+                cb.println("produced element")
                 cb.assign(eltField, childProducer.element)
                 val newKeyResultCode = EmitCode.fromI(mb) { cb =>
                   emit(newKey,
@@ -372,7 +380,9 @@ object EmitStream {
                     region = childProducer.elementRegion)
                 }
                 val resultKeyValue = newKeyResultCode.memoize(cb, "buff_agg_stream_result_key")
+                cb.println("put child element in resultKey")
                 dictState.withContainer(cb, resultKeyValue, { cb => emitVoid(seqOps, cb, container = Some(newContainer)) })
+                cb.println(dictState.size.toS)
                 cb.ifx(dictState.size >= maxSize,{
                   cb.assign(produceElementMode, true)
                 })
@@ -384,7 +394,7 @@ object EmitStream {
                 cb.assign(childStreamEnded, false)
 
                 cb.define(elementProduceLabel)
-                println("elementProduceLabel")
+                cb.println("elementProduceLabel")
                 cb.ifx(numElemInArray ceq 0, {
                   dictState.tree.foreach(cb) { (cb, elementOff) =>
                     cb += elementArray.update(numElemInArray, elementOff)
@@ -408,8 +418,6 @@ object EmitStream {
                 val keyValue = key.get(cb).asInstanceOf[SBaseStructValue]
                 val sStructToReturn = keyValue.insert(cb, region, returnElemType.asInstanceOf[TStruct], ("agg", EmitCode.present(mb, serializedAggTupleSValue)
                   .memoize(cb, "stream_buff_agg_return_val")))
-                println(s"returnElemSType = ${returnElemSType}" )
-                println(s"sStructToReturn = ${sStructToReturn.st}" )
                 assert(returnElemSType.virtualType == sStructToReturn.st.virtualType)
                 val casted = sStructToReturn.castTo(cb, region, returnElemSType)
 

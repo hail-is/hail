@@ -30,6 +30,7 @@ object SStackStruct {
 }
 
 final case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedSeq[EmitType]) extends SBaseStruct {
+  assert(virtualType.fields.zip(fieldEmitTypes).forall { case (v1, v2) => v1.typ == v2.st.virtualType})
   override def size: Int = virtualType.size
 
   private lazy val settableStarts = fieldEmitTypes.map(_.nSettables).scanLeft(0)(_ + _).init
@@ -70,6 +71,7 @@ final case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedS
   }
 
   override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = {
+    val forDebugging = this
     value match {
       case ss: SStackStructValue =>
         if (ss.st == this && !deepCopy)
