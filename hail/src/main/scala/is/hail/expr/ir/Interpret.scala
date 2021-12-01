@@ -10,6 +10,7 @@ import is.hail.linalg.BlockMatrix
 import is.hail.rvd.RVDContext
 import is.hail.utils._
 import is.hail.HailContext
+import is.hail.backend.ExecuteContext
 import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeType}
 import org.apache.spark.sql.Row
 
@@ -75,7 +76,7 @@ object Interpret {
       case Literal(_, value) => value
       case x@EncodedLiteral(codec, value) =>
         ctx.r.getPool().scopedRegion { r =>
-          val (pt, addr) = codec.decode(ctx, x.typ, value.ba, ctx.r)
+          val (pt, addr) = codec.decodeArrays(ctx, x.typ, value.ba, ctx.r)
           SafeRow.read(pt, addr)
         }
       case Void() => ()

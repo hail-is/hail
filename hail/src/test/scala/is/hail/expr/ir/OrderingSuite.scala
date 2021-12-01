@@ -42,7 +42,7 @@ class OrderingSuite extends HailSuite {
       val cv1 = t.loadCheapSCode(cb, fb.getCodeParam[Long](2))
       val cv2 = t.loadCheapSCode(cb, fb.getCodeParam[Long](3))
       fb.ecb.getOrderingFunction(cv1.st, cv2.st, op)
-          .apply(cb, EmitCode.present(cb.emb, cv1.get), EmitCode.present(cb.emb, cv2.get))
+          .apply(cb, EmitValue.present(cv1), EmitValue.present(cv2))
     }
     fb.resultWithIndex()(ctx.fs, 0, r)
   }
@@ -61,8 +61,8 @@ class OrderingSuite extends HailSuite {
         val cv1 = t.loadCheapSCode(cb, fb.getCodeParam[Long](3))
         val m2 = fb.getCodeParam[Boolean](4)
         val cv2 = t.loadCheapSCode(cb, fb.getCodeParam[Long](5))
-        val ev1 = EmitCode(Code._empty, m1, cv1.get)
-        val ev2 = EmitCode(Code._empty, m2, cv2.get)
+        val ev1 = EmitValue(Some(m1), cv1)
+        val ev2 = EmitValue(Some(m2), cv2)
         fb.ecb.getOrderingFunction(ev1.st, ev2.st, op)
           .apply(cb, ev1, ev2)
       }
@@ -460,8 +460,8 @@ class OrderingSuite extends HailSuite {
 
         val bs = new BinarySearch(fb.apply_method, pset.sType, EmitType(pset.elementType.sType, true), keyOnly = false)
         fb.emitWithBuilder(cb =>
-          bs.getClosestIndex(cb, pset.loadCheapSCode(cb, cset).get,
-            EmitCode.fromI(fb.apply_method)(cb => IEmitCode.present(cb, pt.loadCheapSCode(cb, pTuple.loadField(cetuple, 0)).get))))
+          bs.getClosestIndex(cb, pset.loadCheapSCode(cb, cset),
+            EmitCode.fromI(fb.apply_method)(cb => IEmitCode.present(cb, pt.loadCheapSCode(cb, pTuple.loadField(cetuple, 0))))))
 
         val asArray = SafeIndexedSeq(pArray, soff)
 
@@ -484,24 +484,20 @@ class OrderingSuite extends HailSuite {
       val pDict = PType.canonical(tDict).asInstanceOf[PDict]
 
       pool.scopedRegion { region =>
-        val rvb = new RegionValueBuilder(region)
-
         val soff = pDict.unstagedStoreJavaObject(dict, region)
 
         val ptuple = PCanonicalTuple(false, FastIndexedSeq(pDict.keyType): _*)
         val eoff = ptuple.unstagedStoreJavaObject(Row(key), region)
 
         val fb = EmitFunctionBuilder[Region, Long, Long, Int](ctx, "binary_search_dict")
-        val cregion = fb.getCodeParam[Region](1)
         val cdict = fb.getCodeParam[Long](2)
         val cktuple = fb.getCodeParam[Long](3)
 
         val bs = new BinarySearch(fb.apply_method, pDict.sType, EmitType(pDict.keyType.sType, false), keyOnly = true)
 
-        val m = ptuple.isFieldMissing(cktuple, 0)
         fb.emitWithBuilder(cb =>
-          bs.getClosestIndex(cb, pDict.loadCheapSCode(cb, cdict).get,
-            EmitCode.fromI(fb.apply_method)(cb => IEmitCode.present(cb, pDict.keyType.loadCheapSCode(cb, ptuple.loadField(cktuple, 0)).get))))
+          bs.getClosestIndex(cb, pDict.loadCheapSCode(cb, cdict),
+            EmitCode.fromI(fb.apply_method)(cb => IEmitCode.present(cb, pDict.keyType.loadCheapSCode(cb, ptuple.loadField(cktuple, 0))))))
 
         val asArray = SafeIndexedSeq(PCanonicalArray(pDict.elementType), soff)
 

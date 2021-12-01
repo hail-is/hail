@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations._
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.agg.AggStateSig
 import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.expr.ir.streams.{EmitStream, StreamArgType}
@@ -246,7 +247,7 @@ object CompileIterator {
       }
 
       stepF.implementLabel(producer.LproduceElementDone) { cb =>
-        val pc = producer.element.toI(cb).get(cb).memoize(cb, "compileStepper")
+        val pc = producer.element.toI(cb).get(cb)
         cb.assign(elementAddress, returnType.store(cb, producer.elementRegion, pc, false))
         cb.assign(ret, true)
         cb.goto(Lreturn)

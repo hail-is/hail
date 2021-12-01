@@ -115,6 +115,8 @@ class Log4jLogger(Logger):
 class LocalBackend(Py4JBackend):
     def __init__(self, tmpdir, log, quiet, append, branching_factor,
                  skip_logging_configuration, optimizer_iterations):
+        super(LocalBackend, self).__init__()
+
         spark_home = find_spark_home()
         hail_jar_path = os.environ.get('HAIL_JAR')
         if hail_jar_path is None:

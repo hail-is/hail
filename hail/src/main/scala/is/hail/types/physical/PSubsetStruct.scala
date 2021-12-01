@@ -53,8 +53,8 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String]) ext
     PSubsetStruct(newPStruct, newNames)
   }
 
-  override def isFieldMissing(structAddress: Code[Long], fieldName: String): Code[Boolean] =
-    ps.isFieldMissing(structAddress, fieldName)
+  override def isFieldMissing(cb: EmitCodeBuilder, structAddress: Code[Long], fieldName: String): Value[Boolean] =
+    ps.isFieldMissing(cb, structAddress, fieldName)
 
   override def fieldOffset(structAddress: Code[Long], fieldName: String): Code[Long] =
     ps.fieldOffset(structAddress, fieldName)
@@ -62,8 +62,8 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String]) ext
   override def isFieldDefined(structAddress: Long, fieldIdx: Int): Boolean =
     ps.isFieldDefined(structAddress, idxMap(fieldIdx))
 
-  override def isFieldMissing(structAddress: Code[Long], fieldIdx: Int): Code[Boolean] =
-    ps.isFieldMissing(structAddress, idxMap(fieldIdx))
+  override def isFieldMissing(cb: EmitCodeBuilder, structAddress: Code[Long], fieldIdx: Int): Value[Boolean] =
+    ps.isFieldMissing(cb, structAddress, idxMap(fieldIdx))
 
   override def fieldOffset(structAddress: Long, fieldIdx: Int): Long =
     ps.fieldOffset(structAddress, idxMap(fieldIdx))
@@ -120,7 +120,7 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String]) ext
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] =
     throw new UnsupportedOperationException
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SValue, deepCopy: Boolean): Unit = {
     throw new UnsupportedOperationException
   }
 

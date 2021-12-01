@@ -1,18 +1,20 @@
+from typing import Optional
+import json
+import base64
 import aiohttp
 import datetime
 import logging
 import secrets
 import humanize
-import base64
-import json
-from typing import Optional
 
 from hailtop.utils import time_msecs, time_msecs_str, retry_transient_errors
+from hailtop import httpx
 from gear import Database
 
 from ..database import check_call_procedure
 from ..globals import INSTANCE_VERSION
-from ..worker_config import WorkerConfig
+from ..instance_config import InstanceConfig
+from ..cloud.utils import instance_config_from_config_dict
 
 log = logging.getLogger('instance')
 
@@ -20,12 +22,6 @@ log = logging.getLogger('instance')
 class Instance:
     @staticmethod
     def from_record(app, inst_coll, record):
-        config = record.get('worker_config')
-        if config:
-            worker_config = WorkerConfig(json.loads(base64.b64decode(config).decode()))
-        else:
-            worker_config = None
-
         return Instance(
             app,
             inst_coll,
@@ -38,23 +34,37 @@ class Instance:
             record['last_updated'],
             record['ip_address'],
             record['version'],
-            record['zone'],
+            record['location'],
             record['machine_type'],
-            bool(record['preemptible']),
-            worker_config,
+            record['preemptible'],
+            instance_config_from_config_dict(
+                json.loads(base64.b64decode(record['instance_config']).decode())
+            )
         )
 
     @staticmethod
-    async def create(app, inst_coll, name, activation_token, worker_cores_mcpu, zone, machine_type, preemptible, worker_config: WorkerConfig):
+    async def create(app,
+                     inst_coll,
+                     name: str,
+                     activation_token,
+                     cores: int,
+                     location: str,
+                     machine_type: str,
+                     preemptible: bool,
+                     instance_config: InstanceConfig,
+                     ) -> 'Instance':
         db: Database = app['db']
 
         state = 'pending'
         now = time_msecs()
         token = secrets.token_urlsafe(32)
+
+        cores_mcpu = cores * 1000
+
         await db.just_execute(
             '''
 INSERT INTO instances (name, state, activation_token, token, cores_mcpu, free_cores_mcpu,
-  time_created, last_updated, version, zone, inst_coll, machine_type, preemptible, worker_config)
+  time_created, last_updated, version, location, inst_coll, machine_type, preemptible, instance_config)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
             (
@@ -62,16 +72,16 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 state,
                 activation_token,
                 token,
-                worker_cores_mcpu,
-                worker_cores_mcpu,
+                cores_mcpu,
+                cores_mcpu,
                 now,
                 now,
                 INSTANCE_VERSION,
-                zone,
+                location,
                 inst_coll.name,
                 machine_type,
                 preemptible,
-                base64.b64encode(json.dumps(worker_config.config).encode()).decode()
+                base64.b64encode(json.dumps(instance_config.to_dict()).encode()).decode(),
             ),
         )
         return Instance(
@@ -79,17 +89,17 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
             inst_coll,
             name,
             state,
-            worker_cores_mcpu,
-            worker_cores_mcpu,
+            cores_mcpu,
+            cores_mcpu,
             now,
             0,
             now,
             None,
             INSTANCE_VERSION,
-            zone,
+            location,
             machine_type,
             preemptible,
-            worker_config
+            instance_config,
         )
 
     def __init__(
@@ -102,15 +112,16 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         free_cores_mcpu,
         time_created,
         failed_request_count,
-        last_updated,
+        last_updated: int,
         ip_address,
         version,
-        zone,
-        machine_type,
-        preemptible,
-        worker_config: Optional[WorkerConfig],
+        location: str,
+        machine_type: str,
+        preemptible: bool,
+        instance_config: InstanceConfig,
     ):
         self.db: Database = app['db']
+        self.client_session: httpx.ClientSession = app['client_session']
         self.inst_coll = inst_coll
         # pending, active, inactive, deleted
         self._state = state
@@ -122,10 +133,10 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         self._last_updated = last_updated
         self.ip_address = ip_address
         self.version = version
-        self.zone = zone
+        self.location = location
         self.machine_type = machine_type
         self.preemptible = preemptible
-        self.worker_config = worker_config
+        self.instance_config = instance_config
 
     @property
     def state(self):
@@ -146,7 +157,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 
         return rv['token']
 
-    async def deactivate(self, reason, timestamp=None):
+    async def deactivate(self, reason: str, timestamp: Optional[int] = None):
         if self._state in ('inactive', 'deleted'):
             return
 
@@ -172,11 +183,9 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
             if self._state in ('inactive', 'deleted'):
                 return
             try:
-                async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=30)
-                ) as session:
-                    url = f'http://{self.ip_address}:5000' f'/api/v1alpha/kill'
-                    await session.post(url)
+                await self.client_session.post(
+                    f'http://{self.ip_address}:5000/api/v1alpha/kill',
+                    timeout=aiohttp.ClientTimeout(total=30))
             except aiohttp.ClientResponseError as err:
                 if err.status == 403:
                     log.info(f'cannot kill {self} -- does not exist at {self.ip_address}')
@@ -217,15 +226,12 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
     async def check_is_active_and_healthy(self):
         if self._state == 'active' and self.ip_address:
             try:
-                async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)
-                ) as session:
-                    async with session.get(f'http://{self.ip_address}:5000/healthcheck') as resp:
-                        actual_name = (await resp.json()).get('name')
-                        if actual_name and actual_name != self.name:
-                            return False
-                    await self.mark_healthy()
-                    return True
+                async with self.client_session.get(f'http://{self.ip_address}:5000/healthcheck') as resp:
+                    actual_name = (await resp.json()).get('name')
+                    if actual_name and actual_name != self.name:
+                        return False
+                await self.mark_healthy()
+                return True
             except Exception:
                 log.exception(f'while requesting {self} /healthcheck')
                 await self.incr_failed_request_count()

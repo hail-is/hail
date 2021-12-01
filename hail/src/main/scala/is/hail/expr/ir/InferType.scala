@@ -39,7 +39,7 @@ object InferType {
         val tupleFieldTypes = aggSignatures.map(_ => TBinary)
         val tupleFields = (0 to tupleFieldTypes.length).zip(tupleFieldTypes).map { case (fieldIdx, fieldType) => TupleField(fieldIdx, fieldType) }.toIndexedSeq
         val serializedAggSType = SStackStruct(TTuple(tupleFields), tupleFieldTypes.map(_ => EmitType(SBinaryPointer(PCanonicalBinary()), true)).toIndexedSeq)
-        newKey.typ.asInstanceOf[TStruct].insertFields(IndexedSeq(("agg", serializedAggSType.virtualType)))
+        TStream(newKey.typ.asInstanceOf[TStruct].insertFields(IndexedSeq(("agg", serializedAggSType.virtualType))))
       case _: ArrayLen => TInt32
       case _: StreamIota => TStream(TInt32)
       case _: StreamRange => TStream(TInt32)
@@ -50,8 +50,8 @@ object InferType {
       case _: InitOp => TVoid
       case _: SeqOp => TVoid
       case _: CombOp => TVoid
-      case ResultOp(_, aggSigs) =>
-        TTuple(aggSigs.map(_.resultType): _*)
+      case ResultOp(_, aggSig) =>
+        aggSig.resultType
       case AggStateValue(i, sig) => TBinary
       case _: CombOpValue => TVoid
       case _: InitFromSerializedValue => TVoid
@@ -225,6 +225,8 @@ object InferType {
         aggSig.returnType
       case ApplyScanOp(_, _, aggSig) =>
         aggSig.returnType
+      case AggFold(zero, _, _, _, _, _) =>
+        zero.typ
       case MakeStruct(fields) =>
         TStruct(fields.map { case (name, a) =>
           (name, a.typ)

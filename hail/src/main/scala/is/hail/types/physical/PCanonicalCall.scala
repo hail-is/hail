@@ -52,13 +52,13 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
     value.st match {
       case SCanonicalCall =>
         val newAddr = cb.memoize(region.allocate(representation.alignment, representation.byteSize))
-        storeAtAddress(cb, newAddr, region, value.get, deepCopy)
+        storeAtAddress(cb, newAddr, region, value, deepCopy)
         newAddr
     }
   }
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
-    cb += Region.storeInt(addr, value.asCall.loadCanonicalRepresentation(cb))
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SValue, deepCopy: Boolean): Unit = {
+    cb += Region.storeInt(addr, value.asCall.canonicalCall(cb))
   }
 
   def loadFromNested(addr: Code[Long]): Code[Long] = representation.loadFromNested(addr)

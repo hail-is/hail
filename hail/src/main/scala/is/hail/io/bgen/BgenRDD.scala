@@ -2,9 +2,9 @@ package is.hail.io.bgen
 
 import is.hail.annotations._
 import is.hail.asm4s.AsmFunction4
-import is.hail.backend.BroadcastValue
+import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
-import is.hail.expr.ir.{ExecuteContext, PruneDeadFields}
+import is.hail.expr.ir.PruneDeadFields
 import is.hail.io.fs.FS
 import is.hail.io.index.{IndexReader, IndexReaderBuilder, LeafChild}
 import is.hail.io._

@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir.agg.{AggElementsAggSig, AggStateSig, ArrayLenAggSig, GroupedAggSig, PhysicalAggSig}
+import is.hail.expr.ir.agg.{AggElementsAggSig, AggStateSig, ArrayLenAggSig, FoldStateSig, GroupedAggSig, PhysicalAggSig}
 import is.hail.expr.ir.functions.RelationalFunctions
 import is.hail.types.virtual.{TArray, TInterval, Type}
 import is.hail.utils.{space => _, _}
@@ -81,11 +81,18 @@ object Pretty {
   def prettyAggStateSignatures(states: Seq[AggStateSig]): Doc =
     list(states.view.map(prettyAggStateSignature))
 
-  def prettyAggStateSignature(state: AggStateSig): Doc =
-    fillList(state.n match {
-      case None => text(prettyClass(state)) +: state.t.view.map(typ => text(typ.canonicalPType.toString))
-      case Some(nested) => text(prettyClass(state)) +: state.t.view.map(typ => text(typ.canonicalPType.toString)) :+ prettyAggStateSignatures(nested)
-    })
+  def prettyAggStateSignature(state: AggStateSig): Doc = {
+    state match {
+      case FoldStateSig(resultEmitType, accumName, otherAccumName, combOpIR) =>
+        fillList(IndexedSeq(text(prettyClass(state)), text(resultEmitType.typeWithRequiredness.canonicalPType.toString),
+          text(accumName), text(otherAccumName), text(Pretty(combOpIR))))
+      case _ =>
+        fillList(state.n match {
+          case None => text(prettyClass(state)) +: state.t.view.map(typ => text(typ.canonicalPType.toString))
+          case Some(nested) => text(prettyClass(state)) +: state.t.view.map(typ => text(typ.canonicalPType.toString)) :+ prettyAggStateSignatures(nested)
+        })
+    }
+  }
 
   def prettyPhysicalAggSigs(aggSigs: Seq[PhysicalAggSig]): Doc =
     list(aggSigs.view.map(prettyPhysicalAggSig))
@@ -111,7 +118,7 @@ object Pretty {
     case InitOp(i, args, aggSig) => FastSeq(i.toString, prettyPhysicalAggSig(aggSig))
     case SeqOp(i, args, aggSig) => FastSeq(i.toString, prettyPhysicalAggSig(aggSig))
     case CombOp(i1, i2, aggSig) => FastSeq(i1.toString, i2.toString, prettyPhysicalAggSig(aggSig))
-    case ResultOp(i, aggSigs) => FastSeq(i.toString, prettyPhysicalAggSigs(aggSigs))
+    case ResultOp(i, aggSig) => FastSeq(i.toString, prettyPhysicalAggSig(aggSig))
     case AggStateValue(i, sig) => FastSeq(i.toString, prettyAggStateSignature(sig))
     case InitFromSerializedValue(i, value, aggSig) =>
       FastSeq(i.toString, prettyAggStateSignature(aggSig))
@@ -182,6 +189,7 @@ object Pretty {
     case StreamAgg(a, name, query) => single(prettyIdentifier(name))
     case StreamAggScan(a, name, query) => single(prettyIdentifier(name))
     case StreamGroupByKey(a, key) => single(prettyIdentifiers(key))
+    case AggFold(_, _, _, accumName, otherAccumName, isScan) => FastSeq(prettyIdentifier(accumName), prettyIdentifier(otherAccumName), prettyBooleanLiteral(isScan))
     case AggExplode(_, name, _, isScan) => FastSeq(prettyIdentifier(name), prettyBooleanLiteral(isScan))
     case AggFilter(_, _, isScan) => single(prettyBooleanLiteral(isScan))
     case AggGroupBy(_, _, isScan) => single(prettyBooleanLiteral(isScan))

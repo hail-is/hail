@@ -4,7 +4,6 @@ import os
 import logging
 import asyncio
 import concurrent.futures
-import aiohttp
 from aiohttp import web
 import aiohttp_session  # type: ignore
 import uvloop  # type: ignore
@@ -15,7 +14,7 @@ from hailtop.batch_client.aioclient import BatchClient, Batch
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
-from hailtop import aiotools
+from hailtop import aiotools, httpx
 from gear import (
     setup_aiohttp_session,
     rest_authenticated_developers_only,
@@ -27,7 +26,7 @@ from gear import (
 from typing import Dict, Any, Optional, List
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 
-from .environment import BUCKET
+from .environment import STORAGE_URI
 from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch, MergeFailureBatch, PR, select_random_teammate
 from .constants import AUTHORIZED_USERS, TEAMS
 
@@ -59,6 +58,7 @@ async def pr_config(app, pr: PR) -> Dict[str, Any]:
         # FIXME generate links to the merge log
         'batch_id': pr.batch.id if pr.batch and hasattr(pr.batch, 'id') else None,
         'build_state': build_state,
+        'source_branch_name': pr.source_branch.name,
         'review_state': pr.review_state,
         'author': pr.author,
         'assignees': pr.assignees,
@@ -127,7 +127,9 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
                 j['duration'] = humanize_timedelta_msecs(j['duration'])
             page_context['batch'] = status
             page_context['jobs'] = jobs
-            page_context['artifacts'] = f'/{BUCKET}/build/{batch.attributes["token"]}'
+            artifacts_uri = f'{STORAGE_URI}/build/{batch.attributes["token"]}'
+            page_context['artifacts_uri'] = artifacts_uri
+            page_context['artifacts_url'] = storage_uri_to_url(artifacts_uri)
         else:
             page_context['exception'] = '\n'.join(
                 traceback.format_exception(None, batch.exception, batch.exception.__traceback__)
@@ -140,6 +142,13 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
     page_context['history'] = [await b.last_known_status() for b in batches]
 
     return await render_template('ci', request, userdata, 'pr.html', page_context)
+
+
+def storage_uri_to_url(uri: str) -> str:
+    protocol = 'gs://'
+    assert uri.startswith(protocol)
+    path = uri[len(protocol) :]
+    return f'https://console.cloud.google.com/storage/browser/{path}'
 
 
 async def retry_pr(wb, pr, request):
@@ -417,6 +426,8 @@ async def dev_deploy_branch(request, userdata):
     app = request.app
     try:
         params = await request.json()
+    except asyncio.CancelledError:
+        raise
     except Exception as e:
         message = 'could not read body as JSON'
         log.info('dev deploy failed: ' + message, exc_info=True)
@@ -426,6 +437,8 @@ async def dev_deploy_branch(request, userdata):
         branch = FQBranch.from_short_str(params['branch'])
         steps = params['steps']
         excluded_steps = params['excluded_steps']
+    except asyncio.CancelledError:
+        raise
     except Exception as e:
         message = f'parameters are wrong; check the branch and steps syntax.\n\n{params}'
         log.info('dev deploy failed: ' + message, exc_info=True)
@@ -437,6 +450,8 @@ async def dev_deploy_branch(request, userdata):
     try:
         branch_gh_json = await gh.getitem(request_string)
         sha = branch_gh_json['object']['sha']
+    except asyncio.CancelledError:
+        raise
     except Exception as e:
         message = f'error finding {branch} at GitHub'
         log.info('dev deploy failed: ' + message, exc_info=True)
@@ -448,6 +463,8 @@ async def dev_deploy_branch(request, userdata):
 
     try:
         batch_id = await unwatched_branch.deploy(batch_client, steps, excluded_steps=excluded_steps)
+    except asyncio.CancelledError:
+        raise
     except Exception as e:  # pylint: disable=broad-except
         message = traceback.format_exc()
         raise web.HTTPBadRequest(text=f'starting the deploy failed due to\n{message}') from e
@@ -474,9 +491,9 @@ async def update_loop(app):
 
 
 async def on_startup(app):
-    app['gh_client_session'] = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5))
-    app['github_client'] = gh_aiohttp.GitHubAPI(app['gh_client_session'], 'ci', oauth_token=oauth_token)
-    app['batch_client'] = BatchClient('ci')
+    app['client_session'] = httpx.client_session()
+    app['github_client'] = gh_aiohttp.GitHubAPI(app['client_session'], 'ci', oauth_token=oauth_token)
+    app['batch_client'] = await BatchClient.create('ci')
     app['dbpool'] = await create_database_pool()
 
     app['task_manager'] = aiotools.BackgroundTaskManager()
@@ -488,7 +505,7 @@ async def on_cleanup(app):
         dbpool = app['dbpool']
         dbpool.close()
         await dbpool.wait_closed()
-        await app['gh_client_session'].close()
+        await app['client_session'].close()
         await app['batch_client'].close()
     finally:
         app['task_manager'].shutdown()

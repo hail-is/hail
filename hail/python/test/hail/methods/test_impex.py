@@ -158,6 +158,10 @@ class VCFTests(unittest.TestCase):
         self.assertTrue(vcf_table.all(vcf_table.locus.contig == "chr22"))
         self.assertTrue(vcf.locus.dtype, hl.tlocus('GRCh37'))
 
+    def test_import_vcf_empty(self):
+        mt = hl.import_vcf([resource('0var.vcf.bgz'), resource('3var.vcf.bgz')])
+        assert mt._same(hl.import_vcf(resource('3var.vcf.bgz')))
+
     def test_import_vcf_no_reference_specified(self):
         vcf = hl.import_vcf(resource('sample2.vcf'),
                             reference_genome=None)
@@ -2132,7 +2136,8 @@ class GrepTests(unittest.TestCase):
 class AvroTests(unittest.TestCase):
     def test_simple_avro(self):
         avro_file = resource('avro/weather.avro')
-        with DataFileReader(open(avro_file, 'rb'), DatumReader()) as avro:
+        fs = hl.current_backend().fs
+        with DataFileReader(fs.open(avro_file, 'rb'), DatumReader()) as avro:
             expected = list(avro)
         data = hl.import_avro([avro_file]).collect()
         data = [dict(**s) for s in data]

@@ -1,5 +1,4 @@
 import abc
-import json
 
 import py4j
 
@@ -39,6 +38,18 @@ def handle_java_exception(f):
 
 
 class Py4JBackend(Backend):
+
+    @abc.abstractmethod
+    def __init__(self):
+        import base64
+
+        def decode_bytearray(encoded):
+            return base64.standard_b64decode(encoded)
+
+        # By default, py4j's version of this function does extra
+        # work to support python 2. This eliminates that.
+        py4j.protocol.decode_bytearray = decode_bytearray
+
     @abc.abstractmethod
     def jvm(self):
         pass
@@ -69,11 +80,12 @@ class Py4JBackend(Backend):
 
     def execute(self, ir, timed=False):
         jir = self._to_java_value_ir(ir)
+        stream_codec = '{"name":"StreamBufferSpec"}'
         # print(self._hail_package.expr.ir.Pretty.apply(jir, True, -1))
         try:
-            result = json.loads(self._jhc.backend().executeJSON(jir))
-            value = ir.typ._from_json(result['value'])
-            timings = result['timings']
+            result_tuple = self._jhc.backend().executeEncode(jir, stream_codec)
+            (result, timings) = (result_tuple._1(), result_tuple._2())
+            value = ir.typ._from_encoding(result)
 
             return (value, timings) if timed else value
         except FatalError as e:

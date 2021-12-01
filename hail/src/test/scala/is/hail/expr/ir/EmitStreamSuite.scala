@@ -1,20 +1,23 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{Region, RegionValue, RegionValueBuilder, SafeRow, ScalaToRegionValue}
+import is.hail.TestUtils._
+import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue}
 import is.hail.asm4s._
-import is.hail.types.physical.{stypes, _}
+import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.lowering.LoweringPipeline
+import is.hail.expr.ir.streams.{EmitStream, StreamArgType, StreamUtils}
+import is.hail.types.physical._
+import is.hail.types.physical.stypes.interfaces.SStreamValue
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Call2
 import is.hail.{ExecStrategy, HailSuite}
-import is.hail.expr.ir.lowering.LoweringPipeline
-import is.hail.expr.ir.streams.{EmitStream, StreamArgType, StreamUtils}
-import is.hail.types.physical.stypes.interfaces.SStreamCode
 import org.apache.spark.sql.Row
 import is.hail.TestUtils._
 import is.hail.expr.ir.agg.{PhysicalAggSig, TypedStateSig}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeSCode, StreamSingleCodeType}
+
 import org.testng.annotations.Test
 
 class EmitStreamSuite extends HailSuite {
@@ -136,7 +139,7 @@ class EmitStreamSuite extends HailSuite {
       EmitStream.produce(new Emit(emitContext, fb.ecb), ir, cb, region, EmitEnv(Env.empty, FastIndexedSeq()), None)
         .consume(cb,
           {},
-          { case stream: SStreamCode =>
+          { case stream: SStreamValue =>
             stream.producer.memoryManagedConsume(region, cb, { cb => stream.producer.length.foreach(computeLen => cb.assign(len2, computeLen(cb))) }) { cb =>
               cb.assign(len, len + 1)
             }

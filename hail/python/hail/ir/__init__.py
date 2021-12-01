@@ -14,7 +14,7 @@ from .ir import MatrixWrite, MatrixMultiWrite, BlockMatrixWrite, \
     LowerBoundOnOrderedCollection, GroupByKey, StreamMap, StreamZip, \
     StreamFilter, StreamFlatMap, StreamFold, StreamScan, \
     StreamJoinRightDistinct, StreamFor, AggFilter, AggExplode, AggGroupBy, \
-    AggArrayPerElement, BaseApplyAggOp, ApplyAggOp, ApplyScanOp, Begin, \
+    AggArrayPerElement, BaseApplyAggOp, ApplyAggOp, ApplyScanOp, AggFold, Begin, \
     MakeStruct, SelectFields, InsertFields, GetField, MakeTuple, \
     GetTupleElement, Die, ConsoleLog, Apply, ApplySeeded, TableCount, TableGetGlobals, \
     TableCollect, TableAggregate, MatrixCount, MatrixAggregate, TableWrite, \
@@ -186,6 +186,7 @@ __all__ = [
     'BaseApplyAggOp',
     'ApplyAggOp',
     'ApplyScanOp',
+    'AggFold',
     'Begin',
     'MakeStruct',
     'SelectFields',

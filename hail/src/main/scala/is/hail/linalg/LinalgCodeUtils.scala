@@ -45,7 +45,7 @@ object LinalgCodeUtils {
     answer
   }
 
-  def createColumnMajorCode(pndv: SNDArrayValue, cb: EmitCodeBuilder, region: Value[Region]): SNDArrayCode = {
+  def createColumnMajorCode(pndv: SNDArrayValue, cb: EmitCodeBuilder, region: Value[Region]): SNDArrayValue = {
     val shape = pndv.shapes
     val pt = PCanonicalNDArray(pndv.st.elementType.storageType().setRequired(true), pndv.st.nDims, false)
     val strides = pt.makeColumnMajorStrides(shape, region, cb)
@@ -54,14 +54,14 @@ object LinalgCodeUtils {
     // construct an SNDArrayCode with undefined contents
     val result = dataFinisher(cb)
 
-    result.coiterateMutate(cb, region, (pndv.get, "pndv")) { case Seq(l, r) => r }
-    result.get
+    result.coiterateMutate(cb, region, (pndv, "pndv")) { case Seq(l, r) => r }
+    result
   }
 
   def checkColMajorAndCopyIfNeeded(aInput: SNDArrayValue, cb: EmitCodeBuilder, region: Value[Region]): SNDArrayValue = {
     val aIsColumnMajor = LinalgCodeUtils.checkColumnMajor(aInput, cb)
     val aColMajor = cb.emb.newPField("ndarray_output_column_major", aInput.st).asInstanceOf[SNDArraySettable]
-    cb.ifx(aIsColumnMajor, {cb.assign(aColMajor, aInput.get)},
+    cb.ifx(aIsColumnMajor, {cb.assign(aColMajor, aInput)},
       {
         cb.assign(aColMajor, LinalgCodeUtils.createColumnMajorCode(aInput, cb, region))
       })
@@ -74,9 +74,9 @@ object LinalgCodeUtils {
 
     val aIsColumnMajor = LinalgCodeUtils.checkColumnMajor(aInput, cb)
     val a = cb.emb.newPField("ndarray_output_standardized", aInput.st).asInstanceOf[SNDArraySettable]
-    cb.ifx(aIsColumnMajor, {cb.assign(a, aInput.get)}, {
+    cb.ifx(aIsColumnMajor, {cb.assign(a, aInput)}, {
       val isRowMajor = LinalgCodeUtils.checkRowMajor(aInput, cb)
-      cb.ifx(isRowMajor, {cb.assign(a, aInput.get)}, {
+      cb.ifx(isRowMajor, {cb.assign(a, aInput)}, {
         cb.assign(a, LinalgCodeUtils.createColumnMajorCode(aInput, cb, region))
       })
     })

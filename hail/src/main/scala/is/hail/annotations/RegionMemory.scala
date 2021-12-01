@@ -49,9 +49,11 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
   }
 
   def allocateNewBlock(): Unit = {
+    val newBlock = pool.getBlock(blockSize)
+    // don't add currentBlock to usedBlocks until pool.getBlock returns successfully (could throw OOM exception)
     if (currentBlock != 0)
       usedBlocks.add(currentBlock)
-    currentBlock = pool.getBlock(blockSize)
+    currentBlock = newBlock
   }
 
   def getCurrentBlock(): Long = currentBlock
@@ -160,8 +162,10 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
       assert(ndarrayRefs.size == 0)
     } else {
       val freeBlocksOfSize = pool.freeBlocks(blockSize)
+
       if (currentBlock != 0)
         freeBlocksOfSize.add(currentBlock)
+      currentBlock = 0
 
       freeFullBlocks(freeBlocksOfSize)
       freeChunks()
@@ -169,10 +173,9 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
       releaseReferences()
       releaseNDArrays()
 
-      offsetWithinBlock = 0
-      currentBlock = 0
-      totalChunkMemory = 0
       blockSize = -1
+      offsetWithinBlock = 0
+      totalChunkMemory = 0
     }
   }
 

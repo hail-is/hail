@@ -1,21 +1,17 @@
 import random
-from typing import Optional
 import os
 import secrets
-import shutil
-from itertools import accumulate
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import pytest
-import concurrent
-import urllib.parse
-from hailtop.utils import secret_alnum_string
+from hailtop.utils import secret_alnum_string, retry_transient_errors
 from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS, UnexpectedEOFError
-from hailtop.aiotools.s3asyncfs import S3AsyncFS
-from hailtop.aiogoogle import GoogleStorageAsyncFS
+from hailtop.aiocloud.aioaws import S3AsyncFS
+from hailtop.aiocloud.aioazure import AzureAsyncFS
+from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
 
 
-@pytest.fixture(params=['file', 'gs', 's3', 'router/file', 'router/gs', 'router/s3'])
+@pytest.fixture(params=['file', 'gs', 's3', 'hail-az', 'router/file', 'router/gs', 'router/s3', 'router/hail-az'])
 async def filesystem(request):
     token = secret_alnum_string()
 
@@ -24,24 +20,31 @@ async def filesystem(request):
             fs = RouterAsyncFS(
                 'file', [LocalAsyncFS(thread_pool),
                          GoogleStorageAsyncFS(),
-                         S3AsyncFS(thread_pool)])
+                         S3AsyncFS(thread_pool),
+                         AzureAsyncFS()])
         elif request.param == 'file':
             fs = LocalAsyncFS(thread_pool)
         elif request.param.endswith('gs'):
             fs = GoogleStorageAsyncFS()
-        else:
-            assert request.param.endswith('s3')
+        elif request.param.endswith('s3'):
             fs = S3AsyncFS(thread_pool)
+        else:
+            assert request.param.endswith('hail-az')
+            fs = AzureAsyncFS()
         async with fs:
             if request.param.endswith('file'):
                 base = f'/tmp/{token}/'
             elif request.param.endswith('gs'):
                 bucket = os.environ['HAIL_TEST_GCS_BUCKET']
                 base = f'gs://{bucket}/tmp/{token}/'
-            else:
-                assert request.param.endswith('s3')
+            elif request.param.endswith('s3'):
                 bucket = os.environ['HAIL_TEST_S3_BUCKET']
                 base = f's3://{bucket}/tmp/{token}/'
+            else:
+                assert request.param.endswith('hail-az')
+                account = os.environ['HAIL_TEST_AZURE_ACCOUNT']
+                container = os.environ['HAIL_TEST_AZURE_CONTAINER']
+                base = f'hail-az://{account}/{container}/tmp/{token}/'
 
             await fs.mkdir(base)
             sema = asyncio.Semaphore(50)
@@ -106,6 +109,36 @@ async def test_open_from(filesystem):
     async with await fs.open_from(file, 2) as f:
         r = await f.read()
         assert r == b'cde'
+
+
+@pytest.mark.asyncio
+async def test_open_nonexistent_file(filesystem):
+    sema, fs, base = filesystem
+
+    file = f'{base}foo'
+
+    try:
+        async with await fs.open(file) as f:
+            await f.read()
+    except FileNotFoundError:
+        pass
+    else:
+        assert False
+
+
+@pytest.mark.asyncio
+async def test_open_from_nonexistent_file(filesystem):
+    sema, fs, base = filesystem
+
+    file = f'{base}foo'
+
+    try:
+        async with await fs.open_from(file, 2) as f:
+            await f.read()
+    except FileNotFoundError:
+        pass
+    else:
+        assert False
 
 
 @pytest.mark.asyncio
@@ -352,11 +385,12 @@ async def test_multi_part_create(filesystem, permutation):
         if permutation:
             # do it in a fixed order
             for i in permutation:
-                await create_part(i)
+                await retry_transient_errors(create_part, i)
         else:
             # do in parallel
             await asyncio.gather(*[
-                create_part(i) for i in range(len(part_data))])
+                retry_transient_errors(create_part, i)
+                for i in range(len(part_data))])
 
     expected = b''.join(part_data)
     async with await fs.open(path) as f:

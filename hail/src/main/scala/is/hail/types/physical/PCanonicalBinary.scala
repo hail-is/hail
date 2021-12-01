@@ -95,12 +95,12 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
     cb += Region.storeBytes(bytesAddress(addr), bytes)
   }
 
-  def constructFromByteArray(cb: EmitCodeBuilder, region: Value[Region], bytes: Code[Array[Byte]]): SBinaryPointerCode = {
+  def constructFromByteArray(cb: EmitCodeBuilder, region: Value[Region], bytes: Code[Array[Byte]]): SBinaryPointerValue = {
     val ba = cb.newLocal[Array[Byte]]("pcbin_ba", bytes)
     val len = cb.newLocal[Int]("pcbin_len", ba.length())
     val addr = cb.newLocal[Long]("pcbin_addr", allocate(region, len))
     store(cb, addr, ba)
-    loadCheapSCode(cb, addr).get
+    loadCheapSCode(cb, addr)
   }
 
   def constructAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Unit = {
@@ -147,7 +147,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
       case SBinaryPointer(PCanonicalBinary(_)) =>
         if (deepCopy) {
           val bv = value.asInstanceOf[SBinaryPointerValue]
-          val len = cb.newLocal[Int]("pcbinary_store_len", bv.loadLength())
+          val len = bv.loadLength(cb)
           val newAddr = cb.memoize(allocate(region, len))
           storeLength(cb, newAddr, len)
           cb += Region.copyFrom(bytesAddress(bv.a), bytesAddress(newAddr), len.toL)
@@ -156,16 +156,16 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
           value.asInstanceOf[SBinaryPointerValue].a
       case _ =>
         val bv = value.asBinary
-        val len = cb.newLocal[Int]("pcbinary_store_len", bv.loadLength())
+        val len = bv.loadLength(cb)
         val newAddr = cb.memoize(allocate(region, len))
         storeLength(cb, newAddr, len)
-        cb += Region.storeBytes(bytesAddress(newAddr), bv.loadBytes())
+        cb += Region.storeBytes(bytesAddress(newAddr), bv.loadBytes(cb))
         newAddr
     }
   }
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
-    cb += Region.storeAddress(addr, store(cb, region, value.memoize(cb, "storeAtAddress"), deepCopy))
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SValue, deepCopy: Boolean): Unit = {
+    cb += Region.storeAddress(addr, store(cb, region, value, deepCopy))
   }
 
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {

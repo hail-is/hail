@@ -1,9 +1,9 @@
 package is.hail.rvd
 
 import java.util
-
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.PruneDeadFields.isSupertype
 import is.hail.types._
@@ -14,7 +14,7 @@ import is.hail.io.index.IndexWriter
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, RichContextRDDRegionValue, TypedCodecSpec}
 import is.hail.sparkextras._
 import is.hail.utils._
-import is.hail.expr.ir.{ExecuteContext, InferPType}
+import is.hail.expr.ir.InferPType
 import is.hail.utils.PartitionCounts.{PCSubsetOffset, getPCSubsetOffset, incrementalPCSubsetOffset}
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark.TaskContext
@@ -1456,7 +1456,7 @@ object RVD {
   def writeRowsSplitFiles(
     execCtx: ExecuteContext,
     rvds: IndexedSeq[RVD],
-    path: String,
+    paths: IndexedSeq[String],
     bufferSpec: BufferSpec,
     stageLocally: Boolean
   ): Array[Array[FileWriteMetadata]] = {
@@ -1494,17 +1494,15 @@ object RVD {
     val partDigits = digitsNeeded(nPartitions)
     val fileDigits = digitsNeeded(rvds.length)
     for (i <- 0 until nRVDs) {
-      val s = StringUtils.leftPad(i.toString, fileDigits, '0')
-      fs.mkDir(path + s + ".mt" + "/rows/rows/parts")
-      fs.mkDir(path + s + ".mt" + "/entries/rows/parts")
-      fs.mkDir(path + s + ".mt" + "/index")
+      val path = paths(i)
+      fs.mkDir(path + "/rows/rows/parts")
+      fs.mkDir(path + "/entries/rows/parts")
+      fs.mkDir(path + "/index")
     }
 
     val partF = { (originIdx: Int, originPartIdx: Int, it: Iterator[RVDContext => Iterator[Long]]) =>
       Iterator.single { ctx: RVDContext =>
-        val fs = fsBc.value
-        val s = StringUtils.leftPad(originIdx.toString, fileDigits, '0')
-        val fullPath = path + s + ".mt"
+        val fullPath = paths(originIdx)
         val fileData = RichContextRDDRegionValue.writeSplitRegion(
           localTmpdir,
           fsBc.value,
@@ -1540,7 +1538,7 @@ object RVD {
         .foreach { case (partFiles, i) =>
           val fs = fsBc.value
           val s = StringUtils.leftPad(i.toString, fileDigits, '0')
-          val basePath = path + s + ".mt"
+          val basePath = paths(i)
           RichContextRDDRegionValue.writeSplitSpecs(fs, basePath,
             rowsCodecSpec, entriesCodecSpec, rowsIndexSpec, entriesIndexSpec,
             localTyp, rowsRVType, entriesRVType, partFiles.map(_.path), partitionerBc.value)

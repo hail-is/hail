@@ -5,9 +5,9 @@ import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.{SCode, SType, SValue}
 import is.hail.types.physical.stypes.concrete.SNDArrayPointer
 import is.hail.types.physical.stypes.interfaces.SNDArrayValue
+import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -48,7 +48,7 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
     }
   }
 
-  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SCode = {
+  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SValue = {
     val st = decodedSType(t).asInstanceOf[SNDArrayPointer]
     val pt = st.pType
     val readElemF = elementType.buildInplaceDecoder(pt.elementType, cb.emb.ecb)
@@ -71,7 +71,7 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
       cb.assign(currElementAddress, currElementAddress + pt.elementType.byteSize)
     })
 
-    tFinisher(cb).get
+    tFinisher(cb)
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {

@@ -59,7 +59,7 @@ class CodeSuite extends HailSuite {
       val region = fb.emb.getCodeParam[Region](1)
       val st = SStringPointer(pstring)
       val stringToHash = st.constructFromString(cb, region, toHash)
-      val i = stringToHash.memoize(cb, "value_to_hash")
+      val i = stringToHash
       val hash = i.hash(cb)
       hash.intCode(cb)
     })

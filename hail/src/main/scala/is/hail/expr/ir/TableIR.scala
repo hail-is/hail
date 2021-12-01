@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.HailTaskContext
+import is.hail.backend.{ExecuteContext, HailTaskContext}
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, MatrixToTableFunction, StringFunctions, TableToTableFunction}
@@ -19,7 +19,7 @@ import is.hail.types._
 import is.hail.types.physical.stypes.concrete.SInsertFieldsStruct
 import is.hail.types.physical.{stypes, _}
 import is.hail.types.physical.stypes.{BooleanSingleCodeType, Int32SingleCodeType, PTypeReferenceSingleCodeType, StreamSingleCodeType}
-import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStream, SStreamCode}
+import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStream, SStreamCode, SStreamValue}
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.TaskContext
@@ -28,9 +28,10 @@ import org.apache.spark.sql.Row
 import org.json4s.JsonAST.JString
 import org.json4s.jackson.JsonMethods
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
-import java.io.{ByteArrayInputStream, DataInputStream, DataOutputStream, InputStream}
 
+import java.io.{ByteArrayInputStream, DataInputStream, DataOutputStream, InputStream}
 import is.hail.io.avro.AvroTableReader
+import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
 
 import scala.reflect.ClassTag
 
@@ -76,16 +77,11 @@ class TableRunContext(val req: RequirednessAnalysis)
 
 object TableLiteral {
   def apply(value: TableValue): TableLiteral = {
-    val globalPType = PType.canonical(value.globals.t)
-    val enc = TypedCodecSpec(globalPType, BufferSpec.wireSpec) // use wireSpec to save memory
-    using(new ByteArrayEncoder(enc.buildEncoder(value.ctx, value.globals.t))) { encoder =>
-      TableLiteral(value.typ, value.rvd, enc,
-        encoder.regionValueToBytes(value.globals.value.offset))
-    }
+    TableLiteral(value.typ, value.rvd, value.globals.encoding, value.globals.encodeToByteArrays())
   }
 }
 
-case class TableLiteral(typ: TableType, rvd: RVD, enc: AbstractTypedCodecSpec, encodedGlobals: Array[Byte]) extends TableIR {
+case class TableLiteral(typ: TableType, rvd: RVD, enc: AbstractTypedCodecSpec, encodedGlobals: Array[Array[Byte]]) extends TableIR {
   val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
   lazy val rowCountUpperBound: Option[Long] = None
@@ -98,7 +94,7 @@ case class TableLiteral(typ: TableType, rvd: RVD, enc: AbstractTypedCodecSpec, e
   protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
     val (globalPType: PStruct, dec) = enc.buildDecoder(ctx, typ.globalType)
 
-    val bais = new ByteArrayInputStream(encodedGlobals)
+    val bais = new ArrayOfByteArrayInputStream(encodedGlobals)
     val globalOffset = dec.apply(bais).readRegionValue(ctx.r)
     new TableValueIntermediate(TableValue(ctx, typ, BroadcastRow(ctx, RegionValue(ctx.r, globalOffset), globalPType), rvd))
   }
@@ -130,7 +126,7 @@ object LoweredTableReader {
     contexts: IndexedSeq[Any],
     keyType: TStruct,
     keyPType: (TStruct) => PStruct,
-    keys: (TStruct) => (Region, Any) => Iterator[Long]
+    keys: (TStruct) => (Region, FS, Any) => Iterator[Long]
   ): LoweredTableReaderCoercer = {
     assert(key.nonEmpty)
     assert(contexts.nonEmpty)
@@ -191,19 +187,15 @@ object LoweredTableReader {
           MakeStruct(FastIndexedSeq(
             "n" -> Ref("n", TInt64),
             "minkey" ->
-              ArrayRef(
-                ApplyAggOp(
-                  FastIndexedSeq(I32(1)),
-                  FastIndexedSeq(Ref("key", keyType), Ref("key", keyType)),
-                  minkey),
-                I32(0)),
+              ApplyAggOp(
+                FastIndexedSeq(I32(1)),
+                FastIndexedSeq(Ref("key", keyType), Ref("key", keyType)),
+                minkey),
             "maxkey" ->
-              ArrayRef(
-                ApplyAggOp(
-                  FastIndexedSeq(I32(1)),
-                  FastIndexedSeq(Ref("key", keyType), Ref("key", keyType)),
-                  maxkey),
-                I32(0)),
+              ApplyAggOp(
+                FastIndexedSeq(I32(1)),
+                FastIndexedSeq(Ref("key", keyType), Ref("key", keyType)),
+                maxkey),
             "ksorted" ->
               ApplyComparisonOp(EQ(TInt64),
                 ApplyAggOp(
@@ -243,20 +235,26 @@ object LoweredTableReader {
       "globals",
       scanBody(Ref("context", contextType)))
 
-    val partDataWithIndex = InsertFields(
-      ArrayRef(Ref("scanResult", scanResult.typ), Ref("i", TInt32)),
-      FastIndexedSeq(
-        "i" -> Ref("i", TInt32)))
-    val sortedPartDataIR = ArraySort(
-      Let("scanResult", scanResult,
-        StreamMap(
-          StreamRange(I32(0), ArrayLen(Ref("scanResult", scanResult.typ)), I32(1)),
-          "i",
-          partDataWithIndex)),
-      "l", "r",
-      ApplyComparisonOp(LT(keyType),
-        GetField(Ref("l", partDataWithIndex.typ), "minkey"),
-        GetField(Ref("r", partDataWithIndex.typ), "minkey")))
+    val sortedPartDataIR = sortIR(bindIR(scanResult) { scanResult =>
+      mapIR(
+        filterIR(
+          mapIR(
+            rangeIR(I32(0), ArrayLen(scanResult))) { i =>
+            InsertFields(
+              ArrayRef(scanResult, i),
+              FastIndexedSeq("i" -> i))
+          }) { row => ArrayLen(GetField(row, "minkey")) > 0 }
+      ) { row =>
+        InsertFields(row, FastSeq(
+          ("minkey", ArrayRef(GetField(row, "minkey"), I32(0))),
+          ("maxkey", ArrayRef(GetField(row, "maxkey"), I32(0)))))
+      }
+    }) { (l, r) =>
+      ApplyComparisonOp(LT(TStruct("minkey" -> keyType, "maxkey" -> keyType)),
+        SelectFields(l, FastSeq("minkey", "maxkey")),
+        SelectFields(r, FastSeq("minkey", "maxkey")))
+    }
+    val partDataElt = coerce[TArray](sortedPartDataIR.typ).elementType
 
     val summary =
       Let("sortedPartData", sortedPartDataIR,
@@ -269,7 +267,7 @@ object LoweredTableReader {
                 "partDataWithIndex",
                 invoke("land", TBoolean,
                   Ref("acc", TBoolean),
-                  GetField(Ref("partDataWithIndex", partDataWithIndex.typ), "ksorted"))),
+                  GetField(Ref("partDataWithIndex", partDataElt), "ksorted"))),
               StreamFold(
                 StreamRange(
                   I32(0),
@@ -294,7 +292,7 @@ object LoweredTableReader {
                 "partDataWithIndex",
                 invoke("land", TBoolean,
                   Ref("acc", TBoolean),
-                  GetField(Ref("partDataWithIndex", partDataWithIndex.typ), "pksorted"))),
+                  GetField(Ref("partDataWithIndex", partDataElt), "pksorted"))),
               StreamFold(
                 StreamRange(
                   I32(0),
@@ -529,12 +527,12 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
           cb.assign(next, upcastF.invoke[Region, Long, Long]("apply", region, Code.longValue(iterator.invoke[java.lang.Long]("next"))))
           cb.goto(LproduceElementDone)
         }
-        override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, upcastPType.loadCheapSCode(cb, next).get))
+        override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, upcastPType.loadCheapSCode(cb, next)))
 
         override def close(cb: EmitCodeBuilder): Unit = {}
       }
 
-      SStreamCode(producer)
+      SStreamValue(producer)
     }
   }
 
@@ -566,7 +564,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends AbstractN
     val mb = cb.emb
 
     context.toI(cb).map(cb) { path =>
-      val pathString = path.asString.loadString()
+      val pathString = path.asString.loadString(cb)
       val xRowBuf = mb.genFieldThisRef[InputBuffer]("pnr_xrowbuf")
       val next = mb.newPSettable(mb.fieldBuilder, spec.encodedType.decodedSType(requestedType), "pnr_next")
       val region = mb.genFieldThisRef[Region]("pnr_region")
@@ -585,11 +583,11 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends AbstractN
           cb.goto(LproduceElementDone)
         }
 
-        override val element: EmitCode = EmitCode.present(mb, next.get)
+        override val element: EmitCode = EmitCode.present(mb, next)
 
         override def close(cb: EmitCodeBuilder): Unit = cb += xRowBuf.close()
       }
-      SStreamCode(producer)
+      SStreamValue(producer)
     }
   }
 
@@ -621,7 +619,7 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
     val makeIndexCode = mb.getObject[Function4[FS, String, Int, RegionPool, IndexReader]](mkIndexReader)
     val makeDecCode = mb.getObject[(InputStream => Decoder)](makeDec)
 
-    context.toI(cb).map(cb) { ctxStruct =>
+    context.toI(cb).map(cb) { case ctxStruct: SBaseStructValue =>
 
       val getIndexReader: Code[String] => Code[IndexReader] = { (indexPath: Code[String]) =>
         Code.checkcast[IndexReader](
@@ -638,12 +636,11 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
         override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
         override def initialize(cb: EmitCodeBuilder): Unit = {
-          val ctxMemo = ctxStruct.asBaseStruct.memoize(cb, "pnri_ctx_struct")
-          cb.assign(idxr, getIndexReader(ctxMemo
+          cb.assign(idxr, getIndexReader(ctxStruct
             .loadField(cb, "indexPath")
             .get(cb)
             .asString
-            .loadString()))
+            .loadString(cb)))
           cb.assign(it,
             Code.newInstance7[IndexReadIterator,
               (InputStream) => Decoder,
@@ -654,23 +651,22 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
               Interval,
               InputMetrics](makeDecCode,
               region,
-              mb.open(ctxMemo.loadField(cb, "partitionPath")
+              mb.open(ctxStruct.loadField(cb, "partitionPath")
                 .get(cb)
                 .asString
-                .loadString(), true),
+                .loadString(cb), true),
               idxr,
               Code._null[String],
-              ctxMemo.loadField(cb, "interval")
+              ctxStruct.loadField(cb, "interval")
                 .consumeCode[Interval](cb,
-                  Code._fatal[Interval](""),
+                  cb.memoize(Code._fatal[Interval]("")),
                   { pc =>
-                    val pcm = pc.memoize(cb, "pnri_interval")
-                    val pt = PType.canonical(pcm.st.storageType())
-                    Code.invokeScalaObject2[PType, Long, Interval](
+                    val pt = PType.canonical(pc.st.storageType())
+                    cb.memoize(Code.invokeScalaObject2[PType, Long, Interval](
                       PartitionBoundOrdering.getClass,
                       "regionValueToJavaObject",
                       mb.getPType(pt),
-                      pt.store(cb, region, pcm, false))
+                      pt.store(cb, region, pc, false)))
                   }
                 ),
               Code._null[InputMetrics]
@@ -684,11 +680,11 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
           cb.goto(LproduceElementDone)
 
         }
-        override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, eltType.loadCheapSCode(cb, next).get))
+        override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, eltType.loadCheapSCode(cb, next)))
 
         override def close(cb: EmitCodeBuilder): Unit = cb += it.invoke[Unit]("close")
       }
-      SStreamCode(producer)
+      SStreamValue(producer)
     }
   }
 
@@ -734,8 +730,7 @@ case class PartitionZippedNativeReader(left: PartitionReader, right: PartitionRe
     val lRequested = rts.select(rts.fieldNames.filter(leftStruct.hasField))._1
     val rRequested = rts.select(rts.fieldNames.filter(rightStruct.hasField))._1
 
-    context.toI(cb).flatMap(cb) { zippedContextCode =>
-      val zippedContext = zippedContextCode.asBaseStruct.memoize(cb, "zippedCtx")
+    context.toI(cb).flatMap(cb) { case zippedContext: SBaseStructValue =>
       val ctx1 = EmitCode.fromI(cb.emb)(zippedContext.loadField(_, "leftContext"))
       val ctx2 = EmitCode.fromI(cb.emb)(zippedContext.loadField(_, "rightContext"))
       left.emitStream(ctx, cb, ctx1, partitionRegion, lRequested).flatMap(cb) { sstream1 =>
@@ -746,7 +741,7 @@ case class PartitionZippedNativeReader(left: PartitionReader, right: PartitionRe
 
           val region = cb.emb.genFieldThisRef[Region]("partition_zipped_reader_region")
 
-          SStreamCode(new StreamProducer {
+          SStreamValue(new StreamProducer {
             override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
             override def initialize(cb: EmitCodeBuilder): Unit = {
@@ -854,14 +849,14 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
     val leftOffsetFieldIndex = indexSpecLeft.offsetFieldIndex
     val rightOffsetFieldIndex = indexSpecRight.offsetFieldIndex
 
-    context.toI(cb).map(cb) { ctxStruct =>
+    context.toI(cb).map(cb) { case ctxStruct: SBaseStructValue =>
 
       def getIndexReader(cb: EmitCodeBuilder, ctxMemo: SBaseStructValue): Code[IndexReader] = {
         val indexPath = ctxMemo
           .loadField(cb, "indexPath")
           .handle(cb, cb._fatal(""))
           .asString
-          .loadString()
+          .loadString(cb)
         Code.checkcast[IndexReader](
           makeIndexCode.invoke[AnyRef, AnyRef, AnyRef, AnyRef, AnyRef]("apply", mb.getFS, indexPath, Code.boxInt(8), cb.emb.ecb.pool()))
       }
@@ -890,25 +885,23 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
         override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
         override def initialize(cb: EmitCodeBuilder): Unit = {
-          val ctxMemo = ctxStruct.asBaseStruct.memoize(cb, "pnri_ctx_struct")
-
           cb.assign(rowsBuffer, specLeft.buildCodeInputBuffer(
             Code.newInstance[ByteTrackingInputStream, InputStream](
-              mb.open(ctxMemo.loadField(cb, "leftPartitionPath")
+              mb.open(ctxStruct.loadField(cb, "leftPartitionPath")
                 .handle(cb, cb._fatal(""))
                 .asString
-                .loadString(), true))))
+                .loadString(cb), true))))
           cb.assign(entriesBuffer, specRight.buildCodeInputBuffer(
             Code.newInstance[ByteTrackingInputStream, InputStream](
-              mb.open(ctxMemo.loadField(cb, "rightPartitionPath")
+              mb.open(ctxStruct.loadField(cb, "rightPartitionPath")
                 .handle(cb, cb._fatal(""))
                 .asString
-                .loadString(), true))))
+                .loadString(cb), true))))
 
-          cb.assign(indexReader, getIndexReader(cb, ctxMemo))
+          cb.assign(indexReader, getIndexReader(cb, ctxStruct))
           cb.assign(idx,
             indexReader
-              .invoke[Interval, Iterator[LeafChild]]("queryByInterval", getInterval(cb, partitionRegion, ctxMemo))
+              .invoke[Interval, Iterator[LeafChild]]("queryByInterval", getInterval(cb, partitionRegion, ctxStruct))
               .invoke[BufferedIterator[LeafChild]]("buffered"))
 
           cb.ifx(idx.invoke[Boolean]("hasNext"), {
@@ -947,7 +940,7 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
           cb.goto(LproduceElementDone)
         }
         override val element: EmitCode = EmitCode.fromI(mb)(cb =>
-          IEmitCode.present(cb, SInsertFieldsStruct.merge(cb, rowsValue.get.asBaseStruct, entriesValue.get.asBaseStruct)))
+          IEmitCode.present(cb, SInsertFieldsStruct.merge(cb, rowsValue.asBaseStruct, entriesValue.asBaseStruct)))
 
         override def close(cb: EmitCodeBuilder): Unit = {
           indexReader.invoke[Unit]("close")
@@ -955,7 +948,7 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
           entriesBuffer.invoke[Unit]("close")
         }
       }
-      SStreamCode(producer)
+      SStreamValue(producer)
     }
   }
 

@@ -9,12 +9,13 @@ HAIL_BUILDKIT_IMAGE := $(DOCKER_PREFIX)/hail-buildkit:$(TOKEN)
 EXTRA_PYTHONPATH := ../batch:../hail/python:../gear:../web_common
 PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
 
-BLACK := $(PYTHON) -m black ci --line-length=120 --skip-string-normalization
+BLACK := $(PYTHON) -m black . --line-length=120 --skip-string-normalization
 
 .PHONY: check
 check:
-	$(PYTHON) -m flake8 ci
+	$(PYTHON) -m flake8 .
 	$(PYTHON) -m pylint --rcfile ../pylintrc ci --score=n
+	$(PYTHON) -m mypy --config-file ../setup.cfg .
 	$(BLACK) --check --diff
 	curlylint .
 	bash ../check-sql.sh
@@ -45,5 +46,5 @@ build: service-base
 deploy: build build-ci-utils build-hail-buildkit
 	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
 	! [ -z "$(CI_DEVELOPER_TEST_REPO_TOKEN)" -a $(NAMESPACE) != "default" ]  # for dev namespaces, you must specify a github repo by its token, check your currently running CI's value for HAIL_WATCHED_BRANCHES
-	python3 jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"default_ns":{"name":"$(NAMESPACE)"},"ci_image":{"image":"$(CI_IMAGE)"},"global":{"project":"$(PROJECT)","zone":"$(ZONE)","ip":"$(IP)","domain":"$(DOMAIN)", "k8s_server_url":"$(KUBERNETES_SERVER_URL)"},"ci_utils_image":{"image":"$(CI_UTILS_IMAGE)"},"ci_database":{"user_secret_name":"sql-ci-user-config"},"hail_buildkit_image":{"image":"$(HAIL_BUILDKIT_IMAGE)"},"create_ci_test_repo":{"token":"$(CI_DEVELOPER_TEST_REPO_TOKEN)"}}' deployment.yaml deployment.yaml.out
+	python3 jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"default_ns":{"name":"$(NAMESPACE)"},"ci_image":{"image":"$(CI_IMAGE)"},"ci_utils_image":{"image":"$(CI_UTILS_IMAGE)"},"ci_database":{"user_secret_name":"sql-ci-user-config"},"hail_buildkit_image":{"image":"$(HAIL_BUILDKIT_IMAGE)"},"create_ci_test_repo":{"token":"$(CI_DEVELOPER_TEST_REPO_TOKEN)"}}' deployment.yaml deployment.yaml.out
 	kubectl -n $(NAMESPACE) apply -f deployment.yaml.out

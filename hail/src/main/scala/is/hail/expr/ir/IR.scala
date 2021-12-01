@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s.Value
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.agg.{AggStateSig, PhysicalAggSig}
 import is.hail.expr.ir.functions._
@@ -89,33 +90,37 @@ final case class Literal(_typ: Type, value: Annotation) extends IR {
 }
 
 object EncodedLiteral {
-  def apply(codec: AbstractTypedCodecSpec, value: Array[Byte]): EncodedLiteral = {
-    EncodedLiteral(codec, new WrappedByteArray(value))
+  def apply(codec: AbstractTypedCodecSpec, value: Array[Array[Byte]]): EncodedLiteral = {
+    EncodedLiteral(codec, new WrappedByteArrays(value))
   }
 
   def fromPTypeAndAddress(pt: PType, addr: Long, ctx: ExecuteContext): IR = {
     val etype = EType.defaultFromPType(pt)
     val codec = TypedCodecSpec(etype, pt.virtualType, BufferSpec.defaultUncompressed)
-    val bytes = codec.encode(ctx, pt, addr)
+    val bytes = codec.encodeArrays(ctx, pt, addr)
     EncodedLiteral(codec, bytes)
   }
 }
 
-final case class EncodedLiteral(codec: AbstractTypedCodecSpec, value: WrappedByteArray) extends IR {
+final case class EncodedLiteral(codec: AbstractTypedCodecSpec, value: WrappedByteArrays) extends IR {
   require(!CanEmit(codec.encodedVirtualType))
   require(value != null)
 }
 
-class WrappedByteArray(val ba: Array[Byte]) {
-  override def hashCode(): Int = java.util.Arrays.hashCode(ba)
+class WrappedByteArrays(val ba: Array[Array[Byte]]) {
+  override def hashCode(): Int = {
+    ba.foldLeft(31) { (h, b) => 37 * h + java.util.Arrays.hashCode(b) }
+  }
 
   override def equals(obj: Any): Boolean = {
-    if (!obj.isInstanceOf[WrappedByteArray]) {
-      false
-    }
-    else {
-      val other = obj.asInstanceOf[WrappedByteArray]
-      java.util.Arrays.equals(ba, other.ba)
+    this.eq(obj.asInstanceOf[AnyRef]) || {
+      if (!obj.isInstanceOf[WrappedByteArrays]) {
+        false
+      }
+      else {
+        val other = obj.asInstanceOf[WrappedByteArrays]
+        ba.length == other.ba.length && (ba, other.ba).zipped.forall(java.util.Arrays.equals)
+      }
     }
   }
 }
@@ -486,6 +491,8 @@ final case class ApplyAggOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[IR
   def op: AggOp = aggSig.op
 }
 
+final case class AggFold(zero: IR, seqOp: IR, combOp: IR, accumName: String, otherAccumName: String, isScan: Boolean) extends IR
+
 object ApplyScanOp {
   def apply(op: AggOp, initOpArgs: IR*)(seqOpArgs: IR*): ApplyScanOp =
     ApplyScanOp(initOpArgs.toIndexedSeq, seqOpArgs.toIndexedSeq, AggSignature(op, initOpArgs.map(_.typ), seqOpArgs.map(_.typ)))
@@ -503,7 +510,14 @@ final case class ApplyScanOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[I
 final case class InitOp(i: Int, args: IndexedSeq[IR], aggSig: PhysicalAggSig) extends IR
 final case class SeqOp(i: Int, args: IndexedSeq[IR], aggSig: PhysicalAggSig) extends IR
 final case class CombOp(i1: Int, i2: Int, aggSig: PhysicalAggSig) extends IR
-final case class ResultOp(startIdx: Int, aggSigs: IndexedSeq[PhysicalAggSig]) extends IR
+object ResultOp {
+  def makeTuple(aggs: IndexedSeq[PhysicalAggSig]) = {
+    MakeTuple.ordered(aggs.zipWithIndex.map { case (aggSig, index) =>
+      ResultOp(index, aggSig)
+    })
+  }
+}
+final case class ResultOp(idx: Int, aggSig: PhysicalAggSig) extends IR
 
 private final case class CombOpValue(i: Int, value: IR, aggSig: PhysicalAggSig) extends IR
 final case class AggStateValue(i: Int, aggSig: AggStateSig) extends IR

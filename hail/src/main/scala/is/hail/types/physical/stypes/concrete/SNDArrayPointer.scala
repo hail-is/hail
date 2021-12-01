@@ -69,14 +69,17 @@ class SNDArrayPointerValue(
 
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a) ++ shapes ++ strides ++ FastIndexedSeq(firstDataAddress)
 
+  override def shapeStruct(cb: EmitCodeBuilder): SBaseStructValue =
+    pt.shapeType.loadCheapSCode(cb, pt.representation.loadField(a, "shape"))
+
   override def loadElementAddress(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Long] = {
     assert(indices.size == pt.nDims)
     pt.loadElementFromDataAndStrides(cb, indices, firstDataAddress, strides)
   }
 
-  override def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SCode = {
+  override def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SValue = {
     assert(indices.size == pt.nDims)
-    pt.elementType.loadCheapSCode(cb, loadElementAddress(indices, cb)).get
+    pt.elementType.loadCheapSCode(cb, loadElementAddress(indices, cb))
   }
 
   override def get: SNDArrayPointerCode = new SNDArrayPointerCode(st, a)
@@ -92,13 +95,13 @@ class SNDArrayPointerValue(
     deepCopy: Boolean,
     indexVars: IndexedSeq[String],
     destIndices: IndexedSeq[Int],
-    arrays: (SNDArrayCode, IndexedSeq[Int], String)*
-  )(body: IndexedSeq[SCode] => SCode
+    arrays: (SNDArrayValue, IndexedSeq[Int], String)*
+  )(body: IndexedSeq[SValue] => SValue
   ): Unit = {
-    SNDArray._coiterate(cb, indexVars, (this.get, destIndices, "dest") +: arrays: _*) { ptrs =>
-      val codes = (this.get +: arrays.map(_._1)).zip(ptrs).toFastIndexedSeq.map { case (array, ptr) =>
+    SNDArray._coiterate(cb, indexVars, (this, destIndices, "dest") +: arrays: _*) { ptrs =>
+      val codes = (this +: arrays.map(_._1)).zip(ptrs).toFastIndexedSeq.map { case (array, ptr) =>
         val pt: PType = array.st.pType.elementType
-        pt.loadCheapSCode(cb, pt.loadFromNested(ptr)).get
+        pt.loadCheapSCode(cb, pt.loadFromNested(ptr))
       }
       pt.elementType.storeAtAddress(cb, ptrs.head, region, body(codes), deepCopy)
     }
@@ -137,7 +140,7 @@ class SNDArrayPointerCode(val st: SNDArrayPointer, val a: Code[Long]) extends SN
 
   def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SNDArrayPointerValue = {
     val s = SNDArrayPointerSettable(sb, st, name)
-    cb.assign(s, this)
+    s.store(cb, this)
     s
   }
 
@@ -146,7 +149,4 @@ class SNDArrayPointerCode(val st: SNDArrayPointer, val a: Code[Long]) extends SN
 
   override def memoizeField(cb: EmitCodeBuilder, name: String): SNDArrayPointerValue =
     memoize(cb, name, cb.fieldBuilder)
-
-  override def shape(cb: EmitCodeBuilder): SBaseStructCode =
-    pt.shapeType.loadCheapSCode(cb, pt.representation.loadField(a, "shape")).get
 }
