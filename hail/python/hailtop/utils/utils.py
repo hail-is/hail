@@ -502,7 +502,7 @@ async def bounded_gather2(sema: asyncio.Semaphore, *pfs, return_exceptions: bool
     return await bounded_gather2_raise_exceptions(sema, *pfs, cancel_on_error=cancel_on_error)
 
 
-RETRYABLE_HTTP_STATUS_CODES = {408, 500, 502, 503, 504}
+RETRYABLE_HTTP_STATUS_CODES = {408, 500, 502, 503, 504, 429}
 if os.environ.get('HAIL_DONT_RETRY_500') == '1':
     RETRYABLE_HTTP_STATUS_CODES.remove(500)
 
@@ -565,6 +565,7 @@ def is_transient_error(e):
         # nginx returns 502 if it cannot connect to the upstream server
         # 408 request timeout, 500 internal server error, 502 bad gateway
         # 503 service unavailable, 504 gateway timeout
+        # 429 "Temporarily throttled, too many requests"
         return True
     if (isinstance(e, hailtop.aiocloud.aiogoogle.client.compute_client.GCPOperationError)
             and 'QUOTA_EXCEEDED' in e.error_codes):
