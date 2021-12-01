@@ -19,6 +19,7 @@ deploy_config = get_deploy_config()
 DOCKER_PREFIX = os.environ['DOCKER_PREFIX']
 DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
 UBUNTU_IMAGE = 'ubuntu:20.04'
+DOMAIN = os.environ.get('HAIL_DOMAIN')
 NAMESPACE = os.environ.get('HAIL_DEFAULT_NAMESPACE')
 SCOPE = os.environ.get('HAIL_SCOPE', 'test')
 CLOUD = os.environ.get('HAIL_CLOUD')
@@ -748,6 +749,7 @@ backend.close()
             '/bin/bash',
             '-c',
             f'''
+hailctl config set domain {DOMAIN}
 rm /deploy-config/deploy-config.json
 python3 -c \'{script}\'''',
         ],

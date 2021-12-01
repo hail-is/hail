@@ -5,8 +5,10 @@ import os
 import json
 import logging
 from aiohttp import web
-from ..utils import retry_transient_errors, first_extant_file
+from ..utils import retry_transient_errors, first_extant_file, first_defined_value
 from ..tls import internal_client_ssl_context
+
+from .user_config import get_user_config
 
 log = logging.getLogger('deploy_config')
 
@@ -14,7 +16,11 @@ log = logging.getLogger('deploy_config')
 class DeployConfig:
     @staticmethod
     def from_config(config) -> 'DeployConfig':
-        domain = config.get('domain', 'hail.is')
+        domain = first_defined_value(
+            config.get('domain'),
+            get_user_config().get('global', 'domain'),
+            'hail.is'
+        )
         return DeployConfig(config['location'], config['default_namespace'], domain)
 
     def get_config(self) -> Dict[str, str]:

@@ -2690,6 +2690,7 @@ steps:
       export HAIL_TOKEN="{{ token }}"
       export HAIL_SCOPE="{{ scope }}"
       export HAIL_CLOUD="{{ global.cloud }}"
+      export HAIL_DOMAIN="{{ global.domain }}"
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/batch/
       python3 -m pytest \
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2765,6 +2766,7 @@ steps:
       export HAIL_TOKEN="{{ token }}"
       export HAIL_SCOPE="{{ scope }}"
       export HAIL_CLOUD="{{ global.cloud }}"
+      export HAIL_DOMAIN="{{ global.domain }}"
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/batch/
       python3 -m pytest \
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2840,6 +2842,7 @@ steps:
       export HAIL_TOKEN="{{ token }}"
       export HAIL_SCOPE="{{ scope }}"
       export HAIL_CLOUD="{{ global.cloud }}"
+      export HAIL_DOMAIN="{{ global.domain }}"
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/batch/
       python3 -m pytest \
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2915,6 +2918,7 @@ steps:
       export HAIL_TOKEN="{{ token }}"
       export HAIL_SCOPE="{{ scope }}"
       export HAIL_CLOUD="{{ global.cloud }}"
+      export HAIL_DOMAIN="{{ global.domain }}"
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/batch/
       python3 -m pytest \
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2990,6 +2994,7 @@ steps:
       export HAIL_TOKEN="{{ token }}"
       export HAIL_SCOPE="{{ scope }}"
       export HAIL_CLOUD="{{ global.cloud }}"
+      export HAIL_DOMAIN="{{ global.domain }}"
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/batch/
       python3 -m pytest \
               --log-date-format="%Y-%m-%dT%H:%M:%S" \

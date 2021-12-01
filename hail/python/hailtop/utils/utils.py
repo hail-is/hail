@@ -1,4 +1,4 @@
-from typing import Callable, TypeVar, Awaitable, Optional, Type, List, Dict
+from typing import Callable, TypeVar, Awaitable, Optional, Type, List, Dict, Any
 from types import TracebackType
 import concurrent
 import subprocess
@@ -56,6 +56,13 @@ def first_extant_file(*files: Optional[str]) -> Optional[str]:
     for f in files:
         if f is not None and os.path.isfile(f):
             return f
+    return None
+
+
+def first_defined_value(*values: Optional[Any]) -> Optional[Any]:
+    for v in values:
+        if v is not None:
+            return v
     return None
 
 
