@@ -472,7 +472,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
     val finish: EmitCodeBuilder => SIndexablePointerValue = { (cb: EmitCodeBuilder) =>
       cb.ifx(currentElementIndex.cne(length), cb._fatal("PCanonicalArray.constructFromFunctions push was called the wrong number of times: len=",
-        length.toS, ", calls=", currentElementIndex.toS))
+        length.toS, ", calls=", currentElementIndex.toS, s" Source was ${Thread.currentThread().getStackTrace.mkString("\n")}"))
       new SIndexablePointerValue(sType, addr, length, firstElementAddress)
     }
     (push, finish)

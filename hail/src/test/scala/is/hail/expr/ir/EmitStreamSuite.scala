@@ -335,8 +335,19 @@ class EmitStreamSuite extends HailSuite {
     val seqOps = SeqOp(0, FastIndexedSeq(), countAggSig)
     val newKey = MakeStruct(Seq("count" -> SelectFields(Ref("foo", streamType.elementType), Seq("a", "b"))))
     val streamBuffAggCount = StreamBufferedAggregate(countStructStream, initOps, newKey, seqOps, "foo",  IndexedSeq(countAggSig))
-    evalStream(streamBuffAggCount)
-
+    println(evalStream(streamBuffAggCount))
+  }
+  @Test def testStreamBufferedAggregator2(): Unit = {
+    val streamType = TStream(TStruct("a" -> TInt64))
+    val elemOne = MakeStruct(Seq(("a", I64(1))))
+    val elemTwo = MakeStruct(Seq(("a", I64(1))))
+    val countStructStream = MakeStream(Seq(elemOne, elemTwo), streamType)
+    val countAggSig = PhysicalAggSig(Count(), TypedStateSig(VirtualTypeWithReq.fullyOptional(TInt64).setRequired(true)))
+    val initOps = InitOp(0, FastIndexedSeq(), countAggSig)
+    val seqOps = SeqOp(0, FastIndexedSeq(), countAggSig)
+    val newKey = MakeStruct(Seq("count" -> SelectFields(Ref("foo", streamType.elementType), Seq("a"))))
+    val streamBuffAggCount = StreamBufferedAggregate(countStructStream, initOps, newKey, seqOps, "foo",  IndexedSeq(countAggSig))
+    println(evalStream(streamBuffAggCount))
   }
   @Test def testEmitJoinRightDistinct() {
     val eltType = TStruct("k" -> TInt32, "v" -> TString)

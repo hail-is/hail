@@ -269,15 +269,6 @@ object EmitStream {
           .map(cb) { case childStream: SStreamValue =>
             val childProducer = childStream.producer
             val eltField = mb.newEmitField("stream_buff_agg_elt", childProducer.element.emitType)
-//            val newKeyResultCode = EmitCode.fromI(mb) { cb =>
-//              emit(newKey,
-//                cb = cb,
-//                env = env.bind(name, eltField),
-//                region = childProducer.elementRegion)
-//            }
-//            val newKeyVal = newKeyResultCode.memoize(cb, "stream_buff_agg_new_key")
-//            val newKeySVal =  newKeyVal.get(cb).asInstanceOf[SBaseStructValue]
-            //val newKeyType = newKeySVal.st._typeWithRequiredness
             val newKeyVType = typeWithReqx(newKey)
             val kb = mb.ecb
             val nestedStates = aggSignatures.toArray.map(sig => AggStateSig.getState(sig.state, kb))
@@ -294,30 +285,12 @@ object EmitStream {
             val keyAndAggFields = newKeyVType.canonicalPType.asInstanceOf[PCanonicalStruct].sType.fieldEmitTypes :+ EmitType(serializedAggSType, true) // TODO is this required?
             val returnElemSType = SStackStruct(returnElemType.asInstanceOf[TBaseStruct], keyAndAggFields)
             val newStreamElem = mb.newEmitField("stream_buff_agg_new_stream_elem", EmitType(returnElemSType, true))
-//            val initStateAddress: Settable[Long] = mb.genFieldThisRef[Long]("stream_buff_agg_init_add")
-//            val nodeAddress = mb.genFieldThisRef[Long]("stream_buff_agg_node_add")
-//            val root: Settable[Long] = kb.genFieldThisRef[Long]("stream_buff_agg_root")
             val numElemInArray = mb.genFieldThisRef[Int]("stream_buff_agg_num_elem_in_size")
-//            val initContainer = new TupleAggregatorState(kb, nested, region, initStateAddress)
-//            val keyed = new GroupedBTreeKey(newKeyResultCode.emitType.copiedType.storageType, kb, region, nodeAddress, nested)
-//            val tree = new AppendOnlyBTree(kb, keyed, region, root, maxElements = 6)
             val childStreamEnded = mb.genFieldThisRef[Boolean]("stream_buff_agg_child_stream_ended")
             val produceElementMode = mb.genFieldThisRef[Boolean]("stream_buff_agg_child_produce_elt_mode")
-            val childEltField = mb.newEmitField("stream_buff_agg_child_child_elt", childProducer.element.emitType)
-
             val producer: StreamProducer = new StreamProducer {
-              override val length: Option[EmitCodeBuilder => Code[Int]] = childProducer.length
+              override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-              /**
-                * Stream producer setup method. If `initialize` is called, then the `close` method
-                * must be called as well to properly handle owned resources like files.
-                *
-                * The stream's element region must be assigned by a consumer before initialize
-                * is called.
-                *
-                * This block cannot jump away, e.g. to `LendOfStream`.
-                *
-                */
               override def initialize(cb: EmitCodeBuilder): Unit = {
                 childProducer.initialize(cb)
                 cb.assign(childStreamEnded, false)
@@ -328,50 +301,28 @@ object EmitStream {
                 cb.assign(numElemInArray, 0)
                 dictState.createState(cb)
                 cb.assign(region, Region.stagedCreate(Region.REGULAR, outerRegion.getPool())) //TODO find out what actually goes here
-                cb.println("initialize")
 
               }
 
-
-              /**
-                * Stream element region, into which the `element` is emitted. The assignment, clearing,
-                * and freeing of the element region is the responsibility of the stream consumer.
-                */
               override val elementRegion: Settable[Region] = childProducer.elementRegion
-              /**
-                * This boolean parameter indicates whether the producer's elements should be allocated in
-                * separate regions (by clearing when elements leave a consumer's scope). This parameter
-                * propagates bottom-up from producers like [[ReadPartition]] and [[StreamRange]], but
-                * it is the responsibility of consumers to implement the right memory management semantics
-                * based on this flag.
-                */
+
               override val requiresMemoryManagementPerElement: Boolean = false
-              /**
-                * The `LproduceElement` label is the mechanism by which consumers drive iteration. A consumer
-                * jumps to `LproduceElement` when it is ready for an element. The code block at this label,
-                * defined by the producer, jumps to either `LproduceElementDone` or `LendOfStream`, both of
-                * which the consumer must define.
-                */
+
               override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
                 val elementProduceLabel = CodeLabel()
                 val getElemLabel = CodeLabel()
                 val startLabel = CodeLabel()
                 cb.define(startLabel)
-                cb.println("start, produceElementMode = ", produceElementMode.toS)
                 cb.ifx(produceElementMode, {
-                  cb.println("About to go to elementProduceLabel")
                   cb.goto(elementProduceLabel)
                 })
                 cb.ifx(!dictState.region.isNull,
                   dictState.clearTree(cb)
                 )
                 dictState.init(cb, { cb => emitVoid(initAggs, cb, container = Some(newContainer)) })
-                cb.println("About to go to childProduceElement")
+                cb.define(getElemLabel)
                 cb.goto(childProducer.LproduceElement)
                 cb.define(childProducer.LproduceElementDone)
-
-                cb.define(getElemLabel)
-                cb.println("produced element")
                 cb.assign(eltField, childProducer.element)
                 val newKeyResultCode = EmitCode.fromI(mb) { cb =>
                   emit(newKey,
@@ -380,21 +331,17 @@ object EmitStream {
                     region = childProducer.elementRegion)
                 }
                 val resultKeyValue = newKeyResultCode.memoize(cb, "buff_agg_stream_result_key")
-                cb.println("put child element in resultKey")
                 dictState.withContainer(cb, resultKeyValue, { cb => emitVoid(seqOps, cb, container = Some(newContainer)) })
-                cb.println(dictState.size.toS)
                 cb.ifx(dictState.size >= maxSize,{
                   cb.assign(produceElementMode, true)
                 })
-                cb.println(produceElementMode.toS)
                 cb.ifx(produceElementMode,
                   cb.goto(elementProduceLabel),
                   cb.goto(getElemLabel))
                 cb.define(childProducer.LendOfStream)
-                cb.assign(childStreamEnded, false)
+                cb.assign(childStreamEnded, true)
 
                 cb.define(elementProduceLabel)
-                cb.println("elementProduceLabel")
                 cb.ifx(numElemInArray ceq 0, {
                   dictState.tree.foreach(cb) { (cb, elementOff) =>
                     cb += elementArray.update(numElemInArray, elementOff)
@@ -403,7 +350,7 @@ object EmitStream {
                 })
 
                 cb.assign(idx, idx + 1)
-                cb.ifx(numElemInArray >= idx, {
+                cb.ifx(numElemInArray <= idx, {
                   cb.assign(idx, 0)
                   cb.assign(numElemInArray, 0)
                   cb.assign(produceElementMode, false)
@@ -420,26 +367,13 @@ object EmitStream {
                   .memoize(cb, "stream_buff_agg_return_val")))
                 assert(returnElemSType.virtualType == sStructToReturn.st.virtualType)
                 val casted = sStructToReturn.castTo(cb, region, returnElemSType)
-
                 cb.assign(newStreamElem, EmitCode.present(mb, casted).toI(cb))
 
                 cb.goto(LproduceElementDone)
-                //
-
-
-                // cb.whileLoop(size < 8) picked random value, not sure how to also end it if the stream has no more
-                //elements
               }
-              /**
-                * Stream element. This value is valid after the producer jumps to `LproduceElementDone`,
-                * until a consumer jumps to `LproduceElement` again, or calls `close()`.
-                */
+
               override val element: EmitCode = newStreamElem.load
 
-              /**
-                * Stream producer cleanup method. If `initialize` is called, then the `close` method
-                * must be called as well to properly handle owned resources like files.
-                */
               override def close(cb: EmitCodeBuilder): Unit =
                 childProducer.close(cb)
               }
