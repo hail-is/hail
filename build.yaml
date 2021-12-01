@@ -2514,7 +2514,7 @@ steps:
       export AZURE_APPLICATION_CREDENTIALS=/test-azure-key/credentials.json
 
       {% if deploy %}
-      destination=$(cat /global-config/hail_query_gcs_path)/jars/
+      destination={{ global.query_storage_uri }}/jars/
       {% else %}
       destination={{ global.test_storage_uri }}/{{ token }}/jars/
       {% endif %}
@@ -2528,10 +2528,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /query-gsa-key
-      - name: global-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /global-config
     inputs:
       - from: /just-jar/hail.jar
         to: /io/hail.jar

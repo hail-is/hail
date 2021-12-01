@@ -306,6 +306,12 @@ resource "azurerm_storage_container" "batch_logs" {
   container_access_type = "private"
 }
 
+resource "azurerm_storage_container" "query" {
+  name                  = "query"
+  storage_account_name  = azurerm_storage_account.batch.name
+  container_access_type = "private"
+}
+
 resource "azurerm_role_assignment" "batch_batch_account_contributor" {
   scope                = azurerm_storage_account.batch.id
   role_definition_name = "Storage Blob Data Contributor"
