@@ -74,6 +74,9 @@ from .credentials import CloudUserCredentials
 
 # uvloop.install()
 
+with open('/subdomains.txt', 'r') as subdomains_file:
+    HAIL_SERVICES = [line.rstrip() for line in subdomains_file.readlines()]
+
 oldwarn = warnings.warn
 
 
@@ -210,7 +213,7 @@ class NetworkNamespace:
             hosts.write('127.0.0.1 localhost\n')
             hosts.write(f'{self.job_ip} {self.hostname}\n')
             if NAMESPACE == 'default':
-                for service in ('auth', 'batch'):
+                for service in HAIL_SERVICES:
                     hosts.write(f'{INTERNAL_GATEWAY_IP} {service}.hail\n')
             hosts.write(f'{INTERNAL_GATEWAY_IP} internal.hail\n')
 
