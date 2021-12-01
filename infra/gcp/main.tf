@@ -389,11 +389,6 @@ module "ukbb" {
   source = "../ukbb"
 }
 
-module "atgu_gsa_secret" {
-  source = "./gsa_k8s_secret"
-  name = "atgu"
-}
-
 module "auth_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "auth"
