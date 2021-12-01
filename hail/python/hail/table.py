@@ -3255,6 +3255,10 @@ class Table(ExprContainer):
         :class:`.pandas.DataFrame`
 
         """
+
+        if flatten:
+            return pandas.DataFrame.from_records(self.flatten().collect())
+
         return Env.spark_backend('to_pandas').to_pandas(self, flatten)
 
     @staticmethod
