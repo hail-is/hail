@@ -210,7 +210,8 @@ class NetworkNamespace:
             hosts.write('127.0.0.1 localhost\n')
             hosts.write(f'{self.job_ip} {self.hostname}\n')
             if NAMESPACE == 'default':
-                hosts.write(f'{INTERNAL_GATEWAY_IP} batch.hail\n')
+                for service in ('auth', 'batch'):
+                    hosts.write(f'{INTERNAL_GATEWAY_IP} {service}.hail\n')
             hosts.write(f'{INTERNAL_GATEWAY_IP} internal.hail\n')
 
         # Jobs on the private network should have access to the metadata server
