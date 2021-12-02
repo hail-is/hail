@@ -14,5 +14,6 @@ resource "kubernetes_secret" "global_config" {
     kubernetes_server_url  = "https://${var.global_config.global.kubernetes_server}"
     batch_logs_storage_uri = var.global_config.global.batch_logs_storage_uri
     test_storage_uri       = var.global_config.global.test_storage_uri
+    query_storage_uri      = var.global_config.global.query_storage_uri
   }, var.global_config.azure)
 }

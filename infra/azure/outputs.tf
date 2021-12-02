@@ -14,6 +14,7 @@ output "global_config" {
       kubernetes_server = azurerm_kubernetes_cluster.vdc.fqdn
       batch_logs_storage_uri = "hail-az://${azurerm_storage_account.batch.name}/${azurerm_storage_container.batch_logs.name}"
       test_storage_uri = "hail-az://${azurerm_storage_account.test.name}/${azurerm_storage_container.test.name}"
+      query_storage_uri = "hail-az://${azurerm_storage_account.batch.name}/${azurerm_storage_container.query.name}"
     }
     azure = {
       # FIXME Just for testing

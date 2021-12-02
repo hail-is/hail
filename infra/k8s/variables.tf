@@ -9,6 +9,7 @@ variable "global_config" {
       docker_prefix = string,
       batch_logs_storage_uri = string,
       test_storage_uri = string,
+      query_storage_uri = string,
     }),
     azure = map(any)
   })

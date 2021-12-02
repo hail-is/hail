@@ -51,7 +51,7 @@ class User(
   val fs: GoogleStorageFS)
 
 class ServiceBackend(
-  private[this] val queryGCSJarPath: String
+  private[this] val queryStorageJarURI: String
 ) extends Backend {
   import ServiceBackend.log
 
@@ -130,7 +130,7 @@ class ServiceBackend(
             "command" -> JArray(List(
               JString("is.hail.backend.service.Worker"),
               JString(HAIL_REVISION),
-              JString(queryGCSJarPath + HAIL_REVISION + ".jar"),
+              JString(queryStorageJarURI + HAIL_REVISION + ".jar"),
               JString(root),
               JString(s"$i"))),
             "type" -> JString("jvm")),
@@ -594,11 +594,11 @@ object ServiceBackendMain {
   def main(argv: Array[String]): Unit = {
     assert(argv.length == 1, argv.toFastIndexedSeq)
     val udsAddress = argv(0)
-    val queryGCSPathEnvVar = System.getenv("HAIL_QUERY_GCS_PATH")
-    assert(queryGCSPathEnvVar != null)
-    val queryGCSJarPath = queryGCSPathEnvVar + "/jars/"
+    val queryStorageURI = System.getenv("HAIL_QUERY_STORAGE_UI")
+    assert(queryStorageURI != null)
+    val queryStorageJarURI = queryStorageURI + "/jars/"
     val executor = Executors.newCachedThreadPool()
-    val backend = new ServiceBackend(queryGCSJarPath)
+    val backend = new ServiceBackend(queryStorageJarURI)
     HailContext(backend, "hail.log", false, false, 50, skipLoggingConfiguration = true, 3)
 
     val ss = AFUNIXServerSocket.newInstance()
