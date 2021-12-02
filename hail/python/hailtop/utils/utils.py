@@ -59,7 +59,7 @@ def first_extant_file(*files: Optional[str]) -> Optional[str]:
     return None
 
 
-def first_defined_value(*values: Optional[Any]) -> Optional[Any]:
+def first_defined_value(*values: Optional[T]) -> Optional[T]:
     for v in values:
         if v is not None:
             return v
