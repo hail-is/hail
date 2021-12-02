@@ -155,7 +155,6 @@ trait CodeBuilderLike {
     newField[T](name, coerce[T](c))
 
   def goto(L: CodeLabel): Unit = {
-    assert(L != null)
     append(L.goto)
   }
 

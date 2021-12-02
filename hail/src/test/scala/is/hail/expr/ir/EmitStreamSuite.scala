@@ -14,10 +14,9 @@ import is.hail.variant.Call2
 import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
 import is.hail.TestUtils._
-import is.hail.expr.ir.agg.{PhysicalAggSig, TypedStateSig}
+import is.hail.expr.ir.agg.{CollectStateSig, PhysicalAggSig, TypedStateSig}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeSCode, StreamSingleCodeType}
-
 import org.testng.annotations.Test
 
 class EmitStreamSuite extends HailSuite {
@@ -326,7 +325,7 @@ class EmitStreamSuite extends HailSuite {
 
   @Test def testStreamBufferedAggregator(): Unit = {
     val streamType = TStream(TStruct("a" -> TInt64, "b" -> TInt64))
-    val numSeq = (0 to 10).map(i => Seq(I64(i), I64(i + 1)))
+    val numSeq = (0 to 5).map(i => Seq(I64(i), I64(i + 1)))
     val numTupleSeq = numSeq.map(_ => Seq("a", "b")).zip(numSeq)
     val countStructSeq = numTupleSeq.map { case (s, i) => s.zip(i)}.map(is => MakeStruct(is))
     val countStructStream = MakeStream(countStructSeq, streamType, false)
@@ -335,7 +334,14 @@ class EmitStreamSuite extends HailSuite {
     val seqOps = SeqOp(0, FastIndexedSeq(), countAggSig)
     val newKey = MakeStruct(Seq("count" -> SelectFields(Ref("foo", streamType.elementType), Seq("a", "b"))))
     val streamBuffAggCount = StreamBufferedAggregate(countStructStream, initOps, newKey, seqOps, "foo",  IndexedSeq(countAggSig))
-    println(evalStream(streamBuffAggCount))
+    val result = mapIR(streamBuffAggCount) { elem =>
+      MakeStruct(Seq(
+        "key" -> GetField(elem, "count"),
+        "aggResult" ->
+          RunAgg(InitFromSerializedValue(0, GetTupleElement(GetField(elem, "agg"), 0), countAggSig.state), ResultOp(0, countAggSig), IndexedSeq(countAggSig.state))
+      ))}
+    println(evalStream(result))
+
   }
   @Test def testStreamBufferedAggregator2(): Unit = {
     val streamType = TStream(TStruct("a" -> TInt64))
@@ -347,7 +353,34 @@ class EmitStreamSuite extends HailSuite {
     val seqOps = SeqOp(0, FastIndexedSeq(), countAggSig)
     val newKey = MakeStruct(Seq("count" -> SelectFields(Ref("foo", streamType.elementType), Seq("a"))))
     val streamBuffAggCount = StreamBufferedAggregate(countStructStream, initOps, newKey, seqOps, "foo",  IndexedSeq(countAggSig))
-    println(evalStream(streamBuffAggCount))
+    val result = mapIR(streamBuffAggCount) { elem =>
+      MakeStruct(Seq(
+        "key" -> GetField(elem, "count"),
+        "aggResult" ->
+      RunAgg(InitFromSerializedValue(0, GetTupleElement(GetField(elem, "agg"), 0), countAggSig.state), ResultOp(0, countAggSig), IndexedSeq(countAggSig.state))
+    ))}
+    println(evalStream(result))
+  }
+
+  @Test def testStreamBufferedAggregator3(): Unit = {
+    val streamType = TStream(TStruct("a" -> TInt64, "b" -> TInt64))
+    val elemOne = MakeStruct(Seq(("a", I64(1)), ("b", I64(1))))
+    val elemTwo = MakeStruct(Seq(("a", I64(2)), ("b", I64(2))))
+    val elemThree = MakeStruct(Seq(("a", I64(1)), ("b", I64(3))))
+    val elemFour = MakeStruct(Seq(("a", I64(2)), ("b", I64(4))))
+    val collectStructStream = MakeStream(Seq(elemOne, elemTwo, elemThree, elemFour), streamType)
+    val collectAggSig =  PhysicalAggSig(Collect(), CollectStateSig(VirtualTypeWithReq(PType.canonical(TInt64))))
+    val initOps = InitOp(0, FastIndexedSeq(), collectAggSig)
+    val seqOps = SeqOp(0, FastIndexedSeq(GetField(Ref("foo", streamType.elementType), "b")), collectAggSig)
+    val newKey = MakeStruct(Seq("collect" -> SelectFields(Ref("foo", streamType.elementType), Seq("a"))))
+    val streamBuffAggCollect = StreamBufferedAggregate(collectStructStream, initOps, newKey, seqOps, "foo",  IndexedSeq(collectAggSig))
+    val result = mapIR(streamBuffAggCollect) { elem =>
+      MakeStruct(Seq(
+        "key" -> GetField(elem, "collect"),
+        "aggResult" ->
+          RunAgg(InitFromSerializedValue(0, GetTupleElement(GetField(elem, "agg"), 0), collectAggSig.state), ResultOp(0, collectAggSig), IndexedSeq(collectAggSig.state))
+      ))}
+    println(evalStream(result))
   }
   @Test def testEmitJoinRightDistinct() {
     val eltType = TStruct("k" -> TInt32, "v" -> TString)
