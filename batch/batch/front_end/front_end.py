@@ -1262,7 +1262,7 @@ async def ui_cancel_batch(request, userdata, batch_id):  # pylint: disable=unuse
     if not errored:
         set_message(session, f'Batch {batch_id} cancelled.', 'info')
     location = request.app.router['batches'].url_for().with_query(params)
-    raise web.HTTPFound(location=location)
+    return web.HTTPFound(location=location)
 
 
 @routes.post('/batches/{batch_id}/delete')
@@ -1279,7 +1279,7 @@ async def ui_delete_batch(request, userdata, batch_id):  # pylint: disable=unuse
     session = await aiohttp_session.get_session(request)
     set_message(session, f'Batch {batch_id} deleted.', 'info')
     location = request.app.router['batches'].url_for().with_query(params)
-    raise web.HTTPFound(location=location)
+    return web.HTTPFound(location=location)
 
 
 @routes.get('/batches', name='batches')
@@ -2119,7 +2119,7 @@ SELECT frozen FROM globals;
 @catch_ui_error_in_dev
 async def index(request, userdata):  # pylint: disable=unused-argument
     location = request.app.router['batches'].url_for()
-    raise web.HTTPFound(location=location)
+    return web.HTTPFound(location=location)
 
 
 async def cancel_batch_loop_body(app):
