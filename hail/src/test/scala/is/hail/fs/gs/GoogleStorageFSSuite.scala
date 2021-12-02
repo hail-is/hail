@@ -14,18 +14,17 @@ class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
   def beforeclass(): Unit = {
     if (System.getenv("HAIL_CLOUD") != "gcp") {
       throw new SkipException("This test suite is only run in GCP.");
+    } else {
+      assert(bucket != null)
+      assert(fsResourcesRoot != null)
     }
   }
 
   val bucket: String = System.getenv("HAIL_TEST_GCS_BUCKET")
 
-  assert(bucket != null)
-
   val root: String = s"gs://$bucket"
 
   val fsResourcesRoot: String = System.getenv("HAIL_FS_TEST_CLOUD_RESOURCES_URI")
-
-  assert(fsResourcesRoot != null)
 
   lazy val fs = {
     val gac = System.getenv("GOOGLE_APPLICATION_CREDENTIALS")
