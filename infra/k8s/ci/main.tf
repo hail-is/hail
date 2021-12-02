@@ -27,7 +27,7 @@ resource "kubernetes_secret" "hail_ci_0_1_github_oauth_token" {
   }
 
   data = {
-    "oauth-token" = var.github_oauth_token
+    "oauth-token" = var.ci_and_deploy_github_oauth_token
   }
 }
 
@@ -37,6 +37,6 @@ resource "kubernetes_secret" "hail_ci_0_1_service_account_key" {
   }
 
   data = {
-    "user1" = var.github_user1_oauth_token
+    "user1" = var.ci_test_repo_creator_github_oauth_token
   }
 }

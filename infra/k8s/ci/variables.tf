@@ -1,8 +1,8 @@
-variable "github_oauth_token" {
+variable "ci_and_deploy_github_oauth_token" {
   type = string
 }
 
-variable "github_user1_oauth_token" {
+variable "ci_test_repo_creator_github_oauth_token" {
   type = string
 }
 
