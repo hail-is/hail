@@ -15,6 +15,8 @@ from hailtop.config import get_user_config
 from hailtop.batch.utils import concatenate
 from hailtop.aiotools.router_fs import RouterAsyncFS
 
+from ..utils import fails_in_azure
+
 
 DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
 PYTHON_DILL_IMAGE = os.environ['PYTHON_DILL_IMAGE']
@@ -591,6 +593,7 @@ class ServiceTests(unittest.TestCase):
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
+    @fails_in_azure
     def test_gcsfuse(self):
         assert self.bucket_name
         path = f'/{self.bucket_name}{self.cloud_output_path}'
@@ -609,6 +612,7 @@ class ServiceTests(unittest.TestCase):
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
+    @fails_in_azure
     def test_gcsfuse_read_only(self):
         assert self.bucket_name
         path = f'/{self.bucket_name}{self.cloud_output_path}'
@@ -622,6 +626,7 @@ class ServiceTests(unittest.TestCase):
         res_status = res.status()
         assert res_status['state'] == 'failure', str((res_status, res.debug_info()))
 
+    @fails_in_azure
     def test_gcsfuse_implicit_dirs(self):
         assert self.bucket_name
         path = f'/{self.bucket_name}{self.cloud_output_path}'
@@ -640,6 +645,7 @@ class ServiceTests(unittest.TestCase):
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
+    @fails_in_azure
     def test_gcsfuse_empty_string_bucket_fails(self):
         assert self.bucket_name
         b = self.batch()
