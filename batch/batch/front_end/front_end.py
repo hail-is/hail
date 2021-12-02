@@ -2119,7 +2119,7 @@ SELECT frozen FROM globals;
 @catch_ui_error_in_dev
 async def index(request, userdata):  # pylint: disable=unused-argument
     location = request.app.router['batches'].url_for()
-    return web.HTTPFound(location=location)
+    raise web.HTTPFound(location=location)
 
 
 async def cancel_batch_loop_body(app):
