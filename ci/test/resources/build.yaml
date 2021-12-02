@@ -50,7 +50,7 @@ steps:
     resources:
       storage: 10Gi
       cpu: "2"
-      memory: 7.5Gi
+      memory: standard
     inputs:
       - from: /repo
         to: /io/repo
@@ -97,7 +97,7 @@ steps:
     resources:
       storage: 10Gi
       cpu: "2"
-      memory: 7.5Gi
+      memory: standard
     dependsOn:
       - base_image
       - merge_code
@@ -159,7 +159,7 @@ steps:
     resources:
       storage: 10Gi
       cpu: "2"
-      memory: 7.5Gi
+      memory: standard
     inputs:
       - from: /repo
         to: /io/repo
