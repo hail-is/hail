@@ -36,7 +36,7 @@ import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
 import scala.reflect.ClassTag
 
 object TableIR {
-  def read(fs: FS, path: String, dropRows: Boolean = false, requestedType: Option[TableType] = None): TableIR = {
+  def read(fs: FS, path: String, dropRows: Boolean = false, requestedType: Option[TableType] = None): TableRead = {
     val successFile = path + "/_SUCCESS"
     if (!fs.exists(path + "/_SUCCESS"))
       fatal(s"write failed: file not found: $successFile")
@@ -419,6 +419,8 @@ abstract class TableReader {
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue
 
   def partitionCounts: Option[IndexedSeq[Long]]
+
+  def isDistinctlyKeyed: Boolean = false // FIXME: No default value
 
   def fullType: TableType
 
@@ -969,6 +971,8 @@ class TableNativeReader(
 
   def partitionCounts: Option[IndexedSeq[Long]] = if (params.options.isDefined) None else Some(spec.partitionCounts)
 
+  override def isDistinctlyKeyed: Boolean = spec.isDistinctlyKeyed
+
   def fullType: TableType = spec.table_type
 
   def rowAndGlobalPTypes(ctx: ExecuteContext, requestedType: TableType): (PStruct, PStruct) = {
@@ -1225,6 +1229,8 @@ case class TableRead(typ: TableType, dropRows: Boolean, tr: TableReader) extends
     s"\n  original:  ${ tr.fullType }\n  requested: $typ")
 
   override def partitionCounts: Option[IndexedSeq[Long]] = if (dropRows) Some(FastIndexedSeq(0L)) else tr.partitionCounts
+
+  def isDistinctlyKeyed: Boolean = tr.isDistinctlyKeyed
 
   lazy val rowCountUpperBound: Option[Long] = partitionCounts.map(_.sum)
 

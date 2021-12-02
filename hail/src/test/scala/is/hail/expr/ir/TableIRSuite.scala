@@ -758,7 +758,9 @@ class TableIRSuite extends HailSuite {
     val path = ctx.createTmpPath("test-table-write", "ht")
     Interpret[Unit](ctx, TableWrite(table, TableNativeWriter(path)))
     val before = table.analyzeAndExecute(ctx).asTableValue(ctx)
-    val after = Interpret(TableIR.read(fs, path), ctx, false)
+    val read = TableIR.read(fs, path)
+    assert(read.isDistinctlyKeyed)
+    val after = Interpret(read, ctx, false)
     assert(before.globals.javaValue == after.globals.javaValue)
     assert(before.rdd.collect().toFastIndexedSeq == after.rdd.collect().toFastIndexedSeq)
   }

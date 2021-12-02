@@ -377,7 +377,7 @@ case class TableSpecWriter(path: String, typ: TableType, rowRelPath: String, glo
 
       // Only nonempty partitions affect first, last, and distinctlyKeyed.
       cb.ifx(count cne 0L, {
-        val curFirst = curElement.loadField(cb, "firstKey").get(cb, "firstKey of curElement can't be missing")
+        val curFirst = curElement.loadField(cb, "firstKey").get(cb, const("firstKey of curElement can't be missing, part size was ") concat count.toS)
 
         val comparator = NEQ(lastSeenSettable.emitType.virtualType).codeOrdering(cb.emb.ecb, lastSeenSettable.st, curFirst.st)
         val notEqualToLast = comparator(cb, lastSeenSettable, EmitValue.present(curFirst)).asInstanceOf[Value[Boolean]]
