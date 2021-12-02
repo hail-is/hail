@@ -6,5 +6,6 @@ def publicly_available_images(docker_prefix: str) -> List[str]:
     # variables
     return [
         f'{docker_prefix}/{name}'
-        for name in ('query', 'hailgenetics/hail', 'hailgenetics/genetics', 'python-dill', 'batch-worker')
+        # FIXME: remove raw python-dill when we stop supporting clients 0.2.79 and before
+        for name in ('query', 'hailgenetics/hail', 'hailgenetics/genetics', 'python-dill', 'hailgenetics/python-dill', 'batch-worker')
     ]

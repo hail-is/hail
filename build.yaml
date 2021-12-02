@@ -3260,6 +3260,66 @@ steps:
       gsutil --version
     dependsOn:
       - hailgenetics_hail_image
+  - kind: buildImage2
+    name: hailgenetics_python_dill_36_image
+    dockerFile: /io/docker/hail/Dockerfile.3.6
+    contextPath: /io/docker/hail/
+    publishAs: hailgenetics/python-dill
+    inputs:
+      - from: /repo/docker/hail
+        to: /io/docker/hail
+    dependsOn:
+      - merge_code
+  - kind: buildImage2
+    name: hailgenetics_python_dill_36_slim_image
+    dockerFile: /io/docker/hail/Dockerfile.3.6-slim
+    contextPath: /io/docker/hail/
+    publishAs: hailgenetics/python-dill
+    inputs:
+      - from: /repo/docker/hail
+        to: /io/docker/hail
+    dependsOn:
+      - merge_code
+  - kind: buildImage2
+    name: hailgenetics_python_dill_37_image
+    dockerFile: /io/docker/hail/Dockerfile.3.7
+    contextPath: /io/docker/hail/
+    publishAs: hailgenetics/python-dill
+    inputs:
+      - from: /repo/docker/hail
+        to: /io/docker/hail
+    dependsOn:
+      - merge_code
+  - kind: buildImage2
+    name: hailgenetics_python_dill_37_slim_image
+    dockerFile: /io/docker/hail/Dockerfile.3.7-slim
+    contextPath: /io/docker/hail/
+    publishAs: hailgenetics/python-dill
+    inputs:
+      - from: /repo/docker/hail
+        to: /io/docker/hail
+    dependsOn:
+      - merge_code
+  - kind: buildImage2
+    name: hailgenetics_python_dill_38_image
+    dockerFile: /io/docker/hail/Dockerfile.3.8
+    contextPath: /io/docker/hail/
+    publishAs: hailgenetics/python-dill
+    inputs:
+      - from: /repo/docker/hail
+        to: /io/docker/hail
+    dependsOn:
+      - merge_code
+  - kind: buildImage2
+    name: hailgenetics_python_dill_38_slim_image
+    dockerFile: /io/docker/hail/Dockerfile.3.8-slim
+    contextPath: /io/docker/hail/
+    publishAs: hailgenetics/python-dill
+    inputs:
+      - from: /repo/docker/hail
+        to: /io/docker/hail
+    dependsOn:
+      - merge_code
   - kind: runImage
     name: test_hailtop_batch_0
     image:
@@ -3272,7 +3332,7 @@ steps:
       export PYTEST_SPLIT_INDEX=0
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
-      export PYTHON_DILL_IMAGE="{{ global.docker_prefix }}/python-dill:3.7-slim"
+      export HAIL_GENETICS_PYTHON_DILL_IMAGE="{{ hailgenetics_python_dill_37_slim_image.image }}"
       export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
       hailctl config set batch/billing_project test
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/batch/
@@ -3326,7 +3386,7 @@ steps:
       export PYTEST_SPLIT_INDEX=1
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
-      export PYTHON_DILL_IMAGE="{{ global.docker_prefix }}/python-dill:3.7-slim"
+      export HAIL_GENETICS_PYTHON_DILL_IMAGE="{{ hailgenetics_python_dill_37_slim_image.image }}"
       export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
       hailctl config set batch/billing_project test
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/batch/
@@ -3380,7 +3440,7 @@ steps:
       export PYTEST_SPLIT_INDEX=2
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
-      export PYTHON_DILL_IMAGE="{{ global.docker_prefix }}/python-dill:3.7-slim"
+      export HAIL_GENETICS_PYTHON_DILL_IMAGE="{{ hailgenetics_python_dill_37_slim_image.image }}"
       export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
       hailctl config set batch/billing_project test
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/batch/
@@ -3434,7 +3494,7 @@ steps:
       export PYTEST_SPLIT_INDEX=3
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
-      export PYTHON_DILL_IMAGE="{{ global.docker_prefix }}/python-dill:3.7-slim"
+      export HAIL_GENETICS_PYTHON_DILL_IMAGE="{{ hailgenetics_python_dill_37_slim_image.image }}"
       export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
       hailctl config set batch/billing_project test
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/batch/
@@ -3488,7 +3548,7 @@ steps:
       export PYTEST_SPLIT_INDEX=4
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
-      export PYTHON_DILL_IMAGE="{{ global.docker_prefix }}/python-dill:3.7-slim"
+      export HAIL_GENETICS_PYTHON_DILL_IMAGE="{{ hailgenetics_python_dill_37_slim_image.image }}"
       export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
       hailctl config set batch/billing_project test
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/batch/
@@ -3722,7 +3782,9 @@ steps:
 
       cd /io/repo/hail
 
-      if git ls-remote --exit-code --tags origin $(cat /io/hail_pip_version)
+      HAIL_PIP_VERSION=$(cat /io/hail_pip_version)
+
+      if git ls-remote --exit-code --tags origin $HAIL_PIP_VERSION
       then
           echo "tag $HAIL_PIP_VERSION already exists"
           exit 0
@@ -3732,13 +3794,39 @@ steps:
       time retry ./gradlew --version
       make wheel upload-artifacts DEPLOY_REMOTE=origin
 
-      bash scripts/deploy.sh $(cat /io/hail_pip_version) \
+      bash scripts/deploy.sh $HAIL_PIP_VERSION \
                              $(cat /io/hail_version) \
                              $(cat /io/git_version) \
                              origin \
                              /io/repo/hail/build/deploy/dist/hail-*-py3-none-any.whl \
-                             /io/github-oauth \
-                             hailgenetics_hail_image
+                             /io/github-oauth
+
+      retry() {
+          "$@" ||
+              (sleep 2 && "$@") ||
+              (sleep 5 && "$@");
+      }
+
+      retry skopeo copy {{ hailgenetics_hail_image.image }} docker.io/hailgenetics/hail:$HAIL_PIP_VERSION
+      retry skopeo copy {{ hailgenetics_hail_image.image }} gcr.io/hail-vdc/hailgenetics/hail:$HAIL_PIP_VERSION
+
+      retry skopeo copy {{ hailgenetics_python_dill_36_image.image }} docker.io/hailgenetics/python-dill:3.6
+      retry skopeo copy {{ hailgenetics_python_dill_36_image.image }} gcr.io/hail-vdc/hailgenetics/python-dill:3.6
+
+      retry skopeo copy {{ hailgenetics_python_dill_36_slim_image.image }} docker.io/hailgenetics/python-dill:3.6-slim
+      retry skopeo copy {{ hailgenetics_python_dill_36_slim_image.image }} gcr.io/hail-vdc/hailgenetics/python-dill:3.6-slim
+
+      retry skopeo copy {{ hailgenetics_python_dill_37_image.image }} docker.io/hailgenetics/python-dill:3.7
+      retry skopeo copy {{ hailgenetics_python_dill_37_image.image }} gcr.io/hail-vdc/hailgenetics/python-dill:3.7
+
+      retry skopeo copy {{ hailgenetics_python_dill_37_slim_image.image }} docker.io/hailgenetics/python-dill:3.7-slim
+      retry skopeo copy {{ hailgenetics_python_dill_37_slim_image.image }} gcr.io/hail-vdc/hailgenetics/python-dill:3.7-slim
+
+      retry skopeo copy {{ hailgenetics_python_dill_38_image.image }} docker.io/hailgenetics/python-dill:3.8
+      retry skopeo copy {{ hailgenetics_python_dill_38_image.image }} gcr.io/hail-vdc/hailgenetics/python-dill:3.8
+
+      retry skopeo copy {{ hailgenetics_python_dill_38_slim_image.image }} docker.io/hailgenetics/python-dill:3.8-slim
+      retry skopeo copy {{ hailgenetics_python_dill_38_slim_image.image }} gcr.io/hail-vdc/hailgenetics/python-dill:3.8-slim
     inputs:
       - from: /hail_version
         to: /io/hail_version

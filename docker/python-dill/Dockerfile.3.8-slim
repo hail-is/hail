@@ -1,4 +1,4 @@
-FROM python:@PYTHON_VERSION@
+FROM {{ global.docker_prefix }}/python:3.8-slim
 RUN pip install --use-feature=2020-resolver --upgrade --no-cache-dir dill numpy scipy sklearn && \
     python3 -m pip check && \
     apt-get update && \

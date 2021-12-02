@@ -14,6 +14,7 @@ from hailtop.aiotools.router_fs import RouterAsyncFS
 
 from .batch import Batch
 from .backend import ServiceBackend
+from .hail_genetics_images import hail_genetics_python_dill_image
 
 
 if sys.version_info < (3, 7):
@@ -136,12 +137,8 @@ class BatchPoolExecutor:
         self.futures: List[BatchPoolFuture] = []
         self.finished_future_count = 0
         self._shutdown = False
-        version = sys.version_info
         if image is None:
-            if version.major != 3 or version.minor not in (6, 7, 8):
-                raise ValueError(
-                    f'You must specify an image if you are using a Python version other than 3.6, 3.7, or 3.8 (you are using {version})')
-            self.image = f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
+            self.image = hail_genetics_python_dill_image()
         else:
             self.image = image
         self.cpus_per_job = cpus_per_job

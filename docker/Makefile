@@ -1,7 +1,7 @@
 include ../config.mk
 
 .PHONY: build
-build: base service-base service-java-run-base hail-ubuntu
+build: base service-base service-java-run-base hail-ubuntu python-dill-images
 
 TOKEN = $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
 
@@ -44,6 +44,10 @@ service-java-run-base-image-ref: hail-ubuntu-image-ref hail_version
 	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat hail-ubuntu-image-ref)'"}}' Dockerfile.service-java-run-base Dockerfile.service-java-run-base.out
 	../docker-build.sh .. docker/Dockerfile.service-java-run-base.out $(SERVICE_JAVA_RUN_BASE_IMAGE)
 	echo $(SERVICE_JAVA_RUN_BASE_IMAGE) > $@
+
+.PHONY: python-dill-images
+python-dill-images:
+	cd python-dill && ./build-and-push.sh
 
 .PHONY: deploy
 deploy: build

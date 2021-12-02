@@ -1,5 +1,4 @@
 from typing import Optional, Dict, Any, TypeVar, Generic, List, Union
-import sys
 import abc
 import orjson
 import os
@@ -578,11 +577,7 @@ class ServiceBackend(Backend[bc.Batch]):
         pyjobs = [j for j in batch._jobs if isinstance(j, _job.PythonJob)]
         for job in pyjobs:
             if job._image is None:
-                version = sys.version_info
-                if version.major != 3 or version.minor not in (6, 7, 8):
-                    raise BatchException(
-                        f"You must specify 'image' for Python jobs if you are using a Python version other than 3.6, 3.7, or 3.8 (you are using {version})")
-                job._image = f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
+                job._image = hail_genetics_python_dill_image()
 
         with tqdm(total=len(batch._jobs), desc='upload code', disable=disable_progress_bar) as pbar:
             async def compile_job(job):
