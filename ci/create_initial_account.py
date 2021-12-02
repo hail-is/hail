@@ -44,12 +44,12 @@ async def insert_user_if_not_exists(db, username, email, is_developer, is_servic
                 return None
             return row['id']
 
-        hail_credentials_secret_name = f'{username}-gsa-key'
-
         if NAMESPACE == 'default':
+            hail_credentials_secret_name = None
             hail_identity = None
             namespace_name = None
         else:
+            hail_credentials_secret_name = f'{username}-gsa-key'
             hail_identity = await copy_identity_from_default(hail_credentials_secret_name)
             namespace_name = NAMESPACE
 
