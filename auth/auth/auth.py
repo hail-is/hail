@@ -13,6 +13,7 @@ from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
 from hailtop.utils import secret_alnum_string
+from hailtop.aiocloud import aioazure
 from hailtop import httpx
 from gear import (
     setup_aiohttp_session,
@@ -28,6 +29,7 @@ from gear import (
     monitor_endpoints_middleware,
 )
 from gear.cloud_config import get_global_config
+from gear.clients import get_identity_client
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, set_message, render_template
 
 log = logging.getLogger('auth')
@@ -285,10 +287,26 @@ async def callback(request):
     return aiohttp.web.HTTPFound(next_page)
 
 
+async def get_azure_display_name(graph_client: aioazure.AzureGraphClient, app_id: str) -> str:
+    sp_data = await graph_client.get(f'/servicePrincipals/{app_id}')
+    return sp_data['displayName']
+
+
+async def get_display_name(request, userdata) -> str:
+    if CLOUD == 'azure':
+        graph_client = request.app['identity_client']
+        display_name = await get_azure_display_name(graph_client, userdata['hail_identity'])
+        return display_name
+
+    assert CLOUD == 'gcp'
+    return userdata['hail_identity']
+
+
 @routes.get('/user')
 @web_authenticated_users_only()
 async def user_page(request, userdata):
-    return await render_template('auth', request, userdata, 'user.html', {'cloud': CLOUD})
+    display_name = await get_display_name(request, userdata)
+    return await render_template('auth', request, userdata, 'user.html', {'cloud': CLOUD, 'display_name': display_name})
 
 
 async def create_copy_paste_token(db, session_id, max_age_secs=300):
@@ -556,7 +574,10 @@ async def userinfo(request):
         log.info('Bearer not in Authorization header')
         raise web.HTTPUnauthorized()
 
-    return web.json_response(await get_userinfo(request, session_id))
+    userinfo = await get_userinfo(request, session_id)
+    userinfo['display_name'] = await get_display_name(request, userinfo)
+
+    return web.json_response(userinfo)
 
 
 async def get_session_id(request):
@@ -599,13 +620,17 @@ async def on_startup(app):
     await db.async_init(maxsize=50)
     app['db'] = db
     app['client_session'] = httpx.client_session()
+    app['identity_client'] = get_identity_client()
 
 
 async def on_cleanup(app):
     try:
         await app['db'].async_close()
     finally:
-        await app['client_session'].close()
+        try:
+            await app['identity_client'].close()
+        finally:
+            await app['client_session'].close()
 
 
 def run():

@@ -8,6 +8,7 @@
     {% endif %}
     {% if cloud == "azure" %}
     <p><b>Azure Service Principal Application ID: </b>{{ userdata['hail_identity'] }}</p>
+    <p><b>Azure Service Principal Display Name: </b>{{ userdata['display_name'] }}</p>
     {% endif %}
     <p><b>Trial Billing Project: </b>{{ userdata['trial_bp_name'] }}</p>
     <form action="{{ auth_base_url }}/copy-paste-token" method="post">
