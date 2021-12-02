@@ -399,7 +399,7 @@ def validate_int(session, url_path, name, value, predicate, description):
         i = int(value)
     except ValueError:
         set_message(session, f'{name} invalid: {value}.  Must be an integer.', 'error')
-        raise web.HTTPFound(deploy_config.external_url('batch-driver', url_path))
+        raise web.HTTPFound(deploy_config.external_url('batch-driver', url_path))  # pylint: disable=raise-missing-from
     return validate(session, url_path, name, i, predicate, description)
 
 
