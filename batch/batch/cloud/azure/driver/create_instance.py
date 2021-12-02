@@ -59,7 +59,7 @@ def create_vm_config(
                 "name": "[concat(parameters('vmName'), '-data')]",
                 "lun": 2,  # because this is 2, the data disk will always be at 'sdc'
                 "managedDisk": {
-                    "storageAccountType": "Standard_LRS"
+                    "storageAccountType": "Premium_LRS"
                 },
                 "createOption": "Empty",
                 "diskSizeGB": data_disk_size_gb,
