@@ -307,6 +307,7 @@ class K8sNamespaceResource:
         self.name = name
 
     async def create(self, name):
+        assert name != 'default'
         assert self.name is None
 
         await self._delete(name)
@@ -315,7 +316,7 @@ class K8sNamespaceResource:
         self.name = name
 
     async def _delete(self, name):
-        assert namespace != 'default'
+        assert name != 'default'
         try:
             await self.k8s_client.delete_namespace(name)
         except kube.client.rest.ApiException as e:
