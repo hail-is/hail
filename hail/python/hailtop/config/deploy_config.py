@@ -18,7 +18,7 @@ class DeployConfig:
     def from_config(config) -> 'DeployConfig':
         domain = first_defined_value(
             config.get('domain'),
-            get_user_config().get('global', 'domain'),
+            get_user_config().get('global', 'domain', fallback=None),
             'hail.is'
         )
         return DeployConfig(config['location'], config['default_namespace'], domain)
