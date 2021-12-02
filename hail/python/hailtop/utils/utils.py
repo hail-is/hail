@@ -1,4 +1,4 @@
-from typing import Callable, TypeVar, Awaitable, Optional, Type, List, Dict, Any
+from typing import Callable, TypeVar, Awaitable, Optional, Type, List, Dict
 from types import TracebackType
 import concurrent
 import subprocess
