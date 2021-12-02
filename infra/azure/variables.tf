@@ -27,8 +27,8 @@ variable k8s_machine_type {
 
 variable "ci_config" {
   type = object({
-    github_oauth_token = string
-    github_user1_oauth_token = string
+    ci_and_deploy_github_oauth_token = string
+    ci_test_repo_creator_github_oauth_token = string
     watched_branches = list(tuple([string, bool, bool]))
     deploy_steps = list(string)
     github_context = string

@@ -566,10 +566,10 @@ module "ci_k8s_resources" {
   source = "../k8s/ci"
   count = var.ci_config != null ? 1 : 0
 
-  storage_uri              = module.ci[0].storage_uri
-  deploy_steps             = var.ci_config.deploy_steps
-  watched_branches         = var.ci_config.watched_branches
-  github_context           = var.ci_config.github_context
-  github_oauth_token       = var.ci_config.github_oauth_token
-  github_user1_oauth_token = var.ci_config.github_user1_oauth_token
+  storage_uri                             = module.ci[0].storage_uri
+  deploy_steps                            = var.ci_config.deploy_steps
+  watched_branches                        = var.ci_config.watched_branches
+  github_context                          = var.ci_config.github_context
+  ci_and_deploy_github_oauth_token        = var.ci_config.ci_and_deploy_github_oauth_token
+  ci_test_repo_creator_github_oauth_token = var.ci_config.ci_test_repo_creator_github_oauth_token
 }
