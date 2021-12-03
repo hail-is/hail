@@ -1,7 +1,5 @@
 #!/bin/bash
 
-export HAIL="$HOME/hail"
-
 get_global_config_field() {
     kubectl get secret global-config --template={{.data.$1}} | base64 --decode
 }
@@ -32,6 +30,8 @@ copy_images() {
     DOCKER_PREFIX=$(get_global_config_field docker_prefix)
     DOCKER_PREFIX=$DOCKER_PREFIX ./copy_images.sh
     cd -
+
+    make -C $HAIL/docker/python-dill push DOCKER_PREFIX=$DOCKER_PREFIX
 }
 
 generate_ssl_certs() {
