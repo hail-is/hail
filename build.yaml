@@ -939,7 +939,7 @@ steps:
         to: /io/splits.tar.gz
     outputs:
       - from: /io/test-output
-        to: /test-output
+        to: /test-output-0
     secrets:
       - name: test-gsa-key
         namespace:
@@ -973,7 +973,7 @@ steps:
         to: /io/splits.tar.gz
     outputs:
       - from: /io/test-output
-        to: /test-output
+        to: /test-output-1
     secrets:
       - name: test-gsa-key
         namespace:
@@ -1007,7 +1007,7 @@ steps:
         to: /io/splits.tar.gz
     outputs:
       - from: /io/test-output
-        to: /test-output
+        to: /test-output-2
     secrets:
       - name: test-gsa-key
         namespace:
@@ -1041,7 +1041,7 @@ steps:
         to: /io/splits.tar.gz
     outputs:
       - from: /io/test-output
-        to: /test-output
+        to: /test-output-3
     secrets:
       - name: test-gsa-key
         namespace:
@@ -1075,7 +1075,7 @@ steps:
         to: /io/splits.tar.gz
     outputs:
       - from: /io/test-output
-        to: /test-output
+        to: /test-output-4
     secrets:
       - name: test-gsa-key
         namespace:
