@@ -195,7 +195,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
 
     val mb = cb.emb
 
-    println(s"Index exists: ${index.isDefined}, type is ${stream.element.st}")
+    cb.println(s"Index exists: ${index.isDefined}, type is ${stream.element.st}")
 
     val indexWriter = ifIndexed { StagedIndexWriter.withDefaults(keyType, mb.ecb) }
 
@@ -238,6 +238,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
           lastSeenSettable.loadI(cb).consume(cb, {
             // If there's no last seen, we are in the first row.
             cb.assign(firstSeenSettable, EmitValue.present(key))
+            cb.println("Encountered first element, set it to ", cb.strValue(firstSeenSettable))
           }, { lastSeen =>
             val comparator = EQ(lastSeenSettable.emitType.virtualType).codeOrdering(cb.emb.ecb, lastSeenSettable.st, key.st)
             val equalToLast = comparator(cb, lastSeenSettable, EmitValue.present(key))
@@ -283,8 +284,10 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
       cb += Region.storeLong(pResultType.fieldOffset(result, "partitionCounts"), n)
       cb += Region.storeBoolean(pResultType.fieldOffset(result, "distinctlyKeyed"), distinctlyKeyed)
       firstSeenSettable.toI(cb).consume(cb, {
+        cb.println("Set first seen to missing in the end.")
         pResultType.setFieldMissing(cb, result, "firstKey")
       }, { sv =>
+        cb.println("Stored first seen appropriately")
         keyType.storeAtAddress(cb, pResultType.fieldOffset(result, "firstKey"), region, sv, true)
       })
       lastSeenSettable.toI(cb).consume(cb, {
@@ -357,8 +360,8 @@ case class TableSpecWriter(path: String, typ: TableType, rowRelPath: String, glo
     // Probably we want the current partCounts Array[Long], plus a boolean of whether all parts were distinctly keyed and
     // there was no overlap between keys.
 
-    cb.println("Trying to write my metadata")
     val a = writeAnnotations.get(cb, "write annotations can't be missing!").asIndexable
+    cb.println(s"Trying to write my metadata. Type of annotations is ${a.st.virtualType}")
     val partCounts = cb.newLocal[Array[Long]]("partCounts")
 
     val idxOfFirstKeyField = annotationType.asInstanceOf[TArray].elementType.asInstanceOf[TStruct].fieldIdx("firstKey")
@@ -377,6 +380,7 @@ case class TableSpecWriter(path: String, typ: TableType, rowRelPath: String, glo
 
       // Only nonempty partitions affect first, last, and distinctlyKeyed.
       cb.ifx(count cne 0L, {
+        cb.println(cb.strValue(curElement))
         val curFirst = curElement.loadField(cb, "firstKey").get(cb, const("firstKey of curElement can't be missing, part size was ") concat count.toS)
 
         val comparator = NEQ(lastSeenSettable.emitType.virtualType).codeOrdering(cb.emb.ecb, lastSeenSettable.st, curFirst.st)

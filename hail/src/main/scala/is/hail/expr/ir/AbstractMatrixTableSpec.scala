@@ -20,7 +20,7 @@ abstract class ComponentSpec
 object RelationalSpec {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(List(
-      classOf[ComponentSpec], classOf[RVDComponentSpec], classOf[PartitionCountsComponentSpec],
+      classOf[ComponentSpec], classOf[RVDComponentSpec], classOf[PartitionCountsComponentSpec], classOf[FlagsSpec],
       classOf[RelationalSpec], classOf[MatrixTableSpec], classOf[TableSpec]), typeHintFieldName="name")
   } +
     new TableTypeSerializer +

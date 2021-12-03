@@ -754,7 +754,7 @@ class TableIRSuite extends HailSuite {
 
   @Test def testTableWrite() {
     implicit val execStrats = ExecStrategy.interpretOnly
-    val table = TableRange(5, 4)
+    val table = TableRange(1, 1)
     val path = ctx.createTmpPath("test-table-write", "ht")
     Interpret[Unit](ctx, TableWrite(table, TableNativeWriter(path)))
     val before = table.analyzeAndExecute(ctx).asTableValue(ctx)
