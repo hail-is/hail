@@ -3,6 +3,7 @@ import os
 import json
 import time
 import logging
+import socket
 from urllib.parse import urlencode
 import jwt
 from hailtop.utils import request_retry_transient_errors
@@ -76,7 +77,10 @@ class GoogleCredentials(CloudCredentials):
         log.warning('unable to locate Google Cloud credentials file, will attempt to '
                     'use instance metadata server instead')
 
-        return GoogleInstanceMetadataCredentials()
+        if GoogleInstanceMetadataCredentials.available():
+            return GoogleInstanceMetadataCredentials()
+
+        return GoogleAnonymousCredentials()
 
     async def auth_headers(self) -> Dict[str, str]:
         if self._access_token is None or self._access_token.expired():
@@ -160,3 +164,25 @@ class GoogleInstanceMetadataCredentials(GoogleCredentials):
                 'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token',
                 headers={'Metadata-Flavor': 'Google'}) as resp:
             return GoogleExpiringAccessToken.from_dict(await resp.json())
+
+    @staticmethod
+    def available():
+        try:
+            socket.getaddrinfo('metadata.google.internal', 80)
+        except socket.gaierror:
+            return False
+        return True
+
+
+class GoogleAnonymousCredentials(GoogleCredentials):
+    def __init__(self):
+        pass
+
+    async def auth_headers(self) -> Dict[str, str]:
+        return {}
+
+    async def _get_access_token(self) -> GoogleExpiringAccessToken:
+        raise NotImplementedError
+
+    async def close(self):
+        pass
