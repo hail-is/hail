@@ -1,5 +1,10 @@
 #!/bin/bash
 
+if [[ -z "$HAIL" ]]; then
+    echo 1>&2 "Path to local clone of hail repository must be set."
+    exit 1
+fi
+
 get_global_config_field() {
     kubectl get secret global-config --template={{.data.$1}} | base64 --decode
 }
