@@ -23,6 +23,20 @@ provider "azurerm" {
   features {}
 }
 
+provider "kubernetes" {
+  host = "https://${azurerm_kubernetes_cluster.vdc.fqdn}"
+
+  cluster_ca_certificate = base64decode(
+    azurerm_kubernetes_cluster.vdc.kube_config[0].cluster_ca_certificate
+  )
+  client_certificate = base64decode(
+    azurerm_kubernetes_cluster.vdc.kube_config[0].client_certificate
+  )
+  client_key = base64decode(
+    azurerm_kubernetes_cluster.vdc.kube_config[0].client_key
+  )
+}
+
 locals {
   acr_name = var.acr_name == "" ? var.az_resource_group_name : var.acr_name
   # An IP toward the top of the batch-worker-subnet IP address range
@@ -96,6 +110,11 @@ resource "azurerm_kubernetes_cluster" "vdc" {
       enabled = true
       log_analytics_workspace_id = azurerm_log_analytics_workspace.logs.id
     }
+  }
+
+  # https://github.com/hashicorp/terraform-provider-azurerm/issues/7396
+  lifecycle {
+    ignore_changes = [addon_profile.0]
   }
 }
 
@@ -362,6 +381,12 @@ resource "azurerm_storage_management_policy" "test" {
   }
 }
 
+resource "azurerm_role_assignment" "test_test_container_contributor" {
+  scope                = azurerm_storage_container.test.resource_manager_id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = module.test_sp.principal_id
+}
+
 resource "azurerm_role_assignment" "batch_test_container_contributor" {
   scope                = azurerm_storage_container.test.resource_manager_id
   role_definition_name = "Storage Blob Data Contributor"
@@ -372,6 +397,12 @@ resource "azurerm_role_assignment" "batch_worker_test_container_contributor" {
   scope                = azurerm_storage_container.test.resource_manager_id
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = azurerm_user_assigned_identity.batch_worker.principal_id
+}
+
+resource "azurerm_role_assignment" "ci_test_container_contributor" {
+  scope                = azurerm_storage_container.test.resource_manager_id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = module.ci_sp.principal_id
 }
 
 provider "azuread" {}
@@ -416,6 +447,12 @@ resource "azurerm_role_assignment" "batch_network_contributor" {
   principal_id         = module.batch_sp.principal_id
 }
 
+resource "azurerm_role_assignment" "batch_subscription_reader" {
+  scope                = data.azurerm_subscription.primary.id
+  role_definition_name = "Reader"
+  principal_id         = module.batch_sp.principal_id
+}
+
 resource "azurerm_role_assignment" "batch_shared_gallery_reader" {
   scope                = azurerm_shared_image_gallery.batch.id
   role_definition_name = "Reader"
@@ -448,11 +485,51 @@ module "ci_sp" {
 
 resource "azuread_application" "test" {
   display_name = "${data.azurerm_resource_group.rg.name}-test"
+
+  required_resource_access {
+    resource_app_id = "00000003-0000-0000-c000-000000000000"
+
+    resource_access {
+      # Application.ReadWrite.All
+      id   = "1bfefb4e-e0b5-418b-a88f-73c46d2cc8e9"
+      type = "Role"
+    }
+  }
 }
 module "test_sp" {
   source = "./service_principal"
   application_id = azuread_application.test.application_id
   object_id      = azuread_application.test.object_id
+}
+
+resource "azurerm_role_assignment" "test_compute_contributor" {
+  scope                = data.azurerm_subscription.primary.id
+  role_definition_name = "Virtual Machine Contributor"
+  principal_id         = module.test_sp.principal_id
+}
+
+resource "azurerm_role_assignment" "test_network_contributor" {
+  scope                = data.azurerm_resource_group.rg.id
+  role_definition_name = "Network Contributor"
+  principal_id         = module.test_sp.principal_id
+}
+
+resource "azurerm_role_assignment" "test_subscription_reader" {
+  scope                = data.azurerm_subscription.primary.id
+  role_definition_name = "Reader"
+  principal_id         = module.test_sp.principal_id
+}
+
+resource "azurerm_role_assignment" "test_shared_gallery_reader" {
+  scope                = azurerm_shared_image_gallery.batch.id
+  role_definition_name = "Reader"
+  principal_id         = module.test_sp.principal_id
+}
+
+resource "azurerm_role_assignment" "test_managed_identity_operator" {
+  scope                = data.azurerm_resource_group.rg.id
+  role_definition_name = "Managed Identity Operator"
+  principal_id         = module.test_sp.principal_id
 }
 
 resource "azuread_application" "test_dev" {
@@ -480,4 +557,25 @@ module "grafana_sp" {
   source = "./service_principal"
   application_id = azuread_application.grafana.application_id
   object_id      = azuread_application.grafana.object_id
+}
+
+module "ci" {
+  source = "./ci"
+  count = var.ci_config != null ? 1 : 0
+
+  resource_group        = data.azurerm_resource_group.rg
+  ci_principal_id       = module.ci_sp.principal_id
+  container_registry_id = azurerm_container_registry.acr.id
+}
+
+module "ci_k8s_resources" {
+  source = "../k8s/ci"
+  count = var.ci_config != null ? 1 : 0
+
+  storage_uri                             = module.ci[0].storage_uri
+  deploy_steps                            = var.ci_config.deploy_steps
+  watched_branches                        = var.ci_config.watched_branches
+  github_context                          = var.ci_config.github_context
+  ci_and_deploy_github_oauth_token        = var.ci_config.ci_and_deploy_github_oauth_token
+  ci_test_repo_creator_github_oauth_token = var.ci_config.ci_test_repo_creator_github_oauth_token
 }

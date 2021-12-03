@@ -53,7 +53,7 @@ output "service_credentials" {
     auth      = module.auth_sp.credentials
     batch     = module.batch_sp.credentials
     benchmark = module.benchmark_sp.credentials
-    ci        = module.auth_sp.credentials
+    ci        = module.ci_sp.credentials
     test      = module.test_sp.credentials
     test-dev  = module.test_dev_sp.credentials
     query     = module.query_sp.credentials
