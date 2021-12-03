@@ -524,8 +524,13 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
         set_message(session, f'Updated configuration for {pool}.', 'info')
     except ConfigError:
         pass
-    finally:
-        return web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        log.exception(f'error while updating pool configuration for {pool}')
+        raise
+
+    return web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
 
 
 @routes.post('/config-update/jpim')
@@ -567,8 +572,13 @@ async def job_private_config_update(request, userdata):  # pylint: disable=unuse
         set_message(session, f'Updated configuration for {jpim}.', 'info')
     except ConfigError:
         pass
-    finally:
-        return web.HTTPFound(deploy_config.external_url('batch-driver', url_path))
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        log.exception(f'error while updating pool configuration for {jpim}')
+        raise
+
+    return web.HTTPFound(deploy_config.external_url('batch-driver', url_path))
 
 
 @routes.get('/inst_coll/pool/{pool}')
