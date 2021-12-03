@@ -34,6 +34,7 @@ class GCPDiskResource(DiskResourceMixin, GCPResource):
                      ) -> 'GCPDiskResource':
         prefix = GCPDiskResource.generate_prefix(disk_type)
         name = resource_versions.latest_resource_name(prefix)
+        assert name, prefix
         return GCPDiskResource(name, storage_in_gib)
 
     def __init__(self, name: str, storage_in_gib: int):
@@ -66,6 +67,7 @@ class GCPExternalDiskResource(ExternalDiskResourceMixin, GCPResource):
     def new_resource(resource_versions: ResourceVersions, disk_type: str) -> 'GCPExternalDiskResource':
         prefix = GCPExternalDiskResource.generate_prefix(disk_type)
         name = resource_versions.latest_resource_name(prefix)
+        assert name, prefix
         return GCPExternalDiskResource(name)
 
     def __init__(self, name: str):
@@ -110,6 +112,7 @@ class GCPComputeResource(ComputeResourceMixin, GCPResource):
                      ) -> 'GCPComputeResource':
         prefix = GCPComputeResource.generate_prefix(instance_family, preemptible)
         name = resource_versions.latest_resource_name(prefix)
+        assert name, prefix
         return GCPComputeResource(name)
 
     def __init__(self, name: str):
@@ -144,6 +147,7 @@ class GCPMemoryResource(MemoryResourceMixin, GCPResource):
                      ) -> 'GCPMemoryResource':
         prefix = GCPMemoryResource.generate_prefix(instance_family, preemptible)
         name = resource_versions.latest_resource_name(prefix)
+        assert name, prefix
         return GCPMemoryResource(name)
 
     def __init__(self, name: str):
@@ -174,6 +178,7 @@ class GCPServiceFeeResource(ServiceFeeResourceMixin, GCPResource):
     def new_resource(resource_versions: ResourceVersions) -> 'GCPServiceFeeResource':
         prefix = GCPServiceFeeResource.generate_prefix()
         name = resource_versions.latest_resource_name(prefix)
+        assert name, prefix
         return GCPServiceFeeResource(name)
 
     def __init__(self, name: str):
@@ -204,6 +209,7 @@ class GCPIPFeeResource(IPFeeResourceMixin, GCPResource):
     def new_resource(resource_versions: ResourceVersions, base: int) -> 'GCPIPFeeResource':
         prefix = GCPIPFeeResource.generate_prefix(base)
         name = resource_versions.latest_resource_name(prefix)
+        assert name, prefix
         return GCPIPFeeResource(name)
 
     def __init__(self, name: str):

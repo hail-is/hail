@@ -1,5 +1,5 @@
 import abc
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 import datetime
 import dateutil.parser
@@ -83,8 +83,8 @@ async def get_vm_prices_by_region(pricing_client: aioazure.AzurePricingClient,
                                   region: str,
                                   machine_types: List[str],
                                   ) -> List[AzureVMPrice]:
-    prices = []
-    seen_vm_names = {}
+    prices: List[AzureVMPrice] = []
+    seen_vm_names: Dict[str, str] = {}
 
     filter_args = ['(serviceName eq \'Virtual Machines\')',
                    f'(armRegionName eq \'{region}\')']
@@ -123,8 +123,8 @@ async def get_vm_prices_by_region(pricing_client: aioazure.AzurePricingClient,
 
 
 async def get_managed_disk_prices_by_region(pricing_client: aioazure.AzurePricingClient, region: str) -> List[AzureDiskPrice]:
-    prices = []
-    seen_disk_names = {}
+    prices: List[AzureDiskPrice] = []
+    seen_disk_names: Dict[str, str] = {}
 
     filter = f'serviceName eq \'Storage\' and armRegionName eq \'{region}\' and endswith(meterName,\'Disks\')'
     async for data in pricing_client.list_prices(filter=filter):

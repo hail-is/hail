@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, Set
 
 from gear.cloud_config import get_azure_config, get_gcp_config
 
@@ -15,7 +15,7 @@ def instance_config_from_config_dict(config: Dict[str, Any]) -> InstanceConfig:
     return GCPSlimInstanceConfig.from_dict(config)
 
 
-def possible_cloud_locations(cloud: str):
+def possible_cloud_locations(cloud: str) -> Set[str]:
     if cloud == 'azure':
         config = get_azure_config()
         return {config.region}

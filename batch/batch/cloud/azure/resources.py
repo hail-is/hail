@@ -43,6 +43,7 @@ class AzureDiskResource(DiskResourceMixin, AzureResource):
 
         prefix = AzureDiskResource.generate_prefix(disk.name, redundancy_type, location)
         name = resource_versions.latest_resource_name(prefix)
+        assert name, prefix
         return AzureDiskResource(name, disk.size_in_gib)
 
     def __init__(self, name: str, storage_in_gib: int):
@@ -84,6 +85,7 @@ class AzureExternalDiskResource(ExternalDiskResourceMixin, AzureResource):
             disk_name = disk.name
             prefix = AzureExternalDiskResource.generate_prefix(disk_name, redundancy_type, location)
             resource_name = resource_versions.latest_resource_name(prefix)
+            assert resource_name, prefix
             disk_name_to_resource_names[disk_name] = resource_name
         return AzureExternalDiskResource(disk_type, location, disk_name_to_resource_names)
 
@@ -141,6 +143,7 @@ class AzureVMResource(VMResourceMixin, AzureResource):
                      ) -> 'AzureVMResource':
         prefix = AzureVMResource.generate_prefix(machine_type, preemptible, location)
         name = resource_versions.latest_resource_name(prefix)
+        assert name, prefix
         return AzureVMResource(name)
 
     def __init__(self, name: str):
@@ -171,6 +174,7 @@ class AzureServiceFeeResource(ServiceFeeResourceMixin, AzureResource):
     def new_resource(resource_versions: ResourceVersions) -> 'AzureServiceFeeResource':
         prefix = AzureServiceFeeResource.generate_prefix()
         name = resource_versions.latest_resource_name(prefix)
+        assert name, prefix
         return AzureServiceFeeResource(name)
 
     def __init__(self, name: str):
@@ -201,6 +205,7 @@ class AzureIPFeeResource(IPFeeResourceMixin, AzureResource):
     def new_resource(resource_versions: ResourceVersions, base: int) -> 'AzureIPFeeResource':
         prefix = AzureIPFeeResource.generate_prefix(base)
         name = resource_versions.latest_resource_name(prefix)
+        assert name, prefix
         return AzureIPFeeResource(name)
 
     def __init__(self, name: str):
