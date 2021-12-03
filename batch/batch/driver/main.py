@@ -401,9 +401,9 @@ def validate(session, name, value, predicate, description):
 def validate_int(session, name, value, predicate, description):
     try:
         i = int(value)
-    except ValueError:
+    except ValueError as e:
         set_message(session, f'{name} invalid: {value}.  Must be an integer.', 'error')
-        raise ConfigError()
+        raise ConfigError() from e
     return validate(session, name, i, predicate, description)
 
 
@@ -522,6 +522,8 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
         pool.configure(pool_config)
 
         set_message(session, f'Updated configuration for {pool}.', 'info')
+    except ConfigError:
+        pass
     finally:
         return web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
 
@@ -563,6 +565,8 @@ async def job_private_config_update(request, userdata):  # pylint: disable=unuse
         await jpim.configure(boot_disk_size_gb, max_instances, max_live_instances)
 
         set_message(session, f'Updated configuration for {jpim}.', 'info')
+    except ConfigError:
+        pass
     finally:
         return web.HTTPFound(deploy_config.external_url('batch-driver', url_path))
 
