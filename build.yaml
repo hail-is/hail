@@ -46,8 +46,6 @@ steps:
       - name: auth-oauth2-client-secret
       - name: registry-push-credentials
       - name: hail-ci-0-1-github-oauth-token
-        clouds:
-          - gcp
       - name: test-gsa-key
       - name: test-aws-key
         clouds:
@@ -57,8 +55,6 @@ steps:
           - gcp
       - name: zulip-config
       - name: benchmark-gsa-key
-        clouds:
-          - gcp
       - name: billing-monitor-gsa-key
         clouds:
           - gcp
