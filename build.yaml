@@ -4029,7 +4029,7 @@ steps:
       AZURE_PASSWORD=$(jq -r '.password' /test-gsa-key/key.json)
       AZURE_TENANT_ID=$(jq -r '.tenant' /test-gsa-key/key.json)
       AZURE_RESOURCE_GROUP="{{ global.azure_resource_group }}"
-      az login --username $AZURE_USERNAME --password $AZURE_PASSWORD --tenant $AZURE_TENANT_ID
+      az login --service-principal -u $AZURE_USERNAME -p $AZURE_PASSWORD --tenant $AZURE_TENANT_ID
       set +e
       az vm list --resource-group $AZURE_RESOURCE_GROUP -o tsv \
           --query "[?tags.namespace == '{{ default_ns.name }}'].name"
