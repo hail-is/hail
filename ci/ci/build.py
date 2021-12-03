@@ -413,6 +413,7 @@ true
             parents=parents,
             always_run=True,
             network='private',
+            timeout=5 * 60,
         )
 
 
