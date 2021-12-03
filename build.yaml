@@ -1898,8 +1898,6 @@ steps:
     dependsOn:
       - hail_pip_installed_image
       - merge_code
-    clouds:
-      - gcp
   - kind: deploy
     name: deploy_grafana
     namespace:
