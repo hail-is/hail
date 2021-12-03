@@ -41,10 +41,7 @@ output "sql_config" {
 }
 
 output "registry_push_credentials" {
-  value = {
-    appId = azurerm_container_registry.acr.admin_username
-    password = azurerm_container_registry.acr.admin_password
-  }
+  value = module.ci_sp.credentials
   sensitive = true
 }
 

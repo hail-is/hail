@@ -891,7 +891,7 @@ class ParsedDockerImageReference:
         self.tag = tag
         self.digest = digest
 
-    def name(self):
+    def name(self) -> str:
         if self.domain:
             return self.domain + '/' + self.path
         return self.path
