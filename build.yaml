@@ -2473,6 +2473,8 @@ steps:
       - create_accounts
       - create_billing_projects
       - deploy_batch
+    clouds:
+      - gcp
   - kind: runImage
     name: test_benchmark
     image:
@@ -2501,6 +2503,8 @@ steps:
       - default_ns
       - create_certs
       - deploy_benchmark
+    clouds:
+      - gcp
   - kind: runImage
     name: upload_query_jar
     image:
