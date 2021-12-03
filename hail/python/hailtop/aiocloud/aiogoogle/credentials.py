@@ -175,7 +175,7 @@ class GoogleInstanceMetadataCredentials(GoogleCredentials):
 
 
 class GoogleAnonymousCredentials(GoogleCredentials):
-    def __init__(self):
+    def __init__(self):  # pylint: disable=super-init-not-called
         pass
 
     async def auth_headers(self) -> Dict[str, str]:
