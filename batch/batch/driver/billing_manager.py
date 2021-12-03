@@ -5,51 +5,49 @@ import logging
 from gear import Database, transaction
 
 
-log = logging.getLogger('resource_manager')
+log = logging.getLogger('billing_manager')
 
 
-def resource_prefix_version_to_name(prefix: str, version: str) -> str:
-    return f'{prefix}/{version}'
+def product_version_to_resource(product: str, version: str) -> str:
+    return f'{product}/{version}'
 
 
-class ResourceVersions:
+class ProductVersions:
     def __init__(self, data: Optional[Dict[str, str]] = None):
-        if data is None:
-            data = {}
-        self._resource_versions = data
+        self._product_versions = data or {}
 
-    def latest_version(self, prefix: str) -> Optional[str]:
-        return self._resource_versions.get(prefix)
+    def latest_version(self, product: str) -> Optional[str]:
+        return self._product_versions.get(product)
 
-    def latest_resource_name(self, prefix: str) -> Optional[str]:
-        version = self.latest_version(prefix)
-        assert version, prefix
-        return resource_prefix_version_to_name(prefix, version)
+    def resource_name(self, product: str) -> Optional[str]:
+        version = self.latest_version(product)
+        assert version, product
+        return product_version_to_resource(product, version)
 
     def update(self, data: Dict[str, str]):
-        for prefix, old_version in self._resource_versions.items():
-            new_version = data.get(prefix)
+        for product, old_version in self._product_versions.items():
+            new_version = data.get(product)
             if new_version is None:
-                log.exception(f'resource {prefix} does not appear in new data; keeping in resource versions')
+                log.exception(f'product {product} does not appear in new data; keeping in product versions')
                 continue
 
             if new_version != old_version:
-                log.info(f'updated resource version for {prefix} from {old_version} to {new_version}')
+                log.info(f'updated product version for {product} from {old_version} to {new_version}')
 
-        if self._resource_versions:
-            for prefix, new_version in data.items():
-                if prefix not in self._resource_versions:
-                    log.info(f'added resource {prefix} with version {new_version}')
+        if self._product_versions:
+            for product, new_version in data.items():
+                if product not in self._product_versions:
+                    log.info(f'added product {product} with version {new_version}')
 
-        self._resource_versions.update(data)
+        self._product_versions.update(data)
 
     def to_dict(self) -> Dict[str, str]:
-        return self._resource_versions
+        return self._product_versions
 
 
 class CloudBillingManager(abc.ABC):
     db: Database
-    resource_versions: ResourceVersions
+    product_versions: ProductVersions
     resource_rates: Dict[str, float]
 
     async def refresh_resources(self):
@@ -58,16 +56,16 @@ class CloudBillingManager(abc.ABC):
             self.resource_rates = await refresh_resource_rates_from_db(tx)
             log.info('refreshed resource rates')
 
-            latest_resource_versions = await refresh_resource_versions_from_db(tx)
-            self.resource_versions.update(latest_resource_versions)
-            log.info('refreshed resource versions')
+            latest_product_versions = await refresh_product_versions_from_db(tx)
+            self.product_versions.update(latest_product_versions)
+            log.info('refreshed product versions')
 
         await refresh()  # pylint: disable=no-value-for-parameter
 
 
-async def refresh_resource_versions_from_db(db: Database) -> Dict[str, str]:
-    records = db.execute_and_fetchall('SELECT prefix, version FROM latest_resource_versions')
-    return {record['prefix']: record['version'] async for record in records}
+async def refresh_product_versions_from_db(db: Database) -> Dict[str, str]:
+    records = db.execute_and_fetchall('SELECT product, version FROM latest_product_versions')
+    return {record['product']: record['version'] async for record in records}
 
 
 async def refresh_resource_rates_from_db(db: Database) -> Dict[str, str]:

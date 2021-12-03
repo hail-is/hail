@@ -1,7 +1,7 @@
 import abc
 from typing import Dict, Any, Optional
 
-from ...driver.billing_manager import ResourceVersions
+from ...driver.billing_manager import ProductVersions
 from ...resources import (Resource, DiskResourceMixin, ComputeResourceMixin, MemoryResourceMixin, IPFeeResourceMixin, ServiceFeeResourceMixin,
                           ExternalDiskResourceMixin, QuantifiedResource)
 
@@ -10,7 +10,7 @@ class GCPResource(Resource, abc.ABC):
     pass
 
 
-def gcp_disk_prefix(disk_type: str) -> str:
+def gcp_disk_product(disk_type: str) -> str:
     return f'disk/{disk_type}'
 
 
@@ -19,8 +19,8 @@ class GCPDiskResource(DiskResourceMixin, GCPResource):
     TYPE = 'gcp_disk'
 
     @staticmethod
-    def generate_prefix(disk_type: str) -> str:
-        return gcp_disk_prefix(disk_type)
+    def product_name(disk_type: str) -> str:
+        return gcp_disk_product(disk_type)
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> 'GCPDiskResource':
@@ -28,13 +28,13 @@ class GCPDiskResource(DiskResourceMixin, GCPResource):
         return GCPDiskResource(data['name'], data['storage_in_gib'])
 
     @staticmethod
-    def new_resource(resource_versions: ResourceVersions,
+    def new_resource(product_versions: ProductVersions,
                      disk_type: str,
                      storage_in_gib: int,
                      ) -> 'GCPDiskResource':
-        prefix = GCPDiskResource.generate_prefix(disk_type)
-        name = resource_versions.latest_resource_name(prefix)
-        assert name, prefix
+        product = GCPDiskResource.product_name(disk_type)
+        name = product_versions.resource_name(product)
+        assert name, product
         return GCPDiskResource(name, storage_in_gib)
 
     def __init__(self, name: str, storage_in_gib: int):
@@ -55,8 +55,8 @@ class GCPExternalDiskResource(ExternalDiskResourceMixin, GCPResource):
     TYPE = 'gcp_external_disk'
 
     @staticmethod
-    def generate_prefix(disk_type: str) -> str:
-        return gcp_disk_prefix(disk_type)
+    def product_name(disk_type: str) -> str:
+        return gcp_disk_product(disk_type)
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> 'GCPExternalDiskResource':
@@ -64,10 +64,10 @@ class GCPExternalDiskResource(ExternalDiskResourceMixin, GCPResource):
         return GCPExternalDiskResource(data['name'])
 
     @staticmethod
-    def new_resource(resource_versions: ResourceVersions, disk_type: str) -> 'GCPExternalDiskResource':
-        prefix = GCPExternalDiskResource.generate_prefix(disk_type)
-        name = resource_versions.latest_resource_name(prefix)
-        assert name, prefix
+    def new_resource(product_versions: ProductVersions, disk_type: str) -> 'GCPExternalDiskResource':
+        product = GCPExternalDiskResource.product_name(disk_type)
+        name = product_versions.resource_name(product)
+        assert name, product
         return GCPExternalDiskResource(name)
 
     def __init__(self, name: str):
@@ -96,7 +96,7 @@ class GCPComputeResource(ComputeResourceMixin, GCPResource):
     TYPE = 'gcp_compute'
 
     @staticmethod
-    def generate_prefix(instance_family: str, preemptible: bool) -> str:
+    def product_name(instance_family: str, preemptible: bool) -> str:
         preemptible_str = 'preemptible' if preemptible else 'nonpreemptible'
         return f'compute/{instance_family}-{preemptible_str}'
 
@@ -106,13 +106,13 @@ class GCPComputeResource(ComputeResourceMixin, GCPResource):
         return GCPComputeResource(data['name'])
 
     @staticmethod
-    def new_resource(resource_versions: ResourceVersions,
+    def new_resource(product_versions: ProductVersions,
                      instance_family: str,
                      preemptible: bool,
                      ) -> 'GCPComputeResource':
-        prefix = GCPComputeResource.generate_prefix(instance_family, preemptible)
-        name = resource_versions.latest_resource_name(prefix)
-        assert name, prefix
+        product = GCPComputeResource.product_name(instance_family, preemptible)
+        name = product_versions.resource_name(product)
+        assert name, product
         return GCPComputeResource(name)
 
     def __init__(self, name: str):
@@ -131,7 +131,7 @@ class GCPMemoryResource(MemoryResourceMixin, GCPResource):
     TYPE = 'gcp_memory'
 
     @staticmethod
-    def generate_prefix(instance_family: str, preemptible: bool) -> str:
+    def product_name(instance_family: str, preemptible: bool) -> str:
         preemptible_str = 'preemptible' if preemptible else 'nonpreemptible'
         return f'memory/{instance_family}-{preemptible_str}'
 
@@ -141,13 +141,13 @@ class GCPMemoryResource(MemoryResourceMixin, GCPResource):
         return GCPMemoryResource(data['name'])
 
     @staticmethod
-    def new_resource(resource_versions: ResourceVersions,
+    def new_resource(product_versions: ProductVersions,
                      instance_family: str,
                      preemptible: bool,
                      ) -> 'GCPMemoryResource':
-        prefix = GCPMemoryResource.generate_prefix(instance_family, preemptible)
-        name = resource_versions.latest_resource_name(prefix)
-        assert name, prefix
+        product = GCPMemoryResource.product_name(instance_family, preemptible)
+        name = product_versions.resource_name(product)
+        assert name, product
         return GCPMemoryResource(name)
 
     def __init__(self, name: str):
@@ -166,7 +166,7 @@ class GCPServiceFeeResource(ServiceFeeResourceMixin, GCPResource):
     TYPE = 'gcp_service_fee'
 
     @staticmethod
-    def generate_prefix() -> str:
+    def product_name() -> str:
         return 'service-fee'
 
     @staticmethod
@@ -175,10 +175,10 @@ class GCPServiceFeeResource(ServiceFeeResourceMixin, GCPResource):
         return GCPServiceFeeResource(data['name'])
 
     @staticmethod
-    def new_resource(resource_versions: ResourceVersions) -> 'GCPServiceFeeResource':
-        prefix = GCPServiceFeeResource.generate_prefix()
-        name = resource_versions.latest_resource_name(prefix)
-        assert name, prefix
+    def new_resource(product_versions: ProductVersions) -> 'GCPServiceFeeResource':
+        product = GCPServiceFeeResource.product_name()
+        name = product_versions.resource_name(product)
+        assert name, product
         return GCPServiceFeeResource(name)
 
     def __init__(self, name: str):
@@ -197,7 +197,7 @@ class GCPIPFeeResource(IPFeeResourceMixin, GCPResource):
     TYPE = 'gcp_ip_fee'
 
     @staticmethod
-    def generate_prefix(base: int) -> str:
+    def product_name(base: int) -> str:
         return f'ip-fee/{base}'
 
     @staticmethod
@@ -206,10 +206,10 @@ class GCPIPFeeResource(IPFeeResourceMixin, GCPResource):
         return GCPIPFeeResource(data['name'])
 
     @staticmethod
-    def new_resource(resource_versions: ResourceVersions, base: int) -> 'GCPIPFeeResource':
-        prefix = GCPIPFeeResource.generate_prefix(base)
-        name = resource_versions.latest_resource_name(prefix)
-        assert name, prefix
+    def new_resource(product_versions: ProductVersions, base: int) -> 'GCPIPFeeResource':
+        product = GCPIPFeeResource.product_name(base)
+        name = product_versions.resource_name(product)
+        assert name, product
         return GCPIPFeeResource(name)
 
     def __init__(self, name: str):

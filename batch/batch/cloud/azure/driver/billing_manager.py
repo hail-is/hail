@@ -3,15 +3,13 @@ from collections import namedtuple
 import logging
 
 from hailtop.aiocloud import aioazure
-from hailtop.utils.rates import rate_instance_hour_to_fraction_msec, rate_gib_month_to_mib_msec
 from gear import Database, transaction
 
-from ....driver.billing_manager import CloudBillingManager, ResourceVersions, resource_prefix_version_to_name
-from ..resources import AzureVMResource, AzureDiskResource
+from ....driver.billing_manager import CloudBillingManager, ProductVersions, product_version_to_resource
 
-from .pricing import AzureVMPrice, AzureDiskPrice, fetch_prices
+from .pricing import AzureVMPrice, fetch_prices
 
-log = logging.getLogger('resource_manager')
+log = logging.getLogger('billing_manager')
 
 
 AzureVMIdentifier = namedtuple('AzureVMIdentifier', ['machine_type', 'preemptible', 'region'])
@@ -34,7 +32,7 @@ class AzureBillingManager(CloudBillingManager):
                  regions: List[str],
                  ):
         self.db = db
-        self.resource_versions = ResourceVersions()
+        self.product_versions = ProductVersions()
         self.resource_rates: Dict[str, float] = {}
         self.pricing_client = pricing_client
         self.regions = regions
@@ -50,31 +48,26 @@ class AzureBillingManager(CloudBillingManager):
         resource_version_updates = []
 
         for price in await fetch_prices(self.pricing_client, self.regions):
-            if isinstance(price, AzureVMPrice):
-                resource_prefix = AzureVMResource.generate_prefix(price.machine_type, price.preemptible, price.region)
-                latest_resource_rate = rate_instance_hour_to_fraction_msec(price.cost_per_hour, 1024)
-            else:
-                assert isinstance(price, AzureDiskPrice)
-                resource_prefix = AzureDiskResource.generate_prefix(price.disk_name, price.redundancy_type, price.region)
-                latest_resource_rate = rate_gib_month_to_mib_msec(price.cost_per_gib_month)
+            product = price.product
+            latest_product_version = price.version
+            latest_resource_rate = price.rate
 
-            latest_resource_version = price.version
-            resource_name = resource_prefix_version_to_name(resource_prefix, latest_resource_version)
+            resource_name = product_version_to_resource(product, latest_product_version)
 
+            current_product_version = self.product_versions.latest_version(product)
             current_resource_rate = self.resource_rates.get(resource_name)
-            current_resource_version = self.resource_versions.latest_version(resource_prefix)
 
             if current_resource_rate is None:
                 resource_updates.append((resource_name, latest_resource_rate))
-            elif abs(current_resource_rate - latest_resource_rate) >= 1E-20:
+            elif current_resource_rate != latest_resource_rate:
                 log.exception(f'resource {resource_name} does not have the latest rate in the database for '
-                              f'version {current_resource_version}: {current_resource_rate} vs {latest_resource_rate}; '
+                              f'version {current_product_version}: {current_resource_rate} vs {latest_resource_rate}; '
                               f'did the vm price change without a version change?')
                 continue
 
             if price.is_current_price() and (
-                    current_resource_version is None or current_resource_version != latest_resource_version):
-                resource_version_updates.append((resource_prefix, latest_resource_version))
+                    current_product_version is None or current_product_version != latest_product_version):
+                resource_version_updates.append((product, latest_product_version))
 
             if isinstance(price, AzureVMPrice):
                 vm_identifier = AzureVMIdentifier(price.machine_type, price.preemptible, price.region)
@@ -91,7 +84,7 @@ VALUES (%s, %s)
 
             if resource_version_updates:
                 await tx.execute_many('''
-INSERT INTO `latest_resource_versions` (prefix, version)
+INSERT INTO `latest_product_versions` (product, version)
 VALUES (%s, %s)
 ON DUPLICATE KEY UPDATE version = VALUES(version)
 ''',

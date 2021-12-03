@@ -12,7 +12,7 @@ class Resource(abc.ABC):
     name: str
 
     @property
-    def prefix(self):
+    def product(self):
         return self.name.rsplit('/', maxsplit=1)[0]
 
     @property

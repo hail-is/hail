@@ -7,13 +7,9 @@ from urllib.parse import urlencode
 import jwt
 from hailtop.utils import request_retry_transient_errors
 import hailtop.httpx
-from ..common.credentials import CloudCredentials, EmptyCloudCredentials
+from ..common.credentials import CloudCredentials
 
 log = logging.getLogger(__name__)
-
-
-class EmptyGoogleCredentials(EmptyCloudCredentials):
-    pass
 
 
 class GoogleExpiringAccessToken:

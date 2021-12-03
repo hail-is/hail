@@ -1,11 +1,11 @@
 from typing import Mapping, Optional, List, Union
 
-from ..common import Session
-from .credentials import AzureCredentials, EmptyAzureCredentials
+from ..common import Session, AnonymousCloudCredentials
+from .credentials import AzureCredentials
 
 
 class AzureSession(Session):
-    def __init__(self, *, credentials: Union[AzureCredentials, EmptyAzureCredentials] = None, credentials_file: Optional[str] = None,
+    def __init__(self, *, credentials: Union[AzureCredentials, AnonymousCloudCredentials] = None, credentials_file: Optional[str] = None,
                  params: Optional[Mapping[str, str]] = None, scopes: Optional[List[str]] = None, **kwargs):
         if credentials is None:
             if credentials_file:

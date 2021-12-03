@@ -1,6 +1,7 @@
 from typing import Optional, AsyncGenerator, Any
 
-from ..session import AzureSession, EmptyAzureCredentials
+from ...common import AnonymousCloudCredentials
+from ..session import AzureSession
 
 
 from .base_client import AzureBaseClient
@@ -8,7 +9,7 @@ from .base_client import AzureBaseClient
 
 class AzurePricingClient(AzureBaseClient):
     def __init__(self):
-        session = AzureSession(credentials=EmptyAzureCredentials())
+        session = AzureSession(credentials=AnonymousCloudCredentials())
         super().__init__('https://prices.azure.com/api/retail', session=session)
 
     async def _paged_get(self, path, **kwargs) -> AsyncGenerator[Any, None]:

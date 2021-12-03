@@ -96,7 +96,7 @@ class AzureResourceManager(CloudResourceManager):
                         location: str,
                         ) -> AzureSlimInstanceConfig:
         return AzureSlimInstanceConfig.create(
-            self.billing_manager.resource_versions,
+            self.billing_manager.product_versions,
             machine_type,
             preemptible,
             local_ssd_data_disk,

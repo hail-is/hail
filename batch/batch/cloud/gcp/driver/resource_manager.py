@@ -86,7 +86,7 @@ class GCPResourceManager(CloudResourceManager):
                         location: str,
                         ) -> GCPSlimInstanceConfig:
         return GCPSlimInstanceConfig.create(
-            self.billing_manager.resource_versions,
+            self.billing_manager.product_versions,
             machine_type,
             preemptible,
             local_ssd_data_disk,

@@ -1,4 +1,4 @@
-from typing import Callable, TypeVar, Awaitable, Optional, Type, List, Dict
+from typing import Callable, TypeVar, Awaitable, Optional, Type, List, Dict, Iterable
 from typing_extensions import Literal
 from types import TracebackType
 import concurrent
@@ -58,7 +58,7 @@ def flatten(xxs):
     return [x for xs in xxs for x in xs]
 
 
-def flatmap(xs):
+def filter_none(xs: Iterable[Optional[T]]) -> Iterable[T]:
     return [x for x in xs if x is not None]
 
 

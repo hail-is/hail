@@ -1,6 +1,6 @@
 from typing import List
 
-from ...driver.billing_manager import ResourceVersions
+from ...driver.billing_manager import ProductVersions
 from ...instance_config import InstanceConfig
 from .resources import (GCPResource, GCPComputeResource, GCPMemoryResource, GCPDiskResource, GCPExternalDiskResource,
                         GCPIPFeeResource, GCPServiceFeeResource, gcp_resource_from_dict)
@@ -12,7 +12,7 @@ GCP_INSTANCE_CONFIG_VERSION = 5
 
 class GCPSlimInstanceConfig(InstanceConfig):
     @staticmethod
-    def create(resource_versions: ResourceVersions,
+    def create(product_versions: ProductVersions,
                machine_type: str,
                preemptible: bool,
                local_ssd_data_disk: bool,
@@ -21,22 +21,22 @@ class GCPSlimInstanceConfig(InstanceConfig):
                job_private: bool,
                location: str) -> 'GCPSlimInstanceConfig':  # pylint: disable=unused-argument
         if local_ssd_data_disk:
-            data_disk_resource = GCPDiskResource.new_resource(resource_versions, 'local-ssd', data_disk_size_gb)
+            data_disk_resource = GCPDiskResource.new_resource(product_versions, 'local-ssd', data_disk_size_gb)
         else:
-            data_disk_resource = GCPDiskResource.new_resource(resource_versions, 'pd-ssd', data_disk_size_gb)
+            data_disk_resource = GCPDiskResource.new_resource(product_versions, 'pd-ssd', data_disk_size_gb)
 
         machine_type_parts = gcp_machine_type_to_parts(machine_type)
         assert machine_type_parts is not None, machine_type
         instance_family = machine_type_parts.machine_family
 
         resources = [
-            GCPComputeResource.new_resource(resource_versions, instance_family, preemptible),
-            GCPMemoryResource.new_resource(resource_versions, instance_family, preemptible),
-            GCPDiskResource.new_resource(resource_versions, 'pd-ssd', boot_disk_size_gb),
+            GCPComputeResource.new_resource(product_versions, instance_family, preemptible),
+            GCPMemoryResource.new_resource(product_versions, instance_family, preemptible),
+            GCPDiskResource.new_resource(product_versions, 'pd-ssd', boot_disk_size_gb),
             data_disk_resource,
-            GCPExternalDiskResource.new_resource(resource_versions, 'pd-ssd'),
-            GCPIPFeeResource.new_resource(resource_versions, 1024),
-            GCPServiceFeeResource.new_resource(resource_versions),
+            GCPExternalDiskResource.new_resource(product_versions, 'pd-ssd'),
+            GCPIPFeeResource.new_resource(product_versions, 1024),
+            GCPServiceFeeResource.new_resource(product_versions),
         ]
 
         return GCPSlimInstanceConfig(

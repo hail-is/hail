@@ -44,7 +44,6 @@ def create_vm_config(
     _, cores = azure_machine_type_to_worker_type_and_cores(machine_type)
 
     if max_price is not None and not preemptible:
-        log.exception(f'max price given for a nonpreemptible machine {max_price}')
         raise ValueError(f'max price given for a nonpreemptible machine {max_price}')
 
     if job_private:

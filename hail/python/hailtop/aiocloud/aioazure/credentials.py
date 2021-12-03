@@ -7,20 +7,12 @@ from azure.identity.aio import DefaultAzureCredential, ClientSecretCredential
 
 from hailtop.utils import first_extant_file
 
-from ..common.credentials import CloudCredentials, EmptyCloudCredentials
+from ..common.credentials import CloudCredentials
 
 log = logging.getLogger(__name__)
 
 
-class EmptyAzureCredentials(EmptyCloudCredentials):
-    pass
-
-
 class AzureCredentials(CloudCredentials):
-    @staticmethod
-    def empty_credentials() -> EmptyAzureCredentials:
-        return EmptyAzureCredentials()
-
     @staticmethod
     def from_file(credentials_file: str, scopes: Optional[List[str]] = None):
         with open(credentials_file, 'r') as f:
