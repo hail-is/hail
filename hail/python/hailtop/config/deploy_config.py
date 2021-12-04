@@ -5,7 +5,7 @@ import os
 import json
 import logging
 from aiohttp import web
-from ..utils import retry_transient_errors, first_extant_file, first_defined_value
+from ..utils import retry_transient_errors, first_extant_file
 from ..tls import internal_client_ssl_context
 
 from .user_config import get_user_config
@@ -16,12 +16,7 @@ log = logging.getLogger('deploy_config')
 class DeployConfig:
     @staticmethod
     def from_config(config) -> 'DeployConfig':
-        domain = first_defined_value(
-            config.get('domain'),
-            get_user_config().get('global', 'domain', fallback=None),
-            'hail.is'
-        )
-        return DeployConfig(config['location'], config['default_namespace'], domain)
+        return DeployConfig(config['location'], config['default_namespace'], config['domain'])
 
     def get_config(self) -> Dict[str, str]:
         return {
@@ -47,7 +42,7 @@ class DeployConfig:
             config = {
                 'location': 'external',
                 'default_namespace': 'default',
-                'domain': 'hail.is'
+                'domain': get_user_config().get('global', 'domain', fallback='hail.is'),
             }
         return DeployConfig.from_config(config)
 
