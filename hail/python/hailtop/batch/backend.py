@@ -421,7 +421,7 @@ class ServiceBackend(Backend[bc.Batch]):
         if remote_tmpdir is None:
             if bucket is None:
                 bucket = user_config.get('batch', 'bucket', fallback=None)
-                warnings.warn('Using deprecated configuration setting \'batch\\bucket\'. Run `hailctl config set batch/remote_tmpdir` '
+                warnings.warn('Using deprecated configuration setting \'batch/bucket\'. Run `hailctl config set batch/remote_tmpdir` '
                               'to set the default for \'remote_tmpdir\' instead.')
             if bucket is None:
                 raise ValueError(
