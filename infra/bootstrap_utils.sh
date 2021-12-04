@@ -1,6 +1,9 @@
 #!/bin/bash
 
-export HAIL="$HOME/hail"
+if [[ -z "$HAIL" ]]; then
+    echo 1>&2 "Path to local clone of hail repository must be set."
+    exit 1
+fi
 
 get_global_config_field() {
     kubectl get secret global-config --template={{.data.$1}} | base64 --decode
@@ -32,6 +35,8 @@ copy_images() {
     DOCKER_PREFIX=$(get_global_config_field docker_prefix)
     DOCKER_PREFIX=$DOCKER_PREFIX ./copy_images.sh
     cd -
+
+    make -C $HAIL/docker/python-dill push DOCKER_PREFIX=$DOCKER_PREFIX
 }
 
 generate_ssl_certs() {
