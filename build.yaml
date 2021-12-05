@@ -4039,7 +4039,7 @@ steps:
     alwaysRun: true
     script: |
       set -e -o pipefail
-      AZURE_USERNAME=$(jq -r '.app Id' /test-gsa-key/key.json)
+      AZURE_USERNAME=$(jq -r '.appId' /test-gsa-key/key.json)
       AZURE_PASSWORD=$(jq -r '.password' /test-gsa-key/key.json)
       AZURE_TENANT_ID=$(jq -r '.tenant' /test-gsa-key/key.json)
       az login --service-principal -u $AZURE_USERNAME -p $AZURE_PASSWORD --tenant $AZURE_TENANT_ID
