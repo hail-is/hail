@@ -4043,31 +4043,18 @@ steps:
       AZURE_PASSWORD=$(jq -r '.password' /test-gsa-key/key.json)
       AZURE_TENANT_ID=$(jq -r '.tenant' /test-gsa-key/key.json)
       az login --service-principal -u $AZURE_USERNAME -p $AZURE_PASSWORD --tenant $AZURE_TENANT_ID
+      set +e
       set -x
-
-      failures=0
-
       AZURE_RESOURCE_GROUP="{{ global.azure_resource_group }}"
-      vm_names=$(az vm list --resource-group $AZURE_RESOURCE_GROUP -o tsv --query "[?tags.namespace == '{{ default_ns.name }}'].name")
-      for name in $vm_names
-      do
-          set +e
-          az vm delete --resource-group $AZURE_RESOURCE_GROUP --name $name --yes
-          vm_exit_code=$?
-          az network nic delete --resource-group $AZURE_RESOURCE_GROUP --name $name
-          nic_exit_code=$?
-          az network public-ip delete --resource-group $AZURE_RESOURCE_GROUP --name $name
-          ip_exit_code=$?
-          set -e
-
-          if [[ $vm_exit_code -ne 0 || $nic_exit_code -ne 0 || $ip_exit_code -ne 0 ]]
-          then
-              echo "could not delete $name. vm: $vm_exit_code. nic: $nic_exit_code. ip: $ip_exit_code"
-              (( failures = $failures + 1 ))
-          fi
-      done
-
-      exit $failures
+      az vm list --resource-group $AZURE_RESOURCE_GROUP -o tsv \
+          --query "[?tags.namespace == '{{ default_ns.name }}'].name"
+        | xargs -n1 -r sh -c 'az vm delete --resource-group $AZURE_RESOURCE_GROUP --name "$1" --yes || true' argv0
+      az network nic list --resource-group $AZURE_RESOURCE_GROUP -o tsv \
+          --query "[?tags.namespace == '{{ default_ns.name }}'].name"
+        | xargs -n1 -r sh -c 'az network nic delete --resource-group $AZURE_RESOURCE_GROUP --name "$1" || true' argv0
+      az network public-ip list --resource-group $AZURE_RESOURCE_GROUP -o tsv \
+          --query "[?tags.namespace == '{{ default_ns.name }}'].name"
+        | xargs -n1 -r sh -c 'az network public-ip delete --resource-group $AZURE_RESOURCE_GROUP --name "$1" || true' argv0
     secrets:
       - name: test-gsa-key
         namespace:
