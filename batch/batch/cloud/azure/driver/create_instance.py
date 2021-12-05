@@ -262,7 +262,7 @@ done
     user_data_str = base64.b64encode(json.dumps(user_data).encode('utf-8')).decode('utf-8')
 
     tags = {
-        'namespace': 'default',
+        'namespace': DEFAULT_NAMESPACE,
         'batch-worker': '1'
     }
 

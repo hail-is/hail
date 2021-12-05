@@ -4038,16 +4038,17 @@ steps:
     image: mcr.microsoft.com/azure-cli
     alwaysRun: true
     script: |
-      set -e
+      set -e -o pipefail
       AZURE_USERNAME=$(jq -r '.appId' /test-gsa-key/key.json)
       AZURE_PASSWORD=$(jq -r '.password' /test-gsa-key/key.json)
       AZURE_TENANT_ID=$(jq -r '.tenant' /test-gsa-key/key.json)
-      AZURE_RESOURCE_GROUP="{{ global.azure_resource_group }}"
       az login --service-principal -u $AZURE_USERNAME -p $AZURE_PASSWORD --tenant $AZURE_TENANT_ID
       set +e
+      set -x
+      AZURE_RESOURCE_GROUP="{{ global.azure_resource_group }}"
       az vm list --resource-group $AZURE_RESOURCE_GROUP -o tsv \
           --query "[?tags.namespace == '{{ default_ns.name }}'].name"
-        | xargs -n1 -r sh -c 'az vm delete --resource-group $AZURE_RESOURCE_GROUP --name "$1" || true' argv0
+        | xargs -n1 -r sh -c 'az vm delete --resource-group $AZURE_RESOURCE_GROUP --name "$1" --yes || true' argv0
       az network nic list --resource-group $AZURE_RESOURCE_GROUP -o tsv \
           --query "[?tags.namespace == '{{ default_ns.name }}'].name"
         | xargs -n1 -r sh -c 'az network nic delete --resource-group $AZURE_RESOURCE_GROUP --name "$1" || true' argv0
