@@ -199,7 +199,7 @@ def test_nonzero_storage(client: BatchClient):
     assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
-@fails_in_azure()
+@skip_in_azure()
 def test_attached_disk(client: BatchClient):
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '400Gi'}
