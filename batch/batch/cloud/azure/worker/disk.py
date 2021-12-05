@@ -24,4 +24,4 @@ class AzureDisk(CloudDisk):
         raise NotImplementedError
 
     async def close(self):
-        raise NotImplementedError
+        pass
