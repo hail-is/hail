@@ -15,7 +15,7 @@ from hailtop.config import get_user_config
 from hailtop.batch.utils import concatenate
 from hailtop.aiotools.router_fs import RouterAsyncFS
 
-from ..utils import fails_in_azure
+from ..utils import fails_in_azure, skip_in_azure
 
 
 DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
@@ -655,6 +655,7 @@ class ServiceTests(unittest.TestCase):
         with self.assertRaises(BatchException):
             j.gcsfuse(self.bucket_name, '')
 
+    @skip_in_azure
     def test_requester_pays(self):
         b = self.batch(requester_pays_project='hail-vdc')
         input = b.read_input('gs://hail-services-requester-pays/hello')
