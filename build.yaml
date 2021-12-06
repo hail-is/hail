@@ -3806,6 +3806,10 @@ steps:
       - make_pip_versioned_docs
     clouds:
       - gcp
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: standard
   - kind: deploy
     name: deploy_website
     namespace:
