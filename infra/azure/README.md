@@ -93,10 +93,11 @@ cd ~/hail/infra/azure
 ./bootstrap.sh bootstrap <REPO>/hail:<BRANCH> deploy_auth
 ```
 
-Create the initial (developer) user.
+Create the initial (developer) user. The OBJECT_ID is the Azure Active
+Directory user's object ID.
 
 ```
-./bootstrap.sh bootstrap <REPO>/hail:<BRANCH> create_initial_user <USERNAME> <EMAIL>
+./bootstrap.sh bootstrap <REPO>/hail:<BRANCH> create_initial_user <USERNAME> <OBJECT_ID>
 ```
 
 Deploy the gateway service. First trim down `$HAIL/letsencrypt/subdomains.txt`

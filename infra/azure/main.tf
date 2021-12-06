@@ -418,12 +418,23 @@ resource "azuread_application" "auth" {
       type = "Role"
     }
   }
+
+  web {
+    redirect_uris = ["https://auth.${var.domain}:5000/oauth2callback", "http://127.0.0.1:5000/oauth2callback"]
+
+    implicit_grant {
+      access_token_issuance_enabled = true
+      id_token_issuance_enabled     = true
+    }
+  }
 }
 module "auth_sp" {
   source = "./service_principal"
   application_id = azuread_application.auth.application_id
   object_id      = azuread_application.auth.object_id
 }
+
+# FIXME: Create secret /auth-oauth2-client-secret/client_secret.json which is just a copy of the auth service principal credentials
 
 resource "azuread_application" "batch" {
   display_name = "${data.azurerm_resource_group.rg.name}-batch"

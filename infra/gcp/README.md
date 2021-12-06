@@ -57,6 +57,7 @@ Instructions:
 
    ```
    gsuite_organization = "<gsuite-organization>"
+   organization_domain = "<organization-domain>"
 
    # batch_gcp_regions is a JSON array of string, the names of the gcp
    # regions to schedule over in Batch. E.g. "[\"us-central1\"]"

@@ -51,6 +51,7 @@ async def auth_flow(deploy_config, default_ns, session):
         resp = await resp.json()
     authorization_url = resp['authorization_url']
     state = resp['state']
+    flow = resp['flow']
 
     print(f'''
 Visit the following URL to log into Hail with Google:
@@ -69,7 +70,8 @@ Opening in your browser.
             params={
                 'callback_port': port,
                 'code': code,
-                'state': state
+                'state': state,
+                'flow': flow,
             }) as resp:
         resp = await resp.json()
     token = resp['token']
