@@ -1,16 +1,17 @@
-from collections.abc import Mapping
-import abc
-
 import plotly.graph_objects as go
 
 import hail as hl
 
+from .geoms import Geom, FigureAttribute
+
+
 class GGPlot:
 
-    def __init__(self, ht, aes, geoms=[]):
+    def __init__(self, ht, aes, geoms=[], labels=None):
         self.ht = ht
         self.aes = aes
         self.geoms = geoms
+        self.labels = labels
 
     # Thinking:
     # Aesthetics are basically just a dictionary of properties, string to either string or hail expression.
@@ -66,74 +67,3 @@ class GGPlot:
 
 def ggplot(table, aes):
     return GGPlot(table, aes)
-
-
-class Aesthetic(Mapping):
-    # kwargs values should either be strings or fields of a table. We will have to resolve the fact that all tables
-    # need to match the base ggplot table at some point.
-
-    def __init__(self, properties):
-        self.properties = properties
-
-    def __getitem__(self, item):
-        return self.properties[item]
-
-    def __len__(self):
-        return len(self.properties)
-
-    def __iter__(self):
-        return iter(self.properties)
-
-
-def aes(**kwargs):
-    return Aesthetic(kwargs)
-
-
-class FigureAttribute:
-    pass
-
-
-class Geom(FigureAttribute):
-
-    def __init__(self, aes):
-        self.aes = aes
-
-    @abc.abstractmethod
-    def apply_to_fig(self, parent, mapping_field_name, fig_so_far):
-        return
-
-
-def lookup(struct, mapping_field_name, target):
-    maybe = struct["figure_mapping"].get(target, struct[mapping_field_name].get(target))
-    if maybe is None:
-        raise KeyError(f"aesthetic field {target} expected but not found")
-    return maybe
-
-class GeomPoint(Geom):
-
-    def __init__(self, aes):
-        super().__init__(aes)
-
-    def apply_to_fig(self, collected, mapping_field_name, fig_so_far):
-        x = [lookup(element, mapping_field_name, "x") for element in collected]
-        y = [lookup(element, mapping_field_name, "y") for element in collected]
-        fig_so_far.add_scatter(x=x, y=y, mode="markers")
-
-
-def geom_point(mapping=aes()):
-    return GeomPoint(mapping)
-
-
-class GeomLine(Geom):
-
-    def __init__(self, aes):
-        super().__init__(aes)
-
-    def apply_to_fig(self, collected, mapping_field_name, fig_so_far):
-        x = [lookup(element, mapping_field_name, "x") for element in collected]
-        y = [lookup(element, mapping_field_name, "y") for element in collected]
-        fig_so_far.add_scatter(x=x, y=y, mode="lines")
-
-
-def geom_line(mapping=aes()):
-    return GeomLine(mapping)
