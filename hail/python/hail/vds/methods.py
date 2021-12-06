@@ -323,7 +323,7 @@ def filter_samples(vds: 'VariantDataset', samples_table: 'Table', *,
 def impute_sex_chromosome_ploidy(
         vds: VariantDataset,
         calling_intervals,
-        normalization_contig: str = "chr20"
+        normalization_contig: str
 ) -> hl.Table:
     """Impute sex chromosome ploidy from depth of reference data within calling intervals.
 
@@ -338,8 +338,11 @@ def impute_sex_chromosome_ploidy(
     Parameters
     ----------
     vds : vds: :class:`.VariantDataset`
+        Dataset.
     calling_intervals : :class:`.Table` or :class:`.ArrayExpression`
+        Calling intervals with consistent read coverage (for exomes, trim the capture intervals).
     normalization_contig : str
+        Autosomal contig for depth comparison.
 
     Returns
     -------
@@ -356,7 +359,7 @@ def impute_sex_chromosome_ploidy(
             raise ValueError(f"'impute_sex_chromosome_ploidy': expect calling_intervals to be list of intervals or"
                              f" table with single key of type interval<locus>, found table with key: {key_dtype}")
 
-    rg = vds.variant_data.locus.dtype.reference_genome
+    rg = vds.reference_data.locus.dtype.reference_genome
 
     par_boundaries = []
     for par_interval in rg.par:

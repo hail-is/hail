@@ -228,3 +228,53 @@ def test_interval_coverage():
         assert obs.sum_dp == exp.sum_dp, i
         assert obs.fraction_over_gq_threshold == exp.fraction_over_gq_threshold, i
         pytest.approx(obs.mean_dp, exp.mean_dp)
+
+
+@fails_local_backend
+@fails_service_backend
+def test_impute_sex_chromosome_ploidy():
+    x_par_end = 2699521
+    y_par_end = 2649521
+    rg = hl.get_reference('GRCh37')
+    ref_blocks = [
+        hl.Struct(s='sample_xx', ref_allele='A', locus=hl.Locus('22', 1000000, rg), END=2000000, GQ=15, DP=5),
+        hl.Struct(s='sample_xx', ref_allele='A', locus=hl.Locus('X', x_par_end-10, rg), END=x_par_end+9, GQ=18, DP=6),
+        hl.Struct(s='sample_xx', ref_allele='A', locus=hl.Locus('X', x_par_end+10, rg), END=x_par_end+29, GQ=15, DP=5),
+        hl.Struct(s='sample_xy', ref_allele='A', locus=hl.Locus('22', 1000000, rg), END=2000000, GQ=15, DP=5),
+        hl.Struct(s='sample_xy', ref_allele='A', locus=hl.Locus('X', x_par_end-10, rg), END=x_par_end+9, GQ=9, DP=3),
+        hl.Struct(s='sample_xy', ref_allele='A', locus=hl.Locus('X', x_par_end+10, rg), END=x_par_end+29, GQ=6, DP=2),
+        hl.Struct(s='sample_xy', ref_allele='A', locus=hl.Locus('Y', y_par_end-10, rg), END=y_par_end+9, GQ=12, DP=4),
+        hl.Struct(s='sample_xy', ref_allele='A', locus=hl.Locus('Y', y_par_end + 10, rg), END=y_par_end + 29, GQ=9, DP=3),
+    ]
+
+    ref_mt = hl.Table.parallelize(ref_blocks,
+                                  schema=hl.dtype('struct{s:str,locus:locus<GRCh37>,ref_allele:str,END:int32,GQ:int32,DP:int32}')) \
+        .to_matrix_table(row_key=['locus'], row_fields=['ref_allele'], col_key=['s'])
+    var_mt = hl.Table.parallelize([],
+                                  schema=hl.dtype('struct{locus:locus<GRCh37>,alleles:array<str>,s:str,LA:array<int32>,LGT:call,GQ:int32}'))\
+    .to_matrix_table(row_key=['locus', 'alleles'], col_key=['s'])
+
+    vds = hl.vds.VariantDataset(ref_mt, var_mt)
+
+    calling_intervals = [
+        hl.parse_locus_interval('22:1000010-1000020', reference_genome='GRCh37'),
+        hl.parse_locus_interval(f'X:{x_par_end}-{x_par_end+20}', reference_genome='GRCh37'),
+        hl.parse_locus_interval(f'Y:{y_par_end}-{y_par_end+20}', reference_genome='GRCh37'),
+    ]
+
+    r = hl.vds.impute_sex_chromosome_ploidy(vds, calling_intervals, normalization_contig='22')
+
+    assert r.collect() == [
+        hl.Struct(s='sample_xx',
+                  autosomal_mean_dp=5.0,
+                  x_mean_dp=5.5,
+                  x_ploidy=2.2,
+                  y_mean_dp=0.0,
+                  y_ploidy=0.0),
+        hl.Struct(s='sample_xy',
+                  autosomal_mean_dp=5.0,
+                  x_mean_dp=2.5,
+                  x_ploidy=1.0,
+                  y_mean_dp=3.5,
+                  y_ploidy=1.4)
+    ]
