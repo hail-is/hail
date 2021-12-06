@@ -711,7 +711,7 @@ class Emit[C](
         val msg = cm.consumeCode(cb, "<exception message missing>", _.asString.loadString(cb))
         cb._throw(Code.newInstance[HailException, String, Int](msg, errorId))
 
-      case x@WriteMetadata(annotations, writer) =>
+      case WriteMetadata(annotations, writer) =>
         writer.writeMetadata(emitI(annotations), cb, region)
 
       case CombOpValue(i, value, aggSig) =>

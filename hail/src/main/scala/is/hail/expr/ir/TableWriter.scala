@@ -207,7 +207,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
       val ob = mb.newLocal[OutputBuffer]("write_ob")
       val n = mb.newLocal[Long]("partition_count")
       val distinctlyKeyed = mb.newLocal[Boolean]("distinctlyKeyed")
-      cb.assign(distinctlyKeyed, true) // True until proven otherwise
+      cb.assign(distinctlyKeyed, index.isDefined) // True until proven otherwise
 
       val firstSeenSettable = mb.newEmitLocal(EmitType(keyType.sType, false))
       val lastSeenSettable = mb.newEmitLocal(EmitType(keyType.sType, false))
@@ -237,7 +237,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
         cb.ifx(distinctlyKeyed, {
           lastSeenSettable.loadI(cb).consume(cb, {
             // If there's no last seen, we are in the first row.
-            cb.assign(firstSeenSettable, EmitValue.present(key))
+            cb.assign(firstSeenSettable, EmitValue.present(key.copyToRegion(cb, region, key.st)))
             cb.println("Encountered first element, set it to ", cb.strValue(firstSeenSettable))
           }, { lastSeen =>
             val comparator = EQ(lastSeenSettable.emitType.virtualType).codeOrdering(cb.emb.ecb, lastSeenSettable.st, key.st)
@@ -284,18 +284,19 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
       cb += Region.storeLong(pResultType.fieldOffset(result, "partitionCounts"), n)
       cb += Region.storeBoolean(pResultType.fieldOffset(result, "distinctlyKeyed"), distinctlyKeyed)
       firstSeenSettable.toI(cb).consume(cb, {
-        cb.println("Set first seen to missing in the end.")
         pResultType.setFieldMissing(cb, result, "firstKey")
       }, { sv =>
-        cb.println("Stored first seen appropriately")
         keyType.storeAtAddress(cb, pResultType.fieldOffset(result, "firstKey"), region, sv, true)
+        pResultType.setFieldPresent(cb, result, "firstKey")
       })
       lastSeenSettable.toI(cb).consume(cb, {
         pResultType.setFieldMissing(cb, result, "lastKey")
       }, { sv =>
         keyType.storeAtAddress(cb, pResultType.fieldOffset(result, "lastKey"), region, sv, true)
+        pResultType.setFieldPresent(cb, result, "lastKey")
       })
-      pResultType.loadCheapSCode(cb, result.get)
+      val resSValue = pResultType.loadCheapSCode(cb, result.get)
+      resSValue
     }
   }
 }
@@ -362,6 +363,7 @@ case class TableSpecWriter(path: String, typ: TableType, rowRelPath: String, glo
 
     val a = writeAnnotations.get(cb, "write annotations can't be missing!").asIndexable
     cb.println(s"Trying to write my metadata. Type of annotations is ${a.st.virtualType}")
+    cb.println("a = ", cb.strValue(a))
     val partCounts = cb.newLocal[Array[Long]]("partCounts")
 
     val idxOfFirstKeyField = annotationType.asInstanceOf[TArray].elementType.asInstanceOf[TStruct].fieldIdx("firstKey")
