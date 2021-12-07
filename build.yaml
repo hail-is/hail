@@ -4047,13 +4047,13 @@ steps:
       set -x
       AZURE_RESOURCE_GROUP="{{ global.azure_resource_group }}"
       az vm list --resource-group $AZURE_RESOURCE_GROUP -o tsv \
-          --query "[?tags.namespace == '{{ default_ns.name }}'].name"
+          --query "[?tags.namespace == '{{ default_ns.name }}'].name" \
         | xargs -n1 -r sh -c 'az vm delete --resource-group $AZURE_RESOURCE_GROUP --name "$1" --yes || true' argv0
       az network nic list --resource-group $AZURE_RESOURCE_GROUP -o tsv \
-          --query "[?tags.namespace == '{{ default_ns.name }}'].name"
+          --query "[?tags.namespace == '{{ default_ns.name }}'].name" \
         | xargs -n1 -r sh -c 'az network nic delete --resource-group $AZURE_RESOURCE_GROUP --name "$1" || true' argv0
       az network public-ip list --resource-group $AZURE_RESOURCE_GROUP -o tsv \
-          --query "[?tags.namespace == '{{ default_ns.name }}'].name"
+          --query "[?tags.namespace == '{{ default_ns.name }}'].name" \
         | xargs -n1 -r sh -c 'az network public-ip delete --resource-group $AZURE_RESOURCE_GROUP --name "$1" || true' argv0
     secrets:
       - name: test-gsa-key
