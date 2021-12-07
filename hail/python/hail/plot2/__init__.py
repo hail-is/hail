@@ -1,7 +1,7 @@
 from .ggplot import ggplot
 from .aes import aes
 from .geoms import geom_line, geom_point, geom_text
-from .labels import ggtitle
+from .labels import ggtitle, xlab, ylab
 
 
 __all__ = [
@@ -10,5 +10,7 @@ __all__ = [
     "geom_point",
     "geom_line",
     "geom_text",
-    "ggtitle"
+    "ggtitle",
+    "xlab",
+    "ylab"
 ]
