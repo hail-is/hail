@@ -47,6 +47,7 @@ class ArrayOfByteArrayOutputStream(initialBufferCapacity: Int) extends OutputStr
       val remainingBytesAllowed = MAX_ARRAY_SIZE - bytesInCurrentArray
       val bytesToWrite = math.min(remainingBytesAllowed, len - bytesWritten)
       currentArray.write(b, off + bytesWritten, bytesToWrite)
+      bytesInCurrentArray += bytesToWrite
       bytesWritten += bytesToWrite
     }
   }
