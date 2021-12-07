@@ -49,6 +49,16 @@ class StatCount(Stat):
     def make_agg(self, x_expr, parent_struct, geom_struct):
         return hl.agg.counter(x_expr)
 
+class StatBin(Stat):
+
+    def __init__(self, start, end, bins):
+        self.start = start
+        self.end = end
+        self.bins = bins
+
+    def make_agg(self, x_expr, parent_struct, geom_struct):
+        return hl.agg.hist(x_expr, self.start, self.end, self.bins)
+
 
 class GeomPoint(Geom):
 
@@ -119,3 +129,57 @@ class GeomText(Geom):
 
 def geom_text(mapping=aes()):
     return GeomText(mapping)
+
+class GeomBar(Geom):
+
+    def __init__(self, aes):
+        super().__init__(aes)
+
+    def apply_to_fig(self, parent, agg_result, fig_so_far):
+        item_list = list(agg_result.items())
+        x_values = [item[0] for item in item_list]
+        y_values = [item[1] for item in item_list]
+        fig_so_far.add_bar(x=x_values, y=y_values)
+
+    def get_stat(self):
+        return StatCount()
+
+
+def geom_bar(mapping=aes()):
+    return GeomBar(mapping)
+
+
+class GeomHistogram(Geom):
+
+    def __init__(self, aes, min_bin=0, max_bin=100, bins=30):
+        super().__init__(aes)
+        self.min_bin = min_bin
+        self.max_bin = max_bin
+        self.bins = bins
+
+    def apply_to_fig(self, parent, agg_result, fig_so_far):
+        x_edges = agg_result.bin_edges
+        y_values = agg_result.bin_freq
+        num_edges = len(x_edges)
+        x_values = []
+        widths = []
+        for i, x in enumerate(x_edges[:num_edges - 1]):
+            x_values.append((x_edges[i + 1] - x) / 2 + x)
+            widths.append(x_edges[i + 1] - x)
+        print(x_values)
+        print(widths)
+        fig_so_far.add_bar(x=x_values, y=y_values, width=widths)
+
+    def get_stat(self):
+        return StatBin(self.min_bin, self.max_bin, self.bins)
+
+
+def geom_histogram(mapping=aes(), min_bin=None, max_bin=None, bins=30):
+    assert(min_bin is not None)
+    assert(max_bin is not None)
+    return GeomHistogram(mapping, min_bin, max_bin, bins)
+
+
+
+
+
