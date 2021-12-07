@@ -4045,7 +4045,7 @@ steps:
       az login --service-principal -u $AZURE_USERNAME -p $AZURE_PASSWORD --tenant $AZURE_TENANT_ID
       set +e
       set -x
-      AZURE_RESOURCE_GROUP="{{ global.azure_resource_group }}"
+      export AZURE_RESOURCE_GROUP="{{ global.azure_resource_group }}"
       az vm list --resource-group $AZURE_RESOURCE_GROUP -o tsv \
           --query "[?tags.namespace == '{{ default_ns.name }}'].name" \
         | xargs -n1 -r sh -c 'az vm delete --resource-group $AZURE_RESOURCE_GROUP --name "$1" --yes || true' argv0
