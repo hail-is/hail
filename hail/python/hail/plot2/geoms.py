@@ -65,3 +65,23 @@ class GeomLine(Geom):
 
 def geom_line(mapping=aes()):
     return GeomLine(mapping)
+
+class GeomText(Geom):
+
+    def __init__(self, aes):
+        super().__init__(aes)
+
+    def apply_to_fig(self, parent, collected, mapping_field_name, fig_so_far):
+        scatter_args = {
+            "x": [lookup(element, mapping_field_name, "x") for element in collected],
+            "y": [lookup(element, mapping_field_name, "y") for element in collected],
+            "text": [lookup(element, mapping_field_name, "label") for element in collected],
+            "mode": "text"
+        }
+        if "color" in parent.aes or "color" in self.aes:
+            scatter_args["textfont_color"] = [lookup_opt(element, mapping_field_name, "color") for element in collected]
+        fig_so_far.add_scatter(**scatter_args)
+
+
+def geom_text(mapping=aes()):
+    return GeomText(mapping)
