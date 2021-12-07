@@ -42,7 +42,7 @@ class GGPlot:
         return copied
 
     def copy(self):
-        return GGPlot(self.ht, self.aes, self.geoms[:])
+        return GGPlot(self.ht, self.aes, self.geoms[:], self.labels)
 
     def render(self):
         # Step 1: Update aesthetics accordingly, all need to point into this table.

@@ -11,7 +11,7 @@ __all__ = [
     "geom_line",
     "geom_text",
     "geom_bar",
-    "geom_histogram"
+    "geom_histogram",
     "ggtitle",
     "xlab",
     "ylab"
