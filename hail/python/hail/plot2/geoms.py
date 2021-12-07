@@ -2,18 +2,18 @@ import abc
 
 from .aes import aes
 
+
 class FigureAttribute:
-    pass
+
+    @abc.abstractmethod
+    def apply_to_fig(self, parent, collected, mapping_field_name, fig_so_far):
+        return
 
 
 class Geom(FigureAttribute):
 
     def __init__(self, aes):
         self.aes = aes
-
-    @abc.abstractmethod
-    def apply_to_fig(self, parent, collected, mapping_field_name, fig_so_far):
-        return
 
 
 def lookup(struct, mapping_field_name, target):
