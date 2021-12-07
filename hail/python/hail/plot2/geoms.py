@@ -12,7 +12,7 @@ class Geom(FigureAttribute):
         self.aes = aes
 
     @abc.abstractmethod
-    def apply_to_fig(self, parent, mapping_field_name, fig_so_far):
+    def apply_to_fig(self, parent, collected, mapping_field_name, fig_so_far):
         return
 
 
@@ -32,11 +32,14 @@ class GeomPoint(Geom):
     def __init__(self, aes):
         super().__init__(aes)
 
-    def apply_to_fig(self, collected, mapping_field_name, fig_so_far):
-        x = [lookup(element, mapping_field_name, "x") for element in collected]
-        y = [lookup(element, mapping_field_name, "y") for element in collected]
-        color = [lookup_opt(element, mapping_field_name, "color") for element in collected]
-        fig_so_far.add_scatter(x=x, y=y, marker_color=color, mode="markers")
+    def apply_to_fig(self, parent, collected, mapping_field_name, fig_so_far):
+        scatter_args = {}
+        scatter_args["x"] = [lookup(element, mapping_field_name, "x") for element in collected]
+        scatter_args["y"] = [lookup(element, mapping_field_name, "y") for element in collected]
+        scatter_args["mode"] = "markers"
+        if "color" in parent.aes or "color" in self.aes:
+            scatter_args["marker_color"] = [lookup_opt(element, mapping_field_name, "color") for element in collected]
+        fig_so_far.add_scatter(**scatter_args)
 
 
 def geom_point(mapping=aes()):
@@ -48,12 +51,16 @@ class GeomLine(Geom):
     def __init__(self, aes):
         super().__init__(aes)
 
-    def apply_to_fig(self, collected, mapping_field_name, fig_so_far):
-        x = [lookup(element, mapping_field_name, "x") for element in collected]
-        y = [lookup(element, mapping_field_name, "y") for element in collected]
-        color = [lookup_opt(element, mapping_field_name, "color") for element in collected]
-        #FIXME: How should this work? All the colors have to match, there can be only one.
-        fig_so_far.add_scatter(x=x, y=y, line_color=color[0], mode="lines")
+    def apply_to_fig(self, parent, collected, mapping_field_name, fig_so_far):
+        scatter_args = {
+            "x": [lookup(element, mapping_field_name, "x") for element in collected],
+            "y": [lookup(element, mapping_field_name, "y") for element in collected],
+            "mode": "lines"
+        }
+        if "color" in parent.aes or "color" in self.aes:
+            #FIXME: How should this work? All the colors have to match, there can be only one.
+            scatter_args["line_color"] = lookup_opt(collected[0], mapping_field_name, "color")
+        fig_so_far.add_scatter(**scatter_args)
 
 
 def geom_line(mapping=aes()):

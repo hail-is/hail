@@ -60,7 +60,7 @@ class GGPlot:
         fig = go.Figure()
 
         for geom_idx, geom in enumerate(self.geoms):
-            geom.apply_to_fig(collected, f"geom{geom_idx}", fig)
+            geom.apply_to_fig(self, collected, f"geom{geom_idx}", fig)
 
         return fig
 
