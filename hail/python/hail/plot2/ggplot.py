@@ -3,11 +3,12 @@ import plotly.graph_objects as go
 import hail as hl
 
 from .geoms import Geom, FigureAttribute
+from .labels import Labels
 
 
 class GGPlot:
 
-    def __init__(self, ht, aes, geoms=[], labels=None):
+    def __init__(self, ht, aes, geoms=[], labels=Labels()):
         self.ht = ht
         self.aes = aes
         self.geoms = geoms
@@ -33,6 +34,8 @@ class GGPlot:
         copied = self.copy()
         if isinstance(other, Geom):
             copied.geoms.append(other)
+        elif isinstance(other, Labels):
+            copied.labels = copied.labels.merge(other)
         else:
             raise ValueError("Not implemented")
 
@@ -51,7 +54,23 @@ class GGPlot:
             fields_to_select[label] = hl.struct(**geom.aes)
 
         selected = self.ht.select(**fields_to_select)
-        collected = selected.collect()
+        aggregators = {}
+        for geom_idx, geom in enumerate(self.geoms):
+            label = f"geom{geom_idx}"
+            stat = geom.get_stat()
+
+            if "x" in selected[label]:
+                x_expr = selected[label]["x"]
+            elif "x" in selected["figure_mapping"]:
+                x_expr = selected["figure_mapping"]["x"]
+            else:
+                raise ValueError("There wasn't an x")
+
+            agg = stat.make_agg(x_expr, selected["figure_mapping"], selected[label])
+            aggregators[label] = agg
+
+
+        aggregated = selected.aggregate(hl.struct(**aggregators))
 
         # Ok, so far so good, need to make a plot based on the geoms.
         # Geoms have a notion of scope. They have their own aesthetics, plus the global figure aesthetics.
@@ -59,8 +78,10 @@ class GGPlot:
 
         fig = go.Figure()
 
-        for geom_idx, geom in enumerate(self.geoms):
-            geom.apply_to_fig(self, collected, f"geom{geom_idx}", fig)
+        for geom, agg_result in zip(self.geoms, aggregated.values()):
+            geom.apply_to_fig(self, agg_result, fig)
+
+        self.labels.apply_to_fig(fig)
 
         return fig
 
