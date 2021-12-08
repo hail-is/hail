@@ -4,15 +4,18 @@ import hail as hl
 
 from .geoms import Geom, FigureAttribute
 from .labels import Labels
+from .scale import Scale
 
 
 class GGPlot:
 
-    def __init__(self, ht, aes, geoms=[], labels=Labels()):
+    def __init__(self, ht, aes, geoms=[], labels=Labels(), x_scale=None, y_scale=None):
         self.ht = ht
         self.aes = aes
         self.geoms = geoms
         self.labels = labels
+        self.x_scale = x_scale
+        self.y_scale = y_scale
 
     # Thinking:
     # Aesthetics are basically just a dictionary of properties, string to either string or hail expression.
@@ -36,13 +39,20 @@ class GGPlot:
             copied.geoms.append(other)
         elif isinstance(other, Labels):
             copied.labels = copied.labels.merge(other)
+        elif isinstance(other, Scale):
+            if other.axis == "x":
+                copied.x_scale = other
+            elif other.axis == "y":
+                copied.y_scale = other
+            else:
+                raise ValueError("Unrecognized axis in scale")
         else:
             raise ValueError("Not implemented")
 
         return copied
 
     def copy(self):
-        return GGPlot(self.ht, self.aes, self.geoms[:], self.labels)
+        return GGPlot(self.ht, self.aes, self.geoms[:], self.labels, self.x_scale, self.y_scale)
 
     def render(self):
         # Step 1: Update aesthetics accordingly, all need to point into this table.
@@ -82,6 +92,10 @@ class GGPlot:
             geom.apply_to_fig(self, agg_result, fig)
 
         self.labels.apply_to_fig(fig)
+        if self.x_scale is not None:
+            self.x_scale.apply_to_fig(fig)
+        if self.y_scale is not None:
+            self.y_scale.apply_to_fig(fig)
 
         return fig
 
