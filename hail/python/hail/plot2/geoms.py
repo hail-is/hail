@@ -79,6 +79,8 @@ class GeomPoint(Geom):
         }
         if "color" in parent.aes or "color" in self.aes:
             scatter_args["marker_color"] = [element["color"] for element in agg_result]
+        if "size" in parent.aes or "size" in self.aes:
+            scatter_args["marker_size"] = [element["size"] for element in agg_result]
         fig_so_far.add_scatter(**scatter_args)
 
     def get_stat(self):
@@ -127,6 +129,8 @@ class GeomText(Geom):
         }
         if "color" in parent.aes or "color" in self.aes:
             scatter_args["textfont_color"] = [element["color"] for element in agg_result]
+        if "size" in parent.aes or "size" in self.aes:
+            scatter_args["textfont_size"] = [element["size"] for element in agg_result]
         fig_so_far.add_scatter(**scatter_args)
 
     def get_stat(self):
@@ -221,3 +225,27 @@ def geom_hline(yintercept, linetype="solid", color=None):
     return GeomHLine(yintercept, linetype=linetype, color=color)
 
 
+class GeomVLine(Geom):
+
+    def __init__(self, xintercept, linetype="solid", color=None):
+        self.xintercept = xintercept
+        self.aes = aes()
+        self.linetype = linetype
+        self.color = color
+
+    def apply_to_fig(self, parent, agg_result, fig_so_far):
+        line_attributes = {
+            "x": self.xintercept,
+            "line_dash": linetype_dict[self.linetype]
+        }
+        if self.color is not None:
+            line_attributes["line_color"] = self.color
+
+        fig_so_far.add_vline(**line_attributes)
+
+    def get_stat(self):
+        return StatNone()
+
+
+def geom_vline(xintercept, linetype="solid", color=None):
+    return GeomVLine(xintercept, linetype=linetype, color=color)
