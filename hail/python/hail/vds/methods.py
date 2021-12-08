@@ -1,6 +1,7 @@
-from typing import Sequence, Optional
+from typing import Sequence
 
 import hail as hl
+from hail import ir
 from hail.expr import ArrayExpression, expr_any, expr_array, expr_interval, expr_locus
 from hail.matrixtable import MatrixTable
 from hail.methods.misc import require_first_key_field_locus
@@ -9,7 +10,6 @@ from hail.typecheck import sequenceof, typecheck, nullable, oneof
 from hail.utils.java import Env, info
 from hail.utils.misc import divide_null, new_temp_file
 from hail.vds.variant_dataset import VariantDataset
-from hail import ir
 
 
 def write_variant_datasets(vdss, paths, *,
@@ -316,6 +316,7 @@ def filter_samples(vds: 'VariantDataset', samples_table: 'Table', *,
     variant_data = variant_data.filter_rows(hl.agg.count() > 0)
     return VariantDataset(reference_data, variant_data)
 
+
 @typecheck(vds=VariantDataset,
            calling_intervals=oneof(Table, expr_array(expr_interval(expr_locus()))),
            normalization_contig=str
@@ -373,14 +374,14 @@ def impute_sex_chromosome_ploidy(
     calling_intervals = calling_intervals.filter(hl.all(lambda x: ~x.overlaps(calling_intervals.interval), hl.literal(rg.par)))
 
     # checkpoint for efficient multiple downstream usages
-    info(f"'impute_sex_chromosome_ploidy': checkpointing calling intervals")
+    info("'impute_sex_chromosome_ploidy': checkpointing calling intervals")
     calling_intervals = calling_intervals.checkpoint(new_temp_file(extension='ht'))
 
     interval = calling_intervals.key[0]
     (any_bad_intervals, chrs_represented) = calling_intervals.aggregate(
         (hl.agg.any(interval.start.contig != interval.end.contig), hl.agg.collect_as_set(interval.start.contig)))
     if any_bad_intervals:
-        raise ValueError(f"'impute_sex_chromosome_ploidy' does not support calling intervals that span chromosome boundaries")
+        raise ValueError("'impute_sex_chromosome_ploidy' does not support calling intervals that span chromosome boundaries")
 
     if len(rg.x_contigs) != 1:
         raise NotImplementedError(
@@ -412,8 +413,9 @@ def impute_sex_chromosome_ploidy(
                                          x_ploidy=x_dp / auto_dp * 2,
                                          y_mean_dp=y_dp,
                                          y_ploidy=y_dp / auto_dp * 2)
-    info(f"'impute_sex_chromosome_ploidy': computing and checkpointing coverage and karyotype metrics")
+    info("'impute_sex_chromosome_ploidy': computing and checkpointing coverage and karyotype metrics")
     return per_sample.cols().checkpoint(new_temp_file('impute_sex_karyotype', extension='ht'))
+
 
 @typecheck(vds=VariantDataset, variants_table=Table, keep=bool)
 def filter_variants(vds: 'VariantDataset', variants_table: 'Table', *, keep: bool = True) -> 'VariantDataset':

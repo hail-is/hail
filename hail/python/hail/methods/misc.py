@@ -383,6 +383,7 @@ def filter_intervals(ds, intervals, keep=True) -> Union[Table, MatrixTable]:
     else:
         return Table(ir.TableFilterIntervals(ds._tir, intervals, point_type, keep))
 
+
 @typecheck(ht=Table,
            points=oneof(Table, expr_array(expr_any)))
 def segment_intervals(ht, points):
@@ -400,12 +401,12 @@ def segment_intervals(ht, points):
     :class:`.Table`
     """
     if len(ht.key) != 1 or not isinstance(ht.key[0].dtype, hl.tinterval):
-        raise ValueError(f"'segment_intervals' expects a table with interval keys")
+        raise ValueError("'segment_intervals' expects a table with interval keys")
     point_type = ht.key[0].dtype.point_type
     if isinstance(points, Table):
         if len(points.key) != 1 or points.key[0].dtype != point_type:
-            raise ValueError(f"'segment_intervals' expects points to be a table with a single"
-                             f" key of the same type as the intervals in 'ht', or an array of those points:"
+            raise ValueError("'segment_intervals' expects points to be a table with a single"
+                             " key of the same type as the intervals in 'ht', or an array of those points:"
                              f"\n  expect {point_type}, found {list(points.key.dtype.values())}")
         points = hl.array(hl.set(points.collect(_localize=False)))
     if points.dtype.element_type != point_type:
@@ -431,10 +432,10 @@ def segment_intervals(ht, points):
                                     hl.flatten([
                                         [hl.interval(interval.start, points[lower],
                                                      includes_start=interval.includes_start, includes_end=False)],
-                                        hl.range(lower, higher-1).map(
-                                            lambda x: hl.interval(points[x], points[x+1], includes_start=True,
+                                        hl.range(lower, higher - 1).map(
+                                            lambda x: hl.interval(points[x], points[x + 1], includes_start=True,
                                                                   includes_end=False)),
-                                        [hl.interval(points[higher-1], interval.end, includes_start=True,
+                                        [hl.interval(points[higher - 1], interval.end, includes_start=True,
                                                      includes_end=interval.includes_end)],
                                     ])))
     ht = ht.annotate(__new_intervals=interval_results, lower=lower, higher=higher).explode('__new_intervals')
