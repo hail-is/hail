@@ -529,6 +529,10 @@ steps:
     dependsOn:
       - hail_run_image
       - merge_code
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: standard
   - kind: buildImage2
     name: benchmark_image
     dockerFile: /io/repo/benchmark-service/Dockerfile
@@ -888,6 +892,10 @@ steps:
       - service_base_image
       - build_hail
       - merge_code
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: standard
   - kind: runImage
     name: upload_test_resources_to_blob_storage
     image:
@@ -3804,6 +3812,10 @@ steps:
       - make_pip_versioned_docs
     clouds:
       - gcp
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: standard
   - kind: deploy
     name: deploy_website
     namespace:
