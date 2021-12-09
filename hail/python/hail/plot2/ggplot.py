@@ -5,6 +5,7 @@ import hail as hl
 from .geoms import Geom, FigureAttribute
 from .labels import Labels
 from .scale import Scale
+from .aes import Aesthetic, aes
 
 
 class GGPlot:
@@ -32,7 +33,7 @@ class GGPlot:
     # 3. Generate the plot in plotly based on the assembled information.
 
     def __add__(self, other):
-        assert(isinstance(other, FigureAttribute))
+        assert(isinstance(other, FigureAttribute) or isinstance(other, Aesthetic))
 
         copied = self.copy()
         if isinstance(other, Geom):
@@ -46,6 +47,8 @@ class GGPlot:
                 copied.y_scale = other
             else:
                 raise ValueError("Unrecognized axis in scale")
+        elif isinstance(other, Aesthetic):
+            copied.aes = Aesthetic({**copied.aes.properties, **other.properties})
         else:
             raise ValueError("Not implemented")
 
@@ -100,5 +103,5 @@ class GGPlot:
         return fig
 
 
-def ggplot(table, aes):
+def ggplot(table, aes=aes()):
     return GGPlot(table, aes)
