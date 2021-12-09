@@ -68,7 +68,6 @@ class GGPlot:
             agg = stat.make_agg(x_expr, selected["figure_mapping"], selected[label])
             aggregators[label] = agg
 
-
         aggregated = selected.aggregate(hl.struct(**aggregators))
 
         fig = go.Figure()

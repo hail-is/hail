@@ -22,17 +22,6 @@ class Geom(FigureAttribute):
         return ...
 
 
-def lookup(struct, mapping_field_name, target):
-    maybe = lookup_opt(struct, mapping_field_name, target)
-    if maybe is None:
-        raise KeyError(f"aesthetic field {target} expected but not found")
-    return maybe
-
-
-def lookup_opt(struct, mapping_field_name, target):
-    return struct["figure_mapping"].get(target, struct[mapping_field_name].get(target))
-
-
 class Stat:
     @abc.abstractmethod
     def make_agg(self, x_expr, parent_struct, geom_struct):
@@ -72,16 +61,25 @@ class GeomPoint(Geom):
         super().__init__(aes)
 
     def apply_to_fig(self, parent, agg_result, fig_so_far):
-        scatter_args = {
-            "x": [element["x"] for element in agg_result],
-            "y": [element["y"] for element in agg_result],
-            "mode": "markers"
-        }
+        def plot_one_color(one_color_data, color):
+            scatter_args = {
+                "x": [element["x"] for element in one_color_data],
+                "y": [element["y"] for element in one_color_data],
+                "mode": "markers",
+                "marker_color": color
+            }
+
+            if "size" in parent.aes or "size" in self.aes:
+                scatter_args["marker_size"] = [element["size"] for element in one_color_data]
+            fig_so_far.add_scatter(**scatter_args)
+
         if "color" in parent.aes or "color" in self.aes:
-            scatter_args["marker_color"] = [element["color"] for element in agg_result]
-        if "size" in parent.aes or "size" in self.aes:
-            scatter_args["marker_size"] = [element["size"] for element in agg_result]
-        fig_so_far.add_scatter(**scatter_args)
+            unique_colors = set([element["color"] for element in agg_result])
+            for color in unique_colors:
+                filtered_data = [element for element in agg_result if element["color"] == color]
+                plot_one_color(filtered_data, color)
+        else:
+            plot_one_color(agg_result, "black")
 
     def get_stat(self):
         return StatIdentity()
@@ -97,15 +95,23 @@ class GeomLine(Geom):
         super().__init__(aes)
 
     def apply_to_fig(self, parent, agg_result, fig_so_far):
-        scatter_args = {
-            "x": [element["x"] for element in agg_result],
-            "y": [element["y"] for element in agg_result],
-            "mode": "lines"
-        }
+
+        def plot_one_color(one_color_data, color):
+            scatter_args = {
+                "x": [element["x"] for element in one_color_data],
+                "y": [element["y"] for element in one_color_data],
+                "mode": "lines",
+                "line_color": color
+            }
+            fig_so_far.add_scatter(**scatter_args)
+
         if "color" in parent.aes or "color" in self.aes:
-            #FIXME: How should this work? All the colors have to match, there can be only one.
-            scatter_args["line_color"] = agg_result[0]["color"]
-        fig_so_far.add_scatter(**scatter_args)
+            unique_colors = set([element["color"] for element in agg_result])
+            for color in unique_colors:
+                filtered_data = [element for element in agg_result if element["color"] == color]
+                plot_one_color(filtered_data, color)
+        else:
+            plot_one_color(agg_result, "black")
 
     def get_stat(self):
         return StatIdentity()
@@ -121,17 +127,26 @@ class GeomText(Geom):
         super().__init__(aes)
 
     def apply_to_fig(self, parent, agg_result, fig_so_far):
-        scatter_args = {
-            "x": [element["x"] for element in agg_result],
-            "y": [element["y"] for element in agg_result],
-            "text": [element["label"] for element in agg_result],
-            "mode": "text"
-        }
+        def plot_one_color(one_color_data, color):
+            scatter_args = {
+                "x": [element["x"] for element in one_color_data],
+                "y": [element["y"] for element in one_color_data],
+                "text": [element["label"] for element in one_color_data],
+                "mode": "text",
+                "textfont_color": color
+            }
+
+            if "size" in parent.aes or "size" in self.aes:
+                scatter_args["textfont_size"] = [element["size"] for element in one_color_data]
+            fig_so_far.add_scatter(**scatter_args)
+
         if "color" in parent.aes or "color" in self.aes:
-            scatter_args["textfont_color"] = [element["color"] for element in agg_result]
-        if "size" in parent.aes or "size" in self.aes:
-            scatter_args["textfont_size"] = [element["size"] for element in agg_result]
-        fig_so_far.add_scatter(**scatter_args)
+            unique_colors = set([element["color"] for element in agg_result])
+            for color in unique_colors:
+                filtered_data = [element for element in agg_result if element["color"] == color]
+                plot_one_color(filtered_data, color)
+        else:
+            plot_one_color(agg_result, "black")
 
     def get_stat(self):
         return StatIdentity()
