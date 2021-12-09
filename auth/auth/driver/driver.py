@@ -547,7 +547,7 @@ async def delete_user(app, user):
         await hail_identity_secret.delete()
 
     namespace_name = user['namespace_name']
-    if namespace_name is not None:
+    if namespace_name is not None and namespace_name != DEFAULT_NAMESPACE:
         assert user['is_developer'] == 1
 
         # don't bother deleting database-server-config since we're
