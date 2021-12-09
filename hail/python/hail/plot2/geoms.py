@@ -57,8 +57,9 @@ class StatBin(Stat):
 
 class GeomPoint(Geom):
 
-    def __init__(self, aes):
+    def __init__(self, aes, color=None):
         super().__init__(aes)
+        self.color = color
 
     def apply_to_fig(self, parent, agg_result, fig_so_far):
         def plot_one_color(one_color_data, color):
@@ -73,7 +74,9 @@ class GeomPoint(Geom):
                 scatter_args["marker_size"] = [element["size"] for element in one_color_data]
             fig_so_far.add_scatter(**scatter_args)
 
-        if "color" in parent.aes or "color" in self.aes:
+        if self.color is not None:
+            plot_one_color(agg_result, self.color)
+        elif "color" in parent.aes or "color" in self.aes:
             unique_colors = set([element["color"] for element in agg_result])
             for color in unique_colors:
                 filtered_data = [element for element in agg_result if element["color"] == color]
@@ -85,14 +88,15 @@ class GeomPoint(Geom):
         return StatIdentity()
 
 
-def geom_point(mapping=aes()):
-    return GeomPoint(mapping)
+def geom_point(mapping=aes(), color=None):
+    return GeomPoint(mapping, color=color)
 
 
 class GeomLine(Geom):
 
-    def __init__(self, aes):
+    def __init__(self, aes, color=None):
         super().__init__(aes)
+        self.color = color
 
     def apply_to_fig(self, parent, agg_result, fig_so_far):
 
@@ -105,7 +109,9 @@ class GeomLine(Geom):
             }
             fig_so_far.add_scatter(**scatter_args)
 
-        if "color" in parent.aes or "color" in self.aes:
+        if self.color is not None:
+            plot_one_color(agg_result, self.color)
+        elif "color" in parent.aes or "color" in self.aes:
             unique_colors = set([element["color"] for element in agg_result])
             for color in unique_colors:
                 filtered_data = [element for element in agg_result if element["color"] == color]
@@ -117,14 +123,15 @@ class GeomLine(Geom):
         return StatIdentity()
 
 
-def geom_line(mapping=aes()):
-    return GeomLine(mapping)
+def geom_line(mapping=aes(), color=None):
+    return GeomLine(mapping, color=color)
 
 
 class GeomText(Geom):
 
-    def __init__(self, aes):
+    def __init__(self, aes, color=None):
         super().__init__(aes)
+        self.color = color
 
     def apply_to_fig(self, parent, agg_result, fig_so_far):
         def plot_one_color(one_color_data, color):
@@ -140,7 +147,9 @@ class GeomText(Geom):
                 scatter_args["textfont_size"] = [element["size"] for element in one_color_data]
             fig_so_far.add_scatter(**scatter_args)
 
-        if "color" in parent.aes or "color" in self.aes:
+        if self.color is not None:
+            plot_one_color(agg_result, self.color)
+        elif "color" in parent.aes or "color" in self.aes:
             unique_colors = set([element["color"] for element in agg_result])
             for color in unique_colors:
                 filtered_data = [element for element in agg_result if element["color"] == color]
@@ -152,8 +161,9 @@ class GeomText(Geom):
         return StatIdentity()
 
 
-def geom_text(mapping=aes()):
-    return GeomText(mapping)
+def geom_text(mapping=aes(), color=None):
+    return GeomText(mapping, color=color)
+
 
 class GeomBar(Geom):
 
