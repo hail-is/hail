@@ -2,6 +2,7 @@ import abc
 import plotly
 
 from .aes import aes
+from .utils import categorical_strings_to_colors, continuous_nums_to_colors
 import hail as hl
 
 
@@ -63,12 +64,13 @@ class GeomPoint(Geom):
         self.color = color
 
     def apply_to_fig(self, parent, agg_result, fig_so_far):
-        def plot_one_color(one_color_data, color):
+        def plot_one_color(one_color_data, color, legend_name):
             scatter_args = {
                 "x": [element["x"] for element in one_color_data],
                 "y": [element["y"] for element in one_color_data],
                 "mode": "markers",
-                "marker_color": color
+                "marker_color": color,
+                "name": legend_name
             }
 
             if "size" in parent.aes or "size" in self.aes:
@@ -93,18 +95,16 @@ class GeomPoint(Geom):
             if isinstance(agg_result[0]["color"], int):
                 # Should show colors in continuous scale.
                 input_color_nums = [element["color"] for element in agg_result]
-                min_color = min(input_color_nums)
-                max_color = max(input_color_nums)
-                adjust_color = lambda input_color: (input_color - min_color) / max_color - min_color
-                color_mapping = plotly.colors.sample_colorscale(parent.continuous_color_scale, [adjust_color(input_color) for input_color in input_color_nums])
+                color_mapping = continuous_nums_to_colors(input_color_nums, parent.continuous_color_scale)
                 plot_continuous_color(agg_result, color_mapping)
 
             else:
-                unique_colors = set([element["color"] for element in agg_result])
+                categorical_strings = set([element["color"] for element in agg_result])
+                unique_color_mapping = categorical_strings_to_colors(categorical_strings, parent.discrete_color_scale)
 
-                for color in unique_colors:
-                    filtered_data = [element for element in agg_result if element["color"] == color]
-                    plot_one_color(filtered_data, color)
+                for category in categorical_strings:
+                    filtered_data = [element for element in agg_result if element["color"] == category]
+                    plot_one_color(filtered_data, unique_color_mapping[category], category)
         else:
             plot_one_color(agg_result, "black")
 
@@ -124,22 +124,39 @@ class GeomLine(Geom):
 
     def apply_to_fig(self, parent, agg_result, fig_so_far):
 
-        def plot_one_color(one_color_data, color):
+        def plot_one_color(one_color_data, color, legend_name):
             scatter_args = {
                 "x": [element["x"] for element in one_color_data],
                 "y": [element["y"] for element in one_color_data],
                 "mode": "lines",
+                "name": legend_name,
                 "line_color": color
             }
+            fig_so_far.add_scatter(**scatter_args)
+
+        def plot_continuous_color(data, colors):
+            scatter_args = {
+                "x": [element["x"] for element in data],
+                "y": [element["y"] for element in data],
+                "mode": "lines",
+                "line_color": colors
+            }
+
             fig_so_far.add_scatter(**scatter_args)
 
         if self.color is not None:
             plot_one_color(agg_result, self.color)
         elif "color" in parent.aes or "color" in self.aes:
-            unique_colors = set([element["color"] for element in agg_result])
-            for color in unique_colors:
-                filtered_data = [element for element in agg_result if element["color"] == color]
-                plot_one_color(filtered_data, color)
+            if isinstance(agg_result[0]["color"], int):
+                # Should show colors in continuous scale.
+                raise ValueError("Do not currently support continuous color changing of lines")
+            else:
+                categorical_strings = set([element["color"] for element in agg_result])
+                unique_color_mapping = categorical_strings_to_colors(categorical_strings, parent.discrete_color_scale)
+
+                for category in categorical_strings:
+                    filtered_data = [element for element in agg_result if element["color"] == category]
+                    plot_one_color(filtered_data, unique_color_mapping[category], category)
         else:
             plot_one_color(agg_result, "black")
 
@@ -158,12 +175,13 @@ class GeomText(Geom):
         self.color = color
 
     def apply_to_fig(self, parent, agg_result, fig_so_far):
-        def plot_one_color(one_color_data, color):
+        def plot_one_color(one_color_data, color, legend_name):
             scatter_args = {
                 "x": [element["x"] for element in one_color_data],
                 "y": [element["y"] for element in one_color_data],
                 "text": [element["label"] for element in one_color_data],
                 "mode": "text",
+                "name": legend_name,
                 "textfont_color": color
             }
 
@@ -171,15 +189,34 @@ class GeomText(Geom):
                 scatter_args["textfont_size"] = [element["size"] for element in one_color_data]
             fig_so_far.add_scatter(**scatter_args)
 
+        def plot_continuous_color(data, colors):
+            scatter_args = {
+                "x": [element["x"] for element in data],
+                "y": [element["y"] for element in data],
+                "mode": "markers",
+                "marker_color": colors
+            }
+
+            if "size" in parent.aes or "size" in self.aes:
+                scatter_args["marker_size"] = [element["size"] for element in data]
+            fig_so_far.add_scatter(**scatter_args)
+
         if self.color is not None:
             plot_one_color(agg_result, self.color)
         elif "color" in parent.aes or "color" in self.aes:
-            unique_colors = set([element["color"] for element in agg_result])
-            for color in unique_colors:
-                filtered_data = [element for element in agg_result if element["color"] == color]
-                plot_one_color(filtered_data, color)
-        else:
-            plot_one_color(agg_result, "black")
+            if isinstance(agg_result[0]["color"], int):
+                # Should show colors in continuous scale.
+                input_color_nums = [element["color"] for element in agg_result]
+                color_mapping = continuous_nums_to_colors(input_color_nums, parent.continuous_color_scale)
+                plot_continuous_color(agg_result, color_mapping)
+
+            else:
+                categorical_strings = set([element["color"] for element in agg_result])
+                unique_color_mapping = categorical_strings_to_colors(categorical_strings, parent.discrete_color_scale)
+
+                for category in categorical_strings:
+                    filtered_data = [element for element in agg_result if element["color"] == category]
+                    plot_one_color(filtered_data, unique_color_mapping[category], category)
 
     def get_stat(self):
         return StatIdentity()
