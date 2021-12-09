@@ -5,6 +5,7 @@ from .geoms import FigureAttribute
 class Scale(FigureAttribute):
     def __init__(self, axis, name, breaks, labels):
         assert axis in ["x", "y"]
+        self.name = name
         self.axis = axis
         self.breaks = breaks
         self.labels = labels
@@ -17,6 +18,9 @@ class Scale(FigureAttribute):
 
     # What else do discrete and continuous scales have in common?
     def apply_to_fig(self, fig_so_far):
+        if self.name is not None:
+            self.update_axis(fig_so_far)(title=self.name)
+
         if self.breaks is not None:
             self.update_axis(fig_so_far)(tickvals=self.breaks)
 
