@@ -3796,6 +3796,8 @@ steps:
     dependsOn:
       - service_base_image
       - make_pip_versioned_docs
+    clouds:
+      - gcp
   - kind: deploy
     name: deploy_website
     namespace:
@@ -3809,6 +3811,8 @@ steps:
       - default_ns
       - website_image
       - create_certs
+    clouds:
+      - gcp
   - kind: runImage
     name: test_website
     image:
