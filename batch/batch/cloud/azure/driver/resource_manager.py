@@ -138,4 +138,6 @@ class AzureResourceManager(CloudResourceManager):
             log.info(f'created machine {machine_name}')
         except Exception:
             log.exception(f'error while creating machine {machine_name}')
+        finally:
+            await self.arm_client.delete(f'/deployments/{machine_name}-dplmnt')
         return total_resources_on_instance
