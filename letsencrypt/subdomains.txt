@@ -12,3 +12,4 @@ query
 workshop
 grafana
 prometheus
+hello
