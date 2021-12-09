@@ -1,3 +1,4 @@
+import plotly
 import plotly.graph_objects as go
 
 import hail as hl
@@ -17,6 +18,8 @@ class GGPlot:
         self.labels = labels
         self.x_scale = x_scale
         self.y_scale = y_scale
+        self.discrete_color_scale = plotly.colors.qualitative.D3
+        self.continuous_color_scale = plotly.colors.sequential.Viridis
 
     def __add__(self, other):
         assert(isinstance(other, FigureAttribute) or isinstance(other, Aesthetic))

@@ -1,4 +1,5 @@
 import abc
+import plotly
 
 from .aes import aes
 import hail as hl
@@ -74,13 +75,36 @@ class GeomPoint(Geom):
                 scatter_args["marker_size"] = [element["size"] for element in one_color_data]
             fig_so_far.add_scatter(**scatter_args)
 
+        def plot_continuous_color(data, colors):
+            scatter_args = {
+                "x": [element["x"] for element in data],
+                "y": [element["y"] for element in data],
+                "mode": "markers",
+                "marker_color": colors
+            }
+
+            if "size" in parent.aes or "size" in self.aes:
+                scatter_args["marker_size"] = [element["size"] for element in data]
+            fig_so_far.add_scatter(**scatter_args)
+
         if self.color is not None:
             plot_one_color(agg_result, self.color)
         elif "color" in parent.aes or "color" in self.aes:
-            unique_colors = set([element["color"] for element in agg_result])
-            for color in unique_colors:
-                filtered_data = [element for element in agg_result if element["color"] == color]
-                plot_one_color(filtered_data, color)
+            if isinstance(agg_result[0]["color"], int):
+                # Should show colors in continuous scale.
+                input_color_nums = [element["color"] for element in agg_result]
+                min_color = min(input_color_nums)
+                max_color = max(input_color_nums)
+                adjust_color = lambda input_color: (input_color - min_color) / max_color - min_color
+                color_mapping = plotly.colors.sample_colorscale(parent.continuous_color_scale, [adjust_color(input_color) for input_color in input_color_nums])
+                plot_continuous_color(agg_result, color_mapping)
+
+            else:
+                unique_colors = set([element["color"] for element in agg_result])
+
+                for color in unique_colors:
+                    filtered_data = [element for element in agg_result if element["color"] == color]
+                    plot_one_color(filtered_data, color)
         else:
             plot_one_color(agg_result, "black")
 
