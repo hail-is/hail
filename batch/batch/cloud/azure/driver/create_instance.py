@@ -110,7 +110,7 @@ runcmd:
 '''
     startup_script = base64.b64encode(startup_script.encode('utf-8')).decode('utf-8')
 
-    run_script = rf'''
+    run_script = f'''
 #!/bin/bash
 set -x
 
