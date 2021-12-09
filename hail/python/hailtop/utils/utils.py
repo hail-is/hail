@@ -1,4 +1,5 @@
 from typing import Callable, TypeVar, Awaitable, Optional, Type, List, Dict
+from typing_extensions import Literal
 from types import TracebackType
 import concurrent
 import subprocess
@@ -882,6 +883,8 @@ def url_scheme(url: str) -> str:
     return parsed.scheme
 
 
+RegistryProvider = Literal['google', 'azure', 'dockerhub']
+
 class ParsedDockerImageReference:
     def __init__(self, domain: str, path: str, tag: str, digest: str):
         self.domain = domain
@@ -893,6 +896,13 @@ class ParsedDockerImageReference:
         if self.domain:
             return self.domain + '/' + self.path
         return self.path
+
+    def hosted_in(self, registry: RegistryProvider) -> bool:
+        if registry == 'google':
+            return self.domain is not None and (self.domain == 'gcr.io' or self.domain.endswith('docker.pkg.dev'))
+        elif registry == 'azure':
+            return self.domain is not None and self.domain.endswith('azurecr.io')
+        return self.domain is None or self.domain == 'docker.io'
 
     def __str__(self):
         s = self.name()
@@ -915,22 +925,6 @@ def parse_docker_image_reference(reference_string: str) -> ParsedDockerImageRefe
         raise ValueError(f'could not parse {reference_string!r} as a docker image reference')
     domain, path, tag, digest = (match.group(i + 1) for i in range(4))
     return ParsedDockerImageReference(domain, path, tag, digest)
-
-
-def is_google_registry_domain(domain: Optional[str]) -> bool:
-    """Returns true if the given Docker image path points to either the Google
-    Container Registry or the Artifact Registry."""
-    if domain is None:
-        return False
-    return domain == 'gcr.io' or domain.endswith('docker.pkg.dev')
-
-
-def is_azure_registry_domain(domain: Optional[str]) -> bool:
-    """Returns true if the given Docker image path points to the Azure
-    Container Registry."""
-    if domain is None:
-        return False
-    return domain.endswith('azurecr.io')
 
 
 class Notice:
