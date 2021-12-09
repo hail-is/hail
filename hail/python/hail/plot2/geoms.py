@@ -167,21 +167,23 @@ def geom_text(mapping=aes(), color=None):
 
 class GeomBar(Geom):
 
-    def __init__(self, aes):
+    def __init__(self, aes, color=None):
         super().__init__(aes)
+        self.color = color
 
     def apply_to_fig(self, parent, agg_result, fig_so_far):
         item_list = list(agg_result.items())
         x_values = [item[0] for item in item_list]
         y_values = [item[1] for item in item_list]
-        fig_so_far.add_bar(x=x_values, y=y_values)
+        color = self.color if self.color is not None else "black"
+        fig_so_far.add_bar(x=x_values, y=y_values, marker_color=color)
 
     def get_stat(self):
         return StatCount()
 
 
-def geom_bar(mapping=aes()):
-    return GeomBar(mapping)
+def geom_bar(mapping=aes(), color=None):
+    return GeomBar(mapping, color=color)
 
 
 class GeomHistogram(Geom):
@@ -201,8 +203,6 @@ class GeomHistogram(Geom):
         for i, x in enumerate(x_edges[:num_edges - 1]):
             x_values.append((x_edges[i + 1] - x) / 2 + x)
             widths.append(x_edges[i + 1] - x)
-        print(x_values)
-        print(widths)
         fig_so_far.add_bar(x=x_values, y=y_values, width=widths)
 
     def get_stat(self):
