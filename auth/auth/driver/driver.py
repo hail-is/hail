@@ -307,6 +307,7 @@ class K8sNamespaceResource:
         self.name = name
 
     async def create(self, name):
+        assert name not in ('default', DEFAULT_NAMESPACE)
         assert self.name is None
 
         await self._delete(name)
@@ -315,6 +316,7 @@ class K8sNamespaceResource:
         self.name = name
 
     async def _delete(self, name):
+        assert name not in ('default', DEFAULT_NAMESPACE)
         try:
             await self.k8s_client.delete_namespace(name)
         except kube.client.rest.ApiException as e:
@@ -545,7 +547,7 @@ async def delete_user(app, user):
         await hail_identity_secret.delete()
 
     namespace_name = user['namespace_name']
-    if namespace_name is not None:
+    if namespace_name is not None and namespace_name != DEFAULT_NAMESPACE:
         assert user['is_developer'] == 1
 
         # don't bother deleting database-server-config since we're

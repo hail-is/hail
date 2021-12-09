@@ -48,6 +48,11 @@ def unpack_comma_delimited_inputs(inputs):
             for s in step.split(',') if s.strip()]
 
 
+def unpack_key_value_inputs(inputs):
+    key_values = [i.split('=') for i in unpack_comma_delimited_inputs(inputs)]
+    return {kv[0]: kv[1] for kv in key_values}
+
+
 def flatten(xxs):
     return [x for xs in xxs for x in xs]
 
