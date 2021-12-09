@@ -3855,12 +3855,14 @@ steps:
       export HAIL_TEST_GCS_BUCKET={{ global.hail_test_gcs_bucket }}
       {% endif %}
 
+      set +e
       java -Xms7500M -Xmx7500M \
            -cp hail-test.jar:$SPARK_HOME/jars/* \
            org.testng.TestNG \
            -listener is.hail.LogTestListener \
            testng-fs.xml
       exit_code=$?
+      set -e
       if [[ $exit_code -eq 2 ]]
       then
           echo "some tests were skipped, but exiting success anyway"
