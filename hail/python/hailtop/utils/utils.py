@@ -902,6 +902,7 @@ class ParsedDockerImageReference:
             return self.domain is not None and (self.domain == 'gcr.io' or self.domain.endswith('docker.pkg.dev'))
         elif registry == 'azure':
             return self.domain is not None and self.domain.endswith('azurecr.io')
+        assert registry == 'dockerhub'
         return self.domain is None or self.domain == 'docker.io'
 
     def __str__(self):
