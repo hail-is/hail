@@ -3834,6 +3834,8 @@ steps:
       - create_accounts
       - service_base_image
       - deploy_website
+    clouds:
+      - gcp
   - kind: runImage
     name: test_hail_fs
     image:
