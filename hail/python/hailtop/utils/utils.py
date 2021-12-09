@@ -885,6 +885,7 @@ def url_scheme(url: str) -> str:
 
 RegistryProvider = Literal['google', 'azure', 'dockerhub']
 
+
 class ParsedDockerImageReference:
     def __init__(self, domain: str, path: str, tag: str, digest: str):
         self.domain = domain
