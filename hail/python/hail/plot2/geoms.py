@@ -350,16 +350,45 @@ class GeomTile(Geom):
         self.aes = aes
 
     def apply_to_fig(self, parent, agg_result, fig_so_far):
-        for row in agg_result:
-            x_center = row['x']
-            y_center = row['y']
-            width = row['width']
-            height = row['height']
-            x_left = x_center - width / 2
-            x_right = x_center + width / 2
-            y_up = y_center + height / 2
-            y_down = y_center - height / 2
-            fig_so_far.add_shape(type="rect", x0=x_left, y0=y_down, x1=x_right, y1=y_up)
+        def plot_rects_multi_colors(agg_results, colors):
+            for idx, row in enumerate(agg_results):
+                x_center = row['x']
+                y_center = row['y']
+                width = row['width']
+                height = row['height']
+                x_left = x_center - width / 2
+                x_right = x_center + width / 2
+                y_up = y_center + height / 2
+                y_down = y_center - height / 2
+                fig_so_far.add_shape(type="rect", x0=x_left, y0=y_down, x1=x_right, y1=y_up, fillcolor=colors[idx])
+
+        def plot_rects_one_color(agg_results, color):
+            for idx, row in enumerate(agg_results):
+                x_center = row['x']
+                y_center = row['y']
+                width = row['width']
+                height = row['height']
+                x_left = x_center - width / 2
+                x_right = x_center + width / 2
+                y_up = y_center + height / 2
+                y_down = y_center - height / 2
+                fig_so_far.add_shape(type="rect", x0=x_left, y0=y_down, x1=x_right, y1=y_up, fillcolor=color)
+
+        if "fill" in parent.aes or "fill" in self.aes:
+            if isinstance(agg_result[0]["fill"], int):
+                input_color_nums = [element["fill"] for element in agg_result]
+                color_mapping = continuous_nums_to_colors(input_color_nums, parent.continuous_color_scale)
+                plot_rects_multi_colors(agg_result, color_mapping)
+            else:
+                categorical_strings = set([element["fill"] for element in agg_result])
+                unique_color_mapping = categorical_strings_to_colors(categorical_strings, parent.discrete_color_scale)
+
+                for category in categorical_strings:
+                    filtered_data = [element for element in agg_result if element["fill"] == category]
+                    plot_rects_one_color(filtered_data, unique_color_mapping[category])
+
+        else:
+            plot_rects_one_color(agg_result, "black")
 
     def get_stat(self):
         return StatIdentity()
