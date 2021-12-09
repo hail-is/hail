@@ -67,11 +67,12 @@ class GeomPoint(Geom):
                 "x": [element["x"] for element in one_color_data],
                 "y": [element["y"] for element in one_color_data],
                 "mode": "markers",
-                "marker_color": color
+                "marker_color": color,
             }
-
             if "size" in parent.aes or "size" in self.aes:
                 scatter_args["marker_size"] = [element["size"] for element in one_color_data]
+            if "tooltip" in parent.aes or "tooltip" in self.aes:
+                scatter_args["hovertext"] = [element["tooltip"] for element in one_color_data]
             fig_so_far.add_scatter(**scatter_args)
 
         if self.color is not None:
@@ -107,8 +108,9 @@ class GeomLine(Geom):
                 "mode": "lines",
                 "line_color": color
             }
+            if "tooltip" in parent.aes or "tooltip" in self.aes:
+                scatter_args["hovertext"] = [element["tooltip"] for element in one_color_data]
             fig_so_far.add_scatter(**scatter_args)
-
         if self.color is not None:
             plot_one_color(agg_result, self.color)
         elif "color" in parent.aes or "color" in self.aes:
@@ -145,8 +147,9 @@ class GeomText(Geom):
 
             if "size" in parent.aes or "size" in self.aes:
                 scatter_args["textfont_size"] = [element["size"] for element in one_color_data]
+            if "tooltip" in parent.aes or "tooltip" in self.aes:
+                scatter_args["hovertext"] = [element["tooltip"] for element in one_color_data]
             fig_so_far.add_scatter(**scatter_args)
-
         if self.color is not None:
             plot_one_color(agg_result, self.color)
         elif "color" in parent.aes or "color" in self.aes:
@@ -173,10 +176,12 @@ class GeomBar(Geom):
 
     def apply_to_fig(self, parent, agg_result, fig_so_far):
         item_list = list(agg_result.items())
-        x_values = [item[0] for item in item_list]
-        y_values = [item[1] for item in item_list]
-        color = self.color if self.color is not None else "black"
-        fig_so_far.add_bar(x=x_values, y=y_values, marker_color=color)
+        bar_args = {
+            "x": [item[0] for item in item_list],
+            "y": [item[1] for item in item_list],
+            "marker_color": self.color if self.color is not None else "black"
+        }
+        fig_so_far.add_bar(**bar_args)
 
     def get_stat(self):
         return StatCount()
@@ -274,3 +279,28 @@ class GeomVLine(Geom):
 
 def geom_vline(xintercept, linetype="solid", color=None):
     return GeomVLine(xintercept, linetype=linetype, color=color)
+
+
+class GeomTile(Geom):
+
+    def __init__(self, aes):
+        self.aes = aes
+
+    def apply_to_fig(self, parent, agg_result, fig_so_far):
+        for row in agg_result:
+            x_center = row['x']
+            y_center = row['y']
+            width = row['width']
+            height = row['height']
+            x_left = x_center - width / 2
+            x_right = x_center + width / 2
+            y_up = y_center + height / 2
+            y_down = y_center - height / 2
+            fig_so_far.add_shape(type="rect", x0=x_left, y0=y_down, x1=x_right, y1=y_up)
+
+    def get_stat(self):
+        return StatIdentity()
+
+
+def geom_tile(mapping=aes()):
+    return GeomTile(mapping)
