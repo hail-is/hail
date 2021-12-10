@@ -356,11 +356,12 @@ class GeomTile(Geom):
                 y_center = row['y']
                 width = row['width']
                 height = row['height']
+                alpha= row.get('alpha', 1.0)
                 x_left = x_center - width / 2
                 x_right = x_center + width / 2
                 y_up = y_center + height / 2
                 y_down = y_center - height / 2
-                fig_so_far.add_shape(type="rect", x0=x_left, y0=y_down, x1=x_right, y1=y_up, fillcolor=colors[idx])
+                fig_so_far.add_shape(type="rect", x0=x_left, y0=y_down, x1=x_right, y1=y_up, fillcolor=colors[idx], opacity=alpha)
 
         def plot_rects_one_color(agg_results, color):
             for idx, row in enumerate(agg_results):
@@ -368,11 +369,12 @@ class GeomTile(Geom):
                 y_center = row['y']
                 width = row['width']
                 height = row['height']
+                alpha= row.get('alpha', 1.0)
                 x_left = x_center - width / 2
                 x_right = x_center + width / 2
                 y_up = y_center + height / 2
                 y_down = y_center - height / 2
-                fig_so_far.add_shape(type="rect", x0=x_left, y0=y_down, x1=x_right, y1=y_up, fillcolor=color)
+                fig_so_far.add_shape(type="rect", x0=x_left, y0=y_down, x1=x_right, y1=y_up, fillcolor=color, opacity=alpha)
 
         if "fill" in parent.aes or "fill" in self.aes:
             if isinstance(agg_result[0]["fill"], int):
