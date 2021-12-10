@@ -91,7 +91,7 @@ class GeomPoint(Geom):
             fig_so_far.add_scatter(**scatter_args)
 
         if self.color is not None:
-            plot_one_color(agg_result, self.color)
+            plot_one_color(agg_result, self.color, None)
         elif "color" in parent.aes or "color" in self.aes:
             if isinstance(agg_result[0]["color"], int):
                 # Should show colors in continuous scale.
@@ -107,7 +107,7 @@ class GeomPoint(Geom):
                     filtered_data = [element for element in agg_result if element["color"] == category]
                     plot_one_color(filtered_data, unique_color_mapping[category], category)
         else:
-            plot_one_color(agg_result, "black")
+            plot_one_color(agg_result, "black", None)
 
     def get_stat(self):
         return StatIdentity()
@@ -148,7 +148,7 @@ class GeomLine(Geom):
             fig_so_far.add_scatter(**scatter_args)
 
         if self.color is not None:
-            plot_one_color(agg_result, self.color)
+            plot_one_color(agg_result, self.color, None)
         elif "color" in parent.aes or "color" in self.aes:
             if isinstance(agg_result[0]["color"], int):
                 # Should show colors in continuous scale.
@@ -161,7 +161,7 @@ class GeomLine(Geom):
                     filtered_data = [element for element in agg_result if element["color"] == category]
                     plot_one_color(filtered_data, unique_color_mapping[category], category)
         else:
-            plot_one_color(agg_result, "black")
+            plot_one_color(agg_result, "black", None)
 
     def get_stat(self):
         return StatIdentity()
@@ -207,7 +207,7 @@ class GeomText(Geom):
             fig_so_far.add_scatter(**scatter_args)
 
         if self.color is not None:
-            plot_one_color(agg_result, self.color)
+            plot_one_color(agg_result, self.color, None)
         elif "color" in parent.aes or "color" in self.aes:
             if isinstance(agg_result[0]["color"], int):
                 # Should show colors in continuous scale.

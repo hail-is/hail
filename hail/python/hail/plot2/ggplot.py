@@ -16,6 +16,8 @@ class GGPlot:
         self.aes = aes
         self.geoms = geoms
         self.labels = labels
+        # Scales are complicated. When an aesthetic is first added, it creates a scale for itself based on the hail type.
+        # Need to separately track whether a scale was added by user or by default.
         self.x_scale = x_scale
         self.y_scale = y_scale
         self.discrete_color_scale = plotly.colors.qualitative.D3
