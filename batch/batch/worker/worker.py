@@ -36,8 +36,6 @@ from hailtop.utils import (
     CalledProcessError,
     check_exec_output,
     check_shell_output,
-    is_google_registry_domain,
-    is_azure_registry_domain,
     find_spark_home,
     dump_all_stacktraces,
     parse_docker_image_reference,
@@ -562,8 +560,8 @@ class Container:
         return self.timings.step(name, ignore_job_deletion=ignore_job_deletion)
 
     async def pull_image(self):
-        is_cloud_image = (is_google_registry_domain(self.image_ref.domain)
-                          or is_azure_registry_domain(self.image_ref.domain))
+        is_cloud_image = ((CLOUD == 'gcp' and self.image_ref.hosted_in('google'))
+                          or (CLOUD == 'azure' and self.image_ref.hosted_in('azure')))
         is_public_image = self.image_ref.name() in PUBLIC_IMAGES
 
         try:
