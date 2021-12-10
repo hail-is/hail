@@ -11,7 +11,8 @@ from .aes import Aesthetic, aes
 
 class GGPlot:
 
-    def __init__(self, ht, aes, geoms=[], labels=Labels(), x_scale=None, y_scale=None):
+    def __init__(self, ht, aes, geoms=[], labels=Labels(), x_scale=None, y_scale=None,
+                 discrete_color_scale=plotly.colors.qualitative.D3, continuous_color_scale=plotly.colors.sequential.Viridis):
         self.ht = ht
         self.aes = aes
         self.geoms = geoms
@@ -20,8 +21,10 @@ class GGPlot:
         # Need to separately track whether a scale was added by user or by default.
         self.x_scale = x_scale
         self.y_scale = y_scale
-        self.discrete_color_scale = plotly.colors.qualitative.D3
-        self.continuous_color_scale = plotly.colors.sequential.Viridis
+        self.discrete_color_scale = discrete_color_scale
+        self.discrete_color_dict = {}
+        self.discrete_color_idx = 0
+        self.continuous_color_scale = continuous_color_scale
 
     def __add__(self, other):
         assert(isinstance(other, FigureAttribute) or isinstance(other, Aesthetic))
@@ -46,7 +49,8 @@ class GGPlot:
         return copied
 
     def copy(self):
-        return GGPlot(self.ht, self.aes, self.geoms[:], self.labels, self.x_scale, self.y_scale)
+        return GGPlot(self.ht, self.aes, self.geoms[:], self.labels, self.x_scale, self.y_scale,
+                      self.discrete_color_scale, self.continuous_color_scale)
 
     def render(self):
         # Step 1: Update aesthetics accordingly, all need to point into this table.

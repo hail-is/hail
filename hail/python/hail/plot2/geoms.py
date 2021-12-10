@@ -101,7 +101,7 @@ class GeomPoint(Geom):
 
             else:
                 categorical_strings = set([element["color"] for element in agg_result])
-                unique_color_mapping = categorical_strings_to_colors(categorical_strings, parent.discrete_color_scale)
+                unique_color_mapping = categorical_strings_to_colors(categorical_strings, parent)
 
                 for category in categorical_strings:
                     filtered_data = [element for element in agg_result if element["color"] == category]
@@ -155,7 +155,7 @@ class GeomLine(Geom):
                 raise ValueError("Do not currently support continuous color changing of lines")
             else:
                 categorical_strings = set([element["color"] for element in agg_result])
-                unique_color_mapping = categorical_strings_to_colors(categorical_strings, parent.discrete_color_scale)
+                unique_color_mapping = categorical_strings_to_colors(categorical_strings, parent)
 
                 for category in categorical_strings:
                     filtered_data = [element for element in agg_result if element["color"] == category]
@@ -217,7 +217,7 @@ class GeomText(Geom):
 
             else:
                 categorical_strings = set([element["color"] for element in agg_result])
-                unique_color_mapping = categorical_strings_to_colors(categorical_strings, parent.discrete_color_scale)
+                unique_color_mapping = categorical_strings_to_colors(categorical_strings, parent)
 
                 for category in categorical_strings:
                     filtered_data = [element for element in agg_result if element["color"] == category]
@@ -383,7 +383,7 @@ class GeomTile(Geom):
                 plot_rects_multi_colors(agg_result, color_mapping)
             else:
                 categorical_strings = set([element["fill"] for element in agg_result])
-                unique_color_mapping = categorical_strings_to_colors(categorical_strings, parent.discrete_color_scale)
+                unique_color_mapping = categorical_strings_to_colors(categorical_strings, parent)
 
                 for category in categorical_strings:
                     filtered_data = [element for element in agg_result if element["fill"] == category]

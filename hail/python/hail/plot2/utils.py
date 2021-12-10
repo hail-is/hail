@@ -1,16 +1,16 @@
 import plotly
 
 # Map strings to numbers that will index into a color scale.
-def categorical_strings_to_colors(string_set, discrete_color_scale):
-    color_dict = {}
-    x = 0
+def categorical_strings_to_colors(string_set, parent_plot):
+
+    color_dict = parent_plot.discrete_color_dict
 
     for element in string_set:
         if element not in color_dict:
-            color_dict[element] = discrete_color_scale[x % len(discrete_color_scale)]
-            x += 1
+            color_dict[element] = parent_plot.discrete_color_scale[parent_plot.discrete_color_idx % len(parent_plot.discrete_color_scale)]
+            parent_plot.discrete_color_idx += 1
 
-    return color_dict
+    return parent_plot.discrete_color_dict
 
 def continuous_nums_to_colors(input_color_nums, continuous_color_scale):
     min_color = min(input_color_nums)
