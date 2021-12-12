@@ -29,21 +29,47 @@ class Stat:
     def make_agg(self, x_expr, parent_struct, geom_struct):
         return
 
+    @abc.abstractmethod
+    def listify(self, agg_result):
+        #Turns the agg result into a data list to be plotted.
+        return
+
 
 class StatIdentity(Stat):
     def make_agg(self, x_expr, parent_struct, geom_struct):
         combined = parent_struct.annotate(**geom_struct)
         return hl.agg.collect(combined)
 
+    def listify(self, agg_result):
+        # Collect aggregator returns a list, nothing to do.
+        return agg_result
+
 
 class StatNone(Stat):
     def make_agg(self, x_expr, parent_struct, geom_struct):
         return hl.struct()
 
+    def listify(self, agg_result):
+        return []
+
 
 class StatCount(Stat):
     def make_agg(self, x_expr, parent_struct, geom_struct):
-        return hl.agg.counter(x_expr)
+        # Let's see. x_expr is the thing to group by. If any of the
+        # aesthetics in geom_struct are just pointers to x_expr, that's fine.
+        # Maybe I just do a `take(1) for every field of parent_struct and geom_struct?
+        # Or better, a collect_as_set where I error if size is greater than 1?
+        return hl.agg.group_by(x_expr, hl.struct(count=hl.agg.count(), other=hl.agg.take(parent_struct.annotate(**geom_struct).drop("x"), 1)))
+
+    def listify(self, agg_result):
+        unflattened_items = agg_result.items()
+        res = []
+        for x, agg_result in unflattened_items:
+            other_list = agg_result.other
+            assert len(other_list) == 1
+            new_struct = hl.Struct(x=x, y=agg_result.count, **other_list[0])
+            res.append(new_struct)
+        return res
 
 
 class StatBin(Stat):
@@ -55,6 +81,20 @@ class StatBin(Stat):
 
     def make_agg(self, x_expr, parent_struct, geom_struct):
         return hl.agg.hist(x_expr, self.start, self.end, self.bins)
+
+    def listify(self, agg_result):
+        x_edges = agg_result.bin_edges
+        y_values = agg_result.bin_freq
+        num_edges = len(x_edges)
+        data_rows = []
+        x_values = []
+        widths = []
+        for i, x in enumerate(x_edges[:num_edges - 1]):
+            x_value = (x_edges[i + 1] - x) / 2 + x
+            width_value = x_edges[i + 1] - x
+            data_rows.append(hl.Struct(x=x_value, y=y_values[i], width=width_value))
+
+        return data_rows
 
 
 class GeomPoint(Geom):
@@ -137,15 +177,6 @@ class GeomLine(Geom):
                 scatter_args["hovertext"] = [element["tooltip"] for element in one_color_data]
             fig_so_far.add_scatter(**scatter_args)
         
-        def plot_continuous_color(data, colors):
-            scatter_args = {
-                "x": [element["x"] for element in data],
-                "y": [element["y"] for element in data],
-                "mode": "lines",
-                "line_color": colors
-            }
-
-            fig_so_far.add_scatter(**scatter_args)
 
         if self.color is not None:
             plot_one_color(agg_result, self.color, None)
@@ -238,11 +269,21 @@ class GeomBar(Geom):
         self.color = color
 
     def apply_to_fig(self, parent, agg_result, fig_so_far):
-        item_list = list(agg_result.items())
+        item_list = agg_result
+
+        if self.color:
+            color = self.color
+        elif "color" in parent.aes or "color" in self.aes:
+            categorical_strings = set([item["color"] for item in item_list])
+            color_mapping = categorical_strings_to_colors(categorical_strings, parent)
+            color = [color_mapping[item["color"]] for item in item_list]
+        else:
+            color = "black"
+
         bar_args = {
-            "x": [item[0] for item in item_list],
-            "y": [item[1] for item in item_list],
-            "marker_color": self.color if self.color is not None else "black"
+            "x": [item["x"] for item in item_list],
+            "y": [item["y"] for item in item_list],
+            "marker_color": color
         }
         fig_so_far.add_bar(**bar_args)
 
@@ -263,14 +304,9 @@ class GeomHistogram(Geom):
         self.bins = bins
 
     def apply_to_fig(self, parent, agg_result, fig_so_far):
-        x_edges = agg_result.bin_edges
-        y_values = agg_result.bin_freq
-        num_edges = len(x_edges)
-        x_values = []
-        widths = []
-        for i, x in enumerate(x_edges[:num_edges - 1]):
-            x_values.append((x_edges[i + 1] - x) / 2 + x)
-            widths.append(x_edges[i + 1] - x)
+        x_values = [item.x for item in agg_result]
+        y_values = [item.y for item in agg_result]
+        widths = [item.width for item in agg_result]
         fig_so_far.add_bar(x=x_values, y=y_values, width=widths)
 
     def get_stat(self):

@@ -63,6 +63,7 @@ class GGPlot:
 
         selected = self.ht.select(**fields_to_select)
         aggregators = {}
+        labels_to_stats = {}
         for geom_idx, geom in enumerate(self.geoms):
             label = f"geom{geom_idx}"
             stat = geom.get_stat()
@@ -76,13 +77,15 @@ class GGPlot:
 
             agg = stat.make_agg(x_expr, selected["figure_mapping"], selected[label])
             aggregators[label] = agg
+            labels_to_stats[label] = stat
 
         aggregated = selected.aggregate(hl.struct(**aggregators))
 
         fig = go.Figure()
 
-        for geom, agg_result in zip(self.geoms, aggregated.values()):
-            geom.apply_to_fig(self, agg_result, fig)
+        for geom, (label, agg_result) in zip(self.geoms, aggregated.items()):
+            listified_agg_result = labels_to_stats[label].listify(agg_result)
+            geom.apply_to_fig(self, listified_agg_result, fig)
 
         # Important to update axes after labels, axes names take precedence.
         self.labels.apply_to_fig(fig)
