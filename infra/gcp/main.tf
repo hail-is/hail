@@ -266,7 +266,6 @@ resource "kubernetes_secret" "global_config" {
     gcp_region = var.gcp_region
     gcp_zone = var.gcp_zone
     docker_prefix = local.docker_prefix
-    gsuite_organization = var.gsuite_organization
     internal_ip = google_compute_address.internal_gateway.address
     ip = google_compute_address.gateway.address
     kubernetes_server_url = "https://${google_container_cluster.vdc.endpoint}"

@@ -56,7 +56,8 @@ Instructions:
 - Create `$HOME/.hail/global.tfvars` that looks like:
 
    ```
-   gsuite_organization = "<gsuite-organization>"
+   # organization_domain is a string that is the domain of the organization
+   # E.g. "broadinstitute.org"
    organization_domain = "<organization-domain>"
 
    # batch_gcp_regions is a JSON array of string, the names of the gcp

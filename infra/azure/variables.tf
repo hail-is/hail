@@ -25,6 +25,10 @@ variable k8s_machine_type {
   default = "Standard_D2_v2"
 }
 
+variable organization_domain {
+  type = string
+}
+
 variable "ci_config" {
   type = object({
     ci_and_deploy_github_oauth_token = string
