@@ -17,7 +17,7 @@ class Scale(FigureAttribute):
             return fig.update_yaxes
 
     # What else do discrete and continuous scales have in common?
-    def apply_to_fig(self, fig_so_far):
+    def apply_to_fig(self, parent, fig_so_far):
         if self.name is not None:
             self.update_axis(fig_so_far)(title=self.name)
 
@@ -34,14 +34,21 @@ class ScaleContinuous(Scale):
         super().__init__(axis, name, breaks, labels)
         self.transformation = transformation
 
-    def apply_to_fig(self, fig_so_far):
-        super().apply_to_fig(fig_so_far)
+    def apply_to_fig(self, parent, fig_so_far):
+        super().apply_to_fig(parent, fig_so_far)
         if self.transformation == "identity":
             pass
         elif self.transformation == "log10":
             self.update_axis(fig_so_far)(type="log")
         elif self.transformation == "reverse":
             self.update_axis(fig_so_far)(autorange="reversed")
+        elif self.transformation == "genome":
+            assert "x" in parent.aes
+            ref_genome = parent.aes["x"].dtype.reference_genome
+            contig_offsets = dict(list(ref_genome._global_positions_dict.items())[:24])
+            breaks = list(contig_offsets.values())
+            labels = list(contig_offsets.keys())
+            self.update_axis(fig_so_far)(tickvals=breaks, ticktext=labels)
         else:
             raise ValueError("Unrecognized transformation")
 

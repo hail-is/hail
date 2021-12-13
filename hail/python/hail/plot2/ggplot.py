@@ -90,9 +90,9 @@ class GGPlot:
         # Important to update axes after labels, axes names take precedence.
         self.labels.apply_to_fig(fig)
         if self.x_scale is not None:
-            self.x_scale.apply_to_fig(fig)
+            self.x_scale.apply_to_fig(self, fig)
         if self.y_scale is not None:
-            self.y_scale.apply_to_fig(fig)
+            self.y_scale.apply_to_fig(self, fig)
 
         return fig
 
