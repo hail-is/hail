@@ -5,6 +5,7 @@ import aiohttp
 from aiohttp import web
 import aiohttp_session
 import uvloop
+import json
 from prometheus_async.aio.web import server_stats  # type: ignore
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
@@ -205,12 +206,13 @@ async def callback(request):
     state = session['state']
     caller = session['caller']
     next_page = session.pop('next', nb_url)
+    flow_dict = session['flow']
     cleanup_session(session)
 
     flow = get_flow(deploy_config.external_url('auth', '/oauth2callback'), state=state)
 
     try:
-        flow_result = flow.finish_flow(request, session.get('flow'))
+        flow_result = flow.finish_flow(request, flow_dict)
         login_id = flow_result.login_id
     except asyncio.CancelledError:
         raise
@@ -325,7 +327,12 @@ async def logout(request, userdata):
 @routes.get('/api/v1alpha/login')
 async def rest_login(request):
     callback_port = request.query['callback_port']
-    flow = get_flow(f'http://127.0.0.1:{callback_port}/oauth2callback')
+    if CLOUD == 'azure':
+        host = 'localhost'
+    else:
+        assert CLOUD == 'gcp'
+        host = '127.0.0.1'
+    flow = get_flow(f'http://{host}:{callback_port}/oauth2callback')
     flow_data = flow.initialize_flow()
     return web.json_response(
         {'authorization_url': flow_data.authorization_url, 'state': flow_data.state, 'flow': flow.as_dict()}
@@ -438,7 +445,7 @@ WHERE id = %s AND username = %s;
 async def rest_callback(request):
     state = request.query['state']
     callback_port = request.query['callback_port']
-    flow_dict = request.query['flow']
+    flow_dict = json.loads(request.query['flow'])
 
     try:
         flow = get_flow(f'http://127.0.0.1:{callback_port}/oauth2callback', state=state)

@@ -1,6 +1,7 @@
 import os
 import socket
 import asyncio
+import json
 import webbrowser
 from aiohttp import web
 
@@ -54,7 +55,7 @@ async def auth_flow(deploy_config, default_ns, session):
     flow = resp['flow']
 
     print(f'''
-Visit the following URL to log into Hail with Google:
+Visit the following URL to log into Hail:
 
     {authorization_url}
 
@@ -71,7 +72,7 @@ Opening in your browser.
                 'callback_port': port,
                 'code': code,
                 'state': state,
-                'flow': flow,
+                'flow': json.dumps(flow),
             }) as resp:
         resp = await resp.json()
     token = resp['token']
