@@ -302,7 +302,7 @@ done
                     'deleteOption': 'Delete',
                     'caching': 'ReadOnly',
                     'managedDisk': {
-                        'storageAccountType': 'Standard_LRS'
+                        'storageAccountType': 'Premium_LRS'
                     }
                 },
                 'imageReference': "[parameters('imageReference')]",

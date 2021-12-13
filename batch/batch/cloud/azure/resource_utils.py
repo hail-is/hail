@@ -30,10 +30,10 @@ azure_valid_cores_from_worker_type = {
 
 azure_valid_machine_types = []
 for cores in azure_valid_cores_from_worker_type['D']:
-    azure_valid_machine_types.append(f'Standard_D{cores}d_v4')
+    azure_valid_machine_types.append(f'Standard_D{cores}ds_v4')
     azure_valid_machine_types.append(f'Standard_D{cores}s_v4')
 for cores in azure_valid_cores_from_worker_type['E']:
-    azure_valid_machine_types.append(f'Standard_E{cores}d_v4')
+    azure_valid_machine_types.append(f'Standard_E{cores}ds_v4')
     azure_valid_machine_types.append(f'Standard_E{cores}s_v4')
 for cores in azure_valid_cores_from_worker_type['F']:
     azure_valid_machine_types.append(f'Standard_F{cores}s_v2')
@@ -81,7 +81,6 @@ def azure_machine_type_to_worker_type_and_cores(machine_type: str) -> Tuple[str,
     maybe_machine_type_parts = azure_machine_type_to_parts(machine_type)
     if maybe_machine_type_parts is None:
         raise ValueError(f'bad machine_type: {machine_type}')
-    # local_ssd = maybe_machine_type_parts.additive_features == 'd' or maybe_machine_type_parts.family == 'F'
     return (maybe_machine_type_parts.family, maybe_machine_type_parts.cores)
 
 
@@ -90,7 +89,7 @@ def azure_worker_properties_to_machine_type(worker_type: str, cores: int, local_
         return f'Standard_F{cores}s_v2'
 
     if local_ssd_data_disk:
-        additive_features = 'd'
+        additive_features = 'ds'
     else:
         additive_features = 's'
 
