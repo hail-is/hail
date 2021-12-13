@@ -17,8 +17,8 @@ def instance_config_from_config_dict(config: Dict[str, Any]) -> InstanceConfig:
 
 def possible_cloud_locations(cloud: str) -> Set[str]:
     if cloud == 'azure':
-        config = get_azure_config()
-        return {config.region}
+        azure_config = get_azure_config()
+        return {azure_config.region}
     assert cloud == 'gcp'
-    config = get_gcp_config()
-    return config.regions
+    gcp_config = get_gcp_config()
+    return gcp_config.regions

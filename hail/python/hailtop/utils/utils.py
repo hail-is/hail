@@ -58,7 +58,7 @@ def flatten(xxs):
     return [x for xs in xxs for x in xs]
 
 
-def filter_none(xs: Iterable[Optional[T]]) -> Iterable[T]:
+def filter_none(xs: Iterable[Optional[T]]) -> List[T]:
     return [x for x in xs if x is not None]
 
 
