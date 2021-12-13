@@ -72,7 +72,6 @@ object TableNativeWriter {
             WriteMetadata(ToArray(mapIR(ToStream(fileCountAndDistinct)) { fc => GetField(fc, "filePath") }),
               RVDSpecWriter(s"$path/rows", RVDSpecMaker(rowSpec, partitioner, IndexSpec.emptyAnnotation("../index", coerce[PStruct](pKey))))),
             WriteMetadata(ToArray(mapIR(ToStream(fileCountAndDistinct)) { fc =>
-              println(s"fc type = ${fc.typ}")
               SelectFields(fc, Seq("partitionCounts", "distinctlyKeyed", "firstKey", "lastKey"))
             }),
               TableSpecWriter(path, tt, "rows", "globals", "references", log = true))))
@@ -195,8 +194,6 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
 
     val mb = cb.emb
 
-    cb.println(s"Index exists: ${index.isDefined}, type is ${stream.element.st}")
-
     val indexWriter = ifIndexed { StagedIndexWriter.withDefaults(keyType, mb.ecb) }
 
     context.toI(cb).map(cb) { case ctx: SStringValue =>
@@ -238,13 +235,11 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
           lastSeenSettable.loadI(cb).consume(cb, {
             // If there's no last seen, we are in the first row.
             cb.assign(firstSeenSettable, EmitValue.present(key.copyToRegion(cb, region, key.st)))
-            cb.println("Encountered first element, set it to ", cb.strValue(firstSeenSettable))
           }, { lastSeen =>
             val comparator = EQ(lastSeenSettable.emitType.virtualType).codeOrdering(cb.emb.ecb, lastSeenSettable.st, key.st)
             val equalToLast = comparator(cb, lastSeenSettable, EmitValue.present(key))
             // FIXME: Why do I need to cast here? Shouldn't it know it's a boolean?
             cb.ifx(equalToLast.asInstanceOf[Value[Boolean]], {
-              cb.println("key ", cb.strValue(key), " was equal to last ", cb.strValue(lastSeenSettable.get(cb)))
               cb.assign(distinctlyKeyed, false)
             })
           })
@@ -362,8 +357,6 @@ case class TableSpecWriter(path: String, typ: TableType, rowRelPath: String, glo
     // there was no overlap between keys.
 
     val a = writeAnnotations.get(cb, "write annotations can't be missing!").asIndexable
-    cb.println(s"Trying to write my metadata. Type of annotations is ${a.st.virtualType}")
-    cb.println("a = ", cb.strValue(a))
     val partCounts = cb.newLocal[Array[Long]]("partCounts")
 
     val idxOfFirstKeyField = annotationType.asInstanceOf[TArray].elementType.asInstanceOf[TStruct].fieldIdx("firstKey")
@@ -382,14 +375,12 @@ case class TableSpecWriter(path: String, typ: TableType, rowRelPath: String, glo
 
       // Only nonempty partitions affect first, last, and distinctlyKeyed.
       cb.ifx(count cne 0L, {
-        cb.println(cb.strValue(curElement))
         val curFirst = curElement.loadField(cb, "firstKey").get(cb, const("firstKey of curElement can't be missing, part size was ") concat count.toS)
 
         val comparator = NEQ(lastSeenSettable.emitType.virtualType).codeOrdering(cb.emb.ecb, lastSeenSettable.st, curFirst.st)
         val notEqualToLast = comparator(cb, lastSeenSettable, EmitValue.present(curFirst)).asInstanceOf[Value[Boolean]]
 
         val partWasDistinctlyKeyed = curElement.loadField(cb, "distinctlyKeyed").get(cb).asBoolean.boolCode(cb)
-        cb.println(s"Was part distinctlyKeyed? ", partWasDistinctlyKeyed.get.toS)
         cb.assign(distinctlyKeyed, distinctlyKeyed && partWasDistinctlyKeyed && notEqualToLast)
         cb.assign(lastSeenSettable, curElement.loadField(cb, "lastKey"))
       })
