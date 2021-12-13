@@ -59,3 +59,11 @@ output "service_credentials" {
   }
   sensitive = true
 }
+
+output "oauth2_credentials" {
+  value = {
+    appId    = azuread_application.oauth2.application_id
+    password = azuread_application.oauth2.password
+  }
+  sensitive = true
+}

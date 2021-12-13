@@ -10,6 +10,7 @@ from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
 from hailtop.utils import secret_alnum_string
+from hailtop import httpx
 from gear import (
     setup_aiohttp_session,
     rest_authenticated_users_only,
@@ -162,17 +163,16 @@ async def signup(request):
     next_page = request.query.get('next', deploy_config.external_url('notebook', ''))
 
     flow = get_flow(deploy_config.external_url('auth', '/oauth2callback'))
-
-    authorization_url, state = flow.authorization_url_and_state()
+    flow_data = flow.initialize_flow()
 
     session = await aiohttp_session.new_session(request)
     cleanup_session(session)
-    session['state'] = state
+    session['state'] = flow_data.state
     session['next'] = next_page
     session['caller'] = 'signup'
     session['flow'] = flow.as_dict()
 
-    return aiohttp.web.HTTPFound(authorization_url)
+    return aiohttp.web.HTTPFound(flow_data.authorization_url)
 
 
 @routes.get('/login')
@@ -180,18 +180,17 @@ async def login(request):
     next_page = request.query.get('next', deploy_config.external_url('notebook', ''))
 
     flow = get_flow(deploy_config.external_url('auth', '/oauth2callback'))
-
-    authorization_url, state = flow.authorization_url_and_state()
+    flow_data = flow.initialize_flow()
 
     session = await aiohttp_session.new_session(request)
 
     cleanup_session(session)
-    session['state'] = state
+    session['state'] = flow_data.state
     session['next'] = next_page
     session['caller'] = 'login'
     session['flow'] = flow.as_dict()
 
-    return aiohttp.web.HTTPFound(authorization_url)
+    return aiohttp.web.HTTPFound(flow_data.authorization_url)
 
 
 @routes.get('/oauth2callback')
@@ -211,8 +210,8 @@ async def callback(request):
     flow = get_flow(deploy_config.external_url('auth', '/oauth2callback'), state=state)
 
     try:
-        token = flow.fetch_and_verify_token(request, session.get('flow'))
-        login_id, email = flow.login_id_email_from_token(token)
+        flow_result = flow.finish_flow(request, session.get('flow'))
+        login_id = flow_result.login_id
     except asyncio.CancelledError:
         raise
     except Exception as e:
@@ -230,7 +229,7 @@ async def callback(request):
 
         assert caller == 'signup'
 
-        username, domain = email.split('@')
+        username, domain = flow_result.email.split('@')
         username = ''.join(c for c in username if c.isalnum())
 
         if domain != ORGANIZATION_DOMAIN:
@@ -327,8 +326,8 @@ async def logout(request, userdata):
 async def rest_login(request):
     callback_port = request.query['callback_port']
     flow = get_flow(f'http://127.0.0.1:{callback_port}/oauth2callback')
-    authorization_url, state = flow.authorization_url_and_state()
-    return web.json_response({'authorization_url': authorization_url, 'state': state, 'flow': flow.as_dict()})
+    flow_data = flow.initialize_flow()
+    return web.json_response({'authorization_url': flow_data.authorization_url, 'state': flow_data.state, 'flow': flow.as_dict()})
 
 
 @routes.get('/roles')
@@ -441,8 +440,7 @@ async def rest_callback(request):
 
     try:
         flow = get_flow(f'http://127.0.0.1:{callback_port}/oauth2callback', state=state)
-        token = flow.fetch_and_verify_token(request, flow_dict)
-        login_id, _ = flow.login_id_email_from_token(token)
+        flow_result = flow.finish_flow(request, flow_dict)
     except asyncio.CancelledError:
         raise
     except Exception as e:
@@ -451,7 +449,7 @@ async def rest_callback(request):
 
     db = request.app['db']
     users = [
-        x async for x in db.select_and_fetchall("SELECT * FROM users WHERE login_id = %s AND state = 'active';", login_id)
+        x async for x in db.select_and_fetchall("SELECT * FROM users WHERE login_id = %s AND state = 'active';", flow_result.login_id)
     ]
 
     if len(users) != 1:
@@ -578,10 +576,14 @@ async def on_startup(app):
     db = Database()
     await db.async_init(maxsize=50)
     app['db'] = db
+    app['client_session'] = httpx.client_session()
 
 
 async def on_cleanup(app):
-    await app['db'].async_close()
+    try:
+        await app['db'].async_close()
+    finally:
+        await app['client_session'].close()
 
 
 def run():

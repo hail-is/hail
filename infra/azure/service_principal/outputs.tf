@@ -5,7 +5,7 @@ output "credentials" {
     password    = azuread_application_password.password.value
     tenant      = azuread_service_principal.sp.application_tenant_id
     objectId    = azuread_service_principal.sp.object_id
-    appObjectId = FIXME: How do I get this?
+    appObjectId = var.object_id?
   }
   sensitive = true
 }

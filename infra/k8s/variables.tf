@@ -35,3 +35,7 @@ variable "registry_push_credentials" {
 variable "service_credentials" {
   type = map
 }
+
+variable "oauth2_credentials" {
+  type = map
+}

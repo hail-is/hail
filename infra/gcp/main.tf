@@ -618,16 +618,6 @@ resource "kubernetes_cluster_role_binding" "batch" {
   }
 }
 
-resource "kubernetes_secret" "auth_oauth2_client_secret" {
-  metadata {
-    name = "auth-oauth2-client-secret"
-  }
-
-  data = {
-    "client_secret.json" = file("~/.hail/auth_oauth2_client_secret.json")
-  }
-}
-
 module "ci" {
   source = "./ci"
   count = var.ci_config != null ? 1 : 0

@@ -1,5 +1,5 @@
 import abc
-from typing import Optional, Tuple, Dict, Any
+from typing import Optional
 import msal
 import google.auth.transport.requests
 import google.oauth2.id_token
@@ -8,21 +8,29 @@ import aiohttp.web
 import json
 import urllib.parse
 
-from gear.cloud_config import get_global_config, get_azure_config
+from gear.cloud_config import get_global_config
+
+
+class FlowData:
+    def __init__(self, authorization_url: str, state: str):
+        self.authorization_url = authorization_url
+        self.state = state
+
+
+class FlowResult:
+    def __init__(self, login_id: str, email: str, token: dict):
+        self.login_id = login_id
+        self.email = email
+        self.token = token
 
 
 class Flow(abc.ABC):
-    @staticmethod
     @abc.abstractmethod
-    def login_id_email_from_token(token: dict) -> Optional[Tuple[str, str]]:
+    def initialize_flow(self) -> FlowData:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def authorization_url_and_state(self) -> Tuple[str, str]:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def fetch_and_verify_token(self, request: aiohttp.web.Request, flow_dict: Optional[dict]) -> Dict[str, Any]:
+    def finish_flow(self, request: aiohttp.web.Request, flow_dict: Optional[dict]) -> FlowResult:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -32,7 +40,7 @@ class Flow(abc.ABC):
 
 class GoogleFlow(Flow):
     @staticmethod
-    def get_flow(credentials_file: str, redirect_uri: str, state: Optional[str] - None):
+    def get_flow(credentials_file: str, redirect_uri: str, state: Optional[str] - None) -> 'GoogleFlow':
         scopes = [
             'https://www.googleapis.com/auth/userinfo.profile',
             'https://www.googleapis.com/auth/userinfo.email',
@@ -46,25 +54,22 @@ class GoogleFlow(Flow):
 
         return GoogleFlow(flow)
 
-    @staticmethod
-    def login_id_email_from_token(token: dict) -> Optional[Tuple[str, str]]:
-        email = token['email']
-        return (email, email)
-
     def __init__(self, flow: google_auth_oauthlib.flow.Flow):
         self._flow = flow
 
-    def authorization_url_and_state(self) -> Tuple[str, str]:
-        return self._flow.authorization_url(access_type='offline', include_granted_scopes='true')
+    def initialize_flow(self) -> FlowData:
+        authorization_url, state = self._flow.authorization_url(access_type='offline', include_granted_scopes='true')
+        return FlowData(authorization_url, state)
 
-    def fetch_and_verify_token(self, request: aiohttp.web.Request, flow_dict: Optional[dict]) -> Dict[str, Any]:  # pylint: disable=unused-argument
+    def finish_flow(self, request: aiohttp.web.Request, flow_dict: Optional[dict]) -> FlowResult:  # pylint: disable=unused-argument
         self._flow.fetch_token(code=request.query['code'])
         token = google.oauth2.id_token.verify_oauth2_token(
             self._flow.credentials.id_token, google.auth.transport.requests.Request()
         )
-        return token
+        email = token['email']
+        return FlowResult(email, email, token)
 
-    def as_dict(self):
+    def as_dict(self) -> Optional[dict]:
         return None
 
 
@@ -84,19 +89,15 @@ class AzureFlow(Flow):
             state=state)
         return AzureFlow(client, flow, tenant_id)
 
-    @staticmethod
-    def login_id_email_from_token(token: dict) -> Optional[Tuple[str, str]]:
-        return (token['id_token_claims']['oid'], token['id_token_claims']['preferred_username'])
-
     def __init__(self, client: msal.ClientApplication, flow_dict: dict, tenant_id: str):
         self._client = client
         self._flow_dict = flow_dict
         self._tenant_id = tenant_id
 
-    def authorization_url_and_state(self) -> Tuple[str, str]:
-        return (self._flow_dict['auth_uri'], self._flow_dict['state'])
+    def initialize_flow(self) -> FlowData:
+        return FlowData(self._flow_dict['auth_uri'], self._flow_dict['state'])
 
-    def fetch_and_verify_token(self, request: aiohttp.web.Request, flow_dict: Optional[dict]) -> Dict[str, Any]:
+    def finish_flow(self, request: aiohttp.web.Request, flow_dict: Optional[dict]) -> FlowResult:
         query_dict = urllib.parse.parse_qs(request.query_string)
         query_dict = {k: v[0] for k, v in query_dict.items()}
 
@@ -107,11 +108,11 @@ class AzureFlow(Flow):
 
         tid = token['id_token_claims']['tid']
         if tid != self._tenant_id:
-            raise Exception(f'invalid tenant id')
+            raise Exception('invalid tenant id')
 
-        return token
+        return FlowResult(token['id_token_claims']['oid'], token['id_token_claims']['preferred_username'], token)
 
-    def as_dict(self):
+    def as_dict(self) -> Optional[dict]:
         return self._flow_dict
 
 
