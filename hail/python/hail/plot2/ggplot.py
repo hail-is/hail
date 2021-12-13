@@ -59,7 +59,7 @@ class GGPlot:
         fields_to_select = {"figure_mapping": hl.struct(**self.aes)}
         for geom_idx, geom in enumerate(self.geoms):
             label = f"geom{geom_idx}"
-            fields_to_select[label] = hl.struct(**geom.aes)
+            fields_to_select[label] = hl.struct(**geom.aes.properties)
 
         selected = self.ht.select(**fields_to_select)
         aggregators = {}

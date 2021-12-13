@@ -307,7 +307,13 @@ class GeomHistogram(Geom):
         x_values = [item.x for item in agg_result]
         y_values = [item.y for item in agg_result]
         widths = [item.width for item in agg_result]
-        fig_so_far.add_bar(x=x_values, y=y_values, width=widths)
+
+        if "color" in parent.aes or "color" in self.aes:
+            color = [self.aes["color"](y_value) for y_value in y_values]
+        else:
+            color = "black"
+
+        fig_so_far.add_bar(x=x_values, y=y_values, width=widths, marker_color=color)
 
     def get_stat(self):
         return StatBin(self.min_bin, self.max_bin, self.bins)
