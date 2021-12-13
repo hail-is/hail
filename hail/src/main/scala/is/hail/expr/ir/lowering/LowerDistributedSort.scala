@@ -108,7 +108,7 @@ object LowerDistributedSort {
     rowTypeRequiredness: RStruct
   ): TableStage = {
 
-    val oversamplingNum = 1
+    val oversamplingNum = 3
     val seed = 7L
     val branchingFactor = 4
     val sizeCutoff = HailContext.getFlag("shuffle_cutoff_to_local_sort").toInt
@@ -176,17 +176,22 @@ object LowerDistributedSort {
                 ("perPartIntervalTuples", ApplyAggOp(Collect())(MakeTuple.ordered(Seq(GetField(dataRef, "min"), GetField(dataRef, "max")))))
               )), false)
           })) { aggResults =>
-            val sortedSamples = sortIR(flatMapIR(ToStream(GetField(aggResults, "samples"))) { onePartCollectedArray => ToStream(onePartCollectedArray)}) { case (left, right) =>
+            val sortedOversampling = sortIR(flatMapIR(ToStream(GetField(aggResults, "samples"))) { onePartCollectedArray => ToStream(onePartCollectedArray)}) { case (left, right) =>
               ApplyComparisonOp(LT(newKType), left, right)
             }
             val minArray = MakeArray(GetField(aggResults, "min"))
             val maxArray = MakeArray(GetField(aggResults, "max"))
             val tuplesInSortedOrder = tuplesAreSorted(GetField(aggResults, "perPartIntervalTuples"))
-            MakeStruct(Seq(
-              "pivotsWithEndpoints" -> ArrayFunctions.extend(ArrayFunctions.extend(minArray, sortedSamples), maxArray),
-              "isSorted" -> ApplySpecial("land", Seq.empty[Type], Seq(GetField(aggResults, "eachPartSorted"), tuplesInSortedOrder), TBoolean, ErrorIDs.NO_ERROR),
-              "intervalTuple" -> MakeTuple.ordered(Seq(GetField(aggResults, "min"), GetField(aggResults, "max")))
-            ))
+            bindIR(sortedOversampling) { sortedOversampling =>
+              val sortedSampling = ToArray(mapIR(StreamRange(0, ArrayLen(sortedOversampling), I32(oversamplingNum))) { idx =>
+                ArrayRef(sortedOversampling, idx)
+              })
+              MakeStruct(Seq(
+                "pivotsWithEndpoints" -> ArrayFunctions.extend(ArrayFunctions.extend(minArray, sortedSampling), maxArray),
+                "isSorted" -> ApplySpecial("land", Seq.empty[Type], Seq(GetField(aggResults, "eachPartSorted"), tuplesInSortedOrder), TBoolean, ErrorIDs.NO_ERROR),
+                "intervalTuple" -> MakeTuple.ordered(Seq(GetField(aggResults, "min"), GetField(aggResults, "max")))
+              ))
+            }
           }
         }
       })
