@@ -47,9 +47,7 @@ class GoogleFlow(Flow):
             'openid',
         ]
 
-        flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
-            credentials_file, scopes=scopes, state=state
-        )
+        flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(credentials_file, scopes=scopes, state=state)
         flow.redirect_uri = redirect_uri
 
         return GoogleFlow(flow)
@@ -61,7 +59,9 @@ class GoogleFlow(Flow):
         authorization_url, state = self._flow.authorization_url(access_type='offline', include_granted_scopes='true')
         return FlowData(authorization_url, state)
 
-    def finish_flow(self, request: aiohttp.web.Request, flow_dict: Optional[dict]) -> FlowResult:  # pylint: disable=unused-argument
+    def finish_flow(
+        self, request: aiohttp.web.Request, flow_dict: Optional[dict]
+    ) -> FlowResult:  # pylint: disable=unused-argument
         self._flow.fetch_token(code=request.query['code'])
         token = google.oauth2.id_token.verify_oauth2_token(
             self._flow.credentials.id_token, google.auth.transport.requests.Request()
@@ -83,10 +83,7 @@ class AzureFlow(Flow):
         authority = f'https://login.microsoftonline.com/{tenant_id}'
         client = msal.ConfidentialClientApplication(data['appId'], data['password'], authority)
 
-        flow = client.initiate_auth_code_flow(
-            scopes=[],
-            redirect_uri=redirect_uri,
-            state=state)
+        flow = client.initiate_auth_code_flow(scopes=[], redirect_uri=redirect_uri, state=state)
         return AzureFlow(client, flow, tenant_id)
 
     def __init__(self, client: msal.ClientApplication, flow_dict: dict, tenant_id: str):

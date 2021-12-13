@@ -327,7 +327,9 @@ async def rest_login(request):
     callback_port = request.query['callback_port']
     flow = get_flow(f'http://127.0.0.1:{callback_port}/oauth2callback')
     flow_data = flow.initialize_flow()
-    return web.json_response({'authorization_url': flow_data.authorization_url, 'state': flow_data.state, 'flow': flow.as_dict()})
+    return web.json_response(
+        {'authorization_url': flow_data.authorization_url, 'state': flow_data.state, 'flow': flow.as_dict()}
+    )
 
 
 @routes.get('/roles')
@@ -449,7 +451,10 @@ async def rest_callback(request):
 
     db = request.app['db']
     users = [
-        x async for x in db.select_and_fetchall("SELECT * FROM users WHERE login_id = %s AND state = 'active';", flow_result.login_id)
+        x
+        async for x in db.select_and_fetchall(
+            "SELECT * FROM users WHERE login_id = %s AND state = 'active';", flow_result.login_id
+        )
     ]
 
     if len(users) != 1:
