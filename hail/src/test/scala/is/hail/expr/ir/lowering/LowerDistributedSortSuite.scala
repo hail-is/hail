@@ -31,11 +31,6 @@ class LowerDistributedSortSuite extends HailSuite {
     assertEvalsTo(sampled2, Row(Row(0, 0), Row(3, 3), IndexedSeq( Row(0, 0)), false))
   }
 
-  @Test def testHowManyPerPartition(): Unit = {
-    val partitionCounts = (0 until 10).map(idx => 100)
-    val rand = new IRRandomness((math.random() * 1000).toInt)
-    println(LowerDistributedSort.howManySamplesPerPartition(rand, 1000, 10, partitionCounts))
-  }
 
   // Only does ascending for now
   def testDistributedSortHelper(myTable: TableIR, sortFieldNames: IndexedSeq[String]): Unit = {
