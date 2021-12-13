@@ -42,7 +42,7 @@ class GGPlot:
             else:
                 raise ValueError("Unrecognized axis in scale")
         elif isinstance(other, Aesthetic):
-            copied.aes = Aesthetic({**copied.aes.properties, **other.properties})
+            copied.aes = copied.aes.merge(other)
         else:
             raise ValueError("Not implemented")
 

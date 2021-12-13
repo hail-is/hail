@@ -28,6 +28,9 @@ class Aesthetic(Mapping):
 
         return itertools.chain(i1, i2)
 
+    def merge(self, other):
+        return Aesthetic({**self.properties, **other.properties}, {**self.lambda_properties, **other.properties})
+
 
 def aes(**kwargs):
     hail_field_properties = {}

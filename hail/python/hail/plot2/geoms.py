@@ -153,7 +153,7 @@ class GeomPoint(Geom):
         return StatIdentity()
 
 
-def geom_point(mapping=aes(), color=None):
+def geom_point(mapping=aes(), *, color=None):
     return GeomPoint(mapping, color=color)
 
 
@@ -198,7 +198,7 @@ class GeomLine(Geom):
         return StatIdentity()
 
 
-def geom_line(mapping=aes(), color=None):
+def geom_line(mapping=aes(), *, color=None):
     return GeomLine(mapping, color=color)
 
 
@@ -258,7 +258,7 @@ class GeomText(Geom):
         return StatIdentity()
 
 
-def geom_text(mapping=aes(), color=None):
+def geom_text(mapping=aes(), *, color=None):
     return GeomText(mapping, color=color)
 
 
@@ -291,24 +291,27 @@ class GeomBar(Geom):
         return StatCount()
 
 
-def geom_bar(mapping=aes(), color=None):
+def geom_bar(mapping=aes(), *, color=None):
     return GeomBar(mapping, color=color)
 
 
 class GeomHistogram(Geom):
 
-    def __init__(self, aes, min_bin=0, max_bin=100, bins=30):
+    def __init__(self, aes, min_bin=0, max_bin=100, bins=30, color=None):
         super().__init__(aes)
         self.min_bin = min_bin
         self.max_bin = max_bin
         self.bins = bins
+        self.color = color
 
     def apply_to_fig(self, parent, agg_result, fig_so_far):
         x_values = [item.x for item in agg_result]
         y_values = [item.y for item in agg_result]
         widths = [item.width for item in agg_result]
 
-        if "color" in parent.aes or "color" in self.aes:
+        if self.color is not None:
+            color = self.color
+        elif "color" in parent.aes or "color" in self.aes:
             color = [self.aes["color"](y_value) for y_value in y_values]
         else:
             color = "black"
@@ -319,10 +322,10 @@ class GeomHistogram(Geom):
         return StatBin(self.min_bin, self.max_bin, self.bins)
 
 
-def geom_histogram(mapping=aes(), min_bin=None, max_bin=None, bins=30):
+def geom_histogram(mapping=aes(), min_bin=None, max_bin=None, bins=30, *, color=None):
     assert(min_bin is not None)
     assert(max_bin is not None)
-    return GeomHistogram(mapping, min_bin, max_bin, bins)
+    return GeomHistogram(mapping, min_bin, max_bin, bins, color)
 
 
 linetype_dict = {
@@ -356,7 +359,7 @@ class GeomHLine(Geom):
         return StatNone()
 
 
-def geom_hline(yintercept, linetype="solid", color=None):
+def geom_hline(yintercept, *, linetype="solid", color=None):
     return GeomHLine(yintercept, linetype=linetype, color=color)
 
 
@@ -382,7 +385,7 @@ class GeomVLine(Geom):
         return StatNone()
 
 
-def geom_vline(xintercept, linetype="solid", color=None):
+def geom_vline(xintercept, *, linetype="solid", color=None):
     return GeomVLine(xintercept, linetype=linetype, color=color)
 
 
