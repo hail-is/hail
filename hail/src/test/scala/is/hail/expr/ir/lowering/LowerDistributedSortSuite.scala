@@ -2,7 +2,7 @@ package is.hail.expr.ir.lowering
 
 import is.hail.TestUtils.assertEvalsTo
 import is.hail.expr.ir.functions.IRRandomness
-import is.hail.expr.ir.{Apply, ApplyBinaryPrimOp, Ascending, ErrorIDs, GetField, I32, IR, Literal, MakeStruct, Ref, Requiredness, RequirednessAnalysis, SortField, TableIR, TableMapRows, TableRange, ToArray, ToStream}
+import is.hail.expr.ir.{Apply, ApplyBinaryPrimOp, Ascending, ErrorIDs, GetField, I32, IR, Literal, MakeStruct, Ref, Requiredness, RequirednessAnalysis, SelectFields, SortField, TableIR, TableMapRows, TableRange, ToArray, ToStream, mapIR}
 import is.hail.{ExecStrategy, HailSuite, TestUtils}
 import is.hail.expr.ir.lowering.LowerDistributedSort.samplePartition
 import is.hail.types.RTable
@@ -19,7 +19,7 @@ class LowerDistributedSortSuite extends HailSuite {
     val data1 = ToStream(Literal(TArray(elementType), dataKeys.map{ case (k1, k2) => Row(k1, k2, k1 * k1)}))
     val sampleSeq = ToStream(Literal(TArray(TInt32), IndexedSeq(0, 2, 3, 7)))
 
-    val sampled = samplePartition(data1, sampleSeq, IndexedSeq("key1", "key2"))
+    val sampled = samplePartition(data1, mapIR(sampleSeq)(s => SelectFields(s, IndexedSeq("key1", "key2"))))
 
     assertEvalsTo(sampled, Row(Row(0, -1), Row(9, 1), IndexedSeq( Row(0, 0), Row(1, 4), Row(2, 8), Row(6, 9)), false))
 
@@ -27,7 +27,7 @@ class LowerDistributedSortSuite extends HailSuite {
     val elementType2 = TStruct(("key1", TInt32), ("key2", TInt32))
     val data2 = ToStream(Literal(TArray(elementType2), dataKeys2.map{ case (k1, k2) => Row(k1, k2)}))
     val sampleSeq2 = ToStream(Literal(TArray(TInt32), IndexedSeq(0)))
-    val sampled2 = samplePartition(data2, sampleSeq2, IndexedSeq("key2", "key1"))
+    val sampled2 = samplePartition(data2, mapIR(sampleSeq2)(s => SelectFields(s, IndexedSeq("key2", "key1"))))
     assertEvalsTo(sampled2, Row(Row(0, 0), Row(3, 3), IndexedSeq( Row(0, 0)), false))
   }
 

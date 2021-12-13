@@ -139,7 +139,7 @@ object LowerDistributedSort {
     while (!loopState.largeUnsortedSegments.isEmpty) {
       val partitionDataPerSegment = segmentsToPartitionData(loopState.largeUnsortedSegments, idealNumberOfRowsPerPart)
 
-      val partitionCountsPerSegment = partitionDataPerSegment.map(oneSegment => oneSegment.map(_._3))
+      val partitionCountsPerSegment = partitionDataPerSegment.map(oneSegment => oneSegment.map(_.currentPartSize))
       assert(partitionCountsPerSegment.size == loopState.largeUnsortedSegments.size)
 
       val numSamplesPerPartitionPerSegment = partitionCountsPerSegment.map { partitionCountsForOneSegment =>
@@ -149,15 +149,17 @@ object LowerDistributedSort {
 
       val numSamplesPerPartition = numSamplesPerPartitionPerSegment.flatten
 
-      val perPartStatsCDAContextData = partitionDataPerSegment.flatten.zip(numSamplesPerPartition).map { case (partData, numSamples) => Row(partData._1.last, partData._2, partData._3, numSamples)}
+      val perPartStatsCDAContextData = partitionDataPerSegment.flatten.zip(numSamplesPerPartition).map { case (partData, numSamples) => Row(partData.indices.last, partData.files, partData.currentPartSize, numSamples)}
       val perPartStatsCDAContexts = ToStream(Literal(TArray(TStruct("segmentIdx" -> TInt32, "files" -> TArray(TString), "sizeOfPartition" -> TInt32, "numSamples" -> TInt32)), perPartStatsCDAContextData))
       val perPartStatsIR = cdaIR(perPartStatsCDAContexts, MakeStruct(Seq())){ (ctxRef, _) =>
         val filenames = GetField(ctxRef, "files")
         val samples = SeqSample(GetField(ctxRef, "sizeOfPartition"), GetField(ctxRef, "numSamples"), false)
         val partitionStream = flatMapIR(ToStream(filenames)) { fileName =>
-          ReadPartition(fileName, spec._vType, reader)
+          mapIR(ReadPartition(fileName, spec._vType, reader)){ partitionElement =>
+            SelectFields(partitionElement, newKType.fields.map(_.name))
+          }
         }
-        MakeStruct(IndexedSeq("segmentIdx" -> GetField(ctxRef, "segmentIdx"), "partData" -> samplePartition(partitionStream, samples, newKType.fields.map(_.name))))
+        MakeStruct(IndexedSeq("segmentIdx" -> GetField(ctxRef, "segmentIdx"), "partData" -> samplePartition(partitionStream, samples)))
       }
 
       val pivotsPerSegmentAndSortedCheck = ToArray(bindIR(perPartStatsIR) { perPartStats =>
@@ -217,7 +219,7 @@ object LowerDistributedSort {
         val unsortedPartitionDataPerSegment = unsortedPivotsWithEndpointsAndInfoGroupedBySegmentNumber.map { case (_, idx) => partitionDataPerSegment(idx)}
 
         val partitionDataPerSegmentWithPivotIndex = unsortedPartitionDataPerSegment.zipWithIndex.map { case (partitionDataForOneSegment, indexIntoPivotsArray) =>
-          partitionDataForOneSegment.map(x => (x._1, x._2, x._3, indexIntoPivotsArray))
+          partitionDataForOneSegment.map(x => (x.indices, x.files, x.currentPartSize, indexIntoPivotsArray))
         }
 
         val distributeContextsData = partitionDataPerSegmentWithPivotIndex.flatten.zipWithIndex.map { case (part, partIdx) => Row(part._1.last, part._2, partIdx, part._4) }
@@ -343,27 +345,29 @@ object LowerDistributedSort {
     false
   }
 
-  def segmentsToPartitionData(segments: IndexedSeq[SegmentResult], idealNumberOfRowsPerPart: Int): IndexedSeq[IndexedSeq[(IndexedSeq[Int], IndexedSeq[String], Int)]] = {
+  case class PartitionInfo(indices: IndexedSeq[Int], files: IndexedSeq[String], currentPartSize: Int)
+
+  def segmentsToPartitionData(segments: IndexedSeq[SegmentResult], idealNumberOfRowsPerPart: Int): IndexedSeq[IndexedSeq[PartitionInfo]] = {
     segments.map { sr =>
       val chunkDataSizes = sr.chunks.map(_.size)
       val segmentSize = chunkDataSizes.sum
       val numParts = (segmentSize + idealNumberOfRowsPerPart - 1) / idealNumberOfRowsPerPart
       var currentPartSize = 0
-      val groupedIntoParts = new ArrayBuffer[(IndexedSeq[Int], IndexedSeq[String], Int)](numParts)
+      val groupedIntoParts = new ArrayBuffer[PartitionInfo](numParts)
       val currentFiles = new ArrayBuffer[String]()
       sr.chunks.foreach { chunk =>
         if (chunk.size > 0) {
           currentFiles.append(chunk.filename)
           currentPartSize += chunk.size
           if (currentPartSize > idealNumberOfRowsPerPart) {
-            groupedIntoParts.append((sr.indices, currentFiles.result().toIndexedSeq, currentPartSize))
+            groupedIntoParts.append(PartitionInfo(sr.indices, currentFiles.result().toIndexedSeq, currentPartSize))
             currentFiles.clear()
             currentPartSize = 0
           }
         }
       }
       if (!currentFiles.isEmpty) {
-        groupedIntoParts.append((sr.indices, currentFiles.result().toIndexedSeq, currentPartSize))
+        groupedIntoParts.append(PartitionInfo(sr.indices, currentFiles.result().toIndexedSeq, currentPartSize))
       }
       groupedIntoParts.result()
     }
@@ -388,7 +392,7 @@ object LowerDistributedSort {
   }
 
   // TODO: Probably wrong for this to not take SortOrder?
-  def samplePartition(dataStream: IR, sampleIndices: IR, keyFields: IndexedSeq[String]): IR = {
+  def samplePartition(dataStream: IR, sampleIndices: IR): IR = {
     // Step 1: Join the dataStream zippedWithIdx on sampleIndices?
     // That requires sampleIndices to be a stream of structs
     val samplingIndexName = "samplingPartitionIndex"
@@ -412,34 +416,31 @@ object LowerDistributedSort {
     val eltType = dataStream.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
     val eltRef = Ref(eltName, eltType)
 
-    val keyType = eltType.typeAfterSelectNames(keyFields)
-
     // Folding for isInternallySorted
-    val aggFoldSortedZero = MakeStruct(Seq("lastKeySeen" -> NA(keyType), "sortedSoFar" -> true, "haveSeenAny" -> false))
+    val aggFoldSortedZero = MakeStruct(Seq("lastKeySeen" -> NA(eltType), "sortedSoFar" -> true, "haveSeenAny" -> false))
     val aggFoldSortedAccumName1 = genUID()
     val aggFoldSortedAccumName2 = genUID()
-    val isSortedStateType = TStruct("lastKeySeen" -> keyType, "sortedSoFar" -> TBoolean, "haveSeenAny" -> TBoolean)
+    val isSortedStateType = TStruct("lastKeySeen" -> eltType, "sortedSoFar" -> TBoolean, "haveSeenAny" -> TBoolean)
     val aggFoldSortedAccumRef1 = Ref(aggFoldSortedAccumName1, isSortedStateType)
-    val isSortedSeq = bindIR(SelectFields(eltRef, keyFields)) { keyOfCurElementRef =>
+    val isSortedSeq =
       bindIR(GetField(aggFoldSortedAccumRef1, "lastKeySeen")) { lastKeySeenRef =>
         If(!GetField(aggFoldSortedAccumRef1, "haveSeenAny"),
-          MakeStruct(Seq("lastKeySeen" -> keyOfCurElementRef, "sortedSoFar" -> true, "haveSeenAny" -> true)),
-          If (ApplyComparisonOp(LTEQ(keyType), lastKeySeenRef, keyOfCurElementRef),
-            MakeStruct(Seq("lastKeySeen" -> keyOfCurElementRef, "sortedSoFar" -> GetField(aggFoldSortedAccumRef1, "sortedSoFar"), "haveSeenAny" -> true)),
-            MakeStruct(Seq("lastKeySeen" -> keyOfCurElementRef, "sortedSoFar" -> false, "haveSeenAny" -> true))
+          MakeStruct(Seq("lastKeySeen" -> eltRef, "sortedSoFar" -> true, "haveSeenAny" -> true)),
+          If (ApplyComparisonOp(LTEQ(eltType), lastKeySeenRef, eltRef),
+            MakeStruct(Seq("lastKeySeen" -> eltRef, "sortedSoFar" -> GetField(aggFoldSortedAccumRef1, "sortedSoFar"), "haveSeenAny" -> true)),
+            MakeStruct(Seq("lastKeySeen" -> eltRef, "sortedSoFar" -> false, "haveSeenAny" -> true))
           )
         )
       }
-    }
     val isSortedComb = aggFoldSortedAccumRef1 // Do nothing, as this will never be called in a StreamAgg
 
 
     StreamAgg(joined, streamElementName, {
       AggLet(eltName, GetField(streamElementRef, "elt"),
         MakeStruct(Seq(
-          ("min", AggFold.min(eltRef, keyType)),
-          ("max", AggFold.max(eltRef, keyType)),
-          ("samples", AggFilter(GetField(streamElementRef, "shouldKeep"), ApplyAggOp(Collect())(SelectFields(eltRef, keyFields)), false)),
+          ("min", AggFold.min(eltRef, eltType)),
+          ("max", AggFold.max(eltRef, eltType)),
+          ("samples", AggFilter(GetField(streamElementRef, "shouldKeep"), ApplyAggOp(Collect())(eltRef), false)),
           ("isSorted", GetField(AggFold(aggFoldSortedZero, isSortedSeq, isSortedComb, aggFoldSortedAccumName1, aggFoldSortedAccumName2, false), "sortedSoFar"))
         )), false)
     })

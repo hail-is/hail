@@ -85,11 +85,7 @@ class TableStage(
   }
 
   def ctxType: Type = contexts.typ.asInstanceOf[TStream].elementType
-  def rowType: TStruct = {
-    if (!partitionIR.typ.isInstanceOf[TStream]) {
-      println("foo")
-    }
-    partitionIR.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct] }
+  def rowType: TStruct = partitionIR.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
   def kType: TStruct = partitioner.kType
   def key: IndexedSeq[String] = kType.fieldNames
   def globalType: TStruct = globals.typ.asInstanceOf[TStruct]
