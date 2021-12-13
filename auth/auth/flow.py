@@ -40,7 +40,7 @@ class Flow(abc.ABC):
 
 class GoogleFlow(Flow):
     @staticmethod
-    def get_flow(credentials_file: str, redirect_uri: str, state: Optional[str] - None) -> 'GoogleFlow':
+    def get_flow(credentials_file: str, redirect_uri: str, state: Optional[str] = None) -> 'GoogleFlow':
         scopes = [
             'https://www.googleapis.com/auth/userinfo.profile',
             'https://www.googleapis.com/auth/userinfo.email',

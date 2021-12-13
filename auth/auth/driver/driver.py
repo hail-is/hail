@@ -451,9 +451,9 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
             azure_sp = AzureServicePrincipalResource(identity_client)
             cleanup.append(azure_sp.delete)
 
-            azure_obj_id, credentials = await azure_sp.create(ident_token)
+            azure_app_obj_id, credentials = await azure_sp.create(ident_token)
             secret_data = json.dumps(credentials)
-            updates['hail_identity'] = azure_obj_id
+            updates['hail_identity'] = azure_app_obj_id
             updates['display_name'] = ident_token
 
         hail_credentials_secret_name = f'{ident}-gsa-key'

@@ -410,7 +410,7 @@ resource "azuread_application" "oauth2" {
   display_name = "${data.azurerm_resource_group.rg.name}-oauth2"
 
   web {
-    redirect_uris = ["https://auth.${var.domain}:5000/oauth2callback", "http://127.0.0.1:5000/oauth2callback"]
+    redirect_uris = ["https://auth.${var.domain}/oauth2callback", "http://127.0.0.1/oauth2callback"]
 
     implicit_grant {
       access_token_issuance_enabled = true
