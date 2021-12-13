@@ -136,6 +136,12 @@ object LowerDistributedSort {
     var i = 0
     val rand = new IRRandomness(seed)
 
+    /*
+    There are three categories of segments. largeUnsortedSegments are too big to sort locally so have to broken up.
+    largeSortedSegments were identified as being already sorted, so no reason to recur on them. smallSegments are small
+    enough to be sorted locally.
+     */
+
     while (!loopState.largeUnsortedSegments.isEmpty) {
       val partitionDataPerSegment = segmentsToPartitionData(loopState.largeUnsortedSegments, idealNumberOfRowsPerPart)
 
@@ -162,6 +168,10 @@ object LowerDistributedSort {
         MakeStruct(IndexedSeq("segmentIdx" -> GetField(ctxRef, "segmentIdx"), "partData" -> samplePartition(partitionStream, samples)))
       }
 
+
+      /*
+      Aggregate over the segments, to compute the pivots, whether it's already sorted, and what key interval is contained in that segment.
+       */
       val pivotsPerSegmentAndSortedCheck = ToArray(bindIR(perPartStatsIR) { perPartStats =>
         mapIR(StreamGroupByKey(ToStream(perPartStats), IndexedSeq("segmentIdx"))) { oneGroup =>
           val streamElementRef = Ref(genUID(), oneGroup.typ.asInstanceOf[TIterable].elementType)
@@ -262,7 +272,6 @@ object LowerDistributedSort {
 
         // distributeResult is a numPartitions length array of arrays, where each inner array tells me what
         // files were written to for each partition, as well as the number of entries in that file.
-
         val protoDataPerSegment = orderedGroupBy[(Int, IndexedSeq[(Interval, String, Int)]), Int](distributeResult, x => x._1).map { case (_, seqOfChunkData) => seqOfChunkData.map(_._2) }
 
         val transposedIntoNewSegments = protoDataPerSegment.zip(remainingUnsortedSegments.map(_.indices)).flatMap { case (oneOldSegment, priorIndices) =>
