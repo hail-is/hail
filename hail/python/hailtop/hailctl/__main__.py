@@ -16,6 +16,12 @@ def print_help():
     subs.add_parser('dataproc',
                     help='Manage Google Dataproc clusters configured for Hail.',
                     description='Manage Google Dataproc clusters configured for Hail.')
+    subs.add_parser('describe',
+                    help='Describe Hail Matrix Table and Table files.',
+                    description='Describe Hail Matrix Table and Table files.')
+    subs.add_parser('hdinsight',
+                    help='Manage Azure HDInsight clusters configured for Hail.',
+                    description='Manage Azure HDInsight clusters configured for Hail.')
     subs.add_parser('auth',
                     help='Manage Hail credentials.',
                     description='Manage Hail credentials.')
@@ -97,6 +103,12 @@ def main():
             print_version()
         elif module == 'dataproc':
             from hailtop.hailctl.dataproc import cli  # pylint: disable=import-outside-toplevel
+            cli.main(args)
+        elif module == 'describe':
+            from hailtop.hailctl.describe import main  # pylint: disable=import-outside-toplevel
+            main(args)
+        elif module == 'hdinsight':
+            from hailtop.hailctl.hdinsight import cli  # pylint: disable=import-outside-toplevel
             cli.main(args)
         elif module == 'auth':
             from hailtop.hailctl.auth import cli  # pylint: disable=import-outside-toplevel
