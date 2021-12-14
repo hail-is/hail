@@ -325,7 +325,7 @@ class EmitStreamSuite extends HailSuite {
 
   @Test def testStreamBufferedAggregator(): Unit = {
     val streamType = TStream(TStruct("a" -> TInt64, "b" -> TInt64))
-    val numSeq = (0 to 5).map(i => Seq(I64(i), I64(i + 1)))
+    val numSeq = (0 until 12).map(i => Seq(I64(i), I64(i + 1)))
     val numTupleSeq = numSeq.map(_ => Seq("a", "b")).zip(numSeq)
     val countStructSeq = numTupleSeq.map { case (s, i) => s.zip(i)}.map(is => MakeStruct(is))
     val countStructStream = MakeStream(countStructSeq, streamType, false)

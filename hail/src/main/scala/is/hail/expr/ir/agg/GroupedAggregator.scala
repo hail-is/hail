@@ -135,11 +135,14 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
 
   def loadContainer(cb: EmitCodeBuilder, kec: EmitCode): Unit = {
     val kev = cb.memoize(kec, "ga_load_cont_k")
+    cb.println("Loading container for key ", cb.strValue(kev.pv))
     cb.assign(_elt, tree.getOrElseInitialize(cb, kev))
     cb.ifx(keyed.isEmpty(cb, _elt), {
+      cb.println("keyed is empty")
       initElement(cb, _elt, kev)
       keyed.copyStatesFrom(cb, initStatesOffset)
     }, {
+      cb.println("keyed is not empty")
       keyed.loadStates(cb)
     })
   }
@@ -200,8 +203,8 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
 
   def clearTree(cb: EmitCodeBuilder): Unit = {
     cb.ifx(region.isNull, cb._fatal("Tried to clearTree when region was null"))
-    newState(cb, initStatesOffset)
     region.clear()
+    cb.assign(size, 0)
   }
 
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {

@@ -263,7 +263,6 @@ object EmitStream {
         }
       case x@StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, name,
         aggSignatures: IndexedSeq[PhysicalAggSig]) =>
-        val (newContainer, aggSetup, aggCleanup) = AggContainer.fromMethodBuilder(aggSignatures.toArray.map(sig => sig.state), mb, "run_agg_scan")
         val region = mb.genFieldThisRef[Region]("stream_buff_agg_region")
         produce(streamChild, cb)
           .map(cb) { case childStream: SStreamValue =>
@@ -300,9 +299,10 @@ object EmitStream {
                 cb.assign(elementArray, Code.newArray[Long](maxSize))
                 cb.assign(numElemInArray, 0)
                 dictState.createState(cb)
-                aggSetup(cb)
+                dictState.newState(cb)
                 cb.assign(region, Region.stagedCreate(Region.REGULAR, outerRegion.getPool())) //TODO find out what actually goes here
-
+                val initContainer = AggContainer(aggSignatures.toArray.map(sig => sig.state), dictState.initContainer, cleanup = () => ())
+                dictState.init(cb, { cb => emitVoid(initAggs, cb, container = Some(initContainer))})
               }
 
               override val elementRegion: Settable[Region] = childProducer.elementRegion
@@ -321,10 +321,12 @@ object EmitStream {
                   cb.println(" go to elementProduceLabel")
                   cb.goto(elementProduceLabel)
                 })
-                cb.ifx(!dictState.region.isNull,
-                  dictState.clearTree(cb)
-                )
-                dictState.init(cb, { cb => emitVoid(initAggs, cb, container = Some(newContainer)) })
+                cb.ifx(!dictState.region.isNull, {
+                  dictState.newState(cb)
+                  val initContainer = AggContainer(aggSignatures.toArray.map(sig => sig.state), dictState.initContainer, cleanup = () => ())
+                  dictState.init(cb, { cb => emitVoid(initAggs, cb, container = Some(initContainer)) })
+                }  //dictState.clearTree(cb)
+                   )
 
                 cb.define(getElemLabel)
                 cb.println("getElemLabel")
@@ -340,22 +342,21 @@ object EmitStream {
                     env = env.bind(name, eltField),
                     region = childProducer.elementRegion)
                 }
-                cb.println("1")
                 val resultKeyValue = newKeyResultCode.memoize(cb, "buff_agg_stream_result_key")
-                cb.println("2 ", cb.strValue(resultKeyValue))
-                dictState.withContainer(cb, resultKeyValue, { cb => emitVoid(seqOps, cb, container = Some(newContainer), env = env.bind(name, eltField)) })
-                cb.println("3")
+                cb.println("result key value ", cb.strValue(resultKeyValue))
+                val keyedContainer = AggContainer(aggSignatures.toArray.map(sig => sig.state), dictState.keyed.container, cleanup = () => ())
+                dictState.withContainer(cb, resultKeyValue, { cb => emitVoid(seqOps, cb, container = Some(keyedContainer), env = env.bind(name, eltField)) })
+                cb.println("current size:", dictState.size.toS)
                 cb.ifx(dictState.size >= maxSize,{
                   cb.assign(produceElementMode, true)
                 })
-                cb.println("4")
-                cb.ifx(produceElementMode,
- {                  cb.println("go to produceElementMode")
+                cb.ifx(produceElementMode, {
+                  cb.println("go to produceElementMode")
                   cb.goto(elementProduceLabel)},
                   {
                     cb.println("go to getElemLabel")
                   cb.goto(getElemLabel)
-                  })
+              })
                 cb.define(childProducer.LendOfStream)
                 cb.println("childProduce.LendOfStream")
                 cb.assign(childStreamEnded, true)
@@ -364,12 +365,13 @@ object EmitStream {
                 cb.println("elementProduceLabel")
                 cb.ifx(numElemInArray ceq 0, {
                   dictState.tree.foreach(cb) { (cb, elementOff) =>
-                    cb.println("filling up array ", elementOff.toS)
+                    cb.println("filling up array ", Region.loadInt(elementOff).toS) // FIXME: Don't assume it's an int
                     cb += elementArray.update(numElemInArray, elementOff)
                     cb.assign(numElemInArray, numElemInArray + 1)
                   }
                 })
-                cb.assign(idx, idx + 1)
+
+                cb.println("index is ", idx.toS, " numElemInArray is ", numElemInArray.toS)
                 cb.ifx(numElemInArray <= idx, {
                   cb.assign(idx, 0)
                   cb.assign(numElemInArray, 0)
@@ -384,9 +386,10 @@ object EmitStream {
                   })
                 })
                 val elementAddress = cb.memoize(elementArray(idx))
+                cb.assign(idx, idx + 1)
                 val key = dictState.keyed.storageType.loadCheapSCode(cb, elementAddress).loadField(cb, "kt").memoize(cb, "steam_buff_agg_key")
                 dictState.loadContainer(cb, key.load)
-                val serializedAggValue = newContainer.container.states.states.map(state => state.serializeToRegion(cb, PCanonicalBinary(), region))
+                val serializedAggValue = keyedContainer.container.states.states.map(state => state.serializeToRegion(cb, PCanonicalBinary(), region))
                 val serializedAggEmitCodes = serializedAggValue.map(aggValue => EmitCode.present(mb, aggValue))
                 val serializedAggTupleSValue = SStackStruct.constructFromArgs(cb, region, serializedAggSType.virtualType, serializedAggEmitCodes: _*)
                 val keyValue = key.get(cb).asInstanceOf[SBaseStructValue]
@@ -395,26 +398,19 @@ object EmitStream {
                 assert(returnElemSType.virtualType == sStructToReturn.st.virtualType)
                 val casted = sStructToReturn.castTo(cb, region, returnElemSType)
                 cb.assign(newStreamElem, EmitCode.present(mb, casted).toI(cb))
-
+                cb.println("go to LproduceElementDone")
                 cb.goto(LproduceElementDone)
-
-
-
               }
 
               override val element: EmitCode = newStreamElem.load
 
               override def close(cb: EmitCodeBuilder): Unit = {
                 childProducer.close(cb)
-                aggCleanup(cb)
+                dictState.region.invalidate()
               }
             }
             SStreamCode(producer).memoize(cb, "stream_buff_producer")
           }
-
-
-
-
 
       case x@MakeStream(args, _, _requiresMemoryManagementPerElement) =>
         val region = mb.genFieldThisRef[Region]("makestream_region")

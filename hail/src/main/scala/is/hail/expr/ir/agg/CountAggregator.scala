@@ -29,6 +29,7 @@ object CountAggregator extends StagedAggregator {
     assert(seq.length == 0)
     assert(state.vtypes.head.r.required)
     val ev = state.fields(0)
+    cb.println("SeqOp counted")
     cb.assign(ev, EmitCode.present(cb.emb, primitive(cb.memoize(ev.pv.asInt64.longCode(cb) + 1L))))
   }
 
