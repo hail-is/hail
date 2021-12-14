@@ -62,7 +62,7 @@ class AzureBillingManager(CloudBillingManager):
 
             if current_resource_rate is None:
                 resource_updates.append((resource_name, latest_resource_rate))
-            elif current_resource_rate != latest_resource_rate:
+            elif abs(current_resource_rate - latest_resource_rate) > 1E-20:
                 log.error(f'resource {resource_name} does not have the latest rate in the database for '
                           f'version {current_product_version}: {current_resource_rate} vs {latest_resource_rate}; '
                           f'did the vm price change without a version change?')

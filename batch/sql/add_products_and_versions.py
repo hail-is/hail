@@ -32,8 +32,8 @@ VALUES (%s, %s)
             azure_ip_fee = 0.004
 
             resources = [
-                ('az/ip-fee/1024/2021-11-01', rate_instance_hour_to_fraction_msec(azure_ip_fee, 1024)),
-                ('az/service-fee/2021-11-01', rate_cpu_hour_to_mcpu_msec(0.01)),
+                ('az/ip-fee/1024/2021-12-01', rate_instance_hour_to_fraction_msec(azure_ip_fee, 1024)),
+                ('az/service-fee/2021-12-01', rate_cpu_hour_to_mcpu_msec(0.01)),
             ]
 
             await tx.execute_many('''
