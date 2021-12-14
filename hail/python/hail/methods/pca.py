@@ -247,7 +247,8 @@ def _make_tsm(entry_expr, block_size, *, partition_size=None, whiten_window_size
                 whiten_block_size,
                 normalize_after_whiten))
             return construct_expr(stream_ir, part_stream.dtype)
-        whitened = joined._map_partitions(whiten_map_body).persist()
+        whitened = joined._map_partitions(whiten_map_body)
+        whitened = whitened.annotate(ndarray=whitened.ndarray.T).persist()
 
         return TallSkinnyMatrix(whitened, whitened.ndarray, ht, list(mt.col_key))
 

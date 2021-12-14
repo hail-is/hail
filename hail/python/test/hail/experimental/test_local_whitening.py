@@ -29,7 +29,7 @@ class Tests(unittest.TestCase):
         tsm = _make_tsm(mt.x, chunk_size, partition_size=partition_size, whiten_window_size=window_size)
         ht = tsm.block_table
         # ht = whiten(mt.x, chunk_size, window_size, partition_size)
-        whitened_hail = np.vstack(ht.aggregate(hl.agg.collect(tsm.block_expr.T)))
+        whitened_hail = np.vstack(ht.aggregate(hl.agg.collect(tsm.block_expr)))
         whitened_naive = naive_whiten(data.T, window_size)
         np.testing.assert_allclose(whitened_hail, whitened_naive, rtol=1e-05)
 
