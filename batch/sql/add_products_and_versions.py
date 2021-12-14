@@ -16,20 +16,19 @@ async def main():
 
     @transaction(db)
     async def populate(tx):
-        if cloud == 'gcp':
-            resources = [resource['resource'] async for resource in
-                         tx.select_and_fetchall('SELECT resource FROM resources')]
+        resources = [resource['resource'] async for resource in
+                     tx.select_and_fetchall('SELECT resource FROM resources')]
 
-            latest_versions = []
-            for resource in resources:
-                prefix, version = resource.rsplit('/', maxsplit=1)
-                latest_versions.append((prefix, version))
+        latest_versions = []
+        for resource in resources:
+            prefix, version = resource.rsplit('/', maxsplit=1)
+            latest_versions.append((prefix, version))
 
-            await tx.execute_many('''
+        await tx.execute_many('''
 INSERT INTO `latest_product_versions` (product, version)
 VALUES (%s, %s)
 ''',
-                                  latest_versions)
+                              latest_versions)
 
         if cloud == 'azure':
             # https://azure.microsoft.com/en-us/pricing/details/ip-addresses/
@@ -47,8 +46,8 @@ VALUES (%s, %s)
                                   resources)
 
             resource_versions = [
-                ('az/ip-fee/1024', '2021-11-01'),
-                ('az/service-fee', '2021-11-01'),
+                ('az/ip-fee/1024', '2021-12-01'),
+                ('az/service-fee', '2021-12-01'),
             ]
 
             await tx.execute_many('''

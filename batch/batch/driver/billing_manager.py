@@ -21,7 +21,7 @@ class ProductVersions:
 
     def resource_name(self, product: str) -> Optional[str]:
         version = self.latest_version(product)
-        assert version, product
+        assert version is not None, f'{product} {self._product_versions}'
         return product_version_to_resource(product, version)
 
     def update(self, data: Dict[str, str]):
