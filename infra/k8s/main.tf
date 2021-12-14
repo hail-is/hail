@@ -53,7 +53,8 @@ resource "kubernetes_secret" "auth_oauth2_client_secret" {
   }
 
   data = {
-    "client_secret.json" = jsonencode(var.oauth2_credentials)
+    "client_secret.json"    = jsonencode(var.oauth2_credentials)
+    "client_secret_v2.json" = jsonencode(var.oauth2_credentials)
   }
 }
 
