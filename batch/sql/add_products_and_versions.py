@@ -8,16 +8,13 @@ from gear import Database, transaction
 async def main():
     cloud = os.environ['HAIL_CLOUD']
 
-    if cloud != 'azure':
-        return
-
     db = Database()
     await db.async_init()
 
     @transaction(db)
     async def populate(tx):
         resources = [resource['resource'] async for resource in
-                     tx.select_and_fetchall('SELECT resource FROM resources')]
+                     tx.execute_and_fetchall('SELECT resource FROM resources')]
 
         latest_versions = []
         for resource in resources:
