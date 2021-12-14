@@ -124,8 +124,8 @@ async def vm_prices_by_region(pricing_client: aioazure.AzurePricingClient,
         preemptible = ('Spot' in sku_name)
         vm_cost_per_hour = float(data['retailPrice'])
 
-        start_date = parse_timestamp_msecs(data['effectiveStartDate'])
-        end_date = parse_timestamp_msecs(data.get('effectiveEndDate'))
+        start_date = int(parse_timestamp_msecs(data['effectiveStartDate']) + 0.5)
+        end_date = int(parse_timestamp_msecs(data.get('effectiveEndDate')) + 0.5)
 
         if sku_name in seen_vm_names:
             seen_data = seen_vm_names[sku_name]
