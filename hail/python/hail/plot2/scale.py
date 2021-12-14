@@ -28,6 +28,18 @@ class Scale(FigureAttribute):
             self.update_axis(fig_so_far)(ticktext=self.labels)
 
 
+class ScaleGenomic(Scale):
+    def __init__(self, axis, name, breaks, labels):
+        super().__init__(axis, name, breaks, labels)
+
+    def apply_to_fig(self, parent, fig_so_far):
+        ref_genome = parent.aes["x"].dtype.reference_genome
+        contig_offsets = dict(list(ref_genome._global_positions_dict.items())[:24])
+        breaks = list(contig_offsets.values())
+        labels = list(contig_offsets.keys())
+        self.update_axis(fig_so_far)(tickvals=breaks, ticktext=labels)
+
+
 class ScaleContinuous(Scale):
 
     def __init__(self, axis=None, name=None, breaks=None, labels=None, transformation="identity"):
@@ -42,13 +54,6 @@ class ScaleContinuous(Scale):
             self.update_axis(fig_so_far)(type="log")
         elif self.transformation == "reverse":
             self.update_axis(fig_so_far)(autorange="reversed")
-        elif self.transformation == "genome":
-            assert "x" in parent.aes
-            ref_genome = parent.aes["x"].dtype.reference_genome
-            contig_offsets = dict(list(ref_genome._global_positions_dict.items())[:24])
-            breaks = list(contig_offsets.values())
-            labels = list(contig_offsets.keys())
-            self.update_axis(fig_so_far)(tickvals=breaks, ticktext=labels)
         else:
             raise ValueError("Unrecognized transformation")
 
@@ -75,3 +80,7 @@ def scale_x_continuous(name=None, breaks=None, labels=None, trans="identity"):
 
 def scale_y_continuous(name=None, breaks=None, labels=None, trans="identity"):
     return ScaleContinuous("y", name=name, breaks=breaks, labels=labels, transformation=trans)
+
+
+def scale_x_genomic(name=None):
+    return ScaleGenomic("x", name=name)
