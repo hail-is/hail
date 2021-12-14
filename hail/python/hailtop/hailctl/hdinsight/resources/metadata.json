@@ -1,9 +1,10 @@
 {
   "$schema": "https://aka.ms/azure-quickstart-templates-metadata-schema#",
   "type": "QuickStart",
-  "itemDisplayName": "Create HDInsight Linux Cluster and run a script action",
-  "description": "Template creates an HDInsight Linux cluster in a virtual network and then runs a custom script action on every node and sets environment var.",
-  "githubUsername": "ezubatov",
-  "summary": "Template creates an HDInsight Linux cluster in a virtual network and then runs a custom script action on every node and sets environment var.",
-  "dateUpdated": "2021-05-18"
+  "itemDisplayName": "Deploy a Spark cluster in Azure HDInsight",
+  "description": "This template allows you to create a Spark cluster in Azure HDInsight. ",
+  "summary": "Deploy a Linux-based Spark cluster in Azure HDInsight",
+  "githubUsername": "guyhay",
+  "docOwner": "JasonWHowell",
+  "dateUpdated": "2021-09-21"
 }
