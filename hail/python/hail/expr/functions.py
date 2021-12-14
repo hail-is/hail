@@ -2731,6 +2731,10 @@ def rand_dirichlet(a, seed=None) -> ArrayExpression:
                                     0.0,
                                     hl.rand_gamma(p, 1, seed=seed))))
 
+def sqrt_wrapper(sqrt_func):
+    def check_type_sqrt(expr):
+        if expr.typ == tndarray:
+            expr.map
 
 @typecheck(x=expr_float64)
 def sqrt(x) -> Float64Expression:
