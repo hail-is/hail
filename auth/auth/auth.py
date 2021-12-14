@@ -28,7 +28,7 @@ from gear import (
 from gear.cloud_config import get_global_config
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, set_message, render_template
 
-from .flow import get_flow
+from .flow import get_flow_client
 
 log = logging.getLogger('auth')
 
@@ -57,7 +57,6 @@ def cleanup_session(session):
 
     _delete('pending')
     _delete('login_id')
-    _delete('state')
     _delete('next')
     _delete('caller')
     _delete('session_id')
@@ -163,56 +162,48 @@ async def _wait_websocket(request, login_id):
 async def signup(request):
     next_page = request.query.get('next', deploy_config.external_url('notebook', ''))
 
-    flow = get_flow(deploy_config.external_url('auth', '/oauth2callback'))
-    flow_data = flow.initialize_flow()
+    flow_data = request.app['flow_client'].initiate_flow(deploy_config.external_url('auth', '/oauth2callback'))
 
     session = await aiohttp_session.new_session(request)
     cleanup_session(session)
-    session['state'] = flow_data.state
     session['next'] = next_page
     session['caller'] = 'signup'
-    session['flow'] = flow.as_dict()
+    session['flow'] = flow_data
 
-    return aiohttp.web.HTTPFound(flow_data.authorization_url)
+    return aiohttp.web.HTTPFound(flow_data['authorization_url'])
 
 
 @routes.get('/login')
 async def login(request):
     next_page = request.query.get('next', deploy_config.external_url('notebook', ''))
 
-    flow = get_flow(deploy_config.external_url('auth', '/oauth2callback'))
-    flow_data = flow.initialize_flow()
+    flow_data = request.app['flow_client'].initiate_flow(deploy_config.external_url('auth', '/oauth2callback'))
 
     session = await aiohttp_session.new_session(request)
-
     cleanup_session(session)
-    session['state'] = flow_data.state
     session['next'] = next_page
     session['caller'] = 'login'
-    session['flow'] = flow.as_dict()
+    session['flow'] = flow_data
 
-    return aiohttp.web.HTTPFound(flow_data.authorization_url)
+    return aiohttp.web.HTTPFound(flow_data['authorization_url'])
 
 
 @routes.get('/oauth2callback')
 async def callback(request):
     session = await aiohttp_session.get_session(request)
-    if 'state' not in session:
+    if 'flow' not in session:
         raise web.HTTPUnauthorized()
 
     nb_url = deploy_config.external_url('notebook', '')
     creating_url = deploy_config.external_url('auth', '/creating')
 
-    state = session['state']
     caller = session['caller']
     next_page = session.pop('next', nb_url)
     flow_dict = session['flow']
     cleanup_session(session)
 
-    flow = get_flow(deploy_config.external_url('auth', '/oauth2callback'), state=state)
-
     try:
-        flow_result = flow.finish_flow(request, flow_dict)
+        flow_result = request.app['flow_client'].receive_callback(request, flow_dict)
         login_id = flow_result.login_id
     except asyncio.CancelledError:
         raise
@@ -332,11 +323,8 @@ async def rest_login(request):
     else:
         assert CLOUD == 'gcp'
         host = '127.0.0.1'
-    flow = get_flow(f'http://{host}:{callback_port}/oauth2callback')
-    flow_data = flow.initialize_flow()
-    return web.json_response(
-        {'authorization_url': flow_data.authorization_url, 'state': flow_data.state, 'flow': flow.as_dict()}
-    )
+    flow_data = request.app['flow_client'].initiate_flow(f'http://{host}:{callback_port}/oauth2callback')
+    return web.json_response({'flow': flow_data})
 
 
 @routes.get('/roles')
@@ -443,13 +431,9 @@ WHERE id = %s AND username = %s;
 
 @routes.get('/api/v1alpha/oauth2callback')
 async def rest_callback(request):
-    state = request.query['state']
-    callback_port = request.query['callback_port']
     flow_dict = json.loads(request.query['flow'])
-
     try:
-        flow = get_flow(f'http://127.0.0.1:{callback_port}/oauth2callback', state=state)
-        flow_result = flow.finish_flow(request, flow_dict)
+        flow_result = request.app['flow_client'].receive_callback(request, flow_dict)
     except asyncio.CancelledError:
         raise
     except Exception as e:
@@ -589,6 +573,7 @@ async def on_startup(app):
     await db.async_init(maxsize=50)
     app['db'] = db
     app['client_session'] = httpx.client_session()
+    app['flow_client'] = get_flow_client('/test-auth-oauth2-client-secret/client_secret.json')
 
 
 async def on_cleanup(app):

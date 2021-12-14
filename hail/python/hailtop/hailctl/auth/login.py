@@ -50,9 +50,10 @@ async def auth_flow(deploy_config, default_ns, session):
     async with session.get(deploy_config.url('auth', '/api/v1alpha/login'),
                            params={'callback_port': port}) as resp:
         resp = await resp.json()
-    authorization_url = resp['authorization_url']
-    state = resp['state']
+
     flow = resp['flow']
+    state = flow['state']
+    authorization_url = flow['authorization_url']
 
     print(f'''
 Visit the following URL to log into Hail:

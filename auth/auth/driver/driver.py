@@ -185,6 +185,7 @@ class AzureServicePrincipalResource:
 
         params = {'$filter': f"displayName eq '{username}'"}
         applications = await self.graph_client.get('/applications', params=params)
+        assert len(applications['value']) == 1, applications
         for application in applications['value']:
             await self._delete(application['id'])
 
