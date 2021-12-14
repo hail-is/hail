@@ -4,6 +4,7 @@ import hail as hl
 from hail.matrixtable import MatrixTable
 from hail.typecheck import typecheck_method
 from hail.utils.java import info
+from hail.genetics import ReferenceGenome
 
 
 def read_vds(path, *, intervals=None) -> 'VariantDataset':
@@ -125,6 +126,16 @@ class VariantDataset:
     def n_samples(self) -> int:
         """The number of samples present."""
         return self.reference_data.count_cols()
+
+    @property
+    def reference_genome(self) -> ReferenceGenome:
+        """Dataset reference genome.
+
+        Returns
+        -------
+        :class:`.ReferenceGenome`
+        """
+        return self.reference_data.locus.dtype.reference_genome
 
     @typecheck_method(check_data=bool)
     def validate(self, *, check_data: bool = True):

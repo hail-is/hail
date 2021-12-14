@@ -6,9 +6,9 @@ from hail.expr import ArrayExpression, expr_any, expr_array, expr_interval, expr
 from hail.matrixtable import MatrixTable
 from hail.methods.misc import require_first_key_field_locus
 from hail.table import Table
-from hail.typecheck import sequenceof, typecheck, nullable, oneof
+from hail.typecheck import sequenceof, typecheck, nullable, oneof, enumeration
 from hail.utils.java import Env, info
-from hail.utils.misc import divide_null, new_temp_file
+from hail.utils.misc import divide_null, new_temp_file, wrap_to_list
 from hail.vds.variant_dataset import VariantDataset
 
 
@@ -441,6 +441,102 @@ def filter_variants(vds: 'VariantDataset', variants_table: 'Table', *, keep: boo
     else:
         variant_data = vds.variant_data.anti_join_rows(variants_table)
     return VariantDataset(vds.reference_data, variant_data)
+
+
+@typecheck(vds=VariantDataset,
+           intervals=expr_array(expr_interval(expr_any)),
+           keep=bool,
+           mode=enumeration('variants_only', 'split_at_boundaries', 'unchecked_filter_both'))
+
+def _parameterized_filter_intervals(vds: 'VariantDataset',
+                                    intervals: 'ArrayExpression',
+                                    keep: bool,
+                                    mode: str) -> 'VariantDataset':
+
+    if mode == 'variants_only':
+        variant_data = hl.filter_intervals(vds.variant_data, intervals, keep)
+        return VariantDataset(vds.reference_data, variant_data)
+    if mode == 'split_at_boundaries':
+        if not keep:
+            raise ValueError("filter_intervals mode 'split_at_boundaries' not implemented for keep=False")
+        par_intervals = hl.Table.parallelize([hl.Struct(interval=x) for x in intervals],
+                                             schema=hl.tstruct(interval=intervals.dtype.element_type), key='interval')
+        ref = segment_reference_blocks(vds.reference_data, par_intervals)
+        return VariantDataset(hl.filter_intervals(ref, intervals, keep),
+                              hl.filter_intervals(vds.variant_data, intervals, keep))
+
+    return VariantDataset(hl.filter_intervals(vds.reference_data, intervals, keep),
+                          hl.filter_intervals(vds.variant_data, intervals, keep))
+
+
+@typecheck(vds=VariantDataset,
+           keep=nullable(oneof(str, sequenceof(str))),
+           remove=nullable(oneof(str, sequenceof(str))),
+           keep_autosomes=bool)
+def filter_chromosomes(vds: 'VariantDataset', *, keep=None, remove=None, keep_autosomes=False) -> 'VariantDataset':
+    """Filter chromosomes of a :class:`.VariantDataset` in several possible modes.
+
+    Notes
+    -----
+    There are three modes for :func:`filter_chromosomes`, based on which argument is passed
+    to the function. Exactly one of the below arguments must be passed by keyword.
+
+     - ``keep``: This argument expects a single chromosome identifier or a list of chromosome
+       identifiers, and the function returns a :class:`.VariantDataset` with only those
+       chromosomes.
+     - ``remove``: This argument expects a single chromosome identifier or a list of chromosome
+       identifiers, and the function returns a :class:`.VariantDataset` with those chromosomes
+       removed.
+     - ``keep_autosomes``: This argument expects the value ``True``, and returns a dataset without
+       sex and mitochondrial chromosomes.
+
+    Parameters
+    ----------
+    vds : :class:`.VariantDataset`
+        Dataset.
+    keep
+        Keep a specified list of contigs.
+    remove
+        Remove a specified list of contigs
+    keep_autosomes
+        If true, keep only autosomal chromosomes.
+
+    Returns
+    -------
+    :class:`.VariantDataset`.
+    """
+
+    n_args_passed = (keep is not None) + (remove is not None) + keep_autosomes
+    if n_args_passed == 0:
+        raise ValueError("filter_chromosomes: expect one of 'keep', 'remove', or 'keep_autosomes' arguments")
+    if n_args_passed > 1:
+        raise ValueError("filter_chromosomes: expect ONLY one of 'keep', 'remove', or 'keep_autosomes' arguments"
+                         "\n  In order use 'keep_autosomes' with 'keep' or 'remove', call the function twice")
+
+    rg = vds.reference_genome
+
+    to_keep = []
+
+    if keep is not None:
+        keep = wrap_to_list(keep)
+        to_keep.extend(keep)
+    elif remove is not None:
+        remove = set(wrap_to_list(remove))
+        for c in rg.contigs:
+            if c not in remove:
+                to_keep.append(c)
+    elif keep_autosomes:
+        to_remove = set(rg.x_contigs + rg.y_contigs + rg.mt_contigs)
+        for c in rg.contigs:
+            if c not in to_remove:
+                to_keep.append(c)
+
+    parsed_intervals = hl.literal(to_keep, hl.tarray(hl.tstr)).map(
+        lambda c: hl.parse_locus_interval(c, reference_genome=rg))
+    return _parameterized_filter_intervals(vds,
+                                           intervals=parsed_intervals,
+                                           keep=True,
+                                           mode='unchecked_filter_both')
 
 
 @typecheck(vds=VariantDataset, intervals=expr_array(expr_interval(expr_any)), keep=bool)
