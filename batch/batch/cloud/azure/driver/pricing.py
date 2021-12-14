@@ -10,7 +10,7 @@ from hailtop.utils import flatten, grouped, time_msecs, parse_timestamp_msecs
 from hailtop.utils.rates import rate_instance_hour_to_fraction_msec, rate_gib_month_to_mib_msec
 
 from ..resource_utils import azure_valid_machine_types, azure_disk_name_to_storage_gib
-from ..resources import AzureVMResource, AzureDiskResource
+from ..resources import AzureVMResource, AzureStaticSizedDiskResource
 
 
 log = logging.getLogger('pricing')
@@ -89,7 +89,7 @@ class AzureDiskPrice(AzurePrice):
 
     @property
     def product(self):
-        return AzureDiskResource.product_name(self.disk_name, self.redundancy_type, self.region)
+        return AzureStaticSizedDiskResource.product_name(self.disk_name, self.redundancy_type, self.region)
 
     @property
     def rate(self):
@@ -156,8 +156,7 @@ async def managed_disk_prices_by_region(pricing_client: aioazure.AzurePricingCli
 
         if sku_name in seen_disk_names:
             seen_data = seen_disk_names[sku_name]
-            log.exception(f'already seen pricing for disk {sku_name}; {seen_data} vs {data}; aborting')
-            raise Exception()
+            raise Exception(f'already seen pricing for disk {sku_name}; {seen_data} vs {data}; aborting')
         seen_disk_names[sku_name] = data
 
         start_date = int(dateutil.parser.isoparse(data['effectiveStartDate']).timestamp() * 1000 + 0.5)

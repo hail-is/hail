@@ -36,7 +36,7 @@ class Resource(abc.ABC):
         raise NotImplementedError
 
 
-class DiskResourceMixin(Resource, abc.ABC):
+class StaticSizedDiskResourceMixin(Resource, abc.ABC):
     storage_in_gib: int
 
     def to_quantified_resource(self,
@@ -49,7 +49,7 @@ class DiskResourceMixin(Resource, abc.ABC):
         return {'name': self.name, 'quantity': self.storage_in_gib * worker_fraction_in_1024ths}
 
 
-class ExternalDiskResourceMixin(Resource, abc.ABC):
+class DynamicSizedDiskResourceMixin(Resource, abc.ABC):
     @abc.abstractmethod
     def to_quantified_resource(self,
                                cpu_in_mcpu: int,

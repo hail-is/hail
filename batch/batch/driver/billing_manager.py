@@ -13,8 +13,8 @@ def product_version_to_resource(product: str, version: str) -> str:
 
 
 class ProductVersions:
-    def __init__(self, data: Optional[Dict[str, str]] = None):
-        self._product_versions = data or {}
+    def __init__(self, data: Dict[str, str]):
+        self._product_versions = data
 
     def latest_version(self, product: str) -> Optional[str]:
         return self._product_versions.get(product)
@@ -28,16 +28,15 @@ class ProductVersions:
         for product, old_version in self._product_versions.items():
             new_version = data.get(product)
             if new_version is None:
-                log.exception(f'product {product} does not appear in new data; keeping in product versions')
+                log.error(f'product {product} does not appear in new data; keeping in existing latest_product_versions')
                 continue
 
             if new_version != old_version:
                 log.info(f'updated product version for {product} from {old_version} to {new_version}')
 
-        if self._product_versions:
-            for product, new_version in data.items():
-                if product not in self._product_versions:
-                    log.info(f'added product {product} with version {new_version}')
+        for product, new_version in data.items():
+            if product not in self._product_versions:
+                log.info(f'added product {product} with version {new_version}')
 
         self._product_versions.update(data)
 

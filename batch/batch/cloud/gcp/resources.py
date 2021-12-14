@@ -2,8 +2,8 @@ import abc
 from typing import Dict, Any, Optional
 
 from ...driver.billing_manager import ProductVersions
-from ...resources import (Resource, DiskResourceMixin, ComputeResourceMixin, MemoryResourceMixin, IPFeeResourceMixin, ServiceFeeResourceMixin,
-                          ExternalDiskResourceMixin, QuantifiedResource)
+from ...resources import (Resource, StaticSizedDiskResourceMixin, ComputeResourceMixin, MemoryResourceMixin, IPFeeResourceMixin, ServiceFeeResourceMixin,
+                          DynamicSizedDiskResourceMixin, QuantifiedResource)
 
 
 class GCPResource(Resource, abc.ABC):
@@ -14,28 +14,28 @@ def gcp_disk_product(disk_type: str) -> str:
     return f'disk/{disk_type}'
 
 
-class GCPDiskResource(DiskResourceMixin, GCPResource):
+class GCPStaticSizedDiskResource(StaticSizedDiskResourceMixin, GCPResource):
     FORMAT_VERSION = 1
-    TYPE = 'gcp_disk'
+    TYPE = 'gcp_static_sized_disk'
 
     @staticmethod
     def product_name(disk_type: str) -> str:
         return gcp_disk_product(disk_type)
 
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> 'GCPDiskResource':
-        assert data['type'] == GCPDiskResource.TYPE
-        return GCPDiskResource(data['name'], data['storage_in_gib'])
+    def from_dict(data: Dict[str, Any]) -> 'GCPStaticSizedDiskResource':
+        assert data['type'] == GCPStaticSizedDiskResource.TYPE
+        return GCPStaticSizedDiskResource(data['name'], data['storage_in_gib'])
 
     @staticmethod
-    def new_resource(product_versions: ProductVersions,
-                     disk_type: str,
-                     storage_in_gib: int,
-                     ) -> 'GCPDiskResource':
-        product = GCPDiskResource.product_name(disk_type)
+    def create(product_versions: ProductVersions,
+               disk_type: str,
+               storage_in_gib: int,
+               ) -> 'GCPStaticSizedDiskResource':
+        product = GCPStaticSizedDiskResource.product_name(disk_type)
         name = product_versions.resource_name(product)
         assert name, product
-        return GCPDiskResource(name, storage_in_gib)
+        return GCPStaticSizedDiskResource(name, storage_in_gib)
 
     def __init__(self, name: str, storage_in_gib: int):
         self.name = name
@@ -50,25 +50,25 @@ class GCPDiskResource(DiskResourceMixin, GCPResource):
         }
 
 
-class GCPExternalDiskResource(ExternalDiskResourceMixin, GCPResource):
+class GCPDynamicSizedDiskResource(DynamicSizedDiskResourceMixin, GCPResource):
     FORMAT_VERSION = 1
-    TYPE = 'gcp_external_disk'
+    TYPE = 'gcp_dynamic_sized_disk'
 
     @staticmethod
     def product_name(disk_type: str) -> str:
         return gcp_disk_product(disk_type)
 
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> 'GCPExternalDiskResource':
-        assert data['type'] == GCPExternalDiskResource.TYPE
-        return GCPExternalDiskResource(data['name'])
+    def from_dict(data: Dict[str, Any]) -> 'GCPDynamicSizedDiskResource':
+        assert data['type'] == GCPDynamicSizedDiskResource.TYPE
+        return GCPDynamicSizedDiskResource(data['name'])
 
     @staticmethod
-    def new_resource(product_versions: ProductVersions, disk_type: str) -> 'GCPExternalDiskResource':
-        product = GCPExternalDiskResource.product_name(disk_type)
+    def create(product_versions: ProductVersions, disk_type: str) -> 'GCPDynamicSizedDiskResource':
+        product = GCPDynamicSizedDiskResource.product_name(disk_type)
         name = product_versions.resource_name(product)
         assert name, product
-        return GCPExternalDiskResource(name)
+        return GCPDynamicSizedDiskResource(name)
 
     def __init__(self, name: str):
         self.name = name
@@ -106,10 +106,10 @@ class GCPComputeResource(ComputeResourceMixin, GCPResource):
         return GCPComputeResource(data['name'])
 
     @staticmethod
-    def new_resource(product_versions: ProductVersions,
-                     instance_family: str,
-                     preemptible: bool,
-                     ) -> 'GCPComputeResource':
+    def create(product_versions: ProductVersions,
+               instance_family: str,
+               preemptible: bool,
+               ) -> 'GCPComputeResource':
         product = GCPComputeResource.product_name(instance_family, preemptible)
         name = product_versions.resource_name(product)
         assert name, product
@@ -141,10 +141,10 @@ class GCPMemoryResource(MemoryResourceMixin, GCPResource):
         return GCPMemoryResource(data['name'])
 
     @staticmethod
-    def new_resource(product_versions: ProductVersions,
-                     instance_family: str,
-                     preemptible: bool,
-                     ) -> 'GCPMemoryResource':
+    def create(product_versions: ProductVersions,
+               instance_family: str,
+               preemptible: bool,
+               ) -> 'GCPMemoryResource':
         product = GCPMemoryResource.product_name(instance_family, preemptible)
         name = product_versions.resource_name(product)
         assert name, product
@@ -175,7 +175,7 @@ class GCPServiceFeeResource(ServiceFeeResourceMixin, GCPResource):
         return GCPServiceFeeResource(data['name'])
 
     @staticmethod
-    def new_resource(product_versions: ProductVersions) -> 'GCPServiceFeeResource':
+    def create(product_versions: ProductVersions) -> 'GCPServiceFeeResource':
         product = GCPServiceFeeResource.product_name()
         name = product_versions.resource_name(product)
         assert name, product
@@ -206,7 +206,7 @@ class GCPIPFeeResource(IPFeeResourceMixin, GCPResource):
         return GCPIPFeeResource(data['name'])
 
     @staticmethod
-    def new_resource(product_versions: ProductVersions, base: int) -> 'GCPIPFeeResource':
+    def create(product_versions: ProductVersions, base: int) -> 'GCPIPFeeResource':
         product = GCPIPFeeResource.product_name(base)
         name = product_versions.resource_name(product)
         assert name, product
@@ -225,10 +225,10 @@ class GCPIPFeeResource(IPFeeResourceMixin, GCPResource):
 
 def gcp_resource_from_dict(data: dict) -> GCPResource:
     typ = data['type']
-    if typ == GCPDiskResource.TYPE:
-        return GCPDiskResource.from_dict(data)
-    if typ == GCPExternalDiskResource.TYPE:
-        return GCPExternalDiskResource.from_dict(data)
+    if typ == GCPStaticSizedDiskResource.TYPE:
+        return GCPStaticSizedDiskResource.from_dict(data)
+    if typ == GCPDynamicSizedDiskResource.TYPE:
+        return GCPDynamicSizedDiskResource.from_dict(data)
     if typ == GCPComputeResource.TYPE:
         return GCPComputeResource.from_dict(data)
     if typ == GCPMemoryResource.TYPE:

@@ -2,8 +2,8 @@ import abc
 from typing import Dict, Any, Optional
 
 from ...driver.billing_manager import ProductVersions
-from ...resources import (QuantifiedResource, Resource, DiskResourceMixin, VMResourceMixin, IPFeeResourceMixin,
-                          ServiceFeeResourceMixin, ExternalDiskResourceMixin)
+from ...resources import (QuantifiedResource, Resource, StaticSizedDiskResourceMixin, VMResourceMixin, IPFeeResourceMixin,
+                          ServiceFeeResourceMixin, DynamicSizedDiskResourceMixin)
 from .resource_utils import azure_disk_from_storage_in_gib, azure_disks_by_disk_type
 
 
@@ -15,36 +15,36 @@ def azure_disk_product(disk_product: str, redundancy_type: str, location: str) -
     return f'az/disk/{disk_product}_{redundancy_type}/{location}'
 
 
-class AzureDiskResource(DiskResourceMixin, AzureResource):
+class AzureStaticSizedDiskResource(StaticSizedDiskResourceMixin, AzureResource):
     FORMAT_VERSION = 1
-    TYPE = 'azure_disk'
+    TYPE = 'azure_static_sized_disk'
 
     @staticmethod
     def product_name(disk_product: str, redundancy_type: str, location: str) -> str:
         return azure_disk_product(disk_product, redundancy_type, location)
 
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> 'AzureDiskResource':
-        assert data['type'] == AzureDiskResource.TYPE
-        return AzureDiskResource(data['name'], data['storage_in_gib'])
+    def from_dict(data: Dict[str, Any]) -> 'AzureStaticSizedDiskResource':
+        assert data['type'] == AzureStaticSizedDiskResource.TYPE
+        return AzureStaticSizedDiskResource(data['name'], data['storage_in_gib'])
 
     @staticmethod
-    def new_resource(product_versions: ProductVersions,
-                     disk_type: str,
-                     storage_in_gib: int,
-                     location: str,
-                     redundancy_type: str = 'LRS',
-                     ) -> 'AzureDiskResource':
+    def create(product_versions: ProductVersions,
+               disk_type: str,
+               storage_in_gib: int,
+               location: str,
+               redundancy_type: str = 'LRS',
+               ) -> 'AzureStaticSizedDiskResource':
         assert redundancy_type in ('LRS', 'ZRS'), redundancy_type
 
         # Azure bills for specific disk sizes so we must round the storage_in_gib to the nearest power of two
         disk = azure_disk_from_storage_in_gib(disk_type, storage_in_gib)
         assert disk, f'disk_type={disk_type} storage_in_gib={storage_in_gib}'
 
-        product = AzureDiskResource.product_name(disk.name, redundancy_type, location)
+        product = AzureStaticSizedDiskResource.product_name(disk.name, redundancy_type, location)
         name = product_versions.resource_name(product)
         assert name, product
-        return AzureDiskResource(name, disk.size_in_gib)
+        return AzureStaticSizedDiskResource(name, disk.size_in_gib)
 
     def __init__(self, name: str, storage_in_gib: int):
         self.name = name
@@ -59,35 +59,35 @@ class AzureDiskResource(DiskResourceMixin, AzureResource):
         }
 
 
-class AzureExternalDiskResource(ExternalDiskResourceMixin, AzureResource):
+class AzureDynamicSizedDiskResource(DynamicSizedDiskResourceMixin, AzureResource):
     FORMAT_VERSION = 1
-    TYPE = 'azure_external_disk'
+    TYPE = 'azure_dynamic_sized_disk'
 
     @staticmethod
     def product_name(disk_product: str, redundancy_type: str, location: str) -> str:
         return azure_disk_product(disk_product, redundancy_type, location)
 
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> 'AzureExternalDiskResource':
-        assert data['type'] == AzureExternalDiskResource.TYPE
-        return AzureExternalDiskResource(data['disk_type'], data['location'], data['latest_disk_versions'])
+    def from_dict(data: Dict[str, Any]) -> 'AzureDynamicSizedDiskResource':
+        assert data['type'] == AzureDynamicSizedDiskResource.TYPE
+        return AzureDynamicSizedDiskResource(data['disk_type'], data['location'], data['latest_disk_versions'])
 
     @staticmethod
-    def new_resource(product_versions: ProductVersions,
-                     disk_type: str,
-                     location: str,
-                     redundancy_type: str = 'LRS',
-                     ) -> 'AzureExternalDiskResource':
+    def create(product_versions: ProductVersions,
+               disk_type: str,
+               location: str,
+               redundancy_type: str = 'LRS',
+               ) -> 'AzureDynamicSizedDiskResource':
         assert redundancy_type in ('LRS', 'ZRS'), redundancy_type
 
         disk_name_to_resource_names = {}
         for disk in azure_disks_by_disk_type[disk_type]:
             disk_name = disk.name
-            product = AzureExternalDiskResource.product_name(disk_name, redundancy_type, location)
+            product = AzureDynamicSizedDiskResource.product_name(disk_name, redundancy_type, location)
             resource_name = product_versions.resource_name(product)
             assert resource_name, product
             disk_name_to_resource_names[disk_name] = resource_name
-        return AzureExternalDiskResource(disk_type, location, disk_name_to_resource_names)
+        return AzureDynamicSizedDiskResource(disk_type, location, disk_name_to_resource_names)
 
     def __init__(self, disk_type: str, location: str, disk_name_to_resource_names: Dict[str, str]):
         self.disk_type = disk_type
@@ -136,11 +136,11 @@ class AzureVMResource(VMResourceMixin, AzureResource):
         return AzureVMResource(data['name'])
 
     @staticmethod
-    def new_resource(product_versions: ProductVersions,
-                     machine_type: str,
-                     preemptible: bool,
-                     location: str,
-                     ) -> 'AzureVMResource':
+    def create(product_versions: ProductVersions,
+               machine_type: str,
+               preemptible: bool,
+               location: str,
+               ) -> 'AzureVMResource':
         product = AzureVMResource.product_name(machine_type, preemptible, location)
         name = product_versions.resource_name(product)
         assert name, product
@@ -171,7 +171,7 @@ class AzureServiceFeeResource(ServiceFeeResourceMixin, AzureResource):
         return AzureServiceFeeResource(data['name'])
 
     @staticmethod
-    def new_resource(product_versions: ProductVersions) -> 'AzureServiceFeeResource':
+    def create(product_versions: ProductVersions) -> 'AzureServiceFeeResource':
         product = AzureServiceFeeResource.product_name()
         name = product_versions.resource_name(product)
         assert name, product
@@ -202,7 +202,7 @@ class AzureIPFeeResource(IPFeeResourceMixin, AzureResource):
         return AzureIPFeeResource(data['name'])
 
     @staticmethod
-    def new_resource(product_versions: ProductVersions, base: int) -> 'AzureIPFeeResource':
+    def create(product_versions: ProductVersions, base: int) -> 'AzureIPFeeResource':
         product = AzureIPFeeResource.product_name(base)
         name = product_versions.resource_name(product)
         assert name, product
@@ -221,10 +221,10 @@ class AzureIPFeeResource(IPFeeResourceMixin, AzureResource):
 
 def azure_resource_from_dict(data: dict) -> AzureResource:
     typ = data['type']
-    if typ == AzureDiskResource.TYPE:
-        return AzureDiskResource.from_dict(data)
-    if typ == AzureExternalDiskResource.TYPE:
-        return AzureExternalDiskResource.from_dict(data)
+    if typ == AzureStaticSizedDiskResource.TYPE:
+        return AzureStaticSizedDiskResource.from_dict(data)
+    if typ == AzureDynamicSizedDiskResource.TYPE:
+        return AzureDynamicSizedDiskResource.from_dict(data)
     if typ == AzureVMResource.TYPE:
         return AzureVMResource.from_dict(data)
     if typ == AzureServiceFeeResource.TYPE:

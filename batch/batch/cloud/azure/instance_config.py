@@ -5,7 +5,7 @@ from hailtop.utils import filter_none
 from ...driver.billing_manager import ProductVersions
 from ...instance_config import InstanceConfig
 from .resource_utils import azure_machine_type_to_worker_type_and_cores
-from .resources import (AzureResource, AzureVMResource, AzureDiskResource, AzureExternalDiskResource,
+from .resources import (AzureResource, AzureVMResource, AzureStaticSizedDiskResource, AzureDynamicSizedDiskResource,
                         AzureServiceFeeResource, AzureIPFeeResource, azure_resource_from_dict)
 
 
@@ -25,15 +25,15 @@ class AzureSlimInstanceConfig(InstanceConfig):
         if local_ssd_data_disk:
             data_disk_resource = None
         else:
-            data_disk_resource = AzureDiskResource.new_resource(product_versions, 'P', data_disk_size_gb, location)
+            data_disk_resource = AzureStaticSizedDiskResource.create(product_versions, 'P', data_disk_size_gb, location)
 
         resources = filter_none([
-            AzureVMResource.new_resource(product_versions, machine_type, preemptible, location),
-            AzureDiskResource.new_resource(product_versions, 'E', boot_disk_size_gb, location),
+            AzureVMResource.create(product_versions, machine_type, preemptible, location),
+            AzureStaticSizedDiskResource.create(product_versions, 'E', boot_disk_size_gb, location),
             data_disk_resource,
-            AzureExternalDiskResource.new_resource(product_versions, 'P', location),
-            AzureIPFeeResource.new_resource(product_versions, 1024),
-            AzureServiceFeeResource.new_resource(product_versions),
+            AzureDynamicSizedDiskResource.create(product_versions, 'P', location),
+            AzureIPFeeResource.create(product_versions, 1024),
+            AzureServiceFeeResource.create(product_versions),
         ])
 
         return AzureSlimInstanceConfig(
@@ -76,7 +76,7 @@ class AzureSlimInstanceConfig(InstanceConfig):
     def from_dict(data: dict) -> 'AzureSlimInstanceConfig':
         resources = data.get('resources')
         if resources is None:
-            assert data['version'] == 1, data['version']
+            assert data['version'] == 1, data
             resources = []
         resources = [azure_resource_from_dict(resource) for resource in resources]
 

@@ -5,7 +5,7 @@ import logging
 from hailtop.aiocloud import aioazure
 from gear import Database, transaction
 
-from ....driver.billing_manager import CloudBillingManager, ProductVersions, product_version_to_resource
+from ....driver.billing_manager import CloudBillingManager, ProductVersions, product_version_to_resource, refresh_product_versions_from_db
 
 from .pricing import AzureVMPrice, fetch_prices
 
@@ -21,7 +21,8 @@ class AzureBillingManager(CloudBillingManager):
                      pricing_client: aioazure.AzurePricingClient,  # BORROWED
                      regions: List[str],
                      ):
-        rm = AzureBillingManager(db, pricing_client, regions)
+        product_versions_dict = await refresh_product_versions_from_db(db)
+        rm = AzureBillingManager(db, pricing_client, regions, product_versions_dict)
         await rm.refresh_resources()
         await rm.refresh_resources_from_retail_prices()
         return rm
@@ -30,9 +31,10 @@ class AzureBillingManager(CloudBillingManager):
                  db: Database,
                  pricing_client: aioazure.AzurePricingClient,
                  regions: List[str],
+                 product_versions_dict: dict,
                  ):
         self.db = db
-        self.product_versions = ProductVersions()
+        self.product_versions = ProductVersions(product_versions_dict)
         self.resource_rates: Dict[str, float] = {}
         self.pricing_client = pricing_client
         self.regions = regions
@@ -45,7 +47,8 @@ class AzureBillingManager(CloudBillingManager):
     async def refresh_resources_from_retail_prices(self):
         log.info('refreshing resources from retail prices')
         resource_updates = []
-        resource_version_updates = []
+        product_version_updates = []
+        vm_cache_updates = {}
 
         for price in await fetch_prices(self.pricing_client, self.regions):
             product = price.product
@@ -60,18 +63,18 @@ class AzureBillingManager(CloudBillingManager):
             if current_resource_rate is None:
                 resource_updates.append((resource_name, latest_resource_rate))
             elif current_resource_rate != latest_resource_rate:
-                log.exception(f'resource {resource_name} does not have the latest rate in the database for '
-                              f'version {current_product_version}: {current_resource_rate} vs {latest_resource_rate}; '
-                              f'did the vm price change without a version change?')
+                log.error(f'resource {resource_name} does not have the latest rate in the database for '
+                          f'version {current_product_version}: {current_resource_rate} vs {latest_resource_rate}; '
+                          f'did the vm price change without a version change?')
                 continue
 
             if price.is_current_price() and (
                     current_product_version is None or current_product_version != latest_product_version):
-                resource_version_updates.append((product, latest_product_version))
+                product_version_updates.append((product, latest_product_version))
 
             if isinstance(price, AzureVMPrice):
                 vm_identifier = AzureVMIdentifier(price.machine_type, price.preemptible, price.region)
-                self.vm_price_cache[vm_identifier] = price
+                vm_cache_updates[vm_identifier] = price
 
         @transaction(self.db)
         async def insert_or_update(tx):
@@ -82,15 +85,17 @@ VALUES (%s, %s)
 ''',
                                       resource_updates)
 
-            if resource_version_updates:
+            if product_version_updates:
                 await tx.execute_many('''
 INSERT INTO `latest_product_versions` (product, version)
 VALUES (%s, %s)
 ON DUPLICATE KEY UPDATE version = VALUES(version)
 ''',
-                                      resource_version_updates)
+                                      product_version_updates)
 
         await insert_or_update()  # pylint: disable=no-value-for-parameter
 
-        if resource_updates or resource_version_updates:
+        if resource_updates or product_version_updates:
             await self.refresh_resources()
+
+        self.vm_price_cache.update(vm_cache_updates)
