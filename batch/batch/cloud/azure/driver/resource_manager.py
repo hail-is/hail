@@ -57,7 +57,7 @@ class AzureResourceManager(CloudResourceManager):
             # https://docs.microsoft.com/en-us/azure/virtual-machines/states-billing
             for status in spec['statuses']:
                 code = status['code']
-                if code == 'ProvisioningState/creating':
+                if code in ('ProvisioningState/creating', 'ProvisioningState/updating', 'ProvisioningState/creating/osProvisioningComplete'):
                     return VMStateCreating(spec, instance.time_created)
                 if code == 'ProvisioningState/succeeded':
                     last_start_timestamp_msecs = parse_azure_timestamp(status.get('time'))
