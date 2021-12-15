@@ -439,7 +439,7 @@ async def rest_callback(request):
         callback_port = request.query['callback_port']
         flow_dict = {
             'state': request.query['state'],
-            'callback_uri': f'http://127.0.0.1:{callback_port}/oauth2callback'
+            'callback_uri': f'http://127.0.0.1:{callback_port}/oauth2callback',
         }
     else:
         flow_dict = json.loads(request.query['flow'])
