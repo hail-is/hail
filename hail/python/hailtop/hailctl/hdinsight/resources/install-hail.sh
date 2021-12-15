@@ -19,3 +19,5 @@ grep -E '^Requires-Dist:' $site_packages/hail-$hail_pip_version.dist-info/METADA
     | grep -Ev '^pyspark(~=|==|!=|<=|>=|<|>|===|$)' \
     > requirements.txt
 python3 -m pip install -r requirements.txt
+conda install ipykernel
+python3 -m ipykernel install --user
