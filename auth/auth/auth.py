@@ -200,6 +200,7 @@ async def callback(request):
     caller = session['caller']
     next_page = session.pop('next', nb_url)
     flow_dict = session['flow']
+    flow_dict['callback_uri'] = deploy_config.external_url('auth', '/oauth2callback')
     cleanup_session(session)
 
     try:
@@ -323,7 +324,11 @@ async def rest_login(request):
     else:
         assert CLOUD == 'gcp'
         host = '127.0.0.1'
-    flow_data = request.app['flow_client'].initiate_flow(f'http://{host}:{callback_port}/oauth2callback')
+
+    callback_uri = f'http://{host}:{callback_port}/oauth2callback'
+    flow_data = request.app['flow_client'].initiate_flow(callback_uri)
+    flow_data['callback_uri'] = callback_uri
+
     return web.json_response({'flow': flow_data})
 
 

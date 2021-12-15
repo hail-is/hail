@@ -61,7 +61,7 @@ class GoogleFlow(Flow):
         flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
             self._credentials_file, scopes=self.scopes, state=flow_dict['state']
         )
-        flow.redirect_uri = flow_dict['redirect_uri']
+        flow.redirect_uri = flow_dict['callback_uri']
         flow.fetch_token(code=request.query['code'])
         token = google.oauth2.id_token.verify_oauth2_token(
             flow.credentials.id_token, google.auth.transport.requests.Request()
