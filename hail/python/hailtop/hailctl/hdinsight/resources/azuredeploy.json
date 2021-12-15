@@ -47,7 +47,7 @@
         },
         "headNodeVirtualMachineSize": {
             "type": "string",
-            "defaultValue": "Standard_E8_v3",
+            "defaultValue": "Standard_E2_v3",
             "allowedValues": [
                 "Standard_A4_v2",
                 "Standard_A8_v2",
@@ -65,7 +65,7 @@
         },
         "workerNodeVirtualMachineSize": {
             "type": "string",
-            "defaultValue": "Standard_E8_v3",
+            "defaultValue": "Standard_E2_v3",
             "allowedValues": [
                 "Standard_A4_v2",
                 "Standard_A8_v2",
