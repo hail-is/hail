@@ -3,9 +3,7 @@
 hail_pip_version=$1
 
 apt-get install -y \
-    openjdk-8-jre-headless \
     g++ \
-    python3.6 python3-pip \
     libopenblas-base liblapack3
 
 /usr/bin/anaconda/bin/conda create -n py37 python=3.7 --yes
