@@ -319,13 +319,7 @@ async def logout(request, userdata):
 @routes.get('/api/v1alpha/login')
 async def rest_login(request):
     callback_port = request.query['callback_port']
-    if CLOUD == 'azure':
-        host = 'localhost'
-    else:
-        assert CLOUD == 'gcp'
-        host = '127.0.0.1'
-
-    callback_uri = f'http://{host}:{callback_port}/oauth2callback'
+    callback_uri = f'http://127.0.0.1:{callback_port}/oauth2callback'
     flow_data = request.app['flow_client'].initiate_flow(callback_uri)
     flow_data['callback_uri'] = callback_uri
 
