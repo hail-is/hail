@@ -134,7 +134,7 @@ class AzureResourceManager(CloudResourceManager):
         )
 
         try:
-            await self.arm_client.put(f'/deployments/{machine_name}', json=vm_config)
+            await self.arm_client.put('/deployments/the-hail-arm-deployment', json=vm_config)
             log.info(f'created machine {machine_name}')
         except Exception:
             log.exception(f'error while creating machine {machine_name}')
