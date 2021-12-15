@@ -384,6 +384,7 @@ done
         properties['priority'] = 'Regular'
 
     return {
+        'tags': tags,
         'properties': {
             'mode': 'Incremental',
             'parameters': {
