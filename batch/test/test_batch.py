@@ -975,7 +975,7 @@ def test_pool_highcpu_instance_cheapest(client: BatchClient):
 
 def test_pool_standard_instance(client: BatchClient):
     builder = client.create_batch()
-    resources = {'cpu': '0.25', 'memory': '750Mi'}
+    resources = {'cpu': '0.25', 'memory': 'standard'}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     b = builder.submit()
     status = j.wait()
@@ -985,7 +985,7 @@ def test_pool_standard_instance(client: BatchClient):
 
 def test_pool_standard_instance_cheapest(client: BatchClient):
     builder = client.create_batch()
-    resources = {'cpu': '0.5', 'memory': '1Gi'}
+    resources = {'cpu': '1', 'memory': '2.5Gi'}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     b = builder.submit()
     status = j.wait()
