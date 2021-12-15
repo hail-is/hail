@@ -73,6 +73,7 @@ global_config = $(terraform output global_config)
 sql_config    = $(terraform output sql_config)
 registry_push_credentials = $(terraform output registry_push_credentials)
 service_credentials = $(terraform output service_credentials)
+oauth2_credentials  = $(terraform output oauth2_credentials)
 EOF
 
     cd $HAIL/infra/k8s

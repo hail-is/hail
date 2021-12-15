@@ -103,7 +103,7 @@ bootstrap() {
     export PYTHONPATH=$HAIL/ci:$HAIL/batch:$HAIL/hail/python:$HAIL/gear
 
     if [ -n "$3" ] && [ -n "$4" ]; then
-        extra_code_config="--extra-code-config {\"username\":\"""$3""\",\"email\":\"""$4""\"}"
+        extra_code_config="--extra-code-config {\"username\":\"""$3""\",\"login_id\":\"""$4""\"}"
     else
         extra_code_config=""
     fi

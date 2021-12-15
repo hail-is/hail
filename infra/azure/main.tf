@@ -50,6 +50,8 @@ data "azurerm_resource_group" "rg" {
   name = var.az_resource_group_name
 }
 
+data "azurerm_client_config" "primary" {}
+
 resource "azurerm_virtual_network" "default" {
   name                = "default"
   resource_group_name = data.azurerm_resource_group.rg.name
@@ -405,6 +407,22 @@ resource "azurerm_role_assignment" "ci_test_container_contributor" {
 }
 
 provider "azuread" {}
+
+resource "azuread_application" "oauth2" {
+  display_name = "${data.azurerm_resource_group.rg.name}-oauth2"
+
+  web {
+    redirect_uris = ["https://auth.${var.domain}/oauth2callback", "http://127.0.0.1/oauth2callback"]
+
+    implicit_grant {
+      access_token_issuance_enabled = true
+      id_token_issuance_enabled     = true
+    }
+  }
+}
+resource "azuread_application_password" "oauth2" {
+  application_object_id = azuread_application.oauth2.object_id
+}
 
 resource "azuread_application" "auth" {
   display_name = "${data.azurerm_resource_group.rg.name}-auth"

@@ -176,44 +176,46 @@ class GSAResource:
 
 
 class AzureServicePrincipalResource:
-    def __init__(self, graph_client, app_id=None):
+    def __init__(self, graph_client, app_obj_id=None):
         self.graph_client = graph_client
-        self.app_id = app_id
+        self.app_obj_id = app_obj_id
 
     async def create(self, username):
-        assert self.app_id is None
+        assert self.app_obj_id is None
 
         params = {'$filter': f"displayName eq '{username}'"}
         applications = await self.graph_client.get('/applications', params=params)
+        assert len(applications['value']) == 1, applications
         for application in applications['value']:
-            await self._delete(application['appId'])
+            await self._delete(application['id'])
 
         config = {'displayName': username, 'signInAudience': 'AzureADMyOrg'}
         application = await self.graph_client.post('/applications', json=config)
 
-        self.app_id = application['appId']
+        self.app_obj_id = application['id']
 
         config = {'appId': application['appId']}
         service_principal = await self.graph_client.post('/servicePrincipals', json=config)
 
-        assert self.app_id == service_principal['appId']
+        assert application['appId'] == service_principal['appId']
 
         password = await self.graph_client.post(f'/applications/{application["id"]}/addPassword', json={})
 
         credentials = {
-            'appId': service_principal['appId'],
-            'displayName': service_principal['displayName'],
+            'appId': application['appId'],
+            'displayName': service_principal['appDisplayName'],
             'name': service_principal['servicePrincipalNames'][0],
             'password': password['secretText'],
             'tenant': service_principal['appOwnerOrganizationId'],
             'objectId': service_principal['id'],
+            'appObjectId': application['id'],
         }
 
-        return (self.app_id, credentials)
+        return (self.app_obj_id, credentials)
 
-    async def _delete(self, app_id):
+    async def _delete(self, app_obj_id):
         try:
-            await self.graph_client.delete(f'/applications/{app_id}')
+            await self.graph_client.delete(f'/applications/{app_obj_id}')
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
                 pass
@@ -221,10 +223,10 @@ class AzureServicePrincipalResource:
                 raise
 
     async def delete(self):
-        if self.app_id is None:
+        if self.app_obj_id is None:
             return
-        await self._delete(self.app_id)
-        self.app_id = None
+        await self._delete(self.app_obj_id)
+        self.app_obj_id = None
 
 
 class DatabaseResource:
@@ -443,15 +445,17 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
             gsa_email, key = await gsa.create(ident_token)
             secret_data = base64.b64decode(key['privateKeyData']).decode('utf-8')
             updates['hail_identity'] = gsa_email
+            updates['display_name'] = gsa_email
         else:
             assert CLOUD == 'azure'
 
             azure_sp = AzureServicePrincipalResource(identity_client)
             cleanup.append(azure_sp.delete)
 
-            azure_app_id, credentials = await azure_sp.create(ident_token)
+            azure_app_obj_id, credentials = await azure_sp.create(ident_token)
             secret_data = json.dumps(credentials)
-            updates['hail_identity'] = azure_app_id
+            updates['hail_identity'] = azure_app_obj_id
+            updates['display_name'] = ident_token
 
         hail_credentials_secret_name = f'{ident}-gsa-key'
         hail_identity_secret = K8sSecretResource(k8s_client)

@@ -32,10 +32,10 @@ async def copy_identity_from_default(hail_credentials_secret_name: str) -> str:
     if cloud == 'gcp':
         return credentials['client_email']
     assert cloud == 'azure'
-    return credentials['appId']
+    return credentials['appObjectId']
 
 
-async def insert_user_if_not_exists(db, username, email, is_developer, is_service_account):
+async def insert_user_if_not_exists(db, username, login_id, is_developer, is_service_account):
     @transaction(db)
     async def insert(tx):
         row = await db.execute_and_fetchone('SELECT id, state FROM users where username = %s;', (username,))
@@ -55,13 +55,13 @@ async def insert_user_if_not_exists(db, username, email, is_developer, is_servic
 
         return await db.execute_insertone(
             '''
-    INSERT INTO users (state, username, email, is_developer, is_service_account, hail_identity, hail_credentials_secret_name, namespace_name)
+    INSERT INTO users (state, username, login_id, is_developer, is_service_account, hail_identity, hail_credentials_secret_name, namespace_name)
     VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
     ''',
             (
                 'creating',
                 username,
-                email,
+                login_id,
                 is_developer,
                 is_service_account,
                 hail_identity,
@@ -77,14 +77,14 @@ async def main():
     parser = argparse.ArgumentParser(description='Create an initial dev user.')
 
     parser.add_argument('username', help='The username of the initial user.')
-    parser.add_argument('email', help='The email of the initial user.')
+    parser.add_argument('login-id', help='The login id of the initial user.')
 
     args = parser.parse_args()
 
     db = Database()
     await db.async_init(maxsize=50)
 
-    await insert_user_if_not_exists(db, args.username, args.email, True, False)
+    await insert_user_if_not_exists(db, args.username, args.login_id, True, False)
 
 
 async_to_blocking(main())

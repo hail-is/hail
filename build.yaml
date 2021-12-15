@@ -293,6 +293,8 @@ steps:
         script: /io/sql/add-roles.sql
       - name: rename-gsa-identity
         script: /io/sql/rename-gsa-identity.sql
+      - name: support-azure-oauth
+        script: /io/sql/support-azure-oauth.sql
     inputs:
       - from: /repo/auth/sql
         to: /io/sql
@@ -473,7 +475,7 @@ steps:
       set -ex
       export NAMESPACE={{ default_ns.name }}
       export CLOUD={{ global.cloud }}
-      python3 /io/create_initial_account.py {{ code.username }} {{ code.email }}
+      python3 /io/create_initial_account.py {{ code.username }} {{ code.login_id }}
     serviceAccount:
       name: admin
       namespace:

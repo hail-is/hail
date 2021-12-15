@@ -5,9 +5,7 @@ import aiohttp
 from aiohttp import web
 import aiohttp_session
 import uvloop
-import google.auth.transport.requests
-import google.oauth2.id_token
-import google_auth_oauthlib.flow
+import json
 from prometheus_async.aio.web import server_stats  # type: ignore
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
@@ -30,33 +28,22 @@ from gear import (
 from gear.cloud_config import get_global_config
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, set_message, render_template
 
+from .flow import get_flow_client
+
 log = logging.getLogger('auth')
 
 uvloop.install()
 
 CLOUD = get_global_config()['cloud']
-GSUITE_ORGANIZATION = os.environ['HAIL_GSUITE_ORGANIZATION']
+ORGANIZATION_DOMAIN = os.environ['HAIL_ORGANIZATION_DOMAIN']
 
 deploy_config = get_deploy_config()
 
 routes = web.RouteTableDef()
 
 
-def get_flow(redirect_uri, state=None):
-    scopes = [
-        'https://www.googleapis.com/auth/userinfo.profile',
-        'https://www.googleapis.com/auth/userinfo.email',
-        'openid',
-    ]
-    flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
-        '/auth-oauth2-client-secret/client_secret.json', scopes=scopes, state=state
-    )
-    flow.redirect_uri = redirect_uri
-    return flow
-
-
-async def user_from_email(db, email):
-    users = [x async for x in db.select_and_fetchall("SELECT * FROM users WHERE email = %s;", email)]
+async def user_from_login_id(db, login_id):
+    users = [x async for x in db.select_and_fetchall("SELECT * FROM users WHERE login_id = %s;", login_id)]
     if len(users) == 1:
         return users[0]
     assert len(users) == 0, users
@@ -69,11 +56,11 @@ def cleanup_session(session):
             del session[key]
 
     _delete('pending')
-    _delete('email')
-    _delete('state')
+    _delete('login_id')
     _delete('next')
     _delete('caller')
     _delete('session_id')
+    _delete('flow')
 
 
 @routes.get('/healthcheck')
@@ -93,8 +80,8 @@ async def creating_account(request, userdata):
     db = request.app['db']
     session = await aiohttp_session.get_session(request)
     if 'pending' in session:
-        email = session['email']
-        user = await user_from_email(db, email)
+        login_id = session['login_id']
+        user = await user_from_login_id(db, login_id)
 
         nb_url = deploy_config.external_url('notebook', '')
         next_page = session.pop('next', nb_url)
@@ -102,10 +89,10 @@ async def creating_account(request, userdata):
         cleanup_session(session)
 
         if user is None:
-            set_message(session, f'Account does not exist for email {email}.', 'error')
+            set_message(session, f'Account does not exist for login id {login_id}.', 'error')
             return aiohttp.web.HTTPFound(nb_url)
 
-        page_context = {'username': user['username'], 'state': user['state'], 'email': user['email']}
+        page_context = {'username': user['username'], 'state': user['state'], 'login_id': user['login_id']}
 
         if user['state'] == 'deleting' or user['state'] == 'deleted':
             return await render_template('auth', request, userdata, 'account-error.html', page_context)
@@ -118,7 +105,7 @@ async def creating_account(request, userdata):
 
         assert user['state'] == 'creating'
         session['pending'] = True
-        session['email'] = email
+        session['login_id'] = login_id
         session['next'] = next_page
         return await render_template('auth', request, userdata, 'account-creating.html', page_context)
 
@@ -130,14 +117,14 @@ async def creating_account_wait(request):
     session = await aiohttp_session.get_session(request)
     if 'pending' not in session:
         raise web.HTTPUnauthorized()
-    return await _wait_websocket(request, session['email'])
+    return await _wait_websocket(request, session['login_id'])
 
 
-async def _wait_websocket(request, email):
+async def _wait_websocket(request, login_id):
     app = request.app
     db = app['db']
 
-    user = await user_from_email(db, email)
+    user = await user_from_login_id(db, login_id)
     if not user:
         return web.HTTPNotFound()
 
@@ -148,7 +135,7 @@ async def _wait_websocket(request, email):
         count = 0
         while count < 10:
             try:
-                user = await user_from_email(db, email)
+                user = await user_from_login_id(db, login_id)
                 assert user
                 if user['state'] != 'creating':
                     log.info(f"user {user['username']} is no longer creating")
@@ -175,59 +162,50 @@ async def _wait_websocket(request, email):
 async def signup(request):
     next_page = request.query.get('next', deploy_config.external_url('notebook', ''))
 
-    flow = get_flow(deploy_config.external_url('auth', '/oauth2callback'))
-
-    authorization_url, state = flow.authorization_url(access_type='offline', include_granted_scopes='true')
+    flow_data = request.app['flow_client'].initiate_flow(deploy_config.external_url('auth', '/oauth2callback'))
 
     session = await aiohttp_session.new_session(request)
     cleanup_session(session)
-    session['state'] = state
     session['next'] = next_page
     session['caller'] = 'signup'
+    session['flow'] = flow_data
 
-    return aiohttp.web.HTTPFound(authorization_url)
+    return aiohttp.web.HTTPFound(flow_data['authorization_url'])
 
 
 @routes.get('/login')
 async def login(request):
     next_page = request.query.get('next', deploy_config.external_url('notebook', ''))
 
-    flow = get_flow(deploy_config.external_url('auth', '/oauth2callback'))
-
-    authorization_url, state = flow.authorization_url(access_type='offline', include_granted_scopes='true')
+    flow_data = request.app['flow_client'].initiate_flow(deploy_config.external_url('auth', '/oauth2callback'))
 
     session = await aiohttp_session.new_session(request)
-
     cleanup_session(session)
-    session['state'] = state
     session['next'] = next_page
     session['caller'] = 'login'
+    session['flow'] = flow_data
 
-    return aiohttp.web.HTTPFound(authorization_url)
+    return aiohttp.web.HTTPFound(flow_data['authorization_url'])
 
 
 @routes.get('/oauth2callback')
 async def callback(request):
     session = await aiohttp_session.get_session(request)
-    if 'state' not in session:
+    if 'flow' not in session:
         raise web.HTTPUnauthorized()
 
     nb_url = deploy_config.external_url('notebook', '')
     creating_url = deploy_config.external_url('auth', '/creating')
 
-    state = session['state']
     caller = session['caller']
     next_page = session.pop('next', nb_url)
+    flow_dict = session['flow']
+    flow_dict['callback_uri'] = deploy_config.external_url('auth', '/oauth2callback')
     cleanup_session(session)
 
-    flow = get_flow(deploy_config.external_url('auth', '/oauth2callback'), state=state)
-
     try:
-        flow.fetch_token(code=request.query['code'])
-        token = google.oauth2.id_token.verify_oauth2_token(
-            flow.credentials.id_token, google.auth.transport.requests.Request()
-        )
-        email = token['email']
+        flow_result = request.app['flow_client'].receive_callback(request, flow_dict)
+        login_id = flow_result.login_id
     except asyncio.CancelledError:
         raise
     except Exception as e:
@@ -236,45 +214,45 @@ async def callback(request):
 
     db = request.app['db']
 
-    user = await user_from_email(db, email)
+    user = await user_from_login_id(db, login_id)
 
     if user is None:
         if caller == 'login':
-            set_message(session, f'Account does not exist for email {email}', 'error')
+            set_message(session, f'Account does not exist for login id {login_id}', 'error')
             return aiohttp.web.HTTPFound(nb_url)
 
         assert caller == 'signup'
 
-        username, domain = email.split('@')
+        username, domain = flow_result.email.split('@')
         username = ''.join(c for c in username if c.isalnum())
 
-        if domain != GSUITE_ORGANIZATION:
+        if domain != ORGANIZATION_DOMAIN:
             raise web.HTTPUnauthorized()
 
         await db.execute_insertone(
             '''
-        INSERT INTO users (state, username, email, is_developer)
+        INSERT INTO users (state, username, login_id, is_developer)
         VALUES (%s, %s, %s, %s);
         ''',
-            ('creating', username, email, False),
+            ('creating', username, login_id, False),
         )
 
         session['pending'] = True
-        session['email'] = email
+        session['login_id'] = login_id
 
         return web.HTTPFound(creating_url)
 
     if user['state'] in ('deleting', 'deleted'):
-        page_context = {'username': user['username'], 'state': user['state'], 'email': user['email']}
+        page_context = {'username': user['username'], 'state': user['state'], 'login_id': user['login_id']}
         return await render_template('auth', request, user, 'account-error.html', page_context)
 
     if user['state'] == 'creating':
         if caller == 'signup':
-            set_message(session, f'Account is already creating for email {email}', 'error')
+            set_message(session, f'Account is already creating for login id {login_id}', 'error')
         if caller == 'login':
-            set_message(session, f'Account for email {email} is still being created.', 'error')
+            set_message(session, f'Account for login id {login_id} is still being created.', 'error')
         session['pending'] = True
-        session['email'] = user['email']
+        session['login_id'] = user['login_id']
         return web.HTTPFound(creating_url)
 
     assert user['state'] == 'active'
@@ -341,11 +319,14 @@ async def logout(request, userdata):
 @routes.get('/api/v1alpha/login')
 async def rest_login(request):
     callback_port = request.query['callback_port']
+    callback_uri = f'http://127.0.0.1:{callback_port}/oauth2callback'
+    flow_data = request.app['flow_client'].initiate_flow(callback_uri)
+    flow_data['callback_uri'] = callback_uri
 
-    flow = get_flow(f'http://127.0.0.1:{callback_port}/oauth2callback')
-    authorization_url, state = flow.authorization_url(access_type='offline', include_granted_scopes='true')
-
-    return web.json_response({'authorization_url': authorization_url, 'state': state})
+    # keeping authorization_url and state for backwards compatibility
+    return web.json_response(
+        {'flow': flow_data, 'authorization_url': flow_data['authorization_url'], 'state': flow_data['state']}
+    )
 
 
 @routes.get('/roles')
@@ -396,7 +377,7 @@ async def post_create_user(request, userdata):  # pylint: disable=unused-argumen
     db = request.app['db']
     post = await request.post()
     username = post['username']
-    email = post.get('email', '')
+    login_id = post.get('login_id', '')
     is_developer = post.get('is_developer') == '1'
     is_service_account = post.get('is_service_account') == '1'
 
@@ -404,21 +385,21 @@ async def post_create_user(request, userdata):  # pylint: disable=unused-argumen
         set_message(session, 'User cannot be both a developer and a service account.', 'error')
         return web.HTTPFound(deploy_config.external_url('auth', '/users'))
 
-    if email == '':
+    if login_id == '':
         if not is_service_account:
-            set_message(session, 'Email is required for users that are not service accounts.', 'error')
+            set_message(session, 'Login id is required for users that are not service accounts.', 'error')
             return web.HTTPFound(deploy_config.external_url('auth', '/users'))
-        email = None
+        login_id = None
 
     user_id = await db.execute_insertone(
         '''
-INSERT INTO users (state, username, email, is_developer, is_service_account)
+INSERT INTO users (state, username, login_id, is_developer, is_service_account)
 VALUES (%s, %s, %s, %s, %s);
 ''',
-        ('creating', username, email, is_developer, is_service_account),
+        ('creating', username, login_id, is_developer, is_service_account),
     )
 
-    set_message(session, f'Created user {user_id} {username} {email}.', 'info')
+    set_message(session, f'Created user {user_id} {username} {login_id}.', 'info')
 
     return web.HTTPFound(deploy_config.external_url('auth', '/users'))
 
@@ -452,17 +433,9 @@ WHERE id = %s AND username = %s;
 
 @routes.get('/api/v1alpha/oauth2callback')
 async def rest_callback(request):
-    state = request.query['state']
-    code = request.query['code']
-    callback_port = request.query['callback_port']
-
+    flow_dict = json.loads(request.query['flow'])
     try:
-        flow = get_flow(f'http://127.0.0.1:{callback_port}/oauth2callback', state=state)
-        flow.fetch_token(code=code)
-        token = google.oauth2.id_token.verify_oauth2_token(
-            flow.credentials.id_token, google.auth.transport.requests.Request()
-        )
-        email = token['email']
+        flow_result = request.app['flow_client'].receive_callback(request, flow_dict)
     except asyncio.CancelledError:
         raise
     except Exception as e:
@@ -471,7 +444,10 @@ async def rest_callback(request):
 
     db = request.app['db']
     users = [
-        x async for x in db.select_and_fetchall("SELECT * FROM users WHERE email = %s AND state = 'active';", email)
+        x
+        async for x in db.select_and_fetchall(
+            "SELECT * FROM users WHERE login_id = %s AND state = 'active';", flow_result.login_id
+        )
     ]
 
     if len(users) != 1:
@@ -599,6 +575,7 @@ async def on_startup(app):
     await db.async_init(maxsize=50)
     app['db'] = db
     app['client_session'] = httpx.client_session()
+    app['flow_client'] = get_flow_client('/auth-oauth2-client-secret/client_secret_v2.json')
 
 
 async def on_cleanup(app):

@@ -14,7 +14,7 @@ SCOPE = os.environ['HAIL_SCOPE']
 DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
 
 
-async def insert_user_if_not_exists(app, username, email, is_developer, is_service_account):
+async def insert_user_if_not_exists(app, username, login_id, is_developer, is_service_account):
     db = app['db']
     k8s_client = app['k8s_client']
 
@@ -36,7 +36,7 @@ async def insert_user_if_not_exists(app, username, email, is_developer, is_servi
             hail_identity = credentials['client_email']
         else:
             assert CLOUD == 'azure'
-            hail_identity = credentials['appId']
+            hail_identity = credentials['appObjectId']
 
         if is_developer and SCOPE != 'deploy':
             namespace_name = DEFAULT_NAMESPACE
@@ -45,13 +45,13 @@ async def insert_user_if_not_exists(app, username, email, is_developer, is_servi
 
         return await tx.execute_insertone(
             '''
-    INSERT INTO users (state, username, email, is_developer, is_service_account, hail_identity, hail_credentials_secret_name, namespace_name)
+    INSERT INTO users (state, username, login_id, is_developer, is_service_account, hail_identity, hail_credentials_secret_name, namespace_name)
     VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
     ''',
             (
                 'creating',
                 username,
-                email,
+                login_id,
                 is_developer,
                 is_service_account,
                 hail_identity,
@@ -65,7 +65,7 @@ async def insert_user_if_not_exists(app, username, email, is_developer, is_servi
 
 async def main():
     users = [
-        # username, email, is_developer, is_service_account
+        # username, login_id, is_developer, is_service_account
         ('auth', None, 0, 1),
         ('benchmark', None, 0, 1),
         ('ci', None, 0, 1),
@@ -93,8 +93,8 @@ async def main():
 
         app['identity_client'] = get_identity_client(credentials_file='/auth-gsa-key/key.json')
 
-        for username, email, is_developer, is_service_account in users:
-            user_id = await insert_user_if_not_exists(app, username, email, is_developer, is_service_account)
+        for username, login_id, is_developer, is_service_account in users:
+            user_id = await insert_user_if_not_exists(app, username, login_id, is_developer, is_service_account)
 
             if user_id is not None:
                 db_user = await db.execute_and_fetchone('SELECT * FROM users where id = %s;', (user_id,))

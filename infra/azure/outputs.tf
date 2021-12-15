@@ -15,10 +15,9 @@ output "global_config" {
       batch_logs_storage_uri = "hail-az://${azurerm_storage_account.batch.name}/${azurerm_storage_container.batch_logs.name}"
       test_storage_uri = "hail-az://${azurerm_storage_account.test.name}/${azurerm_storage_container.test.name}"
       query_storage_uri = "hail-az://${azurerm_storage_account.batch.name}/${azurerm_storage_container.query.name}"
+      organization_domain = var.organization_domain
     }
     azure = {
-      # FIXME Just for testing
-      gsuite_organization = "broadinstitute.org"
       azure_resource_group = data.azurerm_resource_group.rg.name
       azure_subscription_id = var.subscription_id
       azure_location = data.azurerm_resource_group.rg.location
@@ -55,6 +54,15 @@ output "service_credentials" {
     test-dev  = module.test_dev_sp.credentials
     query     = module.query_sp.credentials
     grafana   = module.grafana_sp.credentials
+  }
+  sensitive = true
+}
+
+output "oauth2_credentials" {
+  value = {
+    appId    = azuread_application.oauth2.application_id
+    password = azuread_application_password.oauth2.value
+    tenant   = data.azurerm_client_config.primary.tenant_id
   }
   sensitive = true
 }
