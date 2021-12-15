@@ -111,6 +111,9 @@
                             "restAuthCredential.username": "[parameters('clusterLoginUserName')]",
                             "restAuthCredential.password": "[parameters('clusterLoginPassword')]"
                         }
+                    },
+                    "componentVersion": {
+                        "Spark": "3.0.0"
                     }
                 },
                 "storageProfile": {
