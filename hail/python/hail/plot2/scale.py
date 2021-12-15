@@ -3,17 +3,16 @@ from .geoms import FigureAttribute
 
 
 class Scale(FigureAttribute):
-    def __init__(self, axis, name, breaks, labels):
-        assert axis in ["x", "y"]
+    def __init__(self, aesthetic_string, name, breaks, labels):
         self.name = name
-        self.axis = axis
+        self.aesthetic_string = aesthetic_string
         self.breaks = breaks
         self.labels = labels
 
     def update_axis(self, fig):
-        if self.axis == "x":
+        if self.aesthetic_string == "x":
             return fig.update_xaxes
-        elif self.axis == "y":
+        elif self.aesthetic_string == "y":
             return fig.update_yaxes
 
     # What else do discrete and continuous scales have in common?

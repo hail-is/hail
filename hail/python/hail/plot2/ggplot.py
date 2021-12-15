@@ -5,26 +5,25 @@ import hail as hl
 
 from .geoms import Geom, FigureAttribute
 from .labels import Labels
-from .scale import Scale
+from .scale import Scale, scale_x_continuous, scale_x_genomic
 from .aes import Aesthetic, aes
 
 
 class GGPlot:
 
-    def __init__(self, ht, aes, geoms=[], labels=Labels(), x_scale=None, y_scale=None,
+    def __init__(self, ht, aes, geoms=[], labels=Labels(), scales={},
                  discrete_color_scale=plotly.colors.qualitative.D3, continuous_color_scale=plotly.colors.sequential.Viridis):
         self.ht = ht
         self.aes = aes
         self.geoms = geoms
         self.labels = labels
-        # Scales are complicated. When an aesthetic is first added, it creates a scale for itself based on the hail type.
-        # Need to separately track whether a scale was added by user or by default.
-        self.x_scale = x_scale
-        self.y_scale = y_scale
+        self.scales = scales
         self.discrete_color_scale = discrete_color_scale
         self.discrete_color_dict = {}
         self.discrete_color_idx = 0
         self.continuous_color_scale = continuous_color_scale
+
+        self.add_default_scales(aes)
 
     def __add__(self, other):
         assert(isinstance(other, FigureAttribute) or isinstance(other, Aesthetic))
@@ -35,12 +34,7 @@ class GGPlot:
         elif isinstance(other, Labels):
             copied.labels = copied.labels.merge(other)
         elif isinstance(other, Scale):
-            if other.axis == "x":
-                copied.x_scale = other
-            elif other.axis == "y":
-                copied.y_scale = other
-            else:
-                raise ValueError("Unrecognized axis in scale")
+            copied.scales[other.aesthetic_string] = other
         elif isinstance(other, Aesthetic):
             copied.aes = copied.aes.merge(other)
         else:
@@ -48,8 +42,38 @@ class GGPlot:
 
         return copied
 
+    def add_default_scales(self, aesthetic):
+        def is_continuous_type(dtype):
+            return dtype in [hl.tint32, hl.tint64, hl.float32, hl.float64]
+
+        def is_genomic_type(dtype):
+            return isinstance(dtype, hl.tlocus)
+
+        for aesthetic_str, mapped_expr in aesthetic.items():
+            dtype = mapped_expr.dtype
+            if aesthetic_str in self.scales:
+                pass
+            else:
+                # We only know how to come up with a few default scales.
+                if aesthetic_str == "x":
+                    if is_continuous_type(dtype):
+                        self.scales["x"] = scale_x_continuous()
+                    elif is_genomic_type(dtype):
+                        self.scales["x"] = scale_x_genomic()
+                    else:
+                        # Need to add scale_x_discrete
+                        pass
+                elif aesthetic_str == "y":
+                    if is_continuous_type(dtype):
+                        self.scales["y"] = scale_x_continuous()
+                    else:
+                        # Need to add scale_y_discrete
+                        pass
+
+
+
     def copy(self):
-        return GGPlot(self.ht, self.aes, self.geoms[:], self.labels, self.x_scale, self.y_scale,
+        return GGPlot(self.ht, self.aes, self.geoms[:], self.labels, self.scales,
                       self.discrete_color_scale, self.continuous_color_scale)
 
     def render(self):
@@ -89,10 +113,10 @@ class GGPlot:
 
         # Important to update axes after labels, axes names take precedence.
         self.labels.apply_to_fig(fig)
-        if self.x_scale is not None:
-            self.x_scale.apply_to_fig(self, fig)
-        if self.y_scale is not None:
-            self.y_scale.apply_to_fig(self, fig)
+        if self.scales.get("x") is not None:
+            self.scales["x"].apply_to_fig(self, fig)
+        if self.scales.get("y") is not None:
+            self.scales["y"].apply_to_fig(self, fig)
 
         return fig
 
