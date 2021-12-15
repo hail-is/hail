@@ -79,7 +79,8 @@ class AzureDriver(CloudDriver):
                              namespace,
                              region_monitor,
                              inst_coll_manager,
-                             jpim)
+                             jpim,
+                             billing_manager)
 
         task_manager.ensure_future(periodically_call(60, driver.delete_orphaned_nics))
         task_manager.ensure_future(periodically_call(60, driver.delete_orphaned_public_ips))
@@ -100,7 +101,8 @@ class AzureDriver(CloudDriver):
                  namespace: str,
                  region_monitor: RegionMonitor,
                  inst_coll_manager: InstanceCollectionManager,
-                 job_private_inst_manager: JobPrivateInstanceManager):
+                 job_private_inst_manager: JobPrivateInstanceManager,
+                 billing_manager: AzureBillingManager):
         self.db = db
         self.machine_name_prefix = machine_name_prefix
         self.arm_client = arm_client
@@ -114,6 +116,7 @@ class AzureDriver(CloudDriver):
         self.region_monitor = region_monitor
         self.inst_coll_manager = inst_coll_manager
         self.job_private_inst_manager = job_private_inst_manager
+        self.billing_manager = billing_manager
 
     async def shutdown(self) -> None:
         try:

@@ -76,7 +76,8 @@ class GCPDriver(CloudDriver):
                            namespace,
                            zone_monitor,
                            inst_coll_manager,
-                           jpim)
+                           jpim,
+                           billing_manager)
 
         task_manager.ensure_future(periodically_call(15, driver.process_activity_logs))
         task_manager.ensure_future(periodically_call(60, zone_monitor.update_region_quotas))
@@ -94,7 +95,8 @@ class GCPDriver(CloudDriver):
                  namespace: str,
                  zone_monitor: ZoneMonitor,
                  inst_coll_manager: InstanceCollectionManager,
-                 job_private_inst_manager: JobPrivateInstanceManager):
+                 job_private_inst_manager: JobPrivateInstanceManager,
+                 billing_manager: GCPBillingManager):
         self.db = db
         self.machine_name_prefix = machine_name_prefix
         self.compute_client = compute_client
@@ -104,6 +106,7 @@ class GCPDriver(CloudDriver):
         self.zone_monitor = zone_monitor
         self.inst_coll_manager = inst_coll_manager
         self.job_private_inst_manager = job_private_inst_manager
+        self.billing_manager = billing_manager
 
     async def shutdown(self) -> None:
         try:

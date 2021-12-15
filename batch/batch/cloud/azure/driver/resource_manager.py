@@ -111,7 +111,6 @@ class AzureResourceManager(CloudResourceManager):
 
     async def create_vm(self,
                         file_store: FileStore,
-                        resource_rates: Dict[str, float],
                         machine_name: str,
                         activation_token: str,
                         max_idle_time_msecs: int,
@@ -134,6 +133,8 @@ class AzureResourceManager(CloudResourceManager):
             max_price = await self.get_spot_billing_price(machine_type, location)
         else:
             max_price = None
+
+        resource_rates = self.billing_manager.resource_rates
 
         vm_config = create_vm_config(file_store, resource_rates, location, machine_name,
                                      machine_type, activation_token, max_idle_time_msecs,

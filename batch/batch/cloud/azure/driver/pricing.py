@@ -6,7 +6,7 @@ import logging
 import dateutil.parser
 
 from hailtop.aiocloud import aioazure
-from hailtop.utils import flatten, grouped, time_msecs, parse_timestamp_msecs
+from hailtop.utils import flatten, grouped, time_msecs
 from hailtop.utils.rates import rate_instance_hour_to_fraction_msec, rate_gib_month_to_mib_msec
 
 from ..resource_utils import azure_valid_machine_types, azure_disk_name_to_storage_gib
@@ -124,8 +124,10 @@ async def vm_prices_by_region(pricing_client: aioazure.AzurePricingClient,
         preemptible = ('Spot' in sku_name)
         vm_cost_per_hour = float(data['retailPrice'])
 
-        start_date = int(parse_timestamp_msecs(data['effectiveStartDate']) + 0.5)
-        end_date = int(parse_timestamp_msecs(data.get('effectiveEndDate')) + 0.5)
+        start_date = int(dateutil.parser.isoparse(data['effectiveStartDate']).timestamp() * 1000 + 0.5)
+        end_date = data.get('effectiveEndDate')
+        if end_date is not None:
+            end_date = int(dateutil.parser.isoparse(data['effectiveEndDate']).timestamp() * 1000 + 0.5)
 
         if sku_name in seen_vm_names:
             seen_data = seen_vm_names[sku_name]

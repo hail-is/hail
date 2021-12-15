@@ -1045,7 +1045,6 @@ GROUP BY user, inst_coll;
 
 
 def monitor_instances(app) -> None:
-    resource_rates: Dict[str, float] = app['resource_rates']
     driver: CloudDriver = app['driver']
     inst_coll_manager = driver.inst_coll_manager
 
@@ -1061,11 +1060,11 @@ def monitor_instances(app) -> None:
 
             if instance.state != 'deleted':
                 actual_cost_per_hour_labels = CostPerHourLabels(measure='actual', inst_coll=instance.inst_coll.name)
-                actual_rate = instance.instance_config.actual_cost_per_hour(resource_rates)
+                actual_rate = instance.instance_config.actual_cost_per_hour(driver.billing_manager.resource_rates)
                 cost_per_hour[actual_cost_per_hour_labels].append(actual_rate)
 
                 billed_cost_per_hour_labels = CostPerHourLabels(measure='billed', inst_coll=instance.inst_coll.name)
-                billed_rate = instance.instance_config.cost_per_hour_from_cores(resource_rates, utilized_cores_mcpu)
+                billed_rate = instance.instance_config.cost_per_hour_from_cores(driver.billing_manager.resource_rates, utilized_cores_mcpu)
                 cost_per_hour[billed_cost_per_hour_labels].append(billed_rate)
 
                 inst_coll_labels = InstCollLabels(inst_coll=instance.inst_coll.name)
@@ -1132,9 +1131,6 @@ SELECT instance_id, internal_token, frozen FROM globals;
     app['batch_headers'] = {'Authorization': f'Bearer {row["internal_token"]}'}
 
     app['frozen'] = row['frozen']
-
-    resources = db.select_and_fetchall('SELECT resource, rate FROM resources;')
-    app['resource_rates'] = {record['resource']: record['rate'] async for record in resources}
 
     scheduler_state_changed = Notice()
     app['scheduler_state_changed'] = scheduler_state_changed

@@ -237,7 +237,6 @@ class InstanceCollection:
         self.add_instance(instance)
         total_resources_on_instance = await self.resource_manager.create_vm(
             file_store=app['file_store'],
-            resource_rates=app['resource_rates'],
             machine_name=machine_name,
             activation_token=activation_token,
             max_idle_time_msecs=max_idle_time_msecs,

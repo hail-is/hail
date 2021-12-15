@@ -101,7 +101,6 @@ class GCPResourceManager(CloudResourceManager):
 
     async def create_vm(self,
                         file_store: FileStore,
-                        resource_rates: Dict[str, float],
                         machine_name: str,
                         activation_token: str,
                         max_idle_time_msecs: int,
@@ -116,6 +115,8 @@ class GCPResourceManager(CloudResourceManager):
                         ) -> List[QuantifiedResource]:
         if local_ssd_data_disk:
             assert data_disk_size_gb == 375
+
+        resource_rates = self.billing_manager.resource_rates
 
         worker_type, cores = self.worker_type_and_cores(machine_type)
         vm_config = create_vm_config(file_store, resource_rates, location, machine_name,

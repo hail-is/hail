@@ -91,7 +91,6 @@ class CloudResourceManager:
     @abc.abstractmethod
     async def create_vm(self,
                         file_store: FileStore,
-                        resource_rates: Dict[str, float],
                         machine_name: str,
                         activation_token: str,
                         max_idle_time_msecs: int,
