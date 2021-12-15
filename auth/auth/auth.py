@@ -323,7 +323,10 @@ async def rest_login(request):
     flow_data = request.app['flow_client'].initiate_flow(callback_uri)
     flow_data['callback_uri'] = callback_uri
 
-    return web.json_response({'flow': flow_data})
+    # keeping authorization_url and state for backwards compatibility
+    return web.json_response(
+        {'flow': flow_data, 'authorization_url': flow_data['authorization_url'], 'state': flow_data['state']}
+    )
 
 
 @routes.get('/roles')
