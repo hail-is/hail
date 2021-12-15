@@ -15,7 +15,15 @@ object Optimize {
     val maxIter = HailContext.get.optimizerIterations
 
     def runOpt(f: BaseIR => BaseIR, iter: Int, optContext: String): Unit = {
+      val oldIR = ir
+      TypeCheck(oldIR)
       ir = ctx.timer.time(optContext)(f(ir).asInstanceOf[T])
+      try {
+        TypeCheck(ir)
+      } catch {
+        case e: HailException =>
+          throw new IllegalStateException(s"Optimization ${context} invalidated TypeChecking. \n Old:\n${Pretty(oldIR)}\nNew:${Pretty(ir)}", e)
+      }
     }
 
     ctx.timer.time("Optimize") {
