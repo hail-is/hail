@@ -61,7 +61,7 @@ output "service_credentials" {
 output "oauth2_credentials" {
   value = {
     appId    = azuread_application.oauth2.application_id
-    password = azuread_application.oauth2.password
+    password = azuread_application_password.oauth2.value
     tenant   = data.azurerm_client_config.primary.tenant_id
   }
   sensitive = true
