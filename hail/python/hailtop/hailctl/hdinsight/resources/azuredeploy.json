@@ -113,7 +113,7 @@
                         }
                     },
                     "componentVersion": {
-                        "Spark": "3.0.0(Preview)"
+                        "Spark": "3.0.0"
                     }
                 },
                 "storageProfile": {
