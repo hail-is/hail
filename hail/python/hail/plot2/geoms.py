@@ -37,7 +37,7 @@ class Stat:
 
 class StatIdentity(Stat):
     def make_agg(self, x_expr, parent_struct, geom_struct):
-        combined = parent_struct.annotate(**geom_struct)
+        combined = parent_struct.annotate(**geom_struct).annotate(x=x_expr)
         return hl.agg.collect(combined)
 
     def listify(self, agg_result):
@@ -87,8 +87,6 @@ class StatBin(Stat):
         y_values = agg_result.bin_freq
         num_edges = len(x_edges)
         data_rows = []
-        x_values = []
-        widths = []
         for i, x in enumerate(x_edges[:num_edges - 1]):
             x_value = (x_edges[i + 1] - x) / 2 + x
             width_value = x_edges[i + 1] - x

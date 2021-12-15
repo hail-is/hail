@@ -34,7 +34,7 @@ class GGPlot:
         elif isinstance(other, Labels):
             copied.labels = copied.labels.merge(other)
         elif isinstance(other, Scale):
-            copied.scales[other.aesthetic_string] = other
+            copied.scales[other.aesthetic_name] = other
         elif isinstance(other, Aesthetic):
             copied.aes = copied.aes.merge(other)
         else:
@@ -70,8 +70,6 @@ class GGPlot:
                         # Need to add scale_y_discrete
                         pass
 
-
-
     def copy(self):
         return GGPlot(self.ht, self.aes, self.geoms[:], self.labels, self.scales,
                       self.discrete_color_scale, self.continuous_color_scale)
@@ -97,7 +95,11 @@ class GGPlot:
             elif "x" in selected["figure_mapping"]:
                 x_expr = selected["figure_mapping"]["x"]
             else:
+                import pdb; pdb.set_trace()
                 raise ValueError("There wasn't an x")
+
+            if "x" in self.scales:
+                x_expr = self.scales["x"].transform_data(x_expr)
 
             agg = stat.make_agg(x_expr, selected["figure_mapping"], selected[label])
             aggregators[label] = agg
