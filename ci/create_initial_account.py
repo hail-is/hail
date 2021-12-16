@@ -77,7 +77,7 @@ async def main():
     parser = argparse.ArgumentParser(description='Create an initial dev user.')
 
     parser.add_argument('username', help='The username of the initial user.')
-    parser.add_argument('login-id', help='The login id of the initial user.')
+    parser.add_argument('login_id', metavar='login-id', help='The login id of the initial user.')
 
     args = parser.parse_args()
 
