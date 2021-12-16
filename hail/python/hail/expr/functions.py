@@ -923,11 +923,11 @@ def ceil(x):
 
     Parameters
     ----------
-    x : :class:`.Float32Expression` or :class:`.Float64Expression`
+    x : :class:`.Float32Expression`,:class:`.Float64Expression` or :class:`.NDArrayNumericExpression`
 
     Returns
     -------
-    :class:`.Float32Expression` or :class:`.Float64Expression`
+    :class:`.Float32Expression`, :class:`.Float64Expression`,  or :class:`.NDArrayNumericExpression`
     """
     return _func("ceil", x.dtype, x)
 
