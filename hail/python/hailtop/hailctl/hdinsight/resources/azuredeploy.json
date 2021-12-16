@@ -1,6 +1,6 @@
 {
-    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-    "contentVersion": "1.0.0.0",
+    "$schema": "http://schema.management.azure.com/schemas/2014-04-01-preview/deploymentTemplate.json#",
+    "contentVersion": "0.9.0.0",
     "parameters": {
         "clusterName": {
             "type": "string",
@@ -8,41 +8,63 @@
                 "description": "The name of the HDInsight cluster to create."
             }
         },
+        "storageAccountName": {
+            "type": "string",
+            "metadata": {
+                "description": "The storage account to which this cluster has access. This account must already exist."
+            }
+        },
+        "storageContainerName": {
+            "type": "string",
+            "metadata": {
+                "description": "The container within the aforementioned storage account to which this cluster will store temporary data."
+            }
+        },
         "clusterLoginUserName": {
             "type": "string",
-            "maxLength": 20,
-            "minLength": 2,
+            "defaultValue": "admin",
             "metadata": {
-                "description": "These credentials can be used to submit jobs to the cluster and to log into cluster dashboards. The username must consist of digits, upper or lowercase letters, and/or the following special characters: (!#$%&'()-^_`{}~)."
+                "description": "These credentials can be used to submit jobs to the cluster and to log into cluster dashboards."
             }
         },
         "clusterLoginPassword": {
-            "type": "secureString",
-            "minLength": 10,
+            "type": "securestring",
             "metadata": {
-                "description": "The password must be at least 10 characters in length and must contain at least one digit, one upper case letter, one lower case letter, and one non-alphanumeric character except (single-quote, double-quote, backslash, right-bracket, full-stop). Also, the password must not contain 3 consecutive characters from the cluster username or SSH username."
+                "description": "The password must be at least 10 characters in length and must contain at least one digit, one non-alphanumeric character, and one upper or lower case letter."
             }
         },
         "sshUserName": {
             "type": "string",
-            "minLength": 2,
+            "defaultValue": "sshuser",
             "metadata": {
-                "description": "These credentials can be used to remotely access the cluster. The sshUserName can only consit of digits, upper or lowercase letters, and/or the following special characters (%&'^_`{}~). Also, it cannot be the same as the cluster login username or a reserved word"
+                "description": "These credentials can be used to remotely access the cluster."
             }
         },
         "sshPassword": {
-            "type": "secureString",
-            "maxLength": 72,
-            "minLength": 6,
+            "type": "securestring",
             "metadata": {
-                "description": "SSH password must be 6-72 characters long and must contain at least one digit, one upper case letter, and one lower case letter.  It must not contain any 3 consecutive characters from the cluster login name"
+                "description": "The password must be at least 10 characters in length and must contain at least one digit, one non-alphanumeric character, and one upper or lower case letter."
             }
         },
         "location": {
             "type": "string",
-            "defaultValue": "[resourceGroup().location]",
+            "defaultValue": "eastus",
             "metadata": {
-                "description": "Location for all resources."
+                "description": "The location where all azure resources will be deployed."
+            }
+        },
+        "clusterWorkerNodeCount": {
+            "type": "int",
+            "defaultValue": 2,
+            "metadata": {
+                "description": "The number of nodes in the HDInsight cluster."
+            }
+        },
+        "useAutoscaler": {
+            "type": "bool",
+            "defaultValue": false,
+            "metadata": {
+                "description": "Should this cluster automatically scale up and down the number of worker nodes in response to workload."
             }
         },
         "headNodeVirtualMachineSize": {
@@ -82,54 +104,52 @@
             }
         }
     },
-    "functions": [],
     "resources": [
         {
-            "type": "Microsoft.Storage/storageAccounts",
-            "apiVersion": "2021-04-01",
-            "name": "[format('storage{0}', uniqueString(resourceGroup().id))]",
-            "location": "[parameters('location')]",
-            "sku": {
-                "name": "Standard_LRS"
-            },
-            "kind": "StorageV2"
+            "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+            "apiVersion": "2021-06-01",
+            "name": "[parameters('storageContainerName')]",
         },
         {
-            "type": "Microsoft.HDInsight/clusters",
-            "apiVersion": "2021-06-01",
+            "apiVersion": "2015-03-01-preview",
             "name": "[parameters('clusterName')]",
+            "type": "Microsoft.HDInsight/clusters",
             "location": "[parameters('location')]",
+            "dependsOn": ["[resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', parameters('storageContainerName'))]"],
+            "tags": {},
             "properties": {
                 "clusterVersion": "4.0",
                 "osType": "Linux",
-                "tier": "Standard",
+                "tier": "standard",
                 "clusterDefinition": {
-                    "kind": "spark",
+                    "kind": "SPARK",
+                    "componentVersion": {
+                        "Spark": "3.0"
+                    },
                     "configurations": {
                         "gateway": {
                             "restAuthCredential.isEnabled": true,
                             "restAuthCredential.username": "[parameters('clusterLoginUserName')]",
                             "restAuthCredential.password": "[parameters('clusterLoginPassword')]"
                         }
-                    },
-                    "componentVersion": {
-                        "Spark": "3.0.0"
                     }
                 },
                 "storageProfile": {
                     "storageaccounts": [
                         {
-                            "name": "[replace(replace(reference(resourceId('Microsoft.Storage/storageAccounts', format('storage{0}', uniqueString(resourceGroup().id)))).primaryEndpoints.blob, 'https://', ''), '/', '')]",
+                            "name": "[replace(replace(reference(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccount'))).primaryEndpoints.blob, 'https://', ''), '/', '')]]",
                             "isDefault": true,
-                            "container": "[parameters('clusterName')]",
-                            "key": "[listKeys(resourceId('Microsoft.Storage/storageAccounts', format('storage{0}', uniqueString(resourceGroup().id))), '2021-04-01').keys[0].value]"
+                            "container": "parameters('storageContainerName')",
+                            "key": "[listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccount')), '2021-04-01').keys[0].value]"
                         }
                     ]
                 },
                 "computeProfile": {
                     "roles": [
                         {
+                            "autoscale": "[parameters('useAutoscaler')]",
                             "name": "headnode",
+                            "minInstanceCount": 1,
                             "targetInstanceCount": 2,
                             "hardwareProfile": {
                                 "vmSize": "[parameters('headNodeVirtualMachineSize')]"
@@ -138,20 +158,23 @@
                                 "linuxOperatingSystemProfile": {
                                     "username": "[parameters('sshUserName')]",
                                     "password": "[parameters('sshPassword')]"
-                                }
+                                },
+                                "windowsOperatingSystemProfile": null
                             },
-                            "scriptActions":[
+                            "virtualNetworkProfile": null,
+                            "scriptActions": [
                                 {
-                                    "name": "setenvironmentvariableHeadNode",
-                                    "uri": "https://raw.githubusercontent.com/danking/hail/dk-hdinsight-test/hail/python/hailtop/hailctl/hdinsight/resources/setEnvVar.sh",
-                                    "parameters": "headnode"
+                                    "name": "- Custom",
+                                    "uri": "https://raw.githubusercontent.com/danking/hail/dk-hdinsight-test/hail/python/hailtop/hailctl/hdinsight/resources/install-hail.sh",
+                                    "parameters": "0.2.79"
                                 }
-                            ]
-
+                            ],
+                            "dataDisksGroups": null
                         },
                         {
+                            "autoscale": "[parameters('useAutoscaler')]",
                             "name": "workernode",
-                            "targetInstanceCount": 2,
+                            "targetInstanceCount": "[parameters('clusterWorkerNodeCount')]",
                             "hardwareProfile": {
                                 "vmSize": "[parameters('workerNodeVirtualMachineSize')]"
                             },
@@ -159,15 +182,35 @@
                                 "linuxOperatingSystemProfile": {
                                     "username": "[parameters('sshUserName')]",
                                     "password": "[parameters('sshPassword')]"
-                                }
-                            }
+                                },
+                                "windowsOperatingSystemProfile": null
+                            },
+                            "virtualNetworkProfile": null,
+                            "scriptActions": [],
+                            "dataDisksGroups": null
+                        },
+                        {
+                            "autoscale": "[parameters('useAutoscaler')]",
+                            "name": "zookeepernode",
+                            "minInstanceCount": 1,
+                            "targetInstanceCount": 3,
+                            "hardwareProfile": {
+                                "vmSize": "Standard_A2_V2"
+                            },
+                            "osProfile": {
+                                "linuxOperatingSystemProfile": {
+                                    "username": "[parameters('sshUserName')]",
+                                    "password": "[parameters('sshPassword')]"
+                                },
+                                "windowsOperatingSystemProfile": null
+                            },
+                            "virtualNetworkProfile": null,
+                            "scriptActions": [],
+                            "dataDisksGroups": null
                         }
                     ]
                 }
-            },
-            "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts', format('storage{0}', uniqueString(resourceGroup().id)))]"
-            ]
+            }
         }
     ],
     "outputs": {
