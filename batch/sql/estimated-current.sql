@@ -11,6 +11,13 @@ CREATE TABLE IF NOT EXISTS `resources` (
   PRIMARY KEY (`resource`)
 ) ENGINE = InnoDB;
 
+CREATE TABLE IF NOT EXISTS `latest_product_versions` (
+  `product` VARCHAR(100) NOT NULL,
+  `version` VARCHAR(100) NOT NULL,
+  `time_updated` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`product`)
+) ENGINE = InnoDB;
+
 CREATE TABLE IF NOT EXISTS `inst_colls` (
   `name` VARCHAR(255) NOT NULL,
   `is_pool` BOOLEAN NOT NULL,

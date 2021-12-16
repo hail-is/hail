@@ -1,6 +1,7 @@
 import re
 import logging
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict
+import sortedcontainers
 
 from ...globals import RESERVED_STORAGE_GB_PER_CORE
 
@@ -44,6 +45,63 @@ azure_memory_to_worker_type = {
     'standard': 'D',
     'highmem': 'E'
 }
+
+
+class AzureDisk:
+    def __init__(self, name: str, size_in_gib: int):
+        self.name = name
+        self.size_in_gib = size_in_gib
+
+    @property
+    def family(self):
+        family = self.name[0]
+        assert family in azure_disk_families
+        return family
+
+
+# https://azure.microsoft.com/en-us/pricing/details/managed-disks/
+azure_disk_families = {'P', 'E', 'S'}
+azure_disk_number_to_storage_gib = {
+    '1': 4,
+    '2': 8,
+    '3': 16,
+    '4': 32,
+    '6': 64,
+    '10': 128,
+    '15': 256,
+    '20': 512,
+    '30': 1024,
+    '40': 2 * 1024,
+    '50': 4 * 1024,
+    '60': 8 * 1024,
+    '70': 16 * 1024,
+    '80': 32 * 1024,
+}
+
+azure_disks_by_disk_type = {'P': sortedcontainers.SortedSet(key=lambda disk: disk.size_in_gib),
+                            'E': sortedcontainers.SortedSet(key=lambda disk: disk.size_in_gib),
+                            'S': sortedcontainers.SortedSet(key=lambda disk: disk.size_in_gib)}
+
+valid_azure_disk_names = set()
+
+azure_disk_name_to_storage_gib: Dict[str, int] = {}
+
+for family in azure_disk_families:
+    for disk_number, storage_gib in azure_disk_number_to_storage_gib.items():
+        if family == 'S' and disk_number in ('1', '2', '3'):
+            continue
+        disk_name = f'{family}{disk_number}'
+        azure_disks_by_disk_type[family].add(AzureDisk(disk_name, storage_gib))
+        valid_azure_disk_names.add(disk_name)
+        azure_disk_name_to_storage_gib[disk_name] = storage_gib
+
+
+def azure_disk_from_storage_in_gib(disk_type: str, storage_in_gib: int) -> Optional[AzureDisk]:
+    disks = azure_disks_by_disk_type[disk_type]
+    index = disks.bisect_key_left(storage_in_gib)
+    if index == len(disks):
+        return None
+    return disks[index]
 
 
 class MachineTypeParts:

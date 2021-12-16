@@ -7,7 +7,6 @@ from hailtop.auth import session_id_encode_to_str
 from hailtop.batch_client.aioclient import BatchClient, Batch
 from hailtop.utils import secret_alnum_string
 
-from .utils import fails_in_azure
 from .billing_projects import get_billing_project_prefix
 
 pytestmark = pytest.mark.asyncio
@@ -423,7 +422,6 @@ async def test_billing_limit_zero(
         assert False, str(await batch.debug_info())
 
 
-@fails_in_azure()
 async def test_billing_limit_tiny(
         make_client: Callable[[str], Awaitable[BatchClient]],
         dev_client: BatchClient,

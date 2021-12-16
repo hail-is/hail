@@ -1,4 +1,4 @@
-from typing import Dict, List, Any, Tuple
+from typing import List, Any, Tuple
 import abc
 import logging
 
@@ -80,6 +80,7 @@ class CloudResourceManager:
                         data_disk_size_gb: int,
                         boot_disk_size_gb: int,
                         job_private: bool,
+                        location: str,
                         ) -> InstanceConfig:
         raise NotImplementedError
 
@@ -90,7 +91,6 @@ class CloudResourceManager:
     @abc.abstractmethod
     async def create_vm(self,
                         file_store: FileStore,
-                        resource_rates: Dict[str, float],
                         machine_name: str,
                         activation_token: str,
                         max_idle_time_msecs: int,

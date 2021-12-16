@@ -12,6 +12,7 @@ from ....driver.driver import CloudDriver
 from ....driver.instance_collection import Pool, JobPrivateInstanceManager, InstanceCollectionManager
 from ....inst_coll_config import InstanceCollectionConfigs
 
+from .billing_manager import AzureBillingManager
 from .resource_manager import AzureResourceManager
 from .regions import RegionMonitor
 
@@ -33,6 +34,7 @@ class AzureDriver(CloudDriver):
         subscription_id = azure_config.subscription_id
         resource_group = azure_config.resource_group
         region = azure_config.region
+        regions = [region]
 
         with open(os.environ['HAIL_SSH_PUBLIC_KEY']) as f:
             ssh_public_key = f.read()
@@ -41,10 +43,12 @@ class AzureDriver(CloudDriver):
         compute_client = aioazure.AzureComputeClient(subscription_id, resource_group, credentials_file=credentials_file)
         resources_client = aioazure.AzureResourcesClient(subscription_id, credentials_file=credentials_file)
         network_client = aioazure.AzureNetworkClient(subscription_id, resource_group, credentials_file=credentials_file)
+        pricing_client = aioazure.AzurePricingClient()
 
         region_monitor = await RegionMonitor.create(region)
+        billing_manager = await AzureBillingManager.create(db, pricing_client, regions)
         inst_coll_manager = InstanceCollectionManager(db, machine_name_prefix, region_monitor)
-        resource_manager = AzureResourceManager(subscription_id, resource_group, ssh_public_key, arm_client, compute_client)
+        resource_manager = AzureResourceManager(subscription_id, resource_group, ssh_public_key, arm_client, compute_client, billing_manager)
 
         create_pools_coros = [
             Pool.create(app,
@@ -69,15 +73,18 @@ class AzureDriver(CloudDriver):
                              compute_client,
                              resources_client,
                              network_client,
+                             pricing_client,
                              subscription_id,
                              resource_group,
                              namespace,
                              region_monitor,
                              inst_coll_manager,
-                             jpim)
+                             jpim,
+                             billing_manager)
 
         task_manager.ensure_future(periodically_call(60, driver.delete_orphaned_nics))
         task_manager.ensure_future(periodically_call(60, driver.delete_orphaned_public_ips))
+        task_manager.ensure_future(periodically_call(300, billing_manager.refresh_resources_from_retail_prices))
 
         return driver
 
@@ -88,24 +95,28 @@ class AzureDriver(CloudDriver):
                  compute_client: aioazure.AzureComputeClient,
                  resources_client: aioazure.AzureResourcesClient,
                  network_client: aioazure.AzureNetworkClient,
+                 pricing_client: aioazure.AzurePricingClient,
                  subscription_id: str,
                  resource_group: str,
                  namespace: str,
                  region_monitor: RegionMonitor,
                  inst_coll_manager: InstanceCollectionManager,
-                 job_private_inst_manager: JobPrivateInstanceManager):
+                 job_private_inst_manager: JobPrivateInstanceManager,
+                 billing_manager: AzureBillingManager):
         self.db = db
         self.machine_name_prefix = machine_name_prefix
         self.arm_client = arm_client
         self.compute_client = compute_client
         self.resources_client = resources_client
         self.network_client = network_client
+        self.pricing_client = pricing_client
         self.subscription_id = subscription_id
         self.resource_group = resource_group
         self.namespace = namespace
         self.region_monitor = region_monitor
         self.inst_coll_manager = inst_coll_manager
         self.job_private_inst_manager = job_private_inst_manager
+        self.billing_manager = billing_manager
 
     async def shutdown(self) -> None:
         try:
@@ -117,7 +128,10 @@ class AzureDriver(CloudDriver):
                 try:
                     await self.resources_client.close()
                 finally:
-                    await self.network_client.close()
+                    try:
+                        await self.network_client.close()
+                    finally:
+                        await self.pricing_client.close()
 
     def _resource_is_orphaned(self, resource_name: str) -> bool:
         instance_name = resource_name.rsplit('-', maxsplit=1)[0]

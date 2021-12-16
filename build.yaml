@@ -2373,6 +2373,10 @@ steps:
         script: /io/sql/add_azure_tables.py
       - name: change-azure-test-highcpu-pool
         script: /io/sql/change_azure_test_highcpu_pool.py
+      - name: add-latest-product-versions
+        script: /io/sql/add-latest-product-versions.sql
+      - name: add-products-and-versions
+        script: /io/sql/add_products_and_versions.py
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

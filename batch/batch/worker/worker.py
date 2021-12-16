@@ -1161,7 +1161,7 @@ class Job:
                 RESERVED_STORAGE_GB_PER_CORE, self.cpu_in_mcpu / 1000 * RESERVED_STORAGE_GB_PER_CORE
             )
 
-        self.resources = instance_config.resources(self.cpu_in_mcpu, self.memory_in_bytes, self.external_storage_in_gib)
+        self.resources = instance_config.quantified_resources(self.cpu_in_mcpu, self.memory_in_bytes, self.external_storage_in_gib)
 
         self.input_volume_mounts = []
         self.main_volume_mounts = []

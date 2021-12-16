@@ -1,4 +1,4 @@
-from typing import Callable, TypeVar, Awaitable, Optional, Type, List, Dict
+from typing import Callable, TypeVar, Awaitable, Optional, Type, List, Dict, Iterable
 from typing_extensions import Literal
 from types import TracebackType
 import concurrent
@@ -56,6 +56,10 @@ def unpack_key_value_inputs(inputs):
 
 def flatten(xxs):
     return [x for xs in xxs for x in xs]
+
+
+def filter_none(xs: Iterable[Optional[T]]) -> List[T]:
+    return [x for x in xs if x is not None]
 
 
 def first_extant_file(*files: Optional[str]) -> Optional[str]:
