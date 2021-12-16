@@ -188,25 +188,6 @@
                             "virtualNetworkProfile": null,
                             "scriptActions": [],
                             "dataDisksGroups": null
-                        },
-                        {
-                            "autoscale": "[parameters('useAutoscaler')]",
-                            "name": "zookeepernode",
-                            "minInstanceCount": 1,
-                            "targetInstanceCount": 3,
-                            "hardwareProfile": {
-                                "vmSize": "Standard_A2_V2"
-                            },
-                            "osProfile": {
-                                "linuxOperatingSystemProfile": {
-                                    "username": "[parameters('sshUserName')]",
-                                    "password": "[parameters('sshPassword')]"
-                                },
-                                "windowsOperatingSystemProfile": null
-                            },
-                            "virtualNetworkProfile": null,
-                            "scriptActions": [],
-                            "dataDisksGroups": null
                         }
                     ]
                 }
