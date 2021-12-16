@@ -60,13 +60,6 @@
                 "description": "The number of nodes in the HDInsight cluster."
             }
         },
-        "useAutoscaler": {
-            "type": "bool",
-            "defaultValue": false,
-            "metadata": {
-                "description": "Should this cluster automatically scale up and down the number of worker nodes in response to workload."
-            }
-        },
         "headNodeVirtualMachineSize": {
             "type": "string",
             "defaultValue": "Standard_E2_v3",
@@ -135,17 +128,16 @@
                 "storageProfile": {
                     "storageaccounts": [
                         {
-                            "name": "[replace(replace(reference(storageAccountRef).primaryEndpoints.blob, 'https://', ''), '/', '')]",
+                            "name": "[replace(replace(reference(variables('storageAccountRef'), '2021-04-01').primaryEndpoints.blob, 'https://', ''), '/', '')]",
                             "isDefault": true,
                             "container": "format('{0}/default/{1}', parameters('storageAccountName'), parameters('storageContainerName'))",
-                            "key": "[listKeys(storageAccountRef, '2021-04-01').keys[0].value]"
+                            "key": "[listKeys(variables('storageAccountRef'), '2021-04-01').keys[0].value]"
                         }
                     ]
                 },
                 "computeProfile": {
                     "roles": [
                         {
-                            "autoscale": "[parameters('useAutoscaler')]",
                             "name": "headnode",
                             "minInstanceCount": 1,
                             "targetInstanceCount": 2,
@@ -170,7 +162,6 @@
                             "dataDisksGroups": null
                         },
                         {
-                            "autoscale": "[parameters('useAutoscaler')]",
                             "name": "workernode",
                             "targetInstanceCount": "[parameters('clusterWorkerNodeCount')]",
                             "hardwareProfile": {
