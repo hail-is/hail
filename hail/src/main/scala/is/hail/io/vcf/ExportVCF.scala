@@ -356,9 +356,13 @@ object ExportVCF {
       }
     }
     val filtersType = TSet(TString)
-    val filtersPType = if (typ.rowType.hasField("filters"))
-      mv.rvRowPType.field("filters").typ.asInstanceOf[PSet]
-    else null
+    val filtersPType = if (typ.rowType.hasField("filters")) {
+      if (typ.rowType.fieldType("filters") == TSet(TString))
+        mv.rvRowPType.field("filters").typ.asInstanceOf[PSet]
+      else {
+        warn(s"export_vcf expects field 'filters' to be of type set<str>, ignoring existing 'filters' field of type ${typ.rowType.fieldType("filters")}.")
+      }
+    } else null
 
     val (idExists, idIdx) = lookupVAField("rsid", "ID", Some(TString))
     val (qualExists, qualIdx) = lookupVAField("qual", "QUAL", Some(TFloat64))
