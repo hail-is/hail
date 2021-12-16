@@ -74,8 +74,8 @@ curl -XPOST -H @$GITHUB_OAUTH_HEADER_FILE https://api.github.com/repos/hail-is/h
   "prerelease": false
 }'
 
-retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE docker.io/hailgenetics/hail:$HAIL_PIP_VERSION
-retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE gcr.io/hail-vdc/hailgenetics/hail:$HAIL_PIP_VERSION
+retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE docker://docker.io/hailgenetics/hail:$HAIL_PIP_VERSION
+retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE docker://gcr.io/hail-vdc/hailgenetics/hail:$HAIL_PIP_VERSION
 
 # deploy to PyPI
 twine upload $WHEEL
