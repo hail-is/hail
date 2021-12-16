@@ -152,13 +152,6 @@
                                 "windowsOperatingSystemProfile": null
                             },
                             "virtualNetworkProfile": null,
-                            "scriptActions": [
-                                {
-                                    "name": "- Custom",
-                                    "uri": "https://raw.githubusercontent.com/danking/hail/dk-hdinsight-test/hail/python/hailtop/hailctl/hdinsight/resources/install-hail.sh",
-                                    "parameters": "0.2.79"
-                                }
-                            ],
                             "dataDisksGroups": null
                         },
                         {
