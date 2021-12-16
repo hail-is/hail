@@ -274,7 +274,7 @@ object EmitStream {
             val nested = StateTuple(nestedStates)
             val dictState = new DictState(kb, newKeyVType, nested)
             val maxSize = mb.genFieldThisRef[Int]("stream_buff_agg_max_size")
-            val elementArray = mb.genFieldThisRef[Array[Long]]("stream_buff_agg_element_array")
+            val nodeArray = mb.genFieldThisRef[Array[Long]]("stream_buff_agg_element_array")
             val idx = mb.genFieldThisRef[Int]("stream_buff_agg_idx")
             val returnStreamType= x.typ.asInstanceOf[TStream]
             val returnElemType = returnStreamType.elementType
@@ -296,7 +296,7 @@ object EmitStream {
                 cb.assign(produceElementMode, false)
                 cb.assign(idx, 0)
                 cb.assign(maxSize, 8)
-                cb.assign(elementArray, Code.newArray[Long](maxSize))
+                cb.assign(nodeArray, Code.newArray[Long](maxSize))
                 cb.assign(numElemInArray, 0)
                 dictState.createState(cb)
                 dictState.newState(cb)
@@ -351,13 +351,6 @@ object EmitStream {
                   cb.assign(produceElementMode, true)
                 })
 
-                cb.println("Current contents of dict state: ")
-                dictState.foreach(cb) {(cb, ec) =>
-                  cb.println(cb.strValue(ec))
-                }
-                cb.println("-----------------")
-
-
                 cb.ifx(produceElementMode, {
                   cb.println("go to produceElementMode")
                   cb.goto(elementProduceLabel)},
@@ -374,7 +367,7 @@ object EmitStream {
                 cb.ifx(numElemInArray ceq 0, {
                   dictState.tree.foreach(cb) { (cb, elementOff) =>
                     cb.println("filling up array ", Region.loadInt(elementOff).toS) // FIXME: Don't assume it's an int
-                    cb += elementArray.update(numElemInArray, elementOff)
+                    cb += nodeArray.update(numElemInArray, elementOff)
                     cb.assign(numElemInArray, numElemInArray + 1)
                   }
                 })
@@ -393,11 +386,11 @@ object EmitStream {
                     cb.goto(startLabel)
                   })
                 })
-                val elementAddress = cb.memoize(elementArray(idx))
+                val nodeAddress = cb.memoize(nodeArray(idx))
                 cb.assign(idx, idx + 1)
-                val key = dictState.keyed.storageType.loadCheapSCode(cb, elementAddress).loadField(cb, "kt").memoize(cb, "steam_buff_agg_key")
-                dictState.loadContainer(cb, key.load)
+                dictState.loadNode(cb, nodeAddress)
                 val serializedAggValue = keyedContainer.container.states.states.map(state => state.serializeToRegion(cb, PCanonicalBinary(), region))
+                val key = dictState.keyed.storageType.loadCheapSCode(cb, nodeAddress).loadField(cb, "kt").memoize(cb, "steam_buff_agg_key")
                 val serializedAggEmitCodes = serializedAggValue.map(aggValue => EmitCode.present(mb, aggValue))
                 val serializedAggTupleSValue = SStackStruct.constructFromArgs(cb, region, serializedAggSType.virtualType, serializedAggEmitCodes: _*)
                 val keyValue = key.get(cb).asInstanceOf[SBaseStructValue]
