@@ -888,7 +888,8 @@ def fisher_exact_test(c1, c2, c3, c4) -> StructExpression:
     return _func("fisher_exact_test", ret_type, c1, c2, c3, c4)
 
 
-@typecheck(x=expr_oneof(expr_float32, expr_float64))
+@typecheck(x=expr_oneof(expr_float32, expr_float64, expr_ndarray(expr_float64)))
+@ndarray_broadcasting
 def floor(x):
     """The largest integral value that is less than or equal to `x`.
 
@@ -900,16 +901,17 @@ def floor(x):
 
     Parameters
     ----------
-    x : :class:`.Float32Expression` or :class:`.Float64Expression`
+    x : :class:`.Float32Expression`, :class:`.Float64Expression`, or :class:`.NDArrayNumericExpression`
 
     Returns
     -------
-    :class:`.Float32Expression` or :class:`.Float64Expression`
+    :class:`.Float32Expression`, :class:`.Float64Expression`, or :class:`.NDArrayNumericExpression`
     """
     return _func("floor", x.dtype, x)
 
 
-@typecheck(x=expr_oneof(expr_float32, expr_float64))
+@typecheck(x=expr_oneof(expr_float32, expr_float64, expr_ndarray(expr_float64)))
+@ndarray_broadcasting
 def ceil(x):
     """The smallest integral value that is greater than or equal to `x`.
 
