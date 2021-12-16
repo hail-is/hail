@@ -147,10 +147,10 @@ case class MatrixNativeWriter(
                         RVDSpecWriter(s"$path/globals/globals", RVDSpecMaker(emptySpec, RVDPartitioner.unkeyed(1)))),
                       WriteMetadata(MakeArray(GetField(writeGlobals, "filePath")),
                         RVDSpecWriter(s"$path/globals/rows", RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(1)))),
-                      WriteMetadata(MakeArray(I64(1)), globalTableWriter),
+                      WriteMetadata(MakeArray(MakeStruct(Seq("partitionCounts" -> I64(1), "distinctlyKeyed" -> True(), "firstKey" -> MakeStruct(Seq()), "lastKey" -> MakeStruct(Seq())))), globalTableWriter),
                       WriteMetadata(MakeArray(GetField(colInfo, "filePath")),
                         RVDSpecWriter(s"$path/cols/rows", RVDSpecMaker(colSpec, RVDPartitioner.unkeyed(1)))),
-                      WriteMetadata(MakeArray(GetField(colInfo, "partitionCounts")), colTableWriter),
+                      WriteMetadata(MakeArray(SelectFields(colInfo, IndexedSeq("partitionCounts", "distinctlyKeyed", "firstKey", "lastKey"))), colTableWriter),
                       bindIR(ToArray(mapIR(ToStream(partInfo)) { fc => GetField(fc, "filePath") })) { files =>
                         Begin(FastIndexedSeq(
                           WriteMetadata(files, RVDSpecWriter(s"$path/rows/rows", RVDSpecMaker(rowSpec, lowered.partitioner, rowsIndexSpec))),
