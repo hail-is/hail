@@ -433,7 +433,17 @@ WHERE id = %s AND username = %s;
 
 @routes.get('/api/v1alpha/oauth2callback')
 async def rest_callback(request):
-    flow_dict = json.loads(request.query['flow'])
+    flow_json = request.query.get('flow')
+    if flow_json is None:
+        # backwards compatibility with older versions of hailctl
+        callback_port = request.query['callback_port']
+        flow_dict = {
+            'state': request.query['state'],
+            'callback_uri': f'http://127.0.0.1:{callback_port}/oauth2callback',
+        }
+    else:
+        flow_dict = json.loads(request.query['flow'])
+
     try:
         flow_result = request.app['flow_client'].receive_callback(request, flow_dict)
     except asyncio.CancelledError:
