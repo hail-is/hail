@@ -1,5 +1,6 @@
 variable cloud {}
 variable domain {}
+variable organization_domain {}
 variable internal_gateway_ip {}
 variable gateway_ip {}
 variable kubernetes_server {}
@@ -21,6 +22,7 @@ resource "kubernetes_secret" "global_config" {
     docker_prefix          = var.docker_prefix
     docker_root_image      = "${var.docker_prefix}/ubuntu:20.04"
     domain                 = var.domain
+    organization_domain    = var.organization_domain
     internal_ip            = var.internal_gateway_ip
     ip                     = var.gateway_ip
     kubernetes_server_url  = "https://${var.kubernetes_server}"

@@ -23,7 +23,7 @@ resource "kubernetes_secret" "gsa_key" {
   }
 
   data = {
-    "key.json" = jsonencode(credentials)
+    "key.json" = jsonencode(local.credentials)
   }
 }
 
