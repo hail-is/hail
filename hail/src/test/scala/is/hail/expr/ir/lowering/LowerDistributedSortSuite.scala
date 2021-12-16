@@ -19,7 +19,7 @@ class LowerDistributedSortSuite extends HailSuite {
     val data1 = ToStream(Literal(TArray(elementType), dataKeys.map{ case (k1, k2) => Row(k1, k2, k1 * k1)}))
     val sampleSeq = ToStream(Literal(TArray(TInt32), IndexedSeq(0, 2, 3, 7)))
 
-    val sampled = samplePartition(data1, mapIR(sampleSeq)(s => SelectFields(s, IndexedSeq("key1", "key2"))))
+    val sampled = samplePartition(mapIR(data1)(s => SelectFields(s, IndexedSeq("key1", "key2"))), sampleSeq)
 
     assertEvalsTo(sampled, Row(Row(0, -1), Row(9, 1), IndexedSeq( Row(0, 0), Row(1, 4), Row(2, 8), Row(6, 9)), false))
 
@@ -27,7 +27,7 @@ class LowerDistributedSortSuite extends HailSuite {
     val elementType2 = TStruct(("key1", TInt32), ("key2", TInt32))
     val data2 = ToStream(Literal(TArray(elementType2), dataKeys2.map{ case (k1, k2) => Row(k1, k2)}))
     val sampleSeq2 = ToStream(Literal(TArray(TInt32), IndexedSeq(0)))
-    val sampled2 = samplePartition(data2, mapIR(sampleSeq2)(s => SelectFields(s, IndexedSeq("key2", "key1"))))
+    val sampled2 = samplePartition(mapIR(data2)(s => SelectFields(s, IndexedSeq("key2", "key1"))), sampleSeq2)
     assertEvalsTo(sampled2, Row(Row(0, 0), Row(3, 3), IndexedSeq( Row(0, 0)), false))
   }
 
