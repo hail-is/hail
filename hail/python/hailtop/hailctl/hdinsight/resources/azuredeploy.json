@@ -130,7 +130,7 @@
                         {
                             "name": "[replace(replace(reference(variables('storageAccountRef'), '2021-04-01').primaryEndpoints.blob, 'https://', ''), '/', '')]",
                             "isDefault": true,
-                            "container": "format('{0}/default/{1}', parameters('storageAccountName'), parameters('storageContainerName'))",
+                            "container": "[parameters('storageContainerName')]",
                             "key": "[listKeys(variables('storageAccountRef'), '2021-04-01').keys[0].value]"
                         }
                     ]
