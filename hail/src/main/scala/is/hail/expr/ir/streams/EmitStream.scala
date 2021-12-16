@@ -350,6 +350,14 @@ object EmitStream {
                 cb.ifx(dictState.size >= maxSize,{
                   cb.assign(produceElementMode, true)
                 })
+
+                cb.println("Current contents of dict state: ")
+                dictState.foreach(cb) {(cb, ec) =>
+                  cb.println(cb.strValue(ec))
+                }
+                cb.println("-----------------")
+
+
                 cb.ifx(produceElementMode, {
                   cb.println("go to produceElementMode")
                   cb.goto(elementProduceLabel)},
