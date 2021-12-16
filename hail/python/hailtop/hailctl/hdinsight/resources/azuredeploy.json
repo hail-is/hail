@@ -106,16 +106,11 @@
     },
     "resources": [
         {
-            "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
-            "apiVersion": "2021-06-01",
-            "name": "[format('{0}/default/{1}', parameters('storageAccountName'), parameters('storageContainerName'))]"
-        },
-        {
             "apiVersion": "2015-03-01-preview",
             "name": "[parameters('clusterName')]",
             "type": "Microsoft.HDInsight/clusters",
             "location": "[parameters('location')]",
-            "dependsOn": ["[resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', parameters('storageAccountName'), 'default', parameters('storageContainerName'))]"],
+            "dependsOn": [],
             "tags": {},
             "properties": {
                 "clusterVersion": "4.0",
@@ -197,7 +192,7 @@
     "outputs": {
         "storage": {
             "type": "object",
-            "value": "[reference(resourceId('Microsoft.Storage/storageAccounts', format('storage{0}', uniqueString(resourceGroup().id))))]"
+            "value": "[resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', parameters('storageAccountName'), 'default', parameters('storageContainerName'))]"
         },
         "cluster": {
             "type": "object",
