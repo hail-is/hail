@@ -108,14 +108,14 @@
         {
             "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
             "apiVersion": "2021-06-01",
-            "name": "[parameters('storageContainerName')]"
+            "name": "[format('{0}/default/{1}', parameters('storageAccountName'), parameters('storageContainerName'))]"
         },
         {
             "apiVersion": "2015-03-01-preview",
             "name": "[parameters('clusterName')]",
             "type": "Microsoft.HDInsight/clusters",
             "location": "[parameters('location')]",
-            "dependsOn": ["[resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', parameters('storageContainerName'))]"],
+            "dependsOn": ["[resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', format('{0}/default/{1}', parameters('storageAccountName'), parameters('storageContainerName')))]"],
             "tags": {},
             "properties": {
                 "clusterVersion": "4.0",
@@ -137,10 +137,10 @@
                 "storageProfile": {
                     "storageaccounts": [
                         {
-                            "name": "[replace(replace(reference(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccount'))).primaryEndpoints.blob, 'https://', ''), '/', '')]]",
+                            "name": "[replace(replace(reference(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))).primaryEndpoints.blob, 'https://', ''), '/', '')]]",
                             "isDefault": true,
-                            "container": "parameters('storageContainerName')",
-                            "key": "[listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccount')), '2021-04-01').keys[0].value]"
+                            "container": "format('{0}/default/{1}', parameters('storageAccountName'), parameters('storageContainerName'))",
+                            "key": "[listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2021-04-01').keys[0].value]"
                         }
                     ]
                 },
