@@ -1923,6 +1923,7 @@ steps:
     config: grafana/deployment.yaml
     scopes:
       - deploy
+      - test
       - dev
     dependsOn:
       - default_ns
