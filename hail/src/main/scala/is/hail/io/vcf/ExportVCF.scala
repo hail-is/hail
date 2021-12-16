@@ -361,6 +361,7 @@ object ExportVCF {
         mv.rvRowPType.field("filters").typ.asInstanceOf[PSet]
       else {
         warn(s"export_vcf expects field 'filters' to be of type set<str>, ignoring existing 'filters' field of type ${typ.rowType.fieldType("filters")}.")
+        null
       }
     } else null
 
