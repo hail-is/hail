@@ -137,7 +137,7 @@
                 "storageProfile": {
                     "storageaccounts": [
                         {
-                            "name": "[replace(replace(reference(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))).primaryEndpoints.blob, 'https://', ''), '/', '')]]",
+                            "name": "[replace(replace(reference(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))).primaryEndpoints.blob, 'https://', ''), '/', '')]",
                             "isDefault": true,
                             "container": "format('{0}/default/{1}', parameters('storageAccountName'), parameters('storageContainerName'))",
                             "key": "[listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2021-04-01').keys[0].value]"
