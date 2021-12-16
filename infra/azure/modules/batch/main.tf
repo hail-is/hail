@@ -149,13 +149,6 @@ module "batch_sp" {
   ]
 }
 
-# TODO Might not need this because Reader on the subscription
-# resource "azurerm_role_assignment" "batch_shared_gallery_reader" {
-#   scope                = azurerm_shared_image_gallery.batch.id
-#   role_definition_name = "Reader"
-#   principal_id         = module.batch_sp.principal_id
-# }
-
 resource "azurerm_role_assignment" "batch_batch_account_contributor" {
   scope                = azurerm_storage_account.batch.id
   role_definition_name = "Storage Blob Data Contributor"
@@ -201,13 +194,6 @@ module "test_sp" {
     "Log Analytics Contributor"
   ]
 }
-
-# TODO Might not need this because reader on the subscription
-# resource "azurerm_role_assignment" "test_shared_gallery_reader" {
-#   scope                = azurerm_shared_image_gallery.batch.id
-#   role_definition_name = "Reader"
-#   principal_id         = module.test_sp.principal_id
-# }
 
 resource "azurerm_role_assignment" "test_test_container_contributor" {
   scope                = azurerm_storage_container.test.resource_manager_id
