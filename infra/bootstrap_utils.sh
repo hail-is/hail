@@ -14,11 +14,13 @@ render_config_mk() {
     INTERNAL_IP=$(get_global_config_field internal_ip)
     IP=$(get_global_config_field ip)
     DOMAIN=$(get_global_config_field domain)
+    CLOUD=$(get_global_config_field cloud)
     cat >$HAIL/config.mk <<EOF
 DOCKER_PREFIX := $DOCKER_PREFIX
 INTERNAL_IP := $INTERNAL_IP
 IP := $IP
 DOMAIN := $DOMAIN
+CLOUD := $CLOUD
 
 ifeq (\$(NAMESPACE),default)
 SCOPE = deploy

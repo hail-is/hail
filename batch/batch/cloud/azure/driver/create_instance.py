@@ -138,6 +138,9 @@ sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/batch /batch
 sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/logs/
 sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/logs /logs
 
+sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/cloudfuse/
+sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/cloudfuse /cloudfuse
+
 # Forward syslog logs to Log Analytics Agent
 cat >>/etc/rsyslog.d/95-omsagent.conf <<EOF
 kern.warning       @127.0.0.1:25224
@@ -247,12 +250,13 @@ docker run \
 -v /batch:/batch:shared \
 -v /logs:/logs \
 -v /global-config:/global-config \
--v /gcsfuse:/gcsfuse:shared \
+-v /cloudfuse:/cloudfuse:shared \
 -v /etc/netns:/etc/netns \
 -v /sys/fs/cgroup:/sys/fs/cgroup \
 --mount type=bind,source=/mnt/disks/$WORKER_DATA_DISK_NAME,target=/host \
 --mount type=bind,source=/dev,target=/dev,bind-propagation=rshared \
 -p 5000:5000 \
+--device /dev/fuse \
 --device $XFS_DEVICE \
 --device /dev \
 --privileged \
