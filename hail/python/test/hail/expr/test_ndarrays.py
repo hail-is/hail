@@ -1173,5 +1173,14 @@ def test_maximum_minimuim():
     assert(nan_max.size == max_matches)
     assert(nan_min.size == min_matches)
 
+def test_ndarray_sqrt():
+    nd = hl.nd.array([[1, 4, 9], [16, 25, 36]])
+    nd_sqrt = hl.eval(hl.nd.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]))
+    nd = hl.eval(hl.sqrt(nd))
+    assert(np.array_equal(nd, nd_sqrt))
 
-
+def test_ndarray_log10():
+    nd = hl.nd.array([[10, 100, 1000], [10000, 100000, 1000000]])
+    nd_log10 = hl.eval(hl.nd.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]))
+    nd = hl.eval(hl.log10(nd))
+    assert(np.array_equal(nd, nd_log10))

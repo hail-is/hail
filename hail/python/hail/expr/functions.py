@@ -45,6 +45,14 @@ def _seeded_func(name, ret_type, seed, *args):
     indices, aggregations = unify_all(*args)
     return construct_expr(ir.ApplySeeded(name, seed, ret_type, *(a._ir for a in args)), ret_type, indices, aggregations)
 
+def ndarray_broadcasting(func):
+    def broadcast_or_not(x):
+        if isinstance(x.dtype, tndarray):
+            return x.map(lambda term: func(term))
+        else:
+            return func(x)
+    return broadcast_or_not
+
 
 @typecheck(a=expr_array(), x=expr_any)
 def _lower_bound(a, x):
@@ -808,7 +816,8 @@ def dpois(x, lamb, log_p=False) -> Float64Expression:
     return _func("dpois", tfloat64, x, lamb, log_p)
 
 
-@typecheck(x=expr_float64)
+@typecheck(x=oneof(expr_float64, expr_ndarray(expr_float64)))
+@ndarray_broadcasting
 def exp(x) -> Float64Expression:
     """Computes `e` raised to the power `x`.
 
@@ -820,11 +829,11 @@ def exp(x) -> Float64Expression:
 
     Parameters
     ----------
-    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64` or :class:`.NDArrayNumericExpression`
 
     Returns
     -------
-    :class:`.Expression` of type :py:data:`.tfloat64`
+    :class:`.Expression` of type :py:data:`.tfloat64` or :class:`.NDArrayNumericExpression`
     """
     return _func("exp", tfloat64, x)
 
@@ -1568,7 +1577,8 @@ def is_missing(expression) -> BooleanExpression:
     return apply_expr(lambda x: ir.IsNA(x), tbool, expression)
 
 
-@typecheck(x=expr_oneof(expr_float32, expr_float64))
+@typecheck(x=expr_oneof(expr_float32, expr_float64, expr_ndarray(expr_float64)))
+@ndarray_broadcasting
 def is_nan(x) -> BooleanExpression:
     """Returns ``True`` if the argument is ``nan`` (not a number).
 
@@ -1593,17 +1603,19 @@ def is_nan(x) -> BooleanExpression:
     Parameters
     ----------
     x : float or :class:`.Expression` of type :py:data:`.tfloat64`
-        Expression to test.
+        Expression to test or  or :class:`.NDArrayNumericExpression`.
 
     Returns
     -------
     :class:`.BooleanExpression`
-        ``True`` if `x` is ``nan``, ``False`` otherwise.
+        ``True`` if `x` is ``nan``, ``False`` otherwise or
+         :class:`.NDArrayNumericExpression` filled with such values
     """
     return _func("isnan", tbool, x)
 
 
-@typecheck(x=expr_oneof(expr_float32, expr_float64))
+@typecheck(x=expr_oneof(expr_float32, expr_float64, expr_ndarray(expr_float64)))
+@ndarray_broadcasting
 def is_finite(x) -> BooleanExpression:
     """Returns ``True`` if the argument is a finite floating-point number.
 
@@ -1627,16 +1639,18 @@ def is_finite(x) -> BooleanExpression:
 
     Parameters
     ----------
-    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64` or :class:`.NDArrayNumericExpression`
+
 
     Returns
     -------
-    :class:`.BooleanExpression`
+    :class:`.BooleanExpression`  or :class:`.NDArrayNumericExpression` filled with such expressions
     """
     return _func("is_finite", tbool, x)
 
 
-@typecheck(x=expr_oneof(expr_float32, expr_float64))
+@typecheck(x=expr_oneof(expr_float32, expr_float64, expr_ndarray(expr_float64)))
+@ndarray_broadcasting
 def is_infinite(x) -> BooleanExpression:
     """Returns ``True`` if the argument is positive or negative infinity.
 
@@ -1660,11 +1674,11 @@ def is_infinite(x) -> BooleanExpression:
 
     Parameters
     ----------
-    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64` or :class:`.NDArrayNumericExpression`
 
     Returns
     -------
-    :class:`.BooleanExpression`
+    :class:`.BooleanExpression` or :class:`.NDArrayNumericExpression` filled with such expressions
     """
     return _func("is_infinite", tbool, x)
 
@@ -1756,7 +1770,8 @@ def log(x, base=None) -> Float64Expression:
         return _func("log", tfloat64, x)
 
 
-@typecheck(x=expr_float64)
+@typecheck(x=oneof(expr_float64, expr_ndarray(expr_float64)))
+@ndarray_broadcasting
 def log10(x) -> Float64Expression:
     """Take the logarithm of the `x` with base 10.
 
@@ -1771,16 +1786,17 @@ def log10(x) -> Float64Expression:
 
     Parameters
     ----------
-    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64` or :class:`.NDArrayNumericExpression`
 
     Returns
     -------
-    :class:`.Expression` of type :py:data:`.tfloat64`
+    :class:`.Expression` of type :py:data:`.tfloat64` or :class:`.NDArrayNumericExpression`
     """
     return _func("log10", tfloat64, x)
 
 
-@typecheck(x=expr_float64)
+@typecheck(x=oneof(expr_float64, expr_ndarray(expr_float64)))
+@ndarray_broadcasting
 def logit(x) -> Float64Expression:
     """The logistic function.
 
@@ -1793,16 +1809,17 @@ def logit(x) -> Float64Expression:
 
     Parameters
     ----------
-    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64` or :class:`.NDArrayNumericExpression`
 
     Returns
     -------
-    :class:`.Expression` of type :py:data:`.tfloat64`
+    :class:`.Expression` of type :py:data:`.tfloat64` or :class:`.NDArrayNumericExpression`
     """
     return hl.log(x / (1 - x))
 
 
-@typecheck(x=expr_float64)
+@typecheck(x=oneof(expr_float64, expr_ndarray(expr_float64)))
+@ndarray_broadcasting
 def expit(x) -> Float64Expression:
     """The logistic sigmoid function.
 
@@ -1816,11 +1833,11 @@ def expit(x) -> Float64Expression:
 
     Parameters
     ----------
-    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64` or :class:`.NDArrayNumericExpression`
 
     Returns
     -------
-    :class:`.Expression` of type :py:data:`.tfloat64`
+    :class:`.Expression` of type :py:data:`.tfloat64` or :class:`.NDArrayNumericExpression`
     """
     return hl.if_else(x >= 0, 1 / (1 + hl.exp(-x)), hl.rbind(hl.exp(x), lambda exped: exped / (exped + 1)))
 
@@ -2731,12 +2748,9 @@ def rand_dirichlet(a, seed=None) -> ArrayExpression:
                                     0.0,
                                     hl.rand_gamma(p, 1, seed=seed))))
 
-def sqrt_wrapper(sqrt_func):
-    def check_type_sqrt(expr):
-        if expr.typ == tndarray:
-            expr.map
 
-@typecheck(x=expr_float64)
+@typecheck(x=oneof(expr_float64, expr_ndarray(expr_float64)))
+@ndarray_broadcasting
 def sqrt(x) -> Float64Expression:
     """Returns the square root of `x`.
 
@@ -2753,11 +2767,11 @@ def sqrt(x) -> Float64Expression:
 
     Parameters
     ----------
-    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64`  or :class:`.NDArrayNumericExpression`
 
     Returns
     -------
-    :class:`.Expression` of type :py:data:`.tfloat64`
+    :class:`.Expression` of type :py:data:`.tfloat64`  or :class:`.NDArrayNumericExpression`
     """
     return _func("sqrt", tfloat64, x)
 
