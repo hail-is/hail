@@ -328,7 +328,6 @@ object EmitStream {
                 dictState.init(cb, { cb => emitVoid(initAggs, cb, container = Some(initContainer)) })
 
                 cb.define(getElemLabel)
-                cb.println("getElemLabel")
                 cb.println("go to childProduce.LProduceElement")
 
                 if (childProducer.requiresMemoryManagementPerElement)

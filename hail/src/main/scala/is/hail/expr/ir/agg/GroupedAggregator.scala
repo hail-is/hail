@@ -80,11 +80,12 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
     def get: Code[Long] = storageType.fieldOffset(off, 2)
   }
 
-  override def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Value[Boolean] =
-    cb.memoize(Region.loadInt(storageType.fieldOffset(off, 1)) < 0)
+  override def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Value[Boolean] = {
+    val lookedUpInt = cb.memoize(Region.loadInt(storageType.fieldOffset(off, 1)))
+    cb.memoize(lookedUpInt < 0)
+  }
 
-  override def initializeEmpty(cb: EmitCodeBuilder, off: Code[Long]): Unit =
-    cb += Region.storeInt(storageType.fieldOffset(off, 1), -1)
+  override def initializeEmpty(cb: EmitCodeBuilder, off: Code[Long]): Unit = cb += Region.storeInt(storageType.fieldOffset(off, 1), -1)
 
   override def copy(cb: EmitCodeBuilder, src: Code[Long], dest: Code[Long]): Unit =
     storageType.storeAtAddress(cb, dest, region, storageType.loadCheapSCode(cb, src), deepCopy = false)
