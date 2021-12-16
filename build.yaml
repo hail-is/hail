@@ -3760,7 +3760,7 @@ steps:
                              origin \
                              /io/repo/hail/build/deploy/dist/hail-*-py3-none-any.whl \
                              /io/github-oauth \
-                             hailgenetics_hail_image
+                             {{ hailgenetics_hail_image.image }}
     inputs:
       - from: /hail_version
         to: /io/hail_version
