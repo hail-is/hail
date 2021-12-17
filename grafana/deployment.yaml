@@ -60,6 +60,13 @@ spec:
           - name: GF_SERVER_ROOT_URL
             value: "%(protocol)s://%(domain)s/{{ default_ns.name }}/grafana/"
 {% endif %}
+{% if global.cloud == 'gcp' %}
+          - name: GCP_PROJECT
+            valueFrom:
+              secretKeyRef:
+                name: global-config
+                key: gcp_project
+{% endif %}
          volumeMounts:
           - mountPath: /var/lib/grafana
             name: grafana-storage
@@ -138,7 +145,7 @@ data:
         isDefault: true
         jsonData:
           authenticationType: gce
-          defaultProject: {{ global.gcp_project }}
+          defaultProject: $GCP_PROJECT
         editable: true
 {% endif %}
       - name: Prometheus
