@@ -32,7 +32,7 @@ def init_parser(parser):
     parser.add_argument('--wheel-uri',
                         type=str,
                         default=f'https://storage.googleapis.com/hail-common/azure-hdinsight-wheels/hail-{pip_version()}-py3-none-any.whl',
-                        help='A custom wheel file to use. Must be accessible by the cluster\'s head nodes. http(s) and wasb(s) protocols are both acceptable')
+                        help='A custom wheel file to use. Must be accessible by the cluster\'s head nodes. only http(s) protocol is acceptable')
 
 
 async def main(args, pass_through_args):
