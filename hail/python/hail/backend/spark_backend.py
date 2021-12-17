@@ -143,6 +143,9 @@ class SparkBackend(Py4JBackend):
             conf.set('spark.jars', ','.join(jars))
             if os.environ.get('AZURE_SPARK') == '1':
                 print('AZURE_SPARK environment variable is set to "1", assuming you are in HDInsight.')
+                # Setting extraClassPath in HDInsight overrides the classpath entirely so you can't
+                # load the Scala standard library. Interestingly, setting extraClassPath is not
+                # necessary in HDInsight.
             else:
                 conf.set('spark.driver.extraClassPath', ','.join(jars))
                 conf.set('spark.executor.extraClassPath', './hail-all-spark.jar')
