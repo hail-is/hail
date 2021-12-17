@@ -31,13 +31,6 @@ def main(args):
         sys.exit(0)
     jmp = {
         'start': start,
-        # 'submit': submit,
-        # 'connect': connect,
-        # 'diagnose': diagnose,
-        # 'stop': stop,
-        # 'list': list_clusters,
-        # 'modify': modify,
-        # 'describe': describe,
     }
 
     args, pass_through_args = p.parse_known_args(args=args)
