@@ -5,7 +5,7 @@ from collections import defaultdict, Counter
 from shlex import quote as shq
 import yaml
 import jinja2
-from typing import Dict, List, Optional
+from typing import Dict, List
 from hailtop.utils import flatten
 from .utils import generate_token
 from .environment import (
