@@ -368,6 +368,7 @@ done
                     'type': 'OmsAgentForLinux',
                     'typeHandlerVersion': '1.13',
                     'autoUpgradeMinorVersion': False,
+                    'enableAutomaticUpgrade': False,
                     'settings': {
                         'workspaceId': "[reference(resourceId('Microsoft.OperationalInsights/workspaces/', parameters('workspaceName')), '2015-03-20').customerId]"
                     },
