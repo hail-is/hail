@@ -22,17 +22,28 @@ grep -E '^Requires-Dist:' $site_packages/hail-$hail_pip_version.dist-info/METADA
     > requirements.txt
 python3 -m pip install -r requirements.txt
 /usr/bin/anaconda/bin/conda install ipykernel --yes
-python3 -m ipykernel install --user
-rm -rf /usr/bin/anaconda/envs/py37/bin/python
+python3 -m ipykernel install
 
-# curl -u admin:LongPassword1 -H 'X-Requested-By: ambari' -X PUT -d '{
-#     "RequestInfo": {"context": "put services into STOPPED state"},
-#     "Body": {"ServiceInfo": {"state" : "INSTALLED"}}
-# }' https://dkingtest25.azurehdinsight.net/api/v1/clusters/dkingtest25/services/JUPYTER/
+spark_monitor_gs=https://storage.googleapis.com/hail-common/sparkmonitor-3357488112c6c162c12f8386faaadcbf3789ac02/sparkmonitor-0.0.12-py3-none-any.whl
+curl -LO $spark_monitor_gs
+python3 -m pip install $(basename $spark_monitor_gs) widgetsnbextension
+jupyter serverextension enable --user --py sparkmonitor
+jupyter nbextension install --user --py sparkmonitor
+jupyter nbextension enable --user --py sparkmonitor
+/usr/bin/anaconda/bin/jupyter nbextension enable --user --py widgetsnbextension
+echo "c.InteractiveShellApp.extensions.append('sparkmonitor.kernelextension')" \
+     >> /home/spark/.ipython/profile_default/ipython_kernel_config.py
 
-# sleep 15
+curl -u admin:LongPassword1 -H 'X-Requested-By: ambari' -X PUT -d '{
+    "RequestInfo": {"context": "put services into STOPPED state"},
+    "Body": {"ServiceInfo": {"state" : "INSTALLED"}}
+}' https://dkingtest25.azurehdinsight.net/api/v1/clusters/dkingtest25/services/JUPYTER/
 
-# curl -u admin:LongPassword1 -H 'X-Requested-By: ambari' -X PUT -d '{
-#     "RequestInfo": {"context": "put services into STARTED state"},
-#     "Body": {"ServiceInfo": {"state" : "STARTED"}}
-# }' https://dkingtest25.azurehdinsight.net/api/v1/clusters/dkingtest25/services/JUPYTER/
+sleep 10
+
+curl -u admin:LongPassword1 -H 'X-Requested-By: ambari' -X PUT -d '{
+    "RequestInfo": {"context": "put services into STARTED state"},
+    "Body": {"ServiceInfo": {"state" : "STARTED"}}
+}' https://dkingtest25.azurehdinsight.net/api/v1/clusters/dkingtest25/services/JUPYTER/
+
+mv /usr/bin/anaconda/envs/py37/bin/python /usr/bin/anaconda/envs/py37/bin/python.bak
