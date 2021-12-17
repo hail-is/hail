@@ -196,7 +196,7 @@ spec:
          resources:
            requests:
              cpu: "1"
-             memory: 5G
+             memory: 4G
            limits:
              cpu: "1"
              memory: 10G
