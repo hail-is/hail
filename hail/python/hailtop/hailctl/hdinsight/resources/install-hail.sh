@@ -5,10 +5,6 @@ set -ex
 hail_pip_specifier=$1
 hail_pip_version=$2
 
-apt-get install -y \
-    g++ \
-    libopenblas-base liblapack3
-
 /usr/bin/anaconda/bin/conda create -n py37 python=3.7 --yes
 source /usr/bin/anaconda/bin/activate py37
 # this installs a bunch of jupyter dependencies...
@@ -32,6 +28,7 @@ jupyter serverextension enable --user --py sparkmonitor
 jupyter nbextension install --user --py sparkmonitor
 jupyter nbextension enable --user --py sparkmonitor
 /usr/bin/anaconda/bin/jupyter nbextension enable --user --py widgetsnbextension
+mkdir -p /home/spark/.ipython/profile_default
 echo "c.InteractiveShellApp.extensions.append('sparkmonitor.kernelextension')" \
      >> /home/spark/.ipython/profile_default/ipython_kernel_config.py
 
