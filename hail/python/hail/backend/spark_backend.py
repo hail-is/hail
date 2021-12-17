@@ -153,8 +153,8 @@ class SparkBackend(Py4JBackend):
                     'pip-installed Hail requires additional configuration options in Spark referring\n'
                     '  to the path to the Hail Python module directory HAIL_DIR,\n'
                     '  e.g. /path/to/python/site-packages/hail:\n'
-                    '    spark.jars=HAIL_DIR/backend/hail-all-spark.jar\n'
-                    '    spark.driver.extraClassPath=HAIL_DIR/backend/hail-all-spark.jar\n'
+                    '    spark.jars=HAIL_DIR/hail-all-spark.jar\n'
+                    '    spark.driver.extraClassPath=HAIL_DIR/hail-all-spark.jar\n'
                     '    spark.executor.extraClassPath=./hail-all-spark.jar')
         else:
             pyspark.SparkContext._ensure_initialized()
