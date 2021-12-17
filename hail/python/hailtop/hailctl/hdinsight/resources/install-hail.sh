@@ -4,6 +4,7 @@ set -ex
 
 hail_pip_specifier=$1
 hail_pip_version=$2
+cluster_name=$3
 
 /usr/bin/anaconda/bin/conda create -n py37 python=3.7 --yes
 source /usr/bin/anaconda/bin/activate py37
@@ -35,13 +36,13 @@ echo "c.InteractiveShellApp.extensions.append('sparkmonitor.kernelextension')" \
 curl -u admin:LongPassword1 -H 'X-Requested-By: ambari' -X PUT -d '{
     "RequestInfo": {"context": "put services into STOPPED state"},
     "Body": {"ServiceInfo": {"state" : "INSTALLED"}}
-}' https://dkingtest25.azurehdinsight.net/api/v1/clusters/dkingtest25/services/JUPYTER/
+}' https://$cluster_name.azurehdinsight.net/api/v1/clusters/dkingtest25/services/JUPYTER/
 
 sleep 10
 
 curl -u admin:LongPassword1 -H 'X-Requested-By: ambari' -X PUT -d '{
     "RequestInfo": {"context": "put services into STARTED state"},
     "Body": {"ServiceInfo": {"state" : "STARTED"}}
-}' https://dkingtest25.azurehdinsight.net/api/v1/clusters/dkingtest25/services/JUPYTER/
+}' https://$cluster_name.azurehdinsight.net/api/v1/clusters/dkingtest25/services/JUPYTER/
 
 mv /usr/bin/anaconda/envs/py37/bin/python /usr/bin/anaconda/envs/py37/bin/python.bak
