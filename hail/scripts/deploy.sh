@@ -82,6 +82,11 @@ retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE docker://gcr.io/hail-vdc/hailgenetic
 # deploy to PyPI
 twine upload $WHEEL
 
+# deploy wheel for Azure HDInsight
+wheel_for_azure_url=gs://hail-common/azure-hdinsight-wheels/$(basename $WHEEL_FOR_AZURE)
+gsutil cp $WHEEL_FOR_AZURE $wheel_for_azure_url
+gsutil -m retention temp set $wheel_for_azure_url
+
 # update docs sha
 cloud_sha_location=gs://hail-common/builds/0.2/latest-hash/cloudtools-5-spark-2.4.0.txt
 printf "$GIT_VERSION" | gsutil cp  - $cloud_sha_location
@@ -91,3 +96,4 @@ gsutil acl set public-read $cloud_sha_location
 datasets_json_url=gs://hail-common/annotationdb/$HAIL_VERSION/datasets.json
 gsutil cp python/hail/experimental/datasets.json $datasets_json_url
 gsutil -m retention temp set $datasets_json_url
+

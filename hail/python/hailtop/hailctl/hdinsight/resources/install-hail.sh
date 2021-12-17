@@ -33,16 +33,4 @@ mkdir -p /home/spark/.ipython/profile_default
 echo "c.InteractiveShellApp.extensions.append('sparkmonitor.kernelextension')" \
      >> /home/spark/.ipython/profile_default/ipython_kernel_config.py
 
-curl -u admin:LongPassword1 -H 'X-Requested-By: ambari' -X PUT -d '{
-    "RequestInfo": {"context": "put services into STOPPED state"},
-    "Body": {"ServiceInfo": {"state" : "INSTALLED"}}
-}' https://$cluster_name.azurehdinsight.net/api/v1/clusters/dkingtest25/services/JUPYTER/
-
-sleep 10
-
-curl -u admin:LongPassword1 -H 'X-Requested-By: ambari' -X PUT -d '{
-    "RequestInfo": {"context": "put services into STARTED state"},
-    "Body": {"ServiceInfo": {"state" : "STARTED"}}
-}' https://$cluster_name.azurehdinsight.net/api/v1/clusters/dkingtest25/services/JUPYTER/
-
 mv /usr/bin/anaconda/envs/py37/bin/python /usr/bin/anaconda/envs/py37/bin/python.bak

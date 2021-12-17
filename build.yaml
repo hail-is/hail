@@ -3783,13 +3783,16 @@ steps:
       time retry ./gradlew --version
       make wheel upload-artifacts DEPLOY_REMOTE=origin
 
+      (cd /io/wheel-for-azure && tar xvf /io/wheel-for-azure-container.tar)
+
       bash scripts/deploy.sh $(cat /io/hail_pip_version) \
                              $(cat /io/hail_version) \
                              $(cat /io/git_version) \
                              origin \
                              /io/repo/hail/build/deploy/dist/hail-*-py3-none-any.whl \
                              /io/github-oauth \
-                             docker://{{ hailgenetics_hail_image.image }}
+                             docker://{{ hailgenetics_hail_image.image }} \
+                             /io/wheel-for-azure/hail-*-py3-none-any.whl
     inputs:
       - from: /hail_version
         to: /io/hail_version
@@ -3799,6 +3802,8 @@ steps:
         to: /io/git_version
       - from: /repo
         to: /io/repo
+      - from: /wheel-for-azure-container.tar
+        to: /io/wheel-for-azure-container.tar
     secrets:
       - name: pypi-credentials
         namespace:
@@ -3826,6 +3831,7 @@ steps:
       - build_hail
       - merge_code
       - hailgenetics_hail_image
+      - build_wheel_for_azure
     clouds:
       - gcp
   - kind: buildImage2
