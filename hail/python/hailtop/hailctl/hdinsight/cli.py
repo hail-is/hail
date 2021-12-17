@@ -17,58 +17,9 @@ def parser():
         'start',
         help='Start an HDInsight cluster configured for Hail.',
         description='Start an HDInsight cluster configured for Hail.')
-    # submit_parser = subparsers.add_parser(
-    #     'submit',
-    #     help='Submit a Python script to a running Dataproc cluster.',
-    #     description='Submit a Python script to a running Dataproc cluster. To pass arguments to the '
-    #                 'script being submitted, just list them after the name of the script.')
-    # connect_parser = subparsers.add_parser(
-    #     'connect',
-    #     help='Connect to a running Dataproc cluster.',
-    #     description='Connect to a running Dataproc cluster.')
-    # diagnose_parser = subparsers.add_parser(
-    #     'diagnose',
-    #     help='Diagnose problems in a Dataproc cluster.',
-    #     description='Diagnose problems in a Dataproc cluster.')
-    # stop_parser = subparsers.add_parser(
-    #     'stop',
-    #     help='Shut down a Dataproc cluster.',
-    #     description='Shut down a Dataproc cluster.')
-    # list_parser = subparsers.add_parser(
-    #     'list',
-    #     help='List active Dataproc clusters.',
-    #     description='List active Dataproc clusters.')
-    # modify_parser = subparsers.add_parser(
-    #     'modify',
-    #     help='Modify active Dataproc clusters.',
-    #     description='Modify active Dataproc clusters.')
-    # describe_parser = subparsers.add_parser(
-    #     'describe',
-    #     help='Gather information about a hail file (including the schema)',
-    #     description='Gather information about a hail file (including the schema)')
 
     start_parser.set_defaults(module='start')
     start.init_parser(start_parser)
-
-    # submit_parser.set_defaults(module='submit')
-    # submit.init_parser(submit_parser)
-
-    # connect_parser.set_defaults(module='connect')
-    # connect.init_parser(connect_parser)
-
-    # diagnose_parser.set_defaults(module='diagnose')
-    # diagnose.init_parser(diagnose_parser)
-
-    # stop_parser.set_defaults(module='stop')
-    # stop.init_parser(stop_parser)
-
-    # list_parser.set_defaults(module='list')
-
-    # modify_parser.set_defaults(module='modify')
-    # modify.init_parser(modify_parser)
-
-    # describe_parser.set_defaults(module='describe')
-    # describe.init_parser(describe_parser)
 
     return main_parser
 
