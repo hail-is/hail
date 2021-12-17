@@ -96,4 +96,3 @@ gsutil acl set public-read $cloud_sha_location
 datasets_json_url=gs://hail-common/annotationdb/$HAIL_VERSION/datasets.json
 gsutil cp python/hail/experimental/datasets.json $datasets_json_url
 gsutil -m retention temp set $datasets_json_url
-
