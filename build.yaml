@@ -815,6 +815,30 @@ steps:
     dependsOn:
       - hail_build_image
       - merge_code
+  - kind: runImage
+    name: build_wheel_for_azure
+    image:
+      valueFrom: hail_build_image.image
+    resources:
+      memory: standard
+      cpu: '4'
+    script: |
+      set -ex
+      cd /io/repo/hail
+      chmod 755 ./gradlew
+      time retry ./gradlew --version
+      export SPARK_VERSION="3.0.2" SCALA_VERSION="2.12.10"
+      time retry make wheel
+      (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
+    inputs:
+      - from: /repo
+        to: /io/repo
+    outputs:
+      - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
+        to: /wheel-for-azure-container.tar
+    dependsOn:
+      - hail_build_image
+      - merge_code
   - kind: buildImage2
     name: batch_worker_image
     dockerFile: /io/repo/batch/Dockerfile.worker
