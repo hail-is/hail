@@ -2,7 +2,8 @@
 
 set -ex
 
-hail_pip_version=$1
+hail_pip_specifier=$1
+hail_pip_version=$2
 
 apt-get install -y \
     g++ \
@@ -12,7 +13,7 @@ apt-get install -y \
 source /usr/bin/anaconda/bin/activate py37
 # this installs a bunch of jupyter dependencies...
 # python3 -m pip install 'https://github.com/hail-is/jgscm/archive/v0.1.12+hail.zip'
-python3 -m pip install "hail==$hail_pip_version" --no-dependencies
+python3 -m pip install "$hail_pip_specifier" --no-dependencies
 site_packages=$(python3 -m pip show hail| grep -E 'Location:' | sed -E 's/^Location: //')
 # https://www.python.org/dev/peps/pep-0440/#version-specifiers
 grep -E '^Requires-Dist:' $site_packages/hail-$hail_pip_version.dist-info/METADATA \
