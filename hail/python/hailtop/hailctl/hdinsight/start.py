@@ -13,14 +13,6 @@ import yaml
 
 from ... import pip_version
 
-DEFAULT_PROPERTIES = {
-    "spark:spark.task.maxFailures": "20",
-    "spark:spark.driver.extraJavaOptions": "-Xss4M",
-    "spark:spark.executor.extraJavaOptions": "-Xss4M",
-    'spark:spark.speculation': 'true',
-    "hdfs:dfs.replication": "1",
-}
-
 def init_parser(parser):
     parser.add_argument('cluster_name', type=str, help='Cluster name.')
     parser.add_argument('http_password', type=str, help='Password for web access.')
@@ -84,10 +76,10 @@ async def main(args, pass_through_args):
         "RequestInfo": {"context": "put services into STARTED state"},
         "Body": {"ServiceInfo": {"state" : "STARTED"}}
     })
-    stop_curl, start_curl = [f'''curl -u admin:{args.http_password} \
+    stop_curl, start_curl = [f'''curl -u admin:{shq(args.http_password)} \
     -H 'X-Requested-By: ambari' \
     -X PUT \
-    -d {shq(command)} https://{args.cluster_name}.azurehdinsight.net/api/v1/clusters/{args.cluster_name}/services/JUPYTER/'''
+    -d {shq(command)} https://{shq(args.cluster_name)}.azurehdinsight.net/api/v1/clusters/{shq(args.cluster_name)}/services/JUPYTER/'''
                              for command in [stop, start]]
 
     print('Restarting Jupyter. You will be prompted for the sshuser password.')
