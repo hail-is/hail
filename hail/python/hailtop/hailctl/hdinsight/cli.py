@@ -39,17 +39,3 @@ def main(args):
 
     asyncio.get_event_loop().run_until_complete(
         jmp[args.module].main(args, pass_through_args))
-'''
-curl -u admin:LongPassword1 -H 'X-Requested-By: ambari' -X PUT -d '{
-    "RequestInfo": {"context": "put services into STOPPED state"},
-    "Body": {"ServiceInfo": {"state" : "INSTALLED"}}
-}' https://$cluster_name.azurehdinsight.net/api/v1/clusters/dkingtest25/services/JUPYTER/
-
-sleep 10
-
-curl -u admin:LongPassword1 -H 'X-Requested-By: ambari' -X PUT -d '{
-    "RequestInfo": {"context": "put services into STARTED state"},
-    "Body": {"ServiceInfo": {"state" : "STARTED"}}
-}' https://$cluster_name.azurehdinsight.net/api/v1/clusters/dkingtest25/services/JUPYTER/
-
-'''
