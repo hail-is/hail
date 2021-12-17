@@ -18,6 +18,7 @@ def init_parser(parser):
     parser.add_argument('http_password', type=str, help='Password for web access.')
     parser.add_argument('sshuser_password', type=str, help='Password for ssh access.')
     parser.add_argument('storage_account', type=str, help='Storage account in which to create a container for ephemeral cluster data.')
+    parser.add_argument('resource_group', type=str, help='Resource group in which to place cluster.')
     parser.add_argument('--location', type=str, default='eastus', help='Azure location in which to place the cluster.')
     parser.add_argument('--num-workers', type=str, default='2', help='Initial number of workers.')
     parser.add_argument('--install-hail-uri',
@@ -38,7 +39,7 @@ async def main(args, pass_through_args):
     print(f'Starting the cluster {args.cluster_name}')
     bash('az', 'hdinsight', 'create',
          '--name', args.cluster_name,
-         '--resource-group', 'dking-hdinsight-experiments',
+         '--resource-group', args.resource_group,
          '--type', 'spark',
          '--component-version', 'Spark=3.0',
          '--http-password', args.http_password,
@@ -54,7 +55,7 @@ async def main(args, pass_through_args):
 
     print(f'Installing Hail on {args.cluster_name}')
     wheel_pip_version, = re.match('[^-]*-([^-]*)-.*.whl', os.path.basename(args.wheel_uri)).groups()
-    bash('az', 'hdinsight', 'script-action', 'execute', '-g', 'dking-hdinsight-experiments', '-n', 'installhail',
+    bash('az', 'hdinsight', 'script-action', 'execute', '-g', args.resource_group, '-n', 'installhail',
          '--cluster-name', args.cluster_name,
          '--script-uri', args.install_hail_uri,
          '--roles', 'headnode',
@@ -62,7 +63,7 @@ async def main(args, pass_through_args):
          '--script-parameters', f'{args.wheel_uri} {wheel_pip_version} {args.cluster_name}')
 
     print(f'Installing Hail\'s native dependencies on {args.cluster_name}')
-    bash('az', 'hdinsight', 'script-action', 'execute', '-g', 'dking-hdinsight-experiments', '-n', 'installnativedeps',
+    bash('az', 'hdinsight', 'script-action', 'execute', '-g', args.resource_group, '-n', 'installnativedeps',
          '--cluster-name', args.cluster_name,
          '--script-uri', args.install_native_deps_uri,
          '--roles', 'headnode', 'workernode',
