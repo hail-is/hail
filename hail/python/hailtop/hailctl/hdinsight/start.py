@@ -1,5 +1,5 @@
 import re
-
+import os
 import json
 import subprocess
 import sys
@@ -44,35 +44,36 @@ def init_parser(parser):
 
 async def main(args, pass_through_args):
     print(f'Starting the cluster {args.cluster_name}')
-    # bash('az', 'hdinsight', 'create',
-    #      '--name', args.cluster_name,
-    #      '--resource-group', 'dking-hdinsight-experiments',
-    #      '--type', 'spark',
-    #      '--component-version', 'Spark=3.0',
-    #      '--http-password', args.http_password,
-    #      '--http-user', 'admin',
-    #      '--location', args.location,
-    #      '--workernode-count', args.num_workers,
-    #      '--ssh-password', args.sshuser_password,
-    #      '--ssh-user', 'sshuser',
-    #      '--storage-account', args.storage_account,
-    #      '--storage-container', args.cluster_name,
-    #      '--version', '4.0',
-    #      *pass_through_args)
+    bash('az', 'hdinsight', 'create',
+         '--name', args.cluster_name,
+         '--resource-group', 'dking-hdinsight-experiments',
+         '--type', 'spark',
+         '--component-version', 'Spark=3.0',
+         '--http-password', args.http_password,
+         '--http-user', 'admin',
+         '--location', args.location,
+         '--workernode-count', args.num_workers,
+         '--ssh-password', args.sshuser_password,
+         '--ssh-user', 'sshuser',
+         '--storage-account', args.storage_account,
+         '--storage-container', args.cluster_name,
+         '--version', '4.0',
+         *pass_through_args)
 
     print(f'Installing Hail on {args.cluster_name}')
+    wheel_pip_version, = re.match('[^-]*-([^-]*)-.*.whl', os.path.basename(args.wheel_uri)).groups()
     bash('az', 'hdinsight', 'script-action', 'execute', '-g', 'dking-hdinsight-experiments', '-n', 'installhail',
          '--cluster-name', args.cluster_name,
          '--script-uri', args.install_hail_uri,
          '--roles', 'headnode',
          '--persist-on-success',
-         '--script-parameters', f'{args.wheel_uri} {pip_version()} {args.cluster_name}')
+         '--script-parameters', f'{args.wheel_uri} {wheel_pip_version} {args.cluster_name}')
 
     print(f'Installing Hail\'s native dependencies on {args.cluster_name}')
     bash('az', 'hdinsight', 'script-action', 'execute', '-g', 'dking-hdinsight-experiments', '-n', 'installnativedeps',
-         '--cluster-name', 'dkingtest25',
+         '--cluster-name', args.cluster_name,
          '--script-uri', args.install_native_deps_uri,
-         '--roles', 'headnode workernode'
+         '--roles', 'headnode', 'workernode',
          '--persist-on-success')
 
     stop = json.dumps({
@@ -83,19 +84,18 @@ async def main(args, pass_through_args):
         "RequestInfo": {"context": "put services into STARTED state"},
         "Body": {"ServiceInfo": {"state" : "STARTED"}}
     })
-    stop_curl, start_curl = [f'''curl -u admin:LongPassword1 \
+    stop_curl, start_curl = [f'''curl -u admin:{args.http_password} \
     -H 'X-Requested-By: ambari' \
     -X PUT \
-    -d {shq(command)} https://{args.cluster_name}.azurehdinsight.net/api/v1/clusters/{args.cluster_name}/services/JUPYTER/
-''' for command in [stop, start]]
+    -d {shq(command)} https://{args.cluster_name}.azurehdinsight.net/api/v1/clusters/{args.cluster_name}/services/JUPYTER/'''
+                             for command in [stop, start]]
 
     print('Restarting Jupyter. You will be prompted for the sshuser password.')
     bash('ssh',
          f'sshuser@{args.cluster_name}-ssh.azurehdinsight.net',
-         '-c',
-         f'{stop_curl}; sleep 10; {start_curl}')
+         f'set -ex ; {stop_curl} ; sleep 10 ; {start_curl}')
     print(f'''Your cluster is ready.
-https://{args.cluster_name}.azurehdinsight.net/jupyter/tree.
+https://{args.cluster_name}.azurehdinsight.net/jupyter/tree
 Web username: admin
 SSH username: sshuser
 ''')

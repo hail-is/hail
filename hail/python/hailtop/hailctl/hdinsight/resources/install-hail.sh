@@ -33,4 +33,6 @@ mkdir -p /home/spark/.ipython/profile_default
 echo "c.InteractiveShellApp.extensions.append('sparkmonitor.kernelextension')" \
      >> /home/spark/.ipython/profile_default/ipython_kernel_config.py
 
+chown -R spark:spark /home/spark
+
 mv /usr/bin/anaconda/envs/py37/bin/python /usr/bin/anaconda/envs/py37/bin/python.bak
