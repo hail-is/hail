@@ -28,7 +28,7 @@ def init_parser(parser):
     parser.add_argument('--install-native-deps-uri',
                         type=str,
                         default=f'https://raw.githubusercontent.com/hail-is/hail/{pip_version()}/hail/python/hailtop/hailctl/hdinsight/resources/install-native-deps.sh',
-                        help='A custom install hail bash script to use. Must be accessible by the cluster\'s head nodes. http(s) and wasb(s) protocols are both acceptable')
+                        help='A custom install hail bash script to use. Must be accessible by the cluster\'s nodes. http(s) and wasb(s) protocols are both acceptable')
     parser.add_argument('--wheel-uri',
                         type=str,
                         default=f'https://storage.googleapis.com/hail-common/azure-hdinsight-wheels/hail-{pip_version()}-py3-none-any.whl',
