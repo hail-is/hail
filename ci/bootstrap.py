@@ -226,7 +226,7 @@ users:
                     secrets = j._secrets
                     if secrets:
                         k8s_secrets = await asyncio.gather(
-                            *[k8s_cache.read_secret(secret['name'], secret['namespace'], 5) for secret in secrets]
+                            *[k8s_cache.read_secret(secret['name'], secret['namespace']) for secret in secrets]
                         )
 
                         for secret, k8s_secret in zip(secrets, k8s_secrets):
