@@ -12,7 +12,6 @@ import random
 import logging
 import asyncio
 import aiohttp
-import aiodocker
 from aiohttp import web
 import urllib
 import urllib3
