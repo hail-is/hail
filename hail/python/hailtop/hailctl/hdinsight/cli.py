@@ -5,6 +5,7 @@ import argparse
 
 from . import start
 
+
 def parser():
     main_parser = argparse.ArgumentParser(
         prog='hailctl dataproc',

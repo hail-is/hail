@@ -2,16 +2,15 @@ import re
 import os
 import json
 import subprocess
-import sys
 from shlex import quote as shq
+
 
 def bash(*args):
     subprocess.check_call(args)
 
-import pkg_resources
-import yaml
 
 from ... import pip_version
+
 
 def init_parser(parser):
     parser.add_argument('cluster_name', type=str, help='Cluster name.')
