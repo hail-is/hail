@@ -4,12 +4,11 @@ import json
 import subprocess
 from shlex import quote as shq
 
-
-def bash(*args):
-    subprocess.check_call(args)
-
-
 from ... import pip_version
+
+
+def exec(*args):
+    subprocess.check_call(args)
 
 
 def init_parser(parser):
@@ -36,7 +35,7 @@ def init_parser(parser):
 
 async def main(args, pass_through_args):
     print(f'Starting the cluster {args.cluster_name}')
-    bash('az', 'hdinsight', 'create',
+    exec('az', 'hdinsight', 'create',
          '--name', args.cluster_name,
          '--resource-group', args.resource_group,
          '--type', 'spark',
@@ -54,7 +53,7 @@ async def main(args, pass_through_args):
 
     print(f'Installing Hail on {args.cluster_name}')
     wheel_pip_version, = re.match('[^-]*-([^-]*)-.*.whl', os.path.basename(args.wheel_uri)).groups()
-    bash('az', 'hdinsight', 'script-action', 'execute', '-g', args.resource_group, '-n', 'installhail',
+    exec('az', 'hdinsight', 'script-action', 'execute', '-g', args.resource_group, '-n', 'installhail',
          '--cluster-name', args.cluster_name,
          '--script-uri', args.install_hail_uri,
          '--roles', 'headnode',
@@ -62,7 +61,7 @@ async def main(args, pass_through_args):
          '--script-parameters', f'{args.wheel_uri} {wheel_pip_version} {args.cluster_name}')
 
     print(f'Installing Hail\'s native dependencies on {args.cluster_name}')
-    bash('az', 'hdinsight', 'script-action', 'execute', '-g', args.resource_group, '-n', 'installnativedeps',
+    exec('az', 'hdinsight', 'script-action', 'execute', '-g', args.resource_group, '-n', 'installnativedeps',
          '--cluster-name', args.cluster_name,
          '--script-uri', args.install_native_deps_uri,
          '--roles', 'headnode', 'workernode',
@@ -83,7 +82,7 @@ async def main(args, pass_through_args):
                              for command in [stop, start]]
 
     print('Restarting Jupyter. You will be prompted for the sshuser password.')
-    bash('ssh',
+    exec('ssh',
          f'sshuser@{args.cluster_name}-ssh.azurehdinsight.net',
          f'set -ex ; {stop_curl} ; sleep 10 ; {start_curl}')
     print(f'''Your cluster is ready.
