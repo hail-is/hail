@@ -870,7 +870,7 @@ object LowerTableIR {
 
             val results: IR = ResultOp.makeTuple(aggs.aggs)
             val initState = RunAgg(
-              aggs.init,
+              Let("global", lc.globals, aggs.init),
               MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }),
               aggs.states
             )
@@ -889,7 +889,7 @@ object LowerTableIR {
 
               val codecSpec = TypedCodecSpec(PCanonicalTuple(true, aggs.aggs.map(_ => PCanonicalBinary(true)): _*), BufferSpec.wireSpec)
               val partitionPrefixSumFiles = lcWithInitBinding.mapCollectWithGlobals(relationalLetsAbove)({ part: IR =>
-                Let("global", lc.globals,
+                Let("global", lcWithInitBinding.globals,
                   RunAgg(
                     Begin(FastIndexedSeq(
                       initFromSerializedStates,
