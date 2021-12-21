@@ -24,6 +24,16 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.81
+
+Release 2021-12-20
+
+### hailctl dataproc
+
+- (hail#11182) Updated Dataproc image version to mitigate yet more Log4j vulnerabilities.
+
+---
+
 ## Version 0.2.80
 
 Release 2021-12-15
