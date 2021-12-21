@@ -24,6 +24,47 @@ class Geom(FigureAttribute):
         return ...
 
 
+class GeomBasic(Geom):
+    def __init__(self, aes, color):
+        super().__init__(aes)
+        self.color = color
+
+    def apply_to_fig(self, parent, agg_result, fig_so_far):
+
+        def plot_one_color(one_color_data, color, legend_name):
+            scatter_args = {
+                "x": [element["x"] for element in one_color_data],
+                "y": [element["y"] for element in one_color_data],
+                "mode": "lines",
+                "name": legend_name,
+                "line_color": color
+            }
+            if "tooltip" in parent.aes or "tooltip" in self.aes:
+                scatter_args["hovertext"] = [element["tooltip"] for element in one_color_data]
+            fig_so_far.add_scatter(**scatter_args)
+
+        if self.color is not None:
+            plot_one_color(agg_result, self.color, None)
+        elif "color" in parent.aes or "color" in self.aes:
+            if isinstance(agg_result[0]["color"], int):
+                # Should show colors in continuous scale.
+                raise ValueError("Do not currently support continuous color changing of lines")
+            else:
+                categorical_strings = set([element["color"] for element in agg_result])
+                unique_color_mapping = categorical_strings_to_colors(categorical_strings, parent)
+
+                for category in categorical_strings:
+                    filtered_data = [element for element in agg_result if element["color"] == category]
+                    plot_one_color(filtered_data, unique_color_mapping[category], category)
+        else:
+            plot_one_color(agg_result, "black", None)
+
+    @abc.abstractmethod
+    def get_stat(self):
+        return ...
+
+
+
 class Stat:
     @abc.abstractmethod
     def make_agg(self, x_expr, parent_struct, geom_struct):
@@ -38,6 +79,21 @@ class Stat:
 class StatIdentity(Stat):
     def make_agg(self, mapping):
         return hl.agg.collect(mapping)
+
+    def listify(self, agg_result):
+        # Collect aggregator returns a list, nothing to do.
+        return agg_result
+
+
+class StatFunction(Stat):
+
+    def __init__(self, fun):
+        self.fun = fun
+
+    def make_agg(self, x_expr, parent_struct, geom_struct):
+        combined = parent_struct.annotate(**geom_struct)
+        with_y_value = combined.annotate(y=self.fun(x_expr))
+        return hl.agg.collect(with_y_value)
 
     def listify(self, agg_result):
         # Collect aggregator returns a list, nothing to do.
@@ -154,42 +210,14 @@ def geom_point(mapping=aes(), *, color=None):
     return GeomPoint(mapping, color=color)
 
 
-class GeomLine(Geom):
+class GeomLine(GeomBasic):
 
     def __init__(self, aes, color=None):
-        super().__init__(aes)
+        super().__init__(aes, color)
         self.color = color
 
     def apply_to_fig(self, parent, agg_result, fig_so_far):
-
-        def plot_one_color(one_color_data, color, legend_name):
-            scatter_args = {
-                "x": [element["x"] for element in one_color_data],
-                "y": [element["y"] for element in one_color_data],
-                "mode": "lines",
-                "name": legend_name,
-                "line_color": color
-            }
-            if "tooltip" in parent.aes or "tooltip" in self.aes:
-                scatter_args["hovertext"] = [element["tooltip"] for element in one_color_data]
-            fig_so_far.add_scatter(**scatter_args)
-        
-
-        if self.color is not None:
-            plot_one_color(agg_result, self.color, None)
-        elif "color" in parent.aes or "color" in self.aes:
-            if isinstance(agg_result[0]["color"], int):
-                # Should show colors in continuous scale.
-                raise ValueError("Do not currently support continuous color changing of lines")
-            else:
-                categorical_strings = set([element["color"] for element in agg_result])
-                unique_color_mapping = categorical_strings_to_colors(categorical_strings, parent)
-
-                for category in categorical_strings:
-                    filtered_data = [element for element in agg_result if element["color"] == category]
-                    plot_one_color(filtered_data, unique_color_mapping[category], category)
-        else:
-            plot_one_color(agg_result, "black", None)
+        super().apply_to_fig(parent, agg_result, fig_so_far)
 
     def get_stat(self):
         return StatIdentity()
@@ -440,3 +468,19 @@ class GeomTile(Geom):
 
 def geom_tile(mapping=aes()):
     return GeomTile(mapping)
+
+
+class GeomFunction(GeomBasic):
+    def __init__(self, aes, fun, color):
+        super().__init__(aes, color)
+        self.fun = fun
+
+    def apply_to_fig(self, parent, agg_result, fig_so_far):
+        super().apply_to_fig(parent, agg_result, fig_so_far)
+
+    def get_stat(self):
+        return StatFunction(self.fun)
+
+
+def geom_func(mapping=aes(), fun=None, color=None):
+    return GeomFunction(mapping, fun=fun, color=color)
