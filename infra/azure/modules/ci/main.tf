@@ -35,3 +35,20 @@ resource "azurerm_role_assignment" "ci_ci_account_contributor" {
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = var.ci_principal_id
 }
+
+resource "azurerm_role_assignment" "ci_test_container_contributor" {
+  scope                = var.test_storage_container_resource_id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = var.ci_principal_id
+}
+
+module "k8s_resources" {
+  source = "../../../k8s/ci"
+
+  storage_uri                             = "hail-az://${azurerm_storage_account.ci.name}/${azurerm_storage_container.ci_artifacts.name}"
+  deploy_steps                            = var.deploy_steps
+  watched_branches                        = var.watched_branches
+  github_context                          = var.github_context
+  ci_and_deploy_github_oauth_token        = var.ci_and_deploy_github_oauth_token
+  ci_test_repo_creator_github_oauth_token = var.ci_test_repo_creator_github_oauth_token
+}

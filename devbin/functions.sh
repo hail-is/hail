@@ -190,7 +190,7 @@ azsetcluster() {
 
     RESOURCE_GROUP=$1
     az aks get-credentials --name vdc --resource-group $RESOURCE_GROUP
-    az acr login --name $RESOURCE_GROUP
+    az acr login --name $(az acr list -g $RESOURCE_GROUP | jq -j '.[0].name')
 }
 
 azsshworker() {
