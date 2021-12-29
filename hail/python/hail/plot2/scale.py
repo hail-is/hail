@@ -37,8 +37,8 @@ class PositionScale(Scale):
 
 
 class PositionScaleGenomic(PositionScale):
-    def __init__(self, aesthetic_name):
-        super().__init__(aesthetic_name, None, None, None)
+    def __init__(self, aesthetic_name, name=None):
+        super().__init__(aesthetic_name, name, None, None)
 
     def apply_to_fig(self, parent, fig_so_far):
         ref_genome = parent.aes["x"].dtype.reference_genome
