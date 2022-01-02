@@ -36,9 +36,8 @@ class Stat:
 
 
 class StatIdentity(Stat):
-    def make_agg(self, x_expr, parent_struct, geom_struct):
-        combined = parent_struct.annotate(**geom_struct).annotate(x=x_expr)
-        return hl.agg.collect(combined)
+    def make_agg(self, mapping):
+        return hl.agg.collect(mapping)
 
     def listify(self, agg_result):
         # Collect aggregator returns a list, nothing to do.
@@ -46,7 +45,7 @@ class StatIdentity(Stat):
 
 
 class StatNone(Stat):
-    def make_agg(self, x_expr, parent_struct, geom_struct):
+    def make_agg(self, mapping):
         return hl.struct()
 
     def listify(self, agg_result):
@@ -54,12 +53,12 @@ class StatNone(Stat):
 
 
 class StatCount(Stat):
-    def make_agg(self, x_expr, parent_struct, geom_struct):
+    def make_agg(self, mapping):
         # Let's see. x_expr is the thing to group by. If any of the
         # aesthetics in geom_struct are just pointers to x_expr, that's fine.
         # Maybe I just do a `take(1) for every field of parent_struct and geom_struct?
         # Or better, a collect_as_set where I error if size is greater than 1?
-        return hl.agg.group_by(x_expr, hl.struct(count=hl.agg.count(), other=hl.agg.take(parent_struct.annotate(**geom_struct).drop("x"), 1)))
+        return hl.agg.group_by(mapping["x"], hl.struct(count=hl.agg.count(), other=hl.agg.take(mapping.drop("x"), 1)))
 
     def listify(self, agg_result):
         unflattened_items = agg_result.items()
@@ -79,8 +78,8 @@ class StatBin(Stat):
         self.end = end
         self.bins = bins
 
-    def make_agg(self, x_expr, parent_struct, geom_struct):
-        return hl.agg.hist(x_expr, self.start, self.end, self.bins)
+    def make_agg(self, mapping):
+        return hl.agg.hist(mapping["x"], self.start, self.end, self.bins)
 
     def listify(self, agg_result):
         x_edges = agg_result.bin_edges

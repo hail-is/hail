@@ -91,22 +91,21 @@ class GGPlot:
         selected = self.ht.select(**fields_to_select)
         aggregators = {}
         labels_to_stats = {}
+
+        # 1. We shouldn't be handling x so specially.
+        # 2. We should transform every variable based on its scale.
+        # 3. Every geom should have a list of required aesthetics.
+        # 4. Think about how to set default scales as geoms are added.
+
         for geom_idx, geom in enumerate(self.geoms):
             label = f"geom{geom_idx}"
             stat = geom.get_stat()
 
-            if "x" in selected[label]:
-                x_expr = selected[label]["x"]
-            elif "x" in selected["figure_mapping"]:
-                x_expr = selected["figure_mapping"]["x"]
-            else:
-                import pdb; pdb.set_trace()
-                raise ValueError("There wasn't an x")
-
+            combined_mapping = selected["figure_mapping"].annotate(**selected[label])
             if "x" in self.scales:
-                x_expr = self.scales["x"].transform_data(x_expr)
+                combined_mapping = combined_mapping.annotate(x=self.scales["x"].transform_data(combined_mapping.x))
 
-            agg = stat.make_agg(x_expr, selected["figure_mapping"], selected[label])
+            agg = stat.make_agg(combined_mapping)
             aggregators[label] = agg
             labels_to_stats[label] = stat
 
