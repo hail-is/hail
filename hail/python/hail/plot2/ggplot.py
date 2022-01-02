@@ -1,6 +1,8 @@
 import plotly
 import plotly.graph_objects as go
 
+from pprint import pprint
+
 import hail as hl
 
 from .geoms import Geom, FigureAttribute
@@ -11,8 +13,11 @@ from .aes import Aesthetic, aes
 
 class GGPlot:
 
-    def __init__(self, ht, aes, geoms=[], labels=Labels(), scales={},
+    def __init__(self, ht, aes, geoms=[], labels=Labels(), scales=None,
                  discrete_color_scale=plotly.colors.qualitative.D3, continuous_color_scale=plotly.colors.sequential.Viridis):
+        if scales is None:
+            scales = {}
+
         self.ht = ht
         self.aes = aes
         self.geoms = geoms
@@ -122,6 +127,14 @@ class GGPlot:
 
         return fig
 
+    def debug_print(self):
+        print("Ggplot Object:")
+        print("Aesthetics")
+        pprint(self.aes)
+        pprint("Scales:")
+        pprint(self.scales)
+        print("Geoms:")
+        pprint(self.geoms)
 
 def ggplot(table, aes=aes()):
     return GGPlot(table, aes)

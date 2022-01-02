@@ -28,6 +28,9 @@ class Aesthetic(Mapping):
 
         return itertools.chain(i1, i2)
 
+    def __repr__(self):
+        return self.properties.__repr__()
+
     def merge(self, other):
         return Aesthetic({**self.properties, **other.properties}, {**self.lambda_properties, **other.properties})
 
