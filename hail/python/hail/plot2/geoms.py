@@ -64,7 +64,6 @@ class GeomBasic(Geom):
         return ...
 
 
-
 class Stat:
     @abc.abstractmethod
     def make_agg(self, x_expr, parent_struct, geom_struct):
@@ -90,9 +89,8 @@ class StatFunction(Stat):
     def __init__(self, fun):
         self.fun = fun
 
-    def make_agg(self, x_expr, parent_struct, geom_struct):
-        combined = parent_struct.annotate(**geom_struct)
-        with_y_value = combined.annotate(y=self.fun(x_expr))
+    def make_agg(self, combined):
+        with_y_value = combined.annotate(y=self.fun(combined.x))
         return hl.agg.collect(with_y_value)
 
     def listify(self, agg_result):
