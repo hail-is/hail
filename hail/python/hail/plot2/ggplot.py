@@ -81,9 +81,6 @@ class GGPlot:
                       self.discrete_color_scale, self.continuous_color_scale)
 
     def render(self):
-        # Step 1: Update aesthetics accordingly, all need to point into this table.
-        # TODO: Make sure all aesthetics are hail expressions.
-
         fields_to_select = {"figure_mapping": hl.struct(**self.aes)}
         for geom_idx, geom in enumerate(self.geoms):
             label = f"geom{geom_idx}"
@@ -93,17 +90,15 @@ class GGPlot:
         aggregators = {}
         labels_to_stats = {}
 
-        # 1. We shouldn't be handling x so specially.
-        # 2. We should transform every variable based on its scale.
-        # 3. Every geom should have a list of required aesthetics.
-
         for geom_idx, geom in enumerate(self.geoms):
             label = f"geom{geom_idx}"
             stat = geom.get_stat()
 
             combined_mapping = selected["figure_mapping"].annotate(**selected[label])
-            if "x" in self.scales and "x" in combined_mapping:
-                combined_mapping = combined_mapping.annotate(x=self.scales["x"].transform_data(combined_mapping.x))
+
+            for key in combined_mapping:
+                if key in self.scales:
+                    combined_mapping = combined_mapping.annotate(**{key: self.scales[key].transform_data(combined_mapping[key])})
 
             agg = stat.make_agg(combined_mapping)
             aggregators[label] = agg
