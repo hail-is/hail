@@ -29,7 +29,7 @@ from urllib3.poolmanager import PoolManager
 from .time import time_msecs
 
 try:
-    import aiodocker
+    import aiodocker  # pylint: disable=import-error
 except ModuleNotFoundError:
     aiodocker = None
 
