@@ -7,7 +7,7 @@ import hail as hl
 
 from .geoms import Geom, FigureAttribute
 from .labels import Labels
-from .scale import Scale, scale_x_continuous, scale_x_genomic
+from .scale import Scale, scale_x_continuous, scale_x_genomic, scale_y_continuous
 from .aes import Aesthetic, aes
 
 
@@ -36,6 +36,7 @@ class GGPlot:
         copied = self.copy()
         if isinstance(other, Geom):
             copied.geoms.append(other)
+            copied.add_default_scales(other.aes)
         elif isinstance(other, Labels):
             copied.labels = copied.labels.merge(other)
         elif isinstance(other, Scale):
@@ -64,13 +65,13 @@ class GGPlot:
                     if is_continuous_type(dtype):
                         self.scales["x"] = scale_x_continuous()
                     elif is_genomic_type(dtype):
-                        self.scales["x"] = scale_x_genomic()
+                        self.scales["x"] = scale_x_genomic(reference_genome=dtype.reference_genome)
                     else:
                         # Need to add scale_x_discrete
                         pass
                 elif aesthetic_str == "y":
                     if is_continuous_type(dtype):
-                        self.scales["y"] = scale_x_continuous()
+                        self.scales["y"] = scale_y_continuous()
                     else:
                         # Need to add scale_y_discrete
                         pass
@@ -95,14 +96,13 @@ class GGPlot:
         # 1. We shouldn't be handling x so specially.
         # 2. We should transform every variable based on its scale.
         # 3. Every geom should have a list of required aesthetics.
-        # 4. Think about how to set default scales as geoms are added.
 
         for geom_idx, geom in enumerate(self.geoms):
             label = f"geom{geom_idx}"
             stat = geom.get_stat()
 
             combined_mapping = selected["figure_mapping"].annotate(**selected[label])
-            if "x" in self.scales:
+            if "x" in self.scales and "x" in combined_mapping:
                 combined_mapping = combined_mapping.annotate(x=self.scales["x"].transform_data(combined_mapping.x))
 
             agg = stat.make_agg(combined_mapping)

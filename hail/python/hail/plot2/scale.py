@@ -1,6 +1,8 @@
 import abc
 from .geoms import FigureAttribute
 
+from hail import get_reference
+
 
 class Scale(FigureAttribute):
     def __init__(self, aesthetic_name):
@@ -37,12 +39,15 @@ class PositionScale(Scale):
 
 
 class PositionScaleGenomic(PositionScale):
-    def __init__(self, aesthetic_name, name=None):
+    def __init__(self, aesthetic_name, reference_genome, name=None):
         super().__init__(aesthetic_name, name, None, None)
 
+        if isinstance(reference_genome, str):
+            reference_genome = get_reference(reference_genome)
+        self.reference_genome = reference_genome
+
     def apply_to_fig(self, parent, fig_so_far):
-        ref_genome = parent.aes["x"].dtype.reference_genome
-        contig_offsets = dict(list(ref_genome._global_positions_dict.items())[:24])
+        contig_offsets = dict(list(self.reference_genome._global_positions_dict.items())[:24])
         breaks = list(contig_offsets.values())
         labels = list(contig_offsets.keys())
         self.update_axis(fig_so_far)(tickvals=breaks, ticktext=labels)
@@ -96,5 +101,5 @@ def scale_y_continuous(name=None, breaks=None, labels=None, trans="identity"):
     return PositionScaleContinuous("y", name=name, breaks=breaks, labels=labels, transformation=trans)
 
 
-def scale_x_genomic(name=None):
-    return PositionScaleGenomic("x", name=name)
+def scale_x_genomic(reference_genome, name=None):
+    return PositionScaleGenomic("x", reference_genome, name=name)

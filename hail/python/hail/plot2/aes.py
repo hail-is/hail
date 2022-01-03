@@ -1,6 +1,7 @@
 from collections.abc import Mapping
 import itertools
-
+from hail.expr import Expression
+from hail import literal
 
 class Aesthetic(Mapping):
     # kwargs values should either be strings or fields of a table. We will have to resolve the fact that all tables
@@ -43,6 +44,8 @@ def aes(**kwargs):
         if callable(v):
             lambda_properties[k] = v
         else:
+            if not isinstance(v, Expression):
+                v = literal(v)
             hail_field_properties[k] = v
     return Aesthetic(hail_field_properties, lambda_properties)
 
