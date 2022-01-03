@@ -453,8 +453,8 @@ async def test_billing_limit_tiny(
     j9 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'], parents=[j8])
     batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'], parents=[j9])
     batch = await batch.submit()
-    status = await batch.wait()
-    assert status['state'] == 'cancelled', str(await batch.debug_info())
+    batch_status = await batch.wait()
+    assert batch_status['state'] == 'cancelled', str(await batch.debug_info())
 
 
 async def search_batches(client, expected_batch_id, q):

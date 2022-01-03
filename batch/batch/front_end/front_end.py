@@ -60,6 +60,7 @@ from ..cloud.resource_utils import (
     cores_mcpu_to_memory_bytes,
     memory_to_worker_type,
     valid_machine_types,
+    accrued_cost_from_cost_and_msec_mcpu,
 )
 from ..batch import batch_record_to_dict, job_record_to_dict, cancel_batch_in_db
 from ..exceptions import (
@@ -497,7 +498,7 @@ async def _query_batches(request, user, q):
     last_batch_id = request.query.get('last_batch_id')
     if last_batch_id is not None:
         last_batch_id = int(last_batch_id)
-        where_conditions.append('(id < %s)')
+        where_conditions.append('(batches.id < %s)')
         where_args.append(last_batch_id)
 
     terms = q.split()
@@ -549,7 +550,7 @@ async def _query_batches(request, user, q):
             condition = "(`state` = 'running')"
             args = []
         elif t == 'cancelled':
-            condition = '(cancelled)'
+            condition = '(batches_cancelled.id IS NOT NULL)'
             args = []
         elif t == 'failure':
             condition = '(n_failed > 0)'
@@ -570,8 +571,10 @@ async def _query_batches(request, user, q):
         where_args.extend(args)
 
     sql = f'''
-SELECT batches.*, COALESCE(SUM(`usage` * rate), 0) AS cost
+SELECT batches.*, batches_cancelled.id IS NOT NULL AS cancelled, COALESCE(SUM(`usage` * rate), 0) AS cost
 FROM batches
+LEFT JOIN batches_cancelled
+  ON batches.id = batches_cancelled.id
 LEFT JOIN aggregated_batch_resources
   ON batches.id = aggregated_batch_resources.batch_id
 LEFT JOIN resources
@@ -1053,18 +1056,30 @@ async def create_batch(request, userdata):
 
     @transaction(db)
     async def insert(tx):
-        billing_projects = await query_billing_projects(tx, user=user, billing_project=billing_project)
+        bp = await tx.execute_and_fetchone('''
+SELECT billing_projects.status, billing_projects.limit
+FROM billing_project_users
+INNER JOIN billing_projects
+  ON billing_projects.name = billing_project_users.billing_project
+WHERE billing_project = %s AND user = %s
+LOCK IN SHARE MODE''', (billing_project, user))
 
-        if len(billing_projects) != 1:
-            assert len(billing_projects) == 0
+        if bp is None:
             raise web.HTTPForbidden(reason=f'Unknown Hail Batch billing project {billing_project}.')
-        assert billing_projects[0]['status'] is not None
-        if billing_projects[0]['status'] in {'closed', 'deleted'}:
+        if bp['status'] in {'closed', 'deleted'}:
             raise web.HTTPForbidden(reason=f'Billing project {billing_project} is closed or deleted.')
 
-        bp = billing_projects[0]
+        bp_cost_record = await tx.execute_and_fetchone('''
+SELECT billing_projects.msec_mcpu, COALESCE(SUM(`usage` * rate), 0) AS cost
+FROM billing_projects
+INNER JOIN aggregated_billing_project_resources
+  ON billing_projects.name = aggregated_billing_project_resources.billing_project
+INNER JOIN resources
+  ON resources.resource = aggregated_billing_project_resources.resource
+WHERE billing_projects.name = %s
+''', (billing_project,))
         limit = bp['limit']
-        accrued_cost = bp['accrued_cost']
+        accrued_cost = accrued_cost_from_cost_and_msec_mcpu(bp_cost_record)
         if limit is not None and accrued_cost >= limit:
             raise web.HTTPForbidden(
                 reason=f'billing project {billing_project} has exceeded the budget; accrued={cost_str(accrued_cost)} limit={cost_str(limit)}'
@@ -1121,13 +1136,16 @@ async def _get_batch(app, batch_id):
 
     record = await db.select_and_fetchone(
         '''
-SELECT batches.*, COALESCE(SUM(`usage` * rate), 0) AS cost FROM batches
+SELECT batches.*, batches_cancelled.id IS NOT NULL AS cancelled, COALESCE(SUM(`usage` * rate), 0) AS cost
+FROM batches
+LEFT JOIN batches_cancelled
+       ON batches.id = batches_cancelled.id
 LEFT JOIN aggregated_batch_resources
        ON batches.id = aggregated_batch_resources.batch_id
 LEFT JOIN resources
        ON aggregated_batch_resources.resource = resources.resource
-WHERE id = %s AND NOT deleted
-GROUP BY batches.id;
+WHERE batches.id = %s AND NOT deleted
+GROUP BY batches.id, batches_cancelled.id;
 ''',
         (batch_id),
     )

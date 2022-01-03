@@ -2568,6 +2568,12 @@ steps:
         script: /io/sql/add-latest-product-versions.sql
       - name: add-products-and-versions
         script: /io/sql/add_products_and_versions.py
+      - name: kill-more-deadlocks
+        script: /io/sql/kill-more-deadlocks.sql
+      - name: kill-more-deadlocks2
+        script: /io/sql/kill-more-deadlocks2.sql
+      - name: no-locks-add-attempt
+        script: /io/sql/no-locks-add-attempt.sql
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
