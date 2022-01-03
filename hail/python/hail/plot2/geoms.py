@@ -24,7 +24,7 @@ class Geom(FigureAttribute):
         return ...
 
 
-class GeomBasic(Geom):
+class GeomLineBasic(Geom):
     def __init__(self, aes, color):
         super().__init__(aes)
         self.color = color
@@ -208,7 +208,7 @@ def geom_point(mapping=aes(), *, color=None):
     return GeomPoint(mapping, color=color)
 
 
-class GeomLine(GeomBasic):
+class GeomLine(GeomLineBasic):
 
     def __init__(self, aes, color=None):
         super().__init__(aes, color)
@@ -468,7 +468,7 @@ def geom_tile(mapping=aes()):
     return GeomTile(mapping)
 
 
-class GeomFunction(GeomBasic):
+class GeomFunction(GeomLineBasic):
     def __init__(self, aes, fun, color):
         super().__init__(aes, color)
         self.fun = fun
