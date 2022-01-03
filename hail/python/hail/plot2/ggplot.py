@@ -7,7 +7,7 @@ import hail as hl
 
 from .geoms import Geom, FigureAttribute
 from .labels import Labels
-from .scale import Scale, scale_x_continuous, scale_x_genomic, scale_y_continuous
+from .scale import Scale, scale_x_continuous, scale_x_genomic, scale_y_continuous, scale_x_discrete, scale_y_discrete
 from .aes import Aesthetic, aes
 
 
@@ -67,14 +67,14 @@ class GGPlot:
                     elif is_genomic_type(dtype):
                         self.scales["x"] = scale_x_genomic(reference_genome=dtype.reference_genome)
                     else:
-                        # Need to add scale_x_discrete
-                        pass
+                        self.scales["x"] = scale_x_discrete()
                 elif aesthetic_str == "y":
                     if is_continuous_type(dtype):
                         self.scales["y"] = scale_y_continuous()
+                    elif is_genomic_type(dtype):
+                        raise ValueError("Don't yet support y axis genomic")
                     else:
-                        # Need to add scale_y_discrete
-                        pass
+                        self.scales["y"] = scale_y_discrete()
 
     def copy(self):
         return GGPlot(self.ht, self.aes, self.geoms[:], self.labels, self.scales,
