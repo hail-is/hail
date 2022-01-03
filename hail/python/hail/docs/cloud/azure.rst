@@ -34,7 +34,7 @@ To submit a Python job to that cluster, use:
 
 .. code-block:: text
 
-    hailctl dataproc submit CLUSTER_NAME STORAGE_ACCOUNT HTTP_PASSWORD SCRIPT [optional args to your python script...]
+    hailctl hdinsight submit CLUSTER_NAME STORAGE_ACCOUNT HTTP_PASSWORD SCRIPT [optional args to your python script...]
 
 To access a Jupyter notebook navigate to https://CLUSTER_NAME.azurehdinsight.net/jupyter .
 
@@ -60,7 +60,7 @@ variant in a dataset containing GRCh37 variants:
 
 .. code-block:: text
 
-    hailctl dataproc start CLUSTER_NAME STORAGE_ACCOUNT RESOURCE_GROUP \
+    hailctl hdinsight start CLUSTER_NAME STORAGE_ACCOUNT RESOURCE_GROUP \
             --vep GRCh37 \
             --vep-loftee-uri https://STORAGE_ACCOUNT.blob.core.windows.net/CONTAINER/loftee-GRCh37 \
             --vep-homo-sapiens-uri https://STORAGE_ACCOUNT.blob.core.windows.net/CONTAINER/homo-sapiens-GRCh37

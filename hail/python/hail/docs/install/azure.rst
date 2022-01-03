@@ -12,7 +12,7 @@ have already have a storage account and resource group.
 
 .. code-block:: sh
 
-   hailctl dataproc start MyFirstCluster MyStorageAccount MyResourceGroup
+   hailctl hdinsight start MyFirstCluster MyStorageAccount MyResourceGroup
 
 
 Be sure to record the generated http password so that you can access the cluster.
@@ -39,7 +39,7 @@ to wait more than a minute.
 
 .. code-block:: sh
 
-   hailctl dataproc submit MyFirstCluster MyStorageAccount HTTP_PASSWORD MyResourceGroup hail-script.py
+   hailctl hdinsight submit MyFirstCluster MyStorageAccount HTTP_PASSWORD MyResourceGroup hail-script.py
 
 When the script is done running you'll see 25 rows of variant association
 results.
@@ -51,7 +51,7 @@ When you are finished with the cluster stop it:
 
 .. code-block:: sh
 
-   hailctl dataproc stop MyFirstCluster MyStorageAccount MyResourceGroup
+   hailctl hdinsight stop MyFirstCluster MyStorageAccount MyResourceGroup
 
 Next Steps
 """"""""""
