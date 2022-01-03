@@ -154,4 +154,3 @@ SSH domain name: {args.cluster_name}-ssh.azurehdinsight.net
 
 Use the "Python3 (ipykernel)" kernel.
 ''')
-
