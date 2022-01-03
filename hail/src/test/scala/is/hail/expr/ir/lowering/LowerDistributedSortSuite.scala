@@ -3,7 +3,7 @@ package is.hail.expr.ir.lowering
 import is.hail.TestUtils.assertEvalsTo
 import is.hail.expr.ir.functions.IRRandomness
 import is.hail.expr.ir.{Apply, ApplyBinaryPrimOp, Ascending, ErrorIDs, GetField, I32, IR, Literal, MakeStruct, Ref, Requiredness, RequirednessAnalysis, SelectFields, SortField, TableIR, TableMapRows, TableRange, ToArray, ToStream, mapIR}
-import is.hail.{ExecStrategy, HailSuite, TestUtils}
+import is.hail.{ExecStrategy, HailContext, HailSuite, TestUtils}
 import is.hail.expr.ir.lowering.LowerDistributedSort.samplePartition
 import is.hail.types.RTable
 import is.hail.types.virtual.{TArray, TInt32, TStruct}
@@ -34,6 +34,7 @@ class LowerDistributedSortSuite extends HailSuite {
 
   // Only does ascending for now
   def testDistributedSortHelper(myTable: TableIR, sortFieldNames: IndexedSeq[String]): Unit = {
+    HailContext.setFlag("shuffle_cutoff_to_local_sort", "6")
     val req: RequirednessAnalysis = Requiredness(myTable, ctx)
     val rowType = req.lookup(myTable).asInstanceOf[RTable].rowType
     val stage = LowerTableIR.applyTable(myTable, DArrayLowering.All, ctx, req, Map.empty[String, IR])
