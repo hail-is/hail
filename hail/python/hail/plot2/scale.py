@@ -71,7 +71,18 @@ class PositionScaleContinuous(PositionScale):
         elif self.transformation == "reverse":
             self.update_axis(fig_so_far)(autorange="reversed")
         else:
-            raise ValueError("Unrecognized transformation")
+            raise ValueError(f"Unrecognized transformation {self.transformation}")
+
+    def transform_data(self, field_expr):
+        return field_expr
+
+
+class PositionScaleDiscrete(PositionScale):
+    def __init__(self, axis=None, name=None, breaks=None, labels=None):
+        super().__init__(axis, name, breaks, labels)
+
+    def apply_to_fig(self, parent, fig_so_far):
+        super().apply_to_fig(parent, fig_so_far)
 
     def transform_data(self, field_expr):
         return field_expr
@@ -99,6 +110,14 @@ def scale_x_continuous(name=None, breaks=None, labels=None, trans="identity"):
 
 def scale_y_continuous(name=None, breaks=None, labels=None, trans="identity"):
     return PositionScaleContinuous("y", name=name, breaks=breaks, labels=labels, transformation=trans)
+
+
+def scale_x_discrete(name=None, breaks=None, labels=None):
+    return PositionScaleDiscrete("x", name=name, breaks=breaks, labels=labels)
+
+
+def scale_y_discrete(name=None, breaks=None, labels=None):
+    return PositionScaleDiscrete("y", name=name, breaks=breaks, labels=labels)
 
 
 def scale_x_genomic(reference_genome, name=None):
