@@ -420,7 +420,7 @@ class GeomTile(Geom):
         self.aes = aes
 
     def apply_to_fig(self, parent, agg_result, fig_so_far):
-        def plot_rects_multi_colors(agg_results, colors):
+        def plot_continuous_color(agg_results, colors):
             for idx, row in enumerate(agg_results):
                 x_center = row['x']
                 y_center = row['y']
@@ -433,7 +433,7 @@ class GeomTile(Geom):
                 y_down = y_center - height / 2
                 fig_so_far.add_shape(type="rect", x0=x_left, y0=y_down, x1=x_right, y1=y_up, fillcolor=colors[idx], opacity=alpha)
 
-        def plot_rects_one_color(agg_results, color):
+        def plot_one_color(agg_results, color):
             for idx, row in enumerate(agg_results):
                 x_center = row['x']
                 y_center = row['y']
@@ -457,10 +457,10 @@ class GeomTile(Geom):
 
                 for category in categorical_strings:
                     filtered_data = [element for element in agg_result if element["fill"] == category]
-                    plot_rects_one_color(filtered_data, unique_color_mapping[category])
+                    plot_one_color(filtered_data, unique_color_mapping[category])
 
         else:
-            plot_rects_one_color(agg_result, "black")
+            plot_one_color(agg_result, "black")
 
     def get_stat(self):
         return StatIdentity()
