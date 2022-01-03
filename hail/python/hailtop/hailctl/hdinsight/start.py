@@ -1,8 +1,10 @@
 import re
 import os
 import sys
+import time
 import json
 import subprocess
+import requests
 from shlex import quote as shq
 
 from ... import pip_version
@@ -123,6 +125,14 @@ async def main(args, pass_through_args):
              '--persist-on-success',
              '--script-parameters', f'/{os.path.basename(args.vep_loftee_uri)} /{os.path.basename(args.vep_homo_sapiens_uri)} {args.vep} {image} {vep_config_uri}')
 
+    def put_jupyter(command):
+        requests.put(
+            f'https://{shq(args.cluster_name)}.azurehdinsight.net/api/v1/clusters/{shq(args.cluster_name)}/services/JUPYTER/',
+            headers={'Content-Type': 'application/json', 'X-Requested-By': 'ambari'},
+            json=command,
+            auth=requests.auth.HTTPBasicAuth('admin', args.http_password),
+        )
+
     stop = json.dumps({
         "RequestInfo": {"context": "put services into STOPPED state"},
         "Body": {"ServiceInfo": {"state" : "INSTALLED"}}
@@ -131,18 +141,12 @@ async def main(args, pass_through_args):
         "RequestInfo": {"context": "put services into STARTED state"},
         "Body": {"ServiceInfo": {"state" : "STARTED"}}
     })
-    stop_curl, start_curl = [f'''curl -u admin:{shq(http_password)} \
-    -H 'X-Requested-By: ambari' \
-    -X PUT \
-    -d {shq(command)} https://{shq(args.cluster_name)}.azurehdinsight.net/api/v1/clusters/{shq(args.cluster_name)}/services/JUPYTER/'''
-                             for command in [stop, start]]
 
-    print(f'!!!! Restarting Jupyter. When prompted about the host key, type yes. When prompted for a password type {sshuser_password}.')
-    exec('ssh',
-         # avoid key mismatches if the cluster is recreated with the same name
-         '-o', 'UserKnownHostsFile=/dev/null',
-         f'sshuser@{args.cluster_name}-ssh.azurehdinsight.net',
-         f'set -ex ; {stop_curl} ; sleep 10 ; {start_curl}')
+    print('Restarting Jupyter ...')
+    put_jupyter(stop)
+    time.sleep(10)
+    put_jupyter(start)
+
     print(f'''Your cluster is ready.
 Web username: admin
 Web password: {http_password}
