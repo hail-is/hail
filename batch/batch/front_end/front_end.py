@@ -726,6 +726,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if machine_type and ('cpu' in resources or 'memory' in resources):
                     raise web.HTTPBadRequest(reason='cannot specify cpu and memory with machine_type')
 
+                req_memory_bytes: Optional[int]
                 if machine_type is None:
                     if 'cpu' not in resources:
                         resources['cpu'] = BATCH_JOB_DEFAULT_CPU
