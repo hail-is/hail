@@ -1,12 +1,6 @@
-import json
 import os
-import requests
 import subprocess
-import sys
-import tempfile
-import time
-import urllib
-import yaml
+import requests
 
 from ...utils import sync_sleep_and_backoff
 
