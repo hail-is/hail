@@ -45,6 +45,7 @@ def _seeded_func(name, ret_type, seed, *args):
     indices, aggregations = unify_all(*args)
     return construct_expr(ir.ApplySeeded(name, seed, ret_type, *(a._ir for a in args)), ret_type, indices, aggregations)
 
+
 def ndarray_broadcasting(func):
     def broadcast_or_not(x):
         if isinstance(x.dtype, tndarray):
