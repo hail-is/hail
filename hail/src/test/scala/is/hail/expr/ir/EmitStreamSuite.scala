@@ -324,6 +324,7 @@ class EmitStreamSuite extends HailSuite {
   }
 
   @Test def testStreamBufferedAggregator(): Unit = {
+    val resultArrayToCompare = (0 until 12).map(i => Row(Row(i, i + 1), 1))
     val streamType = TStream(TStruct("a" -> TInt64, "b" -> TInt64))
     val numSeq = (0 until 12).map(i => Seq(I64(i), I64(i + 1)))
     val numTupleSeq = numSeq.map(_ => Seq("a", "b")).zip(numSeq)
@@ -340,7 +341,7 @@ class EmitStreamSuite extends HailSuite {
         "aggResult" ->
           RunAgg(InitFromSerializedValue(0, GetTupleElement(GetField(elem, "agg"), 0), countAggSig.state), ResultOp(0, countAggSig), IndexedSeq(countAggSig.state))
       ))}
-    println(evalStream(result))
+    assert(evalStream(result).equals(resultArrayToCompare))
 
   }
   @Test def testStreamBufferedAggregator2(): Unit = {
@@ -382,6 +383,40 @@ class EmitStreamSuite extends HailSuite {
       ))}
     println(evalStream(result))
   }
+
+  @Test def testStreamBufferedAggregatorMultipleAggregators(): Unit = {
+    val streamType = TStream(TStruct("a" -> TInt64, "b" -> TInt64))
+    val elemOne = MakeStruct(Seq(("a", I64(1)), ("b", I64(1))))
+    val elemTwo = MakeStruct(Seq(("a", I64(2)), ("b", I64(2))))
+    val elemThree = MakeStruct(Seq(("a", I64(1)), ("b", I64(3))))
+    val elemFour = MakeStruct(Seq(("a", I64(2)), ("b", I64(4))))
+    val collectStructStream = MakeStream(Seq(elemOne, elemTwo, elemThree, elemFour), streamType)
+    val collectAggSig =  PhysicalAggSig(Collect(), CollectStateSig(VirtualTypeWithReq(PType.canonical(TInt64))))
+    val countAggSig = PhysicalAggSig(Count(), TypedStateSig(VirtualTypeWithReq.fullyOptional(TInt64).setRequired(true)))
+    val initOps = Begin(IndexedSeq(InitOp(0, FastIndexedSeq(), countAggSig),
+                    InitOp(1, FastIndexedSeq(), collectAggSig)))
+    val seqOps = Begin(IndexedSeq(SeqOp(0, FastIndexedSeq(), countAggSig),
+                  SeqOp(1, FastIndexedSeq(GetField(Ref("foo", streamType.elementType), "b")), collectAggSig)))
+    val newKey = MakeStruct(Seq("collect" -> SelectFields(Ref("foo", streamType.elementType), Seq("a"))))
+    val streamBuffAggCollect = StreamBufferedAggregate(collectStructStream, initOps, newKey, seqOps, "foo",
+                                IndexedSeq(countAggSig, collectAggSig))
+    val result = mapIR(streamBuffAggCollect) { elem =>
+      MakeStruct(Seq(
+        "key" -> GetField(elem, "collect"),
+        "aggResult" ->
+          RunAgg(
+            Begin(IndexedSeq(
+              InitFromSerializedValue(0, GetTupleElement(GetField(elem, "agg"), 0), countAggSig.state),
+              InitFromSerializedValue(1, GetTupleElement(GetField(elem, "agg"), 1), collectAggSig.state))
+            ),
+            MakeTuple.ordered(IndexedSeq(ResultOp(0, countAggSig), ResultOp(1, collectAggSig))),
+            IndexedSeq(countAggSig.state, collectAggSig.state))
+      ))}
+    println(evalStream(result))
+  }
+
+
+
   @Test def testEmitJoinRightDistinct() {
     val eltType = TStruct("k" -> TInt32, "v" -> TString)
 

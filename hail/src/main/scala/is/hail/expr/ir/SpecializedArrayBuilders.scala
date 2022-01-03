@@ -819,7 +819,7 @@ final class AnyRefArrayBuilder[T <: AnyRef](initialCapacity: Int = 16)(implicit 
   }
 
   def apply(i: Int): T = {
-    require(i >= 0 && i < size)
+    require(i >= 0 && i < size, f"size is : ${size} i is : ${i} contents is ${b.mkString(" ")}" )
     b(i)
   }
 
