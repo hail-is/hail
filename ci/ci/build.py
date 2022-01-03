@@ -125,6 +125,7 @@ class BuildConfiguration:
 
         for step in self.steps:
             if step.can_run_in_scope(scope):
+                assert step.can_run_in_current_cloud()
                 step.build(batch, code, scope)
 
         if scope == 'dev':
