@@ -193,7 +193,7 @@ object LowerDistributedSort {
             val maxArray = MakeArray(GetField(aggResults, "max"))
             val tuplesInSortedOrder = tuplesAreSorted(GetField(aggResults, "perPartIntervalTuples"))
             bindIR(sortedOversampling) { sortedOversampling =>
-              val sortedSampling = ToArray(mapIR(StreamRange(0, ArrayLen(sortedOversampling), I32(oversamplingNum))) { idx =>
+              val sortedSampling = ToArray(mapIR(StreamRange(I32(oversamplingNum - 1), ArrayLen(sortedOversampling), I32(oversamplingNum))) { idx =>
                 ArrayRef(sortedOversampling, idx)
               })
               MakeStruct(Seq(
