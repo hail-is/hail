@@ -2,8 +2,9 @@ import subprocess
 
 
 def init_parser(parser):
-    pass
+    del parser
 
 
 async def main(args, pass_through_args):
-    subprocess.check_call(['az', 'hdinsight', 'list'])
+    assert not args
+    subprocess.check_call(['az', 'hdinsight', 'list', *pass_through_args])
