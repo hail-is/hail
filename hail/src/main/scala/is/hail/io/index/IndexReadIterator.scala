@@ -20,7 +20,8 @@ class IndexReadIterator(
   metrics: InputMetrics = null
 ) extends Iterator[Long] {
 
-  private[this] val idx = idxr.queryByInterval(bounds).buffered
+  private[this] val (startIdx, endIdx) = idxr.boundsByInterval(bounds)
+  private[this] var n = endIdx - startIdx
 
   private[this] val trackedIn = new ByteTrackingInputStream(in)
   private[this] val field = Option(offsetField).map { f =>
@@ -28,9 +29,9 @@ class IndexReadIterator(
   }
   private[this] val dec =
     try {
-      if (idx.hasNext) {
+      if (n > 0) {
         val dec = makeDec(trackedIn)
-        val i = idx.head
+        val i = idxr.queryByIndex(startIdx)
         val off = field.map { j =>
           i.annotation.asInstanceOf[Row].getAs[Long](j)
         }.getOrElse(i.recordOffset)
@@ -55,7 +56,7 @@ class IndexReadIterator(
     if (dec != null) dec.close()
   }
 
-  def hasNext: Boolean = cont != 0 && idx.hasNext
+  def hasNext: Boolean = cont != 0 && n > 0
 
   def next(): Long = _next()
 
@@ -63,8 +64,8 @@ class IndexReadIterator(
     if (!hasNext)
       throw new NoSuchElementException("next on empty iterator")
 
+    n -= 1
     try {
-      idx.next()
       val res = dec.readRegionValue(region)
       cont = dec.readByte()
       if (metrics != null) {

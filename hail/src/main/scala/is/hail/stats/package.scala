@@ -135,7 +135,7 @@ package object stats {
     val det = ad - bc
     val chiSquare = (a + b + c + d) * (det / ((a + b) * (c + d))) * (det / ((b + d) * (a + c)))
 
-    Array(chiSquaredTail(chiSquare, 1), ad / bc)
+    Array(pchisqtail(chiSquare, 1), ad / bc)
   }
 
   def contingencyTableTest(a: Int, b: Int, c: Int, d: Int, minCellCount: Int): Array[Double] = {
@@ -320,11 +320,19 @@ package object stats {
     Array(pvalue, oddsRatioEstimate, confInterval._1, confInterval._2)
   }
 
+  def dnorm(x: Double, mu: Double, sigma: Double, logP: Boolean): Double = Normal.density(x, mu, sigma, logP)
+
+  def dnorm(x: Double): Double = dnorm(x, mu = 0, sigma = 1, logP = false)
+
   // Returns the p for which p = Prob(Z < x) with Z a standard normal RV
-  def pnorm(x: Double): Double = Normal.cumulative(x, 0, 1)
+  def pnorm(x: Double, mu: Double, sigma: Double, lowerTail: Boolean, logP: Boolean): Double = Normal.cumulative(x, mu, sigma, lowerTail, logP)
+
+  def pnorm(x: Double): Double = pnorm(x, mu = 0, sigma = 1, lowerTail = true, logP = false)
 
   // Returns the x for which p = Prob(Z < x) with Z a standard normal RV
-  def qnorm(p: Double): Double = Normal.quantile(p, 0, 1, true, false)
+  def qnorm(p: Double, mu: Double, sigma: Double, lowerTail: Boolean, logP: Boolean): Double = Normal.quantile(p, mu, sigma, lowerTail, logP)
+
+  def qnorm(p: Double): Double = qnorm(p, mu = 0, sigma = 1, lowerTail = true, logP = false)
 
   // Returns the p for which p = Prob(Z < x) with Z a RV having the T distribution with n degrees of freedom
   def pT(x: Double, n: Double, lower_tail: Boolean, log_p: Boolean): Double =
@@ -333,13 +341,31 @@ package object stats {
   def pF(x: Double, df1: Double, df2: Double, lower_tail: Boolean, log_p: Boolean): Double =
     net.sourceforge.jdistlib.F.cumulative(x, df1, df2, lower_tail, log_p)
 
-  // Returns the p for which p = Prob(Z^2 > x) with Z^2 a chi-squared RV with df degrees of freedom
-  def chiSquaredTail(x: Double, df: Double): Double = ChiSquare.cumulative(x, df, false, false)
+  def dchisq(x: Double, df: Double, logP: Boolean): Double = ChiSquare.density(x, df, logP)
 
-  def nonCentralChiSquaredTail(x: Double, df: Double, ncp: Double) = NonCentralChiSquare.cumulative(x, df, ncp, false, false)
+  def dchisq(x: Double, df: Double): Double = dchisq(x, df, logP = false)
+
+  def dnchisq(x: Double, df: Double, ncp: Double, logP: Boolean): Double = NonCentralChiSquare.density(x, df, ncp, logP)
+
+  def dnchisq(x: Double, df: Double, ncp: Double): Double = dnchisq(x, df, ncp, logP = false)
+
+  // Returns the p for which p = Prob(Z^2 > x) with Z^2 a chi-squared RV with df degrees of freedom
+  def pchisqtail(x: Double, df: Double, lowerTail: Boolean, logP: Boolean): Double = ChiSquare.cumulative(x, df, lowerTail, logP)
+
+  def pchisqtail(x: Double, df: Double): Double = pchisqtail(x, df, lowerTail = false, logP = false)
+
+  def pnchisqtail(x: Double, df: Double, ncp: Double, lowerTail: Boolean, logP: Boolean): Double = NonCentralChiSquare.cumulative(x, df, ncp, lowerTail, logP)
+
+  def pnchisqtail(x: Double, df: Double, ncp: Double): Double = pnchisqtail(x, df, ncp, lowerTail = false, logP = false)
 
   // Returns the x for which p = Prob(Z^2 > x) with Z^2 a chi-squared RV with df degrees of freedom
-  def inverseChiSquaredTail(p: Double, df: Double): Double = ChiSquare.quantile(p, df, false, false)
+  def qchisqtail(p: Double, df: Double, lowerTail: Boolean, logP: Boolean): Double = ChiSquare.quantile(p, df, lowerTail, logP)
+
+  def qchisqtail(p: Double, df: Double): Double = qchisqtail(p, df, lowerTail = false, logP = false)
+
+  def qnchisqtail(p: Double, df: Double, ncp: Double, lowerTail: Boolean, logP: Boolean): Double = NonCentralChiSquare.quantile(p, df, ncp, lowerTail, logP)
+
+  def qnchisqtail(p: Double, df: Double, ncp: Double): Double = qnchisqtail(p, df, ncp, lowerTail = false, logP = false)
 
   def dbeta(x: Double, a: Double, b: Double): Double = Beta.density(x, a, b, false)
 

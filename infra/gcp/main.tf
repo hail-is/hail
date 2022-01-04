@@ -24,9 +24,23 @@ variable "gcp_region" {}
 variable "gcp_zone" {}
 variable "gcp_location" {}
 variable "domain" {}
+variable "organization_domain" {}
 variable "use_artifact_registry" {
   type = bool
   description = "pull the ubuntu image from Artifact Registry. Otherwise, GCR"
+}
+
+variable "ci_config" {
+  type = object({
+    github_oauth_token = string
+    github_user1_oauth_token = string
+    watched_branches = list(tuple([string, bool, bool]))
+    deploy_steps = list(string)
+    bucket_location = string
+    bucket_storage_class = string
+    github_context = string
+  })
+  default = null
 }
 
 locals {
@@ -35,7 +49,7 @@ locals {
     "${var.gcp_region}-docker.pkg.dev/${var.gcp_project}/hail" :
     "gcr.io/${var.gcp_project}"
   )
-  docker_root_image = "${local.docker_prefix}/ubuntu:18.04"
+  docker_root_image = "${local.docker_prefix}/ubuntu:20.04"
 }
 
 provider "google" {
@@ -241,9 +255,10 @@ resource "kubernetes_secret" "global_config" {
     batch_gcp_regions = var.batch_gcp_regions
     batch_logs_bucket = module.batch_logs.name  # Deprecated
     batch_logs_storage_uri = "gs://${module.batch_logs.name}"
-    hail_query_gcs_path = "gs://${module.hail_query.name}"
+    hail_query_gcs_path = "gs://${module.hail_query.name}" # Deprecated
     hail_test_gcs_bucket = module.hail_test_gcs_bucket.name # Deprecated
     test_storage_uri = "gs://${module.hail_test_gcs_bucket.name}"
+    query_storage_uri  = "gs://${module.hail_query.name}"
     default_namespace = "default"
     docker_root_image = local.docker_root_image
     domain = var.domain
@@ -251,10 +266,10 @@ resource "kubernetes_secret" "global_config" {
     gcp_region = var.gcp_region
     gcp_zone = var.gcp_zone
     docker_prefix = local.docker_prefix
-    gsuite_organization = var.gsuite_organization
     internal_ip = google_compute_address.internal_gateway.address
     ip = google_compute_address.gateway.address
     kubernetes_server_url = "https://${google_container_cluster.vdc.endpoint}"
+    organization_domain = var.organization_domain
   }
 }
 
@@ -359,23 +374,21 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_pus
   member = "serviceAccount:${google_service_account.gcr_push.email}"
 }
 
-resource "kubernetes_secret" "gcr_push_key" {
+# This is intended to match the secret name also used for azure credentials
+# This should ultimately be replaced by using CI's own batch-managed credentials
+# in BuildImage jobs
+resource "kubernetes_secret" "registry_push_credentials" {
   metadata {
-    name = "gcr-push-service-account-key"
+    name = "registry-push-credentials"
   }
 
   data = {
-    "gcr-push-service-account-key.json" = base64decode(google_service_account_key.gcr_push_key.private_key)
+    "credentials.json" = base64decode(google_service_account_key.gcr_push_key.private_key)
   }
 }
 
 module "ukbb" {
   source = "../ukbb"
-}
-
-module "atgu_gsa_secret" {
-  source = "./gsa_k8s_secret"
-  name = "atgu"
 }
 
 module "auth_gsa_secret" {
@@ -452,6 +465,18 @@ module "test_gsa_secret" {
     "logging.viewer",
     "serviceusage.serviceUsageConsumer",
   ]
+}
+
+resource "google_storage_bucket_iam_member" "test_bucket_admin" {
+  bucket = module.hail_test_gcs_bucket.name
+  role = "roles/storage.admin"
+  member = "serviceAccount:${module.test_gsa_secret.email}"
+}
+
+resource "google_storage_bucket_iam_member" "test_gcr_viewer" {
+  bucket = google_container_registry.registry.id
+  role = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.test_gsa_secret.email}"
 }
 
 module "test_dev_gsa_secret" {
@@ -590,4 +615,30 @@ resource "kubernetes_cluster_role_binding" "batch" {
     name      = "batch"
     namespace = "default"
   }
+}
+
+resource "kubernetes_secret" "auth_oauth2_client_secret" {
+  metadata {
+    name = "auth-oauth2-client-secret"
+  }
+
+  data = {
+    "client_secret.json" = file("~/.hail/auth_oauth2_client_secret.json")
+  }
+}
+
+module "ci" {
+  source = "./ci"
+  count = var.ci_config != null ? 1 : 0
+
+  github_oauth_token = var.ci_config.github_oauth_token
+  github_user1_oauth_token = var.ci_config.github_user1_oauth_token
+  watched_branches = var.ci_config.watched_branches
+  deploy_steps = var.ci_config.deploy_steps
+  bucket_location = var.ci_config.bucket_location
+  bucket_storage_class = var.ci_config.bucket_storage_class
+
+  ci_email = module.ci_gsa_secret.email
+  container_registry_id = google_container_registry.registry.id
+  github_context = var.ci_config.github_context
 }

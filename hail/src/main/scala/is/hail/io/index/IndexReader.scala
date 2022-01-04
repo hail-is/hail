@@ -201,13 +201,22 @@ class IndexReader(fs: FS,
     node.children(localIdx.toInt)
   }
 
+  def boundsByInterval(interval: Interval): (Long, Long) = {
+    boundsByInterval(interval.start, interval.end, interval.includesStart, interval.includesEnd)
+  }
+
+  def boundsByInterval(start: Annotation, end: Annotation, includesStart: Boolean, includesEnd: Boolean): (Long, Long) = {
+    require(Interval.isValid(ordering, start, end, includesStart, includesEnd))
+    val startIdx = if (includesStart) lowerBound(start) else upperBound(start)
+    val endIdx = if (includesEnd) upperBound(end) else lowerBound(end)
+    startIdx -> endIdx
+  }
+
   def queryByInterval(interval: Interval): Iterator[LeafChild] =
     queryByInterval(interval.start, interval.end, interval.includesStart, interval.includesEnd)
 
   def queryByInterval(start: Annotation, end: Annotation, includesStart: Boolean, includesEnd: Boolean): Iterator[LeafChild] = {
-    require(Interval.isValid(ordering, start, end, includesStart, includesEnd))
-    val startIdx = if (includesStart) lowerBound(start) else upperBound(start)
-    val endIdx = if (includesEnd) upperBound(end) else lowerBound(end)
+    val (startIdx, endIdx) = boundsByInterval(start, end, includesStart, includesEnd)
     iterator(startIdx, endIdx)
   }
 

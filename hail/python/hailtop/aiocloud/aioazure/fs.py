@@ -12,12 +12,11 @@ from azure.storage.blob import BlobProperties
 from azure.storage.blob.aio import BlobClient, ContainerClient, BlobServiceClient, StorageStreamDownloader
 from azure.storage.blob.aio._list_blobs_helper import BlobPrefix
 import azure.core.exceptions
-from hailtop.utils import retry_transient_errors, flatten, OnlineBoundedGather2
-from hailtop.aiotools import UnexpectedEOFError
 
+from hailtop.utils import retry_transient_errors, flatten
+from hailtop.aiotools import WriteBuffer
 from hailtop.aiotools.fs import (AsyncFS, ReadableStream, WritableStream, MultiPartCreate, FileListEntry, FileStatus,
-                                 FileAndDirectoryError)
-from hailtop.aiotools.utils import WriteBuffer
+                                 FileAndDirectoryError, UnexpectedEOFError)
 
 from .credentials import AzureCredentials
 
@@ -88,7 +87,7 @@ class AzureMultiPartCreate(MultiPartCreate):
         self._client = client
         self._block_ids: List[List[str]] = [[] for _ in range(num_parts)]
 
-    async def create_part(self, number: int, start: int, size_hint: Optional[int] = None) -> AsyncContextManager[WritableStream]:
+    async def create_part(self, number: int, start: int, size_hint: Optional[int] = None) -> AsyncContextManager[WritableStream]:  # pylint: disable=unused-argument
         return AzureCreatePartManager(self._client, self._block_ids[number])
 
     async def __aenter__(self) -> 'AzureMultiPartCreate':
@@ -247,23 +246,22 @@ class AzureFileStatus(FileStatus):
 
 
 class AzureAsyncFS(AsyncFS):
+    schemes: Set[str] = {'hail-az'}
     PATH_REGEX = re.compile('/(?P<container>[^/]+)(?P<name>.*)')
 
     def __init__(self, *, credential_file: Optional[str] = None, credentials: Optional[AzureCredentials] = None):
         if credentials is None:
+            scopes = ['https://storage.azure.com/.default']
             if credential_file is not None:
-                credentials = AzureCredentials.from_file(credential_file)
+                credentials = AzureCredentials.from_file(credential_file, scopes=scopes)
             else:
-                credentials = AzureCredentials.default_credentials()
+                credentials = AzureCredentials.default_credentials(scopes=scopes)
         else:
             if credential_file is not None:
                 raise ValueError('credential and credential_file cannot both be defined')
 
         self._credential = credentials.credential
         self._blob_service_clients: Dict[str, BlobServiceClient] = {}
-
-    def schemes(self) -> Set[str]:
-        return {'hail-az'}
 
     @staticmethod
     def _get_account_container_name(url: str) -> Tuple[str, str, str]:
@@ -376,7 +374,11 @@ class AzureAsyncFS(AsyncFS):
                 url = f'hail-az://{client.account_name}/{client.container_name}/{item.name}'
                 yield AzureFileListEntry(url, item)
 
-    async def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
+    async def listfiles(self,
+                        url: str,
+                        recursive: bool = False,
+                        exclude_trailing_slash_files: bool = True
+                        ) -> AsyncIterator[FileListEntry]:
         _, _, name = self._get_account_container_name(url)
         if name and not name.endswith('/'):
             name = f'{name}/'
@@ -396,6 +398,9 @@ class AzureAsyncFS(AsyncFS):
         async def should_yield(entry):
             url = await entry.url()
             if url.endswith('/') and await entry.is_file():
+                if not exclude_trailing_slash_files:
+                    return True
+
                 stat = await entry.status()
                 if await stat.size() != 0:
                     raise FileAndDirectoryError(url)
@@ -423,25 +428,6 @@ class AzureAsyncFS(AsyncFS):
             await self.get_blob_client(url).delete_blob()
         except azure.core.exceptions.ResourceNotFoundError as e:
             raise FileNotFoundError(url) from e
-
-    async def _rmtree(self, sema: asyncio.Semaphore, url: str) -> None:
-        async with OnlineBoundedGather2(sema) as pool:
-            _, _, name = self._get_account_container_name(url)
-            if name and not name.endswith('/'):
-                name = f'{name}/'
-
-            client = self.get_container_client(url)
-            it = self._listfiles_recursive(client, name)
-            async for entry in it:
-                await pool.call(self._remove_doesnt_exist_ok, await entry.url())
-
-    async def rmtree(self, sema: Optional[asyncio.Semaphore], url: str) -> None:
-        if sema is None:
-            sema = asyncio.Semaphore(50)
-            async with sema:
-                return await self._rmtree(sema, url)
-
-        return await self._rmtree(sema, url)
 
     async def close(self) -> None:
         if self._credential:

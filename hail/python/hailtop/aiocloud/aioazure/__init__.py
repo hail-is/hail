@@ -1,4 +1,5 @@
-from .client import AzureComputeClient, AzureGraphClient, AzureNetworkClient, AzureResourcesClient
+from .client import (AzureComputeClient, AzureGraphClient, AzureNetworkClient, AzureResourcesClient,
+                     AzureResourceManagerClient, AzurePricingClient)
 from .credentials import AzureCredentials
 from .fs import AzureAsyncFS
 from .session import AzureSession
@@ -10,5 +11,7 @@ __all__ = [
     'AzureComputeClient',
     'AzureGraphClient',
     'AzureNetworkClient',
+    'AzurePricingClient',
     'AzureResourcesClient',
+    'AzureResourceManagerClient',
 ]

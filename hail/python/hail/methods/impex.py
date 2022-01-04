@@ -515,6 +515,10 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
     require_col_key_str(dataset, 'export_vcf')
     require_row_key_variant(dataset, 'export_vcf')
 
+    if 'filters' in dataset.row and dataset.filters.dtype != hl.tset(hl.tstr):
+        raise ValueError(f"'export_vcf': expect the 'filters' field to be set<str>, found {dataset.filters.dtype}"
+                         f"\n  Either transform this field to set<str> to export as VCF FILTERS field, or drop it from the dataset.")
+
     info_fields = list(dataset.info) if "info" in dataset.row else []
     invalid_info_fields = [f for f in info_fields if not re.fullmatch(r"^([A-Za-z_][0-9A-Za-z_.]*|1000G)", f)]
     if invalid_info_fields:

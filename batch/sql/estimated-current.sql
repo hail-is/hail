@@ -11,12 +11,20 @@ CREATE TABLE IF NOT EXISTS `resources` (
   PRIMARY KEY (`resource`)
 ) ENGINE = InnoDB;
 
+CREATE TABLE IF NOT EXISTS `latest_product_versions` (
+  `product` VARCHAR(100) NOT NULL,
+  `version` VARCHAR(100) NOT NULL,
+  `time_updated` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`product`)
+) ENGINE = InnoDB;
+
 CREATE TABLE IF NOT EXISTS `inst_colls` (
   `name` VARCHAR(255) NOT NULL,
   `is_pool` BOOLEAN NOT NULL,
   `boot_disk_size_gb` BIGINT NOT NULL,
   `max_instances` BIGINT NOT NULL,
   `max_live_instances` BIGINT NOT NULL,
+  `cloud` VARCHAR(100) NOT NULL,
   PRIMARY KEY (`name`)
 ) ENGINE = InnoDB;
 CREATE INDEX `inst_colls_pool` ON `inst_colls` (`pool`);
@@ -31,7 +39,7 @@ CREATE TABLE IF NOT EXISTS `pools` (
   `worker_type` VARCHAR(100) NOT NULL,
   `worker_cores` BIGINT NOT NULL,
   `worker_local_ssd_data_disk` BOOLEAN NOT NULL DEFAULT 1,
-  `worker_pd_ssd_data_disk_size_gb` BIGINT NOT NULL DEFAULT 0,
+  `worker_external_ssd_data_disk_size_gb` BIGINT NOT NULL DEFAULT 0,
   `enable_standing_worker` BOOLEAN NOT NULL DEFAULT FALSE,
   `standing_worker_cores` BIGINT NOT NULL DEFAULT 0,
   PRIMARY KEY (`name`),
@@ -39,16 +47,16 @@ CREATE TABLE IF NOT EXISTS `pools` (
 ) ENGINE = InnoDB;
 
 INSERT INTO pools (`name`, `worker_type`, `worker_cores`, `worker_local_ssd_data_disk`,
-  `worker_pd_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`)
+  `worker_external_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`)
 VALUES ('standard', 'standard', 16, 1, 0, 1, 4);
 
 INSERT INTO pools (`name`, `worker_type`, `worker_cores`, `worker_local_ssd_data_disk`,
-  `worker_pd_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`)
-VALUES ('highmem', 'highmem', 16, 1, 0, 0, 4);
+  `worker_external_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`)
+VALUES ('highmem', 'highmem', 16, 10, 1, 0, 0, 4);
 
 INSERT INTO pools (`name`, `worker_type`, `worker_cores`, `worker_local_ssd_data_disk`,
-  `worker_pd_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`)
-VALUES ('highcpu', 'highcpu', 16, 1, 0, 0, 4);
+  `worker_external_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`)
+VALUES ('highcpu', 'highcpu', 16, 10, 1, 0, 0, 4);
 
 CREATE TABLE IF NOT EXISTS `billing_projects` (
   `name` VARCHAR(100) NOT NULL,
@@ -95,10 +103,11 @@ CREATE TABLE IF NOT EXISTS `instances` (
   `time_deactivated` BIGINT,
   `removed` BOOLEAN NOT NULL DEFAULT FALSE,
   `version` INT NOT NULL,
+  `location` VARCHAR(40) NOT NULL,
   `inst_coll` VARCHAR(255) NOT NULL,
   `machine_type` VARCHAR(255) NOT NULL,
   `preemptible` BOOLEAN NOT NULL,
-  `worker_config` MEDIUMTEXT,
+  `instance_config` MEDIUMTEXT,
   PRIMARY KEY (`name`),
   FOREIGN KEY (`inst_coll`) REFERENCES inst_colls(`name`)
 ) ENGINE = InnoDB;
@@ -111,7 +120,7 @@ CREATE TABLE IF NOT EXISTS `instances_free_cores_mcpu` (
   `name` VARCHAR(100) NOT NULL,
   `free_cores_mcpu` INT NOT NULL,
   PRIMARY KEY (`name`),
-  FOREIGN KEY (`name`) REFERENCES instances(`name`)
+  FOREIGN KEY (`name`) REFERENCES instances(`name`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `user_inst_coll_resources` (
@@ -164,7 +173,7 @@ CREATE INDEX `batches_billing_project_state` ON `batches` (`billing_project`, `s
 CREATE TABLE IF NOT EXISTS `batches_cancelled` (
   `id` BIGINT NOT NULL,
   PRIMARY KEY (`id`),
-  FOREIGN KEY (`id`) REFERENCES batches(id)
+  FOREIGN KEY (`id`) REFERENCES batches(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `batches_inst_coll_staging` (
@@ -400,12 +409,12 @@ BEGIN
   DECLARE cur_n_tokens INT;
   DECLARE rand_token INT;
 
-  SELECT user INTO cur_user FROM batches WHERE id = NEW.batch_id
+  SELECT user INTO cur_user FROM batches WHERE id = NEW.batch_id;
 
   SET cur_batch_cancelled = EXISTS (SELECT TRUE
                                     FROM batches_cancelled
                                     WHERE id = NEW.batch_id
-                                    LOCK IN SHARE MODE)
+                                    LOCK IN SHARE MODE);
 
   SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
   SET rand_token = FLOOR(RAND() * cur_n_tokens);

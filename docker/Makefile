@@ -51,8 +51,3 @@ deploy: build
 .PHONY: clean
 clean:
 	rm -f base hail-ubuntu-image-ref base service-base service-java-run-base
-
-## Public Images ###############################################################
-
-publish-public-images: hail-ubuntu-image-ref
-	bash publish-public-images.sh $(DOCKER_PREFIX)

@@ -1,7 +1,7 @@
-from .base_client import GCPBaseClient
+from .base_client import GoogleBaseClient
 
 
-class GoogleContainerClient(GCPBaseClient):
+class GoogleContainerClient(GoogleBaseClient):
     def __init__(self, project, **kwargs):
         super().__init__(f'https://gcr.io/v2/{project}', **kwargs)
 

@@ -184,7 +184,7 @@ def transform_gvcf(mt: MatrixTable,
     """
     ref_mt = make_reference_matrix_table(mt, reference_entry_fields_to_keep)
     var_mt = make_variants_matrix_table(mt, info_to_keep)
-    return VariantDataset(ref_mt, var_mt)
+    return VariantDataset(ref_mt, var_mt._key_rows_by_assert_sorted('locus', 'alleles'))
 
 
 _merge_function_map = {}

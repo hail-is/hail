@@ -1,4 +1,5 @@
-from typing import Optional, Dict, Callable, Tuple, Awaitable, Any, List, Iterator
+from typing import (Optional, Dict, Callable, Tuple, Awaitable, Any, Union, MutableMapping, List,
+                    Iterator)
 import os
 import json
 import sys
@@ -17,12 +18,17 @@ from aiohttp import web
 import struct
 import async_timeout
 import concurrent
+
 import aiodocker  # type: ignore
+import aiodocker.images
+from aiodocker.exceptions import DockerError  # type: ignore
+
 import aiorwlock
 from contextlib import ExitStack, contextmanager
 from collections import defaultdict
-import psutil
-from aiodocker.exceptions import DockerError  # type: ignore
+
+from gear.clients import get_compute_client, get_cloud_async_fs
+
 from hailtop.utils import (
     time_msecs,
     time_msecs_str,
@@ -34,17 +40,15 @@ from hailtop.utils import (
     CalledProcessError,
     check_exec_output,
     check_shell_output,
-    is_google_registry_domain,
     find_spark_home,
     dump_all_stacktraces,
     parse_docker_image_reference,
     blocking_to_async,
     periodically_call,
 )
-from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
-from hailtop.aiotools.fs import RouterAsyncFS, LocalAsyncFS
-from hailtop.aiocloud import aiogoogle
+from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.aiotools import LocalAsyncFS
 from hailtop import aiotools, httpx
 
 # import uvloop
@@ -53,31 +57,27 @@ from hailtop.config import DeployConfig
 from hailtop.hail_logging import configure_logging
 import warnings
 
-from ..utils import (
-    adjust_cores_for_memory_request,
-    cores_mcpu_to_memory_bytes,
-    adjust_cores_for_packability,
-    adjust_cores_for_storage_request,
-    round_storage_bytes_to_gib,
-    cores_mcpu_to_storage_bytes,
-)
-
 from ..semaphore import FIFOWeightedSemaphore
 from ..file_store import FileStore
 from ..globals import (
     HTTP_CLIENT_MAX_SIZE,
     STATUS_FORMAT_VERSION,
     RESERVED_STORAGE_GB_PER_CORE,
-    MAX_PERSISTENT_SSD_SIZE_GIB,
 )
 from ..batch_format_version import BatchFormatVersion
-from ..worker_config import WorkerConfig
 from ..publicly_available_images import publicly_available_images
-from ..utils import storage_gib_to_bytes, Box
+from ..utils import Box
+from ..worker.instance_env import CloudWorkerAPI
+from ..cloud.gcp.worker.instance_env import GCPWorkerAPI
+from ..cloud.azure.worker.instance_env import AzureWorkerAPI
+from ..cloud.resource_utils import storage_gib_to_bytes, is_valid_storage_request
 
-from .disk import Disk
+from .credentials import CloudUserCredentials
 
 # uvloop.install()
+
+with open('/subdomains.txt', 'r') as subdomains_file:
+    HAIL_SERVICES = [line.rstrip() for line in subdomains_file.readlines()]
 
 oldwarn = warnings.warn
 
@@ -92,6 +92,22 @@ def deeper_stack_level_warn(*args, **kwargs):
 
 warnings.warn = deeper_stack_level_warn
 
+
+def compose_auth_header_urlsafe(orig_f):
+    def compose(auth: Union[MutableMapping, str, bytes], registry_addr: str = None):
+        orig_auth_header = orig_f(auth, registry_addr=registry_addr)
+        auth = json.loads(base64.b64decode(orig_auth_header))
+        auth_json = json.dumps(auth).encode('ascii')
+        return base64.urlsafe_b64encode(auth_json).decode('ascii')
+    return compose
+
+
+# We patched aiodocker's utility function `compose_auth_header` because it does not base64 encode strings
+# in urlsafe mode which is required for Azure's credentials.
+# https://github.com/aio-libs/aiodocker/blob/17e08844461664244ea78ecd08d1672b1779acc1/aiodocker/utils.py#L297
+aiodocker.images.compose_auth_header = compose_auth_header_urlsafe(aiodocker.images.compose_auth_header)
+
+
 configure_logging()
 log = logging.getLogger('batch-worker')
 
@@ -101,27 +117,28 @@ MAX_DOCKER_OTHER_OPERATION_SECS = 1 * 60
 
 IPTABLES_WAIT_TIMEOUT_SECS = 60
 
+CLOUD = os.environ['CLOUD']
 CORES = int(os.environ['CORES'])
 NAME = os.environ['NAME']
 NAMESPACE = os.environ['NAMESPACE']
-INTERNAL_BATCH_DOMAIN = 'batch.hail' if NAMESPACE == 'default' else 'internal.hail'
 # ACTIVATION_TOKEN
 IP_ADDRESS = os.environ['IP_ADDRESS']
 INTERNAL_GATEWAY_IP = os.environ['INTERNAL_GATEWAY_IP']
 BATCH_LOGS_STORAGE_URI = os.environ['BATCH_LOGS_STORAGE_URI']
 INSTANCE_ID = os.environ['INSTANCE_ID']
-PROJECT = os.environ['PROJECT']
-ZONE = os.environ['ZONE'].rsplit('/', 1)[1]
 DOCKER_PREFIX = os.environ['DOCKER_PREFIX']
 PUBLIC_IMAGES = publicly_available_images(DOCKER_PREFIX)
-WORKER_CONFIG = json.loads(base64.b64decode(os.environ['WORKER_CONFIG']).decode())
+INSTANCE_CONFIG = json.loads(base64.b64decode(os.environ['INSTANCE_CONFIG']).decode())
 MAX_IDLE_TIME_MSECS = int(os.environ['MAX_IDLE_TIME_MSECS'])
-WORKER_DATA_DISK_MOUNT = os.environ['WORKER_DATA_DISK_MOUNT']
 BATCH_WORKER_IMAGE = os.environ['BATCH_WORKER_IMAGE']
 BATCH_WORKER_IMAGE_ID = os.environ['BATCH_WORKER_IMAGE_ID']
+INTERNET_INTERFACE = os.environ['INTERNET_INTERFACE']
 UNRESERVED_WORKER_DATA_DISK_SIZE_GB = int(os.environ['UNRESERVED_WORKER_DATA_DISK_SIZE_GB'])
 assert UNRESERVED_WORKER_DATA_DISK_SIZE_GB >= 0
 
+CLOUD_WORKER_API: CloudWorkerAPI = GCPWorkerAPI.from_env() if CLOUD == 'gcp' else AzureWorkerAPI.from_env()
+
+log.info(f'CLOUD {CLOUD}')
 log.info(f'CORES {CORES}')
 log.info(f'NAME {NAME}')
 log.info(f'NAMESPACE {NAMESPACE}')
@@ -129,16 +146,16 @@ log.info(f'NAMESPACE {NAMESPACE}')
 log.info(f'IP_ADDRESS {IP_ADDRESS}')
 log.info(f'BATCH_LOGS_STORAGE_URI {BATCH_LOGS_STORAGE_URI}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
-log.info(f'PROJECT {PROJECT}')
-log.info(f'ZONE {ZONE}')
 log.info(f'DOCKER_PREFIX {DOCKER_PREFIX}')
-log.info(f'WORKER_CONFIG {WORKER_CONFIG}')
+log.info(f'INSTANCE_CONFIG {INSTANCE_CONFIG}')
+log.info(f'CLOUD_WORKER_API {CLOUD_WORKER_API}')
 log.info(f'MAX_IDLE_TIME_MSECS {MAX_IDLE_TIME_MSECS}')
-log.info(f'WORKER_DATA_DISK_MOUNT {WORKER_DATA_DISK_MOUNT}')
+log.info(f'INTERNET_INTERFACE {INTERNET_INTERFACE}')
 log.info(f'UNRESERVED_WORKER_DATA_DISK_SIZE_GB {UNRESERVED_WORKER_DATA_DISK_SIZE_GB}')
 
-worker_config = WorkerConfig(WORKER_CONFIG)
-assert worker_config.cores == CORES
+instance_config = CLOUD_WORKER_API.instance_config_from_config_dict(INSTANCE_CONFIG)
+assert instance_config.cores == CORES
+assert instance_config.cloud == CLOUD
 
 deploy_config = DeployConfig('gce', NAMESPACE, {})
 
@@ -180,11 +197,11 @@ class NetworkNamespace:
         self.veth_job = self.network_ns_name + '-job'
 
         if private:
-            self.host_ip = f'10.0.{subnet_index}.10'
-            self.job_ip = f'10.0.{subnet_index}.11'
+            self.host_ip = f'172.20.{subnet_index}.10'
+            self.job_ip = f'172.20.{subnet_index}.11'
         else:
-            self.host_ip = f'10.1.{subnet_index}.10'
-            self.job_ip = f'10.1.{subnet_index}.11'
+            self.host_ip = f'172.21.{subnet_index}.10'
+            self.job_ip = f'172.21.{subnet_index}.11'
 
         self.port = None
         self.host_port = None
@@ -197,15 +214,19 @@ class NetworkNamespace:
         with open(f'/etc/netns/{self.network_ns_name}/hosts', 'w') as hosts:
             hosts.write('127.0.0.1 localhost\n')
             hosts.write(f'{self.job_ip} {self.hostname}\n')
-            hosts.write(f'{INTERNAL_GATEWAY_IP} {INTERNAL_BATCH_DOMAIN}\n')
+            if NAMESPACE == 'default':
+                for service in HAIL_SERVICES:
+                    hosts.write(f'{INTERNAL_GATEWAY_IP} {service}.hail\n')
+            hosts.write(f'{INTERNAL_GATEWAY_IP} internal.hail\n')
 
         # Jobs on the private network should have access to the metadata server
         # and our vdc. The public network should not so we use google's public
         # resolver.
         with open(f'/etc/netns/{self.network_ns_name}/resolv.conf', 'w') as resolv:
             if self.private:
-                resolv.write('nameserver 169.254.169.254\n')
-                resolv.write('search c.hail-vdc.internal google.internal\n')
+                resolv.write(f'nameserver {CLOUD_WORKER_API.nameserver_ip}\n')
+                if CLOUD == 'gcp':
+                    resolv.write('search c.hail-vdc.internal google.internal\n')
             else:
                 resolv.write('nameserver 8.8.8.8\n')
 
@@ -264,13 +285,7 @@ class NetworkAllocator:
     def __init__(self):
         self.private_networks = asyncio.Queue()
         self.public_networks = asyncio.Queue()
-
-        for nic in psutil.net_if_addrs().keys():
-            if nic.startswith('ens'):
-                self.internet_interface = nic
-                break
-        else:
-            raise Exception('No ens interface detected')
+        self.internet_interface = INTERNET_INTERFACE
 
     async def reserve(self, netns_pool_min_size: int = 64):
         for subnet_index in range(netns_pool_min_size):
@@ -354,27 +369,28 @@ class Timings:
         self.timings: Dict[str, Dict[str, float]] = dict()
         self.is_deleted = is_deleted
 
-    def step(self, name: str):
+    def step(self, name: str, ignore_job_deletion: bool = False):
         assert name not in self.timings
         self.timings[name] = dict()
-        return ContainerStepManager(self.timings[name], self.is_deleted)
+        return ContainerStepManager(self.timings[name], self.is_deleted, ignore_job_deletion=ignore_job_deletion)
 
     def to_dict(self):
         return self.timings
 
 
 class ContainerStepManager:
-    def __init__(self, timing: Dict[str, int], is_deleted: Callable[[], bool]):
-        self.timing: Dict[str, int] = timing
+    def __init__(self, timing: Dict[str, float], is_deleted: Callable[[], bool], ignore_job_deletion: bool = False):
+        self.timing: Dict[str, float] = timing
         self.is_deleted = is_deleted
+        self.ignore_job_deletion = ignore_job_deletion
 
     def __enter__(self):
-        if self.is_deleted():
+        if self.is_deleted() and not self.ignore_job_deletion:
             raise JobDeletedError()
         self.timing['start_time'] = time_msecs()
 
     def __exit__(self, exc_type, exc, tb):
-        if self.is_deleted():
+        if self.is_deleted() and not self.ignore_job_deletion:
             return
         finish_time = time_msecs()
         self.timing['finish_time'] = finish_time
@@ -494,9 +510,6 @@ class Container:
 
             self.container_status = await self.get_container_status()
 
-            with self.step('uploading_log'):
-                await self.upload_log()
-
             if timed_out:
                 self.short_error = 'timed out'
                 raise JobTimeoutError(f'timed out after {self.timeout}s')
@@ -517,10 +530,14 @@ class Container:
             self.error = traceback.format_exc()
         finally:
             try:
-                await self.delete_container()
+                with self.step('uploading_log', ignore_job_deletion=True):
+                    await self.upload_log()
             finally:
-                if self.image_id:
-                    self.worker.image_data[self.image_id] -= 1
+                try:
+                    await self.delete_container()
+                finally:
+                    if self.image_id:
+                        self.worker.image_data[self.image_id] -= 1
 
     async def run_until_done_or_deleted(self, f: Callable[[], Awaitable[Any]]):
         step = asyncio.ensure_future(f())
@@ -543,15 +560,16 @@ class Container:
     def is_job_deleted(self) -> bool:
         return self.job.deleted
 
-    def step(self, name: str):
-        return self.timings.step(name)
+    def step(self, name: str, ignore_job_deletion: bool = False):
+        return self.timings.step(name, ignore_job_deletion=ignore_job_deletion)
 
     async def pull_image(self):
-        is_google_image = is_google_registry_domain(self.image_ref.domain)
+        is_cloud_image = ((CLOUD == 'gcp' and self.image_ref.hosted_in('google'))
+                          or (CLOUD == 'azure' and self.image_ref.hosted_in('azure')))
         is_public_image = self.image_ref.name() in PUBLIC_IMAGES
 
         try:
-            if not is_google_image:
+            if not is_cloud_image:
                 await self.ensure_image_is_pulled()
             elif is_public_image:
                 auth = await self.batch_worker_access_token()
@@ -587,19 +605,10 @@ class Container:
                 raise
 
     async def batch_worker_access_token(self):
-        async with await request_retry_transient_errors(
-            self.client_session,
-            'POST',
-            'http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token',
-            headers={'Metadata-Flavor': 'Google'},
-            timeout=aiohttp.ClientTimeout(total=60),
-        ) as resp:
-            access_token = (await resp.json())['access_token']
-            return {'username': 'oauth2accesstoken', 'password': access_token}
+        return await CLOUD_WORKER_API.worker_access_token(self.client_session)
 
     def current_user_access_token(self):
-        key = base64.b64decode(self.job.gsa_key['key.json']).decode()
-        return {'username': '_json_key', 'password': key}
+        return {'username': self.job.credentials.username, 'password': self.job.credentials.password}
 
     async def extract_rootfs(self):
         assert self.rootfs_path
@@ -992,7 +1001,7 @@ class Container:
         return f'container {self.job.id}/{self.name}'
 
 
-def populate_secret_host_path(host_path, secret_data: Optional[Dict[str, str]]):
+def populate_secret_host_path(host_path: str, secret_data: Optional[Dict[str, bytes]]):
     os.makedirs(host_path, exist_ok=True)
     if secret_data is not None:
         for filename, data in secret_data.items():
@@ -1001,6 +1010,7 @@ def populate_secret_host_path(host_path, secret_data: Optional[Dict[str, str]]):
 
 
 async def add_gcsfuse_bucket(mount_path, bucket, key_file, read_only):
+    assert CLOUD == 'gcp'
     assert bucket
     os.makedirs(mount_path)
     options = ['allow_other']
@@ -1054,7 +1064,7 @@ def copy_container(
             json.dumps(files),
             '-v',
         ],
-        'env': ['GOOGLE_APPLICATION_CREDENTIALS=/gsa-key/key.json'],
+        'env': [f'{job.credentials.cloud_env_name}={job.credentials.mount_path}'],
         'cpu': cpu,
         'memory': memory,
         'scratch': scratch,
@@ -1082,13 +1092,16 @@ class Job:
         # Make sure this path isn't in self.scratch to avoid accidental bucket deletions!
         return f'/gcsfuse/{self.token}/{bucket}'
 
-    def gsa_key_file_path(self):
-        return f'{self.scratch}/gsa-key'
+    def credentials_host_dirname(self):
+        return f'{self.scratch}/{self.credentials.secret_name}'
+
+    def credentials_host_file_path(self):
+        return f'{self.credentials_host_dirname()}/{self.credentials.file_name}'
 
     @staticmethod
     def create(batch_id,
                user,
-               gsa_key: Optional[Dict[str, str]],
+               credentials: CloudUserCredentials,
                job_spec: dict,
                format_version: BatchFormatVersion,
                task_manager: aiotools.BackgroundTaskManager,
@@ -1098,15 +1111,15 @@ class Job:
                ) -> 'Job':
         type = job_spec['process']['type']
         if type == 'docker':
-            return DockerJob(batch_id, user, gsa_key, job_spec, format_version, task_manager, pool, client_session, worker)
+            return DockerJob(batch_id, user, credentials, job_spec, format_version, task_manager, pool, client_session, worker)
         assert type == 'jvm'
-        return JVMJob(batch_id, user, gsa_key, job_spec, format_version, task_manager, pool, worker)
+        return JVMJob(batch_id, user, credentials, job_spec, format_version, task_manager, pool, worker)
 
     def __init__(
         self,
         batch_id: int,
         user: str,
-        gsa_key: Optional[Dict[str, str]],
+        credentials: CloudUserCredentials,
         job_spec,
         format_version: BatchFormatVersion,
         task_manager: aiotools.BackgroundTaskManager,
@@ -1115,7 +1128,7 @@ class Job:
     ):
         self.batch_id = batch_id
         self.user = user
-        self.gsa_key = gsa_key
+        self.credentials = credentials
         self.job_spec = job_spec
         self.format_version = format_version
         self.task_manager = task_manager
@@ -1134,52 +1147,25 @@ class Job:
         self.start_time = None
         self.end_time = None
 
-        if self.format_version.format_version < 6:
-            req_cpu_in_mcpu = parse_cpu_in_mcpu(job_spec['resources']['cpu'])
-            req_memory_in_bytes = parse_memory_in_bytes(job_spec['resources']['memory'])
-            req_storage_in_bytes = parse_storage_in_bytes(job_spec['resources']['storage'])
+        self.cpu_in_mcpu = job_spec['resources']['cores_mcpu']
+        self.memory_in_bytes = job_spec['resources']['memory_bytes']
+        extra_storage_in_gib = job_spec['resources']['storage_gib']
+        assert extra_storage_in_gib == 0 or is_valid_storage_request(CLOUD, extra_storage_in_gib)
 
-            cpu_in_mcpu = adjust_cores_for_memory_request(
-                req_cpu_in_mcpu, req_memory_in_bytes, worker_config.instance_type
-            )
-            # still need to adjust cpu for storage request as that is how it was computed in the front_end
-            cpu_in_mcpu = adjust_cores_for_storage_request(
-                cpu_in_mcpu,
-                req_storage_in_bytes,
-                CORES,
-                worker_config.local_ssd_data_disk,
-                worker_config.data_disk_size_gb,
-            )
-            cpu_in_mcpu = adjust_cores_for_packability(cpu_in_mcpu)
-
-            self.cpu_in_mcpu = cpu_in_mcpu
-            self.memory_in_bytes = cores_mcpu_to_memory_bytes(cpu_in_mcpu, worker_config.instance_type)
-
+        if instance_config.job_private:
             self.external_storage_in_gib = 0
-            data_disk_storage_in_bytes = cores_mcpu_to_storage_bytes(
-                cpu_in_mcpu, CORES, worker_config.local_ssd_data_disk, worker_config.data_disk_size_gb
-            )
-            self.data_disk_storage_in_gib = round_storage_bytes_to_gib(data_disk_storage_in_bytes)
+            self.data_disk_storage_in_gib = extra_storage_in_gib
         else:
-            self.cpu_in_mcpu = job_spec['resources']['cores_mcpu']
-            self.memory_in_bytes = job_spec['resources']['memory_bytes']
-            storage_in_gib = job_spec['resources']['storage_gib']
-            assert storage_in_gib == 0 or 10 <= storage_in_gib <= MAX_PERSISTENT_SSD_SIZE_GIB
+            self.external_storage_in_gib = extra_storage_in_gib
+            # The reason for not giving each job 5 Gi (for example) is the
+            # maximum number of simultaneous jobs on a worker is 64 which
+            # basically fills the disk not allowing for caches etc. Most jobs
+            # would need an external disk in that case.
+            self.data_disk_storage_in_gib = min(
+                RESERVED_STORAGE_GB_PER_CORE, self.cpu_in_mcpu / 1000 * RESERVED_STORAGE_GB_PER_CORE
+            )
 
-            if worker_config.job_private:
-                self.external_storage_in_gib = 0
-                self.data_disk_storage_in_gib = storage_in_gib
-            else:
-                self.external_storage_in_gib = storage_in_gib
-                # The reason for not giving each job 5 Gi (for example) is the
-                # maximum number of simultaneous jobs on a worker is 64 which
-                # basically fills the disk not allowing for caches etc. Most jobs
-                # would need an external disk in that case.
-                self.data_disk_storage_in_gib = min(
-                    RESERVED_STORAGE_GB_PER_CORE, self.cpu_in_mcpu / 1000 * RESERVED_STORAGE_GB_PER_CORE
-                )
-
-        self.resources = worker_config.resources(self.cpu_in_mcpu, self.memory_in_bytes, self.external_storage_in_gib)
+        self.resources = instance_config.quantified_resources(self.cpu_in_mcpu, self.memory_in_bytes, self.external_storage_in_gib)
 
         self.input_volume_mounts = []
         self.main_volume_mounts = []
@@ -1198,6 +1184,7 @@ class Job:
         gcsfuse = job_spec.get('gcsfuse')
         self.gcsfuse = gcsfuse
         if gcsfuse:
+            assert CLOUD == 'gcp'
             for b in gcsfuse:
                 b['mounted'] = False
                 self.main_volume_mounts.append(
@@ -1281,7 +1268,7 @@ class DockerJob(Job):
         self,
         batch_id: int,
         user: str,
-        gsa_key: Optional[Dict[str, str]],
+        credentials: CloudUserCredentials,
         job_spec,
         format_version,
         task_manager: aiotools.BackgroundTaskManager,
@@ -1289,7 +1276,7 @@ class DockerJob(Job):
         client_session: httpx.ClientSession,
         worker: 'Worker',
     ):
-        super().__init__(batch_id, user, gsa_key, job_spec, format_version, task_manager, pool, worker)
+        super().__init__(batch_id, user, credentials, job_spec, format_version, task_manager, pool, worker)
         input_files = job_spec.get('input_files')
         output_files = job_spec.get('output_files')
 
@@ -1306,7 +1293,7 @@ class DockerJob(Job):
                     'options': ['rbind', 'rw'],
                 }
                 self.main_volume_mounts.append(volume_mount)
-                # this will be the user gsa-key
+                # this will be the user credentials
                 if secret.get('mount_in_copy', False):
                     self.input_volume_mounts.append(volume_mount)
                     self.output_volume_mounts.append(volume_mount)
@@ -1374,7 +1361,7 @@ class DockerJob(Job):
         return self.timings.step(name)
 
     async def setup_io(self):
-        if not worker_config.job_private:
+        if not instance_config.job_private:
             if self.worker.data_disk_space_remaining.value < self.external_storage_in_gib:
                 log.info(
                     f'worker data disk storage is full: {self.external_storage_in_gib}Gi requested and {self.worker.data_disk_space_remaining}Gi remaining'
@@ -1384,11 +1371,9 @@ class DockerJob(Job):
                 # https://cloud.google.com/compute/docs/reference/rest/v1/disks#resource:-disk
                 # under the information for the name field
                 uid = self.token[:20]
-                self.disk = Disk(
-                    zone=ZONE,
-                    project=PROJECT,
+                self.disk = CLOUD_WORKER_API.create_disk(
                     instance_name=NAME,
-                    name=f'batch-disk-{uid}',
+                    disk_name=f'batch-disk-{uid}',
                     size_in_gb=self.external_storage_in_gib,
                     mount_path=self.io_host_path(),
                 )
@@ -1441,13 +1426,13 @@ class DockerJob(Job):
 
                 with self.step('adding gcsfuse bucket'):
                     if self.gcsfuse:
-                        populate_secret_host_path(self.gsa_key_file_path(), self.gsa_key)
+                        populate_secret_host_path(self.credentials_host_dirname(), self.credentials.secret_data)
                         for b in self.gcsfuse:
                             bucket = b['bucket']
                             await add_gcsfuse_bucket(
                                 mount_path=self.gcsfuse_path(bucket),
                                 bucket=bucket,
-                                key_file=f'{self.gsa_key_file_path()}/key.json',
+                                key_file=self.credentials_host_file_path(),
                                 read_only=b['read_only'],
                             )
                             b['mounted'] = True
@@ -1496,6 +1481,8 @@ class DockerJob(Job):
                         try:
                             await self.disk.delete()
                             log.info(f'deleted disk {self.disk.name} for {self.id}')
+                        except asyncio.CancelledError:
+                            raise
                         except Exception:
                             log.exception(f'while detaching and deleting disk {self.disk.name} for {self.id}')
                         finally:
@@ -1555,14 +1542,14 @@ class JVMJob(Job):
         self,
         batch_id: int,
         user: str,
-        gsa_key: Optional[Dict[str, str]],
+        credentials: CloudUserCredentials,
         job_spec,
         format_version,
         task_manager: aiotools.BackgroundTaskManager,
         pool: concurrent.futures.ThreadPoolExecutor,
         worker: 'Worker',
     ):
-        super().__init__(batch_id, user, gsa_key, job_spec, format_version, task_manager, pool, worker)
+        super().__init__(batch_id, user, credentials, job_spec, format_version, task_manager, pool, worker)
         assert job_spec['process']['type'] == 'jvm'
         assert worker is not None
 
@@ -1571,7 +1558,39 @@ class JVMJob(Job):
         if input_files or output_files:
             raise Exception("i/o not supported")
 
-        assert self.env == [{'name': 'GOOGLE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'}], str(self.env)
+        for envvar in self.env:
+            assert envvar['name'] not in {
+                'HAIL_DEPLOY_CONFIG_FILE',
+                'HAIL_TOKENS_FILE',
+                'HAIL_SSL_CONFIG_DIR',
+                'HAIL_WORKER_SCRATCH_DIR',
+                self.credentials.hail_env_name,
+            }, envvar
+
+        self.env.append(
+            {'name': 'HAIL_DEPLOY_CONFIG_FILE', 'value': f'{self.scratch}/secrets/deploy-config/deploy-config.json'}
+        )
+        self.env.append({'name': 'HAIL_TOKENS_FILE', 'value': f'{self.scratch}/secrets/user-tokens/tokens.json'})
+        self.env.append({'name': 'HAIL_SSL_CONFIG_DIR', 'value': f'{self.scratch}/secrets/ssl-config'})
+        self.env.append({'name': 'HAIL_WORKER_SCRATCH_DIR', 'value': self.scratch})
+        self.env.append({'name': self.credentials.hail_env_name, 'value': self.credentials_host_file_path()})
+
+        # main container
+        self.main_spec = {
+            'command': job_spec['process']['command'],  # ['is.hail.backend.service.Worker', $root, $i]
+            'name': 'main',
+            'env': self.env,
+            'cpu': self.cpu_in_mcpu,
+            'memory': self.memory_in_bytes,
+        }
+
+        self.heap_size = self.memory_in_bytes - self.stack_size
+
+        user_command_string = job_spec['process']['command']
+        assert len(user_command_string) >= 3, user_command_string
+        self.revision = user_command_string[1]
+        self.jar_url = user_command_string[2]
+        classpath = f'{find_spark_home()}/jars/*:/hail-jars/{self.revision}.jar:/log4j.properties'
 
         self.user_command_string = job_spec['process']['command']
         assert len(self.user_command_string) >= 3, self.user_command_string
@@ -1614,6 +1633,7 @@ class JVMJob(Job):
                         populate_secret_host_path(self.scratch + '/' + secret["mount_path"][1:],
                                                   secret['data'])
 
+                populate_secret_host_path(self.credentials_host_dirname(), self.credentials.secret_data)
                 self.state = 'running'
 
                 log.info(f'{self}: downloading JAR')
@@ -1621,17 +1641,9 @@ class JVMJob(Job):
                     async with self.worker.jar_download_locks[self.revision]:
                         local_jar_location = f'/hail-jars/{self.revision}.jar'
                         if not os.path.isfile(local_jar_location):
-                            user_fs = RouterAsyncFS(
-                                'file',
-                                [
-                                    LocalAsyncFS(self.worker.pool),
-                                    aiogoogle.GoogleStorageAsyncFS(
-                                        credentials=aiogoogle.GoogleCredentials.from_file('/worker-key.json')
-                                    ),
-                                ],
-                            )
-                            async with await user_fs.open(self.jar_url) as jar_data:
-                                async with await user_fs.create(local_jar_location) as local_file:
+                            async with await self.worker.fs.open(self.jar_url) as jar_data:
+                                await self.worker.fs.makedirs('/hail-jars/', exist_ok=True)
+                                async with await self.worker.fs.create(local_jar_location) as local_file:
                                     while True:
                                         b = await jar_data.read(256 * 1024)
                                         if not b:
@@ -2098,6 +2110,7 @@ class Worker:
         self.image_data[BATCH_WORKER_IMAGE_ID] += 1
 
         # filled in during activation
+        self.fs = None
         self.file_store = None
         self.headers = None
         self.compute_client = None
@@ -2125,17 +2138,22 @@ class Worker:
             log.info('shutdown task manager')
         finally:
             try:
-                if self.compute_client:
-                    await self.compute_client.close()
-                    log.info('closed compute client')
+                if self.fs:
+                    await self.fs.close()
+                    log.info('closed worker file system')
             finally:
                 try:
-                    if self.file_store:
-                        await self.file_store.close()
-                        log.info('closed file store')
+                    if self.compute_client:
+                        await self.compute_client.close()
+                        log.info('closed compute client')
                 finally:
-                    await self.client_session.close()
-                    log.info('closed client session')
+                    try:
+                        if self.file_store:
+                            await self.file_store.close()
+                            log.info('closed file store')
+                    finally:
+                        await self.client_session.close()
+                        log.info('closed client session')
 
     async def run_job(self, job):
         try:
@@ -2156,26 +2174,23 @@ class Worker:
 
         format_version = BatchFormatVersion(body['format_version'])
 
-        if format_version.has_full_spec_in_gcs():
-            token = body['token']
-            start_job_id = body['start_job_id']
-            addtl_spec = body['job_spec']
+        token = body['token']
+        start_job_id = body['start_job_id']
+        addtl_spec = body['job_spec']
 
-            job_spec = await self.file_store.read_spec_file(batch_id, token, start_job_id, job_id)
-            job_spec = json.loads(job_spec)
+        job_spec = await self.file_store.read_spec_file(batch_id, token, start_job_id, job_id)
+        job_spec = json.loads(job_spec)
 
-            job_spec['attempt_id'] = addtl_spec['attempt_id']
-            job_spec['secrets'] = addtl_spec['secrets']
+        job_spec['attempt_id'] = addtl_spec['attempt_id']
+        job_spec['secrets'] = addtl_spec['secrets']
 
-            addtl_env = addtl_spec.get('env')
-            if addtl_env:
-                env = job_spec.get('env')
-                if not env:
-                    env = []
-                    job_spec['env'] = env
-                env.extend(addtl_env)
-        else:
-            job_spec = body['job_spec']
+        addtl_env = addtl_spec.get('env')
+        if addtl_env:
+            env = job_spec.get('env')
+            if not env:
+                env = []
+                job_spec['env'] = env
+            env.extend(addtl_env)
 
         assert job_spec['job_id'] == job_id
         id = (batch_id, job_id)
@@ -2188,10 +2203,12 @@ class Worker:
         if not self.active:
             return web.HTTPServiceUnavailable()
 
+        credentials = CLOUD_WORKER_API.user_credentials(body['gsa_key'])
+
         job = Job.create(
             batch_id,
             body['user'],
-            body['gsa_key'],
+            credentials,
             job_spec,
             format_version,
             self.task_manager,
@@ -2421,20 +2438,27 @@ class Worker:
         resp = await request_retry_transient_errors(
             self.client_session,
             'GET',
-            deploy_config.url('batch-driver', '/api/v1alpha/instances/gsa_key'),
+            deploy_config.url('batch-driver', '/api/v1alpha/instances/credentials'),
             headers={'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {os.environ["ACTIVATION_TOKEN"]}'},
         )
         resp_json = await resp.json()
 
-        with open('/worker-key.json', 'w') as f:
+        credentials_file = '/worker-key.json'
+        with open(credentials_file, 'w') as f:
             f.write(json.dumps(resp_json['key']))
 
-        credentials = aiogoogle.GoogleCredentials.from_file('/worker-key.json')
-        fs = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
+        self.fs = RouterAsyncFS(
+            'file',
+            filesystems=[
+                LocalAsyncFS(self.pool),
+                get_cloud_async_fs(credentials_file=credentials_file),
+            ],
+        )
+
+        fs = get_cloud_async_fs(credentials_file=credentials_file)
         self.file_store = FileStore(fs, BATCH_LOGS_STORAGE_URI, INSTANCE_ID)
 
-        credentials = aiogoogle.GoogleCredentials.from_file('/worker-key.json')
-        self.compute_client = aiogoogle.GoogleComputeClient(PROJECT, credentials=credentials)
+        self.compute_client = get_compute_client(credentials_file=credentials_file)
 
         resp = await request_retry_transient_errors(
             self.client_session,
@@ -2487,18 +2511,20 @@ async def async_main():
             await worker.shutdown()
             log.info('worker shutdown', exc_info=True)
         finally:
-            await docker.close()
-            log.info('docker closed')
-            asyncio.get_event_loop().set_debug(True)
-            log.debug('Tasks immediately after docker close')
-            dump_all_stacktraces()
-            other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
-            if other_tasks:
-                _, pending = await asyncio.wait(other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED)
-                for t in pending:
-                    log.debug('Dangling task:')
-                    t.print_stack()
-                    t.cancel()
+            try:
+                await docker.close()
+                log.info('docker closed')
+            finally:
+                asyncio.get_event_loop().set_debug(True)
+                log.debug('Tasks immediately after docker close')
+                dump_all_stacktraces()
+                other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
+                if other_tasks:
+                    _, pending = await asyncio.wait(other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED)
+                    for t in pending:
+                        log.debug('Dangling task:')
+                        t.print_stack()
+                        t.cancel()
 
 
 loop = asyncio.get_event_loop()

@@ -30,7 +30,8 @@ DROP TABLE IF EXISTS `job_attributes`;
 DROP TABLE IF EXISTS `job_parents`;
 DROP TABLE IF EXISTS `batch_bunches`;
 DROP TABLE IF EXISTS `ready_cores`;  # deprecated
-DROP TABLE IF EXISTS `gevents_mark`;
+DROP TABLE IF EXISTS `gevents_mark`; # deprecated
+DROP TABLE IF EXISTS `events_mark`;
 DROP TABLE IF EXISTS `jobs`;
 DROP TABLE IF EXISTS `batches_cancelled`;
 DROP TABLE IF EXISTS `batches_staging`;  # deprecated
@@ -46,4 +47,5 @@ DROP TABLE IF EXISTS `batch_migration_version`;
 DROP TABLE IF EXISTS `batch_migrations`;
 DROP TABLE IF EXISTS `pools`;
 DROP TABLE IF EXISTS `inst_colls`;
+DROP TABLE IF EXISTS `latest_product_versions`;
 DROP TABLE IF EXISTS `resources`;

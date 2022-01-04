@@ -1,12 +1,11 @@
 import os
 import warnings
 import re
-from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Dict, Union, List, Any, Set
 
-from hailtop.utils import secret_alnum_string
-from hailtop.aiotools import AsyncFS, RouterAsyncFS, LocalAsyncFS
-from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
+from hailtop.utils import secret_alnum_string, url_scheme
+from hailtop.aiotools import AsyncFS
+from hailtop.aiotools.router_fs import RouterAsyncFS
 
 from . import backend as _backend, job, resource as _resource  # pylint: disable=cyclic-import
 from .exceptions import BatchException
@@ -160,8 +159,8 @@ class Batch:
     def _fs(self) -> AsyncFS:
         if self._DEPRECATED_project is not None:
             if self._DEPRECATED_fs is None:
-                self._DEPRECATED_fs = RouterAsyncFS('file', [LocalAsyncFS(ThreadPoolExecutor()),
-                                                             GoogleStorageAsyncFS(project=self._DEPRECATED_project)])
+                gcs_kwargs = {'project': self._DEPRECATED_project}
+                self._DEPRECATED_fs = RouterAsyncFS('file', gcs_kwargs=gcs_kwargs)
             return self._DEPRECATED_fs
         return self._backend._fs
 
@@ -489,7 +488,8 @@ class Batch:
                                  f"using the PythonJob 'call' method")
 
         if isinstance(self._backend, _backend.LocalBackend):
-            if not dest.startswith('gs://'):
+            dest_scheme = url_scheme(dest)
+            if dest_scheme == '':
                 dest = os.path.abspath(os.path.expanduser(dest))
 
         resource._add_output_path(dest)

@@ -26,7 +26,7 @@ class AzureCredentials(CloudCredentials):
     def default_credentials(scopes: Optional[List[str]] = None):
         credentials_file = first_extant_file(
             os.environ.get('AZURE_APPLICATION_CREDENTIALS'),
-            '/azure-key/credentials.json',
+            '/azure-credentials/credentials.json',
             '/gsa-key/key.json'  # FIXME: make this file path cloud-agnostic
         )
 

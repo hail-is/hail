@@ -1,6 +1,7 @@
-from typing import TypeVar, AsyncIterator, Iterator
-import asyncio
+from typing import Callable, TypeVar, AsyncIterator, Iterator
 import collections
+import asyncio
+
 
 _T = TypeVar('_T')
 
@@ -97,3 +98,15 @@ class WriteBuffer:
                 yield b[:remaining]
                 break
         self._iterating = False
+
+
+def make_tqdm_listener(pbar) -> Callable[[int], None]:
+    def listener(delta):
+        if pbar.total is None:
+            pbar.total = 0
+        if delta > 0:
+            pbar.total += delta
+            pbar.refresh()
+        if delta < 0:
+            pbar.update(-delta)
+    return listener

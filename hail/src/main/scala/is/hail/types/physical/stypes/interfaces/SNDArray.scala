@@ -741,7 +741,5 @@ trait SNDArraySettable extends SNDArrayValue with SSettable
 trait SNDArrayCode extends SCode {
   def st: SNDArray
 
-  def shape(cb: EmitCodeBuilder): SBaseStructCode
-
   def memoize(cb: EmitCodeBuilder, name: String): SNDArrayValue
 }

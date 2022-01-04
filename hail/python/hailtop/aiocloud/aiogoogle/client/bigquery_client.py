@@ -1,5 +1,5 @@
 from typing import Mapping, Any
-from .base_client import GCPBaseClient
+from .base_client import GoogleBaseClient
 
 
 def or_none(f, x):
@@ -105,7 +105,7 @@ class PagedQueriesIterator:
                 raise StopAsyncIteration
 
 
-class GoogleBigQueryClient(GCPBaseClient):
+class GoogleBigQueryClient(GoogleBaseClient):
     def __init__(self, project, **kwargs):
         super().__init__(f'https://bigquery.googleapis.com/bigquery/v2/projects/{project}', **kwargs)
 

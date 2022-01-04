@@ -149,7 +149,4 @@ class SNDArrayPointerCode(val st: SNDArrayPointer, val a: Code[Long]) extends SN
 
   override def memoizeField(cb: EmitCodeBuilder, name: String): SNDArrayPointerValue =
     memoize(cb, name, cb.fieldBuilder)
-
-  override def shape(cb: EmitCodeBuilder): SBaseStructCode =
-    pt.shapeType.loadCheapSCode(cb, pt.representation.loadField(a, "shape")).get
 }

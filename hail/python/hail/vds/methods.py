@@ -1,22 +1,23 @@
 from typing import Sequence
 
 import hail as hl
-from hail.expr import ArrayExpression, expr_any, expr_array, expr_interval
+from hail import ir
+from hail.expr import ArrayExpression, expr_any, expr_array, expr_interval, expr_locus
 from hail.matrixtable import MatrixTable
 from hail.methods.misc import require_first_key_field_locus
 from hail.table import Table
-from hail.typecheck import sequenceof, typecheck
-from hail.utils.java import Env
-from hail.utils.misc import divide_null
+from hail.typecheck import sequenceof, typecheck, nullable, oneof
+from hail.utils.java import Env, info
+from hail.utils.misc import divide_null, new_temp_file
 from hail.vds.variant_dataset import VariantDataset
-from hail import ir
 
 
 def write_variant_datasets(vdss, paths, *,
                            overwrite=False, stage_locally=False,
                            codec_spec=None):
     """Write many `vdses` to their corresponding path in `paths`."""
-    ref_writer = ir.MatrixNativeMultiWriter([f"{p}/reference_data" for p in paths], overwrite, stage_locally, codec_spec)
+    ref_writer = ir.MatrixNativeMultiWriter([f"{p}/reference_data" for p in paths], overwrite, stage_locally,
+                                            codec_spec)
     var_writer = ir.MatrixNativeMultiWriter([f"{p}/variant_data" for p in paths], overwrite, stage_locally, codec_spec)
     Env.backend().execute(ir.MatrixMultiWrite([vds.reference_data._mir for vds in vdss], ref_writer))
     Env.backend().execute(ir.MatrixMultiWrite([vds.variant_data._mir for vds in vdss], var_writer))
@@ -316,6 +317,106 @@ def filter_samples(vds: 'VariantDataset', samples_table: 'Table', *,
     return VariantDataset(reference_data, variant_data)
 
 
+@typecheck(vds=VariantDataset,
+           calling_intervals=oneof(Table, expr_array(expr_interval(expr_locus()))),
+           normalization_contig=str
+           )
+def impute_sex_chromosome_ploidy(
+        vds: VariantDataset,
+        calling_intervals,
+        normalization_contig: str
+) -> hl.Table:
+    """Impute sex chromosome ploidy from depth of reference data within calling intervals.
+
+    Returns a :class:`.Table` with sample ID keys, with the following fields:
+
+     -  ``autosomal_mean_dp`` (*float64*): Mean depth on calling intervals on normalization contig.
+     -  ``x_mean_dp`` (*float64*): Mean depth on calling intervals on X chromosome.
+     -  ``x_ploidy`` (*float64*): Estimated ploidy on X chromosome. Equal to ``2 * autosomal_mean_dp / x_mean_dp``.
+     -  ``y_mean_dp`` (*float64*): Mean depth on calling intervals on  chromosome.
+     -  ``y_ploidy`` (*float64*): Estimated ploidy on Y chromosome. Equal to ``2 * autosomal_mean_dp / y_mean_dp``.
+
+    Parameters
+    ----------
+    vds : vds: :class:`.VariantDataset`
+        Dataset.
+    calling_intervals : :class:`.Table` or :class:`.ArrayExpression`
+        Calling intervals with consistent read coverage (for exomes, trim the capture intervals).
+    normalization_contig : str
+        Autosomal contig for depth comparison.
+
+    Returns
+    -------
+    :class:`.Table`
+    """
+
+    if not isinstance(calling_intervals, Table):
+        calling_intervals = hl.Table.parallelize(hl.map(lambda i: hl.struct(interval=i), calling_intervals),
+                                                 schema=hl.tstruct(interval=calling_intervals.dtype.element_type),
+                                                 key='interval')
+    else:
+        key_dtype = calling_intervals.key.dtype
+        if len(key_dtype) != 1 or not isinstance(calling_intervals.key[0].dtype, hl.tinterval) or calling_intervals.key[0].dtype.point_type != vds.reference_data.locus.dtype:
+            raise ValueError(f"'impute_sex_chromosome_ploidy': expect calling_intervals to be list of intervals or"
+                             f" table with single key of type interval<locus>, found table with key: {key_dtype}")
+
+    rg = vds.reference_data.locus.dtype.reference_genome
+
+    par_boundaries = []
+    for par_interval in rg.par:
+        par_boundaries.append(par_interval.start)
+        par_boundaries.append(par_interval.end)
+
+    # segment on PAR interval boundaries
+    calling_intervals = hl.segment_intervals(calling_intervals, par_boundaries)
+
+    # remove intervals overlapping PAR
+    calling_intervals = calling_intervals.filter(hl.all(lambda x: ~x.overlaps(calling_intervals.interval), hl.literal(rg.par)))
+
+    # checkpoint for efficient multiple downstream usages
+    info("'impute_sex_chromosome_ploidy': checkpointing calling intervals")
+    calling_intervals = calling_intervals.checkpoint(new_temp_file(extension='ht'))
+
+    interval = calling_intervals.key[0]
+    (any_bad_intervals, chrs_represented) = calling_intervals.aggregate(
+        (hl.agg.any(interval.start.contig != interval.end.contig), hl.agg.collect_as_set(interval.start.contig)))
+    if any_bad_intervals:
+        raise ValueError("'impute_sex_chromosome_ploidy' does not support calling intervals that span chromosome boundaries")
+
+    if len(rg.x_contigs) != 1:
+        raise NotImplementedError(
+            f"reference genome {rg.name!r} has multiple X contigs, this is not supported in 'impute_sex_chromosome_ploidy'"
+        )
+    chr_x = rg.x_contigs[0]
+    if len(rg.y_contigs) != 1:
+        raise NotImplementedError(
+            f"reference genome {rg.name!r} has multiple Y contigs, this is not supported in 'impute_sex_chromosome_ploidy'"
+        )
+    chr_y = rg.y_contigs[0]
+
+    kept_contig_filter = hl.array(chrs_represented).map(lambda x: hl.parse_locus_interval(x, reference_genome=rg))
+    vds = VariantDataset(hl.filter_intervals(vds.reference_data, kept_contig_filter),
+                         hl.filter_intervals(vds.variant_data, kept_contig_filter))
+
+    coverage = interval_coverage(vds, calling_intervals, gq_thresholds=()).drop('gq_thresholds')
+
+    coverage = coverage.annotate_rows(contig=coverage.interval.start.contig)
+    coverage = coverage.annotate_cols(
+        __mean_dp=hl.agg.group_by(coverage.contig, hl.agg.sum(coverage.sum_dp) / hl.agg.sum(coverage.interval_size)))
+
+    mean_dp_dict = coverage.__mean_dp
+    auto_dp = mean_dp_dict.get(normalization_contig)
+    x_dp = mean_dp_dict.get(chr_x)
+    y_dp = mean_dp_dict.get(chr_y)
+    per_sample = coverage.transmute_cols(autosomal_mean_dp=auto_dp,
+                                         x_mean_dp=x_dp,
+                                         x_ploidy=x_dp / auto_dp * 2,
+                                         y_mean_dp=y_dp,
+                                         y_ploidy=y_dp / auto_dp * 2)
+    info("'impute_sex_chromosome_ploidy': computing and checkpointing coverage and karyotype metrics")
+    return per_sample.cols().checkpoint(new_temp_file('impute_sex_karyotype', extension='ht'))
+
+
 @typecheck(vds=VariantDataset, variants_table=Table, keep=bool)
 def filter_variants(vds: 'VariantDataset', variants_table: 'Table', *, keep: bool = True) -> 'VariantDataset':
     """Filter variants in a :class:`.VariantDataset`, without removing reference
@@ -384,3 +485,168 @@ def split_multi(vds: 'VariantDataset', *, filter_changed_loci: bool = False) -> 
     """
     variant_data = hl.experimental.sparse_split_multi(vds.variant_data, filter_changed_loci=filter_changed_loci)
     return VariantDataset(vds.reference_data, variant_data)
+
+
+@typecheck(ref=MatrixTable, intervals=Table)
+def segment_reference_blocks(ref: 'MatrixTable', intervals: 'Table') -> 'MatrixTable':
+    """Returns a matrix table of reference blocks segmented according to intervals.
+
+    Loci outside the given intervals are discarded. Reference blocks that start before
+    but span an interval will appear at the interval start locus.
+
+    Note
+    ----
+        Assumes disjoint intervals which do not span contigs.
+
+        Requires start-inclusive intervals.
+
+    Parameters
+    ----------
+    ref : :class:`.MatrixTable`
+        MatrixTable of reference blocks.
+    intervals : :class:`.Table`
+        Table of intervals at which to segment reference blocks.
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+    """
+    interval_field = list(intervals.key)[0]
+    if not intervals[interval_field].dtype == hl.tinterval(ref.locus.dtype):
+        raise ValueError(f"expect intervals to be keyed by intervals of loci matching the VariantDataset:"
+                         f" found {intervals[interval_field].dtype} / {ref.locus.dtype}")
+    intervals = intervals.select(_interval_dup=intervals[interval_field])
+
+    if not intervals.aggregate(
+            hl.agg.all(intervals[interval_field].includes_start & (
+                intervals[interval_field].start.contig == intervals[interval_field].end.contig))):
+        raise ValueError("expect intervals to be start-inclusive")
+
+    starts = intervals.key_by(_start_locus=intervals[interval_field].start)
+    starts = starts.annotate(_include_locus=True)
+    refl = ref.localize_entries('_ref_entries', '_ref_cols')
+    joined = refl.join(starts, how='outer')
+    rg = ref.locus.dtype.reference_genome
+    contigs = rg.contigs
+    contig_idx_map = hl.literal({contigs[i]: i for i in range(len(contigs))}, 'dict<str, int32>')
+    joined = joined.annotate(__contig_idx=contig_idx_map[joined.locus.contig])
+    joined = joined.annotate(
+        _ref_entries=joined._ref_entries.map(lambda e: e.annotate(__contig_idx=joined.__contig_idx)))
+    dense = joined.annotate(
+        dense_ref=hl.or_missing(
+            joined._include_locus,
+            hl.rbind(joined.locus.position,
+                     lambda pos: hl.enumerate(hl.scan._densify(hl.len(joined._ref_cols), joined._ref_entries))
+                     .map(lambda idx_and_e: hl.rbind(idx_and_e[0], idx_and_e[1],
+                                                     lambda idx, e: hl.coalesce(joined._ref_entries[idx], hl.or_missing(
+                                                         (e.__contig_idx == joined.__contig_idx) & (e.END >= pos),
+                                                         e))).drop('__contig_idx'))
+                     ))
+    )
+    dense = dense.filter(dense._include_locus).drop('_interval_dup', '_include_locus', '__contig_idx')
+
+    # at this point, 'dense' is a table with dense rows of reference blocks, keyed by locus
+
+    refl_filtered = refl.annotate(**{interval_field: intervals[refl.locus]._interval_dup})
+
+    # remove rows that are not contained in an interval, and rows that are the start of an
+    # interval (interval starts come from the 'dense' table)
+    refl_filtered = refl_filtered.filter(
+        hl.is_defined(refl_filtered[interval_field]) & (refl_filtered.locus != refl_filtered[interval_field].start))
+
+    # union dense interval starts with filtered table
+    refl_filtered = refl_filtered.union(dense.transmute(_ref_entries=dense.dense_ref))
+
+    # rewrite reference blocks to end at the first of (interval end, reference block end)
+    refl_filtered = refl_filtered.annotate(
+        interval_end=refl_filtered[interval_field].end.position - ~refl_filtered[interval_field].includes_end)
+    refl_filtered = refl_filtered.annotate(
+        _ref_entries=refl_filtered._ref_entries.map(
+            lambda entry: entry.annotate(END=hl.min(entry.END, refl_filtered.interval_end))))
+
+    return refl_filtered._unlocalize_entries('_ref_entries', '_ref_cols', list(ref.col_key))
+
+
+@typecheck(vds=VariantDataset, intervals=Table, gq_thresholds=sequenceof(int), dp_field=nullable(str))
+def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0, 20,), dp_field=None) -> 'MatrixTable':
+    """Compute statistics about base coverage by interval.
+
+    Returns a :class:`.MatrixTable` with interval row keys and sample column keys.
+
+    Contains the following row fields:
+     - ``interval`` (*interval*): Genomic interval of interest.
+     - ``interval_size`` (*int32*): Size of interval, in bases.
+
+
+    Computes the following entry fields:
+
+     -  ``bases_over_gq_threshold`` (*tuple of int64*): Number of bases in the interval
+        over each GQ threshold.
+     -  ``fraction_over_gq_threshold`` (*tuple of float64*): Fraction of interval (in bases)
+        above each GQ threshold. Computed by dividing each member of *bases_over_gq_threshold*
+        by *interval_size*.
+     -  ``sum_dp`` (*int64*): Sum of depth values by base across the interval.
+     -  ``mean_dp`` (*float64*): Mean depth of bases across the interval. Computed by dividing
+        *mean_dp* by *interval_size*.
+
+    Note
+    ----
+    The metrics computed by this method are computed **only from reference blocks**. Most
+    variant callers produce data where non-reference calls interrupt reference blocks, and
+    so the metrics computed here are slight underestimates of the true values (which would
+    include the quality/depth of non-reference calls). This is likely a negligible difference,
+    but is something to be aware of, especially as it interacts with samples of
+    ancestral backgrounds with more or fewer non-reference calls.
+
+    Parameters
+    ----------
+    vds : :class:`.VariantDataset`
+    intervals : :class:`.Table`
+        Table of intervals. Must be start-inclusive, and cannot span contigs.
+    gq_thresholds : tuple of int
+        GQ thresholds.
+    dp_field : str, optional
+        Field for depth calculation. Uses DP or MIN_DP by default (with priority for DP if present).
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+        Interval-by-sample matrix
+    """
+    ref = vds.reference_data
+    split = segment_reference_blocks(ref, intervals)
+    intervals = intervals.annotate(interval_dup=intervals.key[0])
+
+    if 'DP' in ref.entry:
+        dp_field_to_use = 'DP'
+    elif 'MIN_DP' in ref.entry:
+        dp_field_to_use = 'MIN_DP'
+    else:
+        dp_field_to_use = dp_field
+
+    if dp_field_to_use is not None:
+        dp_field_dict = {'sum_dp': hl.agg.sum((split.END - split.locus.position + 1) * split[dp_field_to_use])}
+    else:
+        dp_field_dict = dict()
+
+    per_interval = split.group_rows_by(interval=intervals[split.row_key[0]].interval_dup) \
+        .aggregate(
+        bases_over_gq_threshold=tuple(
+            hl.agg.filter(split.GQ > gq_threshold, hl.agg.sum(split.END - split.locus.position + 1)) for gq_threshold in
+            gq_thresholds),
+        **dp_field_dict
+    )
+
+    interval = per_interval.interval
+    interval_size = interval.end.position + interval.includes_end - interval.start.position - 1 + interval.includes_start
+    per_interval = per_interval.annotate_rows(interval_size=interval_size)
+    per_interval = per_interval.annotate_entries(
+        fraction_over_gq_threshold=tuple(
+            hl.float(x) / per_interval.interval_size for x in per_interval.bases_over_gq_threshold))
+
+    if dp_field_to_use is not None:
+        per_interval = per_interval.annotate_entries(mean_dp=per_interval.sum_dp / per_interval.interval_size)
+
+    per_interval = per_interval.annotate_globals(gq_thresholds=hl.tuple(gq_thresholds))
+
+    return per_interval

@@ -24,6 +24,46 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.81
+
+Release 2021-12-20
+
+### hailctl dataproc
+
+- (hail#11182) Updated Dataproc image version to mitigate yet more Log4j vulnerabilities.
+
+---
+
+## Version 0.2.80
+
+Release 2021-12-15
+
+### New features
+
+- (hail#11077) `hl.experimental.write_matrix_tables` now returns the paths of the written matrix tables.
+
+### hailctl dataproc
+
+- (hail#11157) Updated Dataproc image version to mitigate the Log4j vulnerability.
+- (hail#10900) Added `--region` parameter to `hailctl dataproc submit`.
+- (hail#11090) Teach `hailctl dataproc describe` how to read URLs with the protocols `s3` (Amazon S3), `hail-az` (Azure Blob Storage), and `file` (local file system) in addition to `gs` (Google Cloud Storage).
+
+---
+
+## Version 0.2.79
+
+Release 2021-11-17
+
+### Bug fixes
+
+- (hail#11023) Fixed bug in call decoding that was introduced in version 0.2.78.
+
+### New features
+
+- (hail#10993) New function `p_value_excess_het`.
+
+---
+
 ## Version 0.2.78
 
 Release 2021-10-19

@@ -1,5 +1,6 @@
 import os
-from typing import Tuple, Any, Set, Optional, MutableMapping, Dict, AsyncIterator, cast, Type, List
+from typing import (Tuple, Any, Set, Optional, MutableMapping, Dict, AsyncIterator, cast, Type,
+                    List)
 from types import TracebackType
 from multidict import CIMultiDictProxy  # pylint: disable=unused-import
 import sys
@@ -10,18 +11,19 @@ import aiohttp
 from hailtop.utils import (
     secret_alnum_string, OnlineBoundedGather2,
     TransientError, retry_transient_errors)
-from hailtop.aiotools import (
+from hailtop.aiotools.fs import (
     FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS,
-    FeedableAsyncIterable, FileAndDirectoryError, MultiPartCreate, UnexpectedEOFError, WriteBuffer)
+    FileAndDirectoryError, MultiPartCreate, UnexpectedEOFError)
+from hailtop.aiotools import FeedableAsyncIterable, WriteBuffer
 
-from .base_client import GCPBaseClient
+from .base_client import GoogleBaseClient
 from ..session import GoogleSession
 
 log = logging.getLogger(__name__)
 
 
 class PageIterator:
-    def __init__(self, client: 'GCPBaseClient', path: str, request_kwargs: MutableMapping[str, Any]):
+    def __init__(self, client: 'GoogleBaseClient', path: str, request_kwargs: MutableMapping[str, Any]):
         if 'params' in request_kwargs:
             request_params = request_kwargs['params']
             del request_kwargs['params']
@@ -268,7 +270,7 @@ class GetObjectStream(ReadableStream):
         self._resp = None
 
 
-class GoogleStorageClient(GCPBaseClient):
+class GoogleStorageClient(GoogleBaseClient):
     def __init__(self, **kwargs):
         super().__init__('https://storage.googleapis.com/storage/v1', **kwargs)
 
@@ -477,7 +479,7 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
                     chunk_names = [self._tmp_name(f'chunk-{secret_alnum_string()}') for _ in range(32)]
 
                     chunk_tasks = [
-                        await pool.call(tree_compose, c, n)
+                        pool.call(tree_compose, c, n)
                         for c, n in zip(chunks, chunk_names)
                     ]
 
@@ -496,6 +498,8 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
 
 
 class GoogleStorageAsyncFS(AsyncFS):
+    schemes: Set[str] = {'gs'}
+
     def __init__(self, *,
                  storage_client: Optional[GoogleStorageClient] = None,
                  project: Optional[str] = None,
@@ -507,9 +511,6 @@ class GoogleStorageAsyncFS(AsyncFS):
                 kwargs['params']['userProject'] = project
             storage_client = GoogleStorageClient(**kwargs)
         self._storage_client = storage_client
-
-    def schemes(self) -> Set[str]:
-        return {'gs'}
 
     @staticmethod
     def _get_bucket_name(url: str) -> Tuple[str, str]:
@@ -598,7 +599,11 @@ class GoogleStorageAsyncFS(AsyncFS):
                 for item in page['items']:
                     yield GoogleStorageFileListEntry(f'gs://{bucket}/{item["name"]}', item)
 
-    async def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
+    async def listfiles(self,
+                        url: str,
+                        recursive: bool = False,
+                        exclude_trailing_slash_files: bool = True
+                        ) -> AsyncIterator[FileListEntry]:
         bucket, name = self._get_bucket_name(url)
         if name and not name.endswith('/'):
             name = f'{name}/'
@@ -617,6 +622,9 @@ class GoogleStorageAsyncFS(AsyncFS):
         async def should_yield(entry):
             url = await entry.url()
             if url.endswith('/') and await entry.is_file():
+                if not exclude_trailing_slash_files:
+                    return True
+
                 stat = await entry.status()
                 if await stat.size() != 0:
                     raise FileAndDirectoryError(url)
@@ -673,23 +681,6 @@ class GoogleStorageAsyncFS(AsyncFS):
             if e.status == 404:
                 raise FileNotFoundError(url) from e
             raise
-
-    async def _rmtree(self, sema: asyncio.Semaphore, url: str) -> None:
-        async with OnlineBoundedGather2(sema) as pool:
-            bucket, name = self._get_bucket_name(url)
-            if name and not name.endswith('/'):
-                name = f'{name}/'
-            it = self._listfiles_recursive(bucket, name)
-            async for entry in it:
-                await pool.call(self._remove_doesnt_exist_ok, await entry.url())
-
-    async def rmtree(self, sema: Optional[asyncio.Semaphore], url: str) -> None:
-        if sema is None:
-            sema = asyncio.Semaphore(50)
-            async with sema:
-                return await self._rmtree(sema, url)
-
-        return await self._rmtree(sema, url)
 
     async def close(self) -> None:
         if hasattr(self, '_storage_client'):

@@ -71,7 +71,7 @@ class ServiceBackend(
     Executors.newCachedThreadPool())
 
   def addUser(username: String, key: String): Unit = synchronized {
-    val previous = users.put(username, new User(username, "/tmp", new GoogleStorageFS(key)))
+    val previous = users.put(username, new User(username, "/tmp", new GoogleStorageFS(Some(key))))
     assert(previous == null)
   }
 

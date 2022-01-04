@@ -5,7 +5,7 @@ from collections import defaultdict, Counter
 from shlex import quote as shq
 import yaml
 import jinja2
-from typing import Dict, List, Optional
+from typing import Dict, List
 from hailtop.utils import flatten
 from .utils import generate_token
 from .environment import (
@@ -92,40 +92,40 @@ class BuildConfiguration:
             raise BuildConfigurationError('Excluding build steps is only permitted in a dev scope')
 
         config = yaml.safe_load(config_str)
-        name_step: Dict[str, Optional[Step]] = {}
-        self.steps: List[Step] = []
-
         if requested_step_names:
             log.info(f"Constructing build configuration with steps: {requested_step_names}")
 
+        all_steps: List[Step] = []
+        name_step: Dict[str, Step] = {}
         for step_config in config['steps']:
-            step_params = StepParameters(code, scope, step_config, name_step)
-            step = Step.from_json(step_params)
-            if not step.run_if_requested or step.name in requested_step_names:
-                self.steps.append(step)
-                name_step[step.name] = step
-            else:
-                name_step[step.name] = None
+            step = Step.from_json(StepParameters(code, scope, step_config, name_step))
+            name_step[step.name] = step
+            all_steps.append(step)
 
-        # transitively close requested_step_names over dependencies
         if requested_step_names:
+            # transitively close requested_step_names over dependencies
             visited = set()
 
-            def request(step: Step):
+            def visit_dependent(step: Step):
                 if step not in visited and step.name not in excluded_step_names:
+                    if not step.can_run_in_current_cloud():
+                        raise BuildConfigurationError(f'Step {step.name} cannot be run in cloud {CLOUD}')
                     visited.add(step)
                     for s2 in step.deps:
-                        request(s2)
+                        visit_dependent(s2)
 
             for step_name in requested_step_names:
-                request(name_step[step_name])
-            self.steps = [s for s in self.steps if s in visited]
+                visit_dependent(name_step[step_name])
+            self.steps = [step for step in all_steps if step in visited]
+        else:
+            self.steps = [step for step in all_steps if not step.run_if_requested and step.can_run_in_current_cloud()]
 
     def build(self, batch, code, scope):
         assert scope in ('deploy', 'test', 'dev')
 
         for step in self.steps:
-            if step.scopes is None or scope in step.scopes:
+            if step.can_run_in_scope(scope):
+                assert step.can_run_in_current_cloud()
                 step.build(batch, code, scope)
 
         if scope == 'dev':
@@ -143,7 +143,7 @@ class BuildConfiguration:
                 f"Cleanup {step.name} after running {[parent_step.name for parent_step in step_to_parent_steps[step]]}"
             )
 
-            if step.scopes is None or scope in step.scopes:
+            if step.can_run_in_scope(scope):
                 step.cleanup(batch, scope, parent_jobs)
 
 
@@ -160,6 +160,7 @@ class Step(abc.ABC):
         else:
             self.deps = []
         self.scopes = json.get('scopes')
+        self.clouds = json.get('clouds')
         self.run_if_requested = json.get('runIfRequested', False)
 
         self.token = generate_token()
@@ -192,6 +193,12 @@ class Step(abc.ABC):
                     visited.add(d)
                     frontier.append(d)
         return visited
+
+    def can_run_in_current_cloud(self):
+        return self.clouds is None or CLOUD in self.clouds
+
+    def can_run_in_scope(self, scope: str):
+        return self.scopes is None or scope in self.scopes
 
     @staticmethod
     def from_json(params):
@@ -326,22 +333,16 @@ cat /home/user/trace
         docker_registry = DOCKER_PREFIX.split('/')[0]
         job_env = {'REGISTRY': docker_registry}
         if CLOUD == 'gcp':
-            credentials_secret = {
-                'namespace': DEFAULT_NAMESPACE,
-                'name': 'gcr-push-service-account-key',
-                'mount_path': '/secrets/gcr-push-service-account-key',
-            }
-            job_env[
-                'GOOGLE_APPLICATION_CREDENTIALS'
-            ] = '/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json'
+            credentials_name = 'GOOGLE_APPLICATION_CREDENTIALS'
         else:
             assert CLOUD == 'azure'
-            credentials_secret = {
-                'namespace': DEFAULT_NAMESPACE,
-                'name': 'acr-push-credentials',
-                'mount_path': '/secrets/acr-push-credentials',
-            }
-            job_env['AZURE_APPLICATION_CREDENTIALS'] = '/secrets/acr-push-credentials/credentials.json'
+            credentials_name = 'AZURE_APPLICATION_CREDENTIALS'
+        credentials_secret = {
+            'namespace': DEFAULT_NAMESPACE,
+            'name': 'registry-push-credentials',
+            'mount_path': '/secrets/registry-push-credentials',
+        }
+        job_env[credentials_name] = '/secrets/registry-push-credentials/credentials.json'
 
         self.job = batch.create_job(
             BUILDKIT_IMAGE,
@@ -357,20 +358,42 @@ cat /home/user/trace
         )
 
     def cleanup(self, batch, scope, parents):
-        if CLOUD == 'azure':
-            log.warning('Image cleanup in ACR is not yet supported')
-            return
-        assert CLOUD == 'gcp'
-
         if scope == 'deploy' and self.publish_as and not is_test_deployment:
             return
 
-        script = f'''
+        if CLOUD == 'azure':
+            image = 'mcr.microsoft.com/azure-cli'
+            assert self.image.startswith(DOCKER_PREFIX)
+            image_name = self.image[len(f'{DOCKER_PREFIX}/') :]
+            script = f'''
+set -x
+date
+
+set +x
+USERNAME=$(cat /secrets/registry-push-credentials/credentials.json | jq -j '.appId')
+PASSWORD=$(cat /secrets/registry-push-credentials/credentials.json | jq -j '.password')
+TENANT=$(cat /secrets/registry-push-credentials/credentials.json | jq -j '.tenant')
+az login --service-principal -u $USERNAME -p $PASSWORD --tenant $TENANT
+set -x
+
+until az acr repository untag -n {shq(DOCKER_PREFIX)} --image {shq(image_name)} || ! az acr repository show -n {shq(DOCKER_PREFIX)} --image {shq(image_name)}
+do
+    echo 'failed, will sleep 2 and retry'
+    sleep 2
+done
+
+date
+true
+'''
+        else:
+            assert CLOUD == 'gcp'
+            image = CI_UTILS_IMAGE
+            script = f'''
 set -x
 date
 
 gcloud -q auth activate-service-account \
-  --key-file=/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json
+  --key-file=/secrets/registry-push-credentials/credentials.json
 
 until gcloud -q container images untag {shq(self.image)} || ! gcloud -q container images describe {shq(self.image)}
 do
@@ -383,19 +406,20 @@ true
 '''
 
         self.job = batch.create_job(
-            CI_UTILS_IMAGE,
+            image,
             command=['bash', '-c', script],
             attributes={'name': f'cleanup_{self.name}'},
             secrets=[
                 {
                     'namespace': DEFAULT_NAMESPACE,
-                    'name': 'gcr-push-service-account-key',
-                    'mount_path': '/secrets/gcr-push-service-account-key',
+                    'name': 'registry-push-credentials',
+                    'mount_path': '/secrets/registry-push-credentials',
                 }
             ],
             parents=parents,
             always_run=True,
             network='private',
+            timeout=5 * 60,
         )
 
 

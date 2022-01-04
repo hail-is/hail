@@ -1540,7 +1540,7 @@ class Emit[C](
               val eVti = typeToTypeInfo(numericElementType)
 
               val emitter = new NDArrayEmitter(unifiedShape, leftPVal.st.elementType) {
-                override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): SCode = {
+                override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): SValue = {
                   val element = coerce[Any](cb.newField("matmul_element")(eVti))
                   val k = cb.newField[Long]("ndarray_matmul_k")
 
@@ -1558,7 +1558,7 @@ class Emit[C](
                       (lStackVars :+ n :+ k, rStackVars :+ k :+ m)
                   }
 
-                  def multiply(l: SCode, r: SCode): Code[_] = {
+                  def multiply(l: SValue, r: SValue): Code[_] = {
                     (l.st, r.st) match {
                       case (SInt32, SInt32) =>
                         l.asInt.intCode(cb) * r.asInt.intCode(cb)
@@ -1577,13 +1577,13 @@ class Emit[C](
                   cb.forLoop(cb.assign(k, 0L), k < kLen, cb.assign(k, k + 1L), {
                     val lElem = leftPVal.loadElement(lIndices, cb)
                     val rElem = rightPVal.loadElement(rIndices, cb)
-                    cb.assign(element, numericElementType.add(multiply(lElem.get, rElem.get), element))
+                    cb.assign(element, numericElementType.add(multiply(lElem, rElem), element))
                   })
 
                   primitive(outputPType.elementType.virtualType, element)
                 }
               }
-              emitter.emit(cb, outputPType, region).memoize(cb, "NDArrayMatMul")
+              emitter.emit(cb, outputPType, region)
             }
           }
         }
@@ -2180,7 +2180,7 @@ class Emit[C](
       case WriteValue(value, path, spec) =>
         emitI(path).flatMap(cb) { case pv: SStringValue =>
           emitI(value).map(cb) { v =>
-            val ob = cb.memoize[OutputBuffer](spec.buildCodeOutputBuffer(mb.create(pv.get.asString.loadString())))
+            val ob = cb.memoize[OutputBuffer](spec.buildCodeOutputBuffer(mb.create(pv.asString.loadString(cb))))
             spec.encodedType.buildEncoder(v.st, cb.emb.ecb)
               .apply(cb, v, ob)
             cb += ob.invoke[Unit]("close")
@@ -2686,9 +2686,9 @@ object NDArrayEmitter {
 abstract class NDArrayEmitter(val outputShape: IndexedSeq[Value[Long]], val elementType: SType) {
   val nDims = outputShape.length
 
-  def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): SCode
+  def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): SValue
 
-  def emit(cb: EmitCodeBuilder, targetType: PCanonicalNDArray, region: Value[Region]): SCode = {
+  def emit(cb: EmitCodeBuilder, targetType: PCanonicalNDArray, region: Value[Region]): SValue = {
     val shapeArray = outputShape
 
     val idx = cb.newLocal[Int]("ndarrayemitter_emitloops_idx", 0)
@@ -2700,7 +2700,7 @@ abstract class NDArrayEmitter(val outputShape: IndexedSeq[Value[Long]], val elem
       region)
 
     SNDArray.forEachIndexColMajor(cb, shapeArray, "ndarrayemitter_emitloops") { case (cb, idxVars) =>
-      val element = IEmitCode.present(cb, outputElement(cb, idxVars).memoize(cb, "NDArray_emit")).consume(cb, {
+      IEmitCode.present(cb, outputElement(cb, idxVars)).consume(cb, {
         cb._fatal("NDArray elements cannot be missing")
       }, { elementPc =>
         targetType.elementType.storeAtAddress(cb, firstElementAddress + (idx.toL * targetType.elementType.byteSize), region, elementPc, true)
@@ -2708,6 +2708,6 @@ abstract class NDArrayEmitter(val outputShape: IndexedSeq[Value[Long]], val elem
       cb.assign(idx, idx + 1)
     }
 
-    finish(cb).get
+    finish(cb)
   }
 }

@@ -173,23 +173,25 @@ class LocalBatchBuilder:
                 # Note, that is in the kubenetes-client repo, the
                 # kubernetes_asyncio.  I'm assuming it has the same
                 # issue.
-                k8s_cache = K8sCache(kube.client.CoreV1Api(), refresh_time=5)
+                k8s_client = kube.client.CoreV1Api()
+                try:
+                    k8s_cache = K8sCache(k8s_client)
 
-                if j._service_account:
-                    namespace = j._service_account['namespace']
-                    name = j._service_account['name']
+                    if j._service_account:
+                        namespace = j._service_account['namespace']
+                        name = j._service_account['name']
 
-                    sa = await k8s_cache.read_service_account(name, namespace, 5)
-                    assert len(sa.secrets) == 1
+                        sa = await k8s_cache.read_service_account(name, namespace)
+                        assert len(sa.secrets) == 1
 
-                    token_secret_name = sa.secrets[0].name
+                        token_secret_name = sa.secrets[0].name
 
-                    secret = await k8s_cache.read_secret(token_secret_name, namespace, 5)
+                        secret = await k8s_cache.read_secret(token_secret_name, namespace)
 
-                    token = base64.b64decode(secret.data['token']).decode()
-                    cert = secret.data['ca.crt']
+                        token = base64.b64decode(secret.data['token']).decode()
+                        cert = secret.data['ca.crt']
 
-                    kube_config = f'''
+                        kube_config = f'''
 apiVersion: v1
 clusters:
 - cluster:
@@ -211,50 +213,57 @@ users:
     token: {token}
 '''
 
-                    dot_kube_dir = f'{job_root}/secrets/.kube'
+                        dot_kube_dir = f'{job_root}/secrets/.kube'
 
-                    os.makedirs(dot_kube_dir)
-                    with open(f'{dot_kube_dir}/config', 'w') as f:
-                        f.write(kube_config)
-                    with open(f'{dot_kube_dir}/ca.crt', 'w') as f:
-                        f.write(base64.b64decode(cert).decode())
-                    mount_options.extend(['-v', f'{dot_kube_dir}:/.kube'])
-                    env_options.extend(['-e', 'KUBECONFIG=/.kube/config'])
+                        os.makedirs(dot_kube_dir)
+                        with open(f'{dot_kube_dir}/config', 'w') as f:
+                            f.write(kube_config)
+                        with open(f'{dot_kube_dir}/ca.crt', 'w') as f:
+                            f.write(base64.b64decode(cert).decode())
+                        mount_options.extend(['-v', f'{dot_kube_dir}:/.kube'])
+                        env_options.extend(['-e', 'KUBECONFIG=/.kube/config'])
 
-                secrets = j._secrets
-                if secrets:
-                    k8s_secrets = await asyncio.gather(
-                        *[k8s_cache.read_secret(secret['name'], secret['namespace'], 5) for secret in secrets]
+                    secrets = j._secrets
+                    if secrets:
+                        k8s_secrets = await asyncio.gather(
+                            *[k8s_cache.read_secret(secret['name'], secret['namespace']) for secret in secrets]
+                        )
+
+                        for secret, k8s_secret in zip(secrets, k8s_secrets):
+                            secret_host_path = f'{job_root}/secrets/{k8s_secret.metadata.name}'
+
+                            populate_secret_host_path(secret_host_path, k8s_secret.data)
+
+                            mount_options.extend(['-v', f'{secret_host_path}:{secret["mount_path"]}'])
+
+                    if j._mount_docker_socket:
+                        mount_options.extend(['-v', '/var/run/docker.sock:/var/run/docker.sock'])
+
+                    if j._unconfined:
+                        security_options = [
+                            '--security-opt',
+                            'seccomp=unconfined',
+                            '--security-opt',
+                            'apparmor=unconfined',
+                        ]
+                    else:
+                        security_options = []
+
+                    main_cid, main_ok = await docker_run(
+                        'docker',
+                        'run',
+                        '-d',
+                        *env_options,
+                        *mount_options,
+                        *security_options,
+                        '--entrypoint',
+                        j._command[0],
+                        j._image,
+                        *j._command[1:],
                     )
-
-                    for secret, k8s_secret in zip(secrets, k8s_secrets):
-                        secret_host_path = f'{job_root}/secrets/{k8s_secret.metadata.name}'
-
-                        populate_secret_host_path(secret_host_path, k8s_secret.data)
-
-                        mount_options.extend(['-v', f'{secret_host_path}:{secret["mount_path"]}'])
-
-                if j._mount_docker_socket:
-                    mount_options.extend(['-v', '/var/run/docker.sock:/var/run/docker.sock'])
-
-                if j._unconfined:
-                    security_options = ['--security-opt', 'seccomp=unconfined', '--security-opt', 'apparmor=unconfined']
-                else:
-                    security_options = []
-
-                main_cid, main_ok = await docker_run(
-                    'docker',
-                    'run',
-                    '-d',
-                    *env_options,
-                    *mount_options,
-                    *security_options,
-                    '--entrypoint',
-                    j._command[0],
-                    j._image,
-                    *j._command[1:],
-                )
-                print(f'{j._index}: {job_name}/main: {main_cid} {"OK" if main_ok else "FAILED"}')
+                    print(f'{j._index}: {job_name}/main: {main_cid} {"OK" if main_ok else "FAILED"}')
+                finally:
+                    await k8s_client.api_client.rest_client.pool_manager.close()
             else:
                 main_ok = False
                 print(f'{j._index}: {job_name}/main: SKIPPED: input failed')

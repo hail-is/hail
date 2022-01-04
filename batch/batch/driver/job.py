@@ -1,3 +1,4 @@
+from typing import List, TYPE_CHECKING
 import json
 import logging
 import asyncio
@@ -12,17 +13,17 @@ from gear import Database
 
 from ..batch import batch_record_to_dict
 from ..globals import complete_states, tasks, STATUS_FORMAT_VERSION
-from ..batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, KUBERNETES_SERVER_URL
+from ..batch_configuration import KUBERNETES_SERVER_URL
 from ..batch_format_version import BatchFormatVersion
 from ..spec_writer import SpecWriter
 from ..file_store import FileStore
+from ..instance_config import QuantifiedResource
+from .instance import Instance
 
 from .k8s_cache import K8sCache
 
-from typing import TYPE_CHECKING
-
 if TYPE_CHECKING:
-    from .instance_collection_manager import InstanceCollectionManager  # pylint: disable=cyclic-import
+    from .instance_collection import InstanceCollectionManager  # pylint: disable=cyclic-import
 
 log = logging.getLogger('job')
 
@@ -30,7 +31,7 @@ log = logging.getLogger('job')
 async def notify_batch_job_complete(db: Database, client_session: httpx.ClientSession, batch_id):
     record = await db.select_and_fetchone(
         '''
-SELECT batches.*, SUM(`usage` * rate) AS cost, batches_cancelled.id IS NOT NULL as cancelled
+SELECT batches.*, COALESCE(SUM(`usage` * rate), 0) AS cost, batches_cancelled.id IS NOT NULL AS cancelled
 FROM batches
 LEFT JOIN aggregated_batch_resources
   ON batches.id = aggregated_batch_resources.batch_id
@@ -95,7 +96,8 @@ async def mark_job_complete(
     cancel_ready_state_changed: asyncio.Event = app['cancel_ready_state_changed']
     db: Database = app['db']
     client_session: httpx.ClientSession = app['client_session']
-    inst_coll_manager: 'InstanceCollectionManager' = app['inst_coll_manager']
+
+    inst_coll_manager: 'InstanceCollectionManager' = app['driver'].inst_coll_manager
     task_manager: BackgroundTaskManager = app['task_manager']
 
     id = (batch_id, job_id)
@@ -182,7 +184,13 @@ CALL mark_job_started(%s, %s, %s, %s, %s);
     await add_attempt_resources(db, batch_id, job_id, attempt_id, resources)
 
 
-async def mark_job_creating(app, batch_id, job_id, attempt_id, instance, start_time, resources):
+async def mark_job_creating(app,
+                            batch_id: int,
+                            job_id: int,
+                            attempt_id: str,
+                            instance: Instance,
+                            start_time: int,
+                            resources: List[QuantifiedResource]):
     db: Database = app['db']
 
     id = (batch_id, job_id)
@@ -212,7 +220,7 @@ async def unschedule_job(app, record):
     scheduler_state_changed: Notice = app['scheduler_state_changed']
     db: Database = app['db']
     client_session: httpx.ClientSession = app['client_session']
-    inst_coll_manager = app['inst_coll_manager']
+    inst_coll_manager = app['driver'].inst_coll_manager
 
     batch_id = record['batch_id']
     job_id = record['job_id']
@@ -286,7 +294,7 @@ async def job_config(app, record, attempt_id):
 
     db_spec = json.loads(record['spec'])
 
-    if format_version.has_full_spec_in_gcs():
+    if format_version.has_full_spec_in_cloud():
         job_spec = {
             'secrets': format_version.get_spec_secrets(db_spec),
             'service_account': format_version.get_spec_service_account(db_spec),
@@ -301,7 +309,7 @@ async def job_config(app, record, attempt_id):
     secrets = job_spec.get('secrets', [])
     k8s_secrets = await asyncio.gather(
         *[
-            k8s_cache.read_secret(secret['name'], secret['namespace'], KUBERNETES_TIMEOUT_IN_SECONDS)
+            k8s_cache.read_secret(secret['name'], secret['namespace'])
             for secret in secrets
         ]
     )
@@ -323,12 +331,12 @@ async def job_config(app, record, attempt_id):
         namespace = service_account['namespace']
         name = service_account['name']
 
-        sa = await k8s_cache.read_service_account(name, namespace, KUBERNETES_TIMEOUT_IN_SECONDS)
+        sa = await k8s_cache.read_service_account(name, namespace)
         assert len(sa.secrets) == 1
 
         token_secret_name = sa.secrets[0].name
 
-        secret = await k8s_cache.read_secret(token_secret_name, namespace, KUBERNETES_TIMEOUT_IN_SECONDS)
+        secret = await k8s_cache.read_secret(token_secret_name, namespace)
 
         token = base64.b64decode(secret.data['token']).decode()
         cert = secret.data['ca.crt']
@@ -369,7 +377,7 @@ users:
             job_spec['env'] = env
         env.append({'name': 'KUBECONFIG', 'value': '/.kube/config'})
 
-    if format_version.has_full_spec_in_gcs():
+    if format_version.has_full_spec_in_cloud():
         token, start_job_id = await SpecWriter.get_token_start_id(db, batch_id, job_id)
     else:
         token = None
