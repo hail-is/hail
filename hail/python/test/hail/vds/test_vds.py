@@ -92,8 +92,6 @@ def test_conversion_equivalence():
     assert svcr._same(svcr_readback)
 
 
-@fails_local_backend
-@fails_service_backend
 def test_sampleqc_old_new_equivalence():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
     sqc = hl.vds.sample_qc(vds)

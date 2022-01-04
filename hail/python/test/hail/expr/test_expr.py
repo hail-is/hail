@@ -576,8 +576,6 @@ class Tests(unittest.TestCase):
         for aggregation, expected in tests:
             self.assertEqual(t.aggregate(aggregation), expected)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_agg_densify(self):
         mt = hl.utils.range_matrix_table(5, 5, 3)
         mt = mt.filter_entries(mt.row_idx == mt.col_idx)
