@@ -291,6 +291,11 @@ object EmitStream {
               override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
               override def initialize(cb: EmitCodeBuilder): Unit = {
+                if (childProducer.requiresMemoryManagementPerElement)
+                  cb.assign(childProducer.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
+                else
+                  cb.assign(childProducer.elementRegion, region)
+
                 childProducer.initialize(cb)
                 cb.assign(childStreamEnded, false)
                 cb.assign(produceElementMode, false)
@@ -299,13 +304,9 @@ object EmitStream {
                 cb.assign(nodeArray, Code.newArray[Long](maxSize))
                 cb.assign(numElemInArray, 0)
                 dictState.createState(cb)
-                dictState.newState(cb)
-                cb.assign(region, Region.stagedCreate(Region.REGULAR, outerRegion.getPool())) //TODO find out what actually goes here
-                val initContainer = AggContainer(aggSignatures.toArray.map(sig => sig.state), dictState.initContainer, cleanup = () => ())
-                dictState.init(cb, { cb => emitVoid(initAggs, cb, container = Some(initContainer))})
               }
 
-              override val elementRegion: Settable[Region] = childProducer.elementRegion
+              override val elementRegion: Settable[Region] = region
 
               override val requiresMemoryManagementPerElement: Boolean = false
 
@@ -321,16 +322,17 @@ object EmitStream {
                   cb.println(" go to elementProduceLabel")
                   cb.goto(elementProduceLabel)
                 })
-                cb.ifx(!dictState.region.isNull, {
-                  dictState.newState(cb)
-                  val initContainer = AggContainer(aggSignatures.toArray.map(sig => sig.state), dictState.initContainer, cleanup = () => ())
-                  dictState.init(cb, { cb => emitVoid(initAggs, cb, container = Some(initContainer)) })
-                }  //dictState.clearTree(cb)
-                   )
+
+                dictState.newState(cb)
+                val initContainer = AggContainer(aggSignatures.toArray.map(sig => sig.state), dictState.initContainer, cleanup = () => ())
+                dictState.init(cb, { cb => emitVoid(initAggs, cb, container = Some(initContainer)) })
 
                 cb.define(getElemLabel)
                 cb.println("getElemLabel")
                 cb.println("go to childProduce.LProduceElement")
+
+                if (childProducer.requiresMemoryManagementPerElement)
+                  cb += childProducer.elementRegion.clearRegion()
                 cb.goto(childProducer.LproduceElement)
 
                 cb.define(childProducer.LproduceElementDone)
@@ -345,7 +347,10 @@ object EmitStream {
                 val resultKeyValue = newKeyResultCode.memoize(cb, "buff_agg_stream_result_key")
                 cb.println("result key value ", cb.strValue(resultKeyValue))
                 val keyedContainer = AggContainer(aggSignatures.toArray.map(sig => sig.state), dictState.keyed.container, cleanup = () => ())
-                dictState.withContainer(cb, resultKeyValue, { cb => emitVoid(seqOps, cb, container = Some(keyedContainer), env = env.bind(name, eltField)) })
+                dictState.withContainer(cb, resultKeyValue, { cb =>
+                  cb.println("dictStateRegion check withContainer: ", dictState.region.getMemory().invoke[String]("toString"), " nReffedRegions = ", dictState.region.getMemory().invoke[Long]("nReferencedRegions").toS)
+                  emitVoid(seqOps, cb, container = Some(keyedContainer), env = env.bind(name, eltField))
+                })
                 cb.println("current size:", dictState.size.toS)
                 cb.ifx(dictState.size >= maxSize,{
                   cb.assign(produceElementMode, true)
@@ -357,16 +362,19 @@ object EmitStream {
                   {
                     cb.println("go to getElemLabel")
                   cb.goto(getElemLabel)
-              })
+                  }
+                )
                 cb.define(childProducer.LendOfStream)
                 cb.println("childProduce.LendOfStream")
                 cb.assign(childStreamEnded, true)
+                cb.assign(produceElementMode, true)
 
                 cb.define(elementProduceLabel)
                 cb.println("elementProduceLabel")
                 cb.ifx(numElemInArray ceq 0, {
                   dictState.tree.foreach(cb) { (cb, elementOff) =>
                     cb.println("filling up array ", Region.loadInt(elementOff).toS) // FIXME: Don't assume it's an int
+                    cb.println("node address is ", elementOff.hexString, ", node is ", cb.strValue(dictState.keyed.storageType.loadCheapSCode(cb, elementOff)))
                     cb += nodeArray.update(numElemInArray, elementOff)
                     cb.assign(numElemInArray, numElemInArray + 1)
                   }

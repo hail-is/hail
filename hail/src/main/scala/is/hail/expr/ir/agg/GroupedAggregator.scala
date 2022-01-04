@@ -129,6 +129,7 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
 
   def initElement(cb: EmitCodeBuilder, eltOff: Code[Long], k: EmitCode): Unit = {
     cb.assign(size, size + 1)
+    cb.println(s"Setting region ${region} num Parents to ", ((size + 1) * nStates).toS)
     cb += region.setNumParents((size + 1) * nStates)
     keyed.initValue(cb, _elt, k, size * nStates)
   }
@@ -143,11 +144,9 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
     cb.println("Loading container for key ", cb.strValue(kev.pv))
     cb.assign(_elt, tree.getOrElseInitialize(cb, kev))
     cb.ifx(keyed.isEmpty(cb, _elt), {
-      cb.println("keyed is empty")
       initElement(cb, _elt, kev)
       keyed.copyStatesFrom(cb, initStatesOffset)
     }, {
-      cb.println("keyed is not empty")
       keyed.loadStates(cb)
     })
   }
@@ -179,6 +178,8 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
   }
 
   def init(cb: EmitCodeBuilder, initOps: EmitCodeBuilder => Unit): Unit = {
+    cb.println(s"DictState initialization, region = ", region.getMemory().invoke[String]("toString"), s" setting num parents to: ${nStates}")
+    cb.println(Thread.currentThread().getStackTrace.mkString("\n"))
     cb += region.setNumParents(nStates)
     cb.assign(off, region.allocate(typ.alignment, typ.byteSize))
     initContainer.newState(cb)
