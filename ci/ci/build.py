@@ -112,7 +112,8 @@ class BuildConfiguration:
                         raise BuildConfigurationError(f'Step {step.name} cannot be run in cloud {CLOUD}')
                     visited.add(step)
                     for s2 in step.deps:
-                        visit_dependent(s2)
+                        if not s2.run_if_requested:
+                            visit_dependent(s2)
 
             for step_name in requested_step_names:
                 visit_dependent(name_step[step_name])
