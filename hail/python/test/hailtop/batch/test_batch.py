@@ -891,7 +891,7 @@ class ServiceTests(unittest.TestCase):
         b.run()
 
     def test_big_batch_which_uses_slow_path(self):
-        backend = ServiceBackend(remote_tmpdir=f'gs://{HAIL_TEST_GCS_BUCKET}/temporary-files')
+        backend = ServiceBackend(remote_tmpdir=f'{self.remote_tmpdir}/temporary-files')
         b = Batch(backend=backend)
         # 8 * 256 * 1024 = 2 MiB > 1 MiB max bunch size
         for i in range(8):
