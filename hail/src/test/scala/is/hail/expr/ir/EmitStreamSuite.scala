@@ -393,10 +393,14 @@ class EmitStreamSuite extends HailSuite {
     val collectStructStream = MakeStream(Seq(elemOne, elemTwo, elemThree, elemFour), streamType)
     val collectAggSig =  PhysicalAggSig(Collect(), CollectStateSig(VirtualTypeWithReq(PType.canonical(TInt64))))
     val countAggSig = PhysicalAggSig(Count(), TypedStateSig(VirtualTypeWithReq.fullyOptional(TInt64).setRequired(true)))
-    val initOps = Begin(IndexedSeq(InitOp(0, FastIndexedSeq(), countAggSig),
-                    InitOp(1, FastIndexedSeq(), collectAggSig)))
-    val seqOps = Begin(IndexedSeq(SeqOp(0, FastIndexedSeq(), countAggSig),
-                  SeqOp(1, FastIndexedSeq(GetField(Ref("foo", streamType.elementType), "b")), collectAggSig)))
+    val initOps = Begin(IndexedSeq(
+      InitOp(0, FastIndexedSeq(), countAggSig),
+      InitOp(1, FastIndexedSeq(), collectAggSig)
+    ))
+    val seqOps = Begin(IndexedSeq(
+      SeqOp(0, FastIndexedSeq(), countAggSig),
+      SeqOp(1, FastIndexedSeq(GetField(Ref("foo", streamType.elementType), "b")), collectAggSig)
+    ))
     val newKey = MakeStruct(Seq("collect" -> SelectFields(Ref("foo", streamType.elementType), Seq("a"))))
     val streamBuffAggCollect = StreamBufferedAggregate(collectStructStream, initOps, newKey, seqOps, "foo",
                                 IndexedSeq(countAggSig, collectAggSig))
