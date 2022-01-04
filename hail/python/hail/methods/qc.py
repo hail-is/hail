@@ -58,7 +58,8 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
     - `n_snp` (``int64``) -- Number of SNP alternate alleles.
     - `n_insertion` (``int64``) -- Number of insertion alternate alleles.
     - `n_deletion` (``int64``) -- Number of deletion alternate alleles.
-    - `n_singleton` (``int64``) -- Number of private alleles.
+    - `n_singleton` (``int64``) -- Number of private alleles. Reference alleles are never counted as singletons, even if
+      every other allele at a site is non-reference.
     - `n_transition` (``int64``) -- Number of transition (A-G, C-T) alternate alleles.
     - `n_transversion` (``int64``) -- Number of transversion alternate alleles.
     - `n_star` (``int64``) -- Number of star (upstream deletion) alleles.
