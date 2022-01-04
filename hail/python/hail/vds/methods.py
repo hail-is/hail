@@ -200,7 +200,8 @@ def sample_qc(vds: 'VariantDataset', *, name='sample_qc', gq_bins: 'Sequence[int
     bound_exprs['n_het'] = hl.agg.count_where(vmt['GT'].is_het())
     bound_exprs['n_hom_var'] = hl.agg.count_where(vmt['GT'].is_hom_var())
     bound_exprs['n_singleton'] = hl.agg.sum(
-        hl.sum(hl.range(0, vmt['GT'].ploidy).map(lambda i: vmt[variant_ac][vmt['GT'][i]] == 1))
+        hl.rbind(vmt['GT'], lambda gt: hl.sum(hl.range(0, gt.ploidy).map(
+            lambda i: hl.rbind(gt[i], lambda gti: (gti != 0) & (vmt[variant_ac][gti] == 1)))))
     )
 
     bound_exprs['allele_type_counts'] = hl.agg.explode(

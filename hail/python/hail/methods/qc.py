@@ -126,7 +126,8 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
     bound_exprs['n_filtered'] = n_rows_ref - hl.agg.count()
     bound_exprs['n_hom_ref'] = hl.agg.count_where(mt['GT'].is_hom_ref())
     bound_exprs['n_het'] = hl.agg.count_where(mt['GT'].is_het())
-    bound_exprs['n_singleton'] = hl.agg.sum(hl.sum(hl.range(0, mt['GT'].ploidy).map(lambda i: mt[variant_ac][mt['GT'][i]] == 1)))
+    bound_exprs['n_singleton'] = hl.agg.sum(hl.rbind(mt['GT'], lambda gt: hl.sum(
+        hl.range(0, gt.ploidy).map(lambda i: hl.rbind(gt[i], lambda gti: (gti != 0) & (mt[variant_ac][gti] == 1))))))
 
     bound_exprs['allele_type_counts'] = hl.agg.explode(
         lambda allele_type: hl.tuple(
