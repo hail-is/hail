@@ -53,14 +53,13 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
 
 # import uvloop
 
-from ..utils import coalesce, query_billing_projects
+from ..utils import coalesce, query_billing_projects, accrued_cost_from_cost_and_msec_mcpu
 from ..cloud.resource_utils import (
     is_valid_cores_mcpu,
     cost_from_msec_mcpu,
     cores_mcpu_to_memory_bytes,
     memory_to_worker_type,
     valid_machine_types,
-    accrued_cost_from_cost_and_msec_mcpu,
 )
 from ..batch import batch_record_to_dict, job_record_to_dict, cancel_batch_in_db
 from ..exceptions import (
