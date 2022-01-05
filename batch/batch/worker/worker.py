@@ -520,7 +520,7 @@ class Container:
                 if self.container_status['out_of_memory']:
                     self.short_error = 'out of memory'
                 self.state = 'failed'
-        except (asyncio.CancelledError, GeneratorExit):  # pylint: disable=try-except-raise
+        except asyncio.CancelledError:  # pylint: disable=try-except-raise
             raise
         except Exception as e:
             if not isinstance(e, (JobDeletedError, JobTimeoutError)) and not user_error(e):
@@ -900,7 +900,7 @@ class Container:
                 except asyncio.TimeoutError:
                     try:
                         await send_signal_and_wait(self.process, 'SIGKILL', timeout=5)
-                    except (asyncio.CancelledError, GeneratorExit):  # pylint: disable=try-except-raise
+                    except asyncio.CancelledError:  # pylint: disable=try-except-raise
                         raise
                     except Exception:
                         log.exception(f'could not kill process for container {self}')
@@ -911,7 +911,7 @@ class Container:
             try:
                 await check_shell(f'umount -l {self.container_overlay_path}/merged')
                 self.overlay_mounted = False
-            except (asyncio.CancelledError, GeneratorExit):  # pylint: disable=try-except-raise
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception:
                 log.exception(f'while unmounting overlay in {self}', exc_info=True)
@@ -1467,7 +1467,7 @@ class DockerJob(Job):
                         self.state = 'succeeded'
                 else:
                     self.state = input.state
-            except (asyncio.CancelledError, GeneratorExit):  # pylint: disable=try-except-raise
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception as e:
                 if not user_error(e):
@@ -1513,7 +1513,7 @@ class DockerJob(Job):
             await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')
 
             await blocking_to_async(self.pool, shutil.rmtree, self.scratch, ignore_errors=True)
-        except (asyncio.CancelledError, GeneratorExit):  # pylint: disable=try-except-raise
+        except asyncio.CancelledError:  # pylint: disable=try-except-raise
             raise
         except Exception:
             log.exception('while deleting volumes')
@@ -1651,7 +1651,7 @@ class JVMJob(Job):
                                            self.user_command_string[1:])
                 self.state = 'succeeded'
                 log.info(f'{self} main: {self.state}')
-            except (asyncio.CancelledError, GeneratorExit):  # pylint: disable=try-except-raise
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception:
                 # FIXME: this can also be a Hail Query driver error, not a Hail Batch error
@@ -1691,7 +1691,7 @@ class JVMJob(Job):
         log.info(f'{self}: cleaning up')
         try:
             await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')
-        except (asyncio.CancelledError, GeneratorExit):  # pylint: disable=try-except-raise
+        except asyncio.CancelledError:  # pylint: disable=try-except-raise
             raise
         except Exception:
             log.exception('while deleting volumes')
@@ -2151,7 +2151,7 @@ class Worker:
     async def run_job(self, job):
         try:
             await job.run()
-        except (asyncio.CancelledError, GeneratorExit):  # pylint: disable=try-except-raise
+        except asyncio.CancelledError:  # pylint: disable=try-except-raise
             raise
         except Exception as e:
             if not user_error(e):
@@ -2365,7 +2365,7 @@ class Worker:
                     headers=self.headers,
                 )
                 return
-            except (asyncio.CancelledError, GeneratorExit):  # pylint: disable=try-except-raise
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception as e:
                 if isinstance(e, aiohttp.ClientResponseError) and e.status == 404:  # pylint: disable=no-member
@@ -2387,7 +2387,7 @@ class Worker:
     async def post_job_complete(self, job):
         try:
             await self.post_job_complete_1(job)
-        except (asyncio.CancelledError, GeneratorExit):  # pylint: disable=try-except-raise
+        except asyncio.CancelledError:  # pylint: disable=try-except-raise
             raise
         except Exception:
             log.exception(f'error while marking {job} complete', stack_info=True)
@@ -2422,7 +2422,7 @@ class Worker:
     async def post_job_started(self, job):
         try:
             await self.post_job_started_1(job)
-        except (asyncio.CancelledError, GeneratorExit):  # pylint: disable=try-except-raise
+        except asyncio.CancelledError:  # pylint: disable=try-except-raise
             raise
         except Exception:
             log.exception(f'error while posting {job} started')
@@ -2481,7 +2481,7 @@ class Worker:
                         await blocking_to_async(self.pool, shutil.rmtree, image_path)
                         del self.image_data[image_id]
                         log.info(f'Deleted image from cache with ID {image_id}')
-        except (asyncio.CancelledError, GeneratorExit):  # pylint: disable=try-except-raise
+        except asyncio.CancelledError:  # pylint: disable=try-except-raise
             raise
         except Exception as e:
             log.exception(f'Error while deleting unused image: {e}')
