@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 import base64
 import json
 import logging
@@ -38,9 +38,13 @@ def create_vm_config(
         subscription_id: str,
         resource_group: str,
         ssh_public_key: str,
+        max_price: Optional[float],
         instance_config: InstanceConfig,
 ) -> dict:
     _, cores = azure_machine_type_to_worker_type_and_cores(machine_type)
+
+    if max_price is not None and not preemptible:
+        raise ValueError(f'max price given for a nonpreemptible machine {max_price}')
 
     if job_private:
         unreserved_disk_storage_gb = data_disk_size_gb
@@ -59,7 +63,7 @@ def create_vm_config(
                 "name": "[concat(parameters('vmName'), '-data')]",
                 "lun": 2,  # because this is 2, the data disk will always be at 'sdc'
                 "managedDisk": {
-                    "storageAccountType": "Standard_LRS"
+                    "storageAccountType": "Premium_LRS"
                 },
                 "createOption": "Empty",
                 "diskSizeGB": data_disk_size_gb,
@@ -137,6 +141,29 @@ sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/batch /batch
 sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/logs/
 sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/logs /logs
 
+# Forward syslog logs to Log Analytics Agent
+cat >>/etc/rsyslog.d/95-omsagent.conf <<EOF
+kern.warning       @127.0.0.1:25224
+user.warning       @127.0.0.1:25224
+daemon.warning     @127.0.0.1:25224
+auth.warning       @127.0.0.1:25224
+syslog.warning     @127.0.0.1:25224
+uucp.warning       @127.0.0.1:25224
+authpriv.warning   @127.0.0.1:25224
+ftp.warning        @127.0.0.1:25224
+cron.warning       @127.0.0.1:25224
+local0.warning     @127.0.0.1:25224
+local1.warning     @127.0.0.1:25224
+local2.warning     @127.0.0.1:25224
+local3.warning     @127.0.0.1:25224
+local4.warning     @127.0.0.1:25224
+local5.warning     @127.0.0.1:25224
+local6.warning     @127.0.0.1:25224
+local7.warning     @127.0.0.1:25224
+EOF
+
+sudo service rsyslog restart
+
 sudo mkdir -p /etc/netns
 
 curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metadata/instance/compute/userData?api-version=2021-02-01&format=text" | \
@@ -163,25 +190,26 @@ DOCKER_PREFIX=$(jq -r '.docker_prefix' userdata)
 
 INTERNAL_GATEWAY_IP=$(jq -r '.internal_ip' userdata)
 
-# private job network = 10.0.0.0/16
-# public job network = 10.1.0.0/16
+# private job network = 172.20.0.0/16
+# public job network = 172.21.0.0/16
 # [all networks] Rewrite traffic coming from containers to masquerade as the host
-sudo iptables --table nat --append POSTROUTING --source 10.0.0.0/15 --jump MASQUERADE
+iptables --table nat --append POSTROUTING --source 172.20.0.0/15 --jump MASQUERADE
 
 # [public]
 # Block public traffic to the metadata server
-sudo iptables --append FORWARD --source 10.1.0.0/16 --destination 169.254.169.254 --jump DROP
+iptables --append FORWARD --source 172.21.0.0/16 --destination 169.254.169.254 --jump DROP
 # But allow the internal gateway
-sudo iptables --append FORWARD --destination $INTERNAL_GATEWAY_IP --jump ACCEPT
+iptables --append FORWARD --destination $INTERNAL_GATEWAY_IP --jump ACCEPT
 # And this worker
-sudo iptables --append FORWARD --destination $IP_ADDRESS --jump ACCEPT
+iptables --append FORWARD --destination $IP_ADDRESS --jump ACCEPT
 # Forbid outgoing requests to cluster-internal IP addresses
 INTERNET_INTERFACE=eth0
-sudo iptables --append FORWARD --out-interface $INTERNET_INTERFACE ! --destination 10.128.0.0/16 --jump ACCEPT
+iptables --append FORWARD --out-interface $INTERNET_INTERFACE ! --destination 10.128.0.0/16 --jump ACCEPT
 
 cat >> /etc/hosts <<EOF
 $INTERNAL_GATEWAY_IP batch-driver.hail
 $INTERNAL_GATEWAY_IP batch.hail
+$INTERNAL_GATEWAY_IP internal.hail
 EOF
 
 {make_global_config_str}
@@ -243,7 +271,7 @@ while true; do
 az vm delete -g $RESOURCE_GROUP -n $NAME --yes
 sleep 1
 done
-    '''
+'''
 
     user_data = {
         'run_script': run_script,
@@ -261,7 +289,7 @@ done
     user_data_str = base64.b64encode(json.dumps(user_data).encode('utf-8')).decode('utf-8')
 
     tags = {
-        'namespace': 'default',
+        'namespace': DEFAULT_NAMESPACE,
         'batch-worker': '1'
     }
 
@@ -324,18 +352,44 @@ done
                 }
             },
             'userData': "[parameters('userData')]"
-        }
+        },
+        'resources': [
+            {
+                'apiVersion': '2018-06-01',
+                'type': 'extensions',
+                'name': 'OMSExtension',
+                'location': "[parameters('location')]",
+                'tags': tags,
+                'dependsOn': [
+                    "[concat('Microsoft.Compute/virtualMachines/', parameters('vmName'))]"
+                ],
+                'properties': {
+                    'publisher': 'Microsoft.EnterpriseCloud.Monitoring',
+                    'type': 'OmsAgentForLinux',
+                    'typeHandlerVersion': '1.13',
+                    'autoUpgradeMinorVersion': False,
+                    'enableAutomaticUpgrade': False,
+                    'settings': {
+                        'workspaceId': "[reference(resourceId('Microsoft.OperationalInsights/workspaces/', parameters('workspaceName')), '2015-03-20').customerId]"
+                    },
+                    'protectedSettings': {
+                        'workspaceKey': "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces/', parameters('workspaceName')), '2015-03-20').primarySharedKey]"
+                    }
+                }
+            },
+        ]
     }
 
     properties = vm_config['properties']
     if preemptible:
         properties['priority'] = 'Spot'
         properties['evictionPolicy'] = 'Delete'
-        properties['billingProfile'] = {'maxPrice': -1}
+        properties['billingProfile'] = {'maxPrice': max_price if max_price is not None else -1}
     else:
         properties['priority'] = 'Regular'
 
     return {
+        'tags': tags,
         'properties': {
             'mode': 'Incremental',
             'parameters': {
@@ -368,6 +422,9 @@ done
                         'id': f'/subscriptions/{subscription_id}/resourceGroups/{resource_group}/providers/'
                               f'Microsoft.Compute/galleries/{resource_group}_batch/images/batch-worker/versions/0.0.12'
                     }
+                },
+                'workspaceName': {
+                    'value': f'{resource_group}-logs',
                 }
             },
             'template': {
@@ -410,12 +467,15 @@ done
                                 'sku': '18.04-LTS',
                                 'version': 'latest'
                             }
-                    }
+                    },
+                    'workspaceName': {
+                        'type': 'string'
+                    },
                 },
                 'variables': {
                     'ipName': "[concat(parameters('vmName'), '-ip')]",
                     'nicName': "[concat(parameters('vmName'), '-nic')]",
-                    'ipconfigName': "[concat(parameters('vmName'), '-ipconfig')]"
+                    'ipconfigName': "[concat(parameters('vmName'), '-ipconfig')]",
                 },
                 'resources': [
                     {

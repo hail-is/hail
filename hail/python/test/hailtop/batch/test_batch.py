@@ -13,8 +13,9 @@ from hailtop.batch.globals import arg_max
 from hailtop.utils import grouped, async_to_blocking
 from hailtop.config import get_user_config
 from hailtop.batch.utils import concatenate
-from hailtop.aiocloud import aiogoogle
-from hailtop.aiotools import RouterAsyncFS
+from hailtop.aiotools.router_fs import RouterAsyncFS
+
+from ..utils import fails_in_azure, skip_in_azure
 
 
 DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
@@ -419,10 +420,9 @@ class ServiceTests(unittest.TestCase):
         if not os.path.exists(in_cluster_key_file):
             in_cluster_key_file = None
 
-        # FIXME: Make this lazy
-        router_fs = RouterAsyncFS('gs', [
-            aiogoogle.GoogleStorageAsyncFS(project='hail-vdc', credentials_file=in_cluster_key_file),
-        ])
+        router_fs = RouterAsyncFS('gs',
+                                  gcs_kwargs={'project': 'hail-vdc', 'credentials_file': in_cluster_key_file},
+                                  azure_kwargs={'credential_file': in_cluster_key_file})
 
         def sync_exists(url):
             return async_to_blocking(router_fs.exists(url))
@@ -593,6 +593,7 @@ class ServiceTests(unittest.TestCase):
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
+    @fails_in_azure
     def test_gcsfuse(self):
         assert self.bucket_name
         path = f'/{self.bucket_name}{self.cloud_output_path}'
@@ -611,6 +612,7 @@ class ServiceTests(unittest.TestCase):
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
+    @fails_in_azure
     def test_gcsfuse_read_only(self):
         assert self.bucket_name
         path = f'/{self.bucket_name}{self.cloud_output_path}'
@@ -624,6 +626,7 @@ class ServiceTests(unittest.TestCase):
         res_status = res.status()
         assert res_status['state'] == 'failure', str((res_status, res.debug_info()))
 
+    @fails_in_azure
     def test_gcsfuse_implicit_dirs(self):
         assert self.bucket_name
         path = f'/{self.bucket_name}{self.cloud_output_path}'
@@ -642,6 +645,7 @@ class ServiceTests(unittest.TestCase):
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
+    @fails_in_azure
     def test_gcsfuse_empty_string_bucket_fails(self):
         assert self.bucket_name
         b = self.batch()
@@ -651,6 +655,7 @@ class ServiceTests(unittest.TestCase):
         with self.assertRaises(BatchException):
             j.gcsfuse(self.bucket_name, '')
 
+    @skip_in_azure
     def test_requester_pays(self):
         b = self.batch(requester_pays_project='hail-vdc')
         input = b.read_input('gs://hail-services-requester-pays/hello')

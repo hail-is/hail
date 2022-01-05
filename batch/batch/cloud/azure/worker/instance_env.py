@@ -1,7 +1,6 @@
 import aiohttp
 import abc
 from typing import Dict, Optional, Tuple
-from dateutil.parser import isoparse
 import os
 
 from hailtop import httpx
@@ -26,6 +25,10 @@ class AzureWorkerAPI(CloudWorkerAPI):
         self.subscription_id = subscription_id
         self.resource_group = resource_group
         self.acr_refresh_token = AcrRefreshToken(acr_url, AadAccessToken())
+
+    @property
+    def nameserver_ip(self):
+        return '168.63.129.16'
 
     def create_disk(self, instance_name: str, disk_name: str, size_in_gb: int, mount_path: str) -> AzureDisk:
         return AzureDisk(disk_name, instance_name, size_in_gb, mount_path)
@@ -67,21 +70,18 @@ class LazyShortLivedToken(abc.ABC):
 class AadAccessToken(LazyShortLivedToken):
     async def _fetch(self, session: httpx.ClientSession) -> Tuple[str, int]:
         # https://docs.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/how-to-use-vm-token#get-a-token-using-http
-        params = {
-            'api-version': '2018-02-01',
-            'resource': 'https://management.azure.com/'
-        }
+        params = {'api-version': '2018-02-01', 'resource': 'https://management.azure.com/'}
         async with await request_retry_transient_errors(
             session,
             'GET',
             'http://169.254.169.254/metadata/identity/oauth2/token',
             headers={'Metadata': 'true'},
             params=params,
-            timeout=aiohttp.ClientTimeout(total=60)  # type: ignore
+            timeout=aiohttp.ClientTimeout(total=60),  # type: ignore
         ) as resp:
             resp_json = await resp.json()
             access_token: str = resp_json['access_token']
-            expiration_time_ms = int(isoparse(resp_json['expires_on']).timestamp()) * 1000
+            expiration_time_ms = int(resp_json['expires_on']) * 1000
             return access_token, expiration_time_ms
 
 
@@ -104,7 +104,7 @@ class AcrRefreshToken(LazyShortLivedToken):
             f'https://{self.acr_url}/oauth2/exchange',
             headers={'Content-Type': 'application/x-www-form-urlencoded'},
             data=data,
-            timeout=aiohttp.ClientTimeout(total=60)  # type: ignore
+            timeout=aiohttp.ClientTimeout(total=60),  # type: ignore
         ) as resp:
             refresh_token: str = (await resp.json())['refresh_token']
             expiration_time_ms = time_msecs() + 60 * 60 * 1000  # token expires in 3 hours so we refresh after 1 hour

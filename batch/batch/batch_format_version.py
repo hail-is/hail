@@ -7,7 +7,7 @@ class BatchFormatVersion:
     def __init__(self, format_version):
         self.format_version = format_version
 
-    def has_full_spec_in_gcs(self):
+    def has_full_spec_in_cloud(self):
         return self.format_version > 1
 
     def has_full_status_in_gcs(self):

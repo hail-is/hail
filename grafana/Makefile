@@ -3,6 +3,7 @@ include ../config.mk
 .PHONY: build push deploy
 
 TOKEN = $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
+CLOUD := $(shell kubectl get secret global-config --template={{.data.cloud}} | base64 --decode)
 
 GRAFANA_NGINX_IMAGE := $(DOCKER_PREFIX)/grafana_nginx:$(TOKEN)
 
@@ -15,5 +16,5 @@ build:
 
 deploy: build
 	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
-	python3 ../ci/jinja2_render.py '{"deploy":$(DEPLOY),"global": {"project": "$(PROJECT)"},"default_ns":{"name":"$(NAMESPACE)"}, "grafana_nginx_image": {"image": "$(GRAFANA_NGINX_IMAGE)"}, "base_image":{"image":"'$$(cat ../docker/base-image-ref)'"}}' deployment.yaml deployment.yaml.out
+	python3 ../ci/jinja2_render.py '{"deploy":$(DEPLOY),"global": {"cloud": "$(CLOUD)"},"default_ns":{"name":"$(NAMESPACE)"}, "grafana_nginx_image": {"image": "$(GRAFANA_NGINX_IMAGE)"}, "base_image":{"image":"'$$(cat ../docker/base-image-ref)'"}}' deployment.yaml deployment.yaml.out
 	kubectl -n $(NAMESPACE) apply -f deployment.yaml.out

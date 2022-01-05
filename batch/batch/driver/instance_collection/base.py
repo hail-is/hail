@@ -25,7 +25,7 @@ class InstanceCollectionManager:
     def __init__(self,
                  db: Database,  # BORROWED
                  machine_name_prefix: str,
-                 location_monitor: CloudLocationMonitor
+                 location_monitor: CloudLocationMonitor,
                  ):
         self.db: Database = db
         self.machine_name_prefix = machine_name_prefix
@@ -208,6 +208,7 @@ class InstanceCollection:
             location = self.choose_location(cores,
                                             local_ssd_data_disk,
                                             data_disk_size_gb)
+
         if max_idle_time_msecs is None:
             max_idle_time_msecs = WORKER_MAX_IDLE_TIME_MSECS
 
@@ -220,6 +221,7 @@ class InstanceCollection:
             data_disk_size_gb=data_disk_size_gb,
             boot_disk_size_gb=boot_disk_size_gb,
             job_private=job_private,
+            location=location,
         )
         instance = await Instance.create(
             app=app,
@@ -235,7 +237,6 @@ class InstanceCollection:
         self.add_instance(instance)
         total_resources_on_instance = await self.resource_manager.create_vm(
             file_store=app['file_store'],
-            resource_rates=app['resource_rates'],
             machine_name=machine_name,
             activation_token=activation_token,
             max_idle_time_msecs=max_idle_time_msecs,

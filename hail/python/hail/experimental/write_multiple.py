@@ -19,6 +19,8 @@ def write_matrix_tables(mts: List[MatrixTable], prefix: str, overwrite: bool = F
     writer = MatrixNativeMultiWriter(paths, overwrite, stage_locally, codec_spec)
     Env.backend().execute(MatrixMultiWrite([mt._mir for mt in mts], writer))
 
+    return paths
+
 
 @typecheck(bms=sequenceof(BlockMatrix),
            prefix=str,

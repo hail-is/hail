@@ -1,27 +1,31 @@
+from typing import Tuple, AsyncIterator
 import random
+import functools
 import os
 import secrets
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import pytest
-from hailtop.utils import secret_alnum_string, retry_transient_errors
-from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS, UnexpectedEOFError
+from hailtop.utils import secret_alnum_string, retry_transient_errors, bounded_gather2, url_scheme
+from hailtop.aiotools import LocalAsyncFS, UnexpectedEOFError, AsyncFS
+from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiocloud.aioaws import S3AsyncFS
 from hailtop.aiocloud.aioazure import AzureAsyncFS
 from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
 
 
 @pytest.fixture(params=['file', 'gs', 's3', 'hail-az', 'router/file', 'router/gs', 'router/s3', 'router/hail-az'])
-async def filesystem(request):
+async def filesystem(request) -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS, str]]:
     token = secret_alnum_string()
 
     with ThreadPoolExecutor() as thread_pool:
+        fs: AsyncFS
         if request.param.startswith('router/'):
             fs = RouterAsyncFS(
-                'file', [LocalAsyncFS(thread_pool),
-                         GoogleStorageAsyncFS(),
-                         S3AsyncFS(thread_pool),
-                         AzureAsyncFS()])
+                'file', filesystems=[LocalAsyncFS(thread_pool),
+                                     GoogleStorageAsyncFS(),
+                                     S3AsyncFS(thread_pool),
+                                     AzureAsyncFS()])
         elif request.param == 'file':
             fs = LocalAsyncFS(thread_pool)
         elif request.param.endswith('gs'):
@@ -81,24 +85,24 @@ def file_data(request):
 
 
 @pytest.mark.asyncio
-async def test_write_read(filesystem, file_data):
+async def test_write_read(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str], file_data):
     sema, fs, base = filesystem
 
     file = f'{base}foo'
 
-    async with await fs.create(file) as f:
+    async with await fs.create(file) as writer:
         for b in file_data:
-            await f.write(b)
+            await writer.write(b)
 
     expected = b''.join(file_data)
-    async with await fs.open(file) as f:
-        actual = await f.read()
+    async with await fs.open(file) as reader:
+        actual = await reader.read()
 
     assert expected == actual
 
 
 @pytest.mark.asyncio
-async def test_open_from(filesystem):
+async def test_open_from(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
     sema, fs, base = filesystem
 
     file = f'{base}foo'
@@ -112,7 +116,7 @@ async def test_open_from(filesystem):
 
 
 @pytest.mark.asyncio
-async def test_open_nonexistent_file(filesystem):
+async def test_open_nonexistent_file(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
     sema, fs, base = filesystem
 
     file = f'{base}foo'
@@ -127,7 +131,7 @@ async def test_open_nonexistent_file(filesystem):
 
 
 @pytest.mark.asyncio
-async def test_open_from_nonexistent_file(filesystem):
+async def test_open_from_nonexistent_file(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
     sema, fs, base = filesystem
 
     file = f'{base}foo'
@@ -142,7 +146,7 @@ async def test_open_from_nonexistent_file(filesystem):
 
 
 @pytest.mark.asyncio
-async def test_read_from(filesystem):
+async def test_read_from(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
     sema, fs, base = filesystem
 
     file = f'{base}foo'
@@ -153,7 +157,7 @@ async def test_read_from(filesystem):
 
 
 @pytest.mark.asyncio
-async def test_read_range(filesystem):
+async def test_read_range(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
     sema, fs, base = filesystem
 
     file = f'{base}foo'
@@ -175,7 +179,7 @@ async def test_read_range(filesystem):
 
 
 @pytest.mark.asyncio
-async def test_write_read_range(filesystem, file_data):
+async def test_write_read_range(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str], file_data):
     sema, fs, base = filesystem
 
     file = f'{base}foo'
@@ -196,7 +200,7 @@ async def test_write_read_range(filesystem, file_data):
 
 
 @pytest.mark.asyncio
-async def test_isfile(filesystem):
+async def test_isfile(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
     sema, fs, base = filesystem
 
     file = f'{base}foo'
@@ -210,7 +214,7 @@ async def test_isfile(filesystem):
 
 
 @pytest.mark.asyncio
-async def test_isdir(filesystem):
+async def test_isdir(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
     sema, fs, base = filesystem
 
     # mkdir with trailing slash
@@ -232,7 +236,7 @@ async def test_isdir(filesystem):
 
 
 @pytest.mark.asyncio
-async def test_isdir_subdir_only(filesystem):
+async def test_isdir_subdir_only(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
     sema, fs, base = filesystem
 
     dir = f'{base}dir/'
@@ -249,7 +253,7 @@ async def test_isdir_subdir_only(filesystem):
 
 
 @pytest.mark.asyncio
-async def test_remove(filesystem):
+async def test_remove(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
     sema, fs, base = filesystem
 
     file = f'{base}foo'
@@ -263,16 +267,70 @@ async def test_remove(filesystem):
 
 
 @pytest.mark.asyncio
-async def test_rmtree(filesystem):
+async def test_rmtree(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
     sema, fs, base = filesystem
 
     dir = f'{base}foo/'
+    subdir1 = f'{dir}foo/'
+    subdir1subdir1 = f'{subdir1}foo/'
+    subdir1subdir2 = f'{subdir1}bar/'
+    subdir1subdir3 = f'{subdir1}baz/'
+    subdir1subdir4_empty = f'{subdir1}qux/'
+    subdir2 = f'{dir}bar/'
+    subdir3 = f'{dir}baz/'
+    subdir4_empty = f'{dir}qux/'
 
     await fs.mkdir(dir)
     await fs.touch(f'{dir}a')
     await fs.touch(f'{dir}b')
 
+    await fs.mkdir(subdir1)
+    await fs.mkdir(subdir1subdir1)
+    await fs.mkdir(subdir1subdir2)
+    await fs.mkdir(subdir1subdir3)
+    await fs.mkdir(subdir1subdir4_empty)
+    await fs.mkdir(subdir2)
+    await fs.mkdir(subdir3)
+    await fs.mkdir(subdir4_empty)
+
+    sema = asyncio.Semaphore(100)
+    await bounded_gather2(sema, *[
+        functools.partial(fs.touch, f'{subdir}a{i:02}')
+        for subdir in [dir, subdir1, subdir2, subdir3, subdir1subdir1, subdir1subdir2, subdir1subdir3]
+        for i in range(30)])
+
     assert await fs.isdir(dir)
+    assert await fs.isdir(subdir1)
+    assert await fs.isdir(subdir1subdir1)
+    assert await fs.isdir(subdir1subdir2)
+    assert await fs.isdir(subdir1subdir3)
+    # subdir1subdir4_empty: in cloud fses, empty dirs do not exist and thus are not dirs
+    assert await fs.isdir(subdir2)
+    assert await fs.isdir(subdir3)
+    # subdir4_empty: in cloud fses, empty dirs do not exist and thus are not dirs
+
+    await fs.rmtree(sema, subdir1subdir2)
+
+    assert await fs.isdir(dir)
+    assert await fs.isfile(f'{dir}a')
+    assert await fs.isfile(f'{dir}b')
+
+    assert await fs.isdir(subdir1)
+    assert await fs.isfile(f'{subdir1}a00')
+
+    assert await fs.isdir(subdir1subdir1)
+    assert await fs.isfile(f'{subdir1subdir1}a00')
+
+    assert not await fs.isdir(subdir1subdir2)
+    assert not await fs.isfile(f'{subdir1subdir2}a00')
+
+    assert await fs.isdir(subdir1subdir3)
+    assert await fs.isfile(f'{subdir1subdir3}a00')
+
+    assert await fs.isdir(subdir2)
+    assert await fs.isfile(f'{subdir2}a00')
+    assert await fs.isdir(subdir3)
+    assert await fs.isfile(f'{subdir3}a00')
 
     await fs.rmtree(sema, dir)
 
@@ -280,7 +338,36 @@ async def test_rmtree(filesystem):
 
 
 @pytest.mark.asyncio
-async def test_statfile_nonexistent_file(filesystem):
+async def test_rmtree_empty_dir(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
+    sema, fs, base = filesystem
+
+    dir = f'{base}bar/'
+
+    await fs.mkdir(dir)
+    await fs.rmtree(sema, dir)
+    assert not await fs.isdir(dir)
+
+
+@pytest.mark.asyncio
+async def test_cloud_rmtree_file_ending_in_slash(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
+    sema, fs, base = filesystem
+
+    base_scheme = url_scheme(base)
+    if isinstance(fs, LocalAsyncFS) or base_scheme in ('', 'file'):
+        return
+
+    fname = f'{base}bar/'
+
+    async with await fs.create(fname) as f:
+        await f.write(b'test_rmtree_file_ending_in_slash')
+    await fs.rmtree(sema, fname)
+    assert not await fs.isdir(fname)
+    assert not await fs.isfile(fname)
+    assert not await fs.exists(fname)
+
+
+@pytest.mark.asyncio
+async def test_statfile_nonexistent_file(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
     sema, fs, base = filesystem
 
     with pytest.raises(FileNotFoundError):
@@ -288,7 +375,7 @@ async def test_statfile_nonexistent_file(filesystem):
 
 
 @pytest.mark.asyncio
-async def test_statfile_directory(filesystem):
+async def test_statfile_directory(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
     sema, fs, base = filesystem
 
     await fs.mkdir(f'{base}dir/')
@@ -300,7 +387,7 @@ async def test_statfile_directory(filesystem):
 
 
 @pytest.mark.asyncio
-async def test_statfile(filesystem):
+async def test_statfile(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
     sema, fs, base = filesystem
 
     n = 37
@@ -310,7 +397,7 @@ async def test_statfile(filesystem):
     assert await status.size() == n
 
 @pytest.mark.asyncio
-async def test_listfiles(filesystem):
+async def test_listfiles(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
     sema, fs, base = filesystem
 
     with pytest.raises(FileNotFoundError):
@@ -359,7 +446,7 @@ async def test_listfiles(filesystem):
     [1, 2, 0],
     [2, 1, 0]
 ])
-async def test_multi_part_create(filesystem, permutation):
+async def test_multi_part_create(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str], permutation):
     sema, fs, base = filesystem
 
     # S3 has a minimum part size (except for the last part) of 5MiB

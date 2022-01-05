@@ -1,7 +1,8 @@
 from typing import Optional, List
+import os
 
 GITHUB_CLONE_URL = 'https://github.com/'
-GITHUB_STATUS_CONTEXT = 'ci-test'
+GITHUB_STATUS_CONTEXT = os.environ["HAIL_CI_GITHUB_CONTEXT"]
 SERVICES_TEAM = 'Services'
 COMPILER_TEAM = 'Compiler'
 TEAMS = [SERVICES_TEAM, COMPILER_TEAM]

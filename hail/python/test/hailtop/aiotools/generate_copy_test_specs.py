@@ -2,7 +2,8 @@ import secrets
 from concurrent.futures import ThreadPoolExecutor
 import pprint
 import asyncio
-from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS, Transfer
+from hailtop.aiotools import LocalAsyncFS, Transfer, Copier
+from hailtop.aiotools.router_fs import RouterAsyncFS
 
 
 def remove_prefix(s, prefix):
@@ -95,7 +96,7 @@ async def run_test_spec(sema, fs, spec, src_base, dest_base):
     result = None
     exc_type = None
     try:
-        await fs.copy(sema, Transfer(src, dest, treat_dest_as=spec['treat_dest_as']))
+        await Copier.copy(fs, sema, Transfer(src, dest, treat_dest_as=spec['treat_dest_as']))
     except Exception as e:
         exc_type = type(e)
         if exc_type not in (NotADirectoryError, IsADirectoryError, FileNotFoundError):
@@ -121,7 +122,8 @@ async def copy_test_specs():
 
     with ThreadPoolExecutor() as thread_pool:
         async with RouterAsyncFS(
-                'file', [LocalAsyncFS(thread_pool)]) as fs:
+                'file',
+                filesystems=[LocalAsyncFS(thread_pool)]) as fs:
             for config in copy_test_configurations():
                 token = secrets.token_hex(16)
 

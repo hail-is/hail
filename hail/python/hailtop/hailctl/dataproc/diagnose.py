@@ -18,7 +18,7 @@ def init_parser(parser):
                         help="Only download logs from the first N workers.")
 
 
-def main(args, pass_through_args):  # pylint: disable=unused-argument
+async def main(args, pass_through_args):  # pylint: disable=unused-argument
     print("Diagnosing cluster '{}'...".format(args.name))
 
     is_local = not args.dest.startswith("gs://")

@@ -37,6 +37,7 @@ sequencing datasets.
     sample_qc
     split_multi
     interval_coverage
+    impute_sex_chromosome_ploidy
     to_dense_mt
     to_merged_sparse_mt
 

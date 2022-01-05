@@ -45,4 +45,5 @@ DROP TABLE IF EXISTS `batch_migration_version`;
 DROP TABLE IF EXISTS `batch_migrations`;
 DROP TABLE IF EXISTS `pools`;
 DROP TABLE IF EXISTS `inst_colls`;
+DROP TABLE IF EXISTS `latest_product_versions`;
 DROP TABLE IF EXISTS `resources`;

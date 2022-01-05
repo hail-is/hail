@@ -387,20 +387,24 @@ FROM user_inst_coll_resources;
     return await render_template('batch-driver', request, userdata, 'index.html', page_context)
 
 
-def validate(session, url_path, name, value, predicate, description):
+class ConfigError(Exception):
+    pass
+
+
+def validate(session, name, value, predicate, description):
     if not predicate(value):
         set_message(session, f'{name} invalid: {value}.  Must be {description}.', 'error')
-        raise web.HTTPFound(deploy_config.external_url('batch-driver', url_path))
+        raise ConfigError()
     return value
 
 
-def validate_int(session, url_path, name, value, predicate, description):
+def validate_int(session, name, value, predicate, description):
     try:
         i = int(value)
     except ValueError as e:
         set_message(session, f'{name} invalid: {value}.  Must be an integer.', 'error')
-        raise web.HTTPFound(deploy_config.external_url('batch-driver', url_path)) from e
-    return validate(session, url_path, name, i, predicate, description)
+        raise ConfigError() from e
+    return validate(session, name, i, predicate, description)
 
 
 @routes.post('/config-update/pool/{pool}')
@@ -417,110 +421,114 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
     pool = inst_coll_manager.get_inst_coll(pool_name)
     pool_url_path = f'/inst_coll/pool/{pool_name}'
 
-    if not isinstance(pool, Pool):
-        set_message(session, f'Unknown pool {pool_name}.', 'error')
-        raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
+    try:
+        if not isinstance(pool, Pool):
+            set_message(session, f'Unknown pool {pool_name}.', 'error')
+            raise ConfigError()
 
-    post = await request.post()
+        post = await request.post()
 
-    worker_type = pool.worker_type
+        worker_type = pool.worker_type
 
-    boot_disk_size_gb = validate_int(
-        session,
-        pool_url_path,
-        'Worker boot disk size',
-        post['boot_disk_size_gb'],
-        lambda v: v >= 10,
-        'a positive integer greater than or equal to 10',
-    )
+        boot_disk_size_gb = validate_int(
+            session,
+            'Worker boot disk size',
+            post['boot_disk_size_gb'],
+            lambda v: v >= 10,
+            'a positive integer greater than or equal to 10',
+        )
 
-    if pool.cloud == 'azure' and boot_disk_size_gb != 30:
-        set_message(session, 'The boot disk size (GB) must be 30 in azure.', 'error')
-        raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
+        if pool.cloud == 'azure' and boot_disk_size_gb != 30:
+            set_message(session, 'The boot disk size (GB) must be 30 in azure.', 'error')
+            raise ConfigError()
 
-    worker_local_ssd_data_disk = 'worker_local_ssd_data_disk' in post
+        worker_local_ssd_data_disk = 'worker_local_ssd_data_disk' in post
 
-    worker_external_ssd_data_disk_size_gb = validate_int(
-        session,
-        pool_url_path,
-        'Worker external SSD data disk size (in GB)',
-        post['worker_external_ssd_data_disk_size_gb'],
-        lambda v: v >= 0,
-        'a nonnegative integer',
-    )
+        worker_external_ssd_data_disk_size_gb = validate_int(
+            session,
+            'Worker external SSD data disk size (in GB)',
+            post['worker_external_ssd_data_disk_size_gb'],
+            lambda v: v >= 0,
+            'a nonnegative integer',
+        )
 
-    if not worker_local_ssd_data_disk and worker_external_ssd_data_disk_size_gb == 0:
-        set_message(session, 'Either the worker must use a local SSD or the external SSD data disk must be non-zero.', 'error')
-        raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
+        if not worker_local_ssd_data_disk and worker_external_ssd_data_disk_size_gb == 0:
+            set_message(session, 'Either the worker must use a local SSD or the external SSD data disk must be non-zero.', 'error')
+            raise ConfigError()
 
-    if worker_local_ssd_data_disk and worker_external_ssd_data_disk_size_gb > 0:
-        set_message(session, 'Worker cannot both use local SSD and have a non-zero external SSD data disk.', 'error')
-        raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
+        if worker_local_ssd_data_disk and worker_external_ssd_data_disk_size_gb > 0:
+            set_message(session, 'Worker cannot both use local SSD and have a non-zero external SSD data disk.', 'error')
+            raise ConfigError()
 
-    max_instances = validate_int(
-        session, pool_url_path, 'Max instances', post['max_instances'], lambda v: v > 0, 'a positive integer'
-    )
+        max_instances = validate_int(
+            session, 'Max instances', post['max_instances'], lambda v: v > 0, 'a positive integer'
+        )
 
-    max_live_instances = validate_int(
-        session, pool_url_path, 'Max live instances', post['max_live_instances'], lambda v: v > 0, 'a positive integer'
-    )
+        max_live_instances = validate_int(
+            session, 'Max live instances', post['max_live_instances'], lambda v: v > 0, 'a positive integer'
+        )
 
-    enable_standing_worker = 'enable_standing_worker' in post
+        enable_standing_worker = 'enable_standing_worker' in post
 
-    possible_worker_cores = []
-    for cores in possible_cores_from_worker_type(pool.cloud, worker_type):
+        possible_worker_cores = []
+        for cores in possible_cores_from_worker_type(pool.cloud, worker_type):
+            if not worker_local_ssd_data_disk:
+                possible_worker_cores.append(cores)
+                continue
+
+            # disk storage for local ssd is proportional to the number of cores in azure
+            data_disk_size_gb = local_ssd_size(pool.cloud, worker_type, cores)
+            unreserved_disk_storage_gb = unreserved_worker_data_disk_size_gib(data_disk_size_gb, cores)
+            if unreserved_disk_storage_gb >= 0:
+                possible_worker_cores.append(cores)
+
+        worker_cores = validate_int(
+            session,
+            f'{worker_type} worker cores',
+            post['worker_cores'],
+            lambda c: c in possible_worker_cores,
+            f'one of {", ".join(str(c) for c in possible_worker_cores)}',
+        )
+
+        standing_worker_cores = validate_int(
+            session,
+            f'{worker_type} standing worker cores',
+            post['standing_worker_cores'],
+            lambda c: c in possible_worker_cores,
+            f'one of {", ".join(str(c) for c in possible_worker_cores)}',
+        )
+
         if not worker_local_ssd_data_disk:
-            possible_worker_cores.append(cores)
-            continue
+            unreserved_disk_storage_gb = unreserved_worker_data_disk_size_gib(worker_external_ssd_data_disk_size_gb, worker_cores)
+            if unreserved_disk_storage_gb < 0:
+                min_disk_storage = worker_external_ssd_data_disk_size_gb - unreserved_disk_storage_gb
+                set_message(session, f'External SSD must be at least {min_disk_storage} GB', 'error')
+                raise ConfigError()
 
-        # disk storage for local ssd is proportional to the number of cores in azure
-        data_disk_size_gb = local_ssd_size(pool.cloud, worker_type, cores)
-        unreserved_disk_storage_gb = unreserved_worker_data_disk_size_gib(data_disk_size_gb, cores)
-        if unreserved_disk_storage_gb >= 0:
-            possible_worker_cores.append(cores)
+        pool_config = PoolConfig(
+            pool_name,
+            pool.cloud,
+            worker_type,
+            worker_cores,
+            worker_local_ssd_data_disk,
+            worker_external_ssd_data_disk_size_gb,
+            enable_standing_worker,
+            standing_worker_cores,
+            boot_disk_size_gb,
+            max_instances,
+            max_live_instances
+        )
+        await pool_config.update_database(db)
+        pool.configure(pool_config)
 
-    worker_cores = validate_int(
-        session,
-        pool_url_path,
-        f'{worker_type} worker cores',
-        post['worker_cores'],
-        lambda c: c in possible_worker_cores,
-        f'one of {", ".join(str(c) for c in possible_worker_cores)}',
-    )
-
-    standing_worker_cores = validate_int(
-        session,
-        pool_url_path,
-        f'{worker_type} standing worker cores',
-        post['standing_worker_cores'],
-        lambda c: c in possible_worker_cores,
-        f'one of {", ".join(str(c) for c in possible_worker_cores)}',
-    )
-
-    if not worker_local_ssd_data_disk:
-        unreserved_disk_storage_gb = unreserved_worker_data_disk_size_gib(worker_external_ssd_data_disk_size_gb, worker_cores)
-        if unreserved_disk_storage_gb < 0:
-            min_disk_storage = worker_external_ssd_data_disk_size_gb - unreserved_disk_storage_gb
-            set_message(session, f'External SSD must be at least {min_disk_storage} GB', 'error')
-            raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
-
-    pool_config = PoolConfig(
-        pool_name,
-        pool.cloud,
-        worker_type,
-        worker_cores,
-        worker_local_ssd_data_disk,
-        worker_external_ssd_data_disk_size_gb,
-        enable_standing_worker,
-        standing_worker_cores,
-        boot_disk_size_gb,
-        max_instances,
-        max_live_instances
-    )
-    await pool_config.update_database(db)
-    pool.configure(pool_config)
-
-    set_message(session, f'Updated configuration for {pool}.', 'info')
+        set_message(session, f'Updated configuration for {pool}.', 'info')
+    except ConfigError:
+        pass
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        log.exception(f'error while updating pool configuration for {pool}')
+        raise
 
     return web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
 
@@ -538,30 +546,37 @@ async def job_private_config_update(request, userdata):  # pylint: disable=unuse
 
     post = await request.post()
 
-    boot_disk_size_gb = validate_int(
-        session,
-        url_path,
-        'Worker boot disk size',
-        post['boot_disk_size_gb'],
-        lambda v: v >= 10,
-        'a positive integer greater than or equal to 10',
-    )
+    try:
+        boot_disk_size_gb = validate_int(
+            session,
+            'Worker boot disk size',
+            post['boot_disk_size_gb'],
+            lambda v: v >= 10,
+            'a positive integer greater than or equal to 10',
+        )
 
-    if jpim.cloud == 'azure' and boot_disk_size_gb != 30:
-        set_message(session, 'The boot disk size (GB) must be 30 in azure.', 'error')
-        raise web.HTTPFound(deploy_config.external_url('batch-driver', url_path))
+        if jpim.cloud == 'azure' and boot_disk_size_gb != 30:
+            set_message(session, 'The boot disk size (GB) must be 30 in azure.', 'error')
+            raise ConfigError()
 
-    max_instances = validate_int(
-        session, url_path, 'Max instances', post['max_instances'], lambda v: v > 0, 'a positive integer'
-    )
+        max_instances = validate_int(
+            session, 'Max instances', post['max_instances'], lambda v: v > 0, 'a positive integer'
+        )
 
-    max_live_instances = validate_int(
-        session, url_path, 'Max live instances', post['max_live_instances'], lambda v: v > 0, 'a positive integer'
-    )
+        max_live_instances = validate_int(
+            session, 'Max live instances', post['max_live_instances'], lambda v: v > 0, 'a positive integer'
+        )
 
-    await jpim.configure(boot_disk_size_gb, max_instances, max_live_instances)
+        await jpim.configure(boot_disk_size_gb, max_instances, max_live_instances)
 
-    set_message(session, f'Updated configuration for {jpim}.', 'info')
+        set_message(session, f'Updated configuration for {jpim}.', 'info')
+    except ConfigError:
+        pass
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        log.exception(f'error while updating pool configuration for {jpim}')
+        raise
 
     return web.HTTPFound(deploy_config.external_url('batch-driver', url_path))
 
@@ -579,7 +594,7 @@ async def get_pool(request, userdata):
 
     if not isinstance(pool, Pool):
         set_message(session, f'Unknown pool {pool_name}.', 'error')
-        raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+        return web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
     user_resources = await pool.scheduler.compute_fair_share()
     user_resources = sorted(
@@ -1030,7 +1045,6 @@ GROUP BY user, inst_coll;
 
 
 def monitor_instances(app) -> None:
-    resource_rates: Dict[str, float] = app['resource_rates']
     driver: CloudDriver = app['driver']
     inst_coll_manager = driver.inst_coll_manager
 
@@ -1046,11 +1060,11 @@ def monitor_instances(app) -> None:
 
             if instance.state != 'deleted':
                 actual_cost_per_hour_labels = CostPerHourLabels(measure='actual', inst_coll=instance.inst_coll.name)
-                actual_rate = instance.instance_config.actual_cost_per_hour(resource_rates)
+                actual_rate = instance.instance_config.actual_cost_per_hour(driver.billing_manager.resource_rates)
                 cost_per_hour[actual_cost_per_hour_labels].append(actual_rate)
 
                 billed_cost_per_hour_labels = CostPerHourLabels(measure='billed', inst_coll=instance.inst_coll.name)
-                billed_rate = instance.instance_config.cost_per_hour_from_cores(resource_rates, utilized_cores_mcpu)
+                billed_rate = instance.instance_config.cost_per_hour_from_cores(driver.billing_manager.resource_rates, utilized_cores_mcpu)
                 cost_per_hour[billed_cost_per_hour_labels].append(billed_rate)
 
                 inst_coll_labels = InstCollLabels(inst_coll=instance.inst_coll.name)
@@ -1095,9 +1109,8 @@ async def on_startup(app):
     app['client_session'] = httpx.client_session()
 
     kube.config.load_incluster_config()
-    k8s_client = kube.client.CoreV1Api()
-    k8s_cache = K8sCache(k8s_client, refresh_time=5)
-    app['k8s_cache'] = k8s_cache
+    app['k8s_client'] = kube.client.CoreV1Api()
+    app['k8s_cache'] = K8sCache(app['k8s_client'])
 
     db = Database()
     await db.async_init(maxsize=50)
@@ -1118,9 +1131,6 @@ SELECT instance_id, internal_token, frozen FROM globals;
     app['batch_headers'] = {'Authorization': f'Bearer {row["internal_token"]}'}
 
     app['frozen'] = row['frozen']
-
-    resources = db.select_and_fetchall('SELECT resource, rate FROM resources;')
-    app['resource_rates'] = {record['resource']: record['rate'] async for record in resources}
 
     scheduler_state_changed = Notice()
     app['scheduler_state_changed'] = scheduler_state_changed
@@ -1184,10 +1194,13 @@ async def on_cleanup(app):
                             try:
                                 app['async_worker_pool'].shutdown()
                             finally:
-                                del app['k8s_cache'].client
-                                await asyncio.gather(
-                                    *(t for t in asyncio.all_tasks() if t is not asyncio.current_task())
-                                )
+                                try:
+                                    k8s_client: kube.client.CoreV1Api = app['k8s_client']
+                                    await k8s_client.api_client.rest_client.pool_manager.close()
+                                finally:
+                                    await asyncio.gather(
+                                        *(t for t in asyncio.all_tasks() if t is not asyncio.current_task())
+                                    )
 
 
 def run():

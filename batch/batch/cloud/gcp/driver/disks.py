@@ -1,5 +1,6 @@
 import logging
 import aiohttp
+import asyncio
 from typing import List
 
 from hailtop.aiocloud import aiogoogle
@@ -40,7 +41,9 @@ async def delete_orphaned_disks(compute_client: aiogoogle.GoogleComputeClient, z
 
             try:
                 await compute_client.delete_disk(f'/zones/{zone}/disks/{disk_name}')
-            except aiohttp.ClientResponseError as e:
-                if e.status == 404:
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                if isinstance(e, aiohttp.ClientResponseError) and e.status == 404:  # pylint: disable=no-member
                     continue
                 log.exception(f'error while deleting orphaned disk {disk_name}')

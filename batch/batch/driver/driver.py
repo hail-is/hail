@@ -5,7 +5,7 @@ import datetime
 from gear import Database
 from hailtop import aiotools
 
-from .resource_manager import CloudResourceManager
+from .billing_manager import CloudBillingManager
 from .instance_collection import InstanceCollectionManager
 from ..inst_coll_config import InstanceCollectionConfigs
 
@@ -25,8 +25,8 @@ async def process_outstanding_events(db: Database, process_events_since: Callabl
 
 
 class CloudDriver(abc.ABC):
-    resource_manager: CloudResourceManager
     inst_coll_manager: InstanceCollectionManager
+    billing_manager: CloudBillingManager
 
     @staticmethod
     @abc.abstractmethod

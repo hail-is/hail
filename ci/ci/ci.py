@@ -40,8 +40,8 @@ uvloop.install()
 deploy_config = get_deploy_config()
 
 watched_branches: List[WatchedBranch] = [
-    WatchedBranch(index, FQBranch.from_short_str(bss), deployable)
-    for (index, [bss, deployable]) in enumerate(json.loads(os.environ.get('HAIL_WATCHED_BRANCHES', '[]')))
+    WatchedBranch(index, FQBranch.from_short_str(bss), deployable, mergeable)
+    for (index, [bss, deployable, mergeable]) in enumerate(json.loads(os.environ.get('HAIL_WATCHED_BRANCHES', '[]')))
 ]
 
 routes = web.RouteTableDef()
@@ -145,10 +145,11 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
 
 
 def storage_uri_to_url(uri: str) -> str:
-    protocol = 'gs://'
-    assert uri.startswith(protocol)
-    path = uri[len(protocol) :]
-    return f'https://console.cloud.google.com/storage/browser/{path}'
+    if uri.startswith('gs://'):
+        protocol = 'gs://'
+        path = uri[len(protocol) :]
+        return f'https://console.cloud.google.com/storage/browser/{path}'
+    return uri
 
 
 async def retry_pr(wb, pr, request):
@@ -437,6 +438,7 @@ async def dev_deploy_branch(request, userdata):
         branch = FQBranch.from_short_str(params['branch'])
         steps = params['steps']
         excluded_steps = params['excluded_steps']
+        extra_config = params.get('extra_config', {})
     except asyncio.CancelledError:
         raise
     except Exception as e:
@@ -457,7 +459,7 @@ async def dev_deploy_branch(request, userdata):
         log.info('dev deploy failed: ' + message, exc_info=True)
         raise web.HTTPBadRequest(text=message) from e
 
-    unwatched_branch = UnwatchedBranch(branch, sha, userdata)
+    unwatched_branch = UnwatchedBranch(branch, sha, userdata, extra_config)
 
     batch_client = app['batch_client']
 

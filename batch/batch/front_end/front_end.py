@@ -273,7 +273,7 @@ async def _query_batch_jobs(request, batch_id):
 
     sql = f'''
 SELECT jobs.*, batches.user, batches.billing_project,  batches.format_version,
-  job_attributes.value AS name, SUM(`usage` * rate) AS cost
+  job_attributes.value AS name, COALESCE(SUM(`usage` * rate), 0) AS cost
 FROM jobs
 INNER JOIN batches ON jobs.batch_id = batches.id
 LEFT JOIN job_attributes
@@ -400,7 +400,7 @@ async def _get_attributes(app, record):
     job_id = record['job_id']
     format_version = BatchFormatVersion(record['format_version'])
 
-    if not format_version.has_full_spec_in_gcs():
+    if not format_version.has_full_spec_in_cloud():
         spec = json.loads(record['spec'])
         return spec.get('attributes')
 
@@ -423,7 +423,7 @@ async def _get_full_job_spec(app, record):
     job_id = record['job_id']
     format_version = BatchFormatVersion(record['format_version'])
 
-    if not format_version.has_full_spec_in_gcs():
+    if not format_version.has_full_spec_in_cloud():
         return json.loads(record['spec'])
 
     token, start_job_id = await SpecWriter.get_token_start_id(db, batch_id, job_id)
@@ -570,7 +570,7 @@ async def _query_batches(request, user, q):
         where_args.extend(args)
 
     sql = f'''
-SELECT batches.*, SUM(`usage` * rate) AS cost
+SELECT batches.*, COALESCE(SUM(`usage` * rate), 0) AS cost
 FROM batches
 LEFT JOIN aggregated_batch_resources
   ON batches.id = aggregated_batch_resources.batch_id
@@ -693,7 +693,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
                 cloud = spec.get('cloud', CLOUD)
 
-                if batch_format_version.has_full_spec_in_gcs():
+                if batch_format_version.has_full_spec_in_cloud():
                     attributes = spec.pop('attributes', None)
                 else:
                     attributes = spec.get('attributes')
@@ -703,7 +703,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if start_job_id is None:
                     start_job_id = job_id
 
-                if batch_format_version.has_full_spec_in_gcs() and prev_job_idx:
+                if batch_format_version.has_full_spec_in_cloud() and prev_job_idx:
                     if job_id != prev_job_idx + 1:
                         raise web.HTTPBadRequest(
                             reason=f'noncontiguous job ids found in the spec: {prev_job_idx} -> {job_id}'
@@ -903,8 +903,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     for k, v in attributes.items():
                         job_attributes_args.append((batch_id, job_id, k, v))
 
-        if batch_format_version.has_full_spec_in_gcs():
-            async with timer.step('write spec to gcs'):
+        if batch_format_version.has_full_spec_in_cloud():
+            async with timer.step('write spec to cloud'):
                 await spec_writer.write()
 
         rand_token = random.randint(0, app['n_tokens'] - 1)
@@ -995,7 +995,7 @@ ON DUPLICATE KEY UPDATE
                         ),
                     )
 
-                if batch_format_version.has_full_spec_in_gcs():
+                if batch_format_version.has_full_spec_in_cloud():
                     await tx.execute_update(
                         '''
 INSERT INTO batch_bunches (batch_id, token, start_job_id)
@@ -1121,7 +1121,7 @@ async def _get_batch(app, batch_id):
 
     record = await db.select_and_fetchone(
         '''
-SELECT batches.*, SUM(`usage` * rate) AS cost FROM batches
+SELECT batches.*, COALESCE(SUM(`usage` * rate), 0) AS cost FROM batches
 LEFT JOIN aggregated_batch_resources
        ON batches.id = aggregated_batch_resources.batch_id
 LEFT JOIN resources
@@ -1262,7 +1262,7 @@ async def ui_cancel_batch(request, userdata, batch_id):  # pylint: disable=unuse
     if not errored:
         set_message(session, f'Batch {batch_id} cancelled.', 'info')
     location = request.app.router['batches'].url_for().with_query(params)
-    raise web.HTTPFound(location=location)
+    return web.HTTPFound(location=location)
 
 
 @routes.post('/batches/{batch_id}/delete')
@@ -1279,7 +1279,7 @@ async def ui_delete_batch(request, userdata, batch_id):  # pylint: disable=unuse
     session = await aiohttp_session.get_session(request)
     set_message(session, f'Batch {batch_id} deleted.', 'info')
     location = request.app.router['batches'].url_for().with_query(params)
-    raise web.HTTPFound(location=location)
+    return web.HTTPFound(location=location)
 
 
 @routes.get('/batches', name='batches')
@@ -1300,7 +1300,7 @@ async def _get_job(app, batch_id, job_id):
 
     record = await db.select_and_fetchone(
         '''
-SELECT jobs.*, user, billing_project, ip_address, format_version, SUM(`usage` * rate) AS cost
+SELECT jobs.*, user, billing_project, ip_address, format_version, COALESCE(SUM(`usage` * rate), 0) AS cost
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id

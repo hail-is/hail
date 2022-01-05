@@ -4,14 +4,12 @@ from typing import Dict
 
 class CloudCredentials(abc.ABC):
     @staticmethod
-    @abc.abstractmethod
     def from_file(credentials_file):
-        pass
+        raise NotImplementedError
 
     @staticmethod
-    @abc.abstractmethod
     def default_credentials():
-        pass
+        raise NotImplementedError
 
     @abc.abstractmethod
     async def auth_headers(self) -> Dict[str, str]:
@@ -20,3 +18,11 @@ class CloudCredentials(abc.ABC):
     @abc.abstractmethod
     async def close(self):
         raise NotImplementedError
+
+
+class AnonymousCloudCredentials(CloudCredentials):
+    async def auth_headers(self) -> Dict[str, str]:
+        return {}
+
+    async def close(self):
+        pass

@@ -16,24 +16,32 @@ class CloudBaseClient:
             session = RateLimitedSession(session=session, rate_limit=rate_limit)
         self._session = session
 
-    async def get(self, path: str, **kwargs) -> Any:
-        async with await self._session.get(
-                f'{self._base_url}{path}', **kwargs) as resp:
+    async def get(self, path: Optional[str] = None, *, url: Optional[str] = None, **kwargs) -> Any:
+        if url is None:
+            assert path
+            url = f'{self._base_url}{path}'
+        async with await self._session.get(url, **kwargs) as resp:
             return await resp.json()
 
-    async def post(self, path: str, **kwargs) -> Any:
-        async with await self._session.post(
-                f'{self._base_url}{path}', **kwargs) as resp:
+    async def post(self, path: Optional[str] = None, *, url: Optional[str] = None, **kwargs) -> Any:
+        if url is None:
+            assert path
+            url = f'{self._base_url}{path}'
+        async with await self._session.post(url, **kwargs) as resp:
             return await resp.json()
 
-    async def delete(self, path: str, **kwargs) -> Any:
-        async with await self._session.delete(
-                f'{self._base_url}{path}', **kwargs) as resp:
+    async def delete(self, path: Optional[str] = None, *, url: Optional[str] = None, **kwargs) -> Any:
+        if url is None:
+            assert path
+            url = f'{self._base_url}{path}'
+        async with await self._session.delete(url, **kwargs) as resp:
             return await resp.json()
 
-    async def put(self, path: str, **kwargs) -> Any:
-        async with await self._session.put(
-                f'{self._base_url}{path}', **kwargs) as resp:
+    async def put(self, path: Optional[str] = None, *, url: Optional[str] = None, **kwargs) -> Any:
+        if url is None:
+            assert path
+            url = f'{self._base_url}{path}'
+        async with await self._session.put(url, **kwargs) as resp:
             return await resp.json()
 
     async def close(self) -> None:

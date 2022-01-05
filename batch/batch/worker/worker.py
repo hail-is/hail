@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Callable, Tuple, Awaitable, Any
+from typing import Optional, Dict, Callable, Tuple, Awaitable, Any, Union, MutableMapping
 import os
 import json
 import sys
@@ -16,11 +16,13 @@ import aiohttp.client_exceptions
 from aiohttp import web
 import async_timeout
 import concurrent
+
 import aiodocker  # type: ignore
-import docker as syncdocker
+import aiodocker.images
+from aiodocker.exceptions import DockerError  # type: ignore
+
 import aiorwlock
 from collections import defaultdict
-from aiodocker.exceptions import DockerError  # type: ignore
 
 from gear.clients import get_compute_client, get_cloud_async_fs
 
@@ -34,8 +36,6 @@ from hailtop.utils import (
     CalledProcessError,
     check_exec_output,
     check_shell_output,
-    is_google_registry_domain,
-    is_azure_registry_domain,
     find_spark_home,
     dump_all_stacktraces,
     parse_docker_image_reference,
@@ -43,7 +43,8 @@ from hailtop.utils import (
     periodically_call,
 )
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
-from hailtop.aiotools.fs import RouterAsyncFS, LocalAsyncFS
+from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.aiotools import LocalAsyncFS
 from hailtop import aiotools, httpx
 
 # import uvloop
@@ -71,6 +72,9 @@ from .credentials import CloudUserCredentials
 
 # uvloop.install()
 
+with open('/subdomains.txt', 'r') as subdomains_file:
+    HAIL_SERVICES = [line.rstrip() for line in subdomains_file.readlines()]
+
 oldwarn = warnings.warn
 
 
@@ -83,6 +87,22 @@ def deeper_stack_level_warn(*args, **kwargs):
 
 
 warnings.warn = deeper_stack_level_warn
+
+
+def compose_auth_header_urlsafe(orig_f):
+    def compose(auth: Union[MutableMapping, str, bytes], registry_addr: str = None):
+        orig_auth_header = orig_f(auth, registry_addr=registry_addr)
+        auth = json.loads(base64.b64decode(orig_auth_header))
+        auth_json = json.dumps(auth).encode('ascii')
+        return base64.urlsafe_b64encode(auth_json).decode('ascii')
+    return compose
+
+
+# We patched aiodocker's utility function `compose_auth_header` because it does not base64 encode strings
+# in urlsafe mode which is required for Azure's credentials.
+# https://github.com/aio-libs/aiodocker/blob/17e08844461664244ea78ecd08d1672b1779acc1/aiodocker/utils.py#L297
+aiodocker.images.compose_auth_header = compose_auth_header_urlsafe(aiodocker.images.compose_auth_header)
+
 
 configure_logging()
 log = logging.getLogger('batch-worker')
@@ -97,7 +117,6 @@ CLOUD = os.environ['CLOUD']
 CORES = int(os.environ['CORES'])
 NAME = os.environ['NAME']
 NAMESPACE = os.environ['NAMESPACE']
-INTERNAL_BATCH_DOMAIN = 'batch.hail' if NAMESPACE == 'default' else 'internal.hail'
 # ACTIVATION_TOKEN
 IP_ADDRESS = os.environ['IP_ADDRESS']
 INTERNAL_GATEWAY_IP = os.environ['INTERNAL_GATEWAY_IP']
@@ -137,7 +156,6 @@ assert instance_config.cloud == CLOUD
 deploy_config = DeployConfig('gce', NAMESPACE, {})
 
 docker: Optional[aiodocker.Docker] = None
-docker_sync: Optional[syncdocker.DockerClient] = None
 
 port_allocator: Optional['PortAllocator'] = None
 network_allocator: Optional['NetworkAllocator'] = None
@@ -192,14 +210,17 @@ class NetworkNamespace:
         with open(f'/etc/netns/{self.network_ns_name}/hosts', 'w') as hosts:
             hosts.write('127.0.0.1 localhost\n')
             hosts.write(f'{self.job_ip} {self.hostname}\n')
-            hosts.write(f'{INTERNAL_GATEWAY_IP} {INTERNAL_BATCH_DOMAIN}\n')
+            if NAMESPACE == 'default':
+                for service in HAIL_SERVICES:
+                    hosts.write(f'{INTERNAL_GATEWAY_IP} {service}.hail\n')
+            hosts.write(f'{INTERNAL_GATEWAY_IP} internal.hail\n')
 
         # Jobs on the private network should have access to the metadata server
         # and our vdc. The public network should not so we use google's public
         # resolver.
         with open(f'/etc/netns/{self.network_ns_name}/resolv.conf', 'w') as resolv:
             if self.private:
-                resolv.write('nameserver 169.254.169.254\n')
+                resolv.write(f'nameserver {CLOUD_WORKER_API.nameserver_ip}\n')
                 if CLOUD == 'gcp':
                     resolv.write('search c.hail-vdc.internal google.internal\n')
             else:
@@ -318,11 +339,6 @@ def docker_call_retry(timeout, name):
     return wrapper
 
 
-async def pull_docker_image(pool: concurrent.futures.ThreadPoolExecutor, image_ref_str: str, auth: dict):
-    assert docker_sync
-    return await blocking_to_async(pool, docker_sync.images.pull, image_ref_str, auth_config=auth)
-
-
 async def send_signal_and_wait(proc, signal, timeout=None):
     try:
         if signal == 'SIGTERM':
@@ -349,27 +365,28 @@ class Timings:
         self.timings: Dict[str, Dict[str, float]] = dict()
         self.is_deleted = is_deleted
 
-    def step(self, name: str):
+    def step(self, name: str, ignore_job_deletion: bool = False):
         assert name not in self.timings
         self.timings[name] = dict()
-        return ContainerStepManager(self.timings[name], self.is_deleted)
+        return ContainerStepManager(self.timings[name], self.is_deleted, ignore_job_deletion=ignore_job_deletion)
 
     def to_dict(self):
         return self.timings
 
 
 class ContainerStepManager:
-    def __init__(self, timing: Dict[str, float], is_deleted: Callable[[], bool]):
+    def __init__(self, timing: Dict[str, float], is_deleted: Callable[[], bool], ignore_job_deletion: bool = False):
         self.timing: Dict[str, float] = timing
         self.is_deleted = is_deleted
+        self.ignore_job_deletion = ignore_job_deletion
 
     def __enter__(self):
-        if self.is_deleted():
+        if self.is_deleted() and not self.ignore_job_deletion:
             raise JobDeletedError()
         self.timing['start_time'] = time_msecs()
 
     def __exit__(self, exc_type, exc, tb):
-        if self.is_deleted():
+        if self.is_deleted() and not self.ignore_job_deletion:
             return
         finish_time = time_msecs()
         self.timing['finish_time'] = finish_time
@@ -489,9 +506,6 @@ class Container:
 
             self.container_status = await self.get_container_status()
 
-            with self.step('uploading_log'):
-                await self.upload_log()
-
             if timed_out:
                 self.short_error = 'timed out'
                 raise JobTimeoutError(f'timed out after {self.timeout}s')
@@ -512,10 +526,14 @@ class Container:
             self.error = traceback.format_exc()
         finally:
             try:
-                await self.delete_container()
+                with self.step('uploading_log', ignore_job_deletion=True):
+                    await self.upload_log()
             finally:
-                if self.image_id:
-                    self.worker.image_data[self.image_id] -= 1
+                try:
+                    await self.delete_container()
+                finally:
+                    if self.image_id:
+                        self.worker.image_data[self.image_id] -= 1
 
     async def run_until_done_or_deleted(self, f: Callable[[], Awaitable[Any]]):
         step = asyncio.ensure_future(f())
@@ -538,12 +556,12 @@ class Container:
     def is_job_deleted(self) -> bool:
         return self.job.deleted
 
-    def step(self, name: str):
-        return self.timings.step(name)
+    def step(self, name: str, ignore_job_deletion: bool = False):
+        return self.timings.step(name, ignore_job_deletion=ignore_job_deletion)
 
     async def pull_image(self):
-        is_cloud_image = (is_google_registry_domain(self.image_ref.domain)
-                          or is_azure_registry_domain(self.image_ref.domain))
+        is_cloud_image = ((CLOUD == 'gcp' and self.image_ref.hosted_in('google'))
+                          or (CLOUD == 'azure' and self.image_ref.hosted_in('azure')))
         is_public_image = self.image_ref.name() in PUBLIC_IMAGES
 
         try:
@@ -559,20 +577,13 @@ class Container:
                 # per-user image cache.
                 auth = self.current_user_access_token()
                 await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                    pull_docker_image, worker.pool, self.image_ref_str, auth=auth
+                    docker.images.pull, self.image_ref_str, auth=auth
                 )
         except DockerError as e:
             if e.status == 404 and 'pull access denied' in e.message:
                 self.short_error = 'image cannot be pulled'
             elif 'not found: manifest unknown' in e.message:
                 self.short_error = 'image not found'
-            raise
-        except syncdocker.errors.NotFound:  # pylint: disable=maybe-no-member
-            self.short_error = 'image not found'
-            raise
-        except syncdocker.errors.APIError as e:  # pylint: disable=maybe-no-member
-            if e.is_server_error() and 'unauthorized: authentication required' in str(e):
-                self.short_error = 'image cannot be pulled'
             raise
 
         image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
@@ -584,7 +595,7 @@ class Container:
         except DockerError as e:
             if e.status == 404:
                 await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                    pull_docker_image, worker.pool, self.image_ref_str, auth=auth
+                    docker.images.pull, self.image_ref_str, auth=auth
                 )
             else:
                 raise
@@ -1150,7 +1161,7 @@ class Job:
                 RESERVED_STORAGE_GB_PER_CORE, self.cpu_in_mcpu / 1000 * RESERVED_STORAGE_GB_PER_CORE
             )
 
-        self.resources = instance_config.resources(self.cpu_in_mcpu, self.memory_in_bytes, self.external_storage_in_gib)
+        self.resources = instance_config.quantified_resources(self.cpu_in_mcpu, self.memory_in_bytes, self.external_storage_in_gib)
 
         self.input_volume_mounts = []
         self.main_volume_mounts = []
@@ -1466,6 +1477,8 @@ class DockerJob(Job):
                         try:
                             await self.disk.delete()
                             log.info(f'deleted disk {self.disk.name} for {self.id}')
+                        except asyncio.CancelledError:
+                            raise
                         except Exception:
                             log.exception(f'while detaching and deleting disk {self.disk.name} for {self.id}')
                         finally:
@@ -2092,7 +2105,7 @@ class Worker:
 
         self.fs = RouterAsyncFS(
             'file',
-            [
+            filesystems=[
                 LocalAsyncFS(self.pool),
                 get_cloud_async_fs(credentials_file=credentials_file),
             ],
@@ -2137,10 +2150,9 @@ class Worker:
 
 
 async def async_main():
-    global port_allocator, network_allocator, worker, docker, docker_sync
+    global port_allocator, network_allocator, worker, docker
 
     docker = aiodocker.Docker()
-    docker_sync = syncdocker.DockerClient()
 
     port_allocator = PortAllocator()
     network_allocator = NetworkAllocator()
@@ -2155,23 +2167,19 @@ async def async_main():
             log.info('worker shutdown')
         finally:
             try:
-                docker_sync.close()
-                log.info('sync docker closed')
+                await docker.close()
+                log.info('docker closed')
             finally:
-                try:
-                    await docker.close()
-                    log.info('docker closed')
-                finally:
-                    asyncio.get_event_loop().set_debug(True)
-                    log.debug('Tasks immediately after docker close')
-                    dump_all_stacktraces()
-                    other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
-                    if other_tasks:
-                        _, pending = await asyncio.wait(other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED)
-                        for t in pending:
-                            log.debug('Dangling task:')
-                            t.print_stack()
-                            t.cancel()
+                asyncio.get_event_loop().set_debug(True)
+                log.debug('Tasks immediately after docker close')
+                dump_all_stacktraces()
+                other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
+                if other_tasks:
+                    _, pending = await asyncio.wait(other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED)
+                    for t in pending:
+                        log.debug('Dangling task:')
+                        t.print_stack()
+                        t.cancel()
 
 
 loop = asyncio.get_event_loop()

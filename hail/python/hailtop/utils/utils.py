@@ -1,4 +1,5 @@
-from typing import Callable, TypeVar, Awaitable, Optional, Type, List, Dict
+from typing import Callable, TypeVar, Awaitable, Optional, Type, List, Dict, Iterable
+from typing_extensions import Literal
 from types import TracebackType
 import concurrent
 import subprocess
@@ -27,6 +28,11 @@ from urllib3.poolmanager import PoolManager
 
 from .time import time_msecs
 
+try:
+    import aiodocker  # pylint: disable=import-error
+except ModuleNotFoundError:
+    aiodocker = None
+
 
 log = logging.getLogger('hailtop.utils')
 
@@ -48,8 +54,17 @@ def unpack_comma_delimited_inputs(inputs):
             for s in step.split(',') if s.strip()]
 
 
+def unpack_key_value_inputs(inputs):
+    key_values = [i.split('=') for i in unpack_comma_delimited_inputs(inputs)]
+    return {kv[0]: kv[1] for kv in key_values}
+
+
 def flatten(xxs):
     return [x for xs in xxs for x in xs]
+
+
+def filter_none(xs: Iterable[Optional[T]]) -> List[T]:
+    return [x for x in xs if x is not None]
 
 
 def first_extant_file(*files: Optional[str]) -> Optional[str]:
@@ -353,7 +368,7 @@ class OnlineBoundedGather2:
 
         self._done_event.set()
 
-    async def call(self, f, *args, **kwargs) -> asyncio.Task:
+    def call(self, f, *args, **kwargs) -> asyncio.Task:
         '''Invoke a function as a background task.
 
         Return the task, which can be used to wait on (using
@@ -502,7 +517,7 @@ async def bounded_gather2(sema: asyncio.Semaphore, *pfs, return_exceptions: bool
     return await bounded_gather2_raise_exceptions(sema, *pfs, cancel_on_error=cancel_on_error)
 
 
-RETRYABLE_HTTP_STATUS_CODES = {408, 500, 502, 503, 504}
+RETRYABLE_HTTP_STATUS_CODES = {408, 500, 502, 503, 504, 429}
 if os.environ.get('HAIL_DONT_RETRY_500') == '1':
     RETRYABLE_HTTP_STATUS_CODES.remove(500)
 
@@ -565,6 +580,7 @@ def is_transient_error(e):
         # nginx returns 502 if it cannot connect to the upstream server
         # 408 request timeout, 500 internal server error, 502 bad gateway
         # 503 service unavailable, 504 gateway timeout
+        # 429 "Temporarily throttled, too many requests"
         return True
     if (isinstance(e, hailtop.aiocloud.aiogoogle.client.compute_client.GCPOperationError)
             and 'QUOTA_EXCEEDED' in e.error_codes):
@@ -622,6 +638,9 @@ def is_transient_error(e):
         return True
     if isinstance(e, botocore.exceptions.ConnectionClosedError):
         return True
+    if aiodocker is not None and isinstance(e, aiodocker.exceptions.DockerError):
+        # aiodocker.exceptions.DockerError: DockerError(500, 'Get https://gcr.io/v2/: net/http: request canceled (Client.Timeout exceeded while awaiting headers)')
+        return e.status == 500 and 'Client.Timeout exceeded while awaiting headers' in e.message
     if isinstance(e, TransientError):
         return True
     return False
@@ -876,6 +895,9 @@ def url_scheme(url: str) -> str:
     return parsed.scheme
 
 
+RegistryProvider = Literal['google', 'azure', 'dockerhub']
+
+
 class ParsedDockerImageReference:
     def __init__(self, domain: str, path: str, tag: str, digest: str):
         self.domain = domain
@@ -883,10 +905,18 @@ class ParsedDockerImageReference:
         self.tag = tag
         self.digest = digest
 
-    def name(self):
+    def name(self) -> str:
         if self.domain:
             return self.domain + '/' + self.path
         return self.path
+
+    def hosted_in(self, registry: RegistryProvider) -> bool:
+        if registry == 'google':
+            return self.domain is not None and (self.domain == 'gcr.io' or self.domain.endswith('docker.pkg.dev'))
+        if registry == 'azure':
+            return self.domain is not None and self.domain.endswith('azurecr.io')
+        assert registry == 'dockerhub'
+        return self.domain is None or self.domain == 'docker.io'
 
     def __str__(self):
         s = self.name()
@@ -909,22 +939,6 @@ def parse_docker_image_reference(reference_string: str) -> ParsedDockerImageRefe
         raise ValueError(f'could not parse {reference_string!r} as a docker image reference')
     domain, path, tag, digest = (match.group(i + 1) for i in range(4))
     return ParsedDockerImageReference(domain, path, tag, digest)
-
-
-def is_google_registry_domain(domain: Optional[str]) -> bool:
-    """Returns true if the given Docker image path points to either the Google
-    Container Registry or the Artifact Registry."""
-    if domain is None:
-        return False
-    return domain == 'gcr.io' or domain.endswith('docker.pkg.dev')
-
-
-def is_azure_registry_domain(domain: Optional[str]) -> bool:
-    """Returns true if the given Docker image path points to the Azure
-    Container Registry."""
-    if domain is None:
-        return False
-    return domain.endswith('azurecr.io')
 
 
 class Notice:
