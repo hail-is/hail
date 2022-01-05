@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Optional, Union, Dict
 from numbers import Number
 import os
 import logging
@@ -622,7 +622,7 @@ def check_service_account_permissions(user, sa):
 
 @routes.post('/api/v1alpha/batches/{batch_id}/jobs/create')
 @rest_authenticated_users_only
-async def create_jobs(request: aiohttp.web.Request, userdata):
+async def create_jobs(request: aiohttp.web.Request, userdata: dict):
     app = request.app
 
     if app['frozen']:
@@ -676,7 +676,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
             job_parents_args = []
             job_attributes_args = []
 
-            inst_coll_resources = collections.defaultdict(
+            inst_coll_resources: Dict[str, Dict[str, int]] = collections.defaultdict(
                 lambda: {
                     'n_jobs': 0,
                     'n_ready_jobs': 0,
@@ -728,6 +728,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if machine_type and ('cpu' in resources or 'memory' in resources):
                     raise web.HTTPBadRequest(reason='cannot specify cpu and memory with machine_type')
 
+                req_memory_bytes: Optional[int]
                 if machine_type is None:
                     if 'cpu' not in resources:
                         resources['cpu'] = BATCH_JOB_DEFAULT_CPU

@@ -890,3 +890,16 @@ class ServiceTests(unittest.TestCase):
         long_str = secrets.token_urlsafe(15 * 1024)
         j1.command(f'echo "{long_str}"')
         b.run()
+
+    def test_big_batch_which_uses_slow_path(self):
+        backend = ServiceBackend(remote_tmpdir=f'{self.remote_tmpdir}/temporary-files')
+        b = Batch(backend=backend)
+        # 8 * 256 * 1024 = 2 MiB > 1 MiB max bunch size
+        for i in range(8):
+            j1 = b.new_job()
+            long_str = secrets.token_urlsafe(256 * 1024)
+            j1.command(f'echo "{long_str}"')
+        batch = b.run()
+        assert not batch.submission_info.used_fast_create
+        batch_status = batch.status()
+        assert batch_status['state'] == 'success', str((batch.debug_info()))
