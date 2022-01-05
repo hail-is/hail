@@ -439,18 +439,15 @@ class AzureAsyncFS(AsyncFS):
             await asyncio.wait([client.close() for client in self._blob_service_clients.values()])
 
 
-class GoogleStorageAsyncFSFactory(AsyncFSFactory[AzureAsyncFS]):
-    def from_credentials_data(self, credentials_data: dict) -> AzureAsyncFS:
-        del self
+class AzureAsyncFSFactory(AsyncFSFactory[AzureAsyncFS]):
+    def from_credentials_data(self, credentials_data: dict) -> AzureAsyncFS:  # pylint: disable=no-self-use
         return AzureAsyncFS(
             credentials=AzureCredentials.from_credentials_data(credentials_data))
 
-    def from_credentials_file(self, credentials_file: str) -> AzureAsyncFS:
-        del self
+    def from_credentials_file(self, credentials_file: str) -> AzureAsyncFS:  # pylint: disable=no-self-use
         return AzureAsyncFS(
             credentials=AzureCredentials.from_file(credentials_file))
 
-    def from_default_credentials(self) -> AzureAsyncFS:
-        del self
+    def from_default_credentials(self) -> AzureAsyncFS:  # pylint: disable=no-self-use
         return AzureAsyncFS(
             credentials=AzureCredentials.default_credentials())

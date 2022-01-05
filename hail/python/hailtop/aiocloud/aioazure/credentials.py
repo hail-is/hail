@@ -24,7 +24,7 @@ class AzureCredentials(CloudCredentials):
     def from_file(credentials_file: str, scopes: Optional[List[str]] = None):
         with open(credentials_file, 'r') as f:
             credentials = json.loads(f.read())
-            return AzureCredentials.from_credentials_data(credentials)
+            return AzureCredentials.from_credentials_data(credentials, scopes)
 
     @staticmethod
     def default_credentials(scopes: Optional[List[str]] = None):

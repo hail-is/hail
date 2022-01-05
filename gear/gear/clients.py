@@ -1,4 +1,3 @@
-import abc
 from typing import Optional
 
 from gear.cloud_config import get_azure_config, get_gcp_config, get_global_config
