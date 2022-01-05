@@ -126,6 +126,9 @@ async def main(args, pass_through_args):
              '--script-parameters', f'/{os.path.basename(args.vep_loftee_uri)} /{os.path.basename(args.vep_homo_sapiens_uri)} {args.vep} {image} {vep_config_uri}')
 
     def put_jupyter(command):
+        # I figured this out after looking at
+        # https://docs.microsoft.com/en-us/azure/hdinsight/hdinsight-hadoop-manage-ambari-rest-api#restart-a-service-component
+        # and doing some trial and error
         requests.put(
             f'https://{shq(args.cluster_name)}.azurehdinsight.net/api/v1/clusters/{shq(args.cluster_name)}/services/JUPYTER/',
             headers={'Content-Type': 'application/json', 'X-Requested-By': 'ambari'},
