@@ -11,7 +11,7 @@ build:
 	$(MAKE) -C ../docker hail-ubuntu
 	$(MAKE) -C ../docker base
 	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat ../docker/hail-ubuntu-image-ref)'"}}' Dockerfile.nginx Dockerfile.nginx.out
-	python3 ../ci/jinja2_render.py '{"deploy": $(DEPLOY), "default_ns": {"name": "$(NAMESPACE)"}}' nginx.conf nginx.conf.out
+	python3 ../ci/jinja2_render.py '{"deploy": $(DEPLOY),"global": {"domain": "$(DOMAIN)"},"default_ns": {"name": "$(NAMESPACE)"}}' nginx.conf nginx.conf.out
 	../docker-build.sh . Dockerfile.nginx.out $(GRAFANA_NGINX_IMAGE)
 
 deploy: build
