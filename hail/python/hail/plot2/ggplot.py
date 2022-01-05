@@ -81,7 +81,7 @@ class GGPlot:
                         self.scales["y"] = scale_y_discrete()
 
     def copy(self):
-        return GGPlot(self.ht, self.aes, self.geoms[:], self.labels, self.scales,
+        return GGPlot(self.ht, self.aes, self.geoms[:], self.labels, self.coord_cartesian, self.scales,
                       self.discrete_color_scale, self.continuous_color_scale)
 
     def render(self):
@@ -122,6 +122,8 @@ class GGPlot:
             self.scales["x"].apply_to_fig(self, fig)
         if self.scales.get("y") is not None:
             self.scales["y"].apply_to_fig(self, fig)
+        if self.coord_cartesian is not None:
+            self.coord_cartesian.apply_to_fig(fig)
 
         return fig
 
