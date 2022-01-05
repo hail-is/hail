@@ -261,6 +261,7 @@ object EmitStream {
             })
 
         }
+        
       case x@StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, name,
         aggSignatures: IndexedSeq[PhysicalAggSig]) =>
         val region = mb.genFieldThisRef[Region]("stream_buff_agg_region")
@@ -279,7 +280,7 @@ object EmitStream {
             val returnStreamType= x.typ.asInstanceOf[TStream]
             val returnElemType = returnStreamType.elementType
             val tupleFieldTypes = aggSignatures.map(_ => TBinary)
-            val tupleFields = (0 to tupleFieldTypes.length).zip(tupleFieldTypes).map { case (fieldIdx, fieldType) => TupleField(fieldIdx, fieldType) }.toIndexedSeq
+            val tupleFields = (0 to tupleFieldTypes.length).zip(tupleFieldTypes).map { case (fieldIdx, fieldType) => TupleField(fieldIdx, fieldType) }
             val serializedAggSType = SStackStruct(TTuple(tupleFields), tupleFieldTypes.map(_ => EmitType(SBinaryPointer(PCanonicalBinary()), true)).toIndexedSeq)
             val keyAndAggFields = newKeyVType.canonicalPType.asInstanceOf[PCanonicalStruct].sType.fieldEmitTypes :+ EmitType(serializedAggSType, true) // TODO is this required?
             val returnElemSType = SStackStruct(returnElemType.asInstanceOf[TBaseStruct], keyAndAggFields)
@@ -317,9 +318,7 @@ object EmitStream {
                 val startLabel = CodeLabel()
 
                 cb.define(startLabel)
-                cb.println("startLabel")
                 cb.ifx(produceElementMode, {
-                  cb.println(" go to elementProduceLabel")
                   cb.goto(elementProduceLabel)
                 })
 
@@ -328,14 +327,11 @@ object EmitStream {
                 dictState.init(cb, { cb => emitVoid(initAggs, cb, container = Some(initContainer)) })
 
                 cb.define(getElemLabel)
-                cb.println("go to childProduce.LProduceElement")
-
                 if (childProducer.requiresMemoryManagementPerElement)
                   cb += childProducer.elementRegion.clearRegion()
                 cb.goto(childProducer.LproduceElement)
 
                 cb.define(childProducer.LproduceElementDone)
-                cb.println("childProduce.LProduceElementDone")
                 cb.assign(eltField, childProducer.element)
                 val newKeyResultCode = EmitCode.fromI(mb) { cb =>
                   emit(newKey,
@@ -344,52 +340,40 @@ object EmitStream {
                     region = childProducer.elementRegion)
                 }
                 val resultKeyValue = newKeyResultCode.memoize(cb, "buff_agg_stream_result_key")
-                cb.println("result key value ", cb.strValue(resultKeyValue))
                 val keyedContainer = AggContainer(aggSignatures.toArray.map(sig => sig.state), dictState.keyed.container, cleanup = () => ())
                 dictState.withContainer(cb, resultKeyValue, { cb =>
-                  cb.println("dictStateRegion check withContainer: ", dictState.region.getMemory().invoke[String]("toString"), " nReffedRegions = ", dictState.region.getMemory().invoke[Long]("nReferencedRegions").toS)
                   emitVoid(seqOps, cb, container = Some(keyedContainer), env = env.bind(name, eltField))
                 })
-                cb.println("current size:", dictState.size.toS)
                 cb.ifx(dictState.size >= maxSize,{
                   cb.assign(produceElementMode, true)
                 })
 
                 cb.ifx(produceElementMode, {
-                  cb.println("go to produceElementMode")
                   cb.goto(elementProduceLabel)},
                   {
-                    cb.println("go to getElemLabel")
                   cb.goto(getElemLabel)
                   }
                 )
+
                 cb.define(childProducer.LendOfStream)
-                cb.println("childProduce.LendOfStream")
                 cb.assign(childStreamEnded, true)
                 cb.assign(produceElementMode, true)
 
                 cb.define(elementProduceLabel)
-                cb.println("elementProduceLabel")
                 cb.ifx(numElemInArray ceq 0, {
                   dictState.tree.foreach(cb) { (cb, elementOff) =>
-                    cb.println("filling up array ", Region.loadInt(elementOff).toS) // FIXME: Don't assume it's an int
-                    cb.println("node address is ", elementOff.hexString, ", node is ", cb.strValue(dictState.keyed.storageType.loadCheapSCode(cb, elementOff)))
                     cb += nodeArray.update(numElemInArray, elementOff)
                     cb.assign(numElemInArray, numElemInArray + 1)
                   }
                 })
 
-                cb.println("index is ", idx.toS, " numElemInArray is ", numElemInArray.toS)
                 cb.ifx(numElemInArray <= idx, {
                   cb.assign(idx, 0)
                   cb.assign(numElemInArray, 0)
                   cb.assign(produceElementMode, false)
                   cb.ifx(childStreamEnded , {
-                    cb.println("go to LendOfStream")
                     cb.goto(LendOfStream)
-
                   }, {
-                    cb.println("go to startLabel")
                     cb.goto(startLabel)
                   })
                 })
@@ -406,7 +390,6 @@ object EmitStream {
                 assert(returnElemSType.virtualType == sStructToReturn.st.virtualType)
                 val casted = sStructToReturn.castTo(cb, region, returnElemSType)
                 cb.assign(newStreamElem, EmitCode.present(mb, casted).toI(cb))
-                cb.println("go to LproduceElementDone")
                 cb.goto(LproduceElementDone)
               }
 

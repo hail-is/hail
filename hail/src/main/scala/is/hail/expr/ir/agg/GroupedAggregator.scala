@@ -41,8 +41,7 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
   val regionIdx: Value[Int] = new Value[Int] {
     def get: Code[Int] = Region.loadInt(storageType.fieldOffset(offset, 1))
   }
-  val
-  container = new TupleAggregatorState(kb, states, region, containerOffset(offset), regionIdx)
+  val container = new TupleAggregatorState(kb, states, region, containerOffset(offset), regionIdx)
 
   def isKeyMissing(cb: EmitCodeBuilder, off: Code[Long]): Value[Boolean] =
     storageType.isFieldMissing(cb, off, 0)
@@ -80,12 +79,11 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
     def get: Code[Long] = storageType.fieldOffset(off, 2)
   }
 
-  override def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Value[Boolean] = {
-    val lookedUpInt = cb.memoize(Region.loadInt(storageType.fieldOffset(off, 1)))
-    cb.memoize(lookedUpInt < 0)
-  }
+  override def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Value[Boolean] =
+    cb.memoize(Region.loadInt(storageType.fieldOffset(off, 1)) < 0)
 
-  override def initializeEmpty(cb: EmitCodeBuilder, off: Code[Long]): Unit = cb += Region.storeInt(storageType.fieldOffset(off, 1), -1)
+  override def initializeEmpty(cb: EmitCodeBuilder, off: Code[Long]): Unit =
+    cb += Region.storeInt(storageType.fieldOffset(off, 1), -1)
 
   override def copy(cb: EmitCodeBuilder, src: Code[Long], dest: Code[Long]): Unit =
     storageType.storeAtAddress(cb, dest, region, storageType.loadCheapSCode(cb, src), deepCopy = false)
@@ -130,7 +128,6 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
 
   def initElement(cb: EmitCodeBuilder, eltOff: Code[Long], k: EmitCode): Unit = {
     cb.assign(size, size + 1)
-    cb.println(s"Setting region ${region} num Parents to ", ((size + 1) * nStates).toS)
     cb += region.setNumParents((size + 1) * nStates)
     keyed.initValue(cb, _elt, k, size * nStates)
   }
@@ -142,7 +139,6 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
   
   def loadContainer(cb: EmitCodeBuilder, kec: EmitCode): Unit = {
     val kev = cb.memoize(kec, "ga_load_cont_k")
-    cb.println("Loading container for key ", cb.strValue(kev.pv))
     cb.assign(_elt, tree.getOrElseInitialize(cb, kev))
     cb.ifx(keyed.isEmpty(cb, _elt), {
       initElement(cb, _elt, kev)
@@ -179,8 +175,6 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
   }
 
   def init(cb: EmitCodeBuilder, initOps: EmitCodeBuilder => Unit): Unit = {
-    cb.println(s"DictState initialization, region = ", region.getMemory().invoke[String]("toString"), s" setting num parents to: ${nStates}")
-    cb.println(Thread.currentThread().getStackTrace.mkString("\n"))
     cb += region.setNumParents(nStates)
     cb.assign(off, region.allocate(typ.alignment, typ.byteSize))
     initContainer.newState(cb)
@@ -206,12 +200,6 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
     init(cb, { cb => initContainer.copyFrom(cb, cb.memoize(typ.loadField(src, 0))) })
     cb.assign(size, Region.loadInt(typ.loadField(src, 1)))
     tree.deepCopy(cb, cb.memoize(Region.loadAddress(typ.loadField(src, 2))))
-  }
-
-  def clearTree(cb: EmitCodeBuilder): Unit = {
-    cb.ifx(region.isNull, cb._fatal("Tried to clearTree when region was null"))
-    region.clear()
-    cb.assign(size, 0)
   }
 
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {

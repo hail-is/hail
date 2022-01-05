@@ -130,13 +130,7 @@ trait SValue {
 
   def asPrimitive: SPrimitiveValue = asInstanceOf[SPrimitiveValue]
 
-  def asBinary: SBinaryValue = {
-    if (!this.isInstanceOf[SBinaryValue]) {
-      println(s"Stype: ${this.st}")
-      println(s"type: ${this.st.virtualType}")
-    }
-    asInstanceOf[SBinaryValue]
-  }
+  def asBinary: SBinaryValue = asInstanceOf[SBinaryValue]
 
   def asIndexable: SIndexableValue = asInstanceOf[SIndexableValue]
 

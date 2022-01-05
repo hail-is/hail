@@ -30,7 +30,6 @@ object SStackStruct {
 }
 
 final case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedSeq[EmitType]) extends SBaseStruct {
-  assert(virtualType.fields.zip(fieldEmitTypes).forall { case (v1, v2) => v1.typ == v2.st.virtualType})
   override def size: Int = virtualType.size
 
   private lazy val settableStarts = fieldEmitTypes.map(_.nSettables).scanLeft(0)(_ + _).init
@@ -71,7 +70,6 @@ final case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedS
   }
 
   override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = {
-    val forDebugging = this
     value match {
       case ss: SStackStructValue =>
         if (ss.st == this && !deepCopy)
@@ -90,11 +88,7 @@ final case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedS
         new SStackStructValue(this, Array.tabulate[EmitValue](size) { i =>
           val newType = fieldEmitTypes(i)
           val ec = EmitCode.fromI(cb.emb) { cb =>
-            sv.loadField(cb, i).map(cb) { field =>
-              if (newType.st.virtualType != field.st.virtualType)
-                println("Wrong")
-              assert(newType.st.virtualType == field.st.virtualType, s"${newType.st.virtualType} != ${field.st.virtualType}")
-              newType.st.coerceOrCopy(cb, region, field, deepCopy) }
+            sv.loadField(cb, i).map(cb) { field => newType.st.coerceOrCopy(cb, region, field, deepCopy) }
           }
           val ev = ec.memoize(cb, "_coerceOrCopy")
           (newType.required, ev.required) match {

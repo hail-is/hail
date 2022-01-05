@@ -232,7 +232,6 @@ object InferType {
           (name, a.typ)
         }: _*)
       case SelectFields(old, fields) =>
-        assert(old.typ.isInstanceOf[TStruct], s" got ${old.typ}")
         val tbs = coerce[TStruct](old.typ)
         tbs.select(fields.toFastIndexedSeq)._1
       case InsertFields(old, fields, fieldOrder) =>

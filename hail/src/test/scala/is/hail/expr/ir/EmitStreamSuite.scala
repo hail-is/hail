@@ -344,7 +344,8 @@ class EmitStreamSuite extends HailSuite {
     assert(evalStream(result).equals(resultArrayToCompare))
 
   }
-  @Test def testStreamBufferedAggregator2(): Unit = {
+  @Test def testStreamBufferedAggregatorCombine(): Unit = {
+    val resultArrayToCompare = IndexedSeq(Row(Row(1), 2))
     val streamType = TStream(TStruct("a" -> TInt64))
     val elemOne = MakeStruct(Seq(("a", I64(1))))
     val elemTwo = MakeStruct(Seq(("a", I64(1))))
@@ -360,10 +361,11 @@ class EmitStreamSuite extends HailSuite {
         "aggResult" ->
       RunAgg(InitFromSerializedValue(0, GetTupleElement(GetField(elem, "agg"), 0), countAggSig.state), ResultOp(0, countAggSig), IndexedSeq(countAggSig.state))
     ))}
-    println(evalStream(result))
+    assert(evalStream(result) == resultArrayToCompare)
   }
 
-  @Test def testStreamBufferedAggregator3(): Unit = {
+  @Test def testStreamBufferedAggregatorCollectAggregator(): Unit = {
+    val resultArrayToCompare = IndexedSeq(Row(Row(1), IndexedSeq(1, 3)), Row(Row(2), IndexedSeq(2, 4)))
     val streamType = TStream(TStruct("a" -> TInt64, "b" -> TInt64))
     val elemOne = MakeStruct(Seq(("a", I64(1)), ("b", I64(1))))
     val elemTwo = MakeStruct(Seq(("a", I64(2)), ("b", I64(2))))
@@ -381,14 +383,16 @@ class EmitStreamSuite extends HailSuite {
         "aggResult" ->
           RunAgg(InitFromSerializedValue(0, GetTupleElement(GetField(elem, "agg"), 0), collectAggSig.state), ResultOp(0, collectAggSig), IndexedSeq(collectAggSig.state))
       ))}
-    println(evalStream(result))
+    assert(evalStream(result) == resultArrayToCompare)
   }
 
   @Test def testStreamBufferedAggregatorMultipleAggregators(): Unit = {
-    val resultArray = IndexedSeq(Row(Row(1), Row(3, IndexedSeq(1L, 2L, 3L))), Row(Row(2), Row(2, IndexedSeq(2L, 4L))), Row(Row(3), Row(3, IndexedSeq(1L, 2L, 3L))),
-                            Row(Row(4), Row(1, IndexedSeq(4L))), Row(Row(5), Row(1, IndexedSeq(1L))), Row(Row(6), Row(1, IndexedSeq(3L))),
-                            Row(Row(7), Row(1, IndexedSeq(4L))), Row(Row(8), Row(1, IndexedSeq(1L))), Row(Row(8), Row(1, IndexedSeq(2L))),
-                            Row(Row(9), Row(1, IndexedSeq(3L))), Row(Row(10), Row(2, IndexedSeq(4L, 4L))))
+    val resultArrayToCompare = IndexedSeq(Row(Row(1), Row(3, IndexedSeq(1L, 3L, 2L))), Row(Row(2), Row(2, IndexedSeq(2L, 4L))),
+                                Row(Row(3), Row(3, IndexedSeq(1L, 2L, 3L))), Row(Row(4), Row(1, IndexedSeq(4L))),
+                                Row(Row(5), Row(1, IndexedSeq(1L))), Row(Row(6), Row(1, IndexedSeq(3L))),
+                                Row(Row(7), Row(1, IndexedSeq(4L))), Row(Row(8), Row(1, IndexedSeq(1L))),
+                                Row(Row(8), Row(1, IndexedSeq(2L))), Row(Row(9), Row(1, IndexedSeq(3L))),
+                                Row(Row(10), Row(2, IndexedSeq(4L, 4L))))
     val streamType = TStream(TStruct("a" -> TInt64, "b" -> TInt64))
     val elemOne = MakeStruct(Seq(("a", I64(1)), ("b", I64(1))))
     val elemTwo = MakeStruct(Seq(("a", I64(2)), ("b", I64(2))))
@@ -403,13 +407,13 @@ class EmitStreamSuite extends HailSuite {
     val elemEleven = MakeStruct(Seq(("a", I64(6)), ("b", I64(3))))
     val elemTwelve = MakeStruct(Seq(("a", I64(7)), ("b", I64(4))))
     val elemThirteen = MakeStruct(Seq(("a", I64(8)), ("b", I64(1))))
-    val elemForteen = MakeStruct(Seq(("a", I64(8)), ("b", I64(2))))
+    val elemFourteen = MakeStruct(Seq(("a", I64(8)), ("b", I64(2))))
     val elemFifteen = MakeStruct(Seq(("a", I64(9)), ("b", I64(3))))
     val elemSixteen = MakeStruct(Seq(("a", I64(10)), ("b", I64(4))))
     val elemSeventeen = MakeStruct(Seq(("a", I64(10)), ("b", I64(4))))
     val collectStructStream = MakeStream(Seq(elemOne, elemTwo, elemThree, elemFour, elemFive, elemSix, elemSeven,
                                           elemEight, elemNine, elemTen, elemEleven, elemTwelve, elemThirteen,
-                                          elemForteen, elemFifteen, elemSixteen, elemSeventeen), streamType)
+                                          elemFourteen, elemFifteen, elemSixteen, elemSeventeen), streamType)
     val collectAggSig =  PhysicalAggSig(Collect(), CollectStateSig(VirtualTypeWithReq(PType.canonical(TInt64))))
     val countAggSig = PhysicalAggSig(Count(), TypedStateSig(VirtualTypeWithReq.fullyOptional(TInt64).setRequired(true)))
     val initOps = Begin(IndexedSeq(
@@ -435,24 +439,11 @@ class EmitStreamSuite extends HailSuite {
             MakeTuple.ordered(IndexedSeq(ResultOp(0, countAggSig), ResultOp(1, collectAggSig))),
             IndexedSeq(countAggSig.state, collectAggSig.state))
       ))}
-
-    println(evalStream(result))
-    println(resultArray)
-    //assert(evalStream(result) == resultArray)
-
-    assert(evalStream(result).zip(resultArray).forall{
-      case (aElem, bElem) => aElem.asInstanceOf[Row].get(0) == bElem.get(0) &&
-        aElem.asInstanceOf[Row].get(1).asInstanceOf[Row].get(0) == bElem.get(1).asInstanceOf[Row].get(0) &&
-        aElem.asInstanceOf[Row].get(1).asInstanceOf[Row].get(1).asInstanceOf[IndexedSeq[Long]]
-          .zip(bElem.get(1).asInstanceOf[Row].get(1).asInstanceOf[IndexedSeq[Long]])
-          .forall{ case (cElem, dElem) => cElem == dElem}})
+    assert(evalStream(result) == resultArrayToCompare)
   }
-
-
 
   @Test def testEmitJoinRightDistinct() {
     val eltType = TStruct("k" -> TInt32, "v" -> TString)
-
 
     def join(lstream: IR, rstream: IR, joinType: String): IR =
       StreamJoinRightDistinct(

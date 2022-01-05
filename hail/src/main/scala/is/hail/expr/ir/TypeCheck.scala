@@ -9,8 +9,7 @@ object TypeCheck {
     try {
       check(ir, BindingEnv.empty)
     } catch {
-      case e: Throwable =>
-        fatal(s"Error while typechecking IR:\n${ Pretty(ir) }", e)
+      case e: Throwable => fatal(s"Error while typechecking IR:\n${ Pretty(ir) }", e)
     }
   }
 

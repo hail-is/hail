@@ -248,7 +248,6 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
 
       def insertOrGetAt(i: Int) = {
         cb.ifx(isLeaf(cb, node), {
-          cb.println("Inserting, couldn't find key")
           cb.assign(keyV, insert(cb, node, const(i), k, const(0L)))
           cb.assign(cmp, 0)
         }, {
