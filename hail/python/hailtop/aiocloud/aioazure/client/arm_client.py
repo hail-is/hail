@@ -13,17 +13,6 @@ class AzureResourceManagerClient(AzureBaseClient):
         super().__init__(f'https://management.azure.com/subscriptions/{subscription_id}/resourceGroups/{resource_group_name}/providers/Microsoft.Resources',
                          **kwargs)
 
-    async def _paged_get(self, path, **kwargs) -> AsyncGenerator[Any, None]:
-        page = await self.get(path, **kwargs)
-        for v in page.get('value', []):
-            yield v
-        next_link = page.get('nextLink')
-        while next_link is not None:
-            page = await self.get(url=next_link)
-            for v in page['value']:
-                yield v
-            next_link = page.get('nextLink')
-
     async def list_deployments(self, filter: Optional[str] = None) -> AsyncGenerator[Any, None]:
         # https://docs.microsoft.com/en-us/rest/api/resources/deployments/list-by-resource-group
         params = {}
