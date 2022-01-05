@@ -28,6 +28,11 @@ from urllib3.poolmanager import PoolManager
 
 from .time import time_msecs
 
+try:
+    import aiodocker  # pylint: disable=import-error
+except ModuleNotFoundError:
+    aiodocker = None
+
 
 log = logging.getLogger('hailtop.utils')
 
@@ -633,6 +638,9 @@ def is_transient_error(e):
         return True
     if isinstance(e, botocore.exceptions.ConnectionClosedError):
         return True
+    if aiodocker is not None and isinstance(e, aiodocker.exceptions.DockerError):
+        # aiodocker.exceptions.DockerError: DockerError(500, 'Get https://gcr.io/v2/: net/http: request canceled (Client.Timeout exceeded while awaiting headers)')
+        return e.status == 500 and 'Client.Timeout exceeded while awaiting headers' in e.message
     if isinstance(e, TransientError):
         return True
     return False

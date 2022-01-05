@@ -84,6 +84,7 @@ class AzureDriver(CloudDriver):
 
         task_manager.ensure_future(periodically_call(60, driver.delete_orphaned_nics))
         task_manager.ensure_future(periodically_call(60, driver.delete_orphaned_public_ips))
+        task_manager.ensure_future(periodically_call(60, driver.delete_completed_deployments))
         task_manager.ensure_future(periodically_call(300, billing_manager.refresh_resources_from_retail_prices))
 
         return driver
@@ -158,3 +159,17 @@ class AzureDriver(CloudDriver):
                     raise
                 except Exception:
                     log.exception(f'while deleting orphaned public ip {public_ip_name}')
+
+    async def delete_completed_deployments(self) -> None:
+        log.info('deleting completed deployments')
+        # https://docs.microsoft.com/en-us/rest/api/resources/deployments/list-by-resource-group#provisioningstate
+        for state in ('Succeeded', 'Failed', 'Canceled'):
+            async for deployment in await self.arm_client.list_deployments(filter=f"provisioningState eq '{state}'"):
+                deployment_name = deployment['name']
+                if deployment_name.startswith(self.machine_name_prefix):
+                    try:
+                        await self.arm_client.delete(f'/deployments/{deployment_name}')
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception:
+                        log.exception(f'while deleting completed deployment {deployment_name} {deployment}')

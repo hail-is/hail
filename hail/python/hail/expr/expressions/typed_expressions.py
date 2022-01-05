@@ -3232,6 +3232,32 @@ class CallExpression(Expression):
                                 "found expression of type '{}'".format(item.dtype))
             return self._index(tint32, item)
 
+    def unphase(self):
+        """Returns an unphased version of this call.
+
+        Returns
+        -------
+        :class:`.CallExpression`
+        """
+        return self._method("unphase", tcall)
+
+    def contains_allele(self, allele):
+        """Returns true if the call has one or more called alleles of the given index.
+
+        >>> c = hl.call(0, 3)
+
+        >>> hl.eval(c.contains_allele(3))
+        True
+
+        >>> hl.eval(c.contains_allele(1))
+        False
+
+        Returns
+        -------
+        :class:`.BooleanExpression`
+        """
+        return self._method("containsAllele", tbool, allele)
+
     @property
     def ploidy(self):
         """Return the number of alleles of this call.

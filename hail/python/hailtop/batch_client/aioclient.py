@@ -451,7 +451,6 @@ class BatchBuilder:
                     network: Optional[str] = None,
                     unconfined: bool = False,
                     user_code: Optional[str] = None):
-
         if self._submitted:
             raise ValueError("cannot create a job in an already submitted batch")
 

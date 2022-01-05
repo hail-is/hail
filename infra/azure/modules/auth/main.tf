@@ -51,8 +51,6 @@ resource "kubernetes_secret" "auth_oauth2_client_secret" {
   }
 
   data = {
-    # For backwards compatibility, will ultimately swap and v2 removed
     "client_secret.json" = jsonencode(local.oauth2_credentials)
-    "client_secret_v2.json" = jsonencode(local.oauth2_credentials)
   }
 }

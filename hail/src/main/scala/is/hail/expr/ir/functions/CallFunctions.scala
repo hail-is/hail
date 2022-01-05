@@ -64,6 +64,16 @@ object CallFunctions extends RegistryFunctions {
           Call.getClass, "ploidy", Array(classTag[Int].runtimeClass), Array(call.asCall.canonicalCall(cb)))))
     }
 
+    registerSCode1("unphase", TCall, TCall, (rt: Type, a1: SType) => a1) {
+      case (er, cb, rt, call, _) =>
+        call.asCall.unphase(cb)
+    }
+
+    registerSCode2("containsAllele", TCall, TInt32, TBoolean, (rt: Type, _: SType, _: SType) => SBoolean) {
+      case (er, cb, rt, call, allele, _) =>
+        primitive(call.asCall.containsAllele(cb, allele.asInt.intCode(cb)))
+    }
+
     registerSCode1("nNonRefAlleles", TCall, TInt32, (rt: Type, _: SType) => SInt32) {
       case (er, cb, rt, call, _) =>
         primitive(cb.memoize(Code.invokeScalaObject[Int](
