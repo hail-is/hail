@@ -330,8 +330,8 @@ class TableSpecHelper(path: String, rowRelPath: String, globalRelPath: String, r
       Map("globals" -> RVDComponentSpec(globalRelPath),
         "rows" -> RVDComponentSpec(rowRelPath),
         "partition_counts" -> PartitionCountsComponentSpec(partCounts),
-        "flags" -> FlagsSpec(Map(
-          "distinctlyKeyed" -> distinctlyKeyed
+        "properties" -> PropertiesSpec(Map(
+          "distinctlyKeyed" -> distinctlyKeyed.toString
         ))
       ))
 

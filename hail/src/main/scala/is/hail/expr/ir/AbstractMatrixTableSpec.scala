@@ -20,7 +20,7 @@ abstract class ComponentSpec
 object RelationalSpec {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(List(
-      classOf[ComponentSpec], classOf[RVDComponentSpec], classOf[PartitionCountsComponentSpec], classOf[FlagsSpec],
+      classOf[ComponentSpec], classOf[RVDComponentSpec], classOf[PartitionCountsComponentSpec], classOf[PropertiesSpec],
       classOf[RelationalSpec], classOf[MatrixTableSpec], classOf[TableSpec]), typeHintFieldName="name")
   } +
     new TableTypeSerializer +
@@ -94,7 +94,7 @@ abstract class RelationalSpec {
 
   def partitionCounts: Array[Long] = getComponent[PartitionCountsComponentSpec]("partition_counts").counts.toArray
 
-  def isDistinctlyKeyed: Boolean = getOptionalComponent[FlagsSpec]("flags").flatMap(_.flags.get("distinctlyKeyed")).getOrElse(false)
+  def isDistinctlyKeyed: Boolean = getOptionalComponent[PropertiesSpec]("properties").flatMap(_.properties.get("distinctlyKeyed")).map(_ == "true").getOrElse(false)
 
   def indexed: Boolean
 
@@ -132,7 +132,7 @@ case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
 
 case class PartitionCountsComponentSpec(counts: Seq[Long]) extends ComponentSpec
 
-case class FlagsSpec(flags: Map[String, Boolean]) extends ComponentSpec
+case class PropertiesSpec(properties: Map[String, String]) extends ComponentSpec
 
 abstract class AbstractMatrixTableSpec extends RelationalSpec {
   def matrix_type: MatrixType
