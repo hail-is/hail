@@ -1103,7 +1103,7 @@ WHERE billing_projects.name = %s
         accrued_cost = accrued_cost_from_cost_and_msec_mcpu(bp_cost_record)
         if limit is not None and accrued_cost >= limit:
             raise web.HTTPForbidden(
-                reason=f'billing project {billing_project} has exceeded the budget; accrued={cost_str(cost)} limit={cost_str(limit)}'
+                reason=f'billing project {billing_project} has exceeded the budget; accrued={cost_str(accrued_cost)} limit={cost_str(limit)}'
             )
 
         maybe_batch = await tx.execute_and_fetchone(
