@@ -11,13 +11,14 @@ import aiohttp
 from hailtop.utils import (
     secret_alnum_string, OnlineBoundedGather2,
     TransientError, retry_transient_errors)
-from hailtop.aiotools.fs import (
-    FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS,
-    FileAndDirectoryError, MultiPartCreate, UnexpectedEOFError)
+from hailtop.aiotools.fs import (FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS,
+                                 AsyncFSFactory, FileAndDirectoryError, MultiPartCreate,
+                                 UnexpectedEOFError)
 from hailtop.aiotools import FeedableAsyncIterable, WriteBuffer
 
 from .base_client import GoogleBaseClient
 from ..session import GoogleSession
+from ..credentials import GoogleCredentials
 
 log = logging.getLogger(__name__)
 
@@ -686,3 +687,20 @@ class GoogleStorageAsyncFS(AsyncFS):
         if hasattr(self, '_storage_client'):
             await self._storage_client.close()
             del self._storage_client
+
+
+class GoogleStorageAsyncFSFactory(AsyncFSFactory[GoogleStorageAsyncFS]):
+    def from_credentials_data(self, credentials_data: dict) -> GoogleStorageAsyncFS:
+        del self
+        return GoogleStorageAsyncFS(
+            credentials=GoogleCredentials.from_credentials_data(credentials_data))
+
+    def from_credentials_file(self, credentials_file: str) -> GoogleStorageAsyncFS:
+        del self
+        return GoogleStorageAsyncFS(
+            credentials=GoogleCredentials.from_file(credentials_file))
+
+    def from_default_credentials(self) -> GoogleStorageAsyncFS:
+        del self
+        return GoogleStorageAsyncFS(
+            credentials=GoogleCredentials.default_credentials())

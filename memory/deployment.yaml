@@ -92,6 +92,9 @@ spec:
            - name: ssl-config
              mountPath: /ssl-config
              readOnly: true
+           - mountPath: /global-config
+             name: global-config
+             readOnly: true
           resources:
             requests:
               memory: "1.25G"
@@ -117,6 +120,9 @@ spec:
          secret:
            optional: false
            secretName: ssl-config-memory
+       - name: global-config
+         secret:
+           secretName: global-config
 ---
 apiVersion: v1
 kind: Service
