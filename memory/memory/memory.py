@@ -30,6 +30,7 @@ socket = '/redis/redis.sock'
 
 ASYNC_FS_FACTORY = get_cloud_async_fs_factory()
 
+
 @routes.get('/healthcheck')
 async def healthcheck(request):  # pylint: disable=unused-argument
     return web.Response()

@@ -12,5 +12,6 @@ __all__ = [
     'GoogleIAmClient',
     'GoogleLoggingClient',
     'GoogleStorageClient',
-    'GoogleStorageAsyncFS'
+    'GoogleStorageAsyncFS',
+    'GoogleStorageAsyncFSFactory'
 ]
