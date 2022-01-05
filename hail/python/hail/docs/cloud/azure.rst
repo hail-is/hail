@@ -14,7 +14,7 @@ This tool requires the `Azure CLI <https://docs.microsoft.com/en-us/cli/azure/in
 
 An HDInsight cluster always consists of two "head" nodes, two or more "worker" nodes, and an Azure
 Blob Storage container. The head nodes are automatically configured to serve Jupyter Notebooks at
-https://CLUSTER_NAME.azurehdinsight.net/jupyter . The Jupyter server is protected by a
+``https://CLUSTER_NAME.azurehdinsight.net/jupyter`` . The Jupyter server is protected by a
 username-password combination. The username and password are printed to the terminal after the
 cluster is created.
 
@@ -35,8 +35,6 @@ To submit a Python job to that cluster, use:
 .. code-block:: text
 
     hailctl hdinsight submit CLUSTER_NAME STORAGE_ACCOUNT HTTP_PASSWORD SCRIPT [optional args to your python script...]
-
-To access a Jupyter notebook navigate to https://CLUSTER_NAME.azurehdinsight.net/jupyter .
 
 To list running clusters:
 
