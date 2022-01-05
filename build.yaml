@@ -2812,7 +2812,7 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -2876,7 +2876,7 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -2940,7 +2940,7 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3004,7 +3004,7 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
@@ -3068,7 +3068,7 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
