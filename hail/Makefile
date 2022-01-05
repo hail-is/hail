@@ -153,7 +153,7 @@ $(PYTHON_JAR): shadowJar
 pytest: PYTEST_TARGET ?= test/hail
 pytest: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS)
 pytest: python/README.md $(PYTHON_JAR)
-	cd python && $(HAIL_PYTHON3) -W error:::aiohttp setup.py pytest \
+	cd python && $(HAIL_PYTHON3) setup.py pytest \
      --addopts "-v \
      --color=no \
      --instafail \
