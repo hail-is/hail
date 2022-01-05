@@ -2784,13 +2784,13 @@ steps:
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       {% if deploy %}
       export HAIL_SHA="$(cat /io/git_version)"
-      export HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
+      export HAIL_JAR_URL="{{ global.query_storage_uri }}/jars/$(cat /io/git_version).jar"
       {% else %}
       export HAIL_SHA="$(cat /io/git_version)-{{ upload_query_jar.token }}"
-      export HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_query_jar.token }}/jars/$(cat /io/git_version).jar"
+      export HAIL_JAR_URL="{{ global.test_storage_uri }}/{{ token }}/jars/$(cat /io/git_version).jar"
       {% endif %}
-      export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/test/resources/"
-      export HAIL_DOCTEST_DATA_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/doctest/data/"
+      export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
+      export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=0
@@ -2812,10 +2812,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: global-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /global-config
       - name: gce-deploy-config
         namespace:
           valueFrom: default_ns.name
@@ -2836,7 +2832,7 @@ steps:
       - create_accounts
       - hail_run_tests_image
       - upload_query_jar
-      - upload_test_resources_to_gcs
+      - upload_test_resources_to_blob_storage
       - build_hail
   - kind: runImage
     name: test_hail_python_service_backend_1
@@ -2852,13 +2848,13 @@ steps:
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       {% if deploy %}
       export HAIL_SHA="$(cat /io/git_version)"
-      export HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
+      export HAIL_JAR_URL="{{ global.query_storage_uri }}/jars/$(cat /io/git_version).jar"
       {% else %}
       export HAIL_SHA="$(cat /io/git_version)-{{ upload_query_jar.token }}"
-      export HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_query_jar.token }}/jars/$(cat /io/git_version).jar"
+      export HAIL_JAR_URL="{{ global.test_storage_uri }}/{{ token }}/jars/$(cat /io/git_version).jar"
       {% endif %}
-      export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/test/resources/"
-      export HAIL_DOCTEST_DATA_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/doctest/data/"
+      export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
+      export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=1
@@ -2880,10 +2876,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: global-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /global-config
       - name: gce-deploy-config
         namespace:
           valueFrom: default_ns.name
@@ -2904,7 +2896,7 @@ steps:
       - create_accounts
       - hail_run_tests_image
       - upload_query_jar
-      - upload_test_resources_to_gcs
+      - upload_test_resources_to_blob_storage
       - build_hail
   - kind: runImage
     name: test_hail_python_service_backend_2
@@ -2920,13 +2912,13 @@ steps:
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       {% if deploy %}
       export HAIL_SHA="$(cat /io/git_version)"
-      export HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
+      export HAIL_JAR_URL="{{ global.query_storage_uri }}/jars/$(cat /io/git_version).jar"
       {% else %}
       export HAIL_SHA="$(cat /io/git_version)-{{ upload_query_jar.token }}"
-      export HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_query_jar.token }}/jars/$(cat /io/git_version).jar"
+      export HAIL_JAR_URL="{{ global.test_storage_uri }}/{{ token }}/jars/$(cat /io/git_version).jar"
       {% endif %}
-      export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/test/resources/"
-      export HAIL_DOCTEST_DATA_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/doctest/data/"
+      export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
+      export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=2
@@ -2948,10 +2940,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: global-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /global-config
       - name: gce-deploy-config
         namespace:
           valueFrom: default_ns.name
@@ -2972,7 +2960,7 @@ steps:
       - create_accounts
       - hail_run_tests_image
       - upload_query_jar
-      - upload_test_resources_to_gcs
+      - upload_test_resources_to_blob_storage
       - build_hail
   - kind: runImage
     name: test_hail_python_service_backend_3
@@ -2988,13 +2976,13 @@ steps:
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       {% if deploy %}
       export HAIL_SHA="$(cat /io/git_version)"
-      export HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
+      export HAIL_JAR_URL="{{ global.query_storage_uri }}/jars/$(cat /io/git_version).jar"
       {% else %}
       export HAIL_SHA="$(cat /io/git_version)-{{ upload_query_jar.token }}"
-      export HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_query_jar.token }}/jars/$(cat /io/git_version).jar"
+      export HAIL_JAR_URL="{{ global.test_storage_uri }}/{{ token }}/jars/$(cat /io/git_version).jar"
       {% endif %}
-      export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/test/resources/"
-      export HAIL_DOCTEST_DATA_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/doctest/data/"
+      export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
+      export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=3
@@ -3016,10 +3004,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: global-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /global-config
       - name: gce-deploy-config
         namespace:
           valueFrom: default_ns.name
@@ -3040,7 +3024,7 @@ steps:
       - create_accounts
       - hail_run_tests_image
       - upload_query_jar
-      - upload_test_resources_to_gcs
+      - upload_test_resources_to_blob_storage
       - build_hail
   - kind: runImage
     name: test_hail_python_service_backend_4
@@ -3056,13 +3040,13 @@ steps:
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       {% if deploy %}
       export HAIL_SHA="$(cat /io/git_version)"
-      export HAIL_JAR_URL="$(cat /global-config/hail_query_gcs_path)/jars/$(cat /io/git_version).jar"
+      export HAIL_JAR_URL="{{ global.query_storage_uri }}/jars/$(cat /io/git_version).jar"
       {% else %}
       export HAIL_SHA="$(cat /io/git_version)-{{ upload_query_jar.token }}"
-      export HAIL_JAR_URL="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_query_jar.token }}/jars/$(cat /io/git_version).jar"
+      export HAIL_JAR_URL="{{ global.test_storage_uri }}/{{ token }}/jars/$(cat /io/git_version).jar"
       {% endif %}
-      export HAIL_TEST_RESOURCES_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/test/resources/"
-      export HAIL_DOCTEST_DATA_DIR="gs://{{ global.hail_test_gcs_bucket }}/{{ upload_test_resources_to_gcs.token }}/doctest/data/"
+      export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
+      export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYTEST_SPLITS=5
       export PYTEST_SPLIT_INDEX=4
@@ -3084,10 +3068,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: global-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /global-config
       - name: gce-deploy-config
         namespace:
           valueFrom: default_ns.name
@@ -3108,7 +3088,7 @@ steps:
       - create_accounts
       - hail_run_tests_image
       - upload_query_jar
-      - upload_test_resources_to_gcs
+      - upload_test_resources_to_blob_storage
       - build_hail
   - kind: deploy
     name: deploy_memory
