@@ -37,7 +37,6 @@ build-worker: src/main/java/is/hail/JVMEntryway.class
 .PHONY: build
 build: build-batch build-worker
 
-
 JINJA_ENVIRONMENT = '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"batch_image":{"image":"$(BATCH_IMAGE)"},"batch_worker_image":{"image":"$(BATCH_WORKER_IMAGE)"},"default_ns":{"name":"$(NAMESPACE)"},"batch_database":{"user_secret_name":"sql-batch-user-config"},"scope":"$(SCOPE)"}'
 
 .PHONY: deploy
