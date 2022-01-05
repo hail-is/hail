@@ -21,8 +21,8 @@ from hailtop.config import get_user_config, get_user_local_cache_dir
 from hailtop.utils import async_to_blocking, secret_alnum_string, TransientError, time_msecs
 from hailtop.batch_client import client as hb
 from hailtop.batch_client import aioclient as aiohb
-from hailtop.aiogoogle.client.storage_client import GoogleStorageAsyncFS
 from hailtop.aiotools.fs import AsyncFS
+from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
 import hailtop.aiotools.fs as afs
 
 from .backend import Backend
@@ -150,6 +150,7 @@ class ServiceBackend(Backend):
                 'MY_BUCKET`'
             )
 
+        # FIXME... Need AzureBlobStorageFS for sync fs.
         sync_fs = GoogleCloudStorageFS()
         async_fs = GoogleStorageAsyncFS()
         async_client = await aiohb.BatchClient.create(billing_project)
