@@ -1584,12 +1584,10 @@ class JVMJob(Job):
             'memory': self.memory_in_bytes,
         }
 
-        self.heap_size = self.memory_in_bytes - self.stack_size
-
-        user_command_string = job_spec['process']['command']
-        assert len(user_command_string) >= 3, user_command_string
-        self.revision = user_command_string[1]
-        self.jar_url = user_command_string[2]
+        self.user_command_string = job_spec['process']['command']
+        assert len(self.user_command_string) >= 3, self.user_command_string
+        self.revision = self.user_command_string[1]
+        self.jar_url = self.user_command_string[2]
         # self.classpath = f'{find_spark_home()}/jars/*:/hail-jars/{self.revision}.jar:/log4j.properties'
 
         self.deleted = False
