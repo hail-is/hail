@@ -5,6 +5,7 @@ from pprint import pprint
 
 import hail as hl
 
+from .coord_cartesian import CoordCartesian
 from .geoms import Geom, FigureAttribute
 from .labels import Labels
 from .scale import Scale, scale_x_continuous, scale_x_genomic, scale_y_continuous, scale_x_discrete, scale_y_discrete
@@ -13,7 +14,7 @@ from .aes import Aesthetic, aes
 
 class GGPlot:
 
-    def __init__(self, ht, aes, geoms=[], labels=Labels(), scales=None,
+    def __init__(self, ht, aes, geoms=[], labels=Labels(), coord_cartesian=None, scales=None,
                  discrete_color_scale=plotly.colors.qualitative.D3, continuous_color_scale=plotly.colors.sequential.Viridis):
         if scales is None:
             scales = {}
@@ -22,6 +23,7 @@ class GGPlot:
         self.aes = aes
         self.geoms = geoms
         self.labels = labels
+        self.coord_cartesian = coord_cartesian
         self.scales = scales
         self.discrete_color_scale = discrete_color_scale
         self.discrete_color_dict = {}
@@ -39,6 +41,8 @@ class GGPlot:
             copied.add_default_scales(other.aes)
         elif isinstance(other, Labels):
             copied.labels = copied.labels.merge(other)
+        elif isinstance(other, CoordCartesian):
+            copied.coord_cartesian = other
         elif isinstance(other, Scale):
             copied.scales[other.aesthetic_name] = other
         elif isinstance(other, Aesthetic):
@@ -77,7 +81,7 @@ class GGPlot:
                         self.scales["y"] = scale_y_discrete()
 
     def copy(self):
-        return GGPlot(self.ht, self.aes, self.geoms[:], self.labels, self.scales,
+        return GGPlot(self.ht, self.aes, self.geoms[:], self.labels, self.coord_cartesian, self.scales,
                       self.discrete_color_scale, self.continuous_color_scale)
 
     def render(self):
@@ -118,6 +122,8 @@ class GGPlot:
             self.scales["x"].apply_to_fig(self, fig)
         if self.scales.get("y") is not None:
             self.scales["y"].apply_to_fig(self, fig)
+        if self.coord_cartesian is not None:
+            self.coord_cartesian.apply_to_fig(fig)
 
         return fig
 

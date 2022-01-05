@@ -1,3 +1,4 @@
+from .coord_cartesian import coord_cartesian
 from .ggplot import ggplot
 from .aes import aes
 from .geoms import geom_line, geom_point, geom_text, geom_bar, geom_histogram, geom_hline, geom_func, geom_vline, geom_tile
@@ -20,6 +21,7 @@ __all__ = [
     "ggtitle",
     "xlab",
     "ylab",
+    "coord_cartesian",
     "scale_x_continuous",
     "scale_y_continuous",
     "scale_x_discrete",
