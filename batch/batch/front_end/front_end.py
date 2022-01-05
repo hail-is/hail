@@ -909,7 +909,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
         rand_token = random.randint(0, app['n_tokens'] - 1)
 
-        async def write_spec_to_gcs():
+        async def write_spec_to_cloud():
             if batch_format_version.has_full_spec_in_cloud():
                 async with timer.step('write spec to cloud'):
                     await spec_writer.write()
@@ -1010,7 +1010,7 @@ VALUES (%s, %s, %s);
                         f'jobs_args={json.dumps(jobs_args)}'
                         f'job_parents_args={json.dumps(job_parents_args)}'
                     ) from err
-        await asyncio.gather(write_spec_to_gcs(), insert_jobs_into_db())
+        await asyncio.gather(write_spec_to_cloud(), insert_jobs_into_db())
 
     return web.Response()
 
