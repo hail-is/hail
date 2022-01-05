@@ -2193,6 +2193,7 @@ async def delete_batch_loop_body(app):
 
 async def on_startup(app):
     app['task_manager'] = aiotools.BackgroundTaskManager()
+    app['client_session'] = httpx.client_session()
 
     db = Database()
     await db.async_init()
@@ -2237,23 +2238,18 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
 
     app['task_manager'].ensure_future(periodically_call(5, _refresh, app))
 
-    app['client_session'] = httpx.client_session()
-
 
 async def on_cleanup(app):
     try:
-        app['blocking_pool'].shutdown()
+        app['task_manager'].shutdown()
     finally:
         try:
-            app['task_manager'].shutdown()
+            await app['client_session'].close()
         finally:
             try:
-                await app['client_session'].close()
+                await app['file_store'].close()
             finally:
-                try:
-                    await app['file_store'].close()
-                finally:
-                    await app['db'].async_close()
+                await app['db'].async_close()
 
 
 def run():
