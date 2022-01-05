@@ -500,7 +500,7 @@ class Container:
                                     raise
                                 except Exception:
                                     log.exception(f'while extracting image {self.image_ref_str}, ID: {self.image_id}')
-                                    await check_shell(f'rm -Rf {self.rootfs_path}')
+                                    await blocking_to_async(worker.pool, shutil.rmtree, self.rootfs_path)
                 await asyncio.shield(_localize_rootfs())
 
             with self.step('pulling'):
