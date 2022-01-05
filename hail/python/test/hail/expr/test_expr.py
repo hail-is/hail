@@ -2404,6 +2404,55 @@ class Tests(unittest.TestCase):
             (call_expr_4[1], 1, tint32),
             (call_expr_4.ploidy, 2, tint32)])
 
+    def test_call_unphase(self):
+
+        calls = [
+            hl.Call([0], phased=True),
+            hl.Call([0], phased=False),
+            hl.Call([1], phased=True),
+            hl.Call([1], phased=False),
+            hl.Call([0, 0], phased=True),
+            hl.Call([3, 0], phased=True),
+            hl.Call([1, 1], phased=False),
+            hl.Call([0, 0], phased=False),
+        ]
+
+        expected = [
+            hl.Call([0], phased=False),
+            hl.Call([0], phased=False),
+            hl.Call([1], phased=False),
+            hl.Call([1], phased=False),
+            hl.Call([0, 0], phased=False),
+            hl.Call([0, 3], phased=False),
+            hl.Call([1, 1], phased=False),
+            hl.Call([0, 0], phased=False),
+        ]
+
+        assert hl.eval(hl.literal(calls).map(lambda x: x.unphase())) == expected
+
+    def test_call_contains_allele(self):
+        c1 = hl.call(1, phased=True)
+        c2 = hl.call(1, phased=False)
+        c3 = hl.call(3,1, phased=True)
+        c4 = hl.call(1,3, phased=False)
+
+        for i, b in enumerate(hl.eval(tuple([
+            c1.contains_allele(1),
+            ~c1.contains_allele(0),
+            ~c1.contains_allele(2),
+            c2.contains_allele(1),
+            ~c2.contains_allele(0),
+            ~c2.contains_allele(2),
+            c3.contains_allele(1),
+            c3.contains_allele(3),
+            ~c3.contains_allele(0),
+            ~c3.contains_allele(2),
+            c4.contains_allele(1),
+            c4.contains_allele(3),
+            ~c4.contains_allele(0),
+            ~c4.contains_allele(2),
+        ]))):
+            assert b, i
     def test_call_unphase_diploid_gt_index(self):
         calls_and_indices = [
             (hl.call(0, 0), 0),

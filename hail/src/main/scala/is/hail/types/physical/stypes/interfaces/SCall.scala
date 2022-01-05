@@ -11,6 +11,10 @@ trait SCall extends SType {
 }
 
 trait SCallValue extends SValue {
+  def unphase(cb: EmitCodeBuilder): SCallValue
+
+  def containsAllele(cb: EmitCodeBuilder, allele: Value[Int]): Value[Boolean]
+
   def ploidy(cb: EmitCodeBuilder): Value[Int]
 
   def isPhased(cb: EmitCodeBuilder): Value[Boolean]

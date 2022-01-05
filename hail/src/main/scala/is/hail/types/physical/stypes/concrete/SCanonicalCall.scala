@@ -49,6 +49,19 @@ case object SCanonicalCall extends SCall {
 class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
   val pt: PCall = PCanonicalCall(false)
 
+  override def unphase(cb: EmitCodeBuilder): SCanonicalCallValue = {
+    val repr = cb.newLocal[Int]("unphase_call", call)
+    cb.ifx(isPhased(cb),
+      cb.assign(repr, Code.invokeScalaObject1[Int, Int](Call.getClass, "unphase", call)),
+      cb.assign(repr, call))
+    new SCanonicalCallValue(repr)
+  }
+
+  def containsAllele(cb: EmitCodeBuilder, allele: Value[Int]): Value[Boolean] = {
+    cb.memoize[Boolean](Code.invokeScalaObject2[Int, Int, Boolean](
+      Call.getClass, "containsAllele", call, allele), "contains_allele")
+  }
+
   override def canonicalCall(cb: EmitCodeBuilder): Value[Int] = call
 
   override val st: SCanonicalCall.type = SCanonicalCall
