@@ -40,10 +40,8 @@ async def healthcheck(request):  # pylint: disable=unused-argument
 @rest_authenticated_users_only
 async def get_object(request, userdata):
     filepath = request.query.get('q')
-    username = userdata['username']
-    log.info(f'memory: get_object: 1: {filepath} from user {username}')
     userinfo = await get_or_add_user(request.app, userdata)
-    log.info(f'memory: get_object: 2: {filepath} from user {username}')
+    username = userdata['username']
     maybe_file = await get_file_or_none(request.app, username, userinfo['fs'], filepath)
     if maybe_file is None:
         raise web.HTTPNotFound()
@@ -60,16 +58,18 @@ async def write_object(request, userdata):
     log.info(f'memory: post for object {filepath} from user {username}')
 
     file_key = make_redis_key(username, filepath)
-    fut = asyncio.Future()
-    try:
-        request.app['files_in_progress'][file_key] = fut
-        await persist(userinfo['fs'], file_key, filepath, data)
-        await cache_file(request.app['redis_pool'], file_key, filepath, data)
-        del request.app['files_in_progress'][file_key]
-        fut.set_result(data)
-    except Exception as exc:
-        fut.set_exception(exc)
-        raise exc
+
+    async def persist_and_cache():
+        try:
+            await persist(userinfo['fs'], file_key, filepath, data)
+            await cache_file(request.app['redis_pool'], file_key, filepath, data)
+            return data
+        finally:
+            del request.app['files_in_progress'][file_key]
+
+    fut = asyncio.create_future(persist_and_cache)
+    request.app['files_in_progress'][file_key] = fut
+    await fut
     return web.Response(status=200)
 
 
@@ -107,23 +107,23 @@ async def get_file_or_none(app, username, fs: AsyncFS, filepath):
         return body
 
     log.info(f"memory: Couldn't retrieve file {filepath} for user {username}: current version not in cache")
+
     if file_key in app['files_in_progress']:
         return await app['files_in_progress'][file_key]
 
-    fut: asyncio.Future = asyncio.Future()
-    try:
-        app['files_in_progress'][file_key] = fut
-        log.info(f"memory: Loading {filepath} to cache for user {username}")
+    async def load_and_cache():
         try:
             data = await load_file(file_key, fs, filepath)
             await cache_file(redis_pool, file_key, filepath, data)
+            return data
         except FileNotFoundError:
-            data = None
-        del app['files_in_progress'][file_key]
-        fut.set_result(data)
-    except Exception as exc:
-        fut.set_exception(exc)
-        raise exc
+            return None
+        finally:
+            del app['files_in_progress'][file_key]
+
+    fut = asyncio.ensure_future(load_and_cache())
+    app['files_in_progress'][file_key] = fut
+    return await fut
 
 
 async def load_file(file_key, fs: AsyncFS, filepath):
@@ -145,7 +145,7 @@ async def cache_file(redis: aioredis.ConnectionsPool, file_key: str, filepath: s
 
 
 async def on_startup(app):
-    app['worker_pool'] = AsyncWorkerPool(parallelism=100, queue_size=10)
+    app['client_session'] = httpx.client_session()
     app['files_in_progress'] = dict()
     app['users'] = {}
     app['userlocks'] = defaultdict(asyncio.Lock)
@@ -153,30 +153,26 @@ async def on_startup(app):
     k8s_client = kube.client.CoreV1Api()
     app['k8s_client'] = k8s_client
     app['redis_pool']: aioredis.ConnectionsPool = await aioredis.create_pool(socket)
-    app['client_session'] = httpx.client_session()
 
 
 async def on_cleanup(app):
     try:
-        app['worker_pool'].shutdown()
+        app['redis_pool'].close()
     finally:
         try:
-            app['redis_pool'].close()
+            del app['k8s_client']
         finally:
             try:
-                del app['k8s_client']
+                await app['client_session'].close()
             finally:
                 try:
-                    await app['client_session'].close()
+                    for items in app['users'].values():
+                        try:
+                            await items['fs'].close()
+                        except:
+                            pass
                 finally:
-                    try:
-                        for items in app['users'].values():
-                            try:
-                                await items['fs'].close()
-                            except:
-                                pass
-                    finally:
-                        await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
+                    await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
 
 
 def run():
