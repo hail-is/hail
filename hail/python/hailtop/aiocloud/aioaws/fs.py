@@ -173,12 +173,9 @@ class S3CreatePartManager(AsyncContextManager[WritableStream]):
                     PartNumber=self._number + 1,
                     UploadId=self._mpc._upload_id,
                     Body=b)
-                etag = resp['ETag']
-                assert etag is not None
-                self._mpc._etags[self._number] = etag
+                self._mpc._etags[self._number] = resp['ETag']
             except BaseException as e:
-                self._exc = ValueError('error in put', self._mpc._bucket, self._mpc._name, self._mpc._name, self._number + 1, self._mpc._upload_id)
-                self._exc.__cause__ = e
+                self._exc = e
 
         self._put_thread = threading.Thread(target=put)
         self._put_thread.start()
@@ -233,7 +230,7 @@ class S3MultiPartCreate(MultiPartCreate):
         parts = []
         part_number = 1
         for etag in self._etags:
-            assert etag is not None, f'{len(self._etags)}, {self._etags}'
+            assert etag is not None
             parts.append({
                 'ETag': etag,
                 'PartNumber': part_number

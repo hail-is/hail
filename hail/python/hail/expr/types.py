@@ -118,7 +118,7 @@ def dtype(type_str):
         field = identifier ":" type
         interval = ("tinterval" / "interval") _ "<" type ">"
         identifier = _ (simple_identifier / escaped_identifier) _
-        simple_identifier = ~"\\w+"
+        simple_identifier = ~"\w+"
         escaped_identifier = ~"`([^`\\\\]|\\\\.)*`"
         _ = ~"\s*"
 

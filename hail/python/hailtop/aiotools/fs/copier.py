@@ -229,13 +229,12 @@ class SourceCopier:
                         n = this_part_size
                         while n > 0:
                             b = await srcf.read(min(Copier.BUFFER_SIZE, n))
-                            n_read = len(b)
-                            if n_read == 0:
+                            if len(b) == 0:
                                 raise UnexpectedEOFError()
                             written = await destf.write(b)
-                            assert written == n_read
+                            assert written == len(b)
                             source_report.finish_bytes(written)
-                            n -= n_read
+                            n -= len(b)
         except Exception as e:
             if return_exceptions:
                 source_report.set_exception(e)
@@ -272,7 +271,8 @@ class SourceCopier:
             async def f(i):
                 this_part_size = rem if i == n_parts - 1 and rem else part_size
                 await retry_transient_errors(
-                    self._copy_part, source_report, part_size, srcfile, i, this_part_size, part_creator, return_exceptions)
+                    self._copy_part,
+                    source_report, part_size, srcfile, i, this_part_size, part_creator, return_exceptions)
 
             await bounded_gather2(sema, *[
                 functools.partial(f, i)
