@@ -276,25 +276,21 @@ object Simplify {
 
     case GetField(SelectFields(old, fields), name) => GetField(old, name)
 
-    case insert@InsertFields(InsertFields(base, fields1, fieldOrder1), fields2, fieldOrder2) =>
-      val insertType = insert.typ
+    case outer@InsertFields(InsertFields(base, fields1, fieldOrder1), fields2, fieldOrder2) =>
       val fields2Set = fields2.map(_._1).toSet
       val newFields = fields1.filter { case (name, _) => !fields2Set.contains(name) } ++ fields2
-      val ans = (fieldOrder1, fieldOrder2) match {
+      (fieldOrder1, fieldOrder2) match {
         case (Some(fo1), None) =>
           val fields1Set = fo1.toSet
           val fieldOrder = fo1 ++ fields2.map(_._1).filter(!fields1Set.contains(_))
           InsertFields(base, newFields, Some(fieldOrder))
-        case (_, _) =>
+        case (_, Some(_)) =>
           InsertFields(base, newFields, fieldOrder2)
-//        case (None, None) =>
-//          // Fields should be in insertion order
-//          //val newOrder = Some((fields1.map(_._1) ++ newFields.map(_._1)).toIndexedSeq)
-//          InsertFields(base, newFields, Some(newFields.map(_._1).toIndexedSeq))
+        case _ =>
+          // In this case, it's important to make a field order that reflects the original insertion order
+          val resultFieldOrder = outer.typ.fieldNames
+          InsertFields(base, newFields, Some(resultFieldOrder))
       }
-      //assert(ans.typ == insertType, s"fo1 = ${fieldOrder1}, fo2 = ${fieldOrder2}")
-      ans
-
     case InsertFields(MakeStruct(fields1), fields2, fieldOrder) =>
       val fields1Map = fields1.toMap
       val fields2Map = fields2.toMap
