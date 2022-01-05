@@ -1267,7 +1267,7 @@ steps:
       export HAIL_TEST_AZURE_CONTAINER=hail-test-4nxei
       export AZURE_APPLICATION_CREDENTIALS=/test-azure-key/credentials.json
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
-      export PYTEST_SPLITS=5
+      export PYTEST_SPLITS=7
       export PYTEST_SPLIT_INDEX=0
       python3 -m pytest --ignore=test/hailtop/batch/ --ignore=test/hailtop/aiotools/test_copy.py --log-cli-level=INFO -s -vv --instafail --durations=50 test
     inputs:
@@ -1323,7 +1323,7 @@ steps:
       export HAIL_TEST_AZURE_CONTAINER=hail-test-4nxei
       export AZURE_APPLICATION_CREDENTIALS=/test-azure-key/credentials.json
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
-      export PYTEST_SPLITS=5
+      export PYTEST_SPLITS=7
       export PYTEST_SPLIT_INDEX=1
       python3 -m pytest --ignore=test/hailtop/batch/ --ignore=test/hailtop/aiotools/test_copy.py --log-cli-level=INFO -s -vv --instafail --durations=50 test
     inputs:
@@ -1379,7 +1379,7 @@ steps:
       export HAIL_TEST_AZURE_CONTAINER=hail-test-4nxei
       export AZURE_APPLICATION_CREDENTIALS=/test-azure-key/credentials.json
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
-      export PYTEST_SPLITS=5
+      export PYTEST_SPLITS=7
       export PYTEST_SPLIT_INDEX=2
       python3 -m pytest --ignore=test/hailtop/batch/ --ignore=test/hailtop/aiotools/test_copy.py --log-cli-level=INFO -s -vv --instafail --durations=50 test
     inputs:
@@ -1435,7 +1435,7 @@ steps:
       export HAIL_TEST_AZURE_CONTAINER=hail-test-4nxei
       export AZURE_APPLICATION_CREDENTIALS=/test-azure-key/credentials.json
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
-      export PYTEST_SPLITS=5
+      export PYTEST_SPLITS=7
       export PYTEST_SPLIT_INDEX=3
       python3 -m pytest --ignore=test/hailtop/batch/ --ignore=test/hailtop/aiotools/test_copy.py --log-cli-level=INFO -s -vv --instafail --durations=50 test
     inputs:
@@ -1491,8 +1491,120 @@ steps:
       export HAIL_TEST_AZURE_CONTAINER=hail-test-4nxei
       export AZURE_APPLICATION_CREDENTIALS=/test-azure-key/credentials.json
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
-      export PYTEST_SPLITS=5
+      export PYTEST_SPLITS=7
       export PYTEST_SPLIT_INDEX=4
+      python3 -m pytest --ignore=test/hailtop/batch/ --ignore=test/hailtop/aiotools/test_copy.py --log-cli-level=INFO -s -vv --instafail --durations=50 test
+    inputs:
+      - from: /debug-wheel-container.tar
+        to: /io/debug-wheel-container.tar
+      - from: /test.tar.gz
+        to: /io/test.tar.gz
+      - from: /resources.tar.gz
+        to: /io/resources.tar.gz
+      - from: /data.tar.gz
+        to: /io/data.tar.gz
+    secrets:
+      - name: test-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-gsa-key
+      - name: test-aws-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-aws-key
+      - name: test-azure-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-azure-key
+    dependsOn:
+      - default_ns
+      - hail_run_tests_image
+      - build_hail
+    clouds:
+      - gcp
+  - kind: runImage
+    name: test_hail_python_5
+    image:
+      valueFrom: hail_run_tests_image.image
+    resources:
+      memory: standard
+      cpu: '2'
+    script: |
+      set -ex
+      cd /io
+      tar xzf test.tar.gz
+      tar xzf resources.tar.gz
+      tar xzf data.tar.gz
+      tar xvf debug-wheel-container.tar
+      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      export HAIL_TEST_RESOURCES_DIR=./resources
+      export HAIL_DOCTEST_DATA_DIR=./data
+      export HAIL_TEST_GCS_BUCKET={{ global.hail_test_gcs_bucket }}
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export HAIL_TEST_S3_BUCKET=hail-test-dy5rg
+      export AWS_SHARED_CREDENTIALS_FILE=/test-aws-key/credentials
+      export HAIL_TEST_AZURE_ACCOUNT=hailtest
+      export HAIL_TEST_AZURE_CONTAINER=hail-test-4nxei
+      export AZURE_APPLICATION_CREDENTIALS=/test-azure-key/credentials.json
+      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
+      export PYTEST_SPLITS=7
+      export PYTEST_SPLIT_INDEX=5
+      python3 -m pytest --ignore=test/hailtop/batch/ --ignore=test/hailtop/aiotools/test_copy.py --log-cli-level=INFO -s -vv --instafail --durations=50 test
+    inputs:
+      - from: /debug-wheel-container.tar
+        to: /io/debug-wheel-container.tar
+      - from: /test.tar.gz
+        to: /io/test.tar.gz
+      - from: /resources.tar.gz
+        to: /io/resources.tar.gz
+      - from: /data.tar.gz
+        to: /io/data.tar.gz
+    secrets:
+      - name: test-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-gsa-key
+      - name: test-aws-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-aws-key
+      - name: test-azure-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-azure-key
+    dependsOn:
+      - default_ns
+      - hail_run_tests_image
+      - build_hail
+    clouds:
+      - gcp
+  - kind: runImage
+    name: test_hail_python_6
+    image:
+      valueFrom: hail_run_tests_image.image
+    resources:
+      memory: standard
+      cpu: '2'
+    script: |
+      set -ex
+      cd /io
+      tar xzf test.tar.gz
+      tar xzf resources.tar.gz
+      tar xzf data.tar.gz
+      tar xvf debug-wheel-container.tar
+      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      export HAIL_TEST_RESOURCES_DIR=./resources
+      export HAIL_DOCTEST_DATA_DIR=./data
+      export HAIL_TEST_GCS_BUCKET={{ global.hail_test_gcs_bucket }}
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export HAIL_TEST_S3_BUCKET=hail-test-dy5rg
+      export AWS_SHARED_CREDENTIALS_FILE=/test-aws-key/credentials
+      export HAIL_TEST_AZURE_ACCOUNT=hailtest
+      export HAIL_TEST_AZURE_CONTAINER=hail-test-4nxei
+      export AZURE_APPLICATION_CREDENTIALS=/test-azure-key/credentials.json
+      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
+      export PYTEST_SPLITS=7
+      export PYTEST_SPLIT_INDEX=6
       python3 -m pytest --ignore=test/hailtop/batch/ --ignore=test/hailtop/aiotools/test_copy.py --log-cli-level=INFO -s -vv --instafail --durations=50 test
     inputs:
       - from: /debug-wheel-container.tar
@@ -1628,7 +1740,7 @@ steps:
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
-      export PYTEST_SPLITS=5
+      export PYTEST_SPLITS=7
       export PYTEST_SPLIT_INDEX=0
       export HAIL_QUERY_BACKEND=local
       python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
@@ -1667,7 +1779,7 @@ steps:
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
-      export PYTEST_SPLITS=5
+      export PYTEST_SPLITS=7
       export PYTEST_SPLIT_INDEX=1
       export HAIL_QUERY_BACKEND=local
       python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
@@ -1706,7 +1818,7 @@ steps:
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
-      export PYTEST_SPLITS=5
+      export PYTEST_SPLITS=7
       export PYTEST_SPLIT_INDEX=2
       export HAIL_QUERY_BACKEND=local
       python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
@@ -1745,7 +1857,7 @@ steps:
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
-      export PYTEST_SPLITS=5
+      export PYTEST_SPLITS=7
       export PYTEST_SPLIT_INDEX=3
       export HAIL_QUERY_BACKEND=local
       python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
@@ -1784,8 +1896,86 @@ steps:
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
-      export PYTEST_SPLITS=5
+      export PYTEST_SPLITS=7
       export PYTEST_SPLIT_INDEX=4
+      export HAIL_QUERY_BACKEND=local
+      python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
+    inputs:
+      - from: /debug-wheel-container.tar
+        to: /io/debug-wheel-container.tar
+      - from: /test.tar.gz
+        to: /io/test.tar.gz
+      - from: /resources.tar.gz
+        to: /io/resources.tar.gz
+      - from: /data.tar.gz
+        to: /io/data.tar.gz
+    secrets:
+      - name: test-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-gsa-key
+    dependsOn:
+      - default_ns
+      - hail_run_tests_image
+      - build_hail
+  - kind: runImage
+    name: test_hail_python_local_backend_5
+    image:
+      valueFrom: hail_run_tests_image.image
+    resources:
+      memory: standard
+      cpu: '2'
+    script: |
+      set -ex
+      cd /io
+      tar xzf test.tar.gz
+      tar xzf resources.tar.gz
+      tar xzf data.tar.gz
+      tar xvf debug-wheel-container.tar
+      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      export HAIL_TEST_RESOURCES_DIR=./resources
+      export HAIL_DOCTEST_DATA_DIR=./data
+      export PYTEST_SPLITS=7
+      export PYTEST_SPLIT_INDEX=5
+      export HAIL_QUERY_BACKEND=local
+      python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
+    inputs:
+      - from: /debug-wheel-container.tar
+        to: /io/debug-wheel-container.tar
+      - from: /test.tar.gz
+        to: /io/test.tar.gz
+      - from: /resources.tar.gz
+        to: /io/resources.tar.gz
+      - from: /data.tar.gz
+        to: /io/data.tar.gz
+    secrets:
+      - name: test-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-gsa-key
+    dependsOn:
+      - default_ns
+      - hail_run_tests_image
+      - build_hail
+  - kind: runImage
+    name: test_hail_python_local_backend_6
+    image:
+      valueFrom: hail_run_tests_image.image
+    resources:
+      memory: standard
+      cpu: '2'
+    script: |
+      set -ex
+      cd /io
+      tar xzf test.tar.gz
+      tar xzf resources.tar.gz
+      tar xzf data.tar.gz
+      tar xvf debug-wheel-container.tar
+      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      export HAIL_TEST_RESOURCES_DIR=./resources
+      export HAIL_DOCTEST_DATA_DIR=./data
+      export PYTEST_SPLITS=7
+      export PYTEST_SPLIT_INDEX=6
       export HAIL_QUERY_BACKEND=local
       python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
     inputs:

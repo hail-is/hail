@@ -63,7 +63,7 @@ def create_vm_config(
                 "name": "[concat(parameters('vmName'), '-data')]",
                 "lun": 2,  # because this is 2, the data disk will always be at 'sdc'
                 "managedDisk": {
-                    "storageAccountType": "Standard_LRS"
+                    "storageAccountType": "Premium_LRS"
                 },
                 "createOption": "Empty",
                 "diskSizeGB": data_disk_size_gb,
@@ -367,7 +367,8 @@ done
                     'publisher': 'Microsoft.EnterpriseCloud.Monitoring',
                     'type': 'OmsAgentForLinux',
                     'typeHandlerVersion': '1.13',
-                    'autoUpgradeMinorVersion': True,
+                    'autoUpgradeMinorVersion': False,
+                    'enableAutomaticUpgrade': False,
                     'settings': {
                         'workspaceId': "[reference(resourceId('Microsoft.OperationalInsights/workspaces/', parameters('workspaceName')), '2015-03-20').customerId]"
                     },

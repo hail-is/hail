@@ -21,7 +21,7 @@ resource "kubernetes_secret" "zulip_config" {
   }
 }
 
-resource "kubernetes_secret" "hail_ci_0_1_github_oauth_token" {
+resource "kubernetes_secret" "ci_and_deploy_github_oauth_token" {
   metadata {
     name = "hail-ci-0-1-github-oauth-token"
   }
@@ -31,7 +31,7 @@ resource "kubernetes_secret" "hail_ci_0_1_github_oauth_token" {
   }
 }
 
-resource "kubernetes_secret" "hail_ci_0_1_service_account_key" {
+resource "kubernetes_secret" "ci_test_repo_creator_github_oauth_token" {
   metadata {
     name = "hail-ci-0-1-service-account-key"
   }

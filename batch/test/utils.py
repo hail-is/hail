@@ -16,7 +16,7 @@ def smallest_machine_type(cloud):
     if cloud == 'gcp':
         return 'n1-standard-1'
     assert cloud == 'azure'
-    return 'Standard_D2d_v4'
+    return 'Standard_D2ds_v4'
 
 
 fails_in_azure = pytest.mark.xfail(

@@ -217,6 +217,13 @@ package object ir {
     AggExplode(v, r.name, body(r), isScan)
   }
 
+  def cdaIR(contexts: IR, globals: IR)(body: (Ref, Ref) => IR): CollectDistributedArray = {
+    val contextRef = Ref(genUID(), contexts.typ.asInstanceOf[TStream].elementType)
+    val globalRef = Ref(genUID(), globals.typ)
+
+    CollectDistributedArray(contexts, globals, contextRef.name, globalRef.name, body(contextRef, globalRef), None)
+  }
+
   implicit def toRichIndexedSeqEmitSettable(s: IndexedSeq[EmitSettable]): RichIndexedSeqEmitSettable = new RichIndexedSeqEmitSettable(s)
 
   implicit def emitValueToCode(ev: EmitValue): EmitCode = ev.load
