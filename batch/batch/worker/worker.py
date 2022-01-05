@@ -487,10 +487,8 @@ class Container:
                     self.worker.image_data[self.image_id] += 1
 
                     self.rootfs_path = f'/host/rootfs/{self.image_id}'
-                    async with self.worker.image_data[self.image_id].lock:
-                        if not os.path.exists(self.rootfs_path):
-                            await asyncio.shield(self.extract_rootfs())
-                            log.info(f'Added expanded image to cache: {self.image_ref_str}, ID: {self.image_id}')
+                    image_data = self.worker.image_data[self.image_id]
+                    await asyncio.shield(self.extract_rootfs(image_data))
 
             with self.step('pulling'):
                 await self.run_until_done_or_deleted(localize_rootfs)
@@ -606,13 +604,24 @@ class Container:
     def current_user_access_token(self):
         return {'username': self.job.credentials.username, 'password': self.job.credentials.password}
 
-    async def extract_rootfs(self):
-        assert self.rootfs_path
-        os.makedirs(self.rootfs_path)
-        await check_shell(
-            f'id=$(docker create {self.image_id}) && docker export $id | tar -C {self.rootfs_path} -xf - && docker rm $id'
-        )
-        log.info(f'Extracted rootfs for image {self.image_ref_str}')
+    async def extract_rootfs(self, image_data):
+        async with image_data.lock:
+            if not image_data.extracted:
+                assert self.rootfs_path
+                os.makedirs(self.rootfs_path)
+                try:
+                    await check_shell(
+                        f'id=$(docker create {self.image_id}) && docker export $id | tar -C {self.rootfs_path} -xf - && docker rm $id'
+                    )
+                    image_data.extracted = True
+                    log.info(f'Added expanded image to cache: {self.image_ref_str}, ID: {self.image_id}')
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    log.exception(f'while extracting image {self.image_ref_str}, ID: {self.image_id}')
+                    await check_shell(
+                        f'rm -Rf {self.rootfs_path}'
+                    )
 
     async def setup_overlay(self):
         lower_dir = self.rootfs_path
@@ -1745,6 +1754,7 @@ class ImageData:
         self.time_created = time_msecs()
         self.last_accessed = time_msecs()
         self.lock = asyncio.Lock()
+        self.extracted = False
 
     def __add__(self, other):
         self.ref_count += other
@@ -2135,14 +2145,15 @@ class Worker:
                 for image_id in list(self.image_data.keys()):
                     now = time_msecs()
                     image_data = self.image_data[image_id]
-                    if image_data.ref_count == 0 and (now - image_data.last_accessed) > 10 * 60 * 1000:
-                        assert image_id != BATCH_WORKER_IMAGE_ID
-                        log.info(f'Found an unused image with ID {image_id}')
-                        await check_shell(f'docker rmi -f {image_id}')
-                        image_path = f'/host/rootfs/{image_id}'
-                        await blocking_to_async(self.pool, shutil.rmtree, image_path)
-                        del self.image_data[image_id]
-                        log.info(f'Deleted image from cache with ID {image_id}')
+                    async with image_data.lock:
+                        if image_data.ref_count == 0 and (now - image_data.last_accessed) > 10 * 60 * 1000:
+                            assert image_id != BATCH_WORKER_IMAGE_ID
+                            log.info(f'Found an unused image with ID {image_id}')
+                            await check_shell(f'docker rmi -f {image_id}')
+                            image_path = f'/host/rootfs/{image_id}'
+                            await blocking_to_async(self.pool, shutil.rmtree, image_path)
+                            del self.image_data[image_id]
+                            log.info(f'Deleted image from cache with ID {image_id}')
         except asyncio.CancelledError:
             raise
         except Exception as e:
