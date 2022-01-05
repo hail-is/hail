@@ -139,27 +139,6 @@ object RandomSeededFunctions extends RegistryFunctions {
       primitive(cb.memoize(cb.emb.newRNG(seed).invoke[Array[Double], Int]("rcat", a)))
     }
 
-    /*
-    def howManySamplesPerPartition(rand: IRRandomness, totalNumberOfRecords: Int, initialNumSamplesToSelect: Int, partitionCounts: IndexedSeq[Int]): IndexedSeq[Int] = {
-      var successStatesRemaining = initialNumSamplesToSelect
-      var failureStatesRemaining = totalNumberOfRecords - successStatesRemaining
-
-      val ans = new Array[Int](partitionCounts.size)
-
-      var i = 0
-      while (i < partitionCounts.size) {
-        val numSuccesses = rand.rhyper(successStatesRemaining, failureStatesRemaining, partitionCounts(i)).toInt
-        successStatesRemaining -= numSuccesses
-        failureStatesRemaining -= (partitionCounts(i) - numSuccesses)
-        ans(i) = numSuccesses
-        i += 1
-      }
-
-      ans
-    }
-     */
-
-
     registerSeeded2("shuffle_compute_num_samples_per_partition", TInt32, TArray(TInt32), TArray(TInt32),
       (_, _, _) => SIndexablePointer(PCanonicalArray(PInt32(true), false))) { case (cb, r, rt, seed, initalNumSamplesToSelect: SInt32Value, partitionCounts: SIndexableValue) =>
 
