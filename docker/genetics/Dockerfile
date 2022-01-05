@@ -18,7 +18,7 @@ RUN mkdir samtools && \
      ./configure --without-curses && \
      make && \
      make install)
-RUN curl --remote-name http://s3.amazonaws.com/plink2-assets/plink2_linux_avx2_latest.zip&& \
+RUN curl --remote-name http://s3.amazonaws.com/plink2-assets/plink2_linux_avx2_latest.zip && \
     unzip plink2_linux_avx2_latest.zip && \
     mv plink2 /bin/ && \
     rm -rf plink2_linux_avx2_latest.zip
