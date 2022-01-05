@@ -585,7 +585,7 @@ async def on_startup(app):
     await db.async_init(maxsize=50)
     app['db'] = db
     app['client_session'] = httpx.client_session()
-    app['flow_client'] = get_flow_client('/auth-oauth2-client-secret/client_secret_v2.json')
+    app['flow_client'] = get_flow_client('/auth-oauth2-client-secret/client_secret.json')
 
 
 async def on_cleanup(app):

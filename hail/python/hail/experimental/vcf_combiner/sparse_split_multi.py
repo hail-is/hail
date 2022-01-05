@@ -147,10 +147,16 @@ def sparse_split_multi(sparse_mt, *, filter_changed_loci=False):
                 new_exprs = {}
                 dropped_fields = ['LA']
                 if 'LGT' in fields:
-                    new_exprs['GT'] = hl.downcode(old_entry.LGT, hl.or_else(local_a_index, hl.len(old_entry.LA)))
+                    new_exprs['GT'] = hl.rbind(
+                        old_entry.LGT,
+                        lambda lgt: hl.if_else(lgt.is_non_ref(), hl.downcode(lgt, hl.or_else(
+                            local_a_index, hl.len(old_entry.LA))), lgt))
                     dropped_fields.append('LGT')
                 if 'LPGT' in fields:
-                    new_exprs['PGT'] = hl.downcode(old_entry.LPGT, hl.or_else(local_a_index, hl.len(old_entry.LA)))
+                    new_exprs['PGT'] = hl.rbind(
+                        old_entry.LPGT,
+                        lambda lpgt: hl.if_else(lpgt.is_non_ref(), hl.downcode(lpgt, hl.or_else(
+                            local_a_index, hl.len(old_entry.LA))), lpgt))
                     dropped_fields.append('LPGT')
                 if 'LAD' in fields:
                     non_ref_ad = hl.or_else(old_entry.LAD[local_a_index], 0)  # zeroed if not in LAD

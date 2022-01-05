@@ -4284,6 +4284,9 @@ steps:
       az network public-ip list --resource-group $AZURE_RESOURCE_GROUP -o tsv \
           --query "[?tags.namespace == '{{ default_ns.name }}'].name" \
         | xargs -n1 -r sh -c 'az network public-ip delete --resource-group $AZURE_RESOURCE_GROUP --name "$1" || true' argv0
+      az deployment group list --resource-group $AZURE_RESOURCE_GROUP -o tsv \
+          --query "[?tags.namespace == '{{ default_ns.name }}'].name" \
+        | xargs -n1 -r sh -c 'az deployment delete --name "$1" || true' argv0
     secrets:
       - name: test-gsa-key
         namespace:

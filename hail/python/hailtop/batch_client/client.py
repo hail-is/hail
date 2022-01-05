@@ -126,6 +126,10 @@ class Batch:
     def token(self):
         return self._async_batch.token
 
+    @property
+    def submission_info(self):
+        return self._async_batch.submission_info
+
     def cancel(self):
         async_to_blocking(self._async_batch.cancel())
 
