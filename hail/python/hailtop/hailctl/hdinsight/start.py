@@ -42,11 +42,11 @@ def init_parser(parser):
     parser.add_argument('--vep-loftee-uri',
                         type=str,
                         default=None,
-                        help='(REQUIRED FOR VEP) A folder file containing the VEP loftee data files. There are tarred, requester-pays copies available at gs://hail-REGION-vep/loftee-beta/GRCh38.tar and gs://hail-REGION-vep/loftee-beta/GRCh37.tar where REGION is one of us, eu, uk, and aus-sydney. Must be accessible by the cluster\'s head nodes. Must be an Azure blob storage URI like https://account.blob.core.windows.net/container/foo.')
+                        help='(REQUIRED FOR VEP) A folder file containing the VEP loftee data files. There are tarred, requester-pays copies available at gs://hail-REGION-vep/loftee-beta/GRCh38.tar and gs://hail-REGION-vep/loftee-beta/GRCh37.tar where REGION is one of us, eu, uk, and aus-sydney. Must be accessible by the cluster\'s head nodes. Must be an Azure blob storage URI like https://account.blob.core.windows.net/container/foo. See the Azure-specific VEP instructions in the Hail documentation.')
     parser.add_argument('--vep-homo-sapiens-uri',
                         type=str,
                         default=None,
-                        help='(REQUIRED FOR VEP) A folder file containing the VEP homo sapiens data files. There are tarred, requester-pays copies available at gs://hail-REGION-vep/homo-sapiens/95_GRCh38.tar and gs://hail-REGION-vep/homo-sapiens/85_GRCh37.tar where REGION is one of us, eu, uk, and aus-sydney. Must be accessible by the cluster\'s head nodes. Must be an Azure blob storage URI like https://account.blob.core.windows.net/container/foo.')
+                        help='(REQUIRED FOR VEP) A folder file containing the VEP homo sapiens data files. There are tarred, requester-pays copies available at gs://hail-REGION-vep/homo-sapiens/95_GRCh38.tar and gs://hail-REGION-vep/homo-sapiens/85_GRCh37.tar where REGION is one of us, eu, uk, and aus-sydney. Must be accessible by the cluster\'s head nodes. Must be an Azure blob storage URI like https://account.blob.core.windows.net/container/foo. See the Azure-specific VEP instructions in the Hail documentation.')
     parser.add_argument('--vep-config-uri',
                         type=str,
                         default=None,
