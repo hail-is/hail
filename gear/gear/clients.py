@@ -1,9 +1,10 @@
+import abc
 from typing import Optional
 
 from gear.cloud_config import get_azure_config, get_gcp_config, get_global_config
 
 from hailtop.aiocloud import aiogoogle, aioazure
-from hailtop.aiotools.fs import AsyncFS
+from hailtop.aiotools.fs import AsyncFS, AsyncFSFactory
 
 
 def get_identity_client(credentials_file: Optional[str] = None):
@@ -50,3 +51,11 @@ def get_cloud_async_fs(credentials_file: Optional[str] = None) -> AsyncFS:
 
     assert cloud == 'gcp', cloud
     return aiogoogle.GoogleStorageAsyncFS(credentials_file=credentials_file)
+
+
+def get_cloud_async_fs_factory() -> AsyncFSFactory:
+    cloud = get_global_config()['cloud']
+    if cloud == 'azure':
+        return aioazure.AzureAsyncFSFactory()
+    assert cloud == 'gcp', cloud
+    return aiogoogle.GoogleStorageAsyncFSFactory()
