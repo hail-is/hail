@@ -439,7 +439,7 @@ class AzureAsyncFS(AsyncFS):
             await asyncio.wait([client.close() for client in self._blob_service_clients.values()])
 
 
-class GoogleStorageAsyncFSFactory(AsyncFSFactory[AzureAsyncFS]):
+class AzureAsyncFSFactory(AsyncFSFactory[AzureAsyncFS]):
     def from_credentials_data(self, credentials_data: dict) -> AzureAsyncFS:
         del self
         return AzureAsyncFS(
