@@ -13,7 +13,7 @@ import is.hail.backend.{Backend, BackendContext, BroadcastValue, ExecuteContext,
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.{Compile, IR, IRParser, MakeTuple, SortField}
-import is.hail.io.fs.{FS, GoogleStorageFS}
+import is.hail.io.fs._
 import is.hail.linalg.BlockMatrix
 import is.hail.services._
 import is.hail.services.batch_client.BatchClient
@@ -429,7 +429,7 @@ class ServiceBackend(
   )(body: ExecuteContext => T): T = ExecutionTimer.logTime(methodName) { timer =>
     val fs = retryTransientErrors {
       using(new FileInputStream(s"$scratchDir/gsa-key/key.json")) { is =>
-        new GoogleStorageFS(IOUtils.toString(is, Charset.defaultCharset().toString())).asCacheable()
+        new GoogleStorageFS(Some(IOUtils.toString(is, Charset.defaultCharset().toString()))).asCacheable()
       }
     }
     ExecuteContext.scoped(tmpdir, "file:///tmp", this, fs, timer, null) { ctx =>
@@ -461,10 +461,9 @@ object ServiceBackendSocketAPI2 {
     }
     val fs = retryTransientErrors {
       using(new FileInputStream(s"$scratchDir/gsa-key/key.json")) { is =>
-        new GoogleStorageFS(IOUtils.toString(is, Charset.defaultCharset().toString())).asCacheable()
+        new GoogleStorageFS(Some(IOUtils.toString(is, Charset.defaultCharset().toString()))).asCacheable()
       }
     }
-
     val deployConfig = DeployConfig.fromConfigFile(
       s"$scratchDir/deploy-config/deploy-config.json")
     DeployConfig.set(deployConfig)
