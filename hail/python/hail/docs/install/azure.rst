@@ -7,7 +7,7 @@ desktop. The Hail pip package includes a tool called ``hailctl hdinsight`` which
 manipulates Hail-enabled HDInsight clusters.
 
 Start an HDInsight cluster named "my-first-cluster". Cluster names may only contain lowercase
-letters, uppercase letter, and numbers. You must have already have a storage account and resource
+letters, uppercase letter, and numbers. You must already have a storage account and resource
 group.
 
 .. code-block:: sh
