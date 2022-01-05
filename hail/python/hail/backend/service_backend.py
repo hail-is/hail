@@ -139,6 +139,7 @@ class ServiceBackend(Backend):
                 "MY_BILLING_PROJECT'"
             )
 
+        # FIXME: need to use remote tmpdir
         if bucket is None:
             bucket = get_user_config().get('batch', 'bucket', fallback=None)
         if bucket is None:

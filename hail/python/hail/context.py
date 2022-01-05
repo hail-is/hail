@@ -268,7 +268,8 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
 
     if os.environ.get('HAIL_QUERY_BACKEND') == 'service':
         import asyncio
-        warning('When using the query service backend, use `await init_service\'')
+        # NB: do not use warning because that will initialize Env._hc, which we are trying to do right now.
+        print('When using the query service backend, use `await init_service\'', file=sys.stderr)
         return asyncio.get_event_loop().run_until_complete(init_service(
             log=log,
             quiet=quiet,
