@@ -4,7 +4,6 @@ import is.hail.expr.Nat
 import is.hail.types.virtual._
 import is.hail.utils._
 
-// FIXME: strip all requiredness logic when possible
 object InferType {
   def apply(ir: IR): Type = {
     ir match {
