@@ -43,8 +43,8 @@ def parser():
 
     list_parser = subparsers.add_parser(
         'list',
-        help='List a job to an HDInsight cluster configured for Hail.',
-        description='List a job to an HDInsight cluster configured for Hail.')
+        help='List HDInsight clusters configured for Hail.',
+        description='List HDInsight clusters configured for Hail.')
 
     list_parser.set_defaults(module='list')
     list_clusters.init_parser(list_parser)
