@@ -426,7 +426,7 @@ class BatchBuilder:
 
     def create_job(self, image: str, command: List[str], *args, env=None, mount_docker_socket=False, **kwargs):
         return self._create_job(
-            {'command': command, 'image': image, 'mount_docker_socket': mount_docker_socket, 'type': 'docker'}, env=env, *args, **kwargs
+            {'command': command, 'image': image, 'mount_docker_socket': mount_docker_socket, 'type': 'docker'}, *args, env=env, **kwargs
         )
 
     def create_jvm_job(self, command: List[str], *args, **kwargs):
