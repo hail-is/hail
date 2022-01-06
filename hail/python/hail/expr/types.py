@@ -302,6 +302,10 @@ class HailType(object):
             self._context = self._get_context()
         return self._context
 
+    def to_numpy(self):
+        return object
+
+
 
 hail_type = oneof(HailType, transformed((str, dtype)))
 

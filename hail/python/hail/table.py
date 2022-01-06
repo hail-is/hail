@@ -3239,23 +3239,30 @@ class Table(ExprContainer):
 
     @typecheck_method(flatten=bool)
     def to_pandas(self, flatten=True):
-        """Converts this table to a Pandas DataFrame.
+        table = self.flatten() if flatten == True else self
+        dtypes_struct = table.row.dtype
+        collected_table = table.collect()
+        columns = list(collected_table[0].keys())
+        data = [[] for _ in range(len(columns))]
+        data_dict = {}
+        for row in collected_table:
+            for data_idx, column in enumerate(columns):
+                data[data_idx].append(row[column])
 
-        Because conversion to Pandas is done through Spark, and Spark
-        cannot represent complex types, types are expanded before
-        flattening or conversion.
+        for data_idx, column in enumerate(columns):
+            hl_dtype = dtypes_struct[column]
+            if hl_dtype == hl.tstr:
+                pd_dtype = 'string'
+            else:
+                pd_dtype = hl_dtype.to_numpy()
+            data_dict[column] = pandas.Series(data[data_idx], dtype=pd_dtype)
 
-        Parameters
-        ----------
-        flatten : :obj:`bool`
-            If ``True``, :meth:`flatten` before converting to Pandas DataFrame.
+        return pandas.DataFrame(data_dict)
 
-        Returns
-        -------
-        :class:`.pandas.DataFrame`
 
-        """
-        return Env.spark_backend('to_pandas').to_pandas(self, flatten)
+
+
+
 
     @staticmethod
     @typecheck(df=pandas.DataFrame,
