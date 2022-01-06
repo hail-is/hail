@@ -95,12 +95,13 @@ class BuildConfiguration:
         if requested_step_names:
             log.info(f"Constructing build configuration with steps: {requested_step_names}")
 
-        all_steps: List[Step] = []
+        runnable_steps: List[Step] = []
         name_step: Dict[str, Step] = {}
         for step_config in config['steps']:
             step = Step.from_json(StepParameters(code, scope, step_config, name_step))
-            name_step[step.name] = step
-            all_steps.append(step)
+            if step.name not in excluded_step_names and step.can_run_in_current_cloud():
+                name_step[step.name] = step
+                runnable_steps.append(step)
 
         if requested_step_names:
             # transitively close requested_step_names over dependencies
@@ -117,9 +118,9 @@ class BuildConfiguration:
 
             for step_name in requested_step_names:
                 visit_dependent(name_step[step_name])
-            self.steps = [step for step in all_steps if step in visited]
+            self.steps = [step for step in runnable_steps if step in visited]
         else:
-            self.steps = [step for step in all_steps if not step.run_if_requested and step.can_run_in_current_cloud()]
+            self.steps = [step for step in runnable_steps if not step.run_if_requested]
 
     def build(self, batch, code, scope):
         assert scope in ('deploy', 'test', 'dev')
@@ -157,7 +158,7 @@ class Step(abc.ABC):
             duplicates = [name for name, count in Counter(json['dependsOn']).items() if count > 1]
             if duplicates:
                 raise BuildConfigurationError(f'found duplicate dependencies of {self.name}: {duplicates}')
-            self.deps = [params.name_step[d] for d in json['dependsOn'] if params.name_step[d]]
+            self.deps = [params.name_step[d] for d in json['dependsOn'] if d in params.name_step]
         else:
             self.deps = []
         self.scopes = json.get('scopes')
