@@ -15,7 +15,7 @@ from hailtop.aiotools import AsyncFS
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
-from hailtop.utils import AsyncWorkerPool, retry_transient_errors, dump_all_stacktraces
+from hailtop.utils import retry_transient_errors, dump_all_stacktraces
 from hailtop import httpx
 from gear import setup_aiohttp_session, rest_authenticated_users_only, monitor_endpoints_middleware
 from gear.clients import get_cloud_async_fs_factory
