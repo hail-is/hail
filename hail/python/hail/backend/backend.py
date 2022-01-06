@@ -16,8 +16,8 @@ class Backend(abc.ABC):
         pass
 
     def execute_many(self, *irs, timed=False):
-        from ..expr.functions import tuple as hltuple  # pylint: disable=import-outside-toplevel
-        return [self.execute(hltuple([ir]), timed=timed)[0] for ir in irs]
+        from ..ir import MakeTuple  # pylint: disable=import-outside-toplevel
+        return [self.execute(MakeTuple([ir]), timed=timed)[0] for ir in irs]
 
     @abc.abstractmethod
     async def _async_execute_many(self, *irs, timed=False):
