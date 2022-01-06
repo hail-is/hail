@@ -82,13 +82,13 @@ async def get_or_add_user(app, userdata):
             if username not in users:
                 log.info(f'get_or_add_user: cache miss: {username}')
                 k8s_client = app['k8s_client']
-                hail_credentials_secret_name = await retry_transient_errors(
+                hail_credentials_secret = await retry_transient_errors(
                     k8s_client.read_namespaced_secret,
                     userdata['hail_credentials_secret_name'],
                     DEFAULT_NAMESPACE,
                     _request_timeout=5.0,
                 )
-                cloud_credentials_data = json.loads(base64.b64decode(hail_credentials_secret_name.data['key.json']).decode())
+                cloud_credentials_data = json.loads(base64.b64decode(hail_credentials_secret.data['key.json']).decode())
                 users[username] = {'fs': ASYNC_FS_FACTORY.from_credentials_data(cloud_credentials_data)}
     return users[username]
 

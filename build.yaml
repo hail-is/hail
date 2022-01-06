@@ -816,6 +816,29 @@ steps:
       - hail_build_image
       - merge_code
   - kind: runImage
+    name: build_wheel_for_azure
+    image:
+      valueFrom: hail_build_image.image
+    resources:
+      memory: standard
+      cpu: '4'
+    script: |
+      set -ex
+      cd /io/repo/hail
+      chmod 755 ./gradlew
+      time retry ./gradlew --version
+      export SPARK_VERSION="3.0.2" SCALA_VERSION="2.12.10"
+      time retry make wheel
+      (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
+    inputs:
+      - from: /repo
+        to: /io/repo
+    outputs:
+      - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
+        to: /wheel-for-azure-container.tar
+    dependsOn:
+      - hail_build_image
+      - merge_code
     name: compile_batch_worker_jvm_entryway
     image:
       valueFrom: base_image.image
@@ -4270,13 +4293,16 @@ steps:
       time retry ./gradlew --version
       make wheel upload-artifacts DEPLOY_REMOTE=origin
 
+      (cd /io/wheel-for-azure && tar xvf /io/wheel-for-azure-container.tar)
+
       bash scripts/deploy.sh $(cat /io/hail_pip_version) \
                              $(cat /io/hail_version) \
                              $(cat /io/git_version) \
                              origin \
                              /io/repo/hail/build/deploy/dist/hail-*-py3-none-any.whl \
                              /io/github-oauth \
-                             docker://{{ hailgenetics_hail_image.image }}
+                             docker://{{ hailgenetics_hail_image.image }} \
+                             /io/wheel-for-azure/hail-*-py3-none-any.whl
     inputs:
       - from: /hail_version
         to: /io/hail_version
@@ -4286,6 +4312,8 @@ steps:
         to: /io/git_version
       - from: /repo
         to: /io/repo
+      - from: /wheel-for-azure-container.tar
+        to: /io/wheel-for-azure-container.tar
     secrets:
       - name: pypi-credentials
         namespace:
@@ -4313,6 +4341,7 @@ steps:
       - build_hail
       - merge_code
       - hailgenetics_hail_image
+      - build_wheel_for_azure
     clouds:
       - gcp
   - kind: buildImage2

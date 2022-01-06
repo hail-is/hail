@@ -3,7 +3,16 @@
 source ../bootstrap_utils.sh
 
 setup_az() {
-    curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+    curl --connect-timeout 5 \
+         --max-time 10 \
+         --retry 5 \
+         --retry-all-errors \
+         --retry-max-time 40 \
+         --location \
+         --fail \
+         --silent \
+         --show-error \
+         https://aka.ms/InstallAzureCLIDeb | sudo bash
     az login --identity
 }
 

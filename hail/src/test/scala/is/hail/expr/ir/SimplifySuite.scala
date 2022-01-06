@@ -42,13 +42,16 @@ class SimplifySuite extends HailSuite {
 
   @Test def testInsertFieldsRewriteRules() {
     val ir1 = InsertFields(InsertFields(base, Seq("1" -> I32(2)), None), Seq("1" -> I32(3)), None)
-    assert(Simplify(ir1) == InsertFields(base, Seq("1" -> I32(3)), None))
+    assert(Simplify(ir1) == InsertFields(base, Seq("1" -> I32(3)), Some(FastIndexedSeq("1", "2"))))
 
     val ir2 = InsertFields(InsertFields(base, Seq("3" -> I32(2)), Some(FastIndexedSeq("3", "1", "2"))), Seq("3" -> I32(3)), None)
     assert(Simplify(ir2) == InsertFields(base, Seq("3" -> I32(3)), Some(FastIndexedSeq("3", "1", "2"))))
 
     val ir3 = InsertFields(InsertFields(base, Seq("3" -> I32(2)), Some(FastIndexedSeq("3", "1", "2"))), Seq("4" -> I32(3)), Some(FastIndexedSeq("3", "1", "2", "4")))
     assert(Simplify(ir3) == InsertFields(base, Seq("3" -> I32(2), "4" -> I32(3)), Some(FastIndexedSeq("3", "1", "2", "4"))))
+
+    val ir4 = InsertFields(InsertFields(base, Seq("3" -> I32(0), "4" -> I32(1))), Seq("3" -> I32(5)))
+    assert(Simplify(ir4) == InsertFields(base, Seq("4" -> I32(1), "3" -> I32(5)), Some(FastIndexedSeq("1", "2", "3", "4"))))
   }
 
   @Test def testInsertSelectRewriteRules() {
