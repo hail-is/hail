@@ -12,13 +12,13 @@ from prometheus_async.aio.web import server_stats  # type: ignore
 from typing import Set
 
 from hailtop.aiotools import AsyncFS
-from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS, GoogleCredentials
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
 from hailtop.utils import AsyncWorkerPool, retry_transient_errors, dump_all_stacktraces
 from hailtop import httpx
 from gear import setup_aiohttp_session, rest_authenticated_users_only, monitor_endpoints_middleware
+from gear.clients import get_cloud_async_fs_factory
 
 uvloop.install()
 
@@ -27,6 +27,8 @@ log = logging.getLogger('memory')
 routes = web.RouteTableDef()
 
 socket = '/redis/redis.sock'
+
+ASYNC_FS_FACTORY = get_cloud_async_fs_factory()
 
 
 @routes.get('/healthcheck')
@@ -70,15 +72,14 @@ async def get_or_add_user(app, userdata):
     username = userdata['username']
     if username not in users:
         k8s_client = app['k8s_client']
-        hail_identity_secret = await retry_transient_errors(
+        hail_credentials_secret = await retry_transient_errors(
             k8s_client.read_namespaced_secret,
             userdata['hail_credentials_secret_name'],
             DEFAULT_NAMESPACE,
             _request_timeout=5.0,
         )
-        gsa_key = json.loads(base64.b64decode(hail_identity_secret.data['key.json']).decode())
-        credentials = GoogleCredentials.from_credentials_data(gsa_key)
-        users[username] = {'fs': GoogleStorageAsyncFS(credentials=credentials)}
+        cloud_credentials_data = json.loads(base64.b64decode(hail_credentials_secret.data['key.json']).decode())
+        users[username] = {'fs': ASYNC_FS_FACTORY.from_credentials_data(cloud_credentials_data)}
     return users[username]
 
 
