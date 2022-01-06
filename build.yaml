@@ -591,7 +591,7 @@ steps:
       {% else %}
       DEPLOY=false
       {% endif %}
-    python3 ../ci/jinja2_render.py '{"deploy": '${DEPLOY}', {"global": "{{ global.domain }}"}, "default_ns": {"name": "{{ default_ns.name }}"}}' nginx.conf nginx.conf.out
+      python3 ../ci/jinja2_render.py '{"deploy": '${DEPLOY}', {"global": "{{ global.domain }}"}, "default_ns": {"name": "{{ default_ns.name }}"}}' nginx.conf nginx.conf.out
     inputs:
       - from: /repo
         to: /io/repo
