@@ -3248,7 +3248,7 @@ class Table(ExprContainer):
         for row in collected_table:
             for data_idx, column in enumerate(columns):
                 data[data_idx].append(row[column])
-
+        print(data)
         for data_idx, column in enumerate(columns):
             hl_dtype = dtypes_struct[column]
             if hl_dtype == hl.tstr:
