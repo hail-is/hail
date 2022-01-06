@@ -1,7 +1,7 @@
 from typing import Optional, AsyncGenerator, Any
 
 import aiohttp
-from hailtop.utils import RateLimit, sleep_and_backoff
+from hailtop.utils import RateLimit, sleep_and_backoff, url_and_params
 
 from ...common import CloudBaseClient
 from ..session import AzureSession
@@ -22,7 +22,8 @@ class AzureBaseClient(CloudBaseClient):
             yield v
         next_link = page.get('nextLink')
         while next_link is not None:
-            page = await self.get(url=next_link)
+            url, params = url_and_params(next_link)
+            page = await self.get(url=url, params=params)
             for v in page['value']:
                 yield v
             next_link = page.get('nextLink')
