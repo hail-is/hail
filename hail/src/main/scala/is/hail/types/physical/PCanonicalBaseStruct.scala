@@ -62,7 +62,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     if (!fieldRequired(fieldIdx))
       cb += Region.setBit(offset, missingIdx(fieldIdx).toLong)
     else
-      cb._fatal(s"Required field cannot be missing")
+      cb._fatal(s"Required field cannot be missing ${this.fields(fieldIdx)}")
   }
 
   override def setFieldPresent(offset: Long, fieldIdx: Int) {

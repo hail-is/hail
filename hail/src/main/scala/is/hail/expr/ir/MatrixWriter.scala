@@ -1,5 +1,7 @@
 package is.hail.expr.ir
 
+import scala.language.existentials
+
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
@@ -16,9 +18,9 @@ import is.hail.io.vcf.ExportVCF
 import is.hail.linalg.BlockMatrix
 import is.hail.rvd.{IndexSpec, RVDPartitioner, RVDSpecMaker}
 import is.hail.types.encoded.{EBaseStruct, EBlockMatrixNDArray, EType}
-import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.{EmitType, SCode}
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.{PCanonicalBaseStruct, PCanonicalString, PCanonicalStruct, PInt64, PStruct, PType}
+import is.hail.types.physical.{PBooleanRequired, PCanonicalBaseStruct, PCanonicalString, PCanonicalStruct, PInt64, PStruct, PType}
 import is.hail.types.virtual._
 import is.hail.types._
 import is.hail.utils._
@@ -156,11 +158,19 @@ case class MatrixNativeWriter(
                           WriteMetadata(files, RVDSpecWriter(s"$path/rows/rows", RVDSpecMaker(rowSpec, lowered.partitioner, rowsIndexSpec))),
                           WriteMetadata(files, RVDSpecWriter(s"$path/entries/rows", RVDSpecMaker(entrySpec, RVDPartitioner.unkeyed(lowered.numPartitions), entriesIndexSpec)))))
                       },
-                      bindIR(ToArray(mapIR(ToStream(partInfo)) { fc => GetField(fc, "partitionCounts") })) { counts =>
+                      bindIR(ToArray(mapIR(ToStream(partInfo)) { fc => SelectFields(fc, Seq("partitionCounts", "distinctlyKeyed", "firstKey", "lastKey")) })) { countsAndKeyInfo =>
                         Begin(FastIndexedSeq(
-                            WriteMetadata(counts, rowTableWriter),
-                            WriteMetadata(counts, entriesTableWriter),
-                            WriteMetadata(makestruct("cols" -> GetField(colInfo, "partitionCounts"), "rows" -> counts), matrixWriter)))
+                            WriteMetadata(countsAndKeyInfo, rowTableWriter),
+                            WriteMetadata(
+                              ToArray(mapIR(ToStream(countsAndKeyInfo)){countAndKeyInfo =>
+                                InsertFields(SelectFields(countAndKeyInfo, IndexedSeq("partitionCounts", "distinctlyKeyed")), IndexedSeq("firstKey" -> MakeStruct(Seq()), "lastKey" -> MakeStruct(Seq())))
+                              }),
+                              entriesTableWriter),
+                            WriteMetadata(
+                              makestruct(
+                                "cols" -> GetField(colInfo, "partitionCounts"),
+                                "rows" -> ToArray(mapIR(ToStream(countsAndKeyInfo)) {countAndKey => GetField(countAndKey, "partitionCounts")})),
+                              matrixWriter)))
                       }))
                   }
                 })))))
@@ -176,8 +186,12 @@ case class SplitPartitionNativeWriter(
   def hasIndex: Boolean = index.isDefined
   val filenameType = PCanonicalString(required = true)
   def pContextType = PCanonicalString()
+
+  val tmp = ifIndexed { index.get._2 }
+  val keyType = if (tmp == null) PCanonicalStruct() else tmp
+
   def pResultType: PCanonicalStruct =
-    PCanonicalStruct(required=true, "filePath" -> filenameType, "partitionCounts" -> PInt64(required=true))
+    PCanonicalStruct(required=true, "filePath" -> filenameType, "partitionCounts" -> PInt64(required=true), "distinctlyKeyed" -> PBooleanRequired, "firstKey" -> keyType.setRequired(false), "lastKey" -> keyType.setRequired(false))
 
   def ctxType: Type = TString
   def returnType: Type = pResultType.virtualType
@@ -196,12 +210,10 @@ case class SplitPartitionNativeWriter(
     stream: StreamProducer,
     context: EmitCode,
     region: Value[Region]): IEmitCode = {
-    val keyType = ifIndexed { index.get._2 }
     val iAnnotationType = PCanonicalStruct(required = true, "entries_offset" -> PInt64())
     val mb = cb.emb
 
     val indexWriter = ifIndexed { StagedIndexWriter.withDefaults(keyType, mb.ecb, annotationType = iAnnotationType) }
-
 
     context.toI(cb).map(cb) { pctx =>
       val result = mb.newLocal[Long]("write_result")
@@ -212,10 +224,26 @@ case class SplitPartitionNativeWriter(
       val os2 = mb.newLocal[ByteTrackingOutputStream]("write_os2")
       val ob2 = mb.newLocal[OutputBuffer]("write_ob2")
       val n = mb.newLocal[Long]("partition_count")
+      val distinctlyKeyed = mb.newLocal[Boolean]("distinctlyKeyed")
+      cb.assign(distinctlyKeyed, index.isDefined) // True until proven otherwise
+
+      val firstSeenSettable = mb.newEmitLocal(EmitType(keyType.sType, false))
+      val lastSeenSettable = mb.newEmitLocal(EmitType(keyType.sType, false))
+      // Start off missing, we will use this to determine if we haven't processed any rows yet.
+      cb.assign(firstSeenSettable, EmitCode.missing(cb.emb, keyType.sType))
+      cb.assign(lastSeenSettable, EmitCode.missing(cb.emb, keyType.sType))
 
 
       def writeFile(cb: EmitCodeBuilder, codeRow: EmitCode): Unit = {
         val row = codeRow.toI(cb).get(cb, "row can't be missing").asBaseStruct
+
+        val key = keyType.asInstanceOf[PCanonicalBaseStruct]
+          .constructFromFields(cb, stream.elementRegion,
+            keyType.fields.map{f =>
+              EmitCode.fromI(cb.emb)(cb => row.loadField(cb, f.name))
+            },
+            deepCopy = true)
+
         if (hasIndex) {
           indexWriter.add(cb, {
             IEmitCode.present(cb, keyType.asInstanceOf[PCanonicalBaseStruct]
@@ -229,6 +257,22 @@ case class SplitPartitionNativeWriter(
                 deepCopy = false))
           })
         }
+
+        cb.ifx(distinctlyKeyed, {
+          lastSeenSettable.loadI(cb).consume(cb, {
+            // If there's no last seen, we are in the first row.
+            cb.assign(firstSeenSettable, EmitValue.present(key.copyToRegion(cb, region, key.st)))
+          }, { lastSeen =>
+            val comparator = EQ(lastSeenSettable.emitType.virtualType).codeOrdering(cb.emb.ecb, lastSeenSettable.st, key.st)
+            val equalToLast = comparator(cb, lastSeenSettable, EmitValue.present(key))
+            cb.ifx(equalToLast.asInstanceOf[Value[Boolean]], {
+              cb.assign(distinctlyKeyed, false)
+            })
+          })
+        })
+        // Always want to do this, as lastSeen is returned at the end.
+        cb.assign(lastSeenSettable, IEmitCode.present(cb, key.copyToRegion(cb, region, key.st)))
+
         cb += ob1.writeByte(1.asInstanceOf[Byte])
 
         spec1.encodedType.buildEncoder(row.st, cb.emb.ecb)
@@ -270,6 +314,19 @@ case class SplitPartitionNativeWriter(
       cb += os2.invoke[Unit]("close")
       filenameType.storeAtAddress(cb, pResultType.fieldOffset(result, "filePath"), region, pctx, false)
       cb += Region.storeLong(pResultType.fieldOffset(result, "partitionCounts"), n)
+      cb += Region.storeBoolean(pResultType.fieldOffset(result, "distinctlyKeyed"), distinctlyKeyed)
+      firstSeenSettable.toI(cb).consume(cb, {
+        pResultType.setFieldMissing(cb, result, "firstKey")
+      }, { sv =>
+        keyType.storeAtAddress(cb, pResultType.fieldOffset(result, "firstKey"), region, sv, true)
+        pResultType.setFieldPresent(cb, result, "firstKey")
+      })
+      lastSeenSettable.toI(cb).consume(cb, {
+        pResultType.setFieldMissing(cb, result, "lastKey")
+      }, { sv =>
+        keyType.storeAtAddress(cb, pResultType.fieldOffset(result, "lastKey"), region, sv, true)
+        pResultType.setFieldPresent(cb, result, "lastKey")
+      })
       pResultType.loadCheapSCode(cb, result.get)
     }
   }

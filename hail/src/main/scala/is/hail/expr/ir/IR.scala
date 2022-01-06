@@ -792,7 +792,9 @@ abstract class MetadataWriter {
 
 final case class ReadPartition(context: IR, rowType: Type, reader: PartitionReader) extends IR
 final case class WritePartition(value: IR, writeCtx: IR, writer: PartitionWriter) extends IR
-final case class WriteMetadata(writeAnnotations: IR, writer: MetadataWriter) extends IR
+final case class WriteMetadata(writeAnnotations: IR, writer: MetadataWriter) extends IR {
+  assert(writeAnnotations.typ == writer.annotationType, s"${writeAnnotations.typ} != ${writer.annotationType}")
+}
 
 final case class ReadValue(path: IR, spec: AbstractTypedCodecSpec, requestedType: Type) extends IR
 final case class WriteValue(value: IR, path: IR, spec: AbstractTypedCodecSpec) extends IR

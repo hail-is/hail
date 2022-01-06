@@ -238,7 +238,6 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
           }, { lastSeen =>
             val comparator = EQ(lastSeenSettable.emitType.virtualType).codeOrdering(cb.emb.ecb, lastSeenSettable.st, key.st)
             val equalToLast = comparator(cb, lastSeenSettable, EmitValue.present(key))
-            // FIXME: Why do I need to cast here? Shouldn't it know it's a boolean?
             cb.ifx(equalToLast.asInstanceOf[Value[Boolean]], {
               cb.assign(distinctlyKeyed, false)
             })
@@ -246,6 +245,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
         })
         // Always want to do this, as lastSeen is returned at the end.
         cb.assign(lastSeenSettable, IEmitCode.present(cb, key.copyToRegion(cb, region, key.st)))
+
         cb += ob.writeByte(1.asInstanceOf[Byte])
 
         spec.encodedType.buildEncoder(row.st, cb.emb.ecb)
