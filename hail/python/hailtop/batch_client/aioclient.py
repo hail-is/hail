@@ -435,7 +435,7 @@ class BatchBuilder:
 
     def create_job(self,
                    image: str,
-                   command: str,
+                   command: List[str],
                    env: Optional[Dict[str, str]] = None,
                    mount_docker_socket: bool = False,
                    port: Optional[int] = None,
