@@ -424,9 +424,9 @@ class BatchBuilder:
 
         self._cancel_after_n_failures = cancel_after_n_failures
 
-    def create_job(self, image: str, command: List[str], *args, env=None, mount_docker_socket=False, **kwargs):
+    def create_job(self, image: str, command: List[str], env: Optional[Dict[str, str]] = None, mount_docker_socket: bool = False, *args, **kwargs):
         return self._create_job(
-            {'command': command, 'image': image, 'mount_docker_socket': mount_docker_socket, 'type': 'docker'}, *args, env=env, **kwargs
+            {'command': command, 'image': image, 'mount_docker_socket': mount_docker_socket, 'type': 'docker'}, env, *args, **kwargs
         )
 
     def create_jvm_job(self, command: List[str], *args, **kwargs):
