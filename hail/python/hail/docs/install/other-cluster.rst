@@ -2,8 +2,8 @@
 Install Hail on a Spark Cluster
 ===============================
 
-If you are using Google Dataproc, please see `these simpler instructions
-<dataproc.rst>`__.
+If you are using Google Dataproc, please see `these simpler instructions <dataproc.rst>`__. If you
+are using Azure HDInsight please see `these simpler instructions <azure.rst>`__.
 
 Hail should work with any Spark 3.1.1 cluster built with Scala 2.12.
 

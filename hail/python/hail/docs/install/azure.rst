@@ -1,19 +1,21 @@
 ===========================
-Use Hail on Google Dataproc
+Use Hail on Azure HDInsight
 ===========================
 
 First, install Hail on your `Mac OS X <macosx.rst>`__ or `Linux <linux.rst>`__ laptop or
-desktop. The Hail pip package includes a tool called ``hailctl dataproc`` which starts, stops, and
-manipulates Hail-enabled Dataproc clusters.
+desktop. The Hail pip package includes a tool called ``hailctl hdinsight`` which starts, stops, and
+manipulates Hail-enabled HDInsight clusters.
 
-Start a dataproc cluster named "my-first-cluster". Cluster names may only
-contain a mix lowercase letters and dashes. Starting a cluster can take as long
-as two minutes.
+Start an HDInsight cluster named "my-first-cluster". Cluster names may only contain lowercase
+letters, uppercase letter, and numbers. You must already have a storage account and resource
+group.
 
 .. code-block:: sh
 
-   hailctl dataproc start my-first-cluster
+   hailctl hdinsight start MyFirstCluster MyStorageAccount MyResourceGroup
 
+
+Be sure to record the generated http password so that you can access the cluster.
 
 Create a file called "hail-script.py" and place the following analysis of a
 randomly generated dataset with five-hundred samples and half-a-million
@@ -37,26 +39,23 @@ to wait more than a minute.
 
 .. code-block:: sh
 
-   hailctl dataproc submit my-first-cluster hail-script.py
+   hailctl hdinsight submit MyFirstCluster MyStorageAccount HTTP_PASSWORD MyResourceGroup hail-script.py
 
 When the script is done running you'll see 25 rows of variant association
 results.
 
-You can also start a Jupyter Notebook running on the cluster:
-
-.. code-block:: sh
-
-   hailctl dataproc connect my-first-cluster notebook
+You can also connect to a Jupyter Notebook running on the cluster at
+https://MyFirstCluster.azurehdinisght.net/jupyter
 
 When you are finished with the cluster stop it:
 
 .. code-block:: sh
 
-   hailctl dataproc stop my-first-cluster
+   hailctl hdinsight stop MyFirstCluster MyStorageAccount MyResourceGroup
 
 Next Steps
 """"""""""
 
-- Read more about Hail on `Google Cloud <../cloud/google_cloud.rst>`__
+- Read more about Hail on `Azure HDInsight <../cloud/azure.rst>`__
 - Get the `Hail cheatsheets <../cheatsheets.rst>`__
 - Follow the Hail `GWAS Tutorial <../tutorials/01-genome-wide-association-study.rst>`__
