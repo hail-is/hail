@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 import os
 import json
 import time
@@ -8,7 +8,7 @@ from urllib.parse import urlencode
 import jwt
 from hailtop.utils import request_retry_transient_errors
 import hailtop.httpx
-from ..common.credentials import CloudCredentials
+from ..common.credentials import AnonymousCloudCredentials, CloudCredentials
 
 log = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ class GoogleCredentials(CloudCredentials):
         raise ValueError(f'unknown Google Cloud credentials type {credentials_type}')
 
     @staticmethod
-    def default_credentials() -> 'GoogleCredentials':
+    def default_credentials() -> Union['GoogleCredentials', AnonymousCloudCredentials]:
         credentials_file = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
 
         if credentials_file is None:
@@ -81,7 +81,7 @@ class GoogleCredentials(CloudCredentials):
 
         log.warning('Using anonymous credentials. If accessing private data, '
                     'run `gcloud auth application-default login` first to log in.')
-        return GoogleAnonymousCredentials()
+        return AnonymousCloudCredentials()
 
     async def auth_headers(self) -> Dict[str, str]:
         if self._access_token is None or self._access_token.expired():
@@ -173,17 +173,3 @@ class GoogleInstanceMetadataCredentials(GoogleCredentials):
         except socket.gaierror:
             return False
         return True
-
-
-class GoogleAnonymousCredentials(GoogleCredentials):
-    def __init__(self):  # pylint: disable=super-init-not-called
-        pass
-
-    async def auth_headers(self) -> Dict[str, str]:
-        return {}
-
-    async def _get_access_token(self) -> GoogleExpiringAccessToken:
-        raise NotImplementedError
-
-    async def close(self):
-        pass
