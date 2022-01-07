@@ -1733,8 +1733,8 @@ def test_to_pandas():
     python_data = {
         "idx": pd.Series([0, 1, 2], dtype=np.int32),
         "s": pd.Series(["foo", "bar", "baz"], dtype='string'),
-        "nested.foo": pd.Series([0, 1, 2], dtype=np.int32),
-        "nested.bar": pd.Series([[], [0], [0, 1]], dtype=object)
+        "nested": pd.Series([hl.Struct(foo=0, bar=[]), hl.Struct(foo=1, bar=[0]),
+                             hl.Struct(foo=2, bar=[0, 1])], dtype=object)
     }
 
     df_from_python = pd.DataFrame(python_data)
@@ -1753,6 +1753,21 @@ def test_to_pandas_flatten():
         "s": pd.Series(["foo", "bar", "baz"], dtype='string'),
         "nested.foo": pd.Series([0, 1, 2], dtype=np.int32),
         "nested.bar": pd.Series([[], [0], [0, 1]], dtype=object)
+    }
+
+    df_from_python = pd.DataFrame(python_data)
+    pd.testing.assert_frame_equal(df_from_hail, df_from_python)
+
+
+def test_to_pandas_nd_array():
+    import numpy as np
+    ht = hl.utils.range_table(3)
+    ht = ht.annotate(nd=hl.nd.arange(3))
+    df_from_hail = ht.to_pandas()
+
+    python_data = {
+        "idx": pd.Series([0, 1, 2], dtype=np.int32),
+        "nd": pd.Series([np.arange(3), np.arange(3), np.arange(3)])
     }
 
     df_from_python = pd.DataFrame(python_data)

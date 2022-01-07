@@ -3241,21 +3241,19 @@ class Table(ExprContainer):
     def to_pandas(self, flatten=True):
         table = self.flatten() if flatten == True else self
         dtypes_struct = table.row.dtype
-        collected_table = table.collect()
-        columns = list(collected_table[0].keys())
-        data = [[] for _ in range(len(columns))]
+        collect_dict = {key: hl.agg.collect(value) for key, value in table.row.items()}
+        table.aggregate(hl.struct(**collect_dict))
+        column_struct_array = table.aggregate(hl.struct(**collect_dict))
+        columns = list(column_struct_array.keys())
         data_dict = {}
-        for row in collected_table:
-            for data_idx, column in enumerate(columns):
-                data[data_idx].append(row[column])
-        print(data)
+
         for data_idx, column in enumerate(columns):
             hl_dtype = dtypes_struct[column]
             if hl_dtype == hl.tstr:
                 pd_dtype = 'string'
             else:
                 pd_dtype = hl_dtype.to_numpy()
-            data_dict[column] = pandas.Series(data[data_idx], dtype=pd_dtype)
+            data_dict[column] = pandas.Series(column_struct_array[column], dtype=pd_dtype)
 
         return pandas.DataFrame(data_dict)
 
