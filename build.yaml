@@ -1156,10 +1156,10 @@ steps:
       - hail_ubuntu_image
       - merge_code
   - kind: buildImage2
-    name: hail_pip_installed_python36_image
-    dockerFile: /io/repo/hail/Dockerfile.hail-pip-installed-python36
+    name: hail_pip_installed_python38_image
+    dockerFile: /io/repo/hail/Dockerfile.hail-pip-installed-python38
     contextPath: /io/repo
-    publishAs: hail-pip-installed-python36
+    publishAs: hail-pip-installed-python38
     inputs:
       - from: /repo
         to: /io/repo
@@ -1189,9 +1189,9 @@ steps:
     dependsOn:
       - hail_pip_installed_python37_image
   - kind: runImage
-    name: check_hail_python36
+    name: check_hail_python38
     image:
-      valueFrom: hail_pip_installed_python36_image.image
+      valueFrom: hail_pip_installed_python38_image.image
     script: |
       set -x
       SITE_PACKAGES=$(pip3 show hail | grep Location | sed 's/Location: //')
@@ -1206,7 +1206,7 @@ steps:
 
       exit $exit_status
     dependsOn:
-      - hail_pip_installed_python36_image
+      - hail_pip_installed_python38_image
   - kind: buildImage2
     name: notebook_image
     dockerFile: /io/repo/notebook/Dockerfile
