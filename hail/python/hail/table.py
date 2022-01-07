@@ -3323,7 +3323,7 @@ class Table(ExprContainer):
         -------
         :class:`.Table`
         """
-        return Env.spark_backend('from_pandas').from_pandas(df, key)
+
 
     @typecheck_method(other=table_type, tolerance=nullable(numeric), absolute=bool)
     def _same(self, other, tolerance=1e-6, absolute=False):

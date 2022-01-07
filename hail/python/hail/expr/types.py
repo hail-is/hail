@@ -2037,6 +2037,32 @@ def from_numpy(np_dtype):
     else:
         raise ValueError(f"numpy type {np_dtype} could not be converted to a hail type.")
 
+def from_pandas(pd_dtype, obj):
+    import pandas as pd
+
+    if type(pd_dtype) == pd.StringDtype:
+        return hl.tstr
+    elif pd_dtype == np.int32:
+        return hl.tint32
+    elif pd_dtype == np.int64:
+        return hl.int64
+    elif pd_dtype == np.float32:
+        return tfloat32
+    elif pd_dtype == np.float64:
+        return tfloat64
+    elif pd_dtype == np.bool:
+        return tbool
+    elif pd_dtype == object:
+        if isinstance(obj, list):
+            return hl.tarray
+        elif isinstance(obj, dict):
+            return hl.tdict
+        elif isinstance(obj, tuple):
+            return hl.ttuple
+        elif isinstance(obj, set):
+            return hl.tset
+
+    raise ValueError(f"pandas type {pd_dtype} could not be converted to a hail type")
 
 class tvariable(HailType):
     _cond_map = {
