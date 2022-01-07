@@ -10,7 +10,7 @@ import java.util.concurrent.*;
 import org.newsclub.net.unix.*;
 
 class JVMEntryway {
-  // private static final HashMap<String, ClassLoader> classLoaders = new HashMap<>();
+  private static final HashMap<String, ClassLoader> classLoaders = new HashMap<>();
 
   public static String throwableToString(Throwable t) throws IOException {
     try (StringWriter sw = new StringWriter();
@@ -60,49 +60,31 @@ class JVMEntryway {
         String classPath = realArgs[0];
         String mainClass = realArgs[1];
 
-        // var hailRootCL = classLoaders.get(classPath)
-        // if (hailRootCL == null) {
-        //   System.err.println("no extant classLoader for " + classPath);
-        String[] urlStrings = classPath.split(",");
-        ArrayList<URL> urls = new ArrayList<>();
-        for (int i = 0; i < urlStrings.length; ++i) {
-          File file = new File(urlStrings[i]);
-          urls.add(file.toURI().toURL());
-          if (file.isDirectory()) {
-            for (final File f : file.listFiles()) {
-              urls.add(f.toURI().toURL());
+        ClassLoader cl = classLoaders.get(classPath);
+        if (cl == null) {
+          System.err.println("no extant classLoader for " + classPath);
+          String[] urlStrings = classPath.split(",");
+          ArrayList<URL> urls = new ArrayList<>();
+          for (int i = 0; i < urlStrings.length; ++i) {
+            File file = new File(urlStrings[i]);
+            urls.add(file.toURI().toURL());
+            if (file.isDirectory()) {
+              for (final File f : file.listFiles()) {
+                urls.add(f.toURI().toURL());
+              }
             }
           }
+          cl = new URLClassLoader(urls.toArray(new URL[0]));
+          classLoaders.put(classPath, cl);
+        } else {
+          System.err.println("reusing extant classLoader for " + classPath);
         }
-        ClassLoader cl = new URLClassLoader(urls.toArray(new URL[0]));
-        //   hailRootCL = new URLClassLoader(urls.toArray(new URL[0]));
-        //   classLoaders.put(classPath, hailRootCL);
-        // }
+        final ClassLoader hailRootCL = cl;
 
-        // if (hailRootCL == null) {
-        //   System.err.println("no extant classLoader for " + classPath);
-        //   String[] urlStrings = classPath.split(",");
-        //   ArrayList<URL> urls = new ArrayList<>();
-        //   for (int i = 0; i < urlStrings.length; ++i) {
-        //     File file = new File(urlStrings[i]);
-        //     urls.add(file.toURI().toURL());
-        //     if (file.isDirectory()) {
-        //       for (final File f : file.listFiles()) {
-        //         urls.add(f.toURI().toURL());
-        //       }
-        //     }
-        //   }
-        //   hailRootCL = new URLClassLoader(urls.toArray(new URL[0]));
-        //   classLoaders.put(classPath, hailRootCL);
-        // }
-        // System.err.println("have classLoader for " + classPath);
-        // URL[] emptyURLArray = {};
-        // ClassLoader cl = new URLClassLoader(emptyURLArray, hailRootCL);
-        System.err.println("have fresh classLoader for this job");
-        Class<?> klass = cl.loadClass(mainClass);
-        System.err.println("class loaded ");
+        Class<?> klass = hailRootCL.loadClass(mainClass);
+        System.err.println("class loaded");
         Method main = klass.getDeclaredMethod("main", String[].class);
-        System.err.println("main method got ");
+        System.err.println("main method got");
 
         CompletionService<?> gather = new ExecutorCompletionService<Object>(executor);
         Future<?> mainThread = null;
@@ -113,7 +95,7 @@ class JVMEntryway {
           mainThread = gather.submit(new Runnable() {
               public void run() {
                 ClassLoader oldClassLoader = Thread.currentThread().getContextClassLoader();
-                Thread.currentThread().setContextClassLoader(cl);
+                Thread.currentThread().setContextClassLoader(hailRootCL);
                 try {
                   String[] mainArgs = new String[nRealArgs - 2];
                   for (int i = 2; i < nRealArgs; ++i) {
@@ -130,7 +112,7 @@ class JVMEntryway {
           shouldCancelThread = gather.submit(new Runnable() {
               public void run() {
                 ClassLoader oldClassLoader = Thread.currentThread().getContextClassLoader();
-                Thread.currentThread().setContextClassLoader(cl);
+                Thread.currentThread().setContextClassLoader(hailRootCL);
                 try {
                   int i = in.readInt();
                   assert i == 0 : i;

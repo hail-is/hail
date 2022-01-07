@@ -52,6 +52,7 @@ object Worker {
     javaConcurrent.Executors.newCachedThreadPool())
 
   def main(args: Array[String]): Unit = {
+    val theHailClassLoader = new HailClassLoader(getClass().getClassLoader())
 
     if (args.length != 5) {
       throw new IllegalArgumentException(s"expected five arguments, not: ${ args.length }")
@@ -85,7 +86,7 @@ object Worker {
     val fFuture = Future {
       retryTransientErrors( {
         using(new ObjectInputStream(fs.openCachedNoCompression(s"$root/f"))) { is =>
-          is.readObject().asInstanceOf[(Array[Byte], HailTaskContext, FS) => Array[Byte]]
+          is.readObject().asInstanceOf[(Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]]
         }
       }, retry404 = true)
     }
@@ -118,7 +119,7 @@ object Worker {
         new ServiceBackend(null, null, null, new HailClassLoader(getClass().getClassLoader())), skipLoggingConfiguration = true, quiet = true)
     }
     val htc = new ServiceTaskContext(i)
-    val result = f(context, htc, fs)
+    val result = f(context, htc, theHailClassLoader, fs)
     htc.finish()
 
     timer.end("executeFunction")

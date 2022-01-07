@@ -28,6 +28,15 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
   def genEmitClass[C](baseName: String, sourceFile: Option[String] = None)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] =
     newEmitClass[C](genName("C", baseName), sourceFile)
 
+  private[this] val _staticHailClassLoader: StaticField[HailClassLoader] = {
+    val cls = genEmitClass[Unit]("HailClassLoaderContainer")
+    cls.newStaticField[HailClassLoader]("hailClassLoader", Code._null[HailClassLoader])
+  }
+
+  def setHailClassLoader(cb: EmitCodeBuilder, fs: Code[HailClassLoader]): Unit = cb += _staticHailClassLoader.put(fs)
+
+  def getHailClassLoader: Value[HailClassLoader] = new StaticFieldRef(_staticHailClassLoader)
+
   private[this] val _staticFS: StaticField[FS] = {
     val cls = genEmitClass[Unit]("FSContainer")
     cls.newStaticField[FS]("filesystem", Code._null[FS])
@@ -107,6 +116,8 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
   def fieldBuilder: SettableBuilder = cb.fieldBuilder
 
   def result(print: Option[PrintWriter] = None): (HailClassLoader) => C = cb.result(print)
+
+  def getHailClassLoader: Code[HailClassLoader] = ecb.getHailClassLoader
 
   def getFS: Code[FS] = ecb.getFS
 
@@ -429,6 +440,8 @@ class EmitClassBuilder[C](
     _mods += name -> mod
   }
 
+  def getHailClassLoader: Code[HailClassLoader] = emodb.getHailClassLoader
+
   def getFS: Code[FS] = emodb.getFS
 
   def getObject[T <: AnyRef : TypeInfo](obj: T): Code[T] = {
@@ -570,6 +583,14 @@ class EmitClassBuilder[C](
     mb2.emit(poolField := mb2.getCodeParam[RegionPool](1))
   }
 
+  def makeAddHailClassLoader(): Unit = {
+    cb.addInterface(typeInfo[FunctionWithHailClassLoader].iname)
+    val mb = newEmitMethod("addHailClassLoader", FastIndexedSeq[ParamType](typeInfo[HailClassLoader]), typeInfo[Unit])
+    mb.voidWithBuilder { cb =>
+      emodb.setHailClassLoader(cb, mb.getCodeParam[HailClassLoader](1))
+    }
+  }
+
   def makeAddFS(): Unit = {
     cb.addInterface(typeInfo[FunctionWithFS].iname)
     val mb = newEmitMethod("addFS", FastIndexedSeq[ParamType](typeInfo[FS]), typeInfo[Unit])
@@ -623,6 +644,7 @@ class EmitClassBuilder[C](
   def resultWithIndex(print: Option[PrintWriter] = None): (HailClassLoader, FS, Int, Region) => C = {
     makeRNGs()
     makeAddPartitionRegion()
+    makeAddHailClassLoader()
     makeAddFS()
 
     val hasLiterals: Boolean = literalsMap.nonEmpty || encodedLiteralsMap.nonEmpty
@@ -672,6 +694,7 @@ class EmitClassBuilder[C](
           }
         }
         val f = theClass.newInstance().asInstanceOf[C]
+        f.asInstanceOf[FunctionWithHailClassLoader].addHailClassLoader(hcl)
         f.asInstanceOf[FunctionWithFS].addFS(fs)
         f.asInstanceOf[FunctionWithPartitionRegion].addPartitionRegion(region)
         f.asInstanceOf[FunctionWithPartitionRegion].setPool(region.pool)
@@ -799,6 +822,10 @@ trait FunctionWithAggRegion {
   def setSerializedAgg(i: Int, b: Array[Byte]): Unit
 
   def getSerializedAgg(i: Int): Array[Byte]
+}
+
+trait FunctionWithHailClassLoader {
+  def addHailClassLoader(fs: HailClassLoader): Unit
 }
 
 trait FunctionWithFS {

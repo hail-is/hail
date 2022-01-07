@@ -103,7 +103,7 @@ class ServiceBackend(
     _fs: FS,
     collection: Array[Array[Byte]],
     dependency: Option[TableStageDependency] = None
-  )(f: (Array[Byte], HailTaskContext, FS) => Array[Byte]
+  )(f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
   ): Array[Array[Byte]] = {
     val backendContext = _backendContext.asInstanceOf[ServiceBackendContext]
     val fs = _fs.asInstanceOf[ServiceCacheableFS]
