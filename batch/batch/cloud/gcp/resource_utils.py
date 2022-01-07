@@ -23,11 +23,7 @@ for typ in ('highcpu', 'standard', 'highmem'):
         gcp_valid_machine_types.append(f'{GCP_MACHINE_FAMILY}-{typ}-{cores}')
 
 
-gcp_memory_to_worker_type = {
-    'lowmem': 'highcpu',
-    'standard': 'standard',
-    'highmem': 'highmem'
-}
+gcp_memory_to_worker_type = {'lowmem': 'highcpu', 'standard': 'standard', 'highmem': 'highmem'}
 
 
 class MachineTypeParts:
@@ -115,7 +111,7 @@ def gcp_requested_to_actual_storage_bytes(storage_bytes, allow_zero_storage):
     if allow_zero_storage and storage_bytes == 0:
         return storage_bytes
     # minimum storage for a GCE instance is 10Gi
-    return max(10 * 1024**3, storage_bytes)
+    return max(10 * 1024 ** 3, storage_bytes)
 
 
 def gcp_is_valid_storage_request(storage_in_gib: int) -> bool:
