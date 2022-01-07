@@ -3239,6 +3239,18 @@ class Table(ExprContainer):
 
     @typecheck_method(flatten=bool)
     def to_pandas(self, flatten=True):
+        """Converts this table to a Pandas DataFrame.
+
+        Parameters
+        ----------
+        flatten : :obj:`bool`
+            If ``True``, :meth:`flatten` before converting to Pandas DataFrame.
+
+        Returns
+        -------
+        :class:`.pandas.DataFrame`
+
+        """
         table = self.flatten() if flatten == True else self
         dtypes_struct = table.row.dtype
         collect_dict = {key: hl.agg.collect(value) for key, value in table.row.items()}
