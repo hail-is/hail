@@ -61,6 +61,7 @@ class ServiceBackend(
   val revision: String,
   val jarLocation: String,
   var name: String,
+  val theHailClassLoader: HailClassLoader,
   val scratchDir: String = sys.env.get("HAIL_WORKER_SCRATCH_DIR").getOrElse("")
 ) extends Backend {
   import ServiceBackend.log
@@ -75,10 +76,10 @@ class ServiceBackend(
     assert(previous == null)
   }
 
-  def userContext[T](username: String, timer: ExecutionTimer)(f: (ExecuteContext) => T): T = {
+  def userContext[T](username: String, timer: ExecutionTimer, theHailClassLoader: HailClassLoader)(f: (ExecuteContext) => T): T = {
     val user = users.get(username)
     assert(user != null, username)
-    ExecuteContext.scoped(user.tmpdir, "file:///tmp", this, user.fs, timer, null)(f)
+    ExecuteContext.scoped(user.tmpdir, "file:///tmp", this, user.fs, timer, null, theHailClassLoader)(f)
   }
 
   def defaultParallelism: Int = 10
@@ -320,7 +321,7 @@ class ServiceBackend(
         x,
         optimize = true)
 
-      f(ctx.fs, 0, ctx.r)(ctx.r)
+      f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)
       None
     } else {
       val (Some(PTypeReferenceSingleCodeType(pt)), f) = Compile[AsmFunction1RegionLong](ctx,
@@ -329,7 +330,7 @@ class ServiceBackend(
         MakeTuple.ordered(FastIndexedSeq(x)),
         optimize = true)
 
-      val a = f(ctx.fs, 0, ctx.r)(ctx.r)
+      val a = f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)
       val retPType = pt.asInstanceOf[PBaseStruct]
       Some((new UnsafeRow(retPType, ctx.r, a).get(0), retPType.types(0)))
     }
@@ -432,7 +433,7 @@ class ServiceBackend(
         new GoogleStorageFS(Some(IOUtils.toString(is, Charset.defaultCharset().toString()))).asCacheable()
       }
     }
-    ExecuteContext.scoped(tmpdir, "file:///tmp", this, fs, timer, null) { ctx =>
+    ExecuteContext.scoped(tmpdir, "file:///tmp", this, fs, timer, null, theHailClassLoader) { ctx =>
       ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, bucket)
       body(ctx)
     }
@@ -453,7 +454,9 @@ object ServiceBackendSocketAPI2 {
     val input = argv(4)
     val output = argv(5)
 
-    val backend = new ServiceBackend(revision, jarLocation, name, scratchDir)
+    // FIXME: when can the classloader be shared? (optimizer benefits!)
+    val backend = new ServiceBackend(
+      revision, jarLocation, name, new HailClassLoader(getClass().getClassLoader()), scratchDir)
     if (HailContext.isInitialized) {
       HailContext.get.backend = backend
     } else {

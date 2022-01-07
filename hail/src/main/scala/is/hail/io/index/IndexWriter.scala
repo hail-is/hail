@@ -257,10 +257,12 @@ object StagedIndexWriter {
 
     val makeFB = fb.resultWithIndex()
 
-    val fsBc = ctx.fsBc;
+    val fsBc = ctx.fsBc
+
     { (path: String, pool: RegionPool) =>
       pool.scopedRegion { r =>
-        val f = makeFB(fsBc.value, 0, r)
+        // FIXME: This seems wrong? But also, anywhere we use broadcasting for the FS is wrong.
+        val f = makeFB(theHailClassLoaderForSparkWorkers, fsBc.value, 0, r)
         f.init(path)
         f
       }

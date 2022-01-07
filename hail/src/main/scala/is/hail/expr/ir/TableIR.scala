@@ -317,7 +317,7 @@ object LoweredTableReader {
       summary,
       optimize = true)
 
-    val a = f(ctx.fs, 0, ctx.r)(ctx.r)
+    val a = f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)
     val s = SafeRow(resultPType, a)
 
     val ksorted = s.getBoolean(0)
@@ -496,7 +496,7 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
       LongInfo,
       PruneDeadFields.upcast(Ref("elt", rvd.rowType), requestedType))
 
-    val upcastCode = mb.getObject[Function3[FS, Int, Region, AsmFunction2RegionLongLong]](upcast)
+    val upcastCode = mb.getObject[Function4[HailClassLoader, FS, Int, Region, AsmFunction2RegionLongLong]](upcast)
 
     val rowPType = rvd.rowPType.subsetTo(requestedType)
 
@@ -1078,7 +1078,7 @@ case class TableNativeZippedReader(
         .typedCodecSpec.encodedType.decodedPType(requestedType.globalType))
   }
 
-  def fieldInserter(ctx: ExecuteContext, pLeft: PStruct, pRight: PStruct): (PStruct, (FS, Int, Region) => AsmFunction3RegionLongLongLong) = {
+  def fieldInserter(ctx: ExecuteContext, pLeft: PStruct, pRight: PStruct): (PStruct, (HailClassLoader, FS, Int, Region) => AsmFunction3RegionLongLongLong) = {
     val (Some(PTypeReferenceSingleCodeType(t: PStruct)), mk) = ir.Compile[AsmFunction3RegionLongLongLong](ctx,
       FastIndexedSeq("left" -> SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(pLeft)), "right" -> SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(pRight))),
       FastIndexedSeq(typeInfo[Region], LongInfo, LongInfo), LongInfo,
@@ -1433,7 +1433,7 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
       Coalesce(FastIndexedSeq(pred, False())))
 
     new TableValueIntermediate(
-      tv.filterWithPartitionOp(ctx.fsBc, f)((rowF, ctx, ptr, globalPtr) => rowF(ctx.region, ptr, globalPtr)))
+      tv.filterWithPartitionOp(ctx.theHailClassLoader, ctx.fsBc, f)((rowF, ctx, ptr, globalPtr) => rowF(ctx.region, ptr, globalPtr)))
   }
 }
 
@@ -1961,7 +1961,7 @@ case class TableMapPartitions(child: TableIR,
         def apply(outerRegion: Region, eltRegion: Region): Iterator[java.lang.Long] =
           partition(new RVDContext(outerRegion, eltRegion)).map(box)
       }
-      makeIterator(fsBc.value, idx, consumerCtx,
+      makeIterator(theHailClassLoaderForSparkWorkers, fsBc.value, idx, consumerCtx,
         globalsBc.value.readRegionValue(consumerCtx.partitionRegion),
         boxedPartition
       ).map(l => l.longValue())
@@ -2022,7 +2022,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         else
           0
 
-        val newRow = f(fsBc.value, i, globalRegion)
+        val newRow = f(theHailClassLoaderForSparkWorkers, fsBc.value, i, globalRegion)
         it.map { ptr =>
           newRow(ctx.r, globals, ptr)
         }
@@ -2314,7 +2314,7 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
         newGlobals,
         Die("Internal error: TableMapGlobals: globals missing", newGlobals.typ))))
 
-    val resultOff = f(ctx.fs, 0, ctx.r)(ctx.r, tv.globals.value.offset)
+    val resultOff = f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r, tv.globals.value.offset)
     new TableValueIntermediate(
       tv.copy(typ = typ,
         globals = BroadcastRow(ctx, RegionValue(ctx.r, resultOff), resultPType)))
@@ -2386,8 +2386,8 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
         prev.globals,
         prev.rvd.boundary.mapPartitionsWithIndex(rvdType) { (i, ctx, it) =>
           val globalRegion = ctx.partitionRegion
-          val lenF = l(fsBc.value, i, globalRegion)
-          val rowF = f(fsBc.value, i, globalRegion)
+          val lenF = l(theHailClassLoaderForSparkWorkers, fsBc.value, i, globalRegion)
+          val rowF = f(theHailClassLoaderForSparkWorkers, fsBc.value, i, globalRegion)
           it.flatMap { ptr =>
             val len = lenF(ctx.region, ptr)
             new Iterator[Long] {
@@ -2580,7 +2580,7 @@ case class TableKeyByAndAggregate(
         val partRegion = ctx.partitionRegion
         val globals = globalsBc.value.readRegionValue(partRegion)
         val makeKey = {
-          val f = makeKeyF(fsBc.value, i, partRegion)
+          val f = makeKeyF(theHailClassLoaderForSparkWorkers, fsBc.value, i, partRegion)
           ptr: Long => {
             val keyOff = f(ctx.region, ptr, globals)
             SafeRow.read(localKeyPType, keyOff).asInstanceOf[Row]

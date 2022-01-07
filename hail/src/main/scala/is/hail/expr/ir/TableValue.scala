@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.asm4s.HailClassLoader
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.backend.{BroadcastValue, ExecuteContext}
@@ -96,17 +97,17 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
   def persist(ctx: ExecuteContext, level: StorageLevel) =
     TableValue(ctx, typ, globals, rvd.persist(ctx, level))
 
-  def filterWithPartitionOp[P](fs: BroadcastValue[FS], partitionOp: (FS, Int, Region) => P)(pred: (P, RVDContext, Long, Long) => Boolean): TableValue = {
+  def filterWithPartitionOp[P](theHailClassLoader: HailClassLoader, fs: BroadcastValue[FS], partitionOp: (HailClassLoader, FS, Int, Region) => P)(pred: (P, RVDContext, Long, Long) => Boolean): TableValue = {
     val localGlobals = globals.broadcast
     copy(rvd = rvd.filterWithContext[(P, Long)](
       { (partitionIdx, ctx) =>
         val globalRegion = ctx.partitionRegion
-        (partitionOp(fs.value, partitionIdx, globalRegion), localGlobals.value.readRegionValue(globalRegion))
+        (partitionOp(theHailClassLoader, fs.value, partitionIdx, globalRegion), localGlobals.value.readRegionValue(globalRegion))
       }, { case ((p, glob), ctx, ptr) => pred(p, ctx, ptr, glob) }))
   }
 
-  def filter(fs: BroadcastValue[FS], p: (RVDContext, Long, Long) => Boolean): TableValue = {
-    filterWithPartitionOp(fs, (_, _, _) => ())((_, ctx, ptr, glob) => p(ctx, ptr, glob))
+  def filter(theHailClassLoader: HailClassLoader, fs: BroadcastValue[FS], p: (RVDContext, Long, Long) => Boolean): TableValue = {
+    filterWithPartitionOp(theHailClassLoader, fs, (_, _, _, _) => ())((_, ctx, ptr, glob) => p(ctx, ptr, glob))
   }
 
   def export(ctx: ExecuteContext, path: String, typesFile: String = null, header: Boolean = true, exportType: String = ExportType.CONCATENATED, delimiter: String = "\t") {

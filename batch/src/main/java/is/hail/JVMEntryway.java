@@ -60,6 +60,9 @@ class JVMEntryway {
         String classPath = realArgs[0];
         String mainClass = realArgs[1];
 
+        // var hailRootCL = classLoaders.get(classPath)
+        // if (hailRootCL == null) {
+        //   System.err.println("no extant classLoader for " + classPath);
         String[] urlStrings = classPath.split(",");
         ArrayList<URL> urls = new ArrayList<>();
         for (int i = 0; i < urlStrings.length; ++i) {
@@ -72,6 +75,9 @@ class JVMEntryway {
           }
         }
         ClassLoader cl = new URLClassLoader(urls.toArray(new URL[0]));
+        //   hailRootCL = new URLClassLoader(urls.toArray(new URL[0]));
+        //   classLoaders.put(classPath, hailRootCL);
+        // }
 
         // if (hailRootCL == null) {
         //   System.err.println("no extant classLoader for " + classPath);

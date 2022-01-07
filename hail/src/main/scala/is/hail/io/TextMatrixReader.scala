@@ -665,7 +665,7 @@ class CompiledLineParser(
     if (hasHeader && headerPartitions.contains(partition))
       it.next()
 
-    val parse = loadParserOnWorker()
+    val parse = loadParserOnWorker(ctx.theHailClassLoader)
     val fileLineIndex = partitionRowIndexFile(partition)
     val globalLineIndex = partitionRowIndexGlobal(partition)
 

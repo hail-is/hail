@@ -815,7 +815,7 @@ object Interpret {
               FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
               MakeTuple.ordered(FastSeq(wrappedIR)),
               optimize = false)
-            (rt.get, makeFunction(ctx.fs, 0, region))
+            (rt.get, makeFunction(ctx.theHailClassLoader, ctx.fs, 0, region))
           })
           val rvb = new RegionValueBuilder()
           rvb.set(region)
@@ -883,7 +883,7 @@ object Interpret {
 
           // TODO Is this right? where does wrapped run?
           ctx.r.pool.scopedRegion { region =>
-            SafeRow(rt, f(ctx.fs, 0, region)(region, globalsOffset))
+            SafeRow(rt, f(ctx.theHailClassLoader, ctx.fs, 0, region)(region, globalsOffset))
           }
         } else {
           val spec = BufferSpec.defaultUncompressed
@@ -1002,7 +1002,7 @@ object Interpret {
           MakeTuple.ordered(FastSeq(child)),
           optimize = false)
         ctx.r.pool.scopedRegion { r =>
-          SafeRow.read(rt, makeFunction(ctx.fs, 0, r)(r)).asInstanceOf[Row](0)
+          SafeRow.read(rt, makeFunction(ctx.theHailClassLoader, ctx.fs, 0, r)(r)).asInstanceOf[Row](0)
         }
       case UUID4(_) =>
          uuid4()

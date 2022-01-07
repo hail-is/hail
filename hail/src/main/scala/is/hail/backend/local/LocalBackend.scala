@@ -64,7 +64,7 @@ class LocalBackend(
   val fs: FS = new HadoopFS(new SerializableHadoopConfiguration(hadoopConf))
 
   def withExecuteContext[T](timer: ExecutionTimer)(f: ExecuteContext => T): T = {
-    ExecuteContext.scoped(tmpdir, tmpdir, this, fs, timer, null)(f)
+    ExecuteContext.scoped(tmpdir, tmpdir, this, fs, timer, null, new HailClassLoader(getClass().getClassLoader()))(f)
   }
 
   def broadcast[T: ClassTag](value: T): BroadcastValue[T] = new LocalBroadcastValue[T](value)
@@ -107,7 +107,7 @@ class LocalBackend(
       }
 
       ctx.timer.time("Run") {
-        f(fs, 0, ctx.r).apply(ctx.r)
+        f(ctx.theHailClassLoader, fs, 0, ctx.r).apply(ctx.r)
         (pt, 0)
       }
     } else {
@@ -120,7 +120,7 @@ class LocalBackend(
       }
 
       ctx.timer.time("Run") {
-        (pt, f(fs, 0, ctx.r).apply(ctx.r))
+        (pt, f(ctx.theHailClassLoader, fs, 0, ctx.r).apply(ctx.r))
       }
     }
   }

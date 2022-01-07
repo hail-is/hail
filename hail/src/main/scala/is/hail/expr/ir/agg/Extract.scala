@@ -271,7 +271,8 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
     val fsBc = ctx.fsBc
 
     { (l: RegionValue, r: RegionValue) =>
-      val comb = f(fsBc.value, 0, l.region)
+      // FIXME: this seems wrong? we cannot use broadcasted FSes in the service backend
+      val comb = f(theHailClassLoaderForSparkWorkers, fsBc.value, 0, l.region)
       l.setOffset(comb(l.region, l.offset, r.region, r.offset))
       r.region.invalidate()
       l

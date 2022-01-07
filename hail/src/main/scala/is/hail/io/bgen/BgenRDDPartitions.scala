@@ -178,7 +178,7 @@ object CompileDecoder {
   def apply(
     ctx: ExecuteContext,
     settings: BgenSettings
-  ): (FS, Int, Region) => AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long] = {
+  ): (HailClassLoader, FS, Int, Region) => AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long] = {
     val fb = EmitFunctionBuilder[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long](ctx, "bgen_rdd_decoder")
     val mb = fb.apply_method
     val rowType = settings.rowPType

@@ -1,7 +1,7 @@
 package is.hail.rvd
 
 import is.hail.annotations._
-import is.hail.asm4s.AsmFunction3RegionLongLongLong
+import is.hail.asm4s.{HailClassLoader, AsmFunction3RegionLongLongLong}
 import is.hail.backend.ExecuteContext
 import is.hail.expr.{JSONAnnotationImpex, ir}
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
@@ -212,7 +212,7 @@ object AbstractRVDSpec {
     requestedType: Type,
     leftRType: TStruct, rightRType: TStruct,
     requestedKey: IndexedSeq[String],
-    fieldInserter: (ExecuteContext, PStruct, PStruct) => (PStruct, (FS, Int, Region) => AsmFunction3RegionLongLongLong)
+    fieldInserter: (ExecuteContext, PStruct, PStruct) => (PStruct, (HailClassLoader, FS, Int, Region) => AsmFunction3RegionLongLongLong)
   ): RVD = {
     require(specRight.key.isEmpty)
     val partitioner = specLeft.partitioner

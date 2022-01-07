@@ -254,6 +254,7 @@ class SparkBackend(
   val sc: SparkContext
 ) extends Backend with Closeable {
   lazy val sparkSession: SparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
+  private[this] val theHailClassLoader: HailClassLoader = new HailClassLoader(getClass().getClassLoader())
 
   val fs: HadoopFS = new HadoopFS(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
   private[this] val longLifeTempFileManager: TempFileManager = new OwningTempFileManager(fs)
@@ -272,7 +273,8 @@ class SparkBackend(
 
   def withExecuteContext[T](timer: ExecutionTimer, selfContainedExecution: Boolean = true)(f: ExecuteContext => T): T = {
     ExecuteContext.scoped(tmpdir, localTmpdir, this, fs, timer,
-      if (selfContainedExecution) null else new NonOwningTempFileManager(longLifeTempFileManager))(f)
+      if (selfContainedExecution) null else new NonOwningTempFileManager(longLifeTempFileManager),
+      theHailClassLoader)(f)
   }
 
   def broadcast[T : ClassTag](value: T): BroadcastValue[T] = new SparkBroadcastValue[T](sc.broadcast(value))
@@ -342,7 +344,7 @@ class SparkBackend(
             ir,
             print = print)
         }
-        ctx.timer.time("Run")(Left(f(ctx.fs, 0, ctx.r)(ctx.r)))
+        ctx.timer.time("Run")(Left(f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)))
 
       case _ =>
         val (Some(PTypeReferenceSingleCodeType(pt: PTuple)), f) = ctx.timer.time("Compile") {
@@ -352,7 +354,7 @@ class SparkBackend(
             MakeTuple.ordered(FastSeq(ir)),
             print = print)
         }
-        ctx.timer.time("Run")(Right((pt, f(ctx.fs, 0, ctx.r).apply(ctx.r))))
+        ctx.timer.time("Run")(Right((pt, f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r).apply(ctx.r))))
     }
 
     res

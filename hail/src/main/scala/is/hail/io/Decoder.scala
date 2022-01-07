@@ -17,14 +17,14 @@ trait Decoder extends Closeable {
   def seek(offset: Long): Unit
 }
 
-final class CompiledDecoder(in: InputBuffer, f: () => DecoderAsmFunction) extends Decoder {
+final class CompiledDecoder(in: InputBuffer, theHailClassLoader: HailClassLoader, f: (HailClassLoader) => DecoderAsmFunction) extends Decoder {
   def close() {
     in.close()
   }
 
   def readByte(): Byte = in.readByte()
 
-  private[this] val compiled = f()
+  private[this] val compiled = f(theHailClassLoader)
   def readRegionValue(r: Region): Long = {
     compiled(r, in)
   }

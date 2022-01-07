@@ -106,7 +106,7 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def fieldBuilder: SettableBuilder = cb.fieldBuilder
 
-  def result(print: Option[PrintWriter] = None): () => C = cb.result(print)
+  def result(print: Option[PrintWriter] = None): (HailClassLoader) => C = cb.result(print)
 
   def getFS: Code[FS] = ecb.getFS
 
@@ -120,7 +120,7 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def backend(): Code[BackendUtils] = ecb.backend()
 
-  def addModule(name: String, mod: (FS, Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit =
+  def addModule(name: String, mod: (HailClassLoader, FS, Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit =
     ecb.addModule(name, mod)
 
   def partitionRegion: Settable[Region] = ecb.partitionRegion
@@ -152,7 +152,7 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def newRNG(seed: Long): Value[IRRandomness] = ecb.newRNG(seed)
 
-  def resultWithIndex(print: Option[PrintWriter] = None): (FS, Int, Region) => C = ecb.resultWithIndex(print)
+  def resultWithIndex(print: Option[PrintWriter] = None): (HailClassLoader, FS, Int, Region) => C = ecb.resultWithIndex(print)
 
   def getOrGenEmitMethod(
     baseName: String, key: Any, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType
@@ -206,7 +206,7 @@ class EmitClassBuilder[C](
 
   def fieldBuilder: SettableBuilder = cb.fieldBuilder
 
-  def result(print: Option[PrintWriter] = None): () => C = cb.result(print)
+  def result(print: Option[PrintWriter] = None): (HailClassLoader) => C = cb.result(print)
 
   // EmitClassBuilder methods
 
@@ -317,7 +317,7 @@ class EmitClassBuilder[C](
   private[this] var _objectsField: Settable[Array[AnyRef]] = _
   private[this] var _objects: BoxedArrayBuilder[AnyRef] = _
 
-  private[this] var _mods: BoxedArrayBuilder[(String, (FS, Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new BoxedArrayBuilder()
+  private[this] var _mods: BoxedArrayBuilder[(String, (HailClassLoader, FS, Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new BoxedArrayBuilder()
   private[this] var _backendField: Settable[BackendUtils] = _
 
   private[this] var _aggSigs: Array[agg.AggStateSig] = _
@@ -425,7 +425,7 @@ class EmitClassBuilder[C](
     poolField
   }
 
-  def addModule(name: String, mod: (FS, Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit = {
+  def addModule(name: String, mod: (HailClassLoader, FS, Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit = {
     _mods += name -> mod
   }
 
@@ -620,7 +620,7 @@ class EmitClassBuilder[C](
     rng
   }
 
-  def resultWithIndex(print: Option[PrintWriter] = None): (FS, Int, Region) => C = {
+  def resultWithIndex(print: Option[PrintWriter] = None): (HailClassLoader, FS, Int, Region) => C = {
     makeRNGs()
     makeAddPartitionRegion()
     makeAddFS()
@@ -659,15 +659,15 @@ class EmitClassBuilder[C](
     val n = cb.className.replace("/", ".")
     val classesBytes = modb.classesBytes(print)
 
-    new ((FS, Int, Region) => C) with java.io.Serializable {
+    new ((HailClassLoader, FS, Int, Region) => C) with java.io.Serializable {
       @transient @volatile private var theClass: Class[_] = null
 
-      def apply(fs: FS, idx: Int, region: Region): C = {
+      def apply(hcl: HailClassLoader, fs: FS, idx: Int, region: Region): C = {
         if (theClass == null) {
           this.synchronized {
             if (theClass == null) {
-              classesBytes.load()
-              theClass = loadClass(n)
+              classesBytes.load(hcl)
+              theClass = loadClass(hcl, n)
             }
           }
         }

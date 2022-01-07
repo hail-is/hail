@@ -18,7 +18,7 @@ trait Encoder extends Closeable {
   def indexOffset(): Long
 }
 
-final class CompiledEncoder(out: OutputBuffer, f: () => EncoderAsmFunction) extends Encoder {
+final class CompiledEncoder(out: OutputBuffer, theHailClassLoader: HailClassLoader, f: (HailClassLoader) => EncoderAsmFunction) extends Encoder {
   def flush() {
     out.flush()
   }
@@ -27,7 +27,7 @@ final class CompiledEncoder(out: OutputBuffer, f: () => EncoderAsmFunction) exte
     out.close()
   }
 
-  private[this] val compiled = f()
+  private[this] val compiled = f(theHailClassLoader)
   def writeRegionValue(offset: Long) {
     compiled(offset, out)
   }

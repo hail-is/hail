@@ -4,6 +4,7 @@ import java.io._
 import java.nio.charset._
 import java.util.{concurrent => javaConcurrent}
 
+import is.hail.asm4s._
 import is.hail.{HAIL_REVISION, HailContext}
 import is.hail.backend.HailTaskContext
 import is.hail.io.fs._
@@ -110,11 +111,11 @@ object Worker {
     timer.start("executeFunction")
 
     if (HailContext.isInitialized) {
-      HailContext.get.backend = new ServiceBackend(null, null, null)
+      HailContext.get.backend = new ServiceBackend(null, null, null, new HailClassLoader(getClass().getClassLoader()))
     } else {
       HailContext(
         // FIXME: workers should not have backends, but some things do need hail contexts
-        new ServiceBackend(null, null, null), skipLoggingConfiguration = true, quiet = true)
+        new ServiceBackend(null, null, null, new HailClassLoader(getClass().getClassLoader())), skipLoggingConfiguration = true, quiet = true)
     }
     val htc = new ServiceTaskContext(i)
     val result = f(context, htc, fs)

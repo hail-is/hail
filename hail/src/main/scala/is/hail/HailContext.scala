@@ -232,10 +232,12 @@ object HailContext {
         HailContext.readRowsPartition(makeDec)(ctx.r, in, metrics)
     }
 
-  def readSplitRowsPartition(fs: BroadcastValue[FS],
+  def readSplitRowsPartition(
+    theHailClassLoader: HailClassLoader,
+    fs: BroadcastValue[FS],
     mkRowsDec: (InputStream) => Decoder,
     mkEntriesDec: (InputStream) => Decoder,
-    mkInserter: (FS, Int, Region) => AsmFunction3RegionLongLongLong
+    mkInserter: (HailClassLoader, FS, Int, Region) => AsmFunction3RegionLongLongLong
   )(ctx: RVDContext,
     isRows: InputStream,
     isEntries: InputStream,
@@ -245,7 +247,7 @@ object HailContext {
     bounds: Option[Interval],
     partIdx: Int,
     metrics: InputMetrics = null
-  ): Iterator[Long] = new MaybeIndexedReadZippedIterator(mkRowsDec, mkEntriesDec, mkInserter(fs.value, partIdx, ctx.partitionRegion),
+  ): Iterator[Long] = new MaybeIndexedReadZippedIterator(mkRowsDec, mkEntriesDec, mkInserter(theHailClassLoader, fs.value, partIdx, ctx.partitionRegion),
     ctx.r,
     isRows, isEntries,
     idxr.orNull, rowsOffsetField.orNull, entriesOffsetField.orNull, bounds.orNull, metrics)
@@ -355,7 +357,7 @@ object HailContext {
     bounds: Array[Interval],
     makeRowsDec: InputStream => Decoder,
     makeEntriesDec: InputStream => Decoder,
-    makeInserter: (FS, Int, Region) => AsmFunction3RegionLongLongLong
+    makeInserter: (HailClassLoader, FS, Int, Region) => AsmFunction3RegionLongLongLong
   ): ContextRDD[Long] = {
     require(!(indexSpecRows.isEmpty ^ indexSpecEntries.isEmpty))
     val fsBc = ctx.fsBc
@@ -390,7 +392,7 @@ object HailContext {
       assert(it.hasNext)
       val (isRows, isEntries, idxr, bounds, m) = it.next
       assert(!it.hasNext)
-      HailContext.readSplitRowsPartition(fsBc, makeRowsDec, makeEntriesDec, makeInserter)(
+      HailContext.readSplitRowsPartition(theHailClassLoaderForSparkWorkers, fsBc, makeRowsDec, makeEntriesDec, makeInserter)(
         ctx, isRows, isEntries, idxr, rowsOffsetField, entriesOffsetField, bounds, i, m)
     }
 
