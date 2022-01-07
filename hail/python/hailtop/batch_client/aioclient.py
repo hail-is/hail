@@ -10,7 +10,7 @@ import secrets
 
 from hailtop.config import get_deploy_config, DeployConfig
 from hailtop.auth import service_auth_headers
-from hailtop.utils import bounded_gather, request_retry_transient_errors, tqdm, TQDM_DEFAULT_DISABLE
+from hailtop.utils import bounded_gather, request_retry_transient_errors, tqdm
 from hailtop import httpx
 
 from .globals import tasks, complete_states
@@ -390,7 +390,7 @@ class Batch:
             return await self.status()  # updates _last_known_status
         return self._last_known_status
 
-    async def wait(self, *, disable_progress_bar=TQDM_DEFAULT_DISABLE):
+    async def wait(self, *, disable_progress_bar=False):
         i = 0
         with tqdm(total=self.n_jobs,
                   disable=disable_progress_bar,
@@ -618,7 +618,7 @@ class BatchBuilder:
     async def submit(self,
                      max_bunch_bytesize: int = MAX_BUNCH_BYTESIZE,
                      max_bunch_size: int = MAX_BUNCH_SIZE,
-                     disable_progress_bar: Optional[bool] = TQDM_DEFAULT_DISABLE,
+                     disable_progress_bar: bool = False,
                      ):
         assert max_bunch_bytesize > 0
         assert max_bunch_size > 0
