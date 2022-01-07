@@ -618,7 +618,7 @@ class BatchBuilder:
     async def submit(self,
                      max_bunch_bytesize: int = MAX_BUNCH_BYTESIZE,
                      max_bunch_size: int = MAX_BUNCH_SIZE,
-                     disable_progress_bar: bool = False,
+                     disable_progress_bar: Optional[bool] = False,
                      ):
         assert max_bunch_bytesize > 0
         assert max_bunch_size > 0
