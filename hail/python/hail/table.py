@@ -3323,7 +3323,14 @@ class Table(ExprContainer):
         -------
         :class:`.Table`
         """
+    values = df.values.tolist()
+    fields = list(df.columns)
+    data_array = []
+    hl_type_array = []
 
+    for value_row in values:
+        row_dict = {fields[i] : value_row[i] for i in range(len(fields))}
+        data_array.append(row_dict)
 
     @typecheck_method(other=table_type, tolerance=nullable(numeric), absolute=bool)
     def _same(self, other, tolerance=1e-6, absolute=False):
