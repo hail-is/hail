@@ -1,6 +1,12 @@
+_VERSION = None
+
+
 def version() -> str:
-    import pkg_resources  # pylint: disable=import-outside-toplevel
-    return pkg_resources.resource_string(__name__, 'hail_version').decode().strip()
+    global _VERSION
+    if _VERSION is None:
+        import pkg_resources  # pylint: disable=import-outside-toplevel
+        _VERSION = pkg_resources.resource_string(__name__, 'hail_version').decode().strip()
+    return _VERSION
 
 
 def pip_version() -> str:
