@@ -424,16 +424,17 @@ class BatchBuilder:
 
         self._cancel_after_n_failures = cancel_after_n_failures
 
-    def create_job(self, image: str, command: List[str], env: Optional[Dict[str, str]] = None, mount_docker_socket: bool = False, *args, **kwargs):
+    def create_job(self, image: str, command: List[str], *, mount_docker_socket: bool = False, **kwargs):
         return self._create_job(
-            {'command': command, 'image': image, 'mount_docker_socket': mount_docker_socket, 'type': 'docker'}, env, *args, **kwargs
+            {'command': command, 'image': image, 'mount_docker_socket': mount_docker_socket, 'type': 'docker'}, **kwargs
         )
 
-    def create_jvm_job(self, command: List[str], *args, **kwargs):
-        return self._create_job({'command': command, 'type': 'jvm'}, *args, **kwargs)
+    def create_jvm_job(self, command: List[str], **kwargs):
+        return self._create_job({'command': command, 'type': 'jvm'}, **kwargs)
 
     def _create_job(self,
                     process: dict,
+                    *,
                     env: Optional[Dict[str, str]] = None,
                     port: Optional[int] = None,
                     resources=None,
