@@ -124,8 +124,8 @@ async def test_open_nonexistent_file(filesystem: Tuple[asyncio.Semaphore, AsyncF
     try:
         async with await fs.open(file) as f:
             await f.read()
-    except FileNotFoundError:
-        pass
+    except FileNotFoundError as e:
+        assert file in str(e), e
     else:
         assert False
 

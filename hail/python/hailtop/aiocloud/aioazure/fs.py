@@ -166,7 +166,12 @@ class AzureReadableStream(ReadableStream):
             try:
                 self._downloader = await self._client.download_blob(offset=self._offset)
             except azure.core.exceptions.ResourceNotFoundError as e:
-                raise FileNotFoundError from e
+                full_name = (
+                    f'{self._client.account_name}/'
+                    f'{self._client.container_name}/'
+                    f'{self._client.blob_name}'
+                )
+                raise FileNotFoundError(full_name) from e
 
         if self._chunk_it is None:
             self._chunk_it = self._downloader.chunks()
