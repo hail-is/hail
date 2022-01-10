@@ -1,5 +1,5 @@
 from typing import Dict, Optional
-from typing_extensions import Literal
+from typing_extensions import Literal, get_args
 import secrets
 from shlex import quote as shq
 import json
@@ -398,7 +398,7 @@ class PR(Code):
                         f'github sent multiple status summaries for context {context}: {s}\n\n{statuses_json}'
                     )
                 status = s['state']
-                assert status in ('success', 'pending', 'failure')
+                assert status in get_args(GithubStatus)
                 hail_statuses[context] = status
         return hail_statuses
 
