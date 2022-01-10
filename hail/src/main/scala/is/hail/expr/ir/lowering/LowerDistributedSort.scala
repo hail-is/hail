@@ -214,7 +214,7 @@ object LowerDistributedSort {
         print = None,
         optimize = true))
 
-      val fPivotsBySegmentNumberRunnable = ctx.timer.time("LowerDistributedSort.distributedSort.initialize")(fPerPartStats(ctx.fs, 0, ctx.r))
+      val fPivotsBySegmentNumberRunnable = ctx.timer.time("LowerDistributedSort.distributedSort.initialize")(fPerPartStats(ctx.theHailClassLoader, ctx.fs, 0, ctx.r))
       val pivotsWithEndpointsGroupedBySegmentNumberAddr = ctx.timer.time("LowerDistributedSort.distributedSort.run")(fPivotsBySegmentNumberRunnable(ctx.r))
       val pivotsWithEndpointsAndInfoGroupedBySegmentNumber = ctx.timer.time("LowerDistributedSort.distributedSort.toJavaObject")(SafeRow.read(pivotsWithEndpointsGroupedBySegmentNumberP, pivotsWithEndpointsGroupedBySegmentNumberAddr))
         .asInstanceOf[IndexedSeq[Row]].map(x => (x(0).asInstanceOf[IndexedSeq[Row]], x(1).asInstanceOf[Boolean], x(2).asInstanceOf[Row]))
@@ -260,7 +260,7 @@ object LowerDistributedSort {
           print = None,
           optimize = true))
 
-        val fRunnable = ctx.timer.time("LowerDistributedSort.distributedSort.initialize")(f(ctx.fs, 0, ctx.r))
+        val fRunnable = ctx.timer.time("LowerDistributedSort.distributedSort.initialize")(f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r))
         val resultAddress = ctx.timer.time("LowerDistributedSort.distributedSort.run")(fRunnable(ctx.r))
         val distributeResult = ctx.timer.time("LowerDistributedSort.distributedSort.toJavaObject")(SafeRow.read(resultPType, resultAddress))
           .asInstanceOf[IndexedSeq[Row]].map(row => (

@@ -302,7 +302,7 @@ class ServiceBackend(Backend):
             ret = None
         else:
             ret = typ._convert_from_json_na(resp['value'])
-        print('timings: ' + orjson.dumps(timings).decode('utf-8'))
+        print('timings: ' + orjson.dumps(timings.to_dict()).decode('utf-8'))
         if timed:
             return ret, timings
         return ret
