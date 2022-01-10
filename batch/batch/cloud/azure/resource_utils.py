@@ -2,7 +2,7 @@ import re
 import logging
 from typing import Optional, Tuple, Dict
 import sortedcontainers
-
+import math
 from ...globals import RESERVED_STORAGE_GB_PER_CORE
 
 log = logging.getLogger('resource_utils')
@@ -102,6 +102,12 @@ def azure_disk_from_storage_in_gib(disk_type: str, storage_in_gib: int) -> Optio
     return disks[index]
 
 
+def azure_disk_from_storage_in_bytes(disk_type: str, storage_in_bytes: int) -> Optional[AzureDisk]:
+    storage_in_gib = storage_in_bytes / 1024 / 1024 / 1024
+    storage_in_gib = math.ceil(storage_in_gib)
+    return azure_disk_from_storage_in_gib(disk_type, storage_in_gib)
+
+
 class MachineTypeParts:
     @staticmethod
     def from_dict(data: dict) -> 'MachineTypeParts':
@@ -197,8 +203,13 @@ def azure_requested_to_actual_storage_bytes(storage_bytes, allow_zero_storage):
         return None
     if allow_zero_storage and storage_bytes == 0:
         return storage_bytes
+
     # actual minimum storage size is 4 Gi on Azure, but keeping 10 to be consistent with gcp
-    return max(10 * 1024 ** 3, storage_bytes)
+    storage_bytes = max(10 * 1024 ** 3, storage_bytes)
+
+    # assuming Premium disks because this is used for computing user's external storage
+    disk = azure_disk_from_storage_in_gib('P', storage_bytes)
+    return disk.size_in_gib * 1024 ** 3
 
 
 def azure_is_valid_storage_request(storage_in_gib: int) -> bool:

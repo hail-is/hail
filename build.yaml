@@ -4317,6 +4317,7 @@ steps:
       az deployment group list --resource-group $AZURE_RESOURCE_GROUP -o tsv \
           --query "[?tags.namespace == '{{ default_ns.name }}'].name" \
         | xargs -n1 -r sh -c 'az deployment delete --name "$1" || true' argv0
+      ### FIXME: Need to delete disks!!!
     secrets:
       - name: test-gsa-key
         namespace:

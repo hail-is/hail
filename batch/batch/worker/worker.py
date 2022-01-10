@@ -150,7 +150,7 @@ log.info(f'MAX_IDLE_TIME_MSECS {MAX_IDLE_TIME_MSECS}')
 log.info(f'INTERNET_INTERFACE {INTERNET_INTERFACE}')
 log.info(f'UNRESERVED_WORKER_DATA_DISK_SIZE_GB {UNRESERVED_WORKER_DATA_DISK_SIZE_GB}')
 
-instance_config = CLOUD_WORKER_API.instance_config_from_config_dict(INSTANCE_CONFIG)
+instance_config = CLOUD_WORKER_API.instance_config
 assert instance_config.cores == CORES
 assert instance_config.cloud == CLOUD
 
@@ -166,6 +166,8 @@ worker: Optional['Worker'] = None
 image_configs: Dict[str, Dict[str, Any]] = dict()
 
 image_lock = aiorwlock.RWLock()
+
+DISK_OPERATION_TIMEOUT_SECONDS = 10 * 60
 
 
 class PortAllocator:
@@ -1388,14 +1390,17 @@ class DockerJob(Job):
                 # https://cloud.google.com/compute/docs/reference/rest/v1/disks#resource:-disk
                 # under the information for the name field
                 uid = self.token[:20]
-                self.disk = CLOUD_WORKER_API.create_disk(
+                labels = {'namespace': NAMESPACE, 'batch': '1', 'instance-name': NAME, 'uid': uid}
+
+                self.disk = await CLOUD_WORKER_API.new_disk(
                     instance_name=NAME,
                     disk_name=f'batch-disk-{uid}',
                     size_in_gb=self.external_storage_in_gib,
-                    mount_path=self.io_host_path(),
+                    mount_path=self.io_host_path()
                 )
-                labels = {'namespace': NAMESPACE, 'batch': '1', 'instance-name': NAME, 'uid': uid}
-                await self.disk.create(labels=labels)
+
+                await asyncio.wait_for(self.disk.create(labels), DISK_OPERATION_TIMEOUT_SECONDS)
+
                 log.info(f'created disk {self.disk.name} for job {self.id}')
                 return
 
@@ -1496,14 +1501,12 @@ class DockerJob(Job):
                 with self.step('post-job finally block'):
                     if self.disk:
                         try:
-                            await self.disk.delete()
+                            await asyncio.wait_for(await CLOUD_WORKER_API.delete_disk(self.disk), DISK_OPERATION_TIMEOUT_SECONDS)
                             log.info(f'deleted disk {self.disk.name} for {self.id}')
                         except asyncio.CancelledError:
                             raise
                         except Exception:
                             log.exception(f'while detaching and deleting disk {self.disk.name} for {self.id}')
-                        finally:
-                            await self.disk.close()
                     else:
                         self.worker.data_disk_space_remaining.value += self.external_storage_in_gib
 

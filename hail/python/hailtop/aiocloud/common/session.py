@@ -22,6 +22,9 @@ class BaseSession(abc.ABC):
     async def put(self, url: str, **kwargs):
         return await self.request('PUT', url, **kwargs)
 
+    async def patch(self, url: str, **kwargs):
+        return await self.request('PATCH', url, **kwargs)
+
     async def delete(self, url: str, **kwargs):
         return await self.request('DELETE', url, **kwargs)
 

@@ -1,10 +1,11 @@
 import logging
+import asyncio
 from typing import Dict, Optional
 
-from hailtop.utils import check_shell_output, LoggingTimer, retry_all_errors_n_times
+from hailtop.utils import LoggingTimer
 from hailtop.aiocloud import aiogoogle
 
-from ....worker.disk import CloudDisk
+from ....worker.disk import CloudDisk, CloudDiskManager
 
 log = logging.getLogger('disk')
 
@@ -27,8 +28,8 @@ class GCPDisk(CloudDisk):
         self.size_in_gb = size_in_gb
         self.mount_path = mount_path
 
-        self._created = False
-        self._attached = False
+        self.created = False
+        self.attached = False
 
         self.disk_path = f'/dev/disk/by-id/google-{self.name}'
 
@@ -49,25 +50,6 @@ class GCPDisk(CloudDisk):
     async def close(self):
         await self.compute_client.close()
 
-    async def _unmount(self):
-        if self._attached:
-            await retry_all_errors_n_times(
-                max_errors=10, msg=f'error while unmounting disk {self.name}', error_logging_interval=3
-            )(check_shell_output, f'umount -v {self.disk_path} {self.mount_path}')
-
-    async def _format(self):
-        async def format_disk():
-            await check_shell_output(
-                f'mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard {self.disk_path}'
-            )
-            await check_shell_output(f'mkdir -p {self.mount_path}')
-            await check_shell_output(f'mount -o discard,defaults {self.disk_path} {self.mount_path}')
-            await check_shell_output(f'chmod a+w {self.mount_path}')
-
-        await retry_all_errors_n_times(
-            max_errors=10, msg=f'error while formatting disk {self.name}', error_logging_interval=3
-        )(format_disk)
-
     async def _create(self, labels: Optional[Dict[str, str]] = None):
         async with LoggingTimer(f'creating disk {self.name}'):
             if labels is None:
@@ -81,7 +63,7 @@ class GCPDisk(CloudDisk):
             }
 
             await self.compute_client.create_disk(f'/zones/{self.zone}/disks', json=config)
-            self._created = True
+            self.created = True
 
     async def _attach(self):
         async with LoggingTimer(f'attaching disk {self.name} to {self.instance_name}'):
@@ -94,19 +76,41 @@ class GCPDisk(CloudDisk):
             await self.compute_client.attach_disk(
                 f'/zones/{self.zone}/instances/{self.instance_name}/attachDisk', json=config
             )
-            self._attached = True
+            self.attached = True
 
     async def _detach(self):
         async with LoggingTimer(f'detaching disk {self.name} from {self.instance_name}'):
-            if self._attached:
+            if self.attached:
                 await self.compute_client.detach_disk(
                     f'/zones/{self.zone}/instances/{self.instance_name}/detachDisk', params={'deviceName': self.name}
                 )
+                self.attached = False
 
     async def _delete(self):
         async with LoggingTimer(f'deleting disk {self.name}'):
-            if self._created:
+            if self.created:
                 await self.compute_client.delete_disk(f'/zones/{self.zone}/disks/{self.name}')
+                self.created = False
 
     def __str__(self):
         return self.name
+
+
+class GCPDiskManager(CloudDiskManager):
+    def __init__(self, project: str, zone: str, max_disks: int = 128):
+        self.project = project
+        self.zone = zone
+        self.disk_slots = asyncio.Semaphore(max_disks)
+
+    async def new_disk(self, instance_name: str, disk_name: str, size_in_gb: int, mount_path: str) -> GCPDisk:
+        await self.disk_slots.acquire()
+        return GCPDisk(disk_name, self.zone, self.project, instance_name, size_in_gb, mount_path)
+
+    async def delete_disk(self, disk: GCPDisk):  # type: ignore[override]
+        try:
+            await disk.delete()
+        finally:
+            try:
+                self.disk_slots.release()
+            finally:
+                await disk.close()

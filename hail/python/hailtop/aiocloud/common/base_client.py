@@ -44,6 +44,13 @@ class CloudBaseClient:
         async with await self._session.put(url, **kwargs) as resp:
             return await resp.json()
 
+    async def patch(self, path: Optional[str] = None, *, url: Optional[str] = None, **kwargs) -> Any:
+        if url is None:
+            assert path
+            url = f'{self._base_url}{path}'
+        async with await self._session.patch(url, **kwargs) as resp:
+            return await resp.json()
+
     async def close(self) -> None:
         if hasattr(self, '_session'):
             await self._session.close()

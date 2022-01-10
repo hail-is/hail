@@ -60,14 +60,14 @@ def create_vm_config(
         data_disks = [
             {
                 "name": "[concat(parameters('vmName'), '-data')]",
-                "lun": 2,  # because this is 2, the data disk will always be at 'sdc'
+                "lun": 0,
                 "managedDisk": {"storageAccountType": "Premium_LRS"},
                 "createOption": "Empty",
                 "diskSizeGB": data_disk_size_gb,
                 "deleteOption": 'Delete',
             }
         ]
-        disk_location = '/dev/disk/azure/scsi1/lun2'
+        disk_location = '/dev/disk/azure/scsi1/lun0'
 
     make_global_config = ['mkdir /global-config']
     global_config = get_global_config()

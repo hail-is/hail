@@ -84,6 +84,23 @@ class AzureSlimInstanceConfig(InstanceConfig):
     def worker_type(self) -> str:
         return self._worker_type
 
+    def data_disks(self, machine_name):
+        if self.local_ssd_data_disk:
+            return []
+        # FIXME: check if you need the extra information!!
+        return [
+            {
+                "name": f'{machine_name}-data',
+                "lun": 0,
+                # "managedDisk": {
+                #     "storageAccountType": "Premium_LRS"
+                # },
+                # "createOption": "Empty",
+                # "diskSizeGB": self.data_disk_size_gb,
+                # "deleteOption": 'Delete'
+            }
+        ]
+
     @staticmethod
     def from_dict(data: dict) -> 'AzureSlimInstanceConfig':
         resources = data.get('resources')
