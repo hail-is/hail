@@ -10,7 +10,7 @@ from hail.expr.expressions import Expression, StructExpression, \
     ExpressionException, TupleExpression, unify_all, NumericExpression, \
     StringExpression, CallExpression, CollectionExpression, DictExpression, \
     IntervalExpression, LocusExpression, NDArrayExpression, expr_array
-from hail.expr.types import hail_type, tstruct, types_match, tarray, tset
+from hail.expr.types import hail_type, tstruct, types_match, tarray, tset, dtypes_from_pandas
 from hail.expr.table_type import ttable
 import hail.ir as ir
 from hail.typecheck import typecheck, typecheck_method, dictof, anytype, \
@@ -3323,14 +3323,21 @@ class Table(ExprContainer):
         -------
         :class:`.Table`
         """
-    values = df.values.tolist()
-    fields = list(df.columns)
-    data_array = []
-    hl_type_array = []
+        values = df.values.tolist()
+        fields = list(df.columns)
+        data = []
+        pd_dtypes = df.dtypes
+        hl_type_dict = {}
 
-    for value_row in values:
-        row_dict = {fields[i] : value_row[i] for i in range(len(fields))}
-        data_array.append(row_dict)
+        for value_row in values:
+            row_dict = {fields[i]: value_row[i] for i in range(len(fields))}
+            data.append(row_dict)
+
+        for data_idx, field in enumerate(fields):
+            hl_type_dict[field] = dtypes_from_pandas(pd_dtypes[field], values[0][data_idx])
+
+        new_table = hl.Table.parallelize(hl.literal(data, hl.tarray(hl.tstruct(**hl_type_dict))))
+        return new_table if not key else new_table.key_by(*key)
 
     @typecheck_method(other=table_type, tolerance=nullable(numeric), absolute=bool)
     def _same(self, other, tolerance=1e-6, absolute=False):

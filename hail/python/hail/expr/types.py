@@ -5,6 +5,7 @@ from collections.abc import Mapping, Sequence
 import pprint
 
 import numpy as np
+import pandas as pd
 
 import hail as hl
 from hail import genetics
@@ -2037,32 +2038,37 @@ def from_numpy(np_dtype):
     else:
         raise ValueError(f"numpy type {np_dtype} could not be converted to a hail type.")
 
-def from_pandas(pd_dtype, obj):
-    import pandas as pd
+
+def dtypes_from_pandas(pd_dtype, obj):
 
     if type(pd_dtype) == pd.StringDtype:
         return hl.tstr
     elif pd_dtype == np.int32:
         return hl.tint32
     elif pd_dtype == np.int64:
-        return hl.int64
+        return hl.tint64
     elif pd_dtype == np.float32:
-        return tfloat32
+        return hl.tfloat32
     elif pd_dtype == np.float64:
-        return tfloat64
-    elif pd_dtype == np.bool:
-        return tbool
+        return hl.tfloat64
+    elif pd_dtype == bool:
+        return hl.tbool
     elif pd_dtype == object:
+        if isinstance(obj, np.ndarray):
+            return hl.tndarray(dtypes_from_pandas(obj[0].dtype, obj[0]), obj.ndim)
         if isinstance(obj, list):
-            return hl.tarray
+            return hl.literal(obj).dtype
         elif isinstance(obj, dict):
-            return hl.tdict
+            return hl.literal(obj).dtype
         elif isinstance(obj, tuple):
-            return hl.ttuple
+            return hl.literal(obj).dtype
         elif isinstance(obj, set):
-            return hl.tset
+            return hl.literal(obj).dtype
+        elif isinstance(obj, str):
+            return hl.tstr
 
     raise ValueError(f"pandas type {pd_dtype} could not be converted to a hail type")
+
 
 class tvariable(HailType):
     _cond_map = {

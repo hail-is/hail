@@ -628,7 +628,6 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         self.assertEqual(rows[0].x, 5)
         self.assertEqual(rows[0].y, 'foo')
 
-    @skip_unless_spark_backend()
     def test_from_pandas_works(self):
         d = {'a': [1, 2], 'b': ['foo', 'bar']}
         df = pd.DataFrame(data=d)
@@ -638,6 +637,29 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         t2 = hl.Table.parallelize(d2, key='a')
 
         self.assertTrue(t._same(t2))
+
+    def test_from_pandas_objects(self):
+        import numpy as np
+
+        d = {'a': [[1, 2], [3, 4]], 'b': [{'a': 22, 'b': 21}, {'a': 23, 'b': 23}], 'c':
+             [np.array([np.array([1], dtype=np.int32), np.array([1], dtype=np.int32)]),
+              np.array([np.array([2], dtype=np.int32), np.array([2], dtype=np.int32)])]}
+        df = pd.DataFrame(data=d)
+        t = hl.Table.from_pandas(df)
+
+        d2 = [hl.struct(a=hl.array([1, 2]), b=hl.literal({'a': 22, 'b': 21}),
+                        c=hl.nd.array([[1], [1]])),
+              hl.struct(a=hl.array([3, 4]), b=hl.literal({'a': 23, 'b': 23}),
+                        c=hl.nd.array([[2], [2]]))]
+        t2 = hl.Table.parallelize(d2)
+
+        self.assertTrue(t._same(t2))
+
+    def test_from_pandas_mismatched_object_rows(self):
+        d = {'a': [[1, 2], {1, 2}]}
+        df = pd.DataFrame(data=d)
+        with pytest.raises(TypeError, match='literal\': object did not match the passed type'):
+            hl.Table.from_pandas(df)
 
     def test_rename(self):
         kt = hl.utils.range_table(10)
