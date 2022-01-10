@@ -8,7 +8,7 @@ from .utils import (
     WaitableSharedPool, RETRY_FUNCTION_SCRIPT, sync_retry_transient_errors,
     retry_response_returning_functions, first_extant_file, secret_alnum_string,
     flatten, filter_none, partition, cost_str, external_requests_client_session, url_basename,
-    url_join, parse_docker_image_reference,
+    url_join, parse_docker_image_reference, url_and_params,
     url_scheme, Notice, periodically_call, dump_all_stacktraces, find_spark_home, TransientError,
     bounded_gather2, OnlineBoundedGather2, unpack_comma_delimited_inputs, unpack_key_value_inputs,
     retry_all_errors_n_times)
@@ -74,6 +74,7 @@ __all__ = [
     'url_join',
     'validate',
     'url_scheme',
+    'url_and_params',
     'serialization',
     'Notice',
     'periodically_call',

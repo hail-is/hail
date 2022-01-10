@@ -1,13 +1,14 @@
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 import os
 import json
 import time
 import logging
+import socket
 from urllib.parse import urlencode
 import jwt
 from hailtop.utils import request_retry_transient_errors
 import hailtop.httpx
-from ..common.credentials import CloudCredentials
+from ..common.credentials import AnonymousCloudCredentials, CloudCredentials
 
 log = logging.getLogger(__name__)
 
@@ -60,7 +61,7 @@ class GoogleCredentials(CloudCredentials):
         raise ValueError(f'unknown Google Cloud credentials type {credentials_type}')
 
     @staticmethod
-    def default_credentials() -> 'GoogleCredentials':
+    def default_credentials() -> Union['GoogleCredentials', AnonymousCloudCredentials]:
         credentials_file = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
 
         if credentials_file is None:
@@ -73,10 +74,14 @@ class GoogleCredentials(CloudCredentials):
             log.info(f'using credentials file {credentials_file}: {creds}')
             return creds
 
-        log.warning('unable to locate Google Cloud credentials file, will attempt to '
-                    'use instance metadata server instead')
+        log.warning('Unable to locate Google Cloud credentials file')
+        if GoogleInstanceMetadataCredentials.available():
+            log.warning('Will attempt to use instance metadata server instead')
+            return GoogleInstanceMetadataCredentials()
 
-        return GoogleInstanceMetadataCredentials()
+        log.warning('Using anonymous credentials. If accessing private data, '
+                    'run `gcloud auth application-default login` first to log in.')
+        return AnonymousCloudCredentials()
 
     async def auth_headers(self) -> Dict[str, str]:
         if self._access_token is None or self._access_token.expired():
@@ -160,3 +165,11 @@ class GoogleInstanceMetadataCredentials(GoogleCredentials):
                 'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token',
                 headers={'Metadata-Flavor': 'Google'}) as resp:
             return GoogleExpiringAccessToken.from_dict(await resp.json())
+
+    @staticmethod
+    def available():
+        try:
+            socket.getaddrinfo('metadata.google.internal', 80)
+        except socket.gaierror:
+            return False
+        return True
