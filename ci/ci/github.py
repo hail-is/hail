@@ -397,7 +397,9 @@ class PR(Code):
                     raise ValueError(
                         f'github sent multiple status summaries for context {context}: {s}\n\n{statuses_json}'
                     )
-                hail_statuses[context] = s['state']
+                status = s['state']
+                assert status in ('success', 'pending', 'failure')
+                hail_statuses[context] = status
         return hail_statuses
 
     async def _update_last_known_github_status(self, gh):
