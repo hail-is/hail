@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any, List, Tuple, Union
+from typing import Optional, Dict, Any, List, Tuple, Union, Literal
 import math
 import random
 import logging
@@ -618,7 +618,7 @@ class BatchBuilder:
     async def submit(self,
                      max_bunch_bytesize: int = MAX_BUNCH_BYTESIZE,
                      max_bunch_size: int = MAX_BUNCH_SIZE,
-                     disable_progress_bar: Optional[Union[bool, object]] = TQDM_DEFAULT_DISABLE,
+                     disable_progress_bar: Optional[Union[bool, Literal[TQDM_DEFAULT_DISABLE]]] = TQDM_DEFAULT_DISABLE,
                      ):
         assert max_bunch_bytesize > 0
         assert max_bunch_size > 0
