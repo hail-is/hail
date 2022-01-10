@@ -12,6 +12,10 @@ class Scale(FigureAttribute):
     def transform_data(self, field_expr):
         pass
 
+    @abc.abstractmethod
+    def is_discrete(self):
+        pass
+
 
 class PositionScale(Scale):
     def __init__(self, aesthetic_name, name, breaks, labels):
@@ -55,6 +59,9 @@ class PositionScaleGenomic(PositionScale):
     def transform_data(self, field_expr):
         return field_expr.global_position()
 
+    def is_discrete(self):
+        return False
+
 
 class PositionScaleContinuous(PositionScale):
 
@@ -76,6 +83,9 @@ class PositionScaleContinuous(PositionScale):
     def transform_data(self, field_expr):
         return field_expr
 
+    def is_discrete(self):
+        return False
+
 
 class PositionScaleDiscrete(PositionScale):
     def __init__(self, axis=None, name=None, breaks=None, labels=None):
@@ -86,6 +96,31 @@ class PositionScaleDiscrete(PositionScale):
 
     def transform_data(self, field_expr):
         return field_expr
+
+    def is_discrete(self):
+        return True
+
+
+class ScaleContinuous(Scale):
+    def __init__(self, aesthetic_name):
+        super().__init__(aesthetic_name)
+
+    def transform_data(self, field_expr):
+        return field_expr
+
+    def is_discrete(self):
+        return False
+
+
+class ScaleDiscrete(Scale):
+    def __init__(self, aesthetic_name):
+        super().__init__(aesthetic_name)
+
+    def transform_data(self, field_expr):
+        return field_expr
+
+    def is_discrete(self):
+        return True
 
 
 def scale_x_log10():

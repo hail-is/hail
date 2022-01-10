@@ -2,13 +2,14 @@ import plotly
 import plotly.graph_objects as go
 
 from pprint import pprint
+from collections import defaultdict
 
 import hail as hl
 
 from .coord_cartesian import CoordCartesian
 from .geoms import Geom, FigureAttribute
 from .labels import Labels
-from .scale import Scale, scale_x_continuous, scale_x_genomic, scale_y_continuous, scale_x_discrete, scale_y_discrete
+from .scale import Scale, ScaleContinuous, ScaleDiscrete, scale_x_continuous, scale_x_genomic, scale_y_continuous, scale_x_discrete, scale_y_discrete
 from .aes import Aesthetic, aes
 
 
@@ -61,24 +62,28 @@ class GGPlot:
 
         for aesthetic_str, mapped_expr in aesthetic.items():
             dtype = mapped_expr.dtype
-            if aesthetic_str in self.scales:
-                pass
-            else:
+            if aesthetic_str not in self.scales:
+                is_continuous = is_continuous_type(dtype)
                 # We only know how to come up with a few default scales.
                 if aesthetic_str == "x":
-                    if is_continuous_type(dtype):
+                    if is_continuous:
                         self.scales["x"] = scale_x_continuous()
                     elif is_genomic_type(dtype):
                         self.scales["x"] = scale_x_genomic(reference_genome=dtype.reference_genome)
                     else:
                         self.scales["x"] = scale_x_discrete()
                 elif aesthetic_str == "y":
-                    if is_continuous_type(dtype):
+                    if is_continuous:
                         self.scales["y"] = scale_y_continuous()
                     elif is_genomic_type(dtype):
                         raise ValueError("Don't yet support y axis genomic")
                     else:
                         self.scales["y"] = scale_y_discrete()
+                else:
+                    if is_continuous:
+                        self.scales[aesthetic_str] = ScaleContinuous(aesthetic_str)
+                    else:
+                        self.scales[aesthetic_str] = ScaleDiscrete(aesthetic_str)
 
     def copy(self):
         return GGPlot(self.ht, self.aes, self.geoms[:], self.labels, self.coord_cartesian, self.scales,
@@ -114,6 +119,25 @@ class GGPlot:
 
         for geom, (label, agg_result) in zip(self.geoms, aggregated.items()):
             listified_agg_result = labels_to_stats[label].listify(agg_result)
+
+            # Ok, need to identify every possible value of every discrete scale.
+            if listified_agg_result:
+                relevant_aesthetics = [scale_name for scale_name in list(listified_agg_result[0]) if scale_name in self.scales and self.scales[scale_name].is_discrete()]
+                subsetted_to_relevant = tuple([one_struct.select(*relevant_aesthetics) for one_struct in listified_agg_result])
+                group_counter = 0
+
+                def increment_and_return_old():
+                    nonlocal group_counter
+                    group_counter += 1
+                    return group_counter - 1
+                numberer = defaultdict(increment_and_return_old)
+                numbering = [numberer[data_tuple] for data_tuple in subsetted_to_relevant]
+
+                numbered_result = []
+                for s, i in zip(listified_agg_result, numbering):
+                    numbered_result.append(s.annotate(group=i))
+                listified_agg_result = numbered_result
+
             geom.apply_to_fig(self, listified_agg_result, fig)
 
         # Important to update axes after labels, axes names take precedence.
