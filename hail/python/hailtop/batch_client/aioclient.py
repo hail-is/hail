@@ -1,4 +1,5 @@
-from typing import Optional, Dict, Any, List, Tuple, Union, Literal
+from typing import Optional, Dict, Any, List, Tuple, Union
+from typing_extensions import Literal
 import math
 import random
 import logging
