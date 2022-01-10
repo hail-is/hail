@@ -1,5 +1,5 @@
+from enum import Enum
 from typing import Dict, Optional
-from typing_extensions import Literal, get_args
 import secrets
 from shlex import quote as shq
 import json
@@ -34,7 +34,10 @@ zulip_client = zulip.Client(config_file="/zulip-config/.zuliprc")
 TRACKED_PRS = pc.Gauge('ci_tracked_prs', 'PRs currently being monitored by CI', ['build_state', 'review_state'])
 
 
-GithubStatus = Literal['success', 'pending', 'failure']
+class GithubStatus(Enum):
+    SUCCESS = 'success'
+    PENDING = 'pending'
+    FAILURE = 'failure'
 
 
 def select_random_teammate(team):
@@ -333,12 +336,12 @@ class PR(Code):
 
     def github_status_from_build_state(self) -> GithubStatus:
         if self.build_state == 'failure' or self.build_state == 'error':
-            return 'failure'
+            return GithubStatus.FAILURE
         if self.build_state == 'success' and self.batch.attributes['target_sha'] == self.target_branch.sha:
-            return 'success'
-        return 'pending'
+            return GithubStatus.SUCCESS
+        return GithubStatus.PENDING
 
-    async def post_github_status(self, gh_client, gh_status):
+    async def post_github_status(self, gh_client, gh_status: GithubStatus):
         assert self.source_sha is not None
 
         log.info(f'{self.short_str()}: notify github state: {gh_status}')
@@ -350,10 +353,10 @@ class PR(Code):
             assert self.batch.id is not None
             target_url = deploy_config.external_url('ci', f'/batches/{self.batch.id}')
         data = {
-            'state': gh_status,
+            'state': gh_status.value,
             'target_url': target_url,
             # FIXME improve
-            'description': gh_status,
+            'description': gh_status.value,
             'context': GITHUB_STATUS_CONTEXT,
         }
         try:
@@ -397,9 +400,7 @@ class PR(Code):
                     raise ValueError(
                         f'github sent multiple status summaries for context {context}: {s}\n\n{statuses_json}'
                     )
-                status = s['state']
-                assert status in get_args(GithubStatus)
-                hail_statuses[context] = status
+                hail_statuses[context] = GithubStatus(s['state'])
         return hail_statuses
 
     async def _update_last_known_github_status(self, gh):
