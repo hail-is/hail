@@ -9,7 +9,7 @@ import is.hail.types.physical.stypes.primitives._
 import is.hail.types.physical.{PBoolean, PCanonicalArray, PFloat64, PInt32, PType}
 import is.hail.types.virtual._
 import net.sourceforge.jdistlib.rng.MersenneTwister
-import net.sourceforge.jdistlib.{Beta, Gamma, Poisson}
+import net.sourceforge.jdistlib.{Beta, Gamma, HyperGeometric, Poisson}
 
 class IRRandomness(seed: Long) {
 
@@ -37,6 +37,8 @@ class IRRandomness(seed: Long) {
   def rbeta(a: Double, b: Double): Double = Beta.random(a, b, random)
 
   def rgamma(shape: Double, scale: Double): Double = Gamma.random(shape, scale, random)
+
+  def rhyper(numSuccessStates: Double, numFailureStates: Double, numToDraw: Double): Double = HyperGeometric.random(numSuccessStates, numFailureStates, numToDraw, random)
 
   def rcat(prob: Array[Double]): Int = {
     var i = 0
@@ -136,5 +138,36 @@ object RandomSeededFunctions extends RegistryFunctions {
       })
       primitive(cb.memoize(cb.emb.newRNG(seed).invoke[Array[Double], Int]("rcat", a)))
     }
+
+    registerSeeded2("shuffle_compute_num_samples_per_partition", TInt32, TArray(TInt32), TArray(TInt32),
+      (_, _, _) => SIndexablePointer(PCanonicalArray(PInt32(true), false))) { case (cb, r, rt, seed, initalNumSamplesToSelect: SInt32Value, partitionCounts: SIndexableValue) =>
+
+      val totalNumberOfRecords = cb.newLocal[Int]("scnspp_total_number_of_records", 0)
+      val resultSize: Value[Int] = partitionCounts.loadLength()
+      val i = cb.newLocal[Int]("scnspp_index", 0)
+      cb.forLoop(cb.assign(i, 0), i < resultSize, cb.assign(i, i + 1), {
+        cb.assign(totalNumberOfRecords, totalNumberOfRecords + partitionCounts.loadElement(cb, i).get(cb).asInt32.intCode(cb))
+      })
+
+      cb.ifx(initalNumSamplesToSelect.intCode(cb) > totalNumberOfRecords, cb._fatal("Requested selection of ", initalNumSamplesToSelect.intCode(cb).toS,
+        " samples from ", totalNumberOfRecords.toS, " records"))
+
+      val successStatesRemaining = cb.newLocal[Int]("scnspp_success", initalNumSamplesToSelect.intCode(cb))
+      val failureStatesRemaining = cb.newLocal[Int]("scnspp_failure", totalNumberOfRecords - successStatesRemaining)
+
+      val arrayRt = rt.asInstanceOf[SIndexablePointer]
+      val (push, finish) = arrayRt.pType.asInstanceOf[PCanonicalArray].constructFromFunctions(cb, r, resultSize, false)
+
+      cb.forLoop(cb.assign(i, 0), i < resultSize, cb.assign(i, i + 1), {
+        val numSuccesses = cb.memoize(cb.emb.newRNG(seed).invoke[Double, Double, Double, Double]("rhyper",
+          successStatesRemaining.toD, failureStatesRemaining.toD, partitionCounts.loadElement(cb, i).get(cb).asInt32.intCode(cb).toD).toI)
+        cb.assign(successStatesRemaining, successStatesRemaining - numSuccesses)
+        cb.assign(failureStatesRemaining, failureStatesRemaining - (partitionCounts.loadElement(cb, i).get(cb).asInt32.intCode(cb) - numSuccesses))
+        push(cb, IEmitCode.present(cb, new SInt32Value(numSuccesses)))
+      })
+
+      finish(cb)
+    }
+
   }
 }

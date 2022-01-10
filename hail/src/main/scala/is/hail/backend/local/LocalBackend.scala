@@ -1,5 +1,6 @@
 package is.hail.backend.local
 
+import is.hail.HailContext
 import is.hail.annotations.{Region, SafeRow, UnsafeRow}
 import is.hail.asm4s._
 import is.hail.backend._
@@ -282,8 +283,12 @@ class LocalBackend(
     relationalLetsAbove: Map[String, IR],
     rowTypeRequiredness: RStruct
   ): TableStage = {
-    // Use a local sort for the moment to enable larger pipelines to run
-    LowerDistributedSort.localSort(ctx, stage, sortFields, relationalLetsAbove)
+
+    if (HailContext.getFlag("shuffle_cutoff_to_local_sort") != null) {
+      LowerDistributedSort.distributedSort(ctx, stage, sortFields, relationalLetsAbove, rowTypeRequiredness)
+    } else {
+      LowerDistributedSort.localSort(ctx, stage, sortFields, relationalLetsAbove)
+    }
   }
 
   def pyLoadReferencesFromDataset(path: String): String =
