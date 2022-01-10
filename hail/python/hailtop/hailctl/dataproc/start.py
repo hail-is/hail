@@ -1,6 +1,5 @@
 import re
 
-import pkg_resources
 import yaml
 
 from . import gcloud
@@ -226,6 +225,8 @@ def init_parser(parser):
 
 
 async def main(args, pass_through_args):
+    import pkg_resources  # pylint: disable=import-outside-toplevel
+
     conf = ClusterConfig()
     conf.extend_flag('image-version', IMAGE_VERSION)
 
