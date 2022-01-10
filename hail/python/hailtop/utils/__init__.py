@@ -15,7 +15,7 @@ from .utils import (
 from .process import (
     CalledProcessError, check_shell, check_shell_output, check_exec_output,
     sync_check_shell, sync_check_shell_output)
-from .tqdm import tqdm, TQDM_DEFAULT_DISABLE
+from .tqdm import tqdm, TqdmDisableOption
 from .rates import (
     rate_cpu_hour_to_mcpu_msec, rate_gib_hour_to_mib_msec, rate_gib_month_to_mib_msec,
     rate_instance_hour_to_fraction_msec
@@ -55,7 +55,7 @@ __all__ = [
     'request_raise_transient_errors',
     'collect_agen',
     'tqdm',
-    'TQDM_DEFAULT_DISABLE',
+    'TqdmDisableOption',
     'RETRY_FUNCTION_SCRIPT',
     'sync_retry_transient_errors',
     'retry_response_returning_functions',
