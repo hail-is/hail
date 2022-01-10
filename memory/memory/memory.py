@@ -67,7 +67,7 @@ async def write_object(request, userdata):
         finally:
             del request.app['files_in_progress'][file_key]
 
-    fut = asyncio.ensure_future(persist_and_cache)
+    fut = asyncio.ensure_future(persist_and_cache())
     request.app['files_in_progress'][file_key] = fut
     await fut
     return web.Response(status=200)
