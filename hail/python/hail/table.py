@@ -3251,15 +3251,14 @@ class Table(ExprContainer):
         :class:`.pandas.DataFrame`
 
         """
-        table = self.flatten() if flatten == True else self
+        table = self.flatten() if flatten else self
         dtypes_struct = table.row.dtype
         collect_dict = {key: hl.agg.collect(value) for key, value in table.row.items()}
-        table.aggregate(hl.struct(**collect_dict))
         column_struct_array = table.aggregate(hl.struct(**collect_dict))
         columns = list(column_struct_array.keys())
         data_dict = {}
 
-        for data_idx, column in enumerate(columns):
+        for column in columns:
             hl_dtype = dtypes_struct[column]
             if hl_dtype == hl.tstr:
                 pd_dtype = 'string'
@@ -3268,11 +3267,6 @@ class Table(ExprContainer):
             data_dict[column] = pandas.Series(column_struct_array[column], dtype=pd_dtype)
 
         return pandas.DataFrame(data_dict)
-
-
-
-
-
 
     @staticmethod
     @typecheck(df=pandas.DataFrame,

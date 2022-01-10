@@ -306,7 +306,6 @@ class HailType(object):
         return object
 
 
-
 hail_type = oneof(HailType, transformed((str, dtype)))
 
 
