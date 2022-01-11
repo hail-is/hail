@@ -433,7 +433,7 @@ class Job:
 
         >>> b = Batch(backend=backend.ServiceBackend('test'))
         >>> j = b.new_job()
-        >>> (j.fuse('my-bucket', '/my-bucket')
+        >>> (j.cloudfuse('my-bucket', '/my-bucket')
         ...   .command(f'cat /my-bucket/my-file'))
 
         Parameters
