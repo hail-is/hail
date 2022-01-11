@@ -2,7 +2,6 @@ from typing import AsyncIterator, Dict, List, Any, AsyncContextManager
 import io
 import asyncio
 import nest_asyncio
-from concurrent.futures import ThreadPoolExecutor
 import hurry
 
 from hailtop.aiotools.router_fs import RouterAsyncFS
