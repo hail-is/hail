@@ -13,7 +13,7 @@ import webbrowser
 import warnings
 
 from hailtop import pip_version
-from hailtop.config import get_deploy_config, get_user_config
+from hailtop.config import get_deploy_config, get_user_config, get_remote_tmpdir
 from hailtop.utils import parse_docker_image_reference, async_to_blocking, bounded_gather, tqdm, url_scheme
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
@@ -407,40 +407,7 @@ class ServiceBackend(Backend[bc.Batch]):
                 'MY_BILLING_PROJECT`')
         self._batch_client = BatchClient(billing_project)
 
-        user_config = get_user_config()
-
-        if bucket is not None:
-            warnings.warn('Use of deprecated argument \'bucket\' in ServiceBackend(). Specify \'remote_tmpdir\' as a keyword argument instead.')
-
-        if remote_tmpdir is not None and bucket is not None:
-            raise ValueError('Cannot specify both \'remote_tmpdir\' and \'bucket\' in ServiceBackend(). Specify \'remote_tmpdir\' as a keyword argument instead.')
-
-        if bucket is None and remote_tmpdir is None:
-            remote_tmpdir = user_config.get('batch', 'remote_tmpdir', fallback=None)
-
-        if remote_tmpdir is None:
-            if bucket is None:
-                bucket = user_config.get('batch', 'bucket', fallback=None)
-                warnings.warn('Using deprecated configuration setting \'batch/bucket\'. Run `hailctl config set batch/remote_tmpdir` '
-                              'to set the default for \'remote_tmpdir\' instead.')
-            if bucket is None:
-                raise ValueError(
-                    'The \'remote_tmpdir\' parameter of ServiceBackend must be set. '
-                    'Run `hailctl config set batch/remote_tmpdir REMOTE_TMPDIR`')
-            if 'gs://' in bucket:
-                raise ValueError(
-                    'The bucket parameter to ServiceBackend() should be a bucket name, not a path. '
-                    'Use the remote_tmpdir parameter to specify a path.')
-            remote_tmpdir = f'gs://{bucket}/batch'
-        else:
-            schemes = {'gs', 'hail-az'}
-            found_scheme = any([remote_tmpdir.startswith(f'{scheme}://') for scheme in schemes])
-            if not found_scheme:
-                raise ValueError(
-                    f'remote_tmpdir must be a storage uri path like gs://bucket/folder. Possible schemes include {schemes}')
-        if remote_tmpdir[-1] != '/':
-            remote_tmpdir += '/'
-        self.remote_tmpdir = remote_tmpdir
+        self.remote_tmpdir = get_remote_tmpdir('ServiceBackend', bucket=bucket, remote_tmpdir=remote_tmpdir)
 
         gcs_kwargs = {'project': google_project}
         self.__fs: AsyncFS = RouterAsyncFS(default_scheme='file', gcs_kwargs=gcs_kwargs)

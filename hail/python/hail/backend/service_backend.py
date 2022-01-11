@@ -17,17 +17,18 @@ from hail.expr.matrix_type import tmatrix
 from hail.expr.blockmatrix_type import tblockmatrix
 from hail.ir.renderer import CSERenderer
 
-from hailtop.config import get_user_config, get_user_local_cache_dir
+from hailtop.config import get_user_config, get_user_local_cache_dir, get_remote_tmpdir
 from hailtop.utils import async_to_blocking, secret_alnum_string, TransientError, time_msecs
 from hailtop.batch_client import client as hb
 from hailtop.batch_client import aioclient as aiohb
 from hailtop.aiotools.fs import AsyncFS
-from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
+from hailtop.aiotools.router_fs import RouterAsyncFS
 import hailtop.aiotools.fs as afs
 
 from .backend import Backend
 from ..builtin_references import BUILTIN_REFERENCES
-from ..fs.google_fs import GoogleCloudStorageFS
+from ..fs.fs import FS
+from ..fs.router_fs import RouterFS
 from ..context import version
 
 
@@ -120,68 +121,54 @@ class ServiceBackend(Backend):
     GOODBYE = 254
 
     @staticmethod
-    async def create(billing_project: Optional[str] = None,
-                     bucket: Optional[str] = None,
-                     *,
+    async def create(*,
+                     billing_project: Optional[str] = None,
+                     batch_client: Optional[aiohb.BatchClient] = None,
                      skip_logging_configuration: Optional[bool] = None,
-                     disable_progress_bar: bool = True):
+                     disable_progress_bar: bool = True,
+                     remote_tmpdir: Optional[str] = None):
         del skip_logging_configuration
 
         if billing_project is None:
             billing_project = get_user_config().get('batch', 'billing_project', fallback=None)
         if billing_project is None:
-            billing_project = os.environ.get('HAIL_BILLING_PROJECT')
-        if billing_project is None:
             raise ValueError(
                 "No billing project.  Call 'init_service' with the billing "
-                "project, set the HAIL_BILLING_PROJECT environment variable, "
-                "or run 'hailctl config set batch/billing_project "
+                "project or run 'hailctl config set batch/billing_project "
                 "MY_BILLING_PROJECT'"
             )
 
-        # FIXME: need to use remote tmpdir
-        if bucket is None:
-            bucket = get_user_config().get('batch', 'bucket', fallback=None)
-        if bucket is None:
-            bucket = os.environ.get('HAIL_BUCKET')
-        if bucket is None:
-            raise ValueError(
-                'the bucket parameter of ServiceBackend must be set '
-                'or run `hailctl config set batch/bucket '
-                'MY_BUCKET`'
-            )
-
-        # FIXME... Need AzureBlobStorageFS for sync fs.
-        sync_fs = GoogleCloudStorageFS()
-        async_fs = GoogleStorageAsyncFS()
-        async_client = await aiohb.BatchClient.create(billing_project)
+        async_fs = RouterAsyncFS('file')
+        sync_fs = RouterFS(async_fs)
+        if batch_client is None:
+            async_client = await aiohb.BatchClient.create(billing_project)
         bc = hb.BatchClient.from_async(async_client)
         batch_attributes: Dict[str, str] = dict()
         user_local_reference_cache_dir = Path(get_user_local_cache_dir(), 'references', version())
         os.makedirs(user_local_reference_cache_dir, exist_ok=True)
+        remote_tmpdir = get_remote_tmpdir('ServiceBackend', remote_tmpdir=remote_tmpdir)
 
         return ServiceBackend(
             billing_project=billing_project,
-            bucket=bucket,
             sync_fs=sync_fs,
             async_fs=async_fs,
             bc=bc,
             disable_progress_bar=disable_progress_bar,
             batch_attributes=batch_attributes,
-            user_local_reference_cache_dir=user_local_reference_cache_dir
+            user_local_reference_cache_dir=user_local_reference_cache_dir,
+            remote_tmpdir=remote_tmpdir,
         )
 
     def __init__(self,
                  billing_project: str,
-                 bucket: str,
-                 sync_fs: GoogleCloudStorageFS,
+                 sync_fs: FS,
                  async_fs: AsyncFS,
                  bc: hb.BatchClient,
                  disable_progress_bar: bool,
                  batch_attributes: Dict[str, str],
-                 user_local_reference_cache_dir: Path):
+                 user_local_reference_cache_dir: Path,
+                 remote_tmpdir: str):
         self.billing_project = billing_project
-        self.bucket = bucket
         self._sync_fs = sync_fs
         self._async_fs = async_fs
         self.bc = bc
@@ -189,9 +176,10 @@ class ServiceBackend(Backend):
         self.disable_progress_bar = disable_progress_bar
         self.batch_attributes = batch_attributes
         self.user_local_reference_cache_dir = user_local_reference_cache_dir
+        self.remote_tmpdir = remote_tmpdir
 
     @property
-    def fs(self) -> GoogleCloudStorageFS:
+    def fs(self) -> FS:
         return self._sync_fs
 
     @property
@@ -293,7 +281,7 @@ class ServiceBackend(Backend):
             await write_int(infile, ServiceBackend.EXECUTE)
             await write_str(infile, tmp_dir())
             await write_str(infile, self.billing_project)
-            await write_str(infile, self.bucket)
+            await write_str(infile, self.remote_tmpdir)
             await write_str(infile, self.render(ir))
             await write_str(infile, token)
         _, resp, timings = await self._rpc('execute(...)', inputs)
@@ -321,7 +309,7 @@ class ServiceBackend(Backend):
             await write_int(infile, ServiceBackend.VALUE_TYPE)
             await write_str(infile, tmp_dir())
             await write_str(infile, self.billing_project)
-            await write_str(infile, self.bucket)
+            await write_str(infile, self.remote_tmpdir)
             await write_str(infile, self.render(ir))
         _, resp, _ = await self._rpc('value_type(...)', inputs)
         return dtype(resp)
@@ -334,7 +322,7 @@ class ServiceBackend(Backend):
             await write_int(infile, ServiceBackend.TABLE_TYPE)
             await write_str(infile, tmp_dir())
             await write_str(infile, self.billing_project)
-            await write_str(infile, self.bucket)
+            await write_str(infile, self.remote_tmpdir)
             await write_str(infile, self.render(tir))
         _, resp, _ = await self._rpc('value_type(...)', inputs)
         return ttable._from_json(resp)
@@ -347,7 +335,7 @@ class ServiceBackend(Backend):
             await write_int(infile, ServiceBackend.MATRIX_TABLE_TYPE)
             await write_str(infile, tmp_dir())
             await write_str(infile, self.billing_project)
-            await write_str(infile, self.bucket)
+            await write_str(infile, self.remote_tmpdir)
             await write_str(infile, self.render(mir))
         _, resp, _ = await self._rpc('matrix_type(...)', inputs)
         return tmatrix._from_json(resp)
@@ -360,7 +348,7 @@ class ServiceBackend(Backend):
             await write_int(infile, ServiceBackend.BLOCK_MATRIX_TYPE)
             await write_str(infile, tmp_dir())
             await write_str(infile, self.billing_project)
-            await write_str(infile, self.bucket)
+            await write_str(infile, self.remote_tmpdir)
             await write_str(infile, self.render(bmir))
         _, resp, _ = await self._rpc('blockmatrix_type(...)', inputs)
         return tblockmatrix._from_json(resp)
@@ -389,7 +377,7 @@ class ServiceBackend(Backend):
             await write_int(infile, ServiceBackend.REFERENCE_GENOME)
             await write_str(infile, tmp_dir())
             await write_str(infile, self.billing_project)
-            await write_str(infile, self.bucket)
+            await write_str(infile, self.remote_tmpdir)
             await write_str(infile, name)
         _, resp, _ = await self._rpc('get_reference(...)', inputs)
         if name in BUILTIN_REFERENCES:
@@ -411,7 +399,7 @@ class ServiceBackend(Backend):
             await write_int(infile, ServiceBackend.LOAD_REFERENCES_FROM_DATASET)
             await write_str(infile, tmp_dir())
             await write_str(infile, self.billing_project)
-            await write_str(infile, self.bucket)
+            await write_str(infile, self.remote_tmpdir)
             await write_str(infile, path)
         _, resp, _ = await self._rpc('get_reference(...)', inputs)
         return resp

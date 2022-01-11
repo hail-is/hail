@@ -302,7 +302,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
 
 @typecheck(
     billing_project=nullable(str),
-    bucket=nullable(str),
+    remote_tmpdir=nullable(str),
     log=nullable(str),
     quiet=bool,
     append=bool,
@@ -313,8 +313,8 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     skip_logging_configuration=bool,
     disable_progress_bar=bool)
 async def init_service(
-        billing_project: str = None,
-        bucket: str = None,
+        billing_project: Optional[str] = None,
+        remote_tmpdir: Optional[str] = None,
         log=None,
         quiet=False,
         append=False,
@@ -326,14 +326,14 @@ async def init_service(
         *,
         disable_progress_bar=True):
     from hail.backend.service_backend import ServiceBackend
-    backend = await ServiceBackend.create(billing_project,
-                                          bucket,
+    backend = await ServiceBackend.create(billing_project=billing_project,
+                                          remote_tmpdir=remote_tmpdir,
                                           skip_logging_configuration=skip_logging_configuration,
                                           disable_progress_bar=disable_progress_bar)
 
     log = _get_log(log)
     if tmpdir is None:
-        tmpdir = 'gs://' + backend.bucket + '/tmp/hail/' + secret_alnum_string()
+        tmpdir = backend.remote_tmpdir + 'tmp/hail/' + secret_alnum_string()
     assert tmpdir.startswith('gs://')
     local_tmpdir = _get_local_tmpdir(local_tmpdir)
 
