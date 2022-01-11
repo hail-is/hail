@@ -3335,12 +3335,10 @@ class Table(ExprContainer):
             for field in fields:
                 data[data_idx][field] = columns[field][data_idx]
 
-        print(data)
         for data_idx, field in enumerate(fields):
             hl_type_dict[field] = dtypes_from_pandas(pd_dtypes[field], data[0][field])
-        print(hl_type_dict)
+
         new_table = hl.Table.parallelize(hl.literal(data, hl.tarray(hl.tstruct(**hl_type_dict))))
-        import pdb; pdb.set_trace()
         return new_table if not key else new_table.key_by(*key)
 
     @typecheck_method(other=table_type, tolerance=nullable(numeric), absolute=bool)
