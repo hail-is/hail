@@ -792,6 +792,7 @@ class LinearMixedModel(object):
         if return_pandas:
             return df
         else:
+            import pdb; pdb.set_trace()
             a = Table.from_pandas(df, key='idx')
             return a
 

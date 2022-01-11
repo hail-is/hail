@@ -3323,22 +3323,24 @@ class Table(ExprContainer):
         -------
         :class:`.Table`
         """
-        values = df.values.tolist()
+
+        key = [key] if isinstance(key, str) else key 
         fields = list(df.columns)
-        data = []
         pd_dtypes = df.dtypes
         hl_type_dict = {}
+        columns = {fields[col_idx] : df[col].tolist() for col_idx, col in enumerate(df.columns)}
+        data = [{} for _ in range(len(columns[fields[0]]))]
 
-        for value_row in values:
-            row_dict = {fields[i]: value_row[i] for i in range(len(fields))}
-            data.append(row_dict)
+        for data_idx in range(len(columns[fields[0]])):
+            for field in fields:
+                data[data_idx][field] = columns[field][data_idx]
 
         print(data)
         for data_idx, field in enumerate(fields):
-            hl_type_dict[field] = dtypes_from_pandas(pd_dtypes[field], values[0][data_idx])
+            hl_type_dict[field] = dtypes_from_pandas(pd_dtypes[field], data[0][field])
         print(hl_type_dict)
-
         new_table = hl.Table.parallelize(hl.literal(data, hl.tarray(hl.tstruct(**hl_type_dict))))
+        import pdb; pdb.set_trace()
         return new_table if not key else new_table.key_by(*key)
 
     @typecheck_method(other=table_type, tolerance=nullable(numeric), absolute=bool)
