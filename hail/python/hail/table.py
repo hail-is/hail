@@ -3328,7 +3328,7 @@ class Table(ExprContainer):
         fields = list(df.columns)
         pd_dtypes = df.dtypes
         hl_type_dict = {}
-        columns = {fields[col_idx] : df[col].tolist() for col_idx, col in enumerate(df.columns)}
+        columns = {fields[col_idx]: df[col].tolist() for col_idx, col in enumerate(df.columns)}
         data = [{} for _ in range(len(columns[fields[0]]))]
 
         for data_idx in range(len(columns[fields[0]])):
