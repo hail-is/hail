@@ -7,10 +7,13 @@ TOKEN = $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
 
 QUERY_IMAGE := $(DOCKER_PREFIX)/query:$(TOKEN)
 
+BLACK := $(PYTHON) -m black . --line-length=120 --skip-string-normalization
+
 .PHONY: check
 check:
 	$(PYTHON) -m flake8  --config ../setup.cfg query
 	$(PYTHON) -m pylint --rcfile ../pylintrc query --score=n
+	$(BLACK) --check --diff
 
 .PHONY: build
 build:
