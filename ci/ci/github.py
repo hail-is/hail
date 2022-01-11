@@ -571,15 +571,15 @@ mkdir -p {shq(repo_dir)}
     def is_up_to_date(self):
         return self.batch is not None and self.target_branch.sha == self.batch.attributes['target_sha']
 
-    def is_mergeable(self):
-        if self.last_known_github_status[GITHUB_STATUS_CONTEXT] == 'success':
+    def is_mergeable(self) -> bool:
+        if self.last_known_github_status[GITHUB_STATUS_CONTEXT] == GithubStatus.SUCCESS:
             assert self.build_state == 'success', (
                 self.last_known_github_status[GITHUB_STATUS_CONTEXT],
                 self.build_state,
             )
         return (
             self.review_state == 'approved'
-            and all(status == 'success' for status in self.last_known_github_status)
+            and all(status == GithubStatus.SUCCESS for status in self.last_known_github_status)
             and self.is_up_to_date()
             and all(label not in DO_NOT_MERGE for label in self.labels)
         )
