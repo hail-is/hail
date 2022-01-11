@@ -53,7 +53,9 @@ class GCPWorkerAPI(CloudWorkerAPI):
     def instance_config_from_config_dict(self, config_dict: Dict[str, str]) -> GCPSlimInstanceConfig:
         return GCPSlimInstanceConfig.from_dict(config_dict)
 
-    def _mount_cloudfuse(self, fuse_credentials_path: str, mount_base_path_data: str, mount_base_path_tmp: str, config: dict) -> str:  # pylint: disable=unused-argument
+    def _mount_cloudfuse(
+        self, fuse_credentials_path: str, mount_base_path_data: str, mount_base_path_tmp: str, config: dict
+    ) -> str:  # pylint: disable=unused-argument
         os.makedirs(mount_base_path_data)
 
         bucket = config.get('location') or config.get('bucket')
