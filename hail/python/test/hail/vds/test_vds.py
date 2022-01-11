@@ -284,3 +284,33 @@ def test_impute_sex_chromosome_ploidy():
                   y_mean_dp=3.5,
                   y_ploidy=1.4)
     ]
+
+
+def test_filter_chromosomes():
+    hl._set_flags(no_whole_stage_codegen='1')
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
+
+
+    autosomes = [f'chr{i}' for i in range(1, 23)]
+    sex_chrs = ['chrX', 'chrY']
+
+    all_chrs = autosomes + sex_chrs
+    def assert_contigs(vds, expected):
+        expected_set = set(expected)
+
+        rd = vds.reference_data
+        vd = vds.variant_data
+
+        assert rd.aggregate_rows(hl.agg.collect_as_set(rd.locus.contig)) == expected_set
+        assert vd.aggregate_rows(hl.agg.collect_as_set(vd.locus.contig)) == expected_set
+
+    assert_contigs(vds, all_chrs)
+
+    vds_keep_1_5 = hl.vds.filter_chromosomes(vds, keep=['chr1', 'chr5'])
+    assert_contigs(vds_keep_1_5, ['chr1', 'chr5'])
+
+    vds_remove_1_5 = hl.vds.filter_chromosomes(vds, remove=['chr1', 'chr5'])
+    assert_contigs(vds_remove_1_5, [x for x in all_chrs if x not in ['chr1', 'chr5']])
+
+    vds_auto = hl.vds.filter_chromosomes(vds, keep_autosomes=True)
+    assert_contigs(vds_auto, autosomes)
