@@ -411,8 +411,8 @@ class Batch:
         jobs = []
         async for j_status in self.jobs():
             id = j_status['job_id']
-            log, full_status = await asyncio.gather(self.get_job_log(id), self.get_job(id))
-            jobs.append({'log': log, 'status': full_status})
+            log, job = await asyncio.gather(self.get_job_log(id), self.get_job(id))
+            jobs.append({'log': log, 'status': job._status})
         return {'status': batch_status, 'jobs': jobs}
 
     async def delete(self):

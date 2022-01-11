@@ -1427,7 +1427,8 @@ class DockerJob(Job):
                         os.makedirs(self.cloudfuse_base_path())
 
                         await check_shell_output(
-                            f'xfs_quota -x -c "project -s -p {self.cloudfuse_base_path()} {self.project_id}" /host/')
+                            f'xfs_quota -x -c "project -s -p {self.cloudfuse_base_path()} {self.project_id}" /host/'
+                        )
 
                         for config in self.cloudfuse:
                             location = config.get('location') or config['bucket']
@@ -1447,7 +1448,8 @@ class DockerJob(Job):
                                 cloudfuse_credentials_path,
                                 self.cloudfuse_data_path(location),
                                 self.cloudfuse_tmp_path(location),
-                                config)
+                                config,
+                            )
                             config['mounted'] = True
 
                 self.state = 'running'
