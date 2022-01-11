@@ -1,5 +1,4 @@
 import sys
-import csv
 import tabulate
 
 from .batch_cli_utils import make_formatter
@@ -15,7 +14,7 @@ def init_parser(parser):
     parser.add_argument('--full', action='store_true',
                         help='when output is tabular, print more information')
     parser.add_argument('--no-header', action='store_true', help='do not print a table header')
-    parser.add_argument('-o', type=str, default='orgtbl',
+    parser.add_argument('-o', type=str, default='grid',
                         help='specify output format (json, yaml, csv, tsv, or any tabulate format)')
 
 
@@ -28,30 +27,20 @@ def main(args, passthrough_args, client):  # pylint: disable=unused-argument
 
     batch_list = client.list_batches(q=args.query, last_batch_id=args.before, limit=args.limit)
     statuses = [batch.last_known_status() for batch in batch_list]
-    if args.o in ('json', 'yaml'):
-        print(make_formatter(args.o)(statuses))
-        return
+
+    if len(statuses) == 0:
+        print("No batches to display.")
 
     for status in statuses:
         status['state'] = status['state'].capitalize()
 
     if args.full:
-        header = () if args.no_header else (
-            'ID', 'PROJECT', 'STATE', 'COMPLETE', 'CLOSED', 'N_JOBS', 'N_COMPLETED',
-            'N_SUCCEDED', 'N_FAILED', 'N_CANCELLED', 'TIME CREATED', 'TIME CLOSED',
-            'TIME COMPLETED', 'DURATION', 'MSEC_MCPU', 'COST'
-        )
-        rows = [[v for k, v in status.items() if k != 'attributes'] for status in statuses]
+        for status in statuses:
+            del status['attributes']
     else:
-        header = () if args.no_header else ('ID', 'STATE')
-        rows = [(status['id'], status['state']) for status in statuses]
+        statuses = [{'id': status['id'], 'state': status['state']} for status in statuses]
 
-    if args.o in ('csv', 'tsv'):
-        delim = ',' if args.o == 'csv' else '\t'
-        writer = csv.writer(sys.stdout, delimiter=delim)
-        if header:
-            writer.writerow(header)
-        for row in rows:
-            writer.writerow(row)
-    else:
-        print(tabulate.tabulate(rows, headers=header, tablefmt=args.o))
+    # create a format function based on the format option
+    format = make_formatter(args.o)
+    # each format function takes in a list of dictionaries
+    format(statuses)
