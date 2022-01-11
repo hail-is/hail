@@ -408,9 +408,11 @@ class Batch:
 
     async def debug_info(self):
         batch_status = await self.status()
-        jobs = [
-            {'status': j, 'log': await self.get_job_log(j['job_id'])}
-            async for j in self.jobs()]
+        jobs = []
+        async for j_status in self.jobs():
+            id = j_status['job_id']
+            log, full_status = asyncio.gather(self.get_job_log(id), self.get_job(id))
+            jobs.append({'log': log, 'status': full_status})
         return {'status': batch_status, 'jobs': jobs}
 
     async def delete(self):
