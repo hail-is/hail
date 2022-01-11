@@ -40,11 +40,7 @@ for cores in azure_valid_cores_from_worker_type['F']:
     azure_valid_machine_types.append(f'Standard_F{cores}s_v2')
 
 
-azure_memory_to_worker_type = {
-    'lowmem': 'F',
-    'standard': 'D',
-    'highmem': 'E'
-}
+azure_memory_to_worker_type = {'lowmem': 'F', 'standard': 'D', 'highmem': 'E'}
 
 
 class AzureDisk:
@@ -78,9 +74,11 @@ azure_disk_number_to_storage_gib = {
     '80': 32 * 1024,
 }
 
-azure_disks_by_disk_type = {'P': sortedcontainers.SortedSet(key=lambda disk: disk.size_in_gib),
-                            'E': sortedcontainers.SortedSet(key=lambda disk: disk.size_in_gib),
-                            'S': sortedcontainers.SortedSet(key=lambda disk: disk.size_in_gib)}
+azure_disks_by_disk_type = {
+    'P': sortedcontainers.SortedSet(key=lambda disk: disk.size_in_gib),
+    'E': sortedcontainers.SortedSet(key=lambda disk: disk.size_in_gib),
+    'S': sortedcontainers.SortedSet(key=lambda disk: disk.size_in_gib),
+}
 
 valid_azure_disk_names = set()
 
@@ -110,14 +108,28 @@ class MachineTypeParts:
         constrained_cpu = data['constrained_cpu']
         if constrained_cpu is not None:
             constrained_cpu = int(constrained_cpu)
-        return MachineTypeParts(data['typ'], data['family'], data['sub_family'],
-                                int(data['cpu']), constrained_cpu,
-                                data['additive_features'], data['accelerator_type'],
-                                data['version'])
+        return MachineTypeParts(
+            data['typ'],
+            data['family'],
+            data['sub_family'],
+            int(data['cpu']),
+            constrained_cpu,
+            data['additive_features'],
+            data['accelerator_type'],
+            data['version'],
+        )
 
-    def __init__(self, typ: str, family: str, sub_family: Optional[str], cores: int,
-                 constrained_cpu: Optional[int], additive_features: Optional[str],
-                 accelerator_type: Optional[str], version: Optional[str]):
+    def __init__(
+        self,
+        typ: str,
+        family: str,
+        sub_family: Optional[str],
+        cores: int,
+        constrained_cpu: Optional[int],
+        additive_features: Optional[str],
+        accelerator_type: Optional[str],
+        version: Optional[str],
+    ):
         self.typ = typ
         self.family = family
         self.sub_family = sub_family
@@ -170,8 +182,9 @@ def azure_local_ssd_size(worker_type: str, cores: int) -> int:
     return int(cores * azure_local_ssd_size_per_core_by_worker_type[worker_type])
 
 
-def azure_unreserved_worker_data_disk_size_gib(local_ssd_data_disk, external_data_disk_size_gib,
-                                               worker_cores, worker_type):
+def azure_unreserved_worker_data_disk_size_gib(
+    local_ssd_data_disk, external_data_disk_size_gib, worker_cores, worker_type
+):
     reserved_image_size = 30
     reserved_container_size = RESERVED_STORAGE_GB_PER_CORE * worker_cores
     if local_ssd_data_disk:
@@ -185,7 +198,7 @@ def azure_requested_to_actual_storage_bytes(storage_bytes, allow_zero_storage):
     if allow_zero_storage and storage_bytes == 0:
         return storage_bytes
     # actual minimum storage size is 4 Gi on Azure, but keeping 10 to be consistent with gcp
-    return max(10 * 1024**3, storage_bytes)
+    return max(10 * 1024 ** 3, storage_bytes)
 
 
 def azure_is_valid_storage_request(storage_in_gib: int) -> bool:

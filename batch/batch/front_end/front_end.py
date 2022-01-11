@@ -781,12 +781,12 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if result is None:
                     raise web.HTTPBadRequest(
                         reason=f'resource requests for job {id} are unsatisfiable: '
-                               f'cloud={cloud}, '
-                               f'cpu={resources.get("req_cpu")}, '
-                               f'memory={resources.get("req_memory")}, '
-                               f'storage={resources["req_storage"]}, '
-                               f'preemptible={preemptible}, '
-                               f'machine_type={machine_type}'
+                        f'cloud={cloud}, '
+                        f'cpu={resources.get("req_cpu")}, '
+                        f'memory={resources.get("req_memory")}, '
+                        f'storage={resources["req_storage"]}, '
+                        f'preemptible={preemptible}, '
+                        f'machine_type={machine_type}'
                     )
 
                 inst_coll_name, cores_mcpu, memory_bytes, storage_gib = result
@@ -830,7 +830,9 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if cloud == 'gcp' and all(envvar['name'] != 'GOOGLE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
                     spec['env'].append({'name': 'GOOGLE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
 
-                if cloud == 'azure' and all(envvar['name'] != 'AZURE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
+                if cloud == 'azure' and all(
+                    envvar['name'] != 'AZURE_APPLICATION_CREDENTIALS' for envvar in spec['env']
+                ):
                     spec['env'].append({'name': 'AZURE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
 
                 if spec.get('mount_tokens', False):
@@ -914,6 +916,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
         async def insert_jobs_into_db():
             async with timer.step('insert jobs'):
+
                 @transaction(db)
                 async def insert(tx):
                     try:
@@ -952,13 +955,16 @@ VALUES (%s, %s, %s, %s);
                     )
 
                     batches_inst_coll_staging_args = [
-                        (batch_id,
-                         inst_coll,
-                         rand_token,
-                         resources['n_jobs'],
-                         resources['n_ready_jobs'],
-                         resources['ready_cores_mcpu'])
-                        for inst_coll, resources in inst_coll_resources.items()]
+                        (
+                            batch_id,
+                            inst_coll,
+                            rand_token,
+                            resources['n_jobs'],
+                            resources['n_ready_jobs'],
+                            resources['ready_cores_mcpu'],
+                        )
+                        for inst_coll, resources in inst_coll_resources.items()
+                    ]
                     await tx.execute_many(
                         '''
 INSERT INTO batches_inst_coll_staging (batch_id, inst_coll, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
@@ -968,15 +974,19 @@ ON DUPLICATE KEY UPDATE
   n_ready_jobs = n_ready_jobs + VALUES(n_ready_jobs),
   ready_cores_mcpu = ready_cores_mcpu + VALUES(ready_cores_mcpu);
 ''',
-                        batches_inst_coll_staging_args)
+                        batches_inst_coll_staging_args,
+                    )
 
                     batch_inst_coll_cancellable_resources_args = [
-                        (batch_id,
-                         inst_coll,
-                         rand_token,
-                         resources['n_ready_cancellable_jobs'],
-                         resources['ready_cancellable_cores_mcpu'])
-                        for inst_coll, resources in inst_coll_resources.items()]
+                        (
+                            batch_id,
+                            inst_coll,
+                            rand_token,
+                            resources['n_ready_cancellable_jobs'],
+                            resources['ready_cancellable_cores_mcpu'],
+                        )
+                        for inst_coll, resources in inst_coll_resources.items()
+                    ]
                     await tx.execute_many(
                         '''
 INSERT INTO batch_inst_coll_cancellable_resources (batch_id, inst_coll, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
@@ -985,7 +995,8 @@ ON DUPLICATE KEY UPDATE
   n_ready_cancellable_jobs = n_ready_cancellable_jobs + VALUES(n_ready_cancellable_jobs),
   ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu + VALUES(ready_cancellable_cores_mcpu);
 ''',
-                        batch_inst_coll_cancellable_resources_args)
+                        batch_inst_coll_cancellable_resources_args,
+                    )
 
                     if batch_format_version.has_full_spec_in_cloud():
                         await tx.execute_update(
@@ -1008,6 +1019,7 @@ VALUES (%s, %s, %s);
                         f'jobs_args={json.dumps(jobs_args)}'
                         f'job_parents_args={json.dumps(job_parents_args)}'
                     ) from err
+
         await asyncio.gather(write_spec_to_cloud(), insert_jobs_into_db())
 
     return web.Response()

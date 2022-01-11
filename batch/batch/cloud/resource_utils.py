@@ -3,23 +3,27 @@ import math
 from typing import Tuple, Dict, List, Optional
 
 from ..globals import RESERVED_STORAGE_GB_PER_CORE
-from .azure.resource_utils import (azure_worker_memory_per_core_mib,
-                                   azure_requested_to_actual_storage_bytes,
-                                   azure_machine_type_to_worker_type_and_cores,
-                                   azure_valid_machine_types,
-                                   azure_memory_to_worker_type,
-                                   azure_is_valid_storage_request,
-                                   azure_local_ssd_size,
-                                   azure_valid_cores_from_worker_type)
-from .gcp.resource_utils import (gcp_cost_from_msec_mcpu,
-                                 gcp_worker_memory_per_core_mib,
-                                 gcp_requested_to_actual_storage_bytes,
-                                 gcp_machine_type_to_worker_type_and_cores,
-                                 gcp_valid_machine_types,
-                                 gcp_memory_to_worker_type,
-                                 gcp_is_valid_storage_request,
-                                 gcp_local_ssd_size,
-                                 gcp_valid_cores_from_worker_type)
+from .azure.resource_utils import (
+    azure_worker_memory_per_core_mib,
+    azure_requested_to_actual_storage_bytes,
+    azure_machine_type_to_worker_type_and_cores,
+    azure_valid_machine_types,
+    azure_memory_to_worker_type,
+    azure_is_valid_storage_request,
+    azure_local_ssd_size,
+    azure_valid_cores_from_worker_type,
+)
+from .gcp.resource_utils import (
+    gcp_cost_from_msec_mcpu,
+    gcp_worker_memory_per_core_mib,
+    gcp_requested_to_actual_storage_bytes,
+    gcp_machine_type_to_worker_type_and_cores,
+    gcp_valid_machine_types,
+    gcp_memory_to_worker_type,
+    gcp_is_valid_storage_request,
+    gcp_local_ssd_size,
+    gcp_valid_cores_from_worker_type,
+)
 
 log = logging.getLogger('resource_utils')
 
@@ -94,7 +98,9 @@ def unreserved_worker_data_disk_size_gib(data_disk_size_gib: int, cores: int) ->
     return data_disk_size_gib - reserved_image_size - reserved_container_size
 
 
-def requested_storage_bytes_to_actual_storage_gib(cloud: str, storage_bytes: int, allow_zero_storage: bool) -> Optional[int]:
+def requested_storage_bytes_to_actual_storage_gib(
+    cloud: str, storage_bytes: int, allow_zero_storage: bool
+) -> Optional[int]:
     if cloud == 'azure':
         actual_storage_bytes = azure_requested_to_actual_storage_bytes(storage_bytes, allow_zero_storage)
     else:

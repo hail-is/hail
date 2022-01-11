@@ -95,6 +95,7 @@ def compose_auth_header_urlsafe(orig_f):
         auth = json.loads(base64.b64decode(orig_auth_header))
         auth_json = json.dumps(auth).encode('ascii')
         return base64.urlsafe_b64encode(auth_json).decode('ascii')
+
     return compose
 
 
@@ -477,6 +478,7 @@ class Container:
 
     async def run(self):
         try:
+
             async def localize_rootfs():
                 async def _localize_rootfs():
                     async with image_lock.reader_lock:
@@ -495,12 +497,15 @@ class Container:
                                 try:
                                     await self.extract_rootfs()
                                     image_data.extracted = True
-                                    log.info(f'Added expanded image to cache: {self.image_ref_str}, ID: {self.image_id}')
+                                    log.info(
+                                        f'Added expanded image to cache: {self.image_ref_str}, ID: {self.image_id}'
+                                    )
                                 except asyncio.CancelledError:
                                     raise
                                 except Exception:
                                     log.exception(f'while extracting image {self.image_ref_str}, ID: {self.image_id}')
                                     await blocking_to_async(worker.pool, shutil.rmtree, self.rootfs_path)
+
                 await asyncio.shield(_localize_rootfs())
 
             with self.step('pulling'):
@@ -571,8 +576,9 @@ class Container:
         return self.timings.step(name, ignore_job_deletion=ignore_job_deletion)
 
     async def pull_image(self):
-        is_cloud_image = ((CLOUD == 'gcp' and self.image_ref.hosted_in('google'))
-                          or (CLOUD == 'azure' and self.image_ref.hosted_in('azure')))
+        is_cloud_image = (CLOUD == 'gcp' and self.image_ref.hosted_in('google')) or (
+            CLOUD == 'azure' and self.image_ref.hosted_in('azure')
+        )
         is_public_image = self.image_ref.name() in PUBLIC_IMAGES
 
         try:
@@ -1105,19 +1111,22 @@ class Job:
         return f'{self.credentials_host_dirname()}/{self.credentials.file_name}'
 
     @staticmethod
-    def create(batch_id,
-               user,
-               credentials: CloudUserCredentials,
-               job_spec: dict,
-               format_version: BatchFormatVersion,
-               task_manager: aiotools.BackgroundTaskManager,
-               pool: concurrent.futures.ThreadPoolExecutor,
-               client_session: httpx.ClientSession,
-               worker: 'Worker'
-               ) -> 'Job':
+    def create(
+        batch_id,
+        user,
+        credentials: CloudUserCredentials,
+        job_spec: dict,
+        format_version: BatchFormatVersion,
+        task_manager: aiotools.BackgroundTaskManager,
+        pool: concurrent.futures.ThreadPoolExecutor,
+        client_session: httpx.ClientSession,
+        worker: 'Worker',
+    ) -> 'Job':
         type = job_spec['process']['type']
         if type == 'docker':
-            return DockerJob(batch_id, user, credentials, job_spec, format_version, task_manager, pool, client_session, worker)
+            return DockerJob(
+                batch_id, user, credentials, job_spec, format_version, task_manager, pool, client_session, worker
+            )
         assert type == 'jvm'
         return JVMJob(batch_id, user, credentials, job_spec, format_version, task_manager, pool, worker)
 
@@ -1171,7 +1180,9 @@ class Job:
                 RESERVED_STORAGE_GB_PER_CORE, self.cpu_in_mcpu / 1000 * RESERVED_STORAGE_GB_PER_CORE
             )
 
-        self.resources = instance_config.quantified_resources(self.cpu_in_mcpu, self.memory_in_bytes, self.external_storage_in_gib)
+        self.resources = instance_config.quantified_resources(
+            self.cpu_in_mcpu, self.memory_in_bytes, self.external_storage_in_gib
+        )
 
         self.input_volume_mounts = []
         self.main_volume_mounts = []
@@ -1882,7 +1893,7 @@ class Worker:
             self.task_manager,
             self.pool,
             self.client_session,
-            self
+            self,
         )
 
         log.info(f'created {job}, adding to jobs')

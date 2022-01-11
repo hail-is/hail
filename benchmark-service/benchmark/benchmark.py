@@ -432,9 +432,7 @@ async def on_startup(app):
     credentials = aiogoogle.GoogleCredentials.from_file('/benchmark-gsa-key/key.json')
     app['fs'] = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
     app['client_session'] = httpx.client_session()
-    app['github_client'] = gidgethub.aiohttp.GitHubAPI(
-        app['client_session'], 'hail-is/hail', oauth_token=oauth_token
-    )
+    app['github_client'] = gidgethub.aiohttp.GitHubAPI(app['client_session'], 'hail-is/hail', oauth_token=oauth_token)
     app['batch_client'] = await bc.BatchClient.create(billing_project='benchmark')
     app['task_manager'] = aiotools.BackgroundTaskManager()
     app['task_manager'].ensure_future(retry_long_running('github_polling_loop', github_polling_loop, app))

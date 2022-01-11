@@ -50,20 +50,22 @@ class ZoneSuccessRate:
 
 class ZoneMonitor(CloudLocationMonitor):
     @staticmethod
-    async def create(compute_client: aiogoogle.GoogleComputeClient,  # BORROWED
-                     regions: Set[str],
-                     default_zone: str,
-                     ) -> 'ZoneMonitor':
+    async def create(
+        compute_client: aiogoogle.GoogleComputeClient,  # BORROWED
+        regions: Set[str],
+        default_zone: str,
+    ) -> 'ZoneMonitor':
         region_info, zones = await fetch_region_quotas(compute_client, regions)
         return ZoneMonitor(compute_client, region_info, zones, regions, default_zone)
 
-    def __init__(self,
-                 compute_client: aiogoogle.GoogleComputeClient,  # BORROWED
-                 initial_region_info: Dict[str, Dict[str, Any]],
-                 initial_zones: List[str],
-                 regions: Set[str],
-                 default_zone: str,
-                 ):
+    def __init__(
+        self,
+        compute_client: aiogoogle.GoogleComputeClient,  # BORROWED
+        initial_region_info: Dict[str, Dict[str, Any]],
+        initial_zones: List[str],
+        regions: Set[str],
+        default_zone: str,
+    ):
         self._compute_client = compute_client
         self._region_info: Dict[str, Dict[str, Any]] = initial_region_info
         self._regions = regions
@@ -75,13 +77,8 @@ class ZoneMonitor(CloudLocationMonitor):
     def default_location(self) -> str:
         return self._default_zone
 
-    def choose_location(self,
-                        worker_cores: int,
-                        local_ssd_data_disk: bool,
-                        data_disk_size_gb: int
-                        ) -> str:
-        zone_weights = self.compute_zone_weights(
-            worker_cores, local_ssd_data_disk, data_disk_size_gb)
+    def choose_location(self, worker_cores: int, local_ssd_data_disk: bool, data_disk_size_gb: int) -> str:
+        zone_weights = self.compute_zone_weights(worker_cores, local_ssd_data_disk, data_disk_size_gb)
 
         zones = [zw.zone for zw in zone_weights]
 
@@ -95,11 +92,9 @@ class ZoneMonitor(CloudLocationMonitor):
         zone = random.choices(zones, zone_prob_weights)[0]
         return zone
 
-    def compute_zone_weights(self,
-                             worker_cores: int,
-                             local_ssd_data_disk: bool,
-                             data_disk_size_gb: int
-                             ) -> List[ZoneWeight]:
+    def compute_zone_weights(
+        self, worker_cores: int, local_ssd_data_disk: bool, data_disk_size_gb: int
+    ) -> List[ZoneWeight]:
         weights = []
         for r in self._region_info.values():
             quota_remaining = {q['metric']: q['limit'] - q['usage'] for q in r['quotas']}
@@ -122,16 +117,13 @@ class ZoneMonitor(CloudLocationMonitor):
         return weights
 
     async def update_region_quotas(self):
-        self._region_info, self.zones = await fetch_region_quotas(
-            self._compute_client, self._regions)
+        self._region_info, self.zones = await fetch_region_quotas(self._compute_client, self._regions)
         log.info('updated region quotas')
 
 
-async def fetch_region_quotas(compute_client: aiogoogle.GoogleComputeClient,
-                              regions: Set[str]
-                              ) -> Tuple[Dict[str, Dict[str, Any]], List[str]]:
-    region_info = {name: await compute_client.get(f'/regions/{name}')
-                   for name in regions}
-    zones = [url_basename(z)
-             for r in region_info.values() for z in r['zones']]
+async def fetch_region_quotas(
+    compute_client: aiogoogle.GoogleComputeClient, regions: Set[str]
+) -> Tuple[Dict[str, Dict[str, Any]], List[str]]:
+    region_info = {name: await compute_client.get(f'/regions/{name}') for name in regions}
+    zones = [url_basename(z) for r in region_info.values() for z in r['zones']]
     return region_info, zones

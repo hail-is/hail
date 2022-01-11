@@ -5,8 +5,15 @@ from hailtop.utils import filter_none
 from ...driver.billing_manager import ProductVersions
 from ...instance_config import InstanceConfig
 from .resource_utils import azure_machine_type_to_worker_type_and_cores
-from .resources import (AzureResource, AzureVMResource, AzureStaticSizedDiskResource, AzureDynamicSizedDiskResource,
-                        AzureServiceFeeResource, AzureIPFeeResource, azure_resource_from_dict)
+from .resources import (
+    AzureResource,
+    AzureVMResource,
+    AzureStaticSizedDiskResource,
+    AzureDynamicSizedDiskResource,
+    AzureServiceFeeResource,
+    AzureIPFeeResource,
+    azure_resource_from_dict,
+)
 
 
 AZURE_INSTANCE_CONFIG_VERSION = 2
@@ -14,27 +21,31 @@ AZURE_INSTANCE_CONFIG_VERSION = 2
 
 class AzureSlimInstanceConfig(InstanceConfig):
     @staticmethod
-    def create(product_versions: ProductVersions,
-               machine_type: str,
-               preemptible: bool,
-               local_ssd_data_disk: bool,
-               data_disk_size_gb: int,
-               boot_disk_size_gb: int,
-               job_private: bool,
-               location: str) -> 'AzureSlimInstanceConfig':
+    def create(
+        product_versions: ProductVersions,
+        machine_type: str,
+        preemptible: bool,
+        local_ssd_data_disk: bool,
+        data_disk_size_gb: int,
+        boot_disk_size_gb: int,
+        job_private: bool,
+        location: str,
+    ) -> 'AzureSlimInstanceConfig':
         if local_ssd_data_disk:
             data_disk_resource = None
         else:
             data_disk_resource = AzureStaticSizedDiskResource.create(product_versions, 'P', data_disk_size_gb, location)
 
-        resources = filter_none([
-            AzureVMResource.create(product_versions, machine_type, preemptible, location),
-            AzureStaticSizedDiskResource.create(product_versions, 'E', boot_disk_size_gb, location),
-            data_disk_resource,
-            AzureDynamicSizedDiskResource.create(product_versions, 'P', location),
-            AzureIPFeeResource.create(product_versions, 1024),
-            AzureServiceFeeResource.create(product_versions),
-        ])
+        resources = filter_none(
+            [
+                AzureVMResource.create(product_versions, machine_type, preemptible, location),
+                AzureStaticSizedDiskResource.create(product_versions, 'E', boot_disk_size_gb, location),
+                data_disk_resource,
+                AzureDynamicSizedDiskResource.create(product_versions, 'P', location),
+                AzureIPFeeResource.create(product_versions, 1024),
+                AzureServiceFeeResource.create(product_versions),
+            ]
+        )
 
         return AzureSlimInstanceConfig(
             machine_type=machine_type,
@@ -46,15 +57,16 @@ class AzureSlimInstanceConfig(InstanceConfig):
             resources=resources,
         )
 
-    def __init__(self,
-                 machine_type: str,
-                 preemptible: bool,
-                 local_ssd_data_disk: bool,
-                 data_disk_size_gb: int,
-                 boot_disk_size_gb: int,
-                 job_private: bool,
-                 resources: List[AzureResource]
-                 ):
+    def __init__(
+        self,
+        machine_type: str,
+        preemptible: bool,
+        local_ssd_data_disk: bool,
+        data_disk_size_gb: int,
+        boot_disk_size_gb: int,
+        job_private: bool,
+        resources: List[AzureResource],
+    ):
         self.cloud = 'azure'
         self._machine_type = machine_type
         self.preemptible = preemptible
@@ -100,5 +112,5 @@ class AzureSlimInstanceConfig(InstanceConfig):
             'data_disk_size_gb': self.data_disk_size_gb,
             'boot_disk_size_gb': self.boot_disk_size_gb,
             'job_private': self.job_private,
-            'resources': [resource.to_dict() for resource in self.resources]
+            'resources': [resource.to_dict() for resource in self.resources],
         }
