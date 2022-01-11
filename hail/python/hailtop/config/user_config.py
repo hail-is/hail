@@ -1,4 +1,4 @@
-from typing import Mapping, Optional
+from typing import Optional
 import os
 import configparser
 import warnings
