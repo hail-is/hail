@@ -792,7 +792,8 @@ class LinearMixedModel(object):
         if return_pandas:
             return df
         else:
-            return Table.from_pandas(df, key='idx')
+            a = Table.from_pandas(df, key='idx')
+            return a
 
     def _fit_alternative_numpy(self, pa, a):
         from scipy.linalg import solve, LinAlgError

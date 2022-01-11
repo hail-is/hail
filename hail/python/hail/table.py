@@ -3333,8 +3333,10 @@ class Table(ExprContainer):
             row_dict = {fields[i]: value_row[i] for i in range(len(fields))}
             data.append(row_dict)
 
+        print(data)
         for data_idx, field in enumerate(fields):
             hl_type_dict[field] = dtypes_from_pandas(pd_dtypes[field], values[0][data_idx])
+        print(hl_type_dict)
 
         new_table = hl.Table.parallelize(hl.literal(data, hl.tarray(hl.tstruct(**hl_type_dict))))
         return new_table if not key else new_table.key_by(*key)
