@@ -25,7 +25,7 @@ from .py4j_backend import Py4JBackend, handle_java_exception
 from ..hail_logging import Logger
 
 if pyspark.__version__ < '3' and sys.version_info > (3, 8):
-    raise EnvironmentError('Hail with spark {} requires Python 3.6 or 3.7, found {}.{}'.format(
+    raise EnvironmentError('Hail with spark {} requires Python 3.7, found {}.{}'.format(
         pyspark.__version__, sys.version_info.major, sys.version_info.minor))
 
 _installed = False
