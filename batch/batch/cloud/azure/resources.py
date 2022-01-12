@@ -2,8 +2,15 @@ import abc
 from typing import Dict, Any, Optional
 
 from ...driver.billing_manager import ProductVersions
-from ...resources import (QuantifiedResource, Resource, StaticSizedDiskResourceMixin, VMResourceMixin, IPFeeResourceMixin,
-                          ServiceFeeResourceMixin, DynamicSizedDiskResourceMixin)
+from ...resources import (
+    QuantifiedResource,
+    Resource,
+    StaticSizedDiskResourceMixin,
+    VMResourceMixin,
+    IPFeeResourceMixin,
+    ServiceFeeResourceMixin,
+    DynamicSizedDiskResourceMixin,
+)
 from .resource_utils import azure_disk_from_storage_in_gib, azure_disks_by_disk_type
 
 
@@ -29,12 +36,13 @@ class AzureStaticSizedDiskResource(StaticSizedDiskResourceMixin, AzureResource):
         return AzureStaticSizedDiskResource(data['name'], data['storage_in_gib'])
 
     @staticmethod
-    def create(product_versions: ProductVersions,
-               disk_type: str,
-               storage_in_gib: int,
-               location: str,
-               redundancy_type: str = 'LRS',
-               ) -> 'AzureStaticSizedDiskResource':
+    def create(
+        product_versions: ProductVersions,
+        disk_type: str,
+        storage_in_gib: int,
+        location: str,
+        redundancy_type: str = 'LRS',
+    ) -> 'AzureStaticSizedDiskResource':
         assert redundancy_type in ('LRS', 'ZRS'), redundancy_type
 
         # Azure bills for specific disk sizes so we must round the storage_in_gib to the nearest power of two
@@ -55,7 +63,7 @@ class AzureStaticSizedDiskResource(StaticSizedDiskResourceMixin, AzureResource):
             'type': self.TYPE,
             'name': self.name,
             'storage_in_gib': self.storage_in_gib,
-            'format_version': self.FORMAT_VERSION
+            'format_version': self.FORMAT_VERSION,
         }
 
 
@@ -73,11 +81,12 @@ class AzureDynamicSizedDiskResource(DynamicSizedDiskResourceMixin, AzureResource
         return AzureDynamicSizedDiskResource(data['disk_type'], data['location'], data['latest_disk_versions'])
 
     @staticmethod
-    def create(product_versions: ProductVersions,
-               disk_type: str,
-               location: str,
-               redundancy_type: str = 'LRS',
-               ) -> 'AzureDynamicSizedDiskResource':
+    def create(
+        product_versions: ProductVersions,
+        disk_type: str,
+        location: str,
+        redundancy_type: str = 'LRS',
+    ) -> 'AzureDynamicSizedDiskResource':
         assert redundancy_type in ('LRS', 'ZRS'), redundancy_type
 
         disk_name_to_resource_names = {}
@@ -94,11 +103,9 @@ class AzureDynamicSizedDiskResource(DynamicSizedDiskResourceMixin, AzureResource
         self.location = location
         self.disk_name_to_resource_names = disk_name_to_resource_names
 
-    def to_quantified_resource(self,
-                               cpu_in_mcpu: int,
-                               memory_in_bytes: int,
-                               worker_fraction_in_1024ths: int,
-                               external_storage_in_gib: int) -> Optional[QuantifiedResource]:  # pylint: disable=unused-argument
+    def to_quantified_resource(
+        self, cpu_in_mcpu: int, memory_in_bytes: int, worker_fraction_in_1024ths: int, external_storage_in_gib: int
+    ) -> Optional[QuantifiedResource]:  # pylint: disable=unused-argument
         del cpu_in_mcpu, memory_in_bytes, worker_fraction_in_1024ths
 
         if external_storage_in_gib == 0:
@@ -117,7 +124,7 @@ class AzureDynamicSizedDiskResource(DynamicSizedDiskResourceMixin, AzureResource
             'disk_type': self.disk_type,
             'location': self.location,
             'latest_disk_versions': self.disk_name_to_resource_names,
-            'format_version': self.FORMAT_VERSION
+            'format_version': self.FORMAT_VERSION,
         }
 
 
@@ -136,11 +143,12 @@ class AzureVMResource(VMResourceMixin, AzureResource):
         return AzureVMResource(data['name'])
 
     @staticmethod
-    def create(product_versions: ProductVersions,
-               machine_type: str,
-               preemptible: bool,
-               location: str,
-               ) -> 'AzureVMResource':
+    def create(
+        product_versions: ProductVersions,
+        machine_type: str,
+        preemptible: bool,
+        location: str,
+    ) -> 'AzureVMResource':
         product = AzureVMResource.product_name(machine_type, preemptible, location)
         name = product_versions.resource_name(product)
         assert name, product
@@ -150,11 +158,7 @@ class AzureVMResource(VMResourceMixin, AzureResource):
         self.name = name
 
     def to_dict(self) -> dict:
-        return {
-            'type': self.TYPE,
-            'name': self.name,
-            'format_version': self.FORMAT_VERSION
-        }
+        return {'type': self.TYPE, 'name': self.name, 'format_version': self.FORMAT_VERSION}
 
 
 class AzureServiceFeeResource(ServiceFeeResourceMixin, AzureResource):
@@ -181,11 +185,7 @@ class AzureServiceFeeResource(ServiceFeeResourceMixin, AzureResource):
         self.name = name
 
     def to_dict(self) -> dict:
-        return {
-            'type': self.TYPE,
-            'name': self.name,
-            'format_version': self.FORMAT_VERSION
-        }
+        return {'type': self.TYPE, 'name': self.name, 'format_version': self.FORMAT_VERSION}
 
 
 class AzureIPFeeResource(IPFeeResourceMixin, AzureResource):
@@ -212,11 +212,7 @@ class AzureIPFeeResource(IPFeeResourceMixin, AzureResource):
         self.name = name
 
     def to_dict(self) -> dict:
-        return {
-            'type': self.TYPE,
-            'name': self.name,
-            'format_version': self.FORMAT_VERSION
-        }
+        return {'type': self.TYPE, 'name': self.name, 'format_version': self.FORMAT_VERSION}
 
 
 def azure_resource_from_dict(data: dict) -> AzureResource:

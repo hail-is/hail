@@ -2,8 +2,16 @@ from typing import List
 
 from ...driver.billing_manager import ProductVersions
 from ...instance_config import InstanceConfig
-from .resources import (GCPResource, GCPComputeResource, GCPMemoryResource, GCPStaticSizedDiskResource, GCPDynamicSizedDiskResource,
-                        GCPIPFeeResource, GCPServiceFeeResource, gcp_resource_from_dict)
+from .resources import (
+    GCPResource,
+    GCPComputeResource,
+    GCPMemoryResource,
+    GCPStaticSizedDiskResource,
+    GCPDynamicSizedDiskResource,
+    GCPIPFeeResource,
+    GCPServiceFeeResource,
+    gcp_resource_from_dict,
+)
 from .resource_utils import gcp_machine_type_to_parts, family_worker_type_cores_to_gcp_machine_type
 
 
@@ -12,14 +20,16 @@ GCP_INSTANCE_CONFIG_VERSION = 5
 
 class GCPSlimInstanceConfig(InstanceConfig):
     @staticmethod
-    def create(product_versions: ProductVersions,
-               machine_type: str,
-               preemptible: bool,
-               local_ssd_data_disk: bool,
-               data_disk_size_gb: int,
-               boot_disk_size_gb: int,
-               job_private: bool,
-               location: str) -> 'GCPSlimInstanceConfig':  # pylint: disable=unused-argument
+    def create(
+        product_versions: ProductVersions,
+        machine_type: str,
+        preemptible: bool,
+        local_ssd_data_disk: bool,
+        data_disk_size_gb: int,
+        boot_disk_size_gb: int,
+        job_private: bool,
+        location: str,
+    ) -> 'GCPSlimInstanceConfig':  # pylint: disable=unused-argument
         if local_ssd_data_disk:
             data_disk_resource = GCPStaticSizedDiskResource.create(product_versions, 'local-ssd', data_disk_size_gb)
         else:
@@ -49,15 +59,16 @@ class GCPSlimInstanceConfig(InstanceConfig):
             resources=resources,
         )
 
-    def __init__(self,
-                 machine_type: str,
-                 preemptible: bool,
-                 local_ssd_data_disk: bool,
-                 data_disk_size_gb: int,
-                 boot_disk_size_gb: int,
-                 job_private: bool,
-                 resources: List[GCPResource],
-                 ):
+    def __init__(
+        self,
+        machine_type: str,
+        preemptible: bool,
+        local_ssd_data_disk: bool,
+        data_disk_size_gb: int,
+        boot_disk_size_gb: int,
+        job_private: bool,
+        resources: List[GCPResource],
+    ):
         self.cloud = 'gcp'
         self._machine_type = machine_type
         self.preemptible = preemptible
@@ -149,5 +160,5 @@ class GCPSlimInstanceConfig(InstanceConfig):
             'data_disk_size_gb': self.data_disk_size_gb,
             'boot_disk_size_gb': self.boot_disk_size_gb,
             'job_private': self.job_private,
-            'resources': [resource.to_dict() for resource in self.resources]
+            'resources': [resource.to_dict() for resource in self.resources],
         }

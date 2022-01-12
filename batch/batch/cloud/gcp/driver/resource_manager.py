@@ -8,16 +8,26 @@ import dateutil.parser
 from hailtop.aiocloud import aiogoogle
 
 from ....file_store import FileStore
-from ....driver.resource_manager import (CloudResourceManager, VMDoesNotExist, VMState,
-                                         UnknownVMState, VMStateCreating, VMStateRunning,
-                                         VMStateTerminated)
+from ....driver.resource_manager import (
+    CloudResourceManager,
+    VMDoesNotExist,
+    VMState,
+    UnknownVMState,
+    VMStateCreating,
+    VMStateRunning,
+    VMStateTerminated,
+)
 from ....driver.instance import Instance
 from ....instance_config import InstanceConfig, QuantifiedResource
 
 from ..instance_config import GCPSlimInstanceConfig
 from .create_instance import create_vm_config
-from ..resource_utils import (gcp_machine_type_to_worker_type_and_cores, gcp_worker_memory_per_core_mib,
-                              family_worker_type_cores_to_gcp_machine_type, GCP_MACHINE_FAMILY)
+from ..resource_utils import (
+    gcp_machine_type_to_worker_type_and_cores,
+    gcp_worker_memory_per_core_mib,
+    family_worker_type_cores_to_gcp_machine_type,
+    GCP_MACHINE_FAMILY,
+)
 from .billing_manager import GCPBillingManager
 
 
@@ -31,11 +41,12 @@ def parse_gcp_timestamp(timestamp: Optional[str]) -> Optional[int]:
 
 
 class GCPResourceManager(CloudResourceManager):
-    def __init__(self,
-                 project: str,
-                 compute_client: aiogoogle.GoogleComputeClient,  # BORROWED
-                 billing_manager: GCPBillingManager,
-                 ):
+    def __init__(
+        self,
+        project: str,
+        compute_client: aiogoogle.GoogleComputeClient,  # BORROWED
+        billing_manager: GCPBillingManager,
+    ):
         self.compute_client = compute_client
         self.project = project
         self.billing_manager = billing_manager
@@ -70,21 +81,21 @@ class GCPResourceManager(CloudResourceManager):
             raise
 
     def machine_type(self, cores: int, worker_type: str, local_ssd: bool) -> str:  # pylint: disable=unused-argument
-        return family_worker_type_cores_to_gcp_machine_type(
-            GCP_MACHINE_FAMILY, worker_type, cores)
+        return family_worker_type_cores_to_gcp_machine_type(GCP_MACHINE_FAMILY, worker_type, cores)
 
     def worker_type_and_cores(self, machine_type: str) -> Tuple[str, int]:
         return gcp_machine_type_to_worker_type_and_cores(machine_type)
 
-    def instance_config(self,
-                        machine_type: str,
-                        preemptible: bool,
-                        local_ssd_data_disk: bool,
-                        data_disk_size_gb: int,
-                        boot_disk_size_gb: int,
-                        job_private: bool,
-                        location: str,
-                        ) -> GCPSlimInstanceConfig:
+    def instance_config(
+        self,
+        machine_type: str,
+        preemptible: bool,
+        local_ssd_data_disk: bool,
+        data_disk_size_gb: int,
+        boot_disk_size_gb: int,
+        job_private: bool,
+        location: str,
+    ) -> GCPSlimInstanceConfig:
         return GCPSlimInstanceConfig.create(
             self.billing_manager.product_versions,
             machine_type,
@@ -99,30 +110,43 @@ class GCPResourceManager(CloudResourceManager):
     def instance_config_from_dict(self, data: dict) -> GCPSlimInstanceConfig:
         return GCPSlimInstanceConfig.from_dict(data)
 
-    async def create_vm(self,
-                        file_store: FileStore,
-                        machine_name: str,
-                        activation_token: str,
-                        max_idle_time_msecs: int,
-                        local_ssd_data_disk: bool,
-                        data_disk_size_gb: int,
-                        boot_disk_size_gb: int,
-                        preemptible: bool,
-                        job_private: bool,
-                        location: str,
-                        machine_type: str,
-                        instance_config: InstanceConfig,
-                        ) -> List[QuantifiedResource]:
+    async def create_vm(
+        self,
+        file_store: FileStore,
+        machine_name: str,
+        activation_token: str,
+        max_idle_time_msecs: int,
+        local_ssd_data_disk: bool,
+        data_disk_size_gb: int,
+        boot_disk_size_gb: int,
+        preemptible: bool,
+        job_private: bool,
+        location: str,
+        machine_type: str,
+        instance_config: InstanceConfig,
+    ) -> List[QuantifiedResource]:
         if local_ssd_data_disk:
             assert data_disk_size_gb == 375
 
         resource_rates = self.billing_manager.resource_rates
 
         worker_type, cores = self.worker_type_and_cores(machine_type)
-        vm_config = create_vm_config(file_store, resource_rates, location, machine_name,
-                                     machine_type, activation_token, max_idle_time_msecs,
-                                     local_ssd_data_disk, data_disk_size_gb, boot_disk_size_gb,
-                                     preemptible, job_private, self.project, instance_config)
+        vm_config = create_vm_config(
+            file_store,
+            resource_rates,
+            location,
+            machine_name,
+            machine_type,
+            activation_token,
+            max_idle_time_msecs,
+            local_ssd_data_disk,
+            data_disk_size_gb,
+            boot_disk_size_gb,
+            preemptible,
+            job_private,
+            self.project,
+            instance_config,
+        )
 
         memory_mib = gcp_worker_memory_per_core_mib(worker_type) * cores
         memory_in_bytes = memory_mib << 20

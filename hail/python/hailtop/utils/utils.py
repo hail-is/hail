@@ -1,4 +1,4 @@
-from typing import Callable, TypeVar, Awaitable, Optional, Type, List, Dict, Iterable
+from typing import Callable, TypeVar, Awaitable, Optional, Type, List, Dict, Iterable, Tuple
 from typing_extensions import Literal
 from types import TracebackType
 import concurrent
@@ -893,6 +893,17 @@ def url_scheme(url: str) -> str:
     """Return scheme of `url`, or the empty string if there is no scheme."""
     parsed = urllib.parse.urlparse(url)
     return parsed.scheme
+
+
+def url_and_params(url: str) -> Tuple[str, Dict[str, str]]:
+    """Strip the query parameters from `url` and parse them into a dictionary.
+       Assumes that all query parameters are used only once, so have only one
+       value.
+    """
+    parsed = urllib.parse.urlparse(url)
+    params = {k: v[0] for k, v in urllib.parse.parse_qs(parsed.query).items()}
+    without_query = urllib.parse.urlunparse(parsed._replace(query=''))
+    return without_query, params
 
 
 RegistryProvider = Literal['google', 'azure', 'dockerhub']

@@ -547,9 +547,9 @@ object EmitStream {
             val len = mb.genFieldThisRef[Int]("seq_sample_len")
             val regionVar = mb.genFieldThisRef[Region]("seq_sample_region")
 
-            val nRemaining = cb.newLocal[Int]("seq_sample_num_remaining", numToSampleVal.intCode(cb))
-            val candidate = cb.newLocal[Int]("seq_sample_candidate", 0)
-            val elementToReturn = cb.newLocal[Int]("seq_sample_element_to_return", -1) // -1 should never be returned.
+            val nRemaining = cb.newField[Int]("seq_sample_num_remaining", numToSampleVal.intCode(cb))
+            val candidate = cb.newField[Int]("seq_sample_candidate", 0)
+            val elementToReturn = cb.newField[Int]("seq_sample_element_to_return", -1) // -1 should never be returned.
 
             val producer = new StreamProducer {
               override val length: Option[EmitCodeBuilder => Code[Int]] = Some(_ => len)

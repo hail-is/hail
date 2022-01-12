@@ -37,22 +37,21 @@ class Instance:
             record['location'],
             record['machine_type'],
             record['preemptible'],
-            instance_config_from_config_dict(
-                json.loads(base64.b64decode(record['instance_config']).decode())
-            )
+            instance_config_from_config_dict(json.loads(base64.b64decode(record['instance_config']).decode())),
         )
 
     @staticmethod
-    async def create(app,
-                     inst_coll,
-                     name: str,
-                     activation_token,
-                     cores: int,
-                     location: str,
-                     machine_type: str,
-                     preemptible: bool,
-                     instance_config: InstanceConfig,
-                     ) -> 'Instance':
+    async def create(
+        app,
+        inst_coll,
+        name: str,
+        activation_token,
+        cores: int,
+        location: str,
+        machine_type: str,
+        preemptible: bool,
+        instance_config: InstanceConfig,
+    ) -> 'Instance':
         db: Database = app['db']
 
         state = 'pending'
@@ -194,8 +193,8 @@ VALUES (%s, %s);
                 return
             try:
                 await self.client_session.post(
-                    f'http://{self.ip_address}:5000/api/v1alpha/kill',
-                    timeout=aiohttp.ClientTimeout(total=30))
+                    f'http://{self.ip_address}:5000/api/v1alpha/kill', timeout=aiohttp.ClientTimeout(total=30)
+                )
             except aiohttp.ClientResponseError as err:
                 if err.status == 403:
                     log.info(f'cannot kill {self} -- does not exist at {self.ip_address}')
