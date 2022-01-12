@@ -1,4 +1,4 @@
-from os import path
+from os import path, read
 import pytest
 import asyncio
 import os.path
@@ -8,29 +8,19 @@ import tempfile
 
 
 
-
-async def opening_files(path, data):
-    # path = specific file path 
-    path = f'{test_dir}/file1'
-    f = open(path, 'w')
-    try:
-         x = str(data)
-         data = f.write(x)
-    finally:
-        f.close()
-        
 def write_file(path, data):
     with open(path, 'w') as f:
          f.write(data)
 
-        
-
+def read_file(path):
+    with open(path, 'r') as f: 
+       return f.read()
+       
 # TEMP DIRECTORY FOR FILE1 TEST
 @pytest.mark.asyncio
 async def test_copy_file():
     with tempfile.TemporaryDirectory() as test_dir:
         write_file(f'{test_dir}/file1', 'hello world\n')
-
 
         res = await copy_test( 
         None, [{"from": f"{test_dir}/file1", "to":f"{test_dir}/file2"}, 
@@ -38,10 +28,7 @@ async def test_copy_file():
         )
 
         files = [f'{test_dir}/file1', f'{test_dir}/file2', f'{test_dir}/dir1/file1' ]
-        for file in files :
-            
-            file_exist = os.path.exists()
-            assert file_exist
+        assert read_file(f'{test_dir}/file1')  == 'hello world\n'
 
 
 # TEMP DIRECTORY FOR SUB DIRECTORY TEST
@@ -49,22 +36,15 @@ async def test_copy_file():
 async def test_copy_dir():
     with tempfile.TemporaryDirectory() as test_dir:
         os.makedirs(f'{test_dir}/subdir1')
-        
-        with open(f'{test_dir}/subdir1/file1', 'w') as d:
-            d.write('hello world\n')
-        
-        with open(f'{test_dir}/subdir1/file2', 'w') as f:
-            f.write('hello world\n')
+        write_file(f'{test_dir}/subdir1/file1', 'hello world\n')
 
         res = await copy_test( 
         None,[{"from": f"{test_dir}/subdir1", "into": f"{test_dir}/subdir2"},
         {"from": f"{test_dir}/subdir1/file1", "into": f"{test_dir}/subdir2"}]
         )
-
+        
         files = [f'{test_dir}/subdir2/file1', f'{test_dir}/subdir2/subdir1/file1']
-        for file in files :
-            file_exist = os.path.exists(file)
-            assert file_exist
+        assert read_file(f'{test_dir}/subdir1/file1')  == 'hello world\n'
 
 # Find how in python to check whether a file exsist 
 # something like os.path.exsist dir1/file1 also test file2.exsist, file3.exsist and dir1/file1
@@ -89,3 +69,4 @@ async def test_copy_dir():
 # use that function in the asserts 
 # Reviewing code and check formatting (spacing )look up tools for formatting after 
 # saving all the changes 
+# import copy and make_transfer 
