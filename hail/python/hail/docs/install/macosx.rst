@@ -11,6 +11,6 @@ Install Hail on Mac OS X
     brew cask install adoptopenjdk8
     brew install --cask adoptopenjdk8
 
-- Install Python 3.6+. We recommend `Miniconda <https://docs.conda.io/en/latest/miniconda.html#macosx-installers>`__.
+- Install Python 3.7 or later. We recommend `Miniconda <https://docs.conda.io/en/latest/miniconda.html#macosx-installers>`__.
 - Open Terminal.app and execute ``pip install hail``.
 - `Run your first Hail query! <try.rst>`__
