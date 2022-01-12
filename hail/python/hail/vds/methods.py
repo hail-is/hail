@@ -58,21 +58,23 @@ def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
         call_field = 'GT' if 'GT' in var else 'LGT'
         assert call_field in var, var.dtype
 
-        merged_fields = {}
-        merged_fields[call_field] = hl.coalesce(var[call_field], hl.call(0, 0))
-        for field in ref.dtype:
-            if field in var:
-                merged_fields[field] = hl.coalesce(var[field], ref[field])
+        shared_fields = [call_field] + list(f for f in ref.dtype if f in var.dtype)
+        shared_field_set = set(shared_fields)
+        var_fields = [f for f in var.dtype if f not in shared_field_set]
 
-        return hl.struct(**merged_fields).annotate(**{f: var[f] for f in var if f not in merged_fields})
+        return hl.if_else(hl.is_defined(var),
+                          var.select(*shared_fields, *var_fields),
+                          ref.annotate(**{call_field: hl.call(0, 0)})
+                          .select(*shared_fields, **{f: hl.null(var[f].dtype) for f in var_fields}))
 
     dr = dr.annotate(
         _dense=hl.zip(dr._var_entries, dr.dense_ref).map(
-            lambda tuple: coalesce_join(hl.or_missing(tuple[1].END <= dr.locus.position, tuple[1]), tuple[0])
-        )
+            lambda tuple: coalesce_join(hl.or_missing(tuple[1].END > dr.locus.position, tuple[1]), tuple[0])
+        ),
     )
+
     dr = dr._key_by_assert_sorted('locus', 'alleles')
-    dr = dr.drop('_var_entries', '_ref_entries', 'dense_ref', '_variant_defined')
+    dr = dr.drop('_var_entries', '_ref_entries', 'dense_ref', '_variant_defined', 'ref_allele')
     return dr._unlocalize_entries('_dense', '_var_cols', list(var.col_key))
 
 
