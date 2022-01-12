@@ -1090,20 +1090,24 @@ async def _create_batch(batch_spec: dict, userdata: dict, db: Database):
 
     @transaction(db)
     async def insert(tx):
-        bp = await tx.execute_and_fetchone('''
+        bp = await tx.execute_and_fetchone(
+            '''
 SELECT billing_projects.status, billing_projects.limit
 FROM billing_project_users
 INNER JOIN billing_projects
   ON billing_projects.name = billing_project_users.billing_project
 WHERE billing_project = %s AND user = %s
-LOCK IN SHARE MODE''', (billing_project, user))
+LOCK IN SHARE MODE''',
+            (billing_project, user),
+        )
 
         if bp is None:
             raise web.HTTPForbidden(reason=f'Unknown Hail Batch billing project {billing_project}.')
         if bp['status'] in {'closed', 'deleted'}:
             raise web.HTTPForbidden(reason=f'Billing project {billing_project} is closed or deleted.')
 
-        bp_cost_record = await tx.execute_and_fetchone('''
+        bp_cost_record = await tx.execute_and_fetchone(
+            '''
 SELECT billing_projects.msec_mcpu, COALESCE(SUM(`usage` * rate), 0) AS cost
 FROM billing_projects
 INNER JOIN aggregated_billing_project_resources
@@ -1111,7 +1115,9 @@ INNER JOIN aggregated_billing_project_resources
 INNER JOIN resources
   ON resources.resource = aggregated_billing_project_resources.resource
 WHERE billing_projects.name = %s
-''', (billing_project,))
+''',
+            (billing_project,),
+        )
         limit = bp['limit']
         accrued_cost = accrued_cost_from_cost_and_msec_mcpu(bp_cost_record)
         if limit is not None and accrued_cost >= limit:

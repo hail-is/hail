@@ -81,7 +81,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                     inst_coll.name,
                     machine_type,
                     preemptible,
-                    base64.b64encode(json.dumps(instance_config.to_dict()).encode()).decode()
+                    base64.b64encode(json.dumps(instance_config.to_dict()).encode()).decode(),
                 ),
             )
             await tx.just_execute(
@@ -89,8 +89,12 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 INSERT INTO instances_free_cores_mcpu (name, free_cores_mcpu)
 VALUES (%s, %s);
 ''',
-                (name, worker_cores_mcpu,),
+                (
+                    name,
+                    worker_cores_mcpu,
+                ),
             )
+
         await insert()  # pylint: disable=no-value-for-parameter
 
         return Instance(

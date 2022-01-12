@@ -50,13 +50,14 @@ class JobPrivateInstanceManager(InstanceCollection):
         log.info(f'initializing {jpim}')
 
         async for record in db.select_and_fetchall(
-                '''
+            '''
 SELECT instances.*, instances_free_cores_mcpu.free_cores_mcpu
 FROM instances
 INNER JOIN instances_free_cores_mcpu
 ON instances.name = instances_free_cores_mcpu.name
 WHERE removed = 0 AND inst_coll = %s;
-''', (jpim.name,)
+''',
+            (jpim.name,),
         ):
             jpim.add_instance(Instance.from_record(app, jpim, record))
 

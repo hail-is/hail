@@ -48,13 +48,14 @@ class Pool(InstanceCollection):
         log.info(f'initializing {pool}')
 
         async for record in db.select_and_fetchall(
-                '''
+            '''
 SELECT instances.*, instances_free_cores_mcpu.free_cores_mcpu
 FROM instances
 INNER JOIN instances_free_cores_mcpu
 ON instances.name = instances_free_cores_mcpu.name
 WHERE removed = 0 AND inst_coll = %s;
-''', (pool.name,)
+''',
+            (pool.name,),
         ):
             pool.add_instance(Instance.from_record(app, pool, record))
 
