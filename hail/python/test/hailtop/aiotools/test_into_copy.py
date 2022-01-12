@@ -19,15 +19,18 @@ async def opening_files(path, data):
     finally:
         f.close()
         
+def write_file(path, data):
+    with open(path, 'w') as f:
+         f.write(data)
 
-
+        
 
 # TEMP DIRECTORY FOR FILE1 TEST
 @pytest.mark.asyncio
 async def test_copy_file():
     with tempfile.TemporaryDirectory() as test_dir:
-        with open(f'{test_dir}/file1', 'w') as f:
-            f.write('hello world\n')
+        write_file(f'{test_dir}/file1', 'hello world\n')
+
 
         res = await copy_test( 
         None, [{"from": f"{test_dir}/file1", "to":f"{test_dir}/file2"}, 
@@ -36,8 +39,8 @@ async def test_copy_file():
 
         files = [f'{test_dir}/file1', f'{test_dir}/file2', f'{test_dir}/dir1/file1' ]
         for file in files :
-            file_exist = os.path.exists(file)
-            print(file_exist)
+            
+            file_exist = os.path.exists()
             assert file_exist
 
 
@@ -58,7 +61,7 @@ async def test_copy_dir():
         {"from": f"{test_dir}/subdir1/file1", "into": f"{test_dir}/subdir2"}]
         )
 
-        files = [  f'{test_dir}/subdir2/file1', f'{test_dir}/subdir2/subdir1/file1']
+        files = [f'{test_dir}/subdir2/file1', f'{test_dir}/subdir2/subdir1/file1']
         for file in files :
             file_exist = os.path.exists(file)
             assert file_exist
@@ -81,3 +84,8 @@ async def test_copy_dir():
 #clean up the file, formatting, get rid of comments, and unecessary test 
 # Save changes with new commit 
 # write a function that just writes to a file with two arguments (path, data) that can then be used in the other functions
+
+# Add a read function like we did for the write file
+# use that function in the asserts 
+# Reviewing code and check formatting (spacing )look up tools for formatting after 
+# saving all the changes 
