@@ -7,8 +7,7 @@ from shlex import quote as shq
 
 from gear.cloud_config import get_global_config
 
-from ....batch_configuration import (DOCKER_ROOT_IMAGE, DOCKER_PREFIX, DEFAULT_NAMESPACE,
-                                     INTERNAL_GATEWAY_IP)
+from ....batch_configuration import DOCKER_ROOT_IMAGE, DOCKER_PREFIX, DEFAULT_NAMESPACE, INTERNAL_GATEWAY_IP
 from ....file_store import FileStore
 from ....instance_config import InstanceConfig
 
@@ -24,22 +23,22 @@ log.info(f'BATCH_WORKER_IMAGE {BATCH_WORKER_IMAGE}')
 
 
 def create_vm_config(
-        file_store: FileStore,
-        resource_rates: Dict[str, float],
-        location: str,
-        machine_name: str,
-        machine_type: str,
-        activation_token: str,
-        max_idle_time_msecs: int,
-        local_ssd_data_disk: bool,
-        data_disk_size_gb: int,
-        preemptible: bool,
-        job_private: bool,
-        subscription_id: str,
-        resource_group: str,
-        ssh_public_key: str,
-        max_price: Optional[float],
-        instance_config: InstanceConfig,
+    file_store: FileStore,
+    resource_rates: Dict[str, float],
+    location: str,
+    machine_name: str,
+    machine_type: str,
+    activation_token: str,
+    max_idle_time_msecs: int,
+    local_ssd_data_disk: bool,
+    data_disk_size_gb: int,
+    preemptible: bool,
+    job_private: bool,
+    subscription_id: str,
+    resource_group: str,
+    ssh_public_key: str,
+    max_price: Optional[float],
+    instance_config: InstanceConfig,
 ) -> dict:
     _, cores = azure_machine_type_to_worker_type_and_cores(machine_type)
 
@@ -62,12 +61,10 @@ def create_vm_config(
             {
                 "name": "[concat(parameters('vmName'), '-data')]",
                 "lun": 2,  # because this is 2, the data disk will always be at 'sdc'
-                "managedDisk": {
-                    "storageAccountType": "Premium_LRS"
-                },
+                "managedDisk": {"storageAccountType": "Premium_LRS"},
                 "createOption": "Empty",
                 "diskSizeGB": data_disk_size_gb,
-                "deleteOption": 'Delete'
+                "deleteOption": 'Delete',
             }
         ]
         disk_location = '/dev/disk/azure/scsi1/lun2'
@@ -284,14 +281,11 @@ done
         'batch_logs_storage_uri': file_store.batch_logs_storage_uri,
         'instance_id': file_store.instance_id,
         'max_idle_time_msecs': max_idle_time_msecs,
-        'instance_config': base64.b64encode(json.dumps(instance_config.to_dict()).encode()).decode()
+        'instance_config': base64.b64encode(json.dumps(instance_config.to_dict()).encode()).decode(),
     }
     user_data_str = base64.b64encode(json.dumps(user_data).encode('utf-8')).decode('utf-8')
 
-    tags = {
-        'namespace': DEFAULT_NAMESPACE,
-        'batch-worker': '1'
-    }
+    tags = {'namespace': DEFAULT_NAMESPACE, 'batch-worker': '1'}
 
     vm_config: Dict[str, Any] = {
         'apiVersion': '2021-03-01',
@@ -302,23 +296,17 @@ done
             'type': 'UserAssigned',
             'userAssignedIdentities': {
                 "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('userAssignedIdentityName'))]": {}
-            }
+            },
         },
         'tags': tags,
-        'dependsOn': [
-            "[concat('Microsoft.Network/networkInterfaces/', variables('nicName'))]"
-        ],
+        'dependsOn': ["[concat('Microsoft.Network/networkInterfaces/', variables('nicName'))]"],
         'properties': {
-            'hardwareProfile': {
-                'vmSize': machine_type
-            },
+            'hardwareProfile': {'vmSize': machine_type},
             'networkProfile': {
                 'networkInterfaces': [
                     {
                         'id': "[resourceId('Microsoft.Network/networkInterfaces', variables('nicName'))]",
-                        'properties': {
-                            'deleteOption': 'Delete'
-                        }
+                        'properties': {'deleteOption': 'Delete'},
                     }
                 ]
             },
@@ -328,12 +316,10 @@ done
                     'createOption': 'FromImage',
                     'deleteOption': 'Delete',
                     'caching': 'ReadOnly',
-                    'managedDisk': {
-                        'storageAccountType': 'Standard_LRS'
-                    }
+                    'managedDisk': {'storageAccountType': 'Standard_LRS'},
                 },
                 'imageReference': "[parameters('imageReference')]",
-                'dataDisks': data_disks
+                'dataDisks': data_disks,
             },
             'osProfile': {
                 'computerName': "[parameters('vmName')]",
@@ -345,13 +331,13 @@ done
                         'publicKeys': [
                             {
                                 'keyData': "[parameters('sshKey')]",
-                                'path': "[concat('/home/', parameters('adminUsername'), '/.ssh/authorized_keys')]"
+                                'path': "[concat('/home/', parameters('adminUsername'), '/.ssh/authorized_keys')]",
                             }
                         ]
-                    }
-                }
+                    },
+                },
             },
-            'userData': "[parameters('userData')]"
+            'userData': "[parameters('userData')]",
         },
         'resources': [
             {
@@ -360,9 +346,7 @@ done
                 'name': 'OMSExtension',
                 'location': "[parameters('location')]",
                 'tags': tags,
-                'dependsOn': [
-                    "[concat('Microsoft.Compute/virtualMachines/', parameters('vmName'))]"
-                ],
+                'dependsOn': ["[concat('Microsoft.Compute/virtualMachines/', parameters('vmName'))]"],
                 'properties': {
                     'publisher': 'Microsoft.EnterpriseCloud.Monitoring',
                     'type': 'OmsAgentForLinux',
@@ -374,10 +358,10 @@ done
                     },
                     'protectedSettings': {
                         'workspaceKey': "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces/', parameters('workspaceName')), '2015-03-20').primarySharedKey]"
-                    }
-                }
+                    },
+                },
             },
-        ]
+        ],
     }
 
     properties = vm_config['properties']
@@ -393,84 +377,48 @@ done
         'properties': {
             'mode': 'Incremental',
             'parameters': {
-                'location': {
-                    'value': location
-                },
-                'vmName': {
-                    'value': machine_name
-                },
-                'sshKey': {
-                    'value': ssh_public_key
-                },
+                'location': {'value': location},
+                'vmName': {'value': machine_name},
+                'sshKey': {'value': ssh_public_key},
                 'subnetId': {
                     'value': f'/subscriptions/{subscription_id}/resourceGroups/{resource_group}/providers/Microsoft.Network/virtualNetworks/default/subnets/batch-worker-subnet'
                 },
-                'adminUsername': {
-                    'value': 'batch-worker'
-                },
-                'userAssignedIdentityName': {
-                    'value': 'batch-worker'
-                },
-                'startupScript': {
-                    'value': startup_script
-                },
-                'userData': {
-                    'value': user_data_str
-                },
+                'adminUsername': {'value': 'batch-worker'},
+                'userAssignedIdentityName': {'value': 'batch-worker'},
+                'startupScript': {'value': startup_script},
+                'userData': {'value': user_data_str},
                 'imageReference': {
                     'value': {
                         'id': f'/subscriptions/{subscription_id}/resourceGroups/{resource_group}/providers/'
-                              f'Microsoft.Compute/galleries/{resource_group}_batch/images/batch-worker/versions/0.0.12'
+                        f'Microsoft.Compute/galleries/{resource_group}_batch/images/batch-worker/versions/0.0.12'
                     }
                 },
                 'workspaceName': {
                     'value': f'{resource_group}-logs',
-                }
+                },
             },
             'template': {
                 '$schema': 'https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#',
                 'contentVersion': '1.0.0.0',
                 'parameters': {
-                    'location': {
-                        'type': 'string',
-                        'defaultValue': '[resourceGroup().location]'
-                    },
-                    'vmName': {
-                        'type': 'string'
-                    },
-                    'sshKey': {
-                        'type': 'securestring'
-                    },
-                    'subnetId': {
-                        'type': 'string'
-                    },
-                    'adminUsername': {
-                        'type': 'string',
-                        'defaultValue': 'admin'
-                    },
-                    'userAssignedIdentityName': {
-                        'type': 'string',
-                        'defaultValue': 'batch-worker'
-                    },
-                    'startupScript': {
-                        'type': 'string'
-                    },
-                    'userData': {
-                        'type': 'string'
-                    },
+                    'location': {'type': 'string', 'defaultValue': '[resourceGroup().location]'},
+                    'vmName': {'type': 'string'},
+                    'sshKey': {'type': 'securestring'},
+                    'subnetId': {'type': 'string'},
+                    'adminUsername': {'type': 'string', 'defaultValue': 'admin'},
+                    'userAssignedIdentityName': {'type': 'string', 'defaultValue': 'batch-worker'},
+                    'startupScript': {'type': 'string'},
+                    'userData': {'type': 'string'},
                     'imageReference': {
                         'type': 'object',
-                        'defaultValue':
-                            {
-                                'publisher': 'Canonical',
-                                'offer': 'UbuntuServer',
-                                'sku': '18.04-LTS',
-                                'version': 'latest'
-                            }
+                        'defaultValue': {
+                            'publisher': 'Canonical',
+                            'offer': 'UbuntuServer',
+                            'sku': '18.04-LTS',
+                            'version': 'latest',
+                        },
                     },
-                    'workspaceName': {
-                        'type': 'string'
-                    },
+                    'workspaceName': {'type': 'string'},
                 },
                 'variables': {
                     'ipName': "[concat(parameters('vmName'), '-ip')]",
@@ -485,9 +433,7 @@ done
                         'location': "[parameters('location')]",
                         'tags': tags,
                         'dependsOn': [],
-                        'properties': {
-                            'publicIPAllocationMethod': 'Static'
-                        }
+                        'properties': {'publicIPAllocationMethod': 'Static'},
                     },
                     {
                         'apiVersion': '2015-06-15',
@@ -495,9 +441,7 @@ done
                         'name': "[variables('nicName')]",
                         'location': "[parameters('location')]",
                         'tags': tags,
-                        'dependsOn': [
-                            "[concat('Microsoft.Network/publicIPAddresses/', variables('ipName'))]"
-                        ],
+                        'dependsOn': ["[concat('Microsoft.Network/publicIPAddresses/', variables('ipName'))]"],
                         'properties': {
                             'ipConfigurations': [
                                 {
@@ -505,26 +449,22 @@ done
                                     'properties': {
                                         'publicIPAddress': {
                                             'id': "[resourceId('Microsoft.Network/publicIpAddresses', variables('ipName'))]",
-                                            'properties': {
-                                                'deleteOption': 'Delete'
-                                            }
+                                            'properties': {'deleteOption': 'Delete'},
                                         },
                                         'privateIPAllocationMethod': 'Dynamic',
-                                        'subnet': {
-                                            'id': "[parameters('subnetId')]"
-                                        }
-                                    }
+                                        'subnet': {'id': "[parameters('subnetId')]"},
+                                    },
                                 }
                             ],
                             'networkSecurityGroup': {
                                 'id': f'/subscriptions/{subscription_id}/resourceGroups/{resource_group}'
-                                      f'/providers/Microsoft.Network/networkSecurityGroups/batch-worker-nsg'
-                            }
-                        }
+                                f'/providers/Microsoft.Network/networkSecurityGroups/batch-worker-nsg'
+                            },
+                        },
                     },
-                    vm_config
+                    vm_config,
                 ],
-                'outputs': {}
-            }
-        }
+                'outputs': {},
+            },
+        },
     }

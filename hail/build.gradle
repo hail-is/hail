@@ -1,7 +1,6 @@
 buildscript {
     repositories {
         mavenCentral()
-        jcenter()
     }
     dependencies {
         classpath 'ch.epfl.scala:gradle-bloop_2.12:1.4.11'
@@ -28,7 +27,6 @@ repositories {
         dirs 'libs'
     }
     mavenCentral()
-    jcenter()
     maven { url "https://repository.cloudera.com/artifactory/cloudera-repos/" }
 }
 

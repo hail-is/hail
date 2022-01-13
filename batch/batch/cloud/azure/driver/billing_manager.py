@@ -5,7 +5,12 @@ import logging
 from hailtop.aiocloud import aioazure
 from gear import Database, transaction
 
-from ....driver.billing_manager import CloudBillingManager, ProductVersions, product_version_to_resource, refresh_product_versions_from_db
+from ....driver.billing_manager import (
+    CloudBillingManager,
+    ProductVersions,
+    product_version_to_resource,
+    refresh_product_versions_from_db,
+)
 
 from .pricing import AzureVMPrice, fetch_prices
 
@@ -17,22 +22,24 @@ AzureVMIdentifier = namedtuple('AzureVMIdentifier', ['machine_type', 'preemptibl
 
 class AzureBillingManager(CloudBillingManager):
     @staticmethod
-    async def create(db: Database,
-                     pricing_client: aioazure.AzurePricingClient,  # BORROWED
-                     regions: List[str],
-                     ):
+    async def create(
+        db: Database,
+        pricing_client: aioazure.AzurePricingClient,  # BORROWED
+        regions: List[str],
+    ):
         product_versions_dict = await refresh_product_versions_from_db(db)
         rm = AzureBillingManager(db, pricing_client, regions, product_versions_dict)
         await rm.refresh_resources()
         await rm.refresh_resources_from_retail_prices()
         return rm
 
-    def __init__(self,
-                 db: Database,
-                 pricing_client: aioazure.AzurePricingClient,
-                 regions: List[str],
-                 product_versions_dict: dict,
-                 ):
+    def __init__(
+        self,
+        db: Database,
+        pricing_client: aioazure.AzurePricingClient,
+        regions: List[str],
+        product_versions_dict: dict,
+    ):
         self.db = db
         self.product_versions = ProductVersions(product_versions_dict)
         self.resource_rates: Dict[str, float] = {}
@@ -62,14 +69,17 @@ class AzureBillingManager(CloudBillingManager):
 
             if current_resource_rate is None:
                 resource_updates.append((resource_name, latest_resource_rate))
-            elif abs(current_resource_rate - latest_resource_rate) > 1E-20:
-                log.error(f'resource {resource_name} does not have the latest rate in the database for '
-                          f'version {current_product_version}: {current_resource_rate} vs {latest_resource_rate}; '
-                          f'did the vm price change without a version change?')
+            elif abs(current_resource_rate - latest_resource_rate) > 1e-20:
+                log.error(
+                    f'resource {resource_name} does not have the latest rate in the database for '
+                    f'version {current_product_version}: {current_resource_rate} vs {latest_resource_rate}; '
+                    f'did the vm price change without a version change?'
+                )
                 continue
 
             if price.is_current_price() and (
-                    current_product_version is None or current_product_version != latest_product_version):
+                current_product_version is None or current_product_version != latest_product_version
+            ):
                 product_version_updates.append((product, latest_product_version))
 
             if isinstance(price, AzureVMPrice):
@@ -79,19 +89,23 @@ class AzureBillingManager(CloudBillingManager):
         @transaction(self.db)
         async def insert_or_update(tx):
             if resource_updates:
-                await tx.execute_many('''
+                await tx.execute_many(
+                    '''
 INSERT INTO `resources` (resource, rate)
 VALUES (%s, %s)
 ''',
-                                      resource_updates)
+                    resource_updates,
+                )
 
             if product_version_updates:
-                await tx.execute_many('''
+                await tx.execute_many(
+                    '''
 INSERT INTO `latest_product_versions` (product, version)
 VALUES (%s, %s)
 ON DUPLICATE KEY UPDATE version = VALUES(version)
 ''',
-                                      product_version_updates)
+                    product_version_updates,
+                )
 
         await insert_or_update()  # pylint: disable=no-value-for-parameter
 

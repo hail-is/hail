@@ -5,8 +5,10 @@ include ../config.mk
 TOKEN = $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
 
 WEBSITE_IMAGE := $(DOCKER_PREFIX)/website:$(TOKEN)
+BLACK := $(PYTHON) -m black . --line-length=120 --skip-string-normalization
 
 check:
+	$(BLACK) --check --diff
 	curlylint .
 
 docs:

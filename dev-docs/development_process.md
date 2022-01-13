@@ -27,8 +27,7 @@ feature into smaller components.
 Before you can write code, there are some setup steps that will allow you to
 develop effectively.
 
-Hail currently does not support versions of python>3.7, so install either 3.6 or
-3.7 and then run
+Hail currently supports Python version 3.7 or greater.
 
 ```
 make install-dev-deps

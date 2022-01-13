@@ -11,8 +11,12 @@ from ....driver.instance_collection import InstanceCollectionManager
 log = logging.getLogger('disks')
 
 
-async def delete_orphaned_disks(compute_client: aiogoogle.GoogleComputeClient, zones: List[str],
-                                inst_coll_manager: InstanceCollectionManager, namespace: str):
+async def delete_orphaned_disks(
+    compute_client: aiogoogle.GoogleComputeClient,
+    zones: List[str],
+    inst_coll_manager: InstanceCollectionManager,
+    namespace: str,
+):
     log.info('deleting orphaned disks')
 
     params = {'filter': f'(labels.namespace = {namespace})'}
@@ -30,11 +34,9 @@ async def delete_orphaned_disks(compute_client: aiogoogle.GoogleComputeClient, z
             now_msecs = time_msecs()
             if instance is None:
                 log.exception(f'deleting disk {disk_name} from instance that no longer exists')
-            elif (last_attach_timestamp_msecs is None
-                  and now_msecs - creation_timestamp_msecs > 60 * 60 * 1000):
+            elif last_attach_timestamp_msecs is None and now_msecs - creation_timestamp_msecs > 60 * 60 * 1000:
                 log.exception(f'deleting disk {disk_name} that has not attached within 60 minutes')
-            elif (last_detach_timestamp_msecs is not None
-                  and now_msecs - last_detach_timestamp_msecs > 5 * 60 * 1000):
+            elif last_detach_timestamp_msecs is not None and now_msecs - last_detach_timestamp_msecs > 5 * 60 * 1000:
                 log.exception(f'deleting detached disk {disk_name} that has not been cleaned up within 5 minutes')
             else:
                 continue
