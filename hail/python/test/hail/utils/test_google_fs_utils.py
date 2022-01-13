@@ -28,7 +28,6 @@ class Tests(unittest.TestCase):
         cls.local_dir = os.path.join(local_tmpdir, secret_alnum_string(5))
 
         os.makedirs(cls.local_dir)
-        print(cls.local_dir)
 
         with open(os.path.join(cls.local_dir, 'randomBytes'), 'wb') as f:
             f.write(secrets.token_bytes(2048))
@@ -123,6 +122,15 @@ class Tests(unittest.TestCase):
 
         stat1 = hl.hadoop_stat(f'{prefix}')
         self.assertEqual(stat1['is_dir'], True)
+
+        data = ['foo', 'bar', 'baz']
+        data.extend(map(str, range(100)))
+        with hadoop_open(f'{prefix}/test_hadoop_stat.txt.gz', 'w') as f:
+            for d in data:
+                f.write(d)
+                f.write('\n')
+        hadoop_copy(f'{prefix}/test_hadoop_stat.txt.gz',
+                    f'{prefix}/test_hadoop_stat.copy.txt.gz')
 
         stat2 = hl.hadoop_stat(f'{prefix}/test_out.copy.txt.gz')
         self.assertEqual(stat2['size_bytes'], 302)
