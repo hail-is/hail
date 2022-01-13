@@ -34,4 +34,5 @@ AUTHORIZED_USERS = [
     User('CDiaz96', 'carolin', [SERVICES_TEAM]),
     User('daniel-goldstein', 'dgoldste', [SERVICES_TEAM]),
     User('ammekk', 'ammekk'),
+    User('vrautela', 'vrautela', [SERVICES_TEAM]),
 ]

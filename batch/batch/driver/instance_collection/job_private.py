@@ -34,51 +34,57 @@ log = logging.getLogger('job_private_inst_coll')
 
 class JobPrivateInstanceManager(InstanceCollection):
     @staticmethod
-    async def create(app,
-                     db: Database,  # BORROWED
-                     inst_coll_manager: InstanceCollectionManager,
-                     resource_manager: CloudResourceManager,
-                     machine_name_prefix: str,
-                     config: JobPrivateInstanceManagerConfig,
-                     task_manager: aiotools.BackgroundTaskManager,
-                     ):
+    async def create(
+        app,
+        db: Database,  # BORROWED
+        inst_coll_manager: InstanceCollectionManager,
+        resource_manager: CloudResourceManager,
+        machine_name_prefix: str,
+        config: JobPrivateInstanceManagerConfig,
+        task_manager: aiotools.BackgroundTaskManager,
+    ):
         jpim = JobPrivateInstanceManager(
-            app, db, inst_coll_manager, resource_manager, machine_name_prefix, config, task_manager)
+            app, db, inst_coll_manager, resource_manager, machine_name_prefix, config, task_manager
+        )
 
         log.info(f'initializing {jpim}')
 
         async for record in db.select_and_fetchall(
-                '''
+            '''
 SELECT instances.*, instances_free_cores_mcpu.free_cores_mcpu
 FROM instances
 INNER JOIN instances_free_cores_mcpu
 ON instances.name = instances_free_cores_mcpu.name
 WHERE removed = 0 AND inst_coll = %s;
-''', (jpim.name,)
+''',
+            (jpim.name,),
         ):
             jpim.add_instance(Instance.from_record(app, jpim, record))
 
         return jpim
 
-    def __init__(self,
-                 app,
-                 db: Database,  # BORROWED
-                 inst_coll_manager: InstanceCollectionManager,
-                 resource_manager: CloudResourceManager,
-                 machine_name_prefix: str,
-                 config: JobPrivateInstanceManagerConfig,
-                 task_manager: aiotools.BackgroundTaskManager,
-                 ):
-        super().__init__(db,
-                         inst_coll_manager,
-                         resource_manager,
-                         config.cloud,
-                         config.name,
-                         machine_name_prefix,
-                         is_pool=False,
-                         max_instances=config.max_instances,
-                         max_live_instances=config.max_live_instances,
-                         task_manager=task_manager)
+    def __init__(
+        self,
+        app,
+        db: Database,  # BORROWED
+        inst_coll_manager: InstanceCollectionManager,
+        resource_manager: CloudResourceManager,
+        machine_name_prefix: str,
+        config: JobPrivateInstanceManagerConfig,
+        task_manager: aiotools.BackgroundTaskManager,
+    ):
+        super().__init__(
+            db,
+            inst_coll_manager,
+            resource_manager,
+            config.cloud,
+            config.name,
+            machine_name_prefix,
+            is_pool=False,
+            max_instances=config.max_instances,
+            max_live_instances=config.max_live_instances,
+            task_manager=task_manager,
+        )
         self.app = app
         global_scheduler_state_changed: Notice = self.app['scheduler_state_changed']
         self.create_instances_state_changed = global_scheduler_state_changed.subscribe()
@@ -102,8 +108,7 @@ WHERE removed = 0 AND inst_coll = %s;
                 'schedule_jobs_loop', run_if_changed, self.scheduler_state_changed, self.schedule_jobs_loop_body
             )
         )
-        task_manager.ensure_future(
-            periodically_call(15, self.bump_scheduler))
+        task_manager.ensure_future(periodically_call(15, self.bump_scheduler))
 
     def config(self):
         return {
@@ -284,7 +289,7 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
             max_idle_time_msecs=None,
             local_ssd_data_disk=False,
             data_disk_size_gb=storage_gb,
-            boot_disk_size_gb=self.boot_disk_size_gb
+            boot_disk_size_gb=self.boot_disk_size_gb,
         )
 
         return (instance, total_resources_on_instance)
@@ -399,11 +404,9 @@ LIMIT %s;
 
                 log.info(f'creating job private instance for job {id}')
 
-                async def create_instance_with_error_handling(batch_id: int,
-                                                              job_id: int,
-                                                              attempt_id: str,
-                                                              record: dict,
-                                                              id: Tuple[int, int]):
+                async def create_instance_with_error_handling(
+                    batch_id: int, job_id: int, attempt_id: str, record: dict, id: Tuple[int, int]
+                ):
                     try:
                         batch_format_version = BatchFormatVersion(record['format_version'])
                         spec = json.loads(record['spec'])

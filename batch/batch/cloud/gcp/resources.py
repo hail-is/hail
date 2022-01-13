@@ -2,8 +2,16 @@ import abc
 from typing import Dict, Any, Optional
 
 from ...driver.billing_manager import ProductVersions
-from ...resources import (Resource, StaticSizedDiskResourceMixin, ComputeResourceMixin, MemoryResourceMixin, IPFeeResourceMixin, ServiceFeeResourceMixin,
-                          DynamicSizedDiskResourceMixin, QuantifiedResource)
+from ...resources import (
+    Resource,
+    StaticSizedDiskResourceMixin,
+    ComputeResourceMixin,
+    MemoryResourceMixin,
+    IPFeeResourceMixin,
+    ServiceFeeResourceMixin,
+    DynamicSizedDiskResourceMixin,
+    QuantifiedResource,
+)
 
 
 class GCPResource(Resource, abc.ABC):
@@ -28,10 +36,11 @@ class GCPStaticSizedDiskResource(StaticSizedDiskResourceMixin, GCPResource):
         return GCPStaticSizedDiskResource(data['name'], data['storage_in_gib'])
 
     @staticmethod
-    def create(product_versions: ProductVersions,
-               disk_type: str,
-               storage_in_gib: int,
-               ) -> 'GCPStaticSizedDiskResource':
+    def create(
+        product_versions: ProductVersions,
+        disk_type: str,
+        storage_in_gib: int,
+    ) -> 'GCPStaticSizedDiskResource':
         product = GCPStaticSizedDiskResource.product_name(disk_type)
         name = product_versions.resource_name(product)
         assert name, product
@@ -46,7 +55,7 @@ class GCPStaticSizedDiskResource(StaticSizedDiskResourceMixin, GCPResource):
             'type': self.TYPE,
             'name': self.name,
             'storage_in_gib': self.storage_in_gib,
-            'version': self.FORMAT_VERSION
+            'version': self.FORMAT_VERSION,
         }
 
 
@@ -73,22 +82,16 @@ class GCPDynamicSizedDiskResource(DynamicSizedDiskResourceMixin, GCPResource):
     def __init__(self, name: str):
         self.name = name
 
-    def to_quantified_resource(self,
-                               cpu_in_mcpu: int,
-                               memory_in_bytes: int,
-                               worker_fraction_in_1024ths: int,
-                               external_storage_in_gib: int) -> Optional[QuantifiedResource]:  # pylint: disable=unused-argument
+    def to_quantified_resource(
+        self, cpu_in_mcpu: int, memory_in_bytes: int, worker_fraction_in_1024ths: int, external_storage_in_gib: int
+    ) -> Optional[QuantifiedResource]:  # pylint: disable=unused-argument
         del cpu_in_mcpu, memory_in_bytes, worker_fraction_in_1024ths
         if external_storage_in_gib == 0:
             return None
         return {'name': self.name, 'quantity': external_storage_in_gib * 1024}  # storage is in units of MiB
 
     def to_dict(self) -> dict:
-        return {
-            'type': self.TYPE,
-            'name': self.name,
-            'version': self.FORMAT_VERSION
-        }
+        return {'type': self.TYPE, 'name': self.name, 'version': self.FORMAT_VERSION}
 
 
 class GCPComputeResource(ComputeResourceMixin, GCPResource):
@@ -106,10 +109,11 @@ class GCPComputeResource(ComputeResourceMixin, GCPResource):
         return GCPComputeResource(data['name'])
 
     @staticmethod
-    def create(product_versions: ProductVersions,
-               instance_family: str,
-               preemptible: bool,
-               ) -> 'GCPComputeResource':
+    def create(
+        product_versions: ProductVersions,
+        instance_family: str,
+        preemptible: bool,
+    ) -> 'GCPComputeResource':
         product = GCPComputeResource.product_name(instance_family, preemptible)
         name = product_versions.resource_name(product)
         assert name, product
@@ -119,11 +123,7 @@ class GCPComputeResource(ComputeResourceMixin, GCPResource):
         self.name = name
 
     def to_dict(self) -> dict:
-        return {
-            'type': self.TYPE,
-            'name': self.name,
-            'format_version': self.FORMAT_VERSION
-        }
+        return {'type': self.TYPE, 'name': self.name, 'format_version': self.FORMAT_VERSION}
 
 
 class GCPMemoryResource(MemoryResourceMixin, GCPResource):
@@ -141,10 +141,11 @@ class GCPMemoryResource(MemoryResourceMixin, GCPResource):
         return GCPMemoryResource(data['name'])
 
     @staticmethod
-    def create(product_versions: ProductVersions,
-               instance_family: str,
-               preemptible: bool,
-               ) -> 'GCPMemoryResource':
+    def create(
+        product_versions: ProductVersions,
+        instance_family: str,
+        preemptible: bool,
+    ) -> 'GCPMemoryResource':
         product = GCPMemoryResource.product_name(instance_family, preemptible)
         name = product_versions.resource_name(product)
         assert name, product
@@ -154,11 +155,7 @@ class GCPMemoryResource(MemoryResourceMixin, GCPResource):
         self.name = name
 
     def to_dict(self) -> dict:
-        return {
-            'type': self.TYPE,
-            'name': self.name,
-            'format_version': self.FORMAT_VERSION
-        }
+        return {'type': self.TYPE, 'name': self.name, 'format_version': self.FORMAT_VERSION}
 
 
 class GCPServiceFeeResource(ServiceFeeResourceMixin, GCPResource):
@@ -185,11 +182,7 @@ class GCPServiceFeeResource(ServiceFeeResourceMixin, GCPResource):
         self.name = name
 
     def to_dict(self) -> dict:
-        return {
-            'type': self.TYPE,
-            'name': self.name,
-            'format_version': self.FORMAT_VERSION
-        }
+        return {'type': self.TYPE, 'name': self.name, 'format_version': self.FORMAT_VERSION}
 
 
 class GCPIPFeeResource(IPFeeResourceMixin, GCPResource):
@@ -216,11 +209,7 @@ class GCPIPFeeResource(IPFeeResourceMixin, GCPResource):
         self.name = name
 
     def to_dict(self) -> dict:
-        return {
-            'type': self.TYPE,
-            'name': self.name,
-            'format_version': self.FORMAT_VERSION
-        }
+        return {'type': self.TYPE, 'name': self.name, 'format_version': self.FORMAT_VERSION}
 
 
 def gcp_resource_from_dict(data: dict) -> GCPResource:

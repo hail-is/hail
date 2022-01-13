@@ -184,13 +184,15 @@ CALL mark_job_started(%s, %s, %s, %s, %s);
     await add_attempt_resources(db, batch_id, job_id, attempt_id, resources)
 
 
-async def mark_job_creating(app,
-                            batch_id: int,
-                            job_id: int,
-                            attempt_id: str,
-                            instance: Instance,
-                            start_time: int,
-                            resources: List[QuantifiedResource]):
+async def mark_job_creating(
+    app,
+    batch_id: int,
+    job_id: int,
+    attempt_id: str,
+    instance: Instance,
+    start_time: int,
+    resources: List[QuantifiedResource],
+):
     db: Database = app['db']
 
     id = (batch_id, job_id)
@@ -308,10 +310,7 @@ async def job_config(app, record, attempt_id):
 
     secrets = job_spec.get('secrets', [])
     k8s_secrets = await asyncio.gather(
-        *[
-            k8s_cache.read_secret(secret['name'], secret['namespace'])
-            for secret in secrets
-        ]
+        *[k8s_cache.read_secret(secret['name'], secret['namespace']) for secret in secrets]
     )
 
     gsa_key = None
@@ -443,7 +442,8 @@ async def schedule_job(app, record, instance):
             await client_session.post(
                 f'http://{instance.ip_address}:5000/api/v1alpha/batches/jobs/create',
                 json=body,
-                timeout=aiohttp.ClientTimeout(total=2))
+                timeout=aiohttp.ClientTimeout(total=2),
+            )
             await instance.mark_healthy()
         except aiohttp.ClientResponseError as e:
             await instance.mark_healthy()

@@ -17,7 +17,7 @@ from .cloud.resource_utils import (
     requested_storage_bytes_to_actual_storage_gib,
     cores_mcpu_to_memory_bytes,
     valid_machine_types,
-    local_ssd_size
+    local_ssd_size,
 )
 from .cloud.utils import possible_cloud_locations
 
@@ -25,33 +25,38 @@ from .cloud.utils import possible_cloud_locations
 log = logging.getLogger('inst_coll_config')
 
 
-def instance_config_from_pool_config(pool_config: 'PoolConfig',
-                                     product_versions: ProductVersions,
-                                     location: str) -> InstanceConfig:
+def instance_config_from_pool_config(
+    pool_config: 'PoolConfig', product_versions: ProductVersions, location: str
+) -> InstanceConfig:
     cloud = pool_config.cloud
     if cloud == 'gcp':
         machine_type = family_worker_type_cores_to_gcp_machine_type(
-            GCP_MACHINE_FAMILY, pool_config.worker_type, pool_config.worker_cores)
-        return GCPSlimInstanceConfig.create(product_versions=product_versions,
-                                            machine_type=machine_type,
-                                            preemptible=True,
-                                            local_ssd_data_disk=pool_config.worker_local_ssd_data_disk,
-                                            data_disk_size_gb=pool_config.data_disk_size_gb,
-                                            boot_disk_size_gb=pool_config.boot_disk_size_gb,
-                                            job_private=False,
-                                            location=location)
+            GCP_MACHINE_FAMILY, pool_config.worker_type, pool_config.worker_cores
+        )
+        return GCPSlimInstanceConfig.create(
+            product_versions=product_versions,
+            machine_type=machine_type,
+            preemptible=True,
+            local_ssd_data_disk=pool_config.worker_local_ssd_data_disk,
+            data_disk_size_gb=pool_config.data_disk_size_gb,
+            boot_disk_size_gb=pool_config.boot_disk_size_gb,
+            job_private=False,
+            location=location,
+        )
     assert cloud == 'azure'
     machine_type = azure_worker_properties_to_machine_type(
         pool_config.worker_type, pool_config.worker_cores, pool_config.worker_local_ssd_data_disk
     )
-    return AzureSlimInstanceConfig.create(product_versions=product_versions,
-                                          machine_type=machine_type,
-                                          preemptible=True,
-                                          local_ssd_data_disk=pool_config.worker_local_ssd_data_disk,
-                                          data_disk_size_gb=pool_config.data_disk_size_gb,
-                                          boot_disk_size_gb=pool_config.boot_disk_size_gb,
-                                          job_private=False,
-                                          location=location)
+    return AzureSlimInstanceConfig.create(
+        product_versions=product_versions,
+        machine_type=machine_type,
+        preemptible=True,
+        local_ssd_data_disk=pool_config.worker_local_ssd_data_disk,
+        data_disk_size_gb=pool_config.data_disk_size_gb,
+        boot_disk_size_gb=pool_config.boot_disk_size_gb,
+        job_private=False,
+        location=location,
+    )
 
 
 class PreemptibleNotSupportedError(Exception):
@@ -173,7 +178,11 @@ class JobPrivateInstanceManagerConfig(InstanceCollectionConfig):
     @staticmethod
     def from_record(record):
         return JobPrivateInstanceManagerConfig(
-            record['name'], record['cloud'], record['boot_disk_size_gb'], record['max_instances'], record['max_live_instances']
+            record['name'],
+            record['cloud'],
+            record['boot_disk_size_gb'],
+            record['max_instances'],
+            record['max_live_instances'],
         )
 
     def __init__(self, name, cloud, boot_disk_size_gb: int, max_instances, max_live_instances):
@@ -201,16 +210,21 @@ class InstanceCollectionConfigs:
         (name_pool_config, jpim_config), resource_rates, product_versions_data = await asyncio.gather(
             InstanceCollectionConfigs.instance_collections_from_db(db),
             InstanceCollectionConfigs.resource_rates_from_db(db),
-            InstanceCollectionConfigs.product_versions_from_db(db))
+            InstanceCollectionConfigs.product_versions_from_db(db),
+        )
         return InstanceCollectionConfigs(name_pool_config, jpim_config, resource_rates, product_versions_data)
 
     @staticmethod
-    async def instance_collections_from_db(db: Database) -> Tuple[Dict[str, PoolConfig], JobPrivateInstanceManagerConfig]:
-        records = db.execute_and_fetchall('''
+    async def instance_collections_from_db(
+        db: Database,
+    ) -> Tuple[Dict[str, PoolConfig], JobPrivateInstanceManagerConfig]:
+        records = db.execute_and_fetchall(
+            '''
 SELECT inst_colls.*, pools.*
 FROM inst_colls
 LEFT JOIN pools ON inst_colls.name = pools.name;
-''')
+'''
+        )
 
         name_pool_config: Dict[str, PoolConfig] = {}
         jpim_config: Optional[JobPrivateInstanceManagerConfig] = None
@@ -227,8 +241,8 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
     @staticmethod
     async def resource_rates_from_db(db: Database) -> Dict[str, float]:
         return {
-            record['resource']: record['rate']
-            async for record in db.execute_and_fetchall('SELECT * FROM resources;')}
+            record['resource']: record['rate'] async for record in db.execute_and_fetchall('SELECT * FROM resources;')
+        }
 
     @staticmethod
     async def product_versions_from_db(db: Database) -> Dict[str, str]:
@@ -237,11 +251,13 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
             async for record in db.execute_and_fetchall('SELECT * FROM latest_product_versions;')
         }
 
-    def __init__(self,
-                 name_pool_config: Dict[str, PoolConfig],
-                 jpim_config: JobPrivateInstanceManagerConfig,
-                 resource_rates: Dict[str, float],
-                 product_versions_data: Dict[str, str]):
+    def __init__(
+        self,
+        name_pool_config: Dict[str, PoolConfig],
+        jpim_config: JobPrivateInstanceManagerConfig,
+        resource_rates: Dict[str, float],
+        product_versions_data: Dict[str, str],
+    ):
         self.name_pool_config = name_pool_config
         self.jpim_config = jpim_config
         self.resource_rates = resource_rates
@@ -251,7 +267,8 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
         configs, resource_rates, product_versions_data = await asyncio.gather(
             InstanceCollectionConfigs.instance_collections_from_db(db),
             InstanceCollectionConfigs.resource_rates_from_db(db),
-            InstanceCollectionConfigs.product_versions_from_db(db))
+            InstanceCollectionConfigs.product_versions_from_db(db),
+        )
         self.name_pool_config, self.jpim_config = configs
         self.resource_rates = resource_rates
         self.product_versions.update(product_versions_data)
@@ -272,7 +289,12 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
                 max_regional_maybe_cost = None
                 for location in possible_cloud_locations(pool.cloud):
                     maybe_cost = pool.cost_per_hour(
-                        self.resource_rates, self.product_versions, location, maybe_cores_mcpu, maybe_memory_bytes, maybe_storage_gib
+                        self.resource_rates,
+                        self.product_versions,
+                        location,
+                        maybe_cores_mcpu,
+                        maybe_memory_bytes,
+                        maybe_storage_gib,
                     )
                     if max_regional_maybe_cost is None or maybe_cost > max_regional_maybe_cost:
                         max_regional_maybe_cost = maybe_cost
@@ -319,10 +341,7 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
                     PreemptibleNotSupportedError('nonpreemptible workers are not supported without a machine type'),
                 )
             result = self.select_pool_from_cost(
-                cloud=cloud,
-                cores_mcpu=req_cores_mcpu,
-                memory_bytes=req_memory_bytes,
-                storage_bytes=req_storage_bytes
+                cloud=cloud, cores_mcpu=req_cores_mcpu, memory_bytes=req_memory_bytes, storage_bytes=req_storage_bytes
             )
         else:
             assert machine_type and machine_type in valid_machine_types(cloud)
