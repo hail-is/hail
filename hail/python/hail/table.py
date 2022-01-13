@@ -24,6 +24,8 @@ from hail.utils.misc import wrap_to_tuple, storage_level, plural, \
     get_select_exprs, check_annotate_exprs, process_joins
 import hail as hl
 
+from python.hail import impute_type
+
 table_type = lazy()
 
 
@@ -3327,7 +3329,7 @@ class Table(ExprContainer):
         key = [key] if isinstance(key, str) else key 
         fields = list(df.columns)
         pd_dtypes = df.dtypes
-        hl_type_dict = {}
+        hl_type_hints = {}
         columns = {fields[col_idx]: df[col].tolist() for col_idx, col in enumerate(df.columns)}
         data = [{} for _ in range(len(columns[fields[0]]))]
 
@@ -3336,9 +3338,11 @@ class Table(ExprContainer):
                 data[data_idx][field] = columns[field][data_idx]
 
         for data_idx, field in enumerate(fields):
-            hl_type_dict[field] = dtypes_from_pandas(pd_dtypes[field], data[0][field])
+            type_hint = dtypes_from_pandas(pd_dtypes[field])
+            if type_hint:
+                hl_type_hints[field] = type_hint
 
-        new_table = hl.Table.parallelize(hl.literal(data, hl.tarray(hl.tstruct(**hl_type_dict))))
+        new_table = hl.Table.parallelize(data, type_hint=hl_type_hints)
         return new_table if not key else new_table.key_by(*key)
 
     @typecheck_method(other=table_type, tolerance=nullable(numeric), absolute=bool)

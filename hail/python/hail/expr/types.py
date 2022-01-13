@@ -2039,7 +2039,7 @@ def from_numpy(np_dtype):
         raise ValueError(f"numpy type {np_dtype} could not be converted to a hail type.")
 
 
-def dtypes_from_pandas(pd_dtype, obj):
+def dtypes_from_pandas(pd_dtype):
 
     if type(pd_dtype) == pd.StringDtype:
         return hl.tstr
@@ -2053,21 +2053,7 @@ def dtypes_from_pandas(pd_dtype, obj):
         return hl.tfloat64
     elif pd_dtype == bool:
         return hl.tbool
-    elif pd_dtype == object:
-        if isinstance(obj, np.ndarray):
-            return hl.tndarray(dtypes_from_pandas(obj[0].dtype, obj[0]), obj.ndim)
-        if isinstance(obj, list):
-            return hl.literal(obj).dtype
-        elif isinstance(obj, dict):
-            return hl.literal(obj).dtype
-        elif isinstance(obj, tuple):
-            return hl.literal(obj).dtype
-        elif isinstance(obj, set):
-            return hl.literal(obj).dtype
-        elif isinstance(obj, str):
-            return hl.tstr
-
-    raise ValueError(f"pandas type {pd_dtype} could not be converted to a hail type")
+    return None
 
 
 class tvariable(HailType):
