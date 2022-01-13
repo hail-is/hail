@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Dict, Optional
 import secrets
 from shlex import quote as shq
@@ -31,6 +32,12 @@ CALLBACK_URL = deploy_config.url('ci', '/api/v1alpha/batch_callback')
 zulip_client = zulip.Client(config_file="/zulip-config/.zuliprc")
 
 TRACKED_PRS = pc.Gauge('ci_tracked_prs', 'PRs currently being monitored by CI', ['build_state', 'review_state'])
+
+
+class GithubStatus(Enum):
+    SUCCESS = 'success'
+    PENDING = 'pending'
+    FAILURE = 'failure'
 
 
 def select_random_teammate(team):
@@ -205,10 +212,8 @@ class PR(Code):
         # 'error', 'success', 'failure', None
         self.build_state = None
 
-        # the build_state as communicated to GitHub:
-        # 'failure', 'success', 'pending'
-        self.intended_github_status = self.github_status_from_build_state()
-        self.last_known_github_status = None
+        self.intended_github_status: GithubStatus = self.github_status_from_build_state()
+        self.last_known_github_status: Dict[str, GithubStatus] = {}
 
         # don't need to set github_changed because we are refreshing github
         self.target_branch.batch_changed = True
@@ -329,14 +334,14 @@ class PR(Code):
             'sha': self.sha,
         }
 
-    def github_status_from_build_state(self):
+    def github_status_from_build_state(self) -> GithubStatus:
         if self.build_state == 'failure' or self.build_state == 'error':
-            return 'failure'
+            return GithubStatus.FAILURE
         if self.build_state == 'success' and self.batch.attributes['target_sha'] == self.target_branch.sha:
-            return 'success'
-        return 'pending'
+            return GithubStatus.SUCCESS
+        return GithubStatus.PENDING
 
-    async def post_github_status(self, gh_client, gh_status):
+    async def post_github_status(self, gh_client, gh_status: GithubStatus):
         assert self.source_sha is not None
 
         log.info(f'{self.short_str()}: notify github state: {gh_status}')
@@ -348,10 +353,10 @@ class PR(Code):
             assert self.batch.id is not None
             target_url = deploy_config.external_url('ci', f'/batches/{self.batch.id}')
         data = {
-            'state': gh_status,
+            'state': gh_status.value,
             'target_url': target_url,
             # FIXME improve
-            'description': gh_status,
+            'description': gh_status.value,
             'context': GITHUB_STATUS_CONTEXT,
         }
         try:
@@ -385,18 +390,18 @@ class PR(Code):
         await self._update_github_review_state(gh)
 
     @staticmethod
-    def _hail_github_status_from_statuses(statuses_json):
+    def _hail_github_status_from_statuses(statuses_json) -> Dict[str, GithubStatus]:
         statuses = statuses_json["statuses"]
-        hail_status = [s for s in statuses if s["context"] == GITHUB_STATUS_CONTEXT]
-        n_hail_status = len(hail_status)
-        if n_hail_status == 0:
-            return None
-        if n_hail_status == 1:
-            return hail_status[0]['state']
-        raise ValueError(
-            f'github sent multiple status summaries for our one '
-            f'context {GITHUB_STATUS_CONTEXT}: {hail_status}\n\n{statuses_json}'
-        )
+        hail_statuses = {}
+        for s in statuses:
+            context = s['context']
+            if context == GITHUB_STATUS_CONTEXT or context.startswith('hail-ci'):
+                if context in hail_statuses:
+                    raise ValueError(
+                        f'github sent multiple status summaries for context {context}: {s}\n\n{statuses_json}'
+                    )
+                hail_statuses[context] = GithubStatus(s['state'])
+        return hail_statuses
 
     async def _update_last_known_github_status(self, gh):
         if self.source_sha:
@@ -547,11 +552,12 @@ mkdir -p {shq(repo_dir)}
             return
 
         if self.source_sha:
-            if self.intended_github_status != self.last_known_github_status:
-                log.info(f'Intended github status for {self.short_str()} is: {self.intended_github_status}')
-                log.info(f'Last known github status for {self.short_str()} is: {self.last_known_github_status}')
+            last_posted_status = self.last_known_github_status[GITHUB_STATUS_CONTEXT]
+            if self.intended_github_status != last_posted_status:
+                log.info(f'Intended github status for {self.short_str()} is: {last_posted_status}')
+                log.info(f'Last known github status for {self.short_str()} is: {last_posted_status}')
                 await self.post_github_status(gh, self.intended_github_status)
-                self.last_known_github_status = self.intended_github_status
+                self.last_known_github_status[GITHUB_STATUS_CONTEXT] = self.intended_github_status
 
         if not await self.authorized(dbpool):
             return
@@ -565,10 +571,15 @@ mkdir -p {shq(repo_dir)}
     def is_up_to_date(self):
         return self.batch is not None and self.target_branch.sha == self.batch.attributes['target_sha']
 
-    def is_mergeable(self):
+    def is_mergeable(self) -> bool:
+        if self.last_known_github_status[GITHUB_STATUS_CONTEXT] == GithubStatus.SUCCESS:
+            assert self.build_state == 'success', (
+                self.last_known_github_status[GITHUB_STATUS_CONTEXT],
+                self.build_state,
+            )
         return (
             self.review_state == 'approved'
-            and self.build_state == 'success'
+            and all(status == GithubStatus.SUCCESS for status in self.last_known_github_status)
             and self.is_up_to_date()
             and all(label not in DO_NOT_MERGE for label in self.labels)
         )
